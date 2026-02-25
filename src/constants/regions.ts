@@ -1,0 +1,15 @@
+export const REGIONS = [
+  { value: 'ile-de-france', label: 'Île-de-France', departements: ['75', '77', '78', '91', '92', '93', '94', '95'] },
+  { value: 'auvergne-rhone-alpes', label: 'Auvergne-Rhône-Alpes', departements: ['01', '03', '07', '15', '26', '38', '42', '43', '63', '69', '73', '74'] },
+  { value: 'bourgogne-franche-comte', label: 'Bourgogne-Franche-Comté', departements: ['21', '25', '39', '58', '70', '71', '89', '90'] },
+  { value: 'bretagne', label: 'Bretagne', departements: ['22', '29', '35', '56'] },
+  { value: 'centre-val-de-loire', label: 'Centre-Val de Loire', departements: ['18', '28', '36', '37', '41', '45'] },
+  { value: 'corse', label: 'Corse', departements: ['2A', '2B'] },
+  { value: 'grand-est', label: 'Grand Est', departements: ['08', '10', '51', '52', '54', '55', '57', '67', '68', '88'] },
+  { value: 'hauts-de-france', label: 'Hauts-de-France', departements: ['02', '59', '60', '62', '80'] },
+  { value: 'normandie', label: 'Normandie', departements: ['14', '27', '50', '61', '76'] },
+  { value: 'nouvelle-aquitaine', label: 'Nouvelle-Aquitaine', departements: ['16', '17', '19', '23', '24', '33', '40', '47', '64', '79', '86', '87'] },
+  { value: 'occitanie', label: 'Occitanie', departements: ['09', '11', '12', '30', '31', '32', '34', '46', '48', '65', '66', '81', '82'] },
+  { value: 'pays-de-la-loire', label: 'Pays de la Loire', departements: ['44', '49', '53', '72', '85'] },
+  { value: 'provence-alpes-cote-d-azur', label: 'Provence-Alpes-Côte d\'Azur', departements: ['04', '05', '06', '13', '83', '84'] },
+] as const;

@@ -1,0 +1,49 @@
+import { DOSSIER_STEPS, DOSSIER_STATUS_LABELS } from '@/constants/dossier-steps';
+import { DossierCard } from './DossierCard';
+import { cn } from '@/lib/utils';
+import type { Dossier } from '@/types';
+
+interface DossierPipelineProps {
+  dossiers: Dossier[];
+}
+
+export function DossierPipeline({ dossiers }: DossierPipelineProps) {
+  const columns = DOSSIER_STEPS.map((step) => ({
+    ...step,
+    dossiers: dossiers.filter((d) => d.etapeActuelle === step.step),
+  }));
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      {columns.map((col) => (
+        <div key={col.step} className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium">{col.label}</h3>
+            <span className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+              {col.dossiers.length}
+            </span>
+          </div>
+          <div
+            className={cn(
+              'rounded-lg border-t-2 p-2 min-h-[120px] space-y-2',
+              col.step <= 2 && 'border-t-blue-400 bg-blue-50/30',
+              col.step === 3 && 'border-t-amber-400 bg-amber-50/30',
+              col.step === 4 && 'border-t-green-400 bg-green-50/30',
+              col.step === 5 && 'border-t-purple-400 bg-purple-50/30',
+            )}
+          >
+            {col.dossiers.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-6">
+                Aucun dossier
+              </p>
+            ) : (
+              col.dossiers.map((dossier) => (
+                <DossierCard key={dossier.id} dossier={dossier} />
+              ))
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
