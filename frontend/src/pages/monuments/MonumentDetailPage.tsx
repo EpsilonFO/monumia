@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router';
 import {
   Shield, Calendar, AlertTriangle, Wrench, Building2,
@@ -44,7 +44,11 @@ const urgenceColors: Record<string, string> = {
 export function MonumentDetailPage() {
   const { monumentId } = useParams();
   const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId));
-  const dossiers = useDossierStore((s) => s.dossiers.filter((d) => d.monumentId === monumentId));
+  const allDossiers = useDossierStore((s) => s.dossiers);
+  const dossiers = useMemo(
+    () => allDossiers.filter((d) => d.monumentId === monumentId),
+    [allDossiers, monumentId]
+  );
   const [isEditing, setIsEditing] = useState(false);
 
   if (!monument) {
