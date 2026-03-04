@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { DocumentCard } from '@/components/document/DocumentCard';
+import { UploadDocumentDialog } from '@/components/document/UploadDocumentDialog';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
@@ -17,6 +18,7 @@ export function DocumentsPage() {
   const [search, setSearch] = useState('');
   const [filterMonument, setFilterMonument] = useState('all');
   const [filterType, setFilterType] = useState('all');
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   const userDocuments = useMemo(() => {
     if (!user) return [];
@@ -61,7 +63,7 @@ export function DocumentsPage() {
         title="Mes documents"
         description="Bibliothèque documentaire de vos monuments"
         action={
-          <Button>
+          <Button onClick={() => setUploadOpen(true)}>
             <Upload className="h-4 w-4 mr-2" />
             Ajouter un document
           </Button>
@@ -113,7 +115,7 @@ export function DocumentsPage() {
           description={search ? 'Aucun document ne correspond à votre recherche.' : 'Ajoutez vos premiers documents pour les utiliser dans vos dossiers.'}
           action={
             !search ? (
-              <Button>
+              <Button onClick={() => setUploadOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" />
                 Ajouter un document
               </Button>
@@ -127,6 +129,7 @@ export function DocumentsPage() {
           ))}
         </div>
       )}
+      <UploadDocumentDialog open={uploadOpen} onOpenChange={setUploadOpen} />
     </div>
   );
 }

@@ -12,6 +12,10 @@ import { generateId } from '@/lib/format-utils';
 import { Sparkles, Search, PenLine, ChevronLeft } from 'lucide-react';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
 
+const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
+  REGIONS.map((r) => [r.label.toLowerCase(), r.value])
+);
+
 export function OnboardingMonument() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -22,35 +26,33 @@ export function OnboardingMonument() {
   const [showForm, setShowForm] = useState(false);
 
   const handleMerimeeSelect = (record: MerimeeRecord) => {
-    const protectionMap: Record<string, ProtectionLevel> = {
-      'Classé MH': 'classe',
-      'Inscrit MH': 'inscrit',
-    };
+    const typo = record.typologie_de_la_protection?.toLowerCase() ?? '';
+    const protection: ProtectionLevel = typo.includes('classé')
+      ? 'classe'
+      : typo.includes('inscrit')
+        ? 'inscrit'
+        : 'non_protege';
 
-    const region = REGIONS.find((r) =>
-      (r.departements as readonly string[]).includes(record.departement)
-    );
+    const regionValue = REGION_LABEL_TO_VALUE[record.region?.toLowerCase() ?? ''] ?? '';
+
+    const titre = record.titre_editorial_de_la_notice ?? '';
+    const denominationGuess = titre.toLowerCase().includes('église')
+      ? 'eglise'
+      : titre.toLowerCase().includes('château')
+        ? 'chateau'
+        : titre.toLowerCase().includes('chapelle')
+          ? 'chapelle'
+          : '';
 
     setPrefillData({
-      nom: record.denomination,
+      nom: titre,
       referenceMerimee: record.reference,
-      denomination: record.denomination.toLowerCase().includes('église')
-        ? 'eglise'
-        : record.denomination.toLowerCase().includes('château')
-          ? 'chateau'
-          : record.denomination.toLowerCase().includes('chapelle')
-            ? 'chapelle'
-            : '',
-      adresse: record.adresse,
-      commune: record.commune,
-      departement: record.departement,
-      region: (region?.value ?? '') as Region,
-      coordonnees: record.coordonnees,
-      protection: protectionMap[record.protection] ?? 'non_protege',
-      dateProtection: record.dateProtection,
-      typeProtection: record.protection,
-      siecleConstruction: record.siecle,
-      descriptionGenerale: record.description,
+      denomination: denominationGuess,
+      commune: record.commune_forme_index,
+      departement: record.departement_en_lettres,
+      region: regionValue as Region,
+      protection,
+      typeProtection: record.typologie_de_la_protection,
     });
     setShowForm(true);
   };

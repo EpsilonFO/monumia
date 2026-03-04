@@ -59,17 +59,11 @@ export interface MonumentPhoto {
 
 export interface MerimeeRecord {
   reference: string;
-  denomination: string;
-  commune: string;
-  departement: string;
-  adresse: string;
-  protection: string;
-  dateProtection: string;
-  description: string;
-  historique: string;
-  siecle: string;
-  auteur?: string;
-  coordonnees?: { lat: number; lng: number };
+  region: string;
+  commune_forme_index: string;
+  departement_en_lettres: string;
+  typologie_de_la_protection: string;
+  titre_editorial_de_la_notice: string;
 }
 
 export interface MonumentFormState {

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, MapPin, Shield } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,10 +13,25 @@ interface MerimeeSearchProps {
 
 export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
   const [query, setQuery] = useState('');
+  const [results, setResults] = useState<MerimeeRecord[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const results = useMemo(() => {
-    if (query.length < 2) return [];
-    return merimeeService.search(query);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (query.length < 2) {
+      setResults([]);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      const data = await merimeeService.search(query);
+      setResults(data);
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [query]);
 
   return (
@@ -49,17 +64,17 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1 min-w-0 flex-1">
                     <p className="font-medium leading-tight">
-                      {record.denomination}
+                      {record.titre_editorial_de_la_notice}
                     </p>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <MapPin className="h-3.5 w-3.5 shrink-0" />
                       <span className="truncate">
-                        {record.adresse}, {record.commune} ({record.departement})
+                        {record.commune_forme_index} — {record.departement_en_lettres}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Shield className="h-3.5 w-3.5 shrink-0" />
-                      <span>{record.protection}</span>
+                      <span>{record.typologie_de_la_protection}</span>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">

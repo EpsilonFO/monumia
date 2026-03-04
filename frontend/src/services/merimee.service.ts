@@ -1,31 +1,27 @@
 import type { MerimeeRecord } from '@/types';
-import { mockMerimeeRecords } from '@/data/mock-merimee';
+
+const API_BASE = 'http://localhost:8000';
 
 export const merimeeService = {
-  search(query: string): MerimeeRecord[] {
+  async search(query: string): Promise<MerimeeRecord[]> {
     if (!query || query.length < 2) return [];
 
-    const q = query.toLowerCase();
-    return mockMerimeeRecords.filter(
-      (r) =>
-        r.denomination.toLowerCase().includes(q) ||
-        r.commune.toLowerCase().includes(q) ||
-        r.reference.toLowerCase().includes(q) ||
-        r.adresse.toLowerCase().includes(q) ||
-        r.description.toLowerCase().includes(q)
+    try {
+      const response = await fetch(
+        `${API_BASE}/merimee/search?q=${encodeURIComponent(query)}`
+      );
+      if (!response.ok) return [];
+      return response.json();
+    } catch {
+      return [];
+    }
+  },
+
+  async getByReference(reference: string): Promise<MerimeeRecord | undefined> {
+    const response = await fetch(
+      `${API_BASE}/merimee/${encodeURIComponent(reference)}`
     );
-  },
-
-  getByReference(reference: string): MerimeeRecord | undefined {
-    return mockMerimeeRecords.find((r) => r.reference === reference);
-  },
-
-  getByCommune(commune: string): MerimeeRecord[] {
-    const c = commune.toLowerCase();
-    return mockMerimeeRecords.filter((r) => r.commune.toLowerCase() === c);
-  },
-
-  getByDepartement(departement: string): MerimeeRecord[] {
-    return mockMerimeeRecords.filter((r) => r.departement === departement);
+    if (!response.ok) return undefined;
+    return response.json();
   },
 };
