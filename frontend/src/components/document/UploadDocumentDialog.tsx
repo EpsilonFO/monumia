@@ -84,18 +84,18 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !type || !monumentId || !user) return;
+    if (!file || !nom || !user) return;
 
     addDocument({
-      nom: nom || file.name,
+      nom,
       nomFichier: file.name,
-      type: type as DocumentType,
+      type: (type as DocumentType) || 'autre',
       tags: [],
       tailleFichier: file.size,
       mimeType: file.type,
       url: URL.createObjectURL(file),
       dossiersUtilises: [],
-      monumentId,
+      ...(monumentId ? { monumentId } : {}),
       userId: user.id,
       description: description || undefined,
     });
@@ -113,7 +113,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
     onOpenChange(false);
   };
 
-  const isValid = !!file && !!type && !!monumentId;
+  const isValid = !!file && !!nom.trim();
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -193,10 +193,10 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
             </div>
 
             <div className="space-y-1.5">
-              <Label>Monument</Label>
+              <Label>Monument <span className="text-muted-foreground font-normal">(optionnel)</span></Label>
               <Select value={monumentId} onValueChange={setMonumentId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choisir..." />
+                  <SelectValue placeholder="Aucun" />
                 </SelectTrigger>
                 <SelectContent>
                   {userMonuments.map((m) => (
