@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Outlet } from 'react-router';
+import { Outlet, useNavigate } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -10,13 +10,15 @@ export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const getUnreadCount = useNotificationStore((s) => s.getUnreadCount);
+  const navigate = useNavigate();
 
-  // Auto-login with first mock user for demo
   useEffect(() => {
     if (!user) {
       setUser(mockUsers[0]);
+    } else if (user.segment === 'btp') {
+      navigate('/btp');
     }
-  }, [user, setUser]);
+  }, [user, setUser, navigate]);
 
   const unreadCount = user ? getUnreadCount(user.id) : 0;
 

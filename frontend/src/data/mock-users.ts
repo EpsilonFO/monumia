@@ -1,5 +1,30 @@
 import type { User } from '@/types';
 
+export const mockUserBtp: User = {
+  id: 'user-btp-1',
+  segment: 'btp',
+  email: 'thomas.renard@renaissancebtp.fr',
+  prenom: 'Thomas',
+  nom: 'Renard',
+  telephone: '02 31 45 67 89',
+  btp: {
+    raisonSociale: 'Renaissance BTP',
+    siret: '48291034700019',
+    specialites: ['maconnerie', 'charpente', 'couverture', 'restauration_pierre'],
+    regions: ['normandie', 'hauts-de-france', 'bretagne'],
+    effectifs: '10-49',
+    caAnnuel: 2400000,
+  },
+  onboardingComplete: true,
+  notificationPreferences: {
+    urgentDeadlines: true,
+    newAidesMatched: true,
+    dossierUpdates: true,
+    emailNotifications: true,
+  },
+  createdAt: '2025-10-01T08:00:00Z',
+};
+
 export const mockUsers: User[] = [
   {
     id: 'user-1',
@@ -45,4 +70,5 @@ export const mockUsers: User[] = [
     },
     createdAt: '2025-12-01T14:30:00Z',
   },
+  mockUserBtp,
 ];

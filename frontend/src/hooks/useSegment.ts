@@ -14,6 +14,10 @@ export function useIsPrive(): boolean {
   return useSegment() === 'prive';
 }
 
+export function useIsBtp(): boolean {
+  return useSegment() === 'btp';
+}
+
 export function useSegmentLabel() {
   const segment = useSegment();
   return {

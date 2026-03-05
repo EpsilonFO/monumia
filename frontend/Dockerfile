@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 
 WORKDIR /app
 
@@ -6,27 +6,13 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npx vite build
-
-# Production stage
-FROM node:20-alpine
-
-WORKDIR /app
-
-# Install a simple HTTP server to serve the built files
-RUN npm install -g http-server
-
-# Copy built files from builder stage
-COPY --from=builder /app/dist ./dist
-
 # Expose port
 EXPOSE 3000
 
-# Serve the application
-CMD ["http-server", "dist", "-p", "3000"]
+# Start Vite with host and poll mode for Docker
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]

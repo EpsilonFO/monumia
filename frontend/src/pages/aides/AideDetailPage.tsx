@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import {
   ChevronLeft, ExternalLink, Clock, Building2, FileText,
-  CheckCircle2, XCircle, ArrowRight, Info,
+  CheckCircle2, XCircle, ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +28,7 @@ export function AideDetailPage() {
   const user = useAuthStore((s) => s.user);
   const monument = useActiveMonument();
   const lastDiagnostic = useAideStore((s) => s.lastDiagnostic);
-  const { taxLabel } = useSegmentLabel();
+  useSegmentLabel();
 
   const matchResult = useMemo((): AideMatchResult | null => {
     if (!aide) return null;

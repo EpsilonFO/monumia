@@ -41,7 +41,7 @@ export const dossierService = {
     const template = templateKey ? checklistTemplates[templateKey] : undefined;
 
     const checklist: ChecklistItem[] = template
-      ? template.map((item, i) => ({
+      ? template.map((item) => ({
           ...item,
           id: `cl-${generateId()}`,
           statut: 'manquant' as const,

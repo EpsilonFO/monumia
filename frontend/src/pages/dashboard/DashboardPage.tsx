@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router';
 import {
   Landmark, FileText, Sparkles, Calendar, Bell,
-  AlertTriangle, ArrowRight, ChevronRight,
+  AlertTriangle, ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { useNotificationStore } from '@/stores/useNotificationStore';
 import { useDeadlines } from '@/hooks/useDeadlines';
 import { ROUTES } from '@/constants/routes';
 import { DOSSIER_STATUS_LABELS } from '@/constants/dossier-steps';
-import { formatDate, deadlineLabel } from '@/lib/date-utils';
+import { deadlineLabel } from '@/lib/date-utils';
 import { cn } from '@/lib/utils';
 import { mockUsers } from '@/data/mock-users';
 

@@ -1,4 +1,4 @@
-export type UserSegment = 'commune' | 'prive';
+export type UserSegment = 'commune' | 'prive' | 'btp';
 
 export type ProtectionLevel = 'classe' | 'inscrit' | 'abords' | 'spr' | 'non_protege';
 

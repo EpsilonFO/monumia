@@ -2,9 +2,7 @@ import { create } from 'zustand';
 import type {
   Dossier,
   DossierStatus,
-  ChecklistItem,
   ChecklistItemStatus,
-  DossierSection,
   DossierCollaborateur,
   DossierEcheance,
 } from '@/types';

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useDossierStore } from '@/stores/useDossierStore';
-import type { Dossier, DossierStatus } from '@/types';
+import type { Dossier } from '@/types';
 
 interface DossierProgress {
   total: number;

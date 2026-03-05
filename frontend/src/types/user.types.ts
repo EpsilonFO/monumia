@@ -22,10 +22,30 @@ export interface User {
     regimeFiscal?: 'monuments_historiques' | 'droit_commun' | 'mecenat';
   };
 
+  btp?: {
+    raisonSociale: string;
+    siret?: string;
+    specialites: BtpSpecialite[];
+    regions: string[];
+    effectifs?: '<10' | '10-49' | '50-199' | '200+';
+    caAnnuel?: number;
+  };
+
   onboardingComplete: boolean;
   notificationPreferences: NotificationPreferences;
   createdAt: string;
 }
+
+export type BtpSpecialite =
+  | 'maconnerie'
+  | 'charpente'
+  | 'couverture'
+  | 'restauration_pierre'
+  | 'peintures_murales'
+  | 'vitraux'
+  | 'menuiserie'
+  | 'electricite'
+  | 'all';
 
 export interface NotificationPreferences {
   urgentDeadlines: boolean;
