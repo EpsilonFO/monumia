@@ -8,6 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+__pycache__/
 dist
 dist-ssr
 *.local
@@ -23,6 +24,9 @@ dist-ssr
 *.sln
 *.sw?
 
-backend/.env
 .env.docker
+backend/.env
+backend/scripts/cog_ensemble_2026_csv
+backend/scripts/ensemble
+frontend/.env
 test_rag/.env.rag

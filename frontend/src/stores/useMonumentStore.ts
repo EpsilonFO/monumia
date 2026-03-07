@@ -1,14 +1,13 @@
 import { create } from 'zustand';
 import type { Monument, MonumentPhoto } from '@/types';
-import { mockMonuments } from '@/data/mock-monuments';
 
 interface MonumentState {
   monuments: Monument[];
   activeMonumentId: string | null;
 
+  setMonuments: (monuments: Monument[]) => void;
   setActiveMonument: (id: string | null) => void;
   getMonument: (id: string) => Monument | undefined;
-  getMonumentsByUser: (userId: string) => Monument[];
   addMonument: (monument: Monument) => void;
   updateMonument: (id: string, updates: Partial<Monument>) => void;
   deleteMonument: (id: string) => void;
@@ -17,18 +16,17 @@ interface MonumentState {
 }
 
 export const useMonumentStore = create<MonumentState>()((set, get) => ({
-  monuments: mockMonuments,
+  monuments: [],
   activeMonumentId: null,
+
+  setMonuments: (monuments) => set({ monuments }),
 
   setActiveMonument: (id) => set({ activeMonumentId: id }),
 
   getMonument: (id) => get().monuments.find((m) => m.id === id),
 
-  getMonumentsByUser: (userId) =>
-    get().monuments.filter((m) => m.userId === userId),
-
   addMonument: (monument) =>
-    set((state) => ({ monuments: [...state.monuments, monument] })),
+    set((state) => ({ monuments: [monument, ...state.monuments] })),
 
   updateMonument: (id, updates) =>
     set((state) => ({

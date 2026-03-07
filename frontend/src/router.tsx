@@ -6,6 +6,7 @@ import { SegmentChoice } from '@/pages/onboarding/SegmentChoice';
 import { OnboardingProfile } from '@/pages/onboarding/OnboardingProfile';
 import { OnboardingMonument } from '@/pages/onboarding/OnboardingMonument';
 import { LoginPage } from '@/pages/login/LoginPage';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 // Owner / Commune pages
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { MonumentsListPage } from '@/pages/monuments/MonumentsListPage';
@@ -25,13 +26,13 @@ import { BtpDocumentsPage } from '@/pages/btp/BtpDocumentsPage';
 import { BtpProfilePage } from '@/pages/btp/BtpProfilePage';
 
 export const router = createBrowserRouter([
-  // Login page
+  // Login page (public)
   {
     path: '/login',
     element: <LoginPage />,
   },
 
-  // Onboarding (owner / commune)
+  // Onboarding — accessible uniquement avec pending-register en session
   {
     path: '/onboarding',
     element: <OnboardingPage />,
@@ -42,10 +43,14 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Owner / Commune app
+  // Owner / Commune app (protégé)
   {
     path: '/',
-    element: <AppLayout />,
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <DashboardPage /> },
       { path: 'monuments', element: <MonumentsListPage /> },
@@ -59,10 +64,14 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // BTP app
+  // BTP app (protégé)
   {
     path: '/btp',
-    element: <BtpLayout />,
+    element: (
+      <ProtectedRoute>
+        <BtpLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <BtpDashboardPage /> },
       { path: 'prospects', element: <BtpProspectsPage /> },

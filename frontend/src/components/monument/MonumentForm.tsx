@@ -7,8 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { Check, ChevronLeft, ChevronRight, Image } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { ChevronLeft, ChevronRight, Image, Loader2 } from 'lucide-react';
 import {
   DENOMINATIONS,
   PROTECTION_LEVELS,
@@ -26,6 +26,7 @@ interface MonumentFormProps {
   initialData?: Partial<Monument>;
   onSubmit: (data: Partial<Monument>) => void;
   isEditing?: boolean;
+  saving?: boolean;
 }
 
 const STEPS = [
@@ -36,7 +37,20 @@ const STEPS = [
   { number: 5, title: 'Photos', description: 'Documentation photographique' },
 ];
 
-export function MonumentForm({ initialData, onSubmit, isEditing }: MonumentFormProps) {
+function isStepValid(step: number, data: Partial<Monument>): boolean {
+  switch (step) {
+    case 1:
+      return !!(data.nom?.trim() && data.denomination && data.adresse?.trim() && data.commune?.trim());
+    case 2:
+      return !!(data.protection && data.proprietaire);
+    case 4:
+      return !!(data.etatConservation);
+    default:
+      return true;
+  }
+}
+
+export function MonumentForm({ initialData, onSubmit, isEditing, saving }: MonumentFormProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<Partial<Monument>>(initialData ?? {});
 
@@ -44,7 +58,10 @@ export function MonumentForm({ initialData, onSubmit, isEditing }: MonumentFormP
     setFormData((prev) => ({ ...prev, ...updates }));
   };
 
+  const canProceed = isStepValid(currentStep, formData);
+
   const handleNext = () => {
+    if (!canProceed) return;
     if (currentStep < 5) setCurrentStep(currentStep + 1);
     else onSubmit(formData);
   };
@@ -53,48 +70,19 @@ export function MonumentForm({ initialData, onSubmit, isEditing }: MonumentFormP
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
+  const progressPercent = ((currentStep - 1) / (STEPS.length - 1)) * 100;
+  const currentStepInfo = STEPS[currentStep - 1];
+
   return (
     <div className="space-y-6">
       {/* Step Indicator */}
-      <div className="flex items-center justify-between">
-        {STEPS.map((step, i) => (
-          <div key={step.number} className="flex items-center flex-1">
-            <button
-              onClick={() => setCurrentStep(step.number)}
-              className={cn(
-                'flex items-center gap-2 shrink-0',
-                step.number === currentStep && 'text-primary',
-                step.number < currentStep && 'text-green-600'
-              )}
-            >
-              <div
-                className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium border-2',
-                  step.number === currentStep && 'border-primary bg-primary text-primary-foreground',
-                  step.number < currentStep && 'border-green-600 bg-green-600 text-white',
-                  step.number > currentStep && 'border-muted-foreground/30 text-muted-foreground'
-                )}
-              >
-                {step.number < currentStep ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  step.number
-                )}
-              </div>
-              <span className="text-sm font-medium hidden lg:block">
-                {step.title}
-              </span>
-            </button>
-            {i < STEPS.length - 1 && (
-              <div
-                className={cn(
-                  'h-px flex-1 mx-2',
-                  step.number < currentStep ? 'bg-green-600' : 'bg-border'
-                )}
-              />
-            )}
-          </div>
-        ))}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-medium">{currentStepInfo.title}</span>
+          <span className="text-muted-foreground">Étape {currentStep} / {STEPS.length}</span>
+        </div>
+        <Progress value={progressPercent} className="h-1.5" />
+        <p className="text-xs text-muted-foreground">{currentStepInfo.description}</p>
       </div>
 
       {/* Step Content */}
@@ -125,13 +113,12 @@ export function MonumentForm({ initialData, onSubmit, isEditing }: MonumentFormP
         <span className="text-sm text-muted-foreground">
           Étape {currentStep} sur 5
         </span>
-        <Button onClick={handleNext}>
-          {currentStep === 5
-            ? isEditing
-              ? 'Enregistrer'
-              : 'Terminer'
-            : 'Suivant'}
-          {currentStep < 5 && <ChevronRight className="h-4 w-4 ml-1" />}
+        <Button onClick={handleNext} disabled={saving && currentStep === 5}>
+          {saving && currentStep === 5
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : currentStep === 5
+              ? isEditing ? 'Enregistrer' : 'Terminer'
+              : <>Suivant <ChevronRight className="h-4 w-4 ml-1" /></>}
         </Button>
       </div>
     </div>
@@ -175,15 +162,6 @@ function Step1Identification({ data, onChange }: StepProps) {
           </SelectContent>
         </Select>
       </div>
-      <div>
-        <Label htmlFor="referenceMerimee">Référence Mérimée</Label>
-        <Input
-          id="referenceMerimee"
-          value={data.referenceMerimee ?? ''}
-          onChange={(e) => onChange({ referenceMerimee: e.target.value })}
-          placeholder="Ex : PA00110691"
-        />
-      </div>
       <div className="md:col-span-2">
         <Label htmlFor="adresse">Adresse *</Label>
         <Input
@@ -194,15 +172,6 @@ function Step1Identification({ data, onChange }: StepProps) {
         />
       </div>
       <div>
-        <Label htmlFor="codePostal">Code postal</Label>
-        <Input
-          id="codePostal"
-          value={data.codePostal ?? ''}
-          onChange={(e) => onChange({ codePostal: e.target.value })}
-          placeholder="Ex : 50700"
-        />
-      </div>
-      <div>
         <Label htmlFor="commune">Commune *</Label>
         <Input
           id="commune"
@@ -210,33 +179,6 @@ function Step1Identification({ data, onChange }: StepProps) {
           onChange={(e) => onChange({ commune: e.target.value })}
           placeholder="Ex : Valognes"
         />
-      </div>
-      <div>
-        <Label htmlFor="departement">Département *</Label>
-        <Input
-          id="departement"
-          value={data.departement ?? ''}
-          onChange={(e) => onChange({ departement: e.target.value })}
-          placeholder="Ex : 50"
-        />
-      </div>
-      <div>
-        <Label htmlFor="region">Région *</Label>
-        <Select
-          value={data.region ?? ''}
-          onValueChange={(v) => onChange({ region: v as Monument['region'] })}
-        >
-          <SelectTrigger id="region">
-            <SelectValue placeholder="Sélectionner..." />
-          </SelectTrigger>
-          <SelectContent>
-            {REGIONS.map((r) => (
-              <SelectItem key={r.value} value={r.value}>
-                {r.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
     </div>
   );

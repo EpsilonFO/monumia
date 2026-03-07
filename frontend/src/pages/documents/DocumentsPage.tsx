@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Upload, Search, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,13 +14,18 @@ import { useDossierStore } from '@/stores/useDossierStore';
 
 export function DocumentsPage() {
   const user = useAuthStore((s) => s.user);
-  const documents = useDocumentStore((s) => s.documents);
+  const { documents, loading, fetchDocuments } = useDocumentStore();
   const monuments = useMonumentStore((s) => s.monuments);
   const dossiers = useDossierStore((s) => s.dossiers);
+
   const [search, setSearch] = useState('');
   const [filterMonument, setFilterMonument] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [uploadOpen, setUploadOpen] = useState(false);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
 
   const dossierNames = useMemo(() => {
     const map: Record<string, string> = {};
@@ -28,18 +33,15 @@ export function DocumentsPage() {
     return map;
   }, [dossiers]);
 
-  const userDocuments = useMemo(() => {
-    if (!user) return [];
-    let docs = documents.filter((d) => d.userId === user.id);
+  const filteredDocuments = useMemo(() => {
+    let docs = documents;
 
     if (filterMonument !== 'all') {
       docs = docs.filter((d) => d.monumentId === filterMonument);
     }
-
     if (filterType !== 'all') {
       docs = docs.filter((d) => d.type === filterType);
     }
-
     if (search) {
       const q = search.toLowerCase();
       docs = docs.filter(
@@ -50,10 +52,8 @@ export function DocumentsPage() {
       );
     }
 
-    return docs.sort(
-      (a, b) => new Date(b.dateUpload).getTime() - new Date(a.dateUpload).getTime()
-    );
-  }, [documents, user, search, filterMonument, filterType]);
+    return docs;
+  }, [documents, search, filterMonument, filterType]);
 
   const userMonuments = useMemo(
     () => (user ? monuments.filter((m) => m.userId === user.id) : []),
@@ -61,9 +61,9 @@ export function DocumentsPage() {
   );
 
   const docTypes = useMemo(() => {
-    const types = new Set(documents.filter((d) => d.userId === user?.id).map((d) => d.type));
+    const types = new Set(documents.map((d) => d.type));
     return Array.from(types).sort();
-  }, [documents, user]);
+  }, [documents]);
 
   return (
     <div className="space-y-6">
@@ -116,11 +116,21 @@ export function DocumentsPage() {
         </Select>
       </div>
 
-      {userDocuments.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-48 rounded-lg bg-muted animate-pulse" />
+          ))}
+        </div>
+      ) : filteredDocuments.length === 0 ? (
         <EmptyState
           icon={FolderOpen}
           title="Aucun document"
-          description={search ? 'Aucun document ne correspond à votre recherche.' : 'Ajoutez vos premiers documents pour les utiliser dans vos dossiers.'}
+          description={
+            search
+              ? 'Aucun document ne correspond à votre recherche.'
+              : 'Ajoutez vos premiers documents pour les utiliser dans vos dossiers.'
+          }
           action={
             !search ? (
               <Button onClick={() => setUploadOpen(true)}>
@@ -132,11 +142,12 @@ export function DocumentsPage() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {userDocuments.map((doc) => (
+          {filteredDocuments.map((doc) => (
             <DocumentCard key={doc.id} document={doc} dossierNames={dossierNames} />
           ))}
         </div>
       )}
+
       <UploadDocumentDialog open={uploadOpen} onOpenChange={setUploadOpen} />
     </div>
   );

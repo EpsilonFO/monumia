@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Upload, File, X } from 'lucide-react';
+import { Upload, File, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -22,6 +22,7 @@ import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { formatFileSize } from '@/lib/format-utils';
+import { toast } from 'sonner';
 import type { DocumentType } from '@/types';
 
 const TYPE_LABELS: Record<DocumentType, string> = {
@@ -47,7 +48,7 @@ interface UploadDocumentDialogProps {
 export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialogProps) {
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
-  const addDocument = useDocumentStore((s) => s.addDocument);
+  const uploadDocument = useDocumentStore((s) => s.uploadDocument);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -55,6 +56,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
   const [type, setType] = useState<DocumentType | ''>('');
   const [monumentId, setMonumentId] = useState('');
   const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const userMonuments = user ? monuments.filter((m) => m.userId === user.id) : [];
 
@@ -62,13 +64,8 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
     const selected = e.target.files?.[0] ?? null;
     setFile(selected);
     if (selected && !nom) {
-      // Pre-fill nom from filename (without extension)
       setNom(selected.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' '));
     }
-  };
-
-  const handleDropZoneClick = () => {
-    fileInputRef.current?.click();
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -82,25 +79,30 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !nom || !user) return;
 
-    addDocument({
-      nom,
-      nomFichier: file.name,
-      type: (type as DocumentType) || 'autre',
-      tags: [],
-      tailleFichier: file.size,
-      mimeType: file.type,
-      url: URL.createObjectURL(file),
-      dossiersUtilises: [],
-      ...(monumentId ? { monumentId } : {}),
-      userId: user.id,
-      description: description || undefined,
-    });
-
-    handleClose();
+    setLoading(true);
+    try {
+      await uploadDocument(
+        {
+          file,
+          nom,
+          type: (type as DocumentType) || 'autre',
+          monumentId: monumentId || undefined,
+          description: description || undefined,
+          tags: [],
+        },
+        user.id
+      );
+      toast.success('Document importé avec succès');
+      handleClose();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de l\'import');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleClose = () => {
@@ -113,8 +115,6 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
     onOpenChange(false);
   };
 
-  const isValid = !!file && !!nom.trim();
-
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
@@ -125,7 +125,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Drop zone */}
           <div
-            onClick={handleDropZoneClick}
+            onClick={() => fileInputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={(e) => e.preventDefault()}
             className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
@@ -165,7 +165,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
 
           {/* Nom */}
           <div className="space-y-1.5">
-            <Label htmlFor="doc-nom">Nom du document</Label>
+            <Label htmlFor="doc-nom">Nom du document *</Label>
             <Input
               id="doc-nom"
               placeholder="Ex : Devis restauration toiture"
@@ -222,12 +222,21 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>
               Annuler
             </Button>
-            <Button type="submit" disabled={!isValid}>
-              <Upload className="h-4 w-4 mr-2" />
-              Importer
+            <Button type="submit" disabled={!file || !nom.trim() || loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Import en cours...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importer
+                </>
+              )}
             </Button>
           </DialogFooter>
         </form>

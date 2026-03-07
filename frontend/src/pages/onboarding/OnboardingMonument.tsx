@@ -7,9 +7,10 @@ import { MerimeeSearch } from '@/components/monument/MerimeeSearch';
 import { MonumentForm } from '@/components/monument/MonumentForm';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
+import { monumentService } from '@/services/monument.service';
 import { REGIONS } from '@/constants/regions';
-import { generateId } from '@/lib/format-utils';
 import { Sparkles, Search, PenLine, ChevronLeft } from 'lucide-react';
+import { toast } from 'sonner';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
 
 const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
@@ -24,6 +25,7 @@ export function OnboardingMonument() {
   const setActiveMonument = useMonumentStore((s) => s.setActiveMonument);
   const [prefillData, setPrefillData] = useState<Partial<Monument> | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const handleMerimeeSelect = (record: MerimeeRecord) => {
     const typo = record.typologie_de_la_protection?.toLowerCase() ?? '';
@@ -57,51 +59,50 @@ export function OnboardingMonument() {
     setShowForm(true);
   };
 
-  const handleFormSubmit = (data: Partial<Monument>) => {
+  const handleFormSubmit = async (data: Partial<Monument>) => {
     if (!user) return;
+    setSaving(true);
+    try {
+      const monument = await monumentService.create({
+        nom: data.nom ?? 'Mon monument',
+        denomination: data.denomination ?? '',
+        adresse: data.adresse ?? '',
+        codePostal: data.codePostal ?? '',
+        commune: data.commune ?? '',
+        codeInsee: data.codeInsee ?? '',
+        departement: data.departement ?? '',
+        region: data.region ?? ('' as Region),
+        protection: data.protection ?? 'non_protege',
+        proprietaire: data.proprietaire ?? (user.segment === 'commune' ? 'public_commune' : 'prive_personne_physique'),
+        etatConservation: data.etatConservation ?? 'moyen',
+        referenceMerimee: data.referenceMerimee,
+        coordonnees: data.coordonnees,
+        dateProtection: data.dateProtection,
+        typeProtection: data.typeProtection,
+        affectataire: data.affectataire,
+        siecleConstruction: data.siecleConstruction,
+        periodeConstruction: data.periodeConstruction,
+        superficie: data.superficie,
+        materiaux: data.materiaux,
+        typeCouverture: data.typeCouverture,
+        nombreNiveaux: data.nombreNiveaux,
+        descriptionGenerale: data.descriptionGenerale,
+        travauxEnvisages: data.travauxEnvisages,
+        urgenceTravaux: data.urgenceTravaux,
+        diagnosticRealise: data.diagnosticRealise,
+        derniersTravaux: data.derniersTravaux,
+        descriptionEtat: data.descriptionEtat,
+      });
 
-    const now = new Date().toISOString();
-    const monument: Monument = {
-      id: `mon-${generateId()}`,
-      userId: user.id,
-      nom: data.nom ?? 'Mon monument',
-      denomination: data.denomination ?? '',
-      adresse: data.adresse ?? '',
-      codePostal: data.codePostal ?? '',
-      commune: data.commune ?? '',
-      codeInsee: data.codeInsee ?? '',
-      departement: data.departement ?? '',
-      region: data.region ?? ('' as Region),
-      protection: data.protection ?? 'non_protege',
-      proprietaire: data.proprietaire ?? (user.segment === 'commune' ? 'public_commune' : 'prive_personne_physique'),
-      etatConservation: data.etatConservation ?? 'moyen',
-      photos: data.photos ?? [],
-      completionPercentage: 50,
-      createdAt: now,
-      updatedAt: now,
-      referenceMerimee: data.referenceMerimee,
-      coordonnees: data.coordonnees,
-      dateProtection: data.dateProtection,
-      typeProtection: data.typeProtection,
-      affectataire: data.affectataire,
-      siecleConstruction: data.siecleConstruction,
-      periodeConstruction: data.periodeConstruction,
-      superficie: data.superficie,
-      materiaux: data.materiaux,
-      typeCouverture: data.typeCouverture,
-      nombreNiveaux: data.nombreNiveaux,
-      descriptionGenerale: data.descriptionGenerale,
-      travauxEnvisages: data.travauxEnvisages,
-      urgenceTravaux: data.urgenceTravaux,
-      diagnosticRealise: data.diagnosticRealise,
-      derniersTravaux: data.derniersTravaux,
-      descriptionEtat: data.descriptionEtat,
-    };
-
-    addMonument(monument);
-    setActiveMonument(monument.id);
-    completeOnboarding();
-    navigate('/');
+      addMonument(monument);
+      setActiveMonument(monument.id);
+      completeOnboarding();
+      navigate('/');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la création du monument');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (showForm) {
@@ -119,7 +120,7 @@ export function OnboardingMonument() {
           </p>
         </div>
 
-        <MonumentForm initialData={prefillData ?? undefined} onSubmit={handleFormSubmit} />
+        <MonumentForm initialData={prefillData ?? undefined} onSubmit={handleFormSubmit} saving={saving} />
       </div>
     );
   }

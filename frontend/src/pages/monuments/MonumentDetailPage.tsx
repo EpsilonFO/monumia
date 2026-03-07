@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router';
+import { useState, useMemo, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router';
 import {
   Shield, Calendar, AlertTriangle, Wrench, Building2,
-  FileText, ChevronLeft, Edit2, Eye,
+  FileText, ChevronLeft, Edit2, Eye, Trash2, Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ import { monumentService } from '@/services/monument.service';
 import { formatDate } from '@/lib/date-utils';
 import { ROUTES } from '@/constants/routes';
 import { WORK_TYPES } from '@/constants/monument-options';
+import { toast } from 'sonner';
 import type { Monument } from '@/types';
 
 const protectionLabels: Record<string, string> = {
@@ -43,15 +44,31 @@ const urgenceColors: Record<string, string> = {
 
 export function MonumentDetailPage() {
   const { monumentId } = useParams();
+  const navigate = useNavigate();
   const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId));
+  const updateMonument = useMonumentStore((s) => s.updateMonument);
+  const deleteMonument = useMonumentStore((s) => s.deleteMonument);
   const allDossiers = useDossierStore((s) => s.dossiers);
   const dossiers = useMemo(
     () => allDossiers.filter((d) => d.monumentId === monumentId),
     [allDossiers, monumentId]
   );
   const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  if (!monument) {
+  // If the monument isn't in the store yet (direct URL), fetch it
+  const [notFound, setNotFound] = useState(false);
+  const addMonument = useMonumentStore((s) => s.addMonument);
+  useEffect(() => {
+    if (!monument && monumentId) {
+      monumentService.getById(monumentId)
+        .then(addMonument)
+        .catch(() => setNotFound(true));
+    }
+  }, [monumentId]);
+
+  if (notFound || (!monument && !monumentId)) {
     return (
       <div className="space-y-4">
         <PageHeader title="Monument introuvable" />
@@ -66,9 +83,41 @@ export function MonumentDetailPage() {
     );
   }
 
-  const handleSave = (data: Partial<Monument>) => {
-    monumentService.update(monument.id, data);
-    setIsEditing(false);
+  if (!monument) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const handleSave = async (data: Partial<Monument>) => {
+    setSaving(true);
+    try {
+      const updated = await monumentService.update(monument.id, data);
+      updateMonument(monument.id, updated);
+      setIsEditing(false);
+      toast.success('Monument mis à jour');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`Supprimer "${monument.nom}" ? Cette action est irréversible.`)) return;
+    setDeleting(true);
+    try {
+      await monumentService.delete(monument.id);
+      deleteMonument(monument.id);
+      toast.success('Monument supprimé');
+      navigate(ROUTES.MONUMENTS);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (isEditing) {
@@ -81,7 +130,7 @@ export function MonumentDetailPage() {
           </Button>
           <h1 className="text-xl font-bold">Modifier — {monument.nom}</h1>
         </div>
-        <MonumentForm initialData={monument} onSubmit={handleSave} isEditing />
+        <MonumentForm initialData={monument} onSubmit={handleSave} isEditing saving={saving} />
       </div>
     );
   }
@@ -105,10 +154,17 @@ export function MonumentDetailPage() {
         title={monument.nom}
         description={`${monument.commune} (${monument.departement}) — ${protectionLabels[monument.protection] ?? monument.protection}`}
         action={
-          <Button onClick={() => setIsEditing(true)}>
-            <Edit2 className="h-4 w-4 mr-2" />
-            Modifier la fiche
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleDelete} disabled={deleting}>
+              {deleting
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Trash2 className="h-4 w-4" />}
+            </Button>
+            <Button onClick={() => setIsEditing(true)}>
+              <Edit2 className="h-4 w-4 mr-2" />
+              Modifier la fiche
+            </Button>
+          </div>
         }
       />
 

@@ -4,7 +4,10 @@ import type { User, UserSegment, NotificationPreferences } from '@/types';
 
 interface AuthState {
   user: User | null;
+  token: string | null;
   isOnboarded: boolean;
+
+  setAuth: (user: User, token: string) => void;
   setUser: (user: User) => void;
   updateProfile: (updates: Partial<User>) => void;
   completeOnboarding: () => void;
@@ -17,7 +20,11 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
+      token: null,
       isOnboarded: false,
+
+      setAuth: (user, token) =>
+        set({ user, token, isOnboarded: user.onboardingComplete }),
 
       setUser: (user) => set({ user, isOnboarded: user.onboardingComplete }),
 
@@ -52,7 +59,7 @@ export const useAuthStore = create<AuthState>()(
             : null,
         })),
 
-      logout: () => set({ user: null, isOnboarded: false }),
+      logout: () => set({ user: null, token: null, isOnboarded: false }),
     }),
     {
       name: 'patrialta-auth',

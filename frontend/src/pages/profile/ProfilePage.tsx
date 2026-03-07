@@ -11,21 +11,24 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSegmentLabel } from '@/hooks/useSegment';
 import { toast } from 'sonner';
-import { mockUsers } from '@/data/mock-users';
+
+const DEFAULT_NOTIF_PREFS = {
+  urgentDeadlines: true,
+  newAidesMatched: true,
+  dossierUpdates: true,
+  emailNotifications: false,
+};
 
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user);
-  const setUser = useAuthStore((s) => s.setUser);
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const updateNotificationPreferences = useAuthStore((s) => s.updateNotificationPreferences);
   const { isCommune, isPrive } = useSegmentLabel();
 
-  // Auto-login for demo
-  if (!user) {
-    setUser(mockUsers[0]);
-  }
+  if (!user) return null;
 
-  const currentUser = user ?? mockUsers[0];
+  const currentUser = user;
+  const notifPrefs = currentUser.notificationPreferences ?? DEFAULT_NOTIF_PREFS;
 
   const [form, setForm] = useState({
     prenom: currentUser.prenom,
@@ -155,28 +158,28 @@ export function ProfilePage() {
             <NotifToggle
               label="Échéances urgentes"
               description="Alertes quand une date limite approche"
-              checked={currentUser.notificationPreferences.urgentDeadlines}
+              checked={notifPrefs.urgentDeadlines}
               onChange={(v) => updateNotificationPreferences({ urgentDeadlines: v })}
             />
             <Separator />
             <NotifToggle
               label="Nouvelles aides identifiées"
               description="Quand une nouvelle aide correspond à votre monument"
-              checked={currentUser.notificationPreferences.newAidesMatched}
+              checked={notifPrefs.newAidesMatched}
               onChange={(v) => updateNotificationPreferences({ newAidesMatched: v })}
             />
             <Separator />
             <NotifToggle
               label="Mises à jour des dossiers"
               description="Progression des dossiers et actions de collaborateurs"
-              checked={currentUser.notificationPreferences.dossierUpdates}
+              checked={notifPrefs.dossierUpdates}
               onChange={(v) => updateNotificationPreferences({ dossierUpdates: v })}
             />
             <Separator />
             <NotifToggle
               label="Notifications par email"
               description="Recevoir les notifications par email en plus de l'application"
-              checked={currentUser.notificationPreferences.emailNotifications}
+              checked={notifPrefs.emailNotifications}
               onChange={(v) => updateNotificationPreferences({ emailNotifications: v })}
             />
           </CardContent>

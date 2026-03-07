@@ -1,13 +1,13 @@
 import { Link } from 'react-router';
-import { Plus, Landmark } from 'lucide-react';
+import { Plus, Landmark, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MonumentCard } from '@/components/monument/MonumentCard';
-import { useUserMonuments } from '@/hooks/useActiveMonument';
+import { useMonuments } from '@/hooks/useActiveMonument';
 
 export function MonumentsListPage() {
-  const monuments = useUserMonuments();
+  const { monuments, loading } = useMonuments();
 
   return (
     <div className="space-y-6">
@@ -24,7 +24,11 @@ export function MonumentsListPage() {
         }
       />
 
-      {monuments.length === 0 ? (
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : monuments.length === 0 ? (
         <EmptyState
           icon={Landmark}
           title="Aucun monument enregistré"
