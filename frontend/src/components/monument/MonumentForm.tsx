@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ChevronLeft, ChevronRight, Image, Loader2 } from 'lucide-react';
@@ -87,11 +87,7 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
 
       {/* Step Content */}
       <Card>
-        <CardHeader>
-          <CardTitle>{STEPS[currentStep - 1].title}</CardTitle>
-          <CardDescription>{STEPS[currentStep - 1].description}</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {currentStep === 1 && <Step1Identification data={formData} onChange={update} />}
           {currentStep === 2 && <Step2StatutJuridique data={formData} onChange={update} />}
           {currentStep === 3 && <Step3DescriptionPhysique data={formData} onChange={update} />}
@@ -110,10 +106,7 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
           <ChevronLeft className="h-4 w-4 mr-1" />
           Précédent
         </Button>
-        <span className="text-sm text-muted-foreground">
-          Étape {currentStep} sur 5
-        </span>
-        <Button onClick={handleNext} disabled={saving && currentStep === 5}>
+        <Button onClick={handleNext} disabled={!canProceed || (saving && currentStep === 5)}>
           {saving && currentStep === 5
             ? <Loader2 className="h-4 w-4 animate-spin" />
             : currentStep === 5

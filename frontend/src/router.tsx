@@ -11,7 +11,6 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { MonumentsListPage } from '@/pages/monuments/MonumentsListPage';
 import { MonumentDetailPage } from '@/pages/monuments/MonumentDetailPage';
-import { AidesListPage } from '@/pages/aides/AidesListPage';
 import { AideDetailPage } from '@/pages/aides/AideDetailPage';
 import { DossiersListPage } from '@/pages/dossiers/DossiersListPage';
 import { DossierDetailPage } from '@/pages/dossiers/DossierDetailPage';
@@ -55,7 +54,7 @@ export const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: 'monuments', element: <MonumentsListPage /> },
       { path: 'monuments/:monumentId', element: <MonumentDetailPage /> },
-      { path: 'aides', element: <AidesListPage /> },
+      { path: 'aides', element: <Navigate to="/dossiers" replace /> },
       { path: 'aides/:aideId', element: <AideDetailPage /> },
       { path: 'dossiers', element: <DossiersListPage /> },
       { path: 'dossiers/:dossierId', element: <DossierDetailPage /> },

@@ -86,14 +86,24 @@ function checkEligibility(aide: Aide, ctx: MatchContext): AideMatchResult {
     criteresRemplis.push('Communes et privés');
   }
 
-  // Check commune population (for FIP)
-  if (c.communeDeMoins10000Hab === true) {
-    if (user.segment === 'commune' && user.commune && user.commune.population < 10000) {
-      criteresRemplis.push(`Commune < 10 000 hab. (${user.commune.population} hab.)`);
-    } else if (user.segment === 'commune' && user.commune && user.commune.population >= 10000) {
-      criteresNonRemplis.push(`Réservé aux communes < 10 000 hab.`);
-    } else if (user.segment !== 'commune') {
+  // Check commune population (flexible threshold)
+  const maxPop = c.communeMaxPopulation ?? (c.communeDeMoins10000Hab ? 10000 : undefined);
+  if (maxPop !== undefined) {
+    if (user.segment === 'commune' && user.commune && user.commune.population < maxPop) {
+      criteresRemplis.push(`Commune < ${maxPop.toLocaleString('fr-FR')} hab. (${user.commune.population} hab.)`);
+    } else if (user.segment === 'commune' && user.commune && user.commune.population >= maxPop) {
+      criteresNonRemplis.push(`Réservé aux communes < ${maxPop.toLocaleString('fr-FR')} hab.`);
+    } else if (user.segment !== 'commune' && c.communeDeMoins10000Hab) {
       criteresNonRemplis.push('Réservé aux communes');
+    }
+  }
+
+  // Check conservation state
+  if (c.etatConservationRequis && c.etatConservationRequis.length > 0) {
+    if (c.etatConservationRequis.includes(monument.etatConservation)) {
+      criteresRemplis.push(`État de conservation : ${monument.etatConservation}`);
+    } else {
+      criteresNonRemplis.push(`État requis : ${c.etatConservationRequis.join(', ')}`);
     }
   }
 

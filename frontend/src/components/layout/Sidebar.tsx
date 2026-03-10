@@ -2,7 +2,6 @@ import { NavLink, useNavigate } from 'react-router';
 import {
   LayoutDashboard,
   Landmark,
-  HandCoins,
   FolderOpen,
   FileBox,
   User,
@@ -15,7 +14,6 @@ import { Button } from '@/components/ui/button';
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
   { to: '/monuments', icon: Landmark, label: 'Monuments' },
-  { to: '/aides', icon: HandCoins, label: 'Aides' },
   { to: '/dossiers', icon: FolderOpen, label: 'Dossiers' },
   { to: '/documents', icon: FileBox, label: 'Documents' },
   { to: '/profil', icon: User, label: 'Profil' },

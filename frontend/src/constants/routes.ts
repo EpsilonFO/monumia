@@ -9,7 +9,7 @@ export const ROUTES = {
   MONUMENT_DETAIL: (id: string) => `/monuments/${id}`,
   MONUMENT_NEW: '/monuments/nouveau',
 
-  AIDES: '/aides',
+  AIDES: '/dossiers',
   AIDE_DETAIL: (id: string) => `/aides/${id}`,
 
   DOSSIERS: '/dossiers',

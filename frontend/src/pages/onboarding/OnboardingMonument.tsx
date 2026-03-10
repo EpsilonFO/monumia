@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { monumentService } from '@/services/monument.service';
 import { REGIONS } from '@/constants/regions';
+import { MATERIAUX } from '@/constants/monument-options';
 import { Sparkles, Search, PenLine, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
@@ -46,6 +47,12 @@ export function OnboardingMonument() {
           ? 'chapelle'
           : '';
 
+    // Parse materiaux: match keywords from Mérimée free-text against our list
+    const materiauxRaw = (record.materiaux_de_la_couverture || record.materiaux_du_gros_oeuvre || '').toLowerCase();
+    const materiaux = materiauxRaw
+      ? MATERIAUX.filter((m) => materiauxRaw.includes(m.value)).map((m) => m.value)
+      : undefined;
+
     setPrefillData({
       nom: titre,
       referenceMerimee: record.reference,
@@ -54,7 +61,11 @@ export function OnboardingMonument() {
       departement: record.departement_en_lettres,
       region: regionValue as Region,
       protection,
-      typeProtection: record.typologie_de_la_protection,
+      typeProtection: record.date_et_typologie_de_la_protection || record.typologie_de_la_protection || undefined,
+      siecleConstruction: record.siecle_de_la_campagne_principale_de_construction || undefined,
+      typeCouverture: record.type_de_couverture || undefined,
+      materiaux: materiaux?.length ? materiaux : undefined,
+      descriptionGenerale: record.precision_de_la_protection || undefined,
     });
     setShowForm(true);
   };

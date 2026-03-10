@@ -64,6 +64,12 @@ export interface MerimeeRecord {
   departement_en_lettres: string;
   typologie_de_la_protection: string;
   titre_editorial_de_la_notice: string;
+  siecle_de_la_campagne_principale_de_construction?: string;
+  type_de_couverture?: string;
+  materiaux_de_la_couverture?: string;
+  materiaux_du_gros_oeuvre?: string;
+  date_et_typologie_de_la_protection?: string;
+  precision_de_la_protection?: string;
 }
 
 export interface MonumentFormState {

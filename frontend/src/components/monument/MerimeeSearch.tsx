@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, Shield } from 'lucide-react';
+import { Search, MapPin, Shield, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ interface MerimeeSearchProps {
 export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MerimeeRecord[]>([]);
+  const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -21,12 +22,15 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
 
     if (query.length < 2) {
       setResults([]);
+      setLoading(false);
       return;
     }
 
+    setLoading(true);
     debounceRef.current = setTimeout(async () => {
       const data = await merimeeService.search(query);
       setResults(data);
+      setLoading(false);
     }, 300);
 
     return () => {
@@ -46,7 +50,13 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
         />
       </div>
 
-      {query.length >= 2 && results.length === 0 && (
+      {query.length >= 2 && loading && (
+        <div className="flex justify-center py-4">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {query.length >= 2 && !loading && results.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-4">
           Aucun résultat trouvé pour &laquo;&nbsp;{query}&nbsp;&raquo;
         </p>

@@ -58,9 +58,12 @@ export interface AideEligibilityCriteria {
   segmentEligible?: UserSegment[];
 
   communeDeMoins10000Hab?: boolean;
+  communeMaxPopulation?: number;
   diagnosticPrealableRequis?: boolean;
   architecteRequis?: boolean;
   cofinancementRequis?: boolean;
+
+  etatConservationRequis?: ('bon' | 'moyen' | 'mauvais' | 'peril')[];
 
   criteresSupplementaires?: {
     label: string;

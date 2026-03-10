@@ -73,16 +73,26 @@ def _check_eligibility(aide: dict, monument: dict, user: dict, mode_projet: bool
     else:
         criteres_remplis.append("Communes et privés")
 
-    # Commune population (FIP)
-    if c.get("communeDeMoins10000Hab"):
+    # Commune population (flexible threshold)
+    max_pop = c.get("communeMaxPopulation") or (10000 if c.get("communeDeMoins10000Hab") else None)
+    if max_pop is not None:
         commune_profile = user.get("commune") or {}
         population = commune_profile.get("population", 0)
-        if user.get("segment") == "commune" and population and population < 10000:
-            criteres_remplis.append(f"Commune < 10 000 hab. ({population} hab.)")
-        elif user.get("segment") == "commune" and population and population >= 10000:
-            criteres_non_remplis.append("Réservé aux communes < 10 000 hab.")
-        elif user.get("segment") != "commune":
+        if user.get("segment") == "commune" and population and population < max_pop:
+            criteres_remplis.append(f"Commune < {max_pop:,} hab. ({population} hab.)")
+        elif user.get("segment") == "commune" and population and population >= max_pop:
+            criteres_non_remplis.append(f"Réservé aux communes < {max_pop:,} hab.")
+        elif user.get("segment") != "commune" and c.get("communeDeMoins10000Hab"):
             criteres_non_remplis.append("Réservé aux communes")
+
+    # Conservation state
+    etat_requis: list = c.get("etatConservationRequis") or []
+    if etat_requis:
+        etat = monument.get("etat_conservation")
+        if etat in etat_requis:
+            criteres_remplis.append(f"État de conservation : {etat}")
+        else:
+            criteres_non_remplis.append(f"État requis : {', '.join(etat_requis)}")
 
     eligible = len(criteres_non_remplis) == 0
 
