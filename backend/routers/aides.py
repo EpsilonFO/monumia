@@ -25,9 +25,41 @@ class DiagnosticRequest(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Map DB snake_case columns → frontend camelCase keys
+_AIDE_KEY_MAP = {
+    "nom_court": "nomCourt",
+    "description_longue": "descriptionLongue",
+    "montant_max": "montantMax",
+    "taux_max": "tauxMax",
+    "montant_min": "montantMin",
+    "demarche_description": "demarcheDescription",
+    "documents_requis": "documentsRequis",
+    "delai_instruction": "delaiInstruction",
+    "date_ouverture": "dateOuverture",
+    "date_limite": "dateLimite",
+    "url_officielle": "urlOfficielle",
+    "formulaire_url": "formulaireUrl",
+    "base_ttc": "baseTTC",
+    "created_at": "createdAt",
+    "updated_at": "updatedAt",
+}
+
+
+def _to_camel(aide: dict) -> dict:
+    """Convert a DB aide row (snake_case) to frontend shape (camelCase)."""
+    out = {}
+    for k, v in aide.items():
+        out[_AIDE_KEY_MAP.get(k, k)] = v
+    return out
+
+
 def _get_all_aides(supabase: Client) -> list[dict]:
     result = supabase.table("aides").select(COLUMNS).execute()
     return result.data or []
+
+
+def _get_all_aides_camel(supabase: Client) -> list[dict]:
+    return [_to_camel(a) for a in _get_all_aides(supabase)]
 
 
 # ---------------------------------------------------------------------------
@@ -46,6 +78,7 @@ def list_aides(
         query = query.eq("categorie", categorie)
 
     aides = query.execute().data or []
+    aides = [_to_camel(a) for a in aides]
 
     # Text search in Python (nom, nomCourt, description, organisme)
     if q:
@@ -53,7 +86,7 @@ def list_aides(
         aides = [
             a for a in aides
             if q_lower in (a.get("nom") or "").lower()
-            or q_lower in (a.get("nom_court") or "").lower()
+            or q_lower in (a.get("nomCourt") or "").lower()
             or q_lower in (a.get("description") or "").lower()
             or q_lower in (a.get("organisme") or "").lower()
         ]
@@ -75,7 +108,7 @@ def get_aide(
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Aide introuvable")
-    return result.data
+    return _to_camel(result.data)
 
 
 @router.post("/diagnostic")
@@ -109,8 +142,8 @@ def diagnostic(
         raise HTTPException(status_code=404, detail="Profil utilisateur introuvable")
     user = user_result.data
 
-    # Fetch all aides
-    aides = _get_all_aides(supabase)
+    # Fetch all aides (camelCase for matching engine + response)
+    aides = _get_all_aides_camel(supabase)
 
     return run_diagnostic(
         monument=monument,

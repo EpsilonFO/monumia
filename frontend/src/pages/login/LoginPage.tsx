@@ -23,8 +23,8 @@ export function LoginPage() {
     e.preventDefault();
     setLoginLoading(true);
     try {
-      const { user, access_token } = await authService.login(loginForm);
-      setAuth(user, access_token);
+      const { user, access_token, refresh_token } = await authService.login(loginForm);
+      setAuth(user, access_token, refresh_token);
       navigate(user.segment === 'btp' ? '/btp' : '/');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Email ou mot de passe incorrect');

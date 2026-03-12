@@ -18,8 +18,8 @@ import {
   WORK_TYPES,
   MATERIAUX,
   AFFECTATAIRES,
+  TYPES_COUVERTURE,
 } from '@/constants/monument-options';
-import { REGIONS } from '@/constants/regions';
 import type { Monument, WorkType } from '@/types';
 
 interface MonumentFormProps {
@@ -155,15 +155,6 @@ function Step1Identification({ data, onChange }: StepProps) {
           </SelectContent>
         </Select>
       </div>
-      <div className="md:col-span-2">
-        <Label htmlFor="adresse">Adresse *</Label>
-        <Input
-          id="adresse"
-          value={data.adresse ?? ''}
-          onChange={(e) => onChange({ adresse: e.target.value })}
-          placeholder="Ex : Place du Château"
-        />
-      </div>
       <div>
         <Label htmlFor="commune">Commune *</Label>
         <Input
@@ -282,12 +273,21 @@ function Step3DescriptionPhysique({ data, onChange }: StepProps) {
       </div>
       <div>
         <Label htmlFor="typeCouverture">Type de couverture</Label>
-        <Input
-          id="typeCouverture"
+        <Select
           value={data.typeCouverture ?? ''}
-          onChange={(e) => onChange({ typeCouverture: e.target.value })}
-          placeholder="Ex : ardoise"
-        />
+          onValueChange={(v) => onChange({ typeCouverture: v })}
+        >
+          <SelectTrigger id="typeCouverture">
+            <SelectValue placeholder="Sélectionner..." />
+          </SelectTrigger>
+          <SelectContent>
+            {TYPES_COUVERTURE.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                {t.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div>
         <Label htmlFor="nombreNiveaux">Nombre de niveaux</Label>

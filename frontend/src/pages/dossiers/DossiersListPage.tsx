@@ -56,23 +56,24 @@ export function DossiersListPage() {
     }
   };
 
-  const launchDiagnostic = useCallback((monumentId: string) => {
-    const monument = monuments.find((m) => m.id === monumentId);
-    if (!monument || !user) return;
+  const launchDiagnostic = useCallback(async (monumentId: string) => {
+    if (!user) return;
     setShowMonumentPicker(false);
     setIsRunning(true);
     setShowDiagnostic(true);
 
-    setTimeout(() => {
-      aideService.runDiagnostic(
-        monument,
-        user,
+    try {
+      await aideService.runDiagnostic(
+        monumentId,
         filters.modeProjet,
         filters.travauxFiltres.length > 0 ? filters.travauxFiltres : undefined
       );
+    } catch (err) {
+      console.error('Diagnostic error:', err);
+    } finally {
       setIsRunning(false);
-    }, 800);
-  }, [monuments, user, filters.modeProjet, filters.travauxFiltres]);
+    }
+  }, [user, filters.modeProjet, filters.travauxFiltres]);
 
   const handleConfirmMonument = () => {
     if (selectedMonumentId) {
@@ -137,13 +138,13 @@ export function DossiersListPage() {
             </DialogDescription>
           </DialogHeader>
           <Select value={selectedMonumentId} onValueChange={setSelectedMonumentId}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full min-w-0 overflow-hidden [&>span]:truncate">
               <SelectValue placeholder="Sélectionnez un monument" />
             </SelectTrigger>
             <SelectContent>
               {userMonuments.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
-                  {m.nom} — {m.commune}
+                  <span className="truncate">{m.nom} — {m.commune}</span>
                 </SelectItem>
               ))}
             </SelectContent>

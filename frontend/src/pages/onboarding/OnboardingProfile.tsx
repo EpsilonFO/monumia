@@ -118,7 +118,7 @@ export function OnboardingProfile() {
 
     setLoading(true);
     try {
-      const { user, access_token } = await authService.register({
+      const { user, access_token, refresh_token } = await authService.register({
         email,
         password,
         prenom: form.prenom,
@@ -131,7 +131,7 @@ export function OnboardingProfile() {
       });
 
       sessionStorage.removeItem('pending-register');
-      setAuth(user, access_token);
+      setAuth(user, access_token, refresh_token);
 
       navigate(segment === 'btp' ? '/btp' : '/');
     } catch (err: unknown) {

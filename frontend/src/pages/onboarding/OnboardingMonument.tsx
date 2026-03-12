@@ -8,8 +8,9 @@ import { MonumentForm } from '@/components/monument/MonumentForm';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { monumentService } from '@/services/monument.service';
+import { merimeeService } from '@/services/merimee.service';
 import { REGIONS } from '@/constants/regions';
-import { MATERIAUX } from '@/constants/monument-options';
+import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
 import { Sparkles, Search, PenLine, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
@@ -28,11 +29,19 @@ export function OnboardingMonument() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const handleMerimeeSelect = (record: MerimeeRecord) => {
-    const typo = record.typologie_de_la_protection?.toLowerCase() ?? '';
-    const protection: ProtectionLevel = typo.includes('classé')
+  const handleMerimeeSelect = async (searchRecord: MerimeeRecord) => {
+    // The search endpoint only returns basic fields — fetch the full record
+    const fullRecord = await merimeeService.getByReference(searchRecord.reference);
+    const record = fullRecord ?? searchRecord;
+
+    // Helper: take last segment after ";" (most recent/relevant value)
+    const lastOf = (s: string | undefined) => s?.split(';').pop()?.trim() ?? '';
+
+    // Protection level — last segment containing "classé" or "inscrit"
+    const lastTypo = lastOf(record.typologie_de_la_protection).toLowerCase();
+    const protection: ProtectionLevel = lastTypo.includes('classé')
       ? 'classe'
-      : typo.includes('inscrit')
+      : lastTypo.includes('inscrit')
         ? 'inscrit'
         : 'non_protege';
 
@@ -47,13 +56,30 @@ export function OnboardingMonument() {
           ? 'chapelle'
           : '';
 
-    // Parse materiaux: match keywords from Mérimée free-text against our list
-    const materiauxRaw = (record.materiaux_de_la_couverture || record.materiaux_du_gros_oeuvre || '').toLowerCase();
+    // Parse materiaux: last segment, match keywords against our list
+    const materiauxRaw = lastOf(record.materiaux_de_la_couverture || record.materiaux_du_gros_oeuvre).toLowerCase();
     const materiaux = materiauxRaw
       ? MATERIAUX.filter((m) => materiauxRaw.includes(m.value)).map((m) => m.value)
       : undefined;
 
-    setPrefillData({
+    // Match type_de_couverture: last segment against our TYPES_COUVERTURE list
+    const couvertureRaw = lastOf(record.type_de_couverture).toLowerCase();
+    const typeCouverture = TYPES_COUVERTURE.find((t) => couvertureRaw.includes(t.value))?.value || undefined;
+
+    // Parse date de protection: last segment, split on ":", extract date part
+    let dateProtection: string | undefined;
+    const lastDateEntry = lastOf(record.date_et_typologie_de_la_protection);
+    if (lastDateEntry) {
+      const datePart = lastDateEntry.split(':')[0]?.trim() ?? '';
+      if (/^\d{4}\/\d{2}\/\d{2}$/.test(datePart)) {
+        dateProtection = datePart.replace(/\//g, '-');
+      }
+    }
+
+    // typeProtection: last segment
+    const typeProtection = lastOf(record.date_et_typologie_de_la_protection) || lastOf(record.typologie_de_la_protection) || undefined;
+
+    const prefill = {
       nom: titre,
       referenceMerimee: record.reference,
       denomination: denominationGuess,
@@ -61,12 +87,29 @@ export function OnboardingMonument() {
       departement: record.departement_en_lettres,
       region: regionValue as Region,
       protection,
-      typeProtection: record.date_et_typologie_de_la_protection || record.typologie_de_la_protection || undefined,
-      siecleConstruction: record.siecle_de_la_campagne_principale_de_construction || undefined,
-      typeCouverture: record.type_de_couverture || undefined,
+      dateProtection,
+      typeProtection,
+      // Siècles et descriptions : on garde la valeur complète
+      siecleConstruction: record.format_abrege_du_siecle_de_construction || record.siecle_de_la_campagne_principale_de_construction || undefined,
+      typeCouverture,
       materiaux: materiaux?.length ? materiaux : undefined,
       descriptionGenerale: record.precision_de_la_protection || undefined,
+    };
+
+    console.log('=== MERIMEE RAW RECORD ===', JSON.stringify(record, null, 2));
+    console.log('=== PREFILL DATA ===', JSON.stringify(prefill, null, 2));
+    console.log('=== INTERMEDIATES ===', {
+      materiauxRaw,
+      materiaux,
+      couvertureRaw,
+      typeCouverture,
+      lastDateEntry,
+      dateProtection,
+      denominationGuess,
+      regionValue,
     });
+
+    setPrefillData(prefill);
     setShowForm(true);
   };
 

@@ -1,43 +1,49 @@
-import type { Aide, AideCategory, AideDiagnosticResult, Monument, User, WorkType } from '@/types';
+import type { Aide, AideCategory, AideDiagnosticResult, WorkType } from '@/types';
 import { useAideStore } from '@/stores/useAideStore';
-import { runDiagnostic } from '@/lib/matching-engine';
+import { authFetch, handleResponse } from '@/lib/auth-fetch';
+
+const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 export const aideService = {
-  getAll(): Aide[] {
-    return useAideStore.getState().aides;
+  async getAll(): Promise<Aide[]> {
+    const res = await authFetch(`${BASE}/aides`);
+    return handleResponse<Aide[]>(res);
   },
 
-  getById(id: string): Aide | undefined {
-    return useAideStore.getState().getAide(id);
+  async getById(id: string): Promise<Aide> {
+    const res = await authFetch(`${BASE}/aides/${id}`);
+    return handleResponse<Aide>(res);
   },
 
-  getByCategory(category: AideCategory): Aide[] {
-    return useAideStore.getState().aides.filter((a) => a.categorie === category);
+  async getByCategory(category: AideCategory): Promise<Aide[]> {
+    const res = await authFetch(`${BASE}/aides?categorie=${category}`);
+    return handleResponse<Aide[]>(res);
   },
 
-  search(query: string): Aide[] {
-    const q = query.toLowerCase();
-    return useAideStore.getState().aides.filter(
-      (a) =>
-        a.nom.toLowerCase().includes(q) ||
-        a.nomCourt.toLowerCase().includes(q) ||
-        a.description.toLowerCase().includes(q) ||
-        a.organisme.toLowerCase().includes(q)
-    );
+  async search(query: string): Promise<Aide[]> {
+    const res = await authFetch(`${BASE}/aides?q=${encodeURIComponent(query)}`);
+    return handleResponse<Aide[]>(res);
   },
 
-  runDiagnostic(
-    monument: Monument,
-    user: User,
+  async runDiagnostic(
+    monumentId: string,
     modeProjet: boolean = false,
     travauxFiltres?: WorkType[]
-  ): AideDiagnosticResult {
-    const aides = useAideStore.getState().aides;
-    const result = runDiagnostic(monument, user, aides, modeProjet, travauxFiltres);
+  ): Promise<AideDiagnosticResult> {
+    const res = await authFetch(`${BASE}/aides/diagnostic`, {
+      method: 'POST',
+      body: JSON.stringify({
+        monument_id: monumentId,
+        mode_projet: modeProjet,
+        travaux_filtres: travauxFiltres,
+      }),
+    });
+    const result = await handleResponse<AideDiagnosticResult>(res);
     useAideStore.getState().setLastDiagnostic(result);
     return result;
   },
 
+  /** Get filtered aides (from local store cache) */
   getFilteredAides(
     categories: AideCategory[],
     searchQuery: string

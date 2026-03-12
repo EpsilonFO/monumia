@@ -3,12 +3,19 @@ import { Outlet, useNavigate } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useMonumentStore } from '@/stores/useMonumentStore';
+import { useAideStore } from '@/stores/useAideStore';
 import { useNotificationStore } from '@/stores/useNotificationStore';
+import { monumentService } from '@/services/monument.service';
+import { aideService } from '@/services/aide.service';
 import { mockUsers } from '@/data/mock-users';
 
 export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
+  const token = useAuthStore((s) => s.token);
+  const setMonuments = useMonumentStore((s) => s.setMonuments);
+  const setAides = useAideStore((s) => s.setAides);
   const getUnreadCount = useNotificationStore((s) => s.getUnreadCount);
   const navigate = useNavigate();
 
@@ -19,6 +26,13 @@ export function AppLayout() {
       navigate('/btp');
     }
   }, [user, setUser, navigate]);
+
+  // Load monuments and aides when authenticated
+  useEffect(() => {
+    if (!token) return;
+    monumentService.getAll().then(setMonuments).catch(console.error);
+    aideService.getAll().then(setAides).catch(console.error);
+  }, [token, setMonuments, setAides]);
 
   const unreadCount = user ? getUnreadCount(user.id) : 0;
 

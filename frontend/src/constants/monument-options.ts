@@ -88,6 +88,34 @@ export const MATERIAUX = [
   { value: 'autre', label: 'Autre' },
 ] as const;
 
+export const TYPES_COUVERTURE = [
+  { value: 'toit à longs pans', label: 'Toit à longs pans' },
+  { value: 'toit à un pan', label: 'Toit à un pan' },
+  { value: 'croupe', label: 'Croupe' },
+  { value: 'demi-croupe', label: 'Demi-croupe' },
+  { value: 'croupe ronde', label: 'Croupe ronde' },
+  { value: 'pavillon', label: 'Pavillon' },
+  { value: 'toit brisé', label: 'Toit brisé' },
+  { value: 'toit brisé à longs pans', label: 'Toit brisé à longs pans' },
+  { value: 'toit brisé en pavillon', label: 'Toit brisé en pavillon' },
+  { value: 'flèche', label: 'Flèche' },
+  { value: 'flèche polygonale', label: 'Flèche polygonale' },
+  { value: 'flèche carrée', label: 'Flèche carrée' },
+  { value: 'dôme', label: 'Dôme' },
+  { value: 'dôme à pans', label: 'Dôme à pans' },
+  { value: 'coupole', label: 'Coupole' },
+  { value: 'bulbe', label: 'Bulbe' },
+  { value: 'toit en carène', label: 'Toit en carène' },
+  { value: 'terrasse', label: 'Terrasse' },
+  { value: 'comble à la mansart', label: 'Comble à la mansart' },
+  { value: 'pignon couvert', label: 'Pignon couvert' },
+  { value: 'pignon découvert', label: 'Pignon découvert' },
+  { value: 'noue', label: 'Noue' },
+  { value: 'appentis', label: 'Appentis' },
+  { value: 'shed', label: 'Shed' },
+  { value: 'flèche de haut-clocher', label: 'Flèche de haut-clocher' },
+] as const;
+
 export const AFFECTATAIRES = [
   { value: 'culte', label: 'Culte' },
   { value: 'mairie', label: 'Mairie / Services municipaux' },

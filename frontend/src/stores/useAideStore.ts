@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { Aide, AideDiagnosticResult, AideCategory, WorkType } from '@/types';
-import { mockAides } from '@/data/mock-aides';
 
 interface AideFilters {
   categories: AideCategory[];
@@ -11,9 +10,14 @@ interface AideFilters {
 
 interface AideState {
   aides: Aide[];
+  loading: boolean;
+  error: string | null;
   filters: AideFilters;
   lastDiagnostic: AideDiagnosticResult | null;
 
+  setAides: (aides: Aide[]) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
   setFilters: (filters: Partial<AideFilters>) => void;
   resetFilters: () => void;
   setLastDiagnostic: (result: AideDiagnosticResult) => void;
@@ -29,9 +33,15 @@ const defaultFilters: AideFilters = {
 };
 
 export const useAideStore = create<AideState>()((set, get) => ({
-  aides: mockAides,
+  aides: [],
+  loading: false,
+  error: null,
   filters: defaultFilters,
   lastDiagnostic: null,
+
+  setAides: (aides) => set({ aides, loading: false, error: null }),
+  setLoading: (loading) => set({ loading }),
+  setError: (error) => set({ error, loading: false }),
 
   setFilters: (updates) =>
     set((state) => ({

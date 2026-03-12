@@ -70,6 +70,7 @@ export interface MerimeeRecord {
   materiaux_du_gros_oeuvre?: string;
   date_et_typologie_de_la_protection?: string;
   precision_de_la_protection?: string;
+  format_abrege_du_siecle_de_construction?: string;
 }
 
 export interface MonumentFormState {

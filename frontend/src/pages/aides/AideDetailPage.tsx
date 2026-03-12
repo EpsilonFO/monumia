@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import {
   ChevronLeft, ExternalLink, Clock, Building2, FileText,
@@ -19,33 +19,33 @@ import { dossierService } from '@/services/dossier.service';
 import { AIDE_CATEGORIES } from '@/constants/aide-categories';
 import { ROUTES } from '@/constants/routes';
 import { formatCurrency, formatPercentage } from '@/lib/format-utils';
-import type { AideMatchResult } from '@/types';
+import type { Aide, AideMatchResult } from '@/types';
 
 export function AideDetailPage() {
   const { aideId } = useParams();
   const navigate = useNavigate();
-  const aide = useAideStore((s) => s.aides.find((a) => a.id === aideId));
+  const storeAide = useAideStore((s) => s.aides.find((a) => a.id === aideId));
   const user = useAuthStore((s) => s.user);
   const monument = useActiveMonument();
   const lastDiagnostic = useAideStore((s) => s.lastDiagnostic);
   useSegmentLabel();
 
-  const matchResult = useMemo((): AideMatchResult | null => {
-    if (!aide) return null;
-    // Try from last diagnostic first
-    const fromDiag = lastDiagnostic?.aidesEligibles.find((m) => m.aide.id === aide.id)
-      ?? lastDiagnostic?.aidesNonEligibles.find((m) => m.aide.id === aide.id);
-    if (fromDiag) return fromDiag;
-
-    // Run fresh if we have monument + user
-    if (monument && user) {
-      const result = aideService.runDiagnostic(monument, user);
-      return result.aidesEligibles.find((m) => m.aide.id === aide.id)
-        ?? result.aidesNonEligibles.find((m) => m.aide.id === aide.id)
-        ?? null;
+  // If aide not in store (e.g. direct link), fetch from API
+  const [fetchedAide, setFetchedAide] = useState<Aide | null>(null);
+  useEffect(() => {
+    if (!storeAide && aideId) {
+      aideService.getById(aideId).then(setFetchedAide).catch(console.error);
     }
-    return null;
-  }, [aide, monument, user, lastDiagnostic]);
+  }, [storeAide, aideId]);
+
+  const aide = storeAide ?? fetchedAide;
+
+  const matchResult = useMemo((): AideMatchResult | null => {
+    if (!aide || !lastDiagnostic) return null;
+    return lastDiagnostic.aidesEligibles.find((m) => m.aide.id === aide.id)
+      ?? lastDiagnostic.aidesNonEligibles.find((m) => m.aide.id === aide.id)
+      ?? null;
+  }, [aide, lastDiagnostic]);
 
   if (!aide) {
     return (

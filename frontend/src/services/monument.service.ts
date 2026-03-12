@@ -1,23 +1,7 @@
 import type { Monument, MonumentPhoto } from '@/types';
-import { useAuthStore } from '@/stores/useAuthStore';
+import { authFetch, handleResponse } from '@/lib/auth-fetch';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
-
-function authHeaders(): Record<string, string> {
-  const token = useAuthStore.getState().token;
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail ?? `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<T>;
-}
 
 // The backend returns snake_case keys directly as stored in DB.
 // The Monument type uses camelCase. We need a mapping layer.
@@ -62,21 +46,20 @@ function toMonument(row: Record<string, unknown>): Monument {
 
 export const monumentService = {
   async getAll(): Promise<Monument[]> {
-    const res = await fetch(`${BASE}/monuments`, { headers: authHeaders() });
+    const res = await authFetch(`${BASE}/monuments`);
     const rows = await handleResponse<Record<string, unknown>[]>(res);
     return rows.map(toMonument);
   },
 
   async getById(id: string): Promise<Monument> {
-    const res = await fetch(`${BASE}/monuments/${id}`, { headers: authHeaders() });
+    const res = await authFetch(`${BASE}/monuments/${id}`);
     const row = await handleResponse<Record<string, unknown>>(res);
     return toMonument(row);
   },
 
   async create(data: Omit<Monument, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'completionPercentage' | 'photos'>): Promise<Monument> {
-    const res = await fetch(`${BASE}/monuments`, {
+    const res = await authFetch(`${BASE}/monuments`, {
       method: 'POST',
-      headers: authHeaders(),
       body: JSON.stringify(data),
     });
     const row = await handleResponse<Record<string, unknown>>(res);
@@ -84,9 +67,8 @@ export const monumentService = {
   },
 
   async update(id: string, updates: Partial<Monument>): Promise<Monument> {
-    const res = await fetch(`${BASE}/monuments/${id}`, {
+    const res = await authFetch(`${BASE}/monuments/${id}`, {
       method: 'PATCH',
-      headers: authHeaders(),
       body: JSON.stringify(updates),
     });
     const row = await handleResponse<Record<string, unknown>>(res);
@@ -94,9 +76,8 @@ export const monumentService = {
   },
 
   async delete(id: string): Promise<void> {
-    const res = await fetch(`${BASE}/monuments/${id}`, {
+    const res = await authFetch(`${BASE}/monuments/${id}`, {
       method: 'DELETE',
-      headers: authHeaders(),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -105,18 +86,16 @@ export const monumentService = {
   },
 
   async addPhoto(monumentId: string, photo: Omit<MonumentPhoto, 'id'>): Promise<MonumentPhoto> {
-    const res = await fetch(`${BASE}/monuments/${monumentId}/photos`, {
+    const res = await authFetch(`${BASE}/monuments/${monumentId}/photos`, {
       method: 'POST',
-      headers: authHeaders(),
       body: JSON.stringify(photo),
     });
     return handleResponse<MonumentPhoto>(res);
   },
 
   async removePhoto(monumentId: string, photoId: string): Promise<void> {
-    const res = await fetch(`${BASE}/monuments/${monumentId}/photos/${photoId}`, {
+    const res = await authFetch(`${BASE}/monuments/${monumentId}/photos/${photoId}`, {
       method: 'DELETE',
-      headers: authHeaders(),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));

@@ -28,6 +28,10 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
 class UpdateProfileRequest(BaseModel):
     prenom: Optional[str] = None
     nom: Optional[str] = None
@@ -119,8 +123,10 @@ def register(body: RegisterRequest, anon: Client = Depends(get_anon_supabase), s
 
     supabase.table("users").insert(profile).execute()
 
+    session = auth_response.session
     return {
-        "access_token": auth_response.session.access_token if auth_response.session else None,
+        "access_token": session.access_token if session else None,
+        "refresh_token": session.refresh_token if session else None,
         "token_type": "bearer",
         "user": _get_profile(supabase, user_id),
     }
@@ -143,6 +149,27 @@ def login(body: LoginRequest, anon: Client = Depends(get_anon_supabase), supabas
 
     return {
         "access_token": auth_response.session.access_token,
+        "refresh_token": auth_response.session.refresh_token,
+        "token_type": "bearer",
+        "user": _get_profile(supabase, user_id),
+    }
+
+
+@router.post("/refresh")
+def refresh(body: RefreshRequest, anon: Client = Depends(get_anon_supabase), supabase: Client = Depends(get_supabase)):
+    try:
+        auth_response = anon.auth.refresh_session(body.refresh_token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Refresh token invalide ou expiré")
+
+    if not auth_response.session:
+        raise HTTPException(status_code=401, detail="Impossible de rafraîchir la session")
+
+    user_id = auth_response.user.id if auth_response.user else auth_response.session.user.id
+
+    return {
+        "access_token": auth_response.session.access_token,
+        "refresh_token": auth_response.session.refresh_token,
         "token_type": "bearer",
         "user": _get_profile(supabase, user_id),
     }

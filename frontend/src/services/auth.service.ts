@@ -34,6 +34,7 @@ export interface RegisterPayload {
 
 export interface AuthResponse {
   access_token: string;
+  refresh_token: string | null;
   token_type: string;
   user: import('@/types').User;
 }
@@ -62,6 +63,15 @@ export const authService = {
       method: 'POST',
       headers: authHeaders(token),
     });
+  },
+
+  async refreshSession(refreshToken: string): Promise<AuthResponse> {
+    const res = await fetch(`${BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    return handleResponse<AuthResponse>(res);
   },
 
   async getMe(token: string): Promise<import('@/types').User> {
