@@ -30,7 +30,7 @@ interface MonumentFormProps {
 }
 
 const STEPS = [
-  { number: 1, title: 'Identification', description: 'Nom, adresse et localisation' },
+  { number: 1, title: 'Identification', description: 'Nom et localisation' },
   { number: 2, title: 'Statut juridique', description: 'Protection et propriété' },
   { number: 3, title: 'Description physique', description: 'Architecture et matériaux' },
   { number: 4, title: 'État actuel', description: 'Conservation et travaux' },
@@ -40,7 +40,7 @@ const STEPS = [
 function isStepValid(step: number, data: Partial<Monument>): boolean {
   switch (step) {
     case 1:
-      return !!(data.nom?.trim() && data.denomination && data.adresse?.trim() && data.commune?.trim());
+      return !!(data.nom?.trim() && data.denomination && data.commune?.trim());
     case 2:
       return !!(data.protection && data.proprietaire);
     case 4:

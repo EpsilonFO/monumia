@@ -41,8 +41,7 @@ class MonumentPhoto(BaseModel):
 class CreateMonumentRequest(BaseModel):
     nom: str
     denomination: str
-    adresse: str
-    codePostal: str
+    codePostal: Optional[str] = None
     commune: str
     codeInsee: str
     departement: str
@@ -137,8 +136,7 @@ def _compute_completion(monument: dict) -> int:
     steps = [
         # Step 1 — Identification
         all([monument.get("nom"), monument.get("denomination"),
-             monument.get("adresse"), monument.get("commune"),
-             monument.get("region")]),
+             monument.get("commune"), monument.get("region")]),
         # Step 2 — Legal
         all([monument.get("protection"), monument.get("proprietaire")]),
         # Step 3 — Physical

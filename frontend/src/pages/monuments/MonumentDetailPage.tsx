@@ -203,8 +203,8 @@ export function MonumentDetailPage() {
                   <InfoRow label="Réf. Mérimée" value={monument.referenceMerimee} />
                 )}
                 <InfoRow
-                  label="Adresse"
-                  value={`${monument.adresse}, ${monument.codePostal} ${monument.commune}`}
+                  label="Localisation"
+                  value={[monument.codePostal, monument.commune].filter(Boolean).join(', ')}
                 />
                 <InfoRow label="Département" value={monument.departement} />
                 {monument.siecleConstruction && (

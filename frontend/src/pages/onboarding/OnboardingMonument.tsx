@@ -120,7 +120,6 @@ export function OnboardingMonument() {
       const monument = await monumentService.create({
         nom: data.nom ?? 'Mon monument',
         denomination: data.denomination ?? '',
-        adresse: data.adresse ?? '',
         codePostal: data.codePostal ?? '',
         commune: data.commune ?? '',
         codeInsee: data.codeInsee ?? '',

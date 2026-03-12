@@ -8,8 +8,7 @@ export interface Monument {
   nom: string;
   referenceMerimee?: string;
   denomination: string;
-  adresse: string;
-  codePostal: string;
+  codePostal?: string;
   commune: string;
   codeInsee: string;
   departement: string;
