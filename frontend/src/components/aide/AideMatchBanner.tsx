@@ -123,19 +123,6 @@ export function AideMatchBanner({ result, isRunning, onLaunch, monumentName }: A
                 </p>
               </div>
             </div>
-
-            {result.montantPotentielTotal && result.montantPotentielTotal > 0 && (
-              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-background/80 border">
-                <TrendingUp className="h-4 w-4 text-green-600" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Montant potentiel cumulé</p>
-                  <p className="font-bold text-green-700">
-                    {formatCurrency(result.montantPotentielTotal)}
-                  </p>
-                </div>
-              </div>
-            )}
-
             <div className="text-sm text-muted-foreground sm:ml-auto text-center sm:text-right">
               <p>{result.totalAidesAnalysees} aides analysées</p>
               <p>{result.aidesNonEligibles.length} non éligibles</p>

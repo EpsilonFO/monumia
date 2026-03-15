@@ -1,8 +1,9 @@
-import { useState, useMemo, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Shield, Calendar, AlertTriangle, Wrench, Building2,
   FileText, ChevronLeft, Edit2, Eye, Trash2, Loader2,
+  Sparkles, CheckCircle2, XCircle, Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,15 +11,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { MonumentForm } from '@/components/monument/MonumentForm';
+import { AideMatchBanner } from '@/components/aide/AideMatchBanner';
+import { AideCard } from '@/components/aide/AideCard';
+import { AideFilterBar } from '@/components/aide/AideFilterBar';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
+import { useAideStore } from '@/stores/useAideStore';
 import { monumentService } from '@/services/monument.service';
+import { aideService } from '@/services/aide.service';
 import { formatDate } from '@/lib/date-utils';
 import { ROUTES } from '@/constants/routes';
 import { WORK_TYPES } from '@/constants/monument-options';
 import { toast } from 'sonner';
-import type { Monument } from '@/types';
+import type { Monument, AideDiagnosticResult } from '@/types';
 
 const protectionLabels: Record<string, string> = {
   classe: 'Classé Monument Historique',
@@ -44,6 +51,7 @@ const urgenceColors: Record<string, string> = {
 
 export function MonumentDetailPage() {
   const { monumentId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId));
   const updateMonument = useMonumentStore((s) => s.updateMonument);
@@ -53,9 +61,62 @@ export function MonumentDetailPage() {
     () => allDossiers.filter((d) => d.monumentId === monumentId),
     [allDossiers, monumentId]
   );
+  const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
+  const filters = useAideStore((s) => s.filters);
+  const diagnostic = monumentId ? diagnosticsByMonument[monumentId] ?? null : null;
+
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isRunningDiagnostic, setIsRunningDiagnostic] = useState(false);
+  const [showDiagnostic, setShowDiagnostic] = useState(!!diagnostic);
+
+  const defaultTab = searchParams.get('tab') === 'dossiers' ? 'dossiers' : 'informations';
+
+  const handleLaunchDiagnostic = useCallback(async () => {
+    if (!monumentId) return;
+    setIsRunningDiagnostic(true);
+    setShowDiagnostic(true);
+    try {
+      await aideService.runDiagnostic(
+        monumentId,
+        filters.modeProjet,
+        filters.travauxFiltres.length > 0 ? filters.travauxFiltres : undefined
+      );
+    } catch (err) {
+      console.error('Diagnostic error:', err);
+    } finally {
+      setIsRunningDiagnostic(false);
+    }
+  }, [monumentId, filters.modeProjet, filters.travauxFiltres]);
+
+  const filteredDiagnostic = useMemo((): AideDiagnosticResult | null => {
+    if (!diagnostic) return null;
+    const catFilter = filters.categories;
+    const query = filters.searchQuery.toLowerCase();
+
+    const filterMatches = (matches: typeof diagnostic.aidesEligibles) => {
+      let filtered = matches;
+      if (catFilter.length > 0) {
+        filtered = filtered.filter((m) => catFilter.includes(m.aide.categorie));
+      }
+      if (query) {
+        filtered = filtered.filter(
+          (m) =>
+            m.aide.nom.toLowerCase().includes(query) ||
+            m.aide.nomCourt.toLowerCase().includes(query) ||
+            m.aide.organisme.toLowerCase().includes(query)
+        );
+      }
+      return filtered;
+    };
+
+    return {
+      ...diagnostic,
+      aidesEligibles: filterMatches(diagnostic.aidesEligibles),
+      aidesNonEligibles: filterMatches(diagnostic.aidesNonEligibles),
+    };
+  }, [diagnostic, filters.categories, filters.searchQuery]);
 
   // If the monument isn't in the store yet (direct URL), fetch it
   const [notFound, setNotFound] = useState(false);
@@ -176,7 +237,7 @@ export function MonumentDetailPage() {
         <Progress value={monument.completionPercentage} className="h-2" />
       </div>
 
-      <Tabs defaultValue="informations">
+      <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="informations" className="gap-1.5">
             <Eye className="h-4 w-4" />
@@ -311,36 +372,113 @@ export function MonumentDetailPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="dossiers" className="mt-4 space-y-3">
-          {dossiers.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  Aucun dossier pour ce monument.
-                </p>
-                <Button asChild variant="outline" size="sm" className="mt-3">
-                  <Link to={ROUTES.AIDES}>Lancer un diagnostic d'aides</Link>
+        <TabsContent value="dossiers" className="mt-4 space-y-6">
+          {/* Existing dossiers */}
+          {dossiers.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Dossiers en cours
+              </h3>
+              {dossiers.map((dossier) => (
+                <Link key={dossier.id} to={ROUTES.DOSSIER_DETAIL(dossier.id)}>
+                  <Card className="hover:border-primary/30 transition-colors">
+                    <CardContent className="py-4 flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-sm">{dossier.titre}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Étape {dossier.etapeActuelle}/5 — {dossier.statut}
+                        </p>
+                      </div>
+                      <Progress value={dossier.progressionPourcentage} className="w-24 h-1.5" />
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {/* Diagnostic section */}
+          {showDiagnostic || diagnostic ? (
+            <div className="space-y-6">
+              <AideMatchBanner
+                result={diagnostic}
+                isRunning={isRunningDiagnostic}
+                onLaunch={handleLaunchDiagnostic}
+                monumentName={monument.nom}
+              />
+
+              {filteredDiagnostic && (
+                <>
+                  <AideFilterBar />
+
+                  <Tabs defaultValue="eligible">
+                    <TabsList>
+                      <TabsTrigger value="eligible" className="gap-1.5">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Éligibles ({filteredDiagnostic.aidesEligibles.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="non-eligible" className="gap-1.5">
+                        <XCircle className="h-4 w-4" />
+                        Non éligibles ({filteredDiagnostic.aidesNonEligibles.length})
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="eligible" className="mt-4">
+                      {filteredDiagnostic.aidesEligibles.length === 0 ? (
+                        <EmptyState
+                          icon={Search}
+                          title="Aucune aide éligible trouvée"
+                          description="Essayez de modifier les filtres ou vérifiez les informations de votre monument."
+                        />
+                      ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {filteredDiagnostic.aidesEligibles.map((match) => (
+                            <AideCard key={match.aide.id} match={match} />
+                          ))}
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="non-eligible" className="mt-4">
+                      {filteredDiagnostic.aidesNonEligibles.length === 0 ? (
+                        <EmptyState
+                          icon={CheckCircle2}
+                          title="Toutes les aides sont éligibles"
+                          description="Votre monument est éligible à toutes les aides analysées."
+                        />
+                      ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {filteredDiagnostic.aidesNonEligibles.map((match) => (
+                            <AideCard key={match.aide.id} match={match} />
+                          ))}
+                        </div>
+                      )}
+                    </TabsContent>
+                  </Tabs>
+                </>
+              )}
+            </div>
+          ) : dossiers.length === 0 ? (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="py-8 text-center space-y-4">
+                <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Sparkles className="h-8 w-8 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">
+                    Découvrez les aides disponibles pour {monument.nom}
+                  </h2>
+                  <p className="text-muted-foreground mt-1">
+                    Notre moteur analyse toutes les aides publiques et privées applicables à votre monument.
+                  </p>
+                </div>
+                <Button size="lg" onClick={handleLaunchDiagnostic}>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Lancer un diagnostic
                 </Button>
               </CardContent>
             </Card>
-          ) : (
-            dossiers.map((dossier) => (
-              <Link key={dossier.id} to={ROUTES.DOSSIER_DETAIL(dossier.id)}>
-                <Card className="hover:border-primary/30 transition-colors">
-                  <CardContent className="py-4 flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-medium text-sm">{dossier.titre}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Étape {dossier.etapeActuelle}/5 — {dossier.statut}
-                      </p>
-                    </div>
-                    <Progress value={dossier.progressionPourcentage} className="w-24 h-1.5" />
-                  </CardContent>
-                </Card>
-              </Link>
-            ))
-          )}
+          ) : null}
         </TabsContent>
       </Tabs>
     </div>

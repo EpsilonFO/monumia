@@ -39,7 +39,7 @@ export const aideService = {
       }),
     });
     const result = await handleResponse<AideDiagnosticResult>(res);
-    useAideStore.getState().setLastDiagnostic(result);
+    useAideStore.getState().setDiagnostic(monumentId, result);
     return result;
   },
 

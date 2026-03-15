@@ -13,15 +13,17 @@ interface AideState {
   loading: boolean;
   error: string | null;
   filters: AideFilters;
-  lastDiagnostic: AideDiagnosticResult | null;
+  diagnosticsByMonument: Record<string, AideDiagnosticResult>;
+  lastDiagnosticMonumentId: string | null;
 
   setAides: (aides: Aide[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setFilters: (filters: Partial<AideFilters>) => void;
   resetFilters: () => void;
-  setLastDiagnostic: (result: AideDiagnosticResult) => void;
-  clearDiagnostic: () => void;
+  setDiagnostic: (monumentId: string, result: AideDiagnosticResult) => void;
+  getDiagnostic: (monumentId: string) => AideDiagnosticResult | undefined;
+  clearDiagnostic: (monumentId?: string) => void;
   getAide: (id: string) => Aide | undefined;
 }
 
@@ -37,7 +39,8 @@ export const useAideStore = create<AideState>()((set, get) => ({
   loading: false,
   error: null,
   filters: defaultFilters,
-  lastDiagnostic: null,
+  diagnosticsByMonument: {},
+  lastDiagnosticMonumentId: null,
 
   setAides: (aides) => set({ aides, loading: false, error: null }),
   setLoading: (loading) => set({ loading }),
@@ -50,9 +53,37 @@ export const useAideStore = create<AideState>()((set, get) => ({
 
   resetFilters: () => set({ filters: defaultFilters }),
 
-  setLastDiagnostic: (result) => set({ lastDiagnostic: result }),
+  setDiagnostic: (monumentId, result) =>
+    set((state) => ({
+      diagnosticsByMonument: {
+        ...state.diagnosticsByMonument,
+        [monumentId]: result,
+      },
+      lastDiagnosticMonumentId: monumentId,
+    })),
 
-  clearDiagnostic: () => set({ lastDiagnostic: null }),
+  getDiagnostic: (monumentId) => get().diagnosticsByMonument[monumentId],
+
+  clearDiagnostic: (monumentId) =>
+    set((state) => {
+      if (monumentId) {
+        const { [monumentId]: _, ...rest } = state.diagnosticsByMonument;
+        return {
+          diagnosticsByMonument: rest,
+          lastDiagnosticMonumentId:
+            state.lastDiagnosticMonumentId === monumentId
+              ? null
+              : state.lastDiagnosticMonumentId,
+        };
+      }
+      return { diagnosticsByMonument: {}, lastDiagnosticMonumentId: null };
+    }),
 
   getAide: (id) => get().aides.find((a) => a.id === id),
 }));
+
+/** Selector: derive lastDiagnostic from store state */
+export function selectLastDiagnostic(s: AideState): AideDiagnosticResult | null {
+  if (!s.lastDiagnosticMonumentId) return null;
+  return s.diagnosticsByMonument[s.lastDiagnosticMonumentId] ?? null;
+}

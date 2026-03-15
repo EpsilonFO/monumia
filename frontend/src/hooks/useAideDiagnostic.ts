@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from 'react';
-import { useAideStore } from '@/stores/useAideStore';
+import { useAideStore, selectLastDiagnostic } from '@/stores/useAideStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { aideService } from '@/services/aide.service';
@@ -9,7 +9,7 @@ export function useAideDiagnostic(monumentId?: string) {
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const filters = useAideStore((s) => s.filters);
-  const lastDiagnostic = useAideStore((s) => s.lastDiagnostic);
+  const lastDiagnostic = useAideStore(selectLastDiagnostic);
 
   const monument = useMemo(
     () => (monumentId ? monuments.find((m) => m.id === monumentId) : undefined),

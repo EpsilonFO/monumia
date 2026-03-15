@@ -1,8 +1,10 @@
-import { Link } from 'react-router';
-import { MapPin, Shield, AlertTriangle, ChevronRight } from 'lucide-react';
+import { Link, useNavigate } from 'react-router';
+import { MapPin, Shield, AlertTriangle, ChevronRight, Sparkles, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { useDossierStore } from '@/stores/useDossierStore';
 import { ROUTES } from '@/constants/routes';
 import type { Monument } from '@/types';
 
@@ -33,6 +35,21 @@ const etatLabels: Record<string, string> = {
 };
 
 export function MonumentCard({ monument }: MonumentCardProps) {
+  const navigate = useNavigate();
+  const hasDossiers = useDossierStore((s) =>
+    s.dossiers.some((d) => d.monumentId === monument.id)
+  );
+
+  const handleActionClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (hasDossiers) {
+      navigate(`${ROUTES.DOSSIERS}?monument=${monument.id}`);
+    } else {
+      navigate(`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=dossiers`);
+    }
+  };
+
   return (
     <Link to={ROUTES.MONUMENT_DETAIL(monument.id)}>
       <Card className="hover:shadow-md hover:border-primary/30 transition-all group">
@@ -69,6 +86,25 @@ export function MonumentCard({ monument }: MonumentCardProps) {
             </div>
             <Progress value={monument.completionPercentage} className="h-1.5" />
           </div>
+
+          <Button
+            variant={hasDossiers ? 'outline' : 'default'}
+            size="sm"
+            className="w-full"
+            onClick={handleActionClick}
+          >
+            {hasDossiers ? (
+              <>
+                <FileText className="h-4 w-4 mr-2" />
+                Voir mon dossier
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Lancer un diagnostic
+              </>
+            )}
+          </Button>
         </CardContent>
       </Card>
     </Link>

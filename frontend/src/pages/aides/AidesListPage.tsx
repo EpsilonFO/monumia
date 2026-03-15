@@ -8,7 +8,7 @@ import { AideCard } from '@/components/aide/AideCard';
 import { AideFilterBar } from '@/components/aide/AideFilterBar';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
-import { useAideStore } from '@/stores/useAideStore';
+import { useAideStore, selectLastDiagnostic } from '@/stores/useAideStore';
 import { aideService } from '@/services/aide.service';
 import { CheckCircle2, XCircle, Search } from 'lucide-react';
 import type { AideDiagnosticResult } from '@/types';
@@ -17,7 +17,7 @@ export function AidesListPage() {
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const filters = useAideStore((s) => s.filters);
-  const lastDiagnostic = useAideStore((s) => s.lastDiagnostic);
+  const lastDiagnostic = useAideStore(selectLastDiagnostic);
 
   const userMonuments = useMemo(
     () => (user ? monuments.filter((m) => m.userId === user.id) : []),

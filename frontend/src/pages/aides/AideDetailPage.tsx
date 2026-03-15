@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Disclaimer } from '@/components/shared/Disclaimer';
-import { useAideStore } from '@/stores/useAideStore';
+import { useAideStore, selectLastDiagnostic } from '@/stores/useAideStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useActiveMonument } from '@/hooks/useActiveMonument';
 import { useSegmentLabel } from '@/hooks/useSegment';
@@ -27,7 +27,7 @@ export function AideDetailPage() {
   const storeAide = useAideStore((s) => s.aides.find((a) => a.id === aideId));
   const user = useAuthStore((s) => s.user);
   const monument = useActiveMonument();
-  const lastDiagnostic = useAideStore((s) => s.lastDiagnostic);
+  const lastDiagnostic = useAideStore(selectLastDiagnostic);
   useSegmentLabel();
 
   // If aide not in store (e.g. direct link), fetch from API
