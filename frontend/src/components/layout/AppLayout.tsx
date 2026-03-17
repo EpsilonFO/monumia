@@ -8,11 +8,8 @@ import { useAideStore } from '@/stores/useAideStore';
 import { useNotificationStore } from '@/stores/useNotificationStore';
 import { monumentService } from '@/services/monument.service';
 import { aideService } from '@/services/aide.service';
-import { mockUsers } from '@/data/mock-users';
-
 export function AppLayout() {
   const user = useAuthStore((s) => s.user);
-  const setUser = useAuthStore((s) => s.setUser);
   const token = useAuthStore((s) => s.token);
   const setMonuments = useMonumentStore((s) => s.setMonuments);
   const setAides = useAideStore((s) => s.setAides);
@@ -21,11 +18,11 @@ export function AppLayout() {
 
   useEffect(() => {
     if (!user) {
-      setUser(mockUsers[0]);
+      navigate('/login');
     } else if (user.segment === 'btp') {
       navigate('/btp');
     }
-  }, [user, setUser, navigate]);
+  }, [user, navigate]);
 
   // Load monuments and aides when authenticated
   useEffect(() => {

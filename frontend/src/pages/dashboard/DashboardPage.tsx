@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { Link } from 'react-router';
 import {
   Landmark, FileText, Sparkles, Calendar, Bell,
@@ -14,28 +14,30 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useNotificationStore } from '@/stores/useNotificationStore';
+import { dossierService } from '@/services/dossier.service';
 import { useDeadlines } from '@/hooks/useDeadlines';
 import { ROUTES } from '@/constants/routes';
 import { DOSSIER_STATUS_LABELS } from '@/constants/dossier-steps';
 import { deadlineLabel } from '@/lib/date-utils';
 import { cn } from '@/lib/utils';
-import { mockUsers } from '@/data/mock-users';
-
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
-  const setUser = useAuthStore((s) => s.setUser);
   const monuments = useMonumentStore((s) => s.monuments);
   const dossiers = useDossierStore((s) => s.dossiers);
+  const dossierLoaded = useDossierStore((s) => s.loaded);
   const notifications = useNotificationStore((s) => s.notifications);
   const markAsRead = useNotificationStore((s) => s.markAsRead);
   const deadlines = useDeadlines();
 
-  // Auto-login for demo: pick first mock user if none
-  if (!user) {
-    setUser(mockUsers[0]);
-  }
+  useEffect(() => {
+    if (user && !dossierLoaded) {
+      dossierService.fetchAll().catch(console.error);
+    }
+  }, [user, dossierLoaded]);
 
-  const currentUser = user ?? mockUsers[0];
+  if (!user) return null;
+
+  const currentUser = user;
 
   const userMonuments = useMemo(
     () => monuments.filter((m) => m.userId === currentUser.id),

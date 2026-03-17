@@ -12,7 +12,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { Disclaimer } from '@/components/shared/Disclaimer';
 import { useAideStore, selectLastDiagnostic } from '@/stores/useAideStore';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useActiveMonument } from '@/hooks/useActiveMonument';
+import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useSegmentLabel } from '@/hooks/useSegment';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
@@ -26,8 +26,11 @@ export function AideDetailPage() {
   const navigate = useNavigate();
   const storeAide = useAideStore((s) => s.aides.find((a) => a.id === aideId));
   const user = useAuthStore((s) => s.user);
-  const monument = useActiveMonument();
   const lastDiagnostic = useAideStore(selectLastDiagnostic);
+  const lastDiagnosticMonumentId = useAideStore((s) => s.lastDiagnosticMonumentId);
+  const monument = useMonumentStore((s) =>
+    lastDiagnosticMonumentId ? s.monuments.find((m) => m.id === lastDiagnosticMonumentId) : s.monuments[0]
+  );
   useSegmentLabel();
 
   // If aide not in store (e.g. direct link), fetch from API
@@ -64,15 +67,23 @@ export function AideDetailPage() {
 
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
 
-  const handleCreateDossier = () => {
-    if (!monument || !user) return;
-    const dossier = dossierService.createFromAide(
-      aide,
-      monument,
-      user,
-      monument.travauxEnvisages ?? []
-    );
-    navigate(ROUTES.DOSSIER_DETAIL(dossier.id));
+  const [creating, setCreating] = useState(false);
+
+  const handleCreateDossier = async () => {
+    if (!monument || !user || creating) return;
+    setCreating(true);
+    try {
+      const dossier = await dossierService.create(
+        monument.id,
+        aide.id,
+        monument.travauxEnvisages ?? []
+      );
+      navigate(ROUTES.DOSSIER_DETAIL(dossier.id));
+    } catch (err) {
+      console.error('Erreur création dossier:', err);
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -119,9 +130,9 @@ export function AideDetailPage() {
         </div>
 
         {matchResult?.eligible && monument && (
-          <Button onClick={handleCreateDossier} className="shrink-0">
+          <Button onClick={handleCreateDossier} className="shrink-0" disabled={creating}>
             <FileText className="h-4 w-4 mr-2" />
-            Créer un dossier
+            {creating ? 'Création...' : 'Créer un dossier'}
           </Button>
         )}
       </div>

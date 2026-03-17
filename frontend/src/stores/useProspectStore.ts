@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Prospect, ProspectStatus, ID } from '@/types';
-import { mockProspects } from '@/data/mock-prospects';
 
 interface ProspectState {
   prospects: Prospect[];
@@ -17,7 +16,7 @@ interface ProspectState {
 export const useProspectStore = create<ProspectState>()(
   persist(
     (set, get) => ({
-      prospects: mockProspects,
+      prospects: null,
 
       getProspect: (id) => get().prospects.find((p) => p.id === id),
 

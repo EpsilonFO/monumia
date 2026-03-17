@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Menu, LogOut } from 'lucide-react';
 import { BtpSidebar } from './BtpSidebar';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { mockUserBtp } from '@/data/mock-users';
 
 function BtpMobileNav() {
   return (
@@ -17,18 +16,16 @@ function BtpMobileNav() {
 
 export function BtpLayout() {
   const user = useAuthStore((s) => s.user);
-  const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!user) {
-      setUser(mockUserBtp);
+      navigate('/login');
     } else if (user.segment !== 'btp') {
-      // Redirect non-BTP users
       navigate('/');
     }
-  }, [user, setUser, navigate]);
+  }, [user, navigate]);
 
   const handleLogout = () => {
     logout();

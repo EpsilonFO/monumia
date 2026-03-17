@@ -21,6 +21,7 @@ import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { monumentService } from '@/services/monument.service';
 import { aideService } from '@/services/aide.service';
+import { dossierService } from '@/services/dossier.service';
 import { formatDate } from '@/lib/date-utils';
 import { ROUTES } from '@/constants/routes';
 import { WORK_TYPES } from '@/constants/monument-options';
@@ -57,6 +58,7 @@ export function MonumentDetailPage() {
   const updateMonument = useMonumentStore((s) => s.updateMonument);
   const deleteMonument = useMonumentStore((s) => s.deleteMonument);
   const allDossiers = useDossierStore((s) => s.dossiers);
+  const dossierLoaded = useDossierStore((s) => s.loaded);
   const dossiers = useMemo(
     () => allDossiers.filter((d) => d.monumentId === monumentId),
     [allDossiers, monumentId]
@@ -90,13 +92,18 @@ export function MonumentDetailPage() {
     }
   }, [monumentId, filters.modeProjet, filters.travauxFiltres]);
 
+  const aideIdsWithDossier = useMemo(
+    () => new Set(dossiers.map((d) => d.aideId)),
+    [dossiers]
+  );
+
   const filteredDiagnostic = useMemo((): AideDiagnosticResult | null => {
     if (!diagnostic) return null;
     const catFilter = filters.categories;
     const query = filters.searchQuery.toLowerCase();
 
     const filterMatches = (matches: typeof diagnostic.aidesEligibles) => {
-      let filtered = matches;
+      let filtered = matches.filter((m) => !aideIdsWithDossier.has(m.aide.id));
       if (catFilter.length > 0) {
         filtered = filtered.filter((m) => catFilter.includes(m.aide.categorie));
       }
@@ -116,7 +123,7 @@ export function MonumentDetailPage() {
       aidesEligibles: filterMatches(diagnostic.aidesEligibles),
       aidesNonEligibles: filterMatches(diagnostic.aidesNonEligibles),
     };
-  }, [diagnostic, filters.categories, filters.searchQuery]);
+  }, [diagnostic, filters.categories, filters.searchQuery, aideIdsWithDossier]);
 
   // If the monument isn't in the store yet (direct URL), fetch it
   const [notFound, setNotFound] = useState(false);
@@ -128,6 +135,13 @@ export function MonumentDetailPage() {
         .catch(() => setNotFound(true));
     }
   }, [monumentId]);
+
+  // Fetch dossiers from API if not loaded yet
+  useEffect(() => {
+    if (!dossierLoaded) {
+      dossierService.fetchAll().catch(console.error);
+    }
+  }, [dossierLoaded]);
 
   if (notFound || (!monument && !monumentId)) {
     return (
@@ -381,17 +395,10 @@ export function MonumentDetailPage() {
               </h3>
               {dossiers.map((dossier) => (
                 <Link key={dossier.id} to={ROUTES.DOSSIER_DETAIL(dossier.id)}>
-                  <Card className="hover:border-primary/30 transition-colors">
-                    <CardContent className="py-4 flex items-center justify-between gap-4">
-                      <div>
-                        <p className="font-medium text-sm">{dossier.titre}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Étape {dossier.etapeActuelle}/5 — {dossier.statut}
-                        </p>
-                      </div>
-                      <Progress value={dossier.progressionPourcentage} className="w-24 h-1.5" />
-                    </CardContent>
-                  </Card>
+                  <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg border hover:bg-muted/50 transition-colors">
+                    <p className="font-medium text-sm truncate">{dossier.titre}</p>
+                    <Progress value={dossier.progressionPourcentage} className="w-20 h-1.5 shrink-0" />
+                  </div>
                 </Link>
               ))}
             </div>
@@ -458,7 +465,7 @@ export function MonumentDetailPage() {
                 </>
               )}
             </div>
-          ) : dossiers.length === 0 ? (
+          ) : (
             <Card className="border-primary/20 bg-primary/5">
               <CardContent className="py-8 text-center space-y-4">
                 <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -472,13 +479,13 @@ export function MonumentDetailPage() {
                     Notre moteur analyse toutes les aides publiques et privées applicables à votre monument.
                   </p>
                 </div>
-                <Button size="lg" onClick={handleLaunchDiagnostic}>
+                <Button size="lg" onClick={() => { setShowDiagnostic(true); if (!diagnostic) handleLaunchDiagnostic(); }}>
                   <Sparkles className="h-4 w-4 mr-2" />
-                  Lancer un diagnostic
+                  {diagnostic || dossiers.length > 0 ? 'Voir le diagnostic' : 'Lancer un diagnostic'}
                 </Button>
               </CardContent>
             </Card>
-          ) : null}
+          )}
         </TabsContent>
       </Tabs>
     </div>

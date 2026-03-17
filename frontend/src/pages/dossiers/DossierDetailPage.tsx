@@ -1,7 +1,8 @@
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router';
 import {
   ChevronLeft, ClipboardList, FileEdit, Calendar, Users,
-  Check, AlertTriangle,
+  Check, AlertTriangle, Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,10 +26,32 @@ import type { ChecklistItemStatus } from '@/types';
 export function DossierDetailPage() {
   const { dossierId } = useParams();
   const dossier = useDossierStore((s) => s.dossiers.find((d) => d.id === dossierId));
+  const addDossier = useDossierStore((s) => s.addDossier);
   const aide = useAideStore((s) => dossier ? s.aides.find((a) => a.id === dossier.aideId) : undefined);
   const monument = useMonumentStore((s) => dossier ? s.monuments.find((m) => m.id === dossier.monumentId) : undefined);
 
-  if (!dossier) {
+  const [loading, setLoading] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (!dossier && dossierId && !loading && !notFound) {
+      setLoading(true);
+      dossierService.getById(dossierId)
+        .then((d) => addDossier(d))
+        .catch(() => setNotFound(true))
+        .finally(() => setLoading(false));
+    }
+  }, [dossier, dossierId]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!dossier || notFound) {
     return (
       <div className="space-y-4">
         <PageHeader title="Dossier introuvable" />
@@ -47,11 +70,11 @@ export function DossierDetailPage() {
   const currentStep = DOSSIER_STEPS.find((s) => s.step === dossier.etapeActuelle);
 
   const handleChecklistChange = (itemId: string, statut: ChecklistItemStatus) => {
-    dossierService.updateChecklistItem(dossier.id, itemId, statut);
+    dossierService.updateChecklistItem(dossier.id, itemId, statut).catch(console.error);
   };
 
   const handleSectionChange = (sectionId: string, contenu: string) => {
-    dossierService.updateSection(dossier.id, sectionId, contenu);
+    dossierService.updateSection(dossier.id, sectionId, contenu).catch(console.error);
   };
 
   return (

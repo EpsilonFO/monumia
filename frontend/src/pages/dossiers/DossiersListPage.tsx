@@ -1,28 +1,34 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { LayoutGrid, List, FileText, Landmark } from 'lucide-react';
+import { FileText, Landmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { DossierPipeline } from '@/components/dossier/DossierPipeline';
 import { DossierCard } from '@/components/dossier/DossierCard';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
+import { dossierService } from '@/services/dossier.service';
 import { ROUTES } from '@/constants/routes';
 
 export function DossiersListPage() {
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const dossiers = useDossierStore((s) => s.dossiers);
+  const loaded = useDossierStore((s) => s.loaded);
   const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (user && !loaded) {
+      dossierService.fetchAll().catch(console.error);
+    }
+  }, [user, loaded]);
 
   const monumentFilter = searchParams.get('monument');
 
   const userDossiers = useMemo(() => {
     if (!user) return [];
-    let filtered = dossiers.filter((d) => d.userId === user.id);
+    let filtered = dossiers;
     if (monumentFilter) {
       filtered = filtered.filter((d) => d.monumentId === monumentFilter);
     }
@@ -33,6 +39,8 @@ export function DossiersListPage() {
     () => monumentFilter ? monuments.find((m) => m.id === monumentFilter) : undefined,
     [monuments, monumentFilter]
   );
+
+  const hasDossiers = userDossiers.length > 0;
 
   return (
     <div className="space-y-6">
@@ -54,7 +62,7 @@ export function DossiersListPage() {
         }
       />
 
-      {userDossiers.length === 0 ? (
+      {!hasDossiers ? (
         <EmptyState
           icon={FileText}
           title="Aucun dossier en cours actuellement"
@@ -73,31 +81,10 @@ export function DossiersListPage() {
           }
         />
       ) : (
-        <div className="space-y-4">
-          <Tabs defaultValue="pipeline">
-            <TabsList>
-              <TabsTrigger value="pipeline" className="gap-1.5">
-                <LayoutGrid className="h-4 w-4" />
-                Pipeline
-              </TabsTrigger>
-              <TabsTrigger value="list" className="gap-1.5">
-                <List className="h-4 w-4" />
-                Liste
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="pipeline" className="mt-4">
-              <DossierPipeline dossiers={userDossiers} />
-            </TabsContent>
-
-            <TabsContent value="list" className="mt-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {userDossiers.map((dossier) => (
-                  <DossierCard key={dossier.id} dossier={dossier} />
-                ))}
-              </div>
-            </TabsContent>
-          </Tabs>
+        <div className="space-y-3">
+          {userDossiers.map((dossier) => (
+            <DossierCard key={dossier.id} dossier={dossier} />
+          ))}
         </div>
       )}
     </div>

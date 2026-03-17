@@ -359,7 +359,7 @@ AIDES = [
         "organisme": "Préfecture (État)",
         "taux_max": 50,
         "plancher": 15000,
-        "date_limite": "2026-03-31",
+        "date_limite": "2026-01-23",
         "permanent": False,
         "criteres": {
             "segmentEligible": ["commune"],
