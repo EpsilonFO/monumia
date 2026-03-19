@@ -5,6 +5,20 @@ import type { Document, DocumentType } from '@/types';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 const STORAGE_BUCKET = 'documents';
+const SIGNED_URL_EXPIRY = 7 * 24 * 60 * 60; // 7 days in seconds
+
+/**
+ * Extract the storage path from a value that may be a full Supabase public URL
+ * or already a relative path.
+ * e.g. "https://xxx.supabase.co/storage/v1/object/public/documents/userId/file.pdf"
+ *   → "userId/file.pdf"
+ */
+function toStoragePath(urlOrPath: string): string {
+  const marker = `/storage/v1/object/public/${STORAGE_BUCKET}/`;
+  const idx = urlOrPath.indexOf(marker);
+  if (idx !== -1) return decodeURIComponent(urlOrPath.slice(idx + marker.length));
+  return urlOrPath;
+}
 
 async function uploadToStorage(file: File, userId: string): Promise<string> {
   const ext = file.name.split('.').pop() ?? 'bin';
@@ -25,8 +39,8 @@ async function uploadToStorage(file: File, userId: string): Promise<string> {
 
   if (error) throw new Error(`Erreur upload fichier : ${error.message}`);
 
-  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  // Store the storage path, not a public URL — the bucket is private
+  return path;
 }
 
 export interface UploadDocumentPayload {
@@ -47,7 +61,7 @@ function toDocument(row: Record<string, unknown>): Document {
     tags: (row.tags as string[]) ?? [],
     tailleFichier: row.taille_fichier as number,
     mimeType: row.mime_type as string,
-    url: row.url as string,
+    url: toStoragePath(row.url as string),
     dossiersUtilises: (row.dossiers_utilises as string[]) ?? [],
     userId: row.user_id as string,
     monumentId: row.monument_id as string | undefined,
@@ -55,6 +69,26 @@ function toDocument(row: Record<string, unknown>): Document {
     dateDocument: row.date_document as string | undefined,
     description: row.description as string | undefined,
   };
+}
+
+/** Generate a signed URL for a document's storage path. */
+async function getSignedUrl(storagePath: string): Promise<string> {
+  const { token, refreshToken } = useAuthStore.getState();
+  if (token) {
+    await supabase.auth.setSession({
+      access_token: token,
+      refresh_token: refreshToken ?? '',
+    });
+  }
+
+  const { data, error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(storagePath, SIGNED_URL_EXPIRY);
+
+  if (error || !data?.signedUrl) {
+    throw new Error(`Erreur création URL signée : ${error?.message ?? 'URL vide'}`);
+  }
+  return data.signedUrl;
 }
 
 export const documentService = {
@@ -135,4 +169,6 @@ export const documentService = {
       throw new Error(body.detail ?? `HTTP ${res.status}`);
     }
   },
+
+  getSignedUrl,
 };

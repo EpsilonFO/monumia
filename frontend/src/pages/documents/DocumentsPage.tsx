@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { DocumentCard } from '@/components/document/DocumentCard';
+import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { UploadDocumentDialog } from '@/components/document/UploadDocumentDialog';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
@@ -22,6 +23,7 @@ export function DocumentsPage() {
   const [filterMonument, setFilterMonument] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<typeof documents[number] | null>(null);
 
   useEffect(() => {
     fetchDocuments();
@@ -149,12 +151,13 @@ export function DocumentsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredDocuments.map((doc) => (
-            <DocumentCard key={doc.id} document={doc} dossierNames={dossierNames} monumentNames={monumentNames} />
+            <DocumentCard key={doc.id} document={doc} dossierNames={dossierNames} monumentNames={monumentNames} onClick={() => setPreviewDoc(doc)} />
           ))}
         </div>
       )}
 
       <UploadDocumentDialog open={uploadOpen} onOpenChange={setUploadOpen} />
+      <DocumentPreviewDialog document={previewDoc} open={!!previewDoc} onOpenChange={(open) => { if (!open) setPreviewDoc(null); }} />
     </div>
   );
 }

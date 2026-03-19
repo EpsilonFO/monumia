@@ -128,11 +128,23 @@ export function MonumentDetailPage() {
   // If the monument isn't in the store yet (direct URL), fetch it
   const [notFound, setNotFound] = useState(false);
   const addMonument = useMonumentStore((s) => s.addMonument);
+  const setDiagnostic = useAideStore((s) => s.setDiagnostic);
   useEffect(() => {
     if (!monument && monumentId) {
       monumentService.getById(monumentId)
         .then(addMonument)
         .catch(() => setNotFound(true));
+    }
+  }, [monumentId]);
+
+  // Load latest diagnostic from DB if not already in store
+  useEffect(() => {
+    if (monumentId && !diagnostic) {
+      aideService.getDiagnostics(monumentId).then((diagnostics) => {
+        if (diagnostics.length > 0) {
+          setDiagnostic(monumentId, diagnostics[0]);
+        }
+      }).catch(console.error);
     }
   }, [monumentId]);
 

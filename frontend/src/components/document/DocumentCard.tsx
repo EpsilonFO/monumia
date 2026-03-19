@@ -9,6 +9,7 @@ interface DocumentCardProps {
   document: Document;
   dossierNames?: Record<string, string>;
   monumentNames?: Record<string, string>;
+  onClick?: () => void;
 }
 
 const typeIcons: Record<string, typeof FileText> = {
@@ -71,7 +72,7 @@ const typeIconColor: Record<string, string> = {
   autre: 'text-gray-400',
 };
 
-export function DocumentCard({ document, dossierNames, monumentNames }: DocumentCardProps) {
+export function DocumentCard({ document, dossierNames, monumentNames, onClick }: DocumentCardProps) {
   const Icon = typeIcons[document.type] ?? File;
   const monumentName = document.monumentId && monumentNames?.[document.monumentId];
 
@@ -80,7 +81,7 @@ export function DocumentCard({ document, dossierNames, monumentNames }: Document
     : [];
 
   return (
-    <Card className="hover:shadow-md transition-shadow overflow-hidden flex flex-col">
+    <Card className="hover:shadow-md transition-shadow overflow-hidden flex flex-col cursor-pointer" onClick={onClick}>
       <CardContent className="p-3 space-y-2 flex-1 flex flex-col">
         <div className="flex items-start gap-2.5">
           <div
