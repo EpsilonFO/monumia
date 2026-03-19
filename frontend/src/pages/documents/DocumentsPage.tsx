@@ -33,6 +33,12 @@ export function DocumentsPage() {
     return map;
   }, [dossiers]);
 
+  const monumentNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    monuments.forEach((m) => { map[m.id] = m.nom; });
+    return map;
+  }, [monuments]);
+
   const filteredDocuments = useMemo(() => {
     let docs = documents;
 
@@ -143,7 +149,7 @@ export function DocumentsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredDocuments.map((doc) => (
-            <DocumentCard key={doc.id} document={doc} dossierNames={dossierNames} />
+            <DocumentCard key={doc.id} document={doc} dossierNames={dossierNames} monumentNames={monumentNames} />
           ))}
         </div>
       )}

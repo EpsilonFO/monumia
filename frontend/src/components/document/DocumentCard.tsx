@@ -2,13 +2,13 @@ import { FileText, Image, FileSpreadsheet, File, FolderOpen } from 'lucide-react
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatFileSize } from '@/lib/format-utils';
-import { formatDate } from '@/lib/date-utils';
 import { cn } from '@/lib/utils';
 import type { Document } from '@/types';
 
 interface DocumentCardProps {
   document: Document;
   dossierNames?: Record<string, string>;
+  monumentNames?: Record<string, string>;
 }
 
 const typeIcons: Record<string, typeof FileText> = {
@@ -71,8 +71,9 @@ const typeIconColor: Record<string, string> = {
   autre: 'text-gray-400',
 };
 
-export function DocumentCard({ document, dossierNames }: DocumentCardProps) {
+export function DocumentCard({ document, dossierNames, monumentNames }: DocumentCardProps) {
   const Icon = typeIcons[document.type] ?? File;
+  const monumentName = document.monumentId && monumentNames?.[document.monumentId];
 
   const linkedDossiers = dossierNames
     ? document.dossiersUtilises.map((id) => dossierNames[id]).filter(Boolean)
@@ -80,26 +81,24 @@ export function DocumentCard({ document, dossierNames }: DocumentCardProps) {
 
   return (
     <Card className="hover:shadow-md transition-shadow overflow-hidden flex flex-col">
-      {/* Preview */}
-      {
-        <div
-          className={cn(
-            'h-24 flex items-center justify-center',
-            typeBg[document.type] ?? 'bg-muted'
-          )}
-        >
-          <Icon className={cn('h-10 w-10', typeIconColor[document.type] ?? 'text-muted-foreground')} />
-        </div>
-      }
-
-      <CardContent className="p-4 space-y-3 flex-1 flex flex-col">
-        <div>
-          <p className="text-sm font-medium leading-tight line-clamp-2">
-            {document.nom}
-          </p>
-          <p className="text-xs text-muted-foreground mt-0.5 truncate">
-            {document.nomFichier}
-          </p>
+      <CardContent className="p-3 space-y-2 flex-1 flex flex-col">
+        <div className="flex items-start gap-2.5">
+          <div
+            className={cn(
+              'h-8 w-8 shrink-0 rounded flex items-center justify-center',
+              typeBg[document.type] ?? 'bg-muted'
+            )}
+          >
+            <Icon className={cn('h-4 w-4', typeIconColor[document.type] ?? 'text-muted-foreground')} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium leading-tight line-clamp-2">
+              {document.nom}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {document.nomFichier}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -109,10 +108,13 @@ export function DocumentCard({ document, dossierNames }: DocumentCardProps) {
           <span className="text-xs text-muted-foreground">
             {formatFileSize(document.tailleFichier)}
           </span>
-          <span className="text-xs text-muted-foreground">
-            {formatDate(document.dateUpload)}
-          </span>
         </div>
+
+        {monumentName && (
+          <p className="text-xs text-muted-foreground truncate">
+            {monumentName}
+          </p>
+        )}
 
         {document.description && (
           <p className="text-xs text-muted-foreground line-clamp-2">
