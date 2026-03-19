@@ -37,6 +37,17 @@ const OFFICE_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 ]);
 
+async function downloadFile(url: string, filename: string) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: blobUrl, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(blobUrl);
+}
+
 function getPreviewType(mimeType: string): 'image' | 'pdf' | 'office' | 'none' {
   if (mimeType.startsWith('image/')) return 'image';
   if (mimeType === 'application/pdf') return 'pdf';
@@ -123,11 +134,9 @@ export function DocumentPreviewDialog({ document, open, onOpenChange }: Document
             </div>
             {signedUrl && (
               <div className="flex gap-2 shrink-0">
-                <Button variant="outline" size="sm" asChild>
-                  <a href={signedUrl} download={document.nomFichier}>
-                    <Download className="h-4 w-4 mr-1.5" />
-                    Télécharger
-                  </a>
+                <Button variant="outline" size="sm" onClick={() => downloadFile(signedUrl, document.nomFichier)}>
+                  <Download className="h-4 w-4 mr-1.5" />
+                  Télécharger
                 </Button>
                 <Button variant="outline" size="sm" asChild>
                   <a href={signedUrl} target="_blank" rel="noopener noreferrer">
@@ -184,14 +193,10 @@ export function DocumentPreviewDialog({ document, open, onOpenChange }: Document
                 <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
                   <FileWarning className="h-12 w-12 text-muted-foreground/50" />
                   <p className="text-sm">Aperçu non disponible pour ce type de fichier.</p>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={signedUrl} download={document.nomFichier}>
-                        <Download className="h-4 w-4 mr-1.5" />
-                        Télécharger
-                      </a>
-                    </Button>
-                  </div>
+                  <Button variant="outline" size="sm" onClick={() => downloadFile(signedUrl!, document.nomFichier)}>
+                    <Download className="h-4 w-4 mr-1.5" />
+                    Télécharger
+                  </Button>
                 </div>
               )}
             </>
