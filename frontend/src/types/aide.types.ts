@@ -86,8 +86,11 @@ export interface AideDiagnosticRequest {
 }
 
 export interface AideDiagnosticResult {
+  id?: string;
   monumentId: ID;
   timestamp: string;
+  modeProjet?: boolean;
+  travauxFiltres?: string[];
   totalAidesAnalysees: number;
   aidesEligibles: AideMatchResult[];
   aidesNonEligibles: AideMatchResult[];

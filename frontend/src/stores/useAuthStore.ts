@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User, UserSegment, NotificationPreferences } from '@/types';
+import { authService } from '@/services/auth.service';
 
 interface AuthState {
   user: User | null;
@@ -11,16 +12,16 @@ interface AuthState {
   setAuth: (user: User, token: string, refreshToken?: string | null) => void;
   setTokens: (token: string, refreshToken: string) => void;
   setUser: (user: User) => void;
-  updateProfile: (updates: Partial<User>) => void;
+  updateProfile: (updates: Partial<User>) => Promise<void>;
   completeOnboarding: () => void;
   setSegment: (segment: UserSegment) => void;
-  updateNotificationPreferences: (prefs: Partial<NotificationPreferences>) => void;
+  updateNotificationPreferences: (prefs: Partial<NotificationPreferences>) => Promise<void>;
   logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       token: null,
       refreshToken: null,
@@ -34,10 +35,17 @@ export const useAuthStore = create<AuthState>()(
 
       setUser: (user) => set({ user, isOnboarded: user.onboardingComplete }),
 
-      updateProfile: (updates) =>
-        set((state) => ({
-          user: state.user ? { ...state.user, ...updates } : null,
-        })),
+      updateProfile: async (updates) => {
+        const token = get().token;
+        if (!token) return;
+        const updated = await authService.updateProfile(token, {
+          prenom: updates.prenom,
+          nom: updates.nom,
+          email: updates.email,
+          telephone: updates.telephone,
+        });
+        set({ user: updated });
+      },
 
       completeOnboarding: () =>
         set((state) => ({
@@ -52,18 +60,12 @@ export const useAuthStore = create<AuthState>()(
           user: state.user ? { ...state.user, segment } : null,
         })),
 
-      updateNotificationPreferences: (prefs) =>
-        set((state) => ({
-          user: state.user
-            ? {
-                ...state.user,
-                notificationPreferences: {
-                  ...state.user.notificationPreferences,
-                  ...prefs,
-                },
-              }
-            : null,
-        })),
+      updateNotificationPreferences: async (prefs) => {
+        const token = get().token;
+        if (!token) return;
+        const updated = await authService.updateNotificationPreferences(token, prefs);
+        set({ user: updated });
+      },
 
       logout: () => set({ user: null, token: null, refreshToken: null, isOnboarded: false }),
     }),

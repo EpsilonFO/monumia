@@ -27,8 +27,10 @@ export interface RegisterPayload {
   nom: string;
   segment: 'commune' | 'prive' | 'btp';
   telephone?: string;
-  commune?: object;
-  prive?: object;
+  commune_code_insee?: string;
+  commune_fonction?: string;
+  prive_type_proprietaire?: string;
+  prive_regime_fiscal?: string;
   btp?: object;
 }
 
@@ -77,6 +79,30 @@ export const authService = {
   async getMe(token: string): Promise<import('@/types').User> {
     const res = await fetch(`${BASE}/auth/me`, {
       headers: authHeaders(token),
+    });
+    return handleResponse(res);
+  },
+
+  async updateProfile(
+    token: string,
+    updates: { prenom?: string; nom?: string; email?: string; telephone?: string },
+  ): Promise<import('@/types').User> {
+    const res = await fetch(`${BASE}/auth/me`, {
+      method: 'PATCH',
+      headers: authHeaders(token),
+      body: JSON.stringify(updates),
+    });
+    return handleResponse(res);
+  },
+
+  async updateNotificationPreferences(
+    token: string,
+    prefs: Partial<import('@/types').NotificationPreferences>,
+  ): Promise<import('@/types').User> {
+    const res = await fetch(`${BASE}/auth/me/notifications`, {
+      method: 'PATCH',
+      headers: authHeaders(token),
+      body: JSON.stringify(prefs),
     });
     return handleResponse(res);
   },

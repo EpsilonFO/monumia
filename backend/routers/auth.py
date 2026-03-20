@@ -18,8 +18,10 @@ class RegisterRequest(BaseModel):
     nom: str
     segment: str  # 'commune' | 'prive' | 'btp'
     telephone: Optional[str] = None
-    commune: Optional[dict] = None
-    prive: Optional[dict] = None
+    commune_code_insee: Optional[str] = None
+    commune_fonction: Optional[str] = None
+    prive_type_proprietaire: Optional[str] = None
+    prive_regime_fiscal: Optional[str] = None
     btp: Optional[dict] = None
 
 
@@ -61,19 +63,49 @@ def _get_profile(supabase: Client, user_id: str) -> dict:
     if not result.data:
         raise HTTPException(status_code=404, detail="Profil introuvable")
     profile = result.data
-    # Enrich commune population from the communes reference table
-    commune = profile.get("commune")
-    if commune and commune.get("codeInsee"):
-        pop_result = (
+
+    # Build the commune object from the FK + communes reference table
+    code_insee = profile.pop("commune_code_insee", None)
+    fonction = profile.pop("commune_fonction", None)
+    if code_insee:
+        commune_result = (
             supabase.table("communes")
-            .select("population")
-            .eq("code_insee", commune["codeInsee"])
+            .select("nom_commune, departement, region, population")
+            .eq("code_insee", code_insee)
             .maybe_single()
             .execute()
         )
-        if pop_result.data and pop_result.data.get("population") is not None:
-            commune["population"] = pop_result.data["population"]
-            profile["commune"] = commune
+        commune_row = commune_result.data
+        profile["commune"] = {
+            "codeInsee": code_insee,
+            "nom": commune_row["nom_commune"] if commune_row else code_insee,
+            "departement": commune_row["departement"] if commune_row else "",
+            "region": commune_row["region"] if commune_row else "",
+            "population": commune_row["population"] if commune_row else 0,
+            "fonction": fonction or "autre",
+        }
+    else:
+        profile["commune"] = None
+
+    # Build the prive object from scalar columns
+    type_proprietaire = profile.pop("prive_type_proprietaire", None)
+    regime_fiscal = profile.pop("prive_regime_fiscal", None)
+    if type_proprietaire:
+        profile["prive"] = {
+            "typeProprietaire": type_proprietaire,
+            "regimeFiscal": regime_fiscal,
+        }
+    else:
+        profile["prive"] = None
+
+    # Normalize snake_case DB keys to camelCase for the frontend
+    if "notification_preferences" in profile:
+        profile["notificationPreferences"] = profile.pop("notification_preferences")
+    if "onboarding_complete" in profile:
+        profile["onboardingComplete"] = profile.pop("onboarding_complete")
+    if "created_at" in profile:
+        profile["createdAt"] = profile.pop("created_at")
+
     return profile
 
 
@@ -114,8 +146,10 @@ def register(body: RegisterRequest, anon: Client = Depends(get_anon_supabase), s
         "nom": body.nom,
         "segment": body.segment,
         "telephone": body.telephone,
-        "commune": body.commune,
-        "prive": body.prive,
+        "commune_code_insee": body.commune_code_insee,
+        "commune_fonction": body.commune_fonction,
+        "prive_type_proprietaire": body.prive_type_proprietaire,
+        "prive_regime_fiscal": body.prive_regime_fiscal,
         "btp": body.btp,
         "onboarding_complete": False,
         "notification_preferences": _default_notification_preferences(),
@@ -215,7 +249,7 @@ def update_notifications(
     supabase: Client = Depends(get_supabase),
 ):
     current = _get_profile(supabase, user_id)
-    current_prefs: dict = current.get("notification_preferences") or _default_notification_preferences()
+    current_prefs: dict = current.get("notificationPreferences") or _default_notification_preferences()
 
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
     merged = {**current_prefs, **patch}

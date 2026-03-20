@@ -24,7 +24,7 @@ import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
 import { formatDate } from '@/lib/date-utils';
 import { ROUTES } from '@/constants/routes';
-import { WORK_TYPES } from '@/constants/monument-options';
+import { WORK_TYPES, OWNERSHIP_TYPES } from '@/constants/monument-options';
 import { toast } from 'sonner';
 import type { Monument, AideDiagnosticResult } from '@/types';
 
@@ -315,7 +315,7 @@ export function MonumentDetailPage() {
                 {monument.dateProtection && (
                   <InfoRow label="Date" value={formatDate(monument.dateProtection)} />
                 )}
-                <InfoRow label="Propriétaire" value={monument.proprietaire} />
+                <InfoRow label="Propriétaire" value={OWNERSHIP_TYPES.find((o) => o.value === monument.proprietaire)?.label ?? monument.proprietaire} />
                 {monument.affectataire && (
                   <InfoRow label="Affectation" value={monument.affectataire} />
                 )}

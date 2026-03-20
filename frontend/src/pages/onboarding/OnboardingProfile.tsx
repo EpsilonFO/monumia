@@ -95,20 +95,6 @@ export function OnboardingProfile() {
 
     const { email, password } = JSON.parse(pending) as { email: string; password: string };
 
-    const communeData = segment === 'commune' ? {
-      nom: form.communeNom,
-      codeInsee: form.communeCodeInsee,
-      departement: form.communeDepartement,
-      region: form.communeRegion,
-      population: Number(form.communePopulation) || 0,
-      fonction: form.communeFonction || 'autre',
-    } : undefined;
-
-    const priveData = segment === 'prive' ? {
-      typeProprietaire: form.typeProprietaire || 'personne_physique',
-      regimeFiscal: form.regimeFiscal || undefined,
-    } : undefined;
-
     const btpData = segment === 'btp' ? {
       raisonSociale: form.raisonSociale,
       siret: form.siret || undefined,
@@ -125,8 +111,10 @@ export function OnboardingProfile() {
         nom: form.nom,
         segment,
         telephone: form.telephone || undefined,
-        commune: communeData,
-        prive: priveData,
+        commune_code_insee: segment === 'commune' ? form.communeCodeInsee : undefined,
+        commune_fonction: segment === 'commune' ? (form.communeFonction || 'autre') : undefined,
+        prive_type_proprietaire: segment === 'prive' ? (form.typeProprietaire || 'personne_physique') : undefined,
+        prive_regime_fiscal: segment === 'prive' ? (form.regimeFiscal || undefined) : undefined,
         btp: btpData,
       });
 

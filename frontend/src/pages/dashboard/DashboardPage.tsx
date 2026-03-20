@@ -75,7 +75,7 @@ export function DashboardPage() {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <KPICard
           icon={Landmark}
           label="Monuments"
@@ -93,12 +93,6 @@ export function DashboardPage() {
           label="Échéances proches"
           value={deadlines.filter((d) => d.estUrgent).length}
           variant={deadlines.some((d) => d.estUrgent) ? 'warning' : 'default'}
-        />
-        <KPICard
-          icon={Bell}
-          label="Notifications"
-          value={unreadCount}
-          variant={unreadCount > 0 ? 'accent' : 'default'}
         />
       </div>
 

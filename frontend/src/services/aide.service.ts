@@ -43,6 +43,11 @@ export const aideService = {
     return result;
   },
 
+  async getDiagnostics(monumentId: string): Promise<AideDiagnosticResult[]> {
+    const res = await authFetch(`${BASE}/aides/diagnostics/${monumentId}`);
+    return handleResponse<AideDiagnosticResult[]>(res);
+  },
+
   /** Get filtered aides (from local store cache) */
   getFilteredAides(
     categories: AideCategory[],

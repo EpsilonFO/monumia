@@ -26,7 +26,9 @@ const SPECIALITE_LABELS: Record<string, string> = {
 export function BtpProfilePage() {
   const user = useAuthStore((s) => s.user);
   const updateProfile = useAuthStore((s) => s.updateProfile);
-  const updateNotificationPreferences = useAuthStore((s) => s.updateNotificationPreferences);
+  const _updateNotifPrefs = useAuthStore((s) => s.updateNotificationPreferences);
+  const updateNotifPref = (prefs: Parameters<typeof _updateNotifPrefs>[0]) =>
+    _updateNotifPrefs(prefs).catch((e: any) => toast.error(e.message || 'Erreur de mise à jour'));
 
   const [form, setForm] = useState({
     prenom: user?.prenom ?? '',
@@ -35,14 +37,23 @@ export function BtpProfilePage() {
     telephone: user?.telephone ?? '',
   });
 
-  const handleSave = () => {
-    updateProfile({
-      prenom: form.prenom,
-      nom: form.nom,
-      email: form.email,
-      telephone: form.telephone || undefined,
-    });
-    toast.success('Profil mis à jour');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateProfile({
+        prenom: form.prenom,
+        nom: form.nom,
+        email: form.email,
+        telephone: form.telephone || undefined,
+      });
+      toast.success('Profil mis à jour');
+    } catch (e: any) {
+      toast.error(e.message || 'Erreur lors de la mise à jour');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!user) return null;
@@ -99,9 +110,9 @@ export function BtpProfilePage() {
                 onChange={(e) => setForm({ ...form, telephone: e.target.value })}
               />
             </div>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} disabled={saving}>
               <Save className="h-4 w-4 mr-2" />
-              Enregistrer
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
             </Button>
           </CardContent>
         </Card>
@@ -182,28 +193,28 @@ export function BtpProfilePage() {
               label="Nouvelles opportunités identifiées"
               description="Quand de nouveaux monuments avec financement identifié apparaissent dans vos zones"
               checked={user.notificationPreferences.newAidesMatched}
-              onChange={(v) => updateNotificationPreferences({ newAidesMatched: v })}
+              onChange={(v) => updateNotifPref({ newAidesMatched: v })}
             />
             <Separator />
             <NotifToggle
               label="Relances prospects"
               description="Alertes pour les dates de prochain contact à prévoir"
               checked={user.notificationPreferences.urgentDeadlines}
-              onChange={(v) => updateNotificationPreferences({ urgentDeadlines: v })}
+              onChange={(v) => updateNotifPref({ urgentDeadlines: v })}
             />
             <Separator />
             <NotifToggle
               label="Mises à jour dossiers"
               description="Suivi des dossiers en cours pour vos prospects"
               checked={user.notificationPreferences.dossierUpdates}
-              onChange={(v) => updateNotificationPreferences({ dossierUpdates: v })}
+              onChange={(v) => updateNotifPref({ dossierUpdates: v })}
             />
             <Separator />
             <NotifToggle
               label="Notifications par email"
               description="Recevoir les notifications par email en plus de l'application"
               checked={user.notificationPreferences.emailNotifications}
-              onChange={(v) => updateNotificationPreferences({ emailNotifications: v })}
+              onChange={(v) => updateNotifPref({ emailNotifications: v })}
             />
           </CardContent>
         </Card>

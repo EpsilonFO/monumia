@@ -12,6 +12,27 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useSegmentLabel } from '@/hooks/useSegment';
 import { toast } from 'sonner';
 
+const FONCTION_LABELS: Record<string, string> = {
+  maire: 'Maire',
+  adjoint_patrimoine: 'Adjoint au patrimoine',
+  secretaire_mairie: 'Secrétaire de mairie',
+  dgs: 'Directeur général des services',
+  autre: 'Autre',
+};
+
+const TYPE_PROPRIETAIRE_LABELS: Record<string, string> = {
+  personne_physique: 'Personne physique',
+  sci: 'SCI',
+  association: 'Association',
+  autre: 'Autre',
+};
+
+const REGIME_FISCAL_LABELS: Record<string, string> = {
+  monuments_historiques: 'Régime Monuments Historiques',
+  droit_commun: 'Droit commun',
+  mecenat: 'Mécénat',
+};
+
 const DEFAULT_NOTIF_PREFS = {
   urgentDeadlines: true,
   newAidesMatched: true,
@@ -22,7 +43,9 @@ const DEFAULT_NOTIF_PREFS = {
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user);
   const updateProfile = useAuthStore((s) => s.updateProfile);
-  const updateNotificationPreferences = useAuthStore((s) => s.updateNotificationPreferences);
+  const _updateNotifPrefs = useAuthStore((s) => s.updateNotificationPreferences);
+  const updateNotifPref = (prefs: Parameters<typeof _updateNotifPrefs>[0]) =>
+    _updateNotifPrefs(prefs).catch((e: any) => toast.error(e.message || 'Erreur de mise à jour'));
   const { isCommune, isPrive } = useSegmentLabel();
 
   if (!user) return null;
@@ -37,14 +60,23 @@ export function ProfilePage() {
     telephone: currentUser.telephone ?? '',
   });
 
-  const handleSave = () => {
-    updateProfile({
-      prenom: form.prenom,
-      nom: form.nom,
-      email: form.email,
-      telephone: form.telephone || undefined,
-    });
-    toast.success('Profil mis à jour');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateProfile({
+        prenom: form.prenom,
+        nom: form.nom,
+        email: form.email,
+        telephone: form.telephone || undefined,
+      });
+      toast.success('Profil mis à jour');
+    } catch (e: any) {
+      toast.error(e.message || 'Erreur lors de la mise à jour');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -99,9 +131,9 @@ export function ProfilePage() {
                 onChange={(e) => setForm({ ...form, telephone: e.target.value })}
               />
             </div>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} disabled={saving}>
               <Save className="h-4 w-4 mr-2" />
-              Enregistrer
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
             </Button>
           </CardContent>
         </Card>
@@ -128,15 +160,15 @@ export function ProfilePage() {
                 <InfoRow label="Code INSEE" value={currentUser.commune.codeInsee} />
                 <InfoRow label="Département" value={currentUser.commune.departement} />
                 <InfoRow label="Population" value={`${currentUser.commune.population} hab.`} />
-                <InfoRow label="Fonction" value={currentUser.commune.fonction} />
+                <InfoRow label="Fonction" value={FONCTION_LABELS[currentUser.commune.fonction] ?? currentUser.commune.fonction} />
               </>
             )}
 
             {isPrive && currentUser.prive && (
               <>
-                <InfoRow label="Type" value={currentUser.prive.typeProprietaire} />
+                <InfoRow label="Type" value={TYPE_PROPRIETAIRE_LABELS[currentUser.prive.typeProprietaire] ?? currentUser.prive.typeProprietaire} />
                 {currentUser.prive.regimeFiscal && (
-                  <InfoRow label="Régime fiscal" value={currentUser.prive.regimeFiscal} />
+                  <InfoRow label="Régime fiscal" value={REGIME_FISCAL_LABELS[currentUser.prive.regimeFiscal] ?? currentUser.prive.regimeFiscal} />
                 )}
               </>
             )}
@@ -159,28 +191,28 @@ export function ProfilePage() {
               label="Échéances urgentes"
               description="Alertes quand une date limite approche"
               checked={notifPrefs.urgentDeadlines}
-              onChange={(v) => updateNotificationPreferences({ urgentDeadlines: v })}
+              onChange={(v) => updateNotifPref({ urgentDeadlines: v })}
             />
             <Separator />
             <NotifToggle
               label="Nouvelles aides identifiées"
               description="Quand une nouvelle aide correspond à votre monument"
               checked={notifPrefs.newAidesMatched}
-              onChange={(v) => updateNotificationPreferences({ newAidesMatched: v })}
+              onChange={(v) => updateNotifPref({ newAidesMatched: v })}
             />
             <Separator />
             <NotifToggle
               label="Mises à jour des dossiers"
               description="Progression des dossiers et actions de collaborateurs"
               checked={notifPrefs.dossierUpdates}
-              onChange={(v) => updateNotificationPreferences({ dossierUpdates: v })}
+              onChange={(v) => updateNotifPref({ dossierUpdates: v })}
             />
             <Separator />
             <NotifToggle
               label="Notifications par email"
               description="Recevoir les notifications par email en plus de l'application"
               checked={notifPrefs.emailNotifications}
-              onChange={(v) => updateNotificationPreferences({ emailNotifications: v })}
+              onChange={(v) => updateNotifPref({ emailNotifications: v })}
             />
           </CardContent>
         </Card>
