@@ -6,6 +6,7 @@ import { SegmentChoice } from '@/pages/onboarding/SegmentChoice';
 import { OnboardingProfile } from '@/pages/onboarding/OnboardingProfile';
 import { OnboardingMonument } from '@/pages/onboarding/OnboardingMonument';
 import { LoginPage } from '@/pages/login/LoginPage';
+import LandingPage from '@/pages/LandingPage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 // Owner / Commune pages
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
@@ -25,6 +26,12 @@ import { BtpDocumentsPage } from '@/pages/btp/BtpDocumentsPage';
 import { BtpProfilePage } from '@/pages/btp/BtpProfilePage';
 
 export const router = createBrowserRouter([
+  // Landing Page (public)
+  {
+    path: '/',
+    element: <LandingPage />,
+  },
+
   // Login page (public)
   {
     path: '/login',
@@ -44,7 +51,7 @@ export const router = createBrowserRouter([
 
   // Owner / Commune app (protégé)
   {
-    path: '/',
+    path: '/app',
     element: (
       <ProtectedRoute>
         <AppLayout />
@@ -54,7 +61,7 @@ export const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: 'monuments', element: <MonumentsListPage /> },
       { path: 'monuments/:monumentId', element: <MonumentDetailPage /> },
-      { path: 'aides', element: <Navigate to="/dossiers" replace /> },
+      { path: 'aides', element: <Navigate to="/app/dossiers" replace /> },
       { path: 'aides/:aideId', element: <AideDetailPage /> },
       { path: 'dossiers', element: <DossiersListPage /> },
       { path: 'dossiers/:dossierId', element: <DossierDetailPage /> },
@@ -81,9 +88,9 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Catch-all → login
+  // Catch-all → landing page
   {
     path: '*',
-    element: <Navigate to="/login" replace />,
+    element: <Navigate to="/" replace />,
   },
 ]);

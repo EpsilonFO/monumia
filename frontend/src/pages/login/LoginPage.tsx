@@ -10,6 +10,8 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { authService } from '@/services/auth.service';
 import { toast } from 'sonner';
 
+import { ROUTES } from '@/constants/routes';
+
 export function LoginPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const navigate = useNavigate();
@@ -25,7 +27,7 @@ export function LoginPage() {
     try {
       const { user, access_token, refresh_token } = await authService.login(loginForm);
       setAuth(user, access_token, refresh_token);
-      navigate(user.segment === 'btp' ? '/btp' : '/');
+      navigate(user.segment === 'btp' ? '/btp' : ROUTES.DASHBOARD);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Email ou mot de passe incorrect');
     } finally {

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Menu, LogOut } from 'lucide-react';
 import { BtpSidebar } from './BtpSidebar';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { ROUTES } from '@/constants/routes';
 
 function BtpMobileNav() {
   return (
@@ -23,7 +24,7 @@ export function BtpLayout() {
     if (!user) {
       navigate('/login');
     } else if (user.segment !== 'btp') {
-      navigate('/');
+      navigate(ROUTES.DASHBOARD);
     }
   }, [user, navigate]);
 

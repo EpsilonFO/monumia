@@ -13,6 +13,7 @@ import { REGIONS } from '@/constants/regions';
 import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
 import { Sparkles, Search, PenLine, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { ROUTES } from '@/constants/routes';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
 
 const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
@@ -150,7 +151,7 @@ export function OnboardingMonument() {
       addMonument(monument);
       setActiveMonument(monument.id);
       completeOnboarding();
-      navigate('/');
+      navigate(ROUTES.DASHBOARD);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la création du monument');
     } finally {

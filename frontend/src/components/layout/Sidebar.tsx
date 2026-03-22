@@ -11,12 +11,14 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/ui/button';
 
+import { ROUTES } from '@/constants/routes';
+
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
-  { to: '/monuments', icon: Landmark, label: 'Monuments' },
-  { to: '/dossiers', icon: FolderOpen, label: 'Dossiers' },
-  { to: '/documents', icon: FileBox, label: 'Documents' },
-  { to: '/profil', icon: User, label: 'Profil' },
+  { to: ROUTES.DASHBOARD, icon: LayoutDashboard, label: 'Tableau de bord' },
+  { to: ROUTES.MONUMENTS, icon: Landmark, label: 'Monuments' },
+  { to: ROUTES.DOSSIERS, icon: FolderOpen, label: 'Dossiers' },
+  { to: ROUTES.DOCUMENTS, icon: FileBox, label: 'Documents' },
+  { to: ROUTES.PROFIL, icon: User, label: 'Profil' },
 ];
 
 export function Sidebar() {
@@ -59,7 +61,7 @@ export function Sidebar() {
           <NavLink
             key={item.to}
             to={item.to}
-            end={item.to === '/'}
+            end={item.to === ROUTES.DASHBOARD}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
