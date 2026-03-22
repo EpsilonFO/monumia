@@ -9,12 +9,12 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { monumentService } from '@/services/monument.service';
-import { documentService } from '@/services/document.service';
 import { merimeeService } from '@/services/merimee.service';
 import { REGIONS } from '@/constants/regions';
 import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
 import { Sparkles, Search, PenLine, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { ROUTES } from '@/constants/routes';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
 
 const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
@@ -173,7 +173,7 @@ export function OnboardingMonument() {
       addMonument(monument);
       setActiveMonument(monument.id);
       completeOnboarding();
-      navigate('/app');
+      navigate(ROUTES.DASHBOARD);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la création du monument');
     } finally {
