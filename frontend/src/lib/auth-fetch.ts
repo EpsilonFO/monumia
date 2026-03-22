@@ -2,9 +2,9 @@ import { useAuthStore } from '@/stores/useAuthStore';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
-let refreshPromise: Promise<void> | null = null;
+let refreshPromise: Promise<boolean> | null = null;
 
-async function tryRefresh(): Promise<boolean> {
+async function doRefresh(): Promise<boolean> {
   const { refreshToken, setTokens, logout } = useAuthStore.getState();
   if (!refreshToken) {
     logout();
@@ -24,12 +24,30 @@ async function tryRefresh(): Promise<boolean> {
     }
 
     const data = await res.json();
+    if (!data.access_token || !data.refresh_token) {
+      logout();
+      return false;
+    }
     setTokens(data.access_token, data.refresh_token);
     return true;
   } catch {
     logout();
     return false;
   }
+}
+
+/**
+ * Deduplicated refresh: all concurrent callers share a single in-flight
+ * refresh request. The promise is only cleared *after* all `.then()` microtasks
+ * have settled, preventing double-refresh races.
+ */
+function tryRefresh(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = doRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
 }
 
 /**
@@ -53,18 +71,9 @@ export async function authFetch(
   let res = await fetch(input, { ...init, headers });
 
   if (res.status === 401) {
-    // Deduplicate concurrent refresh attempts
-    if (!refreshPromise) {
-      refreshPromise = tryRefresh().then((ok) => {
-        refreshPromise = null;
-        if (!ok) throw new Error('Session expirée');
-      });
-    }
-
-    try {
-      await refreshPromise;
-    } catch {
-      return res; // refresh failed, return the 401
+    const refreshed = await tryRefresh();
+    if (!refreshed) {
+      return res;
     }
 
     // Retry with the new token

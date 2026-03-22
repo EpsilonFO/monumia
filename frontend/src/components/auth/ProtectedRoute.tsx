@@ -16,7 +16,7 @@ export function ProtectedRoute({ children, segment }: ProtectedRouteProps) {
   }
 
   if (segment && user.segment !== segment) {
-    return <Navigate to={user.segment === 'btp' ? '/btp' : '/'} replace />;
+    return <Navigate to={user.segment === 'btp' ? '/btp' : '/app'} replace />;
   }
 
   return <>{children}</>;

@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Shield, Calendar, AlertTriangle, Wrench, Building2,
   FileText, ChevronLeft, Edit2, Eye, Trash2, Loader2,
-  Sparkles, CheckCircle2, XCircle, Search,
+  Sparkles, CheckCircle2, XCircle, Search, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,13 +12,15 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { MonumentForm } from '@/components/monument/MonumentForm';
+import { MonumentForm, type PendingPhoto } from '@/components/monument/MonumentForm';
 import { AideMatchBanner } from '@/components/aide/AideMatchBanner';
 import { AideCard } from '@/components/aide/AideCard';
 import { AideFilterBar } from '@/components/aide/AideFilterBar';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
+import { useDocumentStore } from '@/stores/useDocumentStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { monumentService } from '@/services/monument.service';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
@@ -66,6 +68,9 @@ export function MonumentDetailPage() {
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const filters = useAideStore((s) => s.filters);
   const diagnostic = monumentId ? diagnosticsByMonument[monumentId] ?? null : null;
+
+  const user = useAuthStore((s) => s.user);
+  const uploadDocument = useDocumentStore((s) => s.uploadDocument);
 
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -178,11 +183,33 @@ export function MonumentDetailPage() {
     );
   }
 
-  const handleSave = async (data: Partial<Monument>) => {
+  const handleSave = async (data: Partial<Monument>, pendingPhotos: PendingPhoto[]) => {
     setSaving(true);
     try {
       const updated = await monumentService.update(monument.id, data);
       updateMonument(monument.id, updated);
+
+      // Upload new photos: storage + document record + monument JSONB
+      if (user && pendingPhotos.length > 0) {
+        for (const photo of pendingPhotos) {
+          try {
+            const doc = await uploadDocument({
+              file: photo.file,
+              nom: photo.nom || `Photo — ${monument.nom}`,
+              type: 'photo',
+              monumentId: monument.id,
+            }, user.id);
+            await monumentService.addPhoto(monument.id, {
+              url: doc.url,
+              legende: photo.nom || photo.file.name.replace(/\.[^.]+$/, ''),
+              type: 'autre',
+            });
+          } catch (err) {
+            console.error('Erreur upload photo:', err);
+          }
+        }
+      }
+
       setIsEditing(false);
       toast.success('Monument mis à jour');
     } catch (err) {
@@ -425,6 +452,15 @@ export function MonumentDetailPage() {
                 onLaunch={handleLaunchDiagnostic}
                 monumentName={monument.nom}
               />
+
+              {diagnostic && !isRunningDiagnostic && (
+                <div className="flex justify-end">
+                  <Button variant="outline" size="sm" onClick={handleLaunchDiagnostic}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refaire le diagnostic
+                  </Button>
+                </div>
+              )}
 
               {filteredDiagnostic && (
                 <>

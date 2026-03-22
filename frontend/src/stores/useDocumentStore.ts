@@ -79,7 +79,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
   },
 
   getDocument: (id) => get().documents.find((d) => d.id === id),
-  getDocumentsByMonument: (monumentId) => get().documents.filter((d) => d.monumentId === monumentId),
+  getDocumentsByMonument: (monumentId) => get().documents.filter((d) => d.monumentIds.includes(monumentId)),
   getDocumentsByType: (type) => get().documents.filter((d) => d.type === type),
   getDocumentsForDossier: (dossierId) => get().documents.filter((d) => d.dossiersUtilises.includes(dossierId)),
 }));

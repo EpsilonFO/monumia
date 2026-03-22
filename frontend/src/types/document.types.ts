@@ -7,7 +7,7 @@ export type DocumentType =
 
 export interface Document {
   id: ID;
-  monumentId?: ID;
+  monumentIds: ID[];
   userId: ID;
 
   nom: string;

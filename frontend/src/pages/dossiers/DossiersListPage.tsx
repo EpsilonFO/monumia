@@ -1,7 +1,8 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { FileText, Landmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { DossierCard } from '@/components/dossier/DossierCard';
@@ -24,7 +25,15 @@ export function DossiersListPage() {
     }
   }, [user, loaded]);
 
-  const monumentFilter = searchParams.get('monument');
+  const monumentFilterParam = searchParams.get('monument');
+  const [selectedMonument, setSelectedMonument] = useState(monumentFilterParam ?? 'all');
+
+  const userMonuments = useMemo(
+    () => (user ? monuments.filter((m) => m.userId === user.id) : []),
+    [monuments, user]
+  );
+
+  const monumentFilter = selectedMonument !== 'all' ? selectedMonument : monumentFilterParam;
 
   const userDossiers = useMemo(() => {
     if (!user) return [];
@@ -61,6 +70,20 @@ export function DossiersListPage() {
           ) : undefined
         }
       />
+
+      {userMonuments.length > 1 && (
+        <Select value={selectedMonument} onValueChange={setSelectedMonument}>
+          <SelectTrigger className="w-full sm:w-64">
+            <SelectValue placeholder="Tous les monuments" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les monuments</SelectItem>
+            {userMonuments.map((m) => (
+              <SelectItem key={m.id} value={m.id}>{m.nom}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {!hasDossiers ? (
         <EmptyState

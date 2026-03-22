@@ -1,10 +1,11 @@
 import { Link, useNavigate } from 'react-router';
-import { MapPin, Shield, AlertTriangle, ChevronRight, Sparkles, FileText } from 'lucide-react';
+import { MapPin, Shield, AlertTriangle, ChevronRight, Sparkles, FileText, ClipboardCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useDossierStore } from '@/stores/useDossierStore';
+import { useAideStore } from '@/stores/useAideStore';
 import { ROUTES } from '@/constants/routes';
 import type { Monument } from '@/types';
 
@@ -39,15 +40,18 @@ export function MonumentCard({ monument }: MonumentCardProps) {
   const hasDossiers = useDossierStore((s) =>
     s.dossiers.some((d) => d.monumentId === monument.id)
   );
+  const hasDiagnostic = useAideStore((s) => !!s.diagnosticsByMonument[monument.id]);
 
-  const handleActionClick = (e: React.MouseEvent) => {
+  const handleDossierClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (hasDossiers) {
-      navigate(`${ROUTES.DOSSIERS}?monument=${monument.id}`);
-    } else {
-      navigate(`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=dossiers`);
-    }
+    navigate(`${ROUTES.DOSSIERS}?monument=${monument.id}`);
+  };
+
+  const handleDiagnosticClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate(`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=dossiers`);
   };
 
   return (
@@ -87,24 +91,32 @@ export function MonumentCard({ monument }: MonumentCardProps) {
             <Progress value={monument.completionPercentage} className="h-1.5" />
           </div>
 
-          <Button
-            variant={hasDossiers ? 'outline' : 'default'}
-            size="sm"
-            className="w-full"
-            onClick={handleActionClick}
-          >
-            {hasDossiers ? (
-              <>
+          <div className="flex flex-col gap-2">
+            {hasDossiers && (
+              <Button variant="outline" size="sm" className="w-full" onClick={handleDossierClick}>
                 <FileText className="h-4 w-4 mr-2" />
                 Voir mon dossier
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Lancer un diagnostic
-              </>
+              </Button>
             )}
-          </Button>
+            <Button
+              variant={hasDossiers || hasDiagnostic ? 'outline' : 'default'}
+              size="sm"
+              className="w-full"
+              onClick={handleDiagnosticClick}
+            >
+              {hasDiagnostic ? (
+                <>
+                  <ClipboardCheck className="h-4 w-4 mr-2" />
+                  Voir le diagnostic
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Lancer un diagnostic
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </Link>

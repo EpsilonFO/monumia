@@ -1,6 +1,22 @@
-import { FileText, Image, FileSpreadsheet, File, FolderOpen } from 'lucide-react';
+import { useState } from 'react';
+import { FileText, Image, FileSpreadsheet, File, FolderOpen, MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { formatFileSize } from '@/lib/format-utils';
 import { cn } from '@/lib/utils';
 import type { Document } from '@/types';
@@ -10,6 +26,8 @@ interface DocumentCardProps {
   dossierNames?: Record<string, string>;
   monumentNames?: Record<string, string>;
   onClick?: () => void;
+  onRename?: (id: string, newName: string) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
 }
 
 const typeIcons: Record<string, typeof FileText> = {
@@ -72,16 +90,44 @@ const typeIconColor: Record<string, string> = {
   autre: 'text-gray-400',
 };
 
-export function DocumentCard({ document, dossierNames, monumentNames, onClick }: DocumentCardProps) {
+export function DocumentCard({ document, dossierNames, monumentNames, onClick, onRename, onDelete }: DocumentCardProps) {
   const Icon = typeIcons[document.type] ?? File;
-  const monumentName = document.monumentId && monumentNames?.[document.monumentId];
+  const linkedMonuments = monumentNames
+    ? document.monumentIds.map((id) => monumentNames[id]).filter(Boolean)
+    : [];
 
   const linkedDossiers = dossierNames
     ? document.dossiersUtilises.map((id) => dossierNames[id]).filter(Boolean)
     : [];
 
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [newName, setNewName] = useState(document.nom);
+  const [loading, setLoading] = useState(false);
+
+  const handleRename = async () => {
+    if (!onRename || !newName.trim() || newName === document.nom) {
+      setRenameOpen(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      await onRename(document.id, newName.trim());
+      setRenameOpen(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onDelete) return;
+    if (!confirm(`Supprimer "${document.nom}" ? Le fichier sera supprimé définitivement.`)) return;
+    await onDelete(document.id);
+  };
+
   return (
-    <Card className="hover:shadow-md transition-shadow overflow-hidden flex flex-col cursor-pointer" onClick={onClick}>
+    <>
+    <Card className="hover:shadow-md transition-shadow overflow-hidden flex flex-col cursor-pointer relative" onClick={onClick}>
       <CardContent className="p-3 space-y-2 flex-1 flex flex-col">
         <div className="flex items-start gap-2.5">
           <div
@@ -92,7 +138,7 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick }:
           >
             <Icon className={cn('h-4 w-4', typeIconColor[document.type] ?? 'text-muted-foreground')} />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-medium leading-tight line-clamp-2">
               {document.nom}
             </p>
@@ -100,6 +146,29 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick }:
               {document.nomFichier}
             </p>
           </div>
+          {(onRename || onDelete) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <button className="shrink-0 p-1 rounded hover:bg-muted transition-colors">
+                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                {onRename && (
+                  <DropdownMenuItem onClick={() => { setNewName(document.nom); setRenameOpen(true); }}>
+                    <Pencil className="h-3.5 w-3.5 mr-2" />
+                    Renommer
+                  </DropdownMenuItem>
+                )}
+                {onDelete && (
+                  <DropdownMenuItem className="text-destructive" onClick={handleDelete}>
+                    <Trash2 className="h-3.5 w-3.5 mr-2" />
+                    Supprimer
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -111,9 +180,9 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick }:
           </span>
         </div>
 
-        {monumentName && (
+        {linkedMonuments.length > 0 && (
           <p className="text-xs text-muted-foreground truncate">
-            {monumentName}
+            {linkedMonuments.join(', ')}
           </p>
         )}
 
@@ -145,5 +214,28 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick }:
         )}
       </CardContent>
     </Card>
+
+    <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+      <DialogContent className="sm:max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle>Renommer le document</DialogTitle>
+        </DialogHeader>
+        <Input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleRename(); }}
+          autoFocus
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setRenameOpen(false)} disabled={loading}>
+            Annuler
+          </Button>
+          <Button onClick={handleRename} disabled={!newName.trim() || loading}>
+            {loading ? 'Enregistrement...' : 'Enregistrer'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

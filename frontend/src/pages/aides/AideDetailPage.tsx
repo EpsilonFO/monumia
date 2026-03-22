@@ -50,6 +50,8 @@ export function AideDetailPage() {
       ?? null;
   }, [aide, lastDiagnostic]);
 
+  const [creating, setCreating] = useState(false);
+
   if (!aide) {
     return (
       <div className="space-y-4">
@@ -66,8 +68,6 @@ export function AideDetailPage() {
   }
 
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
-
-  const [creating, setCreating] = useState(false);
 
   const handleCreateDossier = async () => {
     if (!monument || !user || creating) return;

@@ -12,10 +12,11 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
+import { toast } from 'sonner';
 
 export function DocumentsPage() {
   const user = useAuthStore((s) => s.user);
-  const { documents, loading, fetchDocuments } = useDocumentStore();
+  const { documents, loading, fetchDocuments, updateDocument, deleteDocument } = useDocumentStore();
   const monuments = useMonumentStore((s) => s.monuments);
   const dossiers = useDossierStore((s) => s.dossiers);
 
@@ -45,7 +46,7 @@ export function DocumentsPage() {
     let docs = documents;
 
     if (filterMonument !== 'all') {
-      docs = docs.filter((d) => d.monumentId === filterMonument);
+      docs = docs.filter((d) => d.monumentIds.includes(filterMonument));
     }
     if (filterType !== 'all') {
       docs = docs.filter((d) => d.type === filterType);
@@ -72,6 +73,24 @@ export function DocumentsPage() {
     const types = new Set(documents.map((d) => d.type));
     return Array.from(types).sort();
   }, [documents]);
+
+  const handleRename = async (id: string, newName: string) => {
+    try {
+      await updateDocument(id, { nom: newName });
+      toast.success('Document renommé');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors du renommage');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteDocument(id);
+      toast.success('Document supprimé');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -151,7 +170,7 @@ export function DocumentsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredDocuments.map((doc) => (
-            <DocumentCard key={doc.id} document={doc} dossierNames={dossierNames} monumentNames={monumentNames} onClick={() => setPreviewDoc(doc)} />
+            <DocumentCard key={doc.id} document={doc} dossierNames={dossierNames} monumentNames={monumentNames} onClick={() => setPreviewDoc(doc)} onRename={handleRename} onDelete={handleDelete} />
           ))}
         </div>
       )}

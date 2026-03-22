@@ -23,7 +23,7 @@ export function BtpLayout() {
     if (!user) {
       navigate('/login');
     } else if (user.segment !== 'btp') {
-      navigate('/');
+      navigate('/app');
     }
   }, [user, navigate]);
 

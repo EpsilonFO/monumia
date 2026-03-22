@@ -7,16 +7,17 @@ import {
   User,
   LogOut,
 } from 'lucide-react';
+import patrialtaLogo from '/patrialta.png';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
-  { to: '/monuments', icon: Landmark, label: 'Monuments' },
-  { to: '/dossiers', icon: FolderOpen, label: 'Dossiers' },
-  { to: '/documents', icon: FileBox, label: 'Documents' },
-  { to: '/profil', icon: User, label: 'Profil' },
+  { to: '/app', icon: LayoutDashboard, label: 'Tableau de bord' },
+  { to: '/app/monuments', icon: Landmark, label: 'Monuments' },
+  { to: '/app/dossiers', icon: FolderOpen, label: 'Dossiers' },
+  { to: '/app/documents', icon: FileBox, label: 'Documents' },
+  { to: '/app/profil', icon: User, label: 'Profil' },
 ];
 
 export function Sidebar() {
@@ -38,7 +39,7 @@ export function Sidebar() {
   return (
     <aside className="hidden md:flex md:flex-col md:w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
       <div className="flex items-center gap-2 px-6 py-5 border-b border-sidebar-border">
-        <Landmark className="h-7 w-7 text-sidebar-primary" />
+        <img src={patrialtaLogo} alt="PatriAlta" className="h-8 w-8" />
         <div>
           <span className="text-xl font-bold tracking-tight">PatriAlta</span>
           <div className="text-xs text-sidebar-foreground/60 font-medium">{segmentLabel}</div>
@@ -59,7 +60,7 @@ export function Sidebar() {
           <NavLink
             key={item.to}
             to={item.to}
-            end={item.to === '/'}
+            end={item.to === '/app'}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',

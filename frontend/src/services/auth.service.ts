@@ -1,19 +1,6 @@
+import { authFetch, handleResponse } from '@/lib/auth-fetch';
+
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
-
-function authHeaders(token: string) {
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail ?? `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<T>;
-}
 
 export interface LoginPayload {
   email: string;
@@ -60,10 +47,9 @@ export const authService = {
     return handleResponse<AuthResponse>(res);
   },
 
-  async logout(token: string): Promise<void> {
-    await fetch(`${BASE}/auth/logout`, {
+  async logout(): Promise<void> {
+    await authFetch(`${BASE}/auth/logout`, {
       method: 'POST',
-      headers: authHeaders(token),
     });
   },
 
@@ -76,32 +62,26 @@ export const authService = {
     return handleResponse<AuthResponse>(res);
   },
 
-  async getMe(token: string): Promise<import('@/types').User> {
-    const res = await fetch(`${BASE}/auth/me`, {
-      headers: authHeaders(token),
-    });
+  async getMe(): Promise<import('@/types').User> {
+    const res = await authFetch(`${BASE}/auth/me`);
     return handleResponse(res);
   },
 
   async updateProfile(
-    token: string,
     updates: { prenom?: string; nom?: string; email?: string; telephone?: string },
   ): Promise<import('@/types').User> {
-    const res = await fetch(`${BASE}/auth/me`, {
+    const res = await authFetch(`${BASE}/auth/me`, {
       method: 'PATCH',
-      headers: authHeaders(token),
       body: JSON.stringify(updates),
     });
     return handleResponse(res);
   },
 
   async updateNotificationPreferences(
-    token: string,
     prefs: Partial<import('@/types').NotificationPreferences>,
   ): Promise<import('@/types').User> {
-    const res = await fetch(`${BASE}/auth/me/notifications`, {
+    const res = await authFetch(`${BASE}/auth/me/notifications`, {
       method: 'PATCH',
-      headers: authHeaders(token),
       body: JSON.stringify(prefs),
     });
     return handleResponse(res);

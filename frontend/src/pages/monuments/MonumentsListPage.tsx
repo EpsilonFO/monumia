@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router';
 import { Plus, Landmark, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -5,9 +6,26 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MonumentCard } from '@/components/monument/MonumentCard';
 import { useMonuments } from '@/hooks/useActiveMonument';
+import { useAideStore } from '@/stores/useAideStore';
+import { aideService } from '@/services/aide.service';
 
 export function MonumentsListPage() {
   const { monuments, loading } = useMonuments();
+  const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
+  const setDiagnostic = useAideStore((s) => s.setDiagnostic);
+
+  // Preload diagnostics for monuments not yet in the store
+  useEffect(() => {
+    for (const m of monuments) {
+      if (!diagnosticsByMonument[m.id]) {
+        aideService.getDiagnostics(m.id).then((diagnostics) => {
+          if (diagnostics.length > 0) {
+            setDiagnostic(m.id, diagnostics[0]);
+          }
+        }).catch(console.error);
+      }
+    }
+  }, [monuments]);
 
   return (
     <div className="space-y-6">

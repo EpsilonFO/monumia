@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MerimeeSearch } from '@/components/monument/MerimeeSearch';
-import { MonumentForm } from '@/components/monument/MonumentForm';
+import { MonumentForm, type PendingPhoto } from '@/components/monument/MonumentForm';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
+import { useDocumentStore } from '@/stores/useDocumentStore';
 import { monumentService } from '@/services/monument.service';
+import { documentService } from '@/services/document.service';
 import { merimeeService } from '@/services/merimee.service';
 import { REGIONS } from '@/constants/regions';
 import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
@@ -113,7 +115,9 @@ export function OnboardingMonument() {
     setShowForm(true);
   };
 
-  const handleFormSubmit = async (data: Partial<Monument>) => {
+  const uploadDocument = useDocumentStore((s) => s.uploadDocument);
+
+  const handleFormSubmit = async (data: Partial<Monument>, pendingPhotos: PendingPhoto[]) => {
     if (!user) return;
     setSaving(true);
     try {
@@ -147,10 +151,29 @@ export function OnboardingMonument() {
         descriptionEtat: data.descriptionEtat,
       });
 
+      // Upload photos: storage + document record + monument JSONB
+      for (const photo of pendingPhotos) {
+        try {
+          const doc = await uploadDocument({
+            file: photo.file,
+            nom: photo.nom || `Photo — ${data.nom ?? 'Monument'}`,
+            type: 'photo',
+            monumentId: monument.id,
+          }, user.id);
+          await monumentService.addPhoto(monument.id, {
+            url: doc.url,
+            legende: photo.nom || photo.file.name.replace(/\.[^.]+$/, ''),
+            type: 'autre',
+          });
+        } catch (err) {
+          console.error('Erreur upload photo:', err);
+        }
+      }
+
       addMonument(monument);
       setActiveMonument(monument.id);
       completeOnboarding();
-      navigate('/');
+      navigate('/app');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la création du monument');
     } finally {

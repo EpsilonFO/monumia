@@ -1,21 +1,23 @@
 export const ROUTES = {
+  LANDING: '/',
+
   ONBOARDING: '/onboarding',
   ONBOARDING_PROFIL: '/onboarding/profil',
   ONBOARDING_MONUMENT: '/onboarding/monument',
 
-  DASHBOARD: '/',
+  DASHBOARD: '/app',
 
-  MONUMENTS: '/monuments',
-  MONUMENT_DETAIL: (id: string) => `/monuments/${id}`,
-  MONUMENT_NEW: '/monuments/nouveau',
+  MONUMENTS: '/app/monuments',
+  MONUMENT_DETAIL: (id: string) => `/app/monuments/${id}`,
+  MONUMENT_NEW: '/app/monuments/nouveau',
 
-  AIDES: '/dossiers',
-  AIDE_DETAIL: (id: string) => `/aides/${id}`,
+  AIDES: '/app/dossiers',
+  AIDE_DETAIL: (id: string) => `/app/aides/${id}`,
 
-  DOSSIERS: '/dossiers',
-  DOSSIER_DETAIL: (id: string) => `/dossiers/${id}`,
+  DOSSIERS: '/app/dossiers',
+  DOSSIER_DETAIL: (id: string) => `/app/dossiers/${id}`,
 
-  DOCUMENTS: '/documents',
+  DOCUMENTS: '/app/documents',
 
-  PROFIL: '/profil',
+  PROFIL: '/app/profil',
 } as const;

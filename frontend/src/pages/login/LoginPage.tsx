@@ -25,7 +25,7 @@ export function LoginPage() {
     try {
       const { user, access_token, refresh_token } = await authService.login(loginForm);
       setAuth(user, access_token, refresh_token);
-      navigate(user.segment === 'btp' ? '/btp' : '/');
+      navigate(user.segment === 'btp' ? '/btp' : '/app');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Email ou mot de passe incorrect');
     } finally {
@@ -65,9 +65,7 @@ export function LoginPage() {
         {/* Logo */}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-3 mb-1">
-            <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center shadow-md">
-              <Landmark className="h-6 w-6 text-primary-foreground" />
-            </div>
+            <img src="/patrialta.png" alt="PatriAlta" className="w-11 h-11" />
             <span className="text-2xl font-bold tracking-tight text-foreground">PatriAlta</span>
           </div>
           <p className="text-muted-foreground text-sm">

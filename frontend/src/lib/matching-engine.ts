@@ -1,10 +1,32 @@
 import type { Monument, Aide, AideMatchResult, AideDiagnosticResult, User, WorkType } from '@/types';
+import { PROTECTION_LEVELS, OWNERSHIP_TYPES, WORK_TYPES, ETATS_CONSERVATION } from '@/constants/monument-options';
 
 interface MatchContext {
   monument: Monument;
   user: User;
   modeProjet: boolean;
   travauxFiltres?: WorkType[];
+}
+
+function protectionLabel(value: string): string {
+  return PROTECTION_LEVELS.find(p => p.value === value)?.label ?? value;
+}
+
+function ownerLabel(value: string): string {
+  return OWNERSHIP_TYPES.find(o => o.value === value)?.label ?? value;
+}
+
+function workLabel(value: string): string {
+  return WORK_TYPES.find(w => w.value === value)?.label ?? value;
+}
+
+function etatLabel(value: string): string {
+  return ETATS_CONSERVATION.find(e => e.value === value)?.label ?? value;
+}
+
+function segmentLabel(value: string): string {
+  const labels: Record<string, string> = { commune: 'Commune', prive: 'Propriétaire privé', btp: 'Entreprise BTP' };
+  return labels[value] ?? value;
 }
 
 function checkEligibility(aide: Aide, ctx: MatchContext): AideMatchResult {
@@ -16,9 +38,9 @@ function checkEligibility(aide: Aide, ctx: MatchContext): AideMatchResult {
   // Check protection level
   if (c.protectionRequise && c.protectionRequise.length > 0) {
     if (c.protectionRequise.includes(monument.protection)) {
-      criteresRemplis.push(`Protection : ${monument.protection}`);
+      criteresRemplis.push(`Protection : ${protectionLabel(monument.protection)}`);
     } else {
-      criteresNonRemplis.push(`Protection requise : ${c.protectionRequise.join(', ')}`);
+      criteresNonRemplis.push(`Protection requise : ${c.protectionRequise.map(protectionLabel).join(', ')}`);
     }
   } else {
     criteresRemplis.push('Tous niveaux de protection');
@@ -27,9 +49,9 @@ function checkEligibility(aide: Aide, ctx: MatchContext): AideMatchResult {
   // Check owner type
   if (c.proprietaireEligible && c.proprietaireEligible.length > 0) {
     if (c.proprietaireEligible.includes(monument.proprietaire)) {
-      criteresRemplis.push(`Type de propriétaire : ${monument.proprietaire}`);
+      criteresRemplis.push(`Type de propriétaire : ${ownerLabel(monument.proprietaire)}`);
     } else {
-      criteresNonRemplis.push(`Propriétaire éligible : ${c.proprietaireEligible.join(', ')}`);
+      criteresNonRemplis.push(`Propriétaire éligible : ${c.proprietaireEligible.map(ownerLabel).join(', ')}`);
     }
   } else {
     criteresRemplis.push('Tous types de propriétaires');
@@ -48,7 +70,7 @@ function checkEligibility(aide: Aide, ctx: MatchContext): AideMatchResult {
       if (match) {
         criteresRemplis.push('Types de travaux compatibles');
       } else {
-        criteresNonRemplis.push(`Travaux éligibles : ${c.travauxEligibles.join(', ')}`);
+        criteresNonRemplis.push(`Travaux éligibles : ${c.travauxEligibles.map(workLabel).join(', ')}`);
       }
     }
   } else {
@@ -78,9 +100,9 @@ function checkEligibility(aide: Aide, ctx: MatchContext): AideMatchResult {
   // Check user segment
   if (c.segmentEligible && c.segmentEligible.length > 0) {
     if (c.segmentEligible.includes(user.segment)) {
-      criteresRemplis.push(`Segment : ${user.segment}`);
+      criteresRemplis.push(`Segment : ${segmentLabel(user.segment)}`);
     } else {
-      criteresNonRemplis.push(`Réservé aux : ${c.segmentEligible.join(', ')}`);
+      criteresNonRemplis.push(`Réservé aux : ${c.segmentEligible.map(segmentLabel).join(', ')}`);
     }
   } else {
     criteresRemplis.push('Communes et privés');
@@ -101,9 +123,9 @@ function checkEligibility(aide: Aide, ctx: MatchContext): AideMatchResult {
   // Check conservation state
   if (c.etatConservationRequis && c.etatConservationRequis.length > 0) {
     if (c.etatConservationRequis.includes(monument.etatConservation)) {
-      criteresRemplis.push(`État de conservation : ${monument.etatConservation}`);
+      criteresRemplis.push(`État de conservation : ${etatLabel(monument.etatConservation)}`);
     } else {
-      criteresNonRemplis.push(`État requis : ${c.etatConservationRequis.join(', ')}`);
+      criteresNonRemplis.push(`État requis : ${c.etatConservationRequis.map(etatLabel).join(', ')}`);
     }
   }
 

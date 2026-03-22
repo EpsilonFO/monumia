@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Upload, File, X, Loader2 } from 'lucide-react';
+import { Upload, File, X, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -54,7 +54,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
   const [file, setFile] = useState<File | null>(null);
   const [nom, setNom] = useState('');
   const [type, setType] = useState<DocumentType | ''>('');
-  const [monumentId, setMonumentId] = useState('');
+  const [monumentIds, setMonumentIds] = useState<string[]>([]);
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -90,7 +90,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
           file,
           nom,
           type: (type as DocumentType) || 'autre',
-          monumentId: monumentId || undefined,
+          monumentIds: monumentIds.length > 0 ? monumentIds : undefined,
           description: description || undefined,
           tags: [],
         },
@@ -109,7 +109,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
     setFile(null);
     setNom('');
     setType('');
-    setMonumentId('');
+    setMonumentIds([]);
     setDescription('');
     if (fileInputRef.current) fileInputRef.current.value = '';
     onOpenChange(false);
@@ -193,19 +193,33 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
             </div>
 
             <div className="space-y-1.5">
-              <Label>Monument <span className="text-muted-foreground font-normal">(optionnel)</span></Label>
-              <Select value={monumentId} onValueChange={setMonumentId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Aucun" />
-                </SelectTrigger>
-                <SelectContent>
-                  {userMonuments.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.nom}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Monuments <span className="text-muted-foreground font-normal">(optionnel)</span></Label>
+              <div className="border rounded-md max-h-32 overflow-y-auto">
+                {userMonuments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground p-2">Aucun monument</p>
+                ) : (
+                  userMonuments.map((m) => {
+                    const selected = monumentIds.includes(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-left hover:bg-muted/50 transition-colors"
+                        onClick={() =>
+                          setMonumentIds((prev) =>
+                            selected ? prev.filter((id) => id !== m.id) : [...prev, m.id]
+                          )
+                        }
+                      >
+                        <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${selected ? 'bg-primary border-primary' : 'border-input'}`}>
+                          {selected && <Check className="h-3 w-3 text-primary-foreground" />}
+                        </div>
+                        <span className="truncate">{m.nom}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
 

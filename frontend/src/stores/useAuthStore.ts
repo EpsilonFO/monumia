@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User, UserSegment, NotificationPreferences } from '@/types';
 import { authService } from '@/services/auth.service';
+import { useMonumentStore } from './useMonumentStore';
+import { useDossierStore } from './useDossierStore';
+import { useDocumentStore } from './useDocumentStore';
+import { useAideStore } from './useAideStore';
 
 interface AuthState {
   user: User | null;
@@ -36,9 +40,8 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ user, isOnboarded: user.onboardingComplete }),
 
       updateProfile: async (updates) => {
-        const token = get().token;
-        if (!token) return;
-        const updated = await authService.updateProfile(token, {
+        if (!get().token) return;
+        const updated = await authService.updateProfile({
           prenom: updates.prenom,
           nom: updates.nom,
           email: updates.email,
@@ -61,13 +64,19 @@ export const useAuthStore = create<AuthState>()(
         })),
 
       updateNotificationPreferences: async (prefs) => {
-        const token = get().token;
-        if (!token) return;
-        const updated = await authService.updateNotificationPreferences(token, prefs);
+        if (!get().token) return;
+        const updated = await authService.updateNotificationPreferences(prefs);
         set({ user: updated });
       },
 
-      logout: () => set({ user: null, token: null, refreshToken: null, isOnboarded: false }),
+      logout: () => {
+        set({ user: null, token: null, refreshToken: null, isOnboarded: false });
+        // Reset all data stores to prevent data leaking between accounts
+        useMonumentStore.setState({ monuments: [], activeMonumentId: null });
+        useDossierStore.setState({ dossiers: [], loaded: false });
+        useDocumentStore.setState({ documents: [], loading: false, error: null });
+        useAideStore.setState({ aides: [], diagnosticsByMonument: {}, loading: false, error: null });
+      },
     }),
     {
       name: 'patrialta-auth',

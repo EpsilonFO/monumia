@@ -48,6 +48,7 @@ export interface UploadDocumentPayload {
   nom: string;
   type: DocumentType | 'autre';
   monumentId?: string;
+  monumentIds?: string[];
   description?: string;
   tags?: string[];
 }
@@ -64,7 +65,7 @@ function toDocument(row: Record<string, unknown>): Document {
     url: toStoragePath(row.url as string),
     dossiersUtilises: (row.dossiers_utilises as string[]) ?? [],
     userId: row.user_id as string,
-    monumentId: row.monument_id as string | undefined,
+    monumentIds: (row.monument_ids as string[]) ?? [],
     dateUpload: row.date_upload as string,
     dateDocument: row.date_document as string | undefined,
     description: row.description as string | undefined,
@@ -111,6 +112,9 @@ export const documentService = {
   async upload(payload: UploadDocumentPayload, userId: string): Promise<Document> {
     const url = await uploadToStorage(payload.file, userId);
 
+    // Build monument_ids from either monumentIds array or single monumentId
+    const monumentIds = payload.monumentIds ?? (payload.monumentId ? [payload.monumentId] : []);
+
     const body = {
       nom: payload.nom,
       nom_fichier: payload.file.name,
@@ -119,7 +123,7 @@ export const documentService = {
       taille_fichier: payload.file.size,
       mime_type: payload.file.type,
       url,
-      monument_id: payload.monumentId ?? null,
+      monument_ids: monumentIds,
       description: payload.description ?? null,
     };
 

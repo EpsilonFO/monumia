@@ -121,7 +121,7 @@ export function OnboardingProfile() {
       sessionStorage.removeItem('pending-register');
       setAuth(user, access_token, refresh_token);
 
-      navigate(segment === 'btp' ? '/btp' : '/');
+      navigate(segment === 'btp' ? '/btp' : '/app');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la création du compte');
     } finally {

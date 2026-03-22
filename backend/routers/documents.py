@@ -22,6 +22,8 @@ class CreateDocumentRequest(BaseModel):
     taille_fichier: int
     mime_type: str
     url: str
+    monument_ids: list[str] = []
+    # Backward compat: accept single monument_id and convert to monument_ids
     monument_id: Optional[str] = None
     date_document: Optional[str] = None
     description: Optional[str] = None
@@ -71,7 +73,7 @@ def list_documents(
         .order("date_upload", desc=True)
     )
     if monument_id:
-        query = query.eq("monument_id", monument_id)
+        query = query.contains("monument_ids", [monument_id])
     if type:
         query = query.eq("type", type)
 
@@ -84,20 +86,26 @@ def create_document(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    # Validate monument ownership if provided
-    if body.monument_id:
+    # Merge monument_id (single, backward compat) into monument_ids
+    monument_ids = list(body.monument_ids)
+    if body.monument_id and body.monument_id not in monument_ids:
+        monument_ids.append(body.monument_id)
+
+    # Validate monument ownership for all referenced monuments
+    for mid in monument_ids:
         check = (
             supabase.table("monuments")
             .select("id")
-            .eq("id", body.monument_id)
+            .eq("id", mid)
             .eq("user_id", user_id)
             .execute()
         )
         if not check.data:
-            raise HTTPException(status_code=403, detail="Monument introuvable ou non autorisé")
+            raise HTTPException(status_code=403, detail=f"Monument {mid} introuvable ou non autorisé")
 
     row = {
-        **body.model_dump(exclude_none=True),
+        **body.model_dump(exclude_none=True, exclude={"monument_id"}),
+        "monument_ids": monument_ids,
         "user_id": user_id,
         "dossiers_utilises": [],
     }
@@ -138,7 +146,21 @@ def delete_document(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    _get_document_or_404(supabase, document_id, user_id)
+    doc = _get_document_or_404(supabase, document_id, user_id)
+
+    # Delete file from Supabase Storage
+    storage_path = doc.get("url", "")
+    if storage_path:
+        # Strip any full URL prefix to get the relative path
+        marker = "/storage/v1/object/public/documents/"
+        idx = storage_path.find(marker)
+        if idx != -1:
+            storage_path = storage_path[idx + len(marker):]
+        try:
+            supabase.storage.from_("documents").remove([storage_path])
+        except Exception:
+            pass  # best-effort: don't block deletion if storage removal fails
+
     supabase.table("documents").delete().eq("id", document_id).execute()
 
 
