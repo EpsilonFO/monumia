@@ -276,7 +276,7 @@ export function DashboardPage() {
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-start">
-                <Link to={ROUTES.ONBOARDING_MONUMENT}>
+                <Link to="/onboarding/monument">
                   <Landmark className="h-4 w-4 mr-2" />
                   Ajouter un monument
                 </Link>

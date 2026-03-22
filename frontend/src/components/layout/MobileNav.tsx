@@ -9,14 +9,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-import { ROUTES } from '@/constants/routes';
-
 const navItems = [
-  { to: ROUTES.DASHBOARD, icon: LayoutDashboard, label: 'Tableau de bord' },
-  { to: ROUTES.MONUMENTS, icon: Landmark, label: 'Monuments' },
-  { to: ROUTES.DOSSIERS, icon: FolderOpen, label: 'Dossiers' },
-  { to: ROUTES.DOCUMENTS, icon: FileBox, label: 'Documents' },
-  { to: ROUTES.PROFIL, icon: User, label: 'Profil' },
+  { to: '/app', icon: LayoutDashboard, label: 'Tableau de bord' },
+  { to: '/app/monuments', icon: Landmark, label: 'Monuments' },
+  { to: '/app/aides', icon: HandCoins, label: 'Aides' },
+  { to: '/app/dossiers', icon: FolderOpen, label: 'Dossiers' },
+  { to: '/app/documents', icon: FileBox, label: 'Documents' },
+  { to: '/app/profil', icon: User, label: 'Profil' },
 ];
 
 export function MobileNav() {
@@ -32,7 +31,7 @@ export function MobileNav() {
           <NavLink
             key={item.to}
             to={item.to}
-            end={item.to === ROUTES.DASHBOARD}
+            end={item.to === '/app'}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',

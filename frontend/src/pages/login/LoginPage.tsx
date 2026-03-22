@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Landmark, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,8 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { authService } from '@/services/auth.service';
 import { toast } from 'sonner';
-
-import { ROUTES } from '@/constants/routes';
 
 export function LoginPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -27,7 +25,7 @@ export function LoginPage() {
     try {
       const { user, access_token, refresh_token } = await authService.login(loginForm);
       setAuth(user, access_token, refresh_token);
-      navigate(user.segment === 'btp' ? '/btp' : ROUTES.DASHBOARD);
+      navigate(user.segment === 'btp' ? '/btp' : '/app');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Email ou mot de passe incorrect');
     } finally {
