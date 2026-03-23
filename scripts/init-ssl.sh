@@ -18,14 +18,7 @@ echo "=== Step 3: Wait for nginx to be ready ==="
 sleep 5
 
 echo "=== Step 4: Request certificate from Let's Encrypt ==="
-docker compose run --rm certbot certonly \
-  --webroot \
-  --webroot-path=/var/www/certbot \
-  --email "$EMAIL" \
-  --agree-tos \
-  --no-eff-email \
-  -d "$DOMAIN" \
-  -d "www.$DOMAIN"
+docker compose run --rm --entrypoint "certbot certonly --webroot --webroot-path=/var/www/certbot --email $EMAIL --agree-tos --no-eff-email -d $DOMAIN -d www.$DOMAIN" certbot
 
 echo "=== Step 5: Switch to HTTPS config ==="
 cp nginx/nginx.conf.bak nginx/nginx.conf 2>/dev/null || true

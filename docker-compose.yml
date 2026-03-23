@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: patrialta-backend
     env_file:
-      - .env.docker
+      - ./backend/.env
     volumes:
       - ./backend:/app
     restart: unless-stopped
