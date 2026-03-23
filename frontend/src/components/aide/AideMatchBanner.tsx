@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Compass, TrendingUp, AlertCircle } from 'lucide-react';
+import { Compass } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Disclaimer } from '@/components/shared/Disclaimer';
-import { formatCurrency } from '@/lib/format-utils';
+
 import type { AideDiagnosticResult } from '@/types';
 
 interface AideMatchBannerProps {
@@ -15,7 +15,7 @@ interface AideMatchBannerProps {
 
 function useAnimatedCounter(target: number, running: boolean): number {
   const [count, setCount] = useState(0);
-  const frameRef = useRef<number>();
+  const frameRef = useRef<number>(undefined);
 
   useEffect(() => {
     if (!running || target === 0) {
@@ -124,8 +124,8 @@ export function AideMatchBanner({ result, isRunning, onLaunch, monumentName }: A
               </div>
             </div>
             <div className="text-sm text-muted-foreground sm:ml-auto text-center sm:text-right">
-              <p>{result.totalAidesAnalysees} aides analysées</p>
-              <p>{result.aidesNonEligibles.length} non éligibles</p>
+              <p>{result!.totalAidesAnalysees} aides analysées</p>
+              <p>{result!.aidesNonEligibles.length} non éligibles</p>
             </div>
           </div>
         </CardContent>

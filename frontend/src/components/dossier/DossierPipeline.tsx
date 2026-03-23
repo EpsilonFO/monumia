@@ -1,4 +1,4 @@
-import { DOSSIER_STEPS, DOSSIER_STATUS_LABELS } from '@/constants/dossier-steps';
+import { DOSSIER_STEPS } from '@/constants/dossier-steps';
 import { DossierCard } from './DossierCard';
 import { cn } from '@/lib/utils';
 import type { Dossier } from '@/types';

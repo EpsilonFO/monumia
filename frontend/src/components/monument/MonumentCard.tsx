@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router';
-import { MapPin, Shield, AlertTriangle, ChevronRight, Compass, ScrollText, Castle } from 'lucide-react';
+import { MapPin, Shield, AlertTriangle, ChevronRight, Compass, ScrollText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

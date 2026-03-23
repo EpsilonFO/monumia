@@ -38,10 +38,9 @@ export function AidesListPage() {
     if (!selectedMonument || !user) return;
     setIsRunning(true);
 
-    setTimeout(() => {
-      aideService.runDiagnostic(
-        selectedMonument,
-        user,
+    setTimeout(async () => {
+      await aideService.runDiagnostic(
+        selectedMonument.id,
         filters.modeProjet,
         filters.travauxFiltres.length > 0 ? filters.travauxFiltres : undefined
       );

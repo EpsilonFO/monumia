@@ -16,7 +16,7 @@ interface ProspectState {
 export const useProspectStore = create<ProspectState>()(
   persist(
     (set, get) => ({
-      prospects: null,
+      prospects: [],
 
       getProspect: (id) => get().prospects.find((p) => p.id === id),
 

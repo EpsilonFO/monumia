@@ -17,11 +17,10 @@ export function useAideDiagnostic(monumentId?: string) {
   );
 
   const runDiagnostic = useCallback(
-    (modeProjet?: boolean, travauxFiltres?: WorkType[]): AideDiagnosticResult | null => {
+    (modeProjet?: boolean, travauxFiltres?: WorkType[]): Promise<AideDiagnosticResult> | null => {
       if (!monument || !user) return null;
       return aideService.runDiagnostic(
-        monument,
-        user,
+        monument.id,
         modeProjet ?? filters.modeProjet,
         travauxFiltres ?? (filters.travauxFiltres.length > 0 ? filters.travauxFiltres : undefined)
       );

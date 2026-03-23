@@ -9,7 +9,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { monumentService } from '@/services/monument.service';
-import { documentService } from '@/services/document.service';
+
 import { merimeeService } from '@/services/merimee.service';
 import { REGIONS } from '@/constants/regions';
 import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
