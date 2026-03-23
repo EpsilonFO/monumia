@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { FileText, Landmark } from 'lucide-react';
+import { ScrollText, Castle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -33,7 +33,7 @@ export function DossiersListPage() {
     [monuments, user]
   );
 
-  const monumentFilter = selectedMonument !== 'all' ? selectedMonument : monumentFilterParam;
+  const monumentFilter = selectedMonument !== 'all' ? selectedMonument : null;
 
   const userDossiers = useMemo(() => {
     if (!user) return [];
@@ -87,7 +87,7 @@ export function DossiersListPage() {
 
       {!hasDossiers ? (
         <EmptyState
-          icon={FileText}
+          icon={ScrollText}
           title="Aucun dossier en cours actuellement"
           description={
             monumentFilter
@@ -97,7 +97,7 @@ export function DossiersListPage() {
           action={
             <Button asChild>
               <Link to={ROUTES.MONUMENTS}>
-                <Landmark className="h-4 w-4 mr-2" />
+                <Castle className="h-4 w-4 mr-2" />
                 Voir mes monuments
               </Link>
             </Button>

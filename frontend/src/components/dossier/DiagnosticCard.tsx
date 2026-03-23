@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { Sparkles, ChevronRight, Calendar } from 'lucide-react';
+import { Compass, ChevronRight, Calendar } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,7 @@ export function DiagnosticCard({ diagnostic, monument }: DiagnosticCardProps) {
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-sm leading-tight">{monument.nom}</CardTitle>
           <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0">
-            <Sparkles className="h-3 w-3 mr-1" />
+            <Compass className="h-3 w-3 mr-1" />
             Diagnostic fait
           </Badge>
         </div>

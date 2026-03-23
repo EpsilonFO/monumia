@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { AlertTriangle, Sparkles, Info, Bell } from 'lucide-react';
+import { AlertTriangle, Compass, Info, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatRelative } from '@/lib/date-utils';
 import { ROUTES } from '@/constants/routes';
@@ -12,7 +12,7 @@ interface NotificationItemProps {
 
 const typeIcons = {
   urgent: AlertTriangle,
-  opportunite: Sparkles,
+  opportunite: Compass,
   info: Info,
 };
 

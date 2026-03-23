@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router';
-import { Plus, Landmark, Loader2 } from 'lucide-react';
+import { Plus, Castle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -48,7 +48,7 @@ export function MonumentsListPage() {
         </div>
       ) : monuments.length === 0 ? (
         <EmptyState
-          icon={Landmark}
+          icon={Castle}
           title="Aucun monument enregistré"
           description="Ajoutez votre premier monument pour commencer à identifier les aides disponibles."
           action={

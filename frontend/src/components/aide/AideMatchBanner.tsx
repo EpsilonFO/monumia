@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Sparkles, TrendingUp, AlertCircle } from 'lucide-react';
+import { Compass, TrendingUp, AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Disclaimer } from '@/components/shared/Disclaimer';
@@ -65,7 +65,7 @@ export function AideMatchBanner({ result, isRunning, onLaunch, monumentName }: A
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="py-8 text-center space-y-4">
           <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-            <Sparkles className="h-8 w-8 text-primary" />
+            <Compass className="h-8 w-8 text-primary" />
           </div>
           <div>
             <h2 className="text-xl font-bold">
@@ -77,7 +77,7 @@ export function AideMatchBanner({ result, isRunning, onLaunch, monumentName }: A
             </p>
           </div>
           <Button size="lg" onClick={onLaunch}>
-            <Sparkles className="h-4 w-4 mr-2" />
+            <Compass className="h-4 w-4 mr-2" />
             Lancer le diagnostic
           </Button>
         </CardContent>
@@ -91,7 +91,7 @@ export function AideMatchBanner({ result, isRunning, onLaunch, monumentName }: A
       <Card className="border-accent/30 bg-accent/5">
         <CardContent className="py-8 text-center space-y-3">
           <div className="mx-auto w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center animate-pulse">
-            <Sparkles className="h-6 w-6 text-accent" />
+            <Compass className="h-6 w-6 text-accent" />
           </div>
           <p className="text-lg font-medium">Analyse en cours...</p>
           <p className="text-sm text-muted-foreground">

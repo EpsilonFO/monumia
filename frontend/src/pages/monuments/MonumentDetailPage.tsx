@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Shield, Calendar, AlertTriangle, Wrench, Building2,
-  FileText, ChevronLeft, Edit2, Eye, Trash2, Loader2,
-  Sparkles, CheckCircle2, XCircle, Search, RefreshCw,
+  ScrollText, ChevronLeft, Edit2, Eye, Trash2, Loader2,
+  Compass, CheckCircle2, XCircle, Search, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -297,7 +297,7 @@ export function MonumentDetailPage() {
             Informations
           </TabsTrigger>
           <TabsTrigger value="dossiers" className="gap-1.5">
-            <FileText className="h-4 w-4" />
+            <ScrollText className="h-4 w-4" />
             Dossiers ({dossiers.length})
           </TabsTrigger>
         </TabsList>
@@ -517,7 +517,7 @@ export function MonumentDetailPage() {
             <Card className="border-primary/20 bg-primary/5">
               <CardContent className="py-8 text-center space-y-4">
                 <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Sparkles className="h-8 w-8 text-primary" />
+                  <Compass className="h-8 w-8 text-primary" />
                 </div>
                 <div>
                   <h2 className="text-xl font-bold">
@@ -528,7 +528,7 @@ export function MonumentDetailPage() {
                   </p>
                 </div>
                 <Button size="lg" onClick={() => { setShowDiagnostic(true); if (!diagnostic) handleLaunchDiagnostic(); }}>
-                  <Sparkles className="h-4 w-4 mr-2" />
+                  <Compass className="h-4 w-4 mr-2" />
                   {diagnostic || dossiers.length > 0 ? 'Voir le diagnostic' : 'Lancer un diagnostic'}
                 </Button>
               </CardContent>

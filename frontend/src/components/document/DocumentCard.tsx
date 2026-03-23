@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Image, FileSpreadsheet, File, FolderOpen, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { Receipt, Image, FileSpreadsheet, FileArchive, FolderOpen, MoreVertical, Pencil, Trash2, ScrollText, Scale, FileSearch, PenTool, FileText, Stamp, FileBadge, ClipboardList } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -33,16 +33,16 @@ interface DocumentCardProps {
 const typeIcons: Record<string, typeof FileText> = {
   photo: Image,
   plan: FileSpreadsheet,
-  devis: FileText,
-  facture: FileText,
-  attestation: FileText,
-  extrait_cadastral: FileText,
-  cerfa: FileText,
-  arrete: FileText,
-  diagnostic: FileText,
-  rapport: FileText,
-  correspondance: FileText,
-  autre: File,
+  devis: ClipboardList,
+  facture: Receipt,
+  attestation: FileBadge,
+  extrait_cadastral: FileSpreadsheet,
+  cerfa: Stamp,
+  arrete: Scale,
+  diagnostic: FileSearch,
+  rapport: ScrollText,
+  correspondance: PenTool,
+  autre: FileArchive,
 };
 
 const typeLabels: Record<string, string> = {

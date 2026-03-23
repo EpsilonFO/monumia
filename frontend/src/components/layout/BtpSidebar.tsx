@@ -1,11 +1,11 @@
 import { NavLink, useNavigate } from 'react-router';
 import {
-  LayoutDashboard,
+  Gauge,
   Users,
   HandCoins,
-  FileBox,
-  User,
-  Landmark,
+  Archive,
+  UserCircle,
+  Castle,
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,11 +13,11 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { to: '/btp', icon: LayoutDashboard, label: 'Tableau de bord' },
+  { to: '/btp', icon: Gauge, label: 'Tableau de bord' },
   { to: '/btp/prospects', icon: Users, label: 'Prospects' },
   { to: '/btp/aides', icon: HandCoins, label: 'Catalogue aides' },
-  { to: '/btp/documents', icon: FileBox, label: 'Documents' },
-  { to: '/btp/profil', icon: User, label: 'Mon profil' },
+  { to: '/btp/documents', icon: Archive, label: 'Documents' },
+  { to: '/btp/profil', icon: UserCircle, label: 'Mon profil' },
 ];
 
 export function BtpSidebar() {
@@ -33,7 +33,7 @@ export function BtpSidebar() {
   return (
     <aside className="hidden md:flex md:flex-col md:w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
       <div className="flex items-center gap-2 px-6 py-5 border-b border-sidebar-border">
-        <Landmark className="h-7 w-7 text-sidebar-primary" />
+        <Castle className="h-7 w-7 text-sidebar-primary" />
         <div>
           <span className="text-xl font-bold tracking-tight">PatriAlta</span>
           <div className="text-xs text-sidebar-foreground/60 font-medium">Espace BTP</div>
