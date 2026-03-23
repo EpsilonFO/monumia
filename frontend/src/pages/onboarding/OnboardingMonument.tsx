@@ -13,7 +13,7 @@ import { documentService } from '@/services/document.service';
 import { merimeeService } from '@/services/merimee.service';
 import { REGIONS } from '@/constants/regions';
 import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
-import { Sparkles, Search, PenLine, ChevronLeft } from 'lucide-react';
+import { Compass, Search, PenLine, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
 
@@ -186,7 +186,7 @@ export function OnboardingMonument() {
       <div className="space-y-6">
         <div className="text-center space-y-2">
           <div className="mx-auto mb-2 flex items-center justify-center w-12 h-12 rounded-full bg-accent/20">
-            <Sparkles className="h-6 w-6 text-accent" />
+            <Compass className="h-6 w-6 text-accent" />
           </div>
           <h1 className="text-2xl font-bold">Complétez la fiche</h1>
           <p className="text-muted-foreground">

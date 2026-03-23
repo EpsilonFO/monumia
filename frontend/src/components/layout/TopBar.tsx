@@ -11,7 +11,7 @@ interface TopBarProps {
 
 export function TopBar({ unreadCount = 0, onNotificationsClick }: TopBarProps) {
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 md:px-6 bg-background border-b border-border">
+    <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-6 h-[72px] bg-background border-b border-border">
       <div className="flex items-center gap-3">
         <Sheet>
           <SheetTrigger asChild>

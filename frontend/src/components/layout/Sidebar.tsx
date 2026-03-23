@@ -1,10 +1,10 @@
 import { NavLink, useNavigate } from 'react-router';
 import {
-  LayoutDashboard,
-  Landmark,
-  FolderOpen,
-  FileBox,
-  User,
+  Gauge,
+  Castle,
+  ScrollText,
+  Archive,
+  UserCircle,
   LogOut,
 } from 'lucide-react';
 import patrialtaLogo from '/patrialta.png';
@@ -13,11 +13,11 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { to: '/app', icon: LayoutDashboard, label: 'Tableau de bord' },
-  { to: '/app/monuments', icon: Landmark, label: 'Monuments' },
-  { to: '/app/dossiers', icon: FolderOpen, label: 'Dossiers' },
-  { to: '/app/documents', icon: FileBox, label: 'Documents' },
-  { to: '/app/profil', icon: User, label: 'Profil' },
+  { to: '/app', icon: Gauge, label: 'Tableau de bord' },
+  { to: '/app/monuments', icon: Castle, label: 'Monuments' },
+  { to: '/app/dossiers', icon: ScrollText, label: 'Dossiers' },
+  { to: '/app/documents', icon: Archive, label: 'Documents' },
+  { to: '/app/profil', icon: UserCircle, label: 'Profil' },
 ];
 
 export function Sidebar() {
@@ -37,12 +37,12 @@ export function Sidebar() {
       : 'Espace Patrimoine';
 
   return (
-    <aside className="hidden md:flex md:flex-col md:w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
-      <div className="flex items-center gap-2 px-6 py-5 border-b border-sidebar-border">
+    <aside className="hidden md:flex md:flex-col md:w-64 bg-sidebar text-sidebar-foreground">
+      <div className="flex items-center gap-2 px-6 h-[72px] bg-background border-b border-border">
         <img src={patrialtaLogo} alt="PatriAlta" className="h-8 w-8" />
         <div>
-          <span className="text-xl font-bold tracking-tight">PatriAlta</span>
-          <div className="text-xs text-sidebar-foreground/60 font-medium">{segmentLabel}</div>
+          <span className="text-xl font-bold tracking-tight text-accent">PatriAlta</span>
+          <div className="text-xs text-primary font-semibold">{segmentLabel}</div>
         </div>
       </div>
 

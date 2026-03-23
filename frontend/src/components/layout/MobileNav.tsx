@@ -1,28 +1,28 @@
 import { NavLink } from 'react-router';
 import {
-  LayoutDashboard,
-  Landmark,
+  Gauge,
+  Castle,
   HandCoins,
-  FolderOpen,
-  FileBox,
-  User,
+  ScrollText,
+  Archive,
+  UserCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { to: '/app', icon: LayoutDashboard, label: 'Tableau de bord' },
-  { to: '/app/monuments', icon: Landmark, label: 'Monuments' },
+  { to: '/app', icon: Gauge, label: 'Tableau de bord' },
+  { to: '/app/monuments', icon: Castle, label: 'Monuments' },
   { to: '/app/aides', icon: HandCoins, label: 'Aides' },
-  { to: '/app/dossiers', icon: FolderOpen, label: 'Dossiers' },
-  { to: '/app/documents', icon: FileBox, label: 'Documents' },
-  { to: '/app/profil', icon: User, label: 'Profil' },
+  { to: '/app/dossiers', icon: ScrollText, label: 'Dossiers' },
+  { to: '/app/documents', icon: Archive, label: 'Documents' },
+  { to: '/app/profil', icon: UserCircle, label: 'Profil' },
 ];
 
 export function MobileNav() {
   return (
     <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
       <div className="flex items-center gap-2 px-6 py-5 border-b border-sidebar-border">
-        <Landmark className="h-7 w-7 text-sidebar-primary" />
+        <Castle className="h-7 w-7 text-sidebar-primary" />
         <span className="text-xl font-bold tracking-tight">PatriAlta</span>
       </div>
 

@@ -1,8 +1,8 @@
 import { useMemo, useEffect } from 'react';
 import { Link } from 'react-router';
 import {
-  Landmark, FileText, Sparkles, Calendar, Bell,
-  AlertTriangle, ChevronRight,
+  Castle, ScrollText, Compass, Calendar, Bell,
+  AlertTriangle, ChevronRight
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -70,23 +70,24 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Bonjour, ${currentUser.prenom}`}
+        title={<>Bonjour, <span className="text-accent">{currentUser.prenom}</span></>}
         description="Vue d'ensemble de vos monuments et dossiers"
       />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-3 gap-4">
         <KPICard
-          icon={Landmark}
+          icon={Castle}
           label="Monuments"
           value={userMonuments.length}
           linkTo={ROUTES.MONUMENTS}
         />
         <KPICard
-          icon={FileText}
+          icon={ScrollText}
           label="Dossiers actifs"
           value={activeDossiers.length}
           linkTo={ROUTES.DOSSIERS}
+          variant="accent"
         />
         <KPICard
           icon={Calendar}
@@ -143,7 +144,7 @@ export function DashboardPage() {
           {/* Active dossiers */}
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base">Dossiers en cours</CardTitle>
+              <CardTitle className="text-base text-primary">Dossiers en cours</CardTitle>
               <Button asChild variant="ghost" size="sm">
                 <Link to={ROUTES.DOSSIERS}>
                   Voir tous
@@ -154,11 +155,11 @@ export function DashboardPage() {
             <CardContent>
               {activeDossiers.length === 0 ? (
                 <div className="text-center py-6">
-                  <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <ScrollText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">Aucun dossier en cours</p>
                   <Button asChild variant="outline" size="sm" className="mt-2">
                     <Link to={ROUTES.AIDES}>
-                      <Sparkles className="h-4 w-4 mr-1" />
+                      <Compass className="h-4 w-4 mr-1" />
                       Lancer un diagnostic
                     </Link>
                   </Button>
@@ -201,7 +202,7 @@ export function DashboardPage() {
           {/* Monuments overview */}
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base">Mes monuments</CardTitle>
+              <CardTitle className="text-base text-accent">Mes monuments</CardTitle>
               <Button asChild variant="ghost" size="sm">
                 <Link to={ROUTES.MONUMENTS}>
                   Voir tous
@@ -214,8 +215,8 @@ export function DashboardPage() {
                 {userMonuments.slice(0, 3).map((m) => (
                   <Link key={m.id} to={ROUTES.MONUMENT_DETAIL(m.id)}>
                     <div className="flex items-center gap-3 p-2.5 rounded-lg border hover:bg-muted/50 transition-colors">
-                      <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center shrink-0">
-                        <Landmark className="h-4 w-4 text-primary" />
+                      <div className="w-8 h-8 rounded bg-accent/10 flex items-center justify-center shrink-0">
+                        <Castle className="h-4 w-4 text-accent" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{m.nom}</p>
@@ -236,7 +237,7 @@ export function DashboardPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
+              <CardTitle className="text-base flex items-center gap-2 text-primary">
                 <Bell className="h-4 w-4" />
                 Notifications
                 {unreadCount > 0 && (
@@ -263,32 +264,6 @@ export function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Quick actions */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Actions rapides</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button asChild variant="outline" className="w-full justify-start">
-                <Link to={ROUTES.AIDES}>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Diagnostic d'aides
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="w-full justify-start">
-                <Link to="/onboarding/monument">
-                  <Landmark className="h-4 w-4 mr-2" />
-                  Ajouter un monument
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="w-full justify-start">
-                <Link to={ROUTES.DOCUMENTS}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Gérer les documents
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>
@@ -296,7 +271,7 @@ export function DashboardPage() {
 }
 
 interface KPICardProps {
-  icon: typeof Landmark;
+  icon: typeof Castle;
   label: string;
   value: number;
   linkTo?: string;
@@ -306,26 +281,29 @@ interface KPICardProps {
 function KPICard({ icon: Icon, label, value, linkTo, variant = 'default' }: KPICardProps) {
   const card = (
     <Card className={cn(
-      'transition-all',
-      linkTo && 'hover:shadow-md hover:border-primary/30 cursor-pointer',
+      'transition-all border-0 shadow-sm',
+      variant === 'default' && 'bg-primary/5 ring-1 ring-primary/10',
+      variant === 'warning' && 'bg-amber-50 ring-1 ring-amber-200/50',
+      variant === 'accent' && 'bg-accent/5 ring-1 ring-accent/10',
+      linkTo && 'hover:shadow-md cursor-pointer',
     )}>
       <CardContent className="pt-5 pb-4">
         <div className="flex items-center gap-3">
           <div className={cn(
             'w-10 h-10 rounded-lg flex items-center justify-center',
-            variant === 'default' && 'bg-primary/10',
-            variant === 'warning' && 'bg-amber-100',
-            variant === 'accent' && 'bg-accent/20',
+            variant === 'default' && 'bg-primary text-white',
+            variant === 'warning' && 'bg-amber-500 text-white',
+            variant === 'accent' && 'bg-accent text-white',
           )}>
-            <Icon className={cn(
-              'h-5 w-5',
-              variant === 'default' && 'text-primary',
-              variant === 'warning' && 'text-amber-600',
-              variant === 'accent' && 'text-accent',
-            )} />
+            <Icon className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-2xl font-bold">{value}</p>
+            <p className={cn(
+              'text-2xl font-bold',
+              variant === 'default' && 'text-primary',
+              variant === 'warning' && 'text-amber-700',
+              variant === 'accent' && 'text-accent',
+            )}>{value}</p>
             <p className="text-xs text-muted-foreground">{label}</p>
           </div>
         </div>

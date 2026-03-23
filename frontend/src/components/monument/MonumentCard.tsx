@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router';
-import { MapPin, Shield, AlertTriangle, ChevronRight, Sparkles, FileText, ClipboardCheck } from 'lucide-react';
+import { MapPin, Shield, AlertTriangle, ChevronRight, Compass, ScrollText, Castle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -94,7 +94,7 @@ export function MonumentCard({ monument }: MonumentCardProps) {
           <div className="flex flex-col gap-2">
             {hasDossiers && (
               <Button variant="outline" size="sm" className="w-full" onClick={handleDossierClick}>
-                <FileText className="h-4 w-4 mr-2" />
+                <ScrollText className="h-4 w-4 mr-2" />
                 Voir mon dossier
               </Button>
             )}
@@ -106,12 +106,12 @@ export function MonumentCard({ monument }: MonumentCardProps) {
             >
               {hasDiagnostic ? (
                 <>
-                  <ClipboardCheck className="h-4 w-4 mr-2" />
+                  <Compass className="h-4 w-4 mr-2" />
                   Voir le diagnostic
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-4 w-4 mr-2" />
+                  <Compass className="h-4 w-4 mr-2" />
                   Lancer un diagnostic
                 </>
               )}
