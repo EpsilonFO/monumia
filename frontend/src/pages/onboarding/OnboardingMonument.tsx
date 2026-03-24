@@ -13,7 +13,7 @@ import { monumentService } from '@/services/monument.service';
 import { merimeeService } from '@/services/merimee.service';
 import { REGIONS } from '@/constants/regions';
 import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
-import { Compass, Search, PenLine, ChevronLeft } from 'lucide-react';
+import { Search, PenLine, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
 
@@ -185,8 +185,8 @@ export function OnboardingMonument() {
     return (
       <div className="space-y-6">
         <div className="text-center space-y-2">
-          <div className="mx-auto mb-2 flex items-center justify-center w-12 h-12 rounded-full bg-accent/20">
-            <Compass className="h-6 w-6 text-accent" />
+          <div className="mx-auto mb-2 flex items-center justify-center w-12 h-12">
+            <img src="/patrialta.png" alt="PatriAlta" className="h-12 w-12 object-contain" />
           </div>
           <h1 className="text-2xl font-bold">Complétez la fiche</h1>
           <p className="text-muted-foreground">
@@ -204,6 +204,9 @@ export function OnboardingMonument() {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
+        <div className="mx-auto mb-2 flex items-center justify-center w-12 h-12">
+          <img src="/patrialta.png" alt="PatriAlta" className="h-12 w-12 object-contain" />
+        </div>
         <h1 className="text-2xl font-bold">Votre monument</h1>
         <p className="text-muted-foreground">
           Ajoutez votre premier monument pour découvrir les aides disponibles.
@@ -214,7 +217,7 @@ export function OnboardingMonument() {
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="merimee" className="gap-2">
             <Search className="h-4 w-4" />
-            Recherche Mérimée
+            Recherche PatriAlta
           </TabsTrigger>
           <TabsTrigger value="manual" className="gap-2">
             <PenLine className="h-4 w-4" />
@@ -225,9 +228,9 @@ export function OnboardingMonument() {
         <TabsContent value="merimee" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Base Mérimée</CardTitle>
+              <CardTitle className="text-lg">Rechercher avec PatriAlta</CardTitle>
               <CardDescription>
-                Recherchez votre monument dans la base nationale du patrimoine.
+                Recherchez votre monument dans une base de données connue.
                 Les informations seront pré-remplies automatiquement.
               </CardDescription>
             </CardHeader>
@@ -242,7 +245,7 @@ export function OnboardingMonument() {
             <CardHeader>
               <CardTitle className="text-lg">Saisie manuelle</CardTitle>
               <CardDescription>
-                Votre monument n'est pas dans la base Mérimée ?
+                Votre monument n'est pas dans la base de PatriAlta ?
                 Renseignez ses informations manuellement.
               </CardDescription>
             </CardHeader>
