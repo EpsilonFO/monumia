@@ -6,22 +6,17 @@ services:
     container_name: patrialta-backend
     env_file:
       - ./backend/.env
-    ports:
-      - "8000:8000"
     volumes:
       - ./backend:/app
     restart: unless-stopped
 
-  frontend:
+  frontend-build:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: patrialta-frontend
-    ports:
-      - "3000:3000"
+    container_name: patrialta-frontend-build
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - frontend_dist:/dist
 
   nginx:
     image: nginx:alpine
@@ -36,7 +31,7 @@ services:
       - certbot_conf:/etc/letsencrypt:ro
     depends_on:
       - backend
-      - frontend
+      - frontend-build
     restart: unless-stopped
 
   certbot:

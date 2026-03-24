@@ -17,6 +17,6 @@ export default defineConfig({
     host: true,
     strictPort: true,
     port: 3000,
-    allowedHosts: ['patrialta.fr', 'www.patrialta.fr', 'localhost'],
+    allowedHosts: ['patrialta.fr', 'www.patrialta.fr'],
   },
 })
