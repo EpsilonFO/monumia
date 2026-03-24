@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MerimeeSearch } from '@/components/monument/MerimeeSearch';
 import { MonumentForm, type PendingPhoto } from '@/components/monument/MonumentForm';
@@ -13,9 +11,20 @@ import { monumentService } from '@/services/monument.service';
 import { merimeeService } from '@/services/merimee.service';
 import { REGIONS } from '@/constants/regions';
 import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
-import { Search, PenLine, ChevronLeft } from 'lucide-react';
+import { Search, PenLine, ChevronLeft, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
+
+const C = {
+  bg: '#F8F7F4',
+  bgAlt: '#FFFFFF',
+  text: '#1B1E2E',
+  textMuted: '#5C6178',
+  textLight: '#8E92A4',
+  royal: '#1A237E',
+  terra: '#C75B3A',
+  border: '#E4E2DC',
+} as const;
 
 const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
   REGIONS.map((r) => [r.label.toLowerCase(), r.value])
@@ -32,14 +41,11 @@ export function OnboardingMonument() {
   const [saving, setSaving] = useState(false);
 
   const handleMerimeeSelect = async (searchRecord: MerimeeRecord) => {
-    // The search endpoint only returns basic fields — fetch the full record
     const fullRecord = await merimeeService.getByReference(searchRecord.reference);
     const record = fullRecord ?? searchRecord;
 
-    // Helper: take last segment after ";" (most recent/relevant value)
     const lastOf = (s: string | undefined) => s?.split(';').pop()?.trim() ?? '';
 
-    // Protection level — last segment containing "classé" or "inscrit"
     const lastTypo = lastOf(record.typologie_de_la_protection).toLowerCase();
     const protection: ProtectionLevel = lastTypo.includes('classé')
       ? 'classe'
@@ -58,17 +64,14 @@ export function OnboardingMonument() {
           ? 'chapelle'
           : '';
 
-    // Parse materiaux: last segment, match keywords against our list
     const materiauxRaw = lastOf(record.materiaux_de_la_couverture || record.materiaux_du_gros_oeuvre).toLowerCase();
     const materiaux = materiauxRaw
       ? MATERIAUX.filter((m) => materiauxRaw.includes(m.value)).map((m) => m.value)
       : undefined;
 
-    // Match type_de_couverture: last segment against our TYPES_COUVERTURE list
     const couvertureRaw = lastOf(record.type_de_couverture).toLowerCase();
     const typeCouverture = TYPES_COUVERTURE.find((t) => couvertureRaw.includes(t.value))?.value || undefined;
 
-    // Parse date de protection: last segment, split on ":", extract date part
     let dateProtection: string | undefined;
     const lastDateEntry = lastOf(record.date_et_typologie_de_la_protection);
     if (lastDateEntry) {
@@ -78,7 +81,6 @@ export function OnboardingMonument() {
       }
     }
 
-    // typeProtection: last segment
     const typeProtection = lastOf(record.date_et_typologie_de_la_protection) || lastOf(record.typologie_de_la_protection) || undefined;
 
     const prefill = {
@@ -91,7 +93,6 @@ export function OnboardingMonument() {
       protection,
       dateProtection,
       typeProtection,
-      // Siècles et descriptions : on garde la valeur complète
       siecleConstruction: record.format_abrege_du_siecle_de_construction || record.siecle_de_la_campagne_principale_de_construction || undefined,
       typeCouverture,
       materiaux: materiaux?.length ? materiaux : undefined,
@@ -151,7 +152,6 @@ export function OnboardingMonument() {
         descriptionEtat: data.descriptionEtat,
       });
 
-      // Upload photos: storage + document record + monument JSONB
       for (const photo of pendingPhotos) {
         try {
           const doc = await uploadDocument({
@@ -183,13 +183,21 @@ export function OnboardingMonument() {
 
   if (showForm) {
     return (
-      <div className="space-y-6">
-        <div className="text-center space-y-2">
-          <div className="mx-auto mb-2 flex items-center justify-center w-12 h-12">
-            <img src="/patrialta.png" alt="PatriAlta" className="h-12 w-12 object-contain" />
+      <div className="space-y-10">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="h-px w-12" style={{ background: C.terra }} />
+            <span className="text-[13px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.terra }}>
+              Fiche monument
+            </span>
           </div>
-          <h1 className="text-2xl font-bold">Complétez la fiche</h1>
-          <p className="text-muted-foreground">
+          <h1
+            className="text-[clamp(1.8rem,4vw,2.5rem)] font-light tracking-[-0.02em]"
+            style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
+          >
+            Complétez la fiche
+          </h1>
+          <p className="text-[16px] leading-[1.75]" style={{ color: C.textMuted }}>
             {prefillData?.referenceMerimee
               ? 'Les informations Mérimée ont été pré-remplies. Complétez les champs restants.'
               : 'Renseignez les informations de votre monument.'}
@@ -202,67 +210,89 @@ export function OnboardingMonument() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="text-center space-y-2">
-        <div className="mx-auto mb-2 flex items-center justify-center w-12 h-12">
-          <img src="/patrialta.png" alt="PatriAlta" className="h-12 w-12 object-contain" />
+    <div className="space-y-10">
+      {/* heading */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <span className="h-px w-12" style={{ background: C.terra }} />
+          <span className="text-[13px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.terra }}>
+            Étape 3
+          </span>
         </div>
-        <h1 className="text-2xl font-bold">Votre monument</h1>
-        <p className="text-muted-foreground">
+        <h1
+          className="text-[clamp(1.8rem,4vw,2.5rem)] font-light tracking-[-0.02em]"
+          style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
+        >
+          Votre <em className="italic" style={{ color: C.royal }}>monument</em>
+        </h1>
+        <p className="text-[16px] leading-[1.75]" style={{ color: C.textMuted }}>
           Ajoutez votre premier monument pour découvrir les aides disponibles.
         </p>
       </div>
 
+      {/* tabs */}
       <Tabs defaultValue="merimee">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="merimee" className="gap-2">
+        <TabsList className="grid w-full grid-cols-2 h-12">
+          <TabsTrigger value="merimee" className="gap-2 text-[14px]">
             <Search className="h-4 w-4" />
             Recherche PatriAlta
           </TabsTrigger>
-          <TabsTrigger value="manual" className="gap-2">
+          <TabsTrigger value="manual" className="gap-2 text-[14px]">
             <PenLine className="h-4 w-4" />
             Saisie manuelle
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="merimee" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Rechercher avec PatriAlta</CardTitle>
-              <CardDescription>
-                Recherchez votre monument dans une base de données connue.
-                Les informations seront pré-remplies automatiquement.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <MerimeeSearch onSelect={handleMerimeeSelect} />
-            </CardContent>
-          </Card>
+        <TabsContent value="merimee" className="mt-6">
+          <div className="border p-8" style={{ borderColor: C.border, background: C.bgAlt }}>
+            <h3
+              className="text-[20px] font-normal mb-2"
+              style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
+            >
+              Rechercher avec PatriAlta
+            </h3>
+            <p className="text-[14px] mb-6" style={{ color: C.textLight }}>
+              Recherchez votre monument dans une base de données connue.
+              Les informations seront pré-remplies automatiquement.
+            </p>
+            <MerimeeSearch onSelect={handleMerimeeSelect} />
+          </div>
         </TabsContent>
 
-        <TabsContent value="manual" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Saisie manuelle</CardTitle>
-              <CardDescription>
-                Votre monument n'est pas dans la base de PatriAlta ?
-                Renseignez ses informations manuellement.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={() => setShowForm(true)}>
-                Créer une fiche monument
-              </Button>
-            </CardContent>
-          </Card>
+        <TabsContent value="manual" className="mt-6">
+          <div className="border p-8" style={{ borderColor: C.border, background: C.bgAlt }}>
+            <h3
+              className="text-[20px] font-normal mb-2"
+              style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
+            >
+              Saisie manuelle
+            </h3>
+            <p className="text-[14px] mb-6" style={{ color: C.textLight }}>
+              Votre monument n'est pas dans la base de PatriAlta ?
+              Renseignez ses informations manuellement.
+            </p>
+            <button
+              onClick={() => setShowForm(true)}
+              className="group flex items-center gap-2 px-6 py-3 text-[14px] font-semibold text-white transition-all duration-300 hover:shadow-lg"
+              style={{ background: C.royal }}
+            >
+              Créer une fiche monument
+              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </button>
+          </div>
         </TabsContent>
       </Tabs>
 
+      {/* back button */}
       <div className="flex justify-start">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ChevronLeft className="h-4 w-4 mr-1" />
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 px-5 py-3 text-[14px] font-medium border transition-all duration-300 hover:bg-[#F8F7F4]"
+          style={{ borderColor: C.border, color: C.textMuted }}
+        >
+          <ChevronLeft className="h-4 w-4" />
           Retour
-        </Button>
+        </button>
       </div>
     </div>
   );
