@@ -1,16 +1,27 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { authService } from '@/services/auth.service';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+
+const C = {
+  bg: '#F8F7F4',
+  bgAlt: '#FFFFFF',
+  text: '#1B1E2E',
+  textMuted: '#5C6178',
+  textLight: '#8E92A4',
+  royal: '#1A237E',
+  terra: '#C75B3A',
+  border: '#E4E2DC',
+} as const;
+
+const FONT_HEADING = "'Cormorant Garamond', serif";
 
 interface CommuneResult {
   codeInsee: string;
@@ -33,22 +44,19 @@ export function OnboardingProfile() {
     prenom: '',
     nom: '',
     telephone: '',
-    // commune
     communeNom: '',
     communeCodeInsee: '',
     communeDepartement: '',
     communeRegion: '',
     communePopulation: '',
     communeFonction: '',
-    // prive
     typeProprietaire: '',
     regimeFiscal: '',
-    // btp
     raisonSociale: '',
     siret: '',
   });
 
-  // Commune autocomplete state
+  // Commune autocomplete
   const [communeQuery, setCommuneQuery] = useState('');
   const [communeSuggestions, setCommuneSuggestions] = useState<CommuneResult[]>([]);
   const [communeSelected, setCommuneSelected] = useState(false);
@@ -120,7 +128,6 @@ export function OnboardingProfile() {
 
       sessionStorage.removeItem('pending-register');
       setAuth(user, access_token, refresh_token);
-
       navigate(segment === 'btp' ? '/btp' : '/app');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la création du compte');
@@ -135,13 +142,25 @@ export function OnboardingProfile() {
     !!form.typeProprietaire
   );
 
+  const inputCls = 'h-10 text-[14px] bg-white border-[#E4E2DC] focus:border-[#1A237E] focus:ring-[#1A237E]/10';
+
   return (
-    <div className="space-y-6">
-      <div className="text-center space-y-2">
-        <h1 className="text-2xl font-bold">
+    <div className="space-y-5">
+      {/* heading */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-3">
+          <span className="h-px w-10" style={{ background: C.terra }} />
+          <span className="text-[12px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.terra }}>
+            Étape 2
+          </span>
+        </div>
+        <h1
+          className="text-[clamp(1.5rem,3.5vw,2rem)] font-light tracking-[-0.02em]"
+          style={{ fontFamily: FONT_HEADING, color: C.text }}
+        >
           {segment === 'commune' ? 'Votre commune' : segment === 'btp' ? 'Votre entreprise' : 'Votre profil'}
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-[14px] leading-[1.6]" style={{ color: C.textMuted }}>
           {segment === 'commune'
             ? 'Quelques informations sur votre collectivité'
             : segment === 'btp'
@@ -150,52 +169,39 @@ export function OnboardingProfile() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Informations personnelles</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="prenom">Prénom *</Label>
-            <Input
-              id="prenom"
-              value={form.prenom}
-              onChange={(e) => update({ prenom: e.target.value })}
-              placeholder="Marie"
-            />
+      {/* personal info card */}
+      <div className="border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
+        <h3 className="text-[17px] font-normal mb-4" style={{ fontFamily: FONT_HEADING, color: C.text }}>
+          Informations personnelles
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="prenom" className="text-[13px] font-medium" style={{ color: C.text }}>Prénom *</Label>
+            <Input id="prenom" value={form.prenom} onChange={(e) => update({ prenom: e.target.value })} placeholder="Marie" className={inputCls} />
           </div>
-          <div>
-            <Label htmlFor="nom">Nom *</Label>
-            <Input
-              id="nom"
-              value={form.nom}
-              onChange={(e) => update({ nom: e.target.value })}
-              placeholder="Dupont"
-            />
+          <div className="space-y-1">
+            <Label htmlFor="nom" className="text-[13px] font-medium" style={{ color: C.text }}>Nom *</Label>
+            <Input id="nom" value={form.nom} onChange={(e) => update({ nom: e.target.value })} placeholder="Dupont" className={inputCls} />
           </div>
-          <div className="sm:col-span-2">
-            <Label htmlFor="telephone">Téléphone</Label>
-            <Input
-              id="telephone"
-              value={form.telephone}
-              onChange={(e) => update({ telephone: e.target.value })}
-              placeholder="02 33 40 00 00"
-            />
+          <div className="sm:col-span-2 space-y-1">
+            <Label htmlFor="telephone" className="text-[13px] font-medium" style={{ color: C.text }}>Téléphone</Label>
+            <Input id="telephone" value={form.telephone} onChange={(e) => update({ telephone: e.target.value })} placeholder="02 33 40 00 00" className={inputCls} />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
+      {/* segment-specific card */}
       {segment === 'commune' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Votre commune</CardTitle>
-            <CardDescription>
-              Ces informations permettront de filtrer les aides disponibles
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="sm:col-span-2 relative">
-              <Label htmlFor="communeNom">Nom de la commune *</Label>
+        <div className="border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
+          <h3 className="text-[17px] font-normal mb-1" style={{ fontFamily: FONT_HEADING, color: C.text }}>
+            Votre commune
+          </h3>
+          <p className="text-[13px] mb-4" style={{ color: C.textLight }}>
+            Ces informations permettront de filtrer les aides disponibles
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2 relative space-y-1">
+              <Label htmlFor="communeNom" className="text-[13px] font-medium" style={{ color: C.text }}>Nom de la commune *</Label>
               <Input
                 id="communeNom"
                 value={communeQuery}
@@ -206,29 +212,28 @@ export function OnboardingProfile() {
                 }}
                 placeholder="Paris"
                 autoComplete="off"
+                className={inputCls}
               />
               {communeSuggestions.length > 0 && (
-                <ul className="absolute z-50 mt-1 w-full bg-background border rounded-md shadow-md max-h-56 overflow-auto">
+                <ul className="absolute z-50 mt-1 w-full border rounded-md shadow-lg max-h-56 overflow-auto" style={{ background: C.bgAlt, borderColor: C.border }}>
                   {communeSuggestions.map((c) => (
                     <li
                       key={c.codeInsee}
-                      className="px-3 py-2 text-sm cursor-pointer hover:bg-muted flex justify-between"
+                      className="px-4 py-3 text-[14px] cursor-pointer flex justify-between transition-colors hover:bg-[#F8F7F4]"
+                      style={{ color: C.text }}
                       onMouseDown={() => selectCommune(c)}
                     >
-                      <span>{c.nom}</span>
-                      <span className="text-muted-foreground text-xs">{c.departement} ({c.codeDepartement})</span>
+                      <span className="font-medium">{c.nom}</span>
+                      <span className="text-[13px]" style={{ color: C.textLight }}>{c.departement} ({c.codeDepartement})</span>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
-            <div className="sm:col-span-2">
-              <Label htmlFor="communeFonction">Votre fonction</Label>
-              <Select
-                value={form.communeFonction}
-                onValueChange={(v) => update({ communeFonction: v })}
-              >
-                <SelectTrigger id="communeFonction">
+            <div className="sm:col-span-2 space-y-1">
+              <Label htmlFor="communeFonction" className="text-[13px] font-medium" style={{ color: C.text }}>Votre fonction</Label>
+              <Select value={form.communeFonction} onValueChange={(v) => update({ communeFonction: v })}>
+                <SelectTrigger id="communeFonction" className={inputCls}>
                   <SelectValue placeholder="Sélectionner..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -240,26 +245,23 @@ export function OnboardingProfile() {
                 </SelectContent>
               </Select>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {segment === 'prive' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Votre situation</CardTitle>
-            <CardDescription>
-              Ces informations permettront d'identifier les aides pertinentes
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="typeProprietaire">Type de propriétaire *</Label>
-              <Select
-                value={form.typeProprietaire}
-                onValueChange={(v) => update({ typeProprietaire: v })}
-              >
-                <SelectTrigger id="typeProprietaire">
+        <div className="border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
+          <h3 className="text-[17px] font-normal mb-1" style={{ fontFamily: FONT_HEADING, color: C.text }}>
+            Votre situation
+          </h3>
+          <p className="text-[13px] mb-4" style={{ color: C.textLight }}>
+            Ces informations permettront d'identifier les aides pertinentes
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="typeProprietaire" className="text-[13px] font-medium" style={{ color: C.text }}>Type de propriétaire *</Label>
+              <Select value={form.typeProprietaire} onValueChange={(v) => update({ typeProprietaire: v })}>
+                <SelectTrigger id="typeProprietaire" className={inputCls}>
                   <SelectValue placeholder="Sélectionner..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -270,13 +272,10 @@ export function OnboardingProfile() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label htmlFor="regimeFiscal">Régime fiscal</Label>
-              <Select
-                value={form.regimeFiscal}
-                onValueChange={(v) => update({ regimeFiscal: v })}
-              >
-                <SelectTrigger id="regimeFiscal">
+            <div className="space-y-1">
+              <Label htmlFor="regimeFiscal" className="text-[13px] font-medium" style={{ color: C.text }}>Régime fiscal</Label>
+              <Select value={form.regimeFiscal} onValueChange={(v) => update({ regimeFiscal: v })}>
+                <SelectTrigger id="regimeFiscal" className={inputCls}>
                   <SelectValue placeholder="Sélectionner..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -286,48 +285,51 @@ export function OnboardingProfile() {
                 </SelectContent>
               </Select>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {segment === 'btp' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Votre entreprise</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="sm:col-span-2">
-              <Label htmlFor="raisonSociale">Raison sociale *</Label>
-              <Input
-                id="raisonSociale"
-                value={form.raisonSociale}
-                onChange={(e) => update({ raisonSociale: e.target.value })}
-                placeholder="Entreprise Patrimoine SARL"
-              />
+        <div className="border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
+          <h3 className="text-[17px] font-normal mb-4" style={{ fontFamily: FONT_HEADING, color: C.text }}>
+            Votre entreprise
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2 space-y-1">
+              <Label htmlFor="raisonSociale" className="text-[13px] font-medium" style={{ color: C.text }}>Raison sociale *</Label>
+              <Input id="raisonSociale" value={form.raisonSociale} onChange={(e) => update({ raisonSociale: e.target.value })} placeholder="Entreprise Patrimoine SARL" className={inputCls} />
             </div>
-            <div>
-              <Label htmlFor="siret">SIRET</Label>
-              <Input
-                id="siret"
-                value={form.siret}
-                onChange={(e) => update({ siret: e.target.value })}
-                placeholder="12345678900014"
-              />
+            <div className="space-y-1">
+              <Label htmlFor="siret" className="text-[13px] font-medium" style={{ color: C.text }}>SIRET</Label>
+              <Input id="siret" value={form.siret} onChange={(e) => update({ siret: e.target.value })} placeholder="12345678900014" className={inputCls} />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={() => navigate('/onboarding')}>
-          <ChevronLeft className="h-4 w-4 mr-1" />
+      {/* navigation buttons */}
+      <div className="flex items-center justify-between pt-1">
+        <button
+          onClick={() => navigate('/onboarding')}
+          className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium border transition-all duration-300 hover:bg-[#F8F7F4]"
+          style={{ borderColor: C.border, color: C.textMuted }}
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
           Retour
-        </Button>
-        <Button onClick={handleSubmit} disabled={!isValid || loading}>
-          {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          Continuer
-          <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={!isValid || loading}
+          className="group flex items-center gap-2 px-6 py-2.5 text-[13px] font-semibold text-white transition-all duration-300 disabled:opacity-50 hover:shadow-lg"
+          style={{ background: C.royal }}
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+            <>
+              Continuer
+              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
