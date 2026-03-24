@@ -7,6 +7,10 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+
+ARG VITE_API_URL=https://patrialta.fr/api
+ENV VITE_API_URL=$VITE_API_URL
+
 RUN npm run build
 
 # The built files are in /app/dist — they will be copied by docker-compose into nginx
