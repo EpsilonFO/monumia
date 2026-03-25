@@ -44,7 +44,7 @@
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
     --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
-    --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+    --font-serif: 'Cormorant Garamond', 'Playfair Display', Georgia, 'Times New Roman', serif;
 }
 
 :root {
