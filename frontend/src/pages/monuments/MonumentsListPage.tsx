@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router';
-import { Plus, Castle, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Plus, Church, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MonumentCard } from '@/components/monument/MonumentCard';
@@ -14,14 +13,11 @@ export function MonumentsListPage() {
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const setDiagnostic = useAideStore((s) => s.setDiagnostic);
 
-  // Preload diagnostics for monuments not yet in the store
   useEffect(() => {
     for (const m of monuments) {
       if (!diagnosticsByMonument[m.id]) {
         aideService.getDiagnostics(m.id).then((diagnostics) => {
-          if (diagnostics.length > 0) {
-            setDiagnostic(m.id, diagnostics[0]);
-          }
+          if (diagnostics.length > 0) setDiagnostic(m.id, diagnostics[0]);
         }).catch(console.error);
       }
     }
@@ -33,31 +29,35 @@ export function MonumentsListPage() {
         title="Mes monuments"
         description="Gérez vos monuments historiques"
         action={
-          <Button asChild>
-            <Link to="/onboarding/monument">
-              <Plus className="h-4 w-4 mr-2" />
-              Ajouter un monument
-            </Link>
-          </Button>
+          <Link
+            to="/onboarding/monument"
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-300 hover:shadow-md"
+            style={{ background: '#C75B3A' }}
+          >
+            <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+            Ajouter un monument
+          </Link>
         }
       />
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Loader2 className="h-5 w-5 animate-spin text-[#8E92A4]" />
         </div>
       ) : monuments.length === 0 ? (
         <EmptyState
-          icon={Castle}
+          icon={Church}
           title="Aucun monument enregistré"
           description="Ajoutez votre premier monument pour commencer à identifier les aides disponibles."
           action={
-            <Button asChild>
-              <Link to="/onboarding/monument">
-                <Plus className="h-4 w-4 mr-2" />
-                Ajouter un monument
-              </Link>
-            </Button>
+            <Link
+              to="/onboarding/monument"
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-300 hover:shadow-md"
+              style={{ background: '#C75B3A' }}
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+              Ajouter un monument
+            </Link>
           }
         />
       ) : (

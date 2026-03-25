@@ -11,7 +11,6 @@ import {
   Sparkles,
   TrendingUp,
   Landmark,
-  MapPin,
   Clock,
   Shield,
   CheckCircle2,
@@ -19,7 +18,6 @@ import {
   ChevronDown,
   Minus,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 /* ────────────────────────────────────────────
    Colors — brand palette
@@ -249,7 +247,7 @@ export function LandingPage() {
                 <Shield className="h-4 w-4" style={{ color: C.royal }} />Données sécurisées
               </span>
               <span className="flex items-center gap-2">
-                <Clock className="h-4 w-4" style={{ color: C.terra }} />Résultat en 2 min
+                <Clock className="h-4 w-4" style={{ color: C.terra }} />Résultat instantané
               </span>
             </div>
           </Reveal>
@@ -324,7 +322,7 @@ export function LandingPage() {
               { icon: Euro, title: "Catalogue d'aides complet", desc: 'Plus de 150 dispositifs agrégés : subventions, prêts, déductions fiscales, mécénat, labels patrimoniaux.', num: '02' },
               { icon: FileCheck, title: 'Gestion de dossiers', desc: 'Constituez vos demandes pas à pas : checklists, pièces jointes, jalons et collaborateurs.', num: '03' },
               { icon: Landmark, title: 'Fiche monument', desc: 'Centralisez toutes les données de votre bien : protection, état, travaux prévus, photos.', num: '04' },
-              { icon: Building2, title: 'Base Mérimée', desc: 'Importez en un clic les données officielles du Ministère de la Culture.', num: '05' },
+              { icon: Building2, title: 'Base Mérimée', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '05' },
               { icon: TrendingUp, title: 'Tableaux de bord', desc: "Suivez l'avancement de vos dossiers, les échéances et le montant total de vos financements.", num: '06' },
             ] as const).map((f, i) => (
               <Reveal key={f.title} delay={i * 70}>

@@ -87,7 +87,7 @@ export function LoginPage() {
 
         <div className="relative z-10">
           <button onClick={() => navigate('/')} className="flex items-center gap-3 group">
-            <img src="/patrialta.png" alt="PatriAlta" className="h-8 brightness-0 invert opacity-90" />
+            <img src="/patrialta.png" alt="PatriAlta" className="h-8 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]" />
             <span className="text-[15px] font-semibold text-white/80 tracking-wide group-hover:text-white transition-colors">PatriAlta</span>
           </button>
         </div>
@@ -100,23 +100,23 @@ export function LoginPage() {
             Financez la restauration<br />
             de votre <em className="italic" style={{ color: '#E8C9A0' }}>patrimoine</em>
           </h2>
-          <p className="max-w-sm text-[15px] leading-[1.75] text-white/45">
+          <p className="max-w-sm text-[15px] leading-[1.75] text-white/70">
             Identifiez les subventions, déductions fiscales et dispositifs de mécénat disponibles pour vos monuments historiques.
           </p>
         </div>
 
-        <div className="relative z-10 flex flex-col gap-4 text-[13px] text-white/30 font-medium">
+        <div className="relative z-10 flex flex-col gap-4 text-[13px] text-white/50 font-medium">
           <div className="flex items-center gap-3">
-            <Landmark className="h-4 w-4 text-white/20" />
+            <Landmark className="h-4 w-4 text-white/35" />
             <span>150+ aides référencées</span>
           </div>
           <div className="flex items-center gap-3">
-            <Shield className="h-4 w-4 text-white/20" />
+            <Shield className="h-4 w-4 text-white/35" />
             <span>Données sécurisées</span>
           </div>
           <div className="flex items-center gap-3">
-            <Clock className="h-4 w-4 text-white/20" />
-            <span>Résultat en 2 minutes</span>
+            <Clock className="h-4 w-4 text-white/35" />
+            <span>Résultat instantané</span>
           </div>
         </div>
       </div>

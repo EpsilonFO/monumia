@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Receipt, Image, FileSpreadsheet, FileArchive, FolderOpen, MoreVertical, Pencil, Trash2, ScrollText, Scale, FileSearch, PenTool, FileText, Stamp, FileBadge, ClipboardList } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -9,7 +8,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +16,6 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { formatFileSize } from '@/lib/format-utils';
-import { cn } from '@/lib/utils';
 import type { Document } from '@/types';
 
 interface DocumentCardProps {
@@ -31,211 +28,157 @@ interface DocumentCardProps {
 }
 
 const typeIcons: Record<string, typeof FileText> = {
-  photo: Image,
-  plan: FileSpreadsheet,
-  devis: ClipboardList,
-  facture: Receipt,
-  attestation: FileBadge,
-  extrait_cadastral: FileSpreadsheet,
-  cerfa: Stamp,
-  arrete: Scale,
-  diagnostic: FileSearch,
-  rapport: ScrollText,
-  correspondance: PenTool,
-  autre: FileArchive,
+  photo: Image, plan: FileSpreadsheet, devis: ClipboardList, facture: Receipt,
+  attestation: FileBadge, extrait_cadastral: FileSpreadsheet, cerfa: Stamp,
+  arrete: Scale, diagnostic: FileSearch, rapport: ScrollText, correspondance: PenTool, autre: FileArchive,
 };
 
 const typeLabels: Record<string, string> = {
-  photo: 'Photo',
-  plan: 'Plan',
-  devis: 'Devis',
-  facture: 'Facture',
-  attestation: 'Attestation',
-  extrait_cadastral: 'Extrait cadastral',
-  cerfa: 'CERFA',
-  arrete: 'Arrêté',
-  diagnostic: 'Diagnostic',
-  rapport: 'Rapport',
-  correspondance: 'Correspondance',
-  autre: 'Autre',
+  photo: 'Photo', plan: 'Plan', devis: 'Devis', facture: 'Facture',
+  attestation: 'Attestation', extrait_cadastral: 'Extrait cadastral', cerfa: 'CERFA',
+  arrete: 'Arrêté', diagnostic: 'Diagnostic', rapport: 'Rapport', correspondance: 'Correspondance', autre: 'Autre',
 };
 
-const typeBg: Record<string, string> = {
-  photo: 'bg-violet-50',
-  plan: 'bg-blue-50',
-  devis: 'bg-amber-50',
-  facture: 'bg-orange-50',
-  attestation: 'bg-green-50',
-  extrait_cadastral: 'bg-teal-50',
-  cerfa: 'bg-cyan-50',
-  arrete: 'bg-red-50',
-  diagnostic: 'bg-indigo-50',
-  rapport: 'bg-slate-50',
-  correspondance: 'bg-pink-50',
-  autre: 'bg-gray-50',
-};
-
-const typeIconColor: Record<string, string> = {
-  photo: 'text-violet-400',
-  plan: 'text-blue-400',
-  devis: 'text-amber-400',
-  facture: 'text-orange-400',
-  attestation: 'text-green-400',
-  extrait_cadastral: 'text-teal-400',
-  cerfa: 'text-cyan-400',
-  arrete: 'text-red-400',
-  diagnostic: 'text-indigo-400',
-  rapport: 'text-slate-400',
-  correspondance: 'text-pink-400',
-  autre: 'text-gray-400',
+const typeAccent: Record<string, { bg: string; text: string }> = {
+  photo: { bg: '#F3E8FF', text: '#7C3AED' },
+  plan: { bg: '#E8EAF6', text: '#1A237E' },
+  devis: { bg: '#FEF3C7', text: '#92400E' },
+  facture: { bg: '#FBF0EC', text: '#C75B3A' },
+  attestation: { bg: '#ECFDF5', text: '#065F46' },
+  extrait_cadastral: { bg: '#E0F2F1', text: '#00695C' },
+  cerfa: { bg: '#E0F7FA', text: '#006064' },
+  arrete: { bg: '#FFEBEE', text: '#B71C1C' },
+  diagnostic: { bg: '#E8EAF6', text: '#283593' },
+  rapport: { bg: '#F1F5F9', text: '#334155' },
+  correspondance: { bg: '#FCE4EC', text: '#880E4F' },
+  autre: { bg: '#F3F4F6', text: '#374151' },
 };
 
 export function DocumentCard({ document, dossierNames, monumentNames, onClick, onRename, onDelete }: DocumentCardProps) {
-  const Icon = typeIcons[document.type] ?? File;
-  const linkedMonuments = monumentNames
-    ? document.monumentIds.map((id) => monumentNames[id]).filter(Boolean)
-    : [];
-
-  const linkedDossiers = dossierNames
-    ? document.dossiersUtilises.map((id) => dossierNames[id]).filter(Boolean)
-    : [];
+  const Icon = typeIcons[document.type] ?? FileText;
+  const accent = typeAccent[document.type] ?? typeAccent.autre;
+  const linkedMonuments = monumentNames ? document.monumentIds.map((id) => monumentNames[id]).filter(Boolean) : [];
+  const linkedDossiers = dossierNames ? document.dossiersUtilises.map((id) => dossierNames[id]).filter(Boolean) : [];
 
   const [renameOpen, setRenameOpen] = useState(false);
   const [newName, setNewName] = useState(document.nom);
   const [loading, setLoading] = useState(false);
 
   const handleRename = async () => {
-    if (!onRename || !newName.trim() || newName === document.nom) {
-      setRenameOpen(false);
-      return;
-    }
+    if (!onRename || !newName.trim() || newName === document.nom) { setRenameOpen(false); return; }
     setLoading(true);
-    try {
-      await onRename(document.id, newName.trim());
-      setRenameOpen(false);
-    } finally {
-      setLoading(false);
-    }
+    try { await onRename(document.id, newName.trim()); setRenameOpen(false); }
+    finally { setLoading(false); }
   };
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!onDelete) return;
-    if (!confirm(`Supprimer "${document.nom}" ? Le fichier sera supprimé définitivement.`)) return;
+    if (!confirm(`Supprimer "${document.nom}" ?`)) return;
     await onDelete(document.id);
   };
 
   return (
     <>
-    <Card className="hover:shadow-md transition-shadow overflow-hidden flex flex-col cursor-pointer relative" onClick={onClick}>
-      <CardContent className="p-3 space-y-2 flex-1 flex flex-col">
-        <div className="flex items-start gap-2.5">
-          <div
-            className={cn(
-              'h-8 w-8 shrink-0 rounded flex items-center justify-center',
-              typeBg[document.type] ?? 'bg-muted'
+      <div
+        onClick={onClick}
+        className="group relative bg-white rounded-xl border border-[#E4E2DC]/80 overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:shadow-black/[0.03] hover:border-[#E4E2DC]"
+      >
+        {/* Top accent strip */}
+        <div className="h-1" style={{ background: accent.text }} />
+
+        <div className="p-4 space-y-2.5">
+          {/* Header row */}
+          <div className="flex items-start gap-2.5">
+            <div
+              className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center"
+              style={{ background: accent.bg }}
+            >
+              <Icon className="h-4 w-4" style={{ color: accent.text }} strokeWidth={1.8} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-[#1B1E2E] leading-tight line-clamp-1">{document.nom}</p>
+              <p className="text-[11px] text-[#8E92A4] mt-0.5 truncate">{document.nomFichier}</p>
+            </div>
+            {(onRename || onDelete) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <button className="shrink-0 p-1 rounded-md hover:bg-[#F8F7F4] transition-colors opacity-0 group-hover:opacity-100">
+                    <MoreVertical className="h-3.5 w-3.5 text-[#8E92A4]" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  {onRename && (
+                    <DropdownMenuItem onClick={() => { setNewName(document.nom); setRenameOpen(true); }}>
+                      <Pencil className="h-3.5 w-3.5 mr-2" />Renommer
+                    </DropdownMenuItem>
+                  )}
+                  {onDelete && (
+                    <DropdownMenuItem className="text-destructive" onClick={handleDelete}>
+                      <Trash2 className="h-3.5 w-3.5 mr-2" />Supprimer
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
-          >
-            <Icon className={cn('h-4 w-4', typeIconColor[document.type] ?? 'text-muted-foreground')} />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium leading-tight line-clamp-2">
-              {document.nom}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {document.nomFichier}
-            </p>
+
+          {/* Meta row */}
+          <div className="flex items-center gap-2">
+            <Badge
+              className="text-[10px] font-semibold border-0 px-1.5 py-0.5"
+              style={{ background: accent.bg, color: accent.text }}
+            >
+              {typeLabels[document.type] ?? document.type}
+            </Badge>
+            <span className="text-[11px] text-[#8E92A4]">{formatFileSize(document.tailleFichier)}</span>
           </div>
-          {(onRename || onDelete) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <button className="shrink-0 p-1 rounded hover:bg-muted transition-colors">
-                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                {onRename && (
-                  <DropdownMenuItem onClick={() => { setNewName(document.nom); setRenameOpen(true); }}>
-                    <Pencil className="h-3.5 w-3.5 mr-2" />
-                    Renommer
-                  </DropdownMenuItem>
-                )}
-                {onDelete && (
-                  <DropdownMenuItem className="text-destructive" onClick={handleDelete}>
-                    <Trash2 className="h-3.5 w-3.5 mr-2" />
-                    Supprimer
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+
+          {/* Monument link */}
+          {linkedMonuments.length > 0 && (
+            <p className="text-[11px] text-[#8E92A4] truncate">{linkedMonuments.join(', ')}</p>
+          )}
+
+          {/* Dossiers */}
+          {linkedDossiers.length > 0 && (
+            <div className="pt-2 border-t border-[#E4E2DC]/60">
+              <p className="text-[10px] uppercase tracking-[0.08em] font-semibold text-[#8E92A4] flex items-center gap-1 mb-1">
+                <FolderOpen className="h-3 w-3" strokeWidth={1.8} />Dossiers
+              </p>
+              {linkedDossiers.map((name) => (
+                <p key={name} className="text-[11px] text-[#1B1E2E] truncate">{name}</p>
+              ))}
+            </div>
+          )}
+
+          {document.dossiersUtilises.length > 0 && linkedDossiers.length === 0 && (
+            <p className="text-[11px] text-[#8E92A4] pt-2 border-t border-[#E4E2DC]/60">
+              Utilisé dans {document.dossiersUtilises.length} dossier{document.dossiersUtilises.length > 1 ? 's' : ''}
+            </p>
           )}
         </div>
+      </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="outline" className="text-xs">
-            {typeLabels[document.type] ?? document.type}
-          </Badge>
-          <span className="text-xs text-muted-foreground">
-            {formatFileSize(document.tailleFichier)}
-          </span>
-        </div>
-
-        {linkedMonuments.length > 0 && (
-          <p className="text-xs text-muted-foreground truncate">
-            {linkedMonuments.join(', ')}
-          </p>
-        )}
-
-        {document.description && (
-          <p className="text-xs text-muted-foreground line-clamp-2">
-            {document.description}
-          </p>
-        )}
-
-        {/* Dossiers associés */}
-        {linkedDossiers.length > 0 && (
-          <div className="mt-auto pt-2 border-t space-y-1">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium flex items-center gap-1">
-              <FolderOpen className="h-3 w-3" />
-              Dossiers associés
-            </p>
-            {linkedDossiers.map((name) => (
-              <p key={name} className="text-xs text-foreground truncate">
-                {name}
-              </p>
-            ))}
-          </div>
-        )}
-
-        {document.dossiersUtilises.length > 0 && linkedDossiers.length === 0 && (
-          <p className="text-xs text-muted-foreground mt-auto pt-2 border-t">
-            Utilisé dans {document.dossiersUtilises.length} dossier{document.dossiersUtilises.length > 1 ? 's' : ''}
-          </p>
-        )}
-      </CardContent>
-    </Card>
-
-    <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-      <DialogContent className="sm:max-w-sm" onClick={(e) => e.stopPropagation()}>
-        <DialogHeader>
-          <DialogTitle>Renommer le document</DialogTitle>
-        </DialogHeader>
-        <Input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleRename(); }}
-          autoFocus
-        />
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setRenameOpen(false)} disabled={loading}>
-            Annuler
-          </Button>
-          <Button onClick={handleRename} disabled={!newName.trim() || loading}>
-            {loading ? 'Enregistrement...' : 'Enregistrer'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="sm:max-w-sm" onClick={(e) => e.stopPropagation()}>
+          <DialogHeader><DialogTitle>Renommer le document</DialogTitle></DialogHeader>
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleRename(); }}
+            autoFocus
+            className="h-10 text-[14px] bg-white border-[#E4E2DC] focus:border-[#1A237E] focus:ring-[#1A237E]/10"
+          />
+          <DialogFooter>
+            <button onClick={() => setRenameOpen(false)} disabled={loading} className="px-4 py-2 text-[13px] font-medium border border-[#E4E2DC] rounded-lg text-[#5C6178] hover:bg-[#F8F7F4] transition-colors">
+              Annuler
+            </button>
+            <button onClick={handleRename} disabled={!newName.trim() || loading} className="px-4 py-2 text-[13px] font-semibold text-white rounded-lg disabled:opacity-50 hover:shadow-md transition-all" style={{ background: '#1A237E' }}>
+              {loading ? 'Enregistrement...' : 'Enregistrer'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
