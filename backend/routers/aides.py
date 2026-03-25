@@ -4,11 +4,9 @@ from pydantic import BaseModel
 from supabase import Client
 
 from db import get_supabase, get_current_user_id
-from matching_engine import run_diagnostic, _check_eligibility
+from matching_engine import run_diagnostic, fetch_aides_with_joins, _check_eligibility
 
 router = APIRouter(prefix="/aides", tags=["aides"])
-
-COLUMNS = "*"
 
 
 # ---------------------------------------------------------------------------
@@ -32,6 +30,10 @@ _AIDE_KEY_MAP = {
     "montant_max": "montantMax",
     "taux_max": "tauxMax",
     "montant_min": "montantMin",
+    "commune_max_population": "communeMaxPopulation",
+    "cofinancement_requis": "cofinancementRequis",
+    "architecte_requis": "architecteRequis",
+    "conditions_eligibilite_detail": "conditionsEligibiliteDetail",
     "demarche_description": "demarcheDescription",
     "documents_requis": "documentsRequis",
     "delai_instruction": "delaiInstruction",
@@ -53,13 +55,13 @@ def _to_camel(aide: dict) -> dict:
     return out
 
 
-def _get_all_aides(supabase: Client) -> list[dict]:
-    result = supabase.table("aides").select(COLUMNS).execute()
-    return result.data or []
-
-
-def _get_all_aides_camel(supabase: Client) -> list[dict]:
-    return [_to_camel(a) for a in _get_all_aides(supabase)]
+def _camelise_diagnostic(result: dict) -> dict:
+    """Convert aide objects inside diagnostic results to camelCase."""
+    for match in result.get("aidesEligibles", []):
+        match["aide"] = _to_camel(match["aide"])
+    for match in result.get("aidesNonEligibles", []):
+        match["aide"] = _to_camel(match["aide"])
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +74,7 @@ def list_aides(
     q: Optional[str] = Query(None),
     supabase: Client = Depends(get_supabase),
 ):
-    query = supabase.table("aides").select(COLUMNS).order("nom")
+    query = supabase.table("aides_v2").select("*").order("nom")
 
     if categorie:
         query = query.eq("categorie", categorie)
@@ -80,7 +82,6 @@ def list_aides(
     aides = query.execute().data or []
     aides = [_to_camel(a) for a in aides]
 
-    # Text search in Python (nom, nomCourt, description, organisme)
     if q:
         q_lower = q.lower()
         aides = [
@@ -100,8 +101,8 @@ def get_aide(
     supabase: Client = Depends(get_supabase),
 ):
     result = (
-        supabase.table("aides")
-        .select(COLUMNS)
+        supabase.table("aides_v2")
+        .select("*")
         .eq("id", aide_id)
         .single()
         .execute()
@@ -142,18 +143,15 @@ def diagnostic(
         raise HTTPException(status_code=404, detail="Profil utilisateur introuvable")
     user = user_result.data
 
-    # Fetch all aides (camelCase for matching engine + response)
-    aides = _get_all_aides_camel(supabase)
-
     result = run_diagnostic(
+        supabase=supabase,
         monument=monument,
         user=user,
-        aides=aides,
         mode_projet=body.mode_projet,
         travaux_filtres=body.travaux_filtres,
     )
 
-    # Persist diagnostic to DB — only aide IDs, criteria are recomputed at read time
+    # Persist diagnostic to DB
     row = {
         "monument_id": body.monument_id,
         "user_id": user_id,
@@ -163,14 +161,14 @@ def diagnostic(
         "aides_eligibles_count": len(result["aidesEligibles"]),
         "aides_non_eligibles_count": len(result["aidesNonEligibles"]),
         "montant_potentiel_total": result.get("montantPotentielTotal"),
-        "aides_eligibles_ids": [m["aide"]["uuid"] for m in result["aidesEligibles"]],
-        "aides_non_eligibles_ids": [m["aide"]["uuid"] for m in result["aidesNonEligibles"]],
+        "aides_eligibles_ids": [m["aide"]["id"] for m in result["aidesEligibles"]],
+        "aides_non_eligibles_ids": [m["aide"]["id"] for m in result["aidesNonEligibles"]],
     }
     insert_result = supabase.table("diagnostics").insert(row).execute()
     if insert_result.data:
         result["id"] = insert_result.data[0]["id"]
 
-    return result
+    return _camelise_diagnostic(result)
 
 
 @router.get("/diagnostics/{monument_id}")
@@ -212,17 +210,40 @@ def list_diagnostics(
     )
     user = user_result.data
 
-    # Build aide lookup keyed by uuid (fetched once)
-    aides_by_id = {a["uuid"]: a for a in _get_all_aides_camel(supabase)}
+    # Collect all aide UUIDs referenced across diagnostics
+    all_aide_ids = set()
+    for d in diagnostics:
+        all_aide_ids.update(d.get("aides_eligibles_ids") or [])
+        all_aide_ids.update(d.get("aides_non_eligibles_ids") or [])
+
+    # Fetch all referenced aides with joins in one batch
+    aides_list = fetch_aides_with_joins(supabase, list(all_aide_ids))
+    aides_by_id = {a["id"]: a for a in aides_list}
+
+    # Resolve population once
+    population = None
+    code_insee = monument.get("code_insee") if monument else None
+    if code_insee and user and user.get("segment") == "commune":
+        commune_result = (
+            supabase.table("communes")
+            .select("population")
+            .eq("code_insee", code_insee)
+            .single()
+            .execute()
+        )
+        if commune_result.data:
+            population = commune_result.data.get("population")
 
     return [
-        _hydrate_diagnostic(d, aides_by_id, monument, user)
+        _camelise_diagnostic(_hydrate_diagnostic(d, aides_by_id, monument, user, population))
         for d in diagnostics
     ]
 
 
-def _hydrate_diagnostic(row: dict, aides_by_id: dict, monument: dict, user: dict) -> dict:
-    """Reconstruct full AideDiagnosticResult by joining aide IDs and recomputing criteria."""
+def _hydrate_diagnostic(
+    row: dict, aides_by_id: dict, monument: dict, user: dict, population: Optional[int]
+) -> dict:
+    """Reconstruct full diagnostic by joining aide IDs and recomputing criteria."""
     mode_projet = row.get("mode_projet", False)
     travaux_filtres = row.get("travaux_filtres") or []
 
@@ -230,7 +251,7 @@ def _hydrate_diagnostic(row: dict, aides_by_id: dict, monument: dict, user: dict
         aide = aides_by_id.get(aide_id)
         if not aide:
             return None
-        return _check_eligibility(aide, monument, user, mode_projet, travaux_filtres)
+        return _check_eligibility(aide, monument, user, mode_projet, travaux_filtres, population)
 
     aides_eligibles = [
         m for aid in (row.get("aides_eligibles_ids") or [])
