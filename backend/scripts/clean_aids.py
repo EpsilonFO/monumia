@@ -9,12 +9,16 @@ from pathlib import Path
 
 file_path = Path(__file__).parent / "all_aids.txt"
 
-pattern = re.compile(r"^\d+\.\d+\s*—\s*.+")
+pattern = re.compile(r"^\d+\.\d+\s*—\s*(.+)")
 
 with open(file_path, "r", encoding="utf-8") as f:
     lines = f.readlines()
 
-kept = [line.strip() for line in lines if pattern.match(line.strip())]
+kept = []
+for line in lines:
+    m = pattern.match(line.strip())
+    if m:
+        kept.append(m.group(1).strip())
 
 with open(file_path, "w", encoding="utf-8") as f:
     f.write("\n".join(kept) + "\n")
