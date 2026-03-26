@@ -289,35 +289,42 @@ AS $$
   SELECT DISTINCT a.id
   FROM aides_v2 a
   WHERE
-    -- Protection : l'aide n'a aucune contrainte OU le monument matche
-    (NOT EXISTS (SELECT 1 FROM aides_protections ap WHERE ap.aide_id = a.id)
+    -- Protection : paramètre NULL = pas de filtre, sinon l'aide n'a aucune contrainte OU le monument matche
+    (p_protection IS NULL
+     OR NOT EXISTS (SELECT 1 FROM aides_protections ap WHERE ap.aide_id = a.id)
      OR EXISTS (SELECT 1 FROM aides_protections ap WHERE ap.aide_id = a.id AND ap.protection_code = p_protection))
 
     -- Propriétaire
-    AND (NOT EXISTS (SELECT 1 FROM aides_proprietaires ap WHERE ap.aide_id = a.id)
+    AND (p_proprietaire IS NULL
+     OR NOT EXISTS (SELECT 1 FROM aides_proprietaires ap WHERE ap.aide_id = a.id)
      OR EXISTS (SELECT 1 FROM aides_proprietaires ap WHERE ap.aide_id = a.id AND ap.proprietaire_code = p_proprietaire))
 
-    -- Travaux : au moins un travaux en commun
-    AND (NOT EXISTS (SELECT 1 FROM aides_travaux at2 WHERE at2.aide_id = a.id)
+    -- Travaux : paramètre NULL = pas de filtre, sinon au moins un en commun
+    AND (p_travaux IS NULL
+     OR NOT EXISTS (SELECT 1 FROM aides_travaux at2 WHERE at2.aide_id = a.id)
      OR EXISTS (SELECT 1 FROM aides_travaux at2 WHERE at2.aide_id = a.id AND at2.travaux_code = ANY(p_travaux)))
 
     -- Région
-    AND (NOT EXISTS (SELECT 1 FROM aides_regions ar WHERE ar.aide_id = a.id)
+    AND (p_region IS NULL
+     OR NOT EXISTS (SELECT 1 FROM aides_regions ar WHERE ar.aide_id = a.id)
      OR EXISTS (SELECT 1 FROM aides_regions ar WHERE ar.aide_id = a.id AND ar.region_code = p_region))
 
     -- Département
-    AND (NOT EXISTS (SELECT 1 FROM aides_departements ad WHERE ad.aide_id = a.id)
+    AND (p_departement IS NULL
+     OR NOT EXISTS (SELECT 1 FROM aides_departements ad WHERE ad.aide_id = a.id)
      OR EXISTS (SELECT 1 FROM aides_departements ad WHERE ad.aide_id = a.id AND ad.departement_code = p_departement))
 
     -- Segment
-    AND (NOT EXISTS (SELECT 1 FROM aides_segments as2 WHERE as2.aide_id = a.id)
+    AND (p_segment IS NULL
+     OR NOT EXISTS (SELECT 1 FROM aides_segments as2 WHERE as2.aide_id = a.id)
      OR EXISTS (SELECT 1 FROM aides_segments as2 WHERE as2.aide_id = a.id AND as2.segment_code = p_segment))
 
     -- Population
     AND (a.commune_max_population IS NULL OR p_population IS NULL OR p_population <= a.commune_max_population)
 
     -- État de conservation
-    AND (NOT EXISTS (SELECT 1 FROM aides_etats_conservation ae WHERE ae.aide_id = a.id)
+    AND (p_etat_conservation IS NULL
+     OR NOT EXISTS (SELECT 1 FROM aides_etats_conservation ae WHERE ae.aide_id = a.id)
      OR EXISTS (SELECT 1 FROM aides_etats_conservation ae WHERE ae.aide_id = a.id AND ae.etat_conservation_code = p_etat_conservation))
 
     -- Pas expirée

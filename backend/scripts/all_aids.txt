@@ -10,19 +10,12 @@ Aides régionales patrimoine — Nouvelle-Aquitaine
 Aides régionales — Les 13 régions métropolitaines (tableau synthétique)
 Aides départementales patrimoine
 Aide des communes et intercommunalités
-FEDER (Fonds Européen de Développement Régional)
 FEADER / LEADER
-Europe Créative
 Interreg
 Horizon Europe
-Programme LIFE
-FSE+ (Fonds Social Européen Plus)
-Fonds Erasmus+
-MaPrimeRénov'
 CEE (Certificats d'Économies d'Énergie)
 Éco-PTZ (Éco-Prêt à Taux Zéro)
 TVA réduite 5.5% sur travaux de rénovation énergétique
-TVA réduite 10% sur travaux de rénovation (hors énergie)
 Programme SARE
 Aides régionales à la rénovation énergétique
 Programme Adapt Bâti Confort (CEE)
@@ -32,7 +25,6 @@ Aides départementales hébergement touristique
 ZRR / France Ruralités Revitalisation (FRR)
 Hébergement insolite / Tourisme d'expérience
 Œnotourisme et tourisme gastronomique
-Programme Nouveaux Lieux, Nouveaux Liens (ANCT)
 Petites Villes de Demain (PVD)
 Action Cœur de Ville (ACV)
 Fonds Friches

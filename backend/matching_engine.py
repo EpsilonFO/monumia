@@ -1,15 +1,22 @@
 """
 Matching engine v2 — uses normalised aides_v2 tables.
 
-Two-phase approach:
+Three-phase approach:
   1. SQL pre-filter via prefiltrer_aides() → candidate aide UUIDs
-  2. Python builds human-readable criteria match/mismatch lists for the response
+  2. Python builds human-readable criteria match/mismatch lists
+  3. LLM fine-matching on conditions_eligibilite_detail for nuanced rules
 """
 
+import json
+import logging
+import os
 from datetime import datetime
 from typing import Optional
 
+from mistralai.client import Mistral
 from supabase import Client
+
+logger = logging.getLogger(__name__)
 
 PROTECTION_LABELS = {
     "classe": "Classé Monument Historique",
@@ -73,9 +80,31 @@ def prefiltrer_aides(
     """Call the prefiltrer_aides SQL function and return matching aide UUIDs."""
     travaux = travaux_filtres or monument.get("travaux_envisages") or []
 
-    # Fetch commune population from the communes table
+    # Resolve code_insee: fallback from commune name if empty
+    code_insee = monument.get("code_insee") or ""
+    if not code_insee and monument.get("commune"):
+        commune_lookup = (
+            supabase.table("communes")
+            .select("code_insee, population")
+            .eq("nom_commune", monument["commune"])
+            .limit(1)
+            .execute()
+        )
+        if commune_lookup.data:
+            code_insee = commune_lookup.data[0].get("code_insee", "")
+
+    # Extract departement code from code_insee (e.g. "10025" → "10", "2A004" → "2A")
+    departement_code = None
+    if code_insee:
+        if code_insee[:2] in ("2A", "2B"):
+            departement_code = code_insee[:2]
+        elif code_insee[:3] in ("971", "972", "973", "974", "975", "976"):
+            departement_code = code_insee[:3]
+        else:
+            departement_code = code_insee[:2]
+
+    # Fetch commune population
     population = None
-    code_insee = monument.get("code_insee")
     if code_insee and user.get("segment") == "commune":
         commune_result = (
             supabase.table("communes")
@@ -87,16 +116,19 @@ def prefiltrer_aides(
         if commune_result.data:
             population = commune_result.data.get("population")
 
-    result = supabase.rpc("prefiltrer_aides", {
+    params = {
         "p_protection": monument.get("protection"),
         "p_proprietaire": monument.get("proprietaire"),
         "p_travaux": travaux if travaux else None,
         "p_region": monument.get("region"),
-        "p_departement": monument.get("departement"),
+        "p_departement": departement_code,
         "p_segment": user.get("segment"),
         "p_population": population,
         "p_etat_conservation": monument.get("etat_conservation"),
-    }).execute()
+    }
+    print(f"\n[RPC prefiltrer_aides] params: {json.dumps(params, ensure_ascii=False, default=str)}")
+
+    result = supabase.rpc("prefiltrer_aides", params).execute()
 
     return [row["aide_id"] for row in (result.data or [])]
 
@@ -307,6 +339,138 @@ def _check_eligibility(
 
 
 # ---------------------------------------------------------------------------
+# Phase 3: LLM fine-matching on conditions_eligibilite_detail
+# ---------------------------------------------------------------------------
+
+def _build_monument_profile(monument: dict, user: dict, population: Optional[int]) -> str:
+    """Build a human-readable text description of the monument for the LLM."""
+    lines = []
+    lines.append(f"Nom : {monument.get('nom', 'Non renseigné')}")
+    lines.append(f"Protection : {_label(PROTECTION_LABELS, monument.get('protection', ''))}")
+    lines.append(f"Propriétaire : {_label(OWNERSHIP_LABELS, monument.get('proprietaire', ''))}")
+    lines.append(f"Commune : {monument.get('commune', 'Non renseigné')}")
+    lines.append(f"Code INSEE : {monument.get('code_insee', 'Non renseigné')}")
+    lines.append(f"Département : {monument.get('departement', 'Non renseigné')}")
+    lines.append(f"Région : {monument.get('region', 'Non renseigné')}")
+    if population is not None:
+        lines.append(f"Population commune : {population} habitants")
+    lines.append(f"État de conservation : {_label(ETAT_LABELS, monument.get('etat_conservation', ''))}")
+    travaux = monument.get("travaux_envisages") or []
+    if travaux:
+        lines.append(f"Travaux envisagés : {_labels(TRAVAUX_LABELS, travaux)}")
+    lines.append(f"Segment utilisateur : {_label(SEGMENT_LABELS, user.get('segment', ''))}")
+    if monument.get("siecle_construction"):
+        lines.append(f"Siècle de construction : {monument['siecle_construction']}")
+    if monument.get("reference_merimee"):
+        lines.append(f"Référence Mérimée : {monument['reference_merimee']}")
+    return "\n".join(lines)
+
+
+def _llm_evaluate_eligibility(
+    monument_profile: str,
+    aide_nom: str,
+    conditions_detail: str,
+) -> dict:
+    """Call Mistral Small to evaluate fine eligibility.
+
+    Returns {"eligible": bool, "explication": str, "incertitudes": list[str]}
+    """
+    api_key = os.environ.get("MISTRAL_API_KEY")
+    if not api_key:
+        logger.warning("MISTRAL_API_KEY not set, skipping LLM evaluation")
+        return {"eligible": True, "explication": "", "incertitudes": ["Évaluation LLM indisponible"]}
+
+    client = Mistral(api_key=api_key)
+
+    prompt = f"""Tu es un expert en financement du patrimoine bâti en France.
+
+Voici le profil d'un monument :
+{monument_profile}
+
+Voici les conditions d'éligibilité détaillées de l'aide "{aide_nom}" :
+{conditions_detail}
+
+Évalue si ce monument est éligible à cette aide en te basant UNIQUEMENT sur les informations fournies.
+
+Réponds en JSON strict avec ce format :
+{{
+  "eligible": true ou false,
+  "explication": "Explication en 1-2 phrases de ta conclusion",
+  "incertitudes": ["Liste des points qui ne peuvent pas être vérifiés avec les infos disponibles"]
+}}
+
+Si tu manques d'informations pour conclure, mets eligible à true (bénéfice du doute) et liste les incertitudes."""
+
+    try:
+        response = client.chat.complete(
+            model="mistral-large-latest",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            # reasoning_effort="high",
+            temperature=0.1,
+        )
+        choice = response.choices[0]
+        # Log reasoning (thinking) if available
+        if hasattr(choice.message, "reasoning_content") and choice.message.reasoning_content:
+            print(f"\n{'='*60}")
+            print(f"[LLM REASONING] Aide: {aide_nom}")
+            print(f"{'='*60}")
+            print(choice.message.reasoning_content)
+        content = choice.message.content
+        result = json.loads(content)
+        print(f"\n{'='*60}")
+        print(f"[LLM RESULT] Aide: {aide_nom}")
+        print(f"{'='*60}")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return result
+    except Exception as e:
+        logger.error(f"LLM evaluation failed for aide '{aide_nom}': {e}")
+        return {"eligible": True, "explication": "", "incertitudes": [f"Erreur LLM : {e}"]}
+
+
+def _run_llm_phase(
+    eligible_results: list[dict],
+    monument_profile: str,
+) -> list[dict]:
+    """Run LLM evaluation on eligible aides that have conditions_eligibilite_detail.
+
+    Returns two lists: (still_eligible, downgraded_to_ineligible)
+    """
+    still_eligible = []
+    downgraded = []
+
+    for result in eligible_results:
+        aide = result["aide"]
+        conditions = aide.get("conditions_eligibilite_detail")
+
+        if not conditions:
+            # No complex conditions — keep as eligible
+            still_eligible.append(result)
+            continue
+
+        llm_result = _llm_evaluate_eligibility(
+            monument_profile=monument_profile,
+            aide_nom=aide.get("nom", ""),
+            conditions_detail=conditions,
+        )
+
+        result["llmEvaluation"] = {
+            "explication": llm_result.get("explication", ""),
+            "incertitudes": llm_result.get("incertitudes", []),
+        }
+
+        if llm_result.get("eligible", True):
+            still_eligible.append(result)
+        else:
+            result["eligible"] = False
+            result["criteresNonRemplis"].append(f"Condition détaillée : {llm_result.get('explication', '')}")
+            result["raisonIneligibilite"] = result["raisonIneligibilite"] or llm_result.get("explication", "")
+            downgraded.append(result)
+
+    return still_eligible, downgraded
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -317,11 +481,19 @@ def run_diagnostic(
     mode_projet: bool = False,
     travaux_filtres: Optional[list[str]] = None,
 ) -> dict:
-    """Run a full diagnostic: SQL pre-filter → fetch aides with joins → build criteria."""
+    """Run a full diagnostic: SQL pre-filter → criteria check → LLM fine-matching."""
     ctx_travaux = travaux_filtres or []
 
     # Phase 1: SQL pre-filter
     candidate_ids = prefiltrer_aides(supabase, monument, user, ctx_travaux or None)
+
+    print(f"\n{'='*60}")
+    print(f"[PRE-FILTER] Monument: {monument.get('nom')}")
+    print(f"  protection={monument.get('protection')}, proprietaire={monument.get('proprietaire')}")
+    print(f"  region={monument.get('region')}, departement={monument.get('departement')}")
+    print(f"  segment={user.get('segment')}, travaux={ctx_travaux or monument.get('travaux_envisages')}")
+    print(f"  → {len(candidate_ids)} aides candidates")
+    print(f"{'='*60}")
 
     # Fetch all aides (candidates + non-candidates) for the full report
     all_aide_ids = [
@@ -330,9 +502,16 @@ def run_diagnostic(
     ]
     non_candidate_ids = [aid for aid in all_aide_ids if aid not in candidate_ids]
 
-    # Phase 2: Fetch aides with join data
+    # Phase 2: Fetch aides with join data + build criteria
     candidate_aides = fetch_aides_with_joins(supabase, candidate_ids)
     non_candidate_aides = fetch_aides_with_joins(supabase, non_candidate_ids)
+
+    print(f"\n[CANDIDATES] Aides pré-filtrées SQL:")
+    for a in candidate_aides:
+        print(f"  ✓ {a.get('nom_court') or a.get('nom')}")
+    print(f"\n[NON-CANDIDATES] Aides exclues par SQL:")
+    for a in non_candidate_aides:
+        print(f"  ✗ {a.get('nom_court') or a.get('nom')}")
 
     # Resolve population for criteria display
     population = None
@@ -348,7 +527,6 @@ def run_diagnostic(
         if commune_result.data:
             population = commune_result.data.get("population")
 
-    # Build criteria for all aides
     eligible_results = [
         _check_eligibility(a, monument, user, mode_projet, ctx_travaux, population)
         for a in candidate_aides
@@ -358,9 +536,14 @@ def run_diagnostic(
         for a in non_candidate_aides
     ]
 
+    # Phase 3: LLM fine-matching on eligible candidates
+    monument_profile = _build_monument_profile(monument, user, population)
+    still_eligible, downgraded = _run_llm_phase(eligible_results, monument_profile)
+    non_eligible_results.extend(downgraded)
+
     montant_total = sum(
         r["aide"].get("montant_max") or 0
-        for r in eligible_results
+        for r in still_eligible
         if r["aide"].get("montant_max")
     )
 
@@ -368,7 +551,7 @@ def run_diagnostic(
         "monumentId": monument["id"],
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "totalAidesAnalysees": len(all_aide_ids),
-        "aidesEligibles": eligible_results,
+        "aidesEligibles": still_eligible,
         "aidesNonEligibles": non_eligible_results,
         "montantPotentielTotal": montant_total if montant_total > 0 else None,
     }
