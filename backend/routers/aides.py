@@ -5,6 +5,7 @@ from supabase import Client
 
 from db import get_supabase, get_current_user_id
 from matching_engine import run_diagnostic, fetch_aides_with_joins, _check_eligibility
+from routers.monuments import _enrich_monument
 
 router = APIRouter(prefix="/aides", tags=["aides"])
 
@@ -58,6 +59,8 @@ def _to_camel(aide: dict) -> dict:
 def _camelise_diagnostic(result: dict) -> dict:
     """Convert aide objects inside diagnostic results to camelCase."""
     for match in result.get("aidesEligibles", []):
+        match["aide"] = _to_camel(match["aide"])
+    for match in result.get("aidesPotentiellementEligibles", []):
         match["aide"] = _to_camel(match["aide"])
     for match in result.get("aidesNonEligibles", []):
         match["aide"] = _to_camel(match["aide"])
@@ -129,7 +132,7 @@ def diagnostic(
     )
     if not monument_result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
-    monument = monument_result.data
+    monument = _enrich_monument(supabase, monument_result.data)
 
     # Fetch user profile
     user_result = (
@@ -159,9 +162,11 @@ def diagnostic(
         "travaux_filtres": body.travaux_filtres,
         "total_aides_analysees": result["totalAidesAnalysees"],
         "aides_eligibles_count": len(result["aidesEligibles"]),
+        "aides_potentiellement_eligibles_count": len(result["aidesPotentiellementEligibles"]),
         "aides_non_eligibles_count": len(result["aidesNonEligibles"]),
         "montant_potentiel_total": result.get("montantPotentielTotal"),
         "aides_eligibles_ids": [m["aide"]["id"] for m in result["aidesEligibles"]],
+        "aides_potentiellement_eligibles_ids": [m["aide"]["id"] for m in result["aidesPotentiellementEligibles"]],
         "aides_non_eligibles_ids": [m["aide"]["id"] for m in result["aidesNonEligibles"]],
     }
     insert_result = supabase.table("diagnostics").insert(row).execute()
@@ -200,7 +205,7 @@ def list_diagnostics(
         .single()
         .execute()
     )
-    monument = monument_result.data
+    monument = _enrich_monument(supabase, monument_result.data) if monument_result.data else None
     user_result = (
         supabase.table("users")
         .select("*")
@@ -214,6 +219,7 @@ def list_diagnostics(
     all_aide_ids = set()
     for d in diagnostics:
         all_aide_ids.update(d.get("aides_eligibles_ids") or [])
+        all_aide_ids.update(d.get("aides_potentiellement_eligibles_ids") or [])
         all_aide_ids.update(d.get("aides_non_eligibles_ids") or [])
 
     # Fetch all referenced aides with joins in one batch
@@ -257,6 +263,10 @@ def _hydrate_diagnostic(
         m for aid in (row.get("aides_eligibles_ids") or [])
         if (m := _build_match(aid)) is not None
     ]
+    aides_potentiellement_eligibles = [
+        m for aid in (row.get("aides_potentiellement_eligibles_ids") or [])
+        if (m := _build_match(aid)) is not None
+    ]
     aides_non_eligibles = [
         m for aid in (row.get("aides_non_eligibles_ids") or [])
         if (m := _build_match(aid)) is not None
@@ -270,6 +280,7 @@ def _hydrate_diagnostic(
         "travauxFiltres": row.get("travaux_filtres"),
         "totalAidesAnalysees": row["total_aides_analysees"],
         "aidesEligibles": aides_eligibles,
+        "aidesPotentiellementEligibles": aides_potentiellement_eligibles,
         "aidesNonEligibles": aides_non_eligibles,
         "montantPotentielTotal": (
             float(row["montant_potentiel_total"])

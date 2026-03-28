@@ -125,7 +125,6 @@ def load_communes(deps: dict[str, dict], population: dict[str, int]) -> list[dic
                 "departement": dep_info.get("nom", ""),
                 "departement_num": dep_code,
                 "region": dep_info.get("region", ""),
-                "code_postal": None,
                 "population": population.get(code_insee),
             })
     return communes

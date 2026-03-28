@@ -8,12 +8,11 @@ export interface Monument {
   nom: string;
   referenceMerimee?: string;
   denomination: string;
-  codePostal?: string;
-  commune: string;
   codeInsee: string;
-  departement: string;
-  region: Region;
-  coordonnees?: { lat: number; lng: number };
+  // Derived from code_insee via communes table (not stored in DB)
+  commune?: string;
+  departement?: string;
+  region?: Region;
 
   // Step 2: Legal Status
   protection: ProtectionLevel;

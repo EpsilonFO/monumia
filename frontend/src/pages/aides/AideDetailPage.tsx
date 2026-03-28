@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import {
   ChevronLeft, ExternalLink, Clock, Building2, FileText,
-  CheckCircle2, XCircle, ArrowRight,
+  CheckCircle2, XCircle, HelpCircle, ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +46,7 @@ export function AideDetailPage() {
   const matchResult = useMemo((): AideMatchResult | null => {
     if (!aide || !lastDiagnostic) return null;
     return lastDiagnostic.aidesEligibles.find((m) => m.aide.id === aide.id)
+      ?? lastDiagnostic.aidesPotentiellementEligibles.find((m) => m.aide.id === aide.id)
       ?? lastDiagnostic.aidesNonEligibles.find((m) => m.aide.id === aide.id)
       ?? null;
   }, [aide, lastDiagnostic]);
@@ -103,27 +104,39 @@ export function AideDetailPage() {
             <Badge className={categoryConfig?.color ?? ''}>
               {categoryConfig?.label ?? aide.categorie}
             </Badge>
-            {matchResult && (
-              <Badge
-                variant="outline"
-                className={matchResult.eligible
-                  ? 'border-green-300 text-green-700 bg-green-50'
-                  : 'border-red-200 text-red-600 bg-red-50'
-                }
-              >
-                {matchResult.eligible ? (
-                  <>
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Éligible
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="h-3 w-3 mr-1" />
-                    Non éligible
-                  </>
-                )}
-              </Badge>
-            )}
+            {matchResult && (() => {
+              const hasIncertitudes = matchResult.llmEvaluation?.incertitudes && matchResult.llmEvaluation.incertitudes.length > 0;
+              const status = matchResult.eligible && hasIncertitudes ? 'potential' : matchResult.eligible ? 'eligible' : 'non-eligible';
+              return (
+                <Badge
+                  variant="outline"
+                  className={
+                    status === 'eligible'
+                      ? 'border-green-300 text-green-700 bg-green-50'
+                      : status === 'potential'
+                        ? 'border-amber-300 text-amber-700 bg-amber-50'
+                        : 'border-red-200 text-red-600 bg-red-50'
+                  }
+                >
+                  {status === 'eligible' ? (
+                    <>
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Éligible
+                    </>
+                  ) : status === 'potential' ? (
+                    <>
+                      <HelpCircle className="h-3 w-3 mr-1" />
+                      Potentiellement éligible
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Non éligible
+                    </>
+                  )}
+                </Badge>
+              );
+            })()}
           </div>
           <h1 className="text-2xl font-bold">{aide.nom}</h1>
           <p className="text-muted-foreground">{aide.description}</p>
@@ -178,6 +191,22 @@ export function AideDetailPage() {
                     <span className="text-red-700">{c}</span>
                   </div>
                 ))}
+                {matchResult.llmEvaluation?.incertitudes && matchResult.llmEvaluation.incertitudes.length > 0 && (
+                  <>
+                    <div className="pt-2 text-sm font-medium text-amber-700">Points à vérifier :</div>
+                    {matchResult.llmEvaluation.incertitudes.map((c, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <HelpCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                        <span className="text-amber-700">{c}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+                {matchResult.llmEvaluation?.explication && (
+                  <p className="pt-2 text-sm text-muted-foreground italic">
+                    {matchResult.llmEvaluation.explication}
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}

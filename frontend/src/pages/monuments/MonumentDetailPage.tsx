@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Shield, Calendar, AlertTriangle, Wrench, Building2,
   ScrollText, ChevronLeft, Edit2, Eye, Trash2, Loader2,
-  Compass, CheckCircle2, XCircle, Search, RefreshCw,
+  Compass, CheckCircle2, XCircle, HelpCircle, Search, RefreshCw,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -99,7 +99,7 @@ export function MonumentDetailPage() {
       if (query) filtered = filtered.filter((m) => m.aide.nom.toLowerCase().includes(query) || m.aide.nomCourt.toLowerCase().includes(query) || m.aide.organisme.toLowerCase().includes(query));
       return filtered;
     };
-    return { ...diagnostic, aidesEligibles: filterMatches(diagnostic.aidesEligibles), aidesNonEligibles: filterMatches(diagnostic.aidesNonEligibles) };
+    return { ...diagnostic, aidesEligibles: filterMatches(diagnostic.aidesEligibles), aidesPotentiellementEligibles: filterMatches(diagnostic.aidesPotentiellementEligibles), aidesNonEligibles: filterMatches(diagnostic.aidesNonEligibles) };
   }, [diagnostic, filters.categories, filters.searchQuery, aideIdsWithDossier]);
 
   const [notFound, setNotFound] = useState(false);
@@ -213,7 +213,7 @@ export function MonumentDetailPage() {
               <div className="space-y-2 text-[13px]">
                 <InfoRow label="Dénomination" value={monument.denomination} />
                 {monument.referenceMerimee && <InfoRow label="Réf. Mérimée" value={monument.referenceMerimee} />}
-                <InfoRow label="Localisation" value={[monument.codePostal, monument.commune].filter(Boolean).join(', ')} />
+                <InfoRow label="Localisation" value={monument.commune} />
                 <InfoRow label="Département" value={monument.departement} />
                 {monument.siecleConstruction && <InfoRow label="Siècle" value={monument.siecleConstruction} />}
               </div>
@@ -302,6 +302,7 @@ export function MonumentDetailPage() {
                   <Tabs defaultValue="eligible">
                     <TabsList>
                       <TabsTrigger value="eligible" className="gap-1.5"><CheckCircle2 className="h-4 w-4" />Éligibles ({filteredDiagnostic.aidesEligibles.length})</TabsTrigger>
+                      <TabsTrigger value="potentially-eligible" className="gap-1.5"><HelpCircle className="h-4 w-4" />Potentiellement éligibles ({filteredDiagnostic.aidesPotentiellementEligibles.length})</TabsTrigger>
                       <TabsTrigger value="non-eligible" className="gap-1.5"><XCircle className="h-4 w-4" />Non éligibles ({filteredDiagnostic.aidesNonEligibles.length})</TabsTrigger>
                     </TabsList>
                     <TabsContent value="eligible" className="mt-4">
@@ -309,6 +310,13 @@ export function MonumentDetailPage() {
                         <EmptyState icon={Search} title="Aucune aide éligible trouvée" description="Essayez de modifier les filtres ou vérifiez les informations de votre monument." />
                       ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesEligibles.map((match) => (<AideCard key={match.aide.id} match={match} />))}</div>
+                      )}
+                    </TabsContent>
+                    <TabsContent value="potentially-eligible" className="mt-4">
+                      {filteredDiagnostic.aidesPotentiellementEligibles.length === 0 ? (
+                        <EmptyState icon={HelpCircle} title="Aucune aide potentiellement éligible" description="Toutes les aides ont pu être classées avec certitude." />
+                      ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesPotentiellementEligibles.map((match) => (<AideCard key={match.aide.id} match={match} />))}</div>
                       )}
                     </TabsContent>
                     <TabsContent value="non-eligible" className="mt-4">

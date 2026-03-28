@@ -125,6 +125,9 @@ export function AideMatchBanner({ result, isRunning, onLaunch, monumentName }: A
             </div>
             <div className="text-sm text-muted-foreground sm:ml-auto text-center sm:text-right">
               <p>{result!.totalAidesAnalysees} aides analysées</p>
+              {result!.aidesPotentiellementEligibles.length > 0 && (
+                <p>{result!.aidesPotentiellementEligibles.length} potentiellement éligibles</p>
+              )}
               <p>{result!.aidesNonEligibles.length} non éligibles</p>
             </div>
           </div>

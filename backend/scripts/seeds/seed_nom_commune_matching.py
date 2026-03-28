@@ -43,7 +43,7 @@ def main():
     while True:
         resp = (
             client.table("communes")
-            .select("code_insee, nom_commune")
+            .select("*")
             .range(offset, offset + page_size - 1)
             .execute()
         )
@@ -54,15 +54,20 @@ def main():
         offset += page_size
     print(f"  {len(all_communes)} communes fetched.")
 
-    # 2. Update each commune
+    # 2. Update in batches via upsert (include all fetched columns to avoid nulling them)
     total = len(all_communes)
-    print(f"Updating nom_commune_matching for {total} communes...")
-    for i, row in enumerate(all_communes):
-        client.table("communes").update(
-            {"nom_commune_matching": normalize(row["nom_commune"])}
-        ).eq("code_insee", row["code_insee"]).execute()
-        if (i + 1) % 500 == 0 or i + 1 == total:
-            print(f"  {i + 1}/{total}", end="\r")
+    print(f"Updating nom_commune_matching in batches of {BATCH_SIZE}...")
+    for i in range(0, total, BATCH_SIZE):
+        batch = all_communes[i : i + BATCH_SIZE]
+        updates = [
+            {**row, "nom_commune_matching": normalize(row["nom_commune"])}
+            for row in batch
+        ]
+        client.table("communes").upsert(
+            updates, on_conflict="code_insee"
+        ).execute()
+        done = min(i + BATCH_SIZE, total)
+        print(f"  {done}/{total}", end="\r")
 
     print(f"\nDone. {total} communes updated.")
 

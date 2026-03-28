@@ -5,6 +5,7 @@ from supabase import Client
 
 from db import get_supabase, get_current_user_id
 from services.dossier_service import create_dossier_from_aide
+from routers.monuments import _enrich_monument
 
 router = APIRouter(prefix="/dossiers", tags=["dossiers"])
 
@@ -125,9 +126,11 @@ def create_dossier(
     if not user_result.data:
         raise HTTPException(status_code=404, detail="Profil introuvable")
 
+    monument = _enrich_monument(supabase, monument_result.data)
+
     dossier = create_dossier_from_aide(
         aide=aide_result.data,
-        monument=monument_result.data,
+        monument=monument,
         user=user_result.data,
         travaux_prevus=body.travaux_prevus,
     )

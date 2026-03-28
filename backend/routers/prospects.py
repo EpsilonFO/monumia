@@ -105,7 +105,7 @@ def list_prospects(
             p for p in data
             if q_lower in (p.get("contact_nom") or "").lower()
             or q_lower in ((p.get("monuments") or {}).get("nom") or "").lower()
-            or q_lower in ((p.get("monuments") or {}).get("commune") or "").lower()
+            or q_lower in (p.get("commune") or "").lower()
             or q_lower in ((p.get("monuments") or {}).get("proprietaire") or "").lower()
         ]
 

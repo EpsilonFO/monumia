@@ -434,9 +434,13 @@ def _run_llm_phase(
 ) -> list[dict]:
     """Run LLM evaluation on eligible aides that have conditions_eligibilite_detail.
 
-    Returns two lists: (still_eligible, downgraded_to_ineligible)
+    Returns three lists: (still_eligible, potentially_eligible, downgraded_to_ineligible)
+    - still_eligible: LLM says eligible AND no incertitudes
+    - potentially_eligible: LLM says eligible BUT has incertitudes
+    - downgraded: LLM says not eligible
     """
     still_eligible = []
+    potentially_eligible = []
     downgraded = []
 
     for result in eligible_results:
@@ -460,14 +464,18 @@ def _run_llm_phase(
         }
 
         if llm_result.get("eligible", True):
-            still_eligible.append(result)
+            incertitudes = llm_result.get("incertitudes", [])
+            if incertitudes:
+                potentially_eligible.append(result)
+            else:
+                still_eligible.append(result)
         else:
             result["eligible"] = False
             result["criteresNonRemplis"].append(f"Condition détaillée : {llm_result.get('explication', '')}")
             result["raisonIneligibilite"] = result["raisonIneligibilite"] or llm_result.get("explication", "")
             downgraded.append(result)
 
-    return still_eligible, downgraded
+    return still_eligible, potentially_eligible, downgraded
 
 
 # ---------------------------------------------------------------------------
@@ -538,7 +546,7 @@ def run_diagnostic(
 
     # Phase 3: LLM fine-matching on eligible candidates
     monument_profile = _build_monument_profile(monument, user, population)
-    still_eligible, downgraded = _run_llm_phase(eligible_results, monument_profile)
+    still_eligible, potentially_eligible, downgraded = _run_llm_phase(eligible_results, monument_profile)
     non_eligible_results.extend(downgraded)
 
     montant_total = sum(
@@ -552,6 +560,7 @@ def run_diagnostic(
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "totalAidesAnalysees": len(all_aide_ids),
         "aidesEligibles": still_eligible,
+        "aidesPotentiellementEligibles": potentially_eligible,
         "aidesNonEligibles": non_eligible_results,
         "montantPotentielTotal": montant_total if montant_total > 0 else None,
     }
