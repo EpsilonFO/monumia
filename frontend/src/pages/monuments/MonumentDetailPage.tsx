@@ -5,9 +5,7 @@ import {
   ScrollText, ChevronLeft, Edit2, Eye, Trash2, Loader2,
   Compass, CheckCircle2, XCircle, Search, RefreshCw,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -29,6 +27,8 @@ import { ROUTES } from '@/constants/routes';
 import { WORK_TYPES, OWNERSHIP_TYPES } from '@/constants/monument-options';
 import { toast } from 'sonner';
 import type { Monument, AideDiagnosticResult } from '@/types';
+
+const FONT = "'Cormorant Garamond', serif";
 
 const protectionLabels: Record<string, string> = {
   classe: 'Classé Monument Historique',
@@ -61,10 +61,7 @@ export function MonumentDetailPage() {
   const deleteMonument = useMonumentStore((s) => s.deleteMonument);
   const allDossiers = useDossierStore((s) => s.dossiers);
   const dossierLoaded = useDossierStore((s) => s.loaded);
-  const dossiers = useMemo(
-    () => allDossiers.filter((d) => d.monumentId === monumentId),
-    [allDossiers, monumentId]
-  );
+  const dossiers = useMemo(() => allDossiers.filter((d) => d.monumentId === monumentId), [allDossiers, monumentId]);
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const filters = useAideStore((s) => s.filters);
   const diagnostic = monumentId ? diagnosticsByMonument[monumentId] ?? null : null;
@@ -85,183 +82,98 @@ export function MonumentDetailPage() {
     setIsRunningDiagnostic(true);
     setShowDiagnostic(true);
     try {
-      await aideService.runDiagnostic(
-        monumentId,
-        filters.modeProjet,
-        filters.travauxFiltres.length > 0 ? filters.travauxFiltres : undefined
-      );
-    } catch (err) {
-      console.error('Diagnostic error:', err);
-    } finally {
-      setIsRunningDiagnostic(false);
-    }
+      await aideService.runDiagnostic(monumentId, filters.modeProjet, filters.travauxFiltres.length > 0 ? filters.travauxFiltres : undefined);
+    } catch (err) { console.error('Diagnostic error:', err); }
+    finally { setIsRunningDiagnostic(false); }
   }, [monumentId, filters.modeProjet, filters.travauxFiltres]);
 
-  const aideIdsWithDossier = useMemo(
-    () => new Set(dossiers.map((d) => d.aideId)),
-    [dossiers]
-  );
+  const aideIdsWithDossier = useMemo(() => new Set(dossiers.map((d) => d.aideId)), [dossiers]);
 
   const filteredDiagnostic = useMemo((): AideDiagnosticResult | null => {
     if (!diagnostic) return null;
     const catFilter = filters.categories;
     const query = filters.searchQuery.toLowerCase();
-
     const filterMatches = (matches: typeof diagnostic.aidesEligibles) => {
       let filtered = matches.filter((m) => !aideIdsWithDossier.has(m.aide.id));
-      if (catFilter.length > 0) {
-        filtered = filtered.filter((m) => catFilter.includes(m.aide.categorie));
-      }
-      if (query) {
-        filtered = filtered.filter(
-          (m) =>
-            m.aide.nom.toLowerCase().includes(query) ||
-            m.aide.nomCourt.toLowerCase().includes(query) ||
-            m.aide.organisme.toLowerCase().includes(query)
-        );
-      }
+      if (catFilter.length > 0) filtered = filtered.filter((m) => catFilter.includes(m.aide.categorie));
+      if (query) filtered = filtered.filter((m) => m.aide.nom.toLowerCase().includes(query) || m.aide.nomCourt.toLowerCase().includes(query) || m.aide.organisme.toLowerCase().includes(query));
       return filtered;
     };
-
-    return {
-      ...diagnostic,
-      aidesEligibles: filterMatches(diagnostic.aidesEligibles),
-      aidesNonEligibles: filterMatches(diagnostic.aidesNonEligibles),
-    };
+    return { ...diagnostic, aidesEligibles: filterMatches(diagnostic.aidesEligibles), aidesNonEligibles: filterMatches(diagnostic.aidesNonEligibles) };
   }, [diagnostic, filters.categories, filters.searchQuery, aideIdsWithDossier]);
 
-  // If the monument isn't in the store yet (direct URL), fetch it
   const [notFound, setNotFound] = useState(false);
   const addMonument = useMonumentStore((s) => s.addMonument);
   const setDiagnostic = useAideStore((s) => s.setDiagnostic);
-  useEffect(() => {
-    if (!monument && monumentId) {
-      monumentService.getById(monumentId)
-        .then(addMonument)
-        .catch(() => setNotFound(true));
-    }
-  }, [monumentId]);
 
-  // Load latest diagnostic from DB if not already in store
-  useEffect(() => {
-    if (monumentId && !diagnostic) {
-      aideService.getDiagnostics(monumentId).then((diagnostics) => {
-        if (diagnostics.length > 0) {
-          setDiagnostic(monumentId, diagnostics[0]);
-        }
-      }).catch(console.error);
-    }
-  }, [monumentId]);
-
-  // Fetch dossiers from API if not loaded yet
-  useEffect(() => {
-    if (!dossierLoaded) {
-      dossierService.fetchAll().catch(console.error);
-    }
-  }, [dossierLoaded]);
+  useEffect(() => { if (!monument && monumentId) monumentService.getById(monumentId).then(addMonument).catch(() => setNotFound(true)); }, [monumentId]);
+  useEffect(() => { if (monumentId && !diagnostic) aideService.getDiagnostics(monumentId).then((d) => { if (d.length > 0) setDiagnostic(monumentId, d[0]); }).catch(console.error); }, [monumentId]);
+  useEffect(() => { if (!dossierLoaded) dossierService.fetchAll().catch(console.error); }, [dossierLoaded]);
 
   if (notFound || (!monument && !monumentId)) {
     return (
       <div className="space-y-4">
         <PageHeader title="Monument introuvable" />
-        <p className="text-muted-foreground">Ce monument n'existe pas ou a été supprimé.</p>
-        <Button asChild variant="outline">
-          <Link to={ROUTES.MONUMENTS}>
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Retour aux monuments
-          </Link>
-        </Button>
+        <p className="text-[14px] text-[#8E92A4]">Ce monument n'existe pas ou a été supprimé.</p>
+        <Link to={ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#1A237E] hover:opacity-70 transition-opacity">
+          <ChevronLeft className="h-3.5 w-3.5" /> Retour aux monuments
+        </Link>
       </div>
     );
   }
 
-  if (!monument) {
-    return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (!monument) return <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-[#8E92A4]" /></div>;
 
   const handleSave = async (data: Partial<Monument>, pendingPhotos: PendingPhoto[]) => {
     setSaving(true);
     try {
       const updated = await monumentService.update(monument.id, data);
       updateMonument(monument.id, updated);
-
-      // Upload new photos: storage + document record + monument JSONB
       if (user && pendingPhotos.length > 0) {
         for (const photo of pendingPhotos) {
           try {
-            const doc = await uploadDocument({
-              file: photo.file,
-              nom: photo.nom || `Photo — ${monument.nom}`,
-              type: 'photo',
-              monumentId: monument.id,
-            }, user.id);
-            await monumentService.addPhoto(monument.id, {
-              url: doc.url,
-              legende: photo.nom || photo.file.name.replace(/\.[^.]+$/, ''),
-              type: 'autre',
-            });
-          } catch (err) {
-            console.error('Erreur upload photo:', err);
-          }
+            const doc = await uploadDocument({ file: photo.file, nom: photo.nom || `Photo — ${monument.nom}`, type: 'photo', monumentId: monument.id }, user.id);
+            await monumentService.addPhoto(monument.id, { url: doc.url, legende: photo.nom || photo.file.name.replace(/\.[^.]+$/, ''), type: 'autre' });
+          } catch (err) { console.error('Erreur upload photo:', err); }
         }
       }
-
       setIsEditing(false);
       toast.success('Monument mis à jour');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde');
-    } finally {
-      setSaving(false);
-    }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde'); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     if (!confirm(`Supprimer "${monument.nom}" ? Cette action est irréversible.`)) return;
     setDeleting(true);
-    try {
-      await monumentService.delete(monument.id);
-      deleteMonument(monument.id);
-      toast.success('Monument supprimé');
-      navigate(ROUTES.MONUMENTS);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression');
-    } finally {
-      setDeleting(false);
-    }
+    try { await monumentService.delete(monument.id); deleteMonument(monument.id); toast.success('Monument supprimé'); navigate(ROUTES.MONUMENTS); }
+    catch (err) { toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression'); }
+    finally { setDeleting(false); }
   };
 
   if (isEditing) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Retour
-          </Button>
-          <h1 className="text-xl font-bold">Modifier — {monument.nom}</h1>
+          <button onClick={() => setIsEditing(false)} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#1A237E] hover:opacity-70 transition-opacity">
+            <ChevronLeft className="h-3.5 w-3.5" /> Retour
+          </button>
+          <h1 className="text-[18px] font-light text-[#1B1E2E]" style={{ fontFamily: FONT }}>Modifier — {monument.nom}</h1>
         </div>
         <MonumentForm initialData={monument} onSubmit={handleSave} isEditing saving={saving} />
       </div>
     );
   }
 
-  const workTypeLabels = WORK_TYPES.reduce<Record<string, string>>((acc, w) => {
-    acc[w.value] = w.label;
-    return acc;
-  }, {});
+  const workTypeLabels = WORK_TYPES.reduce<Record<string, string>>((acc, w) => { acc[w.value] = w.label; return acc; }, {});
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Link to={ROUTES.MONUMENTS} className="hover:text-foreground transition-colors">
-          Monuments
-        </Link>
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-[13px] text-[#8E92A4]">
+        <Link to={ROUTES.MONUMENTS} className="hover:text-[#1B1E2E] transition-colors">Monuments</Link>
         <span>/</span>
-        <span className="text-foreground">{monument.nom}</span>
+        <span className="text-[#1B1E2E]">{monument.nom}</span>
       </div>
 
       <PageHeader
@@ -269,173 +181,102 @@ export function MonumentDetailPage() {
         description={`${monument.commune} (${monument.departement}) — ${protectionLabels[monument.protection] ?? monument.protection}`}
         action={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleDelete} disabled={deleting}>
-              {deleting
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <Trash2 className="h-4 w-4" />}
-            </Button>
-            <Button onClick={() => setIsEditing(true)}>
-              <Edit2 className="h-4 w-4 mr-2" />
-              Modifier la fiche
-            </Button>
+            <button onClick={handleDelete} disabled={deleting} className="flex items-center justify-center w-9 h-9 border border-[#E4E2DC] rounded-lg text-[#8E92A4] hover:text-red-600 hover:border-red-200 transition-colors">
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" strokeWidth={1.8} />}
+            </button>
+            <button onClick={() => setIsEditing(true)} className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-300 hover:shadow-md" style={{ background: '#1A237E' }}>
+              <Edit2 className="h-3.5 w-3.5" strokeWidth={1.8} />
+              Modifier
+            </button>
           </div>
         }
       />
 
-      <div className="space-y-1">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Fiche complétée</span>
-          <span className="font-medium">{monument.completionPercentage} %</span>
+      {/* Progress */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-[13px]">
+          <span className="text-[#8E92A4]">Fiche complétée</span>
+          <span className="font-semibold text-[#1B1E2E]">{monument.completionPercentage} %</span>
         </div>
         <Progress value={monument.completionPercentage} className="h-2" />
       </div>
 
       <Tabs defaultValue={defaultTab}>
         <TabsList>
-          <TabsTrigger value="informations" className="gap-1.5">
-            <Eye className="h-4 w-4" />
-            Informations
-          </TabsTrigger>
-          <TabsTrigger value="dossiers" className="gap-1.5">
-            <ScrollText className="h-4 w-4" />
-            Dossiers ({dossiers.length})
-          </TabsTrigger>
+          <TabsTrigger value="informations" className="gap-1.5"><Eye className="h-4 w-4" />Informations</TabsTrigger>
+          <TabsTrigger value="dossiers" className="gap-1.5"><ScrollText className="h-4 w-4" />Dossiers ({dossiers.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="informations" className="mt-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Building2 className="h-4 w-4" />
-                  Identification
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
+            <Panel title="Identification" icon={<Building2 className="h-4 w-4 text-[#1A237E]" strokeWidth={1.8} />}>
+              <div className="space-y-2 text-[13px]">
                 <InfoRow label="Dénomination" value={monument.denomination} />
-                {monument.referenceMerimee && (
-                  <InfoRow label="Réf. Mérimée" value={monument.referenceMerimee} />
-                )}
-                <InfoRow
-                  label="Localisation"
-                  value={[monument.codePostal, monument.commune].filter(Boolean).join(', ')}
-                />
+                {monument.referenceMerimee && <InfoRow label="Réf. Mérimée" value={monument.referenceMerimee} />}
+                <InfoRow label="Localisation" value={[monument.codePostal, monument.commune].filter(Boolean).join(', ')} />
                 <InfoRow label="Département" value={monument.departement} />
-                {monument.siecleConstruction && (
-                  <InfoRow label="Siècle" value={monument.siecleConstruction} />
-                )}
-              </CardContent>
-            </Card>
+                {monument.siecleConstruction && <InfoRow label="Siècle" value={monument.siecleConstruction} />}
+              </div>
+            </Panel>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Shield className="h-4 w-4" />
-                  Statut juridique
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <InfoRow
-                  label="Protection"
-                  value={protectionLabels[monument.protection] ?? monument.protection}
-                />
-                {monument.dateProtection && (
-                  <InfoRow label="Date" value={formatDate(monument.dateProtection)} />
-                )}
+            <Panel title="Statut juridique" icon={<Shield className="h-4 w-4 text-[#1A237E]" strokeWidth={1.8} />}>
+              <div className="space-y-2 text-[13px]">
+                <InfoRow label="Protection" value={protectionLabels[monument.protection] ?? monument.protection} />
+                {monument.dateProtection && <InfoRow label="Date" value={formatDate(monument.dateProtection)} />}
                 <InfoRow label="Propriétaire" value={OWNERSHIP_TYPES.find((o) => o.value === monument.proprietaire)?.label ?? monument.proprietaire} />
-                {monument.affectataire && (
-                  <InfoRow label="Affectation" value={monument.affectataire} />
-                )}
-              </CardContent>
-            </Card>
+                {monument.affectataire && <InfoRow label="Affectation" value={monument.affectataire} />}
+              </div>
+            </Panel>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  État actuel
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+            <Panel title="État actuel" icon={<AlertTriangle className="h-4 w-4 text-[#D97706]" strokeWidth={1.8} />}>
+              <div className="space-y-3 text-[13px]">
                 <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">Conservation :</span>
-                  <Badge variant="outline">
-                    {etatLabels[monument.etatConservation] ?? monument.etatConservation}
-                  </Badge>
+                  <span className="text-[#8E92A4]">Conservation :</span>
+                  <Badge variant="outline" className="text-[12px] border-[#E4E2DC]">{etatLabels[monument.etatConservation] ?? monument.etatConservation}</Badge>
                 </div>
                 {monument.urgenceTravaux && (
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Urgence :</span>
-                    <Badge className={urgenceColors[monument.urgenceTravaux] ?? ''}>
-                      {monument.urgenceTravaux}
-                    </Badge>
+                    <span className="text-[#8E92A4]">Urgence :</span>
+                    <Badge className={urgenceColors[monument.urgenceTravaux] ?? ''}>{monument.urgenceTravaux}</Badge>
                   </div>
                 )}
-                {monument.descriptionEtat && (
-                  <p className="text-muted-foreground leading-relaxed">
-                    {monument.descriptionEtat}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+                {monument.descriptionEtat && <p className="text-[#5C6178] leading-relaxed">{monument.descriptionEtat}</p>}
+              </div>
+            </Panel>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Wrench className="h-4 w-4" />
-                  Travaux envisagés
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {monument.travauxEnvisages && monument.travauxEnvisages.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {monument.travauxEnvisages.map((t) => (
-                      <Badge key={t} variant="secondary">
-                        {workTypeLabels[t] ?? t}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Aucun travail envisagé</p>
-                )}
-              </CardContent>
-            </Card>
+            <Panel title="Travaux envisagés" icon={<Wrench className="h-4 w-4 text-[#C75B3A]" strokeWidth={1.8} />}>
+              {monument.travauxEnvisages && monument.travauxEnvisages.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {monument.travauxEnvisages.map((t) => (
+                    <Badge key={t} className="text-[12px] bg-[#FBF0EC] text-[#C75B3A] border-0">{workTypeLabels[t] ?? t}</Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[13px] text-[#8E92A4]">Aucun travail envisagé</p>
+              )}
+            </Panel>
           </div>
 
           {monument.descriptionGenerale && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Description générale</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm leading-relaxed">{monument.descriptionGenerale}</p>
-              </CardContent>
-            </Card>
+            <Panel title="Description générale">
+              <p className="text-[13px] leading-relaxed text-[#5C6178]">{monument.descriptionGenerale}</p>
+            </Panel>
           )}
 
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              Créé le {formatDate(monument.createdAt)}
-            </div>
-            <div className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              Modifié le {formatDate(monument.updatedAt)}
-            </div>
+          <div className="flex items-center gap-4 text-[12px] text-[#8E92A4]">
+            <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Créé le {formatDate(monument.createdAt)}</div>
+            <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Modifié le {formatDate(monument.updatedAt)}</div>
           </div>
         </TabsContent>
 
         <TabsContent value="dossiers" className="mt-4 space-y-6">
-          {/* Existing dossiers */}
           {dossiers.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Dossiers en cours
-              </h3>
+              <h3 className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#8E92A4]">Dossiers en cours</h3>
               {dossiers.map((dossier) => (
                 <Link key={dossier.id} to={ROUTES.DOSSIER_DETAIL(dossier.id)}>
-                  <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg border hover:bg-muted/50 transition-colors">
-                    <p className="font-medium text-sm truncate">{dossier.titre}</p>
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-[#E4E2DC] hover:bg-[#F8F7F4] transition-colors">
+                    <p className="font-medium text-[13px] text-[#1B1E2E] truncate">{dossier.titre}</p>
                     <Progress value={dossier.progressionPourcentage} className="w-20 h-1.5 shrink-0" />
                   </div>
                 </Link>
@@ -443,70 +284,38 @@ export function MonumentDetailPage() {
             </div>
           )}
 
-          {/* Diagnostic section */}
           {showDiagnostic || diagnostic ? (
             <div className="space-y-6">
-              <AideMatchBanner
-                result={diagnostic}
-                isRunning={isRunningDiagnostic}
-                onLaunch={handleLaunchDiagnostic}
-                monumentName={monument.nom}
-              />
+              <AideMatchBanner result={diagnostic} isRunning={isRunningDiagnostic} onLaunch={handleLaunchDiagnostic} monumentName={monument.nom} />
 
               {diagnostic && !isRunningDiagnostic && (
                 <div className="flex justify-end">
-                  <Button variant="outline" size="sm" onClick={handleLaunchDiagnostic}>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Refaire le diagnostic
-                  </Button>
+                  <button onClick={handleLaunchDiagnostic} className="inline-flex items-center gap-2 px-3 py-2 text-[12px] font-medium border border-[#E4E2DC] rounded-lg text-[#5C6178] hover:bg-[#F8F7F4] transition-colors">
+                    <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.8} /> Refaire le diagnostic
+                  </button>
                 </div>
               )}
 
               {filteredDiagnostic && (
                 <>
                   <AideFilterBar />
-
                   <Tabs defaultValue="eligible">
                     <TabsList>
-                      <TabsTrigger value="eligible" className="gap-1.5">
-                        <CheckCircle2 className="h-4 w-4" />
-                        Éligibles ({filteredDiagnostic.aidesEligibles.length})
-                      </TabsTrigger>
-                      <TabsTrigger value="non-eligible" className="gap-1.5">
-                        <XCircle className="h-4 w-4" />
-                        Non éligibles ({filteredDiagnostic.aidesNonEligibles.length})
-                      </TabsTrigger>
+                      <TabsTrigger value="eligible" className="gap-1.5"><CheckCircle2 className="h-4 w-4" />Éligibles ({filteredDiagnostic.aidesEligibles.length})</TabsTrigger>
+                      <TabsTrigger value="non-eligible" className="gap-1.5"><XCircle className="h-4 w-4" />Non éligibles ({filteredDiagnostic.aidesNonEligibles.length})</TabsTrigger>
                     </TabsList>
-
                     <TabsContent value="eligible" className="mt-4">
                       {filteredDiagnostic.aidesEligibles.length === 0 ? (
-                        <EmptyState
-                          icon={Search}
-                          title="Aucune aide éligible trouvée"
-                          description="Essayez de modifier les filtres ou vérifiez les informations de votre monument."
-                        />
+                        <EmptyState icon={Search} title="Aucune aide éligible trouvée" description="Essayez de modifier les filtres ou vérifiez les informations de votre monument." />
                       ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          {filteredDiagnostic.aidesEligibles.map((match) => (
-                            <AideCard key={match.aide.id} match={match} />
-                          ))}
-                        </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesEligibles.map((match) => (<AideCard key={match.aide.id} match={match} />))}</div>
                       )}
                     </TabsContent>
-
                     <TabsContent value="non-eligible" className="mt-4">
                       {filteredDiagnostic.aidesNonEligibles.length === 0 ? (
-                        <EmptyState
-                          icon={CheckCircle2}
-                          title="Toutes les aides sont éligibles"
-                          description="Votre monument est éligible à toutes les aides analysées."
-                        />
+                        <EmptyState icon={CheckCircle2} title="Toutes les aides sont éligibles" description="Votre monument est éligible à toutes les aides analysées." />
                       ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          {filteredDiagnostic.aidesNonEligibles.map((match) => (
-                            <AideCard key={match.aide.id} match={match} />
-                          ))}
-                        </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesNonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} />))}</div>
                       )}
                     </TabsContent>
                   </Tabs>
@@ -514,25 +323,25 @@ export function MonumentDetailPage() {
               )}
             </div>
           ) : (
-            <Card className="border-primary/20 bg-primary/5">
-              <CardContent className="py-8 text-center space-y-4">
-                <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Compass className="h-8 w-8 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold">
-                    Découvrez les aides disponibles pour {monument.nom}
-                  </h2>
-                  <p className="text-muted-foreground mt-1">
-                    Notre moteur analyse toutes les aides publiques et privées applicables à votre monument.
-                  </p>
-                </div>
-                <Button size="lg" onClick={() => { setShowDiagnostic(true); if (!diagnostic) handleLaunchDiagnostic(); }}>
-                  <Compass className="h-4 w-4 mr-2" />
-                  {diagnostic || dossiers.length > 0 ? 'Voir le diagnostic' : 'Lancer un diagnostic'}
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="bg-[#E8EAF6]/30 border border-[#E8EAF6] rounded-xl py-10 text-center space-y-4">
+              <div className="mx-auto w-14 h-14 rounded-full bg-[#E8EAF6] flex items-center justify-center">
+                <Compass className="h-7 w-7 text-[#1A237E]" />
+              </div>
+              <div>
+                <h2 className="text-[18px] font-light text-[#1B1E2E]" style={{ fontFamily: FONT }}>
+                  Découvrez les aides disponibles pour <em className="italic" style={{ color: '#C75B3A' }}>{monument.nom}</em>
+                </h2>
+                <p className="text-[14px] text-[#8E92A4] mt-1">Notre moteur analyse toutes les aides publiques et privées applicables à votre monument.</p>
+              </div>
+              <button
+                onClick={() => { setShowDiagnostic(true); if (!diagnostic) handleLaunchDiagnostic(); }}
+                className="inline-flex items-center gap-2 px-6 py-3 text-[13px] font-semibold text-white rounded-lg transition-all duration-300 hover:shadow-md"
+                style={{ background: '#1A237E' }}
+              >
+                <Compass className="h-4 w-4" strokeWidth={1.8} />
+                {diagnostic || dossiers.length > 0 ? 'Voir le diagnostic' : 'Lancer un diagnostic'}
+              </button>
+            </div>
           )}
         </TabsContent>
       </Tabs>
@@ -540,11 +349,23 @@ export function MonumentDetailPage() {
   );
 }
 
+function Panel({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-xl border border-[#E4E2DC]/80 overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-[#E4E2DC]">
+        {icon && <div className="w-7 h-7 rounded-lg bg-[#F8F7F4] flex items-center justify-center">{icon}</div>}
+        <h3 className="text-[15px] font-normal text-[#1B1E2E]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>{title}</h3>
+      </div>
+      <div className="px-5 py-4">{children}</div>
+    </div>
+  );
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-2">
-      <span className="text-muted-foreground shrink-0">{label} :</span>
-      <span className="font-medium">{value}</span>
+      <span className="text-[#8E92A4] shrink-0">{label} :</span>
+      <span className="font-medium text-[#1B1E2E]">{value}</span>
     </div>
   );
 }

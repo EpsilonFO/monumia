@@ -8,14 +8,16 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, action }: PageHeaderProps) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1
+          className="text-[clamp(1.6rem,3vw,2.2rem)] font-light tracking-[-0.02em] text-[#1B1E2E]"
+          style={{ fontFamily: "'Cormorant Garamond', serif" }}
+        >
           {title}
-          <span className="ml-0.5 text-accent">.</span>
         </h1>
         {description && (
-          <p className="text-muted-foreground mt-1">{description}</p>
+          <p className="text-[14px] mt-1 text-[#8E92A4]">{description}</p>
         )}
       </div>
       {action && <div className="flex-shrink-0">{action}</div>}

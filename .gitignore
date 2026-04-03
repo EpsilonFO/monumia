@@ -30,3 +30,6 @@ backend/scripts/cog_ensemble_2026_csv
 backend/scripts/ensemble
 frontend/.env
 test_rag/.env.rag
+
+docker-compose.dev.yml
+frontend/Dockerfile.dev

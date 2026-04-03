@@ -8,6 +8,7 @@ import { useAideStore } from '@/stores/useAideStore';
 import { useNotificationStore } from '@/stores/useNotificationStore';
 import { monumentService } from '@/services/monument.service';
 import { aideService } from '@/services/aide.service';
+
 export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
@@ -24,7 +25,6 @@ export function AppLayout() {
     }
   }, [user, navigate]);
 
-  // Load monuments and aides when authenticated
   useEffect(() => {
     if (!token) return;
     monumentService.getAll().then(setMonuments).catch(console.error);
@@ -34,12 +34,14 @@ export function AppLayout() {
   const unreadCount = user ? getUnreadCount(user.id) : 0;
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-[#F8F7F4]">
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <TopBar unreadCount={unreadCount} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-          <Outlet />
+        <main className="flex-1 overflow-y-auto">
+          <div className="p-4 md:p-6 lg:p-8 max-w-[1200px]">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
