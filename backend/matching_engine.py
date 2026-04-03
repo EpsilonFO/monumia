@@ -16,6 +16,8 @@ from typing import Optional
 from mistralai.client import Mistral
 from supabase import Client
 
+from prompts.matching import prompt_1, prompt_2, prompt_3
+
 logger = logging.getLogger(__name__)
 
 PROTECTION_LABELS = {
@@ -370,8 +372,9 @@ def _llm_evaluate_eligibility(
     monument_profile: str,
     aide_nom: str,
     conditions_detail: str,
+    prompt_template: str,
 ) -> dict:
-    """Call Mistral Small to evaluate fine eligibility.
+    """Call Mistral to evaluate fine eligibility with a specific prompt template.
 
     Returns {"eligible": bool, "explication": str, "incertitudes": list[str]}
     """
@@ -382,50 +385,64 @@ def _llm_evaluate_eligibility(
 
     client = Mistral(api_key=api_key)
 
-    prompt = f"""Tu es un expert en financement du patrimoine bâti en France.
-
-Voici le profil d'un monument :
-{monument_profile}
-
-Voici les conditions d'éligibilité détaillées de l'aide "{aide_nom}" :
-{conditions_detail}
-
-Évalue si ce monument est éligible à cette aide en te basant UNIQUEMENT sur les informations fournies.
-
-Réponds en JSON strict avec ce format :
-{{
-  "eligible": true ou false,
-  "explication": "Explication en 1-2 phrases de ta conclusion",
-  "incertitudes": ["Liste des points qui ne peuvent pas être vérifiés avec les infos disponibles"]
-}}
-
-Si tu manques d'informations pour conclure, mets eligible à true (bénéfice du doute) et liste les incertitudes."""
+    prompt = prompt_template.format(
+        monument_profile=monument_profile,
+        aide_nom=aide_nom,
+        conditions_detail=conditions_detail,
+    )
 
     try:
         response = client.chat.complete(
-            model="mistral-large-latest",
+            model="mistral-small-latest",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
-            # reasoning_effort="high",
             temperature=0.1,
         )
         choice = response.choices[0]
-        # Log reasoning (thinking) if available
-        if hasattr(choice.message, "reasoning_content") and choice.message.reasoning_content:
-            print(f"\n{'='*60}")
-            print(f"[LLM REASONING] Aide: {aide_nom}")
-            print(f"{'='*60}")
-            print(choice.message.reasoning_content)
         content = choice.message.content
         result = json.loads(content)
-        print(f"\n{'='*60}")
-        print(f"[LLM RESULT] Aide: {aide_nom}")
-        print(f"{'='*60}")
-        print(json.dumps(result, ensure_ascii=False, indent=2))
         return result
     except Exception as e:
         logger.error(f"LLM evaluation failed for aide '{aide_nom}': {e}")
         return {"eligible": True, "explication": "", "incertitudes": [f"Erreur LLM : {e}"]}
+
+
+def _aggregate_llm_results(results: list[dict]) -> dict:
+    """Aggregate results from 3 LLM calls using voting logic.
+
+    Returns a consolidated result based on majority vote:
+    - If 2+ prompts say eligible → eligible
+    - If 2+ prompts say ineligible → ineligible
+    - Merges all incertitudes and explications
+    """
+    eligible_votes = sum(1 for r in results if r.get("eligible", True))
+    ineligible_votes = len(results) - eligible_votes
+
+    all_incertitudes = []
+    all_explications = []
+
+    for r in results:
+        all_incertitudes.extend(r.get("incertitudes", []))
+        explication = r.get("explication", "")
+        if explication:
+            all_explications.append(explication)
+
+    # Remove duplicates from incertitudes
+    all_incertitudes = list(set(all_incertitudes))
+
+    # Majority vote
+    aggregated_eligible = eligible_votes >= 2
+    aggregated_explication = " | ".join(all_explications)
+
+    return {
+        "eligible": aggregated_eligible,
+        "explication": aggregated_explication,
+        "incertitudes": all_incertitudes,
+        "votes": {
+            "eligible": eligible_votes,
+            "ineligible": ineligible_votes,
+        }
+    }
 
 
 def _run_llm_phase(
@@ -433,6 +450,8 @@ def _run_llm_phase(
     monument_profile: str,
 ) -> list[dict]:
     """Run LLM evaluation on eligible aides that have conditions_eligibilite_detail.
+
+    Uses 3 prompts with different conditioning and aggregates results by majority vote.
 
     Returns three lists: (still_eligible, potentially_eligible, downgraded_to_ineligible)
     - still_eligible: LLM says eligible AND no incertitudes
@@ -452,27 +471,44 @@ def _run_llm_phase(
             still_eligible.append(result)
             continue
 
-        llm_result = _llm_evaluate_eligibility(
-            monument_profile=monument_profile,
-            aide_nom=aide.get("nom", ""),
-            conditions_detail=conditions,
-        )
+        # Run 3 LLM evaluations with different prompts
+        print(f"\n{'='*60}")
+        print(f"[LLM TRIPLE EVALUATION] Aide: {aide.get('nom', '')}")
+        print(f"{'='*60}")
+
+        llm_results = []
+        for i, prompt_template in enumerate([prompt_1, prompt_2, prompt_3], 1):
+            print(f"\n  → Prompt {i}/3...")
+            llm_result = _llm_evaluate_eligibility(
+                monument_profile=monument_profile,
+                aide_nom=aide.get("nom", ""),
+                conditions_detail=conditions,
+                prompt_template=prompt_template,
+            )
+            llm_results.append(llm_result)
+            print(f"    Result: eligible={llm_result.get('eligible')}, incertitudes={len(llm_result.get('incertitudes', []))}")
+
+        # Aggregate results by majority vote
+        aggregated = _aggregate_llm_results(llm_results)
+
+        print(f"\n  → AGGREGATED: eligible={aggregated['eligible']} (votes: {aggregated['votes']['eligible']}/{len(llm_results)})")
 
         result["llmEvaluation"] = {
-            "explication": llm_result.get("explication", ""),
-            "incertitudes": llm_result.get("incertitudes", []),
+            "explication": aggregated["explication"],
+            "incertitudes": aggregated["incertitudes"],
+            "votes": aggregated["votes"],
         }
 
-        if llm_result.get("eligible", True):
-            incertitudes = llm_result.get("incertitudes", [])
+        if aggregated["eligible"]:
+            incertitudes = aggregated["incertitudes"]
             if incertitudes:
                 potentially_eligible.append(result)
             else:
                 still_eligible.append(result)
         else:
             result["eligible"] = False
-            result["criteresNonRemplis"].append(f"Condition détaillée : {llm_result.get('explication', '')}")
-            result["raisonIneligibilite"] = result["raisonIneligibilite"] or llm_result.get("explication", "")
+            result["criteresNonRemplis"].append(f"Condition détaillée : {aggregated.get('explication', '')}")
+            result["raisonIneligibilite"] = result["raisonIneligibilite"] or aggregated.get("explication", "")
             downgraded.append(result)
 
     return still_eligible, potentially_eligible, downgraded
