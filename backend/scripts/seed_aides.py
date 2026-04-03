@@ -7,14 +7,17 @@ Run:
 Requires SUPABASE_URL and SUPABASE_SECRET_KEY in .env (or environment).
 """
 
-import os, sys
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dotenv import load_dotenv
+
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from supabase import create_client
-from aids import AIDES
+from aids import AIDES  # noqa: E402
+from supabase import create_client  # noqa: E402
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_SECRET_KEY"]
@@ -30,11 +33,7 @@ def main():
     print(f"Seeding {len(AIDES)} aides into Supabase...")
 
     for aide in AIDES:
-        result = (
-            supabase.table("aides")
-            .upsert(aide, on_conflict="id")
-            .execute()
-        )
+        supabase.table("aides").upsert(aide, on_conflict="id").execute()
         print(f"  ✓ {aide['id']} — {aide['nom_court']}")
 
     print(f"\nDone! {len(AIDES)} aides upserted.")

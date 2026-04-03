@@ -1,9 +1,10 @@
-from typing import Any, Optional
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from supabase import Client
 
-from db import get_supabase, get_anon_supabase, get_current_user_id
+from db import get_anon_supabase, get_current_user_id, get_supabase
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -17,12 +18,12 @@ class RegisterRequest(BaseModel):
     prenom: str
     nom: str
     segment: str  # 'commune' | 'prive' | 'btp'
-    telephone: Optional[str] = None
-    commune_code_insee: Optional[str] = None
-    commune_fonction: Optional[str] = None
-    prive_type_proprietaire: Optional[str] = None
-    prive_regime_fiscal: Optional[str] = None
-    btp: Optional[dict] = None
+    telephone: str | None = None
+    commune_code_insee: str | None = None
+    commune_fonction: str | None = None
+    prive_type_proprietaire: str | None = None
+    prive_regime_fiscal: str | None = None
+    btp: dict | None = None
 
 
 class LoginRequest(BaseModel):
@@ -35,17 +36,17 @@ class RefreshRequest(BaseModel):
 
 
 class UpdateProfileRequest(BaseModel):
-    prenom: Optional[str] = None
-    nom: Optional[str] = None
-    email: Optional[str] = None
-    telephone: Optional[str] = None
+    prenom: str | None = None
+    nom: str | None = None
+    email: str | None = None
+    telephone: str | None = None
 
 
 class UpdateNotificationsRequest(BaseModel):
-    urgentDeadlines: Optional[bool] = None
-    newAidesMatched: Optional[bool] = None
-    dossierUpdates: Optional[bool] = None
-    emailNotifications: Optional[bool] = None
+    urgentDeadlines: bool | None = None
+    newAidesMatched: bool | None = None
+    dossierUpdates: bool | None = None
+    emailNotifications: bool | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +132,7 @@ def register(body: RegisterRequest, anon: Client = Depends(get_anon_supabase), s
             "password": body.password,
         })
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     if not auth_response.user:
         raise HTTPException(status_code=400, detail="Échec de la création du compte")
@@ -174,7 +175,7 @@ def login(body: LoginRequest, anon: Client = Depends(get_anon_supabase), supabas
             "password": body.password,
         })
     except Exception as e:
-        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect") from e
 
     if not auth_response.user or not auth_response.session:
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
@@ -193,8 +194,8 @@ def login(body: LoginRequest, anon: Client = Depends(get_anon_supabase), supabas
 def refresh(body: RefreshRequest, anon: Client = Depends(get_anon_supabase), supabase: Client = Depends(get_supabase)):
     try:
         auth_response = anon.auth.refresh_session(body.refresh_token)
-    except Exception:
-        raise HTTPException(status_code=401, detail="Refresh token invalide ou expiré")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Refresh token invalide ou expiré") from e
 
     if not auth_response.session:
         raise HTTPException(status_code=401, detail="Impossible de rafraîchir la session")
@@ -214,10 +215,9 @@ def logout(
     user_id: str = Depends(get_current_user_id),
     anon: Client = Depends(get_anon_supabase),
 ):
-    try:
-        anon.auth.sign_out()
-    except Exception:
-        pass  # Already invalid token — still return 204
+    import contextlib
+    with contextlib.suppress(Exception):
+        anon.auth.sign_out()  # Already invalid token — still return 204
 
 
 @router.get("/me")

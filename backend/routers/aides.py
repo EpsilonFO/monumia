@@ -1,10 +1,10 @@
-from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
-from db import get_supabase, get_current_user_id
-from matching_engine import run_diagnostic, _check_eligibility
+from db import get_current_user_id, get_supabase
+from matching_engine import _check_eligibility, run_diagnostic
 
 router = APIRouter(prefix="/aides", tags=["aides"])
 
@@ -18,7 +18,7 @@ COLUMNS = "*"
 class DiagnosticRequest(BaseModel):
     monument_id: str
     mode_projet: bool = False
-    travaux_filtres: Optional[list[str]] = None
+    travaux_filtres: list[str] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -68,8 +68,8 @@ def _get_all_aides_camel(supabase: Client) -> list[dict]:
 
 @router.get("")
 def list_aides(
-    categorie: Optional[str] = Query(None),
-    q: Optional[str] = Query(None),
+    categorie: str | None = Query(None),
+    q: str | None = Query(None),
     supabase: Client = Depends(get_supabase),
 ):
     query = supabase.table("aides").select(COLUMNS).order("nom")

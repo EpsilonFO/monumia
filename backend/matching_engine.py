@@ -4,7 +4,6 @@ Determines which aides a monument/user combination is eligible for.
 """
 
 from datetime import datetime
-from typing import Optional
 
 PROTECTION_LABELS = {
     "classe": "Classé Monument Historique",
@@ -45,7 +44,9 @@ ETAT_LABELS = {
 }
 
 
-def _label(mapping: dict, value: str) -> str:
+def _label(mapping: dict, value: str | None) -> str:
+    if value is None:
+        return ""
     return mapping.get(value, value)
 
 
@@ -156,7 +157,7 @@ def run_diagnostic(
     user: dict,
     aides: list[dict],
     mode_projet: bool = False,
-    travaux_filtres: Optional[list[str]] = None,
+    travaux_filtres: list[str] | None = None,
 ) -> dict:
     ctx_travaux = travaux_filtres or []
     results = [_check_eligibility(a, monument, user, mode_projet, ctx_travaux) for a in aides]

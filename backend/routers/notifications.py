@@ -1,9 +1,9 @@
-from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from supabase import Client
 
-from db import get_supabase, get_current_user_id
+from db import get_current_user_id, get_supabase
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -24,7 +24,7 @@ class CreateNotificationRequest(BaseModel):
     categorie: str      # 'deadline_proche' | 'nouvelle_aide' | ...
     titre: str
     message: str
-    lien_vers: Optional[LienVers] = None
+    lien_vers: LienVers | None = None
 
 
 # ---------------------------------------------------------------------------

@@ -35,7 +35,7 @@ def download_cog():
     if COG_DIR.exists() and any(COG_DIR.iterdir()):
         print(f"COG data already present at {COG_DIR}, skipping download.")
         return
-    print(f"Downloading COG data from INSEE...")
+    print("Downloading COG data from INSEE...")
     with urllib.request.urlopen(COG_ZIP_URL) as response:
         data = response.read()
     print(f"  Downloaded {len(data) / 1024 / 1024:.1f} MB, extracting...")
@@ -48,7 +48,7 @@ def download_population():
     if POPULATION_FILE.exists():
         print(f"Population data already present at {POPULATION_FILE}, skipping download.")
         return
-    print(f"Downloading population data from INSEE...")
+    print("Downloading population data from INSEE...")
     with urllib.request.urlopen(POPULATION_ZIP_URL) as response:
         data = response.read()
     print(f"  Downloaded {len(data) / 1024 / 1024:.1f} MB, extracting...")

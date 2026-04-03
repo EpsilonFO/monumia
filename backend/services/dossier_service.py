@@ -4,8 +4,7 @@ Builds the initial Dossier structure from an aide + monument + user.
 """
 
 import uuid
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 
 # ---------------------------------------------------------------------------
 # Checklist templates (port of mock-checklist-templates.ts)
@@ -66,8 +65,6 @@ CHECKLIST_TEMPLATES: dict[str, list[dict]] = {
 def _get_template_key(aide: dict) -> str | None:
     categorie = aide.get("categorie") or aide.get("categorie")
     aide_type = aide.get("type")
-    aide_id = str(aide.get("id", ""))
-
     if categorie == "etat_drac" and aide_type == "subvention":
         # FIP has its own template — detect by name (fragile but mirrors frontend logic)
         nom = (aide.get("nom_court") or aide.get("nomCourt") or "").lower()
@@ -146,7 +143,7 @@ def create_dossier_from_aide(
             "accomplie": False,
         })
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     travaux_label = travaux_prevus[0] if travaux_prevus else "Travaux"
 
     return {
