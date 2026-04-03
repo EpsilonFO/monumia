@@ -1,10 +1,9 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
-from db import get_supabase, get_current_user_id
-from matching_engine import run_diagnostic, _check_eligibility
+from db import get_current_user_id, get_supabase
+from matching_engine import _check_eligibility, run_diagnostic
 
 router = APIRouter(prefix="/aides", tags=["aides"])
 
@@ -15,10 +14,11 @@ COLUMNS = "*"
 # Schemas
 # ---------------------------------------------------------------------------
 
+
 class DiagnosticRequest(BaseModel):
     monument_id: str
     mode_projet: bool = False
-    travaux_filtres: Optional[list[str]] = None
+    travaux_filtres: list[str] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -66,10 +66,11 @@ def _get_all_aides_camel(supabase: Client) -> list[dict]:
 # Routes
 # ---------------------------------------------------------------------------
 
+
 @router.get("")
 def list_aides(
-    categorie: Optional[str] = Query(None),
-    q: Optional[str] = Query(None),
+    categorie: str | None = Query(None),
+    q: str | None = Query(None),
     supabase: Client = Depends(get_supabase),
 ):
     query = supabase.table("aides").select(COLUMNS).order("nom")
@@ -84,7 +85,8 @@ def list_aides(
     if q:
         q_lower = q.lower()
         aides = [
-            a for a in aides
+            a
+            for a in aides
             if q_lower in (a.get("nom") or "").lower()
             or q_lower in (a.get("nomCourt") or "").lower()
             or q_lower in (a.get("description") or "").lower()
@@ -99,13 +101,7 @@ def get_aide(
     aide_id: str,
     supabase: Client = Depends(get_supabase),
 ):
-    result = (
-        supabase.table("aides")
-        .select(COLUMNS)
-        .eq("id", aide_id)
-        .single()
-        .execute()
-    )
+    result = supabase.table("aides").select(COLUMNS).eq("id", aide_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Aide introuvable")
     return _to_camel(result.data)
@@ -131,13 +127,7 @@ def diagnostic(
     monument = monument_result.data
 
     # Fetch user profile
-    user_result = (
-        supabase.table("users")
-        .select("*")
-        .eq("id", user_id)
-        .single()
-        .execute()
-    )
+    user_result = supabase.table("users").select("*").eq("id", user_id).single().execute()
     if not user_result.data:
         raise HTTPException(status_code=404, detail="Profil utilisateur introuvable")
     user = user_result.data
@@ -203,22 +193,13 @@ def list_diagnostics(
         .execute()
     )
     monument = monument_result.data
-    user_result = (
-        supabase.table("users")
-        .select("*")
-        .eq("id", user_id)
-        .single()
-        .execute()
-    )
+    user_result = supabase.table("users").select("*").eq("id", user_id).single().execute()
     user = user_result.data
 
     # Build aide lookup keyed by uuid (fetched once)
     aides_by_id = {a["uuid"]: a for a in _get_all_aides_camel(supabase)}
 
-    return [
-        _hydrate_diagnostic(d, aides_by_id, monument, user)
-        for d in diagnostics
-    ]
+    return [_hydrate_diagnostic(d, aides_by_id, monument, user) for d in diagnostics]
 
 
 def _hydrate_diagnostic(row: dict, aides_by_id: dict, monument: dict, user: dict) -> dict:
@@ -233,11 +214,11 @@ def _hydrate_diagnostic(row: dict, aides_by_id: dict, monument: dict, user: dict
         return _check_eligibility(aide, monument, user, mode_projet, travaux_filtres)
 
     aides_eligibles = [
-        m for aid in (row.get("aides_eligibles_ids") or [])
-        if (m := _build_match(aid)) is not None
+        m for aid in (row.get("aides_eligibles_ids") or []) if (m := _build_match(aid)) is not None
     ]
     aides_non_eligibles = [
-        m for aid in (row.get("aides_non_eligibles_ids") or [])
+        m
+        for aid in (row.get("aides_non_eligibles_ids") or [])
         if (m := _build_match(aid)) is not None
     ]
 

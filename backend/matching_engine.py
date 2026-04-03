@@ -4,7 +4,6 @@ Determines which aides a monument/user combination is eligible for.
 """
 
 from datetime import datetime
-from typing import Optional
 
 PROTECTION_LABELS = {
     "classe": "Classé Monument Historique",
@@ -32,20 +31,34 @@ SEGMENT_LABELS = {
 }
 
 TRAVAUX_LABELS = {
-    "toiture": "Toiture", "charpente": "Charpente", "couverture": "Couverture",
-    "facade": "Façade", "maconnerie": "Maçonnerie", "vitraux": "Vitraux",
-    "peintures_murales": "Peintures murales", "menuiserie": "Menuiserie",
-    "electricite": "Électricité", "plomberie": "Plomberie", "chauffage": "Chauffage",
-    "accessibilite": "Accessibilité", "mise_en_securite": "Mise en sécurité",
-    "restauration_generale": "Restauration générale", "etude_prealable": "Étude préalable",
+    "toiture": "Toiture",
+    "charpente": "Charpente",
+    "couverture": "Couverture",
+    "facade": "Façade",
+    "maconnerie": "Maçonnerie",
+    "vitraux": "Vitraux",
+    "peintures_murales": "Peintures murales",
+    "menuiserie": "Menuiserie",
+    "electricite": "Électricité",
+    "plomberie": "Plomberie",
+    "chauffage": "Chauffage",
+    "accessibilite": "Accessibilité",
+    "mise_en_securite": "Mise en sécurité",
+    "restauration_generale": "Restauration générale",
+    "etude_prealable": "Étude préalable",
 }
 
 ETAT_LABELS = {
-    "bon": "Bon état", "moyen": "État moyen", "mauvais": "Mauvais état", "peril": "En péril",
+    "bon": "Bon état",
+    "moyen": "État moyen",
+    "mauvais": "Mauvais état",
+    "peril": "En péril",
 }
 
 
-def _label(mapping: dict, value: str) -> str:
+def _label(mapping: dict, value: str | None) -> str:
+    if value is None:
+        return ""
     return mapping.get(value, value)
 
 
@@ -53,7 +66,9 @@ def _labels(mapping: dict, values: list) -> str:
     return ", ".join(_label(mapping, v) for v in values)
 
 
-def _check_eligibility(aide: dict, monument: dict, user: dict, mode_projet: bool, travaux_filtres: list[str]) -> dict:
+def _check_eligibility(
+    aide: dict, monument: dict, user: dict, mode_projet: bool, travaux_filtres: list[str]
+) -> dict:
     criteres_remplis: list[str] = []
     criteres_non_remplis: list[str] = []
     c: dict = aide.get("criteres") or {}
@@ -62,9 +77,13 @@ def _check_eligibility(aide: dict, monument: dict, user: dict, mode_projet: bool
     protection_requise: list = c.get("protectionRequise") or []
     if protection_requise:
         if monument.get("protection") in protection_requise:
-            criteres_remplis.append(f"Protection : {_label(PROTECTION_LABELS, monument.get('protection'))}")
+            criteres_remplis.append(
+                f"Protection : {_label(PROTECTION_LABELS, monument.get('protection'))}"
+            )
         else:
-            criteres_non_remplis.append(f"Protection requise : {_labels(PROTECTION_LABELS, protection_requise)}")
+            criteres_non_remplis.append(
+                f"Protection requise : {_labels(PROTECTION_LABELS, protection_requise)}"
+            )
     else:
         criteres_remplis.append("Tous niveaux de protection")
 
@@ -72,22 +91,32 @@ def _check_eligibility(aide: dict, monument: dict, user: dict, mode_projet: bool
     proprietaire_eligible: list = c.get("proprietaireEligible") or []
     if proprietaire_eligible:
         if monument.get("proprietaire") in proprietaire_eligible:
-            criteres_remplis.append(f"Type de propriétaire : {_label(OWNERSHIP_LABELS, monument.get('proprietaire'))}")
+            criteres_remplis.append(
+                f"Type de propriétaire : {_label(OWNERSHIP_LABELS, monument.get('proprietaire'))}"
+            )
         else:
-            criteres_non_remplis.append(f"Propriétaire éligible : {_labels(OWNERSHIP_LABELS, proprietaire_eligible)}")
+            criteres_non_remplis.append(
+                f"Propriétaire éligible : {_labels(OWNERSHIP_LABELS, proprietaire_eligible)}"
+            )
     else:
         criteres_remplis.append("Tous types de propriétaires")
 
     # Work types
     travaux_eligibles: list = c.get("travauxEligibles") or []
     if travaux_eligibles:
-        travaux_to_check = travaux_filtres if (mode_projet and travaux_filtres) else (monument.get("travaux_envisages") or [])
+        travaux_to_check = (
+            travaux_filtres
+            if (mode_projet and travaux_filtres)
+            else (monument.get("travaux_envisages") or [])
+        )
         if not travaux_to_check:
             criteres_remplis.append("Types de travaux : non spécifiés (compatible)")
         elif any(t in travaux_eligibles for t in travaux_to_check):
             criteres_remplis.append("Types de travaux compatibles")
         else:
-            criteres_non_remplis.append(f"Travaux éligibles : {_labels(TRAVAUX_LABELS, travaux_eligibles)}")
+            criteres_non_remplis.append(
+                f"Travaux éligibles : {_labels(TRAVAUX_LABELS, travaux_eligibles)}"
+            )
     else:
         criteres_remplis.append("Tous types de travaux")
 
@@ -115,7 +144,9 @@ def _check_eligibility(aide: dict, monument: dict, user: dict, mode_projet: bool
         if user.get("segment") in segment_eligible:
             criteres_remplis.append(f"Segment : {_label(SEGMENT_LABELS, user.get('segment'))}")
         else:
-            criteres_non_remplis.append(f"Réservé aux : {_labels(SEGMENT_LABELS, segment_eligible)}")
+            criteres_non_remplis.append(
+                f"Réservé aux : {_labels(SEGMENT_LABELS, segment_eligible)}"
+            )
     else:
         criteres_remplis.append("Communes et privés")
 
@@ -156,7 +187,7 @@ def run_diagnostic(
     user: dict,
     aides: list[dict],
     mode_projet: bool = False,
-    travaux_filtres: Optional[list[str]] = None,
+    travaux_filtres: list[str] | None = None,
 ) -> dict:
     ctx_travaux = travaux_filtres or []
     results = [_check_eligibility(a, monument, user, mode_projet, ctx_travaux) for a in aides]
@@ -165,9 +196,7 @@ def run_diagnostic(
     aides_non_eligibles = [r for r in results if not r["eligible"]]
 
     montant_total = sum(
-        r["aide"]["montantMax"]
-        for r in aides_eligibles
-        if r["aide"].get("montantMax")
+        r["aide"]["montantMax"] for r in aides_eligibles if r["aide"].get("montantMax")
     )
 
     return {

@@ -1,9 +1,8 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from supabase import Client
 
-from db import get_supabase, get_current_user_id
+from db import get_current_user_id, get_supabase
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -14,22 +13,24 @@ COLUMNS = "*"
 # Schemas
 # ---------------------------------------------------------------------------
 
+
 class LienVers(BaseModel):
-    type: str   # 'aide' | 'dossier' | 'monument' | 'document'
+    type: str  # 'aide' | 'dossier' | 'monument' | 'document'
     id: str
 
 
 class CreateNotificationRequest(BaseModel):
-    type: str           # 'urgent' | 'opportunite' | 'info'
-    categorie: str      # 'deadline_proche' | 'nouvelle_aide' | ...
+    type: str  # 'urgent' | 'opportunite' | 'info'
+    categorie: str  # 'deadline_proche' | 'nouvelle_aide' | ...
     titre: str
     message: str
-    lien_vers: Optional[LienVers] = None
+    lien_vers: LienVers | None = None
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_notification_or_404(supabase: Client, notification_id: str, user_id: str) -> dict:
     result = (
@@ -48,6 +49,7 @@ def _get_notification_or_404(supabase: Client, notification_id: str, user_id: st
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @router.get("")
 def list_notifications(

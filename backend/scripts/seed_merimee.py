@@ -12,6 +12,7 @@ Requires a .env file in the backend/ directory (or env vars):
 First run: the script prints the DDL to create the table — paste it in the
 Supabase SQL editor, then re-run to insert the data.
 """
+
 import csv
 import os
 import urllib.request
@@ -105,7 +106,7 @@ def main():
     rows = []
     for raw in raw_rows:
         row = {}
-        for orig_h, db_col in zip(raw_headers, db_cols):
+        for orig_h, db_col in zip(raw_headers, db_cols, strict=False):
             value = raw.get(orig_h, "")
             row[db_col] = value if value != "" else None
         if row.get("reference"):
@@ -115,7 +116,7 @@ def main():
 
     print(f"Upserting in batches of {BATCH_SIZE}...")
     for i in range(0, len(rows), BATCH_SIZE):
-        batch = rows[i:i + BATCH_SIZE]
+        batch = rows[i : i + BATCH_SIZE]
         upsert_batch(client, batch)
         print(f"  Upserted {i + len(batch)} / {len(rows)}")
     print(f"\nDone. {len(rows)} buildings upserted.")

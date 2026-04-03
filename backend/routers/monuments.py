@@ -1,10 +1,10 @@
 import re
-from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from supabase import Client
 
-from db import get_supabase, get_current_user_id
+from db import get_current_user_id, get_supabase
 
 router = APIRouter(prefix="/monuments", tags=["monuments"])
 
@@ -13,7 +13,7 @@ COLUMNS = "*"
 
 def _to_snake(name: str) -> str:
     """Convert camelCase to snake_case."""
-    return re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
 def _snake_row(data: dict) -> dict:
@@ -25,6 +25,7 @@ def _snake_row(data: dict) -> dict:
 # Schemas
 # ---------------------------------------------------------------------------
 
+
 class Coordonnees(BaseModel):
     lat: float
     lng: float
@@ -35,87 +36,88 @@ class MonumentPhoto(BaseModel):
     url: str
     legende: str
     type: str  # 'facade' | 'interieur' | 'detail' | 'aerien' | 'degradation' | 'autre'
-    datePhoto: Optional[str] = None
+    datePhoto: str | None = None
 
 
 class CreateMonumentRequest(BaseModel):
     nom: str
     denomination: str
-    codePostal: Optional[str] = None
+    codePostal: str | None = None
     commune: str
     codeInsee: str
     departement: str
     region: str
-    referenceMerimee: Optional[str] = None
-    coordonnees: Optional[Coordonnees] = None
+    referenceMerimee: str | None = None
+    coordonnees: Coordonnees | None = None
 
     protection: str
-    dateProtection: Optional[str] = None
-    typeProtection: Optional[str] = None
+    dateProtection: str | None = None
+    typeProtection: str | None = None
     proprietaire: str
-    affectataire: Optional[str] = None
+    affectataire: str | None = None
 
-    siecleConstruction: Optional[str] = None
-    periodeConstruction: Optional[list[str]] = None
-    superficie: Optional[float] = None
-    materiaux: Optional[list[str]] = None
-    typeCouverture: Optional[str] = None
-    nombreNiveaux: Optional[int] = None
-    descriptionGenerale: Optional[str] = None
+    siecleConstruction: str | None = None
+    periodeConstruction: list[str] | None = None
+    superficie: float | None = None
+    materiaux: list[str] | None = None
+    typeCouverture: str | None = None
+    nombreNiveaux: int | None = None
+    descriptionGenerale: str | None = None
 
     etatConservation: str
-    travauxEnvisages: Optional[list[str]] = None
-    urgenceTravaux: Optional[str] = None
-    diagnosticRealise: Optional[bool] = None
-    derniersTravaux: Optional[str] = None
-    descriptionEtat: Optional[str] = None
+    travauxEnvisages: list[str] | None = None
+    urgenceTravaux: str | None = None
+    diagnosticRealise: bool | None = None
+    derniersTravaux: str | None = None
+    descriptionEtat: str | None = None
 
 
 class UpdateMonumentRequest(BaseModel):
-    nom: Optional[str] = None
-    denomination: Optional[str] = None
-    adresse: Optional[str] = None
-    codePostal: Optional[str] = None
-    commune: Optional[str] = None
-    codeInsee: Optional[str] = None
-    departement: Optional[str] = None
-    region: Optional[str] = None
-    referenceMerimee: Optional[str] = None
-    coordonnees: Optional[Coordonnees] = None
+    nom: str | None = None
+    denomination: str | None = None
+    adresse: str | None = None
+    codePostal: str | None = None
+    commune: str | None = None
+    codeInsee: str | None = None
+    departement: str | None = None
+    region: str | None = None
+    referenceMerimee: str | None = None
+    coordonnees: Coordonnees | None = None
 
-    protection: Optional[str] = None
-    dateProtection: Optional[str] = None
-    typeProtection: Optional[str] = None
-    proprietaire: Optional[str] = None
-    affectataire: Optional[str] = None
+    protection: str | None = None
+    dateProtection: str | None = None
+    typeProtection: str | None = None
+    proprietaire: str | None = None
+    affectataire: str | None = None
 
-    siecleConstruction: Optional[str] = None
-    periodeConstruction: Optional[list[str]] = None
-    superficie: Optional[float] = None
-    materiaux: Optional[list[str]] = None
-    typeCouverture: Optional[str] = None
-    nombreNiveaux: Optional[int] = None
-    descriptionGenerale: Optional[str] = None
+    siecleConstruction: str | None = None
+    periodeConstruction: list[str] | None = None
+    superficie: float | None = None
+    materiaux: list[str] | None = None
+    typeCouverture: str | None = None
+    nombreNiveaux: int | None = None
+    descriptionGenerale: str | None = None
 
-    etatConservation: Optional[str] = None
-    travauxEnvisages: Optional[list[str]] = None
-    urgenceTravaux: Optional[str] = None
-    diagnosticRealise: Optional[bool] = None
-    derniersTravaux: Optional[str] = None
-    descriptionEtat: Optional[str] = None
-    completionPercentage: Optional[int] = None
+    etatConservation: str | None = None
+    travauxEnvisages: list[str] | None = None
+    urgenceTravaux: str | None = None
+    diagnosticRealise: bool | None = None
+    derniersTravaux: str | None = None
+    descriptionEtat: str | None = None
+    completionPercentage: int | None = None
 
 
 class AddPhotoRequest(BaseModel):
     url: str
     legende: str
     type: str
-    datePhoto: Optional[str] = None
+    datePhoto: str | None = None
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_monument_or_404(supabase: Client, monument_id: str, user_id: str) -> dict:
     result = (
@@ -135,13 +137,24 @@ def _compute_completion(monument: dict) -> int:
     """Recompute completionPercentage based on filled fields."""
     steps = [
         # Step 1 — Identification
-        all([monument.get("nom"), monument.get("denomination"),
-             monument.get("commune"), monument.get("region")]),
+        all(
+            [
+                monument.get("nom"),
+                monument.get("denomination"),
+                monument.get("commune"),
+                monument.get("region"),
+            ]
+        ),
         # Step 2 — Legal
         all([monument.get("protection"), monument.get("proprietaire")]),
         # Step 3 — Physical
-        any([monument.get("siecle_construction"), monument.get("superficie"),
-             monument.get("description_generale")]),
+        any(
+            [
+                monument.get("siecle_construction"),
+                monument.get("superficie"),
+                monument.get("description_generale"),
+            ]
+        ),
         # Step 4 — State
         bool(monument.get("etat_conservation")),
         # Step 5 — Photos
@@ -153,6 +166,7 @@ def _compute_completion(monument: dict) -> int:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @router.get("")
 def list_monuments(
@@ -189,7 +203,9 @@ def create_monument(
 
     # Compute and persist completion
     pct = _compute_completion(monument)
-    supabase.table("monuments").update({"completion_percentage": pct}).eq("id", monument["id"]).execute()
+    supabase.table("monuments").update({"completion_percentage": pct}).eq(
+        "id", monument["id"]
+    ).execute()
     monument["completion_percentage"] = pct
 
     return monument
@@ -222,7 +238,9 @@ def update_monument(
 
     # Recompute completion
     pct = _compute_completion(monument)
-    supabase.table("monuments").update({"completion_percentage": pct}).eq("id", monument_id).execute()
+    supabase.table("monuments").update({"completion_percentage": pct}).eq(
+        "id", monument_id
+    ).execute()
     monument["completion_percentage"] = pct
 
     return monument
@@ -248,6 +266,7 @@ def add_photo(
     monument = _get_monument_or_404(supabase, monument_id, user_id)
 
     import uuid
+
     new_photo = {
         "id": str(uuid.uuid4()),
         "url": body.url,

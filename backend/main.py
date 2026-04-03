@@ -1,7 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import merimee, auth, monuments, documents, aides, notifications, dossiers, prospects, communes
+from routers import (
+    aides,
+    auth,
+    communes,
+    documents,
+    dossiers,
+    merimee,
+    monuments,
+    notifications,
+    prospects,
+)
 
 app = FastAPI(title="Patrialta API")
 

@@ -1,9 +1,10 @@
-from typing import Any, Optional
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from supabase import Client
 
-from db import get_supabase, get_anon_supabase, get_current_user_id
+from db import get_anon_supabase, get_current_user_id, get_supabase
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -11,18 +12,19 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # Schemas
 # ---------------------------------------------------------------------------
 
+
 class RegisterRequest(BaseModel):
     email: str
     password: str
     prenom: str
     nom: str
     segment: str  # 'commune' | 'prive' | 'btp'
-    telephone: Optional[str] = None
-    commune_code_insee: Optional[str] = None
-    commune_fonction: Optional[str] = None
-    prive_type_proprietaire: Optional[str] = None
-    prive_regime_fiscal: Optional[str] = None
-    btp: Optional[dict] = None
+    telephone: str | None = None
+    commune_code_insee: str | None = None
+    commune_fonction: str | None = None
+    prive_type_proprietaire: str | None = None
+    prive_regime_fiscal: str | None = None
+    btp: dict | None = None
 
 
 class LoginRequest(BaseModel):
@@ -35,31 +37,26 @@ class RefreshRequest(BaseModel):
 
 
 class UpdateProfileRequest(BaseModel):
-    prenom: Optional[str] = None
-    nom: Optional[str] = None
-    email: Optional[str] = None
-    telephone: Optional[str] = None
+    prenom: str | None = None
+    nom: str | None = None
+    email: str | None = None
+    telephone: str | None = None
 
 
 class UpdateNotificationsRequest(BaseModel):
-    urgentDeadlines: Optional[bool] = None
-    newAidesMatched: Optional[bool] = None
-    dossierUpdates: Optional[bool] = None
-    emailNotifications: Optional[bool] = None
+    urgentDeadlines: bool | None = None
+    newAidesMatched: bool | None = None
+    dossierUpdates: bool | None = None
+    emailNotifications: bool | None = None
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_profile(supabase: Client, user_id: str) -> dict:
-    result = (
-        supabase.table("users")
-        .select("*")
-        .eq("id", user_id)
-        .single()
-        .execute()
-    )
+    result = supabase.table("users").select("*").eq("id", user_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Profil introuvable")
     profile = result.data
@@ -122,16 +119,23 @@ def _default_notification_preferences() -> dict:
 # Routes
 # ---------------------------------------------------------------------------
 
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def register(body: RegisterRequest, anon: Client = Depends(get_anon_supabase), supabase: Client = Depends(get_supabase)):
+def register(
+    body: RegisterRequest,
+    anon: Client = Depends(get_anon_supabase),
+    supabase: Client = Depends(get_supabase),
+):
     # 1. Create auth user
     try:
-        auth_response = anon.auth.sign_up({
-            "email": body.email,
-            "password": body.password,
-        })
+        auth_response = anon.auth.sign_up(
+            {
+                "email": body.email,
+                "password": body.password,
+            }
+        )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     if not auth_response.user:
         raise HTTPException(status_code=400, detail="Échec de la création du compte")
@@ -167,14 +171,20 @@ def register(body: RegisterRequest, anon: Client = Depends(get_anon_supabase), s
 
 
 @router.post("/login")
-def login(body: LoginRequest, anon: Client = Depends(get_anon_supabase), supabase: Client = Depends(get_supabase)):
+def login(
+    body: LoginRequest,
+    anon: Client = Depends(get_anon_supabase),
+    supabase: Client = Depends(get_supabase),
+):
     try:
-        auth_response = anon.auth.sign_in_with_password({
-            "email": body.email,
-            "password": body.password,
-        })
+        auth_response = anon.auth.sign_in_with_password(
+            {
+                "email": body.email,
+                "password": body.password,
+            }
+        )
     except Exception as e:
-        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect") from e
 
     if not auth_response.user or not auth_response.session:
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
@@ -190,11 +200,15 @@ def login(body: LoginRequest, anon: Client = Depends(get_anon_supabase), supabas
 
 
 @router.post("/refresh")
-def refresh(body: RefreshRequest, anon: Client = Depends(get_anon_supabase), supabase: Client = Depends(get_supabase)):
+def refresh(
+    body: RefreshRequest,
+    anon: Client = Depends(get_anon_supabase),
+    supabase: Client = Depends(get_supabase),
+):
     try:
         auth_response = anon.auth.refresh_session(body.refresh_token)
-    except Exception:
-        raise HTTPException(status_code=401, detail="Refresh token invalide ou expiré")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Refresh token invalide ou expiré") from e
 
     if not auth_response.session:
         raise HTTPException(status_code=401, detail="Impossible de rafraîchir la session")
@@ -214,10 +228,10 @@ def logout(
     user_id: str = Depends(get_current_user_id),
     anon: Client = Depends(get_anon_supabase),
 ):
-    try:
-        anon.auth.sign_out()
-    except Exception:
-        pass  # Already invalid token — still return 204
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        anon.auth.sign_out()  # Already invalid token — still return 204
 
 
 @router.get("/me")
@@ -249,7 +263,9 @@ def update_notifications(
     supabase: Client = Depends(get_supabase),
 ):
     current = _get_profile(supabase, user_id)
-    current_prefs: dict = current.get("notificationPreferences") or _default_notification_preferences()
+    current_prefs: dict = (
+        current.get("notificationPreferences") or _default_notification_preferences()
+    )
 
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
     merged = {**current_prefs, **patch}
