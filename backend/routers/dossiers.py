@@ -1,4 +1,3 @@
-
 from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,6 +16,7 @@ COLUMNS = "*"
 # Schemas
 # ---------------------------------------------------------------------------
 
+
 class CreateDossierRequest(BaseModel):
     monument_id: str
     aide_id: str
@@ -34,7 +34,7 @@ class UpdateDossierRequest(BaseModel):
 
 
 class UpdateChecklistItemRequest(BaseModel):
-    statut: str   # 'fourni' | 'en_attente' | 'manquant'
+    statut: str  # 'fourni' | 'en_attente' | 'manquant'
     document_id: str | None = None
 
 
@@ -45,19 +45,20 @@ class UpdateSectionRequest(BaseModel):
 class AddCollaborateurRequest(BaseModel):
     email: str
     nom: str
-    role: str          # 'proprietaire' | 'adjoint' | 'architecte' | 'secretaire' | 'autre'
-    permissions: str   # 'lecture' | 'edition'
+    role: str  # 'proprietaire' | 'adjoint' | 'architecte' | 'secretaire' | 'autre'
+    permissions: str  # 'lecture' | 'edition'
 
 
 class AddEcheanceRequest(BaseModel):
     label: str
     date: str
-    type: str   # 'ouverture' | 'limite' | 'instruction' | 'notification' | 'travaux'
+    type: str  # 'ouverture' | 'limite' | 'instruction' | 'notification' | 'travaux'
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_dossier_or_404(supabase: Client, dossier_id: str, user_id: str) -> dict:
     result = (
@@ -89,6 +90,7 @@ STEP_TO_STATUS = {1: "brouillon", 2: "en_cours", 3: "en_cours", 4: "complet", 5:
 # Routes
 # ---------------------------------------------------------------------------
 
+
 @router.get("")
 def list_dossiers(
     user_id: str = Depends(get_current_user_id),
@@ -112,7 +114,12 @@ def create_dossier(
 ):
     # Validate monument ownership
     monument_result = (
-        supabase.table("monuments").select("*").eq("id", body.monument_id).eq("user_id", user_id).single().execute()
+        supabase.table("monuments")
+        .select("*")
+        .eq("id", body.monument_id)
+        .eq("user_id", user_id)
+        .single()
+        .execute()
     )
     if not monument_result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
@@ -199,10 +206,12 @@ def update_checklist_item(
         raise HTTPException(status_code=404, detail="Item de checklist introuvable")
 
     progression = _recalculate_progression({**dossier, "checklist": checklist})
-    supabase.table("dossiers").update({
-        "checklist": checklist,
-        "progression_pourcentage": progression,
-    }).eq("id", dossier_id).execute()
+    supabase.table("dossiers").update(
+        {
+            "checklist": checklist,
+            "progression_pourcentage": progression,
+        }
+    ).eq("id", dossier_id).execute()
 
     return _get_dossier_or_404(supabase, dossier_id, user_id)
 
@@ -240,6 +249,7 @@ def add_collaborateur(
     supabase: Client = Depends(get_supabase),
 ):
     import uuid
+
     dossier = _get_dossier_or_404(supabase, dossier_id, user_id)
 
     collaborateurs: list = dossier.get("collaborateurs") or []
@@ -253,7 +263,9 @@ def add_collaborateur(
     }
     collaborateurs.append(new_collab)
 
-    supabase.table("dossiers").update({"collaborateurs": collaborateurs}).eq("id", dossier_id).execute()
+    supabase.table("dossiers").update({"collaborateurs": collaborateurs}).eq(
+        "id", dossier_id
+    ).execute()
     return new_collab
 
 
@@ -283,6 +295,7 @@ def add_echeance(
     supabase: Client = Depends(get_supabase),
 ):
     import uuid
+
     dossier = _get_dossier_or_404(supabase, dossier_id, user_id)
 
     echeances: list = dossier.get("echeances") or []
@@ -299,7 +312,9 @@ def add_echeance(
     return new_echeance
 
 
-@router.patch("/{dossier_id}/echeances/{echeance_id}/toggle", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch(
+    "/{dossier_id}/echeances/{echeance_id}/toggle", status_code=status.HTTP_204_NO_CONTENT
+)
 def toggle_echeance(
     dossier_id: str,
     echeance_id: str,
@@ -329,11 +344,14 @@ def submit_dossier(
     supabase: Client = Depends(get_supabase),
 ):
     from datetime import datetime
+
     _get_dossier_or_404(supabase, dossier_id, user_id)
 
-    supabase.table("dossiers").update({
-        "statut": "soumis",
-        "etape_actuelle": 5,
-        "progression_pourcentage": 100,
-        "date_soumission": datetime.now(UTC).isoformat(),
-    }).eq("id", dossier_id).execute()
+    supabase.table("dossiers").update(
+        {
+            "statut": "soumis",
+            "etape_actuelle": 5,
+            "progression_pourcentage": 100,
+            "date_soumission": datetime.now(UTC).isoformat(),
+        }
+    ).eq("id", dossier_id).execute()

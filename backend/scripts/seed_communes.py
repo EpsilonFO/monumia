@@ -9,6 +9,7 @@ Requires a .env file in the backend/ directory (or env vars):
     SUPABASE_URL=https://xxx.supabase.co
     SUPABASE_SERVICE_KEY=eyJ...   (service_role key, not anon)
 """
+
 import csv
 import io
 import os
@@ -30,6 +31,7 @@ POPULATION_ZIP_URL = "https://www.insee.fr/fr/statistiques/fichier/7739582/ensem
 POPULATION_FILE = Path(__file__).parent / "ensemble" / "donnees_communes.csv"
 
 BATCH_SIZE = 500
+
 
 def download_cog():
     if COG_DIR.exists() and any(COG_DIR.iterdir()):
@@ -119,15 +121,17 @@ def load_communes(deps: dict[str, dict], population: dict[str, int]) -> list[dic
             dep_code = row["DEP"]
             dep_info = deps.get(dep_code, {})
             code_insee = row["COM"]
-            communes.append({
-                "code_insee": code_insee,
-                "nom_commune": row["LIBELLE"],
-                "departement": dep_info.get("nom", ""),
-                "departement_num": dep_code,
-                "region": dep_info.get("region", ""),
-                "code_postal": None,
-                "population": population.get(code_insee),
-            })
+            communes.append(
+                {
+                    "code_insee": code_insee,
+                    "nom_commune": row["LIBELLE"],
+                    "departement": dep_info.get("nom", ""),
+                    "departement_num": dep_code,
+                    "region": dep_info.get("region", ""),
+                    "code_postal": None,
+                    "population": population.get(code_insee),
+                }
+            )
     return communes
 
 

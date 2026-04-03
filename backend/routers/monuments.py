@@ -13,7 +13,7 @@ COLUMNS = "*"
 
 def _to_snake(name: str) -> str:
     """Convert camelCase to snake_case."""
-    return re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
 def _snake_row(data: dict) -> dict:
@@ -24,6 +24,7 @@ def _snake_row(data: dict) -> dict:
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
+
 
 class Coordonnees(BaseModel):
     lat: float
@@ -117,6 +118,7 @@ class AddPhotoRequest(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_monument_or_404(supabase: Client, monument_id: str, user_id: str) -> dict:
     result = (
         supabase.table("monuments")
@@ -135,13 +137,24 @@ def _compute_completion(monument: dict) -> int:
     """Recompute completionPercentage based on filled fields."""
     steps = [
         # Step 1 — Identification
-        all([monument.get("nom"), monument.get("denomination"),
-             monument.get("commune"), monument.get("region")]),
+        all(
+            [
+                monument.get("nom"),
+                monument.get("denomination"),
+                monument.get("commune"),
+                monument.get("region"),
+            ]
+        ),
         # Step 2 — Legal
         all([monument.get("protection"), monument.get("proprietaire")]),
         # Step 3 — Physical
-        any([monument.get("siecle_construction"), monument.get("superficie"),
-             monument.get("description_generale")]),
+        any(
+            [
+                monument.get("siecle_construction"),
+                monument.get("superficie"),
+                monument.get("description_generale"),
+            ]
+        ),
         # Step 4 — State
         bool(monument.get("etat_conservation")),
         # Step 5 — Photos
@@ -153,6 +166,7 @@ def _compute_completion(monument: dict) -> int:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @router.get("")
 def list_monuments(
@@ -189,7 +203,9 @@ def create_monument(
 
     # Compute and persist completion
     pct = _compute_completion(monument)
-    supabase.table("monuments").update({"completion_percentage": pct}).eq("id", monument["id"]).execute()
+    supabase.table("monuments").update({"completion_percentage": pct}).eq(
+        "id", monument["id"]
+    ).execute()
     monument["completion_percentage"] = pct
 
     return monument
@@ -222,7 +238,9 @@ def update_monument(
 
     # Recompute completion
     pct = _compute_completion(monument)
-    supabase.table("monuments").update({"completion_percentage": pct}).eq("id", monument_id).execute()
+    supabase.table("monuments").update({"completion_percentage": pct}).eq(
+        "id", monument_id
+    ).execute()
     monument["completion_percentage"] = pct
 
     return monument
@@ -248,6 +266,7 @@ def add_photo(
     monument = _get_monument_or_404(supabase, monument_id, user_id)
 
     import uuid
+
     new_photo = {
         "id": str(uuid.uuid4()),
         "url": body.url,

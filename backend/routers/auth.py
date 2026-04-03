@@ -12,6 +12,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # Schemas
 # ---------------------------------------------------------------------------
 
+
 class RegisterRequest(BaseModel):
     email: str
     password: str
@@ -53,14 +54,9 @@ class UpdateNotificationsRequest(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_profile(supabase: Client, user_id: str) -> dict:
-    result = (
-        supabase.table("users")
-        .select("*")
-        .eq("id", user_id)
-        .single()
-        .execute()
-    )
+    result = supabase.table("users").select("*").eq("id", user_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Profil introuvable")
     profile = result.data
@@ -123,14 +119,21 @@ def _default_notification_preferences() -> dict:
 # Routes
 # ---------------------------------------------------------------------------
 
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def register(body: RegisterRequest, anon: Client = Depends(get_anon_supabase), supabase: Client = Depends(get_supabase)):
+def register(
+    body: RegisterRequest,
+    anon: Client = Depends(get_anon_supabase),
+    supabase: Client = Depends(get_supabase),
+):
     # 1. Create auth user
     try:
-        auth_response = anon.auth.sign_up({
-            "email": body.email,
-            "password": body.password,
-        })
+        auth_response = anon.auth.sign_up(
+            {
+                "email": body.email,
+                "password": body.password,
+            }
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -168,12 +171,18 @@ def register(body: RegisterRequest, anon: Client = Depends(get_anon_supabase), s
 
 
 @router.post("/login")
-def login(body: LoginRequest, anon: Client = Depends(get_anon_supabase), supabase: Client = Depends(get_supabase)):
+def login(
+    body: LoginRequest,
+    anon: Client = Depends(get_anon_supabase),
+    supabase: Client = Depends(get_supabase),
+):
     try:
-        auth_response = anon.auth.sign_in_with_password({
-            "email": body.email,
-            "password": body.password,
-        })
+        auth_response = anon.auth.sign_in_with_password(
+            {
+                "email": body.email,
+                "password": body.password,
+            }
+        )
     except Exception as e:
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect") from e
 
@@ -191,7 +200,11 @@ def login(body: LoginRequest, anon: Client = Depends(get_anon_supabase), supabas
 
 
 @router.post("/refresh")
-def refresh(body: RefreshRequest, anon: Client = Depends(get_anon_supabase), supabase: Client = Depends(get_supabase)):
+def refresh(
+    body: RefreshRequest,
+    anon: Client = Depends(get_anon_supabase),
+    supabase: Client = Depends(get_supabase),
+):
     try:
         auth_response = anon.auth.refresh_session(body.refresh_token)
     except Exception as e:
@@ -216,6 +229,7 @@ def logout(
     anon: Client = Depends(get_anon_supabase),
 ):
     import contextlib
+
     with contextlib.suppress(Exception):
         anon.auth.sign_out()  # Already invalid token — still return 204
 
@@ -249,7 +263,9 @@ def update_notifications(
     supabase: Client = Depends(get_supabase),
 ):
     current = _get_profile(supabase, user_id)
-    current_prefs: dict = current.get("notificationPreferences") or _default_notification_preferences()
+    current_prefs: dict = (
+        current.get("notificationPreferences") or _default_notification_preferences()
+    )
 
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
     merged = {**current_prefs, **patch}
