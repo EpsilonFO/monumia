@@ -9,10 +9,10 @@ export interface Monument {
   referenceMerimee?: string;
   denomination: string;
   codePostal?: string;
-  commune: string;
   codeInsee: string;
-  departement: string;
-  region: Region;
+  commune?: string;
+  departement?: string;
+  region?: Region;
   coordonnees?: { lat: number; lng: number };
 
   // Step 2: Legal Status
