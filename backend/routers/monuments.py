@@ -42,7 +42,6 @@ class MonumentPhoto(BaseModel):
 class CreateMonumentRequest(BaseModel):
     nom: str
     denomination: str
-    codePostal: str | None = None
     codeInsee: str
     referenceMerimee: str | None = None
     coordonnees: Coordonnees | None = None
@@ -73,7 +72,6 @@ class UpdateMonumentRequest(BaseModel):
     nom: str | None = None
     denomination: str | None = None
     adresse: str | None = None
-    codePostal: str | None = None
     codeInsee: str | None = None
     referenceMerimee: str | None = None
     coordonnees: Coordonnees | None = None
