@@ -9,6 +9,7 @@ Requires a .env file in the backend/ directory (or env vars):
     SUPABASE_URL=https://xxx.supabase.co
     SUPABASE_SERVICE_KEY=eyJ...   (service_role key, not anon)
 """
+
 import csv
 import io
 import os
@@ -24,18 +25,21 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 
-COG_ZIP_URL = "https://www.insee.fr/fr/statistiques/fichier/8740222/cog_ensemble_2026_csv.zip"
+COG_ZIP_URL = (
+    "https://www.insee.fr/fr/statistiques/fichier/8740222/cog_ensemble_2026_csv.zip"
+)
 COG_DIR = Path(__file__).parent / "cog_ensemble_2026_csv"
 POPULATION_ZIP_URL = "https://www.insee.fr/fr/statistiques/fichier/7739582/ensemble.zip"
 POPULATION_FILE = Path(__file__).parent / "ensemble" / "donnees_communes.csv"
 
 BATCH_SIZE = 500
 
+
 def download_cog():
     if COG_DIR.exists() and any(COG_DIR.iterdir()):
         print(f"COG data already present at {COG_DIR}, skipping download.")
         return
-    print(f"Downloading COG data from INSEE...")
+    print("Downloading COG data from INSEE...")
     with urllib.request.urlopen(COG_ZIP_URL) as response:
         data = response.read()
     print(f"  Downloaded {len(data) / 1024 / 1024:.1f} MB, extracting...")
@@ -46,9 +50,11 @@ def download_cog():
 
 def download_population():
     if POPULATION_FILE.exists():
-        print(f"Population data already present at {POPULATION_FILE}, skipping download.")
+        print(
+            f"Population data already present at {POPULATION_FILE}, skipping download."
+        )
         return
-    print(f"Downloading population data from INSEE...")
+    print("Downloading population data from INSEE...")
     with urllib.request.urlopen(POPULATION_ZIP_URL) as response:
         data = response.read()
     print(f"  Downloaded {len(data) / 1024 / 1024:.1f} MB, extracting...")
@@ -119,14 +125,16 @@ def load_communes(deps: dict[str, dict], population: dict[str, int]) -> list[dic
             dep_code = row["DEP"]
             dep_info = deps.get(dep_code, {})
             code_insee = row["COM"]
-            communes.append({
-                "code_insee": code_insee,
-                "nom_commune": row["LIBELLE"],
-                "departement": dep_info.get("nom", ""),
-                "departement_num": dep_code,
-                "region": dep_info.get("region", ""),
-                "population": population.get(code_insee),
-            })
+            communes.append(
+                {
+                    "code_insee": code_insee,
+                    "nom_commune": row["LIBELLE"],
+                    "departement": dep_info.get("nom", ""),
+                    "departement_num": dep_code,
+                    "region": dep_info.get("region", ""),
+                    "population": population.get(code_insee),
+                }
+            )
     return communes
 
 

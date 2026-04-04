@@ -14,6 +14,7 @@ COLUMNS = "*, monuments(*)"
 # Schemas
 # ---------------------------------------------------------------------------
 
+
 class CreateProspectRequest(BaseModel):
     monument_id: str
 
@@ -52,12 +53,13 @@ class UpdateProspectRequest(BaseModel):
 
 
 class UpdateStatutRequest(BaseModel):
-    statut: str   # 'a_contacter' | 'contacte' | 'en_discussion' | 'devis_envoye' | 'gagne' | 'perdu'
+    statut: str  # 'a_contacter' | 'contacte' | 'en_discussion' | 'devis_envoye' | 'gagne' | 'perdu'
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_prospect_or_404(supabase: Client, prospect_id: str, user_id: str) -> dict:
     result = (
@@ -76,6 +78,7 @@ def _get_prospect_or_404(supabase: Client, prospect_id: str, user_id: str) -> di
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @router.get("")
 def list_prospects(
@@ -102,7 +105,8 @@ def list_prospects(
     if q:
         q_lower = q.lower()
         data = [
-            p for p in data
+            p
+            for p in data
             if q_lower in (p.get("contact_nom") or "").lower()
             or q_lower in ((p.get("monuments") or {}).get("nom") or "").lower()
             or q_lower in (p.get("commune") or "").lower()
@@ -157,12 +161,27 @@ def update_statut(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    valid_statuts = {"a_contacter", "contacte", "en_discussion", "devis_envoye", "gagne", "perdu"}
+    valid_statuts = {
+        "a_contacter",
+        "contacte",
+        "en_discussion",
+        "devis_envoye",
+        "gagne",
+        "perdu",
+    }
     if body.statut not in valid_statuts:
-        raise HTTPException(status_code=400, detail=f"Statut invalide. Valeurs acceptées: {', '.join(valid_statuts)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Statut invalide. Valeurs acceptées: {', '.join(valid_statuts)}",
+        )
 
     _get_prospect_or_404(supabase, prospect_id, user_id)
-    result = supabase.table("prospects").update({"statut": body.statut}).eq("id", prospect_id).execute()
+    result = (
+        supabase.table("prospects")
+        .update({"statut": body.statut})
+        .eq("id", prospect_id)
+        .execute()
+    )
     return result.data[0]
 
 

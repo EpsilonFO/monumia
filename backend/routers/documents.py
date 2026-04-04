@@ -14,6 +14,7 @@ COLUMNS = "*"
 # Schemas
 # ---------------------------------------------------------------------------
 
+
 class CreateDocumentRequest(BaseModel):
     nom: str
     nom_fichier: str
@@ -41,6 +42,7 @@ class UpdateDocumentRequest(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_document_or_404(supabase: Client, document_id: str, user_id: str) -> dict:
     result = (
         supabase.table("documents")
@@ -58,6 +60,7 @@ def _get_document_or_404(supabase: Client, document_id: str, user_id: str) -> di
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @router.get("")
 def list_documents(
@@ -101,7 +104,9 @@ def create_document(
             .execute()
         )
         if not check.data:
-            raise HTTPException(status_code=403, detail=f"Monument {mid} introuvable ou non autorisé")
+            raise HTTPException(
+                status_code=403, detail=f"Monument {mid} introuvable ou non autorisé"
+            )
 
     row = {
         **body.model_dump(exclude_none=True, exclude={"monument_id"}),
@@ -155,7 +160,7 @@ def delete_document(
         marker = "/storage/v1/object/public/documents/"
         idx = storage_path.find(marker)
         if idx != -1:
-            storage_path = storage_path[idx + len(marker):]
+            storage_path = storage_path[idx + len(marker) :]
         try:
             supabase.storage.from_("documents").remove([storage_path])
         except Exception:
@@ -182,15 +187,21 @@ def link_to_dossier(
         .execute()
     )
     if not check.data:
-        raise HTTPException(status_code=403, detail="Dossier introuvable ou non autorisé")
+        raise HTTPException(
+            status_code=403, detail="Dossier introuvable ou non autorisé"
+        )
 
     dossiers: list = doc.get("dossiers_utilises") or []
     if dossier_id not in dossiers:
         dossiers.append(dossier_id)
-        supabase.table("documents").update({"dossiers_utilises": dossiers}).eq("id", document_id).execute()
+        supabase.table("documents").update({"dossiers_utilises": dossiers}).eq(
+            "id", document_id
+        ).execute()
 
 
-@router.delete("/{document_id}/link/{dossier_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{document_id}/link/{dossier_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 def unlink_from_dossier(
     document_id: str,
     dossier_id: str,
@@ -202,4 +213,6 @@ def unlink_from_dossier(
     dossiers: list = doc.get("dossiers_utilises") or []
     updated = [d for d in dossiers if d != dossier_id]
 
-    supabase.table("documents").update({"dossiers_utilises": updated}).eq("id", document_id).execute()
+    supabase.table("documents").update({"dossiers_utilises": updated}).eq(
+        "id", document_id
+    ).execute()

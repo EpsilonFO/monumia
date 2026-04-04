@@ -14,6 +14,7 @@ router = APIRouter(prefix="/aides", tags=["aides"])
 # Schemas
 # ---------------------------------------------------------------------------
 
+
 class DiagnosticRequest(BaseModel):
     monument_id: str
     mode_projet: bool = False
@@ -71,6 +72,7 @@ def _camelise_diagnostic(result: dict) -> dict:
 # Routes
 # ---------------------------------------------------------------------------
 
+
 @router.get("")
 def list_aides(
     categorie: Optional[str] = Query(None),
@@ -88,7 +90,8 @@ def list_aides(
     if q:
         q_lower = q.lower()
         aides = [
-            a for a in aides
+            a
+            for a in aides
             if q_lower in (a.get("nom") or "").lower()
             or q_lower in (a.get("nomCourt") or "").lower()
             or q_lower in (a.get("description") or "").lower()
@@ -103,13 +106,7 @@ def get_aide(
     aide_id: str,
     supabase: Client = Depends(get_supabase),
 ):
-    result = (
-        supabase.table("aides_v2")
-        .select("*")
-        .eq("id", aide_id)
-        .single()
-        .execute()
-    )
+    result = supabase.table("aides_v2").select("*").eq("id", aide_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Aide introuvable")
     return _to_camel(result.data)
@@ -136,11 +133,7 @@ def diagnostic(
 
     # Fetch user profile
     user_result = (
-        supabase.table("users")
-        .select("*")
-        .eq("id", user_id)
-        .single()
-        .execute()
+        supabase.table("users").select("*").eq("id", user_id).single().execute()
     )
     if not user_result.data:
         raise HTTPException(status_code=404, detail="Profil utilisateur introuvable")
@@ -162,12 +155,18 @@ def diagnostic(
         "travaux_filtres": body.travaux_filtres,
         "total_aides_analysees": result["totalAidesAnalysees"],
         "aides_eligibles_count": len(result["aidesEligibles"]),
-        "aides_potentiellement_eligibles_count": len(result["aidesPotentiellementEligibles"]),
+        "aides_potentiellement_eligibles_count": len(
+            result["aidesPotentiellementEligibles"]
+        ),
         "aides_non_eligibles_count": len(result["aidesNonEligibles"]),
         "montant_potentiel_total": result.get("montantPotentielTotal"),
         "aides_eligibles_ids": [m["aide"]["id"] for m in result["aidesEligibles"]],
-        "aides_potentiellement_eligibles_ids": [m["aide"]["id"] for m in result["aidesPotentiellementEligibles"]],
-        "aides_non_eligibles_ids": [m["aide"]["id"] for m in result["aidesNonEligibles"]],
+        "aides_potentiellement_eligibles_ids": [
+            m["aide"]["id"] for m in result["aidesPotentiellementEligibles"]
+        ],
+        "aides_non_eligibles_ids": [
+            m["aide"]["id"] for m in result["aidesNonEligibles"]
+        ],
     }
     insert_result = supabase.table("diagnostics").insert(row).execute()
     if insert_result.data:
@@ -205,13 +204,13 @@ def list_diagnostics(
         .single()
         .execute()
     )
-    monument = _enrich_monument(supabase, monument_result.data) if monument_result.data else None
+    monument = (
+        _enrich_monument(supabase, monument_result.data)
+        if monument_result.data
+        else None
+    )
     user_result = (
-        supabase.table("users")
-        .select("*")
-        .eq("id", user_id)
-        .single()
-        .execute()
+        supabase.table("users").select("*").eq("id", user_id).single().execute()
     )
     user = user_result.data
 
@@ -241,7 +240,9 @@ def list_diagnostics(
             population = commune_result.data.get("population")
 
     return [
-        _camelise_diagnostic(_hydrate_diagnostic(d, aides_by_id, monument, user, population))
+        _camelise_diagnostic(
+            _hydrate_diagnostic(d, aides_by_id, monument, user, population)
+        )
         for d in diagnostics
     ]
 
@@ -257,18 +258,23 @@ def _hydrate_diagnostic(
         aide = aides_by_id.get(aide_id)
         if not aide:
             return None
-        return _check_eligibility(aide, monument, user, mode_projet, travaux_filtres, population)
+        return _check_eligibility(
+            aide, monument, user, mode_projet, travaux_filtres, population
+        )
 
     aides_eligibles = [
-        m for aid in (row.get("aides_eligibles_ids") or [])
+        m
+        for aid in (row.get("aides_eligibles_ids") or [])
         if (m := _build_match(aid)) is not None
     ]
     aides_potentiellement_eligibles = [
-        m for aid in (row.get("aides_potentiellement_eligibles_ids") or [])
+        m
+        for aid in (row.get("aides_potentiellement_eligibles_ids") or [])
         if (m := _build_match(aid)) is not None
     ]
     aides_non_eligibles = [
-        m for aid in (row.get("aides_non_eligibles_ids") or [])
+        m
+        for aid in (row.get("aides_non_eligibles_ids") or [])
         if (m := _build_match(aid)) is not None
     ]
 

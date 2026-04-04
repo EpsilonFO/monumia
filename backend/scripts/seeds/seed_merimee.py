@@ -12,6 +12,7 @@ Requires a .env file in the backend/ directory (or env vars):
 First run: the script prints the DDL to create the table — paste it in the
 Supabase SQL editor, then re-run to insert the data.
 """
+
 import csv
 import os
 import urllib.request
@@ -27,7 +28,9 @@ SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 
 BATCH_SIZE = 500
 
-MERIMEE_CSV_URL = "https://www.data.gouv.fr/api/1/datasets/r/3a52af4a-f9da-4dcc-8110-b07774dfb3bc"
+MERIMEE_CSV_URL = (
+    "https://www.data.gouv.fr/api/1/datasets/r/3a52af4a-f9da-4dcc-8110-b07774dfb3bc"
+)
 MERIMEE_DIR = Path(__file__).parent / "merimee_csv"
 
 
@@ -48,7 +51,10 @@ def download_merimee():
 
 def print_ddl(headers: list[str]) -> None:
     """Print the SQL DDL to recreate the table with all CSV columns."""
-    lines = ["DROP TABLE IF EXISTS merimee_buildings;", "CREATE TABLE merimee_buildings ("]
+    lines = [
+        "DROP TABLE IF EXISTS merimee_buildings;",
+        "CREATE TABLE merimee_buildings (",
+    ]
     col_defs = []
     for h in headers:
         col = h.lower()
@@ -87,7 +93,9 @@ def main():
     # Supabase column names = lowercased CSV headers
     db_cols = [h.lower() for h in raw_headers]
 
-    print("\n=== DDL (run once in Supabase SQL editor if table needs to be recreated) ===")
+    print(
+        "\n=== DDL (run once in Supabase SQL editor if table needs to be recreated) ==="
+    )
     print_ddl(raw_headers)
     print("=== end DDL ===\n")
 
@@ -115,7 +123,7 @@ def main():
 
     print(f"Upserting in batches of {BATCH_SIZE}...")
     for i in range(0, len(rows), BATCH_SIZE):
-        batch = rows[i:i + BATCH_SIZE]
+        batch = rows[i : i + BATCH_SIZE]
         upsert_batch(client, batch)
         print(f"  Upserted {i + len(batch)} / {len(rows)}")
     print(f"\nDone. {len(rows)} buildings upserted.")

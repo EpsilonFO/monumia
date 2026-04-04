@@ -12,6 +12,7 @@ Requires a .env.rag file in test_rag/:
 The DB_CONNECTION is the direct Postgres URL from:
   Supabase Dashboard > Project Settings > Database > Connection string (URI mode)
 """
+
 import os
 import uuid
 from dotenv import load_dotenv
@@ -44,7 +45,7 @@ def chunk_text(text: str) -> list[str]:
     chunks = []
     start = 0
     while start < len(text):
-        chunks.append(text[start:start + CHUNK_SIZE])
+        chunks.append(text[start : start + CHUNK_SIZE])
         start += CHUNK_SIZE - OVERLAP
     return chunks
 
@@ -80,7 +81,9 @@ def index_documents(data_dir: str, collection) -> dict[str, str]:
     # Delete all records by upserting with an empty list after deleting
     # vecs doesn't have a truncate, so we recreate the collection
     vx.delete_collection(COLLECTION_NAME)
-    fresh_collection = vx.get_or_create_collection(name=COLLECTION_NAME, dimension=EMBEDDING_DIM)
+    fresh_collection = vx.get_or_create_collection(
+        name=COLLECTION_NAME, dimension=EMBEDDING_DIM
+    )
 
     documents_store = {}
     records = []
@@ -93,17 +96,19 @@ def index_documents(data_dir: str, collection) -> dict[str, str]:
 
         for chunk in chunks:
             embedding = get_embedding(chunk["text"])
-            records.append((
-                chunk["chunk_id"],   # unique id
-                embedding,           # vector
-                {                    # metadata
-                    "document_id": chunk["metadata"]["document_id"],
-                    "filename": chunk["metadata"]["filename"],
-                    "chunk_index": chunk["metadata"]["chunk_index"],
-                    "total_chunks": chunk["metadata"]["total_chunks"],
-                    "text": chunk["text"],
-                },
-            ))
+            records.append(
+                (
+                    chunk["chunk_id"],  # unique id
+                    embedding,  # vector
+                    {  # metadata
+                        "document_id": chunk["metadata"]["document_id"],
+                        "filename": chunk["metadata"]["filename"],
+                        "chunk_index": chunk["metadata"]["chunk_index"],
+                        "total_chunks": chunk["metadata"]["total_chunks"],
+                        "text": chunk["text"],
+                    },
+                )
+            )
 
         documents_store[doc["document_id"]] = doc["content"]
 
@@ -120,7 +125,9 @@ def index_documents(data_dir: str, collection) -> dict[str, str]:
     return documents_store, fresh_collection
 
 
-def search_and_get_full_document(query: str, documents_store: dict[str, str], collection) -> str:
+def search_and_get_full_document(
+    query: str, documents_store: dict[str, str], collection
+) -> str:
     query_embedding = get_embedding(query)
 
     results = collection.query(
@@ -168,7 +175,9 @@ if __name__ == "__main__":
     mistral_client = Mistral(api_key=MISTRAL_API_KEY)
 
     with vecs.create_client(DB_CONNECTION) as vx:
-        collection = vx.get_or_create_collection(name=COLLECTION_NAME, dimension=EMBEDDING_DIM)
+        collection = vx.get_or_create_collection(
+            name=COLLECTION_NAME, dimension=EMBEDDING_DIM
+        )
 
         data_dir = "data/aides_notion/"
         documents_store, collection = index_documents(data_dir, collection)

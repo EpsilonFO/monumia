@@ -8,7 +8,6 @@ router = APIRouter(prefix="/merimee", tags=["merimee"])
 COLUMNS = "reference,region,commune_forme_index,departement_en_lettres,typologie_de_la_protection,titre_editorial_de_la_notice,siecle_de_la_campagne_principale_de_construction,format_abrege_du_siecle_de_construction,type_de_couverture,materiaux_de_la_couverture,materiaux_du_gros_oeuvre,date_et_typologie_de_la_protection,precision_de_la_protection"
 
 
-
 @router.get("/search")
 def search(
     q: str = Query(..., min_length=2),

@@ -14,7 +14,7 @@ COLUMNS = "*"
 
 def _to_snake(name: str) -> str:
     """Convert camelCase to snake_case."""
-    return re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
 def _snake_row(data: dict) -> dict:
@@ -50,6 +50,7 @@ def _resolve_code_insee(supabase: Client, commune_name: str) -> str:
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
+
 
 class MonumentPhoto(BaseModel):
     id: str
@@ -130,6 +131,7 @@ class AddPhotoRequest(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _enrich_monument(supabase: Client, monument: dict) -> dict:
     """Join commune data (commune, departement, region) via code_insee."""
     code_insee = monument.get("code_insee")
@@ -170,13 +172,23 @@ def _compute_completion(monument: dict) -> int:
     """Recompute completionPercentage based on filled fields."""
     steps = [
         # Step 1 — Identification
-        all([monument.get("nom"), monument.get("denomination"),
-             monument.get("code_insee")]),
+        all(
+            [
+                monument.get("nom"),
+                monument.get("denomination"),
+                monument.get("code_insee"),
+            ]
+        ),
         # Step 2 — Legal
         all([monument.get("protection"), monument.get("proprietaire")]),
         # Step 3 — Physical
-        any([monument.get("siecle_construction"), monument.get("superficie"),
-             monument.get("description_generale")]),
+        any(
+            [
+                monument.get("siecle_construction"),
+                monument.get("superficie"),
+                monument.get("description_generale"),
+            ]
+        ),
         # Step 4 — State
         bool(monument.get("etat_conservation")),
         # Step 5 — Photos
@@ -188,6 +200,7 @@ def _compute_completion(monument: dict) -> int:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @router.get("")
 def list_monuments(
@@ -251,7 +264,9 @@ def create_monument(
 
     # Compute and persist completion
     pct = _compute_completion(monument)
-    supabase.table("monuments").update({"completion_percentage": pct}).eq("id", monument["id"]).execute()
+    supabase.table("monuments").update({"completion_percentage": pct}).eq(
+        "id", monument["id"]
+    ).execute()
     monument["completion_percentage"] = pct
 
     return _enrich_monument(supabase, monument)
@@ -293,7 +308,9 @@ def update_monument(
 
     # Recompute completion
     pct = _compute_completion(monument)
-    supabase.table("monuments").update({"completion_percentage": pct}).eq("id", monument_id).execute()
+    supabase.table("monuments").update({"completion_percentage": pct}).eq(
+        "id", monument_id
+    ).execute()
     monument["completion_percentage"] = pct
 
     return _enrich_monument(supabase, monument)
@@ -319,6 +336,7 @@ def add_photo(
     monument = _get_monument_or_404(supabase, monument_id, user_id)
 
     import uuid
+
     new_photo = {
         "id": str(uuid.uuid4()),
         "url": body.url,
@@ -330,11 +348,15 @@ def add_photo(
     photos: list = monument.get("photos") or []
     photos.append(new_photo)
 
-    supabase.table("monuments").update({"photos": photos}).eq("id", monument_id).execute()
+    supabase.table("monuments").update({"photos": photos}).eq(
+        "id", monument_id
+    ).execute()
     return new_photo
 
 
-@router.delete("/{monument_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{monument_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 def remove_photo(
     monument_id: str,
     photo_id: str,
@@ -349,4 +371,6 @@ def remove_photo(
     if len(updated) == len(photos):
         raise HTTPException(status_code=404, detail="Photo introuvable")
 
-    supabase.table("monuments").update({"photos": updated}).eq("id", monument_id).execute()
+    supabase.table("monuments").update({"photos": updated}).eq(
+        "id", monument_id
+    ).execute()

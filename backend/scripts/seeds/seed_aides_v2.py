@@ -7,7 +7,8 @@ Run:
 Requires SUPABASE_URL and SUPABASE_SECRET_KEY in backend/.env
 """
 
-import os, sys
+import os
+import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -120,11 +121,7 @@ def main():
 
         # Insert aide and get back the generated UUID
         # Use nom_court as dedup key (unique per aide in our dataset)
-        result = (
-            supabase.table("aides_v2")
-            .insert(row)
-            .execute()
-        )
+        result = supabase.table("aides_v2").insert(row).execute()
         uuid = result.data[0]["id"]
         print(f"  ✓ {old_id} → {uuid} — {aide['nom_court']}")
 

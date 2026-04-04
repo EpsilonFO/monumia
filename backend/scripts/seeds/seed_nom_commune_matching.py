@@ -9,6 +9,7 @@ Requires a .env file in the backend/ directory (or env vars):
     SUPABASE_URL=https://xxx.supabase.co
     SUPABASE_SERVICE_KEY=eyJ...   (service_role key, not anon)
 """
+
 import os
 import unicodedata
 from pathlib import Path
@@ -63,9 +64,7 @@ def main():
             {**row, "nom_commune_matching": normalize(row["nom_commune"])}
             for row in batch
         ]
-        client.table("communes").upsert(
-            updates, on_conflict="code_insee"
-        ).execute()
+        client.table("communes").upsert(updates, on_conflict="code_insee").execute()
         done = min(i + BATCH_SIZE, total)
         print(f"  {done}/{total}", end="\r")
 
