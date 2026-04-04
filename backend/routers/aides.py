@@ -120,21 +120,14 @@ def diagnostic(
 ):
     # Fetch monument (must belong to user)
     monument_result = (
-        supabase.table("monuments")
-        .select("*")
-        .eq("id", body.monument_id)
-        .eq("user_id", user_id)
-        .single()
-        .execute()
+        supabase.table("monuments").select("*").eq("id", body.monument_id).eq("user_id", user_id).single().execute()
     )
     if not monument_result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
     monument = _enrich_monument(supabase, monument_result.data)
 
     # Fetch user profile
-    user_result = (
-        supabase.table("users").select("*").eq("id", user_id).single().execute()
-    )
+    user_result = supabase.table("users").select("*").eq("id", user_id).single().execute()
     if not user_result.data:
         raise HTTPException(status_code=404, detail="Profil utilisateur introuvable")
     user = user_result.data
@@ -155,18 +148,12 @@ def diagnostic(
         "travaux_filtres": body.travaux_filtres,
         "total_aides_analysees": result["totalAidesAnalysees"],
         "aides_eligibles_count": len(result["aidesEligibles"]),
-        "aides_potentiellement_eligibles_count": len(
-            result["aidesPotentiellementEligibles"]
-        ),
+        "aides_potentiellement_eligibles_count": len(result["aidesPotentiellementEligibles"]),
         "aides_non_eligibles_count": len(result["aidesNonEligibles"]),
         "montant_potentiel_total": result.get("montantPotentielTotal"),
         "aides_eligibles_ids": [m["aide"]["id"] for m in result["aidesEligibles"]],
-        "aides_potentiellement_eligibles_ids": [
-            m["aide"]["id"] for m in result["aidesPotentiellementEligibles"]
-        ],
-        "aides_non_eligibles_ids": [
-            m["aide"]["id"] for m in result["aidesNonEligibles"]
-        ],
+        "aides_potentiellement_eligibles_ids": [m["aide"]["id"] for m in result["aidesPotentiellementEligibles"]],
+        "aides_non_eligibles_ids": [m["aide"]["id"] for m in result["aidesNonEligibles"]],
     }
     insert_result = supabase.table("diagnostics").insert(row).execute()
     if insert_result.data:
@@ -197,21 +184,10 @@ def list_diagnostics(
 
     # Fetch monument & user for re-running eligibility checks
     monument_result = (
-        supabase.table("monuments")
-        .select("*")
-        .eq("id", monument_id)
-        .eq("user_id", user_id)
-        .single()
-        .execute()
+        supabase.table("monuments").select("*").eq("id", monument_id).eq("user_id", user_id).single().execute()
     )
-    monument = (
-        _enrich_monument(supabase, monument_result.data)
-        if monument_result.data
-        else None
-    )
-    user_result = (
-        supabase.table("users").select("*").eq("id", user_id).single().execute()
-    )
+    monument = _enrich_monument(supabase, monument_result.data) if monument_result.data else None
+    user_result = supabase.table("users").select("*").eq("id", user_id).single().execute()
     user = user_result.data
 
     # Collect all aide UUIDs referenced across diagnostics
@@ -229,27 +205,14 @@ def list_diagnostics(
     population = None
     code_insee = monument.get("code_insee") if monument else None
     if code_insee and user and user.get("segment") == "commune":
-        commune_result = (
-            supabase.table("communes")
-            .select("population")
-            .eq("code_insee", code_insee)
-            .single()
-            .execute()
-        )
+        commune_result = supabase.table("communes").select("population").eq("code_insee", code_insee).single().execute()
         if commune_result.data:
             population = commune_result.data.get("population")
 
-    return [
-        _camelise_diagnostic(
-            _hydrate_diagnostic(d, aides_by_id, monument, user, population)
-        )
-        for d in diagnostics
-    ]
+    return [_camelise_diagnostic(_hydrate_diagnostic(d, aides_by_id, monument, user, population)) for d in diagnostics]
 
 
-def _hydrate_diagnostic(
-    row: dict, aides_by_id: dict, monument: dict, user: dict, population: Optional[int]
-) -> dict:
+def _hydrate_diagnostic(row: dict, aides_by_id: dict, monument: dict, user: dict, population: Optional[int]) -> dict:
     """Reconstruct full diagnostic by joining aide IDs and recomputing criteria."""
     mode_projet = row.get("mode_projet", False)
     travaux_filtres = row.get("travaux_filtres") or []
@@ -258,24 +221,14 @@ def _hydrate_diagnostic(
         aide = aides_by_id.get(aide_id)
         if not aide:
             return None
-        return _check_eligibility(
-            aide, monument, user, mode_projet, travaux_filtres, population
-        )
+        return _check_eligibility(aide, monument, user, mode_projet, travaux_filtres, population)
 
-    aides_eligibles = [
-        m
-        for aid in (row.get("aides_eligibles_ids") or [])
-        if (m := _build_match(aid)) is not None
-    ]
+    aides_eligibles = [m for aid in (row.get("aides_eligibles_ids") or []) if (m := _build_match(aid)) is not None]
     aides_potentiellement_eligibles = [
-        m
-        for aid in (row.get("aides_potentiellement_eligibles_ids") or [])
-        if (m := _build_match(aid)) is not None
+        m for aid in (row.get("aides_potentiellement_eligibles_ids") or []) if (m := _build_match(aid)) is not None
     ]
     aides_non_eligibles = [
-        m
-        for aid in (row.get("aides_non_eligibles_ids") or [])
-        if (m := _build_match(aid)) is not None
+        m for aid in (row.get("aides_non_eligibles_ids") or []) if (m := _build_match(aid)) is not None
     ]
 
     return {
@@ -289,8 +242,6 @@ def _hydrate_diagnostic(
         "aidesPotentiellementEligibles": aides_potentiellement_eligibles,
         "aidesNonEligibles": aides_non_eligibles,
         "montantPotentielTotal": (
-            float(row["montant_potentiel_total"])
-            if row.get("montant_potentiel_total") is not None
-            else None
+            float(row["montant_potentiel_total"]) if row.get("montant_potentiel_total") is not None else None
         ),
     }

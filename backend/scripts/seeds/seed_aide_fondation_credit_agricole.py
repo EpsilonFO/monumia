@@ -148,6 +148,4 @@ supabase.table("aides_segments").insert(
 
 # État de conservation : pas de contrainte
 
-print(
-    f"\n✅ Fondation Crédit Agricole — Pays de France inséré avec succès (id: {aide_id})"
-)
+print(f"\n✅ Fondation Crédit Agricole — Pays de France inséré avec succès (id: {aide_id})")

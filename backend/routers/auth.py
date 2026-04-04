@@ -210,13 +210,9 @@ def refresh(
         raise HTTPException(status_code=401, detail="Refresh token invalide ou expiré")
 
     if not auth_response.session:
-        raise HTTPException(
-            status_code=401, detail="Impossible de rafraîchir la session"
-        )
+        raise HTTPException(status_code=401, detail="Impossible de rafraîchir la session")
 
-    user_id = (
-        auth_response.user.id if auth_response.user else auth_response.session.user.id
-    )
+    user_id = auth_response.user.id if auth_response.user else auth_response.session.user.id
 
     return {
         "access_token": auth_response.session.access_token,
@@ -251,9 +247,7 @@ def update_me(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    updates: dict[str, Any] = {
-        k: v for k, v in body.model_dump().items() if v is not None
-    }
+    updates: dict[str, Any] = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         return _get_profile(supabase, user_id)
 
@@ -268,14 +262,10 @@ def update_notifications(
     supabase: Client = Depends(get_supabase),
 ):
     current = _get_profile(supabase, user_id)
-    current_prefs: dict = (
-        current.get("notificationPreferences") or _default_notification_preferences()
-    )
+    current_prefs: dict = current.get("notificationPreferences") or _default_notification_preferences()
 
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
     merged = {**current_prefs, **patch}
 
-    supabase.table("users").update({"notification_preferences": merged}).eq(
-        "id", user_id
-    ).execute()
+    supabase.table("users").update({"notification_preferences": merged}).eq("id", user_id).execute()
     return _get_profile(supabase, user_id)

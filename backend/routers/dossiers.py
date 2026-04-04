@@ -61,14 +61,7 @@ class AddEcheanceRequest(BaseModel):
 
 
 def _get_dossier_or_404(supabase: Client, dossier_id: str, user_id: str) -> dict:
-    result = (
-        supabase.table("dossiers")
-        .select(COLUMNS)
-        .eq("id", dossier_id)
-        .eq("user_id", user_id)
-        .single()
-        .execute()
-    )
+    result = supabase.table("dossiers").select(COLUMNS).eq("id", dossier_id).eq("user_id", user_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
     return result.data
@@ -120,27 +113,18 @@ def create_dossier(
 ):
     # Validate monument ownership
     monument_result = (
-        supabase.table("monuments")
-        .select("*")
-        .eq("id", body.monument_id)
-        .eq("user_id", user_id)
-        .single()
-        .execute()
+        supabase.table("monuments").select("*").eq("id", body.monument_id).eq("user_id", user_id).single().execute()
     )
     if not monument_result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
 
     # Fetch aide
-    aide_result = (
-        supabase.table("aides_v2").select("*").eq("id", body.aide_id).single().execute()
-    )
+    aide_result = supabase.table("aides_v2").select("*").eq("id", body.aide_id).single().execute()
     if not aide_result.data:
         raise HTTPException(status_code=404, detail="Aide introuvable")
 
     # Fetch user profile
-    user_result = (
-        supabase.table("users").select("*").eq("id", user_id).single().execute()
-    )
+    user_result = supabase.table("users").select("*").eq("id", user_id).single().execute()
     if not user_result.data:
         raise HTTPException(status_code=404, detail="Profil introuvable")
 
@@ -249,9 +233,7 @@ def update_section(
     if not updated:
         raise HTTPException(status_code=404, detail="Section introuvable")
 
-    supabase.table("dossiers").update({"sections": sections}).eq(
-        "id", dossier_id
-    ).execute()
+    supabase.table("dossiers").update({"sections": sections}).eq("id", dossier_id).execute()
     return _get_dossier_or_404(supabase, dossier_id, user_id)
 
 
@@ -277,15 +259,11 @@ def add_collaborateur(
     }
     collaborateurs.append(new_collab)
 
-    supabase.table("dossiers").update({"collaborateurs": collaborateurs}).eq(
-        "id", dossier_id
-    ).execute()
+    supabase.table("dossiers").update({"collaborateurs": collaborateurs}).eq("id", dossier_id).execute()
     return new_collab
 
 
-@router.delete(
-    "/{dossier_id}/collaborateurs/{collab_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/{dossier_id}/collaborateurs/{collab_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_collaborateur(
     dossier_id: str,
     collab_id: str,
@@ -300,9 +278,7 @@ def remove_collaborateur(
     if len(updated) == len(collaborateurs):
         raise HTTPException(status_code=404, detail="Collaborateur introuvable")
 
-    supabase.table("dossiers").update({"collaborateurs": updated}).eq(
-        "id", dossier_id
-    ).execute()
+    supabase.table("dossiers").update({"collaborateurs": updated}).eq("id", dossier_id).execute()
 
 
 @router.post("/{dossier_id}/echeances", status_code=status.HTTP_201_CREATED)
@@ -326,9 +302,7 @@ def add_echeance(
     }
     echeances.append(new_echeance)
 
-    supabase.table("dossiers").update({"echeances": echeances}).eq(
-        "id", dossier_id
-    ).execute()
+    supabase.table("dossiers").update({"echeances": echeances}).eq("id", dossier_id).execute()
     return new_echeance
 
 
@@ -355,9 +329,7 @@ def toggle_echeance(
     if not updated:
         raise HTTPException(status_code=404, detail="Échéance introuvable")
 
-    supabase.table("dossiers").update({"echeances": echeances}).eq(
-        "id", dossier_id
-    ).execute()
+    supabase.table("dossiers").update({"echeances": echeances}).eq("id", dossier_id).execute()
 
 
 @router.post("/{dossier_id}/submit", status_code=status.HTTP_204_NO_CONTENT)

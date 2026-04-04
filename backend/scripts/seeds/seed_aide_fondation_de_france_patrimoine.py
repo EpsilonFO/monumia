@@ -144,6 +144,4 @@ supabase.table("aides_segments").insert(
 
 # État de conservation : pas de contrainte
 
-print(
-    f"\n✅ Fondation de France — Programme Patrimoine inséré avec succès (id: {aide_id})"
-)
+print(f"\n✅ Fondation de France — Programme Patrimoine inséré avec succès (id: {aide_id})")

@@ -339,9 +339,7 @@ def create_dossier_from_aide(
             "id": str(uuid.uuid4()),
             "titre": "Description du monument",
             "type": "texte_libre",
-            "contenu": monument.get("description_generale")
-            or monument.get("descriptionGenerale")
-            or "",
+            "contenu": monument.get("description_generale") or monument.get("descriptionGenerale") or "",
             "champsAutoremplis": [
                 {
                     "champ": "Dénomination",
@@ -361,9 +359,7 @@ def create_dossier_from_aide(
             "id": str(uuid.uuid4()),
             "titre": "Description des travaux envisagés",
             "type": "texte_libre",
-            "contenu": monument.get("description_etat")
-            or monument.get("descriptionEtat")
-            or "",
+            "contenu": monument.get("description_etat") or monument.get("descriptionEtat") or "",
             "ordre": 2,
         },
         {

@@ -44,14 +44,7 @@ class UpdateDocumentRequest(BaseModel):
 
 
 def _get_document_or_404(supabase: Client, document_id: str, user_id: str) -> dict:
-    result = (
-        supabase.table("documents")
-        .select(COLUMNS)
-        .eq("id", document_id)
-        .eq("user_id", user_id)
-        .single()
-        .execute()
-    )
+    result = supabase.table("documents").select(COLUMNS).eq("id", document_id).eq("user_id", user_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Document introuvable")
     return result.data
@@ -69,12 +62,7 @@ def list_documents(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    query = (
-        supabase.table("documents")
-        .select(COLUMNS)
-        .eq("user_id", user_id)
-        .order("date_upload", desc=True)
-    )
+    query = supabase.table("documents").select(COLUMNS).eq("user_id", user_id).order("date_upload", desc=True)
     if monument_id:
         query = query.contains("monument_ids", [monument_id])
     if type:
@@ -96,17 +84,9 @@ def create_document(
 
     # Validate monument ownership for all referenced monuments
     for mid in monument_ids:
-        check = (
-            supabase.table("monuments")
-            .select("id")
-            .eq("id", mid)
-            .eq("user_id", user_id)
-            .execute()
-        )
+        check = supabase.table("monuments").select("id").eq("id", mid).eq("user_id", user_id).execute()
         if not check.data:
-            raise HTTPException(
-                status_code=403, detail=f"Monument {mid} introuvable ou non autorisé"
-            )
+            raise HTTPException(status_code=403, detail=f"Monument {mid} introuvable ou non autorisé")
 
     row = {
         **body.model_dump(exclude_none=True, exclude={"monument_id"}),
@@ -179,29 +159,17 @@ def link_to_dossier(
     doc = _get_document_or_404(supabase, document_id, user_id)
 
     # Validate dossier ownership
-    check = (
-        supabase.table("dossiers")
-        .select("id")
-        .eq("id", dossier_id)
-        .eq("user_id", user_id)
-        .execute()
-    )
+    check = supabase.table("dossiers").select("id").eq("id", dossier_id).eq("user_id", user_id).execute()
     if not check.data:
-        raise HTTPException(
-            status_code=403, detail="Dossier introuvable ou non autorisé"
-        )
+        raise HTTPException(status_code=403, detail="Dossier introuvable ou non autorisé")
 
     dossiers: list = doc.get("dossiers_utilises") or []
     if dossier_id not in dossiers:
         dossiers.append(dossier_id)
-        supabase.table("documents").update({"dossiers_utilises": dossiers}).eq(
-            "id", document_id
-        ).execute()
+        supabase.table("documents").update({"dossiers_utilises": dossiers}).eq("id", document_id).execute()
 
 
-@router.delete(
-    "/{document_id}/link/{dossier_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/{document_id}/link/{dossier_id}", status_code=status.HTTP_204_NO_CONTENT)
 def unlink_from_dossier(
     document_id: str,
     dossier_id: str,
@@ -213,6 +181,4 @@ def unlink_from_dossier(
     dossiers: list = doc.get("dossiers_utilises") or []
     updated = [d for d in dossiers if d != dossier_id]
 
-    supabase.table("documents").update({"dossiers_utilises": updated}).eq(
-        "id", document_id
-    ).execute()
+    supabase.table("documents").update({"dossiers_utilises": updated}).eq("id", document_id).execute()

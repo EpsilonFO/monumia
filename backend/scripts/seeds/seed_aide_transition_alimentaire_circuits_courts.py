@@ -172,6 +172,4 @@ print("  ✓ Segments insérés")
 
 # État de conservation : pas de contrainte
 
-print(
-    f"\n✅ Transition alimentaire et circuits courts inséré avec succès (id: {aide_id})"
-)
+print(f"\n✅ Transition alimentaire et circuits courts inséré avec succès (id: {aide_id})")

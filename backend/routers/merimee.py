@@ -28,11 +28,5 @@ def get_by_reference(
     reference: str,
     supabase: Client = Depends(get_supabase),
 ):
-    response = (
-        supabase.table("merimee_buildings")
-        .select(COLUMNS)
-        .eq("reference", reference)
-        .single()
-        .execute()
-    )
+    response = supabase.table("merimee_buildings").select(COLUMNS).eq("reference", reference).single().execute()
     return response.data

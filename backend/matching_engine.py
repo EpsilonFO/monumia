@@ -124,13 +124,7 @@ def prefiltrer_aides(
     # Fetch commune population
     population = None
     if code_insee and user.get("segment") == "commune":
-        commune_result = (
-            supabase.table("communes")
-            .select("population")
-            .eq("code_insee", code_insee)
-            .single()
-            .execute()
-        )
+        commune_result = supabase.table("communes").select("population").eq("code_insee", code_insee).single().execute()
         if commune_result.data:
             population = commune_result.data.get("population")
 
@@ -144,9 +138,7 @@ def prefiltrer_aides(
         "p_population": population,
         "p_etat_conservation": monument.get("etat_conservation"),
     }
-    print(
-        f"\n[RPC prefiltrer_aides] params: {json.dumps(params, ensure_ascii=False, default=str)}"
-    )
+    print(f"\n[RPC prefiltrer_aides] params: {json.dumps(params, ensure_ascii=False, default=str)}")
 
     result = supabase.rpc("prefiltrer_aides", params).execute()
 
@@ -160,9 +152,7 @@ def prefiltrer_aides(
 
 def _fetch_aide_with_joins(supabase: Client, aide_id: str) -> dict:
     """Fetch an aide_v2 row with its join table data."""
-    aide = (
-        supabase.table("aides_v2").select("*").eq("id", aide_id).single().execute()
-    ).data
+    aide = (supabase.table("aides_v2").select("*").eq("id", aide_id).single().execute()).data
 
     if not aide:
         return {}
@@ -170,71 +160,37 @@ def _fetch_aide_with_joins(supabase: Client, aide_id: str) -> dict:
     # Fetch join tables
     aide["protections"] = [
         r["protection_code"]
-        for r in (
-            supabase.table("aides_protections")
-            .select("protection_code")
-            .eq("aide_id", aide_id)
-            .execute()
-        ).data
+        for r in (supabase.table("aides_protections").select("protection_code").eq("aide_id", aide_id).execute()).data
         or []
     ]
     aide["proprietaires"] = [
         r["proprietaire_code"]
         for r in (
-            supabase.table("aides_proprietaires")
-            .select("proprietaire_code")
-            .eq("aide_id", aide_id)
-            .execute()
+            supabase.table("aides_proprietaires").select("proprietaire_code").eq("aide_id", aide_id).execute()
         ).data
         or []
     ]
     aide["travaux"] = [
         r["travaux_code"]
-        for r in (
-            supabase.table("aides_travaux")
-            .select("travaux_code")
-            .eq("aide_id", aide_id)
-            .execute()
-        ).data
-        or []
+        for r in (supabase.table("aides_travaux").select("travaux_code").eq("aide_id", aide_id).execute()).data or []
     ]
     aide["regions"] = [
         r["region_code"]
-        for r in (
-            supabase.table("aides_regions")
-            .select("region_code")
-            .eq("aide_id", aide_id)
-            .execute()
-        ).data
-        or []
+        for r in (supabase.table("aides_regions").select("region_code").eq("aide_id", aide_id).execute()).data or []
     ]
     aide["departements"] = [
         r["departement_code"]
-        for r in (
-            supabase.table("aides_departements")
-            .select("departement_code")
-            .eq("aide_id", aide_id)
-            .execute()
-        ).data
+        for r in (supabase.table("aides_departements").select("departement_code").eq("aide_id", aide_id).execute()).data
         or []
     ]
     aide["segments"] = [
         r["segment_code"]
-        for r in (
-            supabase.table("aides_segments")
-            .select("segment_code")
-            .eq("aide_id", aide_id)
-            .execute()
-        ).data
-        or []
+        for r in (supabase.table("aides_segments").select("segment_code").eq("aide_id", aide_id).execute()).data or []
     ]
     aide["etats_conservation"] = [
         r["etat_conservation_code"]
         for r in (
-            supabase.table("aides_etats_conservation")
-            .select("etat_conservation_code")
-            .eq("aide_id", aide_id)
-            .execute()
+            supabase.table("aides_etats_conservation").select("etat_conservation_code").eq("aide_id", aide_id).execute()
         ).data
         or []
     ]
@@ -273,12 +229,7 @@ def fetch_aides_with_joins(supabase: Client, aide_ids: list[str]) -> list[dict]:
     }
 
     for table_name, (code_col, aide_key) in join_queries.items():
-        rows = (
-            supabase.table(table_name)
-            .select(f"aide_id, {code_col}")
-            .in_("aide_id", aide_ids)
-            .execute()
-        ).data or []
+        rows = (supabase.table(table_name).select(f"aide_id, {code_col}").in_("aide_id", aide_ids).execute()).data or []
         for row in rows:
             aid = aides_by_id.get(row["aide_id"])
             if aid:
@@ -307,13 +258,9 @@ def _check_eligibility(
     protections = aide.get("protections") or []
     if protections:
         if monument.get("protection") in protections:
-            criteres_remplis.append(
-                f"Protection : {_label(PROTECTION_LABELS, monument.get('protection'))}"
-            )
+            criteres_remplis.append(f"Protection : {_label(PROTECTION_LABELS, monument.get('protection'))}")
         else:
-            criteres_non_remplis.append(
-                f"Protection requise : {_labels(PROTECTION_LABELS, protections)}"
-            )
+            criteres_non_remplis.append(f"Protection requise : {_labels(PROTECTION_LABELS, protections)}")
     else:
         criteres_remplis.append("Tous niveaux de protection")
 
@@ -321,13 +268,9 @@ def _check_eligibility(
     proprietaires = aide.get("proprietaires") or []
     if proprietaires:
         if monument.get("proprietaire") in proprietaires:
-            criteres_remplis.append(
-                f"Type de propriétaire : {_label(OWNERSHIP_LABELS, monument.get('proprietaire'))}"
-            )
+            criteres_remplis.append(f"Type de propriétaire : {_label(OWNERSHIP_LABELS, monument.get('proprietaire'))}")
         else:
-            criteres_non_remplis.append(
-                f"Propriétaire éligible : {_labels(OWNERSHIP_LABELS, proprietaires)}"
-            )
+            criteres_non_remplis.append(f"Propriétaire éligible : {_labels(OWNERSHIP_LABELS, proprietaires)}")
     else:
         criteres_remplis.append("Tous types de propriétaires")
 
@@ -335,18 +278,14 @@ def _check_eligibility(
     travaux_eligibles = aide.get("travaux") or []
     if travaux_eligibles:
         travaux_to_check = (
-            travaux_filtres
-            if (mode_projet and travaux_filtres)
-            else (monument.get("travaux_envisages") or [])
+            travaux_filtres if (mode_projet and travaux_filtres) else (monument.get("travaux_envisages") or [])
         )
         if not travaux_to_check:
             criteres_remplis.append("Types de travaux : non spécifiés (compatible)")
         elif any(t in travaux_eligibles for t in travaux_to_check):
             criteres_remplis.append("Types de travaux compatibles")
         else:
-            criteres_non_remplis.append(
-                f"Travaux éligibles : {_labels(TRAVAUX_LABELS, travaux_eligibles)}"
-            )
+            criteres_non_remplis.append(f"Travaux éligibles : {_labels(TRAVAUX_LABELS, travaux_eligibles)}")
     else:
         criteres_remplis.append("Tous types de travaux")
 
@@ -366,21 +305,15 @@ def _check_eligibility(
         if monument.get("departement") in departements:
             criteres_remplis.append(f"Département : {monument.get('departement')}")
         else:
-            criteres_non_remplis.append(
-                f"Département requis : {', '.join(departements)}"
-            )
+            criteres_non_remplis.append(f"Département requis : {', '.join(departements)}")
 
     # Segment
     segments = aide.get("segments") or []
     if segments:
         if user.get("segment") in segments:
-            criteres_remplis.append(
-                f"Segment : {_label(SEGMENT_LABELS, user.get('segment'))}"
-            )
+            criteres_remplis.append(f"Segment : {_label(SEGMENT_LABELS, user.get('segment'))}")
         else:
-            criteres_non_remplis.append(
-                f"Réservé aux : {_labels(SEGMENT_LABELS, segments)}"
-            )
+            criteres_non_remplis.append(f"Réservé aux : {_labels(SEGMENT_LABELS, segments)}")
     else:
         criteres_remplis.append("Communes et privés")
 
@@ -397,9 +330,7 @@ def _check_eligibility(
     if etats:
         etat = monument.get("etat_conservation")
         if etat in etats:
-            criteres_remplis.append(
-                f"État de conservation : {_label(ETAT_LABELS, etat)}"
-            )
+            criteres_remplis.append(f"État de conservation : {_label(ETAT_LABELS, etat)}")
         else:
             criteres_non_remplis.append(f"État requis : {_labels(ETAT_LABELS, etats)}")
 
@@ -419,33 +350,23 @@ def _check_eligibility(
 # ---------------------------------------------------------------------------
 
 
-def _build_monument_profile(
-    monument: dict, user: dict, population: Optional[int]
-) -> str:
+def _build_monument_profile(monument: dict, user: dict, population: Optional[int]) -> str:
     """Build a human-readable text description of the monument for the LLM."""
     lines = []
     lines.append(f"Nom : {monument.get('nom', 'Non renseigné')}")
-    lines.append(
-        f"Protection : {_label(PROTECTION_LABELS, monument.get('protection', ''))}"
-    )
-    lines.append(
-        f"Propriétaire : {_label(OWNERSHIP_LABELS, monument.get('proprietaire', ''))}"
-    )
+    lines.append(f"Protection : {_label(PROTECTION_LABELS, monument.get('protection', ''))}")
+    lines.append(f"Propriétaire : {_label(OWNERSHIP_LABELS, monument.get('proprietaire', ''))}")
     lines.append(f"Commune : {monument.get('commune', 'Non renseigné')}")
     lines.append(f"Code INSEE : {monument.get('code_insee', 'Non renseigné')}")
     lines.append(f"Département : {monument.get('departement', 'Non renseigné')}")
     lines.append(f"Région : {monument.get('region', 'Non renseigné')}")
     if population is not None:
         lines.append(f"Population commune : {population} habitants")
-    lines.append(
-        f"État de conservation : {_label(ETAT_LABELS, monument.get('etat_conservation', ''))}"
-    )
+    lines.append(f"État de conservation : {_label(ETAT_LABELS, monument.get('etat_conservation', ''))}")
     travaux = monument.get("travaux_envisages") or []
     if travaux:
         lines.append(f"Travaux envisagés : {_labels(TRAVAUX_LABELS, travaux)}")
-    lines.append(
-        f"Segment utilisateur : {_label(SEGMENT_LABELS, user.get('segment', ''))}"
-    )
+    lines.append(f"Segment utilisateur : {_label(SEGMENT_LABELS, user.get('segment', ''))}")
     if monument.get("siecle_construction"):
         lines.append(f"Siècle de construction : {monument['siecle_construction']}")
     if monument.get("reference_merimee"):
@@ -604,12 +525,8 @@ def _run_llm_phase(
                 still_eligible.append(result)
         else:
             result["eligible"] = False
-            result["criteresNonRemplis"].append(
-                f"Condition détaillée : {aggregated.get('explication', '')}"
-            )
-            result["raisonIneligibilite"] = result[
-                "raisonIneligibilite"
-            ] or aggregated.get("explication", "")
+            result["criteresNonRemplis"].append(f"Condition détaillée : {aggregated.get('explication', '')}")
+            result["raisonIneligibilite"] = result["raisonIneligibilite"] or aggregated.get("explication", "")
             downgraded.append(result)
 
     return still_eligible, potentially_eligible, downgraded
@@ -635,22 +552,14 @@ def run_diagnostic(
 
     print(f"\n{'=' * 60}")
     print(f"[PRE-FILTER] Monument: {monument.get('nom')}")
-    print(
-        f"  protection={monument.get('protection')}, proprietaire={monument.get('proprietaire')}"
-    )
-    print(
-        f"  region={monument.get('region')}, departement={monument.get('departement')}"
-    )
-    print(
-        f"  segment={user.get('segment')}, travaux={ctx_travaux or monument.get('travaux_envisages')}"
-    )
+    print(f"  protection={monument.get('protection')}, proprietaire={monument.get('proprietaire')}")
+    print(f"  region={monument.get('region')}, departement={monument.get('departement')}")
+    print(f"  segment={user.get('segment')}, travaux={ctx_travaux or monument.get('travaux_envisages')}")
     print(f"  → {len(candidate_ids)} aides candidates")
     print(f"{'=' * 60}")
 
     # Fetch all aides (candidates + non-candidates) for the full report
-    all_aide_ids = [
-        a["id"] for a in (supabase.table("aides_v2").select("id").execute()).data or []
-    ]
+    all_aide_ids = [a["id"] for a in (supabase.table("aides_v2").select("id").execute()).data or []]
     non_candidate_ids = [aid for aid in all_aide_ids if aid not in candidate_ids]
 
     # Phase 2: Fetch aides with join data + build criteria
@@ -668,37 +577,23 @@ def run_diagnostic(
     population = None
     code_insee = monument.get("code_insee")
     if code_insee and user.get("segment") == "commune":
-        commune_result = (
-            supabase.table("communes")
-            .select("population")
-            .eq("code_insee", code_insee)
-            .single()
-            .execute()
-        )
+        commune_result = supabase.table("communes").select("population").eq("code_insee", code_insee).single().execute()
         if commune_result.data:
             population = commune_result.data.get("population")
 
     eligible_results = [
-        _check_eligibility(a, monument, user, mode_projet, ctx_travaux, population)
-        for a in candidate_aides
+        _check_eligibility(a, monument, user, mode_projet, ctx_travaux, population) for a in candidate_aides
     ]
     non_eligible_results = [
-        _check_eligibility(a, monument, user, mode_projet, ctx_travaux, population)
-        for a in non_candidate_aides
+        _check_eligibility(a, monument, user, mode_projet, ctx_travaux, population) for a in non_candidate_aides
     ]
 
     # Phase 3: LLM fine-matching on eligible candidates
     monument_profile = _build_monument_profile(monument, user, population)
-    still_eligible, potentially_eligible, downgraded = _run_llm_phase(
-        eligible_results, monument_profile
-    )
+    still_eligible, potentially_eligible, downgraded = _run_llm_phase(eligible_results, monument_profile)
     non_eligible_results.extend(downgraded)
 
-    montant_total = sum(
-        r["aide"].get("montant_max") or 0
-        for r in still_eligible
-        if r["aide"].get("montant_max")
-    )
+    montant_total = sum(r["aide"].get("montant_max") or 0 for r in still_eligible if r["aide"].get("montant_max"))
 
     return {
         "monumentId": monument["id"],

@@ -170,6 +170,4 @@ print("  ✓ Segments insérés")
 
 # État de conservation : pas de contrainte
 
-print(
-    f"\n✅ Souscription publique Fondation du patrimoine insérée avec succès (id: {aide_id})"
-)
+print(f"\n✅ Souscription publique Fondation du patrimoine insérée avec succès (id: {aide_id})")

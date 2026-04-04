@@ -125,6 +125,4 @@ print(f"✓ Aide insérée : {aide_id}")
 
 # État de conservation : pas de contrainte
 
-print(
-    f"\n✅ Fondation du patrimoine — Mécénat d'entreprise dirigé inséré avec succès (id: {aide_id})"
-)
+print(f"\n✅ Fondation du patrimoine — Mécénat d'entreprise dirigé inséré avec succès (id: {aide_id})")

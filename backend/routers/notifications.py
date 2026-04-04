@@ -33,9 +33,7 @@ class CreateNotificationRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _get_notification_or_404(
-    supabase: Client, notification_id: str, user_id: str
-) -> dict:
+def _get_notification_or_404(supabase: Client, notification_id: str, user_id: str) -> dict:
     result = (
         supabase.table("notifications")
         .select(COLUMNS)
@@ -95,9 +93,7 @@ def mark_as_read(
     supabase: Client = Depends(get_supabase),
 ):
     _get_notification_or_404(supabase, notification_id, user_id)
-    supabase.table("notifications").update({"lue": True}).eq(
-        "id", notification_id
-    ).execute()
+    supabase.table("notifications").update({"lue": True}).eq("id", notification_id).execute()
 
 
 @router.post("/read-all", status_code=status.HTTP_204_NO_CONTENT)
@@ -105,9 +101,7 @@ def mark_all_as_read(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    supabase.table("notifications").update({"lue": True}).eq(
-        "user_id", user_id
-    ).execute()
+    supabase.table("notifications").update({"lue": True}).eq("user_id", user_id).execute()
 
 
 @router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)

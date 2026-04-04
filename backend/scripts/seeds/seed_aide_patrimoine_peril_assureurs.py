@@ -188,6 +188,4 @@ supabase.table("aides_etats_conservation").insert(
 ).execute()
 print("  ✓ États de conservation insérés")
 
-print(
-    f"\n✅ Programme Patrimoine en péril (assureurs) inséré avec succès (id: {aide_id})"
-)
+print(f"\n✅ Programme Patrimoine en péril (assureurs) inséré avec succès (id: {aide_id})")

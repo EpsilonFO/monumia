@@ -28,9 +28,7 @@ SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 
 BATCH_SIZE = 500
 
-MERIMEE_CSV_URL = (
-    "https://www.data.gouv.fr/api/1/datasets/r/3a52af4a-f9da-4dcc-8110-b07774dfb3bc"
-)
+MERIMEE_CSV_URL = "https://www.data.gouv.fr/api/1/datasets/r/3a52af4a-f9da-4dcc-8110-b07774dfb3bc"
 MERIMEE_DIR = Path(__file__).parent / "merimee_csv"
 
 
@@ -93,9 +91,7 @@ def main():
     # Supabase column names = lowercased CSV headers
     db_cols = [h.lower() for h in raw_headers]
 
-    print(
-        "\n=== DDL (run once in Supabase SQL editor if table needs to be recreated) ==="
-    )
+    print("\n=== DDL (run once in Supabase SQL editor if table needs to be recreated) ===")
     print_ddl(raw_headers)
     print("=== end DDL ===\n")
 

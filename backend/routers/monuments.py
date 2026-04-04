@@ -32,13 +32,7 @@ def _normalize_commune(name: str) -> str:
 def _resolve_code_insee(supabase: Client, commune_name: str) -> str:
     """Look up code_insee from communes table by matching normalized commune name."""
     normalized = _normalize_commune(commune_name)
-    result = (
-        supabase.table("communes")
-        .select("code_insee")
-        .eq("nom_commune_matching", normalized)
-        .limit(1)
-        .execute()
-    )
+    result = supabase.table("communes").select("code_insee").eq("nom_commune_matching", normalized).limit(1).execute()
     if not result.data:
         raise HTTPException(
             status_code=400,
@@ -155,14 +149,7 @@ def _enrich_monument(supabase: Client, monument: dict) -> dict:
 
 
 def _get_monument_or_404(supabase: Client, monument_id: str, user_id: str) -> dict:
-    result = (
-        supabase.table("monuments")
-        .select(COLUMNS)
-        .eq("id", monument_id)
-        .eq("user_id", user_id)
-        .single()
-        .execute()
-    )
+    result = supabase.table("monuments").select(COLUMNS).eq("id", monument_id).eq("user_id", user_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
     return _enrich_monument(supabase, result.data)
@@ -207,13 +194,7 @@ def list_monuments(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    result = (
-        supabase.table("monuments")
-        .select(COLUMNS)
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .execute()
-    )
+    result = supabase.table("monuments").select(COLUMNS).eq("user_id", user_id).order("created_at", desc=True).execute()
 
     # Batch-enrich with commune data
     monuments = result.data or []
@@ -264,9 +245,7 @@ def create_monument(
 
     # Compute and persist completion
     pct = _compute_completion(monument)
-    supabase.table("monuments").update({"completion_percentage": pct}).eq(
-        "id", monument["id"]
-    ).execute()
+    supabase.table("monuments").update({"completion_percentage": pct}).eq("id", monument["id"]).execute()
     monument["completion_percentage"] = pct
 
     return _enrich_monument(supabase, monument)
@@ -308,9 +287,7 @@ def update_monument(
 
     # Recompute completion
     pct = _compute_completion(monument)
-    supabase.table("monuments").update({"completion_percentage": pct}).eq(
-        "id", monument_id
-    ).execute()
+    supabase.table("monuments").update({"completion_percentage": pct}).eq("id", monument_id).execute()
     monument["completion_percentage"] = pct
 
     return _enrich_monument(supabase, monument)
@@ -348,15 +325,11 @@ def add_photo(
     photos: list = monument.get("photos") or []
     photos.append(new_photo)
 
-    supabase.table("monuments").update({"photos": photos}).eq(
-        "id", monument_id
-    ).execute()
+    supabase.table("monuments").update({"photos": photos}).eq("id", monument_id).execute()
     return new_photo
 
 
-@router.delete(
-    "/{monument_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/{monument_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_photo(
     monument_id: str,
     photo_id: str,
@@ -371,6 +344,4 @@ def remove_photo(
     if len(updated) == len(photos):
         raise HTTPException(status_code=404, detail="Photo introuvable")
 
-    supabase.table("monuments").update({"photos": updated}).eq(
-        "id", monument_id
-    ).execute()
+    supabase.table("monuments").update({"photos": updated}).eq("id", monument_id).execute()

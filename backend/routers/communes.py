@@ -15,9 +15,7 @@ def search_communes(
     """Search communes by name prefix (case-insensitive)."""
     result = (
         supabase.table("communes")
-        .select(
-            "code_insee, nom_commune, departement, departement_num, region, arrondissement, population"
-        )
+        .select("code_insee, nom_commune, departement, departement_num, region, arrondissement, population")
         .ilike("nom_commune", f"{q}%")
         .order("nom_commune")
         .limit(limit)

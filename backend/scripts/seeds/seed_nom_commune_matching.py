@@ -42,12 +42,7 @@ def main():
     offset = 0
     page_size = 1000
     while True:
-        resp = (
-            client.table("communes")
-            .select("*")
-            .range(offset, offset + page_size - 1)
-            .execute()
-        )
+        resp = client.table("communes").select("*").range(offset, offset + page_size - 1).execute()
         rows = resp.data
         if not rows:
             break
@@ -60,10 +55,7 @@ def main():
     print(f"Updating nom_commune_matching in batches of {BATCH_SIZE}...")
     for i in range(0, total, BATCH_SIZE):
         batch = all_communes[i : i + BATCH_SIZE]
-        updates = [
-            {**row, "nom_commune_matching": normalize(row["nom_commune"])}
-            for row in batch
-        ]
+        updates = [{**row, "nom_commune_matching": normalize(row["nom_commune"])} for row in batch]
         client.table("communes").upsert(updates, on_conflict="code_insee").execute()
         done = min(i + BATCH_SIZE, total)
         print(f"  {done}/{total}", end="\r")

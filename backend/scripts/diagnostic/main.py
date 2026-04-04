@@ -81,9 +81,7 @@ def index_documents(data_dir: str, collection) -> dict[str, str]:
     # Delete all records by upserting with an empty list after deleting
     # vecs doesn't have a truncate, so we recreate the collection
     vx.delete_collection(COLLECTION_NAME)
-    fresh_collection = vx.get_or_create_collection(
-        name=COLLECTION_NAME, dimension=EMBEDDING_DIM
-    )
+    fresh_collection = vx.get_or_create_collection(name=COLLECTION_NAME, dimension=EMBEDDING_DIM)
 
     documents_store = {}
     records = []
@@ -125,9 +123,7 @@ def index_documents(data_dir: str, collection) -> dict[str, str]:
     return documents_store, fresh_collection
 
 
-def search_and_get_full_document(
-    query: str, documents_store: dict[str, str], collection
-) -> str:
+def search_and_get_full_document(query: str, documents_store: dict[str, str], collection) -> str:
     query_embedding = get_embedding(query)
 
     results = collection.query(
@@ -175,9 +171,7 @@ if __name__ == "__main__":
     mistral_client = Mistral(api_key=MISTRAL_API_KEY)
 
     with vecs.create_client(DB_CONNECTION) as vx:
-        collection = vx.get_or_create_collection(
-            name=COLLECTION_NAME, dimension=EMBEDDING_DIM
-        )
+        collection = vx.get_or_create_collection(name=COLLECTION_NAME, dimension=EMBEDDING_DIM)
 
         data_dir = "data/aides_notion/"
         documents_store, collection = index_documents(data_dir, collection)
