@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Shield, Calendar, AlertTriangle, Wrench, Building2,
   ScrollText, ChevronLeft, Edit2, Eye, Trash2, Loader2,
-  Compass, CheckCircle2, XCircle, HelpCircle, Search, RefreshCw,
+  Compass, CheckCircle2, XCircle, HelpCircle, RefreshCw,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
