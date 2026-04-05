@@ -99,6 +99,40 @@ patrialta/
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) (gestionnaire de paquets Python)
 
+### Mise en place après le clone
+
+**1. Installer les dépendances backend et les git hooks :**
+
+```bash
+./setup.sh
+```
+
+Ce script installe les dépendances Python (dont `ruff` et `pyright`) et configure un hook `pre-push` qui vérifie automatiquement le code avant chaque push.
+
+**2. Installer les dépendances frontend :**
+
+```bash
+cd frontend && npm install
+```
+
+### CI
+
+Un workflow GitHub Actions tourne sur chaque push (toutes branches). Il vérifie :
+- `ruff format --check` — formatage Python
+- `ruff check` — lint Python
+- `pyright` — type checking Python
+
+Si un check échoue, le push est signalé sur GitHub. Le hook `pre-push` installé via `setup.sh` fait tourner les mêmes vérifications localement avant d'envoyer.
+
+Pour lancer les checks manuellement :
+
+```bash
+cd backend
+uv run ruff format .       # formate les fichiers
+uv run ruff check .        # lint
+uv run pyright .           # type check
+```
+
 ### Démarrage manuel
 
 **Backend :**
