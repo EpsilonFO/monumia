@@ -32,4 +32,5 @@ frontend/.env
 test_rag/.env.rag
 
 docker-compose.dev.yml
+supabase/seed.sql
 frontend/Dockerfile.dev

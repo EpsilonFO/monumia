@@ -6,6 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from supabase import Client, create_client
 
 load_dotenv()
+load_dotenv(".env.local", override=True)  # local overrides, gitignored
 
 _bearer = HTTPBearer()
 
