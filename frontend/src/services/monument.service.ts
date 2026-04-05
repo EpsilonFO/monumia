@@ -11,7 +11,6 @@ function toMonument(row: Record<string, unknown>): Monument {
     userId: row.user_id as string,
     nom: row.nom as string,
     denomination: row.denomination as string,
-    codePostal: (row.code_postal as string) ?? (row.codePostal as string) ?? '',
     commune: row.commune as string,
     codeInsee: row.code_insee as string ?? row.codeInsee as string ?? '',
     departement: row.departement as string,

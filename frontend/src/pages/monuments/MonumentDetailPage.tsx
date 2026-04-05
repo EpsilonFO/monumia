@@ -218,7 +218,7 @@ export function MonumentDetailPage() {
               <div className="space-y-2 text-[13px]">
                 <InfoRow label="Dénomination" value={monument.denomination} />
                 {monument.referenceMerimee && <InfoRow label="Réf. Mérimée" value={monument.referenceMerimee} />}
-                <InfoRow label="Localisation" value={[monument.codePostal, monument.commune].filter(Boolean).join(', ')} />
+                <InfoRow label="Localisation" value={monument.commune ?? ''} />
                 <InfoRow label="Département" value={monument.departement} />
                 {monument.siecleConstruction && <InfoRow label="Siècle" value={monument.siecleConstruction} />}
               </div>
@@ -263,7 +263,7 @@ export function MonumentDetailPage() {
           </div>
 
           {monument.descriptionGenerale && (
-            <Panel title="Description générale">
+            <Panel title="Description générale de la protection">
               <p className="text-[13px] leading-relaxed text-[#5C6178]">{monument.descriptionGenerale}</p>
             </Panel>
           )}
