@@ -21,7 +21,7 @@ function getEligibilityStatus(match: AideMatchResult) {
 }
 
 export function AideCard({ match, showEligibility = true }: AideCardProps) {
-  const { aide, eligible, criteresRemplis, criteresNonRemplis } = match;
+  const { aide, criteresRemplis, criteresNonRemplis } = match;
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
   const status = getEligibilityStatus(match);
 

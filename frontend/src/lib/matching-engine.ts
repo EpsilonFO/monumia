@@ -79,7 +79,7 @@ function checkEligibility(aide: Aide, ctx: MatchContext): AideMatchResult {
 
   // Check region
   if (c.regionEligible && c.regionEligible.length > 0) {
-    if (c.regionEligible.includes(monument.region)) {
+    if (monument.region && c.regionEligible.includes(monument.region)) {
       criteresRemplis.push(`Région : ${monument.region}`);
     } else {
       criteresNonRemplis.push(`Région requise : ${c.regionEligible.join(', ')}`);
@@ -90,7 +90,7 @@ function checkEligibility(aide: Aide, ctx: MatchContext): AideMatchResult {
 
   // Check department
   if (c.departementEligible && c.departementEligible.length > 0) {
-    if (c.departementEligible.includes(monument.departement)) {
+    if (monument.departement && c.departementEligible.includes(monument.departement)) {
       criteresRemplis.push(`Département : ${monument.departement}`);
     } else {
       criteresNonRemplis.push(`Département requis : ${c.departementEligible.join(', ')}`);
