@@ -1,11 +1,23 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Eye, EyeOff, Loader2, ArrowRight, Landmark, Shield, Clock } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ArrowRight, Landmark, Shield, Clock, Check, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { authService } from '@/services/auth.service';
 import { toast } from 'sonner';
+
+function getPasswordStrength(password: string) {
+  const checks = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /\d/.test(password),
+    special: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(password),
+  };
+  const score = Object.values(checks).filter(Boolean).length;
+  return { score, checks };
+}
 
 const C = {
   bg: '#F8F7F4',
@@ -53,14 +65,16 @@ export function LoginPage() {
   });
   const [showRegisterPwd, setShowRegisterPwd] = useState(false);
 
+  const pwdStrength = getPasswordStrength(registerForm.password);
+
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     if (registerForm.password !== registerForm.confirmPassword) {
       toast.error('Les mots de passe ne correspondent pas');
       return;
     }
-    if (registerForm.password.length < 8) {
-      toast.error('Le mot de passe doit contenir au moins 8 caractères');
+    if (pwdStrength.score < 5) {
+      toast.error('Le mot de passe ne remplit pas tous les critères de sécurité');
       return;
     }
     sessionStorage.setItem('pending-register', JSON.stringify({
@@ -245,7 +259,7 @@ export function LoginPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="reg-password" className="text-[14px] font-medium" style={{ color: C.text }}>Mot de passe <span style={{ color: C.textLight }}>(min. 8 caractères)</span></Label>
+                  <Label htmlFor="reg-password" className="text-[14px] font-medium" style={{ color: C.text }}>Mot de passe</Label>
                   <div className="relative">
                     <Input
                       id="reg-password"
@@ -266,6 +280,41 @@ export function LoginPage() {
                       {showRegisterPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  {registerForm.password && (
+                    <div className="space-y-2 pt-0.5">
+                      {/* Force bars */}
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((i) => {
+                          const filled = pwdStrength.score >= i;
+                          const color = pwdStrength.score <= 1 ? '#C75B3A' : pwdStrength.score <= 3 ? '#E59B3A' : '#2E7D32';
+                          return (
+                            <div
+                              key={i}
+                              className="h-1 flex-1 rounded-full transition-all duration-300"
+                              style={{ background: filled ? color : '#E4E2DC' }}
+                            />
+                          );
+                        })}
+                      </div>
+                      {/* Criteria list */}
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                        {([
+                          ['length', '8 caractères minimum'],
+                          ['uppercase', '1 majuscule'],
+                          ['lowercase', '1 minuscule'],
+                          ['number', '1 chiffre'],
+                          ['special', '1 caractère spécial'],
+                        ] as [keyof typeof pwdStrength.checks, string][]).map(([key, label]) => (
+                          <div key={key} className="flex items-center gap-1.5 text-[12px]" style={{ color: pwdStrength.checks[key] ? '#2E7D32' : C.textLight }}>
+                            {pwdStrength.checks[key]
+                              ? <Check className="h-3 w-3 flex-shrink-0" />
+                              : <X className="h-3 w-3 flex-shrink-0" />}
+                            {label}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="reg-confirm" className="text-[14px] font-medium" style={{ color: C.text }}>Confirmer le mot de passe</Label>
@@ -282,7 +331,7 @@ export function LoginPage() {
                 </div>
                 <button
                   type="submit"
-                  disabled={!registerForm.email || !registerForm.password || !registerForm.confirmPassword}
+                  disabled={!registerForm.email || !registerForm.password || !registerForm.confirmPassword || pwdStrength.score < 5}
                   className="group w-full flex items-center justify-center gap-2 h-12 text-[14px] font-semibold text-white transition-all duration-300 disabled:opacity-50 hover:shadow-lg"
                   style={{ background: C.royal }}
                 >

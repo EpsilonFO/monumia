@@ -1,4 +1,7 @@
 import { useState } from 'react';
+
+const FR_PHONE_REGEX = /^(?:\+33|0033|0)[1-9](?:[\s.\-]?\d{2}){4}$/;
+const isValidPhone = (v: string) => !v || FR_PHONE_REGEX.test(v.trim());
 import { Save, Bell, Building2, Home, KeyRound, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,8 +63,22 @@ export function ProfilePage() {
   });
 
   const [saving, setSaving] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+
+  const handlePhoneChange = (value: string) => {
+    setForm({ ...form, telephone: value });
+    if (value && !isValidPhone(value)) {
+      setPhoneError('Numéro invalide (ex : 06 12 34 56 78 ou +33 6 12 34 56 78)');
+    } else {
+      setPhoneError(null);
+    }
+  };
 
   const handleSave = async () => {
+    if (!isValidPhone(form.telephone)) {
+      setPhoneError('Numéro invalide (ex : 06 12 34 56 78 ou +33 6 12 34 56 78)');
+      return;
+    }
     setSaving(true);
     try {
       await updateProfile({
@@ -110,7 +127,14 @@ export function ProfilePage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="telephone" className={labelCls}>Téléphone</Label>
-                <Input id="telephone" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} placeholder="06 12 34 56 78" className={inputCls} />
+                <Input
+                  id="telephone"
+                  value={form.telephone}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  placeholder="06 12 34 56 78"
+                  className={`${inputCls}${phoneError ? ' border-red-400 focus:border-red-400 focus:ring-red-400/10' : ''}`}
+                />
+                {phoneError && <p className="text-[12px] text-red-500 mt-0.5">{phoneError}</p>}
               </div>
             </div>
 
@@ -139,7 +163,7 @@ export function ProfilePage() {
           <div className="mt-4 pt-3 border-t border-[#E4E2DC]">
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !!phoneError}
               className="inline-flex items-center gap-2 px-6 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-300 disabled:opacity-50 hover:shadow-md"
               style={{ background: '#1A237E' }}
             >

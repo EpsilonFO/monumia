@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+
+const FR_PHONE_REGEX = /^(?:\+33|0033|0)[1-9](?:[\s.\-]?\d{2}){4}$/;
+const isValidPhone = (v: string) => !v || FR_PHONE_REGEX.test(v.trim());
 import { useNavigate, useSearchParams } from 'react-router';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,6 +41,16 @@ export function OnboardingProfile() {
   const segment = (searchParams.get('segment') ?? 'commune') as 'commune' | 'prive' | 'btp';
   const setAuth = useAuthStore((s) => s.setAuth);
   const [loading, setLoading] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+
+  const handlePhoneChange = (value: string) => {
+    update({ telephone: value });
+    if (value && !isValidPhone(value)) {
+      setPhoneError('Numéro invalide (ex : 06 12 34 56 78 ou +33 6 12 34 56 78)');
+    } else {
+      setPhoneError(null);
+    }
+  };
 
   const [form, setForm] = useState({
     prenom: '',
@@ -99,6 +112,10 @@ export function OnboardingProfile() {
       navigate('/login');
       return;
     }
+    if (!isValidPhone(form.telephone)) {
+      setPhoneError('Numéro invalide (ex : 06 12 34 56 78 ou +33 6 12 34 56 78)');
+      return;
+    }
 
     const { email, password } = JSON.parse(pending) as { email: string; password: string };
 
@@ -135,7 +152,7 @@ export function OnboardingProfile() {
     }
   };
 
-  const isValid = !!form.prenom && !!form.nom && (
+  const isValid = !!form.prenom && !!form.nom && !phoneError && (
     segment === 'commune' ? !!form.communeNom :
     segment === 'btp' ? !!form.raisonSociale :
     !!form.typeProprietaire
@@ -184,7 +201,14 @@ export function OnboardingProfile() {
           </div>
           <div className="sm:col-span-2 space-y-1">
             <Label htmlFor="telephone" className="text-[13px] font-medium" style={{ color: C.text }}>Téléphone</Label>
-            <Input id="telephone" value={form.telephone} onChange={(e) => update({ telephone: e.target.value })} placeholder="02 33 40 00 00" className={inputCls} />
+            <Input
+              id="telephone"
+              value={form.telephone}
+              onChange={(e) => handlePhoneChange(e.target.value)}
+              placeholder="02 33 40 00 00"
+              className={`${inputCls}${phoneError ? ' border-red-400 focus:border-red-400' : ''}`}
+            />
+            {phoneError && <p className="text-[12px] text-red-500 mt-0.5">{phoneError}</p>}
           </div>
         </div>
       </div>
