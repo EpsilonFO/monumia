@@ -11,6 +11,7 @@ import json
 import logging
 import os
 from datetime import datetime
+from typing import Optional
 
 from mistralai.client import Mistral
 from supabase import Client

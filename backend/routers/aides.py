@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
+from typing import Optional
 
 from db import get_supabase, get_current_user_id
 from matching_engine import run_diagnostic, fetch_aides_with_joins, _check_eligibility
