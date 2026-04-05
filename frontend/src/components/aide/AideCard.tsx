@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { CheckCircle2, XCircle, ExternalLink, Clock, ChevronRight } from 'lucide-react';
+import { CheckCircle2, XCircle, HelpCircle, ExternalLink, Clock, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,12 +13,26 @@ interface AideCardProps {
   showEligibility?: boolean;
 }
 
+function getEligibilityStatus(match: AideMatchResult) {
+  const hasIncertitudes = match.llmEvaluation?.incertitudes && match.llmEvaluation.incertitudes.length > 0;
+  if (match.eligible && hasIncertitudes) return 'potential';
+  if (match.eligible) return 'eligible';
+  return 'non-eligible';
+}
+
 export function AideCard({ match, showEligibility = true }: AideCardProps) {
   const { aide, eligible, criteresRemplis, criteresNonRemplis } = match;
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
+  const status = getEligibilityStatus(match);
+
+  const hoverClass = status === 'eligible'
+    ? 'hover:border-green-300'
+    : status === 'potential'
+      ? 'hover:border-amber-300'
+      : 'hover:border-border';
 
   return (
-    <Card className={`transition-all hover:shadow-md ${eligible ? 'hover:border-green-300' : 'hover:border-border'}`}>
+    <Card className={`transition-all hover:shadow-md ${hoverClass}`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-1.5">
@@ -29,15 +43,23 @@ export function AideCard({ match, showEligibility = true }: AideCardProps) {
               {showEligibility && (
                 <Badge
                   variant="outline"
-                  className={eligible
-                    ? 'border-green-300 text-green-700 bg-green-50'
-                    : 'border-red-200 text-red-600 bg-red-50'
+                  className={
+                    status === 'eligible'
+                      ? 'border-green-300 text-green-700 bg-green-50'
+                      : status === 'potential'
+                        ? 'border-amber-300 text-amber-700 bg-amber-50'
+                        : 'border-red-200 text-red-600 bg-red-50'
                   }
                 >
-                  {eligible ? (
+                  {status === 'eligible' ? (
                     <>
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       Éligible
+                    </>
+                  ) : status === 'potential' ? (
+                    <>
+                      <HelpCircle className="h-3 w-3 mr-1" />
+                      Potentiellement éligible
                     </>
                   ) : (
                     <>
@@ -102,12 +124,18 @@ export function AideCard({ match, showEligibility = true }: AideCardProps) {
                 <span>{c}</span>
               </div>
             ))}
+            {status === 'potential' && match.llmEvaluation?.incertitudes.slice(0, 2).map((c, i) => (
+              <div key={i} className="flex items-center gap-1.5 text-xs text-amber-700">
+                <HelpCircle className="h-3 w-3 shrink-0" />
+                <span>{c}</span>
+              </div>
+            ))}
           </div>
         )}
 
         {/* Actions */}
         <div className="flex items-center gap-2 pt-1">
-          <Button asChild size="sm" variant={eligible ? 'default' : 'outline'}>
+          <Button asChild size="sm" variant={status === 'eligible' ? 'default' : 'outline'}>
             <Link to={ROUTES.AIDE_DETAIL(aide.id)}>
               Voir le détail
             </Link>

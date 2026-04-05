@@ -10,7 +10,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useAideStore, selectLastDiagnostic } from '@/stores/useAideStore';
 import { aideService } from '@/services/aide.service';
-import { CheckCircle2, XCircle, Search } from 'lucide-react';
+import { CheckCircle2, XCircle, Search, HelpCircle } from 'lucide-react';
 import type { AideDiagnosticResult } from '@/types';
 
 export function AidesListPage() {
@@ -73,6 +73,7 @@ export function AidesListPage() {
     return {
       ...lastDiagnostic,
       aidesEligibles: filterMatches(lastDiagnostic.aidesEligibles),
+      aidesPotentiellementEligibles: filterMatches(lastDiagnostic.aidesPotentiellementEligibles),
       aidesNonEligibles: filterMatches(lastDiagnostic.aidesNonEligibles),
     };
   }, [lastDiagnostic, filters.categories, filters.searchQuery]);
@@ -116,6 +117,10 @@ export function AidesListPage() {
                 <CheckCircle2 className="h-4 w-4" />
                 Éligibles ({filteredResult.aidesEligibles.length})
               </TabsTrigger>
+              <TabsTrigger value="potentially-eligible" className="gap-1.5">
+                <HelpCircle className="h-4 w-4" />
+                Potentiellement éligibles ({filteredResult.aidesPotentiellementEligibles.length})
+              </TabsTrigger>
               <TabsTrigger value="non-eligible" className="gap-1.5">
                 <XCircle className="h-4 w-4" />
                 Non éligibles ({filteredResult.aidesNonEligibles.length})
@@ -132,6 +137,22 @@ export function AidesListPage() {
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {filteredResult.aidesEligibles.map((match) => (
+                    <AideCard key={match.aide.id} match={match} />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="potentially-eligible" className="mt-4">
+              {filteredResult.aidesPotentiellementEligibles.length === 0 ? (
+                <EmptyState
+                  icon={HelpCircle}
+                  title="Aucune aide potentiellement éligible"
+                  description="Toutes les aides ont pu être classées avec certitude."
+                />
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {filteredResult.aidesPotentiellementEligibles.map((match) => (
                     <AideCard key={match.aide.id} match={match} />
                   ))}
                 </div>

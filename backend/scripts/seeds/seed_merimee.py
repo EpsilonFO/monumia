@@ -49,7 +49,10 @@ def download_merimee():
 
 def print_ddl(headers: list[str]) -> None:
     """Print the SQL DDL to recreate the table with all CSV columns."""
-    lines = ["DROP TABLE IF EXISTS merimee_buildings;", "CREATE TABLE merimee_buildings ("]
+    lines = [
+        "DROP TABLE IF EXISTS merimee_buildings;",
+        "CREATE TABLE merimee_buildings (",
+    ]
     col_defs = []
     for h in headers:
         col = h.lower()

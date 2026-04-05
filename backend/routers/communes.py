@@ -16,7 +16,7 @@ def search_communes(
     result = (
         supabase.table("communes")
         .select(
-            "code_insee, nom_commune, departement, departement_num, region, code_postal, arrondissement, population"
+            "code_insee, nom_commune, departement, departement_num, region, arrondissement, population"
         )
         .ilike("nom_commune", f"{q}%")
         .order("nom_commune")
@@ -33,7 +33,6 @@ def search_communes(
                 "departement": r["departement"],
                 "codeDepartement": r["departement_num"],
                 "region": r["region"],
-                "codePostal": r.get("code_postal"),
                 "arrondissement": r.get("arrondissement"),
                 "population": r.get("population"),
             }

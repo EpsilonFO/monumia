@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -21,14 +22,34 @@ def _snake_row(data: dict) -> dict:
     return {_to_snake(k): v for k, v in data.items()}
 
 
+def _normalize_commune(name: str) -> str:
+    """Lowercase and strip accents from a commune name."""
+    nfkd = unicodedata.normalize("NFKD", name)
+    without_accents = "".join(c for c in nfkd if not unicodedata.combining(c))
+    return without_accents.lower()
+
+
+def _resolve_code_insee(supabase: Client, commune_name: str) -> str:
+    """Look up code_insee from communes table by matching normalized commune name."""
+    normalized = _normalize_commune(commune_name)
+    result = (
+        supabase.table("communes")
+        .select("code_insee")
+        .eq("nom_commune_matching", normalized)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Commune introuvable : '{commune_name}'",
+        )
+    return result.data[0]["code_insee"]
+
+
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
-
-
-class Coordonnees(BaseModel):
-    lat: float
-    lng: float
 
 
 class MonumentPhoto(BaseModel):
@@ -42,9 +63,9 @@ class MonumentPhoto(BaseModel):
 class CreateMonumentRequest(BaseModel):
     nom: str
     denomination: str
-    codeInsee: str
+    commune: str  # Used to resolve code_insee, not stored in DB
+    codeInsee: str | None = None
     referenceMerimee: str | None = None
-    coordonnees: Coordonnees | None = None
 
     protection: str
     dateProtection: str | None = None
@@ -72,9 +93,9 @@ class UpdateMonumentRequest(BaseModel):
     nom: str | None = None
     denomination: str | None = None
     adresse: str | None = None
+    commune: str | None = None  # Used to resolve code_insee, not stored in DB
     codeInsee: str | None = None
     referenceMerimee: str | None = None
-    coordonnees: Coordonnees | None = None
 
     protection: str | None = None
     dateProtection: str | None = None
@@ -111,23 +132,25 @@ class AddPhotoRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _enrich_with_commune(supabase: Client, monument: dict) -> dict:
-    """Inject commune/departement/region from communes table via code_insee."""
+def _enrich_monument(supabase: Client, monument: dict) -> dict:
+    """Join commune data (commune, departement, region) via code_insee."""
     code_insee = monument.get("code_insee")
     if not code_insee:
         return monument
-    commune_result = (
+
+    result = (
         supabase.table("communes")
-        .select("nom_commune, departement, region")
+        .select("nom_commune, departement, departement_num, region")
         .eq("code_insee", code_insee)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if commune_result.data:
-        c = commune_result.data
-        monument["commune"] = c.get("nom_commune")
-        monument["departement"] = c.get("departement")
-        monument["region"] = c.get("region")
+    if result.data:
+        row = result.data[0]
+        monument["commune"] = row["nom_commune"]
+        monument["departement"] = row["departement"]
+        monument["departement_num"] = row["departement_num"]
+        monument["region"] = row["region"]
     return monument
 
 
@@ -142,7 +165,7 @@ def _get_monument_or_404(supabase: Client, monument_id: str, user_id: str) -> di
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
-    return _enrich_with_commune(supabase, result.data)
+    return _enrich_monument(supabase, result.data)
 
 
 def _compute_completion(monument: dict) -> int:
@@ -191,7 +214,27 @@ def list_monuments(
         .order("created_at", desc=True)
         .execute()
     )
-    return [_enrich_with_commune(supabase, m) for m in result.data]
+
+    # Batch-enrich with commune data
+    monuments = result.data or []
+    code_insees = list({m["code_insee"] for m in monuments if m.get("code_insee")})
+    if code_insees:
+        communes_result = (
+            supabase.table("communes")
+            .select("code_insee, nom_commune, departement, departement_num, region")
+            .in_("code_insee", code_insees)
+            .execute()
+        )
+        communes_by_code = {c["code_insee"]: c for c in (communes_result.data or [])}
+        for m in monuments:
+            commune_data = communes_by_code.get(m.get("code_insee"))
+            if commune_data:
+                m["commune"] = commune_data["nom_commune"]
+                m["departement"] = commune_data["departement"]
+                m["departement_num"] = commune_data["departement_num"]
+                m["region"] = commune_data["region"]
+
+    return monuments
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -201,6 +244,13 @@ def create_monument(
     supabase: Client = Depends(get_supabase),
 ):
     data = _snake_row(body.model_dump(exclude_none=True))
+
+    # Resolve code_insee from commune name
+    data["code_insee"] = _resolve_code_insee(supabase, body.commune)
+
+    # Remove fields not stored in monuments table
+    for key in ("commune", "departement", "region", "coordonnees"):
+        data.pop(key, None)
 
     row = {
         **data,
@@ -219,7 +269,7 @@ def create_monument(
     ).execute()
     monument["completion_percentage"] = pct
 
-    return monument
+    return _enrich_monument(supabase, monument)
 
 
 @router.get("/{monument_id}")
@@ -241,6 +291,15 @@ def update_monument(
     _get_monument_or_404(supabase, monument_id, user_id)
 
     updates = _snake_row(body.model_dump(exclude_none=True))
+
+    # Re-resolve code_insee when commune changes
+    if body.commune is not None:
+        updates["code_insee"] = _resolve_code_insee(supabase, body.commune)
+
+    # Remove fields not stored in monuments table
+    for key in ("commune", "departement", "region", "coordonnees"):
+        updates.pop(key, None)
+
     if not updates:
         return _get_monument_or_404(supabase, monument_id, user_id)
 
@@ -254,7 +313,7 @@ def update_monument(
     ).execute()
     monument["completion_percentage"] = pct
 
-    return monument
+    return _enrich_monument(supabase, monument)
 
 
 @router.delete("/{monument_id}", status_code=status.HTTP_204_NO_CONTENT)

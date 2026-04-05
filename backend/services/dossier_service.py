@@ -348,7 +348,11 @@ def create_dossier_from_aide(
                     "source": "monument",
                 },
                 {"champ": "Commune", "valeur": monument_commune, "source": "monument"},
-                {"champ": "Protection", "valeur": monument_protection, "source": "monument"},
+                {
+                    "champ": "Protection",
+                    "valeur": monument_protection,
+                    "source": "monument",
+                },
             ],
             "ordre": 1,
         },
