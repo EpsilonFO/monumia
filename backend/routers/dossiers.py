@@ -125,7 +125,7 @@ def create_dossier(
         raise HTTPException(status_code=404, detail="Monument introuvable")
 
     # Fetch aide
-    aide_result = supabase.table("aides").select("*").eq("id", body.aide_id).single().execute()
+    aide_result = supabase.table("aides_v2").select("*").eq("id", body.aide_id).single().execute()
     if not aide_result.data:
         raise HTTPException(status_code=404, detail="Aide introuvable")
 

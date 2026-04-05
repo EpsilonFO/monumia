@@ -54,7 +54,7 @@ def _to_camel(aide: dict) -> dict:
 
 
 def _get_all_aides(supabase: Client) -> list[dict]:
-    result = supabase.table("aides").select(COLUMNS).execute()
+    result = supabase.table("aides_v2").select(COLUMNS).execute()
     return result.data or []
 
 
@@ -73,7 +73,7 @@ def list_aides(
     q: str | None = Query(None),
     supabase: Client = Depends(get_supabase),
 ):
-    query = supabase.table("aides").select(COLUMNS).order("nom")
+    query = supabase.table("aides_v2").select(COLUMNS).order("nom")
 
     if categorie:
         query = query.eq("categorie", categorie)
@@ -101,7 +101,7 @@ def get_aide(
     aide_id: str,
     supabase: Client = Depends(get_supabase),
 ):
-    result = supabase.table("aides").select(COLUMNS).eq("id", aide_id).single().execute()
+    result = supabase.table("aides_v2").select(COLUMNS).eq("id", aide_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Aide introuvable")
     return _to_camel(result.data)
