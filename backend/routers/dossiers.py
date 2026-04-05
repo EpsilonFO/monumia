@@ -5,8 +5,8 @@ from pydantic import BaseModel
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
-from services.dossier_service import create_dossier_from_aide
 from routers.monuments import _enrich_monument
+from services.dossier_service import create_dossier_from_aide
 
 router = APIRouter(prefix="/dossiers", tags=["dossiers"])
 
@@ -62,7 +62,14 @@ class AddEcheanceRequest(BaseModel):
 
 
 def _get_dossier_or_404(supabase: Client, dossier_id: str, user_id: str) -> dict:
-    result = supabase.table("dossiers").select(COLUMNS).eq("id", dossier_id).eq("user_id", user_id).single().execute()
+    result = (
+        supabase.table("dossiers")
+        .select(COLUMNS)
+        .eq("id", dossier_id)
+        .eq("user_id", user_id)
+        .single()
+        .execute()
+    )
     if not result.data:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
     return result.data

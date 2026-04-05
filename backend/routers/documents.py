@@ -43,7 +43,14 @@ class UpdateDocumentRequest(BaseModel):
 
 
 def _get_document_or_404(supabase: Client, document_id: str, user_id: str) -> dict:
-    result = supabase.table("documents").select(COLUMNS).eq("id", document_id).eq("user_id", user_id).single().execute()
+    result = (
+        supabase.table("documents")
+        .select(COLUMNS)
+        .eq("id", document_id)
+        .eq("user_id", user_id)
+        .single()
+        .execute()
+    )
     if not result.data:
         raise HTTPException(status_code=404, detail="Document introuvable")
     return result.data
@@ -61,7 +68,12 @@ def list_documents(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    query = supabase.table("documents").select(COLUMNS).eq("user_id", user_id).order("date_upload", desc=True)
+    query = (
+        supabase.table("documents")
+        .select(COLUMNS)
+        .eq("user_id", user_id)
+        .order("date_upload", desc=True)
+    )
     if monument_id:
         query = query.contains("monument_ids", [monument_id])
     if type:
@@ -162,7 +174,13 @@ def link_to_dossier(
     doc = _get_document_or_404(supabase, document_id, user_id)
 
     # Validate dossier ownership
-    check = supabase.table("dossiers").select("id").eq("id", dossier_id).eq("user_id", user_id).execute()
+    check = (
+        supabase.table("dossiers")
+        .select("id")
+        .eq("id", dossier_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
     if not check.data:
         raise HTTPException(status_code=403, detail="Dossier introuvable ou non autorisé")
 

@@ -62,7 +62,12 @@ class UpdateStatutRequest(BaseModel):
 
 def _get_prospect_or_404(supabase: Client, prospect_id: str, user_id: str) -> dict:
     result = (
-        supabase.table("prospects").select(COLUMNS).eq("id", prospect_id).eq("btp_user_id", user_id).single().execute()
+        supabase.table("prospects")
+        .select(COLUMNS)
+        .eq("id", prospect_id)
+        .eq("btp_user_id", user_id)
+        .single()
+        .execute()
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Prospect introuvable")
@@ -82,7 +87,12 @@ def list_prospects(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    query = supabase.table("prospects").select(COLUMNS).eq("btp_user_id", user_id).order("updated_at", desc=True)
+    query = (
+        supabase.table("prospects")
+        .select(COLUMNS)
+        .eq("btp_user_id", user_id)
+        .order("updated_at", desc=True)
+    )
     if statut:
         query = query.eq("statut", statut)
     if priorite:

@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from supabase import Client
@@ -32,7 +32,13 @@ def _normalize_commune(name: str) -> str:
 def _resolve_code_insee(supabase: Client, commune_name: str) -> str:
     """Look up code_insee from communes table by matching normalized commune name."""
     normalized = _normalize_commune(commune_name)
-    result = supabase.table("communes").select("code_insee").eq("nom_commune_matching", normalized).limit(1).execute()
+    result = (
+        supabase.table("communes")
+        .select("code_insee")
+        .eq("nom_commune_matching", normalized)
+        .limit(1)
+        .execute()
+    )
     if not result.data:
         raise HTTPException(
             status_code=400,
@@ -58,8 +64,8 @@ class CreateMonumentRequest(BaseModel):
     nom: str
     denomination: str
     commune: str  # Used to resolve code_insee, not stored in DB
-    codeInsee: Optional[str] = None
-    referenceMerimee: Optional[str] = None
+    codeInsee: str | None = None
+    referenceMerimee: str | None = None
 
     protection: str
     dateProtection: str | None = None
@@ -84,12 +90,12 @@ class CreateMonumentRequest(BaseModel):
 
 
 class UpdateMonumentRequest(BaseModel):
-    nom: Optional[str] = None
-    denomination: Optional[str] = None
-    adresse: Optional[str] = None
-    commune: Optional[str] = None  # Used to resolve code_insee, not stored in DB
-    codeInsee: Optional[str] = None
-    referenceMerimee: Optional[str] = None
+    nom: str | None = None
+    denomination: str | None = None
+    adresse: str | None = None
+    commune: str | None = None  # Used to resolve code_insee, not stored in DB
+    codeInsee: str | None = None
+    referenceMerimee: str | None = None
 
     protection: str | None = None
     dateProtection: str | None = None
@@ -149,7 +155,14 @@ def _enrich_monument(supabase: Client, monument: dict) -> dict:
 
 
 def _get_monument_or_404(supabase: Client, monument_id: str, user_id: str) -> dict:
-    result = supabase.table("monuments").select(COLUMNS).eq("id", monument_id).eq("user_id", user_id).single().execute()
+    result = (
+        supabase.table("monuments")
+        .select(COLUMNS)
+        .eq("id", monument_id)
+        .eq("user_id", user_id)
+        .single()
+        .execute()
+    )
     if not result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
     return _enrich_monument(supabase, result.data)
@@ -194,7 +207,13 @@ def list_monuments(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    result = supabase.table("monuments").select(COLUMNS).eq("user_id", user_id).order("created_at", desc=True).execute()
+    result = (
+        supabase.table("monuments")
+        .select(COLUMNS)
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
 
     # Batch-enrich with commune data
     monuments = result.data or []
