@@ -363,7 +363,7 @@ def _check_eligibility(
             criteres_remplis.append(f"Segment : {_label(SEGMENT_LABELS, user.get('segment'))}")
         else:
             criteres_non_remplis.append(
-                f"Réservé aux : {_labels(SEGMENT_LABELS, segment_eligible)}"
+                f"Réservé aux : {_labels(SEGMENT_LABELS, segments)}"
             )
     else:
         criteres_remplis.append("Communes et privés")
