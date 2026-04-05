@@ -240,7 +240,7 @@ export function OnboardingMonument() {
           Votre <em className="italic" style={{ color: C.royal }}>monument</em>
         </h1>
         <p className="text-[16px] leading-[1.75]" style={{ color: C.textMuted }}>
-          Ajoutez votre premier monument pour découvrir les aides disponibles.
+          Ajoutez votre monument pour découvrir les aides disponibles.
         </p>
       </div>
 

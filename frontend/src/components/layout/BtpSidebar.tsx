@@ -5,7 +5,7 @@ import {
   HandCoins,
   Archive,
   UserCircle,
-  Castle,
+  Church,
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -33,7 +33,7 @@ export function BtpSidebar() {
   return (
     <aside className="hidden md:flex md:flex-col md:w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
       <div className="flex items-center gap-2 px-6 py-5 border-b border-sidebar-border">
-        <Castle className="h-7 w-7 text-sidebar-primary" />
+        <Church className="h-7 w-7 text-sidebar-primary" />
         <div>
           <span className="text-xl font-bold tracking-tight">PatriAlta</span>
           <div className="text-xs text-sidebar-foreground/60 font-medium">Espace BTP</div>

@@ -1,8 +1,8 @@
 import { useMemo, useEffect } from 'react';
 import { Link } from 'react-router';
 import {
-  Castle, ScrollText, Compass, Calendar, Bell,
-  AlertTriangle, ChevronRight, ArrowUpRight, Sparkles,
+  Church, ScrollText, Compass, Calendar, Bell,
+  AlertTriangle, ChevronRight, ArrowUpRight,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -58,17 +58,17 @@ export function DashboardPage() {
     <div className="space-y-6">
 
       {/* ═══════════ HERO GREETING ═══════════ */}
-      <div className="relative overflow-hidden rounded-2xl px-8 py-7" style={{ background: 'rgba(199, 91, 58, 0.12)' }}>
+      <div className="relative overflow-hidden rounded-2xl px-8 py-7" style={{ background: 'rgba(26, 35, 126, 0.06)' }}>
         {/* decorative elements */}
-        <div className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full blur-[80px]" style={{ background: 'rgba(199, 91, 58, 0.15)' }} />
-        <div className="pointer-events-none absolute -bottom-10 -left-10 h-32 w-32 rounded-full blur-[60px]" style={{ background: 'rgba(26, 35, 126, 0.08)' }} />
-        <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-1/3 opacity-[0.04]" style={{
-          backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent 29px, #C75B3A 29px, #C75B3A 30px)`,
+        <div className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full blur-[80px]" style={{ background: 'rgba(26, 35, 126, 0.08)' }} />
+        <div className="pointer-events-none absolute -bottom-10 -left-10 h-32 w-32 rounded-full blur-[60px]" style={{ background: 'rgba(199, 91, 58, 0.06)' }} />
+        <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-1/3 opacity-[0.03]" style={{
+          backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent 29px, #1A237E 29px, #1A237E 30px)`,
         }} />
 
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] mb-2" style={{ color: 'rgba(199, 91, 58, 0.5)' }}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] mb-2" style={{ color: 'rgba(26, 35, 126, 0.45)' }}>
               {now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
             <h1
@@ -77,7 +77,7 @@ export function DashboardPage() {
             >
               {greeting}, <em className="italic" style={{ color: '#1A237E' }}>{u.prenom}</em>
             </h1>
-            <p className="mt-2 text-[14px] max-w-md" style={{ color: 'rgba(199, 91, 58, 0.6)' }}>
+            <p className="mt-2 text-[14px] max-w-md" style={{ color: 'rgba(27, 30, 46, 0.5)' }}>
               {userMonuments.length === 0
                 ? 'Commencez par ajouter votre premier monument pour découvrir les aides disponibles.'
                 : `${userMonuments.length} monument${userMonuments.length > 1 ? 's' : ''} · ${activeDossiers.length} dossier${activeDossiers.length > 1 ? 's' : ''} en cours`}
@@ -88,9 +88,9 @@ export function DashboardPage() {
             <Link
               to={ROUTES.MONUMENTS}
               className="group inline-flex items-center gap-2 text-[13px] font-semibold px-5 py-2.5 rounded-lg transition-all duration-300 shrink-0"
-              style={{ background: 'rgba(199, 91, 58, 0.12)', border: '1px solid rgba(199, 91, 58, 0.2)', color: '#C75B3A' }}
+              style={{ background: 'rgba(26, 35, 126, 0.08)', border: '1px solid rgba(26, 35, 126, 0.18)', color: '#1A237E' }}
             >
-              <Sparkles className="h-4 w-4" style={{ color: '#1A237E' }} />
+              <Church className="h-4 w-4" />
               Ajouter un monument
               <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
             </Link>
@@ -101,7 +101,7 @@ export function DashboardPage() {
       {/* ═══════════ KPI STRIP ═══════════ */}
       <div className="grid grid-cols-3 gap-4">
         <KPICard
-          icon={Castle}
+          icon={Church}
           label="Monuments"
           value={userMonuments.length}
           linkTo={ROUTES.MONUMENTS}
@@ -132,7 +132,7 @@ export function DashboardPage() {
         <div>
           <Panel className="h-full">
             <PanelHeader
-              icon={<Castle className="h-4 w-4" />}
+              icon={<Church className="h-4 w-4" />}
               iconColor="#C75B3A"
               title="Monuments"
               action={
@@ -287,7 +287,7 @@ export function DashboardPage() {
    ──────────────────────────────────────────── */
 
 interface KPICardProps {
-  icon: typeof Castle;
+  icon: typeof Church;
   label: string;
   value: number;
   linkTo?: string;
