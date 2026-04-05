@@ -1,156 +1,98 @@
-# PatriAlta
+# PatriAlta — Guide dev
 
-Application de gestion des aides à la rénovation du patrimoine.
+## Prérequis
 
----
+- [Node.js](https://nodejs.org) (v20+)
+- [Python 3.12+](https://www.python.org/downloads/)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started)
 
-## Lancement rapide (Mac)
+## Installation
 
-### Étape 1 — Télécharger le projet
-
-Si tu n'as pas encore le projet sur ton ordinateur, ouvre le **Terminal** (cherche "Terminal" dans Spotlight avec `Cmd + Espace`) et tape :
-
-```
+```bash
 git clone https://github.com/EpsilonFO/patrialta
 cd patrialta
 ```
 
-> Si git n'est pas installé, Mac te proposera de l'installer automatiquement.
-
----
-
-### Étape 2 — Rendre le script exécutable (une seule fois)
-
-Dans le Terminal, depuis le dossier `patrialta` :
-
-```
-chmod +x start.sh
-```
-
----
-
-### Étape 3 — Lancer l'application
-
-```
-./start.sh
-```
-
-Le script va automatiquement :
-- Vérifier et installer Node.js si nécessaire
-- Vérifier et installer Python si nécessaire
-- Installer toutes les dépendances
-- Démarrer le backend et le frontend
-- Ouvrir l'application dans ton navigateur
-
-L'application s'ouvre sur **http://localhost:3000**
-
-Pour arrêter l'application : appuie sur `Ctrl + C` dans le Terminal.
-
----
-
-## En cas de problème
-
-### "Permission refusée" au lancement
-
-```
-chmod +x start.sh
-./start.sh
-```
-
-### Le navigateur ne s'ouvre pas automatiquement
-
-Ouvre manuellement http://localhost:3000 dans ton navigateur.
-
-### Erreur au démarrage
-
-Consulte les fichiers de log pour voir l'erreur détaillée :
-- `logs/backend.log` — erreurs du serveur
-- `logs/frontend.log` — erreurs de l'interface
-
-### Homebrew manquant (Mac)
-
-Si le script te demande d'installer Homebrew, colle cette commande dans le Terminal :
-
-```
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-Puis relance `./start.sh`.
-
----
-
-## Structure du projet
-
-```
-patrialta/
-├── backend/     → Serveur API (Python / FastAPI) — port 8000
-├── frontend/    → Interface web (React) — port 3000
-├── logs/        → Fichiers de log générés au démarrage
-└── start.sh     → Script de démarrage
-```
-
----
-
-## Pour les développeurs
-
-### Prérequis
-
-- Node.js 18+
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (gestionnaire de paquets Python)
-
-### Mise en place après le clone
-
-**1. Installer les dépendances backend et les git hooks :**
+### 1. Dépendances backend + hooks git
 
 ```bash
 ./setup.sh
 ```
 
-Ce script installe les dépendances Python (dont `ruff` et `pyright`) et configure un hook `pre-push` qui vérifie automatiquement le code avant chaque push.
+Installe les dépendances Python (dont les outils de dev) et configure les hooks pre-push.
 
-**2. Installer les dépendances frontend :**
+### 2. Dépendances frontend
 
 ```bash
 cd frontend && npm install
 ```
 
-### CI
+### 3. Variables d'environnement
 
-Un workflow GitHub Actions tourne sur chaque push (toutes branches). Il vérifie :
-- `ruff format --check` — formatage Python
-- `ruff check` — lint Python
-- `pyright` — type checking Python
-
-Si un check échoue, le push est signalé sur GitHub. Le hook `pre-push` installé via `setup.sh` fait tourner les mêmes vérifications localement avant d'envoyer.
-
-Pour lancer les checks manuellement :
-
-```bash
-cd backend
-uv run ruff format .       # formate les fichiers
-uv run ruff check .        # lint
-uv run pyright .           # type check
+**`backend/.env`**
+```env
+SUPABASE_URL=
+SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
+SUPABASE_SERVICE_KEY=
+RESEND_API_KEY=
+MISTRAL_API_KEY=
 ```
 
-### Démarrage manuel
-
-**Backend :**
-```bash
-cd backend
-uv sync
-uv run uvicorn main:app --reload --port 8000
+**`frontend/.env`**
+```env
+VITE_API_URL=http://localhost:8000
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
 ```
 
-**Frontend :**
+Demande les valeurs à un autre dev.
+
+## Base de données locale
+
 ```bash
-cd frontend
-npm install
-npm run dev
+supabase start       # démarre Supabase en local sur http://127.0.0.1:54321
+supabase db reset    # applique toutes les migrations
+supabase stop        # arrête Supabase
 ```
 
-### Avec Docker
+Les fichiers `backend/.env.local` et `frontend/.env.local` contiennent déjà les clés Supabase locales — ils sont chargés automatiquement en priorité sur `.env`.
+
+## Lancer l'application
 
 ```bash
-docker compose up --build
+# Terminal 1 — backend
+cd backend && uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2 — frontend
+cd frontend && npm run dev
+```
+
+- Backend : http://localhost:8000
+- Frontend : http://localhost:3000
+
+## Hooks pre-push
+
+À chaque `git push`, ces vérifications s'exécutent automatiquement :
+
+| Hook | Ce qu'il vérifie |
+|------|-----------------|
+| `ruff format` | Formatage Python |
+| `ruff check` | Lint Python |
+| `pyright` | Types Python |
+| `tsc` | Types TypeScript |
+
+Si un hook échoue, le push est bloqué. Corrige l'erreur et relance.
+
+Pour lancer les checks manuellement depuis la racine :
+
+```bash
+# Python
+uv run --project backend ruff format backend/
+uv run --project backend ruff check backend/
+uv run --project backend pyright backend/
+
+# TypeScript
+cd frontend && npx tsc --noEmit
 ```

@@ -314,19 +314,36 @@ def create_dossier_from_aide(
     user: dict,
     travaux_prevus: list[str],
 ) -> dict:
-    template_key = _get_template_key(aide)
-    template = CHECKLIST_TEMPLATES.get(template_key) if template_key else None
+    # Use documents_requis from the aide (stored in aides_v2 as jsonb array of strings)
+    documents_requis: list = aide.get("documents_requis") or aide.get("documentsRequis") or []
 
     checklist = []
-    if template:
-        for item in template:
+    if documents_requis:
+        for i, doc_name in enumerate(documents_requis):
             checklist.append(
                 {
-                    **item,
                     "id": str(uuid.uuid4()),
+                    "label": doc_name,
+                    "description": "",
+                    "obligatoire": True,
+                    "categorie": "document",
+                    "ordre": i + 1,
                     "statut": "manquant",
                 }
             )
+    else:
+        # Fallback to hardcoded templates if aide has no documents_requis
+        template_key = _get_template_key(aide)
+        template = CHECKLIST_TEMPLATES.get(template_key) if template_key else None
+        if template:
+            for item in template:
+                checklist.append(
+                    {
+                        **item,
+                        "id": str(uuid.uuid4()),
+                        "statut": "manquant",
+                    }
+                )
 
     monument_nom = monument.get("nom") or ""
     monument_commune = monument.get("commune") or ""

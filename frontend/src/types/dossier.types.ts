@@ -44,7 +44,7 @@ export interface ChecklistItem {
   statut: ChecklistItemStatus;
   documentId?: ID;
   obligatoire: boolean;
-  categorie: 'administratif' | 'technique' | 'financier' | 'photographique';
+  categorie: 'administratif' | 'technique' | 'financier' | 'photographique' | 'document';
   ordre: number;
 }
 
