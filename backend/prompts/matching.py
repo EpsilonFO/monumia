@@ -7,16 +7,18 @@ Voici le profil d'un monument :
 Voici les conditions d'éligibilité détaillées de l'aide "{aide_nom}" :
 {conditions_detail}
 
-Évalue si ce monument est éligible à cette aide en te basant UNIQUEMENT sur les informations fournies.
+Ta mission : identifier uniquement les conditions d'éligibilité qui sont CLAIREMENT et EXPLICITEMENT non respectées par ce monument, c'est-à-dire quand une condition requiert quelque chose que le profil contredit formellement.
+
+Si une condition n'est pas mentionnée dans le profil (ex: ouverture au public, usage commercial, etc.), ne la considère PAS comme non respectée — liste-la dans les incertitudes.
 
 Réponds en JSON strict avec ce format :
 {{
   "eligible": true ou false,
   "explication": "Explication en 1-2 phrases de ta conclusion",
-  "incertitudes": ["Liste des points qui ne peuvent pas être vérifiés avec les infos disponibles"]
+  "incertitudes": ["Liste des conditions qui ne peuvent pas être vérifiées faute d'informations"]
 }}
 
-Si tu manques d'informations pour conclure, mets eligible à true (bénéfice du doute) et liste les incertitudes.
+Règle stricte : mets eligible à false UNIQUEMENT si le profil contient une information qui contredit explicitement une condition requise (ex: protection requise = classé, mais le monument est inscrit). Dans tous les autres cas de doute, mets eligible à true et liste les incertitudes.
 """
 
 prompt_2 = """

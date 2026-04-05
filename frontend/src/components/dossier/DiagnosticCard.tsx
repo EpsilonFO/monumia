@@ -13,7 +13,7 @@ interface DiagnosticCardProps {
 }
 
 export function DiagnosticCard({ diagnostic, monument }: DiagnosticCardProps) {
-  const nbEligibles = diagnostic.aidesEligibles.length;
+  const nbEligibles = diagnostic.aidesPotentiellementEligibles.length;
   const nbTotal = diagnostic.totalAidesAnalysees;
 
   return (

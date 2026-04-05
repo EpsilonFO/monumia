@@ -50,7 +50,7 @@ function useAnimatedCounter(target: number, running: boolean): number {
 
 export function AideMatchBanner({ result, isRunning, onLaunch, monumentName }: AideMatchBannerProps) {
   const [hasAnimated, setHasAnimated] = useState(false);
-  const eligibleCount = result?.aidesEligibles.length ?? 0;
+  const eligibleCount = result?.aidesPotentiellementEligibles.length ?? 0;
   const animatedCount = useAnimatedCounter(eligibleCount, hasAnimated);
 
   useEffect(() => {
@@ -125,9 +125,6 @@ export function AideMatchBanner({ result, isRunning, onLaunch, monumentName }: A
             </div>
             <div className="text-sm text-muted-foreground sm:ml-auto text-center sm:text-right">
               <p>{result!.totalAidesAnalysees} aides analysées</p>
-              {result!.aidesPotentiellementEligibles.length > 0 && (
-                <p>{result!.aidesPotentiellementEligibles.length} potentiellement éligibles</p>
-              )}
               <p>{result!.aidesNonEligibles.length} non éligibles</p>
             </div>
           </div>

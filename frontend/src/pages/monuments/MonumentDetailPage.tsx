@@ -304,29 +304,21 @@ export function MonumentDetailPage() {
               {filteredDiagnostic && (
                 <>
                   <AideFilterBar />
-                  <Tabs defaultValue="eligible">
+                  <Tabs defaultValue="potentially-eligible">
                     <TabsList>
-                      <TabsTrigger value="eligible" className="gap-1.5"><CheckCircle2 className="h-4 w-4" />Éligibles ({filteredDiagnostic.aidesEligibles.length})</TabsTrigger>
-                      <TabsTrigger value="potentially-eligible" className="gap-1.5"><HelpCircle className="h-4 w-4" />Potentiellement éligibles ({filteredDiagnostic.aidesPotentiellementEligibles.length})</TabsTrigger>
+                      <TabsTrigger value="potentially-eligible" className="gap-1.5"><HelpCircle className="h-4 w-4" />Aides identifiées ({filteredDiagnostic.aidesPotentiellementEligibles.length})</TabsTrigger>
                       <TabsTrigger value="non-eligible" className="gap-1.5"><XCircle className="h-4 w-4" />Non éligibles ({filteredDiagnostic.aidesNonEligibles.length})</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="eligible" className="mt-4">
-                      {filteredDiagnostic.aidesEligibles.length === 0 ? (
-                        <EmptyState icon={Search} title="Aucune aide éligible trouvée" description="Essayez de modifier les filtres ou vérifiez les informations de votre monument." />
-                      ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesEligibles.map((match) => (<AideCard key={match.aide.id} match={match} />))}</div>
-                      )}
-                    </TabsContent>
                     <TabsContent value="potentially-eligible" className="mt-4">
                       {filteredDiagnostic.aidesPotentiellementEligibles.length === 0 ? (
-                        <EmptyState icon={HelpCircle} title="Aucune aide potentiellement éligible" description="Toutes les aides ont pu être classées avec certitude." />
+                        <EmptyState icon={HelpCircle} title="Aucune aide identifiée" description="Essayez de modifier les filtres ou vérifiez les informations de votre monument." />
                       ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesPotentiellementEligibles.map((match) => (<AideCard key={match.aide.id} match={match} />))}</div>
                       )}
                     </TabsContent>
                     <TabsContent value="non-eligible" className="mt-4">
                       {filteredDiagnostic.aidesNonEligibles.length === 0 ? (
-                        <EmptyState icon={CheckCircle2} title="Toutes les aides sont éligibles" description="Votre monument est éligible à toutes les aides analysées." />
+                        <EmptyState icon={CheckCircle2} title="Toutes les aides sont identifiées" description="Votre monument est éligible à toutes les aides analysées." />
                       ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesNonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} />))}</div>
                       )}

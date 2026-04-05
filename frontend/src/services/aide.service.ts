@@ -30,17 +30,24 @@ export const aideService = {
     modeProjet: boolean = false,
     travauxFiltres?: WorkType[]
   ): Promise<AideDiagnosticResult> {
-    const res = await authFetch(`${BASE}/aides/diagnostic`, {
-      method: 'POST',
-      body: JSON.stringify({
-        monument_id: monumentId,
-        mode_projet: modeProjet,
-        travaux_filtres: travauxFiltres,
-      }),
-    });
-    const result = await handleResponse<AideDiagnosticResult>(res);
-    useAideStore.getState().setDiagnostic(monumentId, result);
-    return result;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000); // 2 min max
+    try {
+      const res = await authFetch(`${BASE}/aides/diagnostic`, {
+        method: 'POST',
+        signal: controller.signal,
+        body: JSON.stringify({
+          monument_id: monumentId,
+          mode_projet: modeProjet,
+          travaux_filtres: travauxFiltres,
+        }),
+      });
+      const result = await handleResponse<AideDiagnosticResult>(res);
+      useAideStore.getState().setDiagnostic(monumentId, result);
+      return result;
+    } finally {
+      clearTimeout(timeout);
+    }
   },
 
   async getDiagnostics(monumentId: string): Promise<AideDiagnosticResult[]> {

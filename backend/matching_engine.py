@@ -11,11 +11,12 @@ import json
 import logging
 import os
 from datetime import datetime
+from pathlib import Path
 
 from mistralai.client import Mistral
 from supabase import Client
 
-from prompts.matching import prompt_1, prompt_2, prompt_3
+from prompts.matching import prompt_1
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +146,9 @@ def prefiltrer_aides(
         "p_population": population,
         "p_etat_conservation": monument.get("etat_conservation"),
     }
-    print(f"\n[RPC prefiltrer_aides] params: {json.dumps(params, ensure_ascii=False, default=str)}")
+    print(
+        f"  [SQL] RPC prefiltrer_aides → params: {json.dumps(params, ensure_ascii=False, default=str)}"
+    )
 
     result = supabase.rpc("prefiltrer_aides", params).execute()
 
@@ -438,6 +441,7 @@ def _llm_evaluate_eligibility(
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
         logger.warning("MISTRAL_API_KEY not set, skipping LLM evaluation")
+        print("  [LLM] ⚠ MISTRAL_API_KEY absent — évaluation ignorée")
         return {
             "eligible": True,
             "explication": "",
@@ -452,6 +456,7 @@ def _llm_evaluate_eligibility(
         conditions_detail=conditions_detail,
     )
 
+    print(f"  [LLM] Appel Mistral pour « {aide_nom} »...")
     try:
         response = client.chat.complete(
             model="mistral-small-latest",
@@ -472,53 +477,49 @@ def _llm_evaluate_eligibility(
         }
 
 
-def _aggregate_llm_results(results: list[dict]) -> dict:
-    """Aggregate results from 3 LLM calls using voting logic.
+_LLM_LOG_PATH = Path("/app/llm.txt")
 
-    Returns a consolidated result based on majority vote:
-    - If 2+ prompts say eligible → eligible
-    - If 2+ prompts say ineligible → ineligible
-    - Merges all incertitudes and explications
-    """
-    eligible_votes = sum(1 for r in results if r.get("eligible", True))
-    ineligible_votes = len(results) - eligible_votes
 
-    all_incertitudes = []
-    all_explications = []
+def _llm_log(aide_nom: str, llm_result: dict) -> None:
+    """Print LLM result to stdout and append full record to llm.txt."""
+    eligible = llm_result.get("eligible")
+    explication = llm_result.get("explication", "")
+    incertitudes = llm_result.get("incertitudes", [])
+    icon = "✓" if eligible else "✗"
+    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-    for r in results:
-        all_incertitudes.extend(r.get("incertitudes", []))
-        explication = r.get("explication", "")
-        if explication:
-            all_explications.append(explication)
+    # stdout (visible in docker logs)
+    print(f"  {icon} eligible={eligible} | incertitudes={len(incertitudes)}")
+    print(f"     explication : {explication}")
+    for inc in incertitudes:
+        print(f"     - {inc}")
 
-    # Remove duplicates from incertitudes
-    all_incertitudes = list(set(all_incertitudes))
+    # llm.txt (full record, in order)
+    try:
+        lines = [
+            f"\n{'=' * 70}",
+            f"[{ts}] {icon} {aide_nom}",
+            f"{'=' * 70}",
+            f"eligible    : {eligible}",
+            f"explication : {explication}",
+            "incertitudes :" if incertitudes else "incertitudes : aucune",
+        ]
+        for inc in incertitudes:
+            lines.append(f"  - {inc}")
 
-    # Majority vote
-    aggregated_eligible = eligible_votes >= 2
-    aggregated_explication = " | ".join(all_explications)
-
-    return {
-        "eligible": aggregated_eligible,
-        "explication": aggregated_explication,
-        "incertitudes": all_incertitudes,
-        "votes": {
-            "eligible": eligible_votes,
-            "ineligible": ineligible_votes,
-        },
-    }
+        with open(_LLM_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    except Exception as e:
+        logger.warning(f"Failed to write llm.txt: {e}")
 
 
 def _run_llm_phase(
     eligible_results: list[dict],
     monument_profile: str,
-) -> list[dict]:
+) -> tuple[list[dict], list[dict], list[dict]]:
     """Run LLM evaluation on eligible aides that have conditions_eligibilite_detail.
 
-    Uses 3 prompts with different conditioning and aggregates results by majority vote.
-
-    Returns three lists: (still_eligible, potentially_eligible, downgraded_to_ineligible)
+    Returns (still_eligible, potentially_eligible, downgraded):
     - still_eligible: LLM says eligible AND no incertitudes
     - potentially_eligible: LLM says eligible BUT has incertitudes
     - downgraded: LLM says not eligible
@@ -532,44 +533,31 @@ def _run_llm_phase(
         conditions = aide.get("conditions_eligibilite_detail")
 
         if not conditions:
-            # No complex conditions — keep as eligible
             still_eligible.append(result)
             continue
 
-        # Run 3 LLM evaluations with different prompts
-        print(f"\n{'=' * 60}")
-        print(f"[LLM TRIPLE EVALUATION] Aide: {aide.get('nom', '')}")
-        print(f"{'=' * 60}")
-
-        llm_results = []
-        for i, prompt_template in enumerate([prompt_1, prompt_2, prompt_3], 1):
-            print(f"\n  → Prompt {i}/3...")
-            llm_result = _llm_evaluate_eligibility(
-                monument_profile=monument_profile,
-                aide_nom=aide.get("nom", ""),
-                conditions_detail=conditions,
-                prompt_template=prompt_template,
-            )
-            llm_results.append(llm_result)
-            print(
-                f"    Result: eligible={llm_result.get('eligible')}, incertitudes={len(llm_result.get('incertitudes', []))}"
-            )
-
-        # Aggregate results by majority vote
-        aggregated = _aggregate_llm_results(llm_results)
-
-        print(
-            f"\n  → AGGREGATED: eligible={aggregated['eligible']} (votes: {aggregated['votes']['eligible']}/{len(llm_results)})"
+        llm_result = _llm_evaluate_eligibility(
+            monument_profile=monument_profile,
+            aide_nom=aide.get("nom", ""),
+            conditions_detail=conditions,
+            prompt_template=prompt_1,
         )
+        _llm_log(aide.get("nom", ""), llm_result)
 
         result["llmEvaluation"] = {
-            "explication": aggregated["explication"],
-            "incertitudes": aggregated["incertitudes"],
-            "votes": aggregated["votes"],
+            "explication": llm_result.get("explication", ""),
+            "incertitudes": llm_result.get("incertitudes", []),
         }
 
-        if aggregated["eligible"]:
-            incertitudes = aggregated["incertitudes"]
+        llm_eligible = llm_result.get("eligible", True)
+        incertitudes = llm_result.get("incertitudes", [])
+
+        # If LLM says ineligible but has incertitudes, it means it's uncertain
+        # rather than formally contradicted — treat as potentially eligible
+        if not llm_eligible and incertitudes:
+            llm_eligible = True
+
+        if llm_eligible:
             if incertitudes:
                 potentially_eligible.append(result)
             else:
@@ -577,9 +565,9 @@ def _run_llm_phase(
         else:
             result["eligible"] = False
             result["criteresNonRemplis"].append(
-                f"Condition détaillée : {aggregated.get('explication', '')}"
+                f"Condition détaillée : {llm_result.get('explication', '')}"
             )
-            result["raisonIneligibilite"] = result["raisonIneligibilite"] or aggregated.get(
+            result["raisonIneligibilite"] = result["raisonIneligibilite"] or llm_result.get(
                 "explication", ""
             )
             downgraded.append(result)
@@ -602,33 +590,44 @@ def run_diagnostic(
     """Run a full diagnostic: SQL pre-filter → criteria check → LLM fine-matching."""
     ctx_travaux = travaux_filtres or []
 
-    # Phase 1: SQL pre-filter
-    candidate_ids = prefiltrer_aides(supabase, monument, user, ctx_travaux or None)
-
-    print(f"\n{'=' * 60}")
-    print(f"[PRE-FILTER] Monument: {monument.get('nom')}")
-    print(f"  protection={monument.get('protection')}, proprietaire={monument.get('proprietaire')}")
-    print(f"  region={monument.get('region')}, departement={monument.get('departement')}")
+    print(f"\n{'#' * 60}")
+    print(f"# DIAGNOSTIC — {monument.get('nom', 'Monument inconnu')}")
+    print(f"{'#' * 60}")
+    print(f"  segment      : {_label(SEGMENT_LABELS, user.get('segment'))}")
+    print(f"  protection   : {_label(PROTECTION_LABELS, monument.get('protection'))}")
+    print(f"  propriétaire : {_label(OWNERSHIP_LABELS, monument.get('proprietaire'))}")
+    print(f"  région       : {monument.get('region')}")
+    print(f"  département  : {monument.get('departement')}")
     print(
-        f"  segment={user.get('segment')}, travaux={ctx_travaux or monument.get('travaux_envisages')}"
+        f"  travaux      : {_labels(TRAVAUX_LABELS, ctx_travaux or monument.get('travaux_envisages') or []) or '—'}"
     )
-    print(f"  → {len(candidate_ids)} aides candidates")
-    print(f"{'=' * 60}")
+    print(f"  mode_projet  : {mode_projet}")
+
+    # Phase 1: SQL pre-filter
+    print(f"\n{'─' * 60}")
+    print("PHASE 1 — Pré-filtre SQL")
+    print(f"{'─' * 60}")
+    candidate_ids = prefiltrer_aides(supabase, monument, user, ctx_travaux or None)
+    print(f"  → {len(candidate_ids)} aide(s) candidate(s) retenue(s) par le SQL")
 
     # Fetch all aides (candidates + non-candidates) for the full report
     all_aide_ids = [a["id"] for a in (supabase.table("aides_v2").select("id").execute()).data or []]
     non_candidate_ids = [aid for aid in all_aide_ids if aid not in candidate_ids]
+    print(f"  → {len(non_candidate_ids)} aide(s) exclue(s) d'emblée sur {len(all_aide_ids)} total")
 
     # Phase 2: Fetch aides with join data + build criteria
+    print(f"\n{'─' * 60}")
+    print("PHASE 2 — Vérification des critères Python")
+    print(f"{'─' * 60}")
     candidate_aides = fetch_aides_with_joins(supabase, candidate_ids)
     non_candidate_aides = fetch_aides_with_joins(supabase, non_candidate_ids)
 
-    print("\n[CANDIDATES] Aides pré-filtrées SQL:")
+    print(f"\n  Candidates SQL ({len(candidate_aides)}) :")
     for a in candidate_aides:
-        print(f"  ✓ {a.get('nom_court') or a.get('nom')}")
-    print("\n[NON-CANDIDATES] Aides exclues par SQL:")
+        print(f"    ✓ {a.get('nom_court') or a.get('nom')}")
+    print(f"\n  Exclues SQL ({len(non_candidate_aides)}) :")
     for a in non_candidate_aides:
-        print(f"  ✗ {a.get('nom_court') or a.get('nom')}")
+        print(f"    ✗ {a.get('nom_court') or a.get('nom')}")
 
     # Resolve population for criteria display
     population = None
@@ -643,6 +642,7 @@ def run_diagnostic(
         )
         if commune_result.data:
             population = commune_result.data.get("population")
+            print(f"\n  Population commune : {population} hab.")
 
     eligible_results = [
         _check_eligibility(a, monument, user, mode_projet, ctx_travaux, population)
@@ -653,16 +653,68 @@ def run_diagnostic(
         for a in non_candidate_aides
     ]
 
+    eligible_after_p2 = [r for r in eligible_results if r["eligible"]]
+    ineligible_after_p2 = [r for r in eligible_results if not r["eligible"]]
+
+    print("\n  Résultats critères Python sur les candidates SQL :")
+    for r in eligible_after_p2:
+        print(f"    ✓ {r['aide'].get('nom_court') or r['aide'].get('nom')}")
+    for r in ineligible_after_p2:
+        raison = r.get("raisonIneligibilite", "")
+        print(f"    ✗ {r['aide'].get('nom_court') or r['aide'].get('nom')} — {raison}")
+
+    non_eligible_results.extend(ineligible_after_p2)
+    eligible_results = eligible_after_p2
+
+    print(
+        f"\n  → {len(eligible_results)} éligible(s) après phase 2, {len(non_eligible_results)} non éligible(s)"
+    )
+
     # Phase 3: LLM fine-matching on eligible candidates
+    print(f"\n{'─' * 60}")
+    print(
+        f"PHASE 3 — Évaluation LLM ({len(eligible_results)} aide(s) avec conditions_eligibilite_detail)"
+    )
+    print(f"{'─' * 60}")
     monument_profile = _build_monument_profile(monument, user, population)
+
+    # Write diagnostic header to llm.txt
+    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    try:
+        with open(_LLM_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(f"\n\n{'#' * 70}\n")
+            f.write(f"# DIAGNOSTIC [{ts}]\n")
+            f.write(f"# Monument : {monument.get('nom', '?')}\n")
+            f.write(f"# Segment  : {_label(SEGMENT_LABELS, user.get('segment'))}\n")
+            f.write(f"{'#' * 70}\n")
+    except Exception as e:
+        logger.warning(f"Failed to write llm.txt header: {e}")
+
     still_eligible, potentially_eligible, downgraded = _run_llm_phase(
         eligible_results, monument_profile
     )
     non_eligible_results.extend(downgraded)
 
+    print("\n  Résultats LLM :")
+    for r in still_eligible:
+        print(f"    ✓  éligible      — {r['aide'].get('nom_court') or r['aide'].get('nom')}")
+    for r in potentially_eligible:
+        print(f"    ?  potentiel     — {r['aide'].get('nom_court') or r['aide'].get('nom')}")
+    for r in downgraded:
+        print(f"    ✗  disqualifié   — {r['aide'].get('nom_court') or r['aide'].get('nom')}")
+
     montant_total = sum(
         r["aide"].get("montant_max") or 0 for r in still_eligible if r["aide"].get("montant_max")
     )
+
+    print(f"\n{'#' * 60}")
+    print("# RÉSULTAT FINAL")
+    print(f"#   Éligibles        : {len(still_eligible)}")
+    print(f"#   Potentiellement  : {len(potentially_eligible)}")
+    print(f"#   Non éligibles    : {len(non_eligible_results)}")
+    if montant_total:
+        print(f"#   Montant potentiel: {montant_total:,} €")
+    print(f"{'#' * 60}\n")
 
     return {
         "monumentId": monument["id"],

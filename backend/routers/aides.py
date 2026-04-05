@@ -1,3 +1,6 @@
+import logging
+import traceback
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
@@ -5,6 +8,8 @@ from supabase import Client
 from db import get_current_user_id, get_supabase
 from matching_engine import _check_eligibility, fetch_aides_with_joins, run_diagnostic
 from routers.monuments import _enrich_monument
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/aides", tags=["aides"])
 
@@ -136,13 +141,17 @@ def diagnostic(
         raise HTTPException(status_code=404, detail="Profil utilisateur introuvable")
     user = user_result.data
 
-    result = run_diagnostic(
-        supabase=supabase,
-        monument=monument,
-        user=user,
-        mode_projet=body.mode_projet,
-        travaux_filtres=body.travaux_filtres,
-    )
+    try:
+        result = run_diagnostic(
+            supabase=supabase,
+            monument=monument,
+            user=user,
+            mode_projet=body.mode_projet,
+            travaux_filtres=body.travaux_filtres,
+        )
+    except Exception as exc:
+        logger.error("run_diagnostic crashed:\n%s", traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Erreur matching engine : {exc}") from exc
 
     # Persist diagnostic to DB
     row = {
