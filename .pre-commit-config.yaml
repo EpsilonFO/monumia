@@ -1,0 +1,23 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: bash -c 'cd backend && uv run ruff format .'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: ruff
+        name: ruff lint
+        entry: bash -c 'cd backend && uv run ruff check .'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: pyright
+        name: pyright type check
+        entry: bash -c 'cd backend && uv run pyright .'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

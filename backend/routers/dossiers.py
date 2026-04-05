@@ -1,9 +1,10 @@
-from typing import Optional
+from datetime import UTC
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from supabase import Client
 
-from db import get_supabase, get_current_user_id
+from db import get_current_user_id, get_supabase
 from services.dossier_service import create_dossier_from_aide
 from routers.monuments import _enrich_monument
 
@@ -24,18 +25,18 @@ class CreateDossierRequest(BaseModel):
 
 
 class UpdateDossierRequest(BaseModel):
-    titre: Optional[str] = None
-    description: Optional[str] = None
-    statut: Optional[str] = None
-    etape_actuelle: Optional[int] = None
-    progression_pourcentage: Optional[int] = None
-    montant_estime: Optional[float] = None
-    date_soumission: Optional[str] = None
+    titre: str | None = None
+    description: str | None = None
+    statut: str | None = None
+    etape_actuelle: int | None = None
+    progression_pourcentage: int | None = None
+    montant_estime: float | None = None
+    date_soumission: str | None = None
 
 
 class UpdateChecklistItemRequest(BaseModel):
     statut: str  # 'fourni' | 'en_attente' | 'manquant'
-    document_id: Optional[str] = None
+    document_id: str | None = None
 
 
 class UpdateSectionRequest(BaseModel):
@@ -113,7 +114,12 @@ def create_dossier(
 ):
     # Validate monument ownership
     monument_result = (
-        supabase.table("monuments").select("*").eq("id", body.monument_id).eq("user_id", user_id).single().execute()
+        supabase.table("monuments")
+        .select("*")
+        .eq("id", body.monument_id)
+        .eq("user_id", user_id)
+        .single()
+        .execute()
     )
     if not monument_result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
@@ -129,12 +135,24 @@ def create_dossier(
         raise HTTPException(status_code=404, detail="Profil introuvable")
 
     monument = _enrich_monument(supabase, monument_result.data)
+    # Resolve travaux codes → labels via ref_travaux
+    travaux_labels = body.travaux_prevus
+    if body.travaux_prevus:
+        ref_result = (
+            supabase.table("ref_travaux")
+            .select("code, label")
+            .in_("code", body.travaux_prevus)
+            .execute()
+        )
+        if ref_result.data:
+            code_to_label = {r["code"]: r["label"] for r in ref_result.data}
+            travaux_labels = [code_to_label.get(c, c) for c in body.travaux_prevus]
 
     dossier = create_dossier_from_aide(
         aide=aide_result.data,
         monument=monument,
         user=user_result.data,
-        travaux_prevus=body.travaux_prevus,
+        travaux_prevus=travaux_labels,
     )
     dossier["user_id"] = user_id
 
@@ -259,7 +277,9 @@ def add_collaborateur(
     }
     collaborateurs.append(new_collab)
 
-    supabase.table("dossiers").update({"collaborateurs": collaborateurs}).eq("id", dossier_id).execute()
+    supabase.table("dossiers").update({"collaborateurs": collaborateurs}).eq(
+        "id", dossier_id
+    ).execute()
     return new_collab
 
 
@@ -338,7 +358,7 @@ def submit_dossier(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     _get_dossier_or_404(supabase, dossier_id, user_id)
 
@@ -347,6 +367,6 @@ def submit_dossier(
             "statut": "soumis",
             "etape_actuelle": 5,
             "progression_pourcentage": 100,
-            "date_soumission": datetime.now(timezone.utc).isoformat(),
+            "date_soumission": datetime.now(UTC).isoformat(),
         }
     ).eq("id", dossier_id).execute()

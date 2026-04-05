@@ -11,7 +11,6 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Optional
 
 from mistralai.client import Mistral
 from supabase import Client
@@ -76,7 +75,9 @@ ETAT_LABELS = {
 }
 
 
-def _label(mapping: dict, value: str) -> str:
+def _label(mapping: dict, value: str | None) -> str:
+    if value is None:
+        return ""
     return mapping.get(value, value)
 
 
@@ -278,14 +279,18 @@ def _check_eligibility(
     travaux_eligibles = aide.get("travaux") or []
     if travaux_eligibles:
         travaux_to_check = (
-            travaux_filtres if (mode_projet and travaux_filtres) else (monument.get("travaux_envisages") or [])
+            travaux_filtres
+            if (mode_projet and travaux_filtres)
+            else (monument.get("travaux_envisages") or [])
         )
         if not travaux_to_check:
             criteres_remplis.append("Types de travaux : non spécifiés (compatible)")
         elif any(t in travaux_eligibles for t in travaux_to_check):
             criteres_remplis.append("Types de travaux compatibles")
         else:
-            criteres_non_remplis.append(f"Travaux éligibles : {_labels(TRAVAUX_LABELS, travaux_eligibles)}")
+            criteres_non_remplis.append(
+                f"Travaux éligibles : {_labels(TRAVAUX_LABELS, travaux_eligibles)}"
+            )
     else:
         criteres_remplis.append("Tous types de travaux")
 
@@ -313,7 +318,9 @@ def _check_eligibility(
         if user.get("segment") in segments:
             criteres_remplis.append(f"Segment : {_label(SEGMENT_LABELS, user.get('segment'))}")
         else:
-            criteres_non_remplis.append(f"Réservé aux : {_labels(SEGMENT_LABELS, segments)}")
+            criteres_non_remplis.append(
+                f"Réservé aux : {_labels(SEGMENT_LABELS, segment_eligible)}"
+            )
     else:
         criteres_remplis.append("Communes et privés")
 
@@ -542,7 +549,7 @@ def run_diagnostic(
     monument: dict,
     user: dict,
     mode_projet: bool = False,
-    travaux_filtres: Optional[list[str]] = None,
+    travaux_filtres: list[str] | None = None,
 ) -> dict:
     """Run a full diagnostic: SQL pre-filter → criteria check → LLM fine-matching."""
     ctx_travaux = travaux_filtres or []

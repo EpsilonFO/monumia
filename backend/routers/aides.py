@@ -1,4 +1,3 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
@@ -18,7 +17,7 @@ router = APIRouter(prefix="/aides", tags=["aides"])
 class DiagnosticRequest(BaseModel):
     monument_id: str
     mode_projet: bool = False
-    travaux_filtres: Optional[list[str]] = None
+    travaux_filtres: list[str] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -75,8 +74,8 @@ def _camelise_diagnostic(result: dict) -> dict:
 
 @router.get("")
 def list_aides(
-    categorie: Optional[str] = Query(None),
-    q: Optional[str] = Query(None),
+    categorie: str | None = Query(None),
+    q: str | None = Query(None),
     supabase: Client = Depends(get_supabase),
 ):
     query = supabase.table("aides_v2").select("*").order("nom")
@@ -184,9 +183,14 @@ def list_diagnostics(
 
     # Fetch monument & user for re-running eligibility checks
     monument_result = (
-        supabase.table("monuments").select("*").eq("id", monument_id).eq("user_id", user_id).single().execute()
+        supabase.table("monuments")
+        .select("*")
+        .eq("id", monument_id)
+        .eq("user_id", user_id)
+        .single()
+        .execute()
     )
-    monument = _enrich_monument(supabase, monument_result.data) if monument_result.data else None
+    monument = monument_result.data
     user_result = supabase.table("users").select("*").eq("id", user_id).single().execute()
     user = user_result.data
 

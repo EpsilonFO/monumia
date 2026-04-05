@@ -4,8 +4,7 @@ Builds the initial Dossier structure from an aide + monument + user.
 """
 
 import uuid
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 
 # ---------------------------------------------------------------------------
 # Checklist templates (port of mock-checklist-templates.ts)
@@ -339,7 +338,9 @@ def create_dossier_from_aide(
             "id": str(uuid.uuid4()),
             "titre": "Description du monument",
             "type": "texte_libre",
-            "contenu": monument.get("description_generale") or monument.get("descriptionGenerale") or "",
+            "contenu": monument.get("description_generale")
+            or monument.get("descriptionGenerale")
+            or "",
             "champsAutoremplis": [
                 {
                     "champ": "Dénomination",
@@ -384,7 +385,7 @@ def create_dossier_from_aide(
             }
         )
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     travaux_label = travaux_prevus[0] if travaux_prevus else "Travaux"
 
     return {

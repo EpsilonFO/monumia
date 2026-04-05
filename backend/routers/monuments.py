@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from supabase import Client
 
-from db import get_supabase, get_current_user_id
+from db import get_current_user_id, get_supabase
 
 router = APIRouter(prefix="/monuments", tags=["monuments"])
 
@@ -51,7 +51,7 @@ class MonumentPhoto(BaseModel):
     url: str
     legende: str
     type: str  # 'facade' | 'interieur' | 'detail' | 'aerien' | 'degradation' | 'autre'
-    datePhoto: Optional[str] = None
+    datePhoto: str | None = None
 
 
 class CreateMonumentRequest(BaseModel):
@@ -62,25 +62,25 @@ class CreateMonumentRequest(BaseModel):
     referenceMerimee: Optional[str] = None
 
     protection: str
-    dateProtection: Optional[str] = None
-    typeProtection: Optional[str] = None
+    dateProtection: str | None = None
+    typeProtection: str | None = None
     proprietaire: str
-    affectataire: Optional[str] = None
+    affectataire: str | None = None
 
-    siecleConstruction: Optional[str] = None
-    periodeConstruction: Optional[list[str]] = None
-    superficie: Optional[float] = None
-    materiaux: Optional[list[str]] = None
-    typeCouverture: Optional[str] = None
-    nombreNiveaux: Optional[int] = None
-    descriptionGenerale: Optional[str] = None
+    siecleConstruction: str | None = None
+    periodeConstruction: list[str] | None = None
+    superficie: float | None = None
+    materiaux: list[str] | None = None
+    typeCouverture: str | None = None
+    nombreNiveaux: int | None = None
+    descriptionGenerale: str | None = None
 
     etatConservation: str
-    travauxEnvisages: Optional[list[str]] = None
-    urgenceTravaux: Optional[str] = None
-    diagnosticRealise: Optional[bool] = None
-    derniersTravaux: Optional[str] = None
-    descriptionEtat: Optional[str] = None
+    travauxEnvisages: list[str] | None = None
+    urgenceTravaux: str | None = None
+    diagnosticRealise: bool | None = None
+    derniersTravaux: str | None = None
+    descriptionEtat: str | None = None
 
 
 class UpdateMonumentRequest(BaseModel):
@@ -91,34 +91,34 @@ class UpdateMonumentRequest(BaseModel):
     codeInsee: Optional[str] = None
     referenceMerimee: Optional[str] = None
 
-    protection: Optional[str] = None
-    dateProtection: Optional[str] = None
-    typeProtection: Optional[str] = None
-    proprietaire: Optional[str] = None
-    affectataire: Optional[str] = None
+    protection: str | None = None
+    dateProtection: str | None = None
+    typeProtection: str | None = None
+    proprietaire: str | None = None
+    affectataire: str | None = None
 
-    siecleConstruction: Optional[str] = None
-    periodeConstruction: Optional[list[str]] = None
-    superficie: Optional[float] = None
-    materiaux: Optional[list[str]] = None
-    typeCouverture: Optional[str] = None
-    nombreNiveaux: Optional[int] = None
-    descriptionGenerale: Optional[str] = None
+    siecleConstruction: str | None = None
+    periodeConstruction: list[str] | None = None
+    superficie: float | None = None
+    materiaux: list[str] | None = None
+    typeCouverture: str | None = None
+    nombreNiveaux: int | None = None
+    descriptionGenerale: str | None = None
 
-    etatConservation: Optional[str] = None
-    travauxEnvisages: Optional[list[str]] = None
-    urgenceTravaux: Optional[str] = None
-    diagnosticRealise: Optional[bool] = None
-    derniersTravaux: Optional[str] = None
-    descriptionEtat: Optional[str] = None
-    completionPercentage: Optional[int] = None
+    etatConservation: str | None = None
+    travauxEnvisages: list[str] | None = None
+    urgenceTravaux: str | None = None
+    diagnosticRealise: bool | None = None
+    derniersTravaux: str | None = None
+    descriptionEtat: str | None = None
+    completionPercentage: int | None = None
 
 
 class AddPhotoRequest(BaseModel):
     url: str
     legende: str
     type: str
-    datePhoto: Optional[str] = None
+    datePhoto: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +245,9 @@ def create_monument(
 
     # Compute and persist completion
     pct = _compute_completion(monument)
-    supabase.table("monuments").update({"completion_percentage": pct}).eq("id", monument["id"]).execute()
+    supabase.table("monuments").update({"completion_percentage": pct}).eq(
+        "id", monument["id"]
+    ).execute()
     monument["completion_percentage"] = pct
 
     return _enrich_monument(supabase, monument)
@@ -287,7 +289,9 @@ def update_monument(
 
     # Recompute completion
     pct = _compute_completion(monument)
-    supabase.table("monuments").update({"completion_percentage": pct}).eq("id", monument_id).execute()
+    supabase.table("monuments").update({"completion_percentage": pct}).eq(
+        "id", monument_id
+    ).execute()
     monument["completion_percentage"] = pct
 
     return _enrich_monument(supabase, monument)

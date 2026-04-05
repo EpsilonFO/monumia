@@ -56,13 +56,29 @@ export function OnboardingMonument() {
     const regionValue = REGION_LABEL_TO_VALUE[record.region?.toLowerCase() ?? ''] ?? '';
 
     const titre = record.titre_editorial_de_la_notice ?? '';
-    const denominationGuess = titre.toLowerCase().includes('église')
-      ? 'eglise'
-      : titre.toLowerCase().includes('château')
-        ? 'chateau'
-        : titre.toLowerCase().includes('chapelle')
-          ? 'chapelle'
-          : '';
+    const denominationGuess = record.denomination_de_l_edifice?.trim() ?? '';
+
+    const PROPRIETAIRE_MAP: Record<string, Monument['proprietaire']> = {
+      'commune': 'public_commune',
+      'communal': 'public_commune',
+      'département': 'public_departement',
+      'departemental': 'public_departement',
+      'région': 'public_region',
+      'regional': 'public_region',
+      'état': 'public_etat',
+      'etat': 'public_etat',
+      'propriété privée': 'prive_personne_physique',
+      'privé': 'prive_personne_physique',
+      'prive': 'prive_personne_physique',
+      'sci': 'prive_sci',
+      'association': 'association',
+      'mixte': 'mixte',
+    };
+    const statutRaw = record.statut_juridique_de_l_edifice?.toLowerCase().trim() ?? '';
+    const proprietaireGuess =
+      PROPRIETAIRE_MAP[statutRaw] ??
+      (Object.entries(PROPRIETAIRE_MAP).find(([k]) => statutRaw.includes(k))?.[1]) ??
+      undefined;
 
     const materiauxRaw = lastOf(record.materiaux_de_la_couverture || record.materiaux_du_gros_oeuvre).toLowerCase();
     const materiaux = materiauxRaw
@@ -96,6 +112,7 @@ export function OnboardingMonument() {
       siecleConstruction: record.format_abrege_du_siecle_de_construction || record.siecle_de_la_campagne_principale_de_construction || undefined,
       typeCouverture,
       materiaux: materiaux?.length ? materiaux : undefined,
+      proprietaire: proprietaireGuess,
       descriptionGenerale: record.precision_de_la_protection || undefined,
     };
 
@@ -108,7 +125,6 @@ export function OnboardingMonument() {
       typeCouverture,
       lastDateEntry,
       dateProtection,
-      denominationGuess,
       regionValue,
     });
 

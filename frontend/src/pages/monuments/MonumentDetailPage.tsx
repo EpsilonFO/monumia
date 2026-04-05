@@ -178,7 +178,12 @@ export function MonumentDetailPage() {
 
       <PageHeader
         title={monument.nom}
-        description={`${monument.commune} (${monument.departement}) — ${protectionLabels[monument.protection] ?? monument.protection}`}
+        description={[
+          monument.commune && monument.departement
+            ? `${monument.commune} (${monument.departement})`
+            : monument.commune || monument.departement || null,
+          protectionLabels[monument.protection] ?? monument.protection,
+        ].filter(Boolean).join(' — ')}
         action={
           <div className="flex gap-2">
             <button onClick={handleDelete} disabled={deleting} className="flex items-center justify-center w-9 h-9 border border-[#E4E2DC] rounded-lg text-[#8E92A4] hover:text-red-600 hover:border-red-200 transition-colors">
@@ -213,8 +218,8 @@ export function MonumentDetailPage() {
               <div className="space-y-2 text-[13px]">
                 <InfoRow label="Dénomination" value={monument.denomination} />
                 {monument.referenceMerimee && <InfoRow label="Réf. Mérimée" value={monument.referenceMerimee} />}
-                <InfoRow label="Localisation" value={monument.commune} />
-                <InfoRow label="Département" value={monument.departement} />
+                <InfoRow label="Localisation" value={monument.commune ?? ''} />
+                <InfoRow label="Département" value={monument.departement ?? ''} />
                 {monument.siecleConstruction && <InfoRow label="Siècle" value={monument.siecleConstruction} />}
               </div>
             </Panel>
@@ -258,7 +263,7 @@ export function MonumentDetailPage() {
           </div>
 
           {monument.descriptionGenerale && (
-            <Panel title="Description générale">
+            <Panel title="Description générale de la protection">
               <p className="text-[13px] leading-relaxed text-[#5C6178]">{monument.descriptionGenerale}</p>
             </Panel>
           )}

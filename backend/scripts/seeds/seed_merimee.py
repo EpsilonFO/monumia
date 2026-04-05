@@ -109,7 +109,7 @@ def main():
     rows = []
     for raw in raw_rows:
         row = {}
-        for orig_h, db_col in zip(raw_headers, db_cols):
+        for orig_h, db_col in zip(raw_headers, db_cols, strict=False):
             value = raw.get(orig_h, "")
             row[db_col] = value if value != "" else None
         if row.get("reference"):

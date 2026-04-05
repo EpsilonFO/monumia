@@ -1,9 +1,8 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from supabase import Client
 
-from db import get_supabase, get_current_user_id
+from db import get_current_user_id, get_supabase
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -25,17 +24,17 @@ class CreateDocumentRequest(BaseModel):
     url: str
     monument_ids: list[str] = []
     # Backward compat: accept single monument_id and convert to monument_ids
-    monument_id: Optional[str] = None
-    date_document: Optional[str] = None
-    description: Optional[str] = None
+    monument_id: str | None = None
+    date_document: str | None = None
+    description: str | None = None
 
 
 class UpdateDocumentRequest(BaseModel):
-    nom: Optional[str] = None
-    type: Optional[str] = None
-    tags: Optional[list[str]] = None
-    date_document: Optional[str] = None
-    description: Optional[str] = None
+    nom: str | None = None
+    type: str | None = None
+    tags: list[str] | None = None
+    date_document: str | None = None
+    description: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -57,8 +56,8 @@ def _get_document_or_404(supabase: Client, document_id: str, user_id: str) -> di
 
 @router.get("")
 def list_documents(
-    monument_id: Optional[str] = Query(None),
-    type: Optional[str] = Query(None),
+    monument_id: str | None = Query(None),
+    type: str | None = Query(None),
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
@@ -84,9 +83,13 @@ def create_document(
 
     # Validate monument ownership for all referenced monuments
     for mid in monument_ids:
-        check = supabase.table("monuments").select("id").eq("id", mid).eq("user_id", user_id).execute()
+        check = (
+            supabase.table("monuments").select("id").eq("id", mid).eq("user_id", user_id).execute()
+        )
         if not check.data:
-            raise HTTPException(status_code=403, detail=f"Monument {mid} introuvable ou non autorisé")
+            raise HTTPException(
+                status_code=403, detail=f"Monument {mid} introuvable ou non autorisé"
+            )
 
     row = {
         **body.model_dump(exclude_none=True, exclude={"monument_id"}),
@@ -141,10 +144,10 @@ def delete_document(
         idx = storage_path.find(marker)
         if idx != -1:
             storage_path = storage_path[idx + len(marker) :]
-        try:
-            supabase.storage.from_("documents").remove([storage_path])
-        except Exception:
-            pass  # best-effort: don't block deletion if storage removal fails
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            supabase.storage.from_("documents").remove([storage_path])  # best-effort
 
     supabase.table("documents").delete().eq("id", document_id).execute()
 
@@ -166,7 +169,9 @@ def link_to_dossier(
     dossiers: list = doc.get("dossiers_utilises") or []
     if dossier_id not in dossiers:
         dossiers.append(dossier_id)
-        supabase.table("documents").update({"dossiers_utilises": dossiers}).eq("id", document_id).execute()
+        supabase.table("documents").update({"dossiers_utilises": dossiers}).eq(
+            "id", document_id
+        ).execute()
 
 
 @router.delete("/{document_id}/link/{dossier_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -181,4 +186,6 @@ def unlink_from_dossier(
     dossiers: list = doc.get("dossiers_utilises") or []
     updated = [d for d in dossiers if d != dossier_id]
 
-    supabase.table("documents").update({"dossiers_utilises": updated}).eq("id", document_id).execute()
+    supabase.table("documents").update({"dossiers_utilises": updated}).eq(
+        "id", document_id
+    ).execute()

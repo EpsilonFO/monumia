@@ -69,6 +69,8 @@ export interface MerimeeRecord {
   date_et_typologie_de_la_protection?: string;
   precision_de_la_protection?: string;
   format_abrege_du_siecle_de_construction?: string;
+  denomination_de_l_edifice?: string;
+  statut_juridique_de_l_edifice?: string;
 }
 
 export interface MonumentFormState {

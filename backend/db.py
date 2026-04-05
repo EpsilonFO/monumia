@@ -1,8 +1,9 @@
 import os
+
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from supabase import create_client, Client
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from supabase import Client, create_client
 
 load_dotenv()
 
@@ -30,10 +31,12 @@ def get_current_user_id(
     """Extract and verify the JWT, returning the authenticated user's UUID."""
     token = credentials.credentials
     try:
-        user = supabase.auth.get_user(token)
-        return user.user.id
-    except Exception:
+        response = supabase.auth.get_user(token)
+        if response is None or response.user is None:
+            raise ValueError("No user in response")
+        return response.user.id
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token invalide ou expiré",
-        )
+        ) from e

@@ -330,7 +330,7 @@ function Step3DescriptionPhysique({ data, onChange }: StepProps) {
         </div>
       </div>
       <div className="md:col-span-2">
-        <Label htmlFor="descriptionGenerale">Description générale</Label>
+        <Label htmlFor="descriptionGenerale">Description générale de la protection</Label>
         <Textarea
           id="descriptionGenerale"
           value={data.descriptionGenerale ?? ''}
