@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
+from routers.monuments import _enrich_monument
 from services.dossier_service import create_dossier_from_aide
 
 router = APIRouter(prefix="/dossiers", tags=["dossiers"])
@@ -83,7 +84,13 @@ def _recalculate_progression(dossier: dict) -> int:
     return round(len(fournis) / len(obligatoires) * 100)
 
 
-STEP_TO_STATUS = {1: "brouillon", 2: "en_cours", 3: "en_cours", 4: "complet", 5: "soumis"}
+STEP_TO_STATUS = {
+    1: "brouillon",
+    2: "en_cours",
+    3: "en_cours",
+    4: "complet",
+    5: "soumis",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +141,7 @@ def create_dossier(
     if not user_result.data:
         raise HTTPException(status_code=404, detail="Profil introuvable")
 
+    monument = _enrich_monument(supabase, monument_result.data)
     # Resolve travaux codes → labels via ref_travaux
     travaux_labels = body.travaux_prevus
     if body.travaux_prevus:
@@ -149,7 +157,7 @@ def create_dossier(
 
     dossier = create_dossier_from_aide(
         aide=aide_result.data,
-        monument=monument_result.data,
+        monument=monument,
         user=user_result.data,
         travaux_prevus=travaux_labels,
     )
@@ -326,7 +334,8 @@ def add_echeance(
 
 
 @router.patch(
-    "/{dossier_id}/echeances/{echeance_id}/toggle", status_code=status.HTTP_204_NO_CONTENT
+    "/{dossier_id}/echeances/{echeance_id}/toggle",
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 def toggle_echeance(
     dossier_id: str,

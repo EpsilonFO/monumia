@@ -170,6 +170,7 @@ export function runDiagnostic(
     timestamp: new Date().toISOString(),
     totalAidesAnalysees: aides.length,
     aidesEligibles,
+    aidesPotentiellementEligibles: [],
     aidesNonEligibles,
     montantPotentielTotal: montantPotentielTotal > 0 ? montantPotentielTotal : undefined,
   };

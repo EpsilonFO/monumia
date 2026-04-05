@@ -29,7 +29,6 @@ interface CommuneResult {
   codeDepartement: string;
   departement: string;
   region: string;
-  codePostal: string | null;
   population: number | null;
 }
 

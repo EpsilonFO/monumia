@@ -186,7 +186,13 @@ AIDES = [
         ],
         "delai_instruction": "4 à 8 mois",
         "permanent": True,
-        "tags": ["commune rurale", "état", "monument historique", "co-financement", "péril"],
+        "tags": [
+            "commune rurale",
+            "état",
+            "monument historique",
+            "co-financement",
+            "péril",
+        ],
         "base_ttc": False,
     },
     # === Label Fondation du Patrimoine ===
@@ -846,7 +852,13 @@ AIDES = [
         ],
         "delai_instruction": "3 à 6 mois",
         "permanent": False,
-        "tags": ["région", "hauts-de-france", "patrimoine rural", "non protégé", "appel à projets"],
+        "tags": [
+            "région",
+            "hauts-de-france",
+            "patrimoine rural",
+            "non protégé",
+            "appel à projets",
+        ],
         "base_ttc": False,
     },
     # === Île-de-France — Patrimoine immobilier protégé MH ===
@@ -966,7 +978,13 @@ AIDES = [
         ],
         "delai_instruction": "3 à 6 mois",
         "permanent": True,
-        "tags": ["région", "ile-de-france", "label régional", "non protégé", "tourisme"],
+        "tags": [
+            "région",
+            "ile-de-france",
+            "label régional",
+            "non protégé",
+            "tourisme",
+        ],
         "base_ttc": False,
     },
     # === Occitanie ===
@@ -1033,7 +1051,14 @@ AIDES = [
         ],
         "delai_instruction": "3 à 6 mois",
         "permanent": True,
-        "tags": ["région", "occitanie", "patrimoine rural", "mobilier", "orgues", "maritime"],
+        "tags": [
+            "région",
+            "occitanie",
+            "patrimoine rural",
+            "mobilier",
+            "orgues",
+            "maritime",
+        ],
         "base_ttc": False,
     },
     # === Bretagne ===
@@ -1050,7 +1075,11 @@ AIDES = [
         "criteres": {
             "regionEligible": ["bretagne"],
             "protectionRequise": ["classe", "inscrit"],
-            "proprietaireEligible": ["prive_personne_physique", "prive_sci", "association"],
+            "proprietaireEligible": [
+                "prive_personne_physique",
+                "prive_sci",
+                "association",
+            ],
             "segmentEligible": ["prive"],
             "travauxEligibles": [
                 "toiture",
@@ -1458,7 +1487,13 @@ AIDES = [
         ],
         "delai_instruction": "3 à 6 mois",
         "permanent": True,
-        "tags": ["région", "centre-val-de-loire", "FRP", "fondation du patrimoine", "non classé"],
+        "tags": [
+            "région",
+            "centre-val-de-loire",
+            "FRP",
+            "fondation du patrimoine",
+            "non classé",
+        ],
         "base_ttc": False,
     },
     # === Normandie — Restauration MH (détaillé) ===
@@ -1477,7 +1512,11 @@ AIDES = [
         "criteres": {
             "regionEligible": ["normandie"],
             "protectionRequise": ["classe", "inscrit"],
-            "proprietaireEligible": ["public_commune", "prive_personne_physique", "association"],
+            "proprietaireEligible": [
+                "public_commune",
+                "prive_personne_physique",
+                "association",
+            ],
             "travauxEligibles": [
                 "toiture",
                 "charpente",
@@ -1873,7 +1912,13 @@ AIDES = [
         ],
         "delai_instruction": "3 à 6 mois",
         "permanent": True,
-        "tags": ["région", "corse", "patrimoine religieux", "orgues", "label patrimoine corse"],
+        "tags": [
+            "région",
+            "corse",
+            "patrimoine religieux",
+            "orgues",
+            "label patrimoine corse",
+        ],
         "base_ttc": False,
     },
     # === Outre-mer — MaPrimeRénov' et aides spécifiques ===
@@ -1888,7 +1933,13 @@ AIDES = [
         "organisme": "État / ANAH / Collectivités d'Outre-mer",
         "taux_max": 32,
         "criteres": {
-            "regionEligible": ["guadeloupe", "martinique", "guyane", "la-reunion", "mayotte"],
+            "regionEligible": [
+                "guadeloupe",
+                "martinique",
+                "guyane",
+                "la-reunion",
+                "mayotte",
+            ],
             "proprietaireEligible": [
                 "public_commune",
                 "public_departement",

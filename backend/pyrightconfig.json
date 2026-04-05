@@ -1,0 +1,15 @@
+{
+  "include": ["."],
+  "exclude": ["scripts", ".venv"],
+  "typeCheckingMode": "basic",
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalSubscript": "none",
+  "reportAttributeAccessIssue": "none",
+  "reportIndexIssue": "none",
+  "reportArgumentType": "none",
+  "reportGeneralTypeIssues": "none",
+  "reportCallIssue": "none",
+  "reportReturnType": "none",
+  "reportOperatorIssue": "none",
+  "reportUnhashable": "none"
+}

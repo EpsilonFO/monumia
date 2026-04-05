@@ -77,6 +77,10 @@ export interface AideMatchResult {
   criteresRemplis: string[];
   criteresNonRemplis: string[];
   raisonIneligibilite?: string;
+  llmEvaluation?: {
+    explication: string;
+    incertitudes: string[];
+  };
 }
 
 export interface AideDiagnosticRequest {
@@ -93,6 +97,7 @@ export interface AideDiagnosticResult {
   travauxFiltres?: string[];
   totalAidesAnalysees: number;
   aidesEligibles: AideMatchResult[];
+  aidesPotentiellementEligibles: AideMatchResult[];
   aidesNonEligibles: AideMatchResult[];
   montantPotentielTotal?: number;
 }

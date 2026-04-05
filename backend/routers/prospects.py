@@ -108,7 +108,7 @@ def list_prospects(
             for p in data
             if q_lower in (p.get("contact_nom") or "").lower()
             or q_lower in ((p.get("monuments") or {}).get("nom") or "").lower()
-            or q_lower in ((p.get("monuments") or {}).get("commune") or "").lower()
+            or q_lower in (p.get("commune") or "").lower()
             or q_lower in ((p.get("monuments") or {}).get("proprietaire") or "").lower()
         ]
 
@@ -160,7 +160,14 @@ def update_statut(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    valid_statuts = {"a_contacter", "contacte", "en_discussion", "devis_envoye", "gagne", "perdu"}
+    valid_statuts = {
+        "a_contacter",
+        "contacte",
+        "en_discussion",
+        "devis_envoye",
+        "gagne",
+        "perdu",
+    }
     if body.statut not in valid_statuts:
         raise HTTPException(
             status_code=400,

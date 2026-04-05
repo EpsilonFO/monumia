@@ -16,7 +16,6 @@ function toMonument(row: Record<string, unknown>): Monument {
     departement: row.departement as string,
     region: row.region as Monument['region'],
     referenceMerimee: row.reference_merimee as string ?? row.referenceMerimee as string,
-    coordonnees: row.coordonnees as Monument['coordonnees'],
     protection: row.protection as Monument['protection'],
     dateProtection: row.date_protection as string ?? row.dateProtection as string,
     typeProtection: row.type_protection as string ?? row.typeProtection as string,
