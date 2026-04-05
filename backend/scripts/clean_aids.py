@@ -11,7 +11,7 @@ file_path = Path(__file__).parent / "all_aids.txt"
 
 pattern = re.compile(r"^\d+\.\d+\s*—\s*(.+)")
 
-with open(file_path, "r", encoding="utf-8") as f:
+with open(file_path, encoding="utf-8") as f:
     lines = f.readlines()
 
 kept = []
