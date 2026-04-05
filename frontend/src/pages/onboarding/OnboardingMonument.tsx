@@ -10,7 +10,7 @@ import { monumentService } from '@/services/monument.service';
 
 import { merimeeService } from '@/services/merimee.service';
 import { REGIONS } from '@/constants/regions';
-import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
+import { DENOMINATIONS, MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
 import { Search, PenLine, ChevronLeft, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
@@ -56,7 +56,9 @@ export function OnboardingMonument() {
     const regionValue = REGION_LABEL_TO_VALUE[record.region?.toLowerCase() ?? ''] ?? '';
 
     const titre = record.titre_editorial_de_la_notice ?? '';
-    const denominationGuess = record.denomination_de_l_edifice?.trim() ?? '';
+    const denominationRaw = record.denomination_de_l_edifice?.trim().toLowerCase() ?? '';
+    const denominationNorm = denominationRaw.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+    const denominationGuess = DENOMINATIONS.find((d) => d.value === denominationNorm)?.value ?? '';
 
     const PROPRIETAIRE_MAP: Record<string, Monument['proprietaire']> = {
       'commune': 'public_commune',

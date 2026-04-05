@@ -16,9 +16,7 @@ import {
   ETATS_CONSERVATION,
   URGENCE_TRAVAUX,
   WORK_TYPES,
-  MATERIAUX,
-  AFFECTATAIRES,
-  TYPES_COUVERTURE,
+
 } from '@/constants/monument-options';
 import type { Monument, WorkType } from '@/types';
 
@@ -232,31 +230,11 @@ function Step2StatutJuridique({ data, onChange }: StepProps) {
           </SelectContent>
         </Select>
       </div>
-      <div>
-        <Label htmlFor="affectataire">Affectation</Label>
-        <Select
-          value={data.affectataire ?? ''}
-          onValueChange={(v) => onChange({ affectataire: v })}
-        >
-          <SelectTrigger id="affectataire">
-            <SelectValue placeholder="Sélectionner..." />
-          </SelectTrigger>
-          <SelectContent>
-            {AFFECTATAIRES.map((a) => (
-              <SelectItem key={a.value} value={a.value}>
-                {a.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
     </div>
   );
 }
 
 function Step3DescriptionPhysique({ data, onChange }: StepProps) {
-  const selectedMateriaux = data.materiaux ?? [];
-
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
@@ -267,67 +245,6 @@ function Step3DescriptionPhysique({ data, onChange }: StepProps) {
           onChange={(e) => onChange({ siecleConstruction: e.target.value })}
           placeholder="Ex : XVe siècle"
         />
-      </div>
-      <div>
-        <Label htmlFor="superficie">Superficie (m²)</Label>
-        <Input
-          id="superficie"
-          type="number"
-          value={data.superficie ?? ''}
-          onChange={(e) => onChange({ superficie: e.target.value ? Number(e.target.value) : undefined })}
-          placeholder="Ex : 1200"
-        />
-      </div>
-      <div>
-        <Label htmlFor="typeCouverture">Type de couverture</Label>
-        <Select
-          value={data.typeCouverture ?? ''}
-          onValueChange={(v) => onChange({ typeCouverture: v })}
-        >
-          <SelectTrigger id="typeCouverture">
-            <SelectValue placeholder="Sélectionner..." />
-          </SelectTrigger>
-          <SelectContent>
-            {TYPES_COUVERTURE.map((t) => (
-              <SelectItem key={t.value} value={t.value}>
-                {t.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label htmlFor="nombreNiveaux">Nombre de niveaux</Label>
-        <Input
-          id="nombreNiveaux"
-          type="number"
-          value={data.nombreNiveaux ?? ''}
-          onChange={(e) => onChange({ nombreNiveaux: e.target.value ? Number(e.target.value) : undefined })}
-          placeholder="Ex : 2"
-        />
-      </div>
-      <div className="md:col-span-2">
-        <Label>Matériaux</Label>
-        <div className="flex flex-wrap gap-2 mt-2">
-          {MATERIAUX.map((m) => {
-            const selected = selectedMateriaux.includes(m.value);
-            return (
-              <Badge
-                key={m.value}
-                variant={selected ? 'default' : 'outline'}
-                className="cursor-pointer"
-                onClick={() => {
-                  const next = selected
-                    ? selectedMateriaux.filter((v) => v !== m.value)
-                    : [...selectedMateriaux, m.value];
-                  onChange({ materiaux: next });
-                }}
-              >
-                {m.label}
-              </Badge>
-            );
-          })}
-        </div>
       </div>
       <div className="md:col-span-2">
         <Label htmlFor="descriptionGenerale">Description générale de la protection</Label>
