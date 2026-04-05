@@ -58,7 +58,7 @@ export function MonumentCard({ monument }: MonumentCardProps) {
           </div>
           <div className="flex items-center gap-1.5 text-[12px] text-[#8E92A4]">
             <MapPin className="h-3 w-3 shrink-0" strokeWidth={1.8} />
-            <span>{monument.commune} ({monument.departement})</span>
+            <span>{monument.commune}{monument.departement ? ` (${monument.departement})` : ''}</span>
           </div>
         </div>
 

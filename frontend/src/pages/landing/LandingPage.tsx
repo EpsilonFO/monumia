@@ -150,7 +150,15 @@ export function LandingPage() {
         style={{ borderColor: scrolled ? C.border : 'transparent' }}
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-10 py-5">
-          <img src="/patrialta.png" alt="PatriAlta" className="h-7" />
+          <div className="flex items-center gap-3">
+            <img src="/patrialta.png" alt="PatriAlta" className="h-7" />
+            <span
+              className="text-[1.45rem] font-light tracking-[-0.01em]"
+              style={{ fontFamily: "'Cormorant Garamond', serif", color: C.royal }}
+            >
+              PatriAlta
+            </span>
+          </div>
 
           <nav className="hidden md:flex items-center gap-10 text-[13px] font-medium uppercase tracking-[0.12em]" style={{ color: C.textLight }}>
             <a href="#fonctionnalites" className="transition-colors duration-300 hover:text-[#1A237E]">Fonctionnalités</a>
@@ -564,7 +572,15 @@ export function LandingPage() {
       {/* ═══════════════ FOOTER ═══════════════ */}
       <footer className="relative border-t py-12 px-6 lg:px-10" style={{ borderColor: C.border, background: C.bg }}>
         <div className="mx-auto max-w-7xl flex flex-col lg:flex-row items-center justify-between gap-8">
-          <img src="/patrialta.png" alt="PatriAlta" className="h-5 opacity-60" />
+          <div className="flex items-center gap-2.5 opacity-60">
+            <img src="/patrialta.png" alt="PatriAlta" className="h-5" />
+            <span
+              className="text-[1.15rem] font-light tracking-[-0.01em]"
+              style={{ fontFamily: "'Cormorant Garamond', serif", color: C.royal }}
+            >
+              PatriAlta
+            </span>
+          </div>
 
           <p className="text-[13px] text-center" style={{ color: C.textLight }}>
             La plateforme de financement du patrimoine historique français.

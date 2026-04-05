@@ -43,10 +43,7 @@ class CreateMonumentRequest(BaseModel):
     nom: str
     denomination: str
     codePostal: str | None = None
-    commune: str
     codeInsee: str
-    departement: str
-    region: str
     referenceMerimee: str | None = None
     coordonnees: Coordonnees | None = None
 
@@ -77,10 +74,7 @@ class UpdateMonumentRequest(BaseModel):
     denomination: str | None = None
     adresse: str | None = None
     codePostal: str | None = None
-    commune: str | None = None
     codeInsee: str | None = None
-    departement: str | None = None
-    region: str | None = None
     referenceMerimee: str | None = None
     coordonnees: Coordonnees | None = None
 
@@ -119,6 +113,26 @@ class AddPhotoRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _enrich_with_commune(supabase: Client, monument: dict) -> dict:
+    """Inject commune/departement/region from communes table via code_insee."""
+    code_insee = monument.get("code_insee")
+    if not code_insee:
+        return monument
+    commune_result = (
+        supabase.table("communes")
+        .select("nom_commune, departement, region")
+        .eq("code_insee", code_insee)
+        .maybe_single()
+        .execute()
+    )
+    if commune_result.data:
+        c = commune_result.data
+        monument["commune"] = c.get("nom_commune")
+        monument["departement"] = c.get("departement")
+        monument["region"] = c.get("region")
+    return monument
+
+
 def _get_monument_or_404(supabase: Client, monument_id: str, user_id: str) -> dict:
     result = (
         supabase.table("monuments")
@@ -130,7 +144,7 @@ def _get_monument_or_404(supabase: Client, monument_id: str, user_id: str) -> di
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
-    return result.data
+    return _enrich_with_commune(supabase, result.data)
 
 
 def _compute_completion(monument: dict) -> int:
@@ -141,8 +155,7 @@ def _compute_completion(monument: dict) -> int:
             [
                 monument.get("nom"),
                 monument.get("denomination"),
-                monument.get("commune"),
-                monument.get("region"),
+                monument.get("code_insee"),
             ]
         ),
         # Step 2 — Legal
@@ -180,7 +193,7 @@ def list_monuments(
         .order("created_at", desc=True)
         .execute()
     )
-    return result.data
+    return [_enrich_with_commune(supabase, m) for m in result.data]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

@@ -134,11 +134,24 @@ def create_dossier(
     if not user_result.data:
         raise HTTPException(status_code=404, detail="Profil introuvable")
 
+    # Resolve travaux codes → labels via ref_travaux
+    travaux_labels = body.travaux_prevus
+    if body.travaux_prevus:
+        ref_result = (
+            supabase.table("ref_travaux")
+            .select("code, label")
+            .in_("code", body.travaux_prevus)
+            .execute()
+        )
+        if ref_result.data:
+            code_to_label = {r["code"]: r["label"] for r in ref_result.data}
+            travaux_labels = [code_to_label.get(c, c) for c in body.travaux_prevus]
+
     dossier = create_dossier_from_aide(
         aide=aide_result.data,
         monument=monument_result.data,
         user=user_result.data,
-        travaux_prevus=body.travaux_prevus,
+        travaux_prevus=travaux_labels,
     )
     dossier["user_id"] = user_id
 

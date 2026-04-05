@@ -58,26 +58,26 @@ export function DashboardPage() {
     <div className="space-y-6">
 
       {/* ═══════════ HERO GREETING ═══════════ */}
-      <div className="relative overflow-hidden rounded-2xl bg-[#1A237E] px-8 py-7">
+      <div className="relative overflow-hidden rounded-2xl px-8 py-7" style={{ background: 'rgba(199, 91, 58, 0.12)' }}>
         {/* decorative elements */}
-        <div className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-[#3949AB]/20 blur-[80px]" />
-        <div className="pointer-events-none absolute -bottom-10 -left-10 h-32 w-32 rounded-full bg-[#C75B3A]/10 blur-[60px]" />
-        <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-1/3 opacity-[0.03]" style={{
-          backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent 29px, #fff 29px, #fff 30px)`,
+        <div className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full blur-[80px]" style={{ background: 'rgba(199, 91, 58, 0.15)' }} />
+        <div className="pointer-events-none absolute -bottom-10 -left-10 h-32 w-32 rounded-full blur-[60px]" style={{ background: 'rgba(26, 35, 126, 0.08)' }} />
+        <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-1/3 opacity-[0.04]" style={{
+          backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent 29px, #C75B3A 29px, #C75B3A 30px)`,
         }} />
 
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/30 mb-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] mb-2" style={{ color: 'rgba(199, 91, 58, 0.5)' }}>
               {now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
             <h1
-              className="text-[clamp(1.8rem,4vw,2.8rem)] font-light leading-[1.1] tracking-[-0.02em] text-white"
-              style={{ fontFamily: FONT }}
+              className="text-[clamp(1.8rem,4vw,2.8rem)] font-light leading-[1.1] tracking-[-0.02em]"
+              style={{ fontFamily: FONT, color: '#1B1E2E' }}
             >
-              {greeting}, <em className="italic text-[#E8C9A0]">{u.prenom}</em>
+              {greeting}, <em className="italic" style={{ color: '#1A237E' }}>{u.prenom}</em>
             </h1>
-            <p className="mt-2 text-[14px] text-white/40 max-w-md">
+            <p className="mt-2 text-[14px] max-w-md" style={{ color: 'rgba(199, 91, 58, 0.6)' }}>
               {userMonuments.length === 0
                 ? 'Commencez par ajouter votre premier monument pour découvrir les aides disponibles.'
                 : `${userMonuments.length} monument${userMonuments.length > 1 ? 's' : ''} · ${activeDossiers.length} dossier${activeDossiers.length > 1 ? 's' : ''} en cours`}
@@ -87,9 +87,10 @@ export function DashboardPage() {
           {userMonuments.length === 0 && (
             <Link
               to={ROUTES.MONUMENTS}
-              className="group inline-flex items-center gap-2 bg-white/10 border border-white/10 text-white text-[13px] font-semibold px-5 py-2.5 rounded-lg transition-all duration-300 hover:bg-white/15 hover:border-white/20 shrink-0"
+              className="group inline-flex items-center gap-2 text-[13px] font-semibold px-5 py-2.5 rounded-lg transition-all duration-300 shrink-0"
+              style={{ background: 'rgba(199, 91, 58, 0.12)', border: '1px solid rgba(199, 91, 58, 0.2)', color: '#C75B3A' }}
             >
-              <Sparkles className="h-4 w-4 text-[#E8C9A0]" />
+              <Sparkles className="h-4 w-4" style={{ color: '#1A237E' }} />
               Ajouter un monument
               <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
             </Link>
@@ -104,23 +105,23 @@ export function DashboardPage() {
           label="Monuments"
           value={userMonuments.length}
           linkTo={ROUTES.MONUMENTS}
-          accentColor="#1A237E"
-          bgColor="#E8EAF6"
+          accentColor="#C75B3A"
+          bgColor="#FBF0EC"
         />
         <KPICard
           icon={ScrollText}
           label="Dossiers actifs"
           value={activeDossiers.length}
           linkTo={ROUTES.DOSSIERS}
-          accentColor="#C75B3A"
-          bgColor="#FBF0EC"
+          accentColor="#1A237E"
+          bgColor="#E8EAF6"
         />
         <KPICard
           icon={Calendar}
           label="Échéances proches"
           value={deadlines.filter((d) => d.estUrgent).length}
-          accentColor={deadlines.some((d) => d.estUrgent) ? '#D97706' : '#1A237E'}
-          bgColor={deadlines.some((d) => d.estUrgent) ? '#FEF3C7' : '#E8EAF6'}
+          accentColor="#C75B3A"
+          bgColor="#FBF0EC"
         />
       </div>
 
@@ -142,9 +143,6 @@ export function DashboardPage() {
             />
             {userMonuments.length === 0 ? (
               <div className="px-5 py-8 text-center">
-                <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-[#FBF0EC] flex items-center justify-center">
-                  <Castle className="h-5 w-5 text-[#C75B3A]" />
-                </div>
                 <p className="text-[13px] text-[#8E92A4]">Aucun monument</p>
               </div>
             ) : (
@@ -152,9 +150,6 @@ export function DashboardPage() {
                 {userMonuments.slice(0, 5).map((m) => (
                   <Link key={m.id} to={ROUTES.MONUMENT_DETAIL(m.id)} className="block">
                     <div className="flex items-center gap-3 px-5 py-3 transition-colors duration-200 hover:bg-[#F8F7F4]">
-                      <div className="w-8 h-8 rounded-lg bg-[#FBF0EC] flex items-center justify-center shrink-0">
-                        <Castle className="h-4 w-4 text-[#C75B3A]" />
-                      </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium text-[#1B1E2E] truncate">{m.nom}</p>
                         <p className="text-[11px] text-[#8E92A4] truncate">{m.commune}</p>
@@ -204,7 +199,7 @@ export function DashboardPage() {
                     <Link key={d.id} to={ROUTES.DOSSIER_DETAIL(d.id)} className="block">
                       <div className="px-5 py-3 transition-colors duration-200 hover:bg-[#F8F7F4]">
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-[13px] font-medium text-[#1B1E2E] truncate flex-1 mr-2">{d.titre}</p>
+                          <p className="text-[13px] font-medium text-[#1B1E2E] truncate flex-1 mr-2" style={{ fontFamily: FONT }}>{d.titre}</p>
                           <Badge className={cn('text-[10px] border-0 shrink-0', statusConfig?.color)}>
                             {statusConfig?.label}
                           </Badge>
@@ -309,11 +304,6 @@ function KPICard({ icon: Icon, label, value, linkTo, accentColor, bgColor }: KPI
       )}
       style={{ background: bgColor }}
     >
-      {/* decorative corner */}
-      <div
-        className="pointer-events-none absolute -top-4 -right-4 h-16 w-16 rounded-full opacity-[0.08]"
-        style={{ background: accentColor }}
-      />
       <div className="relative z-10 flex items-center gap-4">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"

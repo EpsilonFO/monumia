@@ -178,7 +178,12 @@ export function MonumentDetailPage() {
 
       <PageHeader
         title={monument.nom}
-        description={`${monument.commune} (${monument.departement}) — ${protectionLabels[monument.protection] ?? monument.protection}`}
+        description={[
+          monument.commune && monument.departement
+            ? `${monument.commune} (${monument.departement})`
+            : monument.commune || monument.departement || null,
+          protectionLabels[monument.protection] ?? monument.protection,
+        ].filter(Boolean).join(' — ')}
         action={
           <div className="flex gap-2">
             <button onClick={handleDelete} disabled={deleting} className="flex items-center justify-center w-9 h-9 border border-[#E4E2DC] rounded-lg text-[#8E92A4] hover:text-red-600 hover:border-red-200 transition-colors">
