@@ -7,6 +7,7 @@ Three-phase approach:
   3. LLM fine-matching on conditions_eligibilite_detail for nuanced rules
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -428,7 +429,7 @@ def _build_monument_profile(monument: dict, user: dict, population: int | None) 
     return "\n".join(lines)
 
 
-def _llm_evaluate_eligibility(
+async def _llm_evaluate_eligibility(
     monument_profile: str,
     aide_nom: str,
     conditions_detail: str,
@@ -458,7 +459,7 @@ def _llm_evaluate_eligibility(
 
     print(f"  [LLM] Appel Mistral pour « {aide_nom} »...")
     try:
-        response = client.chat.complete(
+        response = await client.chat.complete_async(
             model="mistral-small-latest",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
@@ -513,7 +514,7 @@ def _llm_log(aide_nom: str, llm_result: dict) -> None:
         logger.warning(f"Failed to write llm.txt: {e}")
 
 
-def _run_llm_phase(
+async def _run_llm_phase(
     eligible_results: list[dict],
     monument_profile: str,
 ) -> tuple[list[dict], list[dict], list[dict]]:
@@ -528,49 +529,58 @@ def _run_llm_phase(
     potentially_eligible = []
     downgraded = []
 
+    # Separate aides with/without conditions for LLM evaluation
+    needs_llm = []
     for result in eligible_results:
-        aide = result["aide"]
-        conditions = aide.get("conditions_eligibilite_detail")
-
+        conditions = result["aide"].get("conditions_eligibilite_detail")
         if not conditions:
             still_eligible.append(result)
-            continue
-
-        llm_result = _llm_evaluate_eligibility(
-            monument_profile=monument_profile,
-            aide_nom=aide.get("nom", ""),
-            conditions_detail=conditions,
-            prompt_template=prompt_1,
-        )
-        _llm_log(aide.get("nom", ""), llm_result)
-
-        result["llmEvaluation"] = {
-            "explication": llm_result.get("explication", ""),
-            "incertitudes": llm_result.get("incertitudes", []),
-        }
-
-        llm_eligible = llm_result.get("eligible", True)
-        incertitudes = llm_result.get("incertitudes", [])
-
-        # If LLM says ineligible but has incertitudes, it means it's uncertain
-        # rather than formally contradicted — treat as potentially eligible
-        if not llm_eligible and incertitudes:
-            llm_eligible = True
-
-        if llm_eligible:
-            if incertitudes:
-                potentially_eligible.append(result)
-            else:
-                still_eligible.append(result)
         else:
-            result["eligible"] = False
-            result["criteresNonRemplis"].append(
-                f"Condition détaillée : {llm_result.get('explication', '')}"
+            needs_llm.append(result)
+
+    # Run all LLM calls in parallel
+    if needs_llm:
+        llm_results = await asyncio.gather(*(
+            _llm_evaluate_eligibility(
+                monument_profile=monument_profile,
+                aide_nom=result["aide"].get("nom", ""),
+                conditions_detail=result["aide"]["conditions_eligibilite_detail"],
+                prompt_template=prompt_1,
             )
-            result["raisonIneligibilite"] = result["raisonIneligibilite"] or llm_result.get(
-                "explication", ""
-            )
-            downgraded.append(result)
+            for result in needs_llm
+        ))
+
+        for result, llm_result in zip(needs_llm, llm_results):
+            aide = result["aide"]
+            _llm_log(aide.get("nom", ""), llm_result)
+
+            result["llmEvaluation"] = {
+                "explication": llm_result.get("explication", ""),
+                "incertitudes": llm_result.get("incertitudes", []),
+            }
+
+            llm_eligible = llm_result.get("eligible", True)
+            incertitudes = llm_result.get("incertitudes", [])
+
+            # If LLM says ineligible but has incertitudes, it means it's uncertain
+            # rather than formally contradicted — treat as potentially eligible
+            if not llm_eligible and incertitudes:
+                llm_eligible = True
+
+            if llm_eligible:
+                if incertitudes:
+                    potentially_eligible.append(result)
+                else:
+                    still_eligible.append(result)
+            else:
+                result["eligible"] = False
+                result["criteresNonRemplis"].append(
+                    f"Condition détaillée : {llm_result.get('explication', '')}"
+                )
+                result["raisonIneligibilite"] = result["raisonIneligibilite"] or llm_result.get(
+                    "explication", ""
+                )
+                downgraded.append(result)
 
     return still_eligible, potentially_eligible, downgraded
 
@@ -580,7 +590,7 @@ def _run_llm_phase(
 # ---------------------------------------------------------------------------
 
 
-def run_diagnostic(
+async def run_diagnostic(
     supabase: Client,
     monument: dict,
     user: dict,
@@ -690,7 +700,7 @@ def run_diagnostic(
     except Exception as e:
         logger.warning(f"Failed to write llm.txt header: {e}")
 
-    still_eligible, potentially_eligible, downgraded = _run_llm_phase(
+    still_eligible, potentially_eligible, downgraded = await _run_llm_phase(
         eligible_results, monument_profile
     )
     non_eligible_results.extend(downgraded)

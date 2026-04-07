@@ -117,7 +117,7 @@ def get_aide(
 
 
 @router.post("/diagnostic")
-def diagnostic(
+async def diagnostic(
     body: DiagnosticRequest,
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
@@ -142,7 +142,7 @@ def diagnostic(
     user = user_result.data
 
     try:
-        result = run_diagnostic(
+        result = await run_diagnostic(
             supabase=supabase,
             monument=monument,
             user=user,
