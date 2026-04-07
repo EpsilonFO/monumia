@@ -540,17 +540,19 @@ async def _run_llm_phase(
 
     # Run all LLM calls in parallel
     if needs_llm:
-        llm_results = await asyncio.gather(*(
-            _llm_evaluate_eligibility(
-                monument_profile=monument_profile,
-                aide_nom=result["aide"].get("nom", ""),
-                conditions_detail=result["aide"]["conditions_eligibilite_detail"],
-                prompt_template=prompt_1,
+        llm_results = await asyncio.gather(
+            *(
+                _llm_evaluate_eligibility(
+                    monument_profile=monument_profile,
+                    aide_nom=result["aide"].get("nom", ""),
+                    conditions_detail=result["aide"]["conditions_eligibilite_detail"],
+                    prompt_template=prompt_1,
+                )
+                for result in needs_llm
             )
-            for result in needs_llm
-        ))
+        )
 
-        for result, llm_result in zip(needs_llm, llm_results):
+        for result, llm_result in zip(needs_llm, llm_results, strict=True):
             aide = result["aide"]
             _llm_log(aide.get("nom", ""), llm_result)
 
