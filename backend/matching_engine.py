@@ -2,8 +2,8 @@
 Matching engine v2 — uses normalised aides_v2 tables.
 
 Three-phase approach:
-  1. SQL pre-filter via prefiltrer_aides() → candidate aide UUIDs
-  2. Python builds human-readable criteria match/mismatch lists
+  1. SQL pre-filter via prefiltrer_aides() → candidate aide UUIDs (source of truth for eligibility)
+  2. Python builds human-readable criteria labels for display (does NOT re-check eligibility)
   3. LLM fine-matching on conditions_eligibilite_detail for nuanced rules
 """
 
@@ -17,7 +17,7 @@ from pathlib import Path
 from mistralai.client import Mistral
 from supabase import Client
 
-from prompts.matching import prompt_1
+from prompts.matching import prompt_1, prompt_qcm
 
 logger = logging.getLogger(__name__)
 
@@ -147,8 +147,9 @@ def prefiltrer_aides(
         "p_population": population,
         "p_etat_conservation": monument.get("etat_conservation"),
     }
-    print(
-        f"  [SQL] RPC prefiltrer_aides → params: {json.dumps(params, ensure_ascii=False, default=str)}"
+    logger.debug(
+        "[SQL] RPC prefiltrer_aides → params: %s",
+        json.dumps(params, ensure_ascii=False, default=str),
     )
 
     result = supabase.rpc("prefiltrer_aides", params).execute()
@@ -157,7 +158,7 @@ def prefiltrer_aides(
 
 
 # ---------------------------------------------------------------------------
-# Phase 2: Build human-readable criteria for each aide
+# Phase 2: Build human-readable criteria labels (display only, no re-filtering)
 # ---------------------------------------------------------------------------
 
 
@@ -279,7 +280,7 @@ def fetch_aides_with_joins(supabase: Client, aide_ids: list[str]) -> list[dict]:
     return list(aides_by_id.values())
 
 
-def _check_eligibility(
+def _build_criteria_labels(
     aide: dict,
     monument: dict,
     user: dict,
@@ -287,8 +288,9 @@ def _check_eligibility(
     travaux_filtres: list[str],
     population: int | None = None,
 ) -> dict:
-    """Build human-readable criteria match lists for a single aide.
+    """Build human-readable criteria match/mismatch lists for a single aide.
 
+    This does NOT determine eligibility — that is done by the SQL pre-filter.
     The aide dict must already contain join data (protections, proprietaires, etc.)
     as populated by fetch_aides_with_joins().
     """
@@ -441,8 +443,7 @@ async def _llm_evaluate_eligibility(
     """
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
-        logger.warning("MISTRAL_API_KEY not set, skipping LLM evaluation")
-        print("  [LLM] ⚠ MISTRAL_API_KEY absent — évaluation ignorée")
+        logger.warning("[LLM] MISTRAL_API_KEY absent — évaluation ignorée")
         return {
             "eligible": True,
             "explication": "",
@@ -457,7 +458,7 @@ async def _llm_evaluate_eligibility(
         conditions_detail=conditions_detail,
     )
 
-    print(f"  [LLM] Appel Mistral pour « {aide_nom} »...")
+    logger.info("[LLM] Appel Mistral pour « %s »...", aide_nom)
     try:
         response = await client.chat.complete_async(
             model="mistral-small-latest",
@@ -482,7 +483,7 @@ _LLM_LOG_PATH = Path("/app/llm.txt")
 
 
 def _llm_log(aide_nom: str, llm_result: dict) -> None:
-    """Print LLM result to stdout and append full record to llm.txt."""
+    """Log LLM result and append full record to llm.txt."""
     eligible = llm_result.get("eligible")
     explication = llm_result.get("explication", "")
     incertitudes = llm_result.get("incertitudes", [])
@@ -490,10 +491,10 @@ def _llm_log(aide_nom: str, llm_result: dict) -> None:
     ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
     # stdout (visible in docker logs)
-    print(f"  {icon} eligible={eligible} | incertitudes={len(incertitudes)}")
-    print(f"     explication : {explication}")
+    logger.info("%s eligible=%s | incertitudes=%d", icon, eligible, len(incertitudes))
+    logger.info("   explication : %s", explication)
     for inc in incertitudes:
-        print(f"     - {inc}")
+        logger.info("   - %s", inc)
 
     # llm.txt (full record, in order)
     try:
@@ -588,6 +589,76 @@ async def _run_llm_phase(
 
 
 # ---------------------------------------------------------------------------
+# Phase 4: Generate QCM questions from incertitudes
+# ---------------------------------------------------------------------------
+
+MAX_QCM_QUESTIONS = 5
+
+
+async def generate_qcm_questions(
+    eligible_results: list[dict],
+) -> list[dict]:
+    """Collect incertitudes from eligible aides and ask LLM to group them into QCM questions."""
+    # Collect all incertitudes with their associated aide IDs
+    incertitudes_map: list[dict] = []
+    for result in eligible_results:
+        llm_eval = result.get("llmEvaluation")
+        if not llm_eval:
+            continue
+        for inc in llm_eval.get("incertitudes", []):
+            incertitudes_map.append(
+                {
+                    "incertitude": inc,
+                    "aideId": result["aide"]["id"],
+                    "aideNom": result["aide"].get("nom_court") or result["aide"].get("nom", ""),
+                }
+            )
+
+    if not incertitudes_map:
+        return []
+
+    logger.info("─" * 60)
+    logger.info(
+        "PHASE 4 — Génération QCM (%d incertitude(s) sur %d aide(s))",
+        len(incertitudes_map),
+        len(eligible_results),
+    )
+    logger.info("─" * 60)
+
+    api_key = os.environ.get("MISTRAL_API_KEY")
+    if not api_key:
+        logger.warning("MISTRAL_API_KEY not set, skipping QCM generation")
+        return []
+
+    client = Mistral(api_key=api_key)
+
+    prompt = prompt_qcm.format(
+        incertitudes_json=json.dumps(incertitudes_map, ensure_ascii=False, indent=2),
+        max_questions=MAX_QCM_QUESTIONS,
+    )
+
+    try:
+        response = await client.chat.complete_async(
+            model="mistral-small-latest",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+        )
+        content = response.choices[0].message.content
+        parsed = json.loads(content)
+        questions = parsed.get("questions", [])
+
+        logger.info("→ %d question(s) QCM générée(s)", len(questions))
+        for q in questions:
+            logger.info("  ? %s (%d aide(s))", q.get("question", ""), len(q.get("aideIds", [])))
+
+        return questions
+    except Exception as e:
+        logger.error(f"QCM generation failed: {e}")
+        return []
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -602,44 +673,36 @@ async def run_diagnostic(
     """Run a full diagnostic: SQL pre-filter → criteria check → LLM fine-matching."""
     ctx_travaux = travaux_filtres or []
 
-    print(f"\n{'#' * 60}")
-    print(f"# DIAGNOSTIC — {monument.get('nom', 'Monument inconnu')}")
-    print(f"{'#' * 60}")
-    print(f"  segment      : {_label(SEGMENT_LABELS, user.get('segment'))}")
-    print(f"  protection   : {_label(PROTECTION_LABELS, monument.get('protection'))}")
-    print(f"  propriétaire : {_label(OWNERSHIP_LABELS, monument.get('proprietaire'))}")
-    print(f"  région       : {monument.get('region')}")
-    print(f"  département  : {monument.get('departement')}")
-    print(
-        f"  travaux      : {_labels(TRAVAUX_LABELS, ctx_travaux or monument.get('travaux_envisages') or []) or '—'}"
+    logger.info("#" * 60)
+    logger.info("# DIAGNOSTIC — %s", monument.get("nom", "Monument inconnu"))
+    logger.info("#" * 60)
+    logger.info("  segment      : %s", _label(SEGMENT_LABELS, user.get("segment")))
+    logger.info("  protection   : %s", _label(PROTECTION_LABELS, monument.get("protection")))
+    logger.info("  propriétaire : %s", _label(OWNERSHIP_LABELS, monument.get("proprietaire")))
+    logger.info("  région       : %s", monument.get("region"))
+    logger.info("  département  : %s", monument.get("departement"))
+    logger.info(
+        "  travaux      : %s",
+        _labels(TRAVAUX_LABELS, ctx_travaux or monument.get("travaux_envisages") or []) or "—",
     )
-    print(f"  mode_projet  : {mode_projet}")
+    logger.info("  mode_projet  : %s", mode_projet)
 
     # Phase 1: SQL pre-filter
-    print(f"\n{'─' * 60}")
-    print("PHASE 1 — Pré-filtre SQL")
-    print(f"{'─' * 60}")
+    logger.info("─" * 60)
+    logger.info("PHASE 1 — Pré-filtre SQL")
+    logger.info("─" * 60)
     candidate_ids = prefiltrer_aides(supabase, monument, user, ctx_travaux or None)
-    print(f"  → {len(candidate_ids)} aide(s) candidate(s) retenue(s) par le SQL")
+    logger.info("→ %d aide(s) candidate(s) retenue(s) par le SQL", len(candidate_ids))
 
     # Fetch all aides (candidates + non-candidates) for the full report
     all_aide_ids = [a["id"] for a in (supabase.table("aides_v2").select("id").execute()).data or []]
     non_candidate_ids = [aid for aid in all_aide_ids if aid not in candidate_ids]
-    print(f"  → {len(non_candidate_ids)} aide(s) exclue(s) d'emblée sur {len(all_aide_ids)} total")
+    logger.info(
+        "→ %d aide(s) exclue(s) d'emblée sur %d total", len(non_candidate_ids), len(all_aide_ids)
+    )
 
-    # Phase 2: Fetch aides with join data + build criteria
-    print(f"\n{'─' * 60}")
-    print("PHASE 2 — Vérification des critères Python")
-    print(f"{'─' * 60}")
     candidate_aides = fetch_aides_with_joins(supabase, candidate_ids)
     non_candidate_aides = fetch_aides_with_joins(supabase, non_candidate_ids)
-
-    print(f"\n  Candidates SQL ({len(candidate_aides)}) :")
-    for a in candidate_aides:
-        print(f"    ✓ {a.get('nom_court') or a.get('nom')}")
-    print(f"\n  Exclues SQL ({len(non_candidate_aides)}) :")
-    for a in non_candidate_aides:
-        print(f"    ✗ {a.get('nom_court') or a.get('nom')}")
 
     # Resolve population for criteria display
     population = None
@@ -654,40 +717,30 @@ async def run_diagnostic(
         )
         if commune_result.data:
             population = commune_result.data.get("population")
-            print(f"\n  Population commune : {population} hab.")
 
+    # Candidates from SQL are eligible — just build labels for display
     eligible_results = [
-        _check_eligibility(a, monument, user, mode_projet, ctx_travaux, population)
+        _build_criteria_labels(a, monument, user, mode_projet, ctx_travaux, population)
         for a in candidate_aides
     ]
+    for r in eligible_results:
+        r["eligible"] = True
+
+    # Non-candidates are ineligible — build labels to show why
     non_eligible_results = [
-        _check_eligibility(a, monument, user, mode_projet, ctx_travaux, population)
+        _build_criteria_labels(a, monument, user, mode_projet, ctx_travaux, population)
         for a in non_candidate_aides
     ]
-
-    eligible_after_p2 = [r for r in eligible_results if r["eligible"]]
-    ineligible_after_p2 = [r for r in eligible_results if not r["eligible"]]
-
-    print("\n  Résultats critères Python sur les candidates SQL :")
-    for r in eligible_after_p2:
-        print(f"    ✓ {r['aide'].get('nom_court') or r['aide'].get('nom')}")
-    for r in ineligible_after_p2:
-        raison = r.get("raisonIneligibilite", "")
-        print(f"    ✗ {r['aide'].get('nom_court') or r['aide'].get('nom')} — {raison}")
-
-    non_eligible_results.extend(ineligible_after_p2)
-    eligible_results = eligible_after_p2
-
-    print(
-        f"\n  → {len(eligible_results)} éligible(s) après phase 2, {len(non_eligible_results)} non éligible(s)"
-    )
+    for r in non_eligible_results:
+        r["eligible"] = False
 
     # Phase 3: LLM fine-matching on eligible candidates
-    print(f"\n{'─' * 60}")
-    print(
-        f"PHASE 3 — Évaluation LLM ({len(eligible_results)} aide(s) avec conditions_eligibilite_detail)"
+    logger.info("─" * 60)
+    logger.info(
+        "PHASE 2 — Évaluation LLM (%d aide(s) avec conditions_eligibilite_detail)",
+        len(eligible_results),
     )
-    print(f"{'─' * 60}")
+    logger.info("─" * 60)
     monument_profile = _build_monument_profile(monument, user, population)
 
     # Write diagnostic header to llm.txt
@@ -707,26 +760,32 @@ async def run_diagnostic(
     )
     non_eligible_results.extend(downgraded)
 
-    print("\n  Résultats LLM :")
+    logger.info("Résultats LLM :")
     for r in still_eligible:
-        print(f"    ✓  éligible      — {r['aide'].get('nom_court') or r['aide'].get('nom')}")
+        logger.info("  ✓  éligible      — %s", r["aide"].get("nom_court") or r["aide"].get("nom"))
     for r in potentially_eligible:
-        print(f"    ?  potentiel     — {r['aide'].get('nom_court') or r['aide'].get('nom')}")
+        logger.info("  ?  potentiel     — %s", r["aide"].get("nom_court") or r["aide"].get("nom"))
     for r in downgraded:
-        print(f"    ✗  disqualifié   — {r['aide'].get('nom_court') or r['aide'].get('nom')}")
+        logger.info("  ✗  disqualifié   — %s", r["aide"].get("nom_court") or r["aide"].get("nom"))
 
     montant_total = sum(
         r["aide"].get("montant_max") or 0 for r in still_eligible if r["aide"].get("montant_max")
     )
 
-    print(f"\n{'#' * 60}")
-    print("# RÉSULTAT FINAL")
-    print(f"#   Éligibles        : {len(still_eligible)}")
-    print(f"#   Potentiellement  : {len(potentially_eligible)}")
-    print(f"#   Non éligibles    : {len(non_eligible_results)}")
+    logger.info("#" * 60)
+    logger.info("# RÉSULTAT FINAL")
+    logger.info("#   Éligibles        : %d", len(still_eligible))
+    logger.info("#   Potentiellement  : %d", len(potentially_eligible))
+    logger.info("#   Non éligibles    : %d", len(non_eligible_results))
     if montant_total:
-        print(f"#   Montant potentiel: {montant_total:,} €")
-    print(f"{'#' * 60}\n")
+        logger.info("#   Montant potentiel: %s €", f"{montant_total:,}")
+    logger.info("#" * 60)
+
+    # Phase 4: Generate QCM questions from incertitudes
+    qcm_questions = []
+    all_with_incertitudes = still_eligible + potentially_eligible
+    if all_with_incertitudes:
+        qcm_questions = await generate_qcm_questions(all_with_incertitudes)
 
     return {
         "monumentId": monument["id"],
@@ -736,4 +795,5 @@ async def run_diagnostic(
         "aidesPotentiellementEligibles": potentially_eligible,
         "aidesNonEligibles": non_eligible_results,
         "montantPotentielTotal": montant_total if montant_total > 0 else None,
+        "qcmQuestions": qcm_questions,
     }

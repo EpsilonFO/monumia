@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from logging_config import setup_logging
 from routers import (
     aides,
     auth,
@@ -12,6 +13,8 @@ from routers import (
     notifications,
     prospects,
 )
+
+setup_logging()
 
 app = FastAPI(title="Patrialta API")
 

@@ -62,3 +62,40 @@ Réponds en JSON strict avec ce format :
 
 Si un critère disqualifiant est clairement présent, mets eligible à false, même avec d'autres éléments positifs.
 """
+
+prompt_qcm = """
+Tu es un expert en financement du patrimoine bâti en France.
+
+Voici une liste d'incertitudes issues de l'analyse d'éligibilité de plusieurs aides pour un monument historique. Chaque incertitude est associée aux aides qu'elle concerne.
+
+{incertitudes_json}
+
+Ta mission : regrouper les incertitudes qui portent sur le même sujet, et produire des questions claires à poser au propriétaire du monument pour lever ces incertitudes.
+
+Règles :
+- Regroupe les incertitudes qui traitent du même thème (ex: "ouverture au public 40 jours/an" et "monument accessible au public" → même question)
+- Formule chaque question de façon simple et compréhensible pour un non-expert
+- Propose des choix de réponse sous forme de QCM (2 à 4 options maximum + "Je ne sais pas")
+- Limite-toi à {max_questions} questions maximum — priorise celles qui concernent le plus d'aides
+- Chaque question doit indiquer quelles aides sont concernées (par leur ID)
+
+Réponds en JSON strict avec ce format :
+{{
+  "questions": [
+    {{
+      "id": "q1",
+      "question": "La question formulée clairement",
+      "options": [
+        {{"id": "a", "label": "Oui"}},
+        {{"id": "b", "label": "Non"}},
+        {{"id": "skip", "label": "Je ne sais pas"}}
+      ],
+      "aideIds": ["uuid-1", "uuid-2"],
+      "eliminatingOptionIds": ["b"],
+      "incertitudesGroupees": ["texte incertitude 1", "texte incertitude 2"]
+    }}
+  ]
+}}
+
+Le champ "eliminatingOptionIds" contient les IDs des options qui, si choisies, rendraient les aides concernées non éligibles. "skip" ne doit JAMAIS être éliminatoire.
+"""

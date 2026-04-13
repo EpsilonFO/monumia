@@ -95,7 +95,7 @@ export function AideMatchBanner({ result, isRunning, onLaunch, monumentName }: A
           </div>
           <p className="text-lg font-medium">Analyse en cours...</p>
           <p className="text-sm text-muted-foreground">
-            Croisement de votre monument avec la base d'aides
+            Croisement de votre monument avec la base d'aides. Cela peut prendre quelques dizaines de secondes.
           </p>
         </CardContent>
       </Card>

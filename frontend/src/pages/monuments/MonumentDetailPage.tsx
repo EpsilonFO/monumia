@@ -14,6 +14,7 @@ import { MonumentForm, type PendingPhoto } from '@/components/monument/MonumentF
 import { AideMatchBanner } from '@/components/aide/AideMatchBanner';
 import { AideCard } from '@/components/aide/AideCard';
 import { AideFilterBar } from '@/components/aide/AideFilterBar';
+import { PostDiagnosticQCM, computeEliminatedAideIds } from '@/components/aide/PostDiagnosticQCM';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
@@ -64,6 +65,7 @@ export function MonumentDetailPage() {
   const dossiers = useMemo(() => allDossiers.filter((d) => d.monumentId === monumentId), [allDossiers, monumentId]);
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const filters = useAideStore((s) => s.filters);
+  const setDiagnostic = useAideStore((s) => s.setDiagnostic);
   const diagnostic = monumentId ? diagnosticsByMonument[monumentId] ?? null : null;
 
   const user = useAuthStore((s) => s.user);
@@ -74,6 +76,10 @@ export function MonumentDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [isRunningDiagnostic, setIsRunningDiagnostic] = useState(false);
   const [showDiagnostic, setShowDiagnostic] = useState(!!diagnostic);
+  const [showQcm, setShowQcm] = useState(false);
+  const [qcmAnswers, setQcmAnswers] = useState<Record<string, string>>({});
+  // Keep the original diagnostic (before QCM filtering) so we can re-apply answers
+  const [originalDiagnostic, setOriginalDiagnostic] = useState<AideDiagnosticResult | null>(null);
 
   const defaultTab = searchParams.get('tab') === 'dossiers' ? 'dossiers' : 'informations';
 
@@ -81,11 +87,50 @@ export function MonumentDetailPage() {
     if (!monumentId) return;
     setIsRunningDiagnostic(true);
     setShowDiagnostic(true);
+    setQcmAnswers({});
+    setOriginalDiagnostic(null);
     try {
-      await aideService.runDiagnostic(monumentId, filters.modeProjet, filters.travauxFiltres.length > 0 ? filters.travauxFiltres : undefined);
+      const result = await aideService.runDiagnostic(monumentId, filters.modeProjet, filters.travauxFiltres.length > 0 ? filters.travauxFiltres : undefined);
+      if (result.qcmQuestions && result.qcmQuestions.length > 0) {
+        setOriginalDiagnostic(result);
+        setShowQcm(true);
+      }
     } catch (err) { console.error('Diagnostic error:', err); }
     finally { setIsRunningDiagnostic(false); }
   }, [monumentId, filters.modeProjet, filters.travauxFiltres]);
+
+  const applyQcmAnswers = useCallback((base: AideDiagnosticResult, answers: Record<string, string>) => {
+    if (!monumentId) return;
+    const questions = base.qcmQuestions ?? [];
+    const eliminatedIds = computeEliminatedAideIds(answers, questions);
+    const eliminated = new Set(eliminatedIds);
+    const updated: AideDiagnosticResult = {
+      ...base,
+      aidesEligibles: base.aidesEligibles.filter((m) => !eliminated.has(m.aide.id)),
+      aidesPotentiellementEligibles: base.aidesPotentiellementEligibles.filter((m) => !eliminated.has(m.aide.id)),
+      aidesNonEligibles: [
+        ...base.aidesNonEligibles.filter((m) => !m.raisonIneligibilite?.startsWith('Éliminée suite')),
+        ...base.aidesEligibles.filter((m) => eliminated.has(m.aide.id)).map((m) => ({ ...m, eligible: false as const, raisonIneligibilite: 'Éliminée suite à vos réponses' })),
+        ...base.aidesPotentiellementEligibles.filter((m) => eliminated.has(m.aide.id)).map((m) => ({ ...m, eligible: false as const, raisonIneligibilite: 'Éliminée suite à vos réponses' })),
+      ],
+    };
+    setDiagnostic(monumentId, updated);
+  }, [monumentId, setDiagnostic]);
+
+  const handleQcmComplete = useCallback((_eliminatedAideIds: string[], answers: Record<string, string>) => {
+    setShowQcm(false);
+    setQcmAnswers(answers);
+    const base = originalDiagnostic ?? diagnostic;
+    if (!monumentId || !base) return;
+    if (Object.keys(answers).length === 0) return;
+    applyQcmAnswers(base, answers);
+  }, [monumentId, diagnostic, originalDiagnostic, applyQcmAnswers]);
+
+  const handleReopenQcm = useCallback(() => {
+    setShowQcm(true);
+  }, []);
+
+  const hasQcmQuestions = !!(diagnostic?.qcmQuestions && diagnostic.qcmQuestions.length > 0) || !!(originalDiagnostic?.qcmQuestions && originalDiagnostic.qcmQuestions.length > 0);
 
   const aideIdsWithDossier = useMemo(() => new Set(dossiers.map((d) => d.aideId)), [dossiers]);
 
@@ -104,7 +149,6 @@ export function MonumentDetailPage() {
 
   const [notFound, setNotFound] = useState(false);
   const addMonument = useMonumentStore((s) => s.addMonument);
-  const setDiagnostic = useAideStore((s) => s.setDiagnostic);
 
   useEffect(() => { if (!monument && monumentId) monumentService.getById(monumentId).then(addMonument).catch(() => setNotFound(true)); }, [monumentId]);
   useEffect(() => { if (monumentId && !diagnostic) aideService.getDiagnostics(monumentId).then((d) => { if (d.length > 0) setDiagnostic(monumentId, d[0]); }).catch(console.error); }, [monumentId]);
@@ -293,8 +337,24 @@ export function MonumentDetailPage() {
             <div className="space-y-6">
               <AideMatchBanner result={diagnostic} isRunning={isRunningDiagnostic} onLaunch={handleLaunchDiagnostic} monumentName={monument.nom} />
 
+              {hasQcmQuestions && (
+                <PostDiagnosticQCM
+                  open={showQcm}
+                  onClose={() => setShowQcm(false)}
+                  questions={(originalDiagnostic ?? diagnostic)!.qcmQuestions!}
+                  diagnostic={originalDiagnostic ?? diagnostic!}
+                  initialAnswers={qcmAnswers}
+                  onComplete={handleQcmComplete}
+                />
+              )}
+
               {diagnostic && !isRunningDiagnostic && (
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                  {hasQcmQuestions && (
+                    <button onClick={handleReopenQcm} className="inline-flex items-center gap-2 px-3 py-2 text-[12px] font-medium border border-[#E4E2DC] rounded-lg text-[#5C6178] hover:bg-[#F8F7F4] transition-colors">
+                      <HelpCircle className="h-3.5 w-3.5" strokeWidth={1.8} /> Refaire le questionnaire
+                    </button>
+                  )}
                   <button onClick={handleLaunchDiagnostic} className="inline-flex items-center gap-2 px-3 py-2 text-[12px] font-medium border border-[#E4E2DC] rounded-lg text-[#5C6178] hover:bg-[#F8F7F4] transition-colors">
                     <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.8} /> Refaire le diagnostic
                   </button>

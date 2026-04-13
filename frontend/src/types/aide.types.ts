@@ -89,6 +89,20 @@ export interface AideDiagnosticRequest {
   travauxFiltres?: WorkType[];
 }
 
+export interface QcmOption {
+  id: string;
+  label: string;
+}
+
+export interface QcmQuestion {
+  id: string;
+  question: string;
+  options: QcmOption[];
+  aideIds: string[];
+  eliminatingOptionIds: string[];
+  incertitudesGroupees: string[];
+}
+
 export interface AideDiagnosticResult {
   id?: string;
   monumentId: ID;
@@ -100,4 +114,5 @@ export interface AideDiagnosticResult {
   aidesPotentiellementEligibles: AideMatchResult[];
   aidesNonEligibles: AideMatchResult[];
   montantPotentielTotal?: number;
+  qcmQuestions?: QcmQuestion[];
 }

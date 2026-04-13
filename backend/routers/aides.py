@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
-from matching_engine import _check_eligibility, fetch_aides_with_joins, run_diagnostic
+from matching_engine import _build_criteria_labels, fetch_aides_with_joins, run_diagnostic
 from routers.monuments import _enrich_monument
 
 logger = logging.getLogger(__name__)
@@ -169,6 +169,7 @@ async def diagnostic(
             m["aide"]["id"] for m in result["aidesPotentiellementEligibles"]
         ],
         "aides_non_eligibles_ids": [m["aide"]["id"] for m in result["aidesNonEligibles"]],
+        "qcm_questions": result.get("qcmQuestions") or [],
     }
     insert_result = supabase.table("diagnostics").insert(row).execute()
     if insert_result.data:
@@ -252,7 +253,9 @@ def _hydrate_diagnostic(
         aide = aides_by_id.get(aide_id)
         if not aide:
             return None
-        return _check_eligibility(aide, monument, user, mode_projet, travaux_filtres, population)
+        return _build_criteria_labels(
+            aide, monument, user, mode_projet, travaux_filtres, population
+        )
 
     aides_eligibles = [
         m for aid in (row.get("aides_eligibles_ids") or []) if (m := _build_match(aid)) is not None
@@ -283,4 +286,5 @@ def _hydrate_diagnostic(
             if row.get("montant_potentiel_total") is not None
             else None
         ),
+        "qcmQuestions": row.get("qcm_questions") or [],
     }
