@@ -24,6 +24,8 @@ app.add_middleware(
         "http://localhost:3000",
         "https://patrialta.fr",
         "https://www.patrialta.fr",
+        "https://app.patrialta.fr",
+        "https://beta.patrialta.fr",
     ],
     allow_credentials=True,
     allow_methods=["*"],

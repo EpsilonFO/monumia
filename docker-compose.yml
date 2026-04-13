@@ -1,23 +1,63 @@
 services:
-  backend:
+  # ── Backends ──────────────────────────────────────────
+  app-backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: patrialta-backend
+    container_name: patrialta-app-backend
     env_file:
       - ./backend/.env
     volumes:
       - ./backend:/app
     restart: unless-stopped
 
-  frontend-build:
+  beta-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: patrialta-beta-backend
+    env_file:
+      - ./backend/.env.beta
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  # ── Frontend builds ──────────────────────────────────
+  landing-build:
+    build:
+      context: ./landing
+      dockerfile: Dockerfile
+      args:
+        VITE_APP_URL: https://app.patrialta.fr
+    container_name: patrialta-landing-build
+    volumes:
+      - landing_dist:/dist
+
+  app-frontend-build:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: patrialta-frontend-build
+      args:
+        VITE_API_URL: https://app.patrialta.fr/api
+        VITE_SUPABASE_URL: ${APP_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${APP_SUPABASE_ANON_KEY}
+    container_name: patrialta-app-frontend-build
     volumes:
-      - frontend_dist:/dist
+      - app_frontend_dist:/dist
 
+  beta-frontend-build:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: https://beta.patrialta.fr/api
+        VITE_SUPABASE_URL: ${BETA_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${BETA_SUPABASE_ANON_KEY}
+    container_name: patrialta-beta-frontend-build
+    volumes:
+      - beta_frontend_dist:/dist
+
+  # ── Nginx (single entry point) ──────────────────────
   nginx:
     image: nginx:alpine
     container_name: patrialta-nginx
@@ -26,14 +66,20 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - frontend_dist:/usr/share/nginx/html:ro
+      - landing_dist:/usr/share/nginx/landing:ro
+      - app_frontend_dist:/usr/share/nginx/app:ro
+      - beta_frontend_dist:/usr/share/nginx/beta:ro
       - certbot_www:/var/www/certbot:ro
       - certbot_conf:/etc/letsencrypt:ro
     depends_on:
-      - backend
-      - frontend-build
+      - app-backend
+      - beta-backend
+      - landing-build
+      - app-frontend-build
+      - beta-frontend-build
     restart: unless-stopped
 
+  # ── SSL ─────────────────────────────────────────────
   certbot:
     image: certbot/certbot
     container_name: patrialta-certbot
@@ -43,6 +89,8 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 volumes:
-  frontend_dist:
+  landing_dist:
+  app_frontend_dist:
+  beta_frontend_dist:
   certbot_www:
   certbot_conf:

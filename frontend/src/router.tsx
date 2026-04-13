@@ -6,7 +6,6 @@ import { SegmentChoice } from '@/pages/onboarding/SegmentChoice';
 import { OnboardingProfile } from '@/pages/onboarding/OnboardingProfile';
 import { OnboardingMonument } from '@/pages/onboarding/OnboardingMonument';
 import { LoginPage } from '@/pages/login/LoginPage';
-import { LandingPage } from '@/pages/landing/LandingPage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 // Owner / Commune pages
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
@@ -26,10 +25,10 @@ import { BtpDocumentsPage } from '@/pages/btp/BtpDocumentsPage';
 import { BtpProfilePage } from '@/pages/btp/BtpProfilePage';
 
 export const router = createBrowserRouter([
-  // Landing page (public)
+  // Root redirects to login (landing page is now on patrialta.fr)
   {
     path: '/',
-    element: <LandingPage />,
+    element: <Navigate to="/login" replace />,
   },
 
   // Login page (public)
@@ -88,7 +87,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Catch-all → landing
+  // Catch-all → login
   {
     path: '*',
     element: <Navigate to="/" replace />,

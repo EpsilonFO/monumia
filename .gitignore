@@ -25,10 +25,12 @@ dist-ssr
 *.sw?
 
 .env.docker
+.env
 backend/.env
 backend/scripts/cog_ensemble_2026_csv
 backend/scripts/ensemble
 frontend/.env
+landing/.env
 test_rag/.env.rag
 
 supabase/seed.sql
