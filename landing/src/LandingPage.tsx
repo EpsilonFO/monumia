@@ -7,7 +7,6 @@ import {
   Building2,
   Users,
   HardHat,
-  Sparkles,
   TrendingUp,
   Landmark,
   Clock,
@@ -227,7 +226,7 @@ export function LandingPage() {
             <div className="mt-12 flex flex-col sm:flex-row items-start gap-12 sm:items-end justify-between">
               <p className="max-w-lg text-[17px] leading-[1.75]" style={{ color: C.textMuted }}>
                 PatriAlta identifie les subventions, déductions fiscales et dispositifs de mécénat
-                auxquels vos monuments sont éligibles — puis vous aide à monter vos dossiers.
+                auxquels vos monuments sont éligibles — puis vous aide à monter vos dossiers à l'aide de l'IA.
               </p>
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 shrink-0">
@@ -253,13 +252,13 @@ export function LandingPage() {
           <Reveal delay={350}>
             <div className="mt-10 flex flex-wrap items-center gap-8 text-[14px] font-medium" style={{ color: C.textLight }}>
               <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" style={{ color: C.terra }} />100 % gratuit
+                <CheckCircle2 className="h-4 w-4" style={{ color: C.terra }} />Recherche d'aide gratuite
               </span>
               <span className="flex items-center gap-2">
                 <Shield className="h-4 w-4" style={{ color: C.royal }} />Données sécurisées
               </span>
               <span className="flex items-center gap-2">
-                <Clock className="h-4 w-4" style={{ color: C.terra }} />Résultat instantané
+                <Clock className="h-4 w-4" style={{ color: C.terra }} />Résultat en 2 minutes
               </span>
             </div>
           </Reveal>
@@ -275,12 +274,11 @@ export function LandingPage() {
       <section className="relative py-24 px-6 lg:px-10" style={{ background: C.bgAlt }}>
         <div className="absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(to right, transparent, ${C.border}, transparent)` }} />
         <div className="mx-auto max-w-7xl">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-y-14 gap-x-8">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-y-14 gap-x-8">
             {([
               { n: 440000, s: '', label: 'Monuments en France' },
               { n: 150, s: '+', label: 'Aides référencées' },
-              { n: 18, s: '', label: 'Régions couvertes' },
-              { n: 50, s: '%', label: 'Financement moyen' },
+              { n: 13, s: '', label: 'Régions couvertes' },
             ] as const).map((d, i) => (
               <Reveal key={d.label} delay={i * 100}>
                 <div className="group">
@@ -330,11 +328,11 @@ export function LandingPage() {
 
           <div className="grid gap-px sm:grid-cols-2 lg:grid-cols-3 rounded-lg overflow-hidden" style={{ background: C.border }}>
             {([
-              { icon: Search, title: 'Diagnostic intelligent', desc: "Croisez les caractéristiques de votre monument avec l'ensemble des dispositifs d'aide — DRAC, régions, fondations, fiscal.", num: '01' },
-              { icon: Euro, title: "Catalogue d'aides complet", desc: 'Plus de 150 dispositifs agrégés : subventions, prêts, déductions fiscales, mécénat, labels patrimoniaux.', num: '02' },
-              { icon: FileCheck, title: 'Gestion de dossiers', desc: 'Constituez vos demandes pas à pas : checklists, pièces jointes, jalons et collaborateurs.', num: '03' },
-              { icon: Landmark, title: 'Fiche monument', desc: 'Centralisez toutes les données de votre bien : protection, état, travaux prévus, photos.', num: '04' },
-              { icon: Building2, title: 'Base Mérimée', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '05' },
+              { icon: Landmark, title: 'Fiche monument', desc: 'Centralisez toutes les données de votre bien : protection, état, travaux prévus, photos.', num: '01' },
+              { icon: Building2, title: 'Base Mérimée', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '02' },
+              { icon: Search, title: 'Diagnostic intelligent', desc: "Croisez les caractéristiques de votre monument avec l'ensemble des dispositifs d'aide — DRAC, régions, fondations, fiscal.", num: '03' },
+              { icon: Euro, title: "Catalogue d'aides complet", desc: 'Plus de 150 dispositifs agrégés : subventions, prêts, déductions fiscales, mécénat, labels patrimoniaux.', num: '04' },
+              { icon: FileCheck, title: 'Gestion de dossiers', desc: "Constituez vos demandes pas à pas : checklists, pièces jointes, jalons — avec l'IA pour vous aider à rédiger.", num: '05' },
               { icon: TrendingUp, title: 'Tableaux de bord', desc: "Suivez l'avancement de vos dossiers, les échéances et le montant total de vos financements.", num: '06' },
             ] as const).map((f, i) => (
               <Reveal key={f.title} delay={i * 70}>
@@ -367,7 +365,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* METHODE (3 etapes) */}
+      {/* METHODE — pipeline en 4 étapes */}
       <section id="methode" className="py-32 px-6 lg:px-10 relative" style={{ background: C.bgAlt }}>
         <div className="absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(to right, transparent, ${C.border}, transparent)` }} />
 
@@ -381,69 +379,104 @@ export function LandingPage() {
               className="max-w-xl text-[clamp(2.2rem,4vw,3.8rem)] font-light leading-[1.1] tracking-[-0.02em] mb-20"
               style={{ fontFamily: "'Cormorant Garamond', serif" }}
             >
-              3 étapes vers votre{' '}
+              4 étapes vers votre{' '}
               <em className="italic" style={{ color: C.terra }}>financement</em>
             </h2>
           </Reveal>
 
-          <div className="grid lg:grid-cols-3 gap-0">
+          <div className="grid gap-6 lg:grid-cols-4">
             {([
               {
-                step: '01',
-                title: 'Décrivez votre monument',
-                desc: 'Renseignez localisation, protection, état de conservation et travaux envisagés. Importez depuis Mérimée si votre bien est répertorié.',
                 icon: Landmark,
+                title: 'Trouvez votre monument',
+                desc: "Renseignez votre bien ou importez-le depuis la base Mérimée. Localisation, protection, état : tout est centralisé.",
+                num: '01',
+                accent: C.royal,
+                accentPale: C.royalPale,
+                details: ['Import Mérimée', 'Photos & documents', 'Données de protection'],
               },
               {
-                step: '02',
+                icon: Search,
                 title: 'Lancez le diagnostic',
-                desc: "Notre moteur croise votre situation avec l'ensemble des aides nationales, régionales et privées. Résultat instantané.",
-                icon: Sparkles,
+                desc: "Notre moteur croise votre situation avec plus de 150 dispositifs — DRAC, régions, fondations, fiscal, mécénat — et identifie vos éligibilités.",
+                num: '02',
+                accent: C.terra,
+                accentPale: C.terraPale,
+                details: ['150+ dispositifs', 'Résultat en 2 minutes', 'National & régional'],
               },
               {
-                step: '03',
-                title: 'Constituez vos dossiers',
-                desc: 'Créez vos demandes de subvention avec checklists complètes, suivi documentaire et collaboration.',
                 icon: FileCheck,
+                title: 'Constituez vos dossiers',
+                desc: "Montez vos demandes de subvention pas à pas — et laissez l'IA vous aider à rédiger lettres de motivation, argumentaires et descriptions de projet.",
+                num: '03',
+                accent: C.royal,
+                accentPale: C.royalPale,
+                details: ['Rédaction assistée par IA', 'Checklists guidées', 'Pièces jointes'],
               },
-            ] as const).map((s, i) => (
-              <Reveal key={s.step} delay={i * 150}>
-                <div
-                  className="group relative flex flex-col p-10 lg:p-12 border -mt-px lg:mt-0 lg:-ml-px first:mt-0 first:ml-0 transition-all duration-500"
-                  style={{ borderColor: C.border }}
-                >
+              {
+                icon: TrendingUp,
+                title: 'Suivez vos financements',
+                desc: "Pilotez l'avancement de tous vos dossiers, suivez les échéances et visualisez le montant total de vos financements obtenus.",
+                num: '04',
+                accent: C.terra,
+                accentPale: C.terraPale,
+                details: ['Vue consolidée', 'Échéances', 'Montants obtenus'],
+              },
+            ] as const).map((f, i) => (
+              <Reveal key={f.title} delay={i * 100}>
+                <div className="group relative flex flex-col h-full border p-8 lg:p-9 transition-all duration-500 hover:shadow-lg hover:shadow-black/[0.03]" style={{ borderColor: C.border, background: C.bgAlt }}>
                   {/* step number — large watermark */}
                   <span
-                    className="absolute top-6 right-8 text-[7rem] font-light leading-none opacity-[0.04]"
-                    style={{ fontFamily: "'Cormorant Garamond', serif", color: C.royal }}
+                    className="absolute top-4 right-6 text-[5.5rem] font-light leading-none opacity-[0.04] pointer-events-none"
+                    style={{ fontFamily: "'Cormorant Garamond', serif", color: f.accent }}
                   >
-                    {s.step}
+                    {f.num}
                   </span>
 
-                  <div className="relative z-10">
-                    <div
-                      className="flex h-13 w-13 items-center justify-center rounded-full border mb-8"
-                      style={{ borderColor: `${C.terra}30`, color: C.terra }}
-                    >
-                      <s.icon className="h-5 w-5" />
-                    </div>
-
-                    <h3
-                      className="text-[24px] font-normal mb-4"
-                      style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
-                    >
-                      {s.title}
-                    </h3>
-                    <p className="text-[15px] leading-[1.8] max-w-sm" style={{ color: C.textMuted }}>{s.desc}</p>
+                  {/* icon */}
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-full mb-7 transition-all duration-500 group-hover:scale-105"
+                    style={{ background: f.accentPale, color: f.accent }}
+                  >
+                    <f.icon className="h-[18px] w-[18px]" />
                   </div>
 
-                  {/* connector arrow on desktop */}
-                  {i < 2 && (
+                  {/* step label */}
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.18em] mb-3" style={{ color: f.accent }}>
+                    Étape {f.num}
+                  </span>
+
+                  <h3
+                    className="text-[22px] font-normal mb-3"
+                    style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
+                  >
+                    {f.title}
+                  </h3>
+                  <p className="flex-1 text-[14.5px] leading-[1.75] mb-8" style={{ color: C.textMuted }}>{f.desc}</p>
+
+                  {/* detail tags */}
+                  <ul className="space-y-2.5 border-t pt-6" style={{ borderColor: C.border }}>
+                    {f.details.map((d) => (
+                      <li key={d} className="flex items-center gap-2.5 text-[12px] font-medium uppercase tracking-[0.08em]" style={{ color: C.textLight }}>
+                        <span className="h-1 w-1 rounded-full shrink-0" style={{ background: f.accent }} />
+                        {d}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* hover accent line */}
+                  <div
+                    className="absolute bottom-0 left-8 right-8 h-[2px] scale-x-0 group-hover:scale-x-100 transition-transform duration-700 origin-left"
+                    style={{ background: f.accent }}
+                  />
+
+                  {/* connector arrow between cards on desktop */}
+                  {i < 3 && (
                     <div
-                      className="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 z-20 h-7 w-7 items-center justify-center rounded-full"
+                      className="hidden lg:flex absolute -right-3.5 top-1/2 -translate-y-1/2 z-20 h-7 w-7 items-center justify-center rounded-full"
                       style={{ background: C.bgAlt, border: `1px solid ${C.border}` }}
                     >
-                      <ArrowRight className="h-3.5 w-3.5" style={{ color: C.terra }} />
+                      <ArrowRight className="h-3 w-3" style={{ color: f.accent }} />
                     </div>
                   )}
                 </div>
@@ -478,7 +511,7 @@ export function LandingPage() {
                 icon: Building2,
                 title: 'Communes',
                 desc: "Identifiez les financements pour vos bâtiments publics. Pilotez la restauration de votre patrimoine communal en toute clarté.",
-                tags: ['Aides collectivités', 'Multi-monuments', 'Échéances'],
+                tags: ['Aides aux collectivités', 'Soutien Européen', 'Pré-remplissage automatique'],
                 tint: C.royalPale,
                 accent: C.royal,
               },
@@ -486,15 +519,15 @@ export function LandingPage() {
                 icon: Users,
                 title: 'Propriétaires privés',
                 desc: "Château, manoir, demeure — découvrez subventions, fiscal et mécénat accessibles aux particuliers.",
-                tags: ['Déductions fiscales', 'Fondation du Patrimoine', 'Mécénat'],
+                tags: ['Déductions fiscales', 'Subventions', 'Mécénat'],
                 tint: C.terraPale,
                 accent: C.terra,
               },
               {
                 icon: HardHat,
                 title: 'Professionnels BTP',
-                desc: "Accédez à des projets de rénovation financés. Gérez vos prospects grâce au CRM intégré.",
-                tags: ['CRM prospects', 'Intelligence financement', 'Pipeline'],
+                desc: "Accédez à des projets de rénovation financés. Collaborez avec les maîtres d'ouvrage pour restaurer le patrimoine bâti.",
+                tags: ['CRM prospects', 'Relations clients', 'Architectes partenaires'],
                 tint: C.royalPale,
                 accent: C.royal,
               },
@@ -575,7 +608,7 @@ export function LandingPage() {
 
       {/* FOOTER */}
       <footer className="relative border-t py-12 px-6 lg:px-10" style={{ borderColor: C.border, background: C.bg }}>
-        <div className="mx-auto max-w-7xl flex flex-col lg:flex-row items-center justify-between gap-8">
+        <div className="mx-auto max-w-7xl flex flex-col items-center gap-6">
           <div className="flex items-center gap-2.5 opacity-60">
             <img src="/patrialta.png" alt="PatriAlta" className="h-5" />
             <span
@@ -591,13 +624,14 @@ export function LandingPage() {
           </p>
 
           <div className="flex items-center gap-8 text-[12px] uppercase tracking-[0.12em]" style={{ color: C.textLight }}>
+            <a href="mailto:paul@patrialta.fr" className="transition-colors duration-300 hover:text-[#1A237E]">Contact</a>
             <a href="#" className="transition-colors duration-300 hover:text-[#1A237E]">Mentions légales</a>
-            <a href="#" className="transition-colors duration-300 hover:text-[#1A237E]">Contact</a>
           </div>
+
+          <p className="text-[11px] uppercase tracking-[0.15em]" style={{ color: `${C.textLight}80` }}>
+            © {new Date().getFullYear()} PatriAlta. Tous droits réservés.
+          </p>
         </div>
-        <p className="mt-8 text-center text-[11px] uppercase tracking-[0.15em]" style={{ color: `${C.textLight}80` }}>
-          © {new Date().getFullYear()} PatriAlta. Tous droits réservés.
-        </p>
       </footer>
 
       {/* MARQUEE ANIMATION */}
