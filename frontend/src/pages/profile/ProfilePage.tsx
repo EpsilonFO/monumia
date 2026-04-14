@@ -58,7 +58,6 @@ export function ProfilePage() {
   const [form, setForm] = useState({
     prenom: currentUser.prenom,
     nom: currentUser.nom,
-    email: currentUser.email,
     telephone: currentUser.telephone ?? '',
   });
 
@@ -84,7 +83,6 @@ export function ProfilePage() {
       await updateProfile({
         prenom: form.prenom,
         nom: form.nom,
-        email: form.email,
         telephone: form.telephone || undefined,
       });
       toast.success('Profil mis à jour');
@@ -144,8 +142,8 @@ export function ProfilePage() {
             {/* Right column */}
             <div className="flex-1 space-y-3">
               <div className="space-y-1">
-                <Label htmlFor="email" className={labelCls}>Email</Label>
-                <Input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={inputCls} />
+                <Label className={labelCls}>Email</Label>
+                <p className="h-10 flex items-center text-[14px] text-[#1B1E2E] font-sans">{currentUser.email}</p>
               </div>
               <div className="space-y-1">
                 <Label className={labelCls}>Mot de passe</Label>
