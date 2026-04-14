@@ -20,18 +20,24 @@ function toStoragePath(urlOrPath: string): string {
   return urlOrPath;
 }
 
+async function syncSupabaseSession(): Promise<void> {
+  const { token, refreshToken, setTokens } = useAuthStore.getState();
+  if (!token) return;
+  const { data } = await supabase.auth.setSession({
+    access_token: token,
+    refresh_token: refreshToken ?? '',
+  });
+  // setSession may rotate the refresh token — sync the new tokens back
+  if (data.session) {
+    setTokens(data.session.access_token, data.session.refresh_token);
+  }
+}
+
 async function uploadToStorage(file: File, userId: string): Promise<string> {
   const ext = file.name.split('.').pop() ?? 'bin';
   const path = `${userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
 
-  // Inject both tokens so Supabase Storage honours RLS policies
-  const { token, refreshToken } = useAuthStore.getState();
-  if (token) {
-    await supabase.auth.setSession({
-      access_token: token,
-      refresh_token: refreshToken ?? '',
-    });
-  }
+  await syncSupabaseSession();
 
   const { error } = await supabase.storage
     .from(STORAGE_BUCKET)
@@ -74,13 +80,7 @@ function toDocument(row: Record<string, unknown>): Document {
 
 /** Generate a signed URL for a document's storage path. */
 async function getSignedUrl(storagePath: string): Promise<string> {
-  const { token, refreshToken } = useAuthStore.getState();
-  if (token) {
-    await supabase.auth.setSession({
-      access_token: token,
-      refresh_token: refreshToken ?? '',
-    });
-  }
+  await syncSupabaseSession();
 
   const { data, error } = await supabase.storage
     .from(STORAGE_BUCKET)
