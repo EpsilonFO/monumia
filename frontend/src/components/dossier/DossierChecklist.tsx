@@ -1,5 +1,5 @@
-import { useRef } from 'react';
-import { CheckCircle2, Upload } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { CheckCircle2, Upload, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { ChecklistItem, ChecklistItemStatus } from '@/types';
@@ -7,10 +7,11 @@ import type { ChecklistItem, ChecklistItemStatus } from '@/types';
 interface DossierChecklistProps {
   items: ChecklistItem[];
   onStatusChange: (itemId: string, status: ChecklistItemStatus) => void;
+  onFileUpload?: (itemId: string, file: File, label: string) => Promise<void>;
   readOnly?: boolean;
 }
 
-export function DossierChecklist({ items, onStatusChange, readOnly }: DossierChecklistProps) {
+export function DossierChecklist({ items, onStatusChange, onFileUpload, readOnly }: DossierChecklistProps) {
   const sorted = [...items].sort((a, b) => a.ordre - b.ordre);
 
   const uploaded = items.filter((i) => i.statut === 'fourni').length;
@@ -30,6 +31,7 @@ export function DossierChecklist({ items, onStatusChange, readOnly }: DossierChe
             item={item}
             readOnly={readOnly}
             onStatusChange={onStatusChange}
+            onFileUpload={onFileUpload}
           />
         ))}
       </div>
@@ -41,18 +43,32 @@ function DocumentRow({
   item,
   readOnly,
   onStatusChange,
+  onFileUpload,
 }: {
   item: ChecklistItem;
   readOnly?: boolean;
   onStatusChange: (itemId: string, status: ChecklistItemStatus) => void;
+  onFileUpload?: (itemId: string, file: File, label: string) => Promise<void>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
   const isFourni = item.statut === 'fourni';
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      // Mark as fourni when a file is selected
+    if (!file) return;
+
+    if (onFileUpload) {
+      setUploading(true);
+      try {
+        await onFileUpload(item.id, file, item.label);
+      } catch {
+        // Upload failed — don't mark as fourni
+      } finally {
+        setUploading(false);
+      }
+    } else {
+      // Fallback: just mark as fourni without uploading
       onStatusChange(item.id, 'fourni');
     }
     // Reset input so the same file can be re-selected
@@ -98,16 +114,18 @@ function DocumentRow({
           />
           <button
             type="button"
+            disabled={uploading}
             onClick={() => inputRef.current?.click()}
             className={cn(
               'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors',
+              uploading && 'opacity-60 cursor-not-allowed',
               isFourni
                 ? 'border-green-300 text-green-700 hover:bg-green-100'
                 : 'border-[#1A237E]/20 text-[#1A237E] hover:bg-[#E8EAF6]/50',
             )}
           >
-            <Upload className="h-3 w-3" />
-            {isFourni ? 'Remplacer' : 'Ajouter'}
+            {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+            {uploading ? 'Envoi…' : isFourni ? 'Remplacer' : 'Ajouter'}
           </button>
         </>
       )}

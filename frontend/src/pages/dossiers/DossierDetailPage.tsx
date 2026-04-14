@@ -11,6 +11,8 @@ import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { dossierService } from '@/services/dossier.service';
+import { documentService } from '@/services/document.service';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { DOSSIER_STATUS_LABELS } from '@/constants/dossier-steps';
 import { ROUTES } from '@/constants/routes';
 import { formatCurrency } from '@/lib/format-utils';
@@ -58,6 +60,28 @@ export function DossierDetailPage() {
     dossierService.updateChecklistItem(dossier.id, itemId, statut).catch(console.error);
   };
 
+  const handleFileUpload = async (itemId: string, file: File, label: string) => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+
+    // Upload document with the checklist item label as the document name
+    const doc = await documentService.upload(
+      {
+        file,
+        nom: label,
+        type: 'autre',
+        monumentIds: dossier.monumentId ? [dossier.monumentId] : [],
+      },
+      userId,
+    );
+
+    // Link the document to this dossier
+    await documentService.linkToDossier(doc.id, dossier.id);
+
+    // Mark checklist item as fourni with the document ID
+    await dossierService.updateChecklistItem(dossier.id, itemId, 'fourni', doc.id);
+  };
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
@@ -103,7 +127,7 @@ export function DossierDetailPage() {
 
       {/* Documents requis */}
       <Panel title="Pièces du dossier">
-        <DossierChecklist items={dossier.checklist} onStatusChange={handleChecklistChange} readOnly={dossier.statut === 'soumis'} />
+        <DossierChecklist items={dossier.checklist} onStatusChange={handleChecklistChange} onFileUpload={handleFileUpload} readOnly={dossier.statut === 'soumis'} />
       </Panel>
 
       {/* Disclaimer */}
