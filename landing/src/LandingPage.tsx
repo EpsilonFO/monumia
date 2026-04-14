@@ -329,7 +329,7 @@ export function LandingPage() {
           <div className="grid gap-px sm:grid-cols-2 lg:grid-cols-3 rounded-lg overflow-hidden" style={{ background: C.border }}>
             {([
               { icon: Landmark, title: 'Fiche monument', desc: 'Centralisez toutes les données de votre bien : protection, état, travaux prévus, photos.', num: '01' },
-              { icon: Building2, title: 'Base Mérimée', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '02' },
+              { icon: Building2, title: 'Base PatriAlta', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '02' },
               { icon: Search, title: 'Diagnostic intelligent', desc: "Croisez les caractéristiques de votre monument avec l'ensemble des dispositifs d'aide — DRAC, régions, fondations, fiscal.", num: '03' },
               { icon: Euro, title: "Catalogue d'aides complet", desc: 'Plus de 150 dispositifs agrégés : subventions, prêts, déductions fiscales, mécénat, labels patrimoniaux.', num: '04' },
               { icon: FileCheck, title: 'Gestion de dossiers', desc: "Constituez vos demandes pas à pas : checklists, pièces jointes, jalons — avec l'IA pour vous aider à rédiger.", num: '05' },
@@ -389,11 +389,11 @@ export function LandingPage() {
               {
                 icon: Landmark,
                 title: 'Trouvez votre monument',
-                desc: "Renseignez votre bien ou importez-le depuis la base Mérimée. Localisation, protection, état : tout est centralisé.",
+                desc: "Renseignez votre bien ou importez-le depuis la base de monuments. Localisation, protection, état : tout est centralisé.",
                 num: '01',
                 accent: C.royal,
                 accentPale: C.royalPale,
-                details: ['Import Mérimée', 'Photos & documents', 'Données de protection'],
+                details: ['Pré-remplissage administratif', 'Photos & documents', 'Données de protection'],
               },
               {
                 icon: Search,
