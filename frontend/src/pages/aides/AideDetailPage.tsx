@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router';
+import { useParams, Link, useNavigate, Navigate } from 'react-router';
 import {
   ChevronLeft, ExternalLink, Clock, Building2, FileText,
   CheckCircle2, XCircle, HelpCircle, ArrowRight,
@@ -14,6 +14,7 @@ import { useAideStore, selectLastDiagnostic } from '@/stores/useAideStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useSegmentLabel } from '@/hooks/useSegment';
+import { useAidesAccess } from '@/hooks/useAidesAccess';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
 import { AIDE_CATEGORIES } from '@/constants/aide-categories';
@@ -22,6 +23,10 @@ import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import type { Aide, AideMatchResult } from '@/types';
 
 export function AideDetailPage() {
+  const { locked } = useAidesAccess();
+  if (locked) {
+    return <Navigate to="/tarifs" replace />;
+  }
   const { aideId } = useParams();
   const navigate = useNavigate();
   const storeAide = useAideStore((s) => s.aides.find((a) => a.id === aideId));

@@ -6,6 +6,7 @@ import { SegmentChoice } from '@/pages/onboarding/SegmentChoice';
 import { OnboardingProfile } from '@/pages/onboarding/OnboardingProfile';
 import { OnboardingMonument } from '@/pages/onboarding/OnboardingMonument';
 import { LoginPage } from '@/pages/login/LoginPage';
+import { TarifsPage } from '@/pages/tarifs/TarifsPage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 // Owner / Commune pages
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
@@ -35,6 +36,12 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <LoginPage />,
+  },
+
+  // Tarifs page (public)
+  {
+    path: '/tarifs',
+    element: <TarifsPage />,
   },
 
   // Onboarding — accessible uniquement avec pending-register en session

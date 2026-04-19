@@ -15,6 +15,8 @@ import { AideMatchBanner } from '@/components/aide/AideMatchBanner';
 import { AideCard } from '@/components/aide/AideCard';
 import { AideFilterBar } from '@/components/aide/AideFilterBar';
 import { PostDiagnosticQCM, computeEliminatedAideIds } from '@/components/aide/PostDiagnosticQCM';
+import { useAidesAccess } from '@/hooks/useAidesAccess';
+import { AidesPaywallBanner } from '@/components/aide/AidesPaywallBanner';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
@@ -55,7 +57,7 @@ const urgenceColors: Record<string, string> = {
 
 export function MonumentDetailPage() {
   const { monumentId } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId));
   const updateMonument = useMonumentStore((s) => s.updateMonument);
@@ -70,6 +72,7 @@ export function MonumentDetailPage() {
 
   const user = useAuthStore((s) => s.user);
   const uploadDocument = useDocumentStore((s) => s.uploadDocument);
+  const { locked } = useAidesAccess();
 
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -81,7 +84,14 @@ export function MonumentDetailPage() {
   // Keep the original diagnostic (before QCM filtering) so we can re-apply answers
   const [originalDiagnostic, setOriginalDiagnostic] = useState<AideDiagnosticResult | null>(null);
 
-  const defaultTab = searchParams.get('tab') === 'dossiers' ? 'dossiers' : 'informations';
+  const activeTab = searchParams.get('tab') === 'dossiers' ? 'dossiers' : 'informations';
+  const handleTabChange = useCallback((value: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', value);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const handleLaunchDiagnostic = useCallback(async () => {
     if (!monumentId) return;
@@ -91,6 +101,7 @@ export function MonumentDetailPage() {
     setOriginalDiagnostic(null);
     try {
       const result = await aideService.runDiagnostic(monumentId, filters.modeProjet, filters.travauxFiltres.length > 0 ? filters.travauxFiltres : undefined);
+      setDiagnostic(monumentId, result);
       if (result.qcmQuestions && result.qcmQuestions.length > 0) {
         setOriginalDiagnostic(result);
         setShowQcm(true);
@@ -106,8 +117,12 @@ export function MonumentDetailPage() {
     const eliminated = new Set(eliminatedIds);
     const updated: AideDiagnosticResult = {
       ...base,
-      aidesEligibles: base.aidesEligibles.filter((m) => !eliminated.has(m.aide.id)),
-      aidesPotentiellementEligibles: base.aidesPotentiellementEligibles.filter((m) => !eliminated.has(m.aide.id)),
+      aidesEligibles: base.aidesEligibles
+        .filter((m) => !eliminated.has(m.aide.id))
+        .map((m) => ({ ...m, llmEvaluation: m.llmEvaluation ? { ...m.llmEvaluation, incertitudes: [] } : m.llmEvaluation })),
+      aidesPotentiellementEligibles: base.aidesPotentiellementEligibles
+        .filter((m) => !eliminated.has(m.aide.id))
+        .map((m) => ({ ...m, llmEvaluation: m.llmEvaluation ? { ...m.llmEvaluation, incertitudes: [] } : m.llmEvaluation })),
       aidesNonEligibles: [
         ...base.aidesNonEligibles.filter((m) => !m.raisonIneligibilite?.startsWith('Éliminée suite')),
         ...base.aidesEligibles.filter((m) => eliminated.has(m.aide.id)).map((m) => ({ ...m, eligible: false as const, raisonIneligibilite: 'Éliminée suite à vos réponses' })),
@@ -250,7 +265,7 @@ export function MonumentDetailPage() {
         <Progress value={monument.completionPercentage} className="h-2" />
       </div>
 
-      <Tabs defaultValue={defaultTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="informations" className="gap-1.5"><Eye className="h-4 w-4" />Informations</TabsTrigger>
           <TabsTrigger value="dossiers" className="gap-1.5"><ScrollText className="h-4 w-4" />Dossiers ({dossiers.length})</TabsTrigger>
@@ -363,6 +378,19 @@ export function MonumentDetailPage() {
 
               {filteredDiagnostic && (
                 <>
+                  {locked && (() => {
+                    const matches = filteredDiagnostic.aidesPotentiellementEligibles;
+                    const montantTotal = filteredDiagnostic.montantPotentielTotal
+                      ?? matches.reduce((sum, m) => sum + (m.aide.montantMax ?? 0), 0);
+                    const nombreAidesAvecTaux = matches.filter(m => m.aide.tauxMax && !m.aide.montantMax).length;
+                    return (
+                      <AidesPaywallBanner
+                        montantTotal={montantTotal}
+                        nombreAides={matches.length}
+                        nombreAidesAvecTaux={nombreAidesAvecTaux}
+                      />
+                    );
+                  })()}
                   <AideFilterBar />
                   <Tabs defaultValue="potentially-eligible">
                     <TabsList>
@@ -373,14 +401,14 @@ export function MonumentDetailPage() {
                       {filteredDiagnostic.aidesPotentiellementEligibles.length === 0 ? (
                         <EmptyState icon={HelpCircle} title="Aucune aide identifiée" description="Essayez de modifier les filtres ou vérifiez les informations de votre monument." />
                       ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesPotentiellementEligibles.map((match) => (<AideCard key={match.aide.id} match={match} />))}</div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesPotentiellementEligibles.map((match) => (<AideCard key={match.aide.id} match={match} locked={locked} />))}</div>
                       )}
                     </TabsContent>
                     <TabsContent value="non-eligible" className="mt-4">
                       {filteredDiagnostic.aidesNonEligibles.length === 0 ? (
                         <EmptyState icon={CheckCircle2} title="Toutes les aides sont identifiées" description="Votre monument est éligible à toutes les aides analysées." />
                       ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesNonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} />))}</div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesNonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} locked={locked} />))}</div>
                       )}
                     </TabsContent>
                   </Tabs>

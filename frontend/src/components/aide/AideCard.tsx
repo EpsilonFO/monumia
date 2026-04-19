@@ -1,5 +1,5 @@
-import { Link } from 'react-router';
-import { CheckCircle2, XCircle, HelpCircle, ExternalLink, Clock, ChevronRight } from 'lucide-react';
+import { Link, useLocation } from 'react-router';
+import { CheckCircle2, XCircle, HelpCircle, ExternalLink, Clock, ChevronRight, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import type { AideMatchResult } from '@/types';
 interface AideCardProps {
   match: AideMatchResult;
   showEligibility?: boolean;
+  locked?: boolean;
 }
 
 function getEligibilityStatus(match: AideMatchResult) {
@@ -20,22 +21,28 @@ function getEligibilityStatus(match: AideMatchResult) {
   return 'non-eligible';
 }
 
-export function AideCard({ match, showEligibility = true }: AideCardProps) {
+export function AideCard({ match, showEligibility = true, locked = false }: AideCardProps) {
   const { aide, criteresRemplis, criteresNonRemplis } = match;
+  const { pathname } = useLocation();
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
   const status = getEligibilityStatus(match);
 
-  const hoverClass = status === 'eligible'
-    ? 'hover:border-green-300'
-    : status === 'potential'
-      ? 'hover:border-amber-300'
-      : 'hover:border-border';
+  const hoverClass = locked
+    ? 'hover:border-amber-200'
+    : status === 'eligible'
+      ? 'hover:border-green-300'
+      : status === 'potential'
+        ? 'hover:border-amber-300'
+        : 'hover:border-border';
+
+  const tarifsTo = { pathname: '/tarifs' };
+  const tarifsState = { from: pathname };
 
   return (
-    <Card className={`transition-all hover:shadow-md ${hoverClass}`}>
+    <Card className={`transition-all hover:shadow-md ${hoverClass} ${locked ? 'bg-gray-50/50' : ''}`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <Badge className={categoryConfig?.color ?? 'bg-gray-100 text-gray-800'}>
                 {categoryConfig?.label ?? aide.categorie}
@@ -69,18 +76,26 @@ export function AideCard({ match, showEligibility = true }: AideCardProps) {
                   )}
                 </Badge>
               )}
+              {locked && (
+                <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 gap-1">
+                  <Lock className="h-2.5 w-2.5" />
+                  Accès premium
+                </Badge>
+              )}
             </div>
             <CardTitle className="text-base leading-tight">
-              {aide.nomCourt}
+              <span className={locked ? 'blur-sm select-none pointer-events-none' : undefined}>
+                {aide.nomCourt}
+              </span>
             </CardTitle>
           </div>
-          <Link to={ROUTES.AIDE_DETAIL(aide.id)}>
+          <Link to={locked ? tarifsTo : ROUTES.AIDE_DETAIL(aide.id)} state={locked ? tarifsState : undefined}>
             <ChevronRight className="h-4 w-4 text-muted-foreground hover:text-primary" />
           </Link>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground line-clamp-2">
+        <p className={`text-sm text-muted-foreground line-clamp-2 ${locked ? 'blur-sm select-none pointer-events-none' : ''}`}>
           {aide.description}
         </p>
 
@@ -135,12 +150,12 @@ export function AideCard({ match, showEligibility = true }: AideCardProps) {
 
         {/* Actions */}
         <div className="flex items-center gap-2 pt-1">
-          <Button asChild size="sm" variant={status === 'eligible' ? 'default' : 'outline'}>
-            <Link to={ROUTES.AIDE_DETAIL(aide.id)}>
-              Voir le détail
+          <Button asChild size="sm" variant={locked ? 'outline' : status === 'eligible' ? 'default' : 'outline'}>
+            <Link to={locked ? tarifsTo : ROUTES.AIDE_DETAIL(aide.id)} state={locked ? tarifsState : undefined}>
+              {locked ? 'Découvrir les aides' : 'Voir le détail'}
             </Link>
           </Button>
-          {aide.urlOfficielle && (
+          {!locked && aide.urlOfficielle && (
             <Button asChild size="sm" variant="ghost">
               <a href={aide.urlOfficielle} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-3 w-3 mr-1" />

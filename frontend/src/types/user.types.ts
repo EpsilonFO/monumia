@@ -32,6 +32,7 @@ export interface User {
   };
 
   onboardingComplete: boolean;
+  hasAidesAccess: boolean;
   notificationPreferences: NotificationPreferences;
   createdAt: string;
 }

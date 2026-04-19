@@ -102,6 +102,10 @@ def _get_profile(supabase: Client, user_id: str) -> dict:
         profile["onboardingComplete"] = profile.pop("onboarding_complete")
     if "created_at" in profile:
         profile["createdAt"] = profile.pop("created_at")
+    if "has_aides_access" in profile:
+        profile["hasAidesAccess"] = profile.pop("has_aides_access")
+    else:
+        profile["hasAidesAccess"] = False
 
     return profile
 
