@@ -166,7 +166,7 @@ export function MonumentDetailPage() {
   const addMonument = useMonumentStore((s) => s.addMonument);
 
   useEffect(() => { if (!monument && monumentId) monumentService.getById(monumentId).then(addMonument).catch(() => setNotFound(true)); }, [monumentId]);
-  useEffect(() => { if (monumentId && !diagnostic) aideService.getDiagnostics(monumentId).then((d) => { if (d.length > 0) setDiagnostic(monumentId, d[0]); }).catch(console.error); }, [monumentId]);
+  useEffect(() => { if (monumentId && !diagnostic && !isRunningDiagnostic) aideService.getDiagnostics(monumentId).then((d) => { if (d.length > 0) setDiagnostic(monumentId, d[0]); }).catch(console.error); }, [monumentId, isRunningDiagnostic]);
   useEffect(() => { if (!dossierLoaded) dossierService.fetchAll().catch(console.error); }, [dossierLoaded]);
 
   if (notFound || (!monument && !monumentId)) {
@@ -275,7 +275,6 @@ export function MonumentDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Panel title="Identification" icon={<Building2 className="h-4 w-4 text-[#1A237E]" strokeWidth={1.8} />}>
               <div className="space-y-2 text-[13px]">
-                <InfoRow label="Dénomination" value={monument.denomination} />
                 {monument.referenceMerimee && <InfoRow label="Réf. Mérimée" value={monument.referenceMerimee} />}
                 <InfoRow label="Localisation" value={monument.commune ?? ''} />
                 <InfoRow label="Département" value={monument.departement ?? ''} />

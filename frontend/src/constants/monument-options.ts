@@ -1,25 +1,3 @@
-export const DENOMINATIONS = [
-  { value: 'eglise', label: 'Église' },
-  { value: 'chapelle', label: 'Chapelle' },
-  { value: 'cathedrale', label: 'Cathédrale' },
-  { value: 'abbaye', label: 'Abbaye' },
-  { value: 'chateau', label: 'Château' },
-  { value: 'manoir', label: 'Manoir' },
-  { value: 'hotel_particulier', label: 'Hôtel particulier' },
-  { value: 'maison', label: 'Maison' },
-  { value: 'tour', label: 'Tour' },
-  { value: 'rempart', label: 'Rempart / Fortification' },
-  { value: 'pont', label: 'Pont' },
-  { value: 'halle', label: 'Halle' },
-  { value: 'lavoir', label: 'Lavoir' },
-  { value: 'fontaine', label: 'Fontaine' },
-  { value: 'theatre', label: 'Théâtre' },
-  { value: 'moulin', label: 'Moulin' },
-  { value: 'ferme', label: 'Ferme' },
-  { value: 'grange', label: 'Grange' },
-  { value: 'autre', label: 'Autre' },
-] as const;
-
 export const PROTECTION_LEVELS = [
   { value: 'classe', label: 'Classé Monument Historique' },
   { value: 'inscrit', label: 'Inscrit Monument Historique' },

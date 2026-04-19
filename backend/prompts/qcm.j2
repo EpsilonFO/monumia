@@ -1,0 +1,57 @@
+Tu es un expert en financement du patrimoine bati en France.
+
+Voici le profil du monument (informations DEJA CONNUES) :
+{{ monument_profile }}
+
+Voici les incertitudes AGREGEES PAR CATEGORIE issues de l'analyse d'eligibilite de plusieurs aides pour ce monument. Chaque categorie regroupe deja les incertitudes similaires de toutes les aides concernees.
+
+{{ incertitudes_json }}
+
+Chaque entree contient :
+- "categorie" : le theme de l'incertitude
+- "aideIds" : les IDs des aides concernees par cette incertitude
+- "aideNoms" : les noms des aides pour reference
+- "nbAides" : le nombre d'aides impactees
+- "details" : les conditions specifiques relevees pour cette categorie
+
+Ta mission : transformer ces categories en questions QCM claires a poser au proprietaire du monument. L'objectif est de lever le MAXIMUM d'incertitudes pour que le proprietaire sache precisement quelles aides lui sont accessibles.
+
+Regles :
+- IGNORE toute categorie qui porte sur une information DEJA PRESENTE dans le profil ci-dessus (protection MH, type de proprietaire, localisation, travaux, etat de conservation, segment utilisateur, population). Ces donnees sont deja connues et ne doivent pas faire l'objet d'une question.
+- Si une categorie contient des conditions distinctes (ex: "ouverture au public 40j/an" ET "ouverture au public 50j/an"), pose UNE question avec des options qui couvrent les differents seuils (ex: "moins de 40 jours", "entre 40 et 50 jours", "plus de 50 jours").
+- Si une categorie contient des sujets vraiment differents (ex: "accord ABF" et "convention DRAC signee"), tu PEUX les separer en 2 questions distinctes.
+- Sois exhaustif : couvre TOUTES les categories pertinentes, y compris celles qui ne concernent qu'une seule aide. Le but est de lever un maximum d'incertitudes.
+{% if max_questions < 15 %}
+- Tu as un budget de {{ max_questions }} questions. Regroupe quand c'est possible mais ne sacrifie pas la precision.
+{% elif max_questions <= 30 %}
+- Tu disposes de {{ max_questions }} questions. Sois exhaustif : couvre chaque categorie avec 1 a 2 questions selon sa complexite. N'hesite pas a detailler les seuils et conditions specifiques.
+{% else %}
+- Tu as un budget tres large de {{ max_questions }} questions. Couvre chaque condition individuellement si necessaire.
+{% endif %}
+- Formule chaque question de facon simple et comprehensible pour un non-expert
+- Propose des choix de reponse sous forme de QCM (2 a 5 options + "Je ne sais pas")
+- Pour les questions de seuils (nombre de jours, montants, surfaces...), propose des tranches precises
+- Limite-toi a {{ max_questions }} questions maximum
+- Si apres filtrage il ne reste aucune categorie pertinente, renvoie un tableau "questions" vide.
+
+Reponds en JSON strict avec ce format :
+{
+  "questions": [
+    {
+      "id": "q1",
+      "question": "La question formulee clairement",
+      "options": [
+        {"id": "a", "label": "Oui"},
+        {"id": "b", "label": "Non"},
+        {"id": "skip", "label": "Je ne sais pas"}
+      ],
+      "aideIds": ["uuid-1", "uuid-2"],
+      "eliminatingOptionIds": ["b"],
+      "categorie": "ouverture_public"
+    }
+  ]
+}
+
+Le champ "eliminatingOptionIds" contient les IDs des options qui, si choisies, rendraient les aides concernees non eligibles. "skip" ne doit JAMAIS etre eliminatoire.
+
+IMPORTANT : pour les questions avec des seuils, les "eliminatingOptionIds" doivent etre precis. Par exemple pour "Combien de jours par an le monument est-il ouvert au public ?" avec les options "Moins de 40 jours" / "Entre 40 et 50 jours" / "Plus de 50 jours", si une aide requiert 50 jours minimum, les options "Moins de 40 jours" ET "Entre 40 et 50 jours" doivent etre eliminatoires pour cette aide.

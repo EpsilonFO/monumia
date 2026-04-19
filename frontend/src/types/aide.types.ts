@@ -43,7 +43,6 @@ export interface Aide {
   urlOfficielle?: string;
   formulaireUrl?: string;
 
-  tags: string[];
   baseTTC: boolean;
 }
 
@@ -79,7 +78,7 @@ export interface AideMatchResult {
   raisonIneligibilite?: string;
   llmEvaluation?: {
     explication: string;
-    incertitudes: string[];
+    incertitudes: (string | { categorie: string; detail: string })[];
   };
 }
 

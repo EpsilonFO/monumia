@@ -10,13 +10,11 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ChevronLeft, ChevronRight, Image, Loader2, X } from 'lucide-react';
 import {
-  DENOMINATIONS,
   PROTECTION_LEVELS,
   OWNERSHIP_TYPES,
   ETATS_CONSERVATION,
   URGENCE_TRAVAUX,
   WORK_TYPES,
-
 } from '@/constants/monument-options';
 import type { Monument, WorkType } from '@/types';
 
@@ -44,7 +42,7 @@ const STEPS = [
 function isStepValid(step: number, data: Partial<Monument>): boolean {
   switch (step) {
     case 1:
-      return !!(data.nom?.trim() && data.denomination && data.commune?.trim());
+      return !!(data.nom?.trim() && data.commune?.trim());
     case 2:
       return !!(data.protection && data.proprietaire);
     case 4:
@@ -141,24 +139,6 @@ function Step1Identification({ data, onChange }: StepProps) {
           onChange={(e) => onChange({ nom: e.target.value })}
           placeholder="Ex : Église Saint-Malo"
         />
-      </div>
-      <div>
-        <Label htmlFor="denomination">Dénomination *</Label>
-        <Select
-          value={data.denomination ?? ''}
-          onValueChange={(v) => onChange({ denomination: v })}
-        >
-          <SelectTrigger id="denomination">
-            <SelectValue placeholder="Sélectionner..." />
-          </SelectTrigger>
-          <SelectContent>
-            {DENOMINATIONS.map((d) => (
-              <SelectItem key={d.value} value={d.value}>
-                {d.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <div>
         <Label htmlFor="commune">Commune *</Label>

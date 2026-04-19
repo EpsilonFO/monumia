@@ -133,11 +133,14 @@ CATEGORIE_KEYWORDS: list[tuple[list[str], str]] = [
 ]
 
 
-def strip_html(html: str) -> str:
+def strip_html(raw: str) -> str:
     """Convert HTML to plain text."""
-    text = re.sub(r"<br\s*/?>", "\n", html)
+    import html as html_module
+
+    text = re.sub(r"<br\s*/?>", "\n", raw)
     text = re.sub(r"</?(p|li|ul|ol|div|h[1-6]|tr|td|th)[^>]*>", "\n", text)
     text = re.sub(r"<[^>]+>", "", text)
+    text = html_module.unescape(text)
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     return text
 

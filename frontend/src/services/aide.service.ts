@@ -42,9 +42,7 @@ export const aideService = {
           travaux_filtres: travauxFiltres,
         }),
       });
-      const result = await handleResponse<AideDiagnosticResult>(res);
-      useAideStore.getState().setDiagnostic(monumentId, result);
-      return result;
+      return handleResponse<AideDiagnosticResult>(res);
     } finally {
       clearTimeout(timeout);
     }

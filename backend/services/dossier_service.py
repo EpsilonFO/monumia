@@ -359,11 +359,6 @@ def create_dossier_from_aide(
             or monument.get("descriptionGenerale")
             or "",
             "champsAutoremplis": [
-                {
-                    "champ": "Dénomination",
-                    "valeur": monument.get("denomination") or "",
-                    "source": "monument",
-                },
                 {"champ": "Commune", "valeur": monument_commune, "source": "monument"},
                 {
                     "champ": "Protection",

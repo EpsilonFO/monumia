@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, Link, useNavigate, Navigate } from 'react-router';
+import { useParams, Link, useNavigate } from 'react-router';
+
+/** Decode HTML entities (&#039; &amp; etc.) that may be present in aide text fields. */
+const decodeHtml = (text: string | null | undefined): string => {
+  if (!text) return '';
+  const el = document.createElement('textarea');
+  el.innerHTML = text;
+  return el.value;
+};
 import {
   ChevronLeft, ExternalLink, Clock, Building2, FileText,
   CheckCircle2, XCircle, HelpCircle, ArrowRight,
@@ -143,8 +151,7 @@ export function AideDetailPage() {
               );
             })()}
           </div>
-          <h1 className="text-2xl font-bold">{aide.nom}</h1>
-          <p className="text-muted-foreground">{aide.description}</p>
+          <h1 className="text-2xl font-bold">{decodeHtml(aide.nom)}</h1>
         </div>
 
         {matchResult?.eligible && monument && (
@@ -165,7 +172,7 @@ export function AideDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm leading-relaxed whitespace-pre-line">
-                {aide.descriptionLongue}
+                {decodeHtml(aide.descriptionLongue || aide.description)}
               </p>
             </CardContent>
           </Card>
@@ -202,7 +209,7 @@ export function AideDetailPage() {
                     {matchResult.llmEvaluation.incertitudes.map((c, i) => (
                       <div key={i} className="flex items-center gap-2 text-sm">
                         <HelpCircle className="h-4 w-4 text-amber-500 shrink-0" />
-                        <span className="text-amber-700">{c}</span>
+                        <span className="text-amber-700">{typeof c === 'string' ? c : c.detail}</span>
                       </div>
                     ))}
                   </>
@@ -223,7 +230,7 @@ export function AideDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2 text-sm">
-                {aide.demarcheDescription.split('\n').map((line, i) => (
+                {decodeHtml(aide.demarcheDescription).split('\n').filter(Boolean).map((line, i) => (
                   <div key={i} className="flex gap-2">
                     <ArrowRight className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                     <span>{line}</span>
@@ -316,19 +323,6 @@ export function AideDetailPage() {
             </CardContent>
           </Card>
 
-          {aide.tags.length > 0 && (
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex flex-wrap gap-1.5">
-                  {aide.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
 

@@ -7,7 +7,6 @@ export interface Monument {
   // Step 1: Identification
   nom: string;
   referenceMerimee?: string;
-  denomination: string;
   codeInsee: string;
   // Derived from code_insee via communes table (not stored in DB)
   commune?: string;

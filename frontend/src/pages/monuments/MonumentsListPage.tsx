@@ -26,7 +26,7 @@ export function MonumentsListPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Mes monumentss"
+        title="Mes monuments"
         description="Gérez vos monuments historiques"
         action={
           <Link

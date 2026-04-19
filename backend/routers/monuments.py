@@ -62,7 +62,6 @@ class MonumentPhoto(BaseModel):
 
 class CreateMonumentRequest(BaseModel):
     nom: str
-    denomination: str
     commune: str  # Used to resolve code_insee, not stored in DB
     codeInsee: str | None = None
     referenceMerimee: str | None = None
@@ -91,7 +90,6 @@ class CreateMonumentRequest(BaseModel):
 
 class UpdateMonumentRequest(BaseModel):
     nom: str | None = None
-    denomination: str | None = None
     adresse: str | None = None
     commune: str | None = None  # Used to resolve code_insee, not stored in DB
     codeInsee: str | None = None
@@ -175,7 +173,6 @@ def _compute_completion(monument: dict) -> int:
         all(
             [
                 monument.get("nom"),
-                monument.get("denomination"),
                 monument.get("code_insee"),
             ]
         ),

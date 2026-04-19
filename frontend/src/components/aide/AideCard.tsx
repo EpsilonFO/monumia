@@ -1,3 +1,9 @@
+const decodeHtml = (text: string | null | undefined): string => {
+  if (!text) return '';
+  const el = document.createElement('textarea');
+  el.innerHTML = text;
+  return el.value;
+};
 import { Link, useLocation } from 'react-router';
 import { CheckCircle2, XCircle, HelpCircle, ExternalLink, Clock, ChevronRight, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -142,7 +148,7 @@ export function AideCard({ match, showEligibility = true, locked = false }: Aide
             {status === 'potential' && match.llmEvaluation?.incertitudes.slice(0, 2).map((c, i) => (
               <div key={i} className="flex items-center gap-1.5 text-xs text-amber-700">
                 <HelpCircle className="h-3 w-3 shrink-0" />
-                <span>{c}</span>
+                <span>{typeof c === 'string' ? c : c.detail}</span>
               </div>
             ))}
           </div>

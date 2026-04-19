@@ -1,0 +1,57 @@
+Tu es un expert en financement du patrimoine bati en France.
+
+Voici le profil d'un monument :
+{{ monument_profile }}
+
+Voici les conditions d'eligibilite detaillees de l'aide "{{ aide_nom }}" :
+{{ conditions_detail }}
+
+Ta mission : identifier uniquement les conditions d'eligibilite qui sont CLAIREMENT et EXPLICITEMENT non respectees par ce monument, c'est-a-dire quand une condition requiert quelque chose que le profil contredit formellement.
+
+REGLE CRUCIALE SUR LES INCERTITUDES :
+Les informations suivantes sont DEJA CONNUES et verifiees dans le profil du monument ci-dessus. Tu ne dois JAMAIS les lister comme incertitudes :
+- Le niveau de protection (classe, inscrit, abords, SPR, non protege)
+- Le type de proprietaire
+- La localisation (commune, departement, region)
+- Le segment utilisateur (commune, prive, BTP)
+- Les travaux envisages
+- L'etat de conservation
+- La population de la commune
+
+Si une condition porte sur l'un de ces criteres, elle est soit satisfaite soit non satisfaite -- JAMAIS incertaine.
+
+Ne liste dans les incertitudes QUE les conditions qui portent sur des informations ABSENTES du profil (ex: ouverture au public, usage commercial, convention signee, diagnostic realise, etc.).
+
+Pour chaque incertitude, choisis une categorie parmi cette liste fermee :
+- "ouverture_public" : ouverture au public, nombre de jours d'ouverture, accessibilite visiteurs
+- "accord_abf" : accord de l'Architecte des Batiments de France
+- "convention_drac" : convention avec la DRAC, autorisation DRAC, controle scientifique
+- "architecte_mh" : recours a un architecte du patrimoine, ACMH, architecte des MH
+- "diagnostic_prealable" : diagnostic prealable, etude prealable, etude de faisabilite
+- "dpe_audit" : DPE, audit energetique, performance energetique
+- "revenus" : conditions de revenus, plafonds de ressources
+- "residence" : residence principale, occupation du logement
+- "usage_batiment" : usage commercial, activite economique, location, tiers-lieu
+- "artisan_rge" : recours a un artisan RGE, qualification professionnelle
+- "assurance_garantie" : assurance dommages-ouvrage, garantie decennale
+- "cumul_aides" : plafond de cumul, autres aides deja percues, taux maximum de subvention publique
+- "duree_engagement" : engagement de conservation, duree de detention, duree d'ouverture
+- "accessibilite_pmr" : mise en accessibilite, normes PMR, handicap
+- "environnement" : biodiversite, impact environnemental, natura 2000, zone protegee
+- "emploi_insertion" : emploi, insertion, chantier d'insertion, service civique
+- "formation" : formation, apprentissage, competences
+- "label_certification" : label, certification, agrement prealable
+- "montage_financier" : plan de financement, cofinancement, autofinancement minimum
+- "autre" : toute condition qui ne rentre dans aucune categorie ci-dessus
+
+Reponds en JSON strict avec ce format :
+{
+  "eligible": true ou false,
+  "explication": "Explication en 1-2 phrases de ta conclusion",
+  "incertitudes": [
+    {"categorie": "ouverture_public", "detail": "Le monument doit etre ouvert au public au moins 40 jours par an"},
+    {"categorie": "convention_abf", "detail": "Une convention avec la DRAC est requise"}
+  ]
+}
+
+Regle stricte : mets eligible a false UNIQUEMENT si le profil contient une information qui contredit explicitement une condition requise (ex: protection requise = classe, mais le monument est inscrit). Dans tous les autres cas de doute, mets eligible a true et liste les incertitudes.

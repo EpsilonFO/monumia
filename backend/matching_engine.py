@@ -17,7 +17,7 @@ from pathlib import Path
 from mistralai.client import Mistral
 from supabase import Client
 
-from prompts.matching import prompt_1, prompt_qcm
+from prompts.matching import render_prompt_eligibility, render_prompt_qcm
 
 logger = logging.getLogger(__name__)
 
@@ -432,12 +432,10 @@ def _build_monument_profile(monument: dict, user: dict, population: int | None) 
 
 
 async def _llm_evaluate_eligibility(
-    monument_profile: str,
+    prompt: str,
     aide_nom: str,
-    conditions_detail: str,
-    prompt_template: str,
 ) -> dict:
-    """Call Mistral to evaluate fine eligibility with a specific prompt template.
+    """Call Mistral to evaluate fine eligibility with a rendered prompt.
 
     Returns {"eligible": bool, "explication": str, "incertitudes": list[str]}
     """
@@ -452,31 +450,38 @@ async def _llm_evaluate_eligibility(
 
     client = Mistral(api_key=api_key)
 
-    prompt = prompt_template.format(
-        monument_profile=monument_profile,
-        aide_nom=aide_nom,
-        conditions_detail=conditions_detail,
-    )
-
     logger.info("[LLM] Appel Mistral pour « %s »...", aide_nom)
-    try:
-        response = await client.chat.complete_async(
-            model="mistral-small-latest",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.1,
-        )
-        choice = response.choices[0]
-        content = choice.message.content
-        result = json.loads(content)
-        return result
-    except Exception as e:
-        logger.error(f"LLM evaluation failed for aide '{aide_nom}': {e}")
-        return {
-            "eligible": True,
-            "explication": "",
-            "incertitudes": [f"Erreur LLM : {e}"],
-        }
+    last_error = None
+    for attempt in range(3):
+        try:
+            response = await client.chat.complete_async(
+                model="mistral-medium-latest",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.1,
+            )
+            choice = response.choices[0]
+            content = choice.message.content
+            result = json.loads(content)
+            return result
+        except Exception as e:
+            last_error = e
+            if attempt < 2:
+                wait = 2**attempt
+                logger.warning(
+                    "[LLM] Tentative %d/3 échouée pour « %s » (%s), retry dans %ds",
+                    attempt + 1,
+                    aide_nom,
+                    e,
+                    wait,
+                )
+                await asyncio.sleep(wait)
+    logger.error(f"LLM evaluation failed for aide '{aide_nom}' after 3 attempts: {last_error}")
+    return {
+        "eligible": True,
+        "explication": "",
+        "incertitudes": [f"Erreur LLM : {last_error}"],
+    }
 
 
 _LLM_LOG_PATH = Path("/app/llm.txt")
@@ -544,10 +549,12 @@ async def _run_llm_phase(
         llm_results = await asyncio.gather(
             *(
                 _llm_evaluate_eligibility(
-                    monument_profile=monument_profile,
+                    prompt=render_prompt_eligibility(
+                        monument_profile=monument_profile,
+                        aide_nom=result["aide"].get("nom", ""),
+                        conditions_detail=result["aide"]["conditions_eligibilite_detail"],
+                    ),
                     aide_nom=result["aide"].get("nom", ""),
-                    conditions_detail=result["aide"]["conditions_eligibilite_detail"],
-                    prompt_template=prompt_1,
                 )
                 for result in needs_llm
             )
@@ -592,37 +599,92 @@ async def _run_llm_phase(
 # Phase 4: Generate QCM questions from incertitudes
 # ---------------------------------------------------------------------------
 
-MAX_QCM_QUESTIONS = 5
+MAX_QCM_QUESTIONS = 30
 
 
-async def generate_qcm_questions(
-    eligible_results: list[dict],
-) -> list[dict]:
-    """Collect incertitudes from eligible aides and ask LLM to group them into QCM questions."""
-    # Collect all incertitudes with their associated aide IDs
-    incertitudes_map: list[dict] = []
+def _normalize_incertitude(inc: str | dict) -> dict:
+    """Normalise an incertitude to {categorie, detail} format.
+
+    Handles both the new structured format and legacy plain-string format.
+    """
+    if isinstance(inc, dict) and "categorie" in inc:
+        return inc
+    # Legacy plain-string fallback
+    text = inc if isinstance(inc, str) else str(inc)
+    return {"categorie": "autre", "detail": text}
+
+
+def _aggregate_incertitudes(eligible_results: list[dict]) -> list[dict]:
+    """Aggregate incertitudes by category across all aides.
+
+    Returns a compact list grouped by category, each with the set of aide IDs
+    and a representative detail string. This reduces hundreds of raw incertitudes
+    down to ~10 category groups.
+    """
+    from collections import defaultdict
+
+    # category → {aideIds: set, details: list[str]}
+    groups: dict[str, dict] = defaultdict(
+        lambda: {"aideIds": set(), "aideNoms": set(), "details": []}
+    )
+
     for result in eligible_results:
         llm_eval = result.get("llmEvaluation")
         if not llm_eval:
             continue
+        aide_id = result["aide"]["id"]
+        aide_nom = result["aide"].get("nom_court") or result["aide"].get("nom", "")
         for inc in llm_eval.get("incertitudes", []):
-            incertitudes_map.append(
-                {
-                    "incertitude": inc,
-                    "aideId": result["aide"]["id"],
-                    "aideNom": result["aide"].get("nom_court") or result["aide"].get("nom", ""),
-                }
-            )
+            normalized = _normalize_incertitude(inc)
+            cat = normalized["categorie"]
+            detail = normalized["detail"]
+            groups[cat]["aideIds"].add(aide_id)
+            groups[cat]["aideNoms"].add(aide_nom)
+            # Keep unique details only (avoid near-duplicates flooding context)
+            if detail not in groups[cat]["details"]:
+                groups[cat]["details"].append(detail)
 
-    if not incertitudes_map:
+    # Convert to serialisable list, sorted by number of aides impacted (most first)
+    aggregated = []
+    for cat, data in sorted(groups.items(), key=lambda x: len(x[1]["aideIds"]), reverse=True):
+        aggregated.append(
+            {
+                "categorie": cat,
+                "aideIds": sorted(data["aideIds"]),
+                "aideNoms": sorted(data["aideNoms"]),
+                "nbAides": len(data["aideIds"]),
+                "details": data["details"][:5],
+            }
+        )
+
+    return aggregated
+
+
+async def generate_qcm_questions(
+    eligible_results: list[dict],
+    monument_profile: str = "",
+) -> list[dict]:
+    """Collect incertitudes from eligible aides, aggregate by category, and generate QCM."""
+    aggregated = _aggregate_incertitudes(eligible_results)
+
+    if not aggregated:
         return []
+
+    total_raw = sum(
+        len(inc)
+        for r in eligible_results
+        if (e := r.get("llmEvaluation"))
+        for inc in [e.get("incertitudes", [])]
+    )
 
     logger.info("─" * 60)
     logger.info(
-        "PHASE 4 — Génération QCM (%d incertitude(s) sur %d aide(s))",
-        len(incertitudes_map),
-        len(eligible_results),
+        "PHASE 4 — Génération QCM (%d incertitude(s) brutes → %d catégorie(s) agrégée(s))",
+        total_raw,
+        len(aggregated),
     )
+    for g in aggregated:
+        logger.info("  • %s — %d aide(s) : %s", g["categorie"], g["nbAides"], g["details"][0][:80])
     logger.info("─" * 60)
 
     api_key = os.environ.get("MISTRAL_API_KEY")
@@ -632,30 +694,40 @@ async def generate_qcm_questions(
 
     client = Mistral(api_key=api_key)
 
-    prompt = prompt_qcm.format(
-        incertitudes_json=json.dumps(incertitudes_map, ensure_ascii=False, indent=2),
+    prompt = render_prompt_qcm(
         max_questions=MAX_QCM_QUESTIONS,
+        monument_profile=monument_profile,
+        incertitudes_json=json.dumps(aggregated, ensure_ascii=False, indent=2),
     )
 
-    try:
-        response = await client.chat.complete_async(
-            model="mistral-small-latest",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.1,
-        )
-        content = response.choices[0].message.content
-        parsed = json.loads(content)
-        questions = parsed.get("questions", [])
+    last_error = None
+    for attempt in range(3):
+        try:
+            response = await client.chat.complete_async(
+                model="mistral-medium-latest",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.1,
+            )
+            content = response.choices[0].message.content
+            parsed = json.loads(content)
+            questions = parsed.get("questions", [])
 
-        logger.info("→ %d question(s) QCM générée(s)", len(questions))
-        for q in questions:
-            logger.info("  ? %s (%d aide(s))", q.get("question", ""), len(q.get("aideIds", [])))
+            logger.info("→ %d question(s) QCM générée(s)", len(questions))
+            for q in questions:
+                logger.info("  ? %s (%d aide(s))", q.get("question", ""), len(q.get("aideIds", [])))
 
-        return questions
-    except Exception as e:
-        logger.error(f"QCM generation failed: {e}")
-        return []
+            return questions
+        except Exception as e:
+            last_error = e
+            if attempt < 2:
+                wait = 2**attempt
+                logger.warning(
+                    "[QCM] Tentative %d/3 échouée (%s), retry dans %ds", attempt + 1, e, wait
+                )
+                await asyncio.sleep(wait)
+    logger.error(f"QCM generation failed after 3 attempts: {last_error}")
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -785,7 +857,7 @@ async def run_diagnostic(
     qcm_questions = []
     all_with_incertitudes = still_eligible + potentially_eligible
     if all_with_incertitudes:
-        qcm_questions = await generate_qcm_questions(all_with_incertitudes)
+        qcm_questions = await generate_qcm_questions(all_with_incertitudes, monument_profile)
 
     return {
         "monumentId": monument["id"],
