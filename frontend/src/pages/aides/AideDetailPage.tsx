@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router';
+import { useParams, Link, useNavigate, Navigate } from 'react-router';
 
 /** Decode HTML entities (&#039; &amp; etc.) that may be present in aide text fields. */
 const decodeHtml = (text: string | null | undefined): string => {

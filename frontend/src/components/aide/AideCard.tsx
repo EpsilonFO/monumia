@@ -1,9 +1,3 @@
-const decodeHtml = (text: string | null | undefined): string => {
-  if (!text) return '';
-  const el = document.createElement('textarea');
-  el.innerHTML = text;
-  return el.value;
-};
 import { Link, useLocation } from 'react-router';
 import { CheckCircle2, XCircle, HelpCircle, ExternalLink, Clock, ChevronRight, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

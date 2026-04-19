@@ -1,9 +1,8 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { HelpCircle, ChevronRight, ChevronLeft, CheckCircle2, ClipboardCheck, Search, SlidersHorizontal } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import type { QcmQuestion, AideDiagnosticResult } from '@/types';
+import type { QcmQuestion } from '@/types';
 
 const FONT = "'Cormorant Garamond', serif";
 
@@ -27,7 +26,6 @@ interface PostDiagnosticQCMProps {
   open: boolean;
   onClose: () => void;
   questions: QcmQuestion[];
-  diagnostic: AideDiagnosticResult;
   initialAnswers?: Record<string, string>;
   onComplete: (eliminatedAideIds: string[], answers: Record<string, string>) => void;
 }
@@ -39,7 +37,6 @@ export function PostDiagnosticQCM({
   open,
   onClose,
   questions,
-  diagnostic,
   initialAnswers,
   onComplete,
 }: PostDiagnosticQCMProps) {
@@ -69,19 +66,6 @@ export function PostDiagnosticQCM({
     }
     return ids.size;
   }, [questions]);
-
-  // Build a map of aide ID → aide name for display
-  const aideNameMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    const allAides = [
-      ...diagnostic.aidesEligibles,
-      ...diagnostic.aidesPotentiellementEligibles,
-    ];
-    for (const m of allAides) {
-      map[m.aide.id] = m.aide.nomCourt || m.aide.nom;
-    }
-    return map;
-  }, [diagnostic]);
 
   const handleSelect = (optionId: string) => {
     if (!question) return;

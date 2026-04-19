@@ -356,7 +356,6 @@ export function MonumentDetailPage() {
                   open={showQcm}
                   onClose={() => setShowQcm(false)}
                   questions={(originalDiagnostic ?? diagnostic)!.qcmQuestions!}
-                  diagnostic={originalDiagnostic ?? diagnostic!}
                   initialAnswers={qcmAnswers}
                   onComplete={handleQcmComplete}
                 />
