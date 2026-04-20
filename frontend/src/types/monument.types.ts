@@ -70,6 +70,8 @@ export interface MerimeeRecord {
   format_abrege_du_siecle_de_construction?: string;
   denomination_de_l_edifice?: string;
   statut_juridique_de_l_edifice?: string;
+  cog_insee_lors_de_la_protection?: string;
+  commune_actuelle?: string | null;
 }
 
 export interface MonumentFormState {

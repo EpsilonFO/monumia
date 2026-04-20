@@ -79,7 +79,11 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <MapPin className="h-3.5 w-3.5 shrink-0" />
                       <span className="truncate">
-                        {record.commune_forme_index} — {record.departement_en_lettres}
+                        {record.commune_actuelle
+                          ? `${record.commune_forme_index} → ${record.commune_actuelle}`
+                          : record.commune_forme_index}
+                        {' — '}
+                        {record.departement_en_lettres}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">

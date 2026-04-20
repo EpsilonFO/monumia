@@ -29,22 +29,67 @@ def _normalize_commune(name: str) -> str:
     return without_accents.lower()
 
 
-def _resolve_code_insee(supabase: Client, commune_name: str) -> str:
-    """Look up code_insee from communes table by matching normalized commune name."""
-    normalized = _normalize_commune(commune_name)
-    result = (
-        supabase.table("communes")
-        .select("code_insee")
-        .eq("nom_commune_matching", normalized)
-        .limit(1)
-        .execute()
-    )
-    if not result.data:
+def _try_resolve_code_insee(
+    supabase: Client,
+    commune_name: str | None,
+    historical_code: str | None = None,
+) -> str | None:
+    """Resolve a commune to a currently-active code_insee, or None if unresolvable.
+
+    Cascade:
+      1. If historical_code is an active commune, use it.
+      2. If historical_code maps to a current commune via communes_historique, use that.
+      3. Match commune_name against communes.nom_commune_matching.
+    """
+    if historical_code:
+        direct = (
+            supabase.table("communes")
+            .select("code_insee")
+            .eq("code_insee", historical_code)
+            .limit(1)
+            .execute()
+        )
+        if direct.data:
+            return direct.data[0]["code_insee"]
+
+        mapped = (
+            supabase.table("communes_historique")
+            .select("nouveau_code_insee")
+            .eq("ancien_code_insee", historical_code)
+            .limit(1)
+            .execute()
+        )
+        if mapped.data:
+            return mapped.data[0]["nouveau_code_insee"]
+
+    if commune_name:
+        normalized = _normalize_commune(commune_name)
+        by_name = (
+            supabase.table("communes")
+            .select("code_insee")
+            .eq("nom_commune_matching", normalized)
+            .limit(1)
+            .execute()
+        )
+        if by_name.data:
+            return by_name.data[0]["code_insee"]
+
+    return None
+
+
+def _resolve_code_insee(
+    supabase: Client,
+    commune_name: str,
+    historical_code: str | None = None,
+) -> str:
+    """Resolve a commune name to a current code_insee, or raise 400."""
+    code = _try_resolve_code_insee(supabase, commune_name, historical_code)
+    if code is None:
         raise HTTPException(
             status_code=400,
             detail=f"Commune introuvable : '{commune_name}'",
         )
-    return result.data[0]["code_insee"]
+    return code
 
 
 # ---------------------------------------------------------------------------
@@ -242,8 +287,9 @@ def create_monument(
 ):
     data = _snake_row(body.model_dump(exclude_none=True))
 
-    # Resolve code_insee from commune name
-    data["code_insee"] = _resolve_code_insee(supabase, body.commune)
+    # Resolve code_insee from commune name, falling back to the historical INSEE
+    # code (e.g. Mérimée's cog_insee_lors_de_la_protection) via communes_historique.
+    data["code_insee"] = _resolve_code_insee(supabase, body.commune, historical_code=body.codeInsee)
 
     # Remove fields not stored in monuments table
     for key in ("commune", "departement", "region", "coordonnees"):
@@ -291,7 +337,9 @@ def update_monument(
 
     # Re-resolve code_insee when commune changes
     if body.commune is not None:
-        updates["code_insee"] = _resolve_code_insee(supabase, body.commune)
+        updates["code_insee"] = _resolve_code_insee(
+            supabase, body.commune, historical_code=body.codeInsee
+        )
 
     # Remove fields not stored in monuments table
     for key in ("commune", "departement", "region", "coordonnees"):

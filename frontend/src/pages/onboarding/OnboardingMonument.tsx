@@ -101,7 +101,8 @@ export function OnboardingMonument() {
     const prefill = {
       nom: titre,
       referenceMerimee: record.reference,
-      commune: record.commune_forme_index,
+      commune: record.commune_actuelle || record.commune_forme_index,
+      codeInsee: record.cog_insee_lors_de_la_protection || undefined,
       departement: record.departement_en_lettres,
       region: regionValue as Region,
       protection,
@@ -190,10 +191,23 @@ export function OnboardingMonument() {
     }
   };
 
+  const backToMonuments = (
+    <button
+      type="button"
+      onClick={() => navigate('/app/monuments')}
+      className="fixed left-6 z-40 inline-flex items-center gap-2 px-5 py-3 text-[15px] font-medium hover:opacity-70 transition-opacity"
+      style={{ top: '92px', color: C.text, background: C.bg, border: `1px solid ${C.bg}` }}
+    >
+      <ChevronLeft className="h-5 w-5" />
+      Retour aux monuments
+    </button>
+  );
+
   if (showForm) {
     return (
       <div className="space-y-10">
         <div className="space-y-4">
+          {backToMonuments}
           <div className="flex items-center gap-3">
             <span className="h-px w-12" style={{ background: C.terra }} />
             <span className="text-[13px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.terra }}>
@@ -222,6 +236,7 @@ export function OnboardingMonument() {
     <div className="space-y-10">
       {/* heading */}
       <div className="space-y-4">
+        {backToMonuments}
         <div className="flex items-center gap-3">
           <span className="h-px w-12" style={{ background: C.terra }} />
           <span className="text-[13px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.terra }}>
