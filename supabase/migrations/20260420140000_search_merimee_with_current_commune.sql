@@ -24,8 +24,8 @@ as $function$
     mb.cog_insee_lors_de_la_protection,
     case
       when c_direct.nom_commune is not null
-        and public.unaccent(lower(c_direct.nom_commune))
-            <> public.unaccent(lower(coalesce(mb.commune_forme_index, '')))
+        and unaccent(lower(c_direct.nom_commune))
+            <> unaccent(lower(coalesce(mb.commune_forme_index, '')))
         then c_direct.nom_commune
       when c_mapped.nom_commune is not null
         then c_mapped.nom_commune
@@ -40,14 +40,14 @@ as $function$
     on c_mapped.code_insee = ch.nouveau_code_insee
   where (
     select bool_and(
-      public.unaccent(
+      unaccent(
         coalesce(mb.titre_editorial_de_la_notice, '') || ' ' ||
         coalesce(mb.commune_forme_index, '')           || ' ' ||
         coalesce(mb.departement_en_lettres, '')        || ' ' ||
         coalesce(mb.region, '')                        || ' ' ||
         coalesce(mb.reference, '')                     || ' ' ||
         coalesce(mb.typologie_de_la_protection, '')
-      ) ilike '%' || public.unaccent(t) || '%'
+      ) ilike '%' || unaccent(t) || '%'
     )
     from unnest(tokens) t
   );
