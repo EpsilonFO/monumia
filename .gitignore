@@ -27,6 +27,7 @@ dist-ssr
 .env.docker
 .env
 backend/.env
+backend/.env.*
 backend/scripts/cog_ensemble_2026_csv
 backend/scripts/ensemble
 frontend/.env
