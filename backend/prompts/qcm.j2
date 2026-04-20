@@ -8,11 +8,9 @@ Voici les incertitudes AGREGEES PAR CATEGORIE issues de l'analyse d'eligibilite 
 {{ incertitudes_json }}
 
 Chaque entree contient :
-- "categorie" : le theme de l'incertitude
-- "aideIds" : les IDs des aides concernees par cette incertitude
-- "aideNoms" : les noms des aides pour reference
-- "nbAides" : le nombre d'aides impactees
-- "details" : les conditions specifiques relevees pour cette categorie
+- "categorie" : le theme de l'incertitude (identifiant snake_case, a reprendre tel quel dans les questions)
+- "nbAides" : le nombre d'aides impactees par cette categorie (pour prioriser)
+- "details" : les conditions specifiques relevees pour cette categorie (echantillon de 3 max)
 
 Ta mission : transformer ces categories en questions QCM claires a poser au proprietaire du monument. L'objectif est de lever le MAXIMUM d'incertitudes pour que le proprietaire sache precisement quelles aides lui sont accessibles.
 
@@ -34,7 +32,7 @@ Regles :
 - Limite-toi a {{ max_questions }} questions maximum
 - Si apres filtrage il ne reste aucune categorie pertinente, renvoie un tableau "questions" vide.
 
-Reponds en JSON strict avec ce format :
+Reponds en JSON strict avec ce format (NE PAS inclure "aideIds", qui sera deduit cote serveur depuis "categorie") :
 {
   "questions": [
     {
@@ -45,13 +43,13 @@ Reponds en JSON strict avec ce format :
         {"id": "b", "label": "Non"},
         {"id": "skip", "label": "Je ne sais pas"}
       ],
-      "aideIds": ["uuid-1", "uuid-2"],
       "eliminatingOptionIds": ["b"],
       "categorie": "ouverture_public"
     }
   ]
 }
 
-Le champ "eliminatingOptionIds" contient les IDs des options qui, si choisies, rendraient les aides concernees non eligibles. "skip" ne doit JAMAIS etre eliminatoire.
-
-IMPORTANT : pour les questions avec des seuils, les "eliminatingOptionIds" doivent etre precis. Par exemple pour "Combien de jours par an le monument est-il ouvert au public ?" avec les options "Moins de 40 jours" / "Entre 40 et 50 jours" / "Plus de 50 jours", si une aide requiert 50 jours minimum, les options "Moins de 40 jours" ET "Entre 40 et 50 jours" doivent etre eliminatoires pour cette aide.
+IMPORTANT :
+- Le champ "categorie" DOIT correspondre exactement a l'une des categories recues en entree.
+- Le champ "eliminatingOptionIds" contient les IDs des options qui rendraient les aides de cette categorie non eligibles. "skip" ne doit JAMAIS y figurer.
+- Pour les questions a seuils (jours, montants...), choisis des tranches qui correspondent aux seuils exigeants observes dans les details.

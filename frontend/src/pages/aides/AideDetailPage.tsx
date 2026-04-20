@@ -118,8 +118,10 @@ export function AideDetailPage() {
               {categoryConfig?.label ?? aide.categorie}
             </Badge>
             {matchResult && (() => {
-              const hasIncertitudes = matchResult.llmEvaluation?.incertitudes && matchResult.llmEvaluation.incertitudes.length > 0;
-              const status = matchResult.eligible && hasIncertitudes ? 'potential' : matchResult.eligible ? 'eligible' : 'non-eligible';
+              const hasPendingIncertitudes = matchResult.llmEvaluation?.incertitudes?.some(
+                (inc) => typeof inc === 'string' || !inc.clarified
+              );
+              const status = matchResult.eligible && hasPendingIncertitudes ? 'potential' : matchResult.eligible ? 'eligible' : 'non-eligible';
               return (
                 <Badge
                   variant="outline"
@@ -203,17 +205,35 @@ export function AideDetailPage() {
                     <span className="text-red-700">{c}</span>
                   </div>
                 ))}
-                {matchResult.llmEvaluation?.incertitudes && matchResult.llmEvaluation.incertitudes.length > 0 && (
-                  <>
-                    <div className="pt-2 text-sm font-medium text-amber-700">Points à vérifier :</div>
-                    {matchResult.llmEvaluation.incertitudes.map((c, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm">
-                        <HelpCircle className="h-4 w-4 text-amber-500 shrink-0" />
-                        <span className="text-amber-700">{typeof c === 'string' ? c : c.detail}</span>
-                      </div>
-                    ))}
-                  </>
-                )}
+                {matchResult.llmEvaluation?.incertitudes && matchResult.llmEvaluation.incertitudes.length > 0 && (() => {
+                  const clarified = matchResult.llmEvaluation.incertitudes.filter((c) => typeof c !== 'string' && c.clarified);
+                  const pending = matchResult.llmEvaluation.incertitudes.filter((c) => typeof c === 'string' || !c.clarified);
+                  return (
+                    <>
+                      {clarified.length > 0 && (
+                        <>
+                          {clarified.map((c, i) => (
+                            <div key={`clarified-${i}`} className="flex items-center gap-2 text-sm">
+                              <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                              <span>{typeof c === 'string' ? c : c.detail}</span>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                      {pending.length > 0 && (
+                        <>
+                          <div className="pt-2 text-sm font-medium text-amber-700">Points à vérifier :</div>
+                          {pending.map((c, i) => (
+                            <div key={`pending-${i}`} className="flex items-center gap-2 text-sm">
+                              <HelpCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                              <span className="text-amber-700">{typeof c === 'string' ? c : c.detail}</span>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
                 {matchResult.llmEvaluation?.explication && (
                   <p className="pt-2 text-sm text-muted-foreground italic">
                     {matchResult.llmEvaluation.explication}

@@ -6,7 +6,7 @@ Voici le profil d'un monument :
 Voici les conditions d'eligibilite detaillees de l'aide "{{ aide_nom }}" :
 {{ conditions_detail }}
 
-Ta mission : identifier uniquement les conditions d'eligibilite qui sont CLAIREMENT et EXPLICITEMENT non respectees par ce monument, c'est-a-dire quand une condition requiert quelque chose que le profil contredit formellement.
+Ta mission : identifier uniquement les conditions d'eligibilite qui sont CLAIREMENT et EXPLICITEMENT non respectees par ce monument, c'est-a-dire quand une condition requiert quelque chose que le profil contredit formellement. Sinon, liste les conditions comme incertitudes.
 
 REGLE CRUCIALE SUR LES INCERTITUDES :
 Les informations suivantes sont DEJA CONNUES et verifiees dans le profil du monument ci-dessus. Tu ne dois JAMAIS les lister comme incertitudes :
@@ -20,38 +20,79 @@ Les informations suivantes sont DEJA CONNUES et verifiees dans le profil du monu
 
 Si une condition porte sur l'un de ces criteres, elle est soit satisfaite soit non satisfaite -- JAMAIS incertaine.
 
-Ne liste dans les incertitudes QUE les conditions qui portent sur des informations ABSENTES du profil (ex: ouverture au public, usage commercial, convention signee, diagnostic realise, etc.).
+Sois EXHAUSTIF : liste TOUTES les conditions qui ne peuvent pas etre verifiees depuis le profil. Le but est de ne rater aucune incertitude, meme mineure. Il vaut mieux 6-7 incertitudes par aide que d'en omettre une.
 
-Pour chaque incertitude, choisis une categorie parmi cette liste fermee :
-- "ouverture_public" : ouverture au public, nombre de jours d'ouverture, accessibilite visiteurs
-- "accord_abf" : accord de l'Architecte des Batiments de France
-- "convention_drac" : convention avec la DRAC, autorisation DRAC, controle scientifique
-- "architecte_mh" : recours a un architecte du patrimoine, ACMH, architecte des MH
-- "diagnostic_prealable" : diagnostic prealable, etude prealable, etude de faisabilite
-- "dpe_audit" : DPE, audit energetique, performance energetique
-- "revenus" : conditions de revenus, plafonds de ressources
-- "residence" : residence principale, occupation du logement
-- "usage_batiment" : usage commercial, activite economique, location, tiers-lieu
-- "artisan_rge" : recours a un artisan RGE, qualification professionnelle
-- "assurance_garantie" : assurance dommages-ouvrage, garantie decennale
-- "cumul_aides" : plafond de cumul, autres aides deja percues, taux maximum de subvention publique
-- "duree_engagement" : engagement de conservation, duree de detention, duree d'ouverture
-- "accessibilite_pmr" : mise en accessibilite, normes PMR, handicap
-- "environnement" : biodiversite, impact environnemental, natura 2000, zone protegee
-- "emploi_insertion" : emploi, insertion, chantier d'insertion, service civique
-- "formation" : formation, apprentissage, competences
-- "label_certification" : label, certification, agrement prealable
-- "montage_financier" : plan de financement, cofinancement, autofinancement minimum
-- "autre" : toute condition qui ne rentre dans aucune categorie ci-dessus
+Pour chaque incertitude, choisis UNE categorie parmi cette liste fermee de 34 categories, regroupees par theme :
+
+# === PROCEDURE ET ANTERIORITE ===
+- "non_commencement_travaux" : les travaux ne doivent PAS avoir commence avant le depot/accord (condition tres frequente)
+- "accord_abf_prealable" : autorisation prealable de l'Architecte des Batiments de France necessaire avant travaux
+- "convention_drac" : convention signee avec la DRAC, controle scientifique et technique UDAP/CRMH
+- "demande_autorisation_urbanisme" : permis de construire, declaration prealable, autorisation de travaux sur MH
+- "delai_realisation_post_accord" : delai impose pour achever les travaux apres l'accord (ex: 2 ans, 3 ans)
+
+# === INTERVENANTS ET QUALIFICATIONS ===
+- "architecte_mh_acmh" : recours obligatoire a un ACMH (Architecte en Chef des MH) ou architecte du patrimoine
+- "artisan_rge" : travaux realises par un artisan RGE (Reconnu Garant de l'Environnement)
+- "qualification_specifique" : qualification Qualibat, entreprise labellisee, competence patrimoniale specifique
+
+# === DIAGNOSTICS ET ETUDES ===
+- "diagnostic_prealable" : diagnostic structurel, etude prealable, etude de faisabilite realisee
+- "dpe_audit_energetique" : DPE, audit energetique, diagnostic de performance
+- "gain_energetique_minimum" : gain minimum de classes DPE (2 classes), % de gain energetique (35%), kWh cumac
+- "etude_impact_patrimonial" : etude d'impact patrimonial, etude archeologique prealable
+
+# === OUVERTURE, USAGE ET DESTINATION ===
+- "ouverture_public" : ouverture au public obligatoire, nombre de jours (ex: 40j/an, 60j/an), JEP
+- "usage_batiment" : usage commercial, activite economique, habitation, tiers-lieu, location touristique
+- "residence_principale" : occupation en residence principale (>= 8 mois/an)
+- "usage_non_lucratif" : activite non lucrative, but non commercial
+- "anciennete_batiment" : anciennete minimale du batiment (2 ans, 15 ans, avant telle date)
+
+# === ENGAGEMENTS ET DUREE ===
+- "engagement_conservation" : engagement de conservation du bien pendant N annees (5, 10, 25 ans)
+- "engagement_location" : engagement de location pendant N annees (6, 9, 12 ans)
+- "engagement_ouverture_public" : engagement d'ouverture au public pendant N annees apres travaux
+- "maintien_activite" : engagement de maintien d'activite, non-cession post-travaux
+
+# === CONDITIONS FINANCIERES ===
+- "revenus_plafond" : plafonds de ressources, tranches de revenus (tres modestes, modestes, intermediaires)
+- "montant_minimum_projet" : seuil minimum d'investissement ou de depenses eligibles
+- "cumul_aides_plafond" : plafond de cumul d'aides publiques (ex: 80% max), non-cumul avec certaines aides
+- "cofinancement_requis" : obligation de cofinancement, apport minimum, autofinancement
+- "regime_fiscal" : regime fiscal de l'entite (IS, IR, micro-BA), eligibilite fiscale
+
+# === GARANTIES ET ASSURANCES ===
+- "assurance_garantie" : assurance dommages-ouvrage, garantie decennale, couvertures obligatoires
+
+# === CRITERES SOCIAUX ET TERRITORIAUX ===
+- "emploi_insertion" : creation d'emplois, insertion, chantier d'insertion, volontariat
+- "formation_apprentissage" : dispositifs de formation, apprentissage, transmission de savoir-faire
+- "accessibilite_pmr_erp" : mise en accessibilite PMR, normes ERP (Etablissement Recevant du Public), securite incendie
+- "territoire_specifique" : zonage territorial specifique (PNR, ACV, ORT, SPR, QPV, ZRR, bassin hydro, Natura 2000)
+- "impact_territorial" : impact mesurable (emplois crees, retombees touristiques, cohesion sociale)
+
+# === INNOVATION ET PARTENARIATS ===
+- "innovation_saut_techno" : caractere innovant du projet, saut technologique, demonstration
+- "partenariat_consortium" : partenariat obligatoire, consortium, porteurs multiples, transnational
+
+# === AUTRES ===
+- "label_certification_prealable" : label ou certification prealable exige (Qualibat, RGE, Patrimoine vivant)
+- "autre" : condition n'entrant dans aucune categorie ci-dessus
+
+REGLE STRICTE : la valeur du champ "categorie" dans la reponse JSON DOIT etre exactement l'un des 24 identifiants ci-dessus. Si tu n'es pas sur, utilise "autre".
 
 Reponds en JSON strict avec ce format :
 {
   "eligible": true ou false,
   "explication": "Explication en 1-2 phrases de ta conclusion",
   "incertitudes": [
-    {"categorie": "ouverture_public", "detail": "Le monument doit etre ouvert au public au moins 40 jours par an"},
-    {"categorie": "convention_abf", "detail": "Une convention avec la DRAC est requise"}
+    {"categorie": "ouverture_public", "detail": "Le monument doit etre ouvert au public au moins 40 jours/an incluant les JEP"},
+    {"categorie": "non_commencement_travaux", "detail": "Les travaux ne doivent pas avoir commence avant l'accuse de reception"}
   ]
 }
 
-Regle stricte : mets eligible a false UNIQUEMENT si le profil contient une information qui contredit explicitement une condition requise (ex: protection requise = classe, mais le monument est inscrit). Dans tous les autres cas de doute, mets eligible a true et liste les incertitudes.
+REGLES STRICTES :
+1. Mets "eligible" a false UNIQUEMENT si le profil contient une information qui contredit explicitement une condition requise (ex: protection requise = classe, mais le monument est inscrit). Dans tous les autres cas de doute, mets eligible a true et liste les incertitudes.
+2. Le champ "detail" doit etre PRECIS : inclus les seuils chiffres (jours, annees, montants, pourcentages) quand ils sont mentionnes dans les conditions. Exemple : "Ouverture >= 40 jours/an" et non "Le monument doit etre ouvert au public".
+3. Une meme condition n'apparait qu'une seule fois, avec UNE seule categorie. Choisis la plus specifique.

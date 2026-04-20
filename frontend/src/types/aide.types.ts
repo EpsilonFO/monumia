@@ -78,7 +78,7 @@ export interface AideMatchResult {
   raisonIneligibilite?: string;
   llmEvaluation?: {
     explication: string;
-    incertitudes: (string | { categorie: string; detail: string })[];
+    incertitudes: (string | { categorie: string; detail: string; clarified?: boolean })[];
   };
 }
 
@@ -99,7 +99,10 @@ export interface QcmQuestion {
   options: QcmOption[];
   aideIds: string[];
   eliminatingOptionIds: string[];
-  incertitudesGroupees: string[];
+  /** Fine-grained elimination: optionId -> aideIds eliminated when that option is selected. */
+  eliminationsParOption?: Record<string, string[]>;
+  categorie?: string;
+  incertitudesGroupees?: string[];
 }
 
 export interface AideDiagnosticResult {

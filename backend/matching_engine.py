@@ -599,16 +599,50 @@ async def _run_llm_phase(
 # Phase 4: Generate QCM questions from incertitudes
 # ---------------------------------------------------------------------------
 
-MAX_QCM_QUESTIONS = 30
+MAX_QCM_QUESTIONS = 50
+
+
+# Closed set of allowed incertitude categories. Keep in sync with prompts/eligibility.j2.
+ALLOWED_INCERTITUDE_CATEGORIES = {
+    "ouverture_public",
+    "accord_abf",
+    "convention_drac",
+    "architecte_mh",
+    "diagnostic_prealable",
+    "dpe_audit",
+    "revenus",
+    "residence",
+    "usage_batiment",
+    "artisan_rge",
+    "assurance_garantie",
+    "cumul_aides",
+    "duree_engagement",
+    "accessibilite_pmr",
+    "environnement",
+    "emploi_insertion",
+    "formation",
+    "label_certification",
+    "montage_financier",
+    "anteriorite_travaux",
+    "adhesion_reseau",
+    "etat_projet",
+    "impact_innovation",
+    "autre",
+}
 
 
 def _normalize_incertitude(inc: str | dict) -> dict:
     """Normalise an incertitude to {categorie, detail} format.
 
-    Handles both the new structured format and legacy plain-string format.
+    - Legacy plain-string → wrapped under "autre".
+    - Dict with unknown category → coerced to "autre" (logs a warning).
     """
     if isinstance(inc, dict) and "categorie" in inc:
-        return inc
+        cat = str(inc.get("categorie") or "").strip().lower()
+        if cat not in ALLOWED_INCERTITUDE_CATEGORIES:
+            logger.warning("[LLM] Catégorie inconnue « %s » remappée vers « autre »", cat)
+            return {"categorie": "autre", "detail": inc.get("detail", "")}
+        return {"categorie": cat, "detail": inc.get("detail", "")}
     # Legacy plain-string fallback
     text = inc if isinstance(inc, str) else str(inc)
     return {"categorie": "autre", "detail": text}
@@ -644,20 +678,32 @@ def _aggregate_incertitudes(eligible_results: list[dict]) -> list[dict]:
             if detail not in groups[cat]["details"]:
                 groups[cat]["details"].append(detail)
 
-    # Convert to serialisable list, sorted by number of aides impacted (most first)
+    # Convert to serialisable list, sorted by number of aides impacted (most first).
+    # Keep payload compact to avoid LLM timeouts on large diagnostics:
+    # - drop aideNoms (not needed by LLM — aideIds are enough for tracking)
+    # - cap details to 3 representative ones
+    # - truncate very long detail strings
     aggregated = []
     for cat, data in sorted(groups.items(), key=lambda x: len(x[1]["aideIds"]), reverse=True):
+        details_truncated = [d[:200] for d in data["details"][:3]]
         aggregated.append(
             {
                 "categorie": cat,
                 "aideIds": sorted(data["aideIds"]),
-                "aideNoms": sorted(data["aideNoms"]),
                 "nbAides": len(data["aideIds"]),
-                "details": data["details"][:5],
+                "details": details_truncated,
             }
         )
 
     return aggregated
+
+
+def _compact_for_llm(aggregated: list[dict]) -> list[dict]:
+    """Strip aideIds before sending to LLM — we remap them back post-response via categorie."""
+    return [
+        {"categorie": g["categorie"], "nbAides": g["nbAides"], "details": g["details"]}
+        for g in aggregated
+    ]
 
 
 async def generate_qcm_questions(
@@ -694,30 +740,93 @@ async def generate_qcm_questions(
 
     client = Mistral(api_key=api_key)
 
+    # Build a compact payload (no aideIds) for the LLM — we remap them from categorie after.
+    compact_payload = _compact_for_llm(aggregated)
+    aide_ids_by_category = {g["categorie"]: g["aideIds"] for g in aggregated}
+
     prompt = render_prompt_qcm(
         max_questions=MAX_QCM_QUESTIONS,
         monument_profile=monument_profile,
-        incertitudes_json=json.dumps(aggregated, ensure_ascii=False, indent=2),
+        incertitudes_json=json.dumps(compact_payload, ensure_ascii=False, indent=2),
     )
+    logger.info("[QCM] Prompt construit (%d caractères), appel Mistral...", len(prompt))
 
+    QCM_TIMEOUT_S = 90
     last_error = None
     for attempt in range(3):
         try:
-            response = await client.chat.complete_async(
-                model="mistral-medium-latest",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-                temperature=0.1,
+            logger.info("[QCM] Tentative %d/3 (timeout %ds)...", attempt + 1, QCM_TIMEOUT_S)
+            response = await asyncio.wait_for(
+                client.chat.complete_async(
+                    model="mistral-large-latest",
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"},
+                    temperature=0.1,
+                ),
+                timeout=QCM_TIMEOUT_S,
             )
             content = response.choices[0].message.content
+            logger.info("[QCM] Réponse reçue (%d caractères)", len(content or ""))
             parsed = json.loads(content)
-            questions = parsed.get("questions", [])
+            raw_questions = parsed.get("questions", [])
 
-            logger.info("→ %d question(s) QCM générée(s)", len(questions))
+            # Remap aideIds from categorie (we stripped them from the prompt to save tokens).
+            questions = []
+            for q in raw_questions:
+                if not isinstance(q, dict):
+                    continue
+                cat = q.get("categorie")
+                mapped_ids = aide_ids_by_category.get(cat, [])
+                if not mapped_ids:
+                    logger.warning(
+                        "[QCM] Question ignorée: catégorie « %s » inconnue ou sans aides", cat
+                    )
+                    continue
+                q["aideIds"] = mapped_ids
+                q.setdefault("eliminatingOptionIds", [])
+                questions.append(q)
+
+            # Sanitize questions: ensure required fields and valid structure
+            questions = []
+            for q in raw_questions:
+                if not isinstance(q, dict):
+                    continue
+                qid = q.get("id")
+                qtext = q.get("question")
+                options = q.get("options")
+                aide_ids = q.get("aideIds")
+                if not (qid and qtext and isinstance(options, list) and isinstance(aide_ids, list)):
+                    logger.warning("[QCM] Question malformée ignorée: %s", q)
+                    continue
+                # Ensure eliminatingOptionIds exists
+                q.setdefault("eliminatingOptionIds", [])
+                # Ensure eliminationsParOption is a dict if present
+                if "eliminationsParOption" in q and not isinstance(
+                    q["eliminationsParOption"], dict
+                ):
+                    q["eliminationsParOption"] = {}
+                questions.append(q)
+
+            logger.info(
+                "→ %d question(s) QCM générée(s) (brut: %d, filtrées: %d)",
+                len(questions),
+                len(raw_questions),
+                len(raw_questions) - len(questions),
+            )
             for q in questions:
-                logger.info("  ? %s (%d aide(s))", q.get("question", ""), len(q.get("aideIds", [])))
+                logger.info(
+                    "  ? [%s] %s (%d aide(s))",
+                    q.get("categorie", "?"),
+                    (q.get("question") or "")[:80],
+                    len(q.get("aideIds", [])),
+                )
 
             return questions
+        except TimeoutError as e:
+            last_error = e
+            logger.warning("[QCM] Tentative %d/3 timeout après %ds", attempt + 1, QCM_TIMEOUT_S)
+            if attempt < 2:
+                await asyncio.sleep(2**attempt)
         except Exception as e:
             last_error = e
             if attempt < 2:

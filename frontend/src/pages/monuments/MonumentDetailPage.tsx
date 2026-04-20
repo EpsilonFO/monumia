@@ -115,14 +115,49 @@ export function MonumentDetailPage() {
     const questions = base.qcmQuestions ?? [];
     const eliminatedIds = computeEliminatedAideIds(answers, questions);
     const eliminated = new Set(eliminatedIds);
+
+    // Build map: aideId -> Set of incertitude categories that have been clarified by the user.
+    // An incertitude is "clarified" when the user answered (non-skip) a question whose category
+    // matches and whose aideIds include the aide.
+    const clarifiedByAide = new Map<string, Set<string>>();
+    for (const q of questions) {
+      const selected = answers[q.id];
+      if (!selected || selected === 'skip') continue;
+      const categorie = q.categorie;
+      if (!categorie) continue;
+      for (const aideId of q.aideIds) {
+        if (!clarifiedByAide.has(aideId)) clarifiedByAide.set(aideId, new Set());
+        clarifiedByAide.get(aideId)!.add(categorie);
+      }
+    }
+
+    // Mark clarified incertitudes (do not remove — they will display in green with a checkmark).
+    const markClarifiedIncertitudes = <T extends { aide: { id: string }; llmEvaluation?: { incertitudes: (string | { categorie: string; detail: string; clarified?: boolean })[] } | undefined }>(m: T): T => {
+      const clarified = clarifiedByAide.get(m.aide.id);
+      if (!clarified || !m.llmEvaluation) return m;
+      const updated = m.llmEvaluation.incertitudes.map((inc) => {
+        if (typeof inc === 'string') return inc; // legacy string — keep as-is (no category info)
+        if (clarified.has(inc.categorie)) return { ...inc, clarified: true };
+        return inc;
+      });
+      return { ...m, llmEvaluation: { ...m.llmEvaluation, incertitudes: updated } };
+    };
+
+    // After marking, an aide is "fully eligible" if all its incertitudes are clarified.
+    const hasPendingIncertitudes = (m: typeof base.aidesEligibles[number]): boolean =>
+      (m.llmEvaluation?.incertitudes ?? []).some(
+        (inc) => typeof inc === 'string' || !inc.clarified
+      );
+
+    const survivors = [
+      ...base.aidesEligibles.filter((m) => !eliminated.has(m.aide.id)).map(markClarifiedIncertitudes),
+      ...base.aidesPotentiellementEligibles.filter((m) => !eliminated.has(m.aide.id)).map(markClarifiedIncertitudes),
+    ];
+
     const updated: AideDiagnosticResult = {
       ...base,
-      aidesEligibles: base.aidesEligibles
-        .filter((m) => !eliminated.has(m.aide.id))
-        .map((m) => ({ ...m, llmEvaluation: m.llmEvaluation ? { ...m.llmEvaluation, incertitudes: [] } : m.llmEvaluation })),
-      aidesPotentiellementEligibles: base.aidesPotentiellementEligibles
-        .filter((m) => !eliminated.has(m.aide.id))
-        .map((m) => ({ ...m, llmEvaluation: m.llmEvaluation ? { ...m.llmEvaluation, incertitudes: [] } : m.llmEvaluation })),
+      aidesEligibles: survivors.filter((m) => !hasPendingIncertitudes(m)),
+      aidesPotentiellementEligibles: survivors.filter(hasPendingIncertitudes),
       aidesNonEligibles: [
         ...base.aidesNonEligibles.filter((m) => !m.raisonIneligibilite?.startsWith('Éliminée suite')),
         ...base.aidesEligibles.filter((m) => eliminated.has(m.aide.id)).map((m) => ({ ...m, eligible: false as const, raisonIneligibilite: 'Éliminée suite à vos réponses' })),

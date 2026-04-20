@@ -6,7 +6,9 @@ import type { QcmQuestion } from '@/types';
 
 const FONT = "'Cormorant Garamond', serif";
 
-/** Compute eliminated aide IDs purely from answers + questions (no API call needed). */
+/** Compute eliminated aide IDs purely from answers + questions (no API call needed).
+ *  Supports both fine-grained (eliminationsParOption) and coarse (eliminatingOptionIds) formats.
+ */
 export function computeEliminatedAideIds(
   answers: Record<string, string>,
   questions: QcmQuestion[],
@@ -15,6 +17,13 @@ export function computeEliminatedAideIds(
   for (const q of questions) {
     const selected = answers[q.id];
     if (!selected || selected === 'skip') continue;
+    // Fine-grained: per-option elimination map
+    const perOption = q.eliminationsParOption?.[selected];
+    if (perOption && perOption.length > 0) {
+      for (const aideId of perOption) eliminated.add(aideId);
+      continue;
+    }
+    // Coarse: if selected option is in eliminatingOptionIds, eliminate all aides of the question
     if (q.eliminatingOptionIds.includes(selected)) {
       for (const aideId of q.aideIds) eliminated.add(aideId);
     }

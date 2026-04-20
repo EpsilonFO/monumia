@@ -15,8 +15,11 @@ interface AideCardProps {
 }
 
 function getEligibilityStatus(match: AideMatchResult) {
-  const hasIncertitudes = match.llmEvaluation?.incertitudes && match.llmEvaluation.incertitudes.length > 0;
-  if (match.eligible && hasIncertitudes) return 'potential';
+  // Only unresolved incertitudes (not yet clarified by QCM) count as "potential" status
+  const hasPendingIncertitudes = match.llmEvaluation?.incertitudes?.some(
+    (inc) => typeof inc === 'string' || !inc.clarified
+  );
+  if (match.eligible && hasPendingIncertitudes) return 'potential';
   if (match.eligible) return 'eligible';
   return 'non-eligible';
 }
@@ -139,12 +142,15 @@ export function AideCard({ match, showEligibility = true, locked = false }: Aide
                 <span>{c}</span>
               </div>
             ))}
-            {status === 'potential' && match.llmEvaluation?.incertitudes.slice(0, 2).map((c, i) => (
-              <div key={i} className="flex items-center gap-1.5 text-xs text-amber-700">
-                <HelpCircle className="h-3 w-3 shrink-0" />
-                <span>{typeof c === 'string' ? c : c.detail}</span>
-              </div>
-            ))}
+            {status === 'potential' && match.llmEvaluation?.incertitudes.slice(0, 2).map((c, i) => {
+              const isClarified = typeof c !== 'string' && c.clarified;
+              return (
+                <div key={i} className={`flex items-center gap-1.5 text-xs ${isClarified ? 'text-green-700' : 'text-amber-700'}`}>
+                  {isClarified ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : <HelpCircle className="h-3 w-3 shrink-0" />}
+                  <span>{typeof c === 'string' ? c : c.detail}</span>
+                </div>
+              );
+            })}
           </div>
         )}
 
