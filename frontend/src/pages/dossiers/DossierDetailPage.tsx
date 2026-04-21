@@ -7,16 +7,20 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DossierChecklist } from '@/components/dossier/DossierChecklist';
+import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
+import { DeleteDossierDocumentDialog, type DeleteScope } from '@/components/dossier/DeleteDossierDocumentDialog';
+import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
+import { useDocumentStore } from '@/stores/useDocumentStore';
 import { dossierService } from '@/services/dossier.service';
 import { documentService } from '@/services/document.service';
-import { useAuthStore } from '@/stores/useAuthStore';
 import { DOSSIER_STATUS_LABELS } from '@/constants/dossier-steps';
 import { ROUTES } from '@/constants/routes';
 import { formatCurrency } from '@/lib/format-utils';
-import type { ChecklistItemStatus } from '@/types';
+import { toast } from 'sonner';
+import type { ChecklistItem, Document } from '@/types';
 
 const FONT = "'Cormorant Garamond', serif";
 
@@ -29,6 +33,15 @@ export function DossierDetailPage() {
 
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [attachingItem, setAttachingItem] = useState<ChecklistItem | null>(null);
+  const [busyItemId, setBusyItemId] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [deletingItem, setDeletingItem] = useState<ChecklistItem | null>(null);
+  const documents = useDocumentStore((s) => s.documents);
+  const fetchDocuments = useDocumentStore((s) => s.fetchDocuments);
+  const linkToDossierStore = useDocumentStore((s) => s.linkToDossier);
+  const unlinkFromDossierStore = useDocumentStore((s) => s.unlinkFromDossier);
+  const deleteDocumentStore = useDocumentStore((s) => s.deleteDocument);
 
   useEffect(() => {
     if (!dossier && dossierId && !loading && !notFound) {
@@ -56,30 +69,79 @@ export function DossierDetailPage() {
 
   const statusConfig = DOSSIER_STATUS_LABELS[dossier.statut];
 
-  const handleChecklistChange = (itemId: string, statut: ChecklistItemStatus) => {
-    dossierService.updateChecklistItem(dossier.id, itemId, statut).catch(console.error);
+  const handleAttach = async (document: Document) => {
+    if (!attachingItem) return;
+    const itemId = attachingItem.id;
+    setBusyItemId(itemId);
+    try {
+      if (!document.dossiersUtilises.includes(dossier.id)) {
+        await linkToDossierStore(document.id, dossier.id);
+      }
+      await dossierService.updateChecklistItem(dossier.id, itemId, 'fourni', document.id);
+      toast.success('Document rattaché');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors du rattachement');
+      throw err;
+    } finally {
+      setBusyItemId(null);
+    }
   };
 
-  const handleFileUpload = async (itemId: string, file: File, label: string) => {
-    const userId = useAuthStore.getState().user?.id;
-    if (!userId) return;
+  const handleDelete = async (scope: DeleteScope) => {
+    if (!deletingItem?.documentId) return;
+    const documentId = deletingItem.documentId;
+    const itemId = deletingItem.id;
+    setBusyItemId(itemId);
 
-    // Upload document with the checklist item label as the document name
-    const doc = await documentService.upload(
-      {
-        file,
-        nom: label,
-        type: 'autre',
-        monumentIds: dossier.monumentId ? [dossier.monumentId] : [],
-      },
-      userId,
-    );
+    // Tolerate a missing document: it may have already been deleted
+    // via another checklist item referencing the same file.
+    const ignoreMissing = async (fn: () => Promise<unknown>) => {
+      try {
+        await fn();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message.toLowerCase() : '';
+        const isMissing =
+          msg.includes('404') ||
+          msg.includes('not found') ||
+          msg.includes('introuvable') ||
+          msg.includes('non trouvé') ||
+          msg.includes('failed to fetch');
+        if (!isMissing) throw err;
+      }
+    };
 
-    // Link the document to this dossier
-    await documentService.linkToDossier(doc.id, dossier.id);
+    try {
+      await ignoreMissing(() => unlinkFromDossierStore(documentId, dossier.id));
+      if (scope === 'everywhere') {
+        await ignoreMissing(() => deleteDocumentStore(documentId));
+      }
+      await dossierService.updateChecklistItem(dossier.id, itemId, 'manquant');
+      toast.success(
+        scope === 'everywhere'
+          ? 'Document supprimé définitivement'
+          : 'Document retiré du dossier',
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+      throw err;
+    } finally {
+      setBusyItemId(null);
+    }
+  };
 
-    // Mark checklist item as fourni with the document ID
-    await dossierService.updateChecklistItem(dossier.id, itemId, 'fourni', doc.id);
+  const handlePreview = async (documentId: string) => {
+    const existing = documents.find((d) => d.id === documentId);
+    if (existing) {
+      setPreviewDoc(existing);
+      return;
+    }
+    try {
+      const doc = await documentService.getById(documentId);
+      setPreviewDoc(doc);
+      fetchDocuments().catch(() => {});
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Document introuvable');
+    }
   };
 
   return (
@@ -127,8 +189,36 @@ export function DossierDetailPage() {
 
       {/* Documents requis */}
       <Panel title="Pièces du dossier">
-        <DossierChecklist items={dossier.checklist} onStatusChange={handleChecklistChange} onFileUpload={handleFileUpload} readOnly={dossier.statut === 'soumis'} />
+        <DossierChecklist
+          items={dossier.checklist}
+          onRequestAttach={(item) => setAttachingItem(item)}
+          onPreview={handlePreview}
+          onRequestDelete={(item) => setDeletingItem(item)}
+          busyItemId={busyItemId}
+          readOnly={dossier.statut === 'soumis'}
+        />
       </Panel>
+
+      <AttachDocumentDialog
+        open={!!attachingItem}
+        onOpenChange={(open) => { if (!open) setAttachingItem(null); }}
+        monumentId={dossier.monumentId}
+        defaultName={attachingItem?.label}
+        onAttach={handleAttach}
+      />
+
+      <DocumentPreviewDialog
+        document={previewDoc}
+        open={!!previewDoc}
+        onOpenChange={(open) => { if (!open) setPreviewDoc(null); }}
+      />
+
+      <DeleteDossierDocumentDialog
+        open={!!deletingItem}
+        onOpenChange={(open) => { if (!open) setDeletingItem(null); }}
+        itemLabel={deletingItem?.label}
+        onConfirm={handleDelete}
+      />
 
       {/* Disclaimer */}
       {dossier.statut !== 'soumis' && (

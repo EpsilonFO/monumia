@@ -1,37 +1,44 @@
-import { useRef, useState } from 'react';
-import { CheckCircle2, Upload, Loader2 } from 'lucide-react';
+import { CheckCircle2, Eye, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { ChecklistItem, ChecklistItemStatus } from '@/types';
+import type { ChecklistItem } from '@/types';
 
 interface DossierChecklistProps {
   items: ChecklistItem[];
-  onStatusChange: (itemId: string, status: ChecklistItemStatus) => void;
-  onFileUpload?: (itemId: string, file: File, label: string) => Promise<void>;
+  onRequestAttach?: (item: ChecklistItem) => void;
+  onPreview?: (documentId: string) => void;
+  onRequestDelete?: (item: ChecklistItem) => void;
+  busyItemId?: string | null;
   readOnly?: boolean;
 }
 
-export function DossierChecklist({ items, onStatusChange, onFileUpload, readOnly }: DossierChecklistProps) {
+export function DossierChecklist({
+  items,
+  onRequestAttach,
+  onPreview,
+  onRequestDelete,
+  busyItemId,
+  readOnly,
+}: DossierChecklistProps) {
   const sorted = [...items].sort((a, b) => a.ordre - b.ordre);
-
   const uploaded = items.filter((i) => i.statut === 'fourni').length;
 
   return (
     <div className="space-y-3">
-      {/* Summary */}
       <div className="flex items-center gap-2 text-sm text-[#8E92A4]">
         <span className="font-medium text-[#1B1E2E]">{uploaded}/{items.length}</span> documents ajoutés
       </div>
 
-      {/* Document list */}
       <div className="space-y-1.5">
         {sorted.map((item) => (
           <DocumentRow
             key={item.id}
             item={item}
             readOnly={readOnly}
-            onStatusChange={onStatusChange}
-            onFileUpload={onFileUpload}
+            busy={busyItemId === item.id}
+            onRequestAttach={onRequestAttach}
+            onPreview={onPreview}
+            onRequestDelete={onRequestDelete}
           />
         ))}
       </div>
@@ -42,38 +49,19 @@ export function DossierChecklist({ items, onStatusChange, onFileUpload, readOnly
 function DocumentRow({
   item,
   readOnly,
-  onStatusChange,
-  onFileUpload,
+  busy,
+  onRequestAttach,
+  onPreview,
+  onRequestDelete,
 }: {
   item: ChecklistItem;
   readOnly?: boolean;
-  onStatusChange: (itemId: string, status: ChecklistItemStatus) => void;
-  onFileUpload?: (itemId: string, file: File, label: string) => Promise<void>;
+  busy?: boolean;
+  onRequestAttach?: (item: ChecklistItem) => void;
+  onPreview?: (documentId: string) => void;
+  onRequestDelete?: (item: ChecklistItem) => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
   const isFourni = item.statut === 'fourni';
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (onFileUpload) {
-      setUploading(true);
-      try {
-        await onFileUpload(item.id, file, item.label);
-      } catch {
-        // Upload failed — don't mark as fourni
-      } finally {
-        setUploading(false);
-      }
-    } else {
-      // Fallback: just mark as fourni without uploading
-      onStatusChange(item.id, 'fourni');
-    }
-    // Reset input so the same file can be re-selected
-    e.target.value = '';
-  };
 
   return (
     <div
@@ -104,31 +92,55 @@ function DocumentRow({
         )}
       </div>
 
-      {!readOnly && (
-        <>
-          <input
-            ref={inputRef}
-            type="file"
-            className="hidden"
-            onChange={handleFileChange}
-          />
+      <div className="flex items-center gap-1.5 shrink-0">
+        {isFourni && item.documentId && onPreview && (
           <button
             type="button"
-            disabled={uploading}
-            onClick={() => inputRef.current?.click()}
+            onClick={() => onPreview(item.documentId!)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-green-300 text-green-700 hover:bg-green-100 transition-colors"
+          >
+            <Eye className="h-3 w-3" />
+            Voir
+          </button>
+        )}
+        {!readOnly && isFourni && item.documentId && onRequestDelete && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onRequestDelete(item)}
+            aria-label="Supprimer"
+            className={cn(
+              'inline-flex items-center justify-center h-[30px] w-[30px] rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors',
+              busy && 'opacity-60 cursor-not-allowed',
+            )}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {!readOnly && onRequestAttach && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onRequestAttach(item)}
             className={cn(
               'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors',
-              uploading && 'opacity-60 cursor-not-allowed',
+              busy && 'opacity-60 cursor-not-allowed',
               isFourni
-                ? 'border-green-300 text-green-700 hover:bg-green-100'
+                ? 'border-[#E4E2DC] text-[#5C6178] hover:bg-[#F8F7F4]'
                 : 'border-[#1A237E]/20 text-[#1A237E] hover:bg-[#E8EAF6]/50',
             )}
           >
-            {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-            {uploading ? 'Envoi…' : isFourni ? 'Remplacer' : 'Ajouter'}
+            {busy ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : isFourni ? (
+              <RefreshCw className="h-3 w-3" />
+            ) : (
+              <Plus className="h-3 w-3" />
+            )}
+            {busy ? 'Envoi…' : isFourni ? 'Remplacer' : 'Ajouter'}
           </button>
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 }

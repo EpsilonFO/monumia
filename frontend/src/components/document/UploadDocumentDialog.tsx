@@ -22,6 +22,7 @@ import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { formatFileSize } from '@/lib/format-utils';
+import { ACCEPT_ATTR, MAX_FILE_SIZE_MB, validateFile } from '@/constants/file-types';
 import { toast } from 'sonner';
 import type { DocumentType } from '@/types';
 
@@ -60,28 +61,33 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
 
   const userMonuments = user ? monuments.filter((m) => m.userId === user.id) : [];
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0] ?? null;
-    setFile(selected);
-    if (selected && !nom) {
-      setNom(selected.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' '));
+  const acceptFile = (candidate: File) => {
+    const err = validateFile(candidate);
+    if (err) {
+      toast.error(err);
+      return;
     }
+    setFile(candidate);
+    if (!nom) {
+      setNom(candidate.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' '));
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (selected) acceptFile(selected);
+    e.target.value = '';
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const dropped = e.dataTransfer.files[0];
-    if (dropped) {
-      setFile(dropped);
-      if (!nom) {
-        setNom(dropped.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' '));
-      }
-    }
+    if (dropped) acceptFile(dropped);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !nom || !user) return;
+    if (!file || !nom || !type || !user) return;
 
     setLoading(true);
     try {
@@ -89,7 +95,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
         {
           file,
           nom,
-          type: (type as DocumentType) || 'autre',
+          type: type as DocumentType,
           monumentIds: monumentIds.length > 0 ? monumentIds : undefined,
           description: description || undefined,
           tags: [],
@@ -133,6 +139,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
             <input
               ref={fileInputRef}
               type="file"
+              accept={ACCEPT_ATTR}
               className="hidden"
               onChange={handleFileChange}
             />
@@ -159,6 +166,9 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
                 <p className="text-sm text-muted-foreground">
                   Glissez un fichier ici ou <span className="text-primary font-medium">parcourez</span>
                 </p>
+                <p className="text-[11px] text-muted-foreground/70">
+                  PDF, images, Word, Excel, CSV · max {MAX_FILE_SIZE_MB} Mo
+                </p>
               </div>
             )}
           </div>
@@ -177,7 +187,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
           {/* Type + Monument */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Type</Label>
+              <Label>Type *</Label>
               <Select value={type} onValueChange={(v) => setType(v as DocumentType)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choisir..." />
@@ -239,7 +249,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
             <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>
               Annuler
             </Button>
-            <Button type="submit" disabled={!file || !nom.trim() || loading}>
+            <Button type="submit" disabled={!file || !nom.trim() || !type || loading}>
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
