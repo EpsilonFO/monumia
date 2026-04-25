@@ -71,12 +71,13 @@ export function Sidebar() {
             key={item.to}
             to={item.to}
             end={item.to === '/app'}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-200"
-            style={({ isActive }) => ({
-              background: isActive ? '#FFFFFF' : 'transparent',
-              color: isActive ? '#1A237E' : '#5C6178',
-              boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
-            })}
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-200 ${
+                isActive
+                  ? 'bg-white text-[#1A237E] shadow-[0_1px_3px_rgba(0,0,0,0.04)]'
+                  : 'text-[#5C6178] hover:bg-white/60 hover:text-[#1B1E2E]'
+              }`
+            }
           >
             <item.icon className="h-[15px] w-[15px]" strokeWidth={1.8} />
             {item.label}

@@ -67,7 +67,7 @@ export const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: 'monuments', element: <MonumentsListPage /> },
       { path: 'monuments/:monumentId', element: <MonumentDetailPage /> },
-      { path: 'aides', element: <Navigate to="/app/dossiers" replace /> },
+      { path: 'aides', element: <Navigate to="/app/monuments" replace /> },
       { path: 'aides/:aideId', element: <AideDetailPage /> },
       { path: 'dossiers', element: <DossiersListPage /> },
       { path: 'dossiers/:dossierId', element: <DossierDetailPage /> },

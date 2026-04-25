@@ -1,15 +1,18 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, Link, useSearchParams, useNavigate } from 'react-router';
 import {
-  ChevronLeft, AlertTriangle, Loader2,
+  ChevronLeft, AlertTriangle, Loader2, FileText, Compass, Trash2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { DossierChecklist } from '@/components/dossier/DossierChecklist';
 import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
 import { DeleteDossierDocumentDialog, type DeleteScope } from '@/components/dossier/DeleteDossierDocumentDialog';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
+import { AideDetails } from '@/components/aide/AideDetails';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
@@ -20,15 +23,19 @@ import { DOSSIER_STATUS_LABELS } from '@/constants/dossier-steps';
 import { ROUTES } from '@/constants/routes';
 import { formatCurrency } from '@/lib/format-utils';
 import { toast } from 'sonner';
-import type { ChecklistItem, Document } from '@/types';
+import type { ChecklistItem, Document, AideMatchResult } from '@/types';
 
 const FONT = "'Cormorant Garamond', serif";
 
 export function DossierDetailPage() {
   const { dossierId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const dossier = useDossierStore((s) => s.dossiers.find((d) => d.id === dossierId));
   const addDossier = useDossierStore((s) => s.addDossier);
+  const deleteDossier = useDossierStore((s) => s.deleteDossier);
   const aide = useAideStore((s) => dossier ? s.aides.find((a) => a.id === dossier.aideId) : undefined);
+  const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const monument = useMonumentStore((s) => dossier ? s.monuments.find((m) => m.id === dossier.monumentId) : undefined);
 
   const [loading, setLoading] = useState(false);
@@ -37,11 +44,21 @@ export function DossierDetailPage() {
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [deletingItem, setDeletingItem] = useState<ChecklistItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const documents = useDocumentStore((s) => s.documents);
   const fetchDocuments = useDocumentStore((s) => s.fetchDocuments);
   const linkToDossierStore = useDocumentStore((s) => s.linkToDossier);
   const unlinkFromDossierStore = useDocumentStore((s) => s.unlinkFromDossier);
   const deleteDocumentStore = useDocumentStore((s) => s.deleteDocument);
+
+  const activeTab = searchParams.get('tab') === 'aide' ? 'aide' : 'dossier';
+  const handleTabChange = useCallback((value: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', value);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   useEffect(() => {
     if (!dossier && dossierId && !loading && !notFound) {
@@ -69,6 +86,16 @@ export function DossierDetailPage() {
 
   const statusConfig = DOSSIER_STATUS_LABELS[dossier.statut];
 
+  const matchResult: AideMatchResult | null = (() => {
+    if (!aide) return null;
+    const diagnostic = diagnosticsByMonument[dossier.monumentId];
+    if (!diagnostic) return null;
+    return diagnostic.aidesEligibles.find((m) => m.aide.id === aide.id)
+      ?? diagnostic.aidesPotentiellementEligibles.find((m) => m.aide.id === aide.id)
+      ?? diagnostic.aidesNonEligibles.find((m) => m.aide.id === aide.id)
+      ?? null;
+  })();
+
   const handleAttach = async (document: Document) => {
     if (!attachingItem) return;
     const itemId = attachingItem.id;
@@ -93,8 +120,6 @@ export function DossierDetailPage() {
     const itemId = deletingItem.id;
     setBusyItemId(itemId);
 
-    // Tolerate a missing document: it may have already been deleted
-    // via another checklist item referencing the same file.
     const ignoreMissing = async (fn: () => Promise<unknown>) => {
       try {
         await fn();
@@ -144,6 +169,20 @@ export function DossierDetailPage() {
     }
   };
 
+  const handleDeleteDossier = async () => {
+    if (!dossier || !confirm(`Supprimer ce dossier ? Cette action est irréversible.`)) return;
+    setDeleting(true);
+    try {
+      await dossierService.delete(dossier.id);
+      toast.success('Dossier supprimé');
+      navigate(ROUTES.DOSSIERS);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
@@ -154,7 +193,7 @@ export function DossierDetailPage() {
       </div>
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div className="space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <Badge className={statusConfig?.color ?? ''}>{statusConfig?.label ?? dossier.statut}</Badge>
@@ -166,15 +205,17 @@ export function DossierDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           {monument && (
-            <Link to={ROUTES.MONUMENT_DETAIL(monument.id)} className="px-3 py-2 text-[12px] font-medium border border-[#E4E2DC] rounded-lg text-[#5C6178] hover:bg-[#F8F7F4] transition-colors">
+            <Link to={ROUTES.MONUMENT_DETAIL(monument.id)} className="inline-flex items-center justify-center h-9 px-4 text-[13px] font-medium border border-[#E4E2DC] rounded-lg text-[#5C6178] hover:bg-[#F8F7F4] transition-colors whitespace-nowrap">
               Voir le monument
             </Link>
           )}
-          {aide && (
-            <Link to={ROUTES.AIDE_DETAIL(aide.id)} className="px-3 py-2 text-[12px] font-medium border border-[#E4E2DC] rounded-lg text-[#5C6178] hover:bg-[#F8F7F4] transition-colors">
-              Voir l'aide
-            </Link>
-          )}
+          <button
+            onClick={handleDeleteDossier}
+            disabled={deleting}
+            className="flex items-center justify-center h-9 w-9 border border-[#E4E2DC] rounded-lg text-[#8E92A4] hover:text-red-600 hover:border-red-200 transition-colors flex-shrink-0"
+          >
+            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          </button>
         </div>
       </div>
 
@@ -187,17 +228,59 @@ export function DossierDetailPage() {
         <Progress value={dossier.progressionPourcentage} className="h-2" />
       </div>
 
-      {/* Documents requis */}
-      <Panel title="Pièces du dossier">
-        <DossierChecklist
-          items={dossier.checklist}
-          onRequestAttach={(item) => setAttachingItem(item)}
-          onPreview={handlePreview}
-          onRequestDelete={(item) => setDeletingItem(item)}
-          busyItemId={busyItemId}
-          readOnly={dossier.statut === 'soumis'}
-        />
-      </Panel>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList>
+          <TabsTrigger value="dossier" className="gap-1.5">
+            <FileText className="h-4 w-4" />
+            Dossier
+          </TabsTrigger>
+          <TabsTrigger value="aide" className="gap-1.5">
+            <Compass className="h-4 w-4" />
+            Informations
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="dossier" className="mt-4 space-y-6">
+          <Panel title="Pièces du dossier">
+            <DossierChecklist
+              items={dossier.checklist}
+              onRequestAttach={(item) => setAttachingItem(item)}
+              onPreview={handlePreview}
+              onRequestDelete={(item) => setDeletingItem(item)}
+              busyItemId={busyItemId}
+              readOnly={dossier.statut === 'soumis'}
+            />
+          </Panel>
+
+          {dossier.statut !== 'soumis' && (
+            <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-[13px]">
+                <p className="font-semibold text-amber-800">Dépôt manuel obligatoire</p>
+                <p className="text-amber-700 mt-0.5">PatriAlta vous aide à préparer votre dossier, mais le dépôt auprès de l'organisme doit être effectué par vos soins.</p>
+              </div>
+            </div>
+          )}
+
+          {dossier.montantEstime && (
+            <div className="text-[13px] text-[#8E92A4]">
+              Montant estimé des travaux : <span className="font-semibold text-[#1B1E2E]">{formatCurrency(dossier.montantEstime)}</span>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="aide" className="mt-4">
+          {aide ? (
+            <AideDetails aide={aide} matchResult={matchResult} monumentName={monument?.nom} />
+          ) : (
+            <EmptyState
+              icon={Compass}
+              title="Aide introuvable"
+              description="Les informations de l'aide liée à ce dossier sont indisponibles."
+            />
+          )}
+        </TabsContent>
+      </Tabs>
 
       <AttachDocumentDialog
         open={!!attachingItem}
@@ -219,23 +302,6 @@ export function DossierDetailPage() {
         itemLabel={deletingItem?.label}
         onConfirm={handleDelete}
       />
-
-      {/* Disclaimer */}
-      {dossier.statut !== 'soumis' && (
-        <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50">
-          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-[13px]">
-            <p className="font-semibold text-amber-800">Dépôt manuel obligatoire</p>
-            <p className="text-amber-700 mt-0.5">PatriAlta vous aide à préparer votre dossier, mais le dépôt auprès de l'organisme doit être effectué par vos soins.</p>
-          </div>
-        </div>
-      )}
-
-      {dossier.montantEstime && (
-        <div className="text-[13px] text-[#8E92A4]">
-          Montant estimé des travaux : <span className="font-semibold text-[#1B1E2E]">{formatCurrency(dossier.montantEstime)}</span>
-        </div>
-      )}
     </div>
   );
 }
@@ -250,4 +316,3 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
     </div>
   );
 }
-

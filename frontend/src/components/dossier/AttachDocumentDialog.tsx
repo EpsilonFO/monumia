@@ -162,7 +162,6 @@ export function AttachDocumentDialog({
         user.id,
       );
       await onAttach(doc);
-      toast.success('Document importé et rattaché');
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur lors de l'import");

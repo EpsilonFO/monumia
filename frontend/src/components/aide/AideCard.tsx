@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { CheckCircle2, XCircle, HelpCircle, ExternalLink, Clock, ChevronRight, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ interface AideCardProps {
   match: AideMatchResult;
   showEligibility?: boolean;
   locked?: boolean;
+  monumentId?: string;
 }
 
 function getEligibilityStatus(match: AideMatchResult) {
@@ -24,25 +25,35 @@ function getEligibilityStatus(match: AideMatchResult) {
   return 'non-eligible';
 }
 
-export function AideCard({ match, showEligibility = true, locked = false }: AideCardProps) {
+export function AideCard({ match, showEligibility = true, locked = false, monumentId }: AideCardProps) {
   const { aide, criteresRemplis, criteresNonRemplis } = match;
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
   const status = getEligibilityStatus(match);
+  const aideDetailUrl = ROUTES.AIDE_DETAIL(aide.id, monumentId);
 
   const hoverClass = locked
-    ? 'hover:border-amber-200'
+    ? 'hover:border-amber-300'
     : status === 'eligible'
-      ? 'hover:border-green-300'
+      ? 'hover:border-green-400'
       : status === 'potential'
-        ? 'hover:border-amber-300'
-        : 'hover:border-border';
+        ? 'hover:border-amber-400'
+        : 'hover:border-[#C0BDBA]';
 
-  const tarifsTo = { pathname: '/tarifs' };
-  const tarifsState = { from: pathname };
+  const handleCardClick = () => {
+    if (locked) {
+      navigate('/tarifs', { state: { from: pathname } });
+    } else {
+      navigate(aideDetailUrl);
+    }
+  };
 
   return (
-    <Card className={`transition-all hover:shadow-md ${hoverClass} ${locked ? 'bg-gray-50/50' : ''}`}>
+    <Card
+      className={`group cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/[0.06] hover:-translate-y-0.5 ${hoverClass} ${locked ? 'bg-gray-50/50' : ''}`}
+      onClick={handleCardClick}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-1.5 flex-1 min-w-0">
@@ -92,9 +103,7 @@ export function AideCard({ match, showEligibility = true, locked = false }: Aide
               </span>
             </CardTitle>
           </div>
-          <Link to={locked ? tarifsTo : ROUTES.AIDE_DETAIL(aide.id)} state={locked ? tarifsState : undefined}>
-            <ChevronRight className="h-4 w-4 text-muted-foreground hover:text-primary" />
-          </Link>
+          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:text-[#C75B3A]" />
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -155,21 +164,21 @@ export function AideCard({ match, showEligibility = true, locked = false }: Aide
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-2 pt-1">
-          <Button asChild size="sm" variant={locked ? 'outline' : status === 'eligible' ? 'default' : 'outline'}>
-            <Link to={locked ? tarifsTo : ROUTES.AIDE_DETAIL(aide.id)} state={locked ? tarifsState : undefined}>
-              {locked ? 'Découvrir les aides' : 'Voir le détail'}
-            </Link>
-          </Button>
-          {!locked && aide.urlOfficielle && (
-            <Button asChild size="sm" variant="ghost">
+        {!locked && aide.urlOfficielle && (
+          <div className="pt-1">
+            <Button
+              asChild
+              size="sm"
+              variant="ghost"
+              onClick={(e) => e.stopPropagation()}
+            >
               <a href={aide.urlOfficielle} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-3 w-3 mr-1" />
                 Site officiel
               </a>
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -4,7 +4,7 @@ import { Church } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { DossierCard } from '@/components/dossier/DossierCard';
+import { DossierCard, MONUMENT_COLORS } from '@/components/dossier/DossierCard';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
@@ -25,7 +25,19 @@ export function DossiersListPage() {
   const monumentFilterParam = searchParams.get('monument');
   const [selectedMonument, setSelectedMonument] = useState(monumentFilterParam ?? 'all');
 
-  const userMonuments = useMemo(() => (user ? monuments.filter((m) => m.userId === user.id) : []), [monuments, user]);
+  const userMonuments = useMemo(
+    () => (user ? monuments.filter((m) => m.userId === user.id) : []),
+    [monuments, user],
+  );
+
+  // Stable color per monument (index in userMonuments list)
+  const monumentColorMap = useMemo(
+    () => Object.fromEntries(
+      userMonuments.map((m, i) => [m.id, MONUMENT_COLORS[i % MONUMENT_COLORS.length]])
+    ),
+    [userMonuments],
+  );
+
   const monumentFilter = selectedMonument !== 'all' ? selectedMonument : null;
 
   const userDossiers = useMemo(() => {
@@ -35,21 +47,11 @@ export function DossiersListPage() {
     return filtered;
   }, [dossiers, user, monumentFilter]);
 
-  const filterMonument = useMemo(() => monumentFilter ? monuments.find((m) => m.id === monumentFilter) : undefined, [monuments, monumentFilter]);
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Mes dossiers"
-        description={filterMonument ? `Dossiers pour ${filterMonument.nom}` : "Suivez l'avancement de vos demandes de financement"}
-        action={monumentFilter ? (
-          <Link
-            to={ROUTES.DOSSIERS}
-            className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-medium border border-[#E4E2DC] rounded-lg text-[#5C6178] transition-all duration-200 hover:bg-[#F8F7F4]"
-          >
-            Voir tous les dossiers
-          </Link>
-        ) : undefined}
+        description="Suivez l'avancement de vos demandes de financement"
       />
 
       {userMonuments.length > 1 && (
@@ -59,7 +61,17 @@ export function DossiersListPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les monuments</SelectItem>
-            {userMonuments.map((m) => (<SelectItem key={m.id} value={m.id}>{m.nom}</SelectItem>))}
+            {userMonuments.map((m, i) => (
+              <SelectItem key={m.id} value={m.id}>
+                <span className="flex items-center gap-2">
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0 inline-block"
+                    style={{ background: MONUMENT_COLORS[i % MONUMENT_COLORS.length] }}
+                  />
+                  {m.nom}
+                </span>
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       )}
@@ -83,9 +95,13 @@ export function DossiersListPage() {
           }
         />
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {userDossiers.map((dossier) => (
-            <DossierCard key={dossier.id} dossier={dossier} />
+            <DossierCard
+              key={dossier.id}
+              dossier={dossier}
+              monumentColor={monumentColorMap[dossier.monumentId]}
+            />
           ))}
         </div>
       )}

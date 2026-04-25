@@ -1,33 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, Link, useNavigate, Navigate } from 'react-router';
-
-/** Decode HTML entities (&#039; &amp; etc.) that may be present in aide text fields. */
-const decodeHtml = (text: string | null | undefined): string => {
-  if (!text) return '';
-  const el = document.createElement('textarea');
-  el.innerHTML = text;
-  return el.value;
-};
-import {
-  ChevronLeft, ExternalLink, Clock, Building2, FileText,
-  CheckCircle2, XCircle, HelpCircle, ArrowRight,
-} from 'lucide-react';
+import { useParams, Link, useNavigate, useSearchParams, Navigate } from 'react-router';
+import { ChevronLeft, FileText, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Disclaimer } from '@/components/shared/Disclaimer';
-import { useAideStore, selectLastDiagnostic } from '@/stores/useAideStore';
+import { AideDetails } from '@/components/aide/AideDetails';
+import { useAideStore } from '@/stores/useAideStore';
+import { useDossierStore } from '@/stores/useDossierStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useSegmentLabel } from '@/hooks/useSegment';
 import { useAidesAccess } from '@/hooks/useAidesAccess';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
-import { AIDE_CATEGORIES } from '@/constants/aide-categories';
 import { ROUTES } from '@/constants/routes';
-import { formatCurrency, formatPercentage } from '@/lib/format-utils';
+import { toast } from 'sonner';
 import type { Aide, AideMatchResult } from '@/types';
 
 export function AideDetailPage() {
@@ -36,17 +23,19 @@ export function AideDetailPage() {
     return <Navigate to="/tarifs" replace />;
   }
   const { aideId } = useParams();
+  const [searchParams] = useSearchParams();
+  const monumentId = searchParams.get('monumentId');
   const navigate = useNavigate();
+
   const storeAide = useAideStore((s) => s.aides.find((a) => a.id === aideId));
+  const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const user = useAuthStore((s) => s.user);
-  const lastDiagnostic = useAideStore(selectLastDiagnostic);
-  const lastDiagnosticMonumentId = useAideStore((s) => s.lastDiagnosticMonumentId);
   const monument = useMonumentStore((s) =>
-    lastDiagnosticMonumentId ? s.monuments.find((m) => m.id === lastDiagnosticMonumentId) : s.monuments[0]
+    monumentId ? s.monuments.find((m) => m.id === monumentId) : undefined
   );
+  const dossiers = useDossierStore((s) => s.dossiers);
   useSegmentLabel();
 
-  // If aide not in store (e.g. direct link), fetch from API
   const [fetchedAide, setFetchedAide] = useState<Aide | null>(null);
   useEffect(() => {
     if (!storeAide && aideId) {
@@ -54,15 +43,23 @@ export function AideDetailPage() {
     }
   }, [storeAide, aideId]);
 
+
   const aide = storeAide ?? fetchedAide;
 
   const matchResult = useMemo((): AideMatchResult | null => {
-    if (!aide || !lastDiagnostic) return null;
-    return lastDiagnostic.aidesEligibles.find((m) => m.aide.id === aide.id)
-      ?? lastDiagnostic.aidesPotentiellementEligibles.find((m) => m.aide.id === aide.id)
-      ?? lastDiagnostic.aidesNonEligibles.find((m) => m.aide.id === aide.id)
+    if (!aide || !monumentId) return null;
+    const diagnostic = diagnosticsByMonument[monumentId];
+    if (!diagnostic) return null;
+    return diagnostic.aidesEligibles.find((m) => m.aide.id === aide.id)
+      ?? diagnostic.aidesPotentiellementEligibles.find((m) => m.aide.id === aide.id)
+      ?? diagnostic.aidesNonEligibles.find((m) => m.aide.id === aide.id)
       ?? null;
-  }, [aide, lastDiagnostic]);
+  }, [aide, monumentId, diagnosticsByMonument]);
+
+  const existingDossier = useMemo(() => {
+    if (!aide || !monumentId) return null;
+    return dossiers.find((d) => d.monumentId === monumentId && d.aideId === aide.id) ?? null;
+  }, [aide, monumentId, dossiers]);
 
   const [creating, setCreating] = useState(false);
 
@@ -72,19 +69,21 @@ export function AideDetailPage() {
         <PageHeader title="Aide introuvable" />
         <p className="text-muted-foreground">Cette aide n'existe pas.</p>
         <Button asChild variant="outline">
-          <Link to={ROUTES.AIDES}>
+          <Link to={ROUTES.MONUMENTS}>
             <ChevronLeft className="h-4 w-4 mr-1" />
-            Retour aux aides
+            Retour aux monuments
           </Link>
         </Button>
       </div>
     );
   }
 
-  const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
-
   const handleCreateDossier = async () => {
     if (!monument || !user || creating) return;
+    if (existingDossier) {
+      navigate(ROUTES.DOSSIER_DETAIL(existingDossier.id));
+      return;
+    }
     setCreating(true);
     try {
       const dossier = await dossierService.create(
@@ -92,9 +91,10 @@ export function AideDetailPage() {
         aide.id,
         monument.travauxEnvisages ?? []
       );
+      toast.success('Dossier créé');
       navigate(ROUTES.DOSSIER_DETAIL(dossier.id));
     } catch (err) {
-      console.error('Erreur création dossier:', err);
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la création du dossier');
     } finally {
       setCreating(false);
     }
@@ -103,248 +103,57 @@ export function AideDetailPage() {
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Link to={ROUTES.AIDES} className="hover:text-foreground transition-colors">
-          Aides
+      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+        <Link to={ROUTES.MONUMENTS} className="hover:text-foreground transition-colors">
+          Monuments
         </Link>
-        <span>/</span>
-        <span className="text-foreground">{aide.nomCourt}</span>
-      </div>
-
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge className={categoryConfig?.color ?? ''}>
-              {categoryConfig?.label ?? aide.categorie}
-            </Badge>
-            {matchResult && (() => {
-              const hasPendingIncertitudes = matchResult.llmEvaluation?.incertitudes?.some(
-                (inc) => typeof inc === 'string' || !inc.clarified
-              );
-              const status = matchResult.eligible && hasPendingIncertitudes ? 'potential' : matchResult.eligible ? 'eligible' : 'non-eligible';
-              return (
-                <Badge
-                  variant="outline"
-                  className={
-                    status === 'eligible'
-                      ? 'border-green-300 text-green-700 bg-green-50'
-                      : status === 'potential'
-                        ? 'border-amber-300 text-amber-700 bg-amber-50'
-                        : 'border-red-200 text-red-600 bg-red-50'
-                  }
-                >
-                  {status === 'eligible' ? (
-                    <>
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Éligible
-                    </>
-                  ) : status === 'potential' ? (
-                    <>
-                      <HelpCircle className="h-3 w-3 mr-1" />
-                      Potentiellement éligible
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="h-3 w-3 mr-1" />
-                      Non éligible
-                    </>
-                  )}
-                </Badge>
-              );
-            })()}
-          </div>
-          <h1 className="text-2xl font-bold">{decodeHtml(aide.nom)}</h1>
-        </div>
-
-        {matchResult?.eligible && monument && (
-          <Button onClick={handleCreateDossier} className="shrink-0" disabled={creating}>
-            <FileText className="h-4 w-4 mr-2" />
-            {creating ? 'Création...' : 'Créer un dossier'}
-          </Button>
+        {monument && (
+          <>
+            <span>/</span>
+            <Link
+              to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=aides`}
+              className="hover:text-foreground transition-colors truncate max-w-[200px]"
+            >
+              {monument.nom}
+            </Link>
+          </>
         )}
+        <span>/</span>
+        <span className="text-foreground truncate">{aide.nomCourt}</span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main content */}
-        <div className="lg:col-span-2 space-y-4">
-          {/* Description */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Description</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm leading-relaxed whitespace-pre-line">
-                {decodeHtml(aide.descriptionLongue || aide.description)}
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Eligibility analysis */}
-          {matchResult && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  Analyse d'éligibilité
-                  {monument && (
-                    <span className="text-muted-foreground font-normal ml-1">
-                      pour {monument.nom}
-                    </span>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {matchResult.criteresRemplis.map((c, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                    <span>{c}</span>
-                  </div>
-                ))}
-                {matchResult.criteresNonRemplis.map((c, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-                    <span className="text-red-700">{c}</span>
-                  </div>
-                ))}
-                {matchResult.llmEvaluation?.incertitudes && matchResult.llmEvaluation.incertitudes.length > 0 && (() => {
-                  const clarified = matchResult.llmEvaluation.incertitudes.filter((c) => typeof c !== 'string' && c.clarified);
-                  const pending = matchResult.llmEvaluation.incertitudes.filter((c) => typeof c === 'string' || !c.clarified);
-                  return (
-                    <>
-                      {clarified.length > 0 && (
-                        <>
-                          {clarified.map((c, i) => (
-                            <div key={`clarified-${i}`} className="flex items-center gap-2 text-sm">
-                              <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                              <span>{typeof c === 'string' ? c : c.detail}</span>
-                            </div>
-                          ))}
-                        </>
-                      )}
-                      {pending.length > 0 && (
-                        <>
-                          <div className="pt-2 text-sm font-medium text-amber-700">Points à vérifier :</div>
-                          {pending.map((c, i) => (
-                            <div key={`pending-${i}`} className="flex items-center gap-2 text-sm">
-                              <HelpCircle className="h-4 w-4 text-amber-500 shrink-0" />
-                              <span className="text-amber-700">{typeof c === 'string' ? c : c.detail}</span>
-                            </div>
-                          ))}
-                        </>
-                      )}
-                    </>
-                  );
-                })()}
-                {matchResult.llmEvaluation?.explication && (
-                  <p className="pt-2 text-sm text-muted-foreground italic">
-                    {matchResult.llmEvaluation.explication}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Démarche */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Démarche à suivre</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                {decodeHtml(aide.demarcheDescription).split('\n').filter(Boolean).map((line, i) => (
-                  <div key={i} className="flex gap-2">
-                    <ArrowRight className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                    <span>{line}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Documents requis */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Documents requis</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-1.5 text-sm">
-                {aide.documentsRequis.map((doc, i) => (
-                  <li key={i} className="flex items-center gap-2">
-                    <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    {doc}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+      {!monument && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-semibold mb-1">Contexte monument manquant</p>
+          <p>
+            Pour évaluer l'éligibilité à cette aide et créer un dossier, ouvrez-la depuis l'onglet
+            « Aides » d'un monument.
+          </p>
+          <Button asChild variant="outline" size="sm" className="mt-3">
+            <Link to={ROUTES.MONUMENTS}>Voir mes monuments</Link>
+          </Button>
         </div>
+      )}
 
-        {/* Sidebar */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Informations clés</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">Organisme</p>
-                <p className="font-medium flex items-center gap-1.5">
-                  <Building2 className="h-3.5 w-3.5" />
-                  {aide.organisme}
-                </p>
-              </div>
-
-              {aide.tauxMax && (
-                <div>
-                  <p className="text-muted-foreground">Taux maximum</p>
-                  <p className="font-medium text-lg text-primary">
-                    {formatPercentage(aide.tauxMax)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Base {aide.baseTTC ? 'TTC' : 'HT'}
-                  </p>
-                </div>
-              )}
-
-              {aide.montantMax && (
-                <div>
-                  <p className="text-muted-foreground">Montant maximum</p>
-                  <p className="font-medium text-lg text-primary">
-                    {formatCurrency(aide.montantMax)}
-                  </p>
-                </div>
-              )}
-
-              <Separator />
-
-              <div>
-                <p className="text-muted-foreground">Disponibilité</p>
-                <p className="font-medium flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5" />
-                  {aide.permanent ? 'Appel permanent' : `Date limite : ${aide.dateLimite ?? 'NC'}`}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-muted-foreground">Délai d'instruction</p>
-                <p className="font-medium">{aide.delaiInstruction}</p>
-              </div>
-
-              {aide.urlOfficielle && (
-                <>
-                  <Separator />
-                  <Button asChild variant="outline" size="sm" className="w-full">
-                    <a href={aide.urlOfficielle} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                      Site officiel
-                    </a>
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
+      {monument && matchResult?.eligible && (
+        <div className="flex justify-end">
+          <Button onClick={handleCreateDossier} disabled={creating}>
+            {existingDossier ? (
+              <>
+                <FolderOpen className="h-4 w-4 mr-2" />
+                Ouvrir le dossier existant
+              </>
+            ) : (
+              <>
+                <FileText className="h-4 w-4 mr-2" />
+                {creating ? 'Création...' : 'Créer un dossier'}
+              </>
+            )}
+          </Button>
         </div>
-      </div>
+      )}
+
+      <AideDetails aide={aide} matchResult={matchResult} monumentName={monument?.nom} />
 
       <Disclaimer />
     </div>

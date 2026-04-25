@@ -84,7 +84,8 @@ export function MonumentDetailPage() {
   // Keep the original diagnostic (before QCM filtering) so we can re-apply answers
   const [originalDiagnostic, setOriginalDiagnostic] = useState<AideDiagnosticResult | null>(null);
 
-  const activeTab = searchParams.get('tab') === 'dossiers' ? 'dossiers' : 'informations';
+  const tabParam = searchParams.get('tab');
+  const activeTab = tabParam === 'dossiers' || tabParam === 'aides' ? tabParam : 'informations';
   const handleTabChange = useCallback((value: string) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -182,20 +183,24 @@ export function MonumentDetailPage() {
 
   const hasQcmQuestions = !!(diagnostic?.qcmQuestions && diagnostic.qcmQuestions.length > 0) || !!(originalDiagnostic?.qcmQuestions && originalDiagnostic.qcmQuestions.length > 0);
 
-  const aideIdsWithDossier = useMemo(() => new Set(dossiers.map((d) => d.aideId)), [dossiers]);
+  const aidesAvailableCount = useMemo(() => {
+    if (!diagnostic) return 0;
+    return diagnostic.aidesEligibles.length
+      + diagnostic.aidesPotentiellementEligibles.length;
+  }, [diagnostic]);
 
   const filteredDiagnostic = useMemo((): AideDiagnosticResult | null => {
     if (!diagnostic) return null;
     const catFilter = filters.categories;
     const query = filters.searchQuery.toLowerCase();
     const filterMatches = (matches: typeof diagnostic.aidesEligibles) => {
-      let filtered = matches.filter((m) => !aideIdsWithDossier.has(m.aide.id));
+      let filtered = matches;
       if (catFilter.length > 0) filtered = filtered.filter((m) => catFilter.includes(m.aide.categorie));
       if (query) filtered = filtered.filter((m) => m.aide.nom.toLowerCase().includes(query) || m.aide.nomCourt.toLowerCase().includes(query) || m.aide.organisme.toLowerCase().includes(query));
       return filtered;
     };
     return { ...diagnostic, aidesEligibles: filterMatches(diagnostic.aidesEligibles), aidesPotentiellementEligibles: filterMatches(diagnostic.aidesPotentiellementEligibles), aidesNonEligibles: filterMatches(diagnostic.aidesNonEligibles) };
-  }, [diagnostic, filters.categories, filters.searchQuery, aideIdsWithDossier]);
+  }, [diagnostic, filters.categories, filters.searchQuery]);
 
   const [notFound, setNotFound] = useState(false);
   const addMonument = useMonumentStore((s) => s.addMonument);
@@ -238,9 +243,17 @@ export function MonumentDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Supprimer "${monument.nom}" ? Cette action est irréversible.`)) return;
+    if (!confirm(`Supprimer "${monument.nom}" ? Tous les dossiers associés seront également supprimés. Cette action est irréversible.`)) return;
     setDeleting(true);
-    try { await monumentService.delete(monument.id); deleteMonument(monument.id); toast.success('Monument supprimé'); navigate(ROUTES.MONUMENTS); }
+    try {
+      for (const dossier of dossiers) {
+        await dossierService.delete(dossier.id);
+      }
+      await monumentService.delete(monument.id);
+      deleteMonument(monument.id);
+      toast.success('Monument supprimé');
+      navigate(ROUTES.MONUMENTS);
+    }
     catch (err) { toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression'); }
     finally { setDeleting(false); }
   };
@@ -279,11 +292,11 @@ export function MonumentDetailPage() {
           protectionLabels[monument.protection] ?? monument.protection,
         ].filter(Boolean).join(' — ')}
         action={
-          <div className="flex gap-2">
-            <button onClick={handleDelete} disabled={deleting} className="flex items-center justify-center w-9 h-9 border border-[#E4E2DC] rounded-lg text-[#8E92A4] hover:text-red-600 hover:border-red-200 transition-colors">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button onClick={handleDelete} disabled={deleting} className="flex items-center justify-center w-9 h-9 shrink-0 border border-[#E4E2DC] rounded-lg text-[#8E92A4] hover:text-red-600 hover:border-red-200 transition-colors">
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" strokeWidth={1.8} />}
             </button>
-            <button onClick={() => setIsEditing(true)} className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-300 hover:shadow-md" style={{ background: '#1A237E' }}>
+            <button onClick={() => setIsEditing(true)} className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold text-white bg-[#1A237E] rounded-lg transition-all duration-200 hover:bg-[#1e2d96] hover:shadow-md">
               <Edit2 className="h-3.5 w-3.5" strokeWidth={1.8} />
               Modifier
             </button>
@@ -303,6 +316,7 @@ export function MonumentDetailPage() {
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="informations" className="gap-1.5"><Eye className="h-4 w-4" />Informations</TabsTrigger>
+          <TabsTrigger value="aides" className="gap-1.5"><Compass className="h-4 w-4" />Aides ({aidesAvailableCount})</TabsTrigger>
           <TabsTrigger value="dossiers" className="gap-1.5"><ScrollText className="h-4 w-4" />Dossiers ({dossiers.length})</TabsTrigger>
         </TabsList>
 
@@ -367,21 +381,7 @@ export function MonumentDetailPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="dossiers" className="mt-4 space-y-6">
-          {dossiers.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#8E92A4]">Dossiers en cours</h3>
-              {dossiers.map((dossier) => (
-                <Link key={dossier.id} to={ROUTES.DOSSIER_DETAIL(dossier.id)}>
-                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-[#E4E2DC] hover:bg-[#F8F7F4] transition-colors">
-                    <p className="font-medium text-[13px] text-[#1B1E2E] truncate">{dossier.titre}</p>
-                    <Progress value={dossier.progressionPourcentage} className="w-20 h-1.5 shrink-0" />
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-
+        <TabsContent value="aides" className="mt-4 space-y-6">
           {showDiagnostic || diagnostic ? (
             <div className="space-y-6">
               <AideMatchBanner result={diagnostic} isRunning={isRunningDiagnostic} onLaunch={handleLaunchDiagnostic} monumentName={monument.nom} />
@@ -427,21 +427,24 @@ export function MonumentDetailPage() {
                   <AideFilterBar />
                   <Tabs defaultValue="potentially-eligible">
                     <TabsList>
-                      <TabsTrigger value="potentially-eligible" className="gap-1.5"><HelpCircle className="h-4 w-4" />Aides identifiées ({filteredDiagnostic.aidesPotentiellementEligibles.length})</TabsTrigger>
+                      <TabsTrigger value="potentially-eligible" className="gap-1.5"><HelpCircle className="h-4 w-4" />Aides identifiées ({filteredDiagnostic.aidesEligibles.length + filteredDiagnostic.aidesPotentiellementEligibles.length})</TabsTrigger>
                       <TabsTrigger value="non-eligible" className="gap-1.5"><XCircle className="h-4 w-4" />Non éligibles ({filteredDiagnostic.aidesNonEligibles.length})</TabsTrigger>
                     </TabsList>
                     <TabsContent value="potentially-eligible" className="mt-4">
-                      {filteredDiagnostic.aidesPotentiellementEligibles.length === 0 ? (
+                      {filteredDiagnostic.aidesEligibles.length === 0 && filteredDiagnostic.aidesPotentiellementEligibles.length === 0 ? (
                         <EmptyState icon={HelpCircle} title="Aucune aide identifiée" description="Essayez de modifier les filtres ou vérifiez les informations de votre monument." />
                       ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesPotentiellementEligibles.map((match) => (<AideCard key={match.aide.id} match={match} locked={locked} />))}</div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {filteredDiagnostic.aidesEligibles.map((match) => (<AideCard key={match.aide.id} match={match} locked={locked} monumentId={monument.id} />))}
+                          {filteredDiagnostic.aidesPotentiellementEligibles.map((match) => (<AideCard key={match.aide.id} match={match} locked={locked} monumentId={monument.id} />))}
+                        </div>
                       )}
                     </TabsContent>
                     <TabsContent value="non-eligible" className="mt-4">
                       {filteredDiagnostic.aidesNonEligibles.length === 0 ? (
                         <EmptyState icon={CheckCircle2} title="Toutes les aides sont identifiées" description="Votre monument est éligible à toutes les aides analysées." />
                       ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesNonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} locked={locked} />))}</div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filteredDiagnostic.aidesNonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} locked={locked} monumentId={monument.id} />))}</div>
                       )}
                     </TabsContent>
                   </Tabs>
@@ -468,6 +471,39 @@ export function MonumentDetailPage() {
                 {diagnostic || dossiers.length > 0 ? 'Voir le diagnostic' : 'Lancer un diagnostic'}
               </button>
             </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="dossiers" className="mt-4 space-y-6">
+          {dossiers.length > 0 ? (
+            <div className="space-y-3">
+              {dossiers.map((dossier) => (
+                <Link key={dossier.id} to={ROUTES.DOSSIER_DETAIL(dossier.id)}>
+                  <div className="flex items-center justify-between gap-3 p-4 rounded-lg border border-[#E4E2DC] hover:bg-[#F8F7F4] transition-colors">
+                    <p className="font-medium text-[14px] text-[#1B1E2E] truncate">{dossier.titre}</p>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-[12px] text-[#8E92A4]">{dossier.progressionPourcentage} %</span>
+                      <Progress value={dossier.progressionPourcentage} className="w-24 h-1.5" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={ScrollText}
+              title="Aucun dossier pour ce monument"
+              description="Créez un dossier depuis l'onglet « Aides » pour démarrer une candidature."
+              action={
+                <button
+                  onClick={() => handleTabChange('aides')}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white bg-[#1A237E] rounded-lg transition-all duration-200 hover:bg-[#1e2d96] hover:shadow-md"
+                >
+                  <Compass className="h-4 w-4" strokeWidth={1.8} />
+                  Voir les aides disponibles
+                </button>
+              }
+            />
           )}
         </TabsContent>
       </Tabs>

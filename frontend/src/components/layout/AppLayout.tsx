@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router';
+import { useEffect, useRef } from 'react';
+import { Outlet, useNavigate, useLocation } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -32,13 +32,19 @@ export function AppLayout() {
   }, [token, setMonuments, setAides]);
 
   const unreadCount = user ? getUnreadCount(user.id) : 0;
+  const mainRef = useRef<HTMLElement>(null);
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    mainRef.current?.scrollTo(0, 0);
+  }, [pathname]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F8F7F4]">
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <TopBar unreadCount={unreadCount} />
-        <main className="flex-1 overflow-y-auto">
+        <main ref={mainRef} className="flex-1 overflow-y-auto">
           <div className="p-4 md:p-6 lg:p-8 max-w-[1200px]">
             <Outlet />
           </div>

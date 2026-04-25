@@ -11,8 +11,9 @@ export const ROUTES = {
   MONUMENT_DETAIL: (id: string) => `/app/monuments/${id}`,
   MONUMENT_NEW: '/app/monuments/nouveau',
 
-  AIDES: '/app/dossiers',
-  AIDE_DETAIL: (id: string) => `/app/aides/${id}`,
+  AIDES: '/app/monuments',
+  AIDE_DETAIL: (aideId: string, monumentId?: string) =>
+    monumentId ? `/app/aides/${aideId}?monumentId=${monumentId}` : `/app/aides/${aideId}`,
 
   DOSSIERS: '/app/dossiers',
   DOSSIER_DETAIL: (id: string) => `/app/dossiers/${id}`,
