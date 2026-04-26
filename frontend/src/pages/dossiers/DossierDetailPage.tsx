@@ -33,7 +33,6 @@ export function DossierDetailPage() {
   const navigate = useNavigate();
   const dossier = useDossierStore((s) => s.dossiers.find((d) => d.id === dossierId));
   const addDossier = useDossierStore((s) => s.addDossier);
-  const deleteDossier = useDossierStore((s) => s.deleteDossier);
   const aide = useAideStore((s) => dossier ? s.aides.find((a) => a.id === dossier.aideId) : undefined);
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const monument = useMonumentStore((s) => dossier ? s.monuments.find((m) => m.id === dossier.monumentId) : undefined);

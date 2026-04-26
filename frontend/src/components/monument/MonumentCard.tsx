@@ -2,7 +2,6 @@ import { Link, useNavigate } from 'react-router';
 import { MapPin, Shield, AlertTriangle, ChevronRight, Compass, FolderOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { ROUTES } from '@/constants/routes';
 import type { Monument } from '@/types';
@@ -28,7 +27,6 @@ const etatLabels: Record<string, string> = {
 
 export function MonumentCard({ monument }: MonumentCardProps) {
   const navigate = useNavigate();
-  const hasDossiers = useDossierStore((s) => s.dossiers.some((d) => d.monumentId === monument.id));
   const hasDiagnostic = useAideStore((s) => !!s.diagnosticsByMonument[monument.id]);
   const etat = etatColors[monument.etatConservation] ?? etatColors.moyen;
 
