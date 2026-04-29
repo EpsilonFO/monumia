@@ -6,6 +6,15 @@ import type { QcmQuestion } from '@/types';
 
 const FONT = "'Cormorant Garamond', serif";
 
+/** Drop questions that are missing the array fields we iterate on. Old diagnostics
+ *  persisted before validation was tightened can have undefined aideIds. */
+export function sanitizeQcmQuestions(questions: QcmQuestion[] | undefined): QcmQuestion[] {
+  if (!Array.isArray(questions)) return [];
+  return questions.filter(
+    (q) => q && Array.isArray(q.aideIds) && q.aideIds.length > 0 && Array.isArray(q.options),
+  );
+}
+
 /** Compute eliminated aide IDs purely from answers + questions (no API call needed).
  *  Supports both fine-grained (eliminationsParOption) and coarse (eliminatingOptionIds) formats.
  */
@@ -24,8 +33,8 @@ export function computeEliminatedAideIds(
       continue;
     }
     // Coarse: if selected option is in eliminatingOptionIds, eliminate all aides of the question
-    if (q.eliminatingOptionIds.includes(selected)) {
-      for (const aideId of q.aideIds) eliminated.add(aideId);
+    if ((q.eliminatingOptionIds ?? []).includes(selected)) {
+      for (const aideId of q.aideIds ?? []) eliminated.add(aideId);
     }
   }
   return [...eliminated];
@@ -45,10 +54,11 @@ const INTRO_STEP = -1;
 export function PostDiagnosticQCM({
   open,
   onClose,
-  questions,
+  questions: rawQuestions,
   initialAnswers,
   onComplete,
 }: PostDiagnosticQCMProps) {
+  const questions = useMemo(() => sanitizeQcmQuestions(rawQuestions), [rawQuestions]);
   const [currentIndex, setCurrentIndex] = useState<number>(INTRO_STEP);
   const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers ?? {});
 
@@ -71,7 +81,7 @@ export function PostDiagnosticQCM({
   const totalAidesConcerned = useMemo(() => {
     const ids = new Set<string>();
     for (const q of questions) {
-      for (const id of q.aideIds) ids.add(id);
+      for (const id of q.aideIds ?? []) ids.add(id);
     }
     return ids.size;
   }, [questions]);
@@ -187,7 +197,7 @@ export function PostDiagnosticQCM({
             {/* Concerned aides */}
             <div className="flex items-center gap-1.5">
               <span className="text-[12px] text-[#8E92A4]">
-                {question.aideIds.length} aide{question.aideIds.length > 1 ? 's' : ''} concernée{question.aideIds.length > 1 ? 's' : ''}
+                {(question.aideIds ?? []).length} aide{(question.aideIds ?? []).length > 1 ? 's' : ''} concernée{(question.aideIds ?? []).length > 1 ? 's' : ''}
               </span>
             </div>
 

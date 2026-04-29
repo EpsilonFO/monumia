@@ -14,7 +14,7 @@ import { MonumentForm, type PendingPhoto } from '@/components/monument/MonumentF
 import { AideMatchBanner } from '@/components/aide/AideMatchBanner';
 import { AideCard } from '@/components/aide/AideCard';
 import { AideFilterBar } from '@/components/aide/AideFilterBar';
-import { PostDiagnosticQCM, computeEliminatedAideIds } from '@/components/aide/PostDiagnosticQCM';
+import { PostDiagnosticQCM, computeEliminatedAideIds, sanitizeQcmQuestions } from '@/components/aide/PostDiagnosticQCM';
 import { useAidesAccess } from '@/hooks/useAidesAccess';
 import { AidesPaywallBanner } from '@/components/aide/AidesPaywallBanner';
 import { useMonumentStore } from '@/stores/useMonumentStore';
@@ -113,7 +113,7 @@ export function MonumentDetailPage() {
 
   const applyQcmAnswers = useCallback((base: AideDiagnosticResult, answers: Record<string, string>) => {
     if (!monumentId) return;
-    const questions = base.qcmQuestions ?? [];
+    const questions = sanitizeQcmQuestions(base.qcmQuestions);
     const eliminatedIds = computeEliminatedAideIds(answers, questions);
     const eliminated = new Set(eliminatedIds);
 
@@ -126,7 +126,7 @@ export function MonumentDetailPage() {
       if (!selected || selected === 'skip') continue;
       const categorie = q.categorie;
       if (!categorie) continue;
-      for (const aideId of q.aideIds) {
+      for (const aideId of q.aideIds ?? []) {
         if (!clarifiedByAide.has(aideId)) clarifiedByAide.set(aideId, new Set());
         clarifiedByAide.get(aideId)!.add(categorie);
       }
@@ -181,7 +181,11 @@ export function MonumentDetailPage() {
     setShowQcm(true);
   }, []);
 
-  const hasQcmQuestions = !!(diagnostic?.qcmQuestions && diagnostic.qcmQuestions.length > 0) || !!(originalDiagnostic?.qcmQuestions && originalDiagnostic.qcmQuestions.length > 0);
+  const validQcmQuestions = useMemo(
+    () => sanitizeQcmQuestions((originalDiagnostic ?? diagnostic)?.qcmQuestions),
+    [originalDiagnostic, diagnostic],
+  );
+  const hasQcmQuestions = validQcmQuestions.length > 0;
 
   const aidesAvailableCount = useMemo(() => {
     if (!diagnostic) return 0;
@@ -390,7 +394,7 @@ export function MonumentDetailPage() {
                 <PostDiagnosticQCM
                   open={showQcm}
                   onClose={() => setShowQcm(false)}
-                  questions={(originalDiagnostic ?? diagnostic)!.qcmQuestions!}
+                  questions={validQcmQuestions}
                   initialAnswers={qcmAnswers}
                   onComplete={handleQcmComplete}
                 />
