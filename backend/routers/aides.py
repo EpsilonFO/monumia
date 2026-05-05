@@ -25,6 +25,10 @@ class DiagnosticRequest(BaseModel):
     travaux_filtres: list[str] | None = None
 
 
+class UpdateQcmAnswersRequest(BaseModel):
+    qcm_answers: dict[str, str]
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -153,6 +157,15 @@ async def diagnostic(
         logger.error("run_diagnostic crashed:\n%s", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Erreur matching engine : {exc}") from exc
 
+    # Capture LLM evaluations per aide so they can be re-hydrated on reload
+    # without re-running Mistral. Keyed by aide id.
+    llm_evaluations: dict[str, dict] = {}
+    for bucket in ("aidesEligibles", "aidesPotentiellementEligibles", "aidesNonEligibles"):
+        for match in result.get(bucket, []):
+            evaluation = match.get("llmEvaluation")
+            if evaluation:
+                llm_evaluations[match["aide"]["id"]] = evaluation
+
     # Persist diagnostic to DB
     row = {
         "monument_id": body.monument_id,
@@ -170,12 +183,39 @@ async def diagnostic(
         ],
         "aides_non_eligibles_ids": [m["aide"]["id"] for m in result["aidesNonEligibles"]],
         "qcm_questions": result.get("qcmQuestions") or [],
+        "qcm_answers": {},
+        "llm_evaluations": llm_evaluations,
     }
     insert_result = supabase.table("diagnostics").insert(row).execute()
     if insert_result.data:
         result["id"] = insert_result.data[0]["id"]
+    result["qcmAnswers"] = {}
 
     return _camelise_diagnostic(result)
+
+
+@router.patch("/diagnostics/by-id/{diagnostic_id}/qcm-answers")
+def update_qcm_answers(
+    diagnostic_id: str,
+    body: UpdateQcmAnswersRequest,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Persist the user's QCM answers so the post-QCM filtering survives a reload."""
+    existing = (
+        supabase.table("diagnostics")
+        .select("id, user_id")
+        .eq("id", diagnostic_id)
+        .single()
+        .execute()
+    )
+    if not existing.data or existing.data["user_id"] != user_id:
+        raise HTTPException(status_code=404, detail="Diagnostic introuvable")
+
+    supabase.table("diagnostics").update({"qcm_answers": body.qcm_answers}).eq(
+        "id", diagnostic_id
+    ).execute()
+    return {"id": diagnostic_id, "qcmAnswers": body.qcm_answers}
 
 
 @router.get("/diagnostics/{monument_id}")
@@ -245,17 +285,27 @@ def list_diagnostics(
 def _hydrate_diagnostic(
     row: dict, aides_by_id: dict, monument: dict, user: dict, population: int | None
 ) -> dict:
-    """Reconstruct full diagnostic by joining aide IDs and recomputing criteria."""
+    """Reconstruct full diagnostic by joining aide IDs and recomputing criteria.
+
+    `llm_evaluations` (captured at diagnostic time) are re-attached so the
+    frontend can mark incertitudes as clarified after a page reload, without
+    needing to re-run the LLM.
+    """
     mode_projet = row.get("mode_projet", False)
     travaux_filtres = row.get("travaux_filtres") or []
+    llm_evaluations = row.get("llm_evaluations") or {}
 
     def _build_match(aide_id: str) -> dict | None:
         aide = aides_by_id.get(aide_id)
         if not aide:
             return None
-        return _build_criteria_labels(
+        match = _build_criteria_labels(
             aide, monument, user, mode_projet, travaux_filtres, population
         )
+        evaluation = llm_evaluations.get(aide_id)
+        if evaluation:
+            match["llmEvaluation"] = evaluation
+        return match
 
     aides_eligibles = [
         m for aid in (row.get("aides_eligibles_ids") or []) if (m := _build_match(aid)) is not None
@@ -287,4 +337,5 @@ def _hydrate_diagnostic(
             else None
         ),
         "qcmQuestions": row.get("qcm_questions") or [],
+        "qcmAnswers": row.get("qcm_answers") or {},
     }

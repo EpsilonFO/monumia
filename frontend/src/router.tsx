@@ -44,7 +44,7 @@ export const router = createBrowserRouter([
     element: <TarifsPage />,
   },
 
-  // Onboarding — accessible uniquement avec pending-register en session
+  // Onboarding — credentials kept in memory only (usePendingRegistrationStore)
   {
     path: '/onboarding',
     element: <OnboardingPage />,

@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,7 +18,17 @@ from routers import (
 
 setup_logging()
 
-app = FastAPI(title="Patrialta API")
+# Disable interactive API docs outside development. Production exposure of
+# /docs, /redoc, and /openapi.json gives attackers a free map of every route.
+_ENV = os.environ.get("ENV", "production").lower()
+_DOCS_ENABLED = _ENV in {"development", "dev", "local"}
+
+app = FastAPI(
+    title="Patrialta API",
+    docs_url="/docs" if _DOCS_ENABLED else None,
+    redoc_url="/redoc" if _DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if _DOCS_ENABLED else None,
+)
 
 app.add_middleware(
     CORSMiddleware,

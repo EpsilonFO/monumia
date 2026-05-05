@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { usePendingRegistrationStore } from '@/stores/usePendingRegistrationStore';
 import { authService } from '@/services/auth.service';
 import { ChevronLeft, ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -40,6 +41,9 @@ export function OnboardingProfile() {
   const [searchParams] = useSearchParams();
   const segment = (searchParams.get('segment') ?? 'commune') as 'commune' | 'prive' | 'btp';
   const setAuth = useAuthStore((s) => s.setAuth);
+  const pendingEmail = usePendingRegistrationStore((s) => s.email);
+  const pendingPassword = usePendingRegistrationStore((s) => s.password);
+  const clearPendingCredentials = usePendingRegistrationStore((s) => s.clear);
   const [loading, setLoading] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
 
@@ -106,8 +110,7 @@ export function OnboardingProfile() {
     setForm((prev) => ({ ...prev, ...updates }));
 
   const handleSubmit = async () => {
-    const pending = sessionStorage.getItem('pending-register');
-    if (!pending) {
+    if (!pendingEmail || !pendingPassword) {
       toast.error('Session expirée, recommencez l\'inscription.');
       navigate('/login');
       return;
@@ -117,7 +120,8 @@ export function OnboardingProfile() {
       return;
     }
 
-    const { email, password } = JSON.parse(pending) as { email: string; password: string };
+    const email = pendingEmail;
+    const password = pendingPassword;
 
     const btpData = segment === 'btp' ? {
       raisonSociale: form.raisonSociale,
@@ -142,7 +146,7 @@ export function OnboardingProfile() {
         btp: btpData,
       });
 
-      sessionStorage.removeItem('pending-register');
+      clearPendingCredentials();
       setAuth(user, access_token, refresh_token);
       navigate(segment === 'btp' ? '/btp' : '/app');
     } catch (err: unknown) {

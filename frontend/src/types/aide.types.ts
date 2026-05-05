@@ -117,4 +117,5 @@ export interface AideDiagnosticResult {
   aidesNonEligibles: AideMatchResult[];
   montantPotentielTotal?: number;
   qcmQuestions?: QcmQuestion[];
+  qcmAnswers?: Record<string, string>;
 }

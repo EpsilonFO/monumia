@@ -76,6 +76,134 @@ ETAT_LABELS = {
     "peril": "En péril",
 }
 
+REGION_LABELS = {
+    "auvergne-rhone-alpes": "Auvergne-Rhône-Alpes",
+    "bourgogne-franche-comte": "Bourgogne-Franche-Comté",
+    "bretagne": "Bretagne",
+    "centre-val-de-loire": "Centre-Val de Loire",
+    "corse": "Corse",
+    "grand-est": "Grand Est",
+    "hauts-de-france": "Hauts-de-France",
+    "ile-de-france": "Île-de-France",
+    "normandie": "Normandie",
+    "nouvelle-aquitaine": "Nouvelle-Aquitaine",
+    "occitanie": "Occitanie",
+    "pays-de-la-loire": "Pays de la Loire",
+    "provence-alpes-cote-d-azur": "Provence-Alpes-Côte d'Azur",
+    "guadeloupe": "Guadeloupe",
+    "martinique": "Martinique",
+    "guyane": "Guyane",
+    "la-reunion": "La Réunion",
+    "mayotte": "Mayotte",
+}
+
+# INSEE department codes → libellé. Used to humanise filter labels;
+# `aides_departements.departement_code` and `communes.departement_num`
+# both store the code form (e.g. "75", "2A", "971").
+DEPARTEMENT_LABELS = {
+    "01": "Ain",
+    "02": "Aisne",
+    "03": "Allier",
+    "04": "Alpes-de-Haute-Provence",
+    "05": "Hautes-Alpes",
+    "06": "Alpes-Maritimes",
+    "07": "Ardèche",
+    "08": "Ardennes",
+    "09": "Ariège",
+    "10": "Aube",
+    "11": "Aude",
+    "12": "Aveyron",
+    "13": "Bouches-du-Rhône",
+    "14": "Calvados",
+    "15": "Cantal",
+    "16": "Charente",
+    "17": "Charente-Maritime",
+    "18": "Cher",
+    "19": "Corrèze",
+    "2A": "Corse-du-Sud",
+    "2B": "Haute-Corse",
+    "21": "Côte-d'Or",
+    "22": "Côtes-d'Armor",
+    "23": "Creuse",
+    "24": "Dordogne",
+    "25": "Doubs",
+    "26": "Drôme",
+    "27": "Eure",
+    "28": "Eure-et-Loir",
+    "29": "Finistère",
+    "30": "Gard",
+    "31": "Haute-Garonne",
+    "32": "Gers",
+    "33": "Gironde",
+    "34": "Hérault",
+    "35": "Ille-et-Vilaine",
+    "36": "Indre",
+    "37": "Indre-et-Loire",
+    "38": "Isère",
+    "39": "Jura",
+    "40": "Landes",
+    "41": "Loir-et-Cher",
+    "42": "Loire",
+    "43": "Haute-Loire",
+    "44": "Loire-Atlantique",
+    "45": "Loiret",
+    "46": "Lot",
+    "47": "Lot-et-Garonne",
+    "48": "Lozère",
+    "49": "Maine-et-Loire",
+    "50": "Manche",
+    "51": "Marne",
+    "52": "Haute-Marne",
+    "53": "Mayenne",
+    "54": "Meurthe-et-Moselle",
+    "55": "Meuse",
+    "56": "Morbihan",
+    "57": "Moselle",
+    "58": "Nièvre",
+    "59": "Nord",
+    "60": "Oise",
+    "61": "Orne",
+    "62": "Pas-de-Calais",
+    "63": "Puy-de-Dôme",
+    "64": "Pyrénées-Atlantiques",
+    "65": "Hautes-Pyrénées",
+    "66": "Pyrénées-Orientales",
+    "67": "Bas-Rhin",
+    "68": "Haut-Rhin",
+    "69": "Rhône",
+    "70": "Haute-Saône",
+    "71": "Saône-et-Loire",
+    "72": "Sarthe",
+    "73": "Savoie",
+    "74": "Haute-Savoie",
+    "75": "Paris",
+    "76": "Seine-Maritime",
+    "77": "Seine-et-Marne",
+    "78": "Yvelines",
+    "79": "Deux-Sèvres",
+    "80": "Somme",
+    "81": "Tarn",
+    "82": "Tarn-et-Garonne",
+    "83": "Var",
+    "84": "Vaucluse",
+    "85": "Vendée",
+    "86": "Vienne",
+    "87": "Haute-Vienne",
+    "88": "Vosges",
+    "89": "Yonne",
+    "90": "Territoire de Belfort",
+    "91": "Essonne",
+    "92": "Hauts-de-Seine",
+    "93": "Seine-Saint-Denis",
+    "94": "Val-de-Marne",
+    "95": "Val-d'Oise",
+    "971": "Guadeloupe",
+    "972": "Martinique",
+    "973": "Guyane",
+    "974": "La Réunion",
+    "976": "Mayotte",
+}
+
 
 def _label(mapping: dict, value: str | None) -> str:
     if value is None:
@@ -114,9 +242,11 @@ def prefiltrer_aides(
         if commune_lookup.data:
             code_insee = commune_lookup.data[0].get("code_insee", "")
 
-    # Extract departement code from code_insee (e.g. "10025" → "10", "2A004" → "2A")
-    departement_code = None
-    if code_insee:
+    # Department code: prefer the value enriched from communes (`departement_num`),
+    # fall back to extracting it from code_insee (handles Corsica 2A/2B and DOM
+    # codes 971–976) when the monument hasn't been enriched yet.
+    departement_code = monument.get("departement_num")
+    if not departement_code and code_insee:
         if code_insee[:2] in ("2A", "2B"):
             departement_code = code_insee[:2]
         elif code_insee[:3] in ("971", "972", "973", "974", "975", "976"):
@@ -348,19 +478,25 @@ def _build_criteria_labels(
     regions = aide.get("regions") or []
     if regions:
         if monument.get("region") in regions:
-            criteres_remplis.append(f"Région : {monument.get('region')}")
+            criteres_remplis.append(f"Région : {_label(REGION_LABELS, monument.get('region'))}")
         else:
-            criteres_non_remplis.append(f"Région requise : {', '.join(regions)}")
+            criteres_non_remplis.append(f"Région requise : {_labels(REGION_LABELS, regions)}")
     else:
         criteres_remplis.append("Toute la France")
 
-    # Département
+    # Département : compare on the numeric INSEE code (matches aides_departements.departement_code).
+    # `monument["departement"]` holds the human label (e.g. "Paris") for display only.
     departements = aide.get("departements") or []
     if departements:
-        if monument.get("departement") in departements:
-            criteres_remplis.append(f"Département : {monument.get('departement')}")
+        dep_code = monument.get("departement_num")
+        if dep_code and dep_code in departements:
+            criteres_remplis.append(
+                f"Département : {monument.get('departement') or _label(DEPARTEMENT_LABELS, dep_code)} ({dep_code})"
+            )
         else:
-            criteres_non_remplis.append(f"Département requis : {', '.join(departements)}")
+            criteres_non_remplis.append(
+                f"Département requis : {_labels(DEPARTEMENT_LABELS, departements)}"
+            )
 
     # Segment
     segments = aide.get("segments") or []
@@ -413,8 +549,16 @@ def _build_monument_profile(monument: dict, user: dict, population: int | None) 
     lines.append(f"Propriétaire : {_label(OWNERSHIP_LABELS, monument.get('proprietaire', ''))}")
     lines.append(f"Commune : {monument.get('commune', 'Non renseigné')}")
     lines.append(f"Code INSEE : {monument.get('code_insee', 'Non renseigné')}")
-    lines.append(f"Département : {monument.get('departement', 'Non renseigné')}")
-    lines.append(f"Région : {monument.get('region', 'Non renseigné')}")
+    dep_label = monument.get("departement") or _label(
+        DEPARTEMENT_LABELS, monument.get("departement_num")
+    )
+    dep_num = monument.get("departement_num")
+    if dep_label and dep_num:
+        lines.append(f"Département : {dep_label} ({dep_num})")
+    else:
+        lines.append(f"Département : {dep_label or dep_num or 'Non renseigné'}")
+    region_display = monument.get("region_label") or _label(REGION_LABELS, monument.get("region"))
+    lines.append(f"Région : {region_display or 'Non renseigné'}")
     if population is not None:
         lines.append(f"Population commune : {population} habitants")
     lines.append(
@@ -564,9 +708,15 @@ async def _run_llm_phase(
             aide = result["aide"]
             _llm_log(aide.get("nom", ""), llm_result)
 
+            # Normalise on the way in: the frontend matches QCM answers to
+            # incertitudes by exact category equality, so the categories stored
+            # here MUST be drawn from the same closed set used during QCM
+            # aggregation. Anything unknown is coerced to "autre".
             result["llmEvaluation"] = {
                 "explication": llm_result.get("explication", ""),
-                "incertitudes": llm_result.get("incertitudes", []),
+                "incertitudes": [
+                    _normalize_incertitude(inc) for inc in (llm_result.get("incertitudes") or [])
+                ],
             }
 
             llm_eligible = llm_result.get("eligible", True)
@@ -602,31 +752,56 @@ async def _run_llm_phase(
 MAX_QCM_QUESTIONS = 50
 
 
-# Closed set of allowed incertitude categories. Keep in sync with prompts/eligibility.j2.
+# Closed set of allowed incertitude categories. MUST match the identifiers
+# listed in prompts/eligibility.j2 — any drift causes the LLM-emitted category
+# to be coerced to "autre", which in turn breaks the QCM ↔ incertitude matching
+# (the frontend marks an incertitude as clarified by exact category equality).
 ALLOWED_INCERTITUDE_CATEGORIES = {
-    "ouverture_public",
-    "accord_abf",
+    # Procédure et antériorité
+    "non_commencement_travaux",
+    "accord_abf_prealable",
     "convention_drac",
-    "architecte_mh",
-    "diagnostic_prealable",
-    "dpe_audit",
-    "revenus",
-    "residence",
-    "usage_batiment",
+    "demande_autorisation_urbanisme",
+    "delai_realisation_post_accord",
+    # Intervenants et qualifications
+    "architecte_mh_acmh",
     "artisan_rge",
+    "qualification_specifique",
+    # Diagnostics et études
+    "diagnostic_prealable",
+    "dpe_audit_energetique",
+    "gain_energetique_minimum",
+    "etude_impact_patrimonial",
+    # Ouverture, usage et destination
+    "ouverture_public",
+    "usage_batiment",
+    "residence_principale",
+    "usage_non_lucratif",
+    "anciennete_batiment",
+    # Engagements et durée
+    "engagement_conservation",
+    "engagement_location",
+    "engagement_ouverture_public",
+    "maintien_activite",
+    # Conditions financières
+    "revenus_plafond",
+    "montant_minimum_projet",
+    "cumul_aides_plafond",
+    "cofinancement_requis",
+    "regime_fiscal",
+    # Garanties et assurances
     "assurance_garantie",
-    "cumul_aides",
-    "duree_engagement",
-    "accessibilite_pmr",
-    "environnement",
+    # Critères sociaux et territoriaux
     "emploi_insertion",
-    "formation",
-    "label_certification",
-    "montage_financier",
-    "anteriorite_travaux",
-    "adhesion_reseau",
-    "etat_projet",
-    "impact_innovation",
+    "formation_apprentissage",
+    "accessibilite_pmr_erp",
+    "territoire_specifique",
+    "impact_territorial",
+    # Innovation et partenariats
+    "innovation_saut_techno",
+    "partenariat_consortium",
+    # Autres
+    "label_certification_prealable",
     "autre",
 }
 
@@ -860,8 +1035,16 @@ async def run_diagnostic(
     logger.info("  segment      : %s", _label(SEGMENT_LABELS, user.get("segment")))
     logger.info("  protection   : %s", _label(PROTECTION_LABELS, monument.get("protection")))
     logger.info("  propriétaire : %s", _label(OWNERSHIP_LABELS, monument.get("proprietaire")))
-    logger.info("  région       : %s", monument.get("region"))
-    logger.info("  département  : %s", monument.get("departement"))
+    logger.info(
+        "  région       : %s (%s)",
+        _label(REGION_LABELS, monument.get("region")),
+        monument.get("region"),
+    )
+    logger.info(
+        "  département  : %s (%s)",
+        monument.get("departement"),
+        monument.get("departement_num"),
+    )
     logger.info(
         "  travaux      : %s",
         _labels(TRAVAUX_LABELS, ctx_travaux or monument.get("travaux_envisages") or []) or "—",

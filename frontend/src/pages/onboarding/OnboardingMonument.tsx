@@ -46,12 +46,19 @@ export function OnboardingMonument() {
 
     const lastOf = (s: string | undefined) => s?.split(';').pop()?.trim() ?? '';
 
-    const lastTypo = lastOf(record.typologie_de_la_protection).toLowerCase();
-    const protection: ProtectionLevel = lastTypo.includes('classé')
-      ? 'classe'
-      : lastTypo.includes('inscrit')
-        ? 'inscrit'
-        : 'non_protege';
+    // Mérimée concatenates protection statuses with `;` in chronological order
+    // (e.g. "classé MH partiellement;inscrit MH partiellement;protection partielle"
+    // means the monument was classé, then re-inscrit — so it is currently inscrit).
+    // Walk the list and keep the LAST entry that names a classement/inscription;
+    // free-form descriptions like "protection partielle" don't override it.
+    const typoEntries = (record.typologie_de_la_protection ?? '')
+      .split(';')
+      .map((s) => s.toLowerCase().trim());
+    let protection: ProtectionLevel = 'non_protege';
+    for (const t of typoEntries) {
+      if (t.includes('classé')) protection = 'classe';
+      else if (t.includes('inscrit')) protection = 'inscrit';
+    }
 
     const regionValue = REGION_LABEL_TO_VALUE[record.region?.toLowerCase() ?? ''] ?? '';
 

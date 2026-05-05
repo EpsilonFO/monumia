@@ -53,6 +53,20 @@ export const aideService = {
     return handleResponse<AideDiagnosticResult[]>(res);
   },
 
+  async saveQcmAnswers(
+    diagnosticId: string,
+    qcmAnswers: Record<string, string>,
+  ): Promise<void> {
+    const res = await authFetch(
+      `${BASE}/aides/diagnostics/by-id/${diagnosticId}/qcm-answers`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ qcm_answers: qcmAnswers }),
+      },
+    );
+    await handleResponse(res);
+  },
+
   /** Get filtered aides (from local store cache) */
   getFilteredAides(
     categories: AideCategory[],

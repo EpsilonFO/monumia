@@ -175,6 +175,9 @@ export function MonumentDetailPage() {
     if (!monumentId || !base) return;
     if (Object.keys(answers).length === 0) return;
     applyQcmAnswers(base, answers);
+    if (base.id) {
+      aideService.saveQcmAnswers(base.id, answers).catch(console.error);
+    }
   }, [monumentId, diagnostic, originalDiagnostic, applyQcmAnswers]);
 
   const handleReopenQcm = useCallback(() => {
@@ -210,7 +213,23 @@ export function MonumentDetailPage() {
   const addMonument = useMonumentStore((s) => s.addMonument);
 
   useEffect(() => { if (!monument && monumentId) monumentService.getById(monumentId).then(addMonument).catch(() => setNotFound(true)); }, [monumentId]);
-  useEffect(() => { if (monumentId && !diagnostic && !isRunningDiagnostic) aideService.getDiagnostics(monumentId).then((d) => { if (d.length > 0) setDiagnostic(monumentId, d[0]); }).catch(console.error); }, [monumentId, isRunningDiagnostic]);
+  useEffect(() => {
+    if (!monumentId || diagnostic || isRunningDiagnostic) return;
+    aideService.getDiagnostics(monumentId)
+      .then((diagnostics) => {
+        const latest = diagnostics[0];
+        if (!latest) return;
+        setDiagnostic(monumentId, latest);
+        // Re-apply previously saved QCM answers so the post-QCM filter survives a reload.
+        const savedAnswers = latest.qcmAnswers ?? {};
+        if (Object.keys(savedAnswers).length > 0) {
+          setOriginalDiagnostic(latest);
+          setQcmAnswers(savedAnswers);
+          applyQcmAnswers(latest, savedAnswers);
+        }
+      })
+      .catch(console.error);
+  }, [monumentId, isRunningDiagnostic, diagnostic, setDiagnostic, applyQcmAnswers]);
   useEffect(() => { if (!dossierLoaded) dossierService.fetchAll().catch(console.error); }, [dossierLoaded]);
 
   if (notFound || (!monument && !monumentId)) {

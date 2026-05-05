@@ -4,6 +4,7 @@ import { Eye, EyeOff, Loader2, ArrowRight, Landmark, Shield, Clock, Check, X } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { usePendingRegistrationStore } from '@/stores/usePendingRegistrationStore';
 import { authService } from '@/services/auth.service';
 import { toast } from 'sonner';
 
@@ -35,6 +36,7 @@ const C = {
 
 export function LoginPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
+  const setPendingCredentials = usePendingRegistrationStore((s) => s.setCredentials);
   const navigate = useNavigate();
   const [tab, setTab] = useState<'login' | 'register'>('login');
 
@@ -77,10 +79,7 @@ export function LoginPage() {
       toast.error('Le mot de passe ne remplit pas tous les critères de sécurité');
       return;
     }
-    sessionStorage.setItem('pending-register', JSON.stringify({
-      email: registerForm.email,
-      password: registerForm.password,
-    }));
+    setPendingCredentials(registerForm.email, registerForm.password);
     navigate('/onboarding');
   };
 

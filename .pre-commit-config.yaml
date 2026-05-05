@@ -1,4 +1,11 @@
 repos:
+  # Block secret leaks at both pre-commit and pre-push.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+        stages: [pre-commit, pre-push]
+
   - repo: local
     hooks:
       # Pre-commit: format and auto-fix before committing

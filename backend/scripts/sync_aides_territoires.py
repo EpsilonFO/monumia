@@ -25,6 +25,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env.local"), override=True)
 
 import httpx
+from _geo_perimeter import derive_geo_constraints
 from supabase import create_client
 
 # ── Config ──────────────────────────────────────────────────────────────
@@ -319,7 +320,32 @@ def main():
             created += 1
             log.info("  ✓ created: %s", row["nom_court"])
 
+        # Sync geo constraints (department / region) — uses the API perimeter
+        # when available, falls back to parsing the organisme.
+        sync_geo_constraints(uuid, aid, row["organisme"])
+
     log.info("=== Done! %d created, %d updated (total: %d) ===", created, updated, len(aids))
+
+
+def sync_geo_constraints(aide_id: str, api_aid: dict, organisme: str) -> None:
+    """Replace `aides_departements` / `aides_regions` rows for one aide."""
+    depts, regions = derive_geo_constraints(api_aid, organisme=organisme)
+
+    # Wipe and re-insert so updates stay idempotent
+    supabase.table("aides_departements").delete().eq("aide_id", aide_id).execute()
+    supabase.table("aides_regions").delete().eq("aide_id", aide_id).execute()
+
+    if depts:
+        supabase.table("aides_departements").insert(
+            [{"aide_id": aide_id, "departement_code": code} for code in depts]
+        ).execute()
+    if regions:
+        supabase.table("aides_regions").insert(
+            [{"aide_id": aide_id, "region_code": code} for code in regions]
+        ).execute()
+
+    if depts or regions:
+        log.info("    geo: depts=%s regions=%s", depts, regions)
 
 
 if __name__ == "__main__":

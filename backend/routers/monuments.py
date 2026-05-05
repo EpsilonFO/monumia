@@ -29,6 +29,22 @@ def _normalize_commune(name: str) -> str:
     return without_accents.lower()
 
 
+def _validate_photo_storage_path(path: str, user_id: str) -> str:
+    """Photo URLs are storage paths scoped to the caller's folder.
+
+    The frontend uploads photos to the same private "documents" bucket under
+    "<user_id>/...". Reject anything else so a tampered client can't reference
+    another user's storage objects.
+    """
+    if not path or not isinstance(path, str):
+        raise HTTPException(status_code=400, detail="URL de photo invalide")
+    if "://" in path or path.startswith("/") or ".." in path.split("/"):
+        raise HTTPException(status_code=400, detail="URL de photo invalide")
+    if not path.startswith(f"{user_id}/"):
+        raise HTTPException(status_code=403, detail="URL de photo non autorisée")
+    return path
+
+
 def _try_resolve_code_insee(
     supabase: Client,
     commune_name: str | None,
@@ -176,14 +192,20 @@ class AddPhotoRequest(BaseModel):
 
 
 def _enrich_monument(supabase: Client, monument: dict) -> dict:
-    """Join commune data (commune, departement, region) via code_insee."""
+    """Join commune data (commune, departement, region) via code_insee.
+
+    `region` is stored as the kebab-case code (e.g. "ile-de-france") so it
+    matches both `aides_regions.region_code` (used by the SQL pre-filter) and
+    the frontend `Region` type. The INSEE display label (e.g. "Île-de-France")
+    is exposed separately as `region_label`.
+    """
     code_insee = monument.get("code_insee")
     if not code_insee:
         return monument
 
     result = (
         supabase.table("communes")
-        .select("nom_commune, departement, departement_num, region")
+        .select("nom_commune, departement, departement_num, region, region_code")
         .eq("code_insee", code_insee)
         .limit(1)
         .execute()
@@ -193,7 +215,8 @@ def _enrich_monument(supabase: Client, monument: dict) -> dict:
         monument["commune"] = row["nom_commune"]
         monument["departement"] = row["departement"]
         monument["departement_num"] = row["departement_num"]
-        monument["region"] = row["region"]
+        monument["region"] = row.get("region_code")
+        monument["region_label"] = row.get("region")
     return monument
 
 
@@ -263,7 +286,7 @@ def list_monuments(
     if code_insees:
         communes_result = (
             supabase.table("communes")
-            .select("code_insee, nom_commune, departement, departement_num, region")
+            .select("code_insee, nom_commune, departement, departement_num, region, region_code")
             .in_("code_insee", code_insees)
             .execute()
         )
@@ -274,7 +297,8 @@ def list_monuments(
                 m["commune"] = commune_data["nom_commune"]
                 m["departement"] = commune_data["departement"]
                 m["departement_num"] = commune_data["departement_num"]
-                m["region"] = commune_data["region"]
+                m["region"] = commune_data.get("region_code")
+                m["region_label"] = commune_data.get("region")
 
     return monuments
 
@@ -380,11 +404,13 @@ def add_photo(
 ):
     monument = _get_monument_or_404(supabase, monument_id, user_id)
 
+    safe_url = _validate_photo_storage_path(body.url, user_id)
+
     import uuid
 
     new_photo = {
         "id": str(uuid.uuid4()),
-        "url": body.url,
+        "url": safe_url,
         "legende": body.legende,
         "type": body.type,
         **({"datePhoto": body.datePhoto} if body.datePhoto else {}),

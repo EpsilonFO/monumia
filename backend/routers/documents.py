@@ -8,6 +8,24 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 COLUMNS = "*"
 
+STORAGE_BUCKET = "documents"
+
+
+def _validate_storage_path(path: str, user_id: str) -> str:
+    """Ensure a document storage path is scoped to the calling user's folder.
+
+    The frontend stores files at "<user_id>/<random>.<ext>" and sends the
+    relative path. Reject anything else: full URLs, traversal, or other users.
+    """
+    if not path or not isinstance(path, str):
+        raise HTTPException(status_code=400, detail="Chemin de fichier invalide")
+    if "://" in path or path.startswith("/") or ".." in path.split("/"):
+        raise HTTPException(status_code=400, detail="Chemin de fichier invalide")
+    expected_prefix = f"{user_id}/"
+    if not path.startswith(expected_prefix):
+        raise HTTPException(status_code=403, detail="Chemin de fichier non autorisé")
+    return path
+
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -103,8 +121,15 @@ def create_document(
                 status_code=403, detail=f"Monument {mid} introuvable ou non autorisé"
             )
 
+    # The client uploads to <user_id>/... in storage, then submits the path here.
+    # Reject anything that isn't strictly scoped to the caller's folder so we
+    # never store a path that points at another user's files.
+    safe_path = _validate_storage_path(body.url, user_id)
+
+    payload = body.model_dump(exclude_none=True, exclude={"monument_id", "url"})
     row = {
-        **body.model_dump(exclude_none=True, exclude={"monument_id"}),
+        **payload,
+        "url": safe_path,
         "monument_ids": monument_ids,
         "user_id": user_id,
         "dossiers_utilises": [],
@@ -148,18 +173,20 @@ def delete_document(
 ):
     doc = _get_document_or_404(supabase, document_id, user_id)
 
-    # Delete file from Supabase Storage
-    storage_path = doc.get("url", "")
-    if storage_path:
-        # Strip any full URL prefix to get the relative path
-        marker = "/storage/v1/object/public/documents/"
-        idx = storage_path.find(marker)
-        if idx != -1:
-            storage_path = storage_path[idx + len(marker) :]
+    # Delete file from Supabase Storage. The stored path was validated to
+    # begin with "<user_id>/" at upload time; re-validate before calling
+    # remove() so a tampered row can never delete another user's files.
+    storage_path = doc.get("url", "") or ""
+    try:
+        safe_path = _validate_storage_path(storage_path, user_id)
+    except HTTPException:
+        safe_path = None
+
+    if safe_path:
         import contextlib
 
         with contextlib.suppress(Exception):
-            supabase.storage.from_("documents").remove([storage_path])  # best-effort
+            supabase.storage.from_(STORAGE_BUCKET).remove([safe_path])  # best-effort
 
     supabase.table("documents").delete().eq("id", document_id).execute()
 

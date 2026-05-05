@@ -32,6 +32,30 @@ POPULATION_FILE = Path(__file__).parent / "ensemble" / "donnees_communes.csv"
 
 BATCH_SIZE = 500
 
+# Map INSEE region LIBELLE → kebab-case region_code used by aides_regions
+# and by the frontend Region type. Kept in sync with the migration
+# 20260503120000_add_region_code_to_communes.sql.
+REGION_LIBELLE_TO_CODE = {
+    "Auvergne-Rhône-Alpes": "auvergne-rhone-alpes",
+    "Bourgogne-Franche-Comté": "bourgogne-franche-comte",
+    "Bretagne": "bretagne",
+    "Centre-Val de Loire": "centre-val-de-loire",
+    "Corse": "corse",
+    "Grand Est": "grand-est",
+    "Hauts-de-France": "hauts-de-france",
+    "Île-de-France": "ile-de-france",
+    "Normandie": "normandie",
+    "Nouvelle-Aquitaine": "nouvelle-aquitaine",
+    "Occitanie": "occitanie",
+    "Pays de la Loire": "pays-de-la-loire",
+    "Provence-Alpes-Côte d'Azur": "provence-alpes-cote-d-azur",
+    "Guadeloupe": "guadeloupe",
+    "Martinique": "martinique",
+    "Guyane": "guyane",
+    "La Réunion": "la-reunion",
+    "Mayotte": "mayotte",
+}
+
 
 def download_cog():
     if COG_DIR.exists() and any(COG_DIR.iterdir()):
@@ -69,12 +93,20 @@ def load_regions() -> dict[str, str]:
 
 def load_departements(regions: dict[str, str]) -> dict[str, dict]:
     deps = {}
+    unknown_libelles: set[str] = set()
     with open(COG_DIR / "v_departement_2026.csv", encoding="utf-8") as f:
         for row in csv.DictReader(f):
+            libelle = regions.get(row["REG"], "")
+            code = REGION_LIBELLE_TO_CODE.get(libelle)
+            if libelle and code is None:
+                unknown_libelles.add(libelle)
             deps[row["DEP"]] = {
                 "nom": row["LIBELLE"],
-                "region": regions.get(row["REG"], ""),
+                "region": libelle,
+                "region_code": code,
             }
+    if unknown_libelles:
+        print(f"  ⚠️  Libellés région INSEE non mappés en region_code : {sorted(unknown_libelles)}")
     return deps
 
 
@@ -128,6 +160,7 @@ def load_communes(deps: dict[str, dict], population: dict[str, int]) -> list[dic
                     "departement": dep_info.get("nom", ""),
                     "departement_num": dep_code,
                     "region": dep_info.get("region", ""),
+                    "region_code": dep_info.get("region_code"),
                     "population": population.get(code_insee),
                 }
             )
