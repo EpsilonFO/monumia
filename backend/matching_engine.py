@@ -603,7 +603,7 @@ async def _llm_evaluate_eligibility(
                 model="mistral-medium-latest",
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
-                temperature=0,
+                temperature=0.1,
             )
             choice = response.choices[0]
             content = choice.message.content
@@ -913,17 +913,22 @@ ALLOWED_INCERTITUDE_CATEGORIES = {
 
 
 def _normalize_incertitude(inc: str | dict) -> dict:
-    """Normalise an incertitude to {categorie, detail} format.
+    """Normalise an incertitude to {categorie, detail, [critere]} format.
 
     - Legacy plain-string → wrapped under "autre".
     - Dict with unknown category → coerced to "autre" (logs a warning).
+    - `critere` (verbatim source bullet, from the new per-bullet evaluations
+      schema) is preserved when present — the QCM generator feeds on it.
     """
     if isinstance(inc, dict) and "categorie" in inc:
         cat = str(inc.get("categorie") or "").strip().lower()
         if cat not in ALLOWED_INCERTITUDE_CATEGORIES:
             logger.warning("[LLM] Catégorie inconnue « %s » remappée vers « autre »", cat)
-            return {"categorie": "autre", "detail": inc.get("detail", "")}
-        return {"categorie": cat, "detail": inc.get("detail", "")}
+            cat = "autre"
+        out = {"categorie": cat, "detail": inc.get("detail", "")}
+        if inc.get("critere"):
+            out["critere"] = inc["critere"]
+        return out
     # Legacy plain-string fallback
     text = inc if isinstance(inc, str) else str(inc)
     return {"categorie": "autre", "detail": text}
@@ -932,15 +937,20 @@ def _normalize_incertitude(inc: str | dict) -> dict:
 def _aggregate_incertitudes(eligible_results: list[dict]) -> list[dict]:
     """Aggregate incertitudes by category across all aides.
 
-    Returns a compact list grouped by category, each with the set of aide IDs
-    and a representative detail string. This reduces hundreds of raw incertitudes
-    down to ~10 category groups.
+    For each category, collect deduplicated "sources" : one entry per unique
+    (critere, detail) pair, with the list of aide names sharing it. The QCM
+    generator anchors its questions on `critere` (the verbatim bullet text
+    from the aide's eligibility conditions), which is the source of truth —
+    `detail` is the eligibility LLM's paraphrase and may be vague.
     """
     from collections import defaultdict
 
-    # category → {aideIds: set, details: list[str]}
+    # category → {aideIds: set, sources_by_key: {(critere, detail): {aide_noms: set, aide_ids: set}}}
+    def _new_source() -> dict:
+        return {"aide_noms": set(), "aide_ids": set()}
+
     groups: dict[str, dict] = defaultdict(
-        lambda: {"aideIds": set(), "aideNoms": set(), "details": []}
+        lambda: {"aideIds": set(), "sources_by_key": defaultdict(_new_source)}
     )
 
     for result in eligible_results:
@@ -952,27 +962,41 @@ def _aggregate_incertitudes(eligible_results: list[dict]) -> list[dict]:
         for inc in llm_eval.get("incertitudes", []):
             normalized = _normalize_incertitude(inc)
             cat = normalized["categorie"]
-            detail = normalized["detail"]
-            groups[cat]["aideIds"].add(aide_id)
-            groups[cat]["aideNoms"].add(aide_nom)
-            # Keep unique details only (avoid near-duplicates flooding context)
-            if detail not in groups[cat]["details"]:
-                groups[cat]["details"].append(detail)
+            detail = normalized.get("detail", "") or ""
+            critere = normalized.get("critere", "") or ""
 
-    # Convert to serialisable list, sorted by number of aides impacted (most first).
-    # Keep payload compact to avoid LLM timeouts on large diagnostics:
-    # - drop aideNoms (not needed by LLM — aideIds are enough for tracking)
-    # - cap details to 3 representative ones
-    # - truncate very long detail strings
+            groups[cat]["aideIds"].add(aide_id)
+            key = (critere, detail)
+            src = groups[cat]["sources_by_key"][key]
+            src["aide_noms"].add(aide_nom)
+            src["aide_ids"].add(aide_id)
+
+    # Sort categories by nb of aides impacted (most first).
+    # Per category, keep the 3 most-impactful unique sources to bound payload size.
     aggregated = []
     for cat, data in sorted(groups.items(), key=lambda x: len(x[1]["aideIds"]), reverse=True):
-        details_truncated = [d[:200] for d in data["details"][:3]]
+        sources_sorted = sorted(
+            data["sources_by_key"].items(),
+            key=lambda item: len(item[1]["aide_ids"]),
+            reverse=True,
+        )[:3]
+        sources = [
+            {
+                # critere is the verbatim source of truth — cap large but generously.
+                "critere": (critere or "")[:1000],
+                # detail is the LLM paraphrase, kept short.
+                "detail": (detail or "")[:200],
+                # List a handful of impacted aides so the LLM has context.
+                "aides": sorted(src["aide_noms"])[:5],
+            }
+            for (critere, detail), src in sources_sorted
+        ]
         aggregated.append(
             {
                 "categorie": cat,
                 "aideIds": sorted(data["aideIds"]),
                 "nbAides": len(data["aideIds"]),
-                "details": details_truncated,
+                "sources": sources,
             }
         )
 
@@ -982,7 +1006,7 @@ def _aggregate_incertitudes(eligible_results: list[dict]) -> list[dict]:
 def _compact_for_llm(aggregated: list[dict]) -> list[dict]:
     """Strip aideIds before sending to LLM — we remap them back post-response via categorie."""
     return [
-        {"categorie": g["categorie"], "nbAides": g["nbAides"], "details": g["details"]}
+        {"categorie": g["categorie"], "nbAides": g["nbAides"], "sources": g["sources"]}
         for g in aggregated
     ]
 
@@ -1082,7 +1106,7 @@ async def generate_qcm_questions(
                     model="mistral-large-latest",
                     messages=[{"role": "user", "content": prompt}],
                     response_format={"type": "json_object"},
-                    temperature=0.1,
+                    temperature=0,
                 ),
                 timeout=QCM_TIMEOUT_S,
             )
