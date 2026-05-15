@@ -68,42 +68,46 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
               </CardHeader>
               <CardContent className="space-y-2">
                 {matchResult.criteresRemplis.map((c, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
+                  <div key={`crit-ok-${i}`} className="flex items-center gap-2 text-sm">
                     <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
                     <span>{c}</span>
                   </div>
                 ))}
                 {matchResult.criteresNonRemplis.map((c, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
+                  <div key={`crit-ko-${i}`} className="flex items-center gap-2 text-sm">
                     <XCircle className="h-4 w-4 text-red-500 shrink-0" />
                     <span className="text-red-700">{c}</span>
                   </div>
                 ))}
-                {matchResult.llmEvaluation?.incertitudes && matchResult.llmEvaluation.incertitudes.length > 0 && (() => {
-                  const clarified = matchResult.llmEvaluation.incertitudes.filter((c) => typeof c !== 'string' && c.clarified);
-                  const pending = matchResult.llmEvaluation.incertitudes.filter((c) => typeof c === 'string' || !c.clarified);
+                {matchResult.llmEvaluation?.evaluations?.map((e, i) => {
+                  const isClarified = e.verdict === 'incertitude' && e.clarified;
+                  const Icon = e.verdict === 'oui' || isClarified
+                    ? CheckCircle2
+                    : e.verdict === 'non'
+                      ? XCircle
+                      : HelpCircle;
+                  const iconClass = e.verdict === 'oui' || isClarified
+                    ? 'text-green-600'
+                    : e.verdict === 'non'
+                      ? 'text-red-500'
+                      : 'text-amber-500';
+                  const textClass = e.verdict === 'non'
+                    ? 'text-red-700'
+                    : e.verdict === 'incertitude' && !isClarified
+                      ? 'text-amber-700'
+                      : '';
                   return (
-                    <>
-                      {clarified.length > 0 && clarified.map((c, i) => (
-                        <div key={`clarified-${i}`} className="flex items-center gap-2 text-sm">
-                          <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                          <span>{typeof c === 'string' ? c : c.detail}</span>
-                        </div>
-                      ))}
-                      {pending.length > 0 && (
-                        <>
-                          <div className="pt-2 text-sm font-medium text-amber-700">Points à vérifier :</div>
-                          {pending.map((c, i) => (
-                            <div key={`pending-${i}`} className="flex items-center gap-2 text-sm">
-                              <HelpCircle className="h-4 w-4 text-amber-500 shrink-0" />
-                              <span className="text-amber-700">{typeof c === 'string' ? c : c.detail}</span>
-                            </div>
-                          ))}
-                        </>
+                    <div key={`eval-${i}`} className="space-y-0.5">
+                      <div className="flex items-start gap-2 text-sm">
+                        <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${iconClass}`} />
+                        <span className={textClass}>{e.critere}</span>
+                      </div>
+                      {e.explication && (
+                        <p className="pl-6 text-xs text-muted-foreground">{e.explication}</p>
                       )}
-                    </>
+                    </div>
                   );
-                })()}
+                })}
                 {matchResult.llmEvaluation?.explication && (
                   <p className="pt-2 text-sm text-muted-foreground italic">
                     {matchResult.llmEvaluation.explication}

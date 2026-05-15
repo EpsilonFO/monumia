@@ -581,15 +581,16 @@ async def _llm_evaluate_eligibility(
 ) -> dict:
     """Call Mistral to evaluate fine eligibility with a rendered prompt.
 
-    Returns {"eligible": bool, "explication": str, "incertitudes": list[str]}
+    Returns {"explication_globale": str, "evaluations": list[dict]}.
+    On error/missing key, returns empty evaluations — callers treat that as
+    "no LLM input" and keep the aide eligible without QCM questions.
     """
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
         logger.warning("[LLM] MISTRAL_API_KEY absent — évaluation ignorée")
         return {
-            "eligible": True,
-            "explication": "",
-            "incertitudes": ["Évaluation LLM indisponible"],
+            "explication_globale": "Évaluation LLM indisponible",
+            "evaluations": [],
         }
 
     client = Mistral(api_key=api_key)
@@ -602,7 +603,7 @@ async def _llm_evaluate_eligibility(
                 model="mistral-medium-latest",
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
-                temperature=0.1,
+                temperature=0,
             )
             choice = response.choices[0]
             content = choice.message.content
@@ -622,41 +623,47 @@ async def _llm_evaluate_eligibility(
                 await asyncio.sleep(wait)
     logger.error(f"LLM evaluation failed for aide '{aide_nom}' after 3 attempts: {last_error}")
     return {
-        "eligible": True,
-        "explication": "",
-        "incertitudes": [f"Erreur LLM : {last_error}"],
+        "explication_globale": f"Erreur LLM : {last_error}",
+        "evaluations": [],
     }
 
 
 _LLM_LOG_PATH = Path("/app/llm.txt")
 
 
-def _llm_log(aide_nom: str, llm_result: dict) -> None:
-    """Log LLM result and append full record to llm.txt."""
-    eligible = llm_result.get("eligible")
-    explication = llm_result.get("explication", "")
-    incertitudes = llm_result.get("incertitudes", [])
-    icon = "✓" if eligible else "✗"
+def _llm_log(aide_nom: str, evaluations: list[dict], explication_globale: str) -> None:
+    """Log per-bullet evaluations and append full record to llm.txt."""
+    has_non = any(e.get("verdict") == "non" for e in evaluations)
+    n_incertitudes = sum(1 for e in evaluations if e.get("verdict") == "incertitude")
+    icon = "✗" if has_non else ("?" if n_incertitudes else "✓")
     ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-    # stdout (visible in docker logs)
-    logger.info("%s eligible=%s | incertitudes=%d", icon, eligible, len(incertitudes))
-    logger.info("   explication : %s", explication)
-    for inc in incertitudes:
-        logger.info("   - %s", inc)
+    logger.info(
+        "%s %s | %d critère(s) | incertitudes=%d",
+        icon,
+        aide_nom,
+        len(evaluations),
+        n_incertitudes,
+    )
+    logger.info("   synthèse : %s", explication_globale)
+    for i, e in enumerate(evaluations, 1):
+        verdict = e.get("verdict", "?")
+        logger.info("   %d. [%s] %s", i, verdict, e.get("critere", "")[:80])
 
-    # llm.txt (full record, in order)
     try:
         lines = [
             f"\n{'=' * 70}",
             f"[{ts}] {icon} {aide_nom}",
             f"{'=' * 70}",
-            f"eligible    : {eligible}",
-            f"explication : {explication}",
-            "incertitudes :" if incertitudes else "incertitudes : aucune",
+            f"synthèse : {explication_globale}",
         ]
-        for inc in incertitudes:
-            lines.append(f"  - {inc}")
+        for i, e in enumerate(evaluations, 1):
+            verdict = e.get("verdict", "?")
+            lines.append(f"  {i}. [{verdict}] {e.get('critere', '')}")
+            if e.get("explication"):
+                lines.append(f"      → {e['explication']}")
+            if e.get("categorie"):
+                lines.append(f"      catégorie : {e['categorie']}")
 
         with open(_LLM_LOG_PATH, "a", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
@@ -664,83 +671,177 @@ def _llm_log(aide_nom: str, llm_result: dict) -> None:
         logger.warning(f"Failed to write llm.txt: {e}")
 
 
+def _parse_bullets(text: str) -> list[str]:
+    """Split a conditions_eligibilite_detail string into a list of bullets.
+
+    Supports two formats:
+    - New: each bullet is a paragraph prefixed with '>' (markdown quote style).
+    - Legacy: lines prefixed with '-'.
+    Falls back to blank-line-separated paragraphs, then to a single bullet.
+    """
+    if not text or not text.strip():
+        return []
+
+    lines = text.split("\n")
+
+    # New format: '>'-prefixed bullets. Consecutive '>' lines (or a single
+    # blank line between two '>' blocks) merge into one bullet.
+    if any(line.lstrip().startswith(">") for line in lines):
+        bullets: list[str] = []
+        current: list[str] = []
+        for raw in lines:
+            stripped = raw.lstrip()
+            if stripped.startswith(">"):
+                current.append(stripped[1:].strip())
+            else:
+                if current:
+                    merged = " ".join(p for p in current if p)
+                    if merged:
+                        bullets.append(merged)
+                    current = []
+        if current:
+            merged = " ".join(p for p in current if p)
+            if merged:
+                bullets.append(merged)
+        return bullets
+
+    # Legacy format: '-'-prefixed lines (each line is its own bullet).
+    if any(line.lstrip().startswith("-") for line in lines):
+        return [line.lstrip()[1:].strip() for line in lines if line.lstrip().startswith("-")]
+
+    # Fallback: split on blank lines.
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    if len(paragraphs) > 1:
+        return paragraphs
+
+    return [text.strip()]
+
+
+def _normalize_evaluations(raw: list, bullets: list[str]) -> list[dict]:
+    """Align LLM evaluations to the source bullets and coerce invalid values.
+
+    - Pads missing evaluations with verdict='oui' (don't auto-fail).
+    - Drops extras the LLM hallucinated beyond the bullet count.
+    - Coerces unknown verdicts to 'incertitude' with a warning.
+    - For 'incertitude' verdicts, coerces unknown categories to 'autre'
+      and adds 'detail'/'clarified' for the QCM flow.
+    - The 'critere' field is taken from the input bullet (verbatim), never
+      from the LLM response — we never trust the LLM to re-quote correctly.
+    """
+    out: list[dict] = []
+    raw_list = list(raw) if isinstance(raw, list) else []
+
+    for i, bullet in enumerate(bullets):
+        raw_eval = raw_list[i] if i < len(raw_list) and isinstance(raw_list[i], dict) else {}
+
+        verdict = str(raw_eval.get("verdict") or "").strip().lower()
+        if verdict not in {"oui", "non", "incertitude"}:
+            if verdict:
+                logger.warning("[LLM] Verdict inconnu « %s » remappé en « oui »", verdict)
+            verdict = "oui"
+
+        explication = str(raw_eval.get("explication") or "").strip()
+
+        evaluation: dict = {
+            "critere": bullet,
+            "verdict": verdict,
+            "explication": explication,
+        }
+
+        if verdict == "incertitude":
+            cat = str(raw_eval.get("categorie") or "").strip().lower()
+            if cat not in ALLOWED_INCERTITUDE_CATEGORIES:
+                if cat:
+                    logger.warning("[LLM] Catégorie inconnue « %s » remappée en « autre »", cat)
+                cat = "autre"
+            evaluation["categorie"] = cat
+            evaluation["detail"] = explication or bullet
+            evaluation["clarified"] = False
+
+        out.append(evaluation)
+
+    if len(raw_list) > len(bullets):
+        logger.warning(
+            "[LLM] %d évaluation(s) hallucinée(s) au-delà de %d critère(s) — droppées",
+            len(raw_list) - len(bullets),
+            len(bullets),
+        )
+
+    return out
+
+
 async def _run_llm_phase(
     eligible_results: list[dict],
     monument_profile: str,
 ) -> tuple[list[dict], list[dict], list[dict]]:
-    """Run LLM evaluation on eligible aides that have conditions_eligibilite_detail.
+    """Run per-bullet LLM evaluation on eligible aides with conditions detail.
 
     Returns (still_eligible, potentially_eligible, downgraded):
-    - still_eligible: LLM says eligible AND no incertitudes
-    - potentially_eligible: LLM says eligible BUT has incertitudes
-    - downgraded: LLM says not eligible
+    - still_eligible: all verdicts 'oui' (no QCM needed)
+    - potentially_eligible: at least one 'incertitude' verdict (feeds QCM)
+    - downgraded: at least one 'non' verdict (aide is refused)
     """
-    still_eligible = []
-    potentially_eligible = []
-    downgraded = []
+    still_eligible: list[dict] = []
+    potentially_eligible: list[dict] = []
+    downgraded: list[dict] = []
 
-    # Separate aides with/without conditions for LLM evaluation
-    needs_llm = []
+    # Pre-parse bullets so we can skip the LLM for aides with no parseable content.
+    to_evaluate: list[tuple[dict, list[str]]] = []
     for result in eligible_results:
         conditions = result["aide"].get("conditions_eligibilite_detail")
-        if not conditions:
-            still_eligible.append(result)
+        bullets = _parse_bullets(conditions) if conditions else []
+        if bullets:
+            to_evaluate.append((result, bullets))
         else:
-            needs_llm.append(result)
+            still_eligible.append(result)
 
-    # Run all LLM calls in parallel
-    if needs_llm:
-        llm_results = await asyncio.gather(
-            *(
-                _llm_evaluate_eligibility(
-                    prompt=render_prompt_eligibility(
-                        monument_profile=monument_profile,
-                        aide_nom=result["aide"].get("nom", ""),
-                        conditions_detail=result["aide"]["conditions_eligibilite_detail"],
-                    ),
+    if not to_evaluate:
+        return still_eligible, potentially_eligible, downgraded
+
+    llm_results = await asyncio.gather(
+        *(
+            _llm_evaluate_eligibility(
+                prompt=render_prompt_eligibility(
+                    monument_profile=monument_profile,
                     aide_nom=result["aide"].get("nom", ""),
-                )
-                for result in needs_llm
+                    bullets=bullets,
+                ),
+                aide_nom=result["aide"].get("nom", ""),
             )
+            for result, bullets in to_evaluate
         )
+    )
 
-        for result, llm_result in zip(needs_llm, llm_results, strict=True):
-            aide = result["aide"]
-            _llm_log(aide.get("nom", ""), llm_result)
+    for (result, bullets), llm_result in zip(to_evaluate, llm_results, strict=True):
+        aide = result["aide"]
+        explication_globale = str(llm_result.get("explication_globale") or "").strip()
 
-            # Normalise on the way in: the frontend matches QCM answers to
-            # incertitudes by exact category equality, so the categories stored
-            # here MUST be drawn from the same closed set used during QCM
-            # aggregation. Anything unknown is coerced to "autre".
-            result["llmEvaluation"] = {
-                "explication": llm_result.get("explication", ""),
-                "incertitudes": [
-                    _normalize_incertitude(inc) for inc in (llm_result.get("incertitudes") or [])
-                ],
-            }
+        evaluations = _normalize_evaluations(llm_result.get("evaluations") or [], bullets)
+        _llm_log(aide.get("nom", ""), evaluations, explication_globale)
 
-            llm_eligible = llm_result.get("eligible", True)
-            incertitudes = llm_result.get("incertitudes", [])
+        # Derive incertitudes as a filtered view of the SAME dict refs.
+        # Mutations done by _auto_clarify_incertitudes (clarified=True) propagate
+        # to the evaluations array, which is what the frontend renders.
+        incertitudes = [e for e in evaluations if e["verdict"] == "incertitude"]
 
-            # If LLM says ineligible but has incertitudes, it means it's uncertain
-            # rather than formally contradicted — treat as potentially eligible
-            if not llm_eligible and incertitudes:
-                llm_eligible = True
+        result["llmEvaluation"] = {
+            "explication": explication_globale,
+            "evaluations": evaluations,
+            "incertitudes": incertitudes,
+        }
 
-            if llm_eligible:
-                if incertitudes:
-                    potentially_eligible.append(result)
-                else:
-                    still_eligible.append(result)
-            else:
-                result["eligible"] = False
-                result["criteresNonRemplis"].append(
-                    f"Condition détaillée : {llm_result.get('explication', '')}"
-                )
-                result["raisonIneligibilite"] = result["raisonIneligibilite"] or llm_result.get(
-                    "explication", ""
-                )
-                downgraded.append(result)
+        has_non = any(e["verdict"] == "non" for e in evaluations)
+        if has_non:
+            first_non = next(e for e in evaluations if e["verdict"] == "non")
+            raison = first_non["explication"] or first_non["critere"]
+            result["eligible"] = False
+            result["criteresNonRemplis"].append(f"Critère détaillé : {raison}")
+            result["raisonIneligibilite"] = result["raisonIneligibilite"] or raison
+            downgraded.append(result)
+        elif incertitudes:
+            potentially_eligible.append(result)
+        else:
+            still_eligible.append(result)
 
     return still_eligible, potentially_eligible, downgraded
 
@@ -750,6 +851,11 @@ async def _run_llm_phase(
 # ---------------------------------------------------------------------------
 
 MAX_QCM_QUESTIONS = 50
+
+# Hard cap on incertitudes kept per aide after the eligibility LLM responds.
+# The prompt asks for 0-4 and to order by criticality; this is a safety net
+# against pathological outputs.
+MAX_INCERTITUDES_PER_AIDE = 5
 
 
 # Closed set of allowed incertitude categories. MUST match the identifiers
@@ -881,6 +987,46 @@ def _compact_for_llm(aggregated: list[dict]) -> list[dict]:
     ]
 
 
+def _auto_clarify_incertitudes(
+    eligible_results: list[dict],
+    categories_to_clarify: set[str],
+) -> int:
+    """Mark every incertitude whose category is in the set as clarified=True.
+
+    Used after QCM generation to close the categories the LLM either explicitly
+    skipped (deemed redundant with profile) or silently forgot. Without this,
+    any uncovered category leaves its incertitudes pending forever and the aide
+    is stuck in potentiellement_eligible regardless of the QCM answers.
+    """
+    if not categories_to_clarify:
+        return 0
+    n = 0
+    for result in eligible_results:
+        llm_eval = result.get("llmEvaluation") or {}
+        for inc in llm_eval.get("incertitudes", []):
+            if (
+                isinstance(inc, dict)
+                and inc.get("categorie") in categories_to_clarify
+                and not inc.get("clarified")
+            ):
+                inc["clarified"] = True
+                n += 1
+    return n
+
+
+def _all_incertitudes_clarified(result: dict) -> bool:
+    llm_eval = result.get("llmEvaluation") or {}
+    incertitudes = llm_eval.get("incertitudes") or []
+    if not incertitudes:
+        return True
+    for inc in incertitudes:
+        if isinstance(inc, str):
+            return False
+        if not inc.get("clarified"):
+            return False
+    return True
+
+
 async def generate_qcm_questions(
     eligible_results: list[dict],
     monument_profile: str = "",
@@ -944,49 +1090,72 @@ async def generate_qcm_questions(
             logger.info("[QCM] Réponse reçue (%d caractères)", len(content or ""))
             parsed = json.loads(content)
             raw_questions = parsed.get("questions", [])
+            raw_skipped = parsed.get("categoriesSkippees", [])
 
-            # Remap aideIds from categorie (we stripped them from the prompt to save tokens).
+            input_categories = set(aide_ids_by_category.keys())
+
+            # Validate, remap aideIds, and sanitize in a single pass.
             questions = []
             for q in raw_questions:
                 if not isinstance(q, dict):
                     continue
                 cat = q.get("categorie")
-                mapped_ids = aide_ids_by_category.get(cat, [])
+                mapped_ids = aide_ids_by_category.get(cat)
                 if not mapped_ids:
                     logger.warning(
                         "[QCM] Question ignorée: catégorie « %s » inconnue ou sans aides", cat
                     )
                     continue
-                q["aideIds"] = mapped_ids
-                q.setdefault("eliminatingOptionIds", [])
-                questions.append(q)
-
-            # Sanitize questions: ensure required fields and valid structure
-            questions = []
-            for q in raw_questions:
-                if not isinstance(q, dict):
-                    continue
                 qid = q.get("id")
                 qtext = q.get("question")
                 options = q.get("options")
-                aide_ids = q.get("aideIds")
-                if not (qid and qtext and isinstance(options, list) and isinstance(aide_ids, list)):
+                if not (qid and qtext and isinstance(options, list)):
                     logger.warning("[QCM] Question malformée ignorée: %s", q)
                     continue
-                # Ensure eliminatingOptionIds exists
+                q["aideIds"] = mapped_ids
                 q.setdefault("eliminatingOptionIds", [])
-                # Ensure eliminationsParOption is a dict if present
                 if "eliminationsParOption" in q and not isinstance(
                     q["eliminationsParOption"], dict
                 ):
                     q["eliminationsParOption"] = {}
                 questions.append(q)
 
+            covered = {q.get("categorie") for q in questions}
+
+            # Categories the LLM explicitly chose to skip, with a stated reason.
+            claimed_skipped: set[str] = set()
+            for entry in raw_skipped:
+                if not isinstance(entry, dict):
+                    continue
+                cat = entry.get("categorie")
+                raison = entry.get("raison", "")
+                if cat in input_categories:
+                    claimed_skipped.add(cat)
+                    logger.info("[QCM] Catégorie « %s » skippée volontairement : %s", cat, raison)
+                else:
+                    logger.warning(
+                        "[QCM] Catégorie skippée « %s » absente du payload — ignorée", cat
+                    )
+
+            # Categories the LLM silently dropped (neither asked nor explicitly skipped).
+            # These would otherwise leave incertitudes pending forever.
+            silently_missed = input_categories - covered - claimed_skipped
+            for cat in silently_missed:
+                logger.warning(
+                    "[QCM] Catégorie « %s » oubliée par le LLM (auto-clarification serveur)",
+                    cat,
+                )
+
+            auto_clarified_categories = claimed_skipped | silently_missed
+            n_marked = _auto_clarify_incertitudes(eligible_results, auto_clarified_categories)
+
             logger.info(
-                "→ %d question(s) QCM générée(s) (brut: %d, filtrées: %d)",
+                "→ %d question(s) QCM (brut: %d) — skip explicite: %d, oublis: %d, auto-clarifiées: %d incertitude(s)",
                 len(questions),
                 len(raw_questions),
-                len(raw_questions) - len(questions),
+                len(claimed_skipped),
+                len(silently_missed),
+                n_marked,
             )
             for q in questions:
                 logger.info(
@@ -1132,6 +1301,28 @@ async def run_diagnostic(
     for r in downgraded:
         logger.info("  ✗  disqualifié   — %s", r["aide"].get("nom_court") or r["aide"].get("nom"))
 
+    # Phase 4: Generate QCM questions from incertitudes (mutates llmEvaluation
+    # in place: incertitudes covered by neither a question nor an explicit skip
+    # get marked clarified=true server-side).
+    qcm_questions = []
+    all_with_incertitudes = still_eligible + potentially_eligible
+    if all_with_incertitudes:
+        qcm_questions = await generate_qcm_questions(all_with_incertitudes, monument_profile)
+
+    # Re-bucket after auto-clarification: promote any potentiellement_éligible
+    # whose incertitudes are now all clarified to still_eligible.
+    promoted = [r for r in potentially_eligible if _all_incertitudes_clarified(r)]
+    if promoted:
+        promoted_ids = {r["aide"]["id"] for r in promoted}
+        still_eligible.extend(promoted)
+        potentially_eligible = [
+            r for r in potentially_eligible if r["aide"]["id"] not in promoted_ids
+        ]
+        logger.info(
+            "→ %d aide(s) promue(s) potentially_eligible → still_eligible (auto-clarification)",
+            len(promoted),
+        )
+
     montant_total = sum(
         r["aide"].get("montant_max") or 0 for r in still_eligible if r["aide"].get("montant_max")
     )
@@ -1144,12 +1335,6 @@ async def run_diagnostic(
     if montant_total:
         logger.info("#   Montant potentiel: %s €", f"{montant_total:,}")
     logger.info("#" * 60)
-
-    # Phase 4: Generate QCM questions from incertitudes
-    qcm_questions = []
-    all_with_incertitudes = still_eligible + potentially_eligible
-    if all_with_incertitudes:
-        qcm_questions = await generate_qcm_questions(all_with_incertitudes, monument_profile)
 
     return {
         "monumentId": monument["id"],

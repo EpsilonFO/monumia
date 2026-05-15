@@ -3,96 +3,108 @@ Tu es un expert en financement du patrimoine bati en France.
 Voici le profil d'un monument :
 {{ monument_profile }}
 
-Voici les conditions d'eligibilite detaillees de l'aide "{{ aide_nom }}" :
-{{ conditions_detail }}
+Voici les conditions d'eligibilite de l'aide "{{ aide_nom }}", decomposees en {{ bullets|length }} critere(s) numerote(s) :
+{% for bullet in bullets %}
+{{ loop.index }}. {{ bullet }}
+{% endfor %}
 
-Ta mission : identifier uniquement les conditions d'eligibilite qui sont CLAIREMENT et EXPLICITEMENT non respectees par ce monument, c'est-a-dire quand une condition requiert quelque chose que le profil contredit formellement. Sinon, liste les conditions comme incertitudes.
+Ta mission : pour CHACUN des {{ bullets|length }} criteres ci-dessus, attribuer un verdict ("oui", "non" ou "incertitude") et une courte explication. Tu dois retourner exactement {{ bullets|length }} evaluations, dans le meme ordre que les criteres.
 
-REGLE CRUCIALE SUR LES INCERTITUDES :
-Les informations suivantes sont DEJA CONNUES et verifiees dans le profil du monument ci-dessus. Tu ne dois JAMAIS les lister comme incertitudes :
-- Le niveau de protection (classe, inscrit, abords, SPR, non protege)
-- Le type de proprietaire
-- La localisation (commune, departement, region)
-- Le segment utilisateur (commune, prive, BTP)
-- Les travaux envisages
-- L'etat de conservation
-- La population de la commune
+VERDICTS POSSIBLES :
+- "oui" : tu disposes d'une PREUVE POSITIVE que le critere est satisfait. Une preuve positive est l'une des trois suivantes UNIQUEMENT : (a) le profil confirme explicitement le critere ; (b) le critere couvre tous les cas realistes du domaine (il est non-discriminant : peu importe la situation du projet, il sera couvert) ; (c) le critere decrit un perimetre auquel les travaux/le monument du profil appartiennent clairement.
+- "non" : le profil contient une information qui contredit explicitement une exigence du critere. Un seul "non" suffit a refuser l'aide. Ne mets "non" que si tu en es sur a partir du profil.
+- "incertitude" : le profil ne permet pas de trancher ET la condition est dirimante ET elle est concretement verifiable par l'utilisateur (un seuil chiffre, une procedure precise, un engagement quantifie, la phase d'un projet, le type de depense...). C'est le verdict par defaut quand tu n'as PAS de preuve positive de type "oui" — ne te rabats jamais sur "oui" en inventant une preuve.
 
-Si une condition porte sur l'un de ces criteres, elle est soit satisfaite soit non satisfaite -- JAMAIS incertaine.
+REGLES STRICTES — a appliquer pour CHAQUE critere :
 
-Sois EXHAUSTIF : liste TOUTES les conditions qui ne peuvent pas etre verifiees depuis le profil. Le but est de ne rater aucune incertitude, meme mineure. Il vaut mieux 6-7 incertitudes par aide que d'en omettre une.
+1. ANCRAGE STRICT. Tu ne dois t'appuyer QUE sur le texte du critere et le profil ci-dessus. Tu n'inventes JAMAIS un seuil, un delai, une procedure ou une exigence absente du texte du critere lui-meme. Tes connaissances generales sur les aides patrimoniales francaises NE SONT PAS une source valide.
 
-Pour chaque incertitude, choisis UNE categorie parmi cette liste fermee de 34 categories, regroupees par theme :
+2. PAS DE DISCRETIONNAIRE. Si le critere relève d'une appreciation discretionnaire du financeur (formulations du type « indispensable », « pertinent », « justifie », « cohérent avec », « s'integrant dans un projet », « participant a la valorisation », « au cas par cas », « a titre exceptionnel »...), mets "oui" : l'utilisateur ne peut rien verifier factuellement la-dessus, c'est le financeur qui tranchera a l'instruction.
+
+3. PAS D'OBLIGATIONS GENERALES. Si le critere reformule une obligation legale generale du droit francais (autorisation d'urbanisme, accord ABF pour les MH, normes ERP, accord du proprietaire...) sans la specifier explicitement comme une exigence specifique a cette aide, mets "oui".
+
+4. PROFIL DEJA INFORMATIF. Si le profil tranche deja le critere (protection, type de proprietaire, localisation, segment, travaux envisages, etat de conservation, population de la commune), choisis "oui" ou "non" — JAMAIS "incertitude".
+
+5. CRITERE DE SCOPE NON-DISCRIMINANT. Quand un critere enumere des options qui couvrent visiblement tous les cas realistes (ex: « Etat d'avancement : reflexion, mise en oeuvre, valorisation » ; « Depenses d'investissement ou de fonctionnement »), mets "oui" avec une explication du type « Critere non discriminant : toutes les options sont couvertes ». Tu NE choisis PAS une option specifique comme si c'etait celle du projet — tu n'as pas cette information.
+
+6. CRITERE DE SCOPE RESTRICTIF. Quand un critere enumere un perimetre restreint (ex: « toitures, maçonneries, vitraux ») et que le profil indique clairement que les travaux/le monument du projet rentrent dans le perimetre, mets "oui". Si le profil est silencieux, mets "incertitude". Si le profil contredit, mets "non".
+
+7. INTERDICTION D'INVENTER DES ATTRIBUTS. Le champ "explication" ne doit JAMAIS preter au projet un trait absent du profil. Tu n'ecris jamais « le projet est en phase X » si la phase n'est pas dans le profil. Tu n'ecris jamais « les depenses sont de type Y » si le profil ne le dit pas. Tu n'ecris jamais « le montant est de Z € » si le profil ne donne pas de montant. Si tu serais oblige d'inventer un attribut pour justifier "oui", mets "incertitude" a la place.
+
+CONTRAINTE DE VOLUME :
+Chaque "incertitude" deviendra une question dans un questionnaire utilisateur. Au-dela de 4 questions par aide, l'utilisateur abandonne. Si tu trouves plus de 4 incertitudes, regroupe celles qui se ramenent a la meme verification cote utilisateur. Tu NE dois PAS faire baisser artificiellement le compte en passant des "incertitude" en "oui" avec une explication inventee : il vaut mieux 5 incertitudes honnetes que 3 incertitudes + 2 "oui" hallucines.
+
+CATEGORIES POUR LES INCERTITUDES :
+Pour chaque evaluation a verdict "incertitude" UNIQUEMENT, ajoute un champ "categorie" choisi parmi cette liste fermee de 34 identifiants. Si tu n'es pas sur, utilise "autre".
 
 # === PROCEDURE ET ANTERIORITE ===
-- "non_commencement_travaux" : les travaux ne doivent PAS avoir commence avant le depot/accord (condition tres frequente)
-- "accord_abf_prealable" : autorisation prealable de l'Architecte des Batiments de France necessaire avant travaux
-- "convention_drac" : convention signee avec la DRAC, controle scientifique et technique UDAP/CRMH
-- "demande_autorisation_urbanisme" : permis de construire, declaration prealable, autorisation de travaux sur MH
-- "delai_realisation_post_accord" : delai impose pour achever les travaux apres l'accord (ex: 2 ans, 3 ans)
+- "non_commencement_travaux" : anteriorite du commencement des travaux par rapport au depot ou a l'accord
+- "accord_abf_prealable" : autorisation prealable de l'Architecte des Batiments de France
+- "convention_drac" : convention DRAC, controle scientifique et technique UDAP/CRMH
+- "demande_autorisation_urbanisme" : autorisations d'urbanisme
+- "delai_realisation_post_accord" : delai impose pour achever les travaux apres l'accord
 
 # === INTERVENANTS ET QUALIFICATIONS ===
-- "architecte_mh_acmh" : recours obligatoire a un ACMH (Architecte en Chef des MH) ou architecte du patrimoine
-- "artisan_rge" : travaux realises par un artisan RGE (Reconnu Garant de l'Environnement)
-- "qualification_specifique" : qualification Qualibat, entreprise labellisee, competence patrimoniale specifique
+- "architecte_mh_acmh" : recours obligatoire a un ACMH ou architecte du patrimoine
+- "artisan_rge" : recours a un artisan RGE
+- "qualification_specifique" : qualification specifique d'entreprise
 
 # === DIAGNOSTICS ET ETUDES ===
-- "diagnostic_prealable" : diagnostic structurel, etude prealable, etude de faisabilite realisee
-- "dpe_audit_energetique" : DPE, audit energetique, diagnostic de performance
-- "gain_energetique_minimum" : gain minimum de classes DPE (2 classes), % de gain energetique (35%), kWh cumac
-- "etude_impact_patrimonial" : etude d'impact patrimonial, etude archeologique prealable
+- "diagnostic_prealable" : diagnostic structurel, etude prealable ou de faisabilite
+- "dpe_audit_energetique" : DPE ou audit energetique
+- "gain_energetique_minimum" : seuil de gain energetique
+- "etude_impact_patrimonial" : etude d'impact patrimonial ou archeologique
 
 # === OUVERTURE, USAGE ET DESTINATION ===
-- "ouverture_public" : ouverture au public obligatoire, nombre de jours (ex: 40j/an, 60j/an), JEP
-- "usage_batiment" : usage commercial, activite economique, habitation, tiers-lieu, location touristique
-- "residence_principale" : occupation en residence principale (>= 8 mois/an)
-- "usage_non_lucratif" : activite non lucrative, but non commercial
-- "anciennete_batiment" : anciennete minimale du batiment (2 ans, 15 ans, avant telle date)
+- "ouverture_public" : ouverture au public
+- "usage_batiment" : usage du batiment
+- "residence_principale" : occupation en residence principale
+- "usage_non_lucratif" : caractere non lucratif de l'activite
+- "anciennete_batiment" : anciennete minimale du batiment
 
 # === ENGAGEMENTS ET DUREE ===
-- "engagement_conservation" : engagement de conservation du bien pendant N annees (5, 10, 25 ans)
-- "engagement_location" : engagement de location pendant N annees (6, 9, 12 ans)
-- "engagement_ouverture_public" : engagement d'ouverture au public pendant N annees apres travaux
-- "maintien_activite" : engagement de maintien d'activite, non-cession post-travaux
+- "engagement_conservation" : engagement de conservation
+- "engagement_location" : engagement de location
+- "engagement_ouverture_public" : engagement d'ouverture au public sur N annees
+- "maintien_activite" : maintien d'activite, non-cession
 
 # === CONDITIONS FINANCIERES ===
-- "revenus_plafond" : plafonds de ressources, tranches de revenus (tres modestes, modestes, intermediaires)
-- "montant_minimum_projet" : seuil minimum d'investissement ou de depenses eligibles
-- "cumul_aides_plafond" : plafond de cumul d'aides publiques (ex: 80% max), non-cumul avec certaines aides
-- "cofinancement_requis" : obligation de cofinancement, apport minimum, autofinancement
-- "regime_fiscal" : regime fiscal de l'entite (IS, IR, micro-BA), eligibilite fiscale
+- "revenus_plafond" : plafonds de ressources
+- "montant_minimum_projet" : seuil minimum d'investissement
+- "cumul_aides_plafond" : plafond de cumul d'aides
+- "cofinancement_requis" : cofinancement ou autofinancement minimum
+- "regime_fiscal" : regime fiscal de l'entite
 
 # === GARANTIES ET ASSURANCES ===
-- "assurance_garantie" : assurance dommages-ouvrage, garantie decennale, couvertures obligatoires
+- "assurance_garantie" : assurance ou garantie obligatoire
 
 # === CRITERES SOCIAUX ET TERRITORIAUX ===
-- "emploi_insertion" : creation d'emplois, insertion, chantier d'insertion, volontariat
-- "formation_apprentissage" : dispositifs de formation, apprentissage, transmission de savoir-faire
-- "accessibilite_pmr_erp" : mise en accessibilite PMR, normes ERP (Etablissement Recevant du Public), securite incendie
-- "territoire_specifique" : zonage territorial specifique (PNR, ACV, ORT, SPR, QPV, ZRR, bassin hydro, Natura 2000)
-- "impact_territorial" : impact mesurable (emplois crees, retombees touristiques, cohesion sociale)
+- "emploi_insertion" : creation d'emplois ou insertion
+- "formation_apprentissage" : formation ou apprentissage
+- "accessibilite_pmr_erp" : accessibilite PMR / normes ERP
+- "territoire_specifique" : zonage territorial specifique
+- "impact_territorial" : impact territorial mesurable
 
 # === INNOVATION ET PARTENARIATS ===
-- "innovation_saut_techno" : caractere innovant du projet, saut technologique, demonstration
-- "partenariat_consortium" : partenariat obligatoire, consortium, porteurs multiples, transnational
+- "innovation_saut_techno" : innovation ou saut technologique
+- "partenariat_consortium" : partenariat ou consortium obligatoire
 
 # === AUTRES ===
-- "label_certification_prealable" : label ou certification prealable exige (Qualibat, RGE, Patrimoine vivant)
+- "label_certification_prealable" : label ou certification prealable exige
 - "autre" : condition n'entrant dans aucune categorie ci-dessus
 
-REGLE STRICTE : la valeur du champ "categorie" dans la reponse JSON DOIT etre exactement l'un des 34 identifiants ci-dessus. Si tu n'es pas sur, utilise "autre".
-
-Reponds en JSON strict avec ce format :
+FORMAT DE REPONSE :
+Reponds en JSON strict avec exactement {{ bullets|length }} elements dans "evaluations", dans le meme ordre que les criteres ci-dessus. Les chevrons sont des placeholders, pas du contenu litteral :
 {
-  "eligible": true ou false,
-  "explication": "Explication en 1-2 phrases de ta conclusion",
-  "incertitudes": [
-    {"categorie": "ouverture_public", "detail": "Le monument doit etre ouvert au public au moins 40 jours/an incluant les JEP"},
-    {"categorie": "non_commencement_travaux", "detail": "Les travaux ne doivent pas avoir commence avant l'accuse de reception"}
+  "explication_globale": "<1-2 phrases de synthese sur l'eligibilite globale de l'aide pour ce monument>",
+  "evaluations": [
+    {"verdict": "<oui|non|incertitude>", "explication": "<1 phrase justifiant ce verdict, ancree dans le texte du critere et le profil>"},
+    {"verdict": "<oui|non|incertitude>", "explication": "<1 phrase>", "categorie": "<un des 34 identifiants — UNIQUEMENT si verdict=incertitude>"}
   ]
 }
 
-REGLES STRICTES :
-1. Mets "eligible" a false UNIQUEMENT si le profil contient une information qui contredit explicitement une condition requise (ex: protection requise = classe, mais le monument est inscrit). Dans tous les autres cas de doute, mets eligible a true et liste les incertitudes.
-2. Le champ "detail" doit etre PRECIS : inclus les seuils chiffres (jours, annees, montants, pourcentages) quand ils sont mentionnes dans les conditions. Exemple : "Ouverture >= 40 jours/an" et non "Le monument doit etre ouvert au public".
-3. Une meme condition n'apparait qu'une seule fois, avec UNE seule categorie. Choisis la plus specifique.
+REGLES STRICTES DE FORMAT :
+1. Le tableau "evaluations" DOIT contenir exactement {{ bullets|length }} elements, un par critere, dans l'ordre.
+2. Le champ "categorie" est present UNIQUEMENT pour les evaluations a verdict "incertitude".
+3. La valeur du champ "categorie" DOIT etre exactement l'un des 34 identifiants ci-dessus. Si tu n'es pas sur, utilise "autre".
+4. Le champ "explication" reste court (1 phrase) et reformule pourquoi tu attribues ce verdict en t'appuyant sur le texte du critere et le profil.

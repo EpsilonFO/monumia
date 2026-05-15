@@ -70,6 +70,20 @@ export interface AideEligibilityCriteria {
   }[];
 }
 
+export type EvaluationVerdict = 'oui' | 'non' | 'incertitude';
+
+export interface AideEvaluation {
+  critere: string;
+  verdict: EvaluationVerdict;
+  explication: string;
+  /** Only set when verdict === 'incertitude' (drives QCM matching). */
+  categorie?: string;
+  /** Only set when verdict === 'incertitude' (concise text for the QCM). */
+  detail?: string;
+  /** Becomes true once the user answers the matching QCM question. */
+  clarified?: boolean;
+}
+
 export interface AideMatchResult {
   aide: Aide;
   eligible: boolean;
@@ -78,6 +92,9 @@ export interface AideMatchResult {
   raisonIneligibilite?: string;
   llmEvaluation?: {
     explication: string;
+    /** One verdict per bullet of conditions_eligibilite_detail. */
+    evaluations?: AideEvaluation[];
+    /** Derived view: the evaluations with verdict === 'incertitude'. Drives the QCM. */
     incertitudes: (string | { categorie: string; detail: string; clarified?: boolean })[];
   };
 }

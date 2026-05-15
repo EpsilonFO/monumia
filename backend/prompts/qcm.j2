@@ -12,25 +12,25 @@ Chaque entree contient :
 - "nbAides" : le nombre d'aides impactees par cette categorie (pour prioriser)
 - "details" : les conditions specifiques relevees pour cette categorie (echantillon de 3 max)
 
-Ta mission : transformer ces categories en questions QCM claires a poser au proprietaire du monument. L'objectif est de lever le MAXIMUM d'incertitudes pour que le proprietaire sache precisement quelles aides lui sont accessibles.
+Ta mission : transformer ces categories en questions QCM claires pour le proprietaire du monument, afin de lever les incertitudes restantes.
 
-Regles :
-- IGNORE toute categorie qui porte sur une information DEJA PRESENTE dans le profil ci-dessus (protection MH, type de proprietaire, localisation, travaux, etat de conservation, segment utilisateur, population). Ces donnees sont deja connues et ne doivent pas faire l'objet d'une question.
+REGLE DE COUVERTURE EXHAUSTIVE (importante) :
+CHAQUE categorie listee en entree DOIT apparaitre dans ta reponse, soit dans "questions" (au moins une question portant cette categorie), soit dans "categoriesSkippees" (categorie volontairement non posee, avec une raison explicite). Aucune categorie d'entree ne doit etre oubliee.
+
+QUAND placer une categorie dans "categoriesSkippees" :
+- La categorie porte sur une information DEJA presente dans le profil monument (protection MH, type de proprietaire, localisation, travaux, etat de conservation, segment utilisateur, population). Raison type : "deja connu du profil".
+- La condition est en pratique toujours remplie pour ce type de monument/proprietaire (raison : "satisfaite par defaut pour ce profil").
+- La condition releve d'une formalite procedurale automatique au moment du depot (raison : "formalite procedurale automatique").
+
+Pour toutes les autres categories : tu DOIS poser au moins une question.
+
+REGLES SUR LES QUESTIONS :
 - Si une categorie contient des conditions distinctes (ex: "ouverture au public 40j/an" ET "ouverture au public 50j/an"), pose UNE question avec des options qui couvrent les differents seuils (ex: "moins de 40 jours", "entre 40 et 50 jours", "plus de 50 jours").
-- Si une categorie contient des sujets vraiment differents (ex: "accord ABF" et "convention DRAC signee"), tu PEUX les separer en 2 questions distinctes.
-- Sois exhaustif : couvre TOUTES les categories pertinentes, y compris celles qui ne concernent qu'une seule aide. Le but est de lever un maximum d'incertitudes.
-{% if max_questions < 15 %}
-- Tu as un budget de {{ max_questions }} questions. Regroupe quand c'est possible mais ne sacrifie pas la precision.
-{% elif max_questions <= 30 %}
-- Tu disposes de {{ max_questions }} questions. Sois exhaustif : couvre chaque categorie avec 1 a 2 questions selon sa complexite. N'hesite pas a detailler les seuils et conditions specifiques.
-{% else %}
-- Tu as un budget tres large de {{ max_questions }} questions. Couvre chaque condition individuellement si necessaire.
-{% endif %}
-- Formule chaque question de facon simple et comprehensible pour un non-expert
-- Propose des choix de reponse sous forme de QCM (2 a 5 options + "Je ne sais pas")
-- Pour les questions de seuils (nombre de jours, montants, surfaces...), propose des tranches precises
-- Limite-toi a {{ max_questions }} questions maximum
-- Si apres filtrage il ne reste aucune categorie pertinente, renvoie un tableau "questions" vide.
+- Si une categorie contient des sujets vraiment differents (ex: "accord ABF" et "convention DRAC signee"), tu PEUX les separer en 2 questions distinctes (meme categorie repetee).
+- Formule chaque question de facon simple et comprehensible pour un non-expert.
+- 2 a 5 options de reponse + "Je ne sais pas".
+- Pour les questions de seuils, propose des tranches alignees sur les seuils observes dans les details.
+- Maximum {{ max_questions }} questions au total.
 
 Reponds en JSON strict avec ce format (NE PAS inclure "aideIds", qui sera deduit cote serveur depuis "categorie") :
 {
@@ -46,10 +46,14 @@ Reponds en JSON strict avec ce format (NE PAS inclure "aideIds", qui sera deduit
       "eliminatingOptionIds": ["b"],
       "categorie": "ouverture_public"
     }
+  ],
+  "categoriesSkippees": [
+    {"categorie": "territoire_specifique", "raison": "deja connu du profil (region, departement, commune renseignes)"}
   ]
 }
 
 IMPORTANT :
-- Le champ "categorie" DOIT correspondre exactement a l'une des categories recues en entree.
+- Le champ "categorie" (dans "questions" comme dans "categoriesSkippees") DOIT correspondre exactement a l'une des categories recues en entree.
 - Le champ "eliminatingOptionIds" contient les IDs des options qui rendraient les aides de cette categorie non eligibles. "skip" ne doit JAMAIS y figurer.
 - Pour les questions a seuils (jours, montants...), choisis des tranches qui correspondent aux seuils exigeants observes dans les details.
+- Verifie avant de repondre : UNION(categories couvertes par questions, categories listees dans categoriesSkippees) DOIT etre egale a l'ensemble des categories d'entree. Pas de categorie orpheline.

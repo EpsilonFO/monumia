@@ -9,14 +9,17 @@ _jinja_env = Environment(loader=FileSystemLoader(_prompts_dir), keep_trailing_ne
 def render_prompt_eligibility(
     monument_profile: str,
     aide_nom: str,
-    conditions_detail: str,
+    bullets: list[str],
 ) -> str:
-    """Render the eligibility evaluation prompt from the Jinja2 template."""
+    """Render the eligibility evaluation prompt from the Jinja2 template.
+
+    The prompt asks the LLM to emit one verdict per bullet (oui/non/incertitude).
+    """
     template = _jinja_env.get_template("eligibility.j2")
     return template.render(
         monument_profile=monument_profile,
         aide_nom=aide_nom,
-        conditions_detail=conditions_detail,
+        bullets=bullets,
     )
 
 

@@ -29,7 +29,7 @@ import { formatDate } from '@/lib/date-utils';
 import { ROUTES } from '@/constants/routes';
 import { WORK_TYPES, OWNERSHIP_TYPES } from '@/constants/monument-options';
 import { toast } from 'sonner';
-import type { Monument, AideDiagnosticResult } from '@/types';
+import type { Monument, AideDiagnosticResult, AideMatchResult } from '@/types';
 
 const FONT = "'Cormorant Garamond', serif";
 
@@ -133,15 +133,22 @@ export function MonumentDetailPage() {
     }
 
     // Mark clarified incertitudes (do not remove — they will display in green with a checkmark).
-    const markClarifiedIncertitudes = <T extends { aide: { id: string }; llmEvaluation?: { incertitudes: (string | { categorie: string; detail: string; clarified?: boolean })[] } | undefined }>(m: T): T => {
+    // Also mark the matching per-bullet evaluations so AideDetails renders the green check.
+    const markClarifiedIncertitudes = <T extends { aide: { id: string }; llmEvaluation?: AideMatchResult['llmEvaluation'] }>(m: T): T => {
       const clarified = clarifiedByAide.get(m.aide.id);
       if (!clarified || !m.llmEvaluation) return m;
-      const updated = m.llmEvaluation.incertitudes.map((inc) => {
+      const updatedInc = m.llmEvaluation.incertitudes.map((inc) => {
         if (typeof inc === 'string') return inc; // legacy string — keep as-is (no category info)
         if (clarified.has(inc.categorie)) return { ...inc, clarified: true };
         return inc;
       });
-      return { ...m, llmEvaluation: { ...m.llmEvaluation, incertitudes: updated } };
+      const updatedEvals = m.llmEvaluation.evaluations?.map((e) => {
+        if (e.verdict === 'incertitude' && e.categorie && clarified.has(e.categorie)) {
+          return { ...e, clarified: true };
+        }
+        return e;
+      });
+      return { ...m, llmEvaluation: { ...m.llmEvaluation, incertitudes: updatedInc, evaluations: updatedEvals } };
     };
 
     // After marking, an aide is "fully eligible" if all its incertitudes are clarified.
