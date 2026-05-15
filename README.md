@@ -1,4 +1,4 @@
-# PatriAlta — Guide dev
+# Patrys — Guide dev
 
 ## Prérequis
 
@@ -10,8 +10,8 @@
 ## Installation
 
 ```bash
-git clone https://github.com/EpsilonFO/patrialta
-cd patrialta
+git clone https://github.com/EpsilonFO/patrys
+cd patrys
 ```
 
 ### 1. Dépendances backend + hooks git

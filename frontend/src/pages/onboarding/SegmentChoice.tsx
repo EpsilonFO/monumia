@@ -51,7 +51,7 @@ export function SegmentChoice() {
           className="text-[clamp(1.8rem,4vw,2.8rem)] font-light tracking-[-0.02em]"
           style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
         >
-          Bienvenue sur <em className="italic" style={{ color: C.royal }}>PatriAlta</em>
+          Bienvenue sur <em className="italic" style={{ color: C.royal }}>Patrys</em>
         </h1>
         <p className="max-w-lg text-[16px] leading-[1.75]" style={{ color: C.textMuted }}>
           Identifiez les aides disponibles pour restaurer votre patrimoine historique.

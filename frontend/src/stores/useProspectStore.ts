@@ -48,6 +48,6 @@ export const useProspectStore = create<ProspectState>()(
           ),
         })),
     }),
-    { name: 'patrialta-prospects' }
+    { name: 'patrys-prospects' }
   )
 );

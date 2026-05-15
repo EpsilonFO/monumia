@@ -256,7 +256,7 @@ export function DossierDetailPage() {
               <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="text-[13px]">
                 <p className="font-semibold text-amber-800">Dépôt manuel obligatoire</p>
-                <p className="text-amber-700 mt-0.5">PatriAlta vous aide à préparer votre dossier, mais le dépôt auprès de l'organisme doit être effectué par vos soins.</p>
+                <p className="text-amber-700 mt-0.5">Patrys vous aide à préparer votre dossier, mais le dépôt auprès de l'organisme doit être effectué par vos soins.</p>
               </div>
             </div>
           )}

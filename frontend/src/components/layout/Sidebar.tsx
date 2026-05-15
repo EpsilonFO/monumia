@@ -38,13 +38,13 @@ export function Sidebar() {
       {/* Logo block */}
       <div className="px-5 pt-5 pb-4">
         <a href="/" className="flex items-center gap-2.5">
-          <img src="/patrialta.png" alt="PatriAlta" className="h-8 w-8" />
+          <img src="/patrys.png" alt="Patrys" className="h-8 w-8" />
           <div>
             <span
               className="text-[17px] font-normal tracking-[-0.01em] text-[#1B1E2E]"
               style={{ fontFamily: "'Cormorant Garamond', serif" }}
             >
-              PatriAlta
+              Patrys
             </span>
             <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#C75B3A]">{segmentLabel}</div>
           </div>

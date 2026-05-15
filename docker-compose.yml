@@ -4,7 +4,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: patrialta-app-backend
+    container_name: patrys-app-backend
     env_file:
       - ./backend/.env
     volumes:
@@ -15,7 +15,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: patrialta-beta-backend
+    container_name: patrys-beta-backend
     env_file:
       - ./backend/.env.beta
     volumes:
@@ -28,8 +28,8 @@ services:
       context: ./landing
       dockerfile: Dockerfile
       args:
-        VITE_APP_URL: https://app.patrialta.fr
-    container_name: patrialta-landing-build
+        VITE_APP_URL: https://app.patrys.fr
+    container_name: patrys-landing-build
     volumes:
       - landing_dist:/dist
 
@@ -38,10 +38,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: https://app.patrialta.fr/api
+        VITE_API_URL: https://app.patrys.fr/api
         VITE_SUPABASE_URL: ${APP_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${APP_SUPABASE_ANON_KEY}
-    container_name: patrialta-app-frontend-build
+    container_name: patrys-app-frontend-build
     volumes:
       - app_frontend_dist:/dist
 
@@ -50,17 +50,17 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: https://beta.patrialta.fr/api
+        VITE_API_URL: https://beta.patrys.fr/api
         VITE_SUPABASE_URL: ${BETA_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${BETA_SUPABASE_ANON_KEY}
-    container_name: patrialta-beta-frontend-build
+    container_name: patrys-beta-frontend-build
     volumes:
       - beta_frontend_dist:/dist
 
   # ── Nginx (single entry point) ──────────────────────
   nginx:
     image: nginx:alpine
-    container_name: patrialta-nginx
+    container_name: patrys-nginx
     ports:
       - "80:80"
       - "443:443"
@@ -82,7 +82,7 @@ services:
   # ── SSL ─────────────────────────────────────────────
   certbot:
     image: certbot/certbot
-    container_name: patrialta-certbot
+    container_name: patrys-certbot
     volumes:
       - certbot_www:/var/www/certbot
       - certbot_conf:/etc/letsencrypt

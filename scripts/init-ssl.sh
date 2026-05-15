@@ -1,11 +1,11 @@
 #!/bin/bash
-# Script to initialize SSL certificates for patrialta.fr
+# Script to initialize SSL certificates for patrys.fr
 # Run this ONCE on your VPS after the first deployment
 
 set -e
 
-DOMAIN="patrialta.fr"
-EMAIL="contact@patrialta.fr"  # Change this to your email
+DOMAIN="patrys.fr"
+EMAIL="contact@patrys.fr"  # Change this to your email
 
 echo "=== Step 1: Start with HTTP-only config ==="
 cp nginx/nginx-init.conf nginx/nginx.conf.bak
@@ -27,7 +27,7 @@ cat > nginx/nginx.conf << 'NGINX'
 server {
     listen 80;
     listen [::]:80;
-    server_name patrialta.fr www.patrialta.fr;
+    server_name patrys.fr www.patrys.fr;
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -41,10 +41,10 @@ server {
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
-    server_name patrialta.fr www.patrialta.fr;
+    server_name patrys.fr www.patrys.fr;
 
-    ssl_certificate /etc/letsencrypt/live/patrialta.fr/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/patrialta.fr/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/patrys.fr/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/patrys.fr/privkey.pem;
 
     location / {
         root /usr/share/nginx/html;
@@ -66,4 +66,4 @@ echo "=== Step 6: Reload nginx with SSL ==="
 docker compose exec nginx nginx -s reload
 
 echo ""
-echo "Done! https://patrialta.fr should now be live."
+echo "Done! https://patrys.fr should now be live."

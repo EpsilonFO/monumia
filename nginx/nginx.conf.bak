@@ -4,7 +4,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name patrialta.fr www.patrialta.fr;
+    server_name patrys.fr www.patrys.fr;
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;

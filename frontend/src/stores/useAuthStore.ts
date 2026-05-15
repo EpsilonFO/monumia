@@ -79,7 +79,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'patrialta-auth',
+      name: 'patrys-auth',
     }
   )
 );

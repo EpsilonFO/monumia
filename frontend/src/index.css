@@ -49,7 +49,7 @@
 
 :root {
     --radius: 0.625rem;
-    /* PatriAlta brand: bleu roi + orange terre cuite accent */
+    /* Patrys brand: bleu roi + orange terre cuite accent */
     --background: oklch(0.99 0.003 260);
     --foreground: oklch(0.16 0.05 260);
     --card: oklch(1 0 0);

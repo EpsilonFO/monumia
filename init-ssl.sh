@@ -3,7 +3,7 @@
 # Run this on the VPS after deploying with nginx-init.conf
 #
 # Prerequisites:
-#   1. DNS A records for app.patrialta.fr and beta.patrialta.fr pointing to your VPS
+#   1. DNS A records for app.patrys.fr and beta.patrys.fr pointing to your VPS
 #   2. nginx running with nginx-init.conf (HTTP only)
 #
 # Usage:
@@ -17,20 +17,20 @@
 
 set -e
 
-echo "==> Requesting certificate for app.patrialta.fr..."
+echo "==> Requesting certificate for app.patrys.fr..."
 docker compose run --rm certbot certonly \
   --webroot \
   --webroot-path=/var/www/certbot \
-  -d app.patrialta.fr \
+  -d app.patrys.fr \
   --email your-email@example.com \
   --agree-tos \
   --no-eff-email
 
-echo "==> Requesting certificate for beta.patrialta.fr..."
+echo "==> Requesting certificate for beta.patrys.fr..."
 docker compose run --rm certbot certonly \
   --webroot \
   --webroot-path=/var/www/certbot \
-  -d beta.patrialta.fr \
+  -d beta.patrys.fr \
   --email your-email@example.com \
   --agree-tos \
   --no-eff-email

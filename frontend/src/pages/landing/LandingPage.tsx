@@ -151,12 +151,12 @@ export function LandingPage() {
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-10 py-5">
           <div className="flex items-center gap-3">
-            <img src="/patrialta.png" alt="PatriAlta" className="h-7" />
+            <img src="/patrys.png" alt="Patrys" className="h-7" />
             <span
               className="text-[1.45rem] font-light tracking-[-0.01em]"
               style={{ fontFamily: "'Cormorant Garamond', serif", color: C.royal }}
             >
-              PatriAlta
+              Patrys
             </span>
           </div>
 
@@ -222,7 +222,7 @@ export function LandingPage() {
           <Reveal delay={240}>
             <div className="mt-12 flex flex-col sm:flex-row items-start gap-12 sm:items-end justify-between">
               <p className="max-w-lg text-[17px] leading-[1.75]" style={{ color: C.textMuted }}>
-                PatriAlta identifie les subventions, déductions fiscales et dispositifs de mécénat
+                Patrys identifie les subventions, déductions fiscales et dispositifs de mécénat
                 auxquels vos monuments sont éligibles — puis vous aide à monter vos dossiers.
               </p>
 
@@ -319,7 +319,7 @@ export function LandingPage() {
             </Reveal>
             <Reveal delay={120}>
               <p className="max-w-md text-[16px] leading-[1.8] lg:text-right" style={{ color: C.textMuted }}>
-                De l'identification des aides à la constitution de vos dossiers, PatriAlta vous accompagne à chaque étape.
+                De l'identification des aides à la constitution de vos dossiers, Patrys vous accompagne à chaque étape.
               </p>
             </Reveal>
           </div>
@@ -573,12 +573,12 @@ export function LandingPage() {
       <footer className="relative border-t py-12 px-6 lg:px-10" style={{ borderColor: C.border, background: C.bg }}>
         <div className="mx-auto max-w-7xl flex flex-col lg:flex-row items-center justify-between gap-8">
           <div className="flex items-center gap-2.5 opacity-60">
-            <img src="/patrialta.png" alt="PatriAlta" className="h-5" />
+            <img src="/patrys.png" alt="Patrys" className="h-5" />
             <span
               className="text-[1.15rem] font-light tracking-[-0.01em]"
               style={{ fontFamily: "'Cormorant Garamond', serif", color: C.royal }}
             >
-              PatriAlta
+              Patrys
             </span>
           </div>
 
@@ -592,7 +592,7 @@ export function LandingPage() {
           </div>
         </div>
         <p className="mt-8 text-center text-[11px] uppercase tracking-[0.15em]" style={{ color: `${C.textLight}80` }}>
-          © {new Date().getFullYear()} PatriAlta. Tous droits réservés.
+          © {new Date().getFullYear()} Patrys. Tous droits réservés.
         </p>
       </footer>
 

@@ -16,8 +16,8 @@ export function OnboardingPage() {
       {/* header */}
       <header className="flex items-center justify-between px-6 lg:px-10 py-5" style={{ borderBottom: `1px solid ${C.border}` }}>
         <button onClick={() => navigate('/')} className="flex items-center gap-3 group">
-          <img src="/patrialta.png" alt="PatriAlta" className="h-7 object-contain" />
-          <span className="text-[15px] font-semibold tracking-wide" style={{ color: C.text }}>PatriAlta</span>
+          <img src="/patrys.png" alt="Patrys" className="h-7 object-contain" />
+          <span className="text-[15px] font-semibold tracking-wide" style={{ color: C.text }}>Patrys</span>
         </button>
         <span className="text-[12px] font-semibold uppercase tracking-[0.15em]" style={{ color: C.terra }}>
           Inscription
@@ -34,7 +34,7 @@ export function OnboardingPage() {
       {/* subtle footer */}
       <footer className="py-4 text-center">
         <p className="text-[11px] uppercase tracking-[0.12em]" style={{ color: C.textLight }}>
-          © {new Date().getFullYear()} PatriAlta
+          © {new Date().getFullYear()} Patrys
         </p>
       </footer>
     </div>

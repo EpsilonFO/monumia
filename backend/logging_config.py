@@ -1,5 +1,5 @@
 """
-Colored logging configuration for PatriAlta backend.
+Colored logging configuration for Patrys backend.
 
 Format: LEVEL (colored) [FILENAME] (violet) message (white)
 - INFO  → blue
