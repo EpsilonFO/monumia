@@ -90,7 +90,7 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
 
       {/* Step Content */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-6 min-h-[460px]">
           {currentStep === 1 && <Step1Identification data={formData} onChange={update} />}
           {currentStep === 2 && <Step2StatutJuridique data={formData} onChange={update} />}
           {currentStep === 3 && <Step3DescriptionPhysique data={formData} onChange={update} />}
@@ -103,18 +103,23 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
       <div className="flex items-center justify-between">
         <Button
           variant="outline"
+          size="lg"
           onClick={handlePrev}
           disabled={currentStep === 1}
         >
           <ChevronLeft className="h-4 w-4 mr-1" />
           Précédent
         </Button>
-        <Button onClick={handleNext} disabled={!canProceed || (saving && currentStep === 5)}>
+        <Button
+          onClick={handleNext}
+          disabled={!canProceed || (saving && currentStep === 5)}
+          className="h-12 px-8 text-base"
+        >
           {saving && currentStep === 5
-            ? <Loader2 className="h-4 w-4 animate-spin" />
+            ? <Loader2 className="h-5 w-5 animate-spin" />
             : currentStep === 5
               ? isEditing ? 'Enregistrer' : 'Terminer'
-              : <>Suivant <ChevronRight className="h-4 w-4 ml-1" /></>}
+              : <>Suivant <ChevronRight className="h-5 w-5 ml-1.5" /></>}
         </Button>
       </div>
     </div>

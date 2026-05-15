@@ -3,6 +3,7 @@ import { Compass } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Disclaimer } from '@/components/shared/Disclaimer';
+import { AideMatchProgress } from './AideMatchProgress';
 
 import type { AideDiagnosticResult } from '@/types';
 
@@ -88,19 +89,7 @@ export function AideMatchBanner({ result, isRunning, onLaunch, monumentName }: A
 
   // Loading state
   if (isRunning) {
-    return (
-      <Card className="border-accent/30 bg-accent/5">
-        <CardContent className="py-8 text-center space-y-3">
-          <div className="mx-auto w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center animate-pulse">
-            <Compass className="h-6 w-6 text-accent" />
-          </div>
-          <p className="text-lg font-medium">Analyse en cours...</p>
-          <p className="text-sm text-muted-foreground">
-            Croisement de votre monument avec la base d'aides. Cela peut prendre quelques dizaines de secondes.
-          </p>
-        </CardContent>
-      </Card>
-    );
+    return <AideMatchProgress monumentName={monumentName} />;
   }
 
   // Results state

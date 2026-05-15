@@ -1,6 +1,6 @@
 import {
   ExternalLink, Clock, Building2, FileText,
-  CheckCircle2, XCircle, HelpCircle, ArrowRight,
+  CheckCircle2, XCircle, HelpCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -116,22 +116,6 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
               </CardContent>
             </Card>
           )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Démarche à suivre</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                {decodeHtml(aide.demarcheDescription).split('\n').filter(Boolean).map((line, i) => (
-                  <div key={i} className="flex gap-2">
-                    <ArrowRight className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                    <span>{line}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader>

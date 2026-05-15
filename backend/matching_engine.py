@@ -603,7 +603,7 @@ async def _llm_evaluate_eligibility(
                 model="mistral-medium-latest",
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
-                temperature=0.1,
+                temperature=0,
             )
             choice = response.choices[0]
             content = choice.message.content
@@ -1075,7 +1075,9 @@ async def generate_qcm_questions(
         len(aggregated),
     )
     for g in aggregated:
-        logger.info("  • %s — %d aide(s) : %s", g["categorie"], g["nbAides"], g["details"][0][:80])
+        first_source = g["sources"][0] if g.get("sources") else {}
+        preview = first_source.get("critere") or first_source.get("detail") or ""
+        logger.info("  • %s — %d aide(s) : %s", g["categorie"], g["nbAides"], preview[:80])
     logger.info("─" * 60)
 
     api_key = os.environ.get("MISTRAL_API_KEY")

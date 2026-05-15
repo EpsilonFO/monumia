@@ -37,7 +37,7 @@ export function MonumentCard({ monument }: MonumentCardProps) {
 
   const handleDiagnosticClick = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
-    navigate(`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=dossiers`);
+    navigate(`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=aides`);
   };
 
   return (
