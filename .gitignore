@@ -35,5 +35,6 @@ landing/.env
 test_rag/.env.rag
 
 supabase/seed.sql
+supabase/snippets/
 
 .claude/
