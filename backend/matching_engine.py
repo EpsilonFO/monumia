@@ -720,11 +720,15 @@ def _parse_bullets(text: str) -> list[str]:
 def _normalize_evaluations(raw: list, bullets: list[str]) -> list[dict]:
     """Align LLM evaluations to the source bullets and coerce invalid values.
 
-    - Pads missing evaluations with verdict='oui' (don't auto-fail).
+    Fail-closed policy: any bullet for which we can't extract a valid verdict
+    (LLM returned nothing, returned an unknown value, or returned malformed
+    output) becomes an `incertitude` with categorie='autre'. Defaulting to
+    'oui' on missing/malformed output would silently mark aides as eligible
+    based on LLM bugs — surfacing them as QCM questions lets the user (or
+    an audit) catch the issue downstream.
+
     - Drops extras the LLM hallucinated beyond the bullet count.
-    - Coerces unknown verdicts to 'incertitude' with a warning.
-    - For 'incertitude' verdicts, coerces unknown categories to 'autre'
-      and adds 'detail'/'clarified' for the QCM flow.
+    - Coerces unknown categories to 'autre' with a warning.
     - The 'critere' field is taken from the input bullet (verbatim), never
       from the LLM response — we never trust the LLM to re-quote correctly.
     """
@@ -732,13 +736,23 @@ def _normalize_evaluations(raw: list, bullets: list[str]) -> list[dict]:
     raw_list = list(raw) if isinstance(raw, list) else []
 
     for i, bullet in enumerate(bullets):
-        raw_eval = raw_list[i] if i < len(raw_list) and isinstance(raw_list[i], dict) else {}
+        has_eval = i < len(raw_list) and isinstance(raw_list[i], dict)
+        raw_eval = raw_list[i] if has_eval else {}
 
         verdict = str(raw_eval.get("verdict") or "").strip().lower()
         if verdict not in {"oui", "non", "incertitude"}:
-            if verdict:
-                logger.warning("[LLM] Verdict inconnu « %s » remappé en « oui »", verdict)
-            verdict = "oui"
+            if not has_eval:
+                logger.warning(
+                    "[LLM] Évaluation manquante pour le critère #%d — fail-closed en « incertitude »",
+                    i + 1,
+                )
+            else:
+                logger.warning(
+                    "[LLM] Verdict invalide « %s » sur le critère #%d — fail-closed en « incertitude »",
+                    verdict or "(vide)",
+                    i + 1,
+                )
+            verdict = "incertitude"
 
         explication = str(raw_eval.get("explication") or "").strip()
 
@@ -755,6 +769,8 @@ def _normalize_evaluations(raw: list, bullets: list[str]) -> list[dict]:
                     logger.warning("[LLM] Catégorie inconnue « %s » remappée en « autre »", cat)
                 cat = "autre"
             evaluation["categorie"] = cat
+            # When the LLM provided no usable explication (fail-closed branch),
+            # the bullet text is the best fallback for the QCM step to anchor on.
             evaluation["detail"] = explication or bullet
             evaluation["clarified"] = False
 
@@ -851,11 +867,6 @@ async def _run_llm_phase(
 # ---------------------------------------------------------------------------
 
 MAX_QCM_QUESTIONS = 50
-
-# Hard cap on incertitudes kept per aide after the eligibility LLM responds.
-# The prompt asks for 0-4 and to order by criticality; this is a safety net
-# against pathological outputs.
-MAX_INCERTITUDES_PER_AIDE = 5
 
 
 # Closed set of allowed incertitude categories. MUST match the identifiers

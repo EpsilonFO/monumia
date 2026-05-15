@@ -31,8 +31,8 @@ REGLES STRICTES — a appliquer pour CHAQUE critere :
 
 7. INTERDICTION D'INVENTER DES ATTRIBUTS. Le champ "explication" ne doit JAMAIS preter au projet un trait absent du profil. Tu n'ecris jamais « le projet est en phase X » si la phase n'est pas dans le profil. Tu n'ecris jamais « les depenses sont de type Y » si le profil ne le dit pas. Tu n'ecris jamais « le montant est de Z € » si le profil ne donne pas de montant. Si tu serais oblige d'inventer un attribut pour justifier "oui", mets "incertitude" a la place.
 
-CONTRAINTE DE VOLUME :
-Chaque "incertitude" deviendra une question dans un questionnaire utilisateur. Au-dela de 4 questions par aide, l'utilisateur abandonne. Si tu trouves plus de 4 incertitudes, regroupe celles qui se ramenent a la meme verification cote utilisateur. Tu NE dois PAS faire baisser artificiellement le compte en passant des "incertitude" en "oui" avec une explication inventee : il vaut mieux 5 incertitudes honnetes que 3 incertitudes + 2 "oui" hallucines.
+VOLUME :
+Liste TOUTES les incertitudes qui satisfont les criteres definis plus haut (dirimante, verifiable par l'utilisateur, profil silencieux). Pas de cap arbitraire : si une aide a 10 puces toutes legitimement incertaines, tu rends 10 incertitudes. Si tu n'en trouves aucune, tu rends une liste vide. L'agregation et la priorisation cote serveur s'occupent du volume global presente a l'utilisateur. Ta seule discipline : ne pas inventer d'incertitude pour gonfler, ne pas omettre d'incertitude legitime pour reduire. Si plusieurs puces convergent sur la meme verification utilisateur, tu peux les rendre comme incertitudes distinctes — le serveur dedupera.
 
 CATEGORIES POUR LES INCERTITUDES :
 Pour chaque evaluation a verdict "incertitude" UNIQUEMENT, ajoute un champ "categorie" choisi parmi cette liste fermee de 34 identifiants. Si tu n'es pas sur, utilise "autre".
