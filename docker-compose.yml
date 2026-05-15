@@ -77,6 +77,9 @@ services:
       - landing-build
       - app-frontend-build
       - beta-frontend-build
+    networks:
+      - default
+      - web
     restart: unless-stopped
 
   # ── SSL ─────────────────────────────────────────────
@@ -94,3 +97,8 @@ volumes:
   beta_frontend_dist:
   certbot_www:
   certbot_conf:
+
+networks:
+    default:
+    web:
+      external: true
