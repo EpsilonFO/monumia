@@ -1,4 +1,4 @@
-import type { ID, ProtectionLevel, OwnershipType, Region, WorkType, UserSegment } from './common.types';
+import type { ID, ProtectionLevel, OwnershipType, Region, WorkType } from './common.types';
 
 export type AideCategory =
   | 'etat_drac'
@@ -53,8 +53,6 @@ export interface AideEligibilityCriteria {
 
   regionEligible?: Region[];
   departementEligible?: string[];
-
-  segmentEligible?: UserSegment[];
 
   communeDeMoins10000Hab?: boolean;
   communeMaxPopulation?: number;

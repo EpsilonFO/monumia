@@ -32,7 +32,6 @@ JOIN_TABLES = {
     "travauxEligibles": "aides_travaux",
     "regionEligible": "aides_regions",
     "departementEligible": "aides_departements",
-    "segmentEligible": "aides_segments",
     "etatConservationRequis": "aides_etats_conservation",
 }
 
@@ -43,7 +42,6 @@ JOIN_CODE_COLUMNS = {
     "aides_travaux": "travaux_code",
     "aides_regions": "region_code",
     "aides_departements": "departement_code",
-    "aides_segments": "segment_code",
     "aides_etats_conservation": "etat_conservation_code",
 }
 

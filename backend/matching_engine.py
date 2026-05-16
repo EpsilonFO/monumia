@@ -40,12 +40,6 @@ OWNERSHIP_LABELS = {
     "mixte": "Propriété mixte",
 }
 
-SEGMENT_LABELS = {
-    "commune": "Commune",
-    "prive": "Propriétaire privé",
-    "btp": "Entreprise BTP",
-}
-
 TRAVAUX_LABELS = {
     "toiture": "Toiture",
     "charpente": "Charpente",
@@ -273,7 +267,6 @@ def prefiltrer_aides(
         "p_travaux": travaux if travaux else None,
         "p_region": monument.get("region"),
         "p_departement": departement_code,
-        "p_segment": user.get("segment"),
         "p_population": population,
         "p_etat_conservation": monument.get("etat_conservation"),
     }
@@ -344,13 +337,6 @@ def _fetch_aide_with_joins(supabase: Client, aide_id: str) -> dict:
         ).data
         or []
     ]
-    aide["segments"] = [
-        r["segment_code"]
-        for r in (
-            supabase.table("aides_segments").select("segment_code").eq("aide_id", aide_id).execute()
-        ).data
-        or []
-    ]
     aide["etats_conservation"] = [
         r["etat_conservation_code"]
         for r in (
@@ -381,7 +367,6 @@ def fetch_aides_with_joins(supabase: Client, aide_ids: list[str]) -> list[dict]:
         aide["travaux"] = []
         aide["regions"] = []
         aide["departements"] = []
-        aide["segments"] = []
         aide["etats_conservation"] = []
 
     # Batch fetch each join table
@@ -391,7 +376,6 @@ def fetch_aides_with_joins(supabase: Client, aide_ids: list[str]) -> list[dict]:
         "aides_travaux": ("travaux_code", "travaux"),
         "aides_regions": ("region_code", "regions"),
         "aides_departements": ("departement_code", "departements"),
-        "aides_segments": ("segment_code", "segments"),
         "aides_etats_conservation": ("etat_conservation_code", "etats_conservation"),
     }
 
@@ -498,16 +482,6 @@ def _build_criteria_labels(
                 f"Département requis : {_labels(DEPARTEMENT_LABELS, departements)}"
             )
 
-    # Segment
-    segments = aide.get("segments") or []
-    if segments:
-        if user.get("segment") in segments:
-            criteres_remplis.append(f"Segment : {_label(SEGMENT_LABELS, user.get('segment'))}")
-        else:
-            criteres_non_remplis.append(f"Réservé aux : {_labels(SEGMENT_LABELS, segments)}")
-    else:
-        criteres_remplis.append("Communes et privés")
-
     # Population
     max_pop = aide.get("commune_max_population")
     if max_pop is not None:
@@ -541,7 +515,7 @@ def _build_criteria_labels(
 # ---------------------------------------------------------------------------
 
 
-def _build_monument_profile(monument: dict, user: dict, population: int | None) -> str:
+def _build_monument_profile(monument: dict, population: int | None) -> str:
     """Build a human-readable text description of the monument for the LLM."""
     lines = []
     lines.append(f"Nom : {monument.get('nom', 'Non renseigné')}")
@@ -567,7 +541,6 @@ def _build_monument_profile(monument: dict, user: dict, population: int | None) 
     travaux = monument.get("travaux_envisages") or []
     if travaux:
         lines.append(f"Travaux envisagés : {_labels(TRAVAUX_LABELS, travaux)}")
-    lines.append(f"Segment utilisateur : {_label(SEGMENT_LABELS, user.get('segment', ''))}")
     if monument.get("siecle_construction"):
         lines.append(f"Siècle de construction : {monument['siecle_construction']}")
     if monument.get("reference_merimee"):
@@ -1238,7 +1211,6 @@ async def run_diagnostic(
     logger.info("#" * 60)
     logger.info("# DIAGNOSTIC — %s", monument.get("nom", "Monument inconnu"))
     logger.info("#" * 60)
-    logger.info("  segment      : %s", _label(SEGMENT_LABELS, user.get("segment")))
     logger.info("  protection   : %s", _label(PROTECTION_LABELS, monument.get("protection")))
     logger.info("  propriétaire : %s", _label(OWNERSHIP_LABELS, monument.get("proprietaire")))
     logger.info(
@@ -1311,7 +1283,7 @@ async def run_diagnostic(
         len(eligible_results),
     )
     logger.info("─" * 60)
-    monument_profile = _build_monument_profile(monument, user, population)
+    monument_profile = _build_monument_profile(monument, population)
 
     # Write diagnostic header to llm.txt
     ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -1320,7 +1292,6 @@ async def run_diagnostic(
             f.write(f"\n\n{'#' * 70}\n")
             f.write(f"# DIAGNOSTIC [{ts}]\n")
             f.write(f"# Monument : {monument.get('nom', '?')}\n")
-            f.write(f"# Segment  : {_label(SEGMENT_LABELS, user.get('segment'))}\n")
             f.write(f"{'#' * 70}\n")
     except Exception as e:
         logger.warning(f"Failed to write llm.txt header: {e}")

@@ -24,11 +24,6 @@ function etatLabel(value: string): string {
   return ETATS_CONSERVATION.find(e => e.value === value)?.label ?? value;
 }
 
-function segmentLabel(value: string): string {
-  const labels: Record<string, string> = { commune: 'Commune', prive: 'Propriétaire privé', btp: 'Entreprise BTP' };
-  return labels[value] ?? value;
-}
-
 function checkEligibility(aide: Aide, ctx: MatchContext): AideMatchResult {
   const criteresRemplis: string[] = [];
   const criteresNonRemplis: string[] = [];
@@ -95,17 +90,6 @@ function checkEligibility(aide: Aide, ctx: MatchContext): AideMatchResult {
     } else {
       criteresNonRemplis.push(`Département requis : ${c.departementEligible.join(', ')}`);
     }
-  }
-
-  // Check user segment
-  if (c.segmentEligible && c.segmentEligible.length > 0) {
-    if (c.segmentEligible.includes(user.segment)) {
-      criteresRemplis.push(`Segment : ${segmentLabel(user.segment)}`);
-    } else {
-      criteresNonRemplis.push(`Réservé aux : ${c.segmentEligible.map(segmentLabel).join(', ')}`);
-    }
-  } else {
-    criteresRemplis.push('Communes et privés');
   }
 
   // Check commune population (flexible threshold)
