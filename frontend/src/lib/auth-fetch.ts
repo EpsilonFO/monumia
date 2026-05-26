@@ -1,54 +1,5 @@
 import { useAuthStore } from '@/stores/useAuthStore';
-
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
-
-let refreshPromise: Promise<boolean> | null = null;
-
-async function doRefresh(): Promise<boolean> {
-  const { refreshToken, setTokens, logout } = useAuthStore.getState();
-  if (!refreshToken) {
-    logout();
-    return false;
-  }
-
-  try {
-    const res = await fetch(`${BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-
-    if (!res.ok) {
-      logout();
-      return false;
-    }
-
-    const data = await res.json();
-    if (!data.access_token || !data.refresh_token) {
-      logout();
-      return false;
-    }
-    setTokens(data.access_token, data.refresh_token);
-    return true;
-  } catch {
-    logout();
-    return false;
-  }
-}
-
-/**
- * Deduplicated refresh: all concurrent callers share a single in-flight
- * refresh request. The promise is only cleared *after* all `.then()` microtasks
- * have settled, preventing double-refresh races.
- */
-function tryRefresh(): Promise<boolean> {
-  if (!refreshPromise) {
-    refreshPromise = doRefresh().finally(() => {
-      refreshPromise = null;
-    });
-  }
-  return refreshPromise;
-}
+import { tryRefresh } from '@/lib/token-refresh';
 
 /**
  * Wrapper around fetch that:

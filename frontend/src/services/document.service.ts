@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
+import { ensureFreshAccessToken } from '@/lib/token-refresh';
 import type { Document, DocumentType } from '@/types';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
@@ -20,17 +21,32 @@ function toStoragePath(urlOrPath: string): string {
   return urlOrPath;
 }
 
+let sessionSyncPromise: Promise<void> | null = null;
+
+/**
+ * Inject the current access_token into the Supabase JS client so storage
+ * operations carry an Authorization header. Refreshes the token via the
+ * backend first if it's expired. Deduplicated to prevent racing setSession
+ * calls (e.g. an upload + signed-URL fetch happening concurrently).
+ *
+ * The Supabase client itself has autoRefreshToken/persistSession disabled
+ * (see lib/supabase.ts), so setSession is now a pure local-state write.
+ */
 async function syncSupabaseSession(): Promise<void> {
-  const { token, refreshToken, setTokens } = useAuthStore.getState();
-  if (!token) return;
-  const { data } = await supabase.auth.setSession({
-    access_token: token,
-    refresh_token: refreshToken ?? '',
+  if (sessionSyncPromise) return sessionSyncPromise;
+  sessionSyncPromise = (async () => {
+    const fresh = await ensureFreshAccessToken();
+    if (!fresh) return;
+    const { token, refreshToken } = useAuthStore.getState();
+    if (!token) return;
+    await supabase.auth.setSession({
+      access_token: token,
+      refresh_token: refreshToken ?? '',
+    });
+  })().finally(() => {
+    sessionSyncPromise = null;
   });
-  // setSession may rotate the refresh token — sync the new tokens back
-  if (data.session) {
-    setTokens(data.session.access_token, data.session.refresh_token);
-  }
+  return sessionSyncPromise;
 }
 
 async function uploadToStorage(file: File, userId: string): Promise<string> {
