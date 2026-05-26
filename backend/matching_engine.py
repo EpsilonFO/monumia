@@ -12,191 +12,22 @@ import json
 import logging
 import os
 from datetime import datetime
-from pathlib import Path
 
 from mistralai.client import Mistral
 from supabase import Client
 
+from labels import (
+    ALLOWED_INCERTITUDE_CATEGORIES,
+    DEPARTEMENT_LABELS,
+    ETAT_LABELS,
+    OWNERSHIP_LABELS,
+    PROTECTION_LABELS,
+    REGION_LABELS,
+    TRAVAUX_LABELS,
+)
 from prompts.matching import render_prompt_eligibility, render_prompt_qcm
 
 logger = logging.getLogger(__name__)
-
-PROTECTION_LABELS = {
-    "classe": "Classé Monument Historique",
-    "inscrit": "Inscrit Monument Historique",
-    "abords": "En périmètre d'un MH (abords)",
-    "spr": "Site Patrimonial Remarquable (SPR)",
-    "non_protege": "Non protégé",
-}
-
-OWNERSHIP_LABELS = {
-    "public_commune": "Commune",
-    "public_departement": "Département",
-    "public_region": "Région",
-    "public_etat": "État",
-    "prive_personne_physique": "Propriétaire privé (personne physique)",
-    "prive_sci": "SCI",
-    "association": "Association",
-    "mixte": "Propriété mixte",
-}
-
-TRAVAUX_LABELS = {
-    "toiture": "Toiture",
-    "charpente": "Charpente",
-    "couverture": "Couverture",
-    "facade": "Façade",
-    "maconnerie": "Maçonnerie",
-    "vitraux": "Vitraux",
-    "peintures_murales": "Peintures murales",
-    "menuiserie": "Menuiserie",
-    "electricite": "Électricité",
-    "plomberie": "Plomberie",
-    "chauffage": "Chauffage",
-    "accessibilite": "Accessibilité",
-    "mise_en_securite": "Mise en sécurité",
-    "restauration_generale": "Restauration générale",
-    "etude_prealable": "Étude préalable",
-    "mobilier": "Mobilier",
-    "orgues": "Orgues",
-    "parcs_jardins": "Parcs et jardins",
-    "protection_solaire": "Protection solaire",
-    "ventilation": "Ventilation",
-}
-
-ETAT_LABELS = {
-    "bon": "Bon état",
-    "moyen": "État moyen",
-    "mauvais": "Mauvais état",
-    "peril": "En péril",
-}
-
-REGION_LABELS = {
-    "auvergne-rhone-alpes": "Auvergne-Rhône-Alpes",
-    "bourgogne-franche-comte": "Bourgogne-Franche-Comté",
-    "bretagne": "Bretagne",
-    "centre-val-de-loire": "Centre-Val de Loire",
-    "corse": "Corse",
-    "grand-est": "Grand Est",
-    "hauts-de-france": "Hauts-de-France",
-    "ile-de-france": "Île-de-France",
-    "normandie": "Normandie",
-    "nouvelle-aquitaine": "Nouvelle-Aquitaine",
-    "occitanie": "Occitanie",
-    "pays-de-la-loire": "Pays de la Loire",
-    "provence-alpes-cote-d-azur": "Provence-Alpes-Côte d'Azur",
-    "guadeloupe": "Guadeloupe",
-    "martinique": "Martinique",
-    "guyane": "Guyane",
-    "la-reunion": "La Réunion",
-    "mayotte": "Mayotte",
-}
-
-# INSEE department codes → libellé. Used to humanise filter labels;
-# `aides_departements.departement_code` and `communes.departement_num`
-# both store the code form (e.g. "75", "2A", "971").
-DEPARTEMENT_LABELS = {
-    "01": "Ain",
-    "02": "Aisne",
-    "03": "Allier",
-    "04": "Alpes-de-Haute-Provence",
-    "05": "Hautes-Alpes",
-    "06": "Alpes-Maritimes",
-    "07": "Ardèche",
-    "08": "Ardennes",
-    "09": "Ariège",
-    "10": "Aube",
-    "11": "Aude",
-    "12": "Aveyron",
-    "13": "Bouches-du-Rhône",
-    "14": "Calvados",
-    "15": "Cantal",
-    "16": "Charente",
-    "17": "Charente-Maritime",
-    "18": "Cher",
-    "19": "Corrèze",
-    "2A": "Corse-du-Sud",
-    "2B": "Haute-Corse",
-    "21": "Côte-d'Or",
-    "22": "Côtes-d'Armor",
-    "23": "Creuse",
-    "24": "Dordogne",
-    "25": "Doubs",
-    "26": "Drôme",
-    "27": "Eure",
-    "28": "Eure-et-Loir",
-    "29": "Finistère",
-    "30": "Gard",
-    "31": "Haute-Garonne",
-    "32": "Gers",
-    "33": "Gironde",
-    "34": "Hérault",
-    "35": "Ille-et-Vilaine",
-    "36": "Indre",
-    "37": "Indre-et-Loire",
-    "38": "Isère",
-    "39": "Jura",
-    "40": "Landes",
-    "41": "Loir-et-Cher",
-    "42": "Loire",
-    "43": "Haute-Loire",
-    "44": "Loire-Atlantique",
-    "45": "Loiret",
-    "46": "Lot",
-    "47": "Lot-et-Garonne",
-    "48": "Lozère",
-    "49": "Maine-et-Loire",
-    "50": "Manche",
-    "51": "Marne",
-    "52": "Haute-Marne",
-    "53": "Mayenne",
-    "54": "Meurthe-et-Moselle",
-    "55": "Meuse",
-    "56": "Morbihan",
-    "57": "Moselle",
-    "58": "Nièvre",
-    "59": "Nord",
-    "60": "Oise",
-    "61": "Orne",
-    "62": "Pas-de-Calais",
-    "63": "Puy-de-Dôme",
-    "64": "Pyrénées-Atlantiques",
-    "65": "Hautes-Pyrénées",
-    "66": "Pyrénées-Orientales",
-    "67": "Bas-Rhin",
-    "68": "Haut-Rhin",
-    "69": "Rhône",
-    "70": "Haute-Saône",
-    "71": "Saône-et-Loire",
-    "72": "Sarthe",
-    "73": "Savoie",
-    "74": "Haute-Savoie",
-    "75": "Paris",
-    "76": "Seine-Maritime",
-    "77": "Seine-et-Marne",
-    "78": "Yvelines",
-    "79": "Deux-Sèvres",
-    "80": "Somme",
-    "81": "Tarn",
-    "82": "Tarn-et-Garonne",
-    "83": "Var",
-    "84": "Vaucluse",
-    "85": "Vendée",
-    "86": "Vienne",
-    "87": "Haute-Vienne",
-    "88": "Vosges",
-    "89": "Yonne",
-    "90": "Territoire de Belfort",
-    "91": "Essonne",
-    "92": "Hauts-de-Seine",
-    "93": "Seine-Saint-Denis",
-    "94": "Val-de-Marne",
-    "95": "Val-d'Oise",
-    "971": "Guadeloupe",
-    "972": "Martinique",
-    "973": "Guyane",
-    "974": "La Réunion",
-    "976": "Mayotte",
-}
 
 
 def _label(mapping: dict, value: str | None) -> str:
@@ -207,6 +38,20 @@ def _label(mapping: dict, value: str | None) -> str:
 
 def _labels(mapping: dict, values: list) -> str:
     return ", ".join(_label(mapping, v) for v in values)
+
+
+def _resolve_population(supabase: Client, code_insee: str | None, user: dict) -> int | None:
+    """Return the commune's population if the user is a commune, else None."""
+    if not code_insee or user.get("segment") != "commune":
+        return None
+    result = (
+        supabase.table("communes")
+        .select("population")
+        .eq("code_insee", code_insee)
+        .single()
+        .execute()
+    )
+    return result.data.get("population") if result.data else None
 
 
 # ---------------------------------------------------------------------------
@@ -248,18 +93,7 @@ def prefiltrer_aides(
         else:
             departement_code = code_insee[:2]
 
-    # Fetch commune population
-    population = None
-    if code_insee and user.get("segment") == "commune":
-        commune_result = (
-            supabase.table("communes")
-            .select("population")
-            .eq("code_insee", code_insee)
-            .single()
-            .execute()
-        )
-        if commune_result.data:
-            population = commune_result.data.get("population")
+    population = _resolve_population(supabase, code_insee, user)
 
     params = {
         "p_protection": monument.get("protection"),
@@ -285,70 +119,15 @@ def prefiltrer_aides(
 # ---------------------------------------------------------------------------
 
 
-def _fetch_aide_with_joins(supabase: Client, aide_id: str) -> dict:
-    """Fetch an aide_v2 row with its join table data."""
-    aide = (supabase.table("aides_v2").select("*").eq("id", aide_id).single().execute()).data
-
-    if not aide:
-        return {}
-
-    # Fetch join tables
-    aide["protections"] = [
-        r["protection_code"]
-        for r in (
-            supabase.table("aides_protections")
-            .select("protection_code")
-            .eq("aide_id", aide_id)
-            .execute()
-        ).data
-        or []
-    ]
-    aide["proprietaires"] = [
-        r["proprietaire_code"]
-        for r in (
-            supabase.table("aides_proprietaires")
-            .select("proprietaire_code")
-            .eq("aide_id", aide_id)
-            .execute()
-        ).data
-        or []
-    ]
-    aide["travaux"] = [
-        r["travaux_code"]
-        for r in (
-            supabase.table("aides_travaux").select("travaux_code").eq("aide_id", aide_id).execute()
-        ).data
-        or []
-    ]
-    aide["regions"] = [
-        r["region_code"]
-        for r in (
-            supabase.table("aides_regions").select("region_code").eq("aide_id", aide_id).execute()
-        ).data
-        or []
-    ]
-    aide["departements"] = [
-        r["departement_code"]
-        for r in (
-            supabase.table("aides_departements")
-            .select("departement_code")
-            .eq("aide_id", aide_id)
-            .execute()
-        ).data
-        or []
-    ]
-    aide["etats_conservation"] = [
-        r["etat_conservation_code"]
-        for r in (
-            supabase.table("aides_etats_conservation")
-            .select("etat_conservation_code")
-            .eq("aide_id", aide_id)
-            .execute()
-        ).data
-        or []
-    ]
-
-    return aide
+# table → (code column, aide_v2 dict key receiving the list of codes)
+_JOIN_TABLES = {
+    "aides_protections": ("protection_code", "protections"),
+    "aides_proprietaires": ("proprietaire_code", "proprietaires"),
+    "aides_travaux": ("travaux_code", "travaux"),
+    "aides_regions": ("region_code", "regions"),
+    "aides_departements": ("departement_code", "departements"),
+    "aides_etats_conservation": ("etat_conservation_code", "etats_conservation"),
+}
 
 
 def fetch_aides_with_joins(supabase: Client, aide_ids: list[str]) -> list[dict]:
@@ -356,30 +135,14 @@ def fetch_aides_with_joins(supabase: Client, aide_ids: list[str]) -> list[dict]:
     if not aide_ids:
         return []
 
-    # Fetch all aide rows at once
     aides_result = supabase.table("aides_v2").select("*").in_("id", aide_ids).execute()
     aides_by_id = {a["id"]: a for a in (aides_result.data or [])}
 
-    # Initialize join lists
     for aide in aides_by_id.values():
-        aide["protections"] = []
-        aide["proprietaires"] = []
-        aide["travaux"] = []
-        aide["regions"] = []
-        aide["departements"] = []
-        aide["etats_conservation"] = []
+        for _, aide_key in _JOIN_TABLES.values():
+            aide[aide_key] = []
 
-    # Batch fetch each join table
-    join_queries = {
-        "aides_protections": ("protection_code", "protections"),
-        "aides_proprietaires": ("proprietaire_code", "proprietaires"),
-        "aides_travaux": ("travaux_code", "travaux"),
-        "aides_regions": ("region_code", "regions"),
-        "aides_departements": ("departement_code", "departements"),
-        "aides_etats_conservation": ("etat_conservation_code", "etats_conservation"),
-    }
-
-    for table_name, (code_col, aide_key) in join_queries.items():
+    for table_name, (code_col, aide_key) in _JOIN_TABLES.items():
         rows = (
             supabase.table(table_name)
             .select(f"aide_id, {code_col}")
@@ -411,35 +174,33 @@ def _build_criteria_labels(
     criteres_remplis: list[str] = []
     criteres_non_remplis: list[str] = []
 
-    # Protection
-    protections = aide.get("protections") or []
-    if protections:
-        if monument.get("protection") in protections:
-            criteres_remplis.append(
-                f"Protection : {_label(PROTECTION_LABELS, monument.get('protection'))}"
-            )
+    # Simple membership checks (aide restricts to a list → check monument matches one).
+    # (aide_key, monument_field, mapping, ok_prefix, required_prefix, fallback)
+    # `fallback` is added to criteres_remplis when the aide imposes no restriction;
+    # None means stay silent (état de conservation has no "all states" message).
+    simple_checks = [
+        ("protections", "protection", PROTECTION_LABELS,
+         "Protection", "Protection requise", "Tous niveaux de protection"),
+        ("proprietaires", "proprietaire", OWNERSHIP_LABELS,
+         "Type de propriétaire", "Propriétaire éligible", "Tous types de propriétaires"),
+        ("regions", "region", REGION_LABELS,
+         "Région", "Région requise", "Toute la France"),
+        ("etats_conservation", "etat_conservation", ETAT_LABELS,
+         "État de conservation", "État requis", None),
+    ]
+    for aide_key, monument_field, mapping, ok_prefix, required_prefix, fallback in simple_checks:
+        aide_values = aide.get(aide_key) or []
+        if not aide_values:
+            if fallback:
+                criteres_remplis.append(fallback)
+            continue
+        monument_value = monument.get(monument_field)
+        if monument_value in aide_values:
+            criteres_remplis.append(f"{ok_prefix} : {_label(mapping, monument_value)}")
         else:
-            criteres_non_remplis.append(
-                f"Protection requise : {_labels(PROTECTION_LABELS, protections)}"
-            )
-    else:
-        criteres_remplis.append("Tous niveaux de protection")
+            criteres_non_remplis.append(f"{required_prefix} : {_labels(mapping, aide_values)}")
 
-    # Propriétaire
-    proprietaires = aide.get("proprietaires") or []
-    if proprietaires:
-        if monument.get("proprietaire") in proprietaires:
-            criteres_remplis.append(
-                f"Type de propriétaire : {_label(OWNERSHIP_LABELS, monument.get('proprietaire'))}"
-            )
-        else:
-            criteres_non_remplis.append(
-                f"Propriétaire éligible : {_labels(OWNERSHIP_LABELS, proprietaires)}"
-            )
-    else:
-        criteres_remplis.append("Tous types de propriétaires")
-
-    # Travaux
+    # Travaux : has its own monument-value resolution (mode_projet override).
     travaux_eligibles = aide.get("travaux") or []
     if travaux_eligibles:
         travaux_to_check = (
@@ -458,16 +219,6 @@ def _build_criteria_labels(
     else:
         criteres_remplis.append("Tous types de travaux")
 
-    # Région
-    regions = aide.get("regions") or []
-    if regions:
-        if monument.get("region") in regions:
-            criteres_remplis.append(f"Région : {_label(REGION_LABELS, monument.get('region'))}")
-        else:
-            criteres_non_remplis.append(f"Région requise : {_labels(REGION_LABELS, regions)}")
-    else:
-        criteres_remplis.append("Toute la France")
-
     # Département : compare on the numeric INSEE code (matches aides_departements.departement_code).
     # `monument["departement"]` holds the human label (e.g. "Paris") for display only.
     departements = aide.get("departements") or []
@@ -482,22 +233,13 @@ def _build_criteria_labels(
                 f"Département requis : {_labels(DEPARTEMENT_LABELS, departements)}"
             )
 
-    # Population
+    # Population : threshold comparison rather than membership.
     max_pop = aide.get("commune_max_population")
-    if max_pop is not None:
-        if user.get("segment") == "commune" and population and population <= max_pop:
+    if max_pop is not None and user.get("segment") == "commune" and population:
+        if population <= max_pop:
             criteres_remplis.append(f"Commune ≤ {max_pop:,} hab. ({population} hab.)")
-        elif user.get("segment") == "commune" and population and population > max_pop:
-            criteres_non_remplis.append(f"Réservé aux communes ≤ {max_pop:,} hab.")
-
-    # État de conservation
-    etats = aide.get("etats_conservation") or []
-    if etats:
-        etat = monument.get("etat_conservation")
-        if etat in etats:
-            criteres_remplis.append(f"État de conservation : {_label(ETAT_LABELS, etat)}")
         else:
-            criteres_non_remplis.append(f"État requis : {_labels(ETAT_LABELS, etats)}")
+            criteres_non_remplis.append(f"Réservé aux communes ≤ {max_pop:,} hab.")
 
     eligible = len(criteres_non_remplis) == 0
 
@@ -601,15 +343,11 @@ async def _llm_evaluate_eligibility(
     }
 
 
-_LLM_LOG_PATH = Path("/app/llm.txt")
-
-
 def _llm_log(aide_nom: str, evaluations: list[dict], explication_globale: str) -> None:
-    """Log per-bullet evaluations and append full record to llm.txt."""
+    """Log per-bullet evaluations via the application logger."""
     has_non = any(e.get("verdict") == "non" for e in evaluations)
     n_incertitudes = sum(1 for e in evaluations if e.get("verdict") == "incertitude")
     icon = "✗" if has_non else ("?" if n_incertitudes else "✓")
-    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
     logger.info(
         "%s %s | %d critère(s) | incertitudes=%d",
@@ -622,26 +360,6 @@ def _llm_log(aide_nom: str, evaluations: list[dict], explication_globale: str) -
     for i, e in enumerate(evaluations, 1):
         verdict = e.get("verdict", "?")
         logger.info("   %d. [%s] %s", i, verdict, e.get("critere", "")[:80])
-
-    try:
-        lines = [
-            f"\n{'=' * 70}",
-            f"[{ts}] {icon} {aide_nom}",
-            f"{'=' * 70}",
-            f"synthèse : {explication_globale}",
-        ]
-        for i, e in enumerate(evaluations, 1):
-            verdict = e.get("verdict", "?")
-            lines.append(f"  {i}. [{verdict}] {e.get('critere', '')}")
-            if e.get("explication"):
-                lines.append(f"      → {e['explication']}")
-            if e.get("categorie"):
-                lines.append(f"      catégorie : {e['categorie']}")
-
-        with open(_LLM_LOG_PATH, "a", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
-    except Exception as e:
-        logger.warning(f"Failed to write llm.txt: {e}")
 
 
 def _parse_bullets(text: str) -> list[str]:
@@ -840,60 +558,6 @@ async def _run_llm_phase(
 # ---------------------------------------------------------------------------
 
 MAX_QCM_QUESTIONS = 50
-
-
-# Closed set of allowed incertitude categories. MUST match the identifiers
-# listed in prompts/eligibility.j2 — any drift causes the LLM-emitted category
-# to be coerced to "autre", which in turn breaks the QCM ↔ incertitude matching
-# (the frontend marks an incertitude as clarified by exact category equality).
-ALLOWED_INCERTITUDE_CATEGORIES = {
-    # Procédure et antériorité
-    "non_commencement_travaux",
-    "accord_abf_prealable",
-    "convention_drac",
-    "demande_autorisation_urbanisme",
-    "delai_realisation_post_accord",
-    # Intervenants et qualifications
-    "architecte_mh_acmh",
-    "artisan_rge",
-    "qualification_specifique",
-    # Diagnostics et études
-    "diagnostic_prealable",
-    "dpe_audit_energetique",
-    "gain_energetique_minimum",
-    "etude_impact_patrimonial",
-    # Ouverture, usage et destination
-    "ouverture_public",
-    "usage_batiment",
-    "residence_principale",
-    "usage_non_lucratif",
-    "anciennete_batiment",
-    # Engagements et durée
-    "engagement_conservation",
-    "engagement_location",
-    "engagement_ouverture_public",
-    "maintien_activite",
-    # Conditions financières
-    "revenus_plafond",
-    "montant_minimum_projet",
-    "cumul_aides_plafond",
-    "cofinancement_requis",
-    "regime_fiscal",
-    # Garanties et assurances
-    "assurance_garantie",
-    # Critères sociaux et territoriaux
-    "emploi_insertion",
-    "formation_apprentissage",
-    "accessibilite_pmr_erp",
-    "territoire_specifique",
-    "impact_territorial",
-    # Innovation et partenariats
-    "innovation_saut_techno",
-    "partenariat_consortium",
-    # Autres
-    "label_certification_prealable",
-    "autre",
-}
 
 
 def _normalize_incertitude(inc: str | dict) -> dict:
@@ -1208,57 +872,32 @@ async def run_diagnostic(
     """Run a full diagnostic: SQL pre-filter → criteria check → LLM fine-matching."""
     ctx_travaux = travaux_filtres or []
 
-    logger.info("#" * 60)
-    logger.info("# DIAGNOSTIC — %s", monument.get("nom", "Monument inconnu"))
-    logger.info("#" * 60)
-    logger.info("  protection   : %s", _label(PROTECTION_LABELS, monument.get("protection")))
-    logger.info("  propriétaire : %s", _label(OWNERSHIP_LABELS, monument.get("proprietaire")))
     logger.info(
-        "  région       : %s (%s)",
-        _label(REGION_LABELS, monument.get("region")),
+        "DIAGNOSTIC %s | protection=%s proprietaire=%s region=%s dept=%s travaux=[%s] mode_projet=%s",
+        monument.get("nom", "?"),
+        monument.get("protection"),
+        monument.get("proprietaire"),
         monument.get("region"),
-    )
-    logger.info(
-        "  département  : %s (%s)",
-        monument.get("departement"),
         monument.get("departement_num"),
+        ",".join(ctx_travaux or monument.get("travaux_envisages") or []) or "—",
+        mode_projet,
     )
-    logger.info(
-        "  travaux      : %s",
-        _labels(TRAVAUX_LABELS, ctx_travaux or monument.get("travaux_envisages") or []) or "—",
-    )
-    logger.info("  mode_projet  : %s", mode_projet)
 
     # Phase 1: SQL pre-filter
-    logger.info("─" * 60)
-    logger.info("PHASE 1 — Pré-filtre SQL")
-    logger.info("─" * 60)
     candidate_ids = prefiltrer_aides(supabase, monument, user, ctx_travaux or None)
-    logger.info("→ %d aide(s) candidate(s) retenue(s) par le SQL", len(candidate_ids))
-
-    # Fetch all aides (candidates + non-candidates) for the full report
     all_aide_ids = [a["id"] for a in (supabase.table("aides_v2").select("id").execute()).data or []]
     non_candidate_ids = [aid for aid in all_aide_ids if aid not in candidate_ids]
     logger.info(
-        "→ %d aide(s) exclue(s) d'emblée sur %d total", len(non_candidate_ids), len(all_aide_ids)
+        "PHASE 1 — pré-filtre SQL : %d candidate(s) / %d exclue(s) sur %d",
+        len(candidate_ids),
+        len(non_candidate_ids),
+        len(all_aide_ids),
     )
 
     candidate_aides = fetch_aides_with_joins(supabase, candidate_ids)
     non_candidate_aides = fetch_aides_with_joins(supabase, non_candidate_ids)
 
-    # Resolve population for criteria display
-    population = None
-    code_insee = monument.get("code_insee")
-    if code_insee and user.get("segment") == "commune":
-        commune_result = (
-            supabase.table("communes")
-            .select("population")
-            .eq("code_insee", code_insee)
-            .single()
-            .execute()
-        )
-        if commune_result.data:
-            population = commune_result.data.get("population")
+    population = _resolve_population(supabase, monument.get("code_insee"), user)
 
     # Candidates from SQL are eligible — just build labels for display
     eligible_results = [
@@ -1276,38 +915,20 @@ async def run_diagnostic(
     for r in non_eligible_results:
         r["eligible"] = False
 
-    # Phase 3: LLM fine-matching on eligible candidates
-    logger.info("─" * 60)
-    logger.info(
-        "PHASE 2 — Évaluation LLM (%d aide(s) avec conditions_eligibilite_detail)",
-        len(eligible_results),
-    )
-    logger.info("─" * 60)
+    logger.info("PHASE 2 — évaluation LLM sur %d aide(s)", len(eligible_results))
     monument_profile = _build_monument_profile(monument, population)
-
-    # Write diagnostic header to llm.txt
-    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-    try:
-        with open(_LLM_LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(f"\n\n{'#' * 70}\n")
-            f.write(f"# DIAGNOSTIC [{ts}]\n")
-            f.write(f"# Monument : {monument.get('nom', '?')}\n")
-            f.write(f"{'#' * 70}\n")
-    except Exception as e:
-        logger.warning(f"Failed to write llm.txt header: {e}")
 
     still_eligible, potentially_eligible, downgraded = await _run_llm_phase(
         eligible_results, monument_profile
     )
     non_eligible_results.extend(downgraded)
 
-    logger.info("Résultats LLM :")
     for r in still_eligible:
-        logger.info("  ✓  éligible      — %s", r["aide"].get("nom_court") or r["aide"].get("nom"))
+        logger.info("  ✓ %s", r["aide"].get("nom_court") or r["aide"].get("nom"))
     for r in potentially_eligible:
-        logger.info("  ?  potentiel     — %s", r["aide"].get("nom_court") or r["aide"].get("nom"))
+        logger.info("  ? %s", r["aide"].get("nom_court") or r["aide"].get("nom"))
     for r in downgraded:
-        logger.info("  ✗  disqualifié   — %s", r["aide"].get("nom_court") or r["aide"].get("nom"))
+        logger.info("  ✗ %s", r["aide"].get("nom_court") or r["aide"].get("nom"))
 
     # Phase 4: Generate QCM questions from incertitudes (mutates llmEvaluation
     # in place: incertitudes covered by neither a question nor an explicit skip
@@ -1326,23 +947,20 @@ async def run_diagnostic(
         potentially_eligible = [
             r for r in potentially_eligible if r["aide"]["id"] not in promoted_ids
         ]
-        logger.info(
-            "→ %d aide(s) promue(s) potentially_eligible → still_eligible (auto-clarification)",
-            len(promoted),
-        )
+        logger.info("→ %d aide(s) promue(s) via auto-clarification", len(promoted))
 
     montant_total = sum(
         r["aide"].get("montant_max") or 0 for r in still_eligible if r["aide"].get("montant_max")
     )
 
-    logger.info("#" * 60)
-    logger.info("# RÉSULTAT FINAL")
-    logger.info("#   Éligibles        : %d", len(still_eligible))
-    logger.info("#   Potentiellement  : %d", len(potentially_eligible))
-    logger.info("#   Non éligibles    : %d", len(non_eligible_results))
-    if montant_total:
-        logger.info("#   Montant potentiel: %s €", f"{montant_total:,}")
-    logger.info("#" * 60)
+    logger.info(
+        "RÉSULTAT %s | éligibles=%d potentiels=%d non=%d montant=%s",
+        monument.get("nom", "?"),
+        len(still_eligible),
+        len(potentially_eligible),
+        len(non_eligible_results),
+        f"{montant_total:,} €" if montant_total else "—",
+    )
 
     return {
         "monumentId": monument["id"],

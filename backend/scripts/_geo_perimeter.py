@@ -22,7 +22,7 @@ from pathlib import Path
 
 # Reuse the canonical label tables defined for the matching engine
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from matching_engine import DEPARTEMENT_LABELS, REGION_LABELS  # noqa: E402
+from labels import DEPARTEMENT_LABELS, REGION_LABELS  # noqa: E402
 
 # Inverse maps: label → code
 _DEPARTEMENT_LABEL_TO_CODE = {label: code for code, label in DEPARTEMENT_LABELS.items()}
