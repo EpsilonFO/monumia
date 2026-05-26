@@ -179,14 +179,31 @@ def _build_criteria_labels(
     # `fallback` is added to criteres_remplis when the aide imposes no restriction;
     # None means stay silent (état de conservation has no "all states" message).
     simple_checks = [
-        ("protections", "protection", PROTECTION_LABELS,
-         "Protection", "Protection requise", "Tous niveaux de protection"),
-        ("proprietaires", "proprietaire", OWNERSHIP_LABELS,
-         "Type de propriétaire", "Propriétaire éligible", "Tous types de propriétaires"),
-        ("regions", "region", REGION_LABELS,
-         "Région", "Région requise", "Toute la France"),
-        ("etats_conservation", "etat_conservation", ETAT_LABELS,
-         "État de conservation", "État requis", None),
+        (
+            "protections",
+            "protection",
+            PROTECTION_LABELS,
+            "Protection",
+            "Protection requise",
+            "Tous niveaux de protection",
+        ),
+        (
+            "proprietaires",
+            "proprietaire",
+            OWNERSHIP_LABELS,
+            "Type de propriétaire",
+            "Propriétaire éligible",
+            "Tous types de propriétaires",
+        ),
+        ("regions", "region", REGION_LABELS, "Région", "Région requise", "Toute la France"),
+        (
+            "etats_conservation",
+            "etat_conservation",
+            ETAT_LABELS,
+            "État de conservation",
+            "État requis",
+            None,
+        ),
     ]
     for aide_key, monument_field, mapping, ok_prefix, required_prefix, fallback in simple_checks:
         aide_values = aide.get(aide_key) or []
