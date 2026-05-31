@@ -94,17 +94,18 @@ Pour chaque evaluation a verdict "incertitude" UNIQUEMENT, ajoute un champ "cate
 - "autre" : condition n'entrant dans aucune categorie ci-dessus
 
 FORMAT DE REPONSE :
-Reponds en JSON strict avec exactement {{ bullets|length }} elements dans "evaluations", dans le meme ordre que les criteres ci-dessus. Les chevrons sont des placeholders, pas du contenu litteral :
+Reponds en JSON strict avec exactement {{ bullets|length }} elements dans "evaluations". Chaque element DOIT inclure son "bullet_index" (le numero 1-based du critere correspondant). Les chevrons sont des placeholders, pas du contenu litteral :
 {
   "explication_globale": "<1-2 phrases de synthese sur l'eligibilite globale de l'aide pour ce monument>",
   "evaluations": [
-    {"verdict": "<oui|non|incertitude>", "explication": "<1 phrase justifiant ce verdict, ancree dans le texte du critere et le profil>"},
-    {"verdict": "<oui|non|incertitude>", "explication": "<1 phrase>", "categorie": "<un des 34 identifiants — UNIQUEMENT si verdict=incertitude>"}
+    {"bullet_index": 1, "verdict": "<oui|non|incertitude>", "explication": "<1 phrase justifiant ce verdict, ancree dans le texte du critere et le profil>"},
+    {"bullet_index": 2, "verdict": "<oui|non|incertitude>", "explication": "<1 phrase>", "categorie": "<un des 34 identifiants — UNIQUEMENT si verdict=incertitude>"}
   ]
 }
 
 REGLES STRICTES DE FORMAT :
-1. Le tableau "evaluations" DOIT contenir exactement {{ bullets|length }} elements, un par critere, dans l'ordre.
-2. Le champ "categorie" est present UNIQUEMENT pour les evaluations a verdict "incertitude".
-3. La valeur du champ "categorie" DOIT etre exactement l'un des 34 identifiants ci-dessus. Si tu n'es pas sur, utilise "autre".
-4. Le champ "explication" reste court (1 phrase) et reformule pourquoi tu attribues ce verdict en t'appuyant sur le texte du critere et le profil.
+1. Le tableau "evaluations" DOIT contenir exactement {{ bullets|length }} elements, un par critere.
+2. Chaque element DOIT inclure son "bullet_index" (entier 1-based) pointant vers le critere qu'il evalue. Les bullet_index couvrent l'ensemble {1, ..., {{ bullets|length }}} sans doublon ni omission.
+3. Le champ "categorie" est present UNIQUEMENT pour les evaluations a verdict "incertitude".
+4. La valeur du champ "categorie" DOIT etre exactement l'un des 34 identifiants ci-dessus. Si tu n'es pas sur, utilise "autre".
+5. Le champ "explication" reste court (1 phrase) et reformule pourquoi tu attribues ce verdict en t'appuyant sur le texte du critere et le profil.

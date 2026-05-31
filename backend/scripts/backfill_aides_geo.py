@@ -1,23 +1,25 @@
 """
-Backfill `aides_departements` and `aides_regions` for aides ingested from
-aides-territoires.beta.gouv.fr that are missing their geo constraints.
+Backfill the `departements` / `regions` array columns on aides_v2 for aides
+ingested from aides-territoires.beta.gouv.fr that are missing their geo
+constraints.
 
 This is a one-shot data fix complementing the change in sync_aides_territoires.py:
 historical aids inserted before the sync script handled perimeters end up as
-"national" aids (no row in either join table) and surface for every monument.
+"national" aids (both arrays empty) and surface for every monument.
 
 Strategy per aide:
   1. Re-fetch the API payload by `source_at_slug` → use `perimeter_scale` /
      `perimeter_code` / `perimeter` / `region` (authoritative).
   2. If that yields nothing, parse the `organisme` string.
-  3. Skip aids that already have rows (don't overwrite curated seeds).
+  3. Skip aids that already have geo arrays populated (don't overwrite curated seeds).
 
 Usage:
     cd backend && uv run python3 scripts/backfill_aides_geo.py [--dry-run] [--all]
 
   --dry-run : print actions without writing
   --all     : re-process every aid_v2 with a source_at_slug (re-syncs even if
-              join rows already exist). Default: only process orphan aids.
+              the geo arrays are already populated). Default: only process
+              orphan aids (both arrays empty).
 """
 
 import argparse
@@ -80,7 +82,7 @@ def list_target_aides(process_all: bool) -> list[dict]:
     """Return aides_v2 rows to process (orphans by default, or everything with --all)."""
     rows = (
         supabase.table("aides_v2")
-        .select("id, nom_court, organisme, source_at_slug")
+        .select("id, nom_court, organisme, source_at_slug, departements, regions")
         .not_.is_("source_at_slug", "null")
         .execute()
         .data
@@ -89,35 +91,16 @@ def list_target_aides(process_all: bool) -> list[dict]:
     if process_all:
         return rows
 
-    # Filter: keep only aides that have neither a department nor a region row
-    # We do two batched lookups to avoid N+1 queries.
-    ids = [r["id"] for r in rows]
-    if not ids:
-        return []
-    deps_rows = (
-        supabase.table("aides_departements").select("aide_id").in_("aide_id", ids).execute().data
-        or []
-    )
-    regs_rows = (
-        supabase.table("aides_regions").select("aide_id").in_("aide_id", ids).execute().data or []
-    )
-    has_geo = {r["aide_id"] for r in deps_rows} | {r["aide_id"] for r in regs_rows}
-    return [r for r in rows if r["id"] not in has_geo]
+    # Orphans = both geo arrays empty / null.
+    return [r for r in rows if not (r.get("departements") or r.get("regions"))]
 
 
 def replace_geo(aide_id: str, depts: list[str], regions: list[str], dry_run: bool) -> None:
     if dry_run:
         return
-    supabase.table("aides_departements").delete().eq("aide_id", aide_id).execute()
-    supabase.table("aides_regions").delete().eq("aide_id", aide_id).execute()
-    if depts:
-        supabase.table("aides_departements").insert(
-            [{"aide_id": aide_id, "departement_code": c} for c in depts]
-        ).execute()
-    if regions:
-        supabase.table("aides_regions").insert(
-            [{"aide_id": aide_id, "region_code": c} for c in regions]
-        ).execute()
+    supabase.table("aides_v2").update(
+        {"departements": depts or [], "regions": regions or []}
+    ).eq("id", aide_id).execute()
 
 
 def main() -> None:

@@ -78,8 +78,8 @@ REGION_LABELS = {
 }
 
 # INSEE department codes → libellé. Used to humanise filter labels;
-# `aides_departements.departement_code` and `communes.departement_num`
-# both store the code form (e.g. "75", "2A", "971").
+# `aides_v2.departements` and `communes.departement_num` both store the
+# code form (e.g. "75", "2A", "971").
 DEPARTEMENT_LABELS = {
     "01": "Ain",
     "02": "Aisne",

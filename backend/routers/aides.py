@@ -262,10 +262,12 @@ def list_diagnostics(
     aides_list = fetch_aides_with_joins(supabase, list(all_aide_ids))
     aides_by_id = {a["id"]: a for a in aides_list}
 
-    # Resolve population once
+    # Resolve population once. Applied to any monument with a code_insee —
+    # population-capped aides exclude propriétaires privés in oversized communes
+    # too, so the segment of the requesting user is irrelevant here.
     population = None
     code_insee = monument.get("code_insee") if monument else None
-    if code_insee and user and user.get("segment") == "commune":
+    if code_insee:
         commune_result = (
             supabase.table("communes")
             .select("population")

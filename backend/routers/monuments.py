@@ -195,8 +195,8 @@ def _enrich_monument(supabase: Client, monument: dict) -> dict:
     """Join commune data (commune, departement, region) via code_insee.
 
     `region` is stored as the kebab-case code (e.g. "ile-de-france") so it
-    matches both `aides_regions.region_code` (used by the SQL pre-filter) and
-    the frontend `Region` type. The INSEE display label (e.g. "Île-de-France")
+    matches both `aides_v2.regions` (used by the SQL pre-filter) and the
+    frontend `Region` type. The INSEE display label (e.g. "Île-de-France")
     is exposed separately as `region_label`.
     """
     code_insee = monument.get("code_insee")

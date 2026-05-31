@@ -13,7 +13,9 @@ import logging
 import os
 from datetime import datetime
 
+import httpx
 from mistralai.client import Mistral
+from mistralai.client.errors import MistralError
 from supabase import Client
 
 from labels import (
@@ -30,6 +32,93 @@ from prompts.matching import render_prompt_eligibility, render_prompt_qcm
 logger = logging.getLogger(__name__)
 
 
+# Concurrency cap for outbound Mistral calls. We routinely fan out one call
+# per candidate aide (often 30–80 aides), and two simultaneous diagnostics
+# would double that. The semaphore is process-wide and shared between the
+# eligibility (Phase 3) calls — the QCM call is a single request and not
+# affected. 8 was picked as a compromise: high enough to keep p95 latency
+# from blowing up, low enough to stay well below Mistral's tier rate limit
+# and to avoid 429s under burst.
+def _env_int(name: str, default: int) -> int:
+    """Read an int env var, falling back to `default` if unset or non-numeric.
+
+    Avoids a hard crash at import time when the operator typos the value
+    (e.g. MISTRAL_MAX_CONCURRENCY=abc) — we log and keep the default instead.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("[CONFIG] %s=%r non numérique — valeur par défaut %d", name, raw, default)
+        return default
+
+
+_LLM_MAX_CONCURRENCY = _env_int("MISTRAL_MAX_CONCURRENCY", 8)
+_llm_semaphore: asyncio.Semaphore | None = None
+_mistral_client: Mistral | None = None
+
+
+def _get_llm_semaphore() -> asyncio.Semaphore:
+    """Lazy semaphore creation bound to the active event loop."""
+    global _llm_semaphore
+    if _llm_semaphore is None:
+        _llm_semaphore = asyncio.Semaphore(_LLM_MAX_CONCURRENCY)
+    return _llm_semaphore
+
+
+def _get_mistral_client(api_key: str) -> Mistral:
+    """Return a process-wide Mistral client, created on first use.
+
+    The client is cheap to reuse but not free to build — fanning out one
+    eligibility call per candidate aide (30–80 in a gather) would otherwise
+    spin up that many short-lived clients per diagnostic.
+    """
+    global _mistral_client
+    if _mistral_client is None:
+        _mistral_client = Mistral(api_key=api_key)
+    return _mistral_client
+
+
+# Per-call timeout for the eligibility (Phase 3) LLM call. Without it, a hung
+# TCP connection would block the aide for the full retry/backoff window and
+# stall the whole diagnostic — Phase 4 already has this guard, Phase 3 didn't.
+_ELIGIBILITY_TIMEOUT_S = 60
+
+
+def _is_permanent_mistral_error(exc: Exception) -> bool:
+    """True if a Mistral SDK error indicates a non-retriable condition.
+
+    Retriable: 429 (rate-limited) and 5xx (server-side hiccup).
+    Permanent: 4xx other than 429 — authentication (401/403), malformed
+    request (400), not-found (404), payload too large (413), etc. Retrying
+    these just wastes 6+ seconds of backoff before failing the same way.
+    """
+    if not isinstance(exc, MistralError):
+        return False
+    status = getattr(exc, "status_code", None)
+    if not isinstance(status, int):
+        return False
+    return 400 <= status < 500 and status != 429
+
+
+def _is_transient_network_error(exc: Exception) -> bool:
+    """True if the error looks like a transient I/O failure worth retrying."""
+    return isinstance(
+        exc,
+        (
+            TimeoutError,
+            asyncio.TimeoutError,
+            httpx.TimeoutException,
+            httpx.ConnectError,
+            httpx.ReadError,
+            httpx.RemoteProtocolError,
+            ConnectionError,
+        ),
+    )
+
+
 def _label(mapping: dict, value: str | None) -> str:
     if value is None:
         return ""
@@ -40,9 +129,15 @@ def _labels(mapping: dict, values: list) -> str:
     return ", ".join(_label(mapping, v) for v in values)
 
 
-def _resolve_population(supabase: Client, code_insee: str | None, user: dict) -> int | None:
-    """Return the commune's population if the user is a commune, else None."""
-    if not code_insee or user.get("segment") != "commune":
+def _resolve_population(supabase: Client, code_insee: str | None) -> int | None:
+    """Return the commune's population if we know its INSEE code.
+
+    Resolved unconditionally — the SQL pre-filter applies `commune_max_population`
+    to any aide that sets it, regardless of the requesting user's segment. A
+    propriétaire privé in a 200k-hab commune must still be excluded from a
+    "communes ≤ 5000 hab." aide.
+    """
+    if not code_insee:
         return None
     result = (
         supabase.table("communes")
@@ -64,8 +159,13 @@ def prefiltrer_aides(
     monument: dict,
     user: dict,
     travaux_filtres: list[str] | None = None,
-) -> list[str]:
-    """Call the prefiltrer_aides SQL function and return matching aide UUIDs."""
+) -> tuple[list[str], int | None]:
+    """Call the prefiltrer_aides SQL function.
+
+    Returns `(matching aide UUIDs, resolved commune population)`. The population
+    is resolved here (against the fallback-resolved `code_insee`) and handed back
+    so the caller can reuse it for labels/profile without a second lookup.
+    """
     travaux = travaux_filtres or monument.get("travaux_envisages") or []
 
     # Resolve code_insee: fallback from commune name if empty
@@ -93,7 +193,7 @@ def prefiltrer_aides(
         else:
             departement_code = code_insee[:2]
 
-    population = _resolve_population(supabase, code_insee, user)
+    population = _resolve_population(supabase, code_insee)
 
     params = {
         "p_protection": monument.get("protection"),
@@ -111,7 +211,7 @@ def prefiltrer_aides(
 
     result = supabase.rpc("prefiltrer_aides", params).execute()
 
-    return [row["aide_id"] for row in (result.data or [])]
+    return [row["aide_id"] for row in (result.data or [])], population
 
 
 # ---------------------------------------------------------------------------
@@ -119,42 +219,33 @@ def prefiltrer_aides(
 # ---------------------------------------------------------------------------
 
 
-# table → (code column, aide_v2 dict key receiving the list of codes)
-_JOIN_TABLES = {
-    "aides_protections": ("protection_code", "protections"),
-    "aides_proprietaires": ("proprietaire_code", "proprietaires"),
-    "aides_travaux": ("travaux_code", "travaux"),
-    "aides_regions": ("region_code", "regions"),
-    "aides_departements": ("departement_code", "departements"),
-    "aides_etats_conservation": ("etat_conservation_code", "etats_conservation"),
-}
+# Criteria arrays live directly on aides_v2 since the join tables were folded in.
+# Kept as a constant so callers can still iterate (e.g. to zero-out missing keys).
+_CRITERIA_ARRAY_KEYS = (
+    "protections",
+    "proprietaires",
+    "travaux",
+    "regions",
+    "departements",
+    "etats_conservation",
+)
 
 
 def fetch_aides_with_joins(supabase: Client, aide_ids: list[str]) -> list[dict]:
-    """Fetch multiple aides with their join data. Batch queries per join table."""
+    """Fetch aides by id. Criteria arrays are columns on aides_v2 — no extra joins."""
     if not aide_ids:
         return []
 
     aides_result = supabase.table("aides_v2").select("*").in_("id", aide_ids).execute()
-    aides_by_id = {a["id"]: a for a in (aides_result.data or [])}
+    aides = aides_result.data or []
 
-    for aide in aides_by_id.values():
-        for _, aide_key in _JOIN_TABLES.values():
-            aide[aide_key] = []
+    # Guarantee list-typed keys even on rows where the array column came back null.
+    for aide in aides:
+        for key in _CRITERIA_ARRAY_KEYS:
+            if aide.get(key) is None:
+                aide[key] = []
 
-    for table_name, (code_col, aide_key) in _JOIN_TABLES.items():
-        rows = (
-            supabase.table(table_name)
-            .select(f"aide_id, {code_col}")
-            .in_("aide_id", aide_ids)
-            .execute()
-        ).data or []
-        for row in rows:
-            aid = aides_by_id.get(row["aide_id"])
-            if aid:
-                aid[aide_key].append(row[code_col])
-
-    return list(aides_by_id.values())
+    return aides
 
 
 def _build_criteria_labels(
@@ -251,21 +342,26 @@ def _build_criteria_labels(
             )
 
     # Population : threshold comparison rather than membership.
+    # Applied regardless of user.segment — the SQL filter does the same.
     max_pop = aide.get("commune_max_population")
-    if max_pop is not None and user.get("segment") == "commune" and population:
+    if max_pop is not None and population:
         if population <= max_pop:
             criteres_remplis.append(f"Commune ≤ {max_pop:,} hab. ({population} hab.)")
         else:
             criteres_non_remplis.append(f"Réservé aux communes ≤ {max_pop:,} hab.")
 
-    eligible = len(criteres_non_remplis) == 0
-
+    # `eligible` is intentionally NOT set here — it is the SQL pre-filter's job
+    # to decide. The caller (run_diagnostic) overrides this field based on
+    # whether the aide came back from prefiltrer_aides(). Computing it here
+    # would create two sources of truth that can silently diverge.
+    # `raisonIneligibilite` is offered as a display hint for non-candidates;
+    # the caller decides whether to surface it (it's meaningless for an aide
+    # the SQL filter accepted).
     return {
         "aide": aide,
-        "eligible": eligible,
         "criteresRemplis": criteres_remplis,
         "criteresNonRemplis": criteres_non_remplis,
-        "raisonIneligibilite": criteres_non_remplis[0] if not eligible else None,
+        "raisonIneligibilite": criteres_non_remplis[0] if criteres_non_remplis else None,
     }
 
 
@@ -316,6 +412,19 @@ async def _llm_evaluate_eligibility(
     Returns {"explication_globale": str, "evaluations": list[dict]}.
     On error/missing key, returns empty evaluations — callers treat that as
     "no LLM input" and keep the aide eligible without QCM questions.
+
+    Error handling:
+      - Per-call timeout (_ELIGIBILITY_TIMEOUT_S) so a hung connection doesn't
+        block the whole diagnostic.
+      - Transient errors (5xx, 429, timeout, connection reset) → retried with
+        exponential backoff up to 3 attempts.
+      - Permanent errors (4xx other than 429: bad key, malformed prompt) →
+        failed fast on attempt 1; retrying wastes time and pollutes logs.
+      - JSON decode errors → one repair attempt that re-injects the broken
+        output and asks the model to return valid JSON. If repair fails,
+        give up (further attempts converge on the same broken output).
+      - Outbound concurrency is bounded by `_llm_semaphore` to avoid 429s
+        when a diagnostic fans out across dozens of aides.
     """
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
@@ -325,35 +434,108 @@ async def _llm_evaluate_eligibility(
             "evaluations": [],
         }
 
-    client = Mistral(api_key=api_key)
+    client = _get_mistral_client(api_key)
+    semaphore = _get_llm_semaphore()
+
+    async def _call(repair_with: str | None = None) -> str:
+        """One round-trip to Mistral; if `repair_with` is set, ask for a JSON fix."""
+        messages: list[dict] = [{"role": "user", "content": prompt}]
+        if repair_with is not None:
+            messages.append({"role": "assistant", "content": repair_with})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Ta réponse précédente n'est pas un JSON valide. "
+                        "Renvoie exactement la même évaluation, mais en JSON strict, "
+                        "sans aucun texte hors du bloc JSON."
+                    ),
+                }
+            )
+        async with semaphore:
+            response = await asyncio.wait_for(
+                client.chat.complete_async(
+                    model="mistral-medium-latest",
+                    messages=messages,
+                    response_format={"type": "json_object"},
+                    temperature=0,
+                ),
+                timeout=_ELIGIBILITY_TIMEOUT_S,
+            )
+        return response.choices[0].message.content
 
     logger.info("[LLM] Appel Mistral pour « %s »...", aide_nom)
-    last_error = None
+    last_error: Exception | None = None
+    broken_content: str | None = None
+    json_repair_used = False
+    content: str | None = None
+
     for attempt in range(3):
         try:
-            response = await client.chat.complete_async(
-                model="mistral-medium-latest",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-                temperature=0,
-            )
-            choice = response.choices[0]
-            content = choice.message.content
-            result = json.loads(content)
-            return result
-        except Exception as e:
+            content = await _call(repair_with=broken_content if json_repair_used else None)
+            return json.loads(content)
+
+        except json.JSONDecodeError as e:
             last_error = e
+            if not json_repair_used:
+                json_repair_used = True
+                broken_content = content
+                logger.warning(
+                    "[LLM] JSON invalide pour « %s » — tentative de réparation",
+                    aide_nom,
+                )
+                continue  # immediate repair retry, no backoff
+            logger.error(
+                "[LLM] JSON invalide même après réparation pour « %s » — abandon",
+                aide_nom,
+            )
+            break
+
+        except MistralError as e:
+            last_error = e
+            if _is_permanent_mistral_error(e):
+                logger.error(
+                    "[LLM] Erreur permanente Mistral pour « %s » (HTTP %s) — pas de retry",
+                    aide_nom,
+                    getattr(e, "status_code", "?"),
+                )
+                break
             if attempt < 2:
                 wait = 2**attempt
                 logger.warning(
-                    "[LLM] Tentative %d/3 échouée pour « %s » (%s), retry dans %ds",
+                    "[LLM] Tentative %d/3 échouée pour « %s » (HTTP %s), retry dans %ds",
+                    attempt + 1,
+                    aide_nom,
+                    getattr(e, "status_code", "?"),
+                    wait,
+                )
+                await asyncio.sleep(wait)
+
+        except Exception as e:
+            last_error = e
+            if not _is_transient_network_error(e):
+                # Unknown error class — log loudly and stop retrying. Better to
+                # surface an LLM-down banner than to mask a programmer bug
+                # (e.g. AttributeError) behind 3× backoff.
+                logger.error(
+                    "[LLM] Erreur non-transitoire pour « %s » (%s: %s) — pas de retry",
+                    aide_nom,
+                    type(e).__name__,
+                    e,
+                )
+                break
+            if attempt < 2:
+                wait = 2**attempt
+                logger.warning(
+                    "[LLM] Tentative %d/3 réseau pour « %s » (%s), retry dans %ds",
                     attempt + 1,
                     aide_nom,
                     e,
                     wait,
                 )
                 await asyncio.sleep(wait)
-    logger.error(f"LLM evaluation failed for aide '{aide_nom}' after 3 attempts: {last_error}")
+
+    logger.error("LLM evaluation failed for aide '%s': %s", aide_nom, last_error)
     return {
         "explication_globale": f"Erreur LLM : {last_error}",
         "evaluations": [],
@@ -379,6 +561,29 @@ def _llm_log(aide_nom: str, evaluations: list[dict], explication_globale: str) -
         logger.info("   %d. [%s] %s", i, verdict, e.get("critere", "")[:80])
 
 
+def _is_blockquote_line(line: str) -> bool:
+    """True if `line` is a markdown blockquote marker (>) and not inline text.
+
+    Matches `>` followed by whitespace or end-of-line — the markdown convention.
+    Rejects inline uses like "Surface > 50 m²" which would otherwise be mistaken
+    for a bullet and silently shift every downstream alignment.
+    """
+    stripped = line.lstrip()
+    if not stripped.startswith(">"):
+        return False
+    rest = stripped[1:]
+    return rest == "" or rest[0] in (" ", "\t")
+
+
+def _is_dash_bullet_line(line: str) -> bool:
+    """True if `line` starts with `- ` (or just `-` alone)."""
+    stripped = line.lstrip()
+    if not stripped.startswith("-"):
+        return False
+    rest = stripped[1:]
+    return rest == "" or rest[0] in (" ", "\t")
+
+
 def _parse_bullets(text: str) -> list[str]:
     """Split a conditions_eligibilite_detail string into a list of bullets.
 
@@ -394,12 +599,12 @@ def _parse_bullets(text: str) -> list[str]:
 
     # New format: '>'-prefixed bullets. Consecutive '>' lines (or a single
     # blank line between two '>' blocks) merge into one bullet.
-    if any(line.lstrip().startswith(">") for line in lines):
+    if any(_is_blockquote_line(line) for line in lines):
         bullets: list[str] = []
         current: list[str] = []
         for raw in lines:
-            stripped = raw.lstrip()
-            if stripped.startswith(">"):
+            if _is_blockquote_line(raw):
+                stripped = raw.lstrip()
                 current.append(stripped[1:].strip())
             else:
                 if current:
@@ -414,8 +619,8 @@ def _parse_bullets(text: str) -> list[str]:
         return bullets
 
     # Legacy format: '-'-prefixed lines (each line is its own bullet).
-    if any(line.lstrip().startswith("-") for line in lines):
-        return [line.lstrip()[1:].strip() for line in lines if line.lstrip().startswith("-")]
+    if any(_is_dash_bullet_line(line) for line in lines):
+        return [line.lstrip()[1:].strip() for line in lines if _is_dash_bullet_line(line)]
 
     # Fallback: split on blank lines.
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
@@ -425,8 +630,43 @@ def _parse_bullets(text: str) -> list[str]:
     return [text.strip()]
 
 
+def _index_evaluations_by_bullet(raw_list: list) -> dict[int, dict]:
+    """Build a {bullet_index → eval dict} map from the LLM's raw output.
+
+    Aligning by an explicit 1-based `bullet_index` (rather than by position in
+    the array) is the only way to detect silent omissions: if the LLM skips
+    bullet #3 and only emits N-1 evaluations, positional zip() would attribute
+    eval #4's verdict to bullet #3 and shift everything downstream. With an
+    explicit index, the missing bullet falls through to the fail-closed
+    `incertitude` branch.
+
+    - Invalid / non-integer indices are ignored.
+    - Out-of-range indices are ignored (logged).
+    - Duplicate indices: the first wins (logged).
+    """
+    by_index: dict[int, dict] = {}
+    for raw_eval in raw_list:
+        if not isinstance(raw_eval, dict):
+            continue
+        idx = raw_eval.get("bullet_index")
+        if not isinstance(idx, int) or idx < 1:
+            continue
+        if idx in by_index:
+            logger.warning("[LLM] bullet_index %d en doublon — première occurrence conservée", idx)
+            continue
+        by_index[idx] = raw_eval
+    return by_index
+
+
 def _normalize_evaluations(raw: list, bullets: list[str]) -> list[dict]:
     """Align LLM evaluations to the source bullets and coerce invalid values.
+
+    Alignment strategy:
+      1. Primary: use `bullet_index` (1-based) when the LLM emits it — robust
+         to omissions, reorderings, and partial responses.
+      2. Fallback: if NONE of the LLM evaluations carry a usable bullet_index
+         (e.g. older prompt/model), fall back to positional alignment. This
+         keeps the engine working through a prompt-template transition.
 
     Fail-closed policy: any bullet for which we can't extract a valid verdict
     (LLM returned nothing, returned an unknown value, or returned malformed
@@ -443,22 +683,32 @@ def _normalize_evaluations(raw: list, bullets: list[str]) -> list[dict]:
     out: list[dict] = []
     raw_list = list(raw) if isinstance(raw, list) else []
 
+    by_index = _index_evaluations_by_bullet(raw_list)
+    use_index_alignment = bool(by_index)
+    if not use_index_alignment and raw_list:
+        logger.warning("[LLM] Aucun bullet_index dans la réponse — fallback alignement positionnel")
+
     for i, bullet in enumerate(bullets):
-        has_eval = i < len(raw_list) and isinstance(raw_list[i], dict)
-        raw_eval = raw_list[i] if has_eval else {}
+        bullet_idx = i + 1  # 1-based
+        if use_index_alignment:
+            raw_eval = by_index.get(bullet_idx, {})
+            has_eval = bool(raw_eval)
+        else:
+            has_eval = i < len(raw_list) and isinstance(raw_list[i], dict)
+            raw_eval = raw_list[i] if has_eval else {}
 
         verdict = str(raw_eval.get("verdict") or "").strip().lower()
         if verdict not in {"oui", "non", "incertitude"}:
             if not has_eval:
                 logger.warning(
                     "[LLM] Évaluation manquante pour le critère #%d — fail-closed en « incertitude »",
-                    i + 1,
+                    bullet_idx,
                 )
             else:
                 logger.warning(
                     "[LLM] Verdict invalide « %s » sur le critère #%d — fail-closed en « incertitude »",
                     verdict or "(vide)",
-                    i + 1,
+                    bullet_idx,
                 )
             verdict = "incertitude"
 
@@ -484,7 +734,18 @@ def _normalize_evaluations(raw: list, bullets: list[str]) -> list[dict]:
 
         out.append(evaluation)
 
-    if len(raw_list) > len(bullets):
+    # Hallucinations: indices out of range when aligning by index, or extras
+    # past the bullet count when aligning positionally.
+    if use_index_alignment:
+        out_of_range = [idx for idx in by_index if idx > len(bullets)]
+        if out_of_range:
+            logger.warning(
+                "[LLM] %d bullet_index hors plage [1..%d] — ignorés : %s",
+                len(out_of_range),
+                len(bullets),
+                sorted(out_of_range),
+            )
+    elif len(raw_list) > len(bullets):
         logger.warning(
             "[LLM] %d évaluation(s) hallucinée(s) au-delà de %d critère(s) — droppées",
             len(raw_list) - len(bullets),
@@ -637,22 +898,29 @@ def _aggregate_incertitudes(eligible_results: list[dict]) -> list[dict]:
             src["aide_ids"].add(aide_id)
 
     # Sort categories by nb of aides impacted (most first).
-    # Per category, keep the 3 most-impactful unique sources to bound payload size.
+    # Per category, keep the most-impactful unique sources to bound payload size
+    # while still surfacing enough distinct thresholds for the LLM to build a
+    # correct eliminationsParOption mapping (cap raised from 3 to 8 because
+    # under-cap source variety silently strips aides from the per-option map).
     aggregated = []
     for cat, data in sorted(groups.items(), key=lambda x: len(x[1]["aideIds"]), reverse=True):
         sources_sorted = sorted(
             data["sources_by_key"].items(),
             key=lambda item: len(item[1]["aide_ids"]),
             reverse=True,
-        )[:3]
+        )[:8]
         sources = [
             {
                 # critere is the verbatim source of truth — cap large but generously.
                 "critere": (critere or "")[:1000],
                 # detail is the LLM paraphrase, kept short.
                 "detail": (detail or "")[:200],
-                # List a handful of impacted aides so the LLM has context.
+                # Sample of aide names for LLM context (display only).
                 "aides": sorted(src["aide_noms"])[:5],
+                # Full list of aide IDs sharing this critere — feeds eliminationsParOption.
+                # Required so the LLM can map each aide to the option(s) that eliminate
+                # it based on this source's threshold (instead of guessing).
+                "aideIds": sorted(src["aide_ids"]),
             }
             for (critere, detail), src in sources_sorted
         ]
@@ -669,7 +937,13 @@ def _aggregate_incertitudes(eligible_results: list[dict]) -> list[dict]:
 
 
 def _compact_for_llm(aggregated: list[dict]) -> list[dict]:
-    """Strip aideIds before sending to LLM — we remap them back post-response via categorie."""
+    """Drop the category-level aideIds before sending to the LLM.
+
+    Only the top-level `aideIds` list is removed — we remap questions back to
+    aides via `categorie` post-response, so the LLM never needs it. The
+    per-source aideIds inside `sources` are kept on purpose: §3.1 relies on them
+    for fine-grained, per-condition elimination (eliminationsParOption).
+    """
     return [
         {"categorie": g["categorie"], "nbAides": g["nbAides"], "sources": g["sources"]}
         for g in aggregated
@@ -750,9 +1024,10 @@ async def generate_qcm_questions(
         logger.warning("MISTRAL_API_KEY not set, skipping QCM generation")
         return []
 
-    client = Mistral(api_key=api_key)
+    client = _get_mistral_client(api_key)
 
-    # Build a compact payload (no aideIds) for the LLM — we remap them from categorie after.
+    # Build a compact payload (no category-level aideIds) for the LLM — we remap
+    # questions back to aides from categorie after.
     compact_payload = _compact_for_llm(aggregated)
     aide_ids_by_category = {g["categorie"]: g["aideIds"] for g in aggregated}
 
@@ -764,20 +1039,41 @@ async def generate_qcm_questions(
     logger.info("[QCM] Prompt construit (%d caractères), appel Mistral...", len(prompt))
 
     QCM_TIMEOUT_S = 90
+
+    async def _call(repair_with: str | None = None) -> str:
+        """One round-trip to Mistral; if `repair_with` is set, ask for a JSON fix."""
+        messages: list[dict] = [{"role": "user", "content": prompt}]
+        if repair_with is not None:
+            messages.append({"role": "assistant", "content": repair_with})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Ta réponse précédente n'est pas un JSON valide. "
+                        "Renvoie exactement les mêmes questions, mais en JSON strict, "
+                        "sans aucun texte hors du bloc JSON."
+                    ),
+                }
+            )
+        response = await asyncio.wait_for(
+            client.chat.complete_async(
+                model="mistral-large-latest",
+                messages=messages,
+                response_format={"type": "json_object"},
+                temperature=0,
+            ),
+            timeout=QCM_TIMEOUT_S,
+        )
+        return response.choices[0].message.content
+
     last_error = None
+    json_repair_used = False
+    broken_content: str | None = None
+    content: str | None = None
     for attempt in range(3):
         try:
             logger.info("[QCM] Tentative %d/3 (timeout %ds)...", attempt + 1, QCM_TIMEOUT_S)
-            response = await asyncio.wait_for(
-                client.chat.complete_async(
-                    model="mistral-large-latest",
-                    messages=[{"role": "user", "content": prompt}],
-                    response_format={"type": "json_object"},
-                    temperature=0,
-                ),
-                timeout=QCM_TIMEOUT_S,
-            )
-            content = response.choices[0].message.content
+            content = await _call(repair_with=broken_content if json_repair_used else None)
             logger.info("[QCM] Réponse reçue (%d caractères)", len(content or ""))
             parsed = json.loads(content)
             raw_questions = parsed.get("questions", [])
@@ -804,11 +1100,74 @@ async def generate_qcm_questions(
                     logger.warning("[QCM] Question malformée ignorée: %s", q)
                     continue
                 q["aideIds"] = mapped_ids
-                q.setdefault("eliminatingOptionIds", [])
-                if "eliminationsParOption" in q and not isinstance(
-                    q["eliminationsParOption"], dict
-                ):
-                    q["eliminationsParOption"] = {}
+                valid_ids = set(mapped_ids)
+                option_ids = {o.get("id") for o in options if isinstance(o, dict) and o.get("id")}
+
+                # Sanitize fine-grained eliminationsParOption: keep only known
+                # options and aide IDs from this category's pool. The LLM has
+                # the (critere, aideIds) pairs in its payload, so any aide ID
+                # outside the pool is a hallucination — drop it rather than
+                # eliminate aides based on guessed IDs.
+                raw_elim = q.get("eliminationsParOption")
+                clean_elim: dict[str, list[str]] = {}
+                if isinstance(raw_elim, dict):
+                    for opt_id, aide_list in raw_elim.items():
+                        if opt_id == "skip":
+                            continue
+                        if opt_id not in option_ids:
+                            logger.warning(
+                                "[QCM] eliminationsParOption: option « %s » inconnue "
+                                "(catégorie « %s »)",
+                                opt_id,
+                                cat,
+                            )
+                            continue
+                        if not isinstance(aide_list, list):
+                            continue
+                        valid = [
+                            aid for aid in aide_list if isinstance(aid, str) and aid in valid_ids
+                        ]
+                        dropped = len(aide_list) - len(valid)
+                        if dropped:
+                            logger.warning(
+                                "[QCM] %d aide ID(s) hallucinée(s) droppée(s) "
+                                "(catégorie « %s », option « %s »)",
+                                dropped,
+                                cat,
+                                opt_id,
+                            )
+                        if valid:
+                            clean_elim[opt_id] = sorted(set(valid))
+
+                # Sanitize coarse eliminatingOptionIds: only options that exist
+                # and aren't "skip".
+                raw_coarse = q.get("eliminatingOptionIds") or []
+                clean_coarse = (
+                    [
+                        opt_id
+                        for opt_id in raw_coarse
+                        if isinstance(opt_id, str) and opt_id in option_ids and opt_id != "skip"
+                    ]
+                    if isinstance(raw_coarse, list)
+                    else []
+                )
+
+                # If the LLM only gave coarse data, expand to fine-grained using
+                # the full aide pool. This preserves intent but logs a warning:
+                # the coarse path over-rejects when a category aggregates aides
+                # at different thresholds (the very bug we're fixing). The new
+                # prompt asks for fine-grained explicitly, so this branch should
+                # be rare and indicates the LLM ignored instructions.
+                if clean_coarse and not clean_elim:
+                    logger.warning(
+                        "[QCM] Catégorie « %s » : seul eliminatingOptionIds fourni — "
+                        "expansion coarse (risque sur-élimination si seuils mixtes)",
+                        cat,
+                    )
+                    clean_elim = {opt_id: sorted(valid_ids) for opt_id in clean_coarse}
+
+                q["eliminationsParOption"] = clean_elim
+                q["eliminatingOptionIds"] = clean_coarse
                 questions.append(q)
 
             covered = {q.get("categorie") for q in questions}
@@ -857,20 +1216,48 @@ async def generate_qcm_questions(
                 )
 
             return questions
-        except TimeoutError as e:
+        except json.JSONDecodeError as e:
             last_error = e
-            logger.warning("[QCM] Tentative %d/3 timeout après %ds", attempt + 1, QCM_TIMEOUT_S)
-            if attempt < 2:
-                await asyncio.sleep(2**attempt)
-        except Exception as e:
+            if not json_repair_used:
+                json_repair_used = True
+                broken_content = content
+                logger.warning("[QCM] JSON invalide (tentative %d/3) — tentative de réparation", attempt + 1)
+                continue  # immediate repair retry, no backoff
+            logger.error("[QCM] JSON invalide même après réparation — abandon")
+            break
+        except MistralError as e:
             last_error = e
+            if _is_permanent_mistral_error(e):
+                logger.error(
+                    "[QCM] Erreur permanente Mistral (HTTP %s) — pas de retry",
+                    getattr(e, "status_code", "?"),
+                )
+                break
             if attempt < 2:
                 wait = 2**attempt
                 logger.warning(
-                    "[QCM] Tentative %d/3 échouée (%s), retry dans %ds", attempt + 1, e, wait
+                    "[QCM] Tentative %d/3 échouée (HTTP %s), retry dans %ds",
+                    attempt + 1,
+                    getattr(e, "status_code", "?"),
+                    wait,
                 )
                 await asyncio.sleep(wait)
-    logger.error(f"QCM generation failed after 3 attempts: {last_error}")
+        except Exception as e:
+            last_error = e
+            if not _is_transient_network_error(e):
+                logger.error(
+                    "[QCM] Erreur non-transitoire (%s: %s) — pas de retry",
+                    type(e).__name__,
+                    e,
+                )
+                break
+            if attempt < 2:
+                wait = 2**attempt
+                logger.warning(
+                    "[QCM] Tentative %d/3 réseau (%s), retry dans %ds", attempt + 1, e, wait
+                )
+                await asyncio.sleep(wait)
+    logger.error(f"QCM generation failed: {last_error}")
     return []
 
 
@@ -900,8 +1287,8 @@ async def run_diagnostic(
         mode_projet,
     )
 
-    # Phase 1: SQL pre-filter
-    candidate_ids = prefiltrer_aides(supabase, monument, user, ctx_travaux or None)
+    # Phase 1: SQL pre-filter (also resolves the commune population, reused below)
+    candidate_ids, population = prefiltrer_aides(supabase, monument, user, ctx_travaux or None)
     all_aide_ids = [a["id"] for a in (supabase.table("aides_v2").select("id").execute()).data or []]
     non_candidate_ids = [aid for aid in all_aide_ids if aid not in candidate_ids]
     logger.info(
@@ -914,15 +1301,24 @@ async def run_diagnostic(
     candidate_aides = fetch_aides_with_joins(supabase, candidate_ids)
     non_candidate_aides = fetch_aides_with_joins(supabase, non_candidate_ids)
 
-    population = _resolve_population(supabase, monument.get("code_insee"), user)
-
-    # Candidates from SQL are eligible — just build labels for display
+    # Candidates from SQL are eligible — just build labels for display.
+    # The SQL pre-filter is the single source of truth for eligibility; the
+    # labels are display only. If the Python labels disagree with the SQL
+    # verdict, log it — it points to a bug in the label builder (e.g. a
+    # missing join column, a mapping drift) but does not override the verdict.
     eligible_results = [
         _build_criteria_labels(a, monument, user, mode_projet, ctx_travaux, population)
         for a in candidate_aides
     ]
     for r in eligible_results:
+        if r["criteresNonRemplis"]:
+            logger.warning(
+                "[LABEL DRIFT] aide %s passed SQL pre-filter but labels show unmet criteria: %s",
+                r["aide"].get("nom_court") or r["aide"].get("nom"),
+                r["criteresNonRemplis"],
+            )
         r["eligible"] = True
+        r["raisonIneligibilite"] = None
 
     # Non-candidates are ineligible — build labels to show why
     non_eligible_results = [

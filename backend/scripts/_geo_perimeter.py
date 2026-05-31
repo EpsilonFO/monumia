@@ -9,9 +9,9 @@ Two strategies, in this order:
 2. Fallback: parse the `organisme` string (e.g. "Conseil départemental de la
    Seine-Maritime") against the INSEE label tables.
 
-Output formats are aligned with the join tables already in DB:
-    aides_departements.departement_code  → INSEE numeric ("76", "2A", "971")
-    aides_regions.region_code            → kebab-case   ("ile-de-france")
+Output formats are aligned with the array columns on aides_v2:
+    aides_v2.departements  → INSEE numeric ("76", "2A", "971")
+    aides_v2.regions       → kebab-case   ("ile-de-france")
 """
 
 from __future__ import annotations

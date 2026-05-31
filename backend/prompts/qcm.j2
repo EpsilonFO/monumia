@@ -10,10 +10,11 @@ Voici les incertitudes AGREGEES PAR CATEGORIE issues de l'analyse d'eligibilite 
 Chaque entree contient :
 - "categorie" : le theme de l'incertitude (identifiant snake_case, a reprendre tel quel dans les questions)
 - "nbAides" : le nombre d'aides impactees par cette categorie (pour prioriser)
-- "sources" : echantillon (max 3) des conditions concretes ayant declenche cette categorie. Chaque source contient :
+- "sources" : echantillon des conditions concretes ayant declenche cette categorie. Chaque source contient :
    * "critere" : LE TEXTE VERBATIM de la condition extraite des regles de l'aide — c'est ta SOURCE DE VERITE
    * "detail" : la paraphrase produite a l'etape d'analyse precedente (utile en complement, mais ne pas s'y fier seule)
-   * "aides" : exemples d'aides concernees par cette source
+   * "aides" : exemples (noms) d'aides concernees par cette source
+   * "aideIds" : LISTE COMPLETE des identifiants d'aides partageant exactement ce critere — A REUTILISER VERBATIM dans "eliminationsParOption"
 
 Ta mission : transformer ces categories en questions QCM claires pour le proprietaire du monument, afin de lever les incertitudes restantes.
 
@@ -41,6 +42,35 @@ REGLE MECE SUR LES OPTIONS (importante) :
 - COLLECTIVEMENT EXHAUSTIVES : pour TOUT projet realiste, au moins une option doit s'appliquer. Si tu n'es pas sur de couvrir tous les cas (ex: certaines aides ont ce critere, d'autres non), ajoute une option "Aucun de ces cas" ou "Non concerne", NON eliminante.
 - "Je ne sais pas" (id "skip") est present en plus, et n'est JAMAIS eliminante.
 
+REGLE D'ELIMINATION FINE-GRAINED (CRITIQUE) :
+Pour CHAQUE question, tu DOIS fournir un objet "eliminationsParOption" qui mappe chaque option non-"skip" a la liste des "aideIds" qu'elle elimine. Ce mapping est OBLIGATOIRE : sans lui le serveur retombe sur une elimination grossiere qui sur-elimine.
+
+Comment construire "eliminationsParOption" :
+1. Chaque source de la categorie fournit un couple (critere, aideIds). Le critere est le SEUIL exact applique aux aideIds listees.
+2. Pour chaque option de ta question, raisonne : "si l'utilisateur choisit cette option, quels criteres deviennent IMPOSSIBLES a satisfaire ?". Tu cumules les aideIds de TOUTES les sources dont le critere est viole par cette option.
+3. Reprends les aideIds VERBATIM des sources. Ne reformule pas, n'invente pas. Une aideId absente des sources de la categorie ne doit JAMAIS apparaitre.
+
+Exemple concret : categorie "ouverture_public" avec 3 sources :
+- source 1 : critere "ouverture au public >= 40 jours/an", aideIds = ["uuid-A"]
+- source 2 : critere "ouverture au public >= 60 jours/an", aideIds = ["uuid-B"]
+- source 3 : critere "ouverture au public >= 80 jours/an", aideIds = ["uuid-C"]
+
+Tu poses 4 tranches MECE : "<40", "40-59", "60-79", ">=80" et tu produis :
+  "eliminationsParOption": {
+    "lt40":  ["uuid-A", "uuid-B", "uuid-C"],   // aucun seuil atteint
+    "40_59": ["uuid-B", "uuid-C"],             // seul A est satisfait
+    "60_79": ["uuid-C"],                       // A et B satisfaits
+    "ge80":  []                                 // tout satisfait
+  }
+
+REGLES STRICTES POUR "eliminationsParOption" :
+- Les cles sont des IDs d'options de la meme question. Jamais "skip", jamais l'ID d'une option "Non concerne" non eliminante.
+- Les valeurs sont des listes d'aideIds tirees des sources de la categorie correspondante.
+- Si une option n'elimine personne, mets une liste vide (ou omets-la).
+- N'inclus JAMAIS d'aideId absente des sources de la categorie.
+
+Le champ legacy "eliminatingOptionIds" reste accepte pour compatibilite, mais il sur-elimine quand les sources ont des seuils mixtes (toutes les aides de la categorie sont eliminees uniformement). NE l'utilise QUE pour les questions binaires ou il n'existe qu'une seule source/seuil. Sinon, utilise "eliminationsParOption".
+
 REGLE DE CONCRETUDE SUR LES OPTIONS (importante) :
 Chaque label d'option est une VALEUR concrete et verifiable a l'oeil nu par le proprietaire :
 - Un seuil chiffre : "Plus de 40 jours/an", "Moins de 50 000 €", "Entre 5 et 10 ans".
@@ -56,20 +86,28 @@ Avant de finaliser, relis tes questions. Si deux questions verifient en pratique
 CONTRAINTE DE VOLUME :
 Maximum {{ max_questions }} questions au total. Au-dela de 8 questions, l'utilisateur abandonne — vise 4-8 questions. Priorise les categories avec le plus grand "nbAides".
 
-Reponds en JSON strict avec ce format (NE PAS inclure "aideIds", qui sera deduit cote serveur depuis "categorie") :
+Reponds en JSON strict avec ce format (NE PAS inclure "aideIds" au niveau question — le serveur le deduit depuis "categorie") :
 {
   "questions": [
     {
       "id": "q1",
-      "question": "La question formulee clairement",
+      "question": "Combien de jours par an votre monument est-il ouvert au public ?",
       "options": [
-        {"id": "a", "label": "Moins de 40 jours par an"},
-        {"id": "b", "label": "40 jours ou plus par an"},
-        {"id": "c", "label": "Non concerne (monument non ouvert au public)"},
-        {"id": "skip", "label": "Je ne sais pas"}
+        {"id": "lt40",  "label": "Moins de 40 jours par an"},
+        {"id": "40_59", "label": "Entre 40 et 59 jours par an"},
+        {"id": "60_79", "label": "Entre 60 et 79 jours par an"},
+        {"id": "ge80",  "label": "80 jours ou plus par an"},
+        {"id": "none",  "label": "Non concerne (monument non ouvert au public)"},
+        {"id": "skip",  "label": "Je ne sais pas"}
       ],
-      "eliminatingOptionIds": ["a"],
-      "categorie": "ouverture_public"
+      "categorie": "ouverture_public",
+      "eliminationsParOption": {
+        "lt40":  ["uuid-aide-A", "uuid-aide-B", "uuid-aide-C"],
+        "40_59": ["uuid-aide-B", "uuid-aide-C"],
+        "60_79": ["uuid-aide-C"],
+        "ge80":  [],
+        "none":  ["uuid-aide-A", "uuid-aide-B", "uuid-aide-C"]
+      }
     }
   ],
   "categoriesSkippees": [
@@ -79,6 +117,7 @@ Reponds en JSON strict avec ce format (NE PAS inclure "aideIds", qui sera deduit
 
 REGLES DE FORMAT STRICTES :
 - Le champ "categorie" (dans "questions" comme dans "categoriesSkippees") DOIT correspondre exactement a l'une des categories recues en entree.
-- Le champ "eliminatingOptionIds" contient les IDs des options qui rendraient les aides de cette categorie non eligibles si choisies. "skip" et les options "Non concerne" ne doivent JAMAIS y figurer.
-- Pour les questions a seuils chiffres, choisis des tranches alignees sur les seuils observes dans les "critere" (pas inventes).
+- Le champ "eliminationsParOption" est OBLIGATOIRE des qu'il existe au moins une option eliminante. Les aideIds proviennent VERBATIM des "aideIds" des sources de la categorie ; toute autre valeur sera droppee comme hallucination cote serveur.
+- "skip" et les options non-eliminantes ne doivent JAMAIS figurer comme cles de "eliminationsParOption" (ou avec une liste vide si tu prefere l'expliciter).
+- Pour les questions a seuils chiffres, choisis des tranches alignees sur les seuils observes dans les "critere" (pas inventes), et mappe chaque tranche aux aideIds des sources dont le seuil est viole.
 - Verifie avant de repondre : UNION(categories couvertes par questions, categories listees dans categoriesSkippees) DOIT etre egale a l'ensemble des categories d'entree. Pas de categorie orpheline.
