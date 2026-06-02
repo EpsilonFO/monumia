@@ -31,7 +31,7 @@ export const aideService = {
     travauxFiltres?: WorkType[]
   ): Promise<AideDiagnosticResult> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120_000); // 2 min max
+    const timeout = setTimeout(() => controller.abort(), 360_000); // 6 min — ≥ backend QCM timeout (300s + retries)
     try {
       const res = await authFetch(`${BASE}/aides/diagnostic`, {
         method: 'POST',

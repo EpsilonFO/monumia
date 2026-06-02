@@ -81,10 +81,10 @@ Chaque label d'option est une VALEUR concrete et verifiable a l'oeil nu par le p
 LABELS A BANNIR : "Suffisant", "Pertinent", "Adapte", "Beaucoup", "Souvent", "Important", "Significatif", "Conforme", "Satisfaisant", "Adequat". Si tu te retrouves a ecrire un de ces mots, reformule en valeur concrete.
 
 REGLE ANTI-DOUBLON :
-Avant de finaliser, relis tes questions. Si deux questions verifient en pratique la MEME chose cote utilisateur (meme reponse attendue, meme reformulation), fusionne-les en une seule. Exemple : "ouverture_public" et "engagement_ouverture_public" se ramenent toutes deux a "combien de jours par an le monument est-il ouvert" — une seule question.
+Avant de finaliser, relis tes questions. Si deux questions verifient en pratique la MEME chose cote utilisateur (meme reponse attendue, meme reformulation), fusionne-les en une seule.
 
-CONTRAINTE DE VOLUME :
-Maximum {{ max_questions }} questions au total. Au-dela de 8 questions, l'utilisateur abandonne — vise 4-8 questions. Priorise les categories avec le plus grand "nbAides".
+REGLE ANTI-FUSION ETAT / ENGAGEMENT (CRITIQUE) :
+NE JAMAIS fusionner une condition d'ETAT PRESENT (un fait actuel, verifiable aujourd'hui, ex. "combien de jours par an le monument est-il ouvert actuellement ?") avec une condition d'ENGAGEMENT FUTUR ou CONTRACTUEL (une promesse pluriannuelle, ex. "vous engagez-vous a ouvrir au moins N jours/an pendant 9 ans ?"), MEME si le sujet est identique (ex. l'ouverture au public). Ce sont DEUX categories distinctes : un monument ouvert 50 jours/an aujourd'hui peut tres bien refuser de s'engager sur 9 ans. Pose-les comme deux questions separees — les fusionner ferait disparaitre la condition d'engagement et fausserait l'eligibilite.
 
 Reponds en JSON strict avec ce format (NE PAS inclure "aideIds" au niveau question — le serveur le deduit depuis "categorie") :
 {

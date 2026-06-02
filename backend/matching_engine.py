@@ -11,11 +11,11 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import datetime
 
 import httpx
-from mistralai.client import Mistral
-from mistralai.client.errors import MistralError
+from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI
 from supabase import Client
 
 from labels import (
@@ -32,18 +32,18 @@ from prompts.matching import render_prompt_eligibility, render_prompt_qcm
 logger = logging.getLogger(__name__)
 
 
-# Concurrency cap for outbound Mistral calls. We routinely fan out one call
+# Concurrency cap for outbound LLM calls. We routinely fan out one call
 # per candidate aide (often 30–80 aides), and two simultaneous diagnostics
 # would double that. The semaphore is process-wide and shared between the
 # eligibility (Phase 3) calls — the QCM call is a single request and not
 # affected. 8 was picked as a compromise: high enough to keep p95 latency
-# from blowing up, low enough to stay well below Mistral's tier rate limit
-# and to avoid 429s under burst.
+# from blowing up, low enough to stay well below the provider's tier rate
+# limit and to avoid 429s under burst.
 def _env_int(name: str, default: int) -> int:
     """Read an int env var, falling back to `default` if unset or non-numeric.
 
     Avoids a hard crash at import time when the operator typos the value
-    (e.g. MISTRAL_MAX_CONCURRENCY=abc) — we log and keep the default instead.
+    (e.g. LLM_MAX_CONCURRENCY=abc) — we log and keep the default instead.
     """
     raw = os.environ.get(name)
     if raw is None:
@@ -55,9 +55,23 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
-_LLM_MAX_CONCURRENCY = _env_int("MISTRAL_MAX_CONCURRENCY", 8)
+_LLM_MAX_CONCURRENCY = _env_int("LLM_MAX_CONCURRENCY", 8)
 _llm_semaphore: asyncio.Semaphore | None = None
-_mistral_client: Mistral | None = None
+_llm_client: AsyncOpenAI | None = None
+
+# Model routing (DeepSeek V4, called via its OpenAI-compatible API).
+#   - Eligibility is a high-volume fan-out (one call per candidate aide), so it
+#     uses a NON-reasoning model: reasoning tokens × 30–80 calls would blow up
+#     latency and output cost for little gain on a grounded classification task.
+#   - QCM is a single call doing hard combinatorial reasoning
+#     (eliminationsParOption / MECE / monotonie), so it uses the reasoning model.
+# All three are env-overridable: point DEEPSEEK_BASE_URL at any OpenAI-compatible
+# host (an EU / zero-retention provider, OpenRouter, Together…) and pin specific
+# model ids without touching code. Defaults follow DeepSeek's official API
+# aliases (`deepseek-chat` = non-reasoning, `deepseek-reasoner` = reasoning).
+_DEEPSEEK_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+_MODEL_ELIGIBILITY = os.environ.get("DEEPSEEK_MODEL_ELIGIBILITY", "deepseek-chat")
+_MODEL_QCM = os.environ.get("DEEPSEEK_MODEL_QCM", "deepseek-reasoner")
 
 
 def _get_llm_semaphore() -> asyncio.Semaphore:
@@ -68,17 +82,22 @@ def _get_llm_semaphore() -> asyncio.Semaphore:
     return _llm_semaphore
 
 
-def _get_mistral_client(api_key: str) -> Mistral:
-    """Return a process-wide Mistral client, created on first use.
+def _get_llm_client(api_key: str) -> AsyncOpenAI:
+    """Return a process-wide OpenAI-compatible client (DeepSeek), created on first use.
 
     The client is cheap to reuse but not free to build — fanning out one
     eligibility call per candidate aide (30–80 in a gather) would otherwise
     spin up that many short-lived clients per diagnostic.
+
+    `base_url` defaults to DeepSeek's official API but is env-overridable so the
+    same code can target any OpenAI-compatible host. `max_retries=0` because this
+    module implements its own retry/backoff loop below — letting the SDK retry
+    on top would compound the waits and blur the permanent/transient distinction.
     """
-    global _mistral_client
-    if _mistral_client is None:
-        _mistral_client = Mistral(api_key=api_key)
-    return _mistral_client
+    global _llm_client
+    if _llm_client is None:
+        _llm_client = AsyncOpenAI(api_key=api_key, base_url=_DEEPSEEK_BASE_URL, max_retries=0)
+    return _llm_client
 
 
 # Per-call timeout for the eligibility (Phase 3) LLM call. Without it, a hung
@@ -87,17 +106,17 @@ def _get_mistral_client(api_key: str) -> Mistral:
 _ELIGIBILITY_TIMEOUT_S = 60
 
 
-def _is_permanent_mistral_error(exc: Exception) -> bool:
-    """True if a Mistral SDK error indicates a non-retriable condition.
+def _is_permanent_llm_error(exc: Exception) -> bool:
+    """True if an API status error indicates a non-retriable condition.
 
     Retriable: 429 (rate-limited) and 5xx (server-side hiccup).
     Permanent: 4xx other than 429 — authentication (401/403), malformed
     request (400), not-found (404), payload too large (413), etc. Retrying
     these just wastes 6+ seconds of backoff before failing the same way.
     """
-    if not isinstance(exc, MistralError):
+    if not isinstance(exc, APIStatusError):
         return False
-    status = getattr(exc, "status_code", None)
+    status = exc.status_code
     if not isinstance(status, int):
         return False
     return 400 <= status < 500 and status != 429
@@ -110,6 +129,8 @@ def _is_transient_network_error(exc: Exception) -> bool:
         (
             TimeoutError,
             asyncio.TimeoutError,
+            APIConnectionError,  # openai SDK: connection reset / DNS / refused
+            APITimeoutError,  # openai SDK: request timed out (subclass of the above)
             httpx.TimeoutException,
             httpx.ConnectError,
             httpx.ReadError,
@@ -398,8 +419,11 @@ def _build_monument_profile(monument: dict, population: int | None) -> str:
         lines.append(f"Travaux envisagés : {_labels(TRAVAUX_LABELS, travaux)}")
     if monument.get("siecle_construction"):
         lines.append(f"Siècle de construction : {monument['siecle_construction']}")
-    if monument.get("reference_merimee"):
-        lines.append(f"Référence Mérimée : {monument['reference_merimee']}")
+    # Référence Mérimée volontairement omise du profil envoyé au LLM : elle
+    # n'apporte rien au raisonnement d'éligibilité (qui s'appuie sur protection,
+    # type de propriétaire, localisation, travaux, état) et c'est un identifiant
+    # pointant vers une fiche publique nominative — inutile de l'exposer au
+    # fournisseur LLM.
     return "\n".join(lines)
 
 
@@ -407,7 +431,7 @@ async def _llm_evaluate_eligibility(
     prompt: str,
     aide_nom: str,
 ) -> dict:
-    """Call Mistral to evaluate fine eligibility with a rendered prompt.
+    """Call the LLM to evaluate fine eligibility with a rendered prompt.
 
     Returns {"explication_globale": str, "evaluations": list[dict]}.
     On error/missing key, returns empty evaluations — callers treat that as
@@ -426,19 +450,19 @@ async def _llm_evaluate_eligibility(
       - Outbound concurrency is bounded by `_llm_semaphore` to avoid 429s
         when a diagnostic fans out across dozens of aides.
     """
-    api_key = os.environ.get("MISTRAL_API_KEY")
+    api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
-        logger.warning("[LLM] MISTRAL_API_KEY absent — évaluation ignorée")
+        logger.warning("[LLM] DEEPSEEK_API_KEY absent — évaluation ignorée")
         return {
             "explication_globale": "Évaluation LLM indisponible",
             "evaluations": [],
         }
 
-    client = _get_mistral_client(api_key)
+    client = _get_llm_client(api_key)
     semaphore = _get_llm_semaphore()
 
     async def _call(repair_with: str | None = None) -> str:
-        """One round-trip to Mistral; if `repair_with` is set, ask for a JSON fix."""
+        """One round-trip to the LLM; if `repair_with` is set, ask for a JSON fix."""
         messages: list[dict] = [{"role": "user", "content": prompt}]
         if repair_with is not None:
             messages.append({"role": "assistant", "content": repair_with})
@@ -454,8 +478,8 @@ async def _llm_evaluate_eligibility(
             )
         async with semaphore:
             response = await asyncio.wait_for(
-                client.chat.complete_async(
-                    model="mistral-medium-latest",
+                client.chat.completions.create(
+                    model=_MODEL_ELIGIBILITY,
                     messages=messages,
                     response_format={"type": "json_object"},
                     temperature=0,
@@ -464,7 +488,7 @@ async def _llm_evaluate_eligibility(
             )
         return response.choices[0].message.content
 
-    logger.info("[LLM] Appel Mistral pour « %s »...", aide_nom)
+    logger.info("[LLM] Appel LLM pour « %s »...", aide_nom)
     last_error: Exception | None = None
     broken_content: str | None = None
     json_repair_used = False
@@ -491,13 +515,13 @@ async def _llm_evaluate_eligibility(
             )
             break
 
-        except MistralError as e:
+        except APIStatusError as e:
             last_error = e
-            if _is_permanent_mistral_error(e):
+            if _is_permanent_llm_error(e):
                 logger.error(
-                    "[LLM] Erreur permanente Mistral pour « %s » (HTTP %s) — pas de retry",
+                    "[LLM] Erreur permanente LLM pour « %s » (HTTP %s) — pas de retry",
                     aide_nom,
-                    getattr(e, "status_code", "?"),
+                    e.status_code,
                 )
                 break
             if attempt < 2:
@@ -804,9 +828,10 @@ async def _run_llm_phase(
         evaluations = _normalize_evaluations(llm_result.get("evaluations") or [], bullets)
         _llm_log(aide.get("nom", ""), evaluations, explication_globale)
 
-        # Derive incertitudes as a filtered view of the SAME dict refs.
-        # Mutations done by _auto_clarify_incertitudes (clarified=True) propagate
-        # to the evaluations array, which is what the frontend renders.
+        # Derive incertitudes as a filtered view of the SAME dict refs, so that a
+        # later clarified=True mutation (the clarification primitive
+        # _auto_clarify_incertitudes, gated on explicit answers) stays consistent
+        # with the evaluations array, which is what the frontend renders.
         incertitudes = [e for e in evaluations if e["verdict"] == "incertitude"]
 
         result["llmEvaluation"] = {
@@ -863,17 +888,24 @@ def _normalize_incertitude(inc: str | dict) -> dict:
 def _aggregate_incertitudes(eligible_results: list[dict]) -> list[dict]:
     """Aggregate incertitudes by category across all aides.
 
-    For each category, collect deduplicated "sources" : one entry per unique
-    (critere, detail) pair, with the list of aide names sharing it. The QCM
-    generator anchors its questions on `critere` (the verbatim bullet text
-    from the aide's eligibility conditions), which is the source of truth —
-    `detail` is the eligibility LLM's paraphrase and may be vague.
+    For each category, collect deduplicated "sources": one entry per unique
+    `critere` (the verbatim bullet text from the aide's eligibility conditions),
+    with the list of aide names/ids sharing it. The QCM generator anchors its
+    questions on `critere`, which is the source of truth — `detail` is the
+    eligibility LLM's paraphrase and may be vague (qcm.j2:14-15).
+
+    Dedup is keyed on `critere` ALONE (not the `(critere, detail)` pair): two
+    aides requiring the same thing must collapse into one source even when the
+    LLM paraphrased `detail` differently, otherwise each paraphrase spawns a
+    distinct source, the per-category source cap is hit faster, and aides get
+    silently stripped from `eliminationsParOption`. A representative `detail`
+    (the most frequently observed paraphrase) is kept for display only.
     """
     from collections import defaultdict
 
-    # category → {aideIds: set, sources_by_key: {(critere, detail): {aide_noms: set, aide_ids: set}}}
+    # category → {aideIds: set, sources_by_key: {critere: {aide_noms, aide_ids, details}}}
     def _new_source() -> dict:
-        return {"aide_noms": set(), "aide_ids": set()}
+        return {"aide_noms": set(), "aide_ids": set(), "details": defaultdict(int)}
 
     groups: dict[str, dict] = defaultdict(
         lambda: {"aideIds": set(), "sources_by_key": defaultdict(_new_source)}
@@ -892,10 +924,11 @@ def _aggregate_incertitudes(eligible_results: list[dict]) -> list[dict]:
             critere = normalized.get("critere", "") or ""
 
             groups[cat]["aideIds"].add(aide_id)
-            key = (critere, detail)
-            src = groups[cat]["sources_by_key"][key]
+            src = groups[cat]["sources_by_key"][critere]
             src["aide_noms"].add(aide_nom)
             src["aide_ids"].add(aide_id)
+            if detail:
+                src["details"][detail] += 1
 
     # Sort categories by nb of aides impacted (most first).
     # Per category, keep the most-impactful unique sources to bound payload size
@@ -909,21 +942,27 @@ def _aggregate_incertitudes(eligible_results: list[dict]) -> list[dict]:
             key=lambda item: len(item[1]["aide_ids"]),
             reverse=True,
         )[:8]
-        sources = [
-            {
-                # critere is the verbatim source of truth — cap large but generously.
-                "critere": (critere or "")[:1000],
-                # detail is the LLM paraphrase, kept short.
-                "detail": (detail or "")[:200],
-                # Sample of aide names for LLM context (display only).
-                "aides": sorted(src["aide_noms"])[:5],
-                # Full list of aide IDs sharing this critere — feeds eliminationsParOption.
-                # Required so the LLM can map each aide to the option(s) that eliminate
-                # it based on this source's threshold (instead of guessing).
-                "aideIds": sorted(src["aide_ids"]),
-            }
-            for (critere, detail), src in sources_sorted
-        ]
+        sources = []
+        for critere, src in sources_sorted:
+            # Representative detail: the most frequently observed paraphrase for
+            # this critere. Insertion order (Python ≥3.7 dict) breaks ties, so
+            # the first-seen paraphrase wins. Display only — the LLM anchors on
+            # `critere`.
+            detail = max(src["details"], key=src["details"].get) if src["details"] else ""
+            sources.append(
+                {
+                    # critere is the verbatim source of truth — cap large but generously.
+                    "critere": (critere or "")[:1000],
+                    # detail is the LLM paraphrase, kept short.
+                    "detail": (detail or "")[:200],
+                    # Sample of aide names for LLM context (display only).
+                    "aides": sorted(src["aide_noms"])[:5],
+                    # Full list of aide IDs sharing this critere — feeds eliminationsParOption.
+                    # Required so the LLM can map each aide to the option(s) that eliminate
+                    # it based on this source's threshold (instead of guessing).
+                    "aideIds": sorted(src["aide_ids"]),
+                }
+            )
         aggregated.append(
             {
                 "categorie": cat,
@@ -954,12 +993,16 @@ def _auto_clarify_incertitudes(
     eligible_results: list[dict],
     categories_to_clarify: set[str],
 ) -> int:
-    """Mark every incertitude whose category is in the set as clarified=True.
+    """Mark every pending incertitude whose category is in the set as clarified.
 
-    Used after QCM generation to close the categories the LLM either explicitly
-    skipped (deemed redundant with profile) or silently forgot. Without this,
-    any uncovered category leaves its incertitudes pending forever and the aide
-    is stuck in potentiellement_eligible regardless of the QCM answers.
+    This is the clarification *primitive*. A category is only ever a legitimate
+    input here when the user gave an explicit answer for it (FIX 1 + FIX 5): the
+    conservative policy forbids clarifying categories the LLM merely skipped or
+    silently forgot, because that promotes aides nobody verified and inflates
+    montantPotentielTotal. At diagnostic-generation time there is no user answer
+    yet, so `generate_qcm_questions` intentionally calls this with no skip/oubli
+    categories; answer-driven clarification is applied later (frontend) once the
+    user responds. Returns the number of incertitudes flipped.
     """
     if not categories_to_clarify:
         return 0
@@ -977,6 +1020,31 @@ def _auto_clarify_incertitudes(
     return n
 
 
+def _count_incertitudes_in_categories(
+    eligible_results: list[dict],
+    categories: set[str],
+) -> int:
+    """Count pending incertitudes whose category is in the set (read-only).
+
+    Mirror of `_auto_clarify_incertitudes` without the mutation — used to log how
+    many incertitudes are *kept* potential (oubli/skip) under the conservative
+    policy where only an explicit user answer clarifies.
+    """
+    if not categories:
+        return 0
+    n = 0
+    for result in eligible_results:
+        llm_eval = result.get("llmEvaluation") or {}
+        for inc in llm_eval.get("incertitudes", []):
+            if (
+                isinstance(inc, dict)
+                and inc.get("categorie") in categories
+                and not inc.get("clarified")
+            ):
+                n += 1
+    return n
+
+
 def _all_incertitudes_clarified(result: dict) -> bool:
     llm_eval = result.get("llmEvaluation") or {}
     incertitudes = llm_eval.get("incertitudes") or []
@@ -988,6 +1056,257 @@ def _all_incertitudes_clarified(result: dict) -> bool:
         if not inc.get("clarified"):
             return False
     return True
+
+
+_NUM_RE = re.compile(r"\d+")
+
+
+def _option_threshold_key(option: dict) -> tuple[int, ...] | None:
+    """Return an ordering key for a numeric-threshold option, else None.
+
+    Reads the option id first (the prompt emits numeric ids like 'lt40',
+    '40_59', '60_79', 'ge80'), falling back to the label. Categorical options
+    and the 'skip'/'none' escape hatches contain no digits → None → left
+    untouched by the monotonicity repair. The key is the tuple of integers
+    found, which orders tranches the intuitive way:
+    (40,) < (40, 59) < (60, 79) < (80,).
+    """
+    if not isinstance(option, dict):
+        return None
+    oid = str(option.get("id") or "")
+    nums = _NUM_RE.findall(oid)
+    if not nums:
+        nums = _NUM_RE.findall(str(option.get("label") or ""))
+    if not nums:
+        return None
+    return tuple(int(n) for n in nums)
+
+
+def _repair_monotonic_eliminations(
+    clean_elim: dict[str, list[str]],
+    options: list[dict],
+    categorie: str | None,
+) -> dict[str, list[str]]:
+    """Force nested-decreasing monotonicity on ordered-threshold questions (FIX 2).
+
+    For a question whose options encode an ordered numeric scale ('<40', '40-59',
+    '60-79', '>=80'), the eliminated-aide sets must nest:
+        elim(<40) ⊇ elim(40-59) ⊇ elim(60-79) ⊇ elim(>=80).
+    An aide that is impossible above a threshold is also impossible below it, so
+    any aide eliminated at a higher tranche must be eliminated at every lower one.
+    When it is not, the LLM mis-counted; we REPAIR (never drop) by giving each
+    tranche the union of its own eliminations and those of all higher tranches.
+
+    Categorical / enumerated questions (options without a numeric order, or with
+    ambiguous duplicate keys) are returned unchanged. Each reintegration is logged
+    as a WARNING so the LLM's arithmetic errors stay visible.
+    """
+    # Keep only options that carry a numeric threshold key.
+    keyed: dict[str, tuple[int, ...]] = {}
+    for o in options:
+        if not isinstance(o, dict):
+            continue
+        oid = o.get("id")
+        if not oid or oid == "skip":
+            continue
+        key = _option_threshold_key(o)
+        if key is not None:
+            keyed[oid] = key
+
+    # Need ≥2 tranches with DISTINCT keys to establish an order; otherwise the
+    # question is categorical or the order is ambiguous — don't guess.
+    if len(keyed) < 2 or len(set(keyed.values())) != len(keyed):
+        return clean_elim
+
+    ordered = sorted(keyed, key=lambda oid: keyed[oid])  # ascending threshold
+
+    # Accumulate from the highest threshold down to the lowest: every lower
+    # tranche inherits the eliminations of all higher tranches.
+    cumulative: set[str] = set()
+    repaired: dict[str, set[str]] = {}
+    for oid in reversed(ordered):
+        cumulative = cumulative | set(clean_elim.get(oid, []))
+        repaired[oid] = set(cumulative)
+
+    out = dict(clean_elim)
+    for oid in ordered:
+        added = repaired[oid] - set(clean_elim.get(oid, []))
+        if added:
+            logger.warning(
+                "[QCM] Monotonie réparée (catégorie « %s », option « %s ») : "
+                "%d aide(s) réintégrée(s) : %s",
+                categorie,
+                oid,
+                len(added),
+                sorted(added),
+            )
+        if repaired[oid]:
+            out[oid] = sorted(repaired[oid])
+    return out
+
+
+def _process_qcm_response(
+    parsed: dict,
+    aide_ids_by_category: dict[str, list[str]],
+    eligible_results: list[dict],
+) -> list[dict]:
+    """Validate, remap, sanitize and bucket a parsed QCM LLM response.
+
+    Pure transformation (no network). Returns the list of clean questions.
+    Extracting this from `generate_qcm_questions` makes the validation, the
+    monotonicity repair (FIX 2) and the conservative clarification policy
+    (FIX 1 + FIX 5) unit-testable without an LLM round-trip.
+    """
+    raw_questions = parsed.get("questions", [])
+    raw_skipped = parsed.get("categoriesSkippees", [])
+    input_categories = set(aide_ids_by_category.keys())
+
+    # Validate, remap aideIds, and sanitize in a single pass.
+    questions = []
+    for q in raw_questions:
+        if not isinstance(q, dict):
+            continue
+        cat = q.get("categorie")
+        mapped_ids = aide_ids_by_category.get(cat)
+        if not mapped_ids:
+            logger.warning("[QCM] Question ignorée: catégorie « %s » inconnue ou sans aides", cat)
+            continue
+        qid = q.get("id")
+        qtext = q.get("question")
+        options = q.get("options")
+        if not (qid and qtext and isinstance(options, list)):
+            logger.warning("[QCM] Question malformée ignorée: %s", q)
+            continue
+        q["aideIds"] = mapped_ids
+        valid_ids = set(mapped_ids)
+        option_ids = {o.get("id") for o in options if isinstance(o, dict) and o.get("id")}
+
+        # Sanitize fine-grained eliminationsParOption: keep only known options
+        # and aide IDs from this category's pool. The LLM has the
+        # (critere, aideIds) pairs in its payload, so any aide ID outside the
+        # pool is a hallucination — drop it rather than eliminate aides based on
+        # guessed IDs.
+        raw_elim = q.get("eliminationsParOption")
+        clean_elim: dict[str, list[str]] = {}
+        if isinstance(raw_elim, dict):
+            for opt_id, aide_list in raw_elim.items():
+                if opt_id == "skip":
+                    continue
+                if opt_id not in option_ids:
+                    logger.warning(
+                        "[QCM] eliminationsParOption: option « %s » inconnue (catégorie « %s »)",
+                        opt_id,
+                        cat,
+                    )
+                    continue
+                if not isinstance(aide_list, list):
+                    continue
+                valid = [aid for aid in aide_list if isinstance(aid, str) and aid in valid_ids]
+                dropped = len(aide_list) - len(valid)
+                if dropped:
+                    logger.warning(
+                        "[QCM] %d aide ID(s) hallucinée(s) droppée(s) "
+                        "(catégorie « %s », option « %s »)",
+                        dropped,
+                        cat,
+                        opt_id,
+                    )
+                if valid:
+                    clean_elim[opt_id] = sorted(set(valid))
+
+        # Sanitize coarse eliminatingOptionIds: only options that exist and
+        # aren't "skip".
+        raw_coarse = q.get("eliminatingOptionIds") or []
+        clean_coarse = (
+            [
+                opt_id
+                for opt_id in raw_coarse
+                if isinstance(opt_id, str) and opt_id in option_ids and opt_id != "skip"
+            ]
+            if isinstance(raw_coarse, list)
+            else []
+        )
+
+        # If the LLM only gave coarse data, expand to fine-grained using the full
+        # aide pool. This preserves intent but logs a warning: the coarse path
+        # over-rejects when a category aggregates aides at different thresholds
+        # (the very bug we're fixing). The prompt asks for fine-grained
+        # explicitly, so this branch should be rare and indicates the LLM ignored
+        # instructions.
+        if clean_coarse and not clean_elim:
+            logger.warning(
+                "[QCM] Catégorie « %s » : seul eliminatingOptionIds fourni — "
+                "expansion coarse (risque sur-élimination si seuils mixtes)",
+                cat,
+            )
+            clean_elim = {opt_id: sorted(valid_ids) for opt_id in clean_coarse}
+
+        # FIX 2: enforce nested-decreasing monotonicity for ordered-threshold
+        # questions (no-op for categorical / enumerated ones).
+        clean_elim = _repair_monotonic_eliminations(clean_elim, options, cat)
+
+        q["eliminationsParOption"] = clean_elim
+        q["eliminatingOptionIds"] = clean_coarse
+        questions.append(q)
+
+    covered = {q.get("categorie") for q in questions}
+
+    # Categories the LLM explicitly chose to skip, with a stated reason.
+    claimed_skipped: set[str] = set()
+    for entry in raw_skipped:
+        if not isinstance(entry, dict):
+            continue
+        cat = entry.get("categorie")
+        raison = entry.get("raison", "")
+        if cat in input_categories:
+            claimed_skipped.add(cat)
+            logger.info(
+                "[QCM] Catégorie « %s » skippée par le LLM : %s "
+                "(NON promue — politique conservatrice FIX 5)",
+                cat,
+                raison,
+            )
+        else:
+            logger.warning("[QCM] Catégorie skippée « %s » absente du payload — ignorée", cat)
+
+    # Categories the LLM silently dropped (neither asked nor explicitly skipped).
+    silently_missed = input_categories - covered - claimed_skipped
+    for cat in silently_missed:
+        logger.warning(
+            "[QCM] Catégorie « %s » oubliée par le LLM — incertitude(s) maintenue(s) potentielle(s)",
+            cat,
+        )
+
+    # FIX 1 + FIX 5 (politique conservatrice) : seule une réponse explicite de
+    # l'utilisateur marque clarified=True. NI les catégories skippées par le LLM
+    # NI celles silencieusement oubliées ne sont clarifiées ici — sinon on
+    # promeut des aides que personne n'a vérifiées, gonflant montantPotentielTotal.
+    # On NE touche donc PAS aux incertitudes : elles restent pending, leurs aides
+    # restent en aidesPotentiellementEligibles jusqu'à réponse explicite (la
+    # clarification answer-driven est appliquée plus tard, côté frontend).
+    n_kept_skipped = _count_incertitudes_in_categories(eligible_results, claimed_skipped)
+    n_kept_missed = _count_incertitudes_in_categories(eligible_results, silently_missed)
+
+    logger.info(
+        "→ %d question(s) QCM (brut: %d) — maintenues potentielles : "
+        "skip LLM %d cat./%d incertitude(s), oubli LLM %d cat./%d incertitude(s) ; "
+        "aucune auto-clarification (politique conservatrice)",
+        len(questions),
+        len(raw_questions),
+        len(claimed_skipped),
+        n_kept_skipped,
+        len(silently_missed),
+        n_kept_missed,
+    )
+    for q in questions:
+        logger.info(
+            "  ? [%s] %s (%d aide(s))",
+            q.get("categorie", "?"),
+            (q.get("question") or "")[:80],
+            len(q.get("aideIds", [])),
+        )
+
+    return questions
 
 
 async def generate_qcm_questions(
@@ -1019,12 +1338,12 @@ async def generate_qcm_questions(
         logger.info("  • %s — %d aide(s) : %s", g["categorie"], g["nbAides"], preview[:80])
     logger.info("─" * 60)
 
-    api_key = os.environ.get("MISTRAL_API_KEY")
+    api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
-        logger.warning("MISTRAL_API_KEY not set, skipping QCM generation")
+        logger.warning("DEEPSEEK_API_KEY not set, skipping QCM generation")
         return []
 
-    client = _get_mistral_client(api_key)
+    client = _get_llm_client(api_key)
 
     # Build a compact payload (no category-level aideIds) for the LLM — we remap
     # questions back to aides from categorie after.
@@ -1036,12 +1355,12 @@ async def generate_qcm_questions(
         monument_profile=monument_profile,
         incertitudes_json=json.dumps(compact_payload, ensure_ascii=False, indent=2),
     )
-    logger.info("[QCM] Prompt construit (%d caractères), appel Mistral...", len(prompt))
+    logger.info("[QCM] Prompt construit (%d caractères), appel LLM...", len(prompt))
 
-    QCM_TIMEOUT_S = 90
+    QCM_TIMEOUT_S = 300
 
     async def _call(repair_with: str | None = None) -> str:
-        """One round-trip to Mistral; if `repair_with` is set, ask for a JSON fix."""
+        """One round-trip to the LLM; if `repair_with` is set, ask for a JSON fix."""
         messages: list[dict] = [{"role": "user", "content": prompt}]
         if repair_with is not None:
             messages.append({"role": "assistant", "content": repair_with})
@@ -1056,8 +1375,8 @@ async def generate_qcm_questions(
                 }
             )
         response = await asyncio.wait_for(
-            client.chat.complete_async(
-                model="mistral-large-latest",
+            client.chat.completions.create(
+                model=_MODEL_QCM,
                 messages=messages,
                 response_format={"type": "json_object"},
                 temperature=0,
@@ -1076,161 +1395,24 @@ async def generate_qcm_questions(
             content = await _call(repair_with=broken_content if json_repair_used else None)
             logger.info("[QCM] Réponse reçue (%d caractères)", len(content or ""))
             parsed = json.loads(content)
-            raw_questions = parsed.get("questions", [])
-            raw_skipped = parsed.get("categoriesSkippees", [])
-
-            input_categories = set(aide_ids_by_category.keys())
-
-            # Validate, remap aideIds, and sanitize in a single pass.
-            questions = []
-            for q in raw_questions:
-                if not isinstance(q, dict):
-                    continue
-                cat = q.get("categorie")
-                mapped_ids = aide_ids_by_category.get(cat)
-                if not mapped_ids:
-                    logger.warning(
-                        "[QCM] Question ignorée: catégorie « %s » inconnue ou sans aides", cat
-                    )
-                    continue
-                qid = q.get("id")
-                qtext = q.get("question")
-                options = q.get("options")
-                if not (qid and qtext and isinstance(options, list)):
-                    logger.warning("[QCM] Question malformée ignorée: %s", q)
-                    continue
-                q["aideIds"] = mapped_ids
-                valid_ids = set(mapped_ids)
-                option_ids = {o.get("id") for o in options if isinstance(o, dict) and o.get("id")}
-
-                # Sanitize fine-grained eliminationsParOption: keep only known
-                # options and aide IDs from this category's pool. The LLM has
-                # the (critere, aideIds) pairs in its payload, so any aide ID
-                # outside the pool is a hallucination — drop it rather than
-                # eliminate aides based on guessed IDs.
-                raw_elim = q.get("eliminationsParOption")
-                clean_elim: dict[str, list[str]] = {}
-                if isinstance(raw_elim, dict):
-                    for opt_id, aide_list in raw_elim.items():
-                        if opt_id == "skip":
-                            continue
-                        if opt_id not in option_ids:
-                            logger.warning(
-                                "[QCM] eliminationsParOption: option « %s » inconnue "
-                                "(catégorie « %s »)",
-                                opt_id,
-                                cat,
-                            )
-                            continue
-                        if not isinstance(aide_list, list):
-                            continue
-                        valid = [
-                            aid for aid in aide_list if isinstance(aid, str) and aid in valid_ids
-                        ]
-                        dropped = len(aide_list) - len(valid)
-                        if dropped:
-                            logger.warning(
-                                "[QCM] %d aide ID(s) hallucinée(s) droppée(s) "
-                                "(catégorie « %s », option « %s »)",
-                                dropped,
-                                cat,
-                                opt_id,
-                            )
-                        if valid:
-                            clean_elim[opt_id] = sorted(set(valid))
-
-                # Sanitize coarse eliminatingOptionIds: only options that exist
-                # and aren't "skip".
-                raw_coarse = q.get("eliminatingOptionIds") or []
-                clean_coarse = (
-                    [
-                        opt_id
-                        for opt_id in raw_coarse
-                        if isinstance(opt_id, str) and opt_id in option_ids and opt_id != "skip"
-                    ]
-                    if isinstance(raw_coarse, list)
-                    else []
-                )
-
-                # If the LLM only gave coarse data, expand to fine-grained using
-                # the full aide pool. This preserves intent but logs a warning:
-                # the coarse path over-rejects when a category aggregates aides
-                # at different thresholds (the very bug we're fixing). The new
-                # prompt asks for fine-grained explicitly, so this branch should
-                # be rare and indicates the LLM ignored instructions.
-                if clean_coarse and not clean_elim:
-                    logger.warning(
-                        "[QCM] Catégorie « %s » : seul eliminatingOptionIds fourni — "
-                        "expansion coarse (risque sur-élimination si seuils mixtes)",
-                        cat,
-                    )
-                    clean_elim = {opt_id: sorted(valid_ids) for opt_id in clean_coarse}
-
-                q["eliminationsParOption"] = clean_elim
-                q["eliminatingOptionIds"] = clean_coarse
-                questions.append(q)
-
-            covered = {q.get("categorie") for q in questions}
-
-            # Categories the LLM explicitly chose to skip, with a stated reason.
-            claimed_skipped: set[str] = set()
-            for entry in raw_skipped:
-                if not isinstance(entry, dict):
-                    continue
-                cat = entry.get("categorie")
-                raison = entry.get("raison", "")
-                if cat in input_categories:
-                    claimed_skipped.add(cat)
-                    logger.info("[QCM] Catégorie « %s » skippée volontairement : %s", cat, raison)
-                else:
-                    logger.warning(
-                        "[QCM] Catégorie skippée « %s » absente du payload — ignorée", cat
-                    )
-
-            # Categories the LLM silently dropped (neither asked nor explicitly skipped).
-            # These would otherwise leave incertitudes pending forever.
-            silently_missed = input_categories - covered - claimed_skipped
-            for cat in silently_missed:
-                logger.warning(
-                    "[QCM] Catégorie « %s » oubliée par le LLM (auto-clarification serveur)",
-                    cat,
-                )
-
-            auto_clarified_categories = claimed_skipped | silently_missed
-            n_marked = _auto_clarify_incertitudes(eligible_results, auto_clarified_categories)
-
-            logger.info(
-                "→ %d question(s) QCM (brut: %d) — skip explicite: %d, oublis: %d, auto-clarifiées: %d incertitude(s)",
-                len(questions),
-                len(raw_questions),
-                len(claimed_skipped),
-                len(silently_missed),
-                n_marked,
-            )
-            for q in questions:
-                logger.info(
-                    "  ? [%s] %s (%d aide(s))",
-                    q.get("categorie", "?"),
-                    (q.get("question") or "")[:80],
-                    len(q.get("aideIds", [])),
-                )
-
-            return questions
+            return _process_qcm_response(parsed, aide_ids_by_category, eligible_results)
         except json.JSONDecodeError as e:
             last_error = e
             if not json_repair_used:
                 json_repair_used = True
                 broken_content = content
-                logger.warning("[QCM] JSON invalide (tentative %d/3) — tentative de réparation", attempt + 1)
+                logger.warning(
+                    "[QCM] JSON invalide (tentative %d/3) — tentative de réparation", attempt + 1
+                )
                 continue  # immediate repair retry, no backoff
             logger.error("[QCM] JSON invalide même après réparation — abandon")
             break
-        except MistralError as e:
+        except APIStatusError as e:
             last_error = e
-            if _is_permanent_mistral_error(e):
+            if _is_permanent_llm_error(e):
                 logger.error(
-                    "[QCM] Erreur permanente Mistral (HTTP %s) — pas de retry",
-                    getattr(e, "status_code", "?"),
+                    "[QCM] Erreur permanente LLM (HTTP %s) — pas de retry",
+                    e.status_code,
                 )
                 break
             if attempt < 2:
@@ -1343,24 +1525,35 @@ async def run_diagnostic(
     for r in downgraded:
         logger.info("  ✗ %s", r["aide"].get("nom_court") or r["aide"].get("nom"))
 
-    # Phase 4: Generate QCM questions from incertitudes (mutates llmEvaluation
-    # in place: incertitudes covered by neither a question nor an explicit skip
-    # get marked clarified=true server-side).
+    # Phase 4: Generate QCM questions from incertitudes. FIX 1 + FIX 5: the QCM
+    # generation NO LONGER auto-clarifies incertitudes for categories the LLM
+    # skipped or silently forgot — only an explicit user answer (applied later)
+    # may clarify one. So at generation time no incertitude flips to clarified.
     qcm_questions = []
     all_with_incertitudes = still_eligible + potentially_eligible
     if all_with_incertitudes:
         qcm_questions = await generate_qcm_questions(all_with_incertitudes, monument_profile)
 
-    # Re-bucket after auto-clarification: promote any potentiellement_éligible
-    # whose incertitudes are now all clarified to still_eligible.
+    # Re-bucket: promote only aides whose incertitudes are ALL clarified. Under
+    # the conservative policy that means clarified by an explicit user answer —
+    # at diagnostic-generation time there is none yet, so this promotes nothing
+    # and aides with unanswered incertitudes (including LLM-skipped or
+    # silently-missed categories) stay potential, out of montantPotentielTotal.
     promoted = [r for r in potentially_eligible if _all_incertitudes_clarified(r)]
+    maintained = len(potentially_eligible) - len(promoted)
     if promoted:
         promoted_ids = {r["aide"]["id"] for r in promoted}
         still_eligible.extend(promoted)
         potentially_eligible = [
             r for r in potentially_eligible if r["aide"]["id"] not in promoted_ids
         ]
-        logger.info("→ %d aide(s) promue(s) via auto-clarification", len(promoted))
+        logger.info("→ %d aide(s) promue(s) (réponse explicite)", len(promoted))
+    if maintained:
+        logger.info(
+            "→ %d aide(s) maintenue(s) potentielle(s) "
+            "(incertitude(s) non répondue(s) : oubli/skip LLM)",
+            maintained,
+        )
 
     montant_total = sum(
         r["aide"].get("montant_max") or 0 for r in still_eligible if r["aide"].get("montant_max")

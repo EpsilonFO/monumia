@@ -197,6 +197,14 @@ export function MonumentDetailPage() {
   );
   const hasQcmQuestions = validQcmQuestions.length > 0;
 
+  // Total des aides retenues sur la base du diagnostic d'origine (avant filtrage QCM),
+  // pour rester cohérent avec le bandeau « X aides identifiées ».
+  const qcmTotalAccessible = useMemo(() => {
+    const base = originalDiagnostic ?? diagnostic;
+    if (!base) return 0;
+    return base.aidesEligibles.length + base.aidesPotentiellementEligibles.length;
+  }, [originalDiagnostic, diagnostic]);
+
   const aidesAvailableCount = useMemo(() => {
     if (!diagnostic) return 0;
     return diagnostic.aidesEligibles.length
@@ -233,6 +241,10 @@ export function MonumentDetailPage() {
           setOriginalDiagnostic(latest);
           setQcmAnswers(savedAnswers);
           applyQcmAnswers(latest, savedAnswers);
+        } else if ((latest.qcmQuestions?.length ?? 0) > 0) {
+          // QCM généré mais jamais répondu (ex. run live interrompu par un timeout) → on le rouvre.
+          setOriginalDiagnostic(latest);
+          setShowQcm(true);
         }
       })
       .catch(console.error);
@@ -423,6 +435,7 @@ export function MonumentDetailPage() {
                   questions={validQcmQuestions}
                   initialAnswers={qcmAnswers}
                   onComplete={handleQcmComplete}
+                  totalAccessibleCount={qcmTotalAccessible}
                 />
               )}
 

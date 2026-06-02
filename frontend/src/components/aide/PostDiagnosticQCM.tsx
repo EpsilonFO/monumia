@@ -46,6 +46,9 @@ interface PostDiagnosticQCMProps {
   questions: QcmQuestion[];
   initialAnswers?: Record<string, string>;
   onComplete: (eliminatedAideIds: string[], answers: Record<string, string>) => void;
+  /** Total des aides retenues (éligibles + potentielles), affiché dans l'intro
+   *  pour rester cohérent avec le bandeau. */
+  totalAccessibleCount?: number;
 }
 
 /** Step index -1 = intro page, 0..N-1 = questions */
@@ -57,6 +60,7 @@ export function PostDiagnosticQCM({
   questions: rawQuestions,
   initialAnswers,
   onComplete,
+  totalAccessibleCount,
 }: PostDiagnosticQCMProps) {
   const questions = useMemo(() => sanitizeQcmQuestions(rawQuestions), [rawQuestions]);
   const [currentIndex, setCurrentIndex] = useState<number>(INTRO_STEP);
@@ -140,9 +144,9 @@ export function PostDiagnosticQCM({
             <p
               className="text-[15px] text-[#1B1E2E] leading-relaxed"
             >
-              Votre diagnostic a identifié <strong>{totalAidesConcerned} aides potentiellement
-              accessibles</strong> pour votre monument, mais certaines conditions d'éligibilité
-              nécessitent des précisions de votre part.
+              Votre diagnostic a identifié <strong>{totalAccessibleCount ?? totalAidesConcerned} aides
+              potentiellement accessibles</strong> pour votre monument. Pour <strong>{totalAidesConcerned} d'entre
+              elles</strong>, certaines conditions d'éligibilité nécessitent des précisions de votre part.
             </p>
 
             <div className="space-y-3">
