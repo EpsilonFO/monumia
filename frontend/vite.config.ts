@@ -17,6 +17,6 @@ export default defineConfig({
     host: true,
     strictPort: true,
     port: 3000,
-    allowedHosts: ['patrys.fr', 'www.patrys.fr', 'app.patrys.fr', 'beta.patrys.fr'],
+    allowedHosts: ['monumia.fr', 'www.monumia.fr', 'app.monumia.fr', 'beta.monumia.fr'],
   },
 })

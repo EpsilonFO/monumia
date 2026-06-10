@@ -8,7 +8,7 @@ RUN npm ci || npm install
 
 COPY . .
 
-ARG VITE_APP_URL=https://app.patrys.fr
+ARG VITE_APP_URL=https://app.monumia.fr
 ENV VITE_APP_URL=$VITE_APP_URL
 
 RUN npm run build

@@ -17,7 +17,7 @@ import {
   Minus,
 } from 'lucide-react';
 
-const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.patrys.fr';
+const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.monumia.fr';
 
 /* ────────────────────────────────────────────
    Colors — brand palette
@@ -624,7 +624,7 @@ export function LandingPage() {
           </p>
 
           <div className="flex items-center gap-8 text-[12px] uppercase tracking-[0.12em]" style={{ color: C.textLight }}>
-            <a href="mailto:paul@patrys.fr" className="transition-colors duration-300 hover:text-[#1A237E]">Contact</a>
+            <a href="mailto:paul@monumia.fr" className="transition-colors duration-300 hover:text-[#1A237E]">Contact</a>
             <a href="#" className="transition-colors duration-300 hover:text-[#1A237E]">Mentions légales</a>
           </div>
 

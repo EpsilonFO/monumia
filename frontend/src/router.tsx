@@ -26,7 +26,7 @@ import { BtpDocumentsPage } from '@/pages/btp/BtpDocumentsPage';
 import { BtpProfilePage } from '@/pages/btp/BtpProfilePage';
 
 export const router = createBrowserRouter([
-  // Root redirects to login (landing page is now on patrys.fr)
+  // Root redirects to login (landing page is now on monumia.fr)
   {
     path: '/',
     element: <Navigate to="/login" replace />,

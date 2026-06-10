@@ -1,39 +1,35 @@
 #!/bin/bash
-# Generate SSL certificates for new subdomains
-# Run this on the VPS after deploying with nginx-init.conf
+# Generate SSL certificates for the monumia.fr domains
 #
 # Prerequisites:
-#   1. DNS A records for app.patrys.fr and beta.patrys.fr pointing to your VPS
-#   2. nginx running with nginx-init.conf (HTTP only)
+#   1. DNS A records on OVH pointing to the VPS (51.91.156.208) for:
+#      monumia.fr, www.monumia.fr, app.monumia.fr, beta.monumia.fr
+#   2. nginx running and serving /.well-known/acme-challenge/ from
+#      /var/www/certbot on port 80 (the current config does this for
+#      any Host, so no need to switch to nginx-init.conf first)
 #
-# Usage:
-#   1. Copy nginx-init.conf as the active config:
-#      cp nginx/nginx-init.conf nginx/nginx.conf
-#   2. Start services: docker compose up -d
-#   3. Run this script: bash init-ssl.sh
-#   4. Restore the full nginx config:
-#      cp nginx/nginx.conf.bak nginx/nginx.conf  (or git checkout nginx/nginx.conf)
-#   5. Restart nginx: docker compose restart nginx
+# Usage (on the VPS):
+#   bash init-ssl.sh
+#   # then deploy the new nginx.conf and restart:
+#   docker compose restart nginx
 
 set -e
 
-echo "==> Requesting certificate for app.patrys.fr..."
-docker compose run --rm certbot certonly \
-  --webroot \
-  --webroot-path=/var/www/certbot \
-  -d app.patrys.fr \
-  --email your-email@example.com \
-  --agree-tos \
-  --no-eff-email
+EMAIL="contact@monumia.fr"
 
-echo "==> Requesting certificate for beta.patrys.fr..."
-docker compose run --rm certbot certonly \
-  --webroot \
-  --webroot-path=/var/www/certbot \
-  -d beta.patrys.fr \
-  --email your-email@example.com \
-  --agree-tos \
-  --no-eff-email
+# NB: --entrypoint is required — the certbot service's default entrypoint
+# is a `certbot renew` loop that ignores the command passed to `run`.
+echo "==> Requesting certificate for monumia.fr + www.monumia.fr..."
+docker compose run --rm \
+  --entrypoint "certbot certonly --webroot --webroot-path=/var/www/certbot -d monumia.fr -d www.monumia.fr --email $EMAIL --agree-tos --no-eff-email" \
+  certbot
 
-echo "==> Done! Now restore nginx.conf and restart nginx:"
+for DOMAIN in app.monumia.fr beta.monumia.fr; do
+  echo "==> Requesting certificate for $DOMAIN..."
+  docker compose run --rm \
+    --entrypoint "certbot certonly --webroot --webroot-path=/var/www/certbot -d $DOMAIN --email $EMAIL --agree-tos --no-eff-email" \
+    certbot
+done
+
+echo "==> Done! Now deploy the new nginx.conf and restart nginx:"
 echo "    docker compose restart nginx"

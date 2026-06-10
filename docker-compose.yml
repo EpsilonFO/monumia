@@ -28,7 +28,7 @@ services:
       context: ./landing
       dockerfile: Dockerfile
       args:
-        VITE_APP_URL: https://app.patrys.fr
+        VITE_APP_URL: https://app.monumia.fr
     container_name: patrys-landing-build
     volumes:
       - landing_dist:/dist
@@ -38,7 +38,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: https://app.patrys.fr/api
+        VITE_API_URL: https://app.monumia.fr/api
         VITE_SUPABASE_URL: ${APP_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${APP_SUPABASE_ANON_KEY}
     container_name: patrys-app-frontend-build
@@ -50,7 +50,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: https://beta.patrys.fr/api
+        VITE_API_URL: https://beta.monumia.fr/api
         VITE_SUPABASE_URL: ${BETA_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${BETA_SUPABASE_ANON_KEY}
     container_name: patrys-beta-frontend-build
