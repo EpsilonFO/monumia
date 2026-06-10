@@ -4,7 +4,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name patrys.fr www.patrys.fr;
+    server_name monumia.fr www.monumia.fr;
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;

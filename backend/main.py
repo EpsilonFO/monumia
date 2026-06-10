@@ -24,7 +24,7 @@ _ENV = os.environ.get("ENV", "production").lower()
 _DOCS_ENABLED = _ENV in {"development", "dev", "local"}
 
 app = FastAPI(
-    title="Patrys API",
+    title="Monumia API",
     docs_url="/docs" if _DOCS_ENABLED else None,
     redoc_url="/redoc" if _DOCS_ENABLED else None,
     openapi_url="/openapi.json" if _DOCS_ENABLED else None,

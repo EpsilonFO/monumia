@@ -154,12 +154,12 @@ export function LandingPage() {
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-10 py-5">
           <div className="flex items-center gap-3">
-            <img src="/patrys.png" alt="Patrys" className="h-7" />
+            <img src="/monumia.png" alt="Monumia" className="h-7" />
             <span
               className="text-[1.45rem] font-light tracking-[-0.01em]"
               style={{ fontFamily: "'Cormorant Garamond', serif", color: C.royal }}
             >
-              Patrys
+              Monumia
             </span>
           </div>
 
@@ -225,7 +225,7 @@ export function LandingPage() {
           <Reveal delay={240}>
             <div className="mt-12 flex flex-col sm:flex-row items-start gap-12 sm:items-end justify-between">
               <p className="max-w-lg text-[17px] leading-[1.75]" style={{ color: C.textMuted }}>
-                Patrys identifie les subventions, déductions fiscales et dispositifs de mécénat
+                Monumia identifie les subventions, déductions fiscales et dispositifs de mécénat
                 auxquels vos monuments sont éligibles — puis vous aide à monter vos dossiers à l'aide de l'IA.
               </p>
 
@@ -321,7 +321,7 @@ export function LandingPage() {
             </Reveal>
             <Reveal delay={120}>
               <p className="max-w-md text-[16px] leading-[1.8] lg:text-right" style={{ color: C.textMuted }}>
-                De l'identification des aides à la constitution de vos dossiers, Patrys vous accompagne à chaque étape.
+                De l'identification des aides à la constitution de vos dossiers, Monumia vous accompagne à chaque étape.
               </p>
             </Reveal>
           </div>
@@ -329,7 +329,7 @@ export function LandingPage() {
           <div className="grid gap-px sm:grid-cols-2 lg:grid-cols-3 rounded-lg overflow-hidden" style={{ background: C.border }}>
             {([
               { icon: Landmark, title: 'Fiche monument', desc: 'Centralisez toutes les données de votre bien : protection, état, travaux prévus, photos.', num: '01' },
-              { icon: Building2, title: 'Base Patrys', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '02' },
+              { icon: Building2, title: 'Base Monumia', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '02' },
               { icon: Search, title: 'Diagnostic intelligent', desc: "Croisez les caractéristiques de votre monument avec l'ensemble des dispositifs d'aide — DRAC, régions, fondations, fiscal.", num: '03' },
               { icon: Euro, title: "Catalogue d'aides complet", desc: 'Plus de 150 dispositifs agrégés : subventions, prêts, déductions fiscales, mécénat, labels patrimoniaux.', num: '04' },
               { icon: FileCheck, title: 'Gestion de dossiers', desc: "Constituez vos demandes pas à pas : checklists, pièces jointes, jalons — avec l'IA pour vous aider à rédiger.", num: '05' },
@@ -610,12 +610,12 @@ export function LandingPage() {
       <footer className="relative border-t py-12 px-6 lg:px-10" style={{ borderColor: C.border, background: C.bg }}>
         <div className="mx-auto max-w-7xl flex flex-col items-center gap-6">
           <div className="flex items-center gap-2.5 opacity-60">
-            <img src="/patrys.png" alt="Patrys" className="h-5" />
+            <img src="/monumia.png" alt="Monumia" className="h-5" />
             <span
               className="text-[1.15rem] font-light tracking-[-0.01em]"
               style={{ fontFamily: "'Cormorant Garamond', serif", color: C.royal }}
             >
-              Patrys
+              Monumia
             </span>
           </div>
 
@@ -629,7 +629,7 @@ export function LandingPage() {
           </div>
 
           <p className="text-[11px] uppercase tracking-[0.15em]" style={{ color: `${C.textLight}80` }}>
-            © {new Date().getFullYear()} Patrys. Tous droits réservés.
+            © {new Date().getFullYear()} Monumia. Tous droits réservés.
           </p>
         </div>
       </footer>

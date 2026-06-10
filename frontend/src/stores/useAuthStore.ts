@@ -79,7 +79,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'patrys-auth',
+      name: 'monumia-auth',
     }
   )
 );

@@ -25,12 +25,12 @@ export function MobileNav({ onNavigate }: MobileNavProps) {
   return (
     <div className="flex flex-col h-full bg-[#F2F0EB]">
       <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#E0DDD6]">
-        <img src="/patrys.png" alt="Patrys" className="h-7 w-7" />
+        <img src="/monumia.png" alt="Monumia" className="h-7 w-7" />
         <span
           className="text-[15px] font-normal tracking-[-0.01em] text-[#1B1E2E]"
           style={{ fontFamily: "'Cormorant Garamond', serif" }}
         >
-          Patrys
+          Monumia
         </span>
       </div>
 

@@ -1,4 +1,4 @@
-# Patrys — Guide dev
+# Monumia — Guide dev
 
 ## Prérequis
 
@@ -10,8 +10,8 @@
 ## Installation
 
 ```bash
-git clone https://github.com/EpsilonFO/patrys
-cd patrys
+git clone https://github.com/EpsilonFO/monumia
+cd monumia
 ```
 
 ### 1. Dépendances backend + hooks git

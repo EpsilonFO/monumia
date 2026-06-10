@@ -35,7 +35,7 @@ export function BtpSidebar() {
       <div className="flex items-center gap-2 px-6 py-5 border-b border-sidebar-border">
         <Church className="h-7 w-7 text-sidebar-primary" />
         <div>
-          <span className="text-xl font-bold tracking-tight">Patrys</span>
+          <span className="text-xl font-bold tracking-tight">Monumia</span>
           <div className="text-xs text-sidebar-foreground/60 font-medium">Espace BTP</div>
         </div>
       </div>
@@ -78,7 +78,7 @@ export function BtpSidebar() {
           <LogOut className="h-4 w-4 mr-2" />
           Changer de profil
         </Button>
-        <p className="text-xs text-sidebar-foreground/40">Patrys v0.1 — MVP</p>
+        <p className="text-xs text-sidebar-foreground/40">Monumia v0.1 — MVP</p>
       </div>
     </aside>
   );

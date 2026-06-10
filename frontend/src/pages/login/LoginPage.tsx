@@ -100,8 +100,8 @@ export function LoginPage() {
 
         <div className="relative z-10">
           <button onClick={() => navigate('/')} className="flex items-center gap-3 group">
-            <img src="/patrys.png" alt="Patrys" className="h-8 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]" />
-            <span className="text-[15px] font-semibold text-white/80 tracking-wide group-hover:text-white transition-colors">Patrys</span>
+            <img src="/monumia.png" alt="Monumia" className="h-8 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]" />
+            <span className="text-[15px] font-semibold text-white/80 tracking-wide group-hover:text-white transition-colors">Monumia</span>
           </button>
         </div>
 
@@ -139,8 +139,8 @@ export function LoginPage() {
         {/* mobile header */}
         <div className="lg:hidden flex items-center justify-between px-6 py-5" style={{ borderBottom: `1px solid ${C.border}` }}>
           <button onClick={() => navigate('/')} className="flex items-center gap-2">
-            <img src="/patrys.png" alt="Patrys" className="h-7" />
-            <span className="text-[15px] font-semibold" style={{ color: C.text }}>Patrys</span>
+            <img src="/monumia.png" alt="Monumia" className="h-7" />
+            <span className="text-[15px] font-semibold" style={{ color: C.text }}>Monumia</span>
           </button>
         </div>
 

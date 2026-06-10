@@ -48,6 +48,6 @@ export const useProspectStore = create<ProspectState>()(
           ),
         })),
     }),
-    { name: 'patrys-prospects' }
+    { name: 'monumia-prospects' }
   )
 );

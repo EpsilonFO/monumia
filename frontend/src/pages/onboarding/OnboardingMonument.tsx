@@ -266,7 +266,7 @@ export function OnboardingMonument() {
         <TabsList className="grid w-full grid-cols-2 h-12">
           <TabsTrigger value="merimee" className="gap-2 text-[14px]">
             <Search className="h-4 w-4" />
-            Recherche Patrys
+            Recherche Monumia
           </TabsTrigger>
           <TabsTrigger value="manual" className="gap-2 text-[14px]">
             <PenLine className="h-4 w-4" />
@@ -280,7 +280,7 @@ export function OnboardingMonument() {
               className="text-[20px] font-normal mb-2"
               style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
             >
-              Rechercher avec Patrys
+              Rechercher avec Monumia
             </h3>
             <p className="text-[14px] mb-6" style={{ color: C.textLight }}>
               Recherchez votre monument dans une base de données connue.
@@ -299,7 +299,7 @@ export function OnboardingMonument() {
               Saisie manuelle
             </h3>
             <p className="text-[14px] mb-6" style={{ color: C.textLight }}>
-              Votre monument n'est pas dans la base de Patrys ?
+              Votre monument n'est pas dans la base de Monumia ?
               Renseignez ses informations manuellement.
             </p>
             <button

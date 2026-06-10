@@ -1,10 +1,15 @@
+# Project name pinned to "patrys": the existing volumes on the VPS
+# (incl. certbot_conf which holds the Let's Encrypt certificates) are
+# prefixed patrys_*. Renaming the project would orphan them.
+name: patrys
+
 services:
   # ── Backends ──────────────────────────────────────────
   app-backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: patrys-app-backend
+    container_name: monumia-app-backend
     env_file:
       - ./backend/.env
     volumes:
@@ -15,7 +20,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: patrys-beta-backend
+    container_name: monumia-beta-backend
     env_file:
       - ./backend/.env.beta
     volumes:
@@ -29,7 +34,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_APP_URL: https://app.monumia.fr
-    container_name: patrys-landing-build
+    container_name: monumia-landing-build
     volumes:
       - landing_dist:/dist
 
@@ -41,7 +46,7 @@ services:
         VITE_API_URL: https://app.monumia.fr/api
         VITE_SUPABASE_URL: ${APP_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${APP_SUPABASE_ANON_KEY}
-    container_name: patrys-app-frontend-build
+    container_name: monumia-app-frontend-build
     volumes:
       - app_frontend_dist:/dist
 
@@ -53,14 +58,14 @@ services:
         VITE_API_URL: https://beta.monumia.fr/api
         VITE_SUPABASE_URL: ${BETA_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${BETA_SUPABASE_ANON_KEY}
-    container_name: patrys-beta-frontend-build
+    container_name: monumia-beta-frontend-build
     volumes:
       - beta_frontend_dist:/dist
 
   # ── Nginx (single entry point) ──────────────────────
   nginx:
     image: nginx:alpine
-    container_name: patrys-nginx
+    container_name: monumia-nginx
     ports:
       - "80:80"
       - "443:443"
@@ -85,7 +90,7 @@ services:
   # ── SSL ─────────────────────────────────────────────
   certbot:
     image: certbot/certbot
-    container_name: patrys-certbot
+    container_name: monumia-certbot
     volumes:
       - certbot_www:/var/www/certbot
       - certbot_conf:/etc/letsencrypt
