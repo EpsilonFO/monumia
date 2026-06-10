@@ -331,9 +331,9 @@ def sync_geo_constraints(aide_id: str, api_aid: dict, organisme: str) -> None:
     """Overwrite the aide's `departements` / `regions` arrays in aides_v2."""
     depts, regions = derive_geo_constraints(api_aid, organisme=organisme)
 
-    supabase.table("aides_v2").update(
-        {"departements": depts or [], "regions": regions or []}
-    ).eq("id", aide_id).execute()
+    supabase.table("aides_v2").update({"departements": depts or [], "regions": regions or []}).eq(
+        "id", aide_id
+    ).execute()
 
     if depts or regions:
         log.info("    geo: depts=%s regions=%s", depts, regions)

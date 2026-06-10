@@ -98,9 +98,9 @@ def list_target_aides(process_all: bool) -> list[dict]:
 def replace_geo(aide_id: str, depts: list[str], regions: list[str], dry_run: bool) -> None:
     if dry_run:
         return
-    supabase.table("aides_v2").update(
-        {"departements": depts or [], "regions": regions or []}
-    ).eq("id", aide_id).execute()
+    supabase.table("aides_v2").update({"departements": depts or [], "regions": regions or []}).eq(
+        "id", aide_id
+    ).execute()
 
 
 def main() -> None:
