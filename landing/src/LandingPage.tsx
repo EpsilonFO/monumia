@@ -1250,19 +1250,19 @@ const CATEGORIES: Array<{
     features: [
       [
         'Un questionnaire simple',
-        'Décrivez votre lieu et votre projet en quelques questions. Plus vous êtes précis, plus les résultats le sont aussi.',
+        'Quelques questions sur votre lieu et votre projet. Plus vos réponses sont précises, plus les résultats le sont.',
       ],
       [
         'Un moteur de recherche d’aides',
-        'Croise vos réponses avec l’ensemble des financements existants. Ne remonte que les aides auxquelles vous avez réellement droit.',
+        'Vos réponses sont croisées avec l’ensemble des financements existants, pour ne remonter que les aides auxquelles vous êtes réellement éligible.',
       ],
       [
-        'Une estimation de vos aides et de vos chances',
-        'Chiffre prudemment ce que vous pouvez espérer obtenir. Vous savez où vous en êtes avant même de commencer.',
+        'Une estimation de vos aides',
+        'Une fourchette de ce que vous pouvez obtenir et de votre niveau d’éligibilité, évaluée prudemment.',
       ],
       [
         'Une fiche claire pour chaque aide',
-        'Conditions, montants, personne à contacter et documents à fournir : le mode d’emploi de chaque financement.',
+        'Conditions, montants, documents à fournir et personne à contacter : le mode d’emploi de chaque financement.',
       ],
     ],
     scene: SceneTrouver,
@@ -1275,24 +1275,24 @@ const CATEGORIES: Array<{
     sub: 'Une veille permanente sur tous les financements de votre patrimoine.',
     features: [
       [
-        'Des alertes avant chaque date limite',
-        'Repère les nouveaux financements et les ouvertures annuelles des grandes fondations. Vous êtes prévenu à temps, à chaque fois.',
+        'Des alertes avant chaque échéance',
+        'Monumia vous prévient à l’approche de chaque date limite qui vous concerne, à temps pour déposer.',
       ],
       [
-        'Une surveillance permanente',
-        'Monumia surveille en continu tout ce que votre lieu pourrait obtenir, au-delà de vos projets en cours. Rien ne passe entre les mailles.',
+        'Une veille sur vos financements',
+        'Au-delà de vos projets en cours, Monumia identifie en continu les aides auxquelles votre lieu donne droit.',
       ],
       [
-        'Des idées de nouveaux projets',
-        'Vous suggère des travaux auxquels vous n’auriez pas pensé quand ils ouvrent droit à des aides. Votre patrimoine révèle tout son potentiel.',
+        'Les financements liés à vos travaux',
+        'Pour chaque projet, Monumia vous indique les aides associées, y compris celles que vous ne connaissez pas encore.',
       ],
       [
-        'Toutes vos dates au même endroit',
-        'Rassemble vos dates clés en un seul calendrier. Plus rien à noter dans un coin, tout est visible d’un coup d’œil.',
+        'Toutes vos échéances réunies',
+        'Vos dates clés rassemblées dans un seul calendrier, visibles d’un coup d’œil.',
       ],
       [
         'L’annuaire des fondations et mécènes',
-        'Retrouvez en un instant la fiche d’une fondation que vous connaissez déjà par son nom. Dates, modalités, contacts : tout y est.',
+        'La fiche complète de chaque fondation : dates, modalités, contacts.',
       ],
     ],
     scene: SceneVeille,
