@@ -30,7 +30,7 @@ const BASE = import.meta.env.BASE_URL;
    Charte Monumia — couleurs
    ──────────────────────────────────────────── */
 
-const C = {
+export const C = {
   blue:       '#0a369d',   // bleu profond — institutionnel, confiance
   blueLight:  '#5c95ff',   // bleu clair — liens, infographies, soutien
   orange:     '#f17105',   // orange — action, signature
@@ -53,7 +53,7 @@ const LOGO_URL = `url(${BASE}logo.svg)`;
    Briques graphiques
    ──────────────────────────────────────────── */
 
-function Clover({
+export function Clover({
   className = '',
   style,
 }: {
@@ -268,6 +268,13 @@ function goToApp() {
   window.location.href = APP_URL;
 }
 
+/* Page d'inscription à la liste d'attente : route servie par le fallback SPA de
+   nginx (sous BASE — '/lancement' en prod, '/landing/lancement' en beta). */
+export const SIGNUP_PATH = `${BASE}lancement`;
+function goToSignup() {
+  window.location.href = SIGNUP_PATH;
+}
+
 function CtaButton({
   children,
   variant = 'primary',
@@ -400,18 +407,11 @@ function Header() {
 
         <div className="flex items-center gap-5">
           <button
-            onClick={goToApp}
-            className="hidden text-[14px] font-medium transition-colors duration-200 hover:text-[#0a369d] sm:block"
-            style={{ color: C.inkSoft }}
-          >
-            Se connecter
-          </button>
-          <button
-            onClick={goToApp}
+            onClick={goToSignup}
             className="rounded-full px-5 py-2.5 text-[14px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_20px_-6px_rgba(241,113,5,0.55)]"
             style={{ background: C.orange }}
           >
-            Estimer mes aides
+            Me tenir informé
           </button>
         </div>
       </div>
@@ -552,7 +552,7 @@ function Hero() {
           </p>
 
           <div className="fade-up mt-9 flex flex-wrap items-center gap-4" style={{ animationDelay: '0.45s' }}>
-            <CtaButton>Estimer mes aides gratuitement</CtaButton>
+            <CtaButton onClick={goToSignup}>Me tenir informé du lancement</CtaButton>
             <a
               href="#methode"
               className="group inline-flex items-center gap-2 px-2 py-3 text-[15px] font-semibold transition-colors duration-200 hover:text-[#0a369d]"
@@ -1455,8 +1455,8 @@ function Demo() {
                   </li>
                 ))}
               </ul>
-              <CtaButton variant="white" className="mt-9">
-                Estimer mes aides gratuitement
+              <CtaButton variant="white" onClick={goToSignup} className="mt-9">
+                Me tenir informé du lancement
               </CtaButton>
             </div>
 
@@ -2108,7 +2108,7 @@ function FinalCta() {
               quelques minutes.
             </p>
             <div className="mt-9">
-              <CtaButton>Estimer mes aides gratuitement</CtaButton>
+              <CtaButton onClick={goToSignup}>Me tenir informé du lancement</CtaButton>
             </div>
             <p className="mt-5 text-[13px] uppercase tracking-[0.12em] text-white/60">
               Sans carte bancaire · Sans engagement

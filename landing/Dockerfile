@@ -11,6 +11,11 @@ COPY . .
 ARG VITE_APP_URL=https://app.monumia.fr
 ENV VITE_APP_URL=$VITE_APP_URL
 
+# URL du backend (endpoint /waitlist) : app.monumia.fr/api en prod,
+# beta.monumia.fr/api en beta. Passée par docker-compose.
+ARG VITE_API_URL=https://app.monumia.fr/api
+ENV VITE_API_URL=$VITE_API_URL
+
 # Chemin de base : '/' en prod, '/landing/' pour la beta (beta.monumia.fr/landing)
 ARG VITE_BASE=/
 ENV VITE_BASE=$VITE_BASE

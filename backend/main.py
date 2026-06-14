@@ -14,6 +14,7 @@ from routers import (
     monuments,
     notifications,
     prospects,
+    waitlist,
 )
 
 setup_logging()
@@ -34,6 +35,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "http://localhost:3001",
         "https://monumia.fr",
         "https://www.monumia.fr",
         "https://app.monumia.fr",
@@ -53,3 +55,4 @@ app.include_router(notifications.router)
 app.include_router(dossiers.router)
 app.include_router(prospects.router)
 app.include_router(communes.router)
+app.include_router(waitlist.router)
