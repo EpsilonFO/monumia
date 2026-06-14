@@ -18,24 +18,14 @@ export interface Monument {
   dateProtection?: string;
   typeProtection?: string;
   proprietaire: OwnershipType;
-  affectataire?: string;
 
   // Step 3: Physical Description
   siecleConstruction?: string;
-  periodeConstruction?: string[];
-  superficie?: number;
-  materiaux?: string[];
-  typeCouverture?: string;
-  nombreNiveaux?: number;
   descriptionGenerale?: string;
 
   // Step 4: Current State
   etatConservation: 'bon' | 'moyen' | 'mauvais' | 'peril';
   travauxEnvisages?: WorkType[];
-  urgenceTravaux?: 'faible' | 'moyenne' | 'haute' | 'critique';
-  diagnosticRealise?: boolean;
-  derniersTravaux?: string;
-  descriptionEtat?: string;
 
   // Step 5: Photos
   photos: MonumentPhoto[];

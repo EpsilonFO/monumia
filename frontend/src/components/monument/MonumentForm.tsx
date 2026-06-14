@@ -4,7 +4,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -13,7 +12,6 @@ import {
   PROTECTION_LEVELS,
   OWNERSHIP_TYPES,
   ETATS_CONSERVATION,
-  URGENCE_TRAVAUX,
   WORK_TYPES,
 } from '@/constants/monument-options';
 import type { Monument, WorkType } from '@/types';
@@ -268,24 +266,6 @@ function Step4EtatActuel({ data, onChange }: StepProps) {
           </SelectContent>
         </Select>
       </div>
-      <div>
-        <Label htmlFor="urgenceTravaux">Urgence des travaux</Label>
-        <Select
-          value={data.urgenceTravaux ?? ''}
-          onValueChange={(v) => onChange({ urgenceTravaux: v as Monument['urgenceTravaux'] })}
-        >
-          <SelectTrigger id="urgenceTravaux">
-            <SelectValue placeholder="Sélectionner..." />
-          </SelectTrigger>
-          <SelectContent>
-            {URGENCE_TRAVAUX.map((u) => (
-              <SelectItem key={u.value} value={u.value}>
-                {u.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
       <div className="md:col-span-2">
         <Label>Travaux envisagés</Label>
         <div className="flex flex-wrap gap-2 mt-2">
@@ -308,37 +288,6 @@ function Step4EtatActuel({ data, onChange }: StepProps) {
             );
           })}
         </div>
-      </div>
-      <div className="md:col-span-2 flex items-center gap-2">
-        <Checkbox
-          id="diagnosticRealise"
-          checked={data.diagnosticRealise ?? false}
-          onCheckedChange={(checked) =>
-            onChange({ diagnosticRealise: checked === true })
-          }
-        />
-        <Label htmlFor="diagnosticRealise" className="cursor-pointer">
-          Un diagnostic a été réalisé
-        </Label>
-      </div>
-      <div>
-        <Label htmlFor="derniersTravaux">Date des derniers travaux</Label>
-        <Input
-          id="derniersTravaux"
-          type="date"
-          value={data.derniersTravaux ?? ''}
-          onChange={(e) => onChange({ derniersTravaux: e.target.value })}
-        />
-      </div>
-      <div className="md:col-span-2">
-        <Label htmlFor="descriptionEtat">Description de l'état actuel</Label>
-        <Textarea
-          id="descriptionEtat"
-          value={data.descriptionEtat ?? ''}
-          onChange={(e) => onChange({ descriptionEtat: e.target.value })}
-          placeholder="Décrivez les dégradations, urgences..."
-          rows={4}
-        />
       </div>
     </div>
   );

@@ -38,3 +38,6 @@ supabase/seed.sql
 supabase/snippets/
 
 .claude/
+
+# Visual companion (brainstorming)
+.superpowers/

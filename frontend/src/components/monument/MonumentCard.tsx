@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router';
-import { MapPin, Shield, AlertTriangle, ChevronRight, Compass, FolderOpen } from 'lucide-react';
+import { MapPin, Shield, ChevronRight, Compass, FolderOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useAideStore } from '@/stores/useAideStore';
@@ -67,7 +67,6 @@ export function MonumentCard({ monument }: MonumentCardProps) {
             {protectionLabels[monument.protection] ?? monument.protection}
           </Badge>
           <Badge className="text-[10px] font-semibold border-0" style={{ background: etat.bg, color: etat.text }}>
-            {monument.urgenceTravaux === 'critique' && <AlertTriangle className="h-3 w-3 mr-0.5" />}
             {etatLabels[monument.etatConservation] ?? monument.etatConservation}
           </Badge>
         </div>

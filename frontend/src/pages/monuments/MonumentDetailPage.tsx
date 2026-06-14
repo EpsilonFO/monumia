@@ -48,13 +48,6 @@ const etatLabels: Record<string, string> = {
   peril: 'En péril',
 };
 
-const urgenceColors: Record<string, string> = {
-  faible: 'bg-green-100 text-green-800',
-  moyenne: 'bg-yellow-100 text-yellow-800',
-  haute: 'bg-orange-100 text-orange-800',
-  critique: 'bg-red-100 text-red-800',
-};
-
 export function MonumentDetailPage() {
   const { monumentId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -378,7 +371,6 @@ export function MonumentDetailPage() {
                 <InfoRow label="Protection" value={protectionLabels[monument.protection] ?? monument.protection} />
                 {monument.dateProtection && <InfoRow label="Date" value={formatDate(monument.dateProtection)} />}
                 <InfoRow label="Propriétaire" value={OWNERSHIP_TYPES.find((o) => o.value === monument.proprietaire)?.label ?? monument.proprietaire} />
-                {monument.affectataire && <InfoRow label="Affectation" value={monument.affectataire} />}
               </div>
             </Panel>
 
@@ -388,13 +380,6 @@ export function MonumentDetailPage() {
                   <span className="text-[#8E92A4]">Conservation :</span>
                   <Badge variant="outline" className="text-[12px] border-[#E4E2DC]">{etatLabels[monument.etatConservation] ?? monument.etatConservation}</Badge>
                 </div>
-                {monument.urgenceTravaux && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[#8E92A4]">Urgence :</span>
-                    <Badge className={urgenceColors[monument.urgenceTravaux] ?? ''}>{monument.urgenceTravaux}</Badge>
-                  </div>
-                )}
-                {monument.descriptionEtat && <p className="text-[#5C6178] leading-relaxed">{monument.descriptionEtat}</p>}
               </div>
             </Panel>
 

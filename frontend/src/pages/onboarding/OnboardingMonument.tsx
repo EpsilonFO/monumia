@@ -10,7 +10,6 @@ import { monumentService } from '@/services/monument.service';
 
 import { merimeeService } from '@/services/merimee.service';
 import { REGIONS } from '@/constants/regions';
-import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
 import { Search, PenLine, ChevronLeft, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
@@ -86,14 +85,6 @@ export function OnboardingMonument() {
       (Object.entries(PROPRIETAIRE_MAP).find(([k]) => statutRaw.includes(k))?.[1]) ??
       undefined;
 
-    const materiauxRaw = lastOf(record.materiaux_de_la_couverture || record.materiaux_du_gros_oeuvre).toLowerCase();
-    const materiaux = materiauxRaw
-      ? MATERIAUX.filter((m) => materiauxRaw.includes(m.value)).map((m) => m.value)
-      : undefined;
-
-    const couvertureRaw = lastOf(record.type_de_couverture).toLowerCase();
-    const typeCouverture = TYPES_COUVERTURE.find((t) => couvertureRaw.includes(t.value))?.value || undefined;
-
     let dateProtection: string | undefined;
     const lastDateEntry = lastOf(record.date_et_typologie_de_la_protection);
     if (lastDateEntry) {
@@ -116,8 +107,6 @@ export function OnboardingMonument() {
       dateProtection,
       typeProtection,
       siecleConstruction: record.format_abrege_du_siecle_de_construction || record.siecle_de_la_campagne_principale_de_construction || undefined,
-      typeCouverture,
-      materiaux: materiaux?.length ? materiaux : undefined,
       proprietaire: proprietaireGuess,
       descriptionGenerale: record.precision_de_la_protection || undefined,
     };
@@ -125,10 +114,6 @@ export function OnboardingMonument() {
     console.log('=== MERIMEE RAW RECORD ===', JSON.stringify(record, null, 2));
     console.log('=== PREFILL DATA ===', JSON.stringify(prefill, null, 2));
     console.log('=== INTERMEDIATES ===', {
-      materiauxRaw,
-      materiaux,
-      couvertureRaw,
-      typeCouverture,
       lastDateEntry,
       dateProtection,
       regionValue,
@@ -154,19 +139,9 @@ export function OnboardingMonument() {
         referenceMerimee: data.referenceMerimee,
         dateProtection: data.dateProtection,
         typeProtection: data.typeProtection,
-        affectataire: data.affectataire,
         siecleConstruction: data.siecleConstruction,
-        periodeConstruction: data.periodeConstruction,
-        superficie: data.superficie,
-        materiaux: data.materiaux,
-        typeCouverture: data.typeCouverture,
-        nombreNiveaux: data.nombreNiveaux,
         descriptionGenerale: data.descriptionGenerale,
         travauxEnvisages: data.travauxEnvisages,
-        urgenceTravaux: data.urgenceTravaux,
-        diagnosticRealise: data.diagnosticRealise,
-        derniersTravaux: data.derniersTravaux,
-        descriptionEtat: data.descriptionEtat,
       });
 
       for (const photo of pendingPhotos) {

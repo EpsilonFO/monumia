@@ -131,22 +131,12 @@ class CreateMonumentRequest(BaseModel):
     dateProtection: str | None = None
     typeProtection: str | None = None
     proprietaire: str
-    affectataire: str | None = None
 
     siecleConstruction: str | None = None
-    periodeConstruction: list[str] | None = None
-    superficie: float | None = None
-    materiaux: list[str] | None = None
-    typeCouverture: str | None = None
-    nombreNiveaux: int | None = None
     descriptionGenerale: str | None = None
 
     etatConservation: str
     travauxEnvisages: list[str] | None = None
-    urgenceTravaux: str | None = None
-    diagnosticRealise: bool | None = None
-    derniersTravaux: str | None = None
-    descriptionEtat: str | None = None
 
 
 class UpdateMonumentRequest(BaseModel):
@@ -160,22 +150,12 @@ class UpdateMonumentRequest(BaseModel):
     dateProtection: str | None = None
     typeProtection: str | None = None
     proprietaire: str | None = None
-    affectataire: str | None = None
 
     siecleConstruction: str | None = None
-    periodeConstruction: list[str] | None = None
-    superficie: float | None = None
-    materiaux: list[str] | None = None
-    typeCouverture: str | None = None
-    nombreNiveaux: int | None = None
     descriptionGenerale: str | None = None
 
     etatConservation: str | None = None
     travauxEnvisages: list[str] | None = None
-    urgenceTravaux: str | None = None
-    diagnosticRealise: bool | None = None
-    derniersTravaux: str | None = None
-    descriptionEtat: str | None = None
     completionPercentage: int | None = None
 
 
@@ -250,7 +230,6 @@ def _compute_completion(monument: dict) -> int:
         any(
             [
                 monument.get("siecle_construction"),
-                monument.get("superficie"),
                 monument.get("description_generale"),
             ]
         ),
