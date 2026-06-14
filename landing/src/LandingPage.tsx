@@ -518,8 +518,12 @@ function Hero() {
             className="fade-up mt-6 font-serif text-[clamp(2.3rem,5vw,3.4rem)] leading-[1.13] tracking-[-0.015em]"
             style={{ color: C.ink, animationDelay: '0.15s' }}
           >
-            <span className="relative inline-block whitespace-nowrap" style={{ color: C.blue }}>
+            <span className="whitespace-nowrap" style={{ color: C.blue }}>
               Monumia
+            </span>{' '}
+            : Au service de ceux qui le{' '}
+            <span className="relative inline-block whitespace-nowrap" style={{ color: C.blue }}>
+              font vivre.
               <svg
                 viewBox="0 0 230 12"
                 className="absolute -bottom-1.5 left-0 w-full"
@@ -535,12 +539,11 @@ function Hero() {
                   style={{
                     strokeDasharray: 240,
                     strokeDashoffset: 240,
-                    animation: 'draw-stroke 1s 0.9s ease forwards',
+                    animation: 'draw-stroke 1s 1.3s ease forwards',
                   }}
                 />
               </svg>
-            </span>{' '}
-            : Au service de ceux qui le font vivre.
+            </span>
           </h1>
 
           <p
@@ -562,15 +565,6 @@ function Hero() {
               <ArrowDown className="h-4 w-4 transition-transform duration-300 group-hover:translate-y-0.5" />
             </a>
           </div>
-
-          <ul className="fade-up mt-8 flex flex-wrap gap-x-6 gap-y-2" style={{ animationDelay: '0.55s' }}>
-            {['Gratuit', 'Sans carte bancaire', 'Estimation instantanée'].map((item) => (
-              <li key={item} className="flex items-center gap-1.5 text-[13.5px]" style={{ color: C.inkFaint }}>
-                <Check className="h-3.5 w-3.5" style={{ color: C.orange }} strokeWidth={2.5} />
-                {item}
-              </li>
-            ))}
-          </ul>
         </div>
 
         <div
@@ -1732,7 +1726,7 @@ function Team() {
           <SectionTitle
             kicker="L’équipe"
             title="Les visages derrière Monumia"
-            sub="Une même conviction : le patrimoine mérite des outils à la hauteur de son histoire."
+            sub="Notre conviction : le patrimoine mérite des outils à la hauteur de son histoire et de ceux qui le font vivre."
           />
         </Reveal>
 
@@ -1865,7 +1859,7 @@ function Pricing() {
                   </li>
                 ))}
               </ul>
-              <CtaButton variant="ghost" className="mt-8 w-full">
+              <CtaButton variant="ghost" onClick={goToSignup} className="mt-8 w-full">
                 Estimer mes aides
               </CtaButton>
             </div>
@@ -1912,7 +1906,7 @@ function Pricing() {
                   </li>
                 ))}
               </ul>
-              <CtaButton className="mt-8 w-full">Monter mon dossier</CtaButton>
+              <CtaButton onClick={goToSignup} className="mt-8 w-full">Monter mon dossier</CtaButton>
             </div>
           </Reveal>
 
@@ -1956,7 +1950,7 @@ function Pricing() {
                     </li>
                   ))}
                 </ul>
-                <CtaButton variant="white" className="mt-8 w-full">
+                <CtaButton variant="white" onClick={goToSignup} className="mt-8 w-full">
                   Choisir l’abonnement
                 </CtaButton>
               </div>
