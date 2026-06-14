@@ -515,35 +515,34 @@ function Hero() {
           </div>
 
           <h1
-            className="fade-up mt-6 font-serif text-[clamp(2.3rem,5vw,3.4rem)] leading-[1.13] tracking-[-0.015em]"
+            className="fade-up mt-6 text-center font-serif text-[clamp(1.85rem,4.2vw,2.7rem)] leading-[1.13] tracking-[-0.015em]"
             style={{ color: C.ink, animationDelay: '0.15s' }}
           >
-            <span className="whitespace-nowrap" style={{ color: C.blue }}>
-              Monumia
-            </span>{' '}
-            : Au service de ceux qui le{' '}
-            <span className="relative inline-block whitespace-nowrap" style={{ color: C.blue }}>
-              font vivre.
-              <svg
-                viewBox="0 0 230 12"
-                className="absolute -bottom-1.5 left-0 w-full"
-                aria-hidden="true"
-                preserveAspectRatio="none"
-              >
-                <path
-                  d="M4 8.5 C 60 2.5, 160 2.5, 226 7"
-                  fill="none"
-                  stroke={C.orange}
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  style={{
-                    strokeDasharray: 240,
-                    strokeDashoffset: 240,
-                    animation: 'draw-stroke 1s 1.3s ease forwards',
-                  }}
-                />
-              </svg>
-            </span>
+           
+            <span className="block">Au service de celles et ceux qui</span> 
+              <span className="relative inline-block whitespace-nowrap" style={{ color: C.blue }}>
+                font vivre 
+                <svg
+                  viewBox="0 0 230 12"
+                  className="absolute -bottom-1.5 left-0 w-full"
+                  aria-hidden="true"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    d="M4 8.5 C 60 2.5, 160 2.5, 226 7"
+                    fill="none"
+                    stroke={C.orange}
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    style={{
+                      strokeDasharray: 240,
+                      strokeDashoffset: 240,
+                      animation: 'draw-stroke 1s 1.3s ease forwards',
+                    }}
+                  />
+                </svg>
+              </span>{' '}
+             le patrimoine bâti
           </h1>
 
           <p
@@ -1691,7 +1690,6 @@ function ParallaxLandscape({ lit }: { lit: boolean }) {
 
 const TEAM: Array<{
   name: string;
-  role: string;
   img: string;
   alt: string;
   desc: string;
@@ -1700,7 +1698,6 @@ const TEAM: Array<{
 }> = [
   {
     name: 'Paul',
-    role: '20 ans',
     img: `${BASE}img/team-paul.jpg`,
     alt: 'Portrait de Paul, cofondateur de Monumia',
     desc: 'Chargé de la vision et du développement commercial.',
@@ -1709,7 +1706,6 @@ const TEAM: Array<{
   },
   {
     name: 'Félix',
-    role: '21 ans',
     img: `${BASE}img/team-felix.jpg`,
     alt: 'Portrait de Félix, cofondateur de Monumia',
     desc: 'Chargé de la conception et du développement de la plateforme.',
@@ -1786,11 +1782,8 @@ function Team() {
 
                   {/* Le cartel, comme au musée */}
                   <div className="mt-6 text-center">
-                    <p className="text-[12px] font-semibold uppercase tracking-[0.16em]" style={{ color: C.orange }}>
-                      {m.role}
-                    </p>
                     <p
-                      className="mx-auto mt-2 max-w-[260px] text-[13.5px] italic leading-[1.6]"
+                      className="mx-auto max-w-[260px] text-[13.5px] italic leading-[1.6]"
                       style={{ color: C.inkSoft }}
                     >
                       {m.desc}
@@ -2020,7 +2013,7 @@ function Faq() {
   const items = [
     {
       q: 'À qui s’adresse Monumia ?',
-      a: 'À tous ceux qui ont un lieu à entretenir ou à faire vivre : propriétaires privés d’un château, d’un manoir, d’un moulin ou d’une maison ancienne, associations, fondations, communes et collectivités. Si votre lieu a une histoire, Monumia peut chercher pour lui.',
+      a: 'À tous ceux qui ont un lieu à entretenir ou à faire vivre : propriétaires privés d’un château, d’un manoir, d’un moulin ou d’une maison ancienne, associations, fondations, communes et collectivités. Si votre lieu a une histoire, Monumia peut chercher les aides qui lui correspondent.',
     },
     {
       q: 'Mon lieu n’est ni classé, ni inscrit. Ai-je quand même droit à des aides ?',
@@ -2127,7 +2120,7 @@ function Footer() {
               </span>
             </div>
             <p className="mt-4 font-serif text-[15px] italic" style={{ color: C.inkSoft }}>
-              « Au service de ceux qui le font vivre »
+              « Au service de celles et ceux qui font vivre le patrimoine bâti»
             </p>
             <p className="mt-3 max-w-xs text-[14px] leading-[1.7]" style={{ color: C.inkFaint }}>
               Des outils simples pour trouver les financements de votre patrimoine et le faire
