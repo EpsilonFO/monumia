@@ -507,49 +507,49 @@ function Hero() {
       <div className="relative mx-auto grid max-w-6xl items-center gap-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12">
         <div>
           <div className="fade-up" style={{ animationDelay: '0.05s' }}>
-            <Kicker align="left">Financement du patrimoine</Kicker>
+            <span
+              className="text-[12.5px] font-semibold uppercase tracking-[0.18em]"
+              style={{ color: C.orange }}
+            >
+              Lancement en Septembre 2026
+            </span>
           </div>
 
           <h1
             className="fade-up mt-6 font-serif text-[clamp(2.3rem,5vw,3.4rem)] leading-[1.13] tracking-[-0.015em]"
             style={{ color: C.ink, animationDelay: '0.15s' }}
           >
-            Des aides existent pour votre monument.{' '}
-            <span style={{ color: C.blue }}>
-              Monumia{' '}
-              <span className="relative inline-block whitespace-nowrap">
-                les trouve.
-                <svg
-                  viewBox="0 0 230 12"
-                  className="absolute -bottom-1.5 left-0 w-full"
-                  aria-hidden="true"
-                  preserveAspectRatio="none"
-                >
-                  <path
-                    d="M4 8.5 C 60 2.5, 160 2.5, 226 7"
-                    fill="none"
-                    stroke={C.orange}
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    style={{
-                      strokeDasharray: 240,
-                      strokeDashoffset: 240,
-                      animation: 'draw-stroke 1s 0.9s ease forwards',
-                    }}
-                  />
-                </svg>
-              </span>
-            </span>
+            <span className="relative inline-block whitespace-nowrap" style={{ color: C.blue }}>
+              Monumia
+              <svg
+                viewBox="0 0 230 12"
+                className="absolute -bottom-1.5 left-0 w-full"
+                aria-hidden="true"
+                preserveAspectRatio="none"
+              >
+                <path
+                  d="M4 8.5 C 60 2.5, 160 2.5, 226 7"
+                  fill="none"
+                  stroke={C.orange}
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  style={{
+                    strokeDasharray: 240,
+                    strokeDashoffset: 240,
+                    animation: 'draw-stroke 1s 0.9s ease forwards',
+                  }}
+                />
+              </svg>
+            </span>{' '}
+            : Au service de ceux qui le font vivre.
           </h1>
 
           <p
             className="fade-up mt-7 max-w-xl text-[17px] font-medium leading-[1.7] sm:text-[18px]"
             style={{ color: C.inkSoft, animationDelay: '0.3s' }}
           >
-            Chapelle de village, manoir de famille ou halle centenaire : décrivez votre lieu et
-            votre projet en quelques minutes. Notre intelligence artificielle
-            parcourt pour vous les aides de l’État, des collectivités et des fondations, puis vous
-            dit combien vous pourriez obtenir et comment le demander.
+            Monumia facilite l’identification et la qualification de l’ensemble des financements
+            mobilisables pour les projets de restauration, d’ouverture et d’animation d’un monument.
           </p>
 
           <div className="fade-up mt-9 flex flex-wrap items-center gap-4" style={{ animationDelay: '0.45s' }}>
@@ -565,7 +565,7 @@ function Hero() {
           </div>
 
           <ul className="fade-up mt-8 flex flex-wrap gap-x-6 gap-y-2" style={{ animationDelay: '0.55s' }}>
-            {['Gratuit', 'Sans carte bancaire', 'Premier résultat en quelques minutes'].map((item) => (
+            {['Gratuit', 'Sans carte bancaire', 'Estimation instantanée'].map((item) => (
               <li key={item} className="flex items-center gap-1.5 text-[13.5px]" style={{ color: C.inkFaint }}>
                 <Check className="h-3.5 w-3.5" style={{ color: C.orange }} strokeWidth={2.5} />
                 {item}
@@ -2058,31 +2058,22 @@ const TEAM: Array<{
   factor: number;
 }> = [
   {
-    name: 'Félix',
-    role: 'Lorem ipsum',
-    img: `${BASE}img/team-felix.jpg`,
-    alt: 'Portrait de Félix, cofondateur de Monumia',
-    desc: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.',
-    lift: 'md:mt-10',
-    factor: -0.03,
-  },
-  {
     name: 'Paul',
-    role: 'Lorem ipsum',
+    role: '20 ans',
     img: `${BASE}img/team-paul.jpg`,
     alt: 'Portrait de Paul, cofondateur de Monumia',
-    desc: 'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip.',
+    desc: 'Chargé de la vision et du développement commercial.',
     lift: 'md:mt-0',
     factor: 0.025,
   },
   {
-    name: 'Timothé',
-    role: 'Lorem ipsum',
-    img: `${BASE}img/team-timothe.jpg`,
-    alt: 'Portrait de Timothé, cofondateur de Monumia',
-    desc: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat.',
-    lift: 'md:mt-16',
-    factor: -0.045,
+    name: 'Félix',
+    role: '21 ans',
+    img: `${BASE}img/team-felix.jpg`,
+    alt: 'Portrait de Félix, cofondateur de Monumia',
+    desc: 'Chargé de la conception et du développement de la plateforme.',
+    lift: 'md:mt-0',
+    factor: 0.025,
   },
 ];
 
@@ -2098,7 +2089,7 @@ function Team() {
           />
         </Reveal>
 
-        <div className="mt-14 grid gap-14 md:grid-cols-3 md:gap-7 lg:gap-10">
+        <div className="mx-auto mt-14 grid max-w-2xl gap-14 md:grid-cols-2 md:gap-10">
           {TEAM.map((m, i) => (
             <ParallaxItem key={m.name} factor={m.factor}>
               <Reveal delay={i * 130}>
