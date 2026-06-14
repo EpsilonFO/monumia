@@ -11,6 +11,10 @@ COPY . .
 ARG VITE_APP_URL=https://app.monumia.fr
 ENV VITE_APP_URL=$VITE_APP_URL
 
+# Chemin de base : '/' en prod, '/landing/' pour la beta (beta.monumia.fr/landing)
+ARG VITE_BASE=/
+ENV VITE_BASE=$VITE_BASE
+
 RUN npm run build
 
 # Output stage — built files copied by docker-compose into nginx

@@ -22,6 +22,10 @@ import {
 
 const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.monumia.fr';
 
+// Préfixe des assets de public/ : '/' en prod, '/landing/' en beta.
+// import.meta.env.BASE_URL finit toujours par '/' (garanti par Vite).
+const BASE = import.meta.env.BASE_URL;
+
 /* ────────────────────────────────────────────
    Charte Monumia — couleurs
    ──────────────────────────────────────────── */
@@ -43,7 +47,7 @@ const C = {
 
 /* La fleur Monumia (public/logo.svg) servie en masque CSS : la couleur se
    pilote par `color` (currentColor), comme un glyphe vectoriel recolorable. */
-const LOGO_URL = 'url(/logo.svg)';
+const LOGO_URL = `url(${BASE}logo.svg)`;
 
 /* ────────────────────────────────────────────
    Briques graphiques
@@ -580,7 +584,7 @@ function Hero() {
             style={{ borderColor: C.border }}
           >
             <img
-              src="/img/trevarez-hero.jpg"
+              src={`${BASE}img/trevarez-hero.jpg`}
               alt="Le château de Trévarez, en Finistère, monument historique en cours de rénovation, au bout de son allée d’arbres"
               className="aspect-[4/5] w-full object-cover"
               style={{ objectPosition: '50% 0%' }}
@@ -2056,7 +2060,7 @@ const TEAM: Array<{
   {
     name: 'Félix',
     role: 'Lorem ipsum',
-    img: '/img/team-felix.jpg',
+    img: `${BASE}img/team-felix.jpg`,
     alt: 'Portrait de Félix, cofondateur de Monumia',
     desc: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.',
     lift: 'md:mt-10',
@@ -2065,7 +2069,7 @@ const TEAM: Array<{
   {
     name: 'Paul',
     role: 'Lorem ipsum',
-    img: '/img/team-paul.jpg',
+    img: `${BASE}img/team-paul.jpg`,
     alt: 'Portrait de Paul, cofondateur de Monumia',
     desc: 'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip.',
     lift: 'md:mt-0',
@@ -2074,7 +2078,7 @@ const TEAM: Array<{
   {
     name: 'Timothé',
     role: 'Lorem ipsum',
-    img: '/img/team-timothe.jpg',
+    img: `${BASE}img/team-timothe.jpg`,
     alt: 'Portrait de Timothé, cofondateur de Monumia',
     desc: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat.',
     lift: 'md:mt-16',

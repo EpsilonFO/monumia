@@ -13,8 +13,10 @@ sudo docker stop patrys-nginx 2>/dev/null || true  # ancien nom, à retirer apr�
 # ── Beta cleanup ──────────────────────────────────────
 echo "Cleaning beta containers & volumes..."
 sudo docker rm -f monumia-beta-frontend-build patrys-beta-frontend-build 2>/dev/null || true
+sudo docker rm -f monumia-landing-beta-build 2>/dev/null || true
 sudo docker rm -f $(sudo docker ps -a -q --filter volume=patrys_beta_frontend_dist) 2>/dev/null || true
-sudo docker volume rm -f patrys_beta_frontend_dist
+sudo docker rm -f $(sudo docker ps -a -q --filter volume=patrys_landing_beta_dist) 2>/dev/null || true
+sudo docker volume rm -f patrys_beta_frontend_dist patrys_landing_beta_dist
 
 # ── Prod cleanup ──────────────────────────────────────
 echo "Cleaning prod containers & volumes..."
@@ -28,7 +30,7 @@ sudo docker volume rm -f patrys_landing_dist
 # ── Rebuild everything ────────────────────────────────
 echo "Building beta + prod..."
 sudo docker compose up -d --build \
-  beta-frontend-build beta-backend \
+  beta-frontend-build beta-backend landing-beta-build \
   app-frontend-build app-backend \
   landing-build
 

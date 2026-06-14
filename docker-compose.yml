@@ -9,6 +9,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: monumia-app-backend
     container_name: monumia-app-backend
     env_file:
       - ./backend/.env
@@ -20,6 +21,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: monumia-beta-backend
     container_name: monumia-beta-backend
     env_file:
       - ./backend/.env.beta
@@ -34,6 +36,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_APP_URL: https://app.monumia.fr
+    image: monumia-landing-build
     container_name: monumia-landing-build
     volumes:
       - landing_dist:/dist
@@ -46,6 +49,7 @@ services:
         VITE_API_URL: https://app.monumia.fr/api
         VITE_SUPABASE_URL: ${APP_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${APP_SUPABASE_ANON_KEY}
+    image: monumia-app-frontend-build
     container_name: monumia-app-frontend-build
     volumes:
       - app_frontend_dist:/dist
@@ -58,9 +62,24 @@ services:
         VITE_API_URL: https://beta.monumia.fr/api
         VITE_SUPABASE_URL: ${BETA_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${BETA_SUPABASE_ANON_KEY}
+    image: monumia-beta-frontend-build
     container_name: monumia-beta-frontend-build
     volumes:
       - beta_frontend_dist:/dist
+
+  # Landing servie sous beta.monumia.fr/landing — preview avant la prod.
+  # Buildée avec base=/landing/ pour que les assets résolvent sous ce chemin.
+  landing-beta-build:
+    build:
+      context: ./landing
+      dockerfile: Dockerfile
+      args:
+        VITE_BASE: /landing/
+        VITE_APP_URL: https://beta.monumia.fr
+    image: monumia-landing-beta-build
+    container_name: monumia-landing-beta-build
+    volumes:
+      - landing_beta_dist:/dist
 
   # ── Nginx (single entry point) ──────────────────────
   nginx:
@@ -74,6 +93,7 @@ services:
       - landing_dist:/usr/share/nginx/landing:ro
       - app_frontend_dist:/usr/share/nginx/app:ro
       - beta_frontend_dist:/usr/share/nginx/beta:ro
+      - landing_beta_dist:/usr/share/nginx/landing-beta:ro
       - certbot_www:/var/www/certbot:ro
       - certbot_conf:/etc/letsencrypt:ro
     depends_on:
@@ -82,6 +102,7 @@ services:
       - landing-build
       - app-frontend-build
       - beta-frontend-build
+      - landing-beta-build
     networks:
       - default
       - web
@@ -100,6 +121,7 @@ volumes:
   landing_dist:
   app_frontend_dist:
   beta_frontend_dist:
+  landing_beta_dist:
   certbot_www:
   certbot_conf:
 
