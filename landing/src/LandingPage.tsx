@@ -362,7 +362,6 @@ function Header() {
 
   const links = [
     { href: '#methode', label: 'Comment ça marche' },
-    { href: '#fonctionnalites', label: 'Fonctionnalités' },
     { href: '#tarifs', label: 'Tarifs' },
     { href: '#faq', label: 'Questions' },
   ];
@@ -1363,12 +1362,20 @@ function Demo() {
 
   const cat = CATEGORIES[active];
   const Scene = cat.scene;
+  const finale = useInView(0.3);
 
   return (
-    <section id="methode" ref={ref} className="scroll-mt-20 px-5 pb-20 pt-14 lg:px-8 lg:pb-24 lg:pt-16">
-      <div className="mx-auto max-w-6xl">
+    <section
+      id="methode"
+      ref={ref}
+      className="relative scroll-mt-20 overflow-hidden"
+      style={{ background: C.blue }}
+    >
+      <Tracery color="#ffffff" opacity={0.03} size={220} />
+      <div className="relative z-10 mx-auto max-w-6xl px-5 pt-20 lg:px-8 lg:pt-24">
         <Reveal>
           <SectionTitle
+            dark
             kicker="L’application"
             title="Tout ce que Monumia fait pour votre patrimoine"
             sub="Trois missions, un seul outil. Choisissez un onglet : l’application déroule un exemple sous vos yeux, comme si vous y étiez."
@@ -1422,13 +1429,10 @@ function Demo() {
           <div className="mt-10 grid grid-cols-1 gap-10 lg:mt-14 lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-14">
             {/* Le texte : titre, fonctionnalités cochées, appel à l’action */}
             <div key={cat.key} className="fade-up">
-              <h3
-                className="font-serif text-[clamp(1.65rem,3vw,2.1rem)] leading-[1.2] tracking-[-0.01em]"
-                style={{ color: C.ink }}
-              >
+              <h3 className="font-serif text-[clamp(1.65rem,3vw,2.1rem)] leading-[1.2] tracking-[-0.01em] text-white">
                 {cat.title}
               </h3>
-              <p className="mt-3 text-[16px] font-medium leading-[1.6]" style={{ color: C.inkSoft }}>
+              <p className="mt-3 text-[16px] font-medium leading-[1.6] text-white/75">
                 {cat.sub}
               </p>
               <ul className="mt-7 space-y-4">
@@ -1436,22 +1440,22 @@ function Demo() {
                   <li key={name} className="flex items-start gap-3">
                     <span
                       className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full"
-                      style={{ background: C.paleOrange }}
+                      style={{ background: 'rgba(252,137,5,0.22)' }}
                     >
-                      <Check className="h-3 w-3" style={{ color: C.orange }} strokeWidth={3} />
+                      <Check className="h-3 w-3" style={{ color: C.orangeVif }} strokeWidth={3} />
                     </span>
                     <span>
-                      <span className="block text-[14.5px] font-semibold leading-snug" style={{ color: C.ink }}>
+                      <span className="block text-[14.5px] font-semibold leading-snug text-white">
                         {name}
                       </span>
-                      <span className="mt-0.5 block text-[13.5px] leading-[1.6]" style={{ color: C.inkSoft }}>
+                      <span className="mt-0.5 block text-[13.5px] leading-[1.6] text-white/75">
                         {desc}
                       </span>
                     </span>
                   </li>
                 ))}
               </ul>
-              <CtaButton variant="ghost" className="mt-9">
+              <CtaButton variant="white" className="mt-9">
                 Estimer mes aides gratuitement
               </CtaButton>
             </div>
@@ -1488,23 +1492,25 @@ function Demo() {
           </div>
         </Reveal>
       </div>
+
+      {/* L'arrivée : la frise des bâtiments, au sol */}
+      <div ref={finale.ref} className="relative mt-16 h-[230px] sm:h-[270px] lg:mt-20">
+        <ParallaxLandscape lit={finale.inView} />
+      </div>
     </section>
   );
 }
 
 /* ────────────────────────────────────────────
-   Fonctionnalités — rangées illustrées + frise en parallaxe
+   La frise de patrimoine — décor de la section « L’application »
    ──────────────────────────────────────────── */
 
-/* Quatre fonctionnalités présentées façon Indy : pour chacune, une vraie
-   explication (titre, phrase, deux bénéfices) face à une maquette animée de
-   l'application posée sur un panneau teinté — l'ordre s'inverse une rangée sur
-   deux. La section se termine sur la frise de patrimoine dessinée à la main,
-   qui défile en parallaxe sur six plans à vitesses distinctes (les plus proches
-   plus vite, le soleil à contre-sens) ; les monuments-repères s'embrasent à
-   l'heure dorée. La démonstration détaillée et guidée vit juste au-dessus
-   (section #methode). Tout est piloté en transform (GPU) ; ParallaxItem se met
-   au repos pour les visiteurs qui préfèrent réduire les animations. */
+/* La frise de patrimoine dessinée à la main ferme la section #methode : elle
+   défile en parallaxe sur plusieurs plans à vitesses distinctes (les plus
+   proches plus vite, le soleil à contre-sens) ; les monuments-repères
+   s'embrasent à l'heure dorée quand la section arrive. Tout est piloté en
+   transform (GPU) ; ParallaxItem se met au repos pour les visiteurs qui
+   préfèrent réduire les animations. */
 
 const FRIEZE_FRONT_W = 3700;
 const FRIEZE_MID_W = 3000;
@@ -1614,323 +1620,6 @@ const FRIEZE_FAR =
   'M480 64 V40 H500 V64 Z M476 42 H504 L490 26 Z M500 62 V50 H540 V62 Z ' +
   'M1040 60 V34 H1052 V60 Z M1036 36 H1056 L1046 18 Z';
 
-const STATIONS: Array<{
-  icon: typeof Search;
-  tag: string;
-  title: string;
-  desc: string;
-}> = [
-  {
-    icon: Search,
-    tag: 'Moteur de recherche',
-    title: 'Toutes les aides, au même endroit',
-    desc: 'Décrivez votre lieu et votre projet : Monumia parcourt l’État, la région, la commune, les fondations et les entreprises mécènes, puis retient ce qui vous concerne vraiment.',
-  },
-  {
-    icon: TrendingUp,
-    tag: 'Estimation & fiches',
-    title: 'Vous savez où vous allez',
-    desc: 'Une estimation prudente de ce que vous pouvez obtenir, vos chances, et une fiche claire par aide : conditions, montants, contacts.',
-  },
-  {
-    icon: BellRing,
-    tag: 'Veille & alertes',
-    title: 'La cloche sonne avant chaque échéance',
-    desc: 'Ouvertures des fondations, dates limites, nouvelles aides : vous êtes prévenu à temps, à chaque fois.',
-  },
-  {
-    icon: FolderOpen,
-    tag: 'Dossiers & suivi',
-    title: 'Vos pièces, sous le même toit',
-    desc: 'Vos documents rangés au même endroit, la liste de ce qui manque, et un dossier complet à télécharger, prêt à envoyer.',
-  },
-];
-
-/* Deux bénéfices concrets par fonctionnalité, en français courant */
-const STATION_POINTS: string[][] = [
-  ['Un questionnaire simple, en quelques minutes', 'Toutes les aides croisées avec votre projet'],
-  ['Une estimation prudente de ce que vous pouvez obtenir', 'Une fiche claire par aide : conditions, montants, contacts'],
-  ['Des alertes avant chaque date limite', 'Une surveillance permanente de votre patrimoine'],
-  ['Tous vos documents au même endroit', 'La liste exacte des pièces, prête à télécharger'],
-];
-
-/* Les mini-scènes de l’application, dans le langage des maquettes du site */
-function ArtRecherche() {
-  const rows: Array<[string, string]> = [
-    ['Aide de l’État (DRAC)', '15 à 40 %'],
-    ['Région · patrimoine de proximité', 'jusqu’à 25 000 €'],
-    ['Fondation du patrimoine', 'sur dossier'],
-  ];
-  return (
-    <div className="relative">
-      <div
-        className="demo-pop flex items-center gap-3 rounded-full border bg-white px-5 py-3 shadow-[0_18px_40px_-18px_rgba(4,18,60,0.6)]"
-        style={{ borderColor: C.border, animationDelay: '0.1s' }}
-      >
-        <Search className="h-[18px] w-[18px] shrink-0" style={{ color: C.orange }} strokeWidth={2} />
-        <span className="truncate text-[14px]" style={{ color: C.inkSoft }}>
-          réfection de la toiture d’un manoir
-        </span>
-      </div>
-      <div
-        className="demo-pop mt-3.5 -rotate-1 rounded-xl border bg-white p-4 shadow-[0_24px_55px_-22px_rgba(4,18,60,0.65)]"
-        style={{ borderColor: C.border, animationDelay: '0.4s' }}
-      >
-        <div className="space-y-2">
-          {rows.map(([name, amount], i) => (
-            <div
-              key={name}
-              className="demo-pop flex items-center justify-between gap-3 rounded-lg px-3 py-2.5"
-              style={{ background: C.cream, animationDelay: `${0.6 + i * 0.18}s` }}
-            >
-              <span className="flex min-w-0 items-center gap-2.5 text-[13.5px]" style={{ color: C.ink }}>
-                <CheckCircle2 className="h-[18px] w-[18px] shrink-0" style={{ color: C.blueLight }} strokeWidth={1.8} />
-                <span className="truncate">{name}</span>
-              </span>
-              <span className="shrink-0 text-[13px] font-semibold" style={{ color: C.inkSoft }}>
-                {amount}
-              </span>
-            </div>
-          ))}
-        </div>
-        <p className="demo-pop mt-3 text-[12.5px] font-medium" style={{ color: C.orange, animationDelay: '1.2s' }}>
-          11 aides trouvées pour ce projet · exemple
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function ArtEstimation() {
-  return (
-    <div className="relative">
-      <div
-        className="demo-pop rounded-xl border bg-white p-5 shadow-[0_24px_55px_-22px_rgba(4,18,60,0.65)]"
-        style={{ borderColor: C.border, animationDelay: '0.1s' }}
-      >
-        <div className="flex items-center justify-between">
-          <span className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: C.blueLight }}>
-            Aides estimées
-          </span>
-          <span
-            className="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]"
-            style={{ background: C.paleBlue, color: C.blueLight }}
-          >
-            Exemple
-          </span>
-        </div>
-        <p className="mt-2.5 font-serif text-[1.75rem] font-bold leading-none" style={{ color: C.blue }}>
-          92 000 €{' '}
-          <span className="text-[1.15rem] font-normal" style={{ color: C.inkFaint }}>
-            à
-          </span>{' '}
-          140 000 €
-        </p>
-        <div className="mt-3.5 h-2.5 overflow-hidden rounded-full" style={{ background: C.paleBlue }}>
-          <div
-            className="grow-bar h-full rounded-full"
-            style={{
-              ['--bar-w' as string]: '64%',
-              animationDelay: '0.6s',
-              background: `linear-gradient(90deg, ${C.orange}, ${C.orangeVif})`,
-            }}
-          />
-        </div>
-        <p
-          className="demo-pop mt-3 flex items-center gap-2 text-[13.5px] font-semibold"
-          style={{ color: C.orange, animationDelay: '1s' }}
-        >
-          <TrendingUp className="h-4 w-4" strokeWidth={2.2} />
-          Vos chances : élevées
-        </p>
-      </div>
-      <div
-        className="demo-pop ml-7 mt-3.5 rotate-1 rounded-xl border bg-white px-4 py-3 shadow-[0_18px_40px_-18px_rgba(4,18,60,0.55)]"
-        style={{ borderColor: C.border, animationDelay: '1.3s' }}
-      >
-        <span className="flex items-center gap-2.5 text-[13px] leading-snug" style={{ color: C.inkSoft }}>
-          <FileText className="h-4 w-4 shrink-0" style={{ color: C.blue }} strokeWidth={1.8} />
-          Une fiche claire par aide : conditions, montants, contacts
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function ArtVeille() {
-  return (
-    <div className="relative">
-      <div
-        className="toast-in flex items-start gap-3.5 rounded-xl border bg-white p-4 shadow-[0_24px_55px_-22px_rgba(4,18,60,0.65)]"
-        style={{ borderColor: C.border, animationDelay: '0.15s' }}
-      >
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg" style={{ background: C.paleOrange }}>
-          <BellRing className="h-5 w-5" style={{ color: C.orange }} strokeWidth={1.8} />
-        </span>
-        <span className="min-w-0">
-          <span className="block text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: C.orange }}>
-            Alerte Monumia
-          </span>
-          <span className="mt-1 block text-[13.5px] leading-snug" style={{ color: C.ink }}>
-            La Fondation du patrimoine ouvre ses candidatures
-          </span>
-        </span>
-      </div>
-      <div
-        className="toast-in ml-9 mt-3.5 flex -rotate-1 items-center gap-3 rounded-xl border bg-white px-4 py-3 shadow-[0_18px_40px_-18px_rgba(4,18,60,0.55)]"
-        style={{ borderColor: C.border, animationDelay: '0.75s' }}
-      >
-        <CalendarClock className="h-[18px] w-[18px] shrink-0" style={{ color: C.blue }} strokeWidth={1.8} />
-        <span className="text-[13.5px]" style={{ color: C.ink }}>
-          Dépôt avant le <strong>2 avril</strong>
-        </span>
-        <span
-          className="ml-auto grid h-8 w-8 shrink-0 place-items-center rounded-full border"
-          style={{
-            borderColor: C.border,
-            color: C.inkFaint,
-            background: '#fff',
-            animation: 'bell-on 0.45s 1.5s ease forwards',
-          }}
-        >
-          <Bell className="h-4 w-4" strokeWidth={2} />
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function ArtDossiers() {
-  const files = ['Devis-artisans.pdf', 'Photos-toiture.jpg'];
-  const pieces: Array<[string, number]> = [
-    ['Devis des artisans', 0.75],
-    ['Plan de financement', 0.95],
-  ];
-  return (
-    <div className="relative">
-      <div
-        className="demo-pop rounded-xl border bg-white p-4 shadow-[0_24px_55px_-22px_rgba(4,18,60,0.65)]"
-        style={{ borderColor: C.border, animationDelay: '0.1s' }}
-      >
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: C.paleBlue }}>
-            <FolderOpen className="h-[18px] w-[18px]" style={{ color: C.blue }} strokeWidth={1.8} />
-          </span>
-          <span className="truncate font-serif text-[1.15rem] font-bold" style={{ color: C.ink }}>
-            Réfection-toiture
-          </span>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {files.map((fl, i) => (
-            <span
-              key={fl}
-              className="demo-pop flex items-center gap-2 rounded-md border bg-white px-2.5 py-1.5 text-[12px] font-medium"
-              style={{ borderColor: C.border, color: C.inkSoft, animationDelay: `${0.4 + i * 0.15}s` }}
-            >
-              <FileText className="h-3.5 w-3.5 shrink-0" style={{ color: C.blueLight }} strokeWidth={2} />
-              {fl}
-            </span>
-          ))}
-        </div>
-        <div className="mt-3 space-y-2">
-          {pieces.map(([piece, at]) => (
-            <div key={piece} className="flex items-center gap-2.5 text-[13px]" style={{ color: C.ink }}>
-              <CheckCircle2
-                className="check-pop h-4 w-4 shrink-0"
-                style={{ color: C.orange, animationDelay: `${at}s` }}
-                strokeWidth={2.2}
-              />
-              {piece}
-            </div>
-          ))}
-        </div>
-        <div
-          className="demo-pop mt-3.5 flex items-center justify-between gap-3 rounded-lg px-4 py-3"
-          style={{ background: C.blue, opacity: 0, animationDelay: '1.25s' }}
-        >
-          <span className="flex items-center gap-2.5 text-[13.5px] font-semibold text-white">
-            <Download className="h-4 w-4" strokeWidth={2} />
-            Dossier complet à télécharger
-          </span>
-          <span className="shrink-0 text-[11.5px] text-white/70">prêt à envoyer</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const STATION_ARTS = [ArtRecherche, ArtEstimation, ArtVeille, ArtDossiers];
-
-/* Une rangée façon Indy : une vraie explication d'un côté, une maquette
-   animée de l'application de l'autre, posée sur un panneau teinté. L'ordre
-   s'inverse une rangée sur deux ; la maquette ne se monte qu'à l'entrée dans
-   le champ, ses animations jouent alors comme une petite démonstration. */
-function FeatureRow({
-  station,
-  points,
-  Art,
-  flip,
-  tint,
-}: {
-  station: (typeof STATIONS)[number];
-  points: string[];
-  Art: () => ReactNode;
-  flip: boolean;
-  tint: string;
-}) {
-  const { ref, inView } = useInView(0.16);
-  return (
-    <div
-      ref={ref}
-      className={`grid items-center gap-9 transition-all duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] lg:grid-cols-2 lg:gap-14 ${
-        inView ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
-      }`}
-    >
-      <div className={`min-w-0 ${flip ? 'lg:order-2 lg:pl-4' : 'lg:pr-4'}`}>
-        <p
-          className="flex items-center gap-3 text-[12.5px] font-semibold uppercase tracking-[0.16em]"
-          style={{ color: C.orangeVif }}
-        >
-          <span className="grid h-10 w-10 place-items-center rounded-xl" style={{ background: 'rgba(252,137,5,0.16)' }}>
-            <station.icon className="h-5 w-5" strokeWidth={2} />
-          </span>
-          {station.tag}
-        </p>
-        <h3 className="mt-5 font-serif text-[clamp(1.6rem,2.8vw,2.1rem)] leading-[1.18] text-white">
-          {station.title}
-        </h3>
-        <p className="mt-4 max-w-md text-[16px] leading-[1.7] text-white/75">{station.desc}</p>
-        <ul className="mt-6 space-y-3">
-          {points.map((pt) => (
-            <li key={pt} className="flex items-start gap-3 text-[15px] leading-snug text-white/90">
-              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: 'rgba(252,137,5,0.22)' }}>
-                <Check className="h-3 w-3" style={{ color: C.orangeVif }} strokeWidth={3} />
-              </span>
-              {pt}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className={`min-w-0 ${flip ? 'lg:order-1' : ''}`}>
-        <div
-          className="relative overflow-hidden rounded-[28px] p-7 shadow-[0_44px_90px_-44px_rgba(4,18,60,0.85)] sm:p-10"
-          style={{ background: tint }}
-        >
-          <Clover
-            className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 opacity-[0.07]"
-            strokeWidth={4}
-            style={{ color: C.blue }}
-          />
-          <div className="relative mx-auto w-full max-w-[400px]">
-            {inView && <Art />}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* Le paysage de patrimoine : un premier plan crème qui glisse en douceur au
    défilement (toujours au sol, prolongé d'un bloc crème pour ne jamais
    décoller), devant des plans fixes — donc rien ne flotte. Les
@@ -1995,48 +1684,6 @@ function ParallaxLandscape({ lit }: { lit: boolean }) {
         </div>
       </ParallaxItem>
     </div>
-  );
-}
-
-function Features() {
-  const tints = [C.paleBlue, C.paleOrange, C.paleBlue, C.paleOrange];
-  const finale = useInView(0.3);
-  return (
-    <section id="fonctionnalites" className="relative scroll-mt-20 overflow-hidden" style={{ background: C.blue }}>
-      <Tracery color="#ffffff" opacity={0.03} size={220} />
-
-      <div className="relative z-10 mx-auto max-w-5xl px-5 pt-24 lg:px-8 lg:pt-28">
-        <Reveal>
-          <div className="text-center">
-            <Kicker color={C.orangeVif}>Fonctionnalités</Kicker>
-            <h2 className="mx-auto mt-5 max-w-2xl font-serif text-[clamp(1.9rem,3.4vw,2.4rem)] leading-[1.2] text-white">
-              Tout pour financer votre monument, étape par étape
-            </h2>
-            <p className="mx-auto mt-5 max-w-xl text-[17px] leading-[1.65] text-white/70">
-              Quatre outils pensés pour les propriétaires — pas pour les experts.
-            </p>
-          </div>
-        </Reveal>
-
-        <div className="mt-16 flex flex-col gap-20 lg:mt-20 lg:gap-24">
-          {STATIONS.map((s, i) => (
-            <FeatureRow
-              key={s.tag}
-              station={s}
-              points={STATION_POINTS[i]}
-              Art={STATION_ARTS[i]}
-              flip={i % 2 === 1}
-              tint={tints[i]}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* L'arrivée : la frise des bâtiments, au sol */}
-      <div ref={finale.ref} className="relative mt-10 h-[230px] sm:h-[270px] lg:mt-12">
-        <ParallaxLandscape lit={finale.inView} />
-      </div>
-    </section>
   );
 }
 
@@ -2501,7 +2148,6 @@ function Footer() {
             <ul className="mt-4 space-y-2.5">
               {[
                 ['#methode', 'Comment ça marche'],
-                ['#fonctionnalites', 'Fonctionnalités'],
                 ['#equipe', 'L’équipe'],
                 ['#tarifs', 'Tarifs'],
                 ['#faq', 'Questions fréquentes'],
@@ -2607,7 +2253,6 @@ export function LandingPage() {
       <main id="contenu">
         <Hero />
         <Demo />
-        <Features />
         <Pricing />
         <Team />
         <Faq />
