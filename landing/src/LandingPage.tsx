@@ -105,10 +105,14 @@ function Tracery({
         opacity,
         WebkitMaskImage: LOGO_URL,
         maskImage: LOGO_URL,
-        /* `round` redimensionne légèrement les tuiles pour qu'un nombre entier
-           de fleurs tienne dans la carte : aucun quadrilobe coupé sur les bords. */
-        WebkitMaskRepeat: 'round',
-        maskRepeat: 'round',
+        /* `round repeat` = round en X, repeat en Y. En X, les tuiles sont
+           ajustées pour qu'un nombre entier de fleurs tienne sur la largeur :
+           aucune fleur coupée sur les côtés. En Y, taille figée et ancrée en
+           haut : la hauteur d'un bloc peut changer (ex. changement d'onglet de
+           la démo) sans étirer les quadrilobes. La largeur ne variant qu'au
+           redimensionnement de la fenêtre, le motif reste stable à l'usage. */
+        WebkitMaskRepeat: 'round repeat',
+        maskRepeat: 'round repeat',
         WebkitMaskSize: `${size}px ${size}px`,
         maskSize: `${size}px ${size}px`,
       }}
@@ -2088,7 +2092,7 @@ function FinalCta() {
 
           <div className="relative">
             <h2 className="mx-auto max-w-2xl font-serif text-[clamp(1.9rem,3.6vw,2.5rem)] leading-[1.2] text-white">
-              Et si votre monument avait droit à plus que vous ne l’imaginez ?
+              Et si votre monument pouvait être financé bien au-delà de ce que vous imaginez ?
             </h2>
             <p className="mx-auto mt-5 max-w-md text-[16px] leading-[1.7] text-white/75">
               Décrivez votre lieu, découvrez votre estimation. C’est gratuit, et cela ne prend que

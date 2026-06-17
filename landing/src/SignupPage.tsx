@@ -115,10 +115,17 @@ export function SignupPage() {
                   Votre adresse e-mail
                 </label>
                 <div
-                  className="flex items-center gap-2.5 rounded-full border bg-white px-4 py-1.5 transition-shadow duration-200 focus-within:shadow-[0_0_0_3px_rgba(241,113,5,0.18)]"
-                  style={{ borderColor: status === 'error' ? '#f17105' : C.border }}
+                  className={`flex items-center gap-2.5 rounded-full border bg-white px-4 py-1.5 transition-all duration-200 ${
+                    status === 'error'
+                      ? 'border-[#f17105] shadow-[0_0_0_4px_rgba(241,113,5,0.12)]'
+                      : 'border-[#ece3d2] focus-within:border-[#f17105] focus-within:shadow-[0_0_0_4px_rgba(241,113,5,0.16),0_12px_30px_-12px_rgba(241,113,5,0.5)]'
+                  }`}
                 >
-                  <Mail className="h-[18px] w-[18px] shrink-0" style={{ color: C.inkFaint }} strokeWidth={1.8} />
+                  <Mail
+                    className="h-[18px] w-[18px] shrink-0 transition-colors duration-200"
+                    style={{ color: status === 'error' ? C.orange : C.inkFaint }}
+                    strokeWidth={1.8}
+                  />
                   <input
                     ref={inputRef}
                     id="email"
@@ -131,8 +138,8 @@ export function SignupPage() {
                       setEmail(e.target.value);
                       if (status === 'error') setStatus('idle');
                     }}
-                    className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-[#222b35]/40"
-                    style={{ color: C.ink }}
+                    className="min-w-0 flex-1 bg-transparent py-2 text-[15px] placeholder:text-[#222b35]/40"
+                    style={{ color: C.ink, outline: 'none' }}
                   />
                 </div>
 
