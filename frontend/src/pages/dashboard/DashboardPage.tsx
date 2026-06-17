@@ -43,6 +43,11 @@ export function DashboardPage() {
     [monuments, user],
   );
 
+  // Grille « Projets en cours » : vos projets + ceux partagés avec vous.
+  // (Le store ne contient que des monuments accessibles à l'utilisateur.)
+  // Les KPI, le bandeau d'échéance et l'échéancier restent basés sur `userMonuments`.
+  const displayMonuments = monuments;
+
   // Lazy-load the latest diagnostic per monument that doesn't have one yet,
   // whenever the monument list changes. We intentionally depend only on
   // `[userMonuments]`: including `diagnosticsByMonument` would re-run the effect
@@ -51,7 +56,7 @@ export function DashboardPage() {
   // their `diagnosticsByMonument[m.id]` stays `undefined`. The per-id guard
   // below dedupes fetches for monuments that DO have a stored diagnostic.
   useEffect(() => {
-    for (const m of userMonuments) {
+    for (const m of displayMonuments) {
       if (!diagnosticsByMonument[m.id]) {
         aideService
           .getDiagnostics(m.id)
@@ -62,15 +67,15 @@ export function DashboardPage() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userMonuments]);
+  }, [displayMonuments]);
 
   const diagMap = useMemo<Record<string, AideDiagnosticResult | null>>(() => {
     const out: Record<string, AideDiagnosticResult | null> = {};
-    for (const m of userMonuments) {
+    for (const m of displayMonuments) {
       out[m.id] = diagnosticsByMonument[m.id] ?? null;
     }
     return out;
-  }, [userMonuments, diagnosticsByMonument]);
+  }, [displayMonuments, diagnosticsByMonument]);
 
   const userDossiers = useMemo(
     () => (user ? dossiers.filter((d) => d.userId === user.id) : []),
@@ -115,7 +120,7 @@ export function DashboardPage() {
 
   const statsByMonument = useMemo<Record<string, ProjectStats>>(() => {
     const out: Record<string, ProjectStats> = {};
-    for (const m of userMonuments) {
+    for (const m of displayMonuments) {
       out[m.id] = computeProjectStats(
         m,
         diagMap[m.id] ?? null,
@@ -123,7 +128,7 @@ export function DashboardPage() {
       );
     }
     return out;
-  }, [userMonuments, diagMap, userDossiers]);
+  }, [displayMonuments, diagMap, userDossiers]);
 
   if (!user) return null;
 
@@ -193,7 +198,7 @@ export function DashboardPage() {
       {/* ─── MES PROJETS (pleine largeur) ─── */}
       <section>
         <SectionHeading eyebrow="Vos monuments" title="Projets en cours" />
-        <ProjectsInProgress monuments={userMonuments} statsByMonument={statsByMonument} />
+        <ProjectsInProgress monuments={displayMonuments} statsByMonument={statsByMonument} />
       </section>
 
       {/* ─── ÉCHÉANCIER (toutes les échéances, pleine largeur) ─── */}

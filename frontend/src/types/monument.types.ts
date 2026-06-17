@@ -4,6 +4,9 @@ import type { ProjectQuestionnaireAnswers } from './project.types';
 export interface Monument {
   id: ID;
   userId: ID;
+  myRole?: import('./sharing.types').ProjectRole;
+  members?: import('./sharing.types').MemberPreview[];
+  memberCount?: number;
 
   // Step 1: Identification
   nom: string;

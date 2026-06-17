@@ -25,6 +25,7 @@ import { BtpProspectDetailPage } from '@/pages/btp/BtpProspectDetailPage';
 import { BtpAidesPage } from '@/pages/btp/BtpAidesPage';
 import { BtpDocumentsPage } from '@/pages/btp/BtpDocumentsPage';
 import { BtpProfilePage } from '@/pages/btp/BtpProfilePage';
+import { InvitationLandingPage } from '@/pages/invitation/InvitationLandingPage';
 
 // Legacy redirect: /app/monuments/:monumentId → /app/projets/:monumentId (id preserved)
 // eslint-disable-next-line react-refresh/only-export-components
@@ -40,7 +41,9 @@ function RootRedirect() {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
   if (!user || !token) return <Navigate to="/login" replace />;
-  return <Navigate to={user.segment === 'btp' ? '/btp' : '/app'} replace />;
+  if (user.segment === 'btp') return <Navigate to="/btp" replace />;
+  if (user.accountType === 'collaborateur') return <Navigate to="/app/projets" replace />;
+  return <Navigate to="/app" replace />;
 }
 
 export const router = createBrowserRouter([
@@ -60,6 +63,12 @@ export const router = createBrowserRouter([
   {
     path: '/tarifs',
     element: <TarifsPage />,
+  },
+
+  // Invitation acceptance page (public — no auth required)
+  {
+    path: '/invitation/:token',
+    element: <InvitationLandingPage />,
   },
 
   // Onboarding — credentials kept in memory only (usePendingRegistrationStore)

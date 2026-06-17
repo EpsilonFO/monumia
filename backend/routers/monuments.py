@@ -1,11 +1,13 @@
 import re
 import unicodedata
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
+from services.project_access import require_project_access
 
 router = APIRouter(prefix="/monuments", tags=["monuments"])
 
@@ -254,6 +256,29 @@ def _compute_completion(monument: dict) -> int:
     return int(sum(steps) / len(steps) * 100)
 
 
+def build_members_index(
+    member_rows: list[dict], profiles: dict[str, dict]
+) -> dict[str, list[dict]]:
+    """Regroupe les membres par monument pour l'aperçu de la liste des projets.
+
+    member_rows : lignes project_members {monument_id, user_id, role}.
+    profiles    : {user_id: {prenom, nom}}.
+    Renvoie {monument_id: [{user_id, prenom, nom, role}]} en préservant l'ordre.
+    """
+    index: dict[str, list[dict]] = {}
+    for row in member_rows:
+        profile = profiles.get(row["user_id"], {})
+        index.setdefault(row["monument_id"], []).append(
+            {
+                "user_id": row["user_id"],
+                "prenom": profile.get("prenom", ""),
+                "nom": profile.get("nom", ""),
+                "role": row["role"],
+            }
+        )
+    return index
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -264,16 +289,37 @@ def list_monuments(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    result = (
+    # Tous les projets où l'utilisateur est membre (owner inclus via backfill)
+    memberships = (
+        supabase.table("project_members")
+        .select("monument_id, role")
+        .eq("user_id", user_id)
+        .execute()
+        .data
+    )
+    role_by_id = {m["monument_id"]: m["role"] for m in memberships}
+
+    # Défense en profondeur : un propriétaire voit toujours SES projets, même si la
+    # ligne d'appartenance 'owner' manque (cf. get_project_role). user_id = propriétaire
+    # authoritatif et immuable du monument.
+    owned = (supabase.table("monuments").select("id").eq("user_id", user_id).execute().data) or []
+    for o in owned:
+        role_by_id.setdefault(o["id"], "owner")
+
+    monument_ids = list(role_by_id.keys())
+    if not monument_ids:
+        return []
+
+    monuments = (
         supabase.table("monuments")
         .select(COLUMNS)
-        .eq("user_id", user_id)
+        .in_("id", monument_ids)
         .order("created_at", desc=True)
         .execute()
-    )
+        .data
+    ) or []
 
-    # Batch-enrich with commune data
-    monuments = result.data or []
+    # Batch-enrich with commune data (préservé de la version d'origine)
     code_insees = list({m["code_insee"] for m in monuments if m.get("code_insee")})
     if code_insees:
         communes_result = (
@@ -292,6 +338,32 @@ def list_monuments(
                 m["region"] = commune_data.get("region_code")
                 m["region_label"] = commune_data.get("region")
 
+    # Aperçu des membres par projet (avatars + compteur côté liste, sans 1 requête/carte).
+    all_members = (
+        supabase.table("project_members")
+        .select("monument_id, user_id, role")
+        .in_("monument_id", monument_ids)
+        .execute()
+        .data
+    ) or []
+    member_user_ids = list({m["user_id"] for m in all_members})
+    profiles: dict[str, dict] = {}
+    if member_user_ids:
+        prows = (
+            supabase.table("users")
+            .select("id, prenom, nom")
+            .in_("id", member_user_ids)
+            .execute()
+            .data
+        ) or []
+        profiles = cast("dict[str, dict]", {r["id"]: r for r in prows})
+    members_by_monument = build_members_index(all_members, profiles)
+
+    for m in monuments:
+        m["my_role"] = role_by_id.get(m["id"])
+        preview = members_by_monument.get(m["id"], [])
+        m["members"] = preview
+        m["member_count"] = len(preview)
     return monuments
 
 
@@ -321,6 +393,11 @@ def create_monument(
     result = supabase.table("monuments").insert(row).execute()
     monument = result.data[0]
 
+    # Le créateur est d'office chef de projet (owner) du projet partagé.
+    supabase.table("project_members").insert(
+        {"monument_id": monument["id"], "user_id": user_id, "role": "owner"}
+    ).execute()
+
     # Compute and persist completion
     pct = _compute_completion(monument)
     supabase.table("monuments").update({"completion_percentage": pct}).eq(
@@ -337,7 +414,13 @@ def get_monument(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    return _get_monument_or_404(supabase, monument_id, user_id)
+    role = require_project_access(supabase, monument_id, user_id, "member")
+    result = supabase.table("monuments").select(COLUMNS).eq("id", monument_id).single().execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Monument introuvable")
+    monument = _enrich_monument(supabase, result.data)
+    monument["my_role"] = role
+    return monument
 
 
 @router.patch("/{monument_id}")
@@ -347,7 +430,7 @@ def update_monument(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    _get_monument_or_404(supabase, monument_id, user_id)
+    require_project_access(supabase, monument_id, user_id, "co_owner")
 
     updates = _snake_row(body.model_dump(exclude_none=True))
 
@@ -362,7 +445,10 @@ def update_monument(
         updates.pop(key, None)
 
     if not updates:
-        return _get_monument_or_404(supabase, monument_id, user_id)
+        result = (
+            supabase.table("monuments").select(COLUMNS).eq("id", monument_id).single().execute()
+        )
+        return _enrich_monument(supabase, result.data)
 
     result = supabase.table("monuments").update(updates).eq("id", monument_id).execute()
     monument = result.data[0]
@@ -383,7 +469,7 @@ def delete_monument(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    _get_monument_or_404(supabase, monument_id, user_id)
+    require_project_access(supabase, monument_id, user_id, "owner")
     supabase.table("monuments").delete().eq("id", monument_id).execute()
 
 
@@ -394,7 +480,11 @@ def add_photo(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    monument = _get_monument_or_404(supabase, monument_id, user_id)
+    require_project_access(supabase, monument_id, user_id, "co_owner")
+    _m = supabase.table("monuments").select(COLUMNS).eq("id", monument_id).single().execute()
+    if not _m.data:
+        raise HTTPException(status_code=404, detail="Monument introuvable")
+    monument = _m.data
 
     safe_url = _validate_photo_storage_path(body.url, user_id)
 
@@ -408,7 +498,7 @@ def add_photo(
         **({"datePhoto": body.datePhoto} if body.datePhoto else {}),
     }
 
-    photos: list = monument.get("photos") or []
+    photos = cast(list, monument.get("photos") or [])
     photos.append(new_photo)
 
     supabase.table("monuments").update({"photos": photos}).eq("id", monument_id).execute()
@@ -422,9 +512,13 @@ def remove_photo(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    monument = _get_monument_or_404(supabase, monument_id, user_id)
+    require_project_access(supabase, monument_id, user_id, "co_owner")
+    _m = supabase.table("monuments").select(COLUMNS).eq("id", monument_id).single().execute()
+    if not _m.data:
+        raise HTTPException(status_code=404, detail="Monument introuvable")
+    monument = _m.data
 
-    photos: list = monument.get("photos") or []
+    photos = cast(list, monument.get("photos") or [])
     updated = [p for p in photos if p["id"] != photo_id]
 
     if len(updated) == len(photos):

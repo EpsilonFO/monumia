@@ -1,0 +1,37 @@
+import { MemberAvatar, type AvatarPerson } from './MemberAvatar';
+
+const SIZES = {
+  sm: { box: 'h-7 w-7', text: 'text-[10px]' },
+  md: { box: 'h-9 w-9', text: 'text-[12px]' },
+} as const;
+
+export function MemberAvatarStack({
+  people,
+  max = 3,
+  size = 'sm',
+}: {
+  people: AvatarPerson[];
+  max?: number;
+  size?: keyof typeof SIZES;
+}) {
+  if (people.length === 0) return null;
+  const shown = people.slice(0, max);
+  const overflow = people.length - shown.length;
+  const s = SIZES[size];
+  return (
+    <div className="flex items-center gap-1.5">
+      {shown.map((p, i) => (
+        <MemberAvatar key={p.userId} person={p} size={size} colorIndex={i} />
+      ))}
+      {overflow > 0 && (
+        <span
+          className={`inline-flex items-center justify-center rounded-full font-semibold ${s.box} ${s.text}`}
+          style={{ backgroundColor: '#f0efe9', color: '#5C6178' }}
+          title={`${overflow} autre${overflow > 1 ? 's' : ''}`}
+        >
+          +{overflow}
+        </span>
+      )}
+    </div>
+  );
+}

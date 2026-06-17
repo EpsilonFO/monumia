@@ -16,7 +16,9 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { formatFileSize } from '@/lib/format-utils';
-import type { Document } from '@/types';
+import { canDeleteDocument } from '@/lib/project-permissions';
+import { useAuthStore } from '@/stores/useAuthStore';
+import type { Document, ProjectRole } from '@/types';
 
 interface DocumentCardProps {
   document: Document;
@@ -26,6 +28,8 @@ interface DocumentCardProps {
   onRename?: (id: string, newName: string) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
   onAddToProject?: (document: Document) => void;
+  myRole?: ProjectRole | null;
+  uploaderName?: string;
 }
 
 const typeIcons: Record<string, typeof FileText> = {
@@ -55,7 +59,12 @@ const typeAccent: Record<string, { bg: string; text: string }> = {
   autre: { bg: '#F3F4F6', text: '#374151' },
 };
 
-export function DocumentCard({ document, dossierNames, monumentNames, onClick, onRename, onDelete, onAddToProject }: DocumentCardProps) {
+export function DocumentCard({ document, dossierNames, monumentNames, onClick, onRename, onDelete, onAddToProject, uploaderName }: DocumentCardProps) {
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const isUploader = document.userId === currentUserId;
+  // Suppression réservée à l'auteur du document (consultation ouverte à tous).
+  const canDelete = canDeleteDocument(isUploader);
+
   const Icon = typeIcons[document.type] ?? FileText;
   const accent = typeAccent[document.type] ?? typeAccent.autre;
   const linkedMonuments = monumentNames ? document.monumentIds.map((id) => monumentNames[id]).filter(Boolean) : [];
@@ -100,8 +109,11 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-semibold text-[#1B1E2E] leading-tight line-clamp-1">{document.nom}</p>
               <p className="text-[11px] text-[#8E92A4] mt-0.5 truncate">{document.nomFichier}</p>
+              {uploaderName && (
+                <p className="text-[11px] text-[#8E92A4]">Ajouté par {uploaderName}</p>
+              )}
             </div>
-            {(onRename || onDelete || onAddToProject) && (
+            {(onRename || (onDelete && canDelete) || onAddToProject) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                   <button className="shrink-0 p-1 rounded-md hover:bg-[#F8F7F4] transition-colors opacity-0 group-hover:opacity-100">
@@ -119,7 +131,7 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
                       <Pencil className="h-3.5 w-3.5 mr-2" />Renommer
                     </DropdownMenuItem>
                   )}
-                  {onDelete && (
+                  {onDelete && canDelete && (
                     <DropdownMenuItem className="text-destructive" onClick={handleDelete}>
                       <Trash2 className="h-3.5 w-3.5 mr-2" />Supprimer
                     </DropdownMenuItem>

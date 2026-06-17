@@ -185,7 +185,7 @@ export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToPro
     setLoading(true);
     setError(null);
 
-    documentService.getSignedUrl(document.url).then(
+    documentService.getSignedUrl(document.id).then(
       (url) => { if (!cancelled) { setSignedUrl(url); setLoading(false); } },
       (err) => { if (!cancelled) { setError(err.message); setLoading(false); } },
     );

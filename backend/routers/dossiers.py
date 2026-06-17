@@ -7,6 +7,7 @@ from supabase import Client
 from db import get_current_user_id, get_supabase
 from routers.monuments import _enrich_monument
 from services.dossier_service import create_dossier_from_aide
+from services.project_access import require_project_access
 
 router = APIRouter(prefix="/dossiers", tags=["dossiers"])
 
@@ -62,16 +63,20 @@ class AddEcheanceRequest(BaseModel):
 
 
 def _get_dossier_or_404(supabase: Client, dossier_id: str, user_id: str) -> dict:
-    result = (
-        supabase.table("dossiers")
-        .select(COLUMNS)
-        .eq("id", dossier_id)
-        .eq("user_id", user_id)
-        .single()
-        .execute()
-    )
+    """Lecture : tout membre du projet du dossier y a accès."""
+    result = supabase.table("dossiers").select(COLUMNS).eq("id", dossier_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
+    require_project_access(supabase, result.data["monument_id"], user_id, "member")
+    return result.data
+
+
+def _require_dossier_write(supabase: Client, dossier_id: str, user_id: str) -> dict:
+    """Écriture : réservé aux owner/co_owner du projet du dossier."""
+    result = supabase.table("dossiers").select(COLUMNS).eq("id", dossier_id).single().execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Dossier introuvable")
+    require_project_access(supabase, result.data["monument_id"], user_id, "co_owner")
     return result.data
 
 
@@ -103,10 +108,20 @@ def list_dossiers(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
+    memberships = (
+        supabase.table("project_members")
+        .select("monument_id")
+        .eq("user_id", user_id)
+        .execute()
+        .data
+    )
+    monument_ids = [m["monument_id"] for m in memberships]
+    if not monument_ids:
+        return []
     result = (
         supabase.table("dossiers")
         .select(COLUMNS)
-        .eq("user_id", user_id)
+        .in_("monument_id", monument_ids)
         .order("date_derniere_modification", desc=True)
         .execute()
     )
@@ -120,13 +135,9 @@ def create_dossier(
     supabase: Client = Depends(get_supabase),
 ):
     # Validate monument ownership
+    require_project_access(supabase, body.monument_id, user_id, "co_owner")
     monument_result = (
-        supabase.table("monuments")
-        .select("*")
-        .eq("id", body.monument_id)
-        .eq("user_id", user_id)
-        .single()
-        .execute()
+        supabase.table("monuments").select("*").eq("id", body.monument_id).single().execute()
     )
     if not monument_result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
@@ -183,7 +194,7 @@ def update_dossier(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    _get_dossier_or_404(supabase, dossier_id, user_id)
+    _require_dossier_write(supabase, dossier_id, user_id)
 
     updates = body.model_dump(exclude_none=True)
     if not updates:
@@ -199,7 +210,7 @@ def delete_dossier(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    _get_dossier_or_404(supabase, dossier_id, user_id)
+    _require_dossier_write(supabase, dossier_id, user_id)
     supabase.table("dossiers").delete().eq("id", dossier_id).execute()
 
 
@@ -211,7 +222,7 @@ def update_checklist_item(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    dossier = _get_dossier_or_404(supabase, dossier_id, user_id)
+    dossier = _require_dossier_write(supabase, dossier_id, user_id)
 
     checklist: list = dossier.get("checklist") or []
     updated = False
@@ -245,7 +256,7 @@ def update_section(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    dossier = _get_dossier_or_404(supabase, dossier_id, user_id)
+    dossier = _require_dossier_write(supabase, dossier_id, user_id)
 
     sections: list = dossier.get("sections") or []
     updated = False
@@ -271,7 +282,7 @@ def add_collaborateur(
 ):
     import uuid
 
-    dossier = _get_dossier_or_404(supabase, dossier_id, user_id)
+    dossier = _require_dossier_write(supabase, dossier_id, user_id)
 
     collaborateurs: list = dossier.get("collaborateurs") or []
     new_collab = {
@@ -297,7 +308,7 @@ def remove_collaborateur(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    dossier = _get_dossier_or_404(supabase, dossier_id, user_id)
+    dossier = _require_dossier_write(supabase, dossier_id, user_id)
 
     collaborateurs: list = dossier.get("collaborateurs") or []
     updated = [c for c in collaborateurs if c.get("id") != collab_id]
@@ -317,7 +328,7 @@ def add_echeance(
 ):
     import uuid
 
-    dossier = _get_dossier_or_404(supabase, dossier_id, user_id)
+    dossier = _require_dossier_write(supabase, dossier_id, user_id)
 
     echeances: list = dossier.get("echeances") or []
     new_echeance = {
@@ -343,7 +354,7 @@ def toggle_echeance(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    dossier = _get_dossier_or_404(supabase, dossier_id, user_id)
+    dossier = _require_dossier_write(supabase, dossier_id, user_id)
 
     echeances: list = dossier.get("echeances") or []
     updated = False
@@ -367,7 +378,7 @@ def submit_dossier(
 ):
     from datetime import datetime
 
-    _get_dossier_or_404(supabase, dossier_id, user_id)
+    _require_dossier_write(supabase, dossier_id, user_id)
 
     supabase.table("dossiers").update(
         {

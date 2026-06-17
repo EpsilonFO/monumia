@@ -17,6 +17,8 @@ export const ROUTES = {
   MODELES: '/app/modeles',
   PROFIL: '/app/profil',
 
+  INVITATION: (token: string) => `/invitation/${token}`,
+
   // Alias de compatibilité — résolvent sur l'onglet Projet unifié pour que tous les
   // appelants compilent pendant la migration. Les liens profonds corrects sont posés
   // par les pages Projet (AideCard/DossierCard → PROJET_AIDE).

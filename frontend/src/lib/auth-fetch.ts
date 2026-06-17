@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/useAuthStore';
 import { tryRefresh } from '@/lib/token-refresh';
+import { ApiError } from '@/lib/api-error';
 
 /**
  * Wrapper around fetch that:
@@ -39,7 +40,7 @@ export async function authFetch(
 export async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail ?? `HTTP ${res.status}`);
+    throw new ApiError(res.status, body.detail ?? `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
 }

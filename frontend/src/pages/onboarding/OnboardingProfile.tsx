@@ -11,21 +11,24 @@ import { usePendingRegistrationStore } from '@/stores/usePendingRegistrationStor
 import { authService } from '@/services/auth.service';
 import { ChevronLeft, ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { MetierSelect } from '@/components/sharing/MetierSelect';
+import { ROUTES } from '@/constants/routes';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
+// Tokens du tableau de bord (mêmes clés, couleurs de la charte app).
 const C = {
-  bg: '#F8F7F4',
-  bgAlt: '#FFFFFF',
-  text: '#1B1E2E',
-  textMuted: '#5C6178',
-  textLight: '#8E92A4',
-  royal: '#1A237E',
-  terra: '#C75B3A',
-  border: '#E4E2DC',
+  bg: '#fdf9f0', // crème
+  bgAlt: '#fffefb', // carte
+  text: '#222b35', // encre
+  textMuted: '#5c6472',
+  textLight: '#8c92a0',
+  royal: '#0a369d', // bleu institutionnel (mots-clés, focus)
+  terra: '#f17105', // orange (CTA, accents)
+  border: '#ece3d2',
 } as const;
 
-const FONT_HEADING = "'Cormorant Garamond', serif";
+const FONT_HEADING = "'PT Serif', Georgia, 'Times New Roman', serif";
 
 interface CommuneResult {
   codeInsee: string;
@@ -39,7 +42,7 @@ interface CommuneResult {
 export function OnboardingProfile() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const segment = (searchParams.get('segment') ?? 'commune') as 'commune' | 'prive' | 'btp';
+  const segment = (searchParams.get('segment') ?? 'commune') as 'commune' | 'prive' | 'btp' | 'collaborateur';
   const setAuth = useAuthStore((s) => s.setAuth);
   const pendingEmail = usePendingRegistrationStore((s) => s.email);
   const pendingPassword = usePendingRegistrationStore((s) => s.password);
@@ -60,6 +63,7 @@ export function OnboardingProfile() {
     prenom: '',
     nom: '',
     telephone: '',
+    metier: '',
     communeNom: '',
     communeCodeInsee: '',
     communeDepartement: '',
@@ -120,6 +124,32 @@ export function OnboardingProfile() {
       return;
     }
 
+    if (segment === 'collaborateur') {
+      if (!form.metier) {
+        toast.error('Indiquez votre rôle sur le projet');
+        return;
+      }
+      setLoading(true);
+      try {
+        const { user, access_token, refresh_token } = await authService.registerCollaborator({
+          email: pendingEmail,
+          password: pendingPassword,
+          prenom: form.prenom,
+          nom: form.nom,
+          metier: form.metier,
+          telephone: form.telephone || undefined,
+        });
+        clearPendingCredentials();
+        setAuth(user, access_token, refresh_token);
+        navigate(ROUTES.PROJETS);
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : 'Erreur lors de la creation du compte');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     const email = pendingEmail;
     const password = pendingPassword;
 
@@ -159,18 +189,19 @@ export function OnboardingProfile() {
   const isValid = !!form.prenom && !!form.nom && !phoneError && (
     segment === 'commune' ? !!form.communeNom :
     segment === 'btp' ? !!form.raisonSociale :
+    segment === 'collaborateur' ? !!form.metier :
     !!form.typeProprietaire
   );
 
-  const inputCls = 'h-10 text-[14px] bg-white border-[#E4E2DC] focus:border-[#1A237E] focus:ring-[#1A237E]/10';
+  const inputCls = 'h-10 text-[14px] bg-white border-[#ece3d2] focus:border-[#0a369d] focus:ring-[#0a369d]/10';
 
   return (
     <div className="space-y-5">
       {/* heading */}
       <div className="space-y-2">
-        <div className="flex items-center gap-3">
-          <span className="h-px w-10" style={{ background: C.terra }} />
-          <span className="text-[12px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.terra }}>
+        <div className="flex items-center gap-2.5">
+          <span style={{ width: 22, height: 2, borderRadius: 2, background: C.terra }} />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.royal }}>
             Étape 2
           </span>
         </div>
@@ -190,7 +221,7 @@ export function OnboardingProfile() {
       </div>
 
       {/* personal info card */}
-      <div className="border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
+      <div className="rounded-2xl border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
         <h3 className="text-[17px] font-normal mb-4" style={{ fontFamily: FONT_HEADING, color: C.text }}>
           Informations personnelles
         </h3>
@@ -219,7 +250,7 @@ export function OnboardingProfile() {
 
       {/* segment-specific card */}
       {segment === 'commune' && (
-        <div className="border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
+        <div className="rounded-2xl border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
           <h3 className="text-[17px] font-normal mb-1" style={{ fontFamily: FONT_HEADING, color: C.text }}>
             Votre commune
           </h3>
@@ -246,7 +277,7 @@ export function OnboardingProfile() {
                   {communeSuggestions.map((c) => (
                     <li
                       key={c.codeInsee}
-                      className="px-4 py-3 text-[14px] cursor-pointer flex justify-between transition-colors hover:bg-[#F8F7F4]"
+                      className="px-4 py-3 text-[14px] cursor-pointer flex justify-between transition-colors hover:bg-[#fdf9f0]"
                       style={{ color: C.text }}
                       onMouseDown={() => selectCommune(c)}
                     >
@@ -277,7 +308,7 @@ export function OnboardingProfile() {
       )}
 
       {segment === 'prive' && (
-        <div className="border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
+        <div className="rounded-2xl border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
           <h3 className="text-[17px] font-normal mb-1" style={{ fontFamily: FONT_HEADING, color: C.text }}>
             Votre situation
           </h3>
@@ -317,7 +348,7 @@ export function OnboardingProfile() {
       )}
 
       {segment === 'btp' && (
-        <div className="border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
+        <div className="rounded-2xl border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
           <h3 className="text-[17px] font-normal mb-4" style={{ fontFamily: FONT_HEADING, color: C.text }}>
             Votre entreprise
           </h3>
@@ -334,11 +365,30 @@ export function OnboardingProfile() {
         </div>
       )}
 
+      {segment === 'collaborateur' && (
+        <div className="rounded-2xl border p-5" style={{ borderColor: C.border, background: C.bgAlt }}>
+          <h3 className="text-[17px] font-normal mb-1" style={{ fontFamily: FONT_HEADING, color: C.text }}>
+            Votre rôle
+          </h3>
+          <p className="text-[13px] mb-4" style={{ color: C.textLight }}>
+            Pour que la personne qui vous a invité sache qui vous êtes
+          </p>
+          <div className="space-y-1">
+            <Label htmlFor="metier" className="text-[13px] font-medium" style={{ color: C.text }}>Votre rôle sur le projet *</Label>
+            <MetierSelect value={form.metier} onChange={(v) => update({ metier: v })} className={inputCls} />
+          </div>
+          <p className="text-[13px] mt-4" style={{ color: C.textMuted }}>
+            Après la création de votre compte, ouvrez le lien d'invitation reçu par e-mail
+            pour accéder au projet. Vous le retrouverez ensuite dans l'onglet « Projets ».
+          </p>
+        </div>
+      )}
+
       {/* navigation buttons */}
       <div className="flex items-center justify-between pt-1">
         <button
           onClick={() => navigate('/onboarding')}
-          className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium border transition-all duration-300 hover:bg-[#F8F7F4]"
+          className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium border transition-all duration-300 hover:bg-[#fdf9f0]"
           style={{ borderColor: C.border, color: C.textMuted }}
         >
           <ChevronLeft className="h-3.5 w-3.5" />
@@ -347,8 +397,8 @@ export function OnboardingProfile() {
         <button
           onClick={handleSubmit}
           disabled={!isValid || loading}
-          className="group flex items-center gap-2 px-6 py-2.5 text-[13px] font-semibold text-white transition-all duration-300 disabled:opacity-50 hover:shadow-lg"
-          style={{ background: C.royal }}
+          className="group flex items-center gap-2 rounded-lg px-6 py-2.5 text-[13px] font-semibold text-white transition-opacity duration-200 disabled:opacity-50 hover:opacity-90"
+          style={{ background: C.terra }}
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
             <>

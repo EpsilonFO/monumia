@@ -21,6 +21,15 @@ export interface RegisterPayload {
   btp?: object;
 }
 
+export interface RegisterCollaboratorPayload {
+  email: string;
+  password: string;
+  prenom: string;
+  nom: string;
+  metier: string;
+  telephone?: string;
+}
+
 export interface AuthResponse {
   access_token: string;
   refresh_token: string | null;
@@ -40,6 +49,15 @@ export const authService = {
 
   async register(payload: RegisterPayload): Promise<AuthResponse> {
     const res = await fetch(`${BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<AuthResponse>(res);
+  },
+
+  async registerCollaborator(payload: RegisterCollaboratorPayload): Promise<AuthResponse> {
+    const res = await fetch(`${BASE}/auth/register-collaborator`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

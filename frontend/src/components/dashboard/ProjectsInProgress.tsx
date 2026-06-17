@@ -7,7 +7,10 @@ import {
   Landmark,
   Shield,
   MapPin,
+  Users,
 } from 'lucide-react';
+import { ROLE_LABELS } from '@/components/sharing/RoleBadge';
+import { sharedRole } from '@/lib/project-permissions';
 import { C, DEADLINE_TONE } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { formatDateShort } from '@/lib/date-utils';
@@ -104,6 +107,7 @@ function ProjectCard({
     monument.protection !== 'non_protege'
       ? PROTECTION_LABELS_SHORT[monument.protection] ?? null
       : null;
+  const role = sharedRole(monument.myRole);
 
   return (
     <Link
@@ -132,26 +136,30 @@ function ProjectCard({
           />
         )}
 
-        {/* Badges prestige (haut) */}
-        {(protection || etat) && (
-          <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-4">
-            {protection ? (
+        {/* Badges prestige (haut) : protection + rôle à gauche, état (toujours présent) à droite */}
+        <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {protection && (
               <GlassBadge>
                 <Shield className="h-3 w-3" strokeWidth={2.4} aria-hidden />
                 {protection}
               </GlassBadge>
-            ) : (
-              <span />
             )}
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
-              style={{ background: 'rgba(255,255,255,0.92)', color: etat.fg }}
-            >
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: etat.dot }} />
-              {etat.label}
-            </span>
+            {role && (
+              <GlassBadge>
+                <Users className="h-3 w-3" strokeWidth={2.4} aria-hidden />
+                {ROLE_LABELS[role]}
+              </GlassBadge>
+            )}
           </div>
-        )}
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+            style={{ background: 'rgba(255,255,255,0.92)', color: etat.fg }}
+          >
+            <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: etat.dot }} />
+            {etat.label}
+          </span>
+        </div>
 
         {/* Titre en surimpression (ancré en bas → hauteur de héros constante) */}
         <div className="absolute inset-x-0 bottom-0 p-5">

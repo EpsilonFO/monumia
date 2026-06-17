@@ -1,17 +1,9 @@
 import { useNavigate } from 'react-router';
-import { Building2, Home, ArrowRight } from 'lucide-react';
+import { Building2, Home, Users, ArrowRight } from 'lucide-react';
+import { AuthEyebrow } from '@/components/layout/AuthLayout';
+import { C, SERIF } from '@/lib/brand';
 
-const C = {
-  text: '#1B1E2E',
-  textMuted: '#5C6178',
-  textLight: '#8E92A4',
-  royal: '#1A237E',
-  royalPale: '#E8EAF6',
-  terra: '#C75B3A',
-  terraPale: '#FBF0EC',
-  border: '#E4E2DC',
-  bgAlt: '#FFFFFF',
-} as const;
+const MUTED = '#5c6472';
 
 export function SegmentChoice() {
   const navigate = useNavigate();
@@ -22,82 +14,67 @@ export function SegmentChoice() {
       icon: Building2,
       title: 'Je suis une commune',
       desc: 'Maire, adjoint au patrimoine, secrétaire de mairie… Gérez les monuments de votre collectivité.',
-      tint: C.royalPale,
-      accent: C.royal,
+      tint: C.paleBlue,
+      accent: C.blue,
       path: '/onboarding/profil?segment=commune',
     },
     {
       key: 'prive',
       icon: Home,
       title: 'Je suis propriétaire privé',
-      desc: 'Propriétaire d\'un château, manoir, demeure historique… Trouvez les aides pour votre bien.',
-      tint: C.terraPale,
-      accent: C.terra,
+      desc: 'Château, manoir, demeure historique… Trouvez les aides disponibles pour votre bien.',
+      tint: C.paleOrange,
+      accent: C.orange,
       path: '/onboarding/profil?segment=prive',
+    },
+    {
+      key: 'collaborateur',
+      icon: Users,
+      title: 'Je rejoins un projet',
+      desc: 'On m’a invité à collaborer. Maire, artisan, architecte… rejoignez le projet d’une autre personne.',
+      tint: C.paleBlue,
+      accent: C.blueLight,
+      path: '/onboarding/profil?segment=collaborateur',
     },
   ];
 
   return (
-    <div className="space-y-10">
-      {/* heading */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <span className="h-px w-12" style={{ background: C.terra }} />
-          <span className="text-[13px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.terra }}>
-            Étape 1
-          </span>
-        </div>
-        <h1
-          className="text-[clamp(1.8rem,4vw,2.8rem)] font-light tracking-[-0.02em]"
-          style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
-        >
-          Bienvenue sur <em className="italic" style={{ color: C.royal }}>Monumia</em>
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <AuthEyebrow>Étape 1 — Votre profil</AuthEyebrow>
+        <h1 className="text-[clamp(1.7rem,4vw,2.4rem)] leading-[1.1]" style={{ fontFamily: SERIF, color: C.ink }}>
+          Qui <span style={{ color: C.blue }}>êtes-vous</span> ?
         </h1>
-        <p className="max-w-lg text-[16px] leading-[1.75]" style={{ color: C.textMuted }}>
-          Identifiez les aides disponibles pour restaurer votre patrimoine historique.
-          Commencez par nous indiquer votre situation.
+        <p className="max-w-lg text-[15px] leading-[1.7]" style={{ color: MUTED }}>
+          Indiquez votre situation pour adapter votre espace et les aides proposées.
         </p>
       </div>
 
-      {/* segment cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <div className="space-y-3.5">
         {segments.map((seg) => (
           <button
             key={seg.key}
             onClick={() => navigate(seg.path)}
-            className="group relative flex flex-col items-start text-left p-8 border transition-all duration-500 hover:shadow-lg hover:shadow-black/[0.04]"
-            style={{ borderColor: C.border, background: C.bgAlt }}
+            className="group flex w-full items-center gap-5 rounded-2xl border px-6 py-5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-12px_rgba(10,54,157,0.25)]"
+            style={{ background: C.card, borderColor: C.border }}
           >
-            {/* icon */}
-            <div
-              className="flex h-14 w-14 items-center justify-center rounded-full mb-6 transition-all duration-500 group-hover:scale-105"
+            <span
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-105"
               style={{ background: seg.tint, color: seg.accent }}
             >
-              <seg.icon className="h-6 w-6" />
-            </div>
-
-            <h3
-              className="text-[22px] font-normal mb-3"
-              style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
-            >
-              {seg.title}
-            </h3>
-            <p className="flex-1 text-[15px] leading-[1.75] mb-6" style={{ color: C.textMuted }}>
-              {seg.desc}
-            </p>
-
-            <div
-              className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-[0.08em] transition-colors duration-300"
+              <seg.icon className="h-6 w-6" strokeWidth={1.8} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
+                {seg.title}
+              </span>
+              <span className="mt-1 block text-[13px] leading-[1.55]" style={{ color: MUTED }}>
+                {seg.desc}
+              </span>
+            </span>
+            <ArrowRight
+              className="h-5 w-5 shrink-0 transition-transform duration-300 group-hover:translate-x-1"
               style={{ color: seg.accent }}
-            >
-              Continuer
-              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-            </div>
-
-            {/* hover accent line */}
-            <div
-              className="absolute bottom-0 left-8 right-8 h-[2px] scale-x-0 group-hover:scale-x-100 transition-transform duration-700 origin-left"
-              style={{ background: seg.accent }}
             />
           </button>
         ))}

@@ -6,7 +6,6 @@ import type { Document, DocumentType } from '@/types';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 const STORAGE_BUCKET = 'documents';
-const SIGNED_URL_EXPIRY = 7 * 24 * 60 * 60; // 7 days in seconds
 
 /**
  * Extract the storage path from a value that may be a full Supabase public URL
@@ -94,18 +93,15 @@ function toDocument(row: Record<string, unknown>): Document {
   };
 }
 
-/** Generate a signed URL for a document's storage path. */
-async function getSignedUrl(storagePath: string): Promise<string> {
-  await syncSupabaseSession();
-
-  const { data, error } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .createSignedUrl(storagePath, SIGNED_URL_EXPIRY);
-
-  if (error || !data?.signedUrl) {
-    throw new Error(`Erreur création URL signée : ${error?.message ?? 'URL vide'}`);
-  }
-  return data.signedUrl;
+/**
+ * URL signée d'un document, générée par le backend (client service-role).
+ * Permet à tout membre d'un projet du document de le consulter — la signature
+ * directe côté client est bloquée par la RLS storage (dossier du dépositaire).
+ */
+async function getSignedUrl(documentId: string): Promise<string> {
+  const res = await authFetch(`${BASE}/documents/${documentId}/signed-url`);
+  const data = await handleResponse<{ signed_url: string }>(res);
+  return data.signed_url;
 }
 
 export const documentService = {

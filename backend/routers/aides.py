@@ -8,6 +8,7 @@ from supabase import Client
 from db import get_current_user_id, get_supabase
 from matching_engine import _build_criteria_labels, fetch_aides_with_joins, run_diagnostic
 from routers.monuments import _enrich_monument
+from services.project_access import require_project_access
 
 logger = logging.getLogger(__name__)
 
@@ -128,13 +129,9 @@ async def diagnostic(
     supabase: Client = Depends(get_supabase),
 ):
     # Fetch monument (must belong to user)
+    require_project_access(supabase, body.monument_id, user_id, "co_owner")
     monument_result = (
-        supabase.table("monuments")
-        .select("*")
-        .eq("id", body.monument_id)
-        .eq("user_id", user_id)
-        .single()
-        .execute()
+        supabase.table("monuments").select("*").eq("id", body.monument_id).single().execute()
     )
     if not monument_result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
@@ -206,13 +203,14 @@ def update_qcm_answers(
     """Persist the user's QCM answers so the post-QCM filtering survives a reload."""
     existing = (
         supabase.table("diagnostics")
-        .select("id, user_id")
+        .select("id, monument_id")
         .eq("id", diagnostic_id)
         .single()
         .execute()
     )
-    if not existing.data or existing.data["user_id"] != user_id:
+    if not existing.data:
         raise HTTPException(status_code=404, detail="Diagnostic introuvable")
+    require_project_access(supabase, existing.data["monument_id"], user_id, "co_owner")
 
     supabase.table("diagnostics").update({"qcm_answers": body.qcm_answers}).eq(
         "id", diagnostic_id
@@ -228,11 +226,11 @@ def list_diagnostics(
 ):
     """Return all diagnostics for a monument, most recent first.
     Recomputes eligibility criteria from current aide + monument data."""
+    require_project_access(supabase, monument_id, user_id, "member")
     diag_result = (
         supabase.table("diagnostics")
         .select("*")
         .eq("monument_id", monument_id)
-        .eq("user_id", user_id)
         .order("created_at", desc=True)
         .execute()
     )
@@ -242,12 +240,7 @@ def list_diagnostics(
 
     # Fetch monument & user for re-running eligibility checks
     monument_result = (
-        supabase.table("monuments")
-        .select("*")
-        .eq("id", monument_id)
-        .eq("user_id", user_id)
-        .single()
-        .execute()
+        supabase.table("monuments").select("*").eq("id", monument_id).single().execute()
     )
     monument = monument_result.data
     user_result = supabase.table("users").select("*").eq("id", user_id).single().execute()

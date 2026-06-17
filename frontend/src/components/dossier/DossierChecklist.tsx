@@ -13,6 +13,8 @@ interface DossierChecklistProps {
   onRequestAttach?: (item: ChecklistItem) => void;
   onPreview?: (documentId: string) => void;
   onRequestDelete?: (item: ChecklistItem) => void;
+  /** Vrai si l'utilisateur peut remplacer/supprimer la pièce (= il en est l'auteur). */
+  canModifyItem?: (item: ChecklistItem) => boolean;
   busyItemId?: string | null;
   readOnly?: boolean;
 }
@@ -23,6 +25,7 @@ export function DossierChecklist({
   onRequestAttach,
   onPreview,
   onRequestDelete,
+  canModifyItem,
   busyItemId,
   readOnly,
 }: DossierChecklistProps) {
@@ -42,6 +45,7 @@ export function DossierChecklist({
             item={item}
             templates={templatesByItemId?.[item.id] ?? []}
             readOnly={readOnly}
+            canModify={canModifyItem ? canModifyItem(item) : true}
             busy={busyItemId === item.id}
             onRequestAttach={onRequestAttach}
             onPreview={onPreview}
@@ -57,6 +61,7 @@ function DocumentRow({
   item,
   templates,
   readOnly,
+  canModify = true,
   busy,
   onRequestAttach,
   onPreview,
@@ -65,6 +70,7 @@ function DocumentRow({
   item: ChecklistItem;
   templates: Template[];
   readOnly?: boolean;
+  canModify?: boolean;
   busy?: boolean;
   onRequestAttach?: (item: ChecklistItem) => void;
   onPreview?: (documentId: string) => void;
@@ -113,7 +119,7 @@ function DocumentRow({
             Voir
           </button>
         )}
-        {!readOnly && isFourni && item.documentId && onRequestDelete && (
+        {!readOnly && isFourni && item.documentId && onRequestDelete && canModify && (
           <button
             type="button"
             disabled={busy}
@@ -127,7 +133,7 @@ function DocumentRow({
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         )}
-        {!readOnly && onRequestAttach && (
+        {!readOnly && onRequestAttach && (!isFourni || canModify) && (
           <button
             type="button"
             disabled={busy}

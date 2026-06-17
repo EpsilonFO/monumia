@@ -13,15 +13,16 @@ import { Search, PenLine, ChevronLeft, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
 
+// Tokens du tableau de bord (mêmes clés, couleurs de la charte app).
 const C = {
-  bg: '#F8F7F4',
-  bgAlt: '#FFFFFF',
-  text: '#1B1E2E',
-  textMuted: '#5C6178',
-  textLight: '#8E92A4',
-  royal: '#1A237E',
-  terra: '#C75B3A',
-  border: '#E4E2DC',
+  bg: '#fdf9f0',
+  bgAlt: '#fffefb',
+  text: '#222b35',
+  textMuted: '#5c6472',
+  textLight: '#8c92a0',
+  royal: '#0a369d',
+  terra: '#f17105',
+  border: '#ece3d2',
 } as const;
 
 const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
@@ -177,7 +178,7 @@ export function OnboardingMonument() {
           </div>
           <h1
             className="text-[clamp(1.8rem,4vw,2.5rem)] font-light tracking-[-0.02em]"
-            style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
+            style={{ fontFamily: "'PT Serif', Georgia, 'Times New Roman', serif", color: C.text }}
           >
             Complétez la fiche
           </h1>
@@ -199,14 +200,14 @@ export function OnboardingMonument() {
       <div className="space-y-4">
         {backToMonuments}
         <div className="flex items-center gap-3">
-          <span className="h-px w-12" style={{ background: C.terra }} />
-          <span className="text-[13px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.terra }}>
+          <span style={{ width: 22, height: 2, borderRadius: 2, background: C.terra }} />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.royal }}>
             Étape 3
           </span>
         </div>
         <h1
           className="text-[clamp(1.8rem,4vw,2.5rem)] font-light tracking-[-0.02em]"
-          style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
+          style={{ fontFamily: "'PT Serif', Georgia, 'Times New Roman', serif", color: C.text }}
         >
           Votre <em className="italic" style={{ color: C.royal }}>monument</em>
         </h1>
@@ -229,10 +230,10 @@ export function OnboardingMonument() {
         </TabsList>
 
         <TabsContent value="merimee" className="mt-6">
-          <div className="border p-8" style={{ borderColor: C.border, background: C.bgAlt }}>
+          <div className="rounded-2xl border p-8" style={{ borderColor: C.border, background: C.bgAlt }}>
             <h3
               className="text-[20px] font-normal mb-2"
-              style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
+              style={{ fontFamily: "'PT Serif', Georgia, 'Times New Roman', serif", color: C.text }}
             >
               Rechercher avec Monumia
             </h3>
@@ -245,10 +246,10 @@ export function OnboardingMonument() {
         </TabsContent>
 
         <TabsContent value="manual" className="mt-6">
-          <div className="border p-8" style={{ borderColor: C.border, background: C.bgAlt }}>
+          <div className="rounded-2xl border p-8" style={{ borderColor: C.border, background: C.bgAlt }}>
             <h3
               className="text-[20px] font-normal mb-2"
-              style={{ fontFamily: "'Cormorant Garamond', serif", color: C.text }}
+              style={{ fontFamily: "'PT Serif', Georgia, 'Times New Roman', serif", color: C.text }}
             >
               Saisie manuelle
             </h3>
@@ -258,8 +259,8 @@ export function OnboardingMonument() {
             </p>
             <button
               onClick={() => setShowForm(true)}
-              className="group flex items-center gap-2 px-6 py-3 text-[14px] font-semibold text-white transition-all duration-300 hover:shadow-lg"
-              style={{ background: C.royal }}
+              className="group flex items-center gap-2 rounded-lg px-6 py-3 text-[14px] font-semibold text-white transition-opacity duration-200 hover:opacity-90"
+              style={{ background: C.terra }}
             >
               Créer une fiche monument
               <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -272,7 +273,7 @@ export function OnboardingMonument() {
       <div className="flex justify-start">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 px-5 py-3 text-[14px] font-medium border transition-all duration-300 hover:bg-[#F8F7F4]"
+          className="flex items-center gap-2 rounded-lg px-5 py-3 text-[14px] font-medium border transition-colors duration-200 hover:bg-[#fdf9f0]"
           style={{ borderColor: C.border, color: C.textMuted }}
         >
           <ChevronLeft className="h-4 w-4" />

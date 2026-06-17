@@ -5,16 +5,21 @@ import { formatCurrency } from '@/lib/format-utils';
 import { deadlineLabel } from '@/lib/date-utils';
 import { PROTECTION_LABELS_SHORT, ETAT_LABELS } from '@/constants/monument-options';
 import type { ProjectStats } from '@/lib/project-stats';
-import type { Monument } from '@/types';
+import type { Monument, ProjectMember } from '@/types';
+import { isProjectShared } from '@/lib/project-permissions';
+import { SharedBadge } from '@/components/sharing/SharedBadge';
+import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
+import { RoleBadge } from '@/components/sharing/RoleBadge';
 
 interface ProjectSummaryBarProps {
   monument: Monument;
   stats: ProjectStats;
+  members?: ProjectMember[];
   onRelancer: () => void;
   relancing?: boolean;
 }
 
-export function ProjectSummaryBar({ monument, stats, onRelancer, relancing = false }: ProjectSummaryBarProps) {
+export function ProjectSummaryBar({ monument, stats, members = [], onRelancer, relancing = false }: ProjectSummaryBarProps) {
   const echeance = stats.prochaineEcheance;
   const echeanceLabel = echeance ? deadlineLabel(echeance.date) : null;
   // Code couleur unique : < 30 j (ou dépassée) → rouge · 30–100 j → orange · > 100 j → bleu
@@ -26,6 +31,9 @@ export function ProjectSummaryBar({ monument, stats, onRelancer, relancing = fal
         : C.blue;
 
   const location = [monument.commune, monument.departement].filter(Boolean).join(' · ');
+
+  const shared = isProjectShared({ myRole: monument.myRole, memberCount: members.length || monument.memberCount });
+  const showRole = monument.myRole && monument.myRole !== 'owner';
 
   return (
     <div
@@ -51,7 +59,14 @@ export function ProjectSummaryBar({ monument, stats, onRelancer, relancing = fal
             <Badge variant="outline" style={{ borderColor: C.border, color: C.ink }}>
               {ETAT_LABELS[monument.etatConservation] ?? monument.etatConservation}
             </Badge>
+            {shared && <SharedBadge count={members.length || monument.memberCount} />}
+            {showRole && monument.myRole && <RoleBadge role={monument.myRole} />}
           </div>
+          {shared && members.length > 0 && (
+            <div className="flex items-center gap-2 pt-1">
+              <MemberAvatarStack people={members} size="sm" />
+            </div>
+          )}
         </div>
 
         <button

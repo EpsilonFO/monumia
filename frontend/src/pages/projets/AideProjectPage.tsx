@@ -12,7 +12,9 @@ import { useAideStore } from '@/stores/useAideStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useTemplateStore } from '@/stores/useTemplateStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { matchTemplates } from '@/lib/template-matching';
+import { projectPermissions } from '@/lib/project-permissions';
 import { monumentService } from '@/services/monument.service';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
@@ -44,6 +46,8 @@ export function AideProjectPage() {
   const fetchDocuments = useDocumentStore((s) => s.fetchDocuments);
   const linkToDossierStore = useDocumentStore((s) => s.linkToDossier);
   const unlinkFromDossierStore = useDocumentStore((s) => s.unlinkFromDossier);
+
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
   const [view, setView] = useState<View>('description');
   const [aide, setAide] = useState<Aide | null>(null);
@@ -169,6 +173,16 @@ export function AideProjectPage() {
     }
   };
 
+  // Remplacer / supprimer une pièce : réservé à l'auteur du document. La liste
+  // `documents` (GET /documents sans filtre) ne contient que MES documents, donc
+  // une pièce présente ici = pièce dont je suis l'auteur. Consultation ouverte à tous.
+  const canModifyItem = useCallback(
+    (item: ChecklistItem) =>
+      !!item.documentId &&
+      documents.some((d) => d.id === item.documentId && d.userId === currentUserId),
+    [documents, currentUserId],
+  );
+
   const handlePreview = async (documentId: string) => {
     const existing = documents.find((d) => d.id === documentId);
     if (existing) { setPreviewDoc(existing); return; }
@@ -258,8 +272,12 @@ export function AideProjectPage() {
                   onRequestAttach={(item) => setAttachingItem(item)}
                   onPreview={handlePreview}
                   onRequestDelete={handleDeleteItem}
+                  canModifyItem={canModifyItem}
                   busyItemId={busyItemId}
-                  readOnly={dossier.statut === 'soumis'}
+                  readOnly={
+                    dossier.statut === 'soumis' ||
+                    !projectPermissions(monument.myRole ?? null).canEditProject
+                  }
                 />
               )}
             </div>

@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Shield, Calendar, AlertTriangle, Wrench, Building2, Eye, Compass,
   ScrollText, FolderOpen, ChevronLeft, ChevronDown, Edit2, Trash2, Loader2,
-  CheckCircle2, HelpCircle, XCircle,
+  CheckCircle2, HelpCircle, XCircle, Users,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,6 +18,8 @@ import { DossierCard } from '@/components/dossier/DossierCard';
 import { DocumentCard } from '@/components/document/DocumentCard';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { AddToProjectDialog } from '@/components/document/AddToProjectDialog';
+import { TeamPanel } from '@/components/sharing/TeamPanel';
+import { projectPermissions } from '@/lib/project-permissions';
 import { ProjectSummaryBar } from '@/components/project/ProjectSummaryBar';
 import { ProjectEcheancier } from '@/components/project/ProjectEcheancier';
 import { useMonumentStore } from '@/stores/useMonumentStore';
@@ -27,13 +29,15 @@ import { useDocumentStore } from '@/stores/useDocumentStore';
 import { monumentService } from '@/services/monument.service';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
+import { sharingService } from '@/services/sharing.service';
 import { computeProjectStats, mergeProjectDeadlines } from '@/lib/project-stats';
 import { formatDate, daysUntil } from '@/lib/date-utils';
 import { C, SERIF } from '@/lib/brand';
+import { isAccessLostError } from '@/lib/api-error';
 import { ROUTES } from '@/constants/routes';
 import { WORK_TYPES, OWNERSHIP_TYPES, PROTECTION_LABELS, ETAT_LABELS } from '@/constants/monument-options';
 import { toast } from 'sonner';
-import type { Monument, Document, AideMatchResult } from '@/types';
+import type { Monument, Document, AideMatchResult, ProjectMember, ProjectInvitation } from '@/types';
 
 /** Tri : aides avec une échéance à venir d'abord (de la plus proche à la plus lointaine),
  *  puis les permanentes / sans date / échéances dépassées. */
@@ -78,9 +82,14 @@ export function ProjectDetailPage() {
   const [showNonEligibles, setShowNonEligibles] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [addToProjectDoc, setAddToProjectDoc] = useState<Document | null>(null);
+  const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
 
   const tabParam = searchParams.get('tab');
-  const activeTab = tabParam === 'monument' || tabParam === 'dossiers' || tabParam === 'documents' ? tabParam : 'aides';
+  const activeTab =
+    tabParam === 'monument' || tabParam === 'dossiers' || tabParam === 'documents' || tabParam === 'equipe'
+      ? tabParam
+      : 'aides';
   const handleTabChange = useCallback((value: string) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -98,6 +107,34 @@ export function ProjectDetailPage() {
   }, [projetId, diagnostic, setDiagnostic]);
   useEffect(() => { if (!dossierLoaded) dossierService.fetchAll().catch(console.error); }, [dossierLoaded]);
   useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
+  const reloadMembers = useCallback(() => {
+    const id = monument?.id;
+    if (!id) return;
+    sharingService
+      .getMembers(id)
+      .then((data) => {
+        setMembers(data.members);
+        setInvitations(data.invitations);
+      })
+      .catch((err) => {
+        // Perte d'accès définitive (projet supprimé par le chef, membre retiré,
+        // ou départ déjà effectué) : on purge le cache local et on bascule sur
+        // l'écran « introuvable ». Sur une erreur transitoire (réseau, 5xx), on
+        // ne touche à rien pour ne pas éjecter l'utilisateur à tort.
+        if (isAccessLostError(err)) {
+          deleteMonument(id);
+          setNotFound(true);
+        }
+      });
+  }, [monument?.id, deleteMonument]);
+
+  useEffect(() => { reloadMembers(); }, [reloadMembers]);
+
+  const uploaderNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const m of members) map[m.userId] = `${m.prenom} ${m.nom}`.trim();
+    return map;
+  }, [members]);
 
   const stats = useMemo(() => (monument ? computeProjectStats(monument, diagnostic, dossiers) : null), [monument, diagnostic, dossiers]);
   const deadlines = useMemo(() => mergeProjectDeadlines(diagnostic, dossiers), [diagnostic, dossiers]);
@@ -192,7 +229,7 @@ export function ProjectDetailPage() {
         <span style={{ color: C.ink }}>{monument.nom}</span>
       </div>
 
-      <ProjectSummaryBar monument={monument} stats={stats} onRelancer={handleRunDiagnostic} relancing={running} />
+      <ProjectSummaryBar monument={monument} stats={stats} members={members} onRelancer={handleRunDiagnostic} relancing={running} />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
@@ -200,6 +237,7 @@ export function ProjectDetailPage() {
           <TabsTrigger value="monument" className="gap-1.5"><Eye className="h-4 w-4" />Monument</TabsTrigger>
           <TabsTrigger value="dossiers" className="gap-1.5"><ScrollText className="h-4 w-4" />Dossiers ({dossiers.length})</TabsTrigger>
           <TabsTrigger value="documents" className="gap-1.5"><FolderOpen className="h-4 w-4" />Documents ({projectDocuments.length})</TabsTrigger>
+          <TabsTrigger value="equipe" className="gap-1.5"><Users className="h-4 w-4" />Équipe ({members.length})</TabsTrigger>
         </TabsList>
 
         {/* AIDES */}
@@ -281,12 +319,16 @@ export function ProjectDetailPage() {
         {/* MONUMENT */}
         <TabsContent value="monument" className="mt-4 space-y-4">
           <div className="flex justify-end gap-2">
-            <button onClick={() => setConfirmDeleteOpen(true)} disabled={deleting} className="flex items-center justify-center w-9 h-9 shrink-0 border rounded-lg transition-colors hover:text-red-600 hover:border-red-200" style={{ borderColor: C.border, color: '#6a7180' }}>
-              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" strokeWidth={1.8} />}
-            </button>
-            <button onClick={() => setIsEditing(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
-              <Edit2 className="h-3.5 w-3.5" strokeWidth={1.8} />Éditer
-            </button>
+            {projectPermissions(monument?.myRole ?? null).canDeleteProject && (
+              <button onClick={() => setConfirmDeleteOpen(true)} disabled={deleting} aria-label="Supprimer le projet" className="flex items-center justify-center w-9 h-9 shrink-0 border rounded-lg transition-colors hover:text-red-600 hover:border-red-200" style={{ borderColor: C.border, color: '#6a7180' }}>
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" strokeWidth={1.8} />}
+              </button>
+            )}
+            {projectPermissions(monument?.myRole ?? null).canEditProject && (
+              <button onClick={() => setIsEditing(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
+                <Edit2 className="h-3.5 w-3.5" strokeWidth={1.8} />Éditer
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -389,12 +431,26 @@ export function ProjectDetailPage() {
                   onRename={handleRename}
                   onDelete={handleDeleteDocument}
                   onAddToProject={(doc) => { setPreviewDoc(null); setAddToProjectDoc(doc); }}
+                  myRole={monument.myRole ?? null}
+                  uploaderName={uploaderNames[doc.userId]}
                 />
               ))}
             </div>
           ) : (
             <EmptyState icon={FolderOpen} title="Aucun document" description="Les documents rattachés à ce projet apparaîtront ici." />
           )}
+        </TabsContent>
+
+        {/* ÉQUIPE */}
+        <TabsContent value="equipe" className="mt-4">
+          <TeamPanel
+            monumentId={monument.id}
+            myRole={monument.myRole ?? null}
+            members={members}
+            invitations={invitations}
+            onChanged={reloadMembers}
+            onLeft={() => { deleteMonument(monument.id); navigate(ROUTES.PROJETS); }}
+          />
         </TabsContent>
       </Tabs>
 

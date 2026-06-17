@@ -10,10 +10,12 @@ from routers import (
     communes,
     documents,
     dossiers,
+    invitations,
     merimee,
     monuments,
     notifications,
     prospects,
+    sharing,
     templates,
     waitlist,
 )
@@ -55,6 +57,8 @@ app.include_router(aides.router)
 app.include_router(notifications.router)
 app.include_router(dossiers.router)
 app.include_router(prospects.router)
+app.include_router(sharing.router)
 app.include_router(communes.router)
 app.include_router(templates.router)
+app.include_router(invitations.router)
 app.include_router(waitlist.router)

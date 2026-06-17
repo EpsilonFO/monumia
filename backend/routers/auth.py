@@ -27,6 +27,15 @@ class RegisterRequest(BaseModel):
     btp: dict | None = None
 
 
+class RegisterCollaboratorRequest(BaseModel):
+    email: str
+    password: str
+    prenom: str
+    nom: str
+    metier: str
+    telephone: str | None = None
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -107,6 +116,10 @@ def _get_profile(supabase: Client, user_id: str) -> dict:
     else:
         profile["hasAidesAccess"] = False
 
+    if "account_type" in profile:
+        profile["accountType"] = profile.pop("account_type")
+    # `metier` reste tel quel (déjà en une seule clé compatible)
+
     return profile
 
 
@@ -163,6 +176,46 @@ def register(
         "notification_preferences": _default_notification_preferences(),
     }
 
+    supabase.table("users").insert(profile).execute()
+
+    session = auth_response.session
+    return {
+        "access_token": session.access_token if session else None,
+        "refresh_token": session.refresh_token if session else None,
+        "token_type": "bearer",
+        "user": _get_profile(supabase, user_id),
+    }
+
+
+@router.post("/register-collaborator", status_code=status.HTTP_201_CREATED)
+def register_collaborator(
+    body: RegisterCollaboratorRequest,
+    anon: Client = Depends(get_anon_supabase),
+    supabase: Client = Depends(get_supabase),
+):
+    """Inscription allégée pour un invité : pas de segment/QCM, onboarding terminé."""
+    try:
+        auth_response = anon.auth.sign_up({"email": body.email, "password": body.password})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    if not auth_response.user:
+        raise HTTPException(status_code=400, detail="Échec de la création du compte")
+
+    user_id = auth_response.user.id
+
+    profile: dict[str, Any] = {
+        "id": user_id,
+        "email": body.email,
+        "prenom": body.prenom,
+        "nom": body.nom,
+        "segment": "prive",  # valeur neutre : non utilisée pour un collaborateur
+        "telephone": body.telephone,
+        "account_type": "collaborateur",
+        "metier": body.metier,
+        "onboarding_complete": True,
+        "notification_preferences": _default_notification_preferences(),
+    }
     supabase.table("users").insert(profile).execute()
 
     session = auth_response.session

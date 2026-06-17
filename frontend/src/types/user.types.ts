@@ -7,6 +7,8 @@ export interface User {
   prenom: string;
   nom: string;
   telephone?: string;
+  accountType?: 'proprietaire' | 'collaborateur';
+  metier?: string;
 
   commune?: {
     nom: string;

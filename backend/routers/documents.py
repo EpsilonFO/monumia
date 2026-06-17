@@ -5,12 +5,19 @@ from pydantic import BaseModel
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
+from services.project_access import (
+    can_delete_document,
+    get_project_role,
+    require_project_access,
+    role_at_least,
+)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 COLUMNS = "*"
 
 STORAGE_BUCKET = "documents"
+SIGNED_URL_EXPIRY = 7 * 24 * 60 * 60  # 7 jours, en secondes
 
 
 def _validate_storage_path(path: str, user_id: str) -> str:
@@ -80,6 +87,34 @@ def _get_document_or_404(supabase: Client, document_id: str, user_id: str) -> di
     return result.data
 
 
+def _get_document_any(supabase: Client, document_id: str) -> dict:
+    result = supabase.table("documents").select(COLUMNS).eq("id", document_id).single().execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Document introuvable")
+    return result.data
+
+
+def _require_document_read(supabase: Client, document_id: str, user_id: str) -> dict:
+    """Lecture : l'auteur du document, ou tout membre d'un de ses projets."""
+    doc = _get_document_any(supabase, document_id)
+    if doc.get("user_id") == user_id:
+        return doc
+    for mid in doc.get("monument_ids") or []:
+        if get_project_role(supabase, mid, user_id) is not None:
+            return doc
+    raise HTTPException(status_code=404, detail="Document introuvable")
+
+
+def _highest_project_role(supabase: Client, monument_ids: list | None, user_id: str) -> str | None:
+    """Rôle le plus élevé de l'utilisateur parmi les projets du document."""
+    best = None
+    for mid in monument_ids or []:
+        r = get_project_role(supabase, mid, user_id)
+        if r is not None and (best is None or role_at_least(r, best)):
+            best = r
+    return best
+
+
 def _merge_monument_ids(existing: list[str], new: list[str]) -> list[str]:
     """Return the existing project ids plus any new ones, order-preserving, no dupes.
 
@@ -105,17 +140,24 @@ def list_documents(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    query = (
-        supabase.table("documents")
-        .select(COLUMNS)
-        .eq("user_id", user_id)
-        .order("date_upload", desc=True)
-    )
     if monument_id:
-        query = query.contains("monument_ids", [monument_id])
+        require_project_access(supabase, monument_id, user_id, "member")
+        query = (
+            supabase.table("documents")
+            .select(COLUMNS)
+            .contains("monument_ids", [monument_id])
+            .order("date_upload", desc=True)
+        )
+    else:
+        # Vue « mes documents » : uniquement ceux que j'ai déposés
+        query = (
+            supabase.table("documents")
+            .select(COLUMNS)
+            .eq("user_id", user_id)
+            .order("date_upload", desc=True)
+        )
     if type:
         query = query.eq("type", type)
-
     return query.execute().data
 
 
@@ -130,15 +172,9 @@ def create_document(
     if body.monument_id and body.monument_id not in monument_ids:
         monument_ids.append(body.monument_id)
 
-    # Validate monument ownership for all referenced monuments
+    # Validate access for all referenced monuments (membre suffit pour déposer)
     for mid in monument_ids:
-        check = (
-            supabase.table("monuments").select("id").eq("id", mid).eq("user_id", user_id).execute()
-        )
-        if not check.data:
-            raise HTTPException(
-                status_code=403, detail=f"Monument {mid} introuvable ou non autorisé"
-            )
+        require_project_access(supabase, mid, user_id, "member")
 
     # The client uploads to <user_id>/... in storage, then submits the path here.
     # Reject anything that isn't strictly scoped to the caller's folder so we
@@ -164,7 +200,38 @@ def get_document(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    return _get_document_or_404(supabase, document_id, user_id)
+    return _require_document_read(supabase, document_id, user_id)
+
+
+@router.get("/{document_id}/signed-url")
+def get_document_signed_url(
+    document_id: str,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """URL signée pour consulter un document.
+
+    La signature est faite côté serveur avec le client service-role : elle
+    contourne la RLS storage (restreinte au dossier du dépositaire) afin que
+    *tout membre* d'un projet du document — pas seulement son auteur — puisse le
+    consulter. L'accès est contrôlé au niveau applicatif par _require_document_read.
+    """
+    doc = _require_document_read(supabase, document_id, user_id)
+    storage_path = doc.get("url") or ""
+    if not storage_path or "://" in storage_path:
+        raise HTTPException(status_code=400, detail="Chemin de fichier invalide")
+    try:
+        res = supabase.storage.from_(STORAGE_BUCKET).create_signed_url(
+            storage_path, SIGNED_URL_EXPIRY
+        )
+    except Exception as exc:  # storage3 lève sur erreur HTTP
+        raise HTTPException(
+            status_code=502, detail="Impossible de générer le lien du document"
+        ) from exc
+    signed = res.get("signedURL") or res.get("signedUrl")
+    if not signed:
+        raise HTTPException(status_code=502, detail="Lien du document indisponible")
+    return {"signed_url": signed}
 
 
 @router.patch("/{document_id}")
@@ -174,11 +241,14 @@ def update_document(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    _get_document_or_404(supabase, document_id, user_id)
+    doc = _get_document_any(supabase, document_id)
+    role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
+    if not can_delete_document(role, is_uploader=(doc.get("user_id") == user_id)):
+        raise HTTPException(status_code=403, detail="Vous ne pouvez pas modifier ce document")
 
     updates = body.model_dump(exclude_none=True)
     if not updates:
-        return _get_document_or_404(supabase, document_id, user_id)
+        return doc
 
     result = supabase.table("documents").update(updates).eq("id", document_id).execute()
     return result.data[0]
@@ -190,20 +260,27 @@ def delete_document(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    doc = _get_document_or_404(supabase, document_id, user_id)
+    doc = _get_document_any(supabase, document_id)
+    uploader_id = doc.get("user_id")
+    is_uploader = uploader_id == user_id
 
-    # Delete file from Supabase Storage. The stored path was validated to
-    # begin with "<user_id>/" at upload time; re-validate before calling
-    # remove() so a tampered row can never delete another user's files.
+    # Suppression réservée à l'auteur du document (la consultation reste ouverte
+    # à tout membre d'un projet du document).
+    if not is_uploader:
+        raise HTTPException(status_code=403, detail="Seul l'auteur du document peut le supprimer")
+
+    # Le fichier est stocké sous "<uploader_id>/..." — valider contre l'auteur, pas l'appelant.
     storage_path = doc.get("url", "") or ""
-    try:
-        safe_path = _validate_storage_path(storage_path, user_id)
-    except HTTPException:
-        safe_path = None
-
+    safe_path = None
+    if (
+        uploader_id
+        and storage_path.startswith(f"{uploader_id}/")
+        and ".." not in storage_path.split("/")
+    ):
+        safe_path = storage_path
     if safe_path:
         with contextlib.suppress(Exception):
-            supabase.storage.from_(STORAGE_BUCKET).remove([safe_path])  # best-effort
+            supabase.storage.from_(STORAGE_BUCKET).remove([safe_path])
 
     supabase.table("documents").delete().eq("id", document_id).execute()
 
@@ -215,18 +292,18 @@ def link_to_dossier(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    doc = _get_document_or_404(supabase, document_id, user_id)
+    doc = _require_document_read(supabase, document_id, user_id)
 
-    # Validate dossier ownership
-    check = (
+    dossier = (
         supabase.table("dossiers")
-        .select("id")
+        .select("id, monument_id")
         .eq("id", dossier_id)
-        .eq("user_id", user_id)
+        .maybe_single()
         .execute()
     )
-    if not check.data:
-        raise HTTPException(status_code=403, detail="Dossier introuvable ou non autorisé")
+    if not dossier or not dossier.data:
+        raise HTTPException(status_code=404, detail="Dossier introuvable")
+    require_project_access(supabase, dossier.data["monument_id"], user_id, "co_owner")
 
     dossiers: list = doc.get("dossiers_utilises") or []
     if dossier_id not in dossiers:
@@ -243,7 +320,17 @@ def unlink_from_dossier(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    doc = _get_document_or_404(supabase, document_id, user_id)
+    doc = _require_document_read(supabase, document_id, user_id)
+
+    dossier = (
+        supabase.table("dossiers")
+        .select("id, monument_id")
+        .eq("id", dossier_id)
+        .maybe_single()
+        .execute()
+    )
+    if dossier and dossier.data:
+        require_project_access(supabase, dossier.data["monument_id"], user_id, "co_owner")
 
     dossiers: list = doc.get("dossiers_utilises") or []
     updated = [d for d in dossiers if d != dossier_id]
@@ -268,15 +355,12 @@ def add_document_to_projects(
     if not body.monument_ids:
         raise HTTPException(status_code=400, detail="Aucun projet cible fourni")
 
-    source = _get_document_or_404(supabase, document_id, user_id)
+    # Accès partagé : l'auteur ou tout membre d'un projet du document peut le lire.
+    source = _require_document_read(supabase, document_id, user_id)
 
-    # Validate ownership of every target project before linking anything.
+    # Tout membre d'un projet cible peut y associer le document (modèle lien, pas de copie).
     for mid in body.monument_ids:
-        check = (
-            supabase.table("monuments").select("id").eq("id", mid).eq("user_id", user_id).execute()
-        )
-        if not check.data:
-            raise HTTPException(status_code=403, detail=f"Projet {mid} introuvable ou non autorisé")
+        require_project_access(supabase, mid, user_id, "member")
 
     merged = _merge_monument_ids(source.get("monument_ids") or [], body.monument_ids)
     result = (

@@ -4,6 +4,10 @@ import { Progress } from '@/components/ui/progress';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { deadlineLabel } from '@/lib/date-utils';
+import { RoleBadge } from '@/components/sharing/RoleBadge';
+import { SharedBadge } from '@/components/sharing/SharedBadge';
+import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
+import { sharedRole, isProjectShared } from '@/lib/project-permissions';
 import type { ProjectStats } from '@/lib/project-stats';
 import type { Monument } from '@/types';
 
@@ -37,6 +41,9 @@ const urgencyColor: Record<string, string> = {
 
 export function ProjectCard({ monument, stats }: ProjectCardProps) {
   const etat = etatStyles[monument.etatConservation] ?? etatStyles.moyen;
+  const role = sharedRole(monument.myRole);
+  const shared = isProjectShared(monument);
+  const members = monument.members ?? [];
   const next = stats?.prochaineEcheance ?? null;
   const nextLabel = next ? deadlineLabel(next.date) : null;
 
@@ -68,7 +75,9 @@ export function ProjectCard({ monument, stats }: ProjectCardProps) {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-1.5 px-5 pb-3">
+        <div className="flex flex-wrap items-center gap-1.5 px-5 pb-3">
+          {shared && <SharedBadge count={monument.memberCount} />}
+          {role && <RoleBadge role={role} />}
           <span
             className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium"
             style={{ background: C.paleBlue, color: C.blue }}
@@ -93,20 +102,28 @@ export function ProjectCard({ monument, stats }: ProjectCardProps) {
             <Progress value={monument.completionPercentage} className="h-1.5" />
           </div>
 
-          {stats && (
+          {(stats || (shared && members.length > 0)) && (
             <div className="flex items-center justify-between border-t pt-3 text-[12px]" style={{ borderColor: C.border }}>
-              <span className="inline-flex items-center gap-1.5" style={{ color: C.blue }}>
-                <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
-                {stats.aidesIdentifiees} aide{stats.aidesIdentifiees > 1 ? 's' : ''}
-              </span>
-              {next && nextLabel && (
-                <span
-                  className="inline-flex items-center gap-1.5 font-medium"
-                  style={{ color: urgencyColor[nextLabel.urgency] ?? '#6a7180' }}
-                >
-                  <CalendarClock className="h-3.5 w-3.5" strokeWidth={2} />
-                  {nextLabel.text}
+              {stats ? (
+                <span className="inline-flex items-center gap-1.5" style={{ color: C.blue }}>
+                  <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
+                  {stats.aidesIdentifiees} aide{stats.aidesIdentifiees > 1 ? 's' : ''}
                 </span>
+              ) : (
+                <span />
+              )}
+              {shared && members.length > 0 ? (
+                <MemberAvatarStack people={members} size="sm" />
+              ) : (
+                next && nextLabel && (
+                  <span
+                    className="inline-flex items-center gap-1.5 font-medium"
+                    style={{ color: urgencyColor[nextLabel.urgency] ?? '#6a7180' }}
+                  >
+                    <CalendarClock className="h-3.5 w-3.5" strokeWidth={2} />
+                    {nextLabel.text}
+                  </span>
+                )
               )}
             </div>
           )}

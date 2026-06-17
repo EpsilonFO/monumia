@@ -9,6 +9,16 @@ function toMonument(row: Record<string, unknown>): Monument {
   return {
     id: row.id as string,
     userId: row.user_id as string,
+    myRole: (row.my_role as Monument['myRole']) ?? undefined,
+    members: Array.isArray(row.members)
+      ? (row.members as Array<Record<string, unknown>>).map((mm) => ({
+          userId: mm.user_id as string,
+          prenom: (mm.prenom as string) ?? '',
+          nom: (mm.nom as string) ?? '',
+          role: mm.role as import('@/types').ProjectRole,
+        }))
+      : undefined,
+    memberCount: (row.member_count as number) ?? undefined,
     nom: row.nom as string,
     commune: row.commune as string,
     codeInsee: row.code_insee as string ?? row.codeInsee as string ?? '',
