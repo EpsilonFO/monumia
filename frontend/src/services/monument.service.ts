@@ -24,6 +24,7 @@ function toMonument(row: Record<string, unknown>): Monument {
     etatConservation: row.etat_conservation as Monument['etatConservation'] ?? row.etatConservation as Monument['etatConservation'],
     travauxEnvisages: row.travaux_envisages as Monument['travauxEnvisages'] ?? row.travauxEnvisages as Monument['travauxEnvisages'],
     photos: (row.photos as MonumentPhoto[]) ?? [],
+    questionnaire: (row.questionnaire as Monument['questionnaire']) ?? undefined,
     completionPercentage: row.completion_percentage as number ?? row.completionPercentage as number ?? 0,
     createdAt: row.created_at as string ?? row.createdAt as string ?? new Date().toISOString(),
     updatedAt: row.updated_at as string ?? row.updatedAt as string ?? new Date().toISOString(),

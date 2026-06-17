@@ -2,10 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MerimeeSearch } from '@/components/monument/MerimeeSearch';
-import { MonumentForm, type PendingPhoto } from '@/components/monument/MonumentForm';
+import { MonumentForm } from '@/components/monument/MonumentForm';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
-import { useDocumentStore } from '@/stores/useDocumentStore';
 import { monumentService } from '@/services/monument.service';
 
 import { merimeeService } from '@/services/merimee.service';
@@ -123,9 +122,7 @@ export function OnboardingMonument() {
     setShowForm(true);
   };
 
-  const uploadDocument = useDocumentStore((s) => s.uploadDocument);
-
-  const handleFormSubmit = async (data: Partial<Monument>, pendingPhotos: PendingPhoto[]) => {
+  const handleFormSubmit = async (data: Partial<Monument>) => {
     if (!user) return;
     setSaving(true);
     try {
@@ -143,24 +140,6 @@ export function OnboardingMonument() {
         descriptionGenerale: data.descriptionGenerale,
         travauxEnvisages: data.travauxEnvisages,
       });
-
-      for (const photo of pendingPhotos) {
-        try {
-          const doc = await uploadDocument({
-            file: photo.file,
-            nom: photo.nom || `Photo — ${data.nom ?? 'Monument'}`,
-            type: 'photo',
-            monumentId: monument.id,
-          }, user.id);
-          await monumentService.addPhoto(monument.id, {
-            url: doc.url,
-            legende: photo.nom || photo.file.name.replace(/\.[^.]+$/, ''),
-            type: 'autre',
-          });
-        } catch (err) {
-          console.error('Erreur upload photo:', err);
-        }
-      }
 
       addMonument(monument);
       setActiveMonument(monument.id);

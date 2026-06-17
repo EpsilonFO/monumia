@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { ChevronLeft, ChevronRight, Image, Loader2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import {
   PROTECTION_LEVELS,
   OWNERSHIP_TYPES,
@@ -16,15 +16,9 @@ import {
 } from '@/constants/monument-options';
 import type { Monument, WorkType } from '@/types';
 
-export interface PendingPhoto {
-  file: File;
-  preview: string;
-  nom: string;
-}
-
 interface MonumentFormProps {
   initialData?: Partial<Monument>;
-  onSubmit: (data: Partial<Monument>, pendingPhotos: PendingPhoto[]) => void;
+  onSubmit: (data: Partial<Monument>) => void;
   isEditing?: boolean;
   saving?: boolean;
 }
@@ -34,7 +28,6 @@ const STEPS = [
   { number: 2, title: 'Statut juridique', description: 'Protection et propriété' },
   { number: 3, title: 'Description physique', description: 'Architecture et matériaux' },
   { number: 4, title: 'État actuel', description: 'Conservation et travaux' },
-  { number: 5, title: 'Photos', description: 'Documentation photographique' },
 ];
 
 function isStepValid(step: number, data: Partial<Monument>): boolean {
@@ -53,18 +46,18 @@ function isStepValid(step: number, data: Partial<Monument>): boolean {
 export function MonumentForm({ initialData, onSubmit, isEditing, saving }: MonumentFormProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<Partial<Monument>>(initialData ?? {});
-  const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
 
   const update = (updates: Partial<Monument>) => {
     setFormData((prev) => ({ ...prev, ...updates }));
   };
 
   const canProceed = isStepValid(currentStep, formData);
+  const lastStep = STEPS.length;
 
   const handleNext = () => {
     if (!canProceed) return;
-    if (currentStep < 5) setCurrentStep(currentStep + 1);
-    else onSubmit(formData, pendingPhotos);
+    if (currentStep < lastStep) setCurrentStep(currentStep + 1);
+    else onSubmit(formData);
   };
 
   const handlePrev = () => {
@@ -93,7 +86,6 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
           {currentStep === 2 && <Step2StatutJuridique data={formData} onChange={update} />}
           {currentStep === 3 && <Step3DescriptionPhysique data={formData} onChange={update} />}
           {currentStep === 4 && <Step4EtatActuel data={formData} onChange={update} />}
-          {currentStep === 5 && <Step5Photos pendingPhotos={pendingPhotos} setPendingPhotos={setPendingPhotos} />}
         </CardContent>
       </Card>
 
@@ -110,12 +102,12 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
         </Button>
         <Button
           onClick={handleNext}
-          disabled={!canProceed || (saving && currentStep === 5)}
+          disabled={!canProceed || (saving && currentStep === lastStep)}
           className="h-12 px-8 text-base"
         >
-          {saving && currentStep === 5
+          {saving && currentStep === lastStep
             ? <Loader2 className="h-5 w-5 animate-spin" />
-            : currentStep === 5
+            : currentStep === lastStep
               ? isEditing ? 'Enregistrer' : 'Terminer'
               : <>Suivant <ChevronRight className="h-5 w-5 ml-1.5" /></>}
         </Button>
@@ -293,116 +285,3 @@ function Step4EtatActuel({ data, onChange }: StepProps) {
   );
 }
 
-function Step5Photos({ pendingPhotos, setPendingPhotos }: {
-  pendingPhotos: PendingPhoto[];
-  setPendingPhotos: React.Dispatch<React.SetStateAction<PendingPhoto[]>>;
-}) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragOver, setDragOver] = useState(false);
-
-  const MAX_SIZE = 10 * 1024 * 1024; // 10 Mo
-  const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
-
-  const addFiles = useCallback((files: FileList | File[]) => {
-    const valid = Array.from(files).filter(
-      (f) => ACCEPTED.includes(f.type) && f.size <= MAX_SIZE
-    );
-    const newPhotos = valid.map((file) => ({
-      file,
-      preview: URL.createObjectURL(file),
-      nom: file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' '),
-    }));
-    setPendingPhotos((prev) => [...prev, ...newPhotos]);
-  }, [setPendingPhotos]);
-
-  const removePhoto = (index: number) => {
-    setPendingPhotos((prev) => {
-      URL.revokeObjectURL(prev[index].preview);
-      return prev.filter((_, i) => i !== index);
-    });
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
-  };
-
-  return (
-    <div className="space-y-4">
-      <div
-        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-          dragOver ? 'border-primary bg-primary/5' : ''
-        }`}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-      >
-        <Image className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-        <p className="text-sm font-medium">Glissez-déposez vos photos ici</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          JPG, PNG, WebP — max 10 Mo par fichier
-        </p>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files?.length) addFiles(e.target.files);
-            e.target.value = '';
-          }}
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          Parcourir
-        </Button>
-      </div>
-
-      {pendingPhotos.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {pendingPhotos.map((photo, index) => (
-            <div key={index} className="space-y-1.5">
-              <div className="relative group aspect-[4/3] rounded-lg overflow-hidden bg-muted">
-                <img
-                  src={photo.preview}
-                  alt={photo.nom}
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => removePhoto(index)}
-                  className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <Input
-                value={photo.nom}
-                onChange={(e) =>
-                  setPendingPhotos((prev) =>
-                    prev.map((p, i) => i === index ? { ...p, nom: e.target.value } : p)
-                  )
-                }
-                placeholder="Nom de la photo"
-                className="text-xs h-7"
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {pendingPhotos.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center">
-          Aucune photo ajoutée. Vous pouvez en ajouter plus tard.
-        </p>
-      )}
-    </div>
-  );
-}

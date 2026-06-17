@@ -11,6 +11,7 @@ interface DocumentState {
   uploadDocument: (payload: UploadDocumentPayload, userId: string) => Promise<Document>;
   updateDocument: (id: string, updates: { nom?: string; type?: string; description?: string }) => Promise<void>;
   deleteDocument: (id: string) => Promise<void>;
+  addToProjects: (documentId: string, monumentIds: string[]) => Promise<Document>;
   linkToDossier: (documentId: string, dossierId: string) => Promise<void>;
   unlinkFromDossier: (documentId: string, dossierId: string) => Promise<void>;
 
@@ -54,6 +55,14 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
     set((state) => ({
       documents: state.documents.filter((d) => d.id !== id),
     }));
+  },
+
+  addToProjects: async (documentId, monumentIds) => {
+    const updated = await documentService.addToProjects(documentId, monumentIds);
+    set((state) => ({
+      documents: state.documents.map((d) => (d.id === updated.id ? updated : d)),
+    }));
+    return updated;
   },
 
   linkToDossier: async (documentId, dossierId) => {

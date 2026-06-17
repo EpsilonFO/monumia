@@ -122,6 +122,13 @@ class MonumentPhoto(BaseModel):
 
 
 class CreateMonumentRequest(BaseModel):
+    # NOTE: only fields backed by a real `monuments` column belong here. Ten
+    # per-attribute columns (affectataire, periode_construction, superficie,
+    # materiaux, type_couverture, nombre_niveaux, urgence_travaux,
+    # diagnostic_realise, derniers_travaux, description_etat) were dropped by
+    # migration 20260516174303 and now live inside the `questionnaire` JSONB.
+    # Pydantic ignores any such extra keys the client still sends, so they never
+    # reach the insert (which PostgREST would otherwise reject with PGRST204).
     nom: str
     commune: str  # Used to resolve code_insee, not stored in DB
     codeInsee: str | None = None
@@ -138,10 +145,14 @@ class CreateMonumentRequest(BaseModel):
     etatConservation: str
     travauxEnvisages: list[str] | None = None
 
+    questionnaire: dict | None = None
+
 
 class UpdateMonumentRequest(BaseModel):
+    # See CreateMonumentRequest: fields must map to a real `monuments` column.
+    # The dropped per-attribute columns (and `adresse`, which never existed) are
+    # intentionally absent; extra keys from the client are ignored.
     nom: str | None = None
-    adresse: str | None = None
     commune: str | None = None  # Used to resolve code_insee, not stored in DB
     codeInsee: str | None = None
     referenceMerimee: str | None = None
@@ -157,6 +168,8 @@ class UpdateMonumentRequest(BaseModel):
     etatConservation: str | None = None
     travauxEnvisages: list[str] | None = None
     completionPercentage: int | None = None
+
+    questionnaire: dict | None = None
 
 
 class AddPhotoRequest(BaseModel):

@@ -1,10 +1,15 @@
-import { CheckCircle2, Eye, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { CheckCircle2, Download, Eye, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import type { ChecklistItem } from '@/types';
+import { templateService } from '@/services/template.service';
+import { formatBadge } from '@/lib/template-format';
+import type { ChecklistItem, Template } from '@/types';
 
 interface DossierChecklistProps {
   items: ChecklistItem[];
+  /** Modèles de la bibliothèque correspondant à chaque pièce (par id de pièce). */
+  templatesByItemId?: Record<string, Template[]>;
   onRequestAttach?: (item: ChecklistItem) => void;
   onPreview?: (documentId: string) => void;
   onRequestDelete?: (item: ChecklistItem) => void;
@@ -14,6 +19,7 @@ interface DossierChecklistProps {
 
 export function DossierChecklist({
   items,
+  templatesByItemId,
   onRequestAttach,
   onPreview,
   onRequestDelete,
@@ -34,6 +40,7 @@ export function DossierChecklist({
           <DocumentRow
             key={item.id}
             item={item}
+            templates={templatesByItemId?.[item.id] ?? []}
             readOnly={readOnly}
             busy={busyItemId === item.id}
             onRequestAttach={onRequestAttach}
@@ -48,6 +55,7 @@ export function DossierChecklist({
 
 function DocumentRow({
   item,
+  templates,
   readOnly,
   busy,
   onRequestAttach,
@@ -55,6 +63,7 @@ function DocumentRow({
   onRequestDelete,
 }: {
   item: ChecklistItem;
+  templates: Template[];
   readOnly?: boolean;
   busy?: boolean;
   onRequestAttach?: (item: ChecklistItem) => void;
@@ -93,6 +102,7 @@ function DocumentRow({
       </div>
 
       <div className="flex items-center gap-1.5 shrink-0">
+        <ModelButton templates={templates} />
         {isFourni && item.documentId && onPreview && (
           <button
             type="button"
@@ -142,5 +152,65 @@ function DocumentRow({
         )}
       </div>
     </div>
+  );
+}
+
+// Pastille « Modèle » : présente quand au moins un modèle de la bibliothèque
+// correspond à la pièce. Un seul modèle → téléchargement direct ; plusieurs →
+// liste dans un popover. Aucun modèle → rien (cas fréquent, assumé).
+function ModelButton({ templates }: { templates: Template[] }) {
+  if (templates.length === 0) return null;
+
+  const pill =
+    'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors border-[#f17105]/30 text-[#b9560a] bg-[#feeedd]/50 hover:bg-[#feeedd]';
+
+  if (templates.length === 1) {
+    const t = templates[0];
+    return (
+      <button
+        type="button"
+        onClick={() => templateService.download(t)}
+        className={pill}
+        title={`Télécharger le modèle : ${t.nom}`}
+      >
+        <Download className="h-3 w-3" />
+        Modèle
+      </button>
+    );
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" className={pill}>
+          <Download className="h-3 w-3" />
+          Modèles ({templates.length})
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-1.5">
+        <p className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#8E92A4]">
+          Modèles suggérés
+        </p>
+        <div className="space-y-0.5">
+          {templates.map((t) => {
+            const badge = formatBadge(t.extension);
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => templateService.download(t)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-[#F8F7F4]"
+              >
+                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${badge.className}`}>
+                  {badge.label}
+                </span>
+                <span className="flex-1 truncate text-[13px] text-[#222b35]">{t.nom}</span>
+                <Download className="h-3.5 w-3.5 shrink-0 text-[#8E92A4]" />
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

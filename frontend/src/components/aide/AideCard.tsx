@@ -1,11 +1,12 @@
 import { useLocation, useNavigate } from 'react-router';
-import { CheckCircle2, XCircle, HelpCircle, ExternalLink, Clock, ChevronRight, Lock } from 'lucide-react';
+import { CheckCircle2, XCircle, HelpCircle, ExternalLink, Clock, CalendarClock, AlarmClock, ChevronRight, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AIDE_CATEGORIES } from '@/constants/aide-categories';
 import { ROUTES } from '@/constants/routes';
 import { formatCurrency, formatPercentage } from '@/lib/format-utils';
+import { daysUntil, formatDateShort } from '@/lib/date-utils';
 import type { AideMatchResult } from '@/types';
 
 interface AideCardProps {
@@ -14,6 +15,38 @@ interface AideCardProps {
   locked?: boolean;
   monumentId?: string;
 }
+
+type Urgency = 'urgent' | 'warning' | 'normal' | 'past';
+
+// Seuils adaptés au patrimoine (instruction des dossiers longue) :
+// dépassée / < 30 j → rouge · 30–100 j → orange · > 100 j → bleu.
+function deadlineInfo(date: string): { urgency: Urgency; text: string } {
+  const days = daysUntil(date);
+  if (days < 0) return { urgency: 'past', text: 'Échéance dépassée' };
+  if (days === 0) return { urgency: 'urgent', text: "Dernier jour" };
+  if (days === 1) return { urgency: 'urgent', text: 'Demain' };
+  if (days < 30) return { urgency: 'urgent', text: `Dans ${days} jours` };
+  if (days <= 100) return { urgency: 'warning', text: `Avant le ${formatDateShort(date)}` };
+  return { urgency: 'normal', text: `Avant le ${formatDateShort(date)}` };
+}
+
+// Pastille : l'intensité visuelle suit l'urgence.
+// Rouge proche/dépassé → pleine + halo (attire l'œil) ; orange → légère ; bleu lointain → calme.
+const DEADLINE_PILL: Record<Urgency, string> = {
+  urgent: 'px-3 py-1.5 rounded-lg text-sm font-bold bg-red-600 text-white shadow-md shadow-red-500/40',
+  past: 'px-3 py-1.5 rounded-lg text-sm font-bold bg-red-600 text-white shadow-md shadow-red-500/40 line-through',
+  warning: 'px-2.5 py-1 rounded-lg border text-xs font-semibold bg-orange-50 text-orange-700 border-orange-300',
+  normal: 'px-2.5 py-1 rounded-lg border text-xs font-semibold bg-blue-50 text-blue-700 border-blue-200',
+};
+
+// Barre d'accent latérale : repère dans la grille pour les échéances proches.
+// Rien pour le lointain (bleu) afin de ne pas surcharger.
+const DEADLINE_STRIPE: Record<Urgency, string> = {
+  urgent: 'bg-red-500',
+  past: 'bg-red-500',
+  warning: 'bg-orange-400',
+  normal: 'bg-blue-300',
+};
 
 function getEligibilityStatus(match: AideMatchResult) {
   // Only unresolved incertitudes (not yet clarified by QCM) count as "potential" status
@@ -31,7 +64,12 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
   const navigate = useNavigate();
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
   const status = getEligibilityStatus(match);
-  const aideDetailUrl = ROUTES.AIDE_DETAIL(aide.id, monumentId);
+  const deadline = !aide.permanent && aide.dateLimite ? deadlineInfo(aide.dateLimite) : null;
+  const redAlert = deadline?.urgency === 'urgent' || deadline?.urgency === 'past';
+  const DeadlineIcon = redAlert ? AlarmClock : CalendarClock;
+  const aideDetailUrl = monumentId
+    ? ROUTES.PROJET_AIDE(monumentId, aide.id)
+    : ROUTES.PROJETS;
 
   const hoverClass = locked
     ? 'hover:border-amber-300'
@@ -51,9 +89,15 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
 
   return (
     <Card
-      className={`group cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/[0.06] hover:-translate-y-0.5 ${hoverClass} ${locked ? 'bg-gray-50/50' : ''}`}
+      className={`group relative overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/[0.06] hover:-translate-y-0.5 ${hoverClass} ${redAlert ? 'ring-2 ring-red-400/70' : ''} ${locked ? 'bg-gray-50/50' : ''}`}
       onClick={handleCardClick}
     >
+      {deadline && DEADLINE_STRIPE[deadline.urgency] && (
+        <div
+          className={`absolute inset-y-0 left-0 ${redAlert ? 'w-1.5' : 'w-1'} ${DEADLINE_STRIPE[deadline.urgency]}`}
+          aria-hidden
+        />
+      )}
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-1.5 flex-1 min-w-0">
@@ -103,13 +147,21 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
               </span>
             </CardTitle>
           </div>
-          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:text-[#C75B3A]" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:text-[#f17105]" />
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className={`text-sm text-muted-foreground line-clamp-2 ${locked ? 'blur-sm select-none pointer-events-none' : ''}`}>
           {aide.description}
         </p>
+
+        {/* Deadline */}
+        {deadline && (
+          <span className={`inline-flex items-center gap-1.5 ${DEADLINE_PILL[deadline.urgency]}`}>
+            <DeadlineIcon className={redAlert ? 'h-4 w-4' : 'h-3.5 w-3.5'} />
+            {deadline.text}
+          </span>
+        )}
 
         {/* Amounts */}
         <div className="flex items-center gap-3 flex-wrap text-sm">
@@ -123,17 +175,12 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
               Max {formatCurrency(aide.montantMax)}
             </span>
           )}
-          {aide.permanent ? (
+          {aide.permanent && (
             <span className="text-muted-foreground flex items-center gap-1">
               <Clock className="h-3 w-3" />
               Permanent
             </span>
-          ) : aide.dateLimite ? (
-            <span className="text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              Limite : {aide.dateLimite}
-            </span>
-          ) : null}
+          )}
         </div>
 
         {/* Eligibility breakdown */}

@@ -14,6 +14,7 @@ from routers import (
     monuments,
     notifications,
     prospects,
+    templates,
     waitlist,
 )
 
@@ -55,4 +56,5 @@ app.include_router(notifications.router)
 app.include_router(dossiers.router)
 app.include_router(prospects.router)
 app.include_router(communes.router)
+app.include_router(templates.router)
 app.include_router(waitlist.router)

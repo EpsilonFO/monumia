@@ -105,3 +105,28 @@ export const AFFECTATAIRES = [
   { value: 'non_affecte', label: 'Non affecté / Vacant' },
   { value: 'autre', label: 'Autre' },
 ] as const;
+
+// Lookup tables keyed by stored value. Long form for detail panels, short form
+// for compact badges (e.g. the project summary bar).
+export const PROTECTION_LABELS: Record<string, string> = {
+  classe: 'Classé Monument Historique',
+  inscrit: 'Inscrit Monument Historique',
+  abords: "En périmètre d'un MH",
+  spr: 'Site Patrimonial Remarquable',
+  non_protege: 'Non protégé',
+};
+
+export const PROTECTION_LABELS_SHORT: Record<string, string> = {
+  classe: 'Classé MH',
+  inscrit: 'Inscrit MH',
+  abords: 'Périmètre MH',
+  spr: 'Site Patrimonial Remarquable',
+  non_protege: 'Non protégé',
+};
+
+export const ETAT_LABELS: Record<string, string> = {
+  bon: 'Bon état',
+  moyen: 'État moyen',
+  mauvais: 'Mauvais état',
+  peril: 'En péril',
+};

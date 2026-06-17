@@ -1,20 +1,16 @@
 import { NavLink, useNavigate } from 'react-router';
-import {
-  LayoutDashboard,
-  Church,
-  FolderOpen,
-  FileStack,
-  User,
-  LogOut,
-} from 'lucide-react';
+import { LayoutDashboard, Landmark, FileStack, LayoutTemplate, User, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { C, SERIF } from '@/lib/brand';
+import { ROUTES } from '@/constants/routes';
+import { landingUrl } from '@/lib/session';
 
 const navItems = [
-  { to: '/app', icon: LayoutDashboard, label: 'Tableau de bord' },
-  { to: '/app/monuments', icon: Church, label: 'Monuments' },
-  { to: '/app/dossiers', icon: FolderOpen, label: 'Dossiers' },
-  { to: '/app/documents', icon: FileStack, label: 'Documents' },
-  { to: '/app/profil', icon: User, label: 'Profil' },
+  { to: ROUTES.DASHBOARD, icon: LayoutDashboard, label: 'Tableau de bord' },
+  { to: ROUTES.PROJETS, icon: Landmark, label: 'Projets' },
+  { to: ROUTES.DOCUMENTS, icon: FileStack, label: 'Documents' },
+  { to: ROUTES.MODELES, icon: LayoutTemplate, label: 'Modèles' },
+  { to: ROUTES.PROFIL, icon: User, label: 'Profil' },
 ];
 
 export function Sidebar() {
@@ -27,40 +23,56 @@ export function Sidebar() {
     navigate('/login');
   };
 
-  const segmentLabel = user?.segment === 'commune'
-    ? 'Commune'
-    : user?.segment === 'prive'
-      ? 'Propriétaire'
-      : 'Patrimoine';
+  const segmentLabel =
+    user?.segment === 'commune'
+      ? 'Commune'
+      : user?.segment === 'prive'
+        ? 'Propriétaire'
+        : 'Patrimoine';
 
   return (
-    <aside className="hidden md:flex md:flex-col md:w-[220px] shrink-0 bg-[#F2F0EB] border-r border-[#E0DDD6]">
+    <aside
+      className="hidden md:flex md:flex-col md:w-[220px] shrink-0"
+      style={{ backgroundColor: C.blue, borderRight: '1px solid #0e3f9a' }}
+    >
       {/* Logo block */}
       <div className="px-5 pt-5 pb-4">
-        <a href="/" className="flex items-center gap-2.5">
+        <a href={landingUrl()} className="flex items-center gap-2.5">
           <img src="/monumia.png" alt="Monumia" className="h-8 w-8" />
           <div>
             <span
-              className="text-[17px] font-normal tracking-[-0.01em] text-[#1B1E2E]"
-              style={{ fontFamily: "'Cormorant Garamond', serif" }}
+              className="text-[18px] font-bold tracking-[-0.01em]"
+              style={{ fontFamily: SERIF, color: C.cream }}
             >
               Monumia
             </span>
-            <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#C75B3A]">{segmentLabel}</div>
+            <div
+              className="text-[10px] font-bold uppercase tracking-[0.15em]"
+              style={{ color: C.orange }}
+            >
+              {segmentLabel}
+            </div>
           </div>
         </a>
       </div>
 
       {/* Decorative rule */}
-      <div className="mx-5 h-px bg-gradient-to-r from-[#C75B3A]/30 via-[#E0DDD6] to-transparent" />
+      <div
+        className="mx-5 h-px"
+        style={{
+          background: `linear-gradient(to right, ${C.orange}66, ${C.blueDark}, transparent)`,
+        }}
+      />
 
       {/* User */}
       {user && (
         <div className="px-5 py-3">
-          <p className="text-[13px] font-semibold text-[#1B1E2E] truncate">
+          <p className="text-[13px] font-semibold truncate" style={{ color: C.cream }}>
             {user.prenom} {user.nom}
           </p>
-          <p className="text-[11px] text-[#8E92A4] truncate">{user.email}</p>
+          <p className="text-[11px] truncate" style={{ color: C.blueLight }}>
+            {user.email}
+          </p>
         </div>
       )}
 
@@ -70,14 +82,16 @@ export function Sidebar() {
           <NavLink
             key={item.to}
             to={item.to}
-            end={item.to === '/app'}
+            end={item.to === ROUTES.DASHBOARD}
             className={({ isActive }) =>
               `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-200 ${
-                isActive
-                  ? 'bg-white text-[#1A237E] shadow-[0_1px_3px_rgba(0,0,0,0.04)]'
-                  : 'text-[#5C6178] hover:bg-white/60 hover:text-[#1B1E2E]'
+                isActive ? 'text-white' : 'hover:bg-white/10'
               }`
             }
+            style={({ isActive }) => ({
+              backgroundColor: isActive ? C.orange : 'transparent',
+              color: isActive ? '#ffffff' : C.paleBlue,
+            })}
           >
             <item.icon className="h-[15px] w-[15px]" strokeWidth={1.8} />
             {item.label}
@@ -86,10 +100,11 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-[#E0DDD6]">
+      <div className="px-4 py-3" style={{ borderTop: `1px solid ${C.blueDark}` }}>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 w-full px-2 py-1 text-[11px] font-medium text-[#8E92A4] rounded transition-colors duration-200 hover:text-[#5C6178]"
+          className="flex items-center gap-2 w-full px-2 py-1 text-[11px] font-medium rounded transition-colors duration-200 hover:text-white"
+          style={{ color: C.blueLight }}
         >
           <LogOut className="h-3 w-3" strokeWidth={1.8} />
           Déconnexion

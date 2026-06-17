@@ -1,0 +1,90 @@
+[
+  {
+    "slug": "plan-financement-previsionnel",
+    "nom": "Plan de financement prévisionnel",
+    "description": "Tableau récapitulatif des dépenses et des sources de financement du projet.",
+    "type_document": "plan_financement",
+    "tags": ["plan", "financement", "previsionnel", "budget", "financier"],
+    "categories_aide": [],
+    "organisme": null,
+    "fichier": "plan-financement-previsionnel.csv",
+    "source_url": null
+  },
+  {
+    "slug": "cadre-devis-detaille",
+    "nom": "Cadre de devis détaillé",
+    "description": "Trame de devis par lot pour les entreprises pressenties.",
+    "type_document": "devis",
+    "tags": ["devis", "travaux", "estimation", "entreprise", "financier"],
+    "categories_aide": [],
+    "organisme": null,
+    "fichier": "cadre-devis-detaille.csv",
+    "source_url": null
+  },
+  {
+    "slug": "note-presentation-projet",
+    "nom": "Note de présentation du projet",
+    "description": "Document décrivant le monument, l'intérêt patrimonial et le programme de travaux.",
+    "type_document": "note_presentation",
+    "tags": ["note", "presentation", "projet", "descriptif", "memoire"],
+    "categories_aide": [],
+    "organisme": null,
+    "fichier": "note-presentation-projet.md",
+    "source_url": null
+  },
+  {
+    "slug": "attestation-propriete",
+    "nom": "Attestation de propriété",
+    "description": "Attestation sur l'honneur de la propriété du bien.",
+    "type_document": "attestation_propriete",
+    "tags": ["attestation", "propriete", "titre", "proprietaire", "administratif"],
+    "categories_aide": [],
+    "organisme": null,
+    "fichier": "attestation-propriete.md",
+    "source_url": null
+  },
+  {
+    "slug": "programme-travaux",
+    "nom": "Programme détaillé des travaux",
+    "description": "Description technique des travaux par lot, établie avec le maître d'œuvre.",
+    "type_document": "programme_travaux",
+    "tags": ["programme", "travaux", "technique", "description", "lot"],
+    "categories_aide": [],
+    "organisme": null,
+    "fichier": "programme-travaux.md",
+    "source_url": null
+  },
+  {
+    "slug": "note-historique",
+    "nom": "Note historique du monument",
+    "description": "Notice historique synthétique du monument.",
+    "type_document": "note_historique",
+    "tags": ["note", "historique", "histoire", "notice", "patrimoine"],
+    "categories_aide": [],
+    "organisme": null,
+    "fichier": "note-historique.md",
+    "source_url": null
+  },
+  {
+    "slug": "deliberation-conseil-municipal",
+    "nom": "Délibération du conseil municipal",
+    "description": "Modèle de délibération autorisant les travaux et le plan de financement (communes).",
+    "type_document": "deliberation",
+    "tags": ["deliberation", "conseil", "municipal", "commune", "administratif"],
+    "categories_aide": ["etat_drac", "departement", "region"],
+    "organisme": null,
+    "fichier": "deliberation-conseil-municipal.md",
+    "source_url": null
+  },
+  {
+    "slug": "lettre-demande-subvention",
+    "nom": "Lettre de demande de subvention",
+    "description": "Courrier type de demande de subvention adressé à l'organisme.",
+    "type_document": "lettre_demande",
+    "tags": ["lettre", "demande", "subvention", "courrier", "administratif"],
+    "categories_aide": [],
+    "organisme": null,
+    "fichier": "lettre-demande-subvention.md",
+    "source_url": null
+  }
+]

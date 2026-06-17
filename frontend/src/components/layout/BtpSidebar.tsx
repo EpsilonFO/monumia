@@ -11,6 +11,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/ui/button';
+import { landingUrl } from '@/lib/session';
 
 const navItems = [
   { to: '/btp', icon: Gauge, label: 'Tableau de bord' },
@@ -32,13 +33,13 @@ export function BtpSidebar() {
 
   return (
     <aside className="hidden md:flex md:flex-col md:w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
-      <div className="flex items-center gap-2 px-6 py-5 border-b border-sidebar-border">
+      <a href={landingUrl()} className="flex items-center gap-2 px-6 py-5 border-b border-sidebar-border">
         <Church className="h-7 w-7 text-sidebar-primary" />
         <div>
           <span className="text-xl font-bold tracking-tight">Monumia</span>
           <div className="text-xs text-sidebar-foreground/60 font-medium">Espace BTP</div>
         </div>
-      </div>
+      </a>
 
       {user?.btp && (
         <div className="px-4 py-3 border-b border-sidebar-border bg-sidebar-accent/30">

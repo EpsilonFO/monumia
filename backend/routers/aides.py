@@ -23,6 +23,7 @@ class DiagnosticRequest(BaseModel):
     monument_id: str
     mode_projet: bool = False
     travaux_filtres: list[str] | None = None
+    skip_qcm: bool = False
 
 
 class UpdateQcmAnswersRequest(BaseModel):
@@ -152,6 +153,7 @@ async def diagnostic(
             user=user,
             mode_projet=body.mode_projet,
             travaux_filtres=body.travaux_filtres,
+            skip_qcm=body.skip_qcm,
         )
     except Exception as exc:
         logger.error("run_diagnostic crashed:\n%s", traceback.format_exc())

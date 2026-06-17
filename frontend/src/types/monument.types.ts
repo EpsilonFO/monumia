@@ -1,4 +1,5 @@
 import type { ID, ProtectionLevel, OwnershipType, Region, WorkType } from './common.types';
+import type { ProjectQuestionnaireAnswers } from './project.types';
 
 export interface Monument {
   id: ID;
@@ -18,17 +19,30 @@ export interface Monument {
   dateProtection?: string;
   typeProtection?: string;
   proprietaire: OwnershipType;
+  affectataire?: string;
 
   // Step 3: Physical Description
   siecleConstruction?: string;
+  periodeConstruction?: string[];
+  superficie?: number;
+  materiaux?: string[];
+  typeCouverture?: string;
+  nombreNiveaux?: number;
   descriptionGenerale?: string;
 
   // Step 4: Current State
   etatConservation: 'bon' | 'moyen' | 'mauvais' | 'peril';
   travauxEnvisages?: WorkType[];
+  urgenceTravaux?: 'faible' | 'moyenne' | 'haute' | 'critique';
+  diagnosticRealise?: boolean;
+  derniersTravaux?: string;
+  descriptionEtat?: string;
 
   // Step 5: Photos
   photos: MonumentPhoto[];
+
+  // Project questionnaire (Phase B) — optional, degrades gracefully if DB column absent
+  questionnaire?: ProjectQuestionnaireAnswers;
 
   // Metadata
   completionPercentage: number;

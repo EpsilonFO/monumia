@@ -43,44 +43,45 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
-    --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
-    --font-serif: 'Cormorant Garamond', 'Playfair Display', Georgia, 'Times New Roman', serif;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-serif: 'PT Serif', Georgia, 'Times New Roman', serif;
+    --font-hand: 'Caveat', cursive;
 }
 
 :root {
     --radius: 0.625rem;
-    /* Monumia brand: bleu roi + orange terre cuite accent */
-    --background: oklch(0.99 0.003 260);
-    --foreground: oklch(0.16 0.05 260);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.16 0.05 260);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.16 0.05 260);
-    --primary: oklch(0.33 0.14 265);
-    --primary-foreground: oklch(0.99 0 0);
-    --secondary: oklch(0.94 0.015 260);
-    --secondary-foreground: oklch(0.25 0.08 265);
-    --muted: oklch(0.95 0.008 260);
-    --muted-foreground: oklch(0.48 0.03 260);
-    --accent: oklch(0.60 0.16 45);
-    --accent-foreground: oklch(0.99 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.90 0.015 260);
-    --input: oklch(0.90 0.015 260);
-    --ring: oklch(0.33 0.14 265);
-    --chart-1: oklch(0.33 0.14 265);
-    --chart-2: oklch(0.45 0.12 265);
-    --chart-3: oklch(0.25 0.12 265);
-    --chart-4: oklch(0.60 0.16 45);
-    --chart-5: oklch(0.50 0.12 45);
-    --sidebar: oklch(0.15 0.05 260);
-    --sidebar-foreground: oklch(0.95 0 0);
-    --sidebar-primary: oklch(0.45 0.12 265);
-    --sidebar-primary-foreground: oklch(0.99 0 0);
-    --sidebar-accent: oklch(0.22 0.05 260);
-    --sidebar-accent-foreground: oklch(0.95 0 0);
-    --sidebar-border: oklch(0.25 0.04 260);
-    --sidebar-ring: oklch(0.33 0.14 265);
+    /* Charte Monumia — alignée sur la landing (branche landing-page) */
+    --background: #fdf9f0;
+    --foreground: #222b35;
+    --card: #fffefb;
+    --card-foreground: #222b35;
+    --popover: #fffefb;
+    --popover-foreground: #222b35;
+    --primary: #0a369d;
+    --primary-foreground: #fdf9f0;
+    --secondary: #eef3ff;
+    --secondary-foreground: #0a369d;
+    --muted: #f3eee1;
+    --muted-foreground: #6a7180;
+    --accent: #f17105;
+    --accent-foreground: #fdf9f0;
+    --destructive: #b3261e;
+    --border: #ece3d2;
+    --input: #ece3d2;
+    --ring: #0a369d;
+    --chart-1: #0a369d;
+    --chart-2: #5c95ff;
+    --chart-3: #f17105;
+    --chart-4: #fc8905;
+    --chart-5: #072a72;
+    --sidebar: #0a369d;
+    --sidebar-foreground: #eef3ff;
+    --sidebar-primary: #f17105;
+    --sidebar-primary-foreground: #fdf9f0;
+    --sidebar-accent: #072a72;
+    --sidebar-accent-foreground: #fdf9f0;
+    --sidebar-border: #0e3f9a;
+    --sidebar-ring: #5c95ff;
 }
 
 @layer base {
@@ -135,4 +136,44 @@
 }
 .animate-fade-in {
   animation: fade-in-kf 500ms ease-out;
+}
+
+.font-hand {
+  font-family: var(--font-hand);
+}
+
+/* ─── Frise verticale — échéancier du tableau de bord ─── */
+/* La ligne (spine) se « dessine » de haut en bas ; chaque connecteur est décalé. */
+@keyframes frise-draw-kf {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+.frise-draw {
+  transform-origin: top center;
+  animation: frise-draw-kf 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* Les nœuds apparaissent en « pop » ; fill backwards pour que le survol (scale) reste libre. */
+@keyframes frise-pop-kf {
+  from { opacity: 0; transform: translateY(7px) scale(0.5); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.frise-pop {
+  animation: frise-pop-kf 480ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+/* Halo pulsant des échéances urgentes (toujours actif, attire l'œil). */
+@keyframes frise-halo-kf {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0;    transform: scale(1.9); }
+}
+.frise-halo-pulse {
+  animation: frise-halo-kf 2.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .frise-draw,
+  .frise-pop,
+  .frise-halo-pulse {
+    animation: none;
+  }
+  .frise-draw { transform: scaleY(1); }
+  .frise-pop  { opacity: 1; transform: none; }
 }

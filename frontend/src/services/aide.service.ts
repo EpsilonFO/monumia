@@ -28,7 +28,8 @@ export const aideService = {
   async runDiagnostic(
     monumentId: string,
     modeProjet: boolean = false,
-    travauxFiltres?: WorkType[]
+    travauxFiltres?: WorkType[],
+    options?: { skipQcm?: boolean }
   ): Promise<AideDiagnosticResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 360_000); // 6 min — ≥ backend QCM timeout (300s + retries)
@@ -40,6 +41,7 @@ export const aideService = {
           monument_id: monumentId,
           mode_projet: modeProjet,
           travaux_filtres: travauxFiltres,
+          skip_qcm: options?.skipQcm ?? false,
         }),
       });
       return handleResponse<AideDiagnosticResult>(res);

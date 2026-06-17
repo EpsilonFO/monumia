@@ -1448,12 +1448,19 @@ async def generate_qcm_questions(
 # ---------------------------------------------------------------------------
 
 
+def _should_generate_qcm(all_with_incertitudes: list, skip_qcm: bool) -> bool:
+    """QCM runs only when there is at least one incertitude and the caller did
+    not opt out via skip_qcm."""
+    return bool(all_with_incertitudes) and not skip_qcm
+
+
 async def run_diagnostic(
     supabase: Client,
     monument: dict,
     user: dict,
     mode_projet: bool = False,
     travaux_filtres: list[str] | None = None,
+    skip_qcm: bool = False,
 ) -> dict:
     """Run a full diagnostic: SQL pre-filter → criteria check → LLM fine-matching."""
     ctx_travaux = travaux_filtres or []
@@ -1531,7 +1538,7 @@ async def run_diagnostic(
     # may clarify one. So at generation time no incertitude flips to clarified.
     qcm_questions = []
     all_with_incertitudes = still_eligible + potentially_eligible
-    if all_with_incertitudes:
+    if _should_generate_qcm(all_with_incertitudes, skip_qcm):
         qcm_questions = await generate_qcm_questions(all_with_incertitudes, monument_profile)
 
     # Re-bucket: promote only aides whose incertitudes are ALL clarified. Under

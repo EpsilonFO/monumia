@@ -30,7 +30,7 @@ export function deadlineLabel(date: string | Date): { text: string; urgency: 'no
   if (days < 0) return { text: 'Échéance dépassée', urgency: 'past' };
   if (days === 0) return { text: "Aujourd'hui", urgency: 'urgent' };
   if (days === 1) return { text: 'Demain', urgency: 'urgent' };
-  if (days <= 7) return { text: `Dans ${days} jours`, urgency: 'urgent' };
-  if (days <= 30) return { text: `Dans ${days} jours`, urgency: 'warning' };
+  if (days < 30) return { text: `Dans ${days} jours`, urgency: 'urgent' };
+  if (days <= 100) return { text: `Dans ${days} jours`, urgency: 'warning' };
   return { text: formatDateShort(date), urgency: 'normal' };
 }

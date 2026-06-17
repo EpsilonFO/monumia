@@ -170,6 +170,15 @@ export const documentService = {
     }
   },
 
+  async addToProjects(documentId: string, monumentIds: string[]): Promise<Document> {
+    const res = await authFetch(`${BASE}/documents/${documentId}/projects`, {
+      method: 'POST',
+      body: JSON.stringify({ monument_ids: monumentIds }),
+    });
+    const row = await handleResponse<Record<string, unknown>>(res);
+    return toDocument(row);
+  },
+
   async linkToDossier(documentId: string, dossierId: string): Promise<void> {
     const res = await authFetch(`${BASE}/documents/${documentId}/link/${dossierId}`, {
       method: 'POST',

@@ -6,6 +6,7 @@ import { useMonumentStore } from './useMonumentStore';
 import { useDossierStore } from './useDossierStore';
 import { useDocumentStore } from './useDocumentStore';
 import { useAideStore } from './useAideStore';
+import { setSessionCookie, clearSessionCookie } from '@/lib/session';
 
 interface AuthState {
   user: User | null;
@@ -31,8 +32,11 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       isOnboarded: false,
 
-      setAuth: (user, token, refreshToken = null) =>
-        set({ user, token, refreshToken, isOnboarded: user.onboardingComplete }),
+      setAuth: (user, token, refreshToken = null) => {
+        set({ user, token, refreshToken, isOnboarded: user.onboardingComplete });
+        // Let the landing page (separate origin) know a session is active.
+        setSessionCookie();
+      },
 
       setTokens: (token, refreshToken) =>
         set({ token, refreshToken }),
@@ -71,6 +75,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         set({ user: null, token: null, refreshToken: null, isOnboarded: false });
+        clearSessionCookie();
         // Reset all data stores to prevent data leaking between accounts
         useMonumentStore.setState({ monuments: [], activeMonumentId: null });
         useDossierStore.setState({ dossiers: [], loaded: false });
@@ -80,6 +85,12 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'monumia-auth',
+      // Keep the cross-domain session hint in sync with the rehydrated token,
+      // so the landing page reflects the right state after a page reload.
+      onRehydrateStorage: () => (state) => {
+        if (state?.token) setSessionCookie();
+        else clearSessionCookie();
+      },
     }
   )
 );

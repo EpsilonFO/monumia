@@ -1,3 +1,5 @@
+import contextlib
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from supabase import Client
@@ -55,6 +57,10 @@ class UpdateDocumentRequest(BaseModel):
     description: str | None = None
 
 
+class AddToProjectsRequest(BaseModel):
+    monument_ids: list[str]
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -72,6 +78,19 @@ def _get_document_or_404(supabase: Client, document_id: str, user_id: str) -> di
     if not result.data:
         raise HTTPException(status_code=404, detail="Document introuvable")
     return result.data
+
+
+def _merge_monument_ids(existing: list[str], new: list[str]) -> list[str]:
+    """Return the existing project ids plus any new ones, order-preserving, no dupes.
+
+    Adding a document to a project associates the *same* document with another
+    project — it never creates a copy — so we just grow its monument_ids array.
+    """
+    merged = list(existing)
+    for mid in new:
+        if mid not in merged:
+            merged.append(mid)
+    return merged
 
 
 # ---------------------------------------------------------------------------
@@ -183,8 +202,6 @@ def delete_document(
         safe_path = None
 
     if safe_path:
-        import contextlib
-
         with contextlib.suppress(Exception):
             supabase.storage.from_(STORAGE_BUCKET).remove([safe_path])  # best-effort
 
@@ -234,3 +251,35 @@ def unlink_from_dossier(
     supabase.table("documents").update({"dossiers_utilises": updated}).eq(
         "id", document_id
     ).execute()
+
+
+@router.post("/{document_id}/projects")
+def add_document_to_projects(
+    document_id: str,
+    body: AddToProjectsRequest,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Associate an existing document with one or more additional projects.
+
+    This appends to the document's monument_ids array — the same file and row
+    are shared across projects. No copy of the file or the row is ever made.
+    """
+    if not body.monument_ids:
+        raise HTTPException(status_code=400, detail="Aucun projet cible fourni")
+
+    source = _get_document_or_404(supabase, document_id, user_id)
+
+    # Validate ownership of every target project before linking anything.
+    for mid in body.monument_ids:
+        check = (
+            supabase.table("monuments").select("id").eq("id", mid).eq("user_id", user_id).execute()
+        )
+        if not check.data:
+            raise HTTPException(status_code=403, detail=f"Projet {mid} introuvable ou non autorisé")
+
+    merged = _merge_monument_ids(source.get("monument_ids") or [], body.monument_ids)
+    result = (
+        supabase.table("documents").update({"monument_ids": merged}).eq("id", document_id).execute()
+    )
+    return result.data[0]

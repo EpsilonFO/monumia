@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Receipt, Image, FileSpreadsheet, FileArchive, FolderOpen, MoreVertical, Pencil, Trash2, ScrollText, Scale, FileSearch, PenTool, FileText, Stamp, FileBadge, ClipboardList } from 'lucide-react';
+import { Receipt, Image, FileSpreadsheet, FileArchive, FolderOpen, FolderPlus, MoreVertical, Pencil, Trash2, ScrollText, Scale, FileSearch, PenTool, FileText, Stamp, FileBadge, ClipboardList } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -25,6 +25,7 @@ interface DocumentCardProps {
   onClick?: () => void;
   onRename?: (id: string, newName: string) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
+  onAddToProject?: (document: Document) => void;
 }
 
 const typeIcons: Record<string, typeof FileText> = {
@@ -54,7 +55,7 @@ const typeAccent: Record<string, { bg: string; text: string }> = {
   autre: { bg: '#F3F4F6', text: '#374151' },
 };
 
-export function DocumentCard({ document, dossierNames, monumentNames, onClick, onRename, onDelete }: DocumentCardProps) {
+export function DocumentCard({ document, dossierNames, monumentNames, onClick, onRename, onDelete, onAddToProject }: DocumentCardProps) {
   const Icon = typeIcons[document.type] ?? FileText;
   const accent = typeAccent[document.type] ?? typeAccent.autre;
   const linkedMonuments = monumentNames ? document.monumentIds.map((id) => monumentNames[id]).filter(Boolean) : [];
@@ -100,7 +101,7 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
               <p className="text-[13px] font-semibold text-[#1B1E2E] leading-tight line-clamp-1">{document.nom}</p>
               <p className="text-[11px] text-[#8E92A4] mt-0.5 truncate">{document.nomFichier}</p>
             </div>
-            {(onRename || onDelete) && (
+            {(onRename || onDelete || onAddToProject) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                   <button className="shrink-0 p-1 rounded-md hover:bg-[#F8F7F4] transition-colors opacity-0 group-hover:opacity-100">
@@ -108,6 +109,11 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  {onAddToProject && (
+                    <DropdownMenuItem onClick={() => onAddToProject(document)}>
+                      <FolderPlus className="h-3.5 w-3.5 mr-2" />Ajouter à un projet
+                    </DropdownMenuItem>
+                  )}
                   {onRename && (
                     <DropdownMenuItem onClick={() => { setNewName(document.nom); setRenameOpen(true); }}>
                       <Pencil className="h-3.5 w-3.5 mr-2" />Renommer

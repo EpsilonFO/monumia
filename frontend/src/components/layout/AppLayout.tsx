@@ -5,7 +5,6 @@ import { TopBar } from './TopBar';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useAideStore } from '@/stores/useAideStore';
-import { useNotificationStore } from '@/stores/useNotificationStore';
 import { monumentService } from '@/services/monument.service';
 import { aideService } from '@/services/aide.service';
 
@@ -14,7 +13,6 @@ export function AppLayout() {
   const token = useAuthStore((s) => s.token);
   const setMonuments = useMonumentStore((s) => s.setMonuments);
   const setAides = useAideStore((s) => s.setAides);
-  const getUnreadCount = useNotificationStore((s) => s.getUnreadCount);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,7 +29,6 @@ export function AppLayout() {
     aideService.getAll().then(setAides).catch(console.error);
   }, [token, setMonuments, setAides]);
 
-  const unreadCount = user ? getUnreadCount(user.id) : 0;
   const mainRef = useRef<HTMLElement>(null);
   const { pathname } = useLocation();
 
@@ -43,7 +40,7 @@ export function AppLayout() {
     <div className="flex h-screen overflow-hidden bg-[#F8F7F4]">
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
-        <TopBar unreadCount={unreadCount} />
+        <TopBar />
         <main ref={mainRef} className="flex-1 overflow-y-auto">
           <div className="p-4 md:p-6 lg:p-8 max-w-[1200px]">
             <Outlet />

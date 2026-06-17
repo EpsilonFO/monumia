@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, ExternalLink, FileWarning, Loader2 } from 'lucide-react';
+import { Download, ExternalLink, FileWarning, FolderPlus, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ interface DocumentPreviewDialogProps {
   document: Document | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onAddToProject?: (document: Document) => void;
 }
 
 const typeLabels: Record<string, string> = {
@@ -168,7 +169,7 @@ function OfficePreview({ url, title, filename }: { url: string; title: string; f
 
 // ── Main dialog ───────────────────────────────────────────────────────────────
 
-export function DocumentPreviewDialog({ document, open, onOpenChange }: DocumentPreviewDialogProps) {
+export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToProject }: DocumentPreviewDialogProps) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -215,18 +216,28 @@ export function DocumentPreviewDialog({ document, open, onOpenChange }: Document
                 </span>
               </div>
             </div>
-            {signedUrl && (
+            {(signedUrl || onAddToProject) && (
               <div className="flex gap-2 shrink-0">
-                <Button variant="outline" size="sm" onClick={() => downloadFile(signedUrl, document.nomFichier)}>
-                  <Download className="h-4 w-4 mr-1.5" />
-                  Télécharger
-                </Button>
-                <Button variant="outline" size="sm" asChild>
-                  <a href={signedUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4 mr-1.5" />
-                    Ouvrir
-                  </a>
-                </Button>
+                {onAddToProject && (
+                  <Button variant="outline" size="sm" onClick={() => onAddToProject(document)}>
+                    <FolderPlus className="h-4 w-4 mr-1.5" />
+                    Ajouter à un projet
+                  </Button>
+                )}
+                {signedUrl && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => downloadFile(signedUrl, document.nomFichier)}>
+                      <Download className="h-4 w-4 mr-1.5" />
+                      Télécharger
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={signedUrl} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4 mr-1.5" />
+                        Ouvrir
+                      </a>
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           </div>

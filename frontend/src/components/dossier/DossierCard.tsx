@@ -5,12 +5,11 @@ import { useMonumentStore } from '@/stores/useMonumentStore';
 import { ROUTES } from '@/constants/routes';
 import { formatDate, isUrgent, daysUntil } from '@/lib/date-utils';
 import type { Dossier } from '@/types';
-
-const FONT = "'Cormorant Garamond', serif";
+import { C, SERIF } from '@/lib/brand';
 
 const MONUMENT_COLORS = [
-  '#1A237E',
-  '#C75B3A',
+  C.blue,
+  C.orange,
   '#065F46',
   '#7C3AED',
   '#92400E',
@@ -35,10 +34,10 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
   const piecesTotal = dossier.checklist.length;
 
   const [aideName] = dossier.titre.split(' — ');
-  const color = monumentColor ?? '#1A237E';
+  const color = monumentColor ?? C.blue;
 
   return (
-    <Link to={ROUTES.DOSSIER_DETAIL(dossier.id)} className="block h-full">
+    <Link to={ROUTES.PROJET_AIDE(dossier.monumentId, dossier.aideId)} className="block h-full">
       <div
         className="group relative bg-white rounded-xl border border-[#E4E2DC]/80 overflow-hidden transition-all duration-200 hover:shadow-md hover:shadow-black/[0.03] hover:border-[#E4E2DC] flex flex-col h-full"
         style={{ borderLeft: `4px solid ${color}` }}
@@ -58,12 +57,12 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
           )}
           <div className="flex items-start justify-between gap-2">
             <h3
-              className="text-[16px] font-normal text-[#1B1E2E] leading-tight line-clamp-2 min-h-[2.5em]"
-              style={{ fontFamily: FONT }}
+              className="text-[16px] font-normal text-[#222b35] leading-tight line-clamp-2 min-h-[2.5em]"
+              style={{ fontFamily: SERIF }}
             >
               {aideName}
             </h3>
-            <ChevronRight className="h-4 w-4 text-[#E4E2DC] group-hover:text-[#C75B3A] transition-colors shrink-0 mt-0.5" />
+            <ChevronRight className="h-4 w-4 text-[#E4E2DC] group-hover:text-[#f17105] transition-colors shrink-0 mt-0.5" />
           </div>
           {monument?.commune && (
             <div className="mt-1.5 text-[12px] text-[#8E92A4] truncate">

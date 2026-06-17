@@ -7,18 +7,25 @@ export const ROUTES = {
 
   DASHBOARD: '/app',
 
-  MONUMENTS: '/app/monuments',
-  MONUMENT_DETAIL: (id: string) => `/app/monuments/${id}`,
-  MONUMENT_NEW: '/app/monuments/nouveau',
-
-  AIDES: '/app/monuments',
-  AIDE_DETAIL: (aideId: string, monumentId?: string) =>
-    monumentId ? `/app/aides/${aideId}?monumentId=${monumentId}` : `/app/aides/${aideId}`,
-
-  DOSSIERS: '/app/dossiers',
-  DOSSIER_DETAIL: (id: string) => `/app/dossiers/${id}`,
+  // Onglet unifié « Projet » (projet = monument)
+  PROJETS: '/app/projets',
+  PROJET_NEW: '/app/projets/nouveau',
+  PROJET_DETAIL: (id: string) => `/app/projets/${id}`,
+  PROJET_AIDE: (projetId: string, aideId: string) => `/app/projets/${projetId}/aides/${aideId}`,
 
   DOCUMENTS: '/app/documents',
-
+  MODELES: '/app/modeles',
   PROFIL: '/app/profil',
+
+  // Alias de compatibilité — résolvent sur l'onglet Projet unifié pour que tous les
+  // appelants compilent pendant la migration. Les liens profonds corrects sont posés
+  // par les pages Projet (AideCard/DossierCard → PROJET_AIDE).
+  MONUMENTS: '/app/projets',
+  MONUMENT_DETAIL: (id: string) => `/app/projets/${id}`,
+  MONUMENT_NEW: '/app/projets/nouveau',
+  AIDES: '/app/projets',
+  DOSSIERS: '/app/projets',
+  AIDE_DETAIL: (aideId: string, monumentId?: string) =>
+    monumentId ? `/app/projets/${monumentId}/aides/${aideId}` : '/app/projets',
+  DOSSIER_DETAIL: (id: string) => `/app/projets?dossier=${id}`,
 } as const;
