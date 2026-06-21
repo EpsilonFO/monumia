@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Shield, Calendar, AlertTriangle, Wrench, Building2, Eye, Compass,
   ScrollText, FolderOpen, ChevronLeft, ChevronDown, Edit2, Trash2, Loader2,
-  CheckCircle2, HelpCircle, XCircle, Users,
+  CheckCircle2, HelpCircle, XCircle, Users, FilePlus2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,6 +18,7 @@ import { DossierCard } from '@/components/dossier/DossierCard';
 import { DocumentCard } from '@/components/document/DocumentCard';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { AddToProjectDialog } from '@/components/document/AddToProjectDialog';
+import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
 import { TeamPanel } from '@/components/sharing/TeamPanel';
 import { projectPermissions } from '@/lib/project-permissions';
 import { ProjectSummaryBar } from '@/components/project/ProjectSummaryBar';
@@ -25,8 +26,8 @@ import { ProjectEcheancier } from '@/components/project/ProjectEcheancier';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
-import { useDocumentStore } from '@/stores/useDocumentStore';
 import { monumentService } from '@/services/monument.service';
+import { documentService } from '@/services/document.service';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
 import { sharingService } from '@/services/sharing.service';
@@ -56,22 +57,22 @@ export function ProjectDetailPage() {
   const navigate = useNavigate();
 
   const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === projetId));
-  const addMonument = useMonumentStore((s) => s.addMonument);
+  const upsertMonument = useMonumentStore((s) => s.upsertMonument);
   const updateMonument = useMonumentStore((s) => s.updateMonument);
   const deleteMonument = useMonumentStore((s) => s.deleteMonument);
 
   const allDossiers = useDossierStore((s) => s.dossiers);
-  const dossierLoaded = useDossierStore((s) => s.loaded);
   const dossiers = useMemo(() => allDossiers.filter((d) => d.monumentId === projetId), [allDossiers, projetId]);
 
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const setDiagnostic = useAideStore((s) => s.setDiagnostic);
   const diagnostic = projetId ? diagnosticsByMonument[projetId] ?? null : null;
 
-  const documents = useDocumentStore((s) => s.documents);
-  const fetchDocuments = useDocumentStore((s) => s.fetchDocuments);
-  const updateDocument = useDocumentStore((s) => s.updateDocument);
-  const deleteDocumentStore = useDocumentStore((s) => s.deleteDocument);
+  // Documents du projet : on charge TOUS les documents rattachés à ce projet
+  // (tous les membres confondus) via le fetch projet-scopé, pas le store « mes
+  // documents ». Sans ça, un owner/co_owner ne verrait jamais les pièces déposées
+  // par un collaborateur.
+  const [projectDocuments, setProjectDocuments] = useState<Document[]>([]);
 
   const [notFound, setNotFound] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -82,14 +83,19 @@ export function ProjectDetailPage() {
   const [showNonEligibles, setShowNonEligibles] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [addToProjectDoc, setAddToProjectDoc] = useState<Document | null>(null);
+  const [addDocOpen, setAddDocOpen] = useState(false);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
 
   const tabParam = searchParams.get('tab');
-  const activeTab =
+  // L'onglet « Aides » est réservé au chef de projet et à son adjoint. Pour un
+  // collaborateur, on retombe sur « Dossiers ».
+  const canAccessAides = projectPermissions(monument?.myRole ?? null).canAccessAides;
+  const requestedTab =
     tabParam === 'monument' || tabParam === 'dossiers' || tabParam === 'documents' || tabParam === 'equipe'
       ? tabParam
       : 'aides';
+  const activeTab = requestedTab === 'aides' && !canAccessAides ? 'dossiers' : requestedTab;
   const handleTabChange = useCallback((value: string) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -98,15 +104,26 @@ export function ProjectDetailPage() {
     }, { replace: true });
   }, [setSearchParams]);
 
-  useEffect(() => { if (!monument && projetId) monumentService.getById(projetId).then(addMonument).catch(() => setNotFound(true)); }, [projetId, monument, addMonument]);
+  // Rafraîchir au montage (et quand on change de projet) : revenir sur la page
+  // doit refléter les changements des autres membres, sans recharger le navigateur.
   useEffect(() => {
-    if (!projetId || diagnostic) return;
+    if (!projetId) return;
+    monumentService.getById(projetId)
+      .then(upsertMonument)
+      .catch(() => { if (!useMonumentStore.getState().monuments.some((m) => m.id === projetId)) setNotFound(true); });
+  }, [projetId, upsertMonument]);
+  useEffect(() => {
+    if (!projetId) return;
     aideService.getDiagnostics(projetId)
       .then((diagnostics) => { if (diagnostics[0]) setDiagnostic(projetId, diagnostics[0]); })
       .catch(console.error);
-  }, [projetId, diagnostic, setDiagnostic]);
-  useEffect(() => { if (!dossierLoaded) dossierService.fetchAll().catch(console.error); }, [dossierLoaded]);
-  useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
+  }, [projetId, setDiagnostic]);
+  useEffect(() => { dossierService.fetchAll().catch(console.error); }, []);
+  const reloadProjectDocuments = useCallback(() => {
+    if (!projetId) return;
+    documentService.getAll({ monumentId: projetId }).then(setProjectDocuments).catch(() => {});
+  }, [projetId]);
+  useEffect(() => { reloadProjectDocuments(); }, [reloadProjectDocuments]);
   const reloadMembers = useCallback(() => {
     const id = monument?.id;
     if (!id) return;
@@ -138,7 +155,6 @@ export function ProjectDetailPage() {
 
   const stats = useMemo(() => (monument ? computeProjectStats(monument, diagnostic, dossiers) : null), [monument, diagnostic, dossiers]);
   const deadlines = useMemo(() => mergeProjectDeadlines(diagnostic, dossiers), [diagnostic, dossiers]);
-  const projectDocuments = useMemo(() => documents.filter((d) => projetId && d.monumentIds.includes(projetId)), [documents, projetId]);
   const dossierNames = useMemo(() => Object.fromEntries(allDossiers.map((d) => [d.id, d.titre])), [allDossiers]);
   const monumentNames = useMemo(() => (monument ? { [monument.id]: monument.nom } : {}), [monument]);
 
@@ -194,12 +210,28 @@ export function ProjectDetailPage() {
   };
 
   const handleRename = async (id: string, newName: string) => {
-    try { await updateDocument(id, { nom: newName }); toast.success('Document renommé'); }
+    try { await documentService.update(id, { nom: newName }); reloadProjectDocuments(); toast.success('Document renommé'); }
     catch (err) { toast.error(err instanceof Error ? err.message : 'Erreur lors du renommage'); }
   };
   const handleDeleteDocument = async (id: string) => {
-    try { await deleteDocumentStore(id); toast.success('Document supprimé'); }
+    try { await documentService.delete(id); reloadProjectDocuments(); toast.success('Document supprimé'); }
     catch (err) { toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression'); }
+  };
+  // Ajout d'un document au projet (onglet Documents) : tout membre peut déposer.
+  // Le document est associé au projet (s'il ne l'est pas déjà), sans rattachement
+  // à un dossier précis. Un document fraîchement téléversé l'est déjà.
+  const handleAddDocument = async (doc: Document) => {
+    if (!projetId) return;
+    try {
+      if (!doc.monumentIds.includes(projetId)) {
+        await documentService.addToProjects(doc.id, [projetId]);
+      }
+      reloadProjectDocuments();
+      toast.success('Document ajouté au projet');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout");
+      throw err;
+    }
   };
 
   if (isEditing) {
@@ -217,9 +249,12 @@ export function ProjectDetailPage() {
   }
 
   const workTypeLabels = WORK_TYPES.reduce<Record<string, string>>((acc, w) => { acc[w.value] = w.label; return acc; }, {});
-  const eligibles = [...(diagnostic?.aidesEligibles ?? [])].sort(byDeadline);
-  const potentiels = [...(diagnostic?.aidesPotentiellementEligibles ?? [])].sort(byDeadline);
-  const nonEligibles = diagnostic?.aidesNonEligibles ?? [];
+  // Une aide déjà passée en dossier disparaît de la liste des aides : elle vit
+  // désormais dans l'onglet « Dossiers ». Supprimer le dossier l'y fait réapparaître.
+  const dossierAideIds = new Set(dossiers.map((d) => d.aideId));
+  const eligibles = [...(diagnostic?.aidesEligibles ?? [])].filter((m) => !dossierAideIds.has(m.aide.id)).sort(byDeadline);
+  const potentiels = [...(diagnostic?.aidesPotentiellementEligibles ?? [])].filter((m) => !dossierAideIds.has(m.aide.id)).sort(byDeadline);
+  const nonEligibles = (diagnostic?.aidesNonEligibles ?? []).filter((m) => !dossierAideIds.has(m.aide.id));
 
   return (
     <div className="space-y-6">
@@ -233,7 +268,9 @@ export function ProjectDetailPage() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
-          <TabsTrigger value="aides" className="gap-1.5"><Compass className="h-4 w-4" />Aides ({eligibles.length + potentiels.length})</TabsTrigger>
+          {canAccessAides && (
+            <TabsTrigger value="aides" className="gap-1.5"><Compass className="h-4 w-4" />Aides ({eligibles.length + potentiels.length})</TabsTrigger>
+          )}
           <TabsTrigger value="monument" className="gap-1.5"><Eye className="h-4 w-4" />Monument</TabsTrigger>
           <TabsTrigger value="dossiers" className="gap-1.5"><ScrollText className="h-4 w-4" />Dossiers ({dossiers.length})</TabsTrigger>
           <TabsTrigger value="documents" className="gap-1.5"><FolderOpen className="h-4 w-4" />Documents ({projectDocuments.length})</TabsTrigger>
@@ -419,6 +456,11 @@ export function ProjectDetailPage() {
 
         {/* DOCUMENTS */}
         <TabsContent value="documents" className="mt-4 space-y-4">
+          <div className="flex justify-end">
+            <button onClick={() => setAddDocOpen(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
+              <FilePlus2 className="h-3.5 w-3.5" strokeWidth={1.8} />Ajouter un document
+            </button>
+          </div>
           {projectDocuments.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {projectDocuments.map((doc) => (
@@ -458,7 +500,13 @@ export function ProjectDetailPage() {
       <AddToProjectDialog
         document={addToProjectDoc}
         open={!!addToProjectDoc}
-        onOpenChange={(open) => { if (!open) setAddToProjectDoc(null); }}
+        onOpenChange={(open) => { if (!open) { setAddToProjectDoc(null); reloadProjectDocuments(); } }}
+      />
+      <AttachDocumentDialog
+        open={addDocOpen}
+        onOpenChange={setAddDocOpen}
+        monumentId={monument.id}
+        onAttach={handleAddDocument}
       />
 
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>

@@ -6,7 +6,7 @@ import { deadlineLabel } from '@/lib/date-utils';
 import { PROTECTION_LABELS_SHORT, ETAT_LABELS } from '@/constants/monument-options';
 import type { ProjectStats } from '@/lib/project-stats';
 import type { Monument, ProjectMember } from '@/types';
-import { isProjectShared } from '@/lib/project-permissions';
+import { isProjectShared, projectPermissions } from '@/lib/project-permissions';
 import { SharedBadge } from '@/components/sharing/SharedBadge';
 import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
 import { RoleBadge } from '@/components/sharing/RoleBadge';
@@ -33,7 +33,8 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRelancer, r
   const location = [monument.commune, monument.departement].filter(Boolean).join(' · ');
 
   const shared = isProjectShared({ myRole: monument.myRole, memberCount: members.length || monument.memberCount });
-  const showRole = monument.myRole && monument.myRole !== 'owner';
+  // Projet partagé : on montre le rôle réel, y compris « Chef de projet » (owner).
+  const showRole = shared && !!monument.myRole;
 
   return (
     <div
@@ -69,15 +70,17 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRelancer, r
           )}
         </div>
 
-        <button
-          onClick={onRelancer}
-          disabled={relancing}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md disabled:opacity-60 shrink-0"
-          style={{ background: C.orange }}
-        >
-          {relancing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" strokeWidth={2} />}
-          Relancer le moteur
-        </button>
+        {projectPermissions(monument.myRole ?? null).canAccessAides && (
+          <button
+            onClick={onRelancer}
+            disabled={relancing}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md disabled:opacity-60 shrink-0"
+            style={{ background: C.orange }}
+          >
+            {relancing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" strokeWidth={2} />}
+            Relancer le moteur
+          </button>
+        )}
       </div>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">

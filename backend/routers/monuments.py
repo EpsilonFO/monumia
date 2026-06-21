@@ -405,7 +405,13 @@ def create_monument(
     ).execute()
     monument["completion_percentage"] = pct
 
-    return _enrich_monument(supabase, monument)
+    # Le créateur est chef de projet : renvoyer le rôle et le nombre de membres
+    # dès la création, pour que l'UI propose immédiatement l'invitation d'équipe
+    # (sinon `my_role` n'est peuplé qu'au prochain GET).
+    enriched = _enrich_monument(supabase, monument)
+    enriched["my_role"] = "owner"
+    enriched["member_count"] = 1
+    return enriched
 
 
 @router.get("/{monument_id}")

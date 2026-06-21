@@ -37,7 +37,7 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
   const color = monumentColor ?? C.blue;
 
   return (
-    <Link to={ROUTES.PROJET_AIDE(dossier.monumentId, dossier.aideId)} className="block h-full">
+    <Link to={ROUTES.PROJET_DOSSIER(dossier.monumentId, dossier.id)} className="block h-full">
       <div
         className="group relative bg-white rounded-xl border border-[#E4E2DC]/80 overflow-hidden transition-all duration-200 hover:shadow-md hover:shadow-black/[0.03] hover:border-[#E4E2DC] flex flex-col h-full"
         style={{ borderLeft: `4px solid ${color}` }}

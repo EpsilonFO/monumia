@@ -26,6 +26,7 @@ export function deadlineLink(d: ProjectDeadline): string {
   if (d.source === 'aide' && d.monumentId && d.aideId) {
     return ROUTES.PROJET_AIDE(d.monumentId, d.aideId);
   }
+  if (d.monumentId && d.dossierId) return ROUTES.PROJET_DOSSIER(d.monumentId, d.dossierId);
   if (d.dossierId) return ROUTES.DOSSIER_DETAIL(d.dossierId);
   if (d.monumentId) return ROUTES.PROJET_DETAIL(d.monumentId);
   return ROUTES.PROJETS;

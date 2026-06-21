@@ -3,7 +3,7 @@ import type { ProjectRole } from '@/types';
 
 export const ROLE_LABELS: Record<ProjectRole, string> = {
   owner: 'Chef de projet',
-  co_owner: 'Co-propriétaire',
+  co_owner: 'Chef de projet adjoint',
   member: 'Collaborateur',
 };
 

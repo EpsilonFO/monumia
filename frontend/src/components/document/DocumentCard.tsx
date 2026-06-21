@@ -59,11 +59,13 @@ const typeAccent: Record<string, { bg: string; text: string }> = {
   autre: { bg: '#F3F4F6', text: '#374151' },
 };
 
-export function DocumentCard({ document, dossierNames, monumentNames, onClick, onRename, onDelete, onAddToProject, uploaderName }: DocumentCardProps) {
+export function DocumentCard({ document, dossierNames, monumentNames, onClick, onRename, onDelete, onAddToProject, myRole, uploaderName }: DocumentCardProps) {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const isUploader = document.userId === currentUserId;
-  // Suppression réservée à l'auteur du document (consultation ouverte à tous).
-  const canDelete = canDeleteDocument(isUploader);
+  // Suppression / renommage : l'auteur, ou un owner/co_owner du projet (tous les
+  // droits sur les docs). Un membre ne peut agir que sur les siens. Consultation
+  // ouverte à tous.
+  const canModify = canDeleteDocument(isUploader, myRole);
 
   const Icon = typeIcons[document.type] ?? FileText;
   const accent = typeAccent[document.type] ?? typeAccent.autre;
@@ -113,7 +115,7 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
                 <p className="text-[11px] text-[#8E92A4]">Ajouté par {uploaderName}</p>
               )}
             </div>
-            {(onRename || (onDelete && canDelete) || onAddToProject) && (
+            {((onRename && canModify) || (onDelete && canModify) || onAddToProject) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                   <button className="shrink-0 p-1 rounded-md hover:bg-[#F8F7F4] transition-colors opacity-0 group-hover:opacity-100">
@@ -126,12 +128,12 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
                       <FolderPlus className="h-3.5 w-3.5 mr-2" />Ajouter à un projet
                     </DropdownMenuItem>
                   )}
-                  {onRename && (
+                  {onRename && canModify && (
                     <DropdownMenuItem onClick={() => { setNewName(document.nom); setRenameOpen(true); }}>
                       <Pencil className="h-3.5 w-3.5 mr-2" />Renommer
                     </DropdownMenuItem>
                   )}
-                  {onDelete && canDelete && (
+                  {onDelete && canModify && (
                     <DropdownMenuItem className="text-destructive" onClick={handleDelete}>
                       <Trash2 className="h-3.5 w-3.5 mr-2" />Supprimer
                     </DropdownMenuItem>

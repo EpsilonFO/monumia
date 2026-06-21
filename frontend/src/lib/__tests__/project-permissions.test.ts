@@ -42,10 +42,18 @@ describe('projectPermissions', () => {
 });
 
 describe('canDeleteDocument', () => {
-  it("seul l'auteur peut supprimer/remplacer son document", () => {
+  it("l'auteur peut toujours supprimer/remplacer son document", () => {
     expect(canDeleteDocument(true)).toBe(true);
+    expect(canDeleteDocument(true, 'member')).toBe(true);
+    expect(canDeleteDocument(true, null)).toBe(true);
   });
-  it("quiconque n'est pas l'auteur ne peut pas (même owner/co_owner)", () => {
+  it('owner / co_owner ont tous les droits sur les docs des autres', () => {
+    expect(canDeleteDocument(false, 'owner')).toBe(true);
+    expect(canDeleteDocument(false, 'co_owner')).toBe(true);
+  });
+  it("un membre ne peut pas agir sur le document d'un autre", () => {
+    expect(canDeleteDocument(false, 'member')).toBe(false);
+    expect(canDeleteDocument(false, null)).toBe(false);
     expect(canDeleteDocument(false)).toBe(false);
   });
 });

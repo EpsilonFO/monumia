@@ -7,7 +7,11 @@ from supabase import Client
 from db import get_current_user_id, get_supabase
 from routers.monuments import _enrich_monument
 from services.dossier_service import create_dossier_from_aide
-from services.project_access import require_project_access
+from services.project_access import (
+    can_delete_document,
+    get_project_role,
+    require_project_access,
+)
 
 router = APIRouter(prefix="/dossiers", tags=["dossiers"])
 
@@ -78,6 +82,16 @@ def _require_dossier_write(supabase: Client, dossier_id: str, user_id: str) -> d
         raise HTTPException(status_code=404, detail="Dossier introuvable")
     require_project_access(supabase, result.data["monument_id"], user_id, "co_owner")
     return result.data
+
+
+def _document_uploader(supabase: Client, document_id: str) -> str | None:
+    """user_id de l'auteur d'un document, ou None s'il est introuvable."""
+    res = (
+        supabase.table("documents").select("user_id").eq("id", document_id).maybe_single().execute()
+    )
+    if res and res.data:
+        return res.data.get("user_id")
+    return None
 
 
 def _recalculate_progression(dossier: dict) -> int:
@@ -222,20 +236,29 @@ def update_checklist_item(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    dossier = _require_dossier_write(supabase, dossier_id, user_id)
+    # Remplir une pièce du dossier est ouvert à tout membre du projet (un
+    # collaborateur peut déposer ses propres documents). En revanche, remplacer ou
+    # retirer une pièce déjà fournie suit la règle des documents : seul l'auteur de
+    # la pièce existante, ou un chef de projet / adjoint, peut le faire.
+    dossier = _get_dossier_or_404(supabase, dossier_id, user_id)
+    role = get_project_role(supabase, dossier["monument_id"], user_id)
 
     checklist: list = dossier.get("checklist") or []
-    updated = False
-    for item in checklist:
-        if item.get("id") == item_id:
-            item["statut"] = body.statut
-            if body.document_id is not None:
-                item["documentId"] = body.document_id
-            updated = True
-            break
-
-    if not updated:
+    target = next((c for c in checklist if c.get("id") == item_id), None)
+    if target is None:
         raise HTTPException(status_code=404, detail="Item de checklist introuvable")
+
+    current_doc_id = target.get("documentId")
+    if current_doc_id:
+        uploader_id = _document_uploader(supabase, current_doc_id)
+        if uploader_id is not None and not can_delete_document(
+            role, is_uploader=(uploader_id == user_id)
+        ):
+            raise HTTPException(status_code=403, detail="Vous ne pouvez pas modifier cette pièce")
+
+    target["statut"] = body.statut
+    if body.document_id is not None:
+        target["documentId"] = body.document_id
 
     progression = _recalculate_progression({**dossier, "checklist": checklist})
     supabase.table("dossiers").update(

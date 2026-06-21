@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import type { ReactNode } from 'react';
 import { AIDE_CATEGORIES } from '@/constants/aide-categories';
 import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import type { Aide, AideMatchResult } from '@/types';
@@ -22,9 +23,13 @@ interface AideDetailsProps {
   matchResult?: AideMatchResult | null;
   monumentName?: string;
   showHeader?: boolean;
+  /** Masquer la carte « Documents requis » (redondante quand une checklist est déjà affichée). */
+  showDocumentsRequis?: boolean;
+  /** Contenu rendu dans la colonne de droite, juste sous la carte « Informations clés ». */
+  aside?: ReactNode;
 }
 
-export function AideDetails({ aide, matchResult, monumentName, showHeader = true }: AideDetailsProps) {
+export function AideDetails({ aide, matchResult, monumentName, showHeader = true, showDocumentsRequis = true, aside }: AideDetailsProps) {
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
 
   return (
@@ -117,21 +122,23 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
             </Card>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Documents requis</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-1.5 text-sm">
-                {aide.documentsRequis.map((doc, i) => (
-                  <li key={i} className="flex items-center gap-2">
-                    <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    {doc}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          {showDocumentsRequis && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Documents requis</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-1.5 text-sm">
+                  {aide.documentsRequis.map((doc, i) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      {doc}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -197,6 +204,7 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
               )}
             </CardContent>
           </Card>
+          {aside}
         </div>
       </div>
     </div>

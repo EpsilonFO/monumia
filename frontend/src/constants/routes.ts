@@ -12,6 +12,7 @@ export const ROUTES = {
   PROJET_NEW: '/app/projets/nouveau',
   PROJET_DETAIL: (id: string) => `/app/projets/${id}`,
   PROJET_AIDE: (projetId: string, aideId: string) => `/app/projets/${projetId}/aides/${aideId}`,
+  PROJET_DOSSIER: (projetId: string, dossierId: string) => `/app/projets/${projetId}/dossiers/${dossierId}`,
 
   DOCUMENTS: '/app/documents',
   MODELES: '/app/modeles',

@@ -9,6 +9,7 @@ interface MonumentState {
   setActiveMonument: (id: string | null) => void;
   getMonument: (id: string) => Monument | undefined;
   addMonument: (monument: Monument) => void;
+  upsertMonument: (monument: Monument) => void;
   updateMonument: (id: string, updates: Partial<Monument>) => void;
   deleteMonument: (id: string) => void;
   addPhoto: (monumentId: string, photo: MonumentPhoto) => void;
@@ -27,6 +28,15 @@ export const useMonumentStore = create<MonumentState>()((set, get) => ({
 
   addMonument: (monument) =>
     set((state) => ({ monuments: [monument, ...state.monuments] })),
+
+  // Remplace le monument s'il est déjà présent (rafraîchissement serveur),
+  // sinon l'ajoute. Préserve les valeurs serveur (pas d'écrasement d'updatedAt).
+  upsertMonument: (monument) =>
+    set((state) =>
+      state.monuments.some((m) => m.id === monument.id)
+        ? { monuments: state.monuments.map((m) => (m.id === monument.id ? monument : m)) }
+        : { monuments: [monument, ...state.monuments] }
+    ),
 
   updateMonument: (id, updates) =>
     set((state) => ({

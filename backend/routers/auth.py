@@ -133,6 +133,20 @@ def _default_notification_preferences() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _validate_password(password: str) -> None:
+    """Politique de mot de passe : au moins 8 caractères et 1 chiffre."""
+    if len(password) < 8 or not any(c.isdigit() for c in password):
+        raise HTTPException(
+            status_code=400,
+            detail="Le mot de passe doit contenir au moins 8 caractères et 1 chiffre.",
+        )
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
@@ -143,6 +157,7 @@ def register(
     anon: Client = Depends(get_anon_supabase),
     supabase: Client = Depends(get_supabase),
 ):
+    _validate_password(body.password)
     # 1. Create auth user
     try:
         auth_response = anon.auth.sign_up(
@@ -194,6 +209,7 @@ def register_collaborator(
     supabase: Client = Depends(get_supabase),
 ):
     """Inscription allégée pour un invité : pas de segment/QCM, onboarding terminé."""
+    _validate_password(body.password)
     try:
         auth_response = anon.auth.sign_up({"email": body.email, "password": body.password})
     except Exception as e:

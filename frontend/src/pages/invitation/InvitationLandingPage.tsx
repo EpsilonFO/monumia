@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { Loader2, ArrowRight } from 'lucide-react';
+import { Loader2, ArrowRight, Check, X } from 'lucide-react';
 import { invitationService } from '@/services/invitation.service';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -10,7 +10,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
+import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
 import { toast } from 'sonner';
+
+const SUCCESS = '#2e7d32';
 import type { InvitationPreview } from '@/types';
 
 type Mode = 'choice' | 'signup' | 'login';
@@ -59,6 +62,10 @@ export function InvitationLandingPage() {
   };
 
   const handleSignup = async () => {
+    if (!isPasswordValid(form.password)) {
+      toast.error('Le mot de passe doit contenir au moins 8 caractères et 1 chiffre');
+      return;
+    }
     if (!form.metier) {
       toast.error('Indiquez votre rôle sur le projet');
       return;
@@ -179,6 +186,19 @@ export function InvitationLandingPage() {
           </FormField>
           <FormField label="Mot de passe" htmlFor="inv-password">
             <Input id="inv-password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className={INPUT_CLS} />
+            {form.password && (
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 pt-1">
+                {PASSWORD_RULES.map(({ key, label }) => {
+                  const ok = passwordChecks(form.password)[key];
+                  return (
+                    <div key={key} className="flex items-center gap-1.5 text-[12px]" style={{ color: ok ? SUCCESS : LIGHT }}>
+                      {ok ? <Check className="h-3 w-3 flex-shrink-0" /> : <X className="h-3 w-3 flex-shrink-0" />}
+                      {label}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </FormField>
           <FormField label="Votre rôle sur le projet" htmlFor="inv-metier">
             <MetierSelect value={form.metier} onChange={(v) => setForm({ ...form, metier: v })} />

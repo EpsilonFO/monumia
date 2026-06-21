@@ -264,10 +264,12 @@ def delete_document(
     uploader_id = doc.get("user_id")
     is_uploader = uploader_id == user_id
 
-    # Suppression réservée à l'auteur du document (la consultation reste ouverte
-    # à tout membre d'un projet du document).
-    if not is_uploader:
-        raise HTTPException(status_code=403, detail="Seul l'auteur du document peut le supprimer")
+    # Suppression autorisée à l'auteur du document, ou à un owner/co_owner d'un de
+    # ses projets (mêmes droits que la modification). Un simple membre ne peut
+    # supprimer que ses propres documents. La consultation reste ouverte à tous.
+    role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
+    if not can_delete_document(role, is_uploader=is_uploader):
+        raise HTTPException(status_code=403, detail="Vous ne pouvez pas supprimer ce document")
 
     # Le fichier est stocké sous "<uploader_id>/..." — valider contre l'auteur, pas l'appelant.
     storage_path = doc.get("url", "") or ""
@@ -303,7 +305,9 @@ def link_to_dossier(
     )
     if not dossier or not dossier.data:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
-    require_project_access(supabase, dossier.data["monument_id"], user_id, "co_owner")
+    # Tout membre du projet peut rattacher au dossier un document qu'il peut lire
+    # (le sien, typiquement) — le dépôt de pièces n'est pas réservé aux chefs.
+    require_project_access(supabase, dossier.data["monument_id"], user_id, "member")
 
     dossiers: list = doc.get("dossiers_utilises") or []
     if dossier_id not in dossiers:
@@ -330,7 +334,13 @@ def unlink_from_dossier(
         .execute()
     )
     if dossier and dossier.data:
-        require_project_access(supabase, dossier.data["monument_id"], user_id, "co_owner")
+        # Retirer une pièce d'un dossier suit la règle de suppression des documents :
+        # l'auteur de la pièce, ou un chef de projet / adjoint.
+        role = get_project_role(supabase, dossier.data["monument_id"], user_id)
+        if not can_delete_document(role, is_uploader=(doc.get("user_id") == user_id)):
+            raise HTTPException(
+                status_code=403, detail="Vous ne pouvez pas retirer cette pièce du dossier"
+            )
 
     dossiers: list = doc.get("dossiers_utilises") or []
     updated = [d for d in dossiers if d != dossier_id]

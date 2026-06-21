@@ -5,6 +5,7 @@ export interface ProjectPermissions {
   canInvite: boolean;
   canManageMembers: boolean; // promouvoir / rétrograder / retirer
   canEditProject: boolean; // éditer fiche monument + dossiers
+  canAccessAides: boolean; // consulter l'onglet « Aides » et ouvrir un dossier
   canDeleteAnyDoc: boolean;
   canDeleteProject: boolean;
   canLeave: boolean;
@@ -22,6 +23,7 @@ export function projectPermissions(role: ProjectRole | null): ProjectPermissions
     canInvite: atLeast(role, 'co_owner'),
     canManageMembers: atLeast(role, 'co_owner'),
     canEditProject: atLeast(role, 'co_owner'),
+    canAccessAides: atLeast(role, 'co_owner'),
     canDeleteAnyDoc: atLeast(role, 'co_owner'),
     canDeleteProject: role === 'owner',
     canLeave: role === 'member' || role === 'co_owner',
@@ -29,11 +31,13 @@ export function projectPermissions(role: ProjectRole | null): ProjectPermissions
 }
 
 /**
- * Suppression / remplacement d'un document : réservé à son auteur (celui qui
- * l'a déposé). La consultation reste ouverte à tous les membres du projet.
+ * Suppression / remplacement d'un document : autorisé à son auteur (celui qui
+ * l'a déposé) OU à un owner / co_owner du projet, qui a tous les droits sur les
+ * documents quel qu'en soit l'auteur. Un simple membre ne peut agir que sur les
+ * siens. La consultation reste ouverte à tous les membres du projet.
  */
-export function canDeleteDocument(isUploader: boolean): boolean {
-  return isUploader;
+export function canDeleteDocument(isUploader: boolean, role?: ProjectRole | null): boolean {
+  return isUploader || atLeast(role ?? null, 'co_owner');
 }
 
 /**

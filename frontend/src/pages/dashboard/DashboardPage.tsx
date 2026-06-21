@@ -11,6 +11,7 @@ import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { useNotificationStore } from '@/stores/useNotificationStore';
+import { monumentService } from '@/services/monument.service';
 import { dossierService } from '@/services/dossier.service';
 import { aideService } from '@/services/aide.service';
 import { ROUTES } from '@/constants/routes';
@@ -25,18 +26,19 @@ import type { AideDiagnosticResult } from '@/types';
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
+  const setMonuments = useMonumentStore((s) => s.setMonuments);
   const dossiers = useDossierStore((s) => s.dossiers);
-  const dossierLoaded = useDossierStore((s) => s.loaded);
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const setDiagnostic = useAideStore((s) => s.setDiagnostic);
   const notifications = useNotificationStore((s) => s.notifications);
 
-  // Load dossiers once
+  // Rafraîchir au montage : revenir au tableau de bord reflète les changements
+  // (projets/dossiers) faits par les autres membres, sans recharger la page.
   useEffect(() => {
-    if (user && !dossierLoaded) {
-      dossierService.fetchAll().catch(console.error);
-    }
-  }, [user, dossierLoaded]);
+    if (!user) return;
+    monumentService.getAll().then(setMonuments).catch(console.error);
+    dossierService.fetchAll().catch(console.error);
+  }, [user, setMonuments]);
 
   const userMonuments = useMemo(
     () => (user ? monuments.filter((m) => m.userId === user.id) : []),

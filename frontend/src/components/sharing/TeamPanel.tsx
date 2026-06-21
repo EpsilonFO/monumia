@@ -155,9 +155,9 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
                   <DropdownMenuContent align="end">
                     {m.role === 'member' ? (
                       <DropdownMenuItem
-                        onClick={() => act(() => sharingService.promote(monumentId, m.userId), 'Promu co-propriétaire')}
+                        onClick={() => act(() => sharingService.promote(monumentId, m.userId), 'Promu chef de projet adjoint')}
                       >
-                        Promouvoir co-propriétaire
+                        Promouvoir chef de projet adjoint
                       </DropdownMenuItem>
                     ) : (
                       <DropdownMenuItem

@@ -28,7 +28,6 @@ export function ProjectsListPage() {
   const monuments = useMonumentStore((s) => s.monuments);
   const setMonuments = useMonumentStore((s) => s.setMonuments);
   const dossiers = useDossierStore((s) => s.dossiers);
-  const dossiersLoaded = useDossierStore((s) => s.loaded);
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const setDiagnostic = useAideStore((s) => s.setDiagnostic);
 
@@ -38,24 +37,21 @@ export function ProjectsListPage() {
 
   useEffect(() => {
     if (!token) return;
-    if (monuments.length > 0) {
-      setLoading(false);
-      return;
-    }
+    // Toujours rafraîchir au montage (revenir sur l'onglet doit refléter les
+    // changements faits par les autres membres). On garde l'affichage en cache
+    // pendant le rechargement — le spinner n'apparaît que si rien n'est encore là.
     monumentService
       .getAll()
       .then(setMonuments)
       .catch(console.error)
       .finally(() => setLoading(false));
-    // Run once when the token becomes available; monuments are fetched only when empty.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   useEffect(() => {
-    if (token && !dossiersLoaded) {
-      dossierService.fetchAll().catch(console.error);
-    }
-  }, [token, dossiersLoaded]);
+    if (token) dossierService.fetchAll().catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   useEffect(() => {
     for (const m of monuments) {

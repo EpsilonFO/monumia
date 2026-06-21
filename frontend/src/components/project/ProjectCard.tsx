@@ -7,7 +7,7 @@ import { deadlineLabel } from '@/lib/date-utils';
 import { RoleBadge } from '@/components/sharing/RoleBadge';
 import { SharedBadge } from '@/components/sharing/SharedBadge';
 import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
-import { sharedRole, isProjectShared } from '@/lib/project-permissions';
+import { isProjectShared } from '@/lib/project-permissions';
 import type { ProjectStats } from '@/lib/project-stats';
 import type { Monument } from '@/types';
 
@@ -41,8 +41,10 @@ const urgencyColor: Record<string, string> = {
 
 export function ProjectCard({ monument, stats }: ProjectCardProps) {
   const etat = etatStyles[monument.etatConservation] ?? etatStyles.moyen;
-  const role = sharedRole(monument.myRole);
   const shared = isProjectShared(monument);
+  // Sur un projet partagé, on affiche le rôle réel — y compris « Chef de projet »
+  // (owner). Sur un projet personnel (non partagé), pas de badge de rôle.
+  const role = shared ? monument.myRole ?? null : null;
   const members = monument.members ?? [];
   const next = stats?.prochaineEcheance ?? null;
   const nextLabel = next ? deadlineLabel(next.date) : null;

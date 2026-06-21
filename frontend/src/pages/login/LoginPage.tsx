@@ -9,19 +9,8 @@ import { authService } from '@/services/auth.service';
 import { AuthLayout } from '@/components/layout/AuthLayout';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
+import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
 import { toast } from 'sonner';
-
-function getPasswordStrength(password: string) {
-  const checks = {
-    length: password.length >= 8,
-    uppercase: /[A-Z]/.test(password),
-    lowercase: /[a-z]/.test(password),
-    number: /\d/.test(password),
-    special: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(password),
-  };
-  const score = Object.values(checks).filter(Boolean).length;
-  return { score, checks };
-}
 
 const MUTED = '#5c6472';
 const LIGHT = '#8c92a0';
@@ -64,7 +53,8 @@ export function LoginPage() {
   // --- Inscription ---
   const [registerForm, setRegisterForm] = useState({ email: '', password: '', confirmPassword: '' });
   const [showRegisterPwd, setShowRegisterPwd] = useState(false);
-  const pwdStrength = getPasswordStrength(registerForm.password);
+  const pwdChecks = passwordChecks(registerForm.password);
+  const pwdValid = isPasswordValid(registerForm.password);
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,8 +62,8 @@ export function LoginPage() {
       toast.error('Les mots de passe ne correspondent pas');
       return;
     }
-    if (pwdStrength.score < 5) {
-      toast.error('Le mot de passe ne remplit pas tous les critères de sécurité');
+    if (!pwdValid) {
+      toast.error('Le mot de passe doit contenir au moins 8 caractères et 1 chiffre');
       return;
     }
     setPendingCredentials(registerForm.email, registerForm.password);
@@ -209,30 +199,13 @@ export function LoginPage() {
               </button>
             </div>
             {registerForm.password && (
-              <div className="space-y-2 pt-0.5">
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((i) => {
-                    const filled = pwdStrength.score >= i;
-                    const color = pwdStrength.score <= 1 ? C.danger : pwdStrength.score <= 3 ? C.orange : SUCCESS;
-                    return (
-                      <div key={i} className="h-1 flex-1 rounded-full transition-all duration-300" style={{ background: filled ? color : C.border }} />
-                    );
-                  })}
-                </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-                  {([
-                    ['length', '8 caractères minimum'],
-                    ['uppercase', '1 majuscule'],
-                    ['lowercase', '1 minuscule'],
-                    ['number', '1 chiffre'],
-                    ['special', '1 caractère spécial'],
-                  ] as [keyof typeof pwdStrength.checks, string][]).map(([key, label]) => (
-                    <div key={key} className="flex items-center gap-1.5 text-[12px]" style={{ color: pwdStrength.checks[key] ? SUCCESS : LIGHT }}>
-                      {pwdStrength.checks[key] ? <Check className="h-3 w-3 flex-shrink-0" /> : <X className="h-3 w-3 flex-shrink-0" />}
-                      {label}
-                    </div>
-                  ))}
-                </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 pt-0.5">
+                {PASSWORD_RULES.map(({ key, label }) => (
+                  <div key={key} className="flex items-center gap-1.5 text-[12px]" style={{ color: pwdChecks[key] ? SUCCESS : LIGHT }}>
+                    {pwdChecks[key] ? <Check className="h-3 w-3 flex-shrink-0" /> : <X className="h-3 w-3 flex-shrink-0" />}
+                    {label}
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -251,7 +224,7 @@ export function LoginPage() {
           </div>
           <button
             type="submit"
-            disabled={!registerForm.email || !registerForm.password || !registerForm.confirmPassword || pwdStrength.score < 5}
+            disabled={!registerForm.email || !registerForm.password || !registerForm.confirmPassword || !pwdValid}
             className="group flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
             style={{ background: C.orange }}
           >

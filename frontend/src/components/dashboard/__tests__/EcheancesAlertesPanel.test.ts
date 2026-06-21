@@ -94,9 +94,15 @@ describe('buildFeedRows — péril & incomplete dossiers', () => {
 });
 
 describe('buildFeedRows — deadline routing', () => {
-  it('routes a dossier deadline to DOSSIER_DETAIL(dossierId)', () => {
-    const d = makeDeadline({ id: 'd1', joursRestants: 5, dossierId: 'dossier-abc', source: 'dossier' });
+  it('routes a dossier deadline (with monument) to its dossier page (PROJET_DOSSIER)', () => {
+    const d = makeDeadline({ id: 'd1', joursRestants: 5, monumentId: 'mon-1', dossierId: 'dossier-abc', source: 'dossier' });
     const row = buildFeedRows([d], [], []).find((r) => r.id === 'deadline-d1');
+    expect(row?.to).toBe(ROUTES.PROJET_DOSSIER('mon-1', 'dossier-abc'));
+  });
+
+  it('falls back to DOSSIER_DETAIL for a dossier deadline without a known monument', () => {
+    const d = makeDeadline({ id: 'd1b', joursRestants: 5, dossierId: 'dossier-abc', source: 'dossier' });
+    const row = buildFeedRows([d], [], []).find((r) => r.id === 'deadline-d1b');
     expect(row?.to).toBe(ROUTES.DOSSIER_DETAIL('dossier-abc'));
   });
 
