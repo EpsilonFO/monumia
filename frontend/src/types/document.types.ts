@@ -28,4 +28,6 @@ export interface Document {
   description?: string;
   visibility: DocumentVisibility;
   allowedUserIds: ID[];
+  /** Posé quand le document a été retiré de tous ses projets/dossiers (corbeille). */
+  trashedAt?: string;
 }
