@@ -9,6 +9,7 @@ from services.project_access import (
     allowed_visibilities,
     can_delete_document,
     can_edit_visibility,
+    can_view_document,
     get_project_role,
     require_project_access,
     role_at_least,
@@ -111,6 +112,24 @@ def _require_document_read(supabase: Client, document_id: str, user_id: str) -> 
     raise HTTPException(status_code=404, detail="Document introuvable")
 
 
+def _require_document_view(supabase: Client, document_id: str, user_id: str) -> dict:
+    """Consultation : l'auteur, le chef de projet, ou selon la visibilité du document.
+
+    Renvoie 404 (et non 403) pour ne pas révéler l'existence d'un document masqué.
+    """
+    doc = _get_document_any(supabase, document_id)
+    role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
+    if can_view_document(
+        visibility=doc.get("visibility") or "team",
+        allowed_user_ids=doc.get("allowed_user_ids") or [],
+        uploader_id=doc.get("user_id"),
+        viewer_id=user_id,
+        viewer_role=role,
+    ):
+        return doc
+    raise HTTPException(status_code=404, detail="Document introuvable")
+
+
 def _highest_project_role(supabase: Client, monument_ids: list | None, user_id: str) -> str | None:
     """Rôle le plus élevé de l'utilisateur parmi les projets du document."""
     best = None
@@ -168,21 +187,35 @@ def list_documents(
     supabase: Client = Depends(get_supabase),
 ):
     if monument_id:
-        require_project_access(supabase, monument_id, user_id, "member")
+        role = require_project_access(supabase, monument_id, user_id, "member")
         query = (
             supabase.table("documents")
             .select(COLUMNS)
             .contains("monument_ids", [monument_id])
             .order("date_upload", desc=True)
         )
-    else:
-        # Vue « mes documents » : uniquement ceux que j'ai déposés
-        query = (
-            supabase.table("documents")
-            .select(COLUMNS)
-            .eq("user_id", user_id)
-            .order("date_upload", desc=True)
-        )
+        if type:
+            query = query.eq("type", type)
+        rows = query.execute().data or []
+        return [
+            r
+            for r in rows
+            if can_view_document(
+                visibility=r.get("visibility") or "team",
+                allowed_user_ids=r.get("allowed_user_ids") or [],
+                uploader_id=r.get("user_id"),
+                viewer_id=user_id,
+                viewer_role=role,
+            )
+        ]
+
+    # Vue « mes documents » : uniquement ceux que j'ai déposés (tous visibles par l'auteur).
+    query = (
+        supabase.table("documents")
+        .select(COLUMNS)
+        .eq("user_id", user_id)
+        .order("date_upload", desc=True)
+    )
     if type:
         query = query.eq("type", type)
     return query.execute().data
@@ -236,7 +269,7 @@ def get_document(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    return _require_document_read(supabase, document_id, user_id)
+    return _require_document_view(supabase, document_id, user_id)
 
 
 @router.get("/{document_id}/signed-url")
@@ -252,7 +285,7 @@ def get_document_signed_url(
     *tout membre* d'un projet du document — pas seulement son auteur — puisse le
     consulter. L'accès est contrôlé au niveau applicatif par _require_document_read.
     """
-    doc = _require_document_read(supabase, document_id, user_id)
+    doc = _require_document_view(supabase, document_id, user_id)
     storage_path = doc.get("url") or ""
     if not storage_path or "://" in storage_path:
         raise HTTPException(status_code=400, detail="Chemin de fichier invalide")
