@@ -1,4 +1,5 @@
 import contextlib
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -158,6 +159,40 @@ def _merge_monument_ids(existing: list[str], new: list[str]) -> list[str]:
         if mid not in merged:
             merged.append(mid)
     return merged
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _should_auto_trash(monument_ids: list | None, dossiers_utilises: list | None) -> bool:
+    """Vrai si le document n'a plus AUCUN projet ni dossier → il part en corbeille."""
+    return not (monument_ids or []) and not (dossiers_utilises or [])
+
+
+def _best_role(monument_ids: list | None, my_roles: dict[str, str]) -> str | None:
+    """Meilleur rôle du viewer parmi les projets du document (None si aucun)."""
+    best = None
+    for mid in monument_ids or []:
+        r = my_roles.get(mid)
+        if r is not None and (best is None or role_at_least(r, best)):
+            best = r
+    return best
+
+
+def _filter_visible(rows: list[dict], user_id: str, my_roles: dict[str, str]) -> list[dict]:
+    """Ne garde que les documents que `user_id` a le droit de voir (règle existante)."""
+    return [
+        r
+        for r in rows
+        if can_view_document(
+            visibility=r.get("visibility") or "team",
+            allowed_user_ids=r.get("allowed_user_ids") or [],
+            uploader_id=r.get("user_id"),
+            viewer_id=user_id,
+            viewer_role=_best_role(r.get("monument_ids"), my_roles),
+        )
+    ]
 
 
 # ---------------------------------------------------------------------------
