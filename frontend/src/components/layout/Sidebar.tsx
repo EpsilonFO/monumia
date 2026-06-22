@@ -8,7 +8,7 @@ import { landingUrl } from '@/lib/session';
 const navItems = [
   { to: ROUTES.DASHBOARD, icon: LayoutDashboard, label: 'Tableau de bord' },
   { to: ROUTES.PROJETS, icon: Landmark, label: 'Projets' },
-  { to: ROUTES.DOCUMENTS, icon: FileStack, label: 'Documents' },
+  { to: ROUTES.DOCUMENTS, icon: FileStack, label: 'Mes documents' },
   { to: ROUTES.MODELES, icon: LayoutTemplate, label: 'Modèles' },
   { to: ROUTES.PROFIL, icon: User, label: 'Profil' },
 ];
