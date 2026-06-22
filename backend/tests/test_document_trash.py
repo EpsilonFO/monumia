@@ -8,6 +8,7 @@ from routers.documents import (
     _best_role,
     _filter_visible,
     _should_auto_trash,
+    remove_document_from_project,
     restore_document,
     trash_document,
     unlink_from_dossier,
@@ -167,3 +168,28 @@ class UnlinkAutoTrashTests(unittest.TestCase):
         fake = _fake(doc=doc, caller_role="member", dossier={"id": "dz", "monument_id": "m1"})
         unlink_from_dossier("d1", "dz", user_id="u1", supabase=fake)
         self.assertNotIn("trashed_at", fake.updated[0])
+
+
+class RemoveFromProjectTests(unittest.TestCase):
+    def test_remove_one_of_two_keeps(self):
+        doc = {"id": "d1", "user_id": "u1", "monument_ids": ["m1", "m2"], "dossiers_utilises": []}
+        fake = _fake(doc=doc, caller_role="owner")
+        remove_document_from_project("d1", "m1", user_id="u1", supabase=fake)
+        patch = fake.updated[0]
+        self.assertEqual(patch["monument_ids"], ["m2"])
+        self.assertNotIn("trashed_at", patch)
+
+    def test_remove_last_project_trashes(self):
+        doc = {"id": "d1", "user_id": "u1", "monument_ids": ["m1"], "dossiers_utilises": []}
+        fake = _fake(doc=doc, caller_role="owner")
+        remove_document_from_project("d1", "m1", user_id="u1", supabase=fake)
+        patch = fake.updated[0]
+        self.assertEqual(patch["monument_ids"], [])
+        self.assertIsNotNone(patch["trashed_at"])
+
+    def test_remove_forbidden_for_plain_member_non_uploader(self):
+        doc = {"id": "d1", "user_id": "u2", "monument_ids": ["m1"], "dossiers_utilises": []}
+        fake = _fake(doc=doc, caller_role="member")
+        with self.assertRaises(HTTPException) as ctx:
+            remove_document_from_project("d1", "m1", user_id="u1", supabase=fake)
+        self.assertEqual(ctx.exception.status_code, 403)

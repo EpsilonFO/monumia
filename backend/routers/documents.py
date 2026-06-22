@@ -554,3 +554,25 @@ def restore_document(
         supabase.table("documents").update({"trashed_at": None}).eq("id", document_id).execute()
     )
     return result.data[0]
+
+
+@router.delete("/{document_id}/projects/{monument_id}")
+def remove_document_from_project(
+    document_id: str,
+    monument_id: str,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Retirer un document d'UN projet. Si c'était sa dernière attache (plus aucun
+    projet ni dossier), il part automatiquement en corbeille. Renvoie le document à jour."""
+    doc = _get_document_any(supabase, document_id)
+    role = get_project_role(supabase, monument_id, user_id)
+    if not can_delete_document(role, is_uploader=(doc.get("user_id") == user_id)):
+        raise HTTPException(status_code=403, detail="Vous ne pouvez pas retirer ce document du projet")
+
+    monuments = [m for m in (doc.get("monument_ids") or []) if m != monument_id]
+    patch: dict = {"monument_ids": monuments}
+    if _should_auto_trash(monuments, doc.get("dossiers_utilises")):
+        patch["trashed_at"] = _now_iso()
+    result = supabase.table("documents").update(patch).eq("id", document_id).execute()
+    return result.data[0]
