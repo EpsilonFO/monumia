@@ -4,7 +4,12 @@ import unittest
 
 from fastapi import HTTPException
 
-from routers.documents import get_document, list_documents
+from routers.documents import (
+    AddToProjectsRequest,
+    add_document_to_projects,
+    get_document,
+    list_documents,
+)
 
 
 class _Resp:
@@ -64,6 +69,20 @@ class GetDocumentViewTests(unittest.TestCase):
         fake = _supabase(doc=RESTRICTED, caller_role="co_owner")
         result = get_document("d1", user_id="u1", supabase=fake)
         self.assertEqual(result["id"], "d1")
+
+
+class ReshareEscalationTests(unittest.TestCase):
+    def test_member_cannot_reshare_restricted(self):
+        """Un membre ne pouvant pas consulter un document restreint ne peut pas le repartager."""
+        fake = _supabase(doc=RESTRICTED, caller_role="member")
+        with self.assertRaises(HTTPException) as ctx:
+            add_document_to_projects(
+                "d1",
+                AddToProjectsRequest(monument_ids=["m2"]),
+                user_id="u1",
+                supabase=fake,
+            )
+        self.assertEqual(ctx.exception.status_code, 404)
 
 
 class ListDocumentsFilterTests(unittest.TestCase):

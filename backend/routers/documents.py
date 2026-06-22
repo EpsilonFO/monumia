@@ -80,20 +80,6 @@ class AddToProjectsRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _get_document_or_404(supabase: Client, document_id: str, user_id: str) -> dict:
-    result = (
-        supabase.table("documents")
-        .select(COLUMNS)
-        .eq("id", document_id)
-        .eq("user_id", user_id)
-        .single()
-        .execute()
-    )
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Document introuvable")
-    return result.data
-
-
 def _get_document_any(supabase: Client, document_id: str) -> dict:
     result = supabase.table("documents").select(COLUMNS).eq("id", document_id).single().execute()
     if not result.data:
@@ -283,7 +269,7 @@ def get_document_signed_url(
     La signature est faite côté serveur avec le client service-role : elle
     contourne la RLS storage (restreinte au dossier du dépositaire) afin que
     *tout membre* d'un projet du document — pas seulement son auteur — puisse le
-    consulter. L'accès est contrôlé au niveau applicatif par _require_document_read.
+    consulter. L'accès est contrôlé au niveau applicatif par _require_document_view.
     """
     doc = _require_document_view(supabase, document_id, user_id)
     storage_path = doc.get("url") or ""
@@ -377,7 +363,7 @@ def link_to_dossier(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    doc = _require_document_read(supabase, document_id, user_id)
+    doc = _require_document_view(supabase, document_id, user_id)
 
     dossier = (
         supabase.table("dossiers")
@@ -388,7 +374,7 @@ def link_to_dossier(
     )
     if not dossier or not dossier.data:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
-    # Tout membre du projet peut rattacher au dossier un document qu'il peut lire
+    # Tout membre du projet peut rattacher au dossier un document qu'il peut consulter
     # (le sien, typiquement) — le dépôt de pièces n'est pas réservé aux chefs.
     require_project_access(supabase, dossier.data["monument_id"], user_id, "member")
 
@@ -448,8 +434,8 @@ def add_document_to_projects(
     if not body.monument_ids:
         raise HTTPException(status_code=400, detail="Aucun projet cible fourni")
 
-    # Accès partagé : l'auteur ou tout membre d'un projet du document peut le lire.
-    source = _require_document_read(supabase, document_id, user_id)
+    # Accès partagé : seul quelqu'un pouvant consulter le document peut le repartager.
+    source = _require_document_view(supabase, document_id, user_id)
 
     # Tout membre d'un projet cible peut y associer le document (modèle lien, pas de copie).
     for mid in body.monument_ids:
