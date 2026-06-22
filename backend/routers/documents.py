@@ -6,7 +6,9 @@ from supabase import Client
 
 from db import get_current_user_id, get_supabase
 from services.project_access import (
+    allowed_visibilities,
     can_delete_document,
+    can_edit_visibility,
     get_project_role,
     require_project_access,
     role_at_least,
@@ -54,6 +56,8 @@ class CreateDocumentRequest(BaseModel):
     monument_id: str | None = None
     date_document: str | None = None
     description: str | None = None
+    visibility: str | None = None
+    allowed_user_ids: list[str] = []
 
 
 class UpdateDocumentRequest(BaseModel):
@@ -62,6 +66,8 @@ class UpdateDocumentRequest(BaseModel):
     tags: list[str] | None = None
     date_document: str | None = None
     description: str | None = None
+    visibility: str | None = None
+    allowed_user_ids: list[str] | None = None
 
 
 class AddToProjectsRequest(BaseModel):
@@ -113,6 +119,27 @@ def _highest_project_role(supabase: Client, monument_ids: list | None, user_id: 
         if r is not None and (best is None or role_at_least(r, best)):
             best = r
     return best
+
+
+def _resolve_visibility(
+    requested: str | None,
+    allowed_user_ids: list[str],
+    role: str | None,
+    *,
+    has_project: bool,
+) -> tuple[str, list[str]]:
+    """Normalise/valide la visibilité demandée selon le rôle de l'auteur.
+
+    Document sans projet → 'team' (pas de contexte de partage). Sinon défaut
+    'team' pour un responsable, 'responsables' pour un collaborateur. La liste
+    `allowed_user_ids` n'est conservée que pour 'custom'.
+    """
+    if not has_project:
+        return "team", []
+    visibility = requested or ("team" if role_at_least(role, "co_owner") else "responsables")
+    if visibility not in allowed_visibilities(role):
+        raise HTTPException(status_code=422, detail="Visibilité non autorisée pour votre rôle")
+    return visibility, (list(allowed_user_ids) if visibility == "custom" else [])
 
 
 def _merge_monument_ids(existing: list[str], new: list[str]) -> list[str]:
@@ -172,22 +199,31 @@ def create_document(
     if body.monument_id and body.monument_id not in monument_ids:
         monument_ids.append(body.monument_id)
 
-    # Validate access for all referenced monuments (membre suffit pour déposer)
+    # Accès (membre suffit pour déposer) + rôle le plus élevé parmi les projets.
+    top_role = None
     for mid in monument_ids:
-        require_project_access(supabase, mid, user_id, "member")
+        r = require_project_access(supabase, mid, user_id, "member")
+        if top_role is None or role_at_least(r, top_role):
+            top_role = r
+
+    visibility, allowed_ids = _resolve_visibility(
+        body.visibility, body.allowed_user_ids, top_role, has_project=bool(monument_ids)
+    )
 
     # The client uploads to <user_id>/... in storage, then submits the path here.
-    # Reject anything that isn't strictly scoped to the caller's folder so we
-    # never store a path that points at another user's files.
     safe_path = _validate_storage_path(body.url, user_id)
 
-    payload = body.model_dump(exclude_none=True, exclude={"monument_id", "url"})
+    payload = body.model_dump(
+        exclude_none=True, exclude={"monument_id", "url", "visibility", "allowed_user_ids"}
+    )
     row = {
         **payload,
         "url": safe_path,
         "monument_ids": monument_ids,
         "user_id": user_id,
         "dossiers_utilises": [],
+        "visibility": visibility,
+        "allowed_user_ids": allowed_ids,
     }
 
     result = supabase.table("documents").insert(row).execute()
@@ -243,10 +279,24 @@ def update_document(
 ):
     doc = _get_document_any(supabase, document_id)
     role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
-    if not can_delete_document(role, is_uploader=(doc.get("user_id") == user_id)):
+    is_uploader = doc.get("user_id") == user_id
+    if not can_edit_visibility(role, is_uploader=is_uploader):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas modifier ce document")
 
     updates = body.model_dump(exclude_none=True)
+
+    # Visibilité : valider selon le rôle, et purger la liste hors mode 'custom'.
+    if "visibility" in updates or "allowed_user_ids" in updates:
+        new_vis = updates.get("visibility", doc.get("visibility") or "team")
+        if new_vis not in allowed_visibilities(role):
+            raise HTTPException(status_code=422, detail="Visibilité non autorisée pour votre rôle")
+        updates["visibility"] = new_vis
+        updates["allowed_user_ids"] = (
+            updates.get("allowed_user_ids", doc.get("allowed_user_ids") or [])
+            if new_vis == "custom"
+            else []
+        )
+
     if not updates:
         return doc
 
