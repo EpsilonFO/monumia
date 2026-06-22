@@ -6,14 +6,14 @@ function atLeast(role: ProjectRole | null, min: ProjectRole): boolean {
   return role !== null && RANK[role] >= RANK[min];
 }
 
-/** Visibilites qu'un role a le droit de poser. Un collaborateur n'a pas toute l'equipe. */
+/** Visibilités qu'un rôle a le droit de poser. Un collaborateur n'a pas toute l'équipe. */
 export function allowedVisibilities(role: ProjectRole | null): DocumentVisibility[] {
   return atLeast(role, 'co_owner')
     ? ['team', 'responsables', 'custom']
     : ['responsables', 'custom'];
 }
 
-/** Changer la visibilite : l'auteur, ou un owner/co_owner. */
+/** Changer la visibilité : l'auteur, ou un owner/co_owner. */
 export function canEditVisibility(isUploader: boolean, role?: ProjectRole | null): boolean {
   return isUploader || atLeast(role ?? null, 'co_owner');
 }
@@ -33,7 +33,7 @@ export function canViewDocument(
   return false;
 }
 
-/** Pre-coche la liste personnnes choisies selon le prerequisglage quitte. */
+/** Pré-coche la liste « personnes choisies » selon le réglage précédent. */
 export function customIdsForPreset(
   prior: DocumentVisibility,
   members: { userId: ID; role: ProjectRole }[],
@@ -44,7 +44,7 @@ export function customIdsForPreset(
 }
 
 export const VISIBILITY_META: Record<DocumentVisibility, { label: string; help: string }> = {
-  team: { label: 'Toute l\'equipe', help: 'Tous les collaborateurs du projet' },
+  team: { label: "Toute l'équipe", help: 'Tous les collaborateurs du projet' },
   responsables: { label: 'Le chef de projet et ses adjoints', help: 'Les responsables du projet' },
   custom: { label: 'Personnes choisies', help: 'Vous choisissez qui peut le voir' },
 };
