@@ -488,9 +488,10 @@ def unlink_from_dossier(
     dossiers: list = doc.get("dossiers_utilises") or []
     updated = [d for d in dossiers if d != dossier_id]
 
-    supabase.table("documents").update({"dossiers_utilises": updated}).eq(
-        "id", document_id
-    ).execute()
+    patch: dict = {"dossiers_utilises": updated}
+    if _should_auto_trash(doc.get("monument_ids"), updated):
+        patch["trashed_at"] = _now_iso()
+    supabase.table("documents").update(patch).eq("id", document_id).execute()
 
 
 @router.post("/{document_id}/projects")
@@ -518,5 +519,38 @@ def add_document_to_projects(
     merged = _merge_monument_ids(source.get("monument_ids") or [], body.monument_ids)
     result = (
         supabase.table("documents").update({"monument_ids": merged}).eq("id", document_id).execute()
+    )
+    return result.data[0]
+
+
+@router.post("/{document_id}/trash")
+def trash_document(
+    document_id: str,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Mettre un document à la corbeille : le détacher de tous ses projets/dossiers
+    et poser `trashed_at`. Récupérable via /restore, supprimable définitivement via DELETE."""
+    doc = _get_document_any(supabase, document_id)
+    role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
+    if not can_delete_document(role, is_uploader=(doc.get("user_id") == user_id)):
+        raise HTTPException(status_code=403, detail="Vous ne pouvez pas supprimer ce document")
+    patch = {"monument_ids": [], "dossiers_utilises": [], "trashed_at": _now_iso()}
+    result = supabase.table("documents").update(patch).eq("id", document_id).execute()
+    return result.data[0]
+
+
+@router.post("/{document_id}/restore")
+def restore_document(
+    document_id: str,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Restaurer un document de la corbeille (revient en « Sans projet »)."""
+    doc = _get_document_any(supabase, document_id)
+    if doc.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="Seul l'auteur peut restaurer ce document")
+    result = (
+        supabase.table("documents").update({"trashed_at": None}).eq("id", document_id).execute()
     )
     return result.data[0]
