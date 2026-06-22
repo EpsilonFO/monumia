@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Upload, File, X, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +25,10 @@ import { formatFileSize } from '@/lib/format-utils';
 import { ACCEPT_ATTR, MAX_FILE_SIZE_MB, validateFile } from '@/constants/file-types';
 import { toast } from 'sonner';
 import type { DocumentType } from '@/types';
+import { DocumentVisibilityField, type DocumentVisibilityValue } from './DocumentVisibilityField';
+import { sharingService } from '@/services/sharing.service';
+import { isProjectShared } from '@/lib/project-permissions';
+import type { ProjectMember } from '@/types';
 
 const TYPE_LABELS: Record<DocumentType, string> = {
   photo: 'Photo',
@@ -57,9 +61,30 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
   const [type, setType] = useState<DocumentType | ''>('');
   const [monumentIds, setMonumentIds] = useState<string[]>([]);
   const [description, setDescription] = useState('');
+  const [access, setAccess] = useState<DocumentVisibilityValue>({ visibility: 'team', allowedUserIds: [] });
+  const [members, setMembers] = useState<ProjectMember[]>([]);
   const [loading, setLoading] = useState(false);
 
   const userMonuments = user ? monuments.filter((m) => m.userId === user.id) : [];
+
+  // Le contrôle de visibilité n'apparaît que pour UN seul projet partagé sélectionné.
+  const singleMonument =
+    monumentIds.length === 1 ? userMonuments.find((m) => m.id === monumentIds[0]) : undefined;
+  const showVisibility = !!singleMonument && isProjectShared(singleMonument);
+
+  useEffect(() => {
+    if (!showVisibility || !singleMonument) {
+      setMembers([]);
+      setAccess({ visibility: 'team', allowedUserIds: [] });
+      return;
+    }
+    let cancelled = false;
+    sharingService
+      .getMembers(singleMonument.id)
+      .then((r) => { if (!cancelled) setMembers(r.members); })
+      .catch(() => { if (!cancelled) setMembers([]); });
+    return () => { cancelled = true; };
+  }, [showVisibility, singleMonument]);
 
   const acceptFile = (candidate: File) => {
     const err = validateFile(candidate);
@@ -99,6 +124,8 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
           monumentIds: monumentIds.length > 0 ? monumentIds : undefined,
           description: description || undefined,
           tags: [],
+          visibility: showVisibility ? access.visibility : undefined,
+          allowedUserIds: showVisibility ? access.allowedUserIds : undefined,
         },
         user.id
       );
@@ -117,6 +144,8 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
     setType('');
     setMonumentIds([]);
     setDescription('');
+    setAccess({ visibility: 'team', allowedUserIds: [] });
+    setMembers([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     onOpenChange(false);
   };
@@ -244,6 +273,15 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
               rows={2}
             />
           </div>
+
+          {showVisibility && (
+            <DocumentVisibilityField
+              value={access}
+              onChange={setAccess}
+              currentUserRole={singleMonument?.myRole ?? 'owner'}
+              members={members}
+            />
+          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>
