@@ -9,7 +9,10 @@ interface DocumentState {
 
   fetchDocuments: (params?: { monumentId?: string; type?: string }) => Promise<void>;
   uploadDocument: (payload: UploadDocumentPayload, userId: string) => Promise<Document>;
-  updateDocument: (id: string, updates: { nom?: string; type?: string; description?: string }) => Promise<void>;
+  updateDocument: (
+    id: string,
+    updates: { nom?: string; type?: string; description?: string; visibility?: Document['visibility']; allowedUserIds?: string[] },
+  ) => Promise<void>;
   deleteDocument: (id: string) => Promise<void>;
   addToProjects: (documentId: string, monumentIds: string[]) => Promise<Document>;
   linkToDossier: (documentId: string, dossierId: string) => Promise<void>;

@@ -33,6 +33,8 @@ function makeDoc(monumentIds: string[]): Document {
     url: 'u1/doc.pdf',
     dossiersUtilises: [],
     dateUpload: '2026-01-01T00:00:00Z',
+    visibility: 'team',
+    allowedUserIds: [],
   };
 }
 
