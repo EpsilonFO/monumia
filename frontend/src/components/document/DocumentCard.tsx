@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Receipt, Image, FileSpreadsheet, FileArchive, FolderOpen, FolderPlus, MoreVertical, Pencil, Trash2, ScrollText, Scale, FileSearch, PenTool, FileText, Stamp, FileBadge, ClipboardList } from 'lucide-react';
+import { Receipt, Image, FileSpreadsheet, FileArchive, FolderOpen, FolderPlus, MoreVertical, Pencil, Trash2, ScrollText, Scale, FileSearch, PenTool, FileText, Stamp, FileBadge, ClipboardList, Lock, ShieldCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/dialog';
 import { formatFileSize } from '@/lib/format-utils';
 import { canDeleteDocument } from '@/lib/project-permissions';
+import { canEditVisibility } from '@/lib/document-visibility';
+import { ManageDocumentAccessDialog } from './ManageDocumentAccessDialog';
 import { useAuthStore } from '@/stores/useAuthStore';
 import type { Document, ProjectRole } from '@/types';
 
@@ -66,6 +68,9 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
   // droits sur les docs). Un membre ne peut agir que sur les siens. Consultation
   // ouverte à tous.
   const canModify = canDeleteDocument(isUploader, myRole);
+  const canManageAccess = canEditVisibility(isUploader, myRole);
+  const isRestricted = document.visibility !== 'team';
+  const [accessOpen, setAccessOpen] = useState(false);
 
   const Icon = typeIcons[document.type] ?? FileText;
   const accent = typeAccent[document.type] ?? typeAccent.autre;
@@ -115,7 +120,7 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
                 <p className="text-[11px] text-[#8E92A4]">Ajouté par {uploaderName}</p>
               )}
             </div>
-            {((onRename && canModify) || (onDelete && canModify) || onAddToProject) && (
+            {((onRename && canModify) || (onDelete && canModify) || onAddToProject || canManageAccess) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                   <button className="shrink-0 p-1 rounded-md hover:bg-[#F8F7F4] transition-colors opacity-0 group-hover:opacity-100">
@@ -126,6 +131,11 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
                   {onAddToProject && (
                     <DropdownMenuItem onClick={() => onAddToProject(document)}>
                       <FolderPlus className="h-3.5 w-3.5 mr-2" />Ajouter à un projet
+                    </DropdownMenuItem>
+                  )}
+                  {canManageAccess && (
+                    <DropdownMenuItem onClick={() => setAccessOpen(true)}>
+                      <ShieldCheck className="h-3.5 w-3.5 mr-2" />Gérer l'accès
                     </DropdownMenuItem>
                   )}
                   {onRename && canModify && (
@@ -152,6 +162,16 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
               {typeLabels[document.type] ?? document.type}
             </Badge>
             <span className="text-[11px] text-[#8E92A4]">{formatFileSize(document.tailleFichier)}</span>
+            {isRestricted && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                style={{ background: '#FBEAE8', color: '#C0271D' }}
+                title="Visible uniquement par certaines personnes"
+              >
+                <Lock className="h-2.5 w-2.5" />
+                Accès restreint
+              </span>
+            )}
           </div>
 
           {/* Monument link */}
@@ -178,6 +198,13 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
           )}
         </div>
       </div>
+
+      <ManageDocumentAccessDialog
+        document={document}
+        myRole={myRole ?? null}
+        open={accessOpen}
+        onOpenChange={setAccessOpen}
+      />
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent className="sm:max-w-sm" onClick={(e) => e.stopPropagation()}>
