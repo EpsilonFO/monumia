@@ -195,6 +195,27 @@ def _filter_visible(rows: list[dict], user_id: str, my_roles: dict[str, str]) ->
     ]
 
 
+def _my_project_roles(supabase: Client, user_id: str) -> dict[str, str]:
+    """Tous mes projets → mon rôle (owner gagne sur une éventuelle ligne membre)."""
+    roles: dict[str, str] = {}
+    members = (
+        supabase.table("project_members")
+        .select("monument_id, role")
+        .eq("user_id", user_id)
+        .execute()
+        .data
+        or []
+    )
+    for m in members:
+        roles[m["monument_id"]] = m["role"]
+    owned = (
+        supabase.table("monuments").select("id").eq("user_id", user_id).execute().data or []
+    )
+    for o in owned:
+        roles[o["id"]] = "owner"
+    return roles
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -204,6 +225,7 @@ def _filter_visible(rows: list[dict], user_id: str, my_roles: dict[str, str]) ->
 def list_documents(
     monument_id: str | None = Query(None),
     type: str | None = Query(None),
+    trashed: bool = Query(False),
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
@@ -230,16 +252,33 @@ def list_documents(
             )
         ]
 
-    # Vue « mes documents » : uniquement ceux que j'ai déposés (tous visibles par l'auteur).
-    query = (
-        supabase.table("documents")
-        .select(COLUMNS)
-        .eq("user_id", user_id)
-        .order("date_upload", desc=True)
-    )
+    # Vue « Mes documents » : tout ce que je peux voir (mes uploads + les documents
+    # des projets où je suis membre, filtrés par les droits de consultation).
+    my_roles = _my_project_roles(supabase, user_id)
+
+    if trashed:
+        # Corbeille personnelle : uniquement MES documents jetés.
+        query = (
+            supabase.table("documents")
+            .select(COLUMNS)
+            .eq("user_id", user_id)
+            .not_.is_("trashed_at", "null")
+        )
+        if type:
+            query = query.eq("type", type)
+        return query.order("date_upload", desc=True).execute().data or []
+
+    query = supabase.table("documents").select(COLUMNS).is_("trashed_at", "null")
+    my_ids = list(my_roles.keys())
+    if my_ids:
+        ids_literal = ",".join(my_ids)
+        query = query.or_(f"user_id.eq.{user_id},monument_ids.ov.{{{ids_literal}}}")
+    else:
+        query = query.eq("user_id", user_id)
     if type:
         query = query.eq("type", type)
-    return query.execute().data
+    rows = query.order("date_upload", desc=True).execute().data or []
+    return _filter_visible(rows, user_id, my_roles)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
