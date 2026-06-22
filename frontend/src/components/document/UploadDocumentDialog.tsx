@@ -84,7 +84,8 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
       .then((r) => { if (!cancelled) setMembers(r.members); })
       .catch(() => { if (!cancelled) setMembers([]); });
     return () => { cancelled = true; };
-  }, [showVisibility, singleMonument]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- on dépend de l'id stable plutôt que de l'objet pour éviter les re-runs sur chaque refresh du store
+  }, [showVisibility, singleMonument?.id]);
 
   const acceptFile = (candidate: File) => {
     const err = validateFile(candidate);
