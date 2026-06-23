@@ -314,18 +314,27 @@ def create_dossier_from_aide(
     user: dict,
     travaux_prevus: list[str],
 ) -> dict:
-    # Use documents_requis from the aide (stored in aides_v2 as jsonb array of strings)
+    # documents_requis peut être une liste de chaînes (ancien format) OU d'objets
+    # structurés {nom, url, note, obligatoire} (format YAML du moteur d'aides).
     documents_requis: list = aide.get("documents_requis") or aide.get("documentsRequis") or []
 
     checklist = []
     if documents_requis:
-        for i, doc_name in enumerate(documents_requis):
+        for i, doc in enumerate(documents_requis):
+            if isinstance(doc, dict):
+                label = doc.get("nom") or doc.get("label") or ""
+                description = doc.get("note") or ""
+                obligatoire = doc.get("obligatoire", True)
+            else:
+                label = doc
+                description = ""
+                obligatoire = True
             checklist.append(
                 {
                     "id": str(uuid.uuid4()),
-                    "label": doc_name,
-                    "description": "",
-                    "obligatoire": True,
+                    "label": label,
+                    "description": description,
+                    "obligatoire": obligatoire,
                     "categorie": "document",
                     "ordre": i + 1,
                     "statut": "manquant",

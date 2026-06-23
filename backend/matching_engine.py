@@ -1,5 +1,5 @@
 """
-Matching engine v2 — uses normalised aides_v2 tables.
+Matching engine v2 — uses normalised aides_v3 tables.
 
 Three-phase approach:
   1. SQL pre-filter via prefiltrer_aides() → candidate aide UUIDs (source of truth for eligibility)
@@ -240,7 +240,7 @@ def prefiltrer_aides(
 # ---------------------------------------------------------------------------
 
 
-# Criteria arrays live directly on aides_v2 since the join tables were folded in.
+# Criteria arrays live directly on aides_v3 since the join tables were folded in.
 # Kept as a constant so callers can still iterate (e.g. to zero-out missing keys).
 _CRITERIA_ARRAY_KEYS = (
     "protections",
@@ -253,11 +253,11 @@ _CRITERIA_ARRAY_KEYS = (
 
 
 def fetch_aides_with_joins(supabase: Client, aide_ids: list[str]) -> list[dict]:
-    """Fetch aides by id. Criteria arrays are columns on aides_v2 — no extra joins."""
+    """Fetch aides by id. Criteria arrays are columns on aides_v3 — no extra joins."""
     if not aide_ids:
         return []
 
-    aides_result = supabase.table("aides_v2").select("*").in_("id", aide_ids).execute()
+    aides_result = supabase.table("aides_v3").select("*").in_("id", aide_ids).execute()
     aides = aides_result.data or []
 
     # Guarantee list-typed keys even on rows where the array column came back null.
@@ -1478,7 +1478,7 @@ async def run_diagnostic(
 
     # Phase 1: SQL pre-filter (also resolves the commune population, reused below)
     candidate_ids, population = prefiltrer_aides(supabase, monument, user, ctx_travaux or None)
-    all_aide_ids = [a["id"] for a in (supabase.table("aides_v2").select("id").execute()).data or []]
+    all_aide_ids = [a["id"] for a in (supabase.table("aides_v3").select("id").execute()).data or []]
     non_candidate_ids = [aid for aid in all_aide_ids if aid not in candidate_ids]
     logger.info(
         "PHASE 1 — pré-filtre SQL : %d candidate(s) / %d exclue(s) sur %d",

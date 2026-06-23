@@ -1,15 +1,16 @@
 import { useRef } from 'react';
 import { Check } from 'lucide-react';
 import { C, SERIF } from '@/lib/brand';
-import { QUESTIONNAIRE_QUESTIONS } from '@/types';
-import type { ProjectQuestionnaireAnswers } from '@/types';
+import type { ProjectQuestionnaireAnswers, QcmQuestion } from '@/types';
 
 interface ProjectQuestionnaireProps {
+  /** Questions générées par le moteur d'aides (faits manquants du diagnostic). */
+  questions: QcmQuestion[];
   value: ProjectQuestionnaireAnswers;
   onChange: (answers: ProjectQuestionnaireAnswers) => void;
 }
 
-export function ProjectQuestionnaire({ value, onChange }: ProjectQuestionnaireProps) {
+export function ProjectQuestionnaire({ questions, value, onChange }: ProjectQuestionnaireProps) {
   /** Refs to all radio buttons, keyed by `${questionId}:${optionId}`. */
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -43,7 +44,7 @@ export function ProjectQuestionnaire({ value, onChange }: ProjectQuestionnairePr
 
   return (
     <div className="space-y-8">
-      {QUESTIONNAIRE_QUESTIONS.map((q, index) => (
+      {questions.map((q, index) => (
         /* role="radiogroup" is valid on <fieldset>; the <legend> provides the accessible name. */
         <fieldset key={q.id} role="radiogroup" className="space-y-3">
           <legend className="flex items-baseline gap-2">

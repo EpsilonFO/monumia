@@ -1,4 +1,4 @@
-"""Insert Exonération Taxe Foncière aid into Supabase aides_v2 tables."""
+"""Insert Exonération Taxe Foncière aid into Supabase aides_v3 tables."""
 
 import os
 import sys
@@ -14,7 +14,7 @@ from supabase import create_client
 supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SECRET_KEY"])
 
 aide = (
-    supabase.table("aides_v2")
+    supabase.table("aides_v3")
     .insert(
         {
             "nom": "Exonération de taxe foncière pour les monuments historiques",

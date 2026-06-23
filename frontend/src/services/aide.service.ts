@@ -50,9 +50,39 @@ export const aideService = {
     }
   },
 
+  /**
+   * Diagnostic 100 % déterministe (aucun LLM), restreint aux aides « engine-ready »
+   * (conditions entièrement typées). Non persisté côté serveur : le résultat n'a
+   * pas d'`id` et le QCM se résout côté client via eliminationsParOption.
+   */
+  async runDeterministicDiagnostic(
+    monumentId: string,
+    answers?: Record<string, unknown>
+  ): Promise<AideDiagnosticResult> {
+    const res = await authFetch(`${BASE}/aides/diagnostic-deterministe`, {
+      method: 'POST',
+      body: JSON.stringify({ monument_id: monumentId, answers }),
+    });
+    return handleResponse<AideDiagnosticResult>(res);
+  },
+
   async getDiagnostics(monumentId: string): Promise<AideDiagnosticResult[]> {
     const res = await authFetch(`${BASE}/aides/diagnostics/${monumentId}`);
     return handleResponse<AideDiagnosticResult[]>(res);
+  },
+
+  /**
+   * Diagnostic d'un projet, prêt à afficher. Le moteur déterministe est ré-évalué
+   * AVEC les réponses enregistrées du monument (`questionnaire`) : un `user_fact`
+   * répondu positivement promeut l'aide en éligible, un répondu négativement la
+   * rétrograde — ce qu'une simple élimination côté client ne permettait pas.
+   * Source unique : wizard, page projet, liste et dashboard.
+   */
+  async runProjectDiagnostic(
+    monumentId: string,
+    answers?: Record<string, string>,
+  ): Promise<AideDiagnosticResult> {
+    return this.runDeterministicDiagnostic(monumentId, answers ?? {});
   },
 
   async saveQcmAnswers(

@@ -20,7 +20,7 @@ supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SECRET
 # ── 1. Aide principale ──────────────────────────────────────────────
 
 aide = (
-    supabase.table("aides_v2")
+    supabase.table("aides_v3")
     .insert(
         {
             "nom": "Mécénat des particuliers — Réduction d'impôt sur le revenu (article 200 du CGI)",

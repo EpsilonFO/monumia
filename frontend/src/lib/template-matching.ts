@@ -29,6 +29,9 @@ const DEFAULT_LIMIT = 3;
  * snake_case), mots-vides et tokens d'un seul caractère écartés.
  */
 export function normalize(text: string): string[] {
+  // Défense : une donnée malformée (label non-chaîne) ne doit pas faire planter
+  // le matching (`.normalize` n'existe pas sur un objet).
+  if (typeof text !== 'string') return [];
   return text
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '') // diacritiques

@@ -1,6 +1,6 @@
 -- Seed the Aveyron departmental fund for restoration of non-protected rural heritage.
 -- Source: aveyron.csv export.
-insert into public.aides_v2 (
+insert into public.aides_v3 (
     id,
     nom,
     nom_court,

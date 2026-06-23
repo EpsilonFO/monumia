@@ -1,12 +1,12 @@
+import type { ReactNode } from 'react';
 import {
   ExternalLink, Clock, Building2, FileText,
-  CheckCircle2, XCircle, HelpCircle,
+  CheckCircle2, XCircle, HelpCircle, Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import type { ReactNode } from 'react';
 import { AIDE_CATEGORIES } from '@/constants/aide-categories';
 import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import type { Aide, AideMatchResult } from '@/types';
@@ -27,6 +27,110 @@ interface AideDetailsProps {
   showDocumentsRequis?: boolean;
   /** Contenu rendu dans la colonne de droite, juste sous la carte « Informations clés ». */
   aside?: ReactNode;
+}
+
+type Evaluation = NonNullable<NonNullable<AideMatchResult['llmEvaluation']>['evaluations']>[number];
+type Tone = 'green' | 'red' | 'amber' | 'muted';
+
+function EvalLine({ critere, explication, tone }: { critere: string; explication?: string; tone: Tone }) {
+  const Icon = tone === 'green' ? CheckCircle2 : tone === 'red' ? XCircle : tone === 'amber' ? HelpCircle : Info;
+  const iconClass = tone === 'green' ? 'text-green-600' : tone === 'red' ? 'text-red-500' : tone === 'amber' ? 'text-amber-500' : 'text-muted-foreground';
+  const textClass = tone === 'red' ? 'text-red-700' : tone === 'amber' ? 'text-amber-700' : tone === 'muted' ? 'text-muted-foreground' : '';
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-start gap-2 text-sm">
+        <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${iconClass}`} />
+        <span className={textClass}>{critere}</span>
+      </div>
+      {explication && <p className="pl-6 text-xs text-muted-foreground">{explication}</p>}
+    </div>
+  );
+}
+
+function Section({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}{count != null ? ` (${count})` : ''}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Analyse d'éligibilité groupée en sections selon la nature des conditions.
+ * Si les évaluations ne portent pas de `nature` (ancien chemin LLM), bascule
+ * sur un rendu à plat.
+ */
+function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) {
+  const evals: Evaluation[] = matchResult.llmEvaluation?.evaluations ?? [];
+  const eliminatoires = matchResult.criteresNonRemplis ?? [];
+  const hasNature = evals.some((e) => !!e.nature);
+
+  // Ancien chemin LLM (pas de nature) : rendu à plat, comme avant.
+  if (!hasNature) {
+    return (
+      <div className="space-y-2">
+        {matchResult.criteresRemplis.map((c, i) => <EvalLine key={`ok-${i}`} critere={c} tone="green" />)}
+        {eliminatoires.map((c, i) => <EvalLine key={`ko-${i}`} critere={c} tone="red" />)}
+        {evals.map((e, i) => {
+          const clarified = e.verdict === 'incertitude' && e.clarified;
+          const tone: Tone = e.verdict === 'oui' || clarified ? 'green' : e.verdict === 'non' ? 'red' : e.verdict === 'info' ? 'muted' : 'amber';
+          return <EvalLine key={`ev-${i}`} critere={e.critere} explication={e.explication} tone={tone} />;
+        })}
+      </div>
+    );
+  }
+
+  const isClarified = (e: Evaluation) => e.verdict === 'incertitude' && e.clarified;
+  const aVerifier = evals.filter((e) => e.verdict === 'incertitude' && e.nature === 'user_fact' && !e.clarified);
+  const financeur = evals.filter((e) => e.nature === 'discretionary' || e.nature === 'manual_check' || (e.nature === 'auto' && e.verdict === 'incertitude'));
+  const valides = evals.filter((e) => e.nature === 'user_fact' && (e.verdict === 'oui' || isClarified(e)));
+  const autos = evals.filter((e) => e.nature === 'auto' && e.verdict === 'oui');
+  const infos = evals.filter((e) => e.nature === 'info' || e.nature === 'modulateur');
+
+  return (
+    <>
+      {eliminatoires.length > 0 && (
+        <Section title="Critères éliminatoires">
+          {eliminatoires.map((c, i) => <EvalLine key={i} critere={c} tone="red" />)}
+        </Section>
+      )}
+      {aVerifier.length > 0 && (
+        <Section title="À vérifier" count={aVerifier.length}>
+          {aVerifier.map((e, i) => <EvalLine key={i} critere={e.critere} tone="amber" />)}
+        </Section>
+      )}
+      {financeur.length > 0 && (
+        <Section title="À confirmer auprès du financeur" count={financeur.length}>
+          {financeur.map((e, i) => (
+            <EvalLine key={i} critere={e.critere} explication={e.explication} tone={e.verdict === 'incertitude' ? 'amber' : 'muted'} />
+          ))}
+        </Section>
+      )}
+      {valides.length > 0 && (
+        <Section title="Validé par vos réponses" count={valides.length}>
+          {valides.map((e, i) => <EvalLine key={i} critere={e.critere} tone="green" />)}
+        </Section>
+      )}
+      {autos.length > 0 && (
+        <Section title="Vérifié automatiquement" count={autos.length}>
+          {autos.map((e, i) => <EvalLine key={i} critere={e.critere} tone="green" />)}
+        </Section>
+      )}
+      {infos.length > 0 && (
+        <details className="group">
+          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Bon à savoir ({infos.length})
+          </summary>
+          <div className="mt-1.5 space-y-1.5">
+            {infos.map((e, i) => <EvalLine key={i} critere={e.critere} tone="muted" />)}
+          </div>
+        </details>
+      )}
+    </>
+  );
 }
 
 export function AideDetails({ aide, matchResult, monumentName, showHeader = true, showDocumentsRequis = true, aside }: AideDetailsProps) {
@@ -71,53 +175,8 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {matchResult.criteresRemplis.map((c, i) => (
-                  <div key={`crit-ok-${i}`} className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                    <span>{c}</span>
-                  </div>
-                ))}
-                {matchResult.criteresNonRemplis.map((c, i) => (
-                  <div key={`crit-ko-${i}`} className="flex items-center gap-2 text-sm">
-                    <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-                    <span className="text-red-700">{c}</span>
-                  </div>
-                ))}
-                {matchResult.llmEvaluation?.evaluations?.map((e, i) => {
-                  const isClarified = e.verdict === 'incertitude' && e.clarified;
-                  const Icon = e.verdict === 'oui' || isClarified
-                    ? CheckCircle2
-                    : e.verdict === 'non'
-                      ? XCircle
-                      : HelpCircle;
-                  const iconClass = e.verdict === 'oui' || isClarified
-                    ? 'text-green-600'
-                    : e.verdict === 'non'
-                      ? 'text-red-500'
-                      : 'text-amber-500';
-                  const textClass = e.verdict === 'non'
-                    ? 'text-red-700'
-                    : e.verdict === 'incertitude' && !isClarified
-                      ? 'text-amber-700'
-                      : '';
-                  return (
-                    <div key={`eval-${i}`} className="space-y-0.5">
-                      <div className="flex items-start gap-2 text-sm">
-                        <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${iconClass}`} />
-                        <span className={textClass}>{e.critere}</span>
-                      </div>
-                      {e.explication && (
-                        <p className="pl-6 text-xs text-muted-foreground">{e.explication}</p>
-                      )}
-                    </div>
-                  );
-                })}
-                {matchResult.llmEvaluation?.explication && (
-                  <p className="pt-2 text-sm text-muted-foreground italic">
-                    {matchResult.llmEvaluation.explication}
-                  </p>
-                )}
+              <CardContent className="space-y-4">
+                <EligibilityAnalysis matchResult={matchResult} />
               </CardContent>
             </Card>
           )}
@@ -128,13 +187,38 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
                 <CardTitle className="text-base">Documents requis</CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-1.5 text-sm">
-                  {aide.documentsRequis.map((doc, i) => (
-                    <li key={i} className="flex items-center gap-2">
-                      <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      {doc}
-                    </li>
-                  ))}
+                <ul className="space-y-2 text-sm">
+                  {aide.documentsRequis.map((raw, i) => {
+                    const doc = typeof raw === 'string' ? { nom: raw } : raw;
+                    return (
+                      <li key={i} className="flex items-start gap-2">
+                        <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                        <div className="flex flex-col">
+                          <span className="flex items-center gap-1.5 flex-wrap">
+                            {doc.url ? (
+                              <a
+                                href={doc.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary underline inline-flex items-center gap-1"
+                              >
+                                {doc.nom}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            ) : (
+                              <span>{doc.nom}</span>
+                            )}
+                            {doc.obligatoire === false && (
+                              <Badge variant="outline" className="text-[10px]">selon le cas</Badge>
+                            )}
+                          </span>
+                          {doc.note && (
+                            <span className="text-xs text-muted-foreground">{doc.note}</span>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </CardContent>
             </Card>

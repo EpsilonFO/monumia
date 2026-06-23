@@ -1,5 +1,5 @@
 """
-Backfill the `departements` / `regions` array columns on aides_v2 for aides
+Backfill the `departements` / `regions` array columns on aides_v3 for aides
 ingested from aides-territoires.beta.gouv.fr that are missing their geo
 constraints.
 
@@ -79,9 +79,9 @@ def fetch_at_aid(client: httpx.Client, jwt: str, slug: str) -> dict | None:
 
 
 def list_target_aides(process_all: bool) -> list[dict]:
-    """Return aides_v2 rows to process (orphans by default, or everything with --all)."""
+    """Return aides_v3 rows to process (orphans by default, or everything with --all)."""
     rows = (
-        supabase.table("aides_v2")
+        supabase.table("aides_v3")
         .select("id, nom_court, organisme, source_at_slug, departements, regions")
         .not_.is_("source_at_slug", "null")
         .execute()
@@ -98,7 +98,7 @@ def list_target_aides(process_all: bool) -> list[dict]:
 def replace_geo(aide_id: str, depts: list[str], regions: list[str], dry_run: bool) -> None:
     if dry_run:
         return
-    supabase.table("aides_v2").update({"departements": depts or [], "regions": regions or []}).eq(
+    supabase.table("aides_v3").update({"departements": depts or [], "regions": regions or []}).eq(
         "id", aide_id
     ).execute()
 

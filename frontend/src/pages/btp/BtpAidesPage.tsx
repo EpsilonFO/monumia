@@ -277,12 +277,15 @@ function AideRow({
                   Documents requis ({aide.documentsRequis.length})
                 </p>
                 <div className="space-y-1">
-                  {aide.documentsRequis.map((doc) => (
-                    <div key={doc} className="flex items-start gap-2 text-xs">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                      <span>{doc}</span>
-                    </div>
-                  ))}
+                  {aide.documentsRequis.map((raw, i) => {
+                    const nom = typeof raw === 'string' ? raw : raw.nom;
+                    return (
+                      <div key={i} className="flex items-start gap-2 text-xs">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                        <span>{nom}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
