@@ -1,4 +1,4 @@
-import { FolderPlus, MoreVertical, Trash2, Lock, RotateCcw, Eye, FolderMinus } from 'lucide-react';
+import { FolderPlus, MoreVertical, Trash2, Lock, RotateCcw, Eye, FolderMinus, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -23,6 +23,7 @@ interface DocumentTileProps {
   variant?: 'normal' | 'trash';
   onPreview: (d: Document) => void;
   onAddToProject: (d: Document) => void;
+  onRename?: (d: Document) => void;
   onTrash: (d: Document) => void;
   onRemoveFromProject: (d: Document, monumentId: string) => void;
   onRestore: (d: Document) => void;
@@ -32,7 +33,7 @@ interface DocumentTileProps {
 export function DocumentTile({
   document, accentColor, monumentNames, dossiersById, uploaderName, myRole,
   sectionMonumentId, variant = 'normal',
-  onPreview, onAddToProject, onTrash, onRemoveFromProject, onRestore, onDeletePermanent,
+  onPreview, onAddToProject, onRename, onTrash, onRemoveFromProject, onRestore, onDeletePermanent,
 }: DocumentTileProps) {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const isUploader = document.userId === currentUserId;
@@ -88,6 +89,11 @@ export function DocumentTile({
                   <DropdownMenuItem onClick={() => onAddToProject(document)}>
                     <FolderPlus className="h-3.5 w-3.5 mr-2" />Ajouter à un projet
                   </DropdownMenuItem>
+                  {onRename && canModify && (
+                    <DropdownMenuItem onClick={() => onRename(document)}>
+                      <Pencil className="h-3.5 w-3.5 mr-2" />Renommer
+                    </DropdownMenuItem>
+                  )}
                   {/* Auteur : supprimer (→ corbeille). Responsable non-auteur : retirer du projet de la section. */}
                   {isUploader ? (
                     <DropdownMenuItem className="text-destructive" onClick={() => onTrash(document)}>

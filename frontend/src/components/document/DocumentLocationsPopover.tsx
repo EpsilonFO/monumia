@@ -21,7 +21,20 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
     dossiersByProject.set(d.monumentId, list);
   }
 
-  const hasNothing = document.monumentIds.length === 0 && document.dossiersUtilises.length === 0;
+  // Fix M2/I2: only render project entries we actually know about (skip unnamed).
+  const renderedProjectIds = document.monumentIds.filter((mid) => monumentNames[mid] !== undefined);
+
+  // Dossiers not already grouped under a rendered project.
+  const orphanDossiers: string[] = [];
+  for (const did of document.dossiersUtilises) {
+    const d = dossiersById[did];
+    if (!d) continue;
+    if (!renderedProjectIds.includes(d.monumentId)) {
+      orphanDossiers.push(d.titre);
+    }
+  }
+
+  const hasNothing = renderedProjectIds.length === 0 && orphanDossiers.length === 0;
 
   return (
     <Popover>
@@ -50,7 +63,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
               Ce document n'est rattaché à aucun projet ni dossier.
             </p>
           )}
-          {document.monumentIds.map((mid) => {
+          {renderedProjectIds.map((mid) => {
             const dossiers = dossiersByProject.get(mid) ?? [];
             return (
               <div key={mid} className="rounded-lg px-2 py-2" style={{ background: C.cream }}>
@@ -60,7 +73,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
                     style={{ background: projectColor(mid) }}
                   />
                   <span className="text-[12px] font-medium break-words" style={{ color: C.ink }}>
-                    {monumentNames[mid] ?? 'Projet'}
+                    {monumentNames[mid]}
                   </span>
                 </div>
                 {dossiers.length > 0 && (
@@ -80,6 +93,26 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
               </div>
             );
           })}
+          {orphanDossiers.length > 0 && (
+            <div className="rounded-lg px-2 py-2" style={{ background: C.cream }}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <FolderOpen className="h-3 w-3 shrink-0" style={{ color: '#6a7180' }} strokeWidth={1.8} />
+                <span className="text-[12px] font-medium" style={{ color: C.ink }}>Dossiers</span>
+              </div>
+              <ul className="ml-[18px] space-y-1">
+                {orphanDossiers.map((titre, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-1.5 text-[11px] break-words"
+                    style={{ color: '#6a7180' }}
+                  >
+                    <FolderOpen className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
+                    <span className="break-words">{titre}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </PopoverContent>
     </Popover>

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { Upload, Search, FolderOpen, Trash2, ChevronDown, ChevronRight, FileStack } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { RoleBadge } from '@/components/sharing/RoleBadge';
 import { DocumentTile } from '@/components/document/DocumentTile';
@@ -17,13 +19,14 @@ import { C, SERIF } from '@/lib/brand';
 import { projectColor } from '@/lib/project-color';
 import { groupDocumentsByProject } from '@/lib/group-documents';
 import { typeLabel } from '@/lib/document-type-meta';
+import { ROUTES } from '@/constants/routes';
 import type { Document } from '@/types';
 import { toast } from 'sonner';
 
 export function DocumentsPage() {
   const {
     documents, trashedDocuments, loading,
-    fetchDocuments, fetchTrashed, trashDocument, restoreDocument, removeFromProject, deleteDocument,
+    fetchDocuments, fetchTrashed, trashDocument, restoreDocument, removeFromProject, deleteDocument, updateDocument,
   } = useDocumentStore();
   const monuments = useMonumentStore((s) => s.monuments);
   const dossiers = useDossierStore((s) => s.dossiers);
@@ -35,6 +38,9 @@ export function DocumentsPage() {
   const [trashOpen, setTrashOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [addToProjectDoc, setAddToProjectDoc] = useState<Document | null>(null);
+  const [renameDoc, setRenameDoc] = useState<Document | null>(null);
+  const [renameName, setRenameName] = useState('');
+  const [renameLoading, setRenameLoading] = useState(false);
 
   useEffect(() => {
     fetchDocuments();
@@ -91,13 +97,17 @@ export function DocumentsPage() {
   );
 
   // ---- Sections projet, triées par nom ; légende ----
+  // Fix I1: exclude projects whose name is not known (foreign projects the caller
+  // is not a member of — they may appear in monument_ids but are not in my store).
   const projectSections = useMemo(() => {
-    const entries = Array.from(byProject.entries()).map(([mid, docs]) => ({
-      mid,
-      name: monumentNames[mid] ?? 'Projet',
-      color: projectColor(mid),
-      docs,
-    }));
+    const entries = Array.from(byProject.entries())
+      .filter(([mid]) => monumentNames[mid] !== undefined)
+      .map(([mid, docs]) => ({
+        mid,
+        name: monumentNames[mid]!,
+        color: projectColor(mid),
+        docs,
+      }));
     entries.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
     return entries;
   }, [byProject, monumentNames]);
@@ -131,9 +141,31 @@ export function DocumentsPage() {
     catch (e) { toast.error(e instanceof Error ? e.message : 'Erreur'); }
   };
 
+  const handleRenameOpen = (d: Document) => {
+    setRenameDoc(d);
+    setRenameName(d.nom);
+  };
+
+  const handleRenameSave = async () => {
+    if (!renameDoc) return;
+    const trimmed = renameName.trim();
+    if (!trimmed || trimmed === renameDoc.nom) { setRenameDoc(null); return; }
+    setRenameLoading(true);
+    try {
+      await updateDocument(renameDoc.id, { nom: trimmed });
+      toast.success('Document renommé');
+      setRenameDoc(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erreur');
+    } finally {
+      setRenameLoading(false);
+    }
+  };
+
   const tileHandlers = {
     onPreview: setPreviewDoc,
     onAddToProject: (d: Document) => setAddToProjectDoc(d),
+    onRename: handleRenameOpen,
     onTrash: handleTrash,
     onRemoveFromProject: handleRemoveFromProject,
     onRestore: handleRestore,
@@ -219,7 +251,7 @@ export function DocumentsPage() {
         />
       ) : (
         <div className="space-y-8">
-          {totalVisible === 0 && (
+          {totalVisible === 0 && (search.trim() !== '' || filterType !== 'all') && (
             <p className="text-[13px]" style={{ color: '#6a7180' }}>
               Aucun document ne correspond à votre recherche.
             </p>
@@ -235,6 +267,14 @@ export function DocumentsPage() {
                 <span className="text-[12px] tabular-nums" style={{ color: '#6a7180' }}>
                   {section.docs.length} document{section.docs.length > 1 ? 's' : ''}
                 </span>
+                <Link
+                  to={ROUTES.PROJET_DETAIL(section.mid)}
+                  className="ml-auto text-[12px] hover:underline"
+                  style={{ color: C.blue }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Voir le projet
+                </Link>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {section.docs.map((doc) => (
@@ -314,6 +354,39 @@ export function DocumentsPage() {
           )}
         </div>
       )}
+
+      {/* Dialogue de renommage */}
+      <Dialog open={!!renameDoc} onOpenChange={(open) => { if (!open) setRenameDoc(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Renommer le document</DialogTitle></DialogHeader>
+          <Input
+            value={renameName}
+            onChange={(e) => setRenameName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleRenameSave(); }}
+            autoFocus
+            className="h-10 text-[14px]"
+            style={{ background: C.card, borderColor: C.border }}
+          />
+          <DialogFooter>
+            <button
+              onClick={() => setRenameDoc(null)}
+              disabled={renameLoading}
+              className="px-4 py-2 text-[13px] font-medium border rounded-lg transition-colors"
+              style={{ borderColor: C.border, color: '#5C6178' }}
+            >
+              Annuler
+            </button>
+            <button
+              onClick={handleRenameSave}
+              disabled={!renameName.trim() || renameLoading}
+              className="px-4 py-2 text-[13px] font-semibold text-white rounded-lg disabled:opacity-50 hover:shadow-md transition-all"
+              style={{ background: C.blue }}
+            >
+              {renameLoading ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <UploadDocumentDialog open={uploadOpen} onOpenChange={setUploadOpen} />
       <DocumentPreviewDialog

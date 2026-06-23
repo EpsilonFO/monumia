@@ -8,6 +8,7 @@ from routers.documents import (
     _best_role,
     _filter_visible,
     _should_auto_trash,
+    list_documents,
     remove_document_from_project,
     restore_document,
     trash_document,
@@ -193,3 +194,126 @@ class RemoveFromProjectTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             remove_document_from_project("d1", "m1", user_id="u1", supabase=fake)
         self.assertEqual(ctx.exception.status_code, 403)
+
+
+# ---------------------------------------------------------------------------
+# Fake Supabase étendu pour list_documents (Fix 5 — tests d'endpoint)
+# ---------------------------------------------------------------------------
+
+class _NotProxy:
+    """Proxy pour `supabase.table(...).not_.is_(col, val)` — retourne la query parente."""
+
+    def __init__(self, query):
+        self._query = query
+
+    def is_(self, *a, **k):
+        return self._query
+
+
+class _ListQuery:
+    """Fake query chaînable couvrant tous les appels de list_documents."""
+
+    def __init__(self, response):
+        self._response = response
+
+    # Chainable stubs — tous retournent self
+    def select(self, *a, **k):
+        return self
+
+    def eq(self, *a, **k):
+        return self
+
+    def order(self, *a, **k):
+        return self
+
+    def is_(self, *a, **k):
+        return self
+
+    def or_(self, *a, **k):
+        return self
+
+    def contains(self, *a, **k):
+        return self
+
+    @property
+    def not_(self):
+        return _NotProxy(self)
+
+    def execute(self):
+        return self._response
+
+
+class _ListFakeSupabase:
+    """Fake Supabase dont chaque table a une réponse fixe configurée à la construction."""
+
+    def __init__(self, responses: dict):
+        self._responses = responses
+
+    def table(self, name: str):
+        return _ListQuery(self._responses.get(name, _Resp([])))
+
+
+class ListDocumentsTests(unittest.TestCase):
+    # Un document « team » (visible par les membres) et un « responsables » (owner/co_owner seulement).
+    TEAM_DOC = {
+        "id": "doc-team",
+        "user_id": "u99",
+        "monument_ids": ["m1"],
+        "visibility": "team",
+        "allowed_user_ids": [],
+        "dossiers_utilises": [],
+    }
+    RESP_DOC = {
+        "id": "doc-resp",
+        "user_id": "u99",
+        "monument_ids": ["m1"],
+        "visibility": "responsables",
+        "allowed_user_ids": [],
+        "dossiers_utilises": [],
+    }
+    TRASHED_DOC = {
+        "id": "doc-trash",
+        "user_id": "u1",
+        "monument_ids": [],
+        "visibility": "team",
+        "allowed_user_ids": [],
+        "dossiers_utilises": [],
+        "trashed_at": "2026-01-01T00:00:00Z",
+    }
+
+    def _make_fake(self, docs, pm_data, monuments_data=None):
+        """Construit un _ListFakeSupabase avec les réponses voulues."""
+        return _ListFakeSupabase(
+            {
+                "documents": _Resp(docs),
+                "project_members": _Resp(pm_data),
+                "monuments": _Resp(monuments_data or []),
+            }
+        )
+
+    def test_trashed_returns_caller_trashed_docs(self):
+        """trashed=True → retourne les documents dans la corbeille de l'appelant."""
+        fake = self._make_fake(
+            docs=[self.TRASHED_DOC],
+            pm_data=[{"monument_id": "m1", "role": "member"}],
+        )
+        result = list_documents(
+            monument_id=None, type=None, trashed=True, user_id="u1", supabase=fake
+        )
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["id"], "doc-trash")
+
+    def test_non_trashed_member_sees_team_not_responsables(self):
+        """trashed=False + rôle member → doc team inclus, doc responsables exclu."""
+        # project_members renvoie une liste (itérée par _my_project_roles)
+        fake = self._make_fake(
+            docs=[self.TEAM_DOC, self.RESP_DOC],
+            pm_data=[{"monument_id": "m1", "role": "member"}],
+            monuments_data=[],  # pas owner de monument
+        )
+        result = list_documents(
+            monument_id=None, type=None, trashed=False, user_id="u1", supabase=fake
+        )
+        ids = [r["id"] for r in result]
+        self.assertIn("doc-team", ids)
+        self.assertNotIn("doc-resp", ids)
