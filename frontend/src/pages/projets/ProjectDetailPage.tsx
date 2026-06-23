@@ -26,10 +26,12 @@ import { ProjectEcheancier } from '@/components/project/ProjectEcheancier';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
+import { useSuiviStore } from '@/stores/useSuiviStore';
 import { monumentService } from '@/services/monument.service';
 import { documentService } from '@/services/document.service';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
+import { suiviService } from '@/services/suivi.service';
 import { sharingService } from '@/services/sharing.service';
 import { computeProjectStats, mergeProjectDeadlines } from '@/lib/project-stats';
 import { formatDate, daysUntil } from '@/lib/date-utils';
@@ -63,6 +65,9 @@ export function ProjectDetailPage() {
 
   const allDossiers = useDossierStore((s) => s.dossiers);
   const dossiers = useMemo(() => allDossiers.filter((d) => d.monumentId === projetId), [allDossiers, projetId]);
+
+  // Chargé pour que les cartes dossier affichent leur avancement (lecture via le store).
+  const suiviLoaded = useSuiviStore((s) => (projetId ? s.loadedMonuments[projetId] : false));
 
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const setDiagnostic = useAideStore((s) => s.setDiagnostic);
@@ -119,6 +124,7 @@ export function ProjectDetailPage() {
       .catch(console.error);
   }, [projetId, setDiagnostic]);
   useEffect(() => { dossierService.fetchAll().catch(console.error); }, []);
+  useEffect(() => { if (projetId && !suiviLoaded) suiviService.fetchByMonument(projetId).catch(console.error); }, [projetId, suiviLoaded]);
   const reloadProjectDocuments = useCallback(() => {
     if (!projetId) return;
     documentService.getAll({ monumentId: projetId }).then(setProjectDocuments).catch(() => {});

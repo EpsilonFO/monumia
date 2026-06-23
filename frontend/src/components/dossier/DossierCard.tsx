@@ -2,9 +2,11 @@ import { Link } from 'react-router';
 import { MapPin, Calendar, ChevronRight } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useMonumentStore } from '@/stores/useMonumentStore';
+import { useSuiviStore } from '@/stores/useSuiviStore';
+import { AideStatutBadge } from '@/components/aide/AideStatutBadge';
 import { ROUTES } from '@/constants/routes';
 import { formatDate, isUrgent, daysUntil } from '@/lib/date-utils';
-import type { Dossier } from '@/types';
+import type { Dossier, AideSuiviStatut } from '@/types';
 import { C, SERIF } from '@/lib/brand';
 
 const MONUMENT_COLORS = [
@@ -27,6 +29,12 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
   const monuments = useMonumentStore((s) => s.monuments);
   const monument = monuments.find((m) => m.id === dossier.monumentId);
 
+  // Avancement du dossier (à défaut de suivi enregistré : « À faire »).
+  const suivi = useSuiviStore((s) =>
+    s.suivis.find((x) => x.monumentId === dossier.monumentId && x.aideId === dossier.aideId),
+  );
+  const statut: AideSuiviStatut = suivi?.statut ?? 'a_faire';
+
   const nextDeadline = dossier.echeances.find((e) => !e.accomplie);
   const fournis = dossier.checklist.filter((c) => c.statut === 'fourni').length;
   const manquants = dossier.checklist.filter((c) => c.statut === 'manquant').length;
@@ -44,17 +52,20 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
       >
 
         <div className="px-5 pt-5 pb-3">
-          {monument && (
-            <div className="mb-2.5">
+          <div className="mb-2.5 flex items-center justify-between gap-2">
+            {monument ? (
               <span
                 className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
                 style={{ background: `${color}14`, color }}
               >
                 <MapPin className="h-3 w-3 shrink-0" strokeWidth={2} />
-                <span className="truncate max-w-[180px]">{monument.nom}</span>
+                <span className="truncate max-w-[140px]">{monument.nom}</span>
               </span>
-            </div>
-          )}
+            ) : (
+              <span />
+            )}
+            <AideStatutBadge statut={statut} />
+          </div>
           <div className="flex items-start justify-between gap-2">
             <h3
               className="text-[16px] font-normal text-[#222b35] leading-tight line-clamp-2 min-h-[2.5em]"

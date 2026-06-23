@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { AideDetails } from '@/components/aide/AideDetails';
+import { AideStatutSelect } from '@/components/aide/AideStatutSelect';
 import { DossierChecklist } from '@/components/dossier/DossierChecklist';
 import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
@@ -15,12 +16,14 @@ import { useDossierStore } from '@/stores/useDossierStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useTemplateStore } from '@/stores/useTemplateStore';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useSuiviStore } from '@/stores/useSuiviStore';
 import { matchTemplates } from '@/lib/template-matching';
 import { projectPermissions } from '@/lib/project-permissions';
 import { monumentService } from '@/services/monument.service';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
 import { documentService } from '@/services/document.service';
+import { suiviService } from '@/services/suivi.service';
 import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
@@ -49,6 +52,15 @@ export function DossierDetailPage() {
 
   const currentUserId = useAuthStore((s) => s.user?.id);
 
+  // Avancement (statut / montant obtenu / motif de refus) du dossier. Le suivi est
+  // indexé par (monument, aide) ; il vit là où un dossier existe — donc ici.
+  const allSuivis = useSuiviStore((s) => s.suivis);
+  const suiviLoaded = useSuiviStore((s) => (projetId ? s.loadedMonuments[projetId] : false));
+  const suivi = useMemo(
+    () => allSuivis.find((s) => s.monumentId === projetId && s.aideId === dossier?.aideId),
+    [allSuivis, projetId, dossier?.aideId],
+  );
+
   const [aide, setAide] = useState<Aide | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [attachingItem, setAttachingItem] = useState<ChecklistItem | null>(null);
@@ -76,6 +88,7 @@ export function DossierDetailPage() {
 
   useEffect(() => { fetchDocuments().catch(() => {}); }, [fetchDocuments]);
   useEffect(() => { if (!templatesLoaded) fetchTemplates().catch(() => {}); }, [templatesLoaded, fetchTemplates]);
+  useEffect(() => { if (projetId && !suiviLoaded) suiviService.fetchByMonument(projetId).catch(console.error); }, [projetId, suiviLoaded]);
 
   // Charge l'aide (pour rapprocher les modèles de la bibliothèque des pièces).
   useEffect(() => {
@@ -201,6 +214,10 @@ export function DossierDetailPage() {
       </div>
 
       <h1 className="text-[clamp(1.4rem,3vw,1.9rem)] leading-tight" style={{ fontFamily: SERIF, color: C.ink }}>{dossier.titre}</h1>
+
+      {projetId && dossier.aideId && (
+        <AideStatutSelect monumentId={projetId} aideId={dossier.aideId} suivi={suivi} />
+      )}
 
       <div className="space-y-6">
         <div className="rounded-2xl border overflow-hidden" style={{ background: C.card, borderColor: C.border }}>

@@ -16,6 +16,7 @@ from routers import (
     notifications,
     prospects,
     sharing,
+    suivi,
     templates,
     waitlist,
 )
@@ -56,6 +57,7 @@ app.include_router(documents.router)
 app.include_router(aides.router)
 app.include_router(notifications.router)
 app.include_router(dossiers.router)
+app.include_router(suivi.router)
 app.include_router(prospects.router)
 app.include_router(sharing.router)
 app.include_router(communes.router)
