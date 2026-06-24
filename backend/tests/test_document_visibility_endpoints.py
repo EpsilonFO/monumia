@@ -167,8 +167,11 @@ class UpdateVisibilityTests(unittest.TestCase):
     def test_co_owner_cannot_edit_hidden_custom_doc(self):
         # adjoint exclu d'un doc « personnes choisies » → ne peut pas le modifier
         hidden = {
-            "id": "d1", "user_id": "u2", "monument_ids": ["m1"],
-            "visibility": "custom", "allowed_user_ids": ["u9"],
+            "id": "d1",
+            "user_id": "u2",
+            "monument_ids": ["m1"],
+            "visibility": "custom",
+            "allowed_user_ids": ["u9"],
         }
         fake = _supabase(caller_role="co_owner", doc=hidden)
         with self.assertRaises(HTTPException) as ctx:

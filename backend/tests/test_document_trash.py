@@ -43,8 +43,11 @@ class BestRoleTests(unittest.TestCase):
 class FilterVisibleTests(unittest.TestCase):
     def _row(self, **over):
         base = dict(
-            id="d1", user_id="u2", monument_ids=["m1"],
-            visibility="team", allowed_user_ids=[],
+            id="d1",
+            user_id="u2",
+            monument_ids=["m1"],
+            visibility="team",
+            allowed_user_ids=[],
         )
         base.update(over)
         return base
@@ -231,7 +234,9 @@ class ModifyHiddenDocViewGateTests(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 403)
 
     def test_unlink_forbidden_for_co_owner_without_view(self):
-        fake = _fake(doc=self.HIDDEN, caller_role="co_owner", dossier={"id": "dz", "monument_id": "m1"})
+        fake = _fake(
+            doc=self.HIDDEN, caller_role="co_owner", dossier={"id": "dz", "monument_id": "m1"}
+        )
         with self.assertRaises(HTTPException) as ctx:
             unlink_from_dossier("d1", "dz", user_id="u1", supabase=fake)
         self.assertEqual(ctx.exception.status_code, 403)
@@ -246,6 +251,7 @@ class ModifyHiddenDocViewGateTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Fake Supabase étendu pour list_documents (Fix 5 — tests d'endpoint)
 # ---------------------------------------------------------------------------
+
 
 class _NotProxy:
     """Proxy pour `supabase.table(...).not_.is_(col, val)` — retourne la query parente."""

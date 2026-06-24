@@ -1,5 +1,5 @@
 import contextlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -178,7 +178,7 @@ def _merge_monument_ids(existing: list[str], new: list[str]) -> list[str]:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _should_auto_trash(monument_ids: list | None, dossiers_utilises: list | None) -> bool:
@@ -224,9 +224,7 @@ def _my_project_roles(supabase: Client, user_id: str) -> dict[str, str]:
     )
     for m in members:
         roles[m["monument_id"]] = m["role"]
-    owned = (
-        supabase.table("monuments").select("id").eq("user_id", user_id).execute().data or []
-    )
+    owned = supabase.table("monuments").select("id").eq("user_id", user_id).execute().data or []
     for o in owned:
         roles[o["id"]] = "owner"
     return roles
@@ -582,7 +580,9 @@ def remove_document_from_project(
     doc = _get_document_any(supabase, document_id)
     role = get_project_role(supabase, monument_id, user_id)
     if not _can_modify(doc, role, user_id):
-        raise HTTPException(status_code=403, detail="Vous ne pouvez pas retirer ce document du projet")
+        raise HTTPException(
+            status_code=403, detail="Vous ne pouvez pas retirer ce document du projet"
+        )
 
     monuments = [m for m in (doc.get("monument_ids") or []) if m != monument_id]
     patch: dict = {"monument_ids": monuments}
