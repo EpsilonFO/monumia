@@ -1,6 +1,6 @@
 """
 Sync aids tagged "Restaurer le patrimoine religieux" from aides-territoires.beta.gouv.fr
-into the local aides_v2 table.
+into the local aides_v3 table.
 
 Run weekly:
     cd backend && uv run python3 scripts/sync_aides_territoires.py
@@ -228,7 +228,7 @@ def build_eligibility(aid: dict) -> str | None:
 
 
 def transform_aid(aid: dict) -> dict:
-    """Convert an aides-territoires API aid object to an aides_v2 row."""
+    """Convert an aides-territoires API aid object to an aides_v3 row."""
     name = aid.get("name", "").strip()
     short_title = aid.get("short_title") or name
     if len(short_title) > 80:
@@ -286,7 +286,7 @@ def transform_aid(aid: dict) -> dict:
 
 
 def main():
-    log.info("=== Sync aides-territoires → aides_v2 ===")
+    log.info("=== Sync aides-territoires → aides_v3 ===")
     log.info('Keyword: "%s"', KEYWORD)
 
     aids = fetch_all_aids()
@@ -307,15 +307,15 @@ def main():
 
         row = transform_aid(aid)
 
-        existing = supabase.table("aides_v2").select("id").eq("source_at_slug", slug).execute()
+        existing = supabase.table("aides_v3").select("id").eq("source_at_slug", slug).execute()
 
         if existing.data:
             uuid = existing.data[0]["id"]
-            supabase.table("aides_v2").update(row).eq("id", uuid).execute()
+            supabase.table("aides_v3").update(row).eq("id", uuid).execute()
             updated += 1
             log.info("  ↻ updated: %s", row["nom_court"])
         else:
-            result = supabase.table("aides_v2").insert(row).execute()
+            result = supabase.table("aides_v3").insert(row).execute()
             uuid = result.data[0]["id"]
             created += 1
             log.info("  ✓ created: %s", row["nom_court"])
@@ -328,10 +328,10 @@ def main():
 
 
 def sync_geo_constraints(aide_id: str, api_aid: dict, organisme: str) -> None:
-    """Overwrite the aide's `departements` / `regions` arrays in aides_v2."""
+    """Overwrite the aide's `departements` / `regions` arrays in aides_v3."""
     depts, regions = derive_geo_constraints(api_aid, organisme=organisme)
 
-    supabase.table("aides_v2").update({"departements": depts or [], "regions": regions or []}).eq(
+    supabase.table("aides_v3").update({"departements": depts or [], "regions": regions or []}).eq(
         "id", aide_id
     ).execute()
 

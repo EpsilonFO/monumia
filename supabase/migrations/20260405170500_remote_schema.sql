@@ -98,7 +98,7 @@ alter table "public"."aides_segments" enable row level security;
 alter table "public"."aides_travaux" enable row level security;
 
 
-  create table "public"."aides_v2" (
+  create table "public"."aides_v3" (
     "id" uuid not null default gen_random_uuid(),
     "nom" text not null,
     "nom_court" text not null,
@@ -130,7 +130,7 @@ alter table "public"."aides_travaux" enable row level security;
       );
 
 
-alter table "public"."aides_v2" enable row level security;
+alter table "public"."aides_v3" enable row level security;
 
 
   create table "public"."communes" (
@@ -468,7 +468,7 @@ CREATE UNIQUE INDEX aides_segments_pkey ON public.aides_segments USING btree (ai
 
 CREATE UNIQUE INDEX aides_travaux_pkey ON public.aides_travaux USING btree (aide_id, travaux_code);
 
-CREATE UNIQUE INDEX aides_v2_pkey ON public.aides_v2 USING btree (id);
+CREATE UNIQUE INDEX aides_v3_pkey ON public.aides_v3 USING btree (id);
 
 CREATE UNIQUE INDEX communes_pkey ON public.communes USING btree (code_insee);
 
@@ -500,11 +500,11 @@ CREATE INDEX idx_aides_segments_code ON public.aides_segments USING btree (segme
 
 CREATE INDEX idx_aides_travaux_code ON public.aides_travaux USING btree (travaux_code);
 
-CREATE INDEX idx_aides_v2_categorie ON public.aides_v2 USING btree (categorie);
+CREATE INDEX idx_aides_v3_categorie ON public.aides_v3 USING btree (categorie);
 
-CREATE INDEX idx_aides_v2_commune_pop ON public.aides_v2 USING btree (commune_max_population);
+CREATE INDEX idx_aides_v3_commune_pop ON public.aides_v3 USING btree (commune_max_population);
 
-CREATE INDEX idx_aides_v2_permanent ON public.aides_v2 USING btree (permanent);
+CREATE INDEX idx_aides_v3_permanent ON public.aides_v3 USING btree (permanent);
 
 CREATE INDEX idx_diagnostics_monument_id ON public.diagnostics USING btree (monument_id);
 
@@ -560,7 +560,7 @@ alter table "public"."aides_segments" add constraint "aides_segments_pkey" PRIMA
 
 alter table "public"."aides_travaux" add constraint "aides_travaux_pkey" PRIMARY KEY using index "aides_travaux_pkey";
 
-alter table "public"."aides_v2" add constraint "aides_v2_pkey" PRIMARY KEY using index "aides_v2_pkey";
+alter table "public"."aides_v3" add constraint "aides_v3_pkey" PRIMARY KEY using index "aides_v3_pkey";
 
 alter table "public"."communes" add constraint "communes_pkey" PRIMARY KEY using index "communes_pkey";
 
@@ -592,11 +592,11 @@ alter table "public"."users" add constraint "users_pkey" PRIMARY KEY using index
 
 alter table "vecs"."document_chunks" add constraint "document_chunks_pkey" PRIMARY KEY using index "document_chunks_pkey";
 
-alter table "public"."aides_departements" add constraint "aides_departements_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v2(id) ON DELETE CASCADE not valid;
+alter table "public"."aides_departements" add constraint "aides_departements_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v3(id) ON DELETE CASCADE not valid;
 
 alter table "public"."aides_departements" validate constraint "aides_departements_aide_id_fkey";
 
-alter table "public"."aides_etats_conservation" add constraint "aides_etats_conservation_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v2(id) ON DELETE CASCADE not valid;
+alter table "public"."aides_etats_conservation" add constraint "aides_etats_conservation_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v3(id) ON DELETE CASCADE not valid;
 
 alter table "public"."aides_etats_conservation" validate constraint "aides_etats_conservation_aide_id_fkey";
 
@@ -604,7 +604,7 @@ alter table "public"."aides_etats_conservation" add constraint "aides_etats_cons
 
 alter table "public"."aides_etats_conservation" validate constraint "aides_etats_conservation_etat_conservation_code_fkey";
 
-alter table "public"."aides_proprietaires" add constraint "aides_proprietaires_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v2(id) ON DELETE CASCADE not valid;
+alter table "public"."aides_proprietaires" add constraint "aides_proprietaires_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v3(id) ON DELETE CASCADE not valid;
 
 alter table "public"."aides_proprietaires" validate constraint "aides_proprietaires_aide_id_fkey";
 
@@ -612,7 +612,7 @@ alter table "public"."aides_proprietaires" add constraint "aides_proprietaires_p
 
 alter table "public"."aides_proprietaires" validate constraint "aides_proprietaires_proprietaire_code_fkey";
 
-alter table "public"."aides_protections" add constraint "aides_protections_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v2(id) ON DELETE CASCADE not valid;
+alter table "public"."aides_protections" add constraint "aides_protections_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v3(id) ON DELETE CASCADE not valid;
 
 alter table "public"."aides_protections" validate constraint "aides_protections_aide_id_fkey";
 
@@ -620,11 +620,11 @@ alter table "public"."aides_protections" add constraint "aides_protections_prote
 
 alter table "public"."aides_protections" validate constraint "aides_protections_protection_code_fkey";
 
-alter table "public"."aides_regions" add constraint "aides_regions_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v2(id) ON DELETE CASCADE not valid;
+alter table "public"."aides_regions" add constraint "aides_regions_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v3(id) ON DELETE CASCADE not valid;
 
 alter table "public"."aides_regions" validate constraint "aides_regions_aide_id_fkey";
 
-alter table "public"."aides_segments" add constraint "aides_segments_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v2(id) ON DELETE CASCADE not valid;
+alter table "public"."aides_segments" add constraint "aides_segments_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v3(id) ON DELETE CASCADE not valid;
 
 alter table "public"."aides_segments" validate constraint "aides_segments_aide_id_fkey";
 
@@ -632,7 +632,7 @@ alter table "public"."aides_segments" add constraint "aides_segments_segment_cod
 
 alter table "public"."aides_segments" validate constraint "aides_segments_segment_code_fkey";
 
-alter table "public"."aides_travaux" add constraint "aides_travaux_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v2(id) ON DELETE CASCADE not valid;
+alter table "public"."aides_travaux" add constraint "aides_travaux_aide_id_fkey" FOREIGN KEY (aide_id) REFERENCES public.aides_v3(id) ON DELETE CASCADE not valid;
 
 alter table "public"."aides_travaux" validate constraint "aides_travaux_aide_id_fkey";
 
@@ -721,7 +721,7 @@ CREATE OR REPLACE FUNCTION public.prefiltrer_aides(p_protection text DEFAULT NUL
  STABLE
 AS $function$
   SELECT DISTINCT a.id
-  FROM aides_v2 a
+  FROM aides_v3 a
   WHERE
     -- Protection : paramètre NULL = pas de filtre, sinon l'aide n'a aucune contrainte OU le monument matche
     (p_protection IS NULL
@@ -1109,47 +1109,47 @@ grant truncate on table "public"."aides_travaux" to "service_role";
 
 grant update on table "public"."aides_travaux" to "service_role";
 
-grant delete on table "public"."aides_v2" to "anon";
+grant delete on table "public"."aides_v3" to "anon";
 
-grant insert on table "public"."aides_v2" to "anon";
+grant insert on table "public"."aides_v3" to "anon";
 
-grant references on table "public"."aides_v2" to "anon";
+grant references on table "public"."aides_v3" to "anon";
 
-grant select on table "public"."aides_v2" to "anon";
+grant select on table "public"."aides_v3" to "anon";
 
-grant trigger on table "public"."aides_v2" to "anon";
+grant trigger on table "public"."aides_v3" to "anon";
 
-grant truncate on table "public"."aides_v2" to "anon";
+grant truncate on table "public"."aides_v3" to "anon";
 
-grant update on table "public"."aides_v2" to "anon";
+grant update on table "public"."aides_v3" to "anon";
 
-grant delete on table "public"."aides_v2" to "authenticated";
+grant delete on table "public"."aides_v3" to "authenticated";
 
-grant insert on table "public"."aides_v2" to "authenticated";
+grant insert on table "public"."aides_v3" to "authenticated";
 
-grant references on table "public"."aides_v2" to "authenticated";
+grant references on table "public"."aides_v3" to "authenticated";
 
-grant select on table "public"."aides_v2" to "authenticated";
+grant select on table "public"."aides_v3" to "authenticated";
 
-grant trigger on table "public"."aides_v2" to "authenticated";
+grant trigger on table "public"."aides_v3" to "authenticated";
 
-grant truncate on table "public"."aides_v2" to "authenticated";
+grant truncate on table "public"."aides_v3" to "authenticated";
 
-grant update on table "public"."aides_v2" to "authenticated";
+grant update on table "public"."aides_v3" to "authenticated";
 
-grant delete on table "public"."aides_v2" to "service_role";
+grant delete on table "public"."aides_v3" to "service_role";
 
-grant insert on table "public"."aides_v2" to "service_role";
+grant insert on table "public"."aides_v3" to "service_role";
 
-grant references on table "public"."aides_v2" to "service_role";
+grant references on table "public"."aides_v3" to "service_role";
 
-grant select on table "public"."aides_v2" to "service_role";
+grant select on table "public"."aides_v3" to "service_role";
 
-grant trigger on table "public"."aides_v2" to "service_role";
+grant trigger on table "public"."aides_v3" to "service_role";
 
-grant truncate on table "public"."aides_v2" to "service_role";
+grant truncate on table "public"."aides_v3" to "service_role";
 
-grant update on table "public"."aides_v2" to "service_role";
+grant update on table "public"."aides_v3" to "service_role";
 
 grant delete on table "public"."communes" to "anon";
 
@@ -1803,8 +1803,8 @@ using (true);
 
 
 
-  create policy "aides_v2_read"
-  on "public"."aides_v2"
+  create policy "aides_v3_read"
+  on "public"."aides_v3"
   as permissive
   for select
   to authenticated

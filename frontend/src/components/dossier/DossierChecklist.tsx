@@ -15,6 +15,16 @@ import {
 } from '@/components/ui/tooltip';
 import { documentService } from '@/services/document.service';
 
+/** Défense : un label malformé (dossier stocké avec un objet document
+ *  {nom, …} au lieu d'une chaîne) ne doit pas faire planter le rendu React. */
+function labelText(label: unknown): string {
+  if (typeof label === 'string') return label;
+  if (label && typeof label === 'object' && 'nom' in label) {
+    return String((label as { nom: unknown }).nom ?? '');
+  }
+  return '';
+}
+
 interface DossierChecklistProps {
   items: ChecklistItem[];
   /** Modèles de la bibliothèque correspondant à chaque pièce (par id de pièce). */
@@ -134,7 +144,7 @@ function DocumentRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className={cn('text-sm font-medium', isFourni && 'text-green-800')}>
-            {item.label}
+            {labelText(item.label)}
           </span>
           {item.obligatoire && (
             <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">

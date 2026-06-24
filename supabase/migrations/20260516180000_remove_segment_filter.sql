@@ -22,7 +22,7 @@ CREATE OR REPLACE FUNCTION public.prefiltrer_aides(
  STABLE
 AS $function$
   SELECT DISTINCT a.id
-  FROM aides_v2 a
+  FROM aides_v3 a
   WHERE
     (p_protection IS NULL
      OR NOT EXISTS (SELECT 1 FROM aides_protections ap WHERE ap.aide_id = a.id)

@@ -57,15 +57,13 @@ export function ProjectsListPage() {
     for (const m of monuments) {
       if (!diagnosticsByMonument[m.id]) {
         aideService
-          .getDiagnostics(m.id)
-          .then((diagnostics) => {
-            if (diagnostics.length > 0) setDiagnostic(m.id, diagnostics[0]);
-          })
+          .runProjectDiagnostic(m.id, m.questionnaire)
+          .then((result) => setDiagnostic(m.id, result))
           .catch(console.error);
       }
     }
-    // Lazy-load the latest diagnostic per monument whenever the list changes; the
-    // per-id guard above prevents duplicate fetches when diagnostics are stored.
+    // Recalcule le diagnostic déterministe par monument à chaque changement de
+    // liste ; le garde par-id évite les recalculs en double une fois stocké.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monuments]);
 

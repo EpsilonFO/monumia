@@ -1,15 +1,15 @@
 -- Consolidate the six aides_* join tables (departements, regions, protections,
--- proprietaires, travaux, etats_conservation) into array columns on aides_v2.
+-- proprietaires, travaux, etats_conservation) into array columns on aides_v3.
 --
 -- Each aide previously had one row per (aide_id, code) across six tables; the
 -- pre-filter RPC fanned out with as many EXISTS subqueries. We now store the
--- codes as `text[]` columns on aides_v2 itself, which collapses each aide to a
+-- codes as `text[]` columns on aides_v3 itself, which collapses each aide to a
 -- single row and replaces the EXISTS subqueries with `&&` (array overlap) /
 -- `= ANY()` checks.
 
 -- ── 1. Add the array columns ────────────────────────────────────────────────
 
-ALTER TABLE public.aides_v2
+ALTER TABLE public.aides_v3
     ADD COLUMN IF NOT EXISTS protections        text[] NOT NULL DEFAULT '{}'::text[],
     ADD COLUMN IF NOT EXISTS proprietaires      text[] NOT NULL DEFAULT '{}'::text[],
     ADD COLUMN IF NOT EXISTS travaux            text[] NOT NULL DEFAULT '{}'::text[],
@@ -23,7 +23,7 @@ ALTER TABLE public.aides_v2
 -- default '{}' — "no row in the join" historically meant "no restriction",
 -- and the new RPC keeps that semantics (empty array → no filter).
 
-UPDATE public.aides_v2 a
+UPDATE public.aides_v3 a
 SET protections = sub.codes
 FROM (
     SELECT aide_id, array_agg(DISTINCT protection_code ORDER BY protection_code) AS codes
@@ -32,7 +32,7 @@ FROM (
 ) sub
 WHERE a.id = sub.aide_id;
 
-UPDATE public.aides_v2 a
+UPDATE public.aides_v3 a
 SET proprietaires = sub.codes
 FROM (
     SELECT aide_id, array_agg(DISTINCT proprietaire_code ORDER BY proprietaire_code) AS codes
@@ -41,7 +41,7 @@ FROM (
 ) sub
 WHERE a.id = sub.aide_id;
 
-UPDATE public.aides_v2 a
+UPDATE public.aides_v3 a
 SET travaux = sub.codes
 FROM (
     SELECT aide_id, array_agg(DISTINCT travaux_code ORDER BY travaux_code) AS codes
@@ -50,7 +50,7 @@ FROM (
 ) sub
 WHERE a.id = sub.aide_id;
 
-UPDATE public.aides_v2 a
+UPDATE public.aides_v3 a
 SET regions = sub.codes
 FROM (
     SELECT aide_id, array_agg(DISTINCT region_code ORDER BY region_code) AS codes
@@ -59,7 +59,7 @@ FROM (
 ) sub
 WHERE a.id = sub.aide_id;
 
-UPDATE public.aides_v2 a
+UPDATE public.aides_v3 a
 SET departements = sub.codes
 FROM (
     SELECT aide_id, array_agg(DISTINCT departement_code ORDER BY departement_code) AS codes
@@ -68,7 +68,7 @@ FROM (
 ) sub
 WHERE a.id = sub.aide_id;
 
-UPDATE public.aides_v2 a
+UPDATE public.aides_v3 a
 SET etats_conservation = sub.codes
 FROM (
     SELECT aide_id, array_agg(DISTINCT etat_conservation_code ORDER BY etat_conservation_code) AS codes
@@ -81,12 +81,12 @@ WHERE a.id = sub.aide_id;
 -- The new prefiltrer_aides function uses `code = ANY(column)` and `column && array[...]`
 -- which both benefit from a GIN index on the array column.
 
-CREATE INDEX IF NOT EXISTS idx_aides_v2_protections        ON public.aides_v2 USING gin (protections);
-CREATE INDEX IF NOT EXISTS idx_aides_v2_proprietaires      ON public.aides_v2 USING gin (proprietaires);
-CREATE INDEX IF NOT EXISTS idx_aides_v2_travaux            ON public.aides_v2 USING gin (travaux);
-CREATE INDEX IF NOT EXISTS idx_aides_v2_regions            ON public.aides_v2 USING gin (regions);
-CREATE INDEX IF NOT EXISTS idx_aides_v2_departements       ON public.aides_v2 USING gin (departements);
-CREATE INDEX IF NOT EXISTS idx_aides_v2_etats_conservation ON public.aides_v2 USING gin (etats_conservation);
+CREATE INDEX IF NOT EXISTS idx_aides_v3_protections        ON public.aides_v3 USING gin (protections);
+CREATE INDEX IF NOT EXISTS idx_aides_v3_proprietaires      ON public.aides_v3 USING gin (proprietaires);
+CREATE INDEX IF NOT EXISTS idx_aides_v3_travaux            ON public.aides_v3 USING gin (travaux);
+CREATE INDEX IF NOT EXISTS idx_aides_v3_regions            ON public.aides_v3 USING gin (regions);
+CREATE INDEX IF NOT EXISTS idx_aides_v3_departements       ON public.aides_v3 USING gin (departements);
+CREATE INDEX IF NOT EXISTS idx_aides_v3_etats_conservation ON public.aides_v3 USING gin (etats_conservation);
 
 -- ── 4. Rewrite prefiltrer_aides to read from the arrays ───────────────────
 -- Same signature, same semantics: an empty array column means "no restriction
@@ -109,7 +109,7 @@ CREATE OR REPLACE FUNCTION public.prefiltrer_aides(
  STABLE
 AS $function$
   SELECT a.id
-  FROM public.aides_v2 a
+  FROM public.aides_v3 a
   WHERE
     (p_protection IS NULL
      OR cardinality(a.protections) = 0
@@ -143,7 +143,7 @@ $function$;
 
 -- ── 5. Drop the now-obsolete join tables ──────────────────────────────────
 -- CASCADE because each table is referenced by its own primary-key index and
--- foreign-key constraints from aides_v2 / ref_* tables.
+-- foreign-key constraints from aides_v3 / ref_* tables.
 
 DROP TABLE IF EXISTS public.aides_protections        CASCADE;
 DROP TABLE IF EXISTS public.aides_proprietaires      CASCADE;

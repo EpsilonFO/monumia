@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MerimeeSearch } from '@/components/monument/MerimeeSearch';
@@ -6,9 +6,11 @@ import { MonumentForm } from '@/components/monument/MonumentForm';
 import { ProjectQuestionnaire } from '@/components/project/ProjectQuestionnaire';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
+import { useAideStore } from '@/stores/useAideStore';
 import { monumentService } from '@/services/monument.service';
 import { merimeeService } from '@/services/merimee.service';
 import { aideService } from '@/services/aide.service';
+import { sanitizeQcmQuestions } from '@/lib/qcm';
 import { REGIONS } from '@/constants/regions';
 import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
 import { ROUTES } from '@/constants/routes';
@@ -16,10 +18,12 @@ import { C, SERIF } from '@/lib/brand';
 import { Search, PenLine, ArrowRight, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
+  AideDiagnosticResult,
   MerimeeRecord,
   Monument,
   ProjectQuestionnaireAnswers,
   ProtectionLevel,
+  QcmQuestion,
   Region,
 } from '@/types';
 
@@ -40,6 +44,7 @@ export function ProjectWizardPage() {
   const user = useAuthStore((s) => s.user);
   const addMonument = useMonumentStore((s) => s.addMonument);
   const setActiveMonument = useMonumentStore((s) => s.setActiveMonument);
+  const setDiagnostic = useAideStore((s) => s.setDiagnostic);
 
   const [step, setStep] = useState<WizardStep>(1);
   const [prefillData, setPrefillData] = useState<Partial<Monument> | null>(null);
@@ -47,6 +52,13 @@ export function ProjectWizardPage() {
   const [saving, setSaving] = useState(false);
   const [monumentId, setMonumentId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<ProjectQuestionnaireAnswers>({});
+  // Questionnaire du moteur d'aides : on lance un premier diagnostic déterministe
+  // (sans réponses) dès l'étape 2 pour obtenir les questions à poser (faits
+  // manquants) et le résultat de base. Les réponses ne sont jamais renvoyées au
+  // moteur : elles se résolvent côté client via eliminationsParOption.
+  const [questions, setQuestions] = useState<QcmQuestion[]>([]);
+  const [baseResult, setBaseResult] = useState<AideDiagnosticResult | null>(null);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
 
   const handleMerimeeSelect = async (searchRecord: MerimeeRecord) => {
     try {
@@ -185,11 +197,36 @@ export function ProjectWizardPage() {
     }
   };
 
-  // Save the questionnaire then run the diagnostic inline (the button shows a
-  // loading state) before navigating to the project page, where the persisted
-  // results are re-hydrated. Running it here — rather than swapping in a
-  // full-screen progress view — avoids the search screen flashing when the
-  // engine answers quickly.
+  // Dès l'entrée à l'étape 2, on calcule le diagnostic déterministe de base
+  // (sans réponses) pour en déduire les questions à poser — les faits manquants
+  // qui bloquent le plus d'aides. Le moteur étant pur et rapide, c'est immédiat.
+  useEffect(() => {
+    if (step !== 2 || !monumentId || baseResult) return;
+    let cancelled = false;
+    setLoadingQuestions(true);
+    aideService
+      .runDeterministicDiagnostic(monumentId, {})
+      .then((result) => {
+        if (cancelled) return;
+        setBaseResult(result);
+        setQuestions(sanitizeQcmQuestions(result.qcmQuestions));
+      })
+      .catch((err) => {
+        console.error('Erreur diagnostic déterministe:', err);
+        if (!cancelled)
+          toast.error('Impossible de charger le questionnaire. Vous pourrez le lancer depuis le projet.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingQuestions(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, monumentId, baseResult]);
+
+  // Étape 2 → projet : on persiste les réponses sur le monument (la page projet
+  // recalcule le même diagnostic à partir de là), on résout le QCM côté client
+  // (eliminationsParOption) et on amorce le store pour éviter un écran vide.
   const handleQuestionnaireNext = async () => {
     if (!monumentId) return;
     setSaving(true);
@@ -199,15 +236,16 @@ export function ProjectWizardPage() {
       // Column may not exist yet (pre-migration) — degrade gracefully.
       console.error('Erreur enregistrement questionnaire (ignorée):', err);
     }
+    // Ré-évaluation déterministe AVEC les réponses : c'est ici que les user_fact
+    // satisfaits promeuvent les aides en éligibles. On amorce le store pour
+    // éviter un écran vide à l'arrivée (la page projet recalcule à l'identique).
     try {
-      await aideService.runDiagnostic(monumentId, false, undefined, { skipQcm: true });
+      setDiagnostic(monumentId, await aideService.runProjectDiagnostic(monumentId, answers));
     } catch (err) {
       console.error('Erreur diagnostic:', err);
-      toast.error('Le diagnostic a échoué. Vous pourrez le relancer depuis le projet.');
-    } finally {
-      // Leave `saving` true through the navigation — the component unmounts.
-      navigate(ROUTES.PROJET_DETAIL(monumentId));
     }
+    // Leave `saving` true through the navigation — the component unmounts.
+    navigate(ROUTES.PROJET_DETAIL(monumentId));
   };
 
   const StepIndicator = (
@@ -347,15 +385,29 @@ export function ProjectWizardPage() {
 
         {step === 2 && (
           <div className="space-y-8">
-            <p className="text-[15px] leading-relaxed" style={{ color: '#6a7180' }}>
-              Quelques questions pour affiner les aides proposées. Vous pourrez les modifier
-              plus tard.
-            </p>
-            <ProjectQuestionnaire value={answers} onChange={setAnswers} />
+            {loadingQuestions ? (
+              <div className="flex items-center gap-3 py-10 text-[14px]" style={{ color: '#6a7180' }}>
+                <Loader2 className="h-4 w-4 animate-spin" style={{ color: C.blueLight }} />
+                Analyse de votre monument…
+              </div>
+            ) : questions.length === 0 ? (
+              <p className="text-[15px] leading-relaxed" style={{ color: '#6a7180' }}>
+                Aucune précision supplémentaire n'est nécessaire pour votre monument. Lancez le
+                diagnostic pour découvrir les aides mobilisables.
+              </p>
+            ) : (
+              <>
+                <p className="text-[15px] leading-relaxed" style={{ color: '#6a7180' }}>
+                  Quelques questions pour affiner les aides proposées. Vous pourrez les modifier
+                  plus tard.
+                </p>
+                <ProjectQuestionnaire questions={questions} value={answers} onChange={setAnswers} />
+              </>
+            )}
             <div className="flex justify-end">
               <button
                 type="button"
-                disabled={saving}
+                disabled={saving || loadingQuestions}
                 onClick={handleQuestionnaireNext}
                 className="group inline-flex items-center gap-2 rounded-lg px-6 py-3 text-[14px] font-semibold text-white transition-all hover:shadow-lg disabled:opacity-60"
                 style={{ background: C.orange }}
@@ -367,7 +419,7 @@ export function ProjectWizardPage() {
                   </>
                 ) : (
                   <>
-                    Lancer le diagnostic
+                    {questions.length === 0 ? 'Voir les aides' : 'Lancer le diagnostic'}
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </>
                 )}

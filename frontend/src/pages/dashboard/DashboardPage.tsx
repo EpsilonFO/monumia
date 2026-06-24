@@ -50,21 +50,17 @@ export function DashboardPage() {
   // Les KPI, le bandeau d'échéance et l'échéancier restent basés sur `userMonuments`.
   const displayMonuments = monuments;
 
-  // Lazy-load the latest diagnostic per monument that doesn't have one yet,
-  // whenever the monument list changes. We intentionally depend only on
-  // `[userMonuments]`: including `diagnosticsByMonument` would re-run the effect
-  // every time any diagnostic is stored, and monuments whose `getDiagnostics`
-  // returned `[]` (no saved diagnostic) would be re-fetched forever because
-  // their `diagnosticsByMonument[m.id]` stays `undefined`. The per-id guard
-  // below dedupes fetches for monuments that DO have a stored diagnostic.
+  // Recalcule le diagnostic déterministe par monument qui n'en a pas encore,
+  // à chaque changement de liste. On dépend uniquement de `[displayMonuments]` :
+  // inclure `diagnosticsByMonument` relancerait l'effet à chaque stockage. Le
+  // moteur étant déterministe, le résultat est toujours défini et stocké — le
+  // garde par-id dédoublonne donc les recalculs.
   useEffect(() => {
     for (const m of displayMonuments) {
       if (!diagnosticsByMonument[m.id]) {
         aideService
-          .getDiagnostics(m.id)
-          .then((diagnostics) => {
-            if (diagnostics.length > 0) setDiagnostic(m.id, diagnostics[0]);
-          })
+          .runProjectDiagnostic(m.id, m.questionnaire)
+          .then((result) => setDiagnostic(m.id, result))
           .catch(console.error);
       }
     }

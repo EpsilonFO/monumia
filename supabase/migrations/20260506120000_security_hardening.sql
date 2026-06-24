@@ -171,7 +171,7 @@ revoke insert, update, delete, truncate, references, trigger
 
 -- Catalogue tables: revoke writes from anon/authenticated. Service role keeps full access.
 revoke insert, update, delete, truncate, references, trigger
-  on public.aides_v2,
+  on public.aides_v3,
      public.aides_departements,
      public.aides_etats_conservation,
      public.aides_proprietaires,

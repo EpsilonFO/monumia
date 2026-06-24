@@ -20,7 +20,7 @@ supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SECRET
 # ── 1. Aide principale ──────────────────────────────────────────────
 
 aide = (
-    supabase.table("aides_v2")
+    supabase.table("aides_v3")
     .insert(
         {
             "nom": "Contrats Natura 2000 — Subventions pour la gestion des habitats et espèces en site Natura 2000",

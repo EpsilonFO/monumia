@@ -18,7 +18,7 @@ create table if not exists public.aides_v3 (
     permanent boolean not null default true,
     url_officielle text null,
 
-    constraint aides_v2_categorie_check check (
+    constraint aides_v3_categorie_check check (
         (
         categorie = any (
             array[
@@ -34,7 +34,7 @@ create table if not exists public.aides_v3 (
         )
         )
     ),
-    constraint aides_v2_type_check check (
+    constraint aides_v3_type_check check (
         (
         type = any (
             array[
@@ -50,7 +50,7 @@ create table if not exists public.aides_v3 (
         )
         )
     ),
-    constraint aides_v2_raison_check check (
+    constraint aides_v3_raison_check check (
         raison <@ array[
             'etude_ingenierie',
             'restauration_travaux',

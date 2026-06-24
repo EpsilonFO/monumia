@@ -1,5 +1,5 @@
 -- Enable Row Level Security on aides_v3.
--- Pattern miroir d'aides_v2 : table référentielle, lecture pour les utilisateurs
+-- Pattern miroir d'aides_v3 : table référentielle, lecture pour les utilisateurs
 -- authentifiés, écritures réservées au service_role (qui bypass RLS).
 
 alter table public.aides_v3 enable row level security;

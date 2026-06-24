@@ -4,6 +4,7 @@ export * from './monument.types';
 export * from './project.types';
 export * from './aide.types';
 export * from './dossier.types';
+export * from './suivi.types';
 export * from './document.types';
 export * from './sharing.types';
 export * from './template.types';

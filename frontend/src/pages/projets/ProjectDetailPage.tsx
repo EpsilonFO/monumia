@@ -27,10 +27,12 @@ import { ProjectEcheancier } from '@/components/project/ProjectEcheancier';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
+import { useSuiviStore } from '@/stores/useSuiviStore';
 import { monumentService } from '@/services/monument.service';
 import { documentService } from '@/services/document.service';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
+import { suiviService } from '@/services/suivi.service';
 import { sharingService } from '@/services/sharing.service';
 import { computeProjectStats, mergeProjectDeadlines } from '@/lib/project-stats';
 import { formatDate, daysUntil } from '@/lib/date-utils';
@@ -64,6 +66,9 @@ export function ProjectDetailPage() {
 
   const allDossiers = useDossierStore((s) => s.dossiers);
   const dossiers = useMemo(() => allDossiers.filter((d) => d.monumentId === projetId), [allDossiers, projetId]);
+
+  // Chargé pour que les cartes dossier affichent leur avancement (lecture via le store).
+  const suiviLoaded = useSuiviStore((s) => (projetId ? s.loadedMonuments[projetId] : false));
 
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const setDiagnostic = useAideStore((s) => s.setDiagnostic);
@@ -114,13 +119,22 @@ export function ProjectDetailPage() {
       .then(upsertMonument)
       .catch(() => { if (!useMonumentStore.getState().monuments.some((m) => m.id === projetId)) setNotFound(true); });
   }, [projetId, upsertMonument]);
+  // Diagnostic déterministe : recalculé à l'arrivée (et quand les réponses du
+  // questionnaire changent). Le moteur est pur et rapide — pas de persistance ;
+  // les réponses (monument.questionnaire) se résolvent côté client via
+  // eliminationsParOption.
+  const questionnaireKey = monument?.questionnaire ? JSON.stringify(monument.questionnaire) : '';
   useEffect(() => {
     if (!projetId) return;
-    aideService.getDiagnostics(projetId)
-      .then((diagnostics) => { if (diagnostics[0]) setDiagnostic(projetId, diagnostics[0]); })
+    let cancelled = false;
+    const answers: Record<string, string> = questionnaireKey ? JSON.parse(questionnaireKey) : {};
+    aideService.runProjectDiagnostic(projetId, answers)
+      .then((result) => { if (!cancelled) setDiagnostic(projetId, result); })
       .catch(console.error);
-  }, [projetId, setDiagnostic]);
+    return () => { cancelled = true; };
+  }, [projetId, questionnaireKey, setDiagnostic]);
   useEffect(() => { dossierService.fetchAll().catch(console.error); }, []);
+  useEffect(() => { if (projetId && !suiviLoaded) suiviService.fetchByMonument(projetId).catch(console.error); }, [projetId, suiviLoaded]);
   const reloadProjectDocuments = useCallback(() => {
     if (!projetId) return;
     documentService.getAll({ monumentId: projetId }).then(setProjectDocuments).catch(() => {});
@@ -164,14 +178,14 @@ export function ProjectDetailPage() {
     if (!projetId) return;
     setRunning(true);
     try {
-      const result = await aideService.runDiagnostic(projetId, false, undefined, { skipQcm: true });
-      setDiagnostic(projetId, result);
+      const answers = (monument?.questionnaire ?? {}) as Record<string, string>;
+      setDiagnostic(projetId, await aideService.runProjectDiagnostic(projetId, answers));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors du diagnostic');
     } finally {
       setRunning(false);
     }
-  }, [projetId, setDiagnostic]);
+  }, [projetId, setDiagnostic, monument?.questionnaire]);
 
   if (notFound || (!monument && !projetId)) {
     return (

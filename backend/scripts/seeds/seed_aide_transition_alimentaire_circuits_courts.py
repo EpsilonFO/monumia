@@ -21,7 +21,7 @@ supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SECRET
 # ── 1. Aide principale ──────────────────────────────────────────────
 
 aide = (
-    supabase.table("aides_v2")
+    supabase.table("aides_v3")
     .insert(
         {
             "nom": "Transition alimentaire et circuits courts — Aides à la diversification et à la valorisation des domaines patrimoniaux",

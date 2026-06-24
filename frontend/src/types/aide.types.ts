@@ -13,6 +13,17 @@ export type AideCategory =
 export type AideType = 'subvention' | 'avance' | 'pret' | 'deduction_fiscale'
   | 'label' | 'mecenat' | 'souscription' | 'autre';
 
+/** Pièce du dossier à constituer pour une aide. */
+export interface AideDocument {
+  nom: string;
+  /** Lien de téléchargement / remplissage (formulaire, Cerfa, modèle). */
+  url?: string;
+  /** False = pièce requise seulement dans certains cas (cf. note). */
+  obligatoire?: boolean;
+  /** Conditionnalité, ex. « si propriétaire public ». */
+  note?: string;
+}
+
 export interface Aide {
   id: ID;
   nom: string;
@@ -33,7 +44,9 @@ export interface Aide {
   criteres: AideEligibilityCriteria;
 
   demarcheDescription: string;
-  documentsRequis: string[];
+  /** Pièce du dossier : chaîne simple (legacy) ou objet structuré avec son
+   * lien de téléchargement/remplissage et une note de conditionnalité. */
+  documentsRequis: (string | AideDocument)[];
   delaiInstruction: string;
 
   dateOuverture?: string;
@@ -68,7 +81,7 @@ export interface AideEligibilityCriteria {
   }[];
 }
 
-export type EvaluationVerdict = 'oui' | 'non' | 'incertitude';
+export type EvaluationVerdict = 'oui' | 'non' | 'incertitude' | 'info';
 
 export interface AideEvaluation {
   critere: string;
@@ -80,6 +93,10 @@ export interface AideEvaluation {
   detail?: string;
   /** Becomes true once the user answers the matching QCM question. */
   clarified?: boolean;
+  /** Nature de la condition (moteur déterministe) : pilote le regroupement de
+   * l'analyse en sections. auto | user_fact | manual_check | discretionary |
+   * modulateur | info. Absent sur l'ancien chemin LLM. */
+  nature?: 'auto' | 'user_fact' | 'manual_check' | 'discretionary' | 'modulateur' | 'info';
 }
 
 export interface AideMatchResult {

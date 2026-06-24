@@ -1,11 +1,14 @@
 import logging
 import traceback
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
+from aides_schema import load_all_aides, load_facts, load_pending_facts
 from db import get_current_user_id, get_supabase
+from eligibility_engine import aide_display_dict, run_deterministic_diagnostic
 from matching_engine import _build_criteria_labels, fetch_aides_with_joins, run_diagnostic
 from routers.monuments import _enrich_monument
 from services.project_access import require_project_access
@@ -29,6 +32,13 @@ class DiagnosticRequest(BaseModel):
 
 class UpdateQcmAnswersRequest(BaseModel):
     qcm_answers: dict[str, str]
+
+
+class DeterministicDiagnosticRequest(BaseModel):
+    monument_id: str
+    # Réponses déjà connues (fact_key → valeur). Optionnel : le front résout
+    # aussi les éliminations côté client via eliminationsParOption.
+    answers: dict[str, object] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +99,7 @@ def list_aides(
     q: str | None = Query(None),
     supabase: Client = Depends(get_supabase),
 ):
-    query = supabase.table("aides_v2").select("*").order("nom")
+    query = supabase.table("aides_v3").select("*").order("nom")
 
     if categorie:
         query = query.eq("categorie", categorie)
@@ -111,15 +121,37 @@ def list_aides(
     return aides
 
 
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+        return True
+    except ValueError:
+        return False
+
+
 @router.get("/{aide_id}")
 def get_aide(
     aide_id: str,
     supabase: Client = Depends(get_supabase),
 ):
-    result = supabase.table("aides_v2").select("*").eq("id", aide_id).single().execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Aide introuvable")
-    return _to_camel(result.data)
+    """Récupère une aide par id.
+
+    Le moteur déterministe identifie les aides par leur slug (il lit les YAML,
+    pas la base). Donc `aide_id` peut être un UUID (aide en base) ou un slug
+    (aide servie depuis les YAML). On résout dans cet ordre : UUID en base,
+    puis YAML par slug — la même source que le diagnostic, donc l'affichage
+    reste cohérent même si le loader n'a pas (encore) poussé l'aide en base.
+    """
+    if _is_uuid(aide_id):
+        result = supabase.table("aides_v3").select("*").eq("id", aide_id).maybe_single().execute()
+        if result and result.data:
+            return _to_camel(result.data)
+
+    aide = load_all_aides().get(aide_id)
+    if aide:
+        return _to_camel(aide_display_dict(aide))
+
+    raise HTTPException(status_code=404, detail="Aide introuvable")
 
 
 @router.post("/diagnostic")
@@ -190,6 +222,62 @@ async def diagnostic(
         result["id"] = insert_result.data[0]["id"]
     result["qcmAnswers"] = {}
 
+    return _camelise_diagnostic(result)
+
+
+def _resolve_population(supabase: Client, code_insee: str | None) -> int | None:
+    if not code_insee:
+        return None
+    r = (
+        supabase.table("communes")
+        .select("population")
+        .eq("code_insee", code_insee)
+        .limit(1)
+        .execute()
+    )
+    return r.data[0].get("population") if r.data else None
+
+
+@router.post("/diagnostic-deterministe")
+def diagnostic_deterministe(
+    body: DeterministicDiagnosticRequest,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Diagnostic 100 % déterministe (aucun LLM), sur les aides « engine-ready »
+    (zéro condition untyped), conditions lues depuis les YAML typés.
+
+    Non persisté (les aideIds sont des slugs, pas des UUID) : le résultat est
+    rendu directement, le QCM se résout côté client via eliminationsParOption.
+    """
+    # Accès projet partagé : un collaborateur (membre) doit pouvoir lancer le
+    # diagnostic, pas seulement le propriétaire — d'où require_project_access
+    # plutôt qu'un filtre user_id (qui renverrait 404 aux collaborateurs).
+    require_project_access(supabase, body.monument_id, user_id, "member")
+    monument_result = (
+        supabase.table("monuments").select("*").eq("id", body.monument_id).single().execute()
+    )
+    if not monument_result.data:
+        raise HTTPException(status_code=404, detail="Monument introuvable")
+    monument = _enrich_monument(supabase, monument_result.data)
+    population = _resolve_population(supabase, monument.get("code_insee"))
+
+    aides = load_all_aides()
+    facts = {**load_facts(), **load_pending_facts()}
+
+    try:
+        result = run_deterministic_diagnostic(
+            aides=aides,
+            facts=facts,
+            monument=monument,
+            population=population,
+            answers=body.answers,
+        )
+    except Exception as exc:
+        logger.error("run_deterministic_diagnostic crashed:\n%s", traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Erreur moteur déterministe : {exc}") from exc
+
+    result["qcmAnswers"] = body.answers or {}
     return _camelise_diagnostic(result)
 
 

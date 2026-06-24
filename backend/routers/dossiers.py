@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -16,6 +17,14 @@ from services.project_access import (
 router = APIRouter(prefix="/dossiers", tags=["dossiers"])
 
 COLUMNS = "*"
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+        return True
+    except ValueError:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -156,9 +165,16 @@ def create_dossier(
     if not monument_result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
 
-    # Fetch aide
-    aide_result = supabase.table("aides_v2").select("*").eq("id", body.aide_id).single().execute()
-    if not aide_result.data:
+    # Fetch aide par UUID ou slug : le moteur déterministe identifie les aides
+    # par leur slug (lecture des YAML), donc body.aide_id peut être l'un ou l'autre.
+    aide_query = supabase.table("aides_v3").select("*")
+    aide_query = (
+        aide_query.eq("id", body.aide_id)
+        if _is_uuid(body.aide_id)
+        else aide_query.eq("slug", body.aide_id)
+    )
+    aide_result = aide_query.maybe_single().execute()
+    if not aide_result or not aide_result.data:
         raise HTTPException(status_code=404, detail="Aide introuvable")
 
     # Fetch user profile
@@ -187,6 +203,10 @@ def create_dossier(
         travaux_prevus=travaux_labels,
     )
     dossier["user_id"] = user_id
+    # Identité cohérente avec le front : on stocke l'identifiant tel qu'envoyé
+    # (slug pour les aides du moteur déterministe), pas l'UUID interne aides_v3,
+    # pour que le rattachement dossier↔aide (masquage de l'aide, suivi) matche.
+    dossier["aide_id"] = body.aide_id
 
     result = supabase.table("dossiers").insert(dossier).execute()
     return result.data[0]
