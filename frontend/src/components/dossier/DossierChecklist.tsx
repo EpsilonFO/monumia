@@ -48,6 +48,15 @@ export function DossierChecklist({
   const { projetId } = useParams();
   const [viewableDocIds, setViewableDocIds] = useState<Set<string> | null>(null);
 
+  // Re-fetch quand l'ensemble des pièces fournies change (dépôt/remplacement) :
+  // sans ça, un document fraîchement déposé n'est pas dans l'ensemble « visibles »
+  // et s'affiche à tort comme « Réservé » jusqu'au rechargement de la page.
+  const fourniKey = items
+    .filter((i) => i.documentId)
+    .map((i) => i.documentId)
+    .sort()
+    .join(',');
+
   useEffect(() => {
     if (!projetId) { setViewableDocIds(null); return; }
     let cancelled = false;
@@ -56,7 +65,7 @@ export function DossierChecklist({
       .then((docs) => { if (!cancelled) setViewableDocIds(new Set(docs.map((d) => d.id))); })
       .catch(() => { if (!cancelled) setViewableDocIds(null); });
     return () => { cancelled = true; };
-  }, [projetId]);
+  }, [projetId, fourniKey]);
 
   return (
     <div className="space-y-3">
@@ -166,7 +175,7 @@ function DocumentRow({
             Voir
           </button>
         )}
-        {!readOnly && isFourni && item.documentId && onRequestDelete && canModify && (
+        {!readOnly && isFourni && item.documentId && onRequestDelete && canModify && !hidden && (
           <button
             type="button"
             disabled={busy}
@@ -180,7 +189,7 @@ function DocumentRow({
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         )}
-        {!readOnly && onRequestAttach && (!isFourni || canModify) && (
+        {!readOnly && onRequestAttach && (!isFourni || canModify) && !hidden && (
           <button
             type="button"
             disabled={busy}

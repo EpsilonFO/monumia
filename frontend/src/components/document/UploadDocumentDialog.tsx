@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Upload, File, X, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,11 +24,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { formatFileSize } from '@/lib/format-utils';
 import { ACCEPT_ATTR, MAX_FILE_SIZE_MB, validateFile } from '@/constants/file-types';
 import { toast } from 'sonner';
-import type { DocumentType } from '@/types';
-import { DocumentVisibilityField, type DocumentVisibilityValue } from './DocumentVisibilityField';
-import { sharingService } from '@/services/sharing.service';
-import { isProjectShared } from '@/lib/project-permissions';
-import type { ProjectMember } from '@/types';
+import type { Document, DocumentType } from '@/types';
 
 const TYPE_LABELS: Record<DocumentType, string> = {
   photo: 'Photo',
@@ -48,9 +44,11 @@ const TYPE_LABELS: Record<DocumentType, string> = {
 interface UploadDocumentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Appelé avec le document fraîchement déposé — pour ouvrir « Gérer l'accès ». */
+  onUploaded?: (doc: Document) => void;
 }
 
-export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialogProps) {
+export function UploadDocumentDialog({ open, onOpenChange, onUploaded }: UploadDocumentDialogProps) {
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const uploadDocument = useDocumentStore((s) => s.uploadDocument);
@@ -61,31 +59,9 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
   const [type, setType] = useState<DocumentType | ''>('');
   const [monumentIds, setMonumentIds] = useState<string[]>([]);
   const [description, setDescription] = useState('');
-  const [access, setAccess] = useState<DocumentVisibilityValue>({ visibility: 'team', allowedUserIds: [] });
-  const [members, setMembers] = useState<ProjectMember[]>([]);
   const [loading, setLoading] = useState(false);
 
   const userMonuments = user ? monuments.filter((m) => m.userId === user.id) : [];
-
-  // Le contrôle de visibilité n'apparaît que pour UN seul projet partagé sélectionné.
-  const singleMonument =
-    monumentIds.length === 1 ? userMonuments.find((m) => m.id === monumentIds[0]) : undefined;
-  const showVisibility = !!singleMonument && isProjectShared(singleMonument);
-
-  useEffect(() => {
-    if (!showVisibility || !singleMonument) {
-      setMembers([]);
-      setAccess({ visibility: 'team', allowedUserIds: [] });
-      return;
-    }
-    let cancelled = false;
-    sharingService
-      .getMembers(singleMonument.id)
-      .then((r) => { if (!cancelled) setMembers(r.members); })
-      .catch(() => { if (!cancelled) setMembers([]); });
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- on dépend de l'id stable plutôt que de l'objet pour éviter les re-runs sur chaque refresh du store
-  }, [showVisibility, singleMonument?.id]);
 
   const acceptFile = (candidate: File) => {
     const err = validateFile(candidate);
@@ -117,7 +93,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
 
     setLoading(true);
     try {
-      await uploadDocument(
+      const doc = await uploadDocument(
         {
           file,
           nom,
@@ -125,13 +101,14 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
           monumentIds: monumentIds.length > 0 ? monumentIds : undefined,
           description: description || undefined,
           tags: [],
-          visibility: showVisibility ? access.visibility : undefined,
-          allowedUserIds: showVisibility ? access.allowedUserIds : undefined,
         },
         user.id
       );
       toast.success('Document importé avec succès');
       handleClose();
+      // Le document est créé avec un défaut sûr (chef + adjoints) ; on ouvre
+      // aussitôt « Gérer l'accès » pour que l'auteur choisisse qui peut le voir.
+      if (doc.monumentIds.length > 0) onUploaded?.(doc);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de l\'import');
     } finally {
@@ -145,8 +122,6 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
     setType('');
     setMonumentIds([]);
     setDescription('');
-    setAccess({ visibility: 'team', allowedUserIds: [] });
-    setMembers([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     onOpenChange(false);
   };
@@ -274,15 +249,6 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
               rows={2}
             />
           </div>
-
-          {showVisibility && (
-            <DocumentVisibilityField
-              value={access}
-              onChange={setAccess}
-              currentUserRole={singleMonument?.myRole ?? 'owner'}
-              members={members}
-            />
-          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>

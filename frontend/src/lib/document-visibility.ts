@@ -33,6 +33,29 @@ export function canViewDocument(
   return false;
 }
 
+/** Sous-ensemble des membres qui peuvent consulter un document, selon sa visibilité.
+ *  Le chef (owner) et l'auteur voient toujours — miroir de `canViewDocument`. */
+export function whoCanView(
+  members: { userId: ID; role: ProjectRole }[],
+  visibility: DocumentVisibility,
+  allowedUserIds: ID[],
+  uploaderId?: ID,
+): ID[] {
+  const ids = new Set<ID>();
+  for (const m of members) {
+    if (
+      m.role === 'owner' ||
+      (uploaderId && m.userId === uploaderId) ||
+      visibility === 'team' ||
+      (visibility === 'responsables' && m.role === 'co_owner') ||
+      (visibility === 'custom' && allowedUserIds.includes(m.userId))
+    ) {
+      ids.add(m.userId);
+    }
+  }
+  return [...ids];
+}
+
 /** Pré-coche la liste « personnes choisies » selon le réglage précédent. */
 export function customIdsForPreset(
   prior: DocumentVisibility,

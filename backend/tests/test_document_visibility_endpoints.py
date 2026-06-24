@@ -89,10 +89,12 @@ class CreateVisibilityTests(unittest.TestCase):
         base.update(over)
         return CreateDocumentRequest(**base)
 
-    def test_owner_default_is_team(self):
+    def test_owner_default_is_responsables(self):
+        # Défaut sûr : un document fraîchement déposé n'est PAS visible par toute
+        # l'équipe. Même un chef de projet doit ouvrir explicitement à l'équipe.
         fake = _supabase(caller_role="owner")
         create_document(self._body(), user_id="u1", supabase=fake)
-        self.assertEqual(fake.inserted[0]["visibility"], "team")
+        self.assertEqual(fake.inserted[0]["visibility"], "responsables")
 
     def test_member_default_is_responsables(self):
         fake = _supabase(caller_role="member")
@@ -160,6 +162,17 @@ class UpdateVisibilityTests(unittest.TestCase):
             update_document(
                 "d1", UpdateDocumentRequest(visibility="responsables"), user_id="u1", supabase=fake
             )
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_co_owner_cannot_edit_hidden_custom_doc(self):
+        # adjoint exclu d'un doc « personnes choisies » → ne peut pas le modifier
+        hidden = {
+            "id": "d1", "user_id": "u2", "monument_ids": ["m1"],
+            "visibility": "custom", "allowed_user_ids": ["u9"],
+        }
+        fake = _supabase(caller_role="co_owner", doc=hidden)
+        with self.assertRaises(HTTPException) as ctx:
+            update_document("d1", UpdateDocumentRequest(nom="Renommé"), user_id="u1", supabase=fake)
         self.assertEqual(ctx.exception.status_code, 403)
 
 

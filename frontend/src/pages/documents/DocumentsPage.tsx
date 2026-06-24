@@ -11,6 +11,7 @@ import { DocumentTile } from '@/components/document/DocumentTile';
 import { ProjectLegend, type LegendItem } from '@/components/document/ProjectLegend';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { UploadDocumentDialog } from '@/components/document/UploadDocumentDialog';
+import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
 import { AddToProjectDialog } from '@/components/document/AddToProjectDialog';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
@@ -35,6 +36,7 @@ export function DocumentsPage() {
   const [filterType, setFilterType] = useState('all');
   const [activeProject, setActiveProject] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [accessDoc, setAccessDoc] = useState<Document | null>(null);
   const [trashOpen, setTrashOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [addToProjectDoc, setAddToProjectDoc] = useState<Document | null>(null);
@@ -120,6 +122,19 @@ export function DocumentsPage() {
   const shownSections = activeProject
     ? projectSections.filter((s) => s.mid === activeProject)
     : projectSections;
+
+  // Filet de sécurité : un document que le backend nous a renvoyé (donc visible)
+  // mais dont AUCUN projet n'est connu de notre store (projet partagé pas encore
+  // chargé, etc.) ne doit jamais disparaître — on l'affiche dans une section à part.
+  const orphanDocs = useMemo(
+    () =>
+      visibleDocs.filter(
+        (d) =>
+          d.monumentIds.length > 0 &&
+          !d.monumentIds.some((mid) => monumentNames[mid] !== undefined),
+      ),
+    [visibleDocs, monumentNames],
+  );
 
   // ---- Handlers ----
   const handleTrash = async (d: Document) => {
@@ -322,6 +337,34 @@ export function DocumentsPage() {
             </section>
           )}
 
+          {/* Autres documents partagés (projet non chargé / non membre) */}
+          {!activeProject && orphanDocs.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-center gap-2.5 border-b pb-2" style={{ borderColor: C.border }}>
+                <span className="h-3 w-3 rounded-full" style={{ background: '#9aa1ad' }} />
+                <h2 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>Autres documents partagés</h2>
+                <span className="text-[12px] tabular-nums" style={{ color: '#6a7180' }}>
+                  {orphanDocs.length} document{orphanDocs.length > 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {orphanDocs.map((doc) => (
+                  <DocumentTile
+                    key={`orphan-${doc.id}`}
+                    document={doc}
+                    accentColor="#9aa1ad"
+                    monumentNames={monumentNames}
+                    dossiersById={dossiersById}
+                    uploaderName={uploaderNames[doc.userId]}
+                    myRole={null}
+                    sectionMonumentId={null}
+                    {...tileHandlers}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Corbeille */}
           {!activeProject && trashedDocuments.length > 0 && (
             <Collapsible open={trashOpen} onOpenChange={setTrashOpen}>
@@ -388,7 +431,19 @@ export function DocumentsPage() {
         </DialogContent>
       </Dialog>
 
-      <UploadDocumentDialog open={uploadOpen} onOpenChange={setUploadOpen} />
+      <UploadDocumentDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        onUploaded={(doc) => setAccessDoc(doc)}
+      />
+      {accessDoc && (
+        <ManageDocumentAccessDialog
+          document={accessDoc}
+          myRole={roleByMonument[accessDoc.monumentIds[0]] ?? null}
+          open={!!accessDoc}
+          onOpenChange={(open) => { if (!open) setAccessDoc(null); }}
+        />
+      )}
       <DocumentPreviewDialog
         document={previewDoc}
         open={!!previewDoc}

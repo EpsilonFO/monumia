@@ -8,8 +8,7 @@ from supabase import Client
 from db import get_current_user_id, get_supabase
 from services.project_access import (
     allowed_visibilities,
-    can_delete_document,
-    can_edit_visibility,
+    can_modify_document,
     can_view_document,
     get_project_role,
     require_project_access,
@@ -127,6 +126,21 @@ def _highest_project_role(supabase: Client, monument_ids: list | None, user_id: 
     return best
 
 
+def _can_modify(doc: dict, role: str | None, user_id: str) -> bool:
+    """Vrai si `user_id` (rôle `role`) peut modifier/supprimer/déplacer `doc`.
+
+    Exige le droit de consultation : un adjoint exclu d'un document « personnes
+    choisies » ne peut donc rien en faire.
+    """
+    return can_modify_document(
+        visibility=doc.get("visibility") or "team",
+        allowed_user_ids=doc.get("allowed_user_ids") or [],
+        uploader_id=doc.get("user_id"),
+        viewer_id=user_id,
+        viewer_role=role,
+    )
+
+
 def _resolve_visibility(
     requested: str | None,
     allowed_user_ids: list[str],
@@ -136,13 +150,15 @@ def _resolve_visibility(
 ) -> tuple[str, list[str]]:
     """Normalise/valide la visibilité demandée selon le rôle de l'auteur.
 
-    Document sans projet → 'team' (pas de contexte de partage). Sinon défaut
-    'team' pour un responsable, 'responsables' pour un collaborateur. La liste
+    Document sans projet → 'team' (pas de contexte de partage). Sinon, défaut
+    SÛR : 'responsables' (chef + adjoints) pour tout le monde — un document
+    fraîchement déposé n'est jamais visible par toute l'équipe tant que l'auteur
+    ne l'a pas explicitement décidé (popup « Gérer l'accès » au dépôt). La liste
     `allowed_user_ids` n'est conservée que pour 'custom'.
     """
     if not has_project:
         return "team", []
-    visibility = requested or ("team" if role_at_least(role, "co_owner") else "responsables")
+    visibility = requested or "responsables"
     if visibility not in allowed_visibilities(role):
         raise HTTPException(status_code=422, detail="Visibilité non autorisée pour votre rôle")
     return visibility, (list(allowed_user_ids) if visibility == "custom" else [])
@@ -372,8 +388,7 @@ def update_document(
 ):
     doc = _get_document_any(supabase, document_id)
     role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
-    is_uploader = doc.get("user_id") == user_id
-    if not can_edit_visibility(role, is_uploader=is_uploader):
+    if not _can_modify(doc, role, user_id):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas modifier ce document")
 
     updates = body.model_dump(exclude_none=True)
@@ -405,13 +420,12 @@ def delete_document(
 ):
     doc = _get_document_any(supabase, document_id)
     uploader_id = doc.get("user_id")
-    is_uploader = uploader_id == user_id
 
-    # Suppression autorisée à l'auteur du document, ou à un owner/co_owner d'un de
-    # ses projets (mêmes droits que la modification). Un simple membre ne peut
-    # supprimer que ses propres documents. La consultation reste ouverte à tous.
+    # Suppression : l'auteur, ou un owner/co_owner POUVANT CONSULTER le document
+    # (un adjoint exclu d'un doc « personnes choisies » ne peut rien faire). Un
+    # simple membre ne peut supprimer que ses propres documents.
     role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
-    if not can_delete_document(role, is_uploader=is_uploader):
+    if not _can_modify(doc, role, user_id):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas supprimer ce document")
 
     # Le fichier est stocké sous "<uploader_id>/..." — valider contre l'auteur, pas l'appelant.
@@ -477,10 +491,10 @@ def unlink_from_dossier(
         .execute()
     )
     if dossier and dossier.data:
-        # Retirer une pièce d'un dossier suit la règle de suppression des documents :
-        # l'auteur de la pièce, ou un chef de projet / adjoint.
+        # Retirer une pièce d'un dossier suit la règle de modification des documents :
+        # l'auteur de la pièce, ou un chef de projet / adjoint POUVANT la consulter.
         role = get_project_role(supabase, dossier.data["monument_id"], user_id)
-        if not can_delete_document(role, is_uploader=(doc.get("user_id") == user_id)):
+        if not _can_modify(doc, role, user_id):
             raise HTTPException(
                 status_code=403, detail="Vous ne pouvez pas retirer cette pièce du dossier"
             )
@@ -533,7 +547,7 @@ def trash_document(
     et poser `trashed_at`. Récupérable via /restore, supprimable définitivement via DELETE."""
     doc = _get_document_any(supabase, document_id)
     role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
-    if not can_delete_document(role, is_uploader=(doc.get("user_id") == user_id)):
+    if not _can_modify(doc, role, user_id):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas supprimer ce document")
     patch = {"monument_ids": [], "dossiers_utilises": [], "trashed_at": _now_iso()}
     result = supabase.table("documents").update(patch).eq("id", document_id).execute()
@@ -567,7 +581,7 @@ def remove_document_from_project(
     projet ni dossier), il part automatiquement en corbeille. Renvoie le document à jour."""
     doc = _get_document_any(supabase, document_id)
     role = get_project_role(supabase, monument_id, user_id)
-    if not can_delete_document(role, is_uploader=(doc.get("user_id") == user_id)):
+    if not _can_modify(doc, role, user_id):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas retirer ce document du projet")
 
     monuments = [m for m in (doc.get("monument_ids") or []) if m != monument_id]

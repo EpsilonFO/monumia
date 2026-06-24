@@ -32,6 +32,8 @@ interface DocumentCardProps {
   onAddToProject?: (document: Document) => void;
   myRole?: ProjectRole | null;
   uploaderName?: string;
+  /** Appelé après un changement d'accès, pour rafraîchir la liste du parent. */
+  onDocumentUpdated?: () => void;
 }
 
 const typeIcons: Record<string, typeof FileText> = {
@@ -61,7 +63,7 @@ const typeAccent: Record<string, { bg: string; text: string }> = {
   autre: { bg: '#F3F4F6', text: '#374151' },
 };
 
-export function DocumentCard({ document, dossierNames, monumentNames, onClick, onRename, onDelete, onAddToProject, myRole, uploaderName }: DocumentCardProps) {
+export function DocumentCard({ document, dossierNames, monumentNames, onClick, onRename, onDelete, onAddToProject, myRole, uploaderName, onDocumentUpdated }: DocumentCardProps) {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const isUploader = document.userId === currentUserId;
   // Suppression / renommage : l'auteur, ou un owner/co_owner du projet (tous les
@@ -204,6 +206,7 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
         myRole={myRole ?? null}
         open={accessOpen}
         onOpenChange={setAccessOpen}
+        onSaved={onDocumentUpdated}
       />
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>

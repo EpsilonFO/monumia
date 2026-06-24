@@ -5,6 +5,7 @@ import unittest
 from services.project_access import (
     allowed_visibilities,
     can_edit_visibility,
+    can_modify_document,
     can_view_document,
 )
 
@@ -48,6 +49,43 @@ class CanViewDocumentTests(unittest.TestCase):
     def test_custom_listed_but_non_member_denied(self) -> None:
         # défense : un id listé mais non membre (role None) ne voit pas
         self.assertFalse(_view("custom", None, allowed=["u1"]))
+
+
+def _modify(visibility, role, *, allowed=None, uploader="u2", viewer="u1"):
+    return can_modify_document(
+        visibility=visibility,
+        allowed_user_ids=allowed or [],
+        uploader_id=uploader,
+        viewer_id=viewer,
+        viewer_role=role,
+    )
+
+
+class CanModifyDocumentTests(unittest.TestCase):
+    """Modifier/supprimer un document exige de pouvoir le CONSULTER (bug : un
+    adjoint sans accès pouvait quand même supprimer/remplacer une pièce)."""
+
+    def test_co_owner_cannot_modify_hidden_custom(self) -> None:
+        # adjoint exclu d'un doc « personnes choisies » → aucune action possible
+        self.assertFalse(_modify("custom", "co_owner", allowed=["u3"]))
+
+    def test_co_owner_can_modify_visible_docs(self) -> None:
+        self.assertTrue(_modify("team", "co_owner"))
+        self.assertTrue(_modify("responsables", "co_owner"))
+        self.assertTrue(_modify("custom", "co_owner", allowed=["u1"]))
+
+    def test_uploader_can_modify_even_when_custom(self) -> None:
+        self.assertTrue(_modify("custom", "member", uploader="u1", viewer="u1"))
+
+    def test_owner_modifies_even_hidden_custom(self) -> None:
+        self.assertTrue(_modify("custom", "owner", allowed=["u3"]))
+
+    def test_member_non_uploader_cannot_modify_team(self) -> None:
+        # un simple membre ne peut agir que sur ses propres documents
+        self.assertFalse(_modify("team", "member"))
+
+    def test_non_member_cannot_modify(self) -> None:
+        self.assertFalse(_modify("team", None))
 
 
 class AllowedVisibilitiesTests(unittest.TestCase):

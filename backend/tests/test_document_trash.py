@@ -8,6 +8,7 @@ from routers.documents import (
     _best_role,
     _filter_visible,
     _should_auto_trash,
+    delete_document,
     list_documents,
     remove_document_from_project,
     restore_document,
@@ -194,6 +195,52 @@ class RemoveFromProjectTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             remove_document_from_project("d1", "m1", user_id="u1", supabase=fake)
         self.assertEqual(ctx.exception.status_code, 403)
+
+
+class ModifyHiddenDocViewGateTests(unittest.TestCase):
+    """Bug : un adjoint (co_owner) SANS accès à un document « personnes choisies »
+    pouvait quand même le supprimer / déplacer / remplacer. Désormais : aucune
+    action sans droit de consultation (côté serveur, défense en profondeur)."""
+
+    # Doc custom dont u1 (le co_owner appelant) est exclu ; auteur = u2.
+    HIDDEN = {
+        "id": "d1",
+        "user_id": "u2",
+        "monument_ids": ["m1"],
+        "dossiers_utilises": ["dz"],
+        "visibility": "custom",
+        "allowed_user_ids": ["u9"],
+    }
+
+    def test_delete_forbidden_for_co_owner_without_view(self):
+        fake = _fake(doc=self.HIDDEN, caller_role="co_owner")
+        with self.assertRaises(HTTPException) as ctx:
+            delete_document("d1", user_id="u1", supabase=fake)
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_trash_forbidden_for_co_owner_without_view(self):
+        fake = _fake(doc=self.HIDDEN, caller_role="co_owner")
+        with self.assertRaises(HTTPException) as ctx:
+            trash_document("d1", user_id="u1", supabase=fake)
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_remove_from_project_forbidden_for_co_owner_without_view(self):
+        fake = _fake(doc=self.HIDDEN, caller_role="co_owner")
+        with self.assertRaises(HTTPException) as ctx:
+            remove_document_from_project("d1", "m1", user_id="u1", supabase=fake)
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_unlink_forbidden_for_co_owner_without_view(self):
+        fake = _fake(doc=self.HIDDEN, caller_role="co_owner", dossier={"id": "dz", "monument_id": "m1"})
+        with self.assertRaises(HTTPException) as ctx:
+            unlink_from_dossier("d1", "dz", user_id="u1", supabase=fake)
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_owner_still_acts_on_hidden_doc(self):
+        # le chef de projet voit toujours tout → il garde la main (détache de m1).
+        fake = _fake(doc=self.HIDDEN, caller_role="owner")
+        remove_document_from_project("d1", "m1", user_id="u1", supabase=fake)
+        self.assertEqual(fake.updated[0]["monument_ids"], [])
 
 
 # ---------------------------------------------------------------------------

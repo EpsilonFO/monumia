@@ -16,6 +16,7 @@ import { MonumentForm } from '@/components/monument/MonumentForm';
 import { AideCard } from '@/components/aide/AideCard';
 import { DossierCard } from '@/components/dossier/DossierCard';
 import { DocumentCard } from '@/components/document/DocumentCard';
+import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { AddToProjectDialog } from '@/components/document/AddToProjectDialog';
 import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
@@ -84,6 +85,7 @@ export function ProjectDetailPage() {
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [addToProjectDoc, setAddToProjectDoc] = useState<Document | null>(null);
   const [addDocOpen, setAddDocOpen] = useState(false);
+  const [accessDoc, setAccessDoc] = useState<Document | null>(null);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
 
@@ -475,6 +477,7 @@ export function ProjectDetailPage() {
                   onAddToProject={(doc) => { setPreviewDoc(null); setAddToProjectDoc(doc); }}
                   myRole={monument.myRole ?? null}
                   uploaderName={uploaderNames[doc.userId]}
+                  onDocumentUpdated={reloadProjectDocuments}
                 />
               ))}
             </div>
@@ -507,7 +510,17 @@ export function ProjectDetailPage() {
         onOpenChange={setAddDocOpen}
         monumentId={monument.id}
         onAttach={handleAddDocument}
+        onUploaded={(doc) => setAccessDoc(doc)}
       />
+      {accessDoc && (
+        <ManageDocumentAccessDialog
+          document={accessDoc}
+          myRole={monument.myRole ?? null}
+          open={!!accessDoc}
+          onOpenChange={(open) => { if (!open) setAccessDoc(null); }}
+          onSaved={reloadProjectDocuments}
+        />
+      )}
 
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>

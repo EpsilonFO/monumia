@@ -4,6 +4,7 @@ import {
   canEditVisibility,
   canViewDocument,
   customIdsForPreset,
+  whoCanView,
 } from '@/lib/document-visibility';
 
 const doc = (visibility: 'team' | 'responsables' | 'custom', allowedUserIds: string[] = [], userId = 'u2') =>
@@ -52,6 +53,27 @@ describe('canViewDocument', () => {
     expect(canViewDocument(doc('custom', ['u1']), 'u1', 'member')).toBe(true);
     expect(canViewDocument(doc('custom', ['u3']), 'u1', 'co_owner')).toBe(false);
     expect(canViewDocument(doc('custom', ['u1']), 'u1', null)).toBe(false);
+  });
+});
+
+describe('whoCanView', () => {
+  const members = [
+    { userId: 'owner1', role: 'owner' as const },
+    { userId: 'adj1', role: 'co_owner' as const },
+    { userId: 'col1', role: 'member' as const },
+    { userId: 'col2', role: 'member' as const },
+  ];
+  it('team → tout le monde', () => {
+    expect(whoCanView(members, 'team', []).sort()).toEqual(['adj1', 'col1', 'col2', 'owner1']);
+  });
+  it('responsables → chef + adjoints', () => {
+    expect(whoCanView(members, 'responsables', []).sort()).toEqual(['adj1', 'owner1']);
+  });
+  it('custom → chef (toujours) + personnes choisies', () => {
+    expect(whoCanView(members, 'custom', ['col1']).sort()).toEqual(['col1', 'owner1']);
+  });
+  it("inclut toujours l'auteur même si la visibilité l'exclurait", () => {
+    expect(whoCanView(members, 'responsables', [], 'col2').sort()).toEqual(['adj1', 'col2', 'owner1']);
   });
 });
 

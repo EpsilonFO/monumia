@@ -10,6 +10,7 @@ import { AideDetails } from '@/components/aide/AideDetails';
 import { DossierChecklist } from '@/components/dossier/DossierChecklist';
 import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
+import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
@@ -54,6 +55,7 @@ export function DossierDetailPage() {
   const [attachingItem, setAttachingItem] = useState<ChecklistItem | null>(null);
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [accessDoc, setAccessDoc] = useState<Document | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -282,7 +284,17 @@ export function DossierDetailPage() {
         monumentId={monument.id}
         defaultName={attachingItem?.label}
         onAttach={handleAttach}
+        onUploaded={(doc) => setAccessDoc(doc)}
       />
+      {accessDoc && (
+        <ManageDocumentAccessDialog
+          document={accessDoc}
+          myRole={monument.myRole ?? null}
+          open={!!accessDoc}
+          onOpenChange={(open) => { if (!open) setAccessDoc(null); }}
+          onSaved={() => { fetchDocuments().catch(() => {}); }}
+        />
+      )}
 
       <DocumentPreviewDialog
         document={previewDoc}

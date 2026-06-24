@@ -72,6 +72,33 @@ def can_edit_visibility(role: Role | None, *, is_uploader: bool) -> bool:
     return can_delete_document(role, is_uploader=is_uploader)
 
 
+def can_modify_document(
+    *,
+    visibility: str,
+    allowed_user_ids: list[str],
+    uploader_id: str | None,
+    viewer_id: str,
+    viewer_role: Role | None,
+) -> bool:
+    """Modifier / supprimer / déplacer / repartager un document.
+
+    Prérequis ABSOLU : pouvoir le consulter. Un adjoint (co_owner) exclu d'un
+    document « personnes choisies » ne peut donc rien en faire — ni le voir, ni
+    le supprimer, ni le remplacer. Pour qui peut le voir, les droits sont ceux
+    de la suppression : l'auteur, ou un owner/co_owner du projet.
+    """
+    if not can_view_document(
+        visibility=visibility,
+        allowed_user_ids=allowed_user_ids,
+        uploader_id=uploader_id,
+        viewer_id=viewer_id,
+        viewer_role=viewer_role,
+    ):
+        return False
+    is_uploader = uploader_id is not None and viewer_id == uploader_id
+    return can_delete_document(viewer_role, is_uploader=is_uploader)
+
+
 def get_project_role(supabase: Client, monument_id: str, user_id: str) -> Role | None:
     """Rôle de l'utilisateur sur le projet, ou None s'il n'est pas membre."""
     result = (

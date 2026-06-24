@@ -7,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,6 +51,9 @@ interface AttachDocumentDialogProps {
   defaultName?: string;
   /** Called with the chosen document (either existing or freshly uploaded). */
   onAttach: (document: Document) => Promise<void> | void;
+  /** Called only after a FRESH upload (pas la sélection d'un doc existant) —
+   *  pour ouvrir le popup « Gérer l'accès » sur la pièce déposée. */
+  onUploaded?: (document: Document) => void;
 }
 
 export function AttachDocumentDialog({
@@ -60,13 +62,15 @@ export function AttachDocumentDialog({
   monumentId,
   defaultName,
   onAttach,
+  onUploaded,
 }: AttachDocumentDialogProps) {
   const user = useAuthStore((s) => s.user);
   const { documents, loading, fetchDocuments, uploadDocument } = useDocumentStore();
 
-  const [tab, setTab] = useState<'existing' | 'upload'>('existing');
   const [search, setSearch] = useState('');
-  const [scope, setScope] = useState<'monument' | 'all'>(monumentId ? 'monument' : 'all');
+  // Par défaut on montre TOUS les documents de l'utilisateur (pas seulement ceux
+  // déjà dans ce projet) : on peut ainsi rattacher un doc de « Mes documents ».
+  const [scope, setScope] = useState<'monument' | 'all'>('all');
   const [attachingId, setAttachingId] = useState<string | null>(null);
 
   // Upload form state
@@ -81,9 +85,8 @@ export function AttachDocumentDialog({
   useEffect(() => {
     if (open) {
       fetchDocuments();
-      setTab('existing');
       setSearch('');
-      setScope(monumentId ? 'monument' : 'all');
+      setScope('all');
       setFile(null);
       setNom(defaultName ?? '');
       setType('');
@@ -162,6 +165,7 @@ export function AttachDocumentDialog({
         user.id,
       );
       await onAttach(doc);
+      onUploaded?.(doc);
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur lors de l'import");
@@ -177,94 +181,11 @@ export function AttachDocumentDialog({
           <DialogTitle>Ajouter un document</DialogTitle>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as 'existing' | 'upload')} className="flex-1 flex flex-col min-h-0">
-          <TabsList className="grid grid-cols-2 w-full">
-            <TabsTrigger value="existing">Mes documents</TabsTrigger>
-            <TabsTrigger value="upload">Téléverser</TabsTrigger>
-          </TabsList>
-
-          {/* Existing documents */}
-          <TabsContent value="existing" className="flex-1 min-h-0 flex flex-col gap-3 mt-4">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="pl-9"
-                  placeholder="Rechercher..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              {monumentId && (
-                <Select value={scope} onValueChange={(v) => setScope(v as 'monument' | 'all')}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monument">Ce monument</SelectItem>
-                    <SelectItem value="all">Tous mes documents</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
-            <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
-                  <FileText className="h-8 w-8 opacity-50" />
-                  <p className="text-sm">Aucun document disponible.</p>
-                  <Button variant="link" size="sm" onClick={() => setTab('upload')}>
-                    Téléverser un document
-                  </Button>
-                </div>
-              ) : (
-                <ul className="divide-y">
-                  {filtered.map((doc) => {
-                    const busy = attachingId === doc.id;
-                    return (
-                      <li key={doc.id}>
-                        <button
-                          type="button"
-                          disabled={!!attachingId}
-                          onClick={() => handleSelectExisting(doc)}
-                          className={cn(
-                            'w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/50 transition-colors',
-                            attachingId && !busy && 'opacity-50 cursor-not-allowed',
-                          )}
-                        >
-                          <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium truncate">{doc.nom}</span>
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
-                                {TYPE_LABELS[doc.type] ?? doc.type}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {doc.nomFichier} · {formatFileSize(doc.tailleFichier)}
-                            </p>
-                          </div>
-                          {busy ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
-                          ) : (
-                            <Check className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                          )}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </TabsContent>
-
-          {/* Upload */}
-          <TabsContent value="upload" className="flex-1 min-h-0 overflow-y-auto mt-4">
-            <form onSubmit={handleUpload} className="space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-5 pr-1">
+          {/* 1 — Téléverser un nouveau document */}
+          <section className="space-y-3">
+            <h3 className="text-[13px] font-semibold text-[#1B1E2E]">Téléverser un nouveau document</h3>
+            <form onSubmit={handleUpload} className="space-y-3">
               <div
                 onClick={() => fileInputRef.current?.click()}
                 onDrop={handleDrop}
@@ -305,66 +226,166 @@ export function AttachDocumentDialog({
                 )}
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="attach-nom">Nom du document *</Label>
+              {/* Détails + bouton d'import : seulement une fois un fichier choisi. */}
+              {file && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="attach-nom">Nom du document *</Label>
+                    <Input
+                      id="attach-nom"
+                      placeholder="Ex : Devis restauration toiture"
+                      value={nom}
+                      onChange={(e) => setNom(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Type *</Label>
+                    <Select value={type} onValueChange={(v) => setType(v as DocumentType)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choisir..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.entries(TYPE_LABELS) as [DocumentType, string][]).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="attach-description">
+                      Description <span className="text-muted-foreground font-normal">(optionnel)</span>
+                    </Label>
+                    <Textarea
+                      id="attach-description"
+                      placeholder="Courte description…"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={!file || !nom.trim() || !type || uploading}>
+                      {uploading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Import en cours…
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          Importer et rattacher
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </form>
+          </section>
+
+          {/* Séparation claire entre « téléverser » et « choisir un existant ». */}
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1" style={{ background: '#E4E2DC' }} />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8E92A4]">
+              ou choisir parmi mes documents
+            </span>
+            <span className="h-px flex-1" style={{ background: '#E4E2DC' }} />
+          </div>
+
+          {/* 2 — Choisir un document existant (« Mes documents ») */}
+          <section className="space-y-3">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="attach-nom"
-                  placeholder="Ex : Devis restauration toiture"
-                  value={nom}
-                  onChange={(e) => setNom(e.target.value)}
+                  className="pl-9"
+                  placeholder="Rechercher dans mes documents..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-
-              <div className="space-y-1.5">
-                <Label>Type *</Label>
-                <Select value={type} onValueChange={(v) => setType(v as DocumentType)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir..." />
+              {monumentId && (
+                <Select value={scope} onValueChange={(v) => setScope(v as 'monument' | 'all')}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(Object.entries(TYPE_LABELS) as [DocumentType, string][]).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="all">Tous mes documents</SelectItem>
+                    <SelectItem value="monument">Ce projet uniquement</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              )}
+            </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="attach-description">
-                  Description <span className="text-muted-foreground font-normal">(optionnel)</span>
-                </Label>
-                <Textarea
-                  id="attach-description"
-                  placeholder="Courte description…"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={2}
-                />
-              </div>
+            <div className="max-h-64 overflow-y-auto border rounded-lg">
+              {loading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
+                  <FileText className="h-8 w-8 opacity-50" />
+                  <p className="text-sm text-center px-4">
+                    Aucun document existant — utilisez la zone de téléversement ci-dessus.
+                  </p>
+                </div>
+              ) : (
+                <ul className="divide-y">
+                  {filtered.map((doc) => {
+                    const busy = attachingId === doc.id;
+                    return (
+                      <li key={doc.id}>
+                        <button
+                          type="button"
+                          disabled={!!attachingId}
+                          onClick={() => handleSelectExisting(doc)}
+                          className={cn(
+                            'w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/50 transition-colors',
+                            attachingId && !busy && 'opacity-50 cursor-not-allowed',
+                          )}
+                        >
+                          <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium truncate">{doc.nom}</span>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                                {TYPE_LABELS[doc.type] ?? doc.type}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {doc.nomFichier} · {formatFileSize(doc.tailleFichier)}
+                            </p>
+                          </div>
+                          {busy ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                          ) : (
+                            <Check className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </section>
+        </div>
 
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={uploading}>
-                  Annuler
-                </Button>
-                <Button type="submit" disabled={!file || !nom.trim() || !type || uploading}>
-                  {uploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Import en cours…
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Importer et rattacher
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </TabsContent>
-        </Tabs>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={uploading || !!attachingId}
+          >
+            Fermer
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
