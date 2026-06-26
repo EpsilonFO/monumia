@@ -53,7 +53,7 @@ function BtpAccount({ onNavigate }: { onNavigate?: () => void }) {
       </NavLink>
       <button
         onClick={handleLogout}
-        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium transition-colors hover:bg-[var(--color-secondary)]"
+        className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium transition-colors hover:bg-[var(--color-secondary)]"
         style={{ color: C.grayMuted }}
       >
         <LogOut className="h-3.5 w-3.5" strokeWidth={1.8} />

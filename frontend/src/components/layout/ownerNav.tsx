@@ -34,6 +34,7 @@ export function OwnerAccount({ onNavigate }: { onNavigate?: () => void }) {
     <div className="space-y-1">
       <a
         href="mailto:contact@monumia.fr"
+        onClick={onNavigate}
         className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--color-secondary)]"
         style={{ color: C.grayFg }}
       >
@@ -64,7 +65,7 @@ export function OwnerAccount({ onNavigate }: { onNavigate?: () => void }) {
 
       <button
         onClick={handleLogout}
-        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium transition-colors hover:bg-[var(--color-secondary)]"
+        className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium transition-colors hover:bg-[var(--color-secondary)]"
         style={{ color: C.grayMuted }}
       >
         <LogOut className="h-3.5 w-3.5" strokeWidth={1.8} />

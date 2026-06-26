@@ -17,6 +17,7 @@ import { useNotificationStore } from '@/stores/useNotificationStore';
 import { monumentService } from '@/services/monument.service';
 import { dossierService } from '@/services/dossier.service';
 import { aideService } from '@/services/aide.service';
+import { suiviService } from '@/services/suivi.service';
 import { ROUTES } from '@/constants/routes';
 import {
   aggregateDashboardStats,
@@ -65,6 +66,18 @@ export function DashboardPage() {
           .runProjectDiagnostic(m.id, m.questionnaire)
           .then((result) => setDiagnostic(m.id, result))
           .catch(console.error);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayMonuments]);
+
+  // Charge les suivis (par monument) absents du store, pour que le parcours
+  // puisse atteindre l'étape « Suivi ». Gardé par loadedMonuments → une fois
+  // par monument et par session (comme le diagnostic).
+  useEffect(() => {
+    for (const m of displayMonuments) {
+      if (!loadedSuivis[m.id]) {
+        suiviService.fetchByMonument(m.id).catch(console.error);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -132,6 +145,7 @@ export function DashboardPage() {
   }, [displayMonuments, diagMap, userDossiers]);
 
   const suivis = useSuiviStore((s) => s.suivis);
+  const loadedSuivis = useSuiviStore((s) => s.loadedMonuments);
 
   const stageByMonument = useMemo<Record<string, ProjectStage>>(() => {
     const out: Record<string, ProjectStage> = {};

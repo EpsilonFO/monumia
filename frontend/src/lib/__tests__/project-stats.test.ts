@@ -3,8 +3,9 @@ import {
   mergeProjectDeadlines,
   computeProjectStats,
   aggregateDashboardStats,
+  projectStage,
+  PROJECT_STAGES,
 } from '@/lib/project-stats';
-import { projectStage, PROJECT_STAGES } from '@/lib/project-stats';
 import type { Monument } from '@/types';
 import type { Aide, AideDiagnosticResult, AideMatchResult } from '@/types';
 import type { Dossier, DossierEcheance } from '@/types';

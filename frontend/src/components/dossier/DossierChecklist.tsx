@@ -1,5 +1,5 @@
 import { BookMarked, CheckCircle2, Download, Eye, Loader2, Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { ROUTES } from '@/constants/routes';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -8,7 +8,6 @@ import { templateService } from '@/services/template.service';
 import { formatBadge } from '@/lib/template-format';
 import type { ChecklistItem, Template } from '@/types';
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router';
 import {
   Tooltip,
   TooltipContent,

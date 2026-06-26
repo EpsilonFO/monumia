@@ -61,7 +61,7 @@ export function SidebarNav({ brand, sections, account, onNavigate }: SidebarNavP
                     to={item.to}
                     end={item.end}
                     onClick={onNavigate}
-                    className="group relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-colors"
+                    className="group relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     style={({ isActive }) => ({
                       background: isActive ? C.paleBlue : 'transparent',
                       color: isActive ? C.blue : C.grayFg,
