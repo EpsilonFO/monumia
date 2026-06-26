@@ -1,4 +1,6 @@
-import { CheckCircle2, Download, Eye, Loader2, Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { BookMarked, CheckCircle2, Download, Eye, Loader2, Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Link } from 'react-router';
+import { ROUTES } from '@/constants/routes';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -79,8 +81,18 @@ export function DossierChecklist({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-sm text-[#8E92A4]">
-        <span className="font-medium text-[#1B1E2E]">{uploaded}/{items.length}</span> documents ajoutés
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm" style={{ color: 'var(--color-gray-muted)' }}>
+          <span className="font-medium" style={{ color: 'var(--color-foreground)' }}>{uploaded}/{items.length}</span> documents ajoutés
+        </p>
+        <Link
+          to={ROUTES.MODELES}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors"
+          style={{ color: 'var(--color-primary)' }}
+        >
+          <BookMarked className="h-3.5 w-3.5" />
+          Bibliothèque de modèles
+        </Link>
       </div>
 
       <div className="space-y-1.5">
