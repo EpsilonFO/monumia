@@ -16,12 +16,14 @@ import { C, DEADLINE_TONE } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { formatDateShort } from '@/lib/date-utils';
 import { PROTECTION_LABELS_SHORT } from '@/constants/monument-options';
+import { ParcoursStepper } from './ParcoursStepper';
 import type { Monument } from '@/types';
-import type { ProjectStats } from '@/lib/project-stats';
+import type { ProjectStats, ProjectStage } from '@/lib/project-stats';
 
 interface ProjectsInProgressProps {
   monuments: Monument[];
   statsByMonument: Record<string, ProjectStats>;
+  stageByMonument?: Record<string, ProjectStage>;
 }
 
 /** Voile bleu Monumia posé sur la photo : laisse respirer le cliché en haut, plombe
@@ -77,10 +79,12 @@ function GlassBadge({ children }: { children: React.ReactNode }) {
 function ProjectCard({
   monument,
   stats,
+  stage,
   featured = false,
 }: {
   monument: Monument;
   stats?: ProjectStats;
+  stage?: ProjectStage;
   featured?: boolean;
 }) {
   const dossiersActifs = stats?.dossiersActifs ?? 0;
@@ -171,47 +175,50 @@ function ProjectCard({
         </div>
       </div>
 
-      {/* ── Corps crème : métadonnées + appel à l'action ── */}
-      <div
-        className={`relative flex flex-1 items-end justify-between gap-4 ${
-          featured ? 'px-6 py-5 md:px-7' : 'px-5 py-4'
-        }`}
-      >
-        <div
-          className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px]"
-          style={{ color: 'rgba(34,43,53,0.72)' }}
-        >
-          <span className="inline-flex items-center gap-1.5">
-            <ScrollText className="h-3.5 w-3.5" aria-hidden />
-            {dossiersActifs} dossier{dossiersActifs > 1 ? 's' : ''}
-          </span>
-          {next && (
-            <span
-              className="inline-flex items-center gap-1.5"
-              style={{
-                color: DEADLINE_TONE[next.urgency].fg,
-                fontWeight: next.urgency === 'urgent' || next.urgency === 'past' ? 600 : undefined,
-              }}
-            >
-              <CalendarClock className="h-3.5 w-3.5" aria-hidden />
-              {next.label} · {formatDateShort(next.date)}
+      {/* ── Corps crème : parcours + métadonnées ── */}
+      <div className={`flex flex-1 flex-col gap-3 ${featured ? 'px-6 py-5 md:px-7' : 'px-5 py-4'}`}>
+        {stage && (
+          <div className="border-b pb-3" style={{ borderColor: C.border }}>
+            <ParcoursStepper stage={stage} />
+          </div>
+        )}
+        <div className="flex items-end justify-between gap-4">
+          <div
+            className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px]"
+            style={{ color: 'rgba(34,43,53,0.72)' }}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <ScrollText className="h-3.5 w-3.5" aria-hidden />
+              {dossiersActifs} dossier{dossiersActifs > 1 ? 's' : ''}
             </span>
-          )}
-        </div>
+            {next && (
+              <span
+                className="inline-flex items-center gap-1.5"
+                style={{
+                  color: DEADLINE_TONE[next.urgency].fg,
+                  fontWeight: next.urgency === 'urgent' || next.urgency === 'past' ? 600 : undefined,
+                }}
+              >
+                <CalendarClock className="h-3.5 w-3.5" aria-hidden />
+                {next.label} · {formatDateShort(next.date)}
+              </span>
+            )}
+          </div>
 
-        <span
-          className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold"
-          style={{ color: C.orange }}
-        >
-          Voir le projet
-          <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-        </span>
+          <span
+            className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold"
+            style={{ color: C.orange }}
+          >
+            Voir le projet
+            <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          </span>
+        </div>
       </div>
     </Link>
   );
 }
 
-export function ProjectsInProgress({ monuments, statsByMonument }: ProjectsInProgressProps) {
+export function ProjectsInProgress({ monuments, statsByMonument, stageByMonument }: ProjectsInProgressProps) {
   if (monuments.length === 0) {
     return (
       <div
@@ -245,13 +252,13 @@ export function ProjectsInProgress({ monuments, statsByMonument }: ProjectsInPro
 
   if (monuments.length === 1) {
     const m = monuments[0];
-    return <ProjectCard monument={m} stats={statsByMonument[m.id]} featured />;
+    return <ProjectCard monument={m} stats={statsByMonument[m.id]} stage={stageByMonument?.[m.id]} featured />;
   }
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-3">
       {monuments.map((m) => (
-        <ProjectCard key={m.id} monument={m} stats={statsByMonument[m.id]} />
+        <ProjectCard key={m.id} monument={m} stats={statsByMonument[m.id]} stage={stageByMonument?.[m.id]} />
       ))}
     </div>
   );
