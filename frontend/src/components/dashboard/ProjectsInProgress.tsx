@@ -9,6 +9,7 @@ import {
   MapPin,
   Users,
 } from 'lucide-react';
+import { Clover } from '@/components/illustrations';
 import { ROLE_LABELS } from '@/components/sharing/RoleBadge';
 import { sharedRole } from '@/lib/project-permissions';
 import { C, DEADLINE_TONE } from '@/lib/brand';
@@ -41,23 +42,6 @@ function heroPhoto(m: Monument): string | null {
   if (!m.photos?.length) return null;
   const facade = m.photos.find((p) => p.type === 'facade');
   return (facade ?? m.photos[0])?.url || null;
-}
-
-/** Quadrilobe Monumia (4 cercles r23 centrés à 21) — emblème décoratif, fonds bleus uniquement. */
-function Clover({ size = 88, className, style }: { size?: number; className?: string; style?: React.CSSProperties }) {
-  const c = 44;
-  const d = 21;
-  const r = 23;
-  return (
-    <svg viewBox="0 0 88 88" width={size} height={size} aria-hidden className={className} style={style}>
-      <g fill="currentColor">
-        <circle cx={c} cy={c - d} r={r} />
-        <circle cx={c} cy={c + d} r={r} />
-        <circle cx={c - d} cy={c} r={r} />
-        <circle cx={c + d} cy={c} r={r} />
-      </g>
-    </svg>
-  );
 }
 
 /** Kicker éditorial : filet orange + petites caps (repris de la landing). */
