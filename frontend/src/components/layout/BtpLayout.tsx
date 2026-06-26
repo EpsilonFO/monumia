@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 
 function BtpMobileNav() {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col [&>aside]:flex [&>aside]:w-full">
       <BtpSidebar />
     </div>
   );

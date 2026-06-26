@@ -8,7 +8,7 @@ export function TopBar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-6 h-14 shrink-0 bg-white/60 backdrop-blur-xl border-b border-[#E0DDD6]/60">
+    <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-6 h-16 shrink-0 bg-white/60 backdrop-blur-xl border-b border-[#E0DDD6]/60">
       <div className="flex items-center gap-3">
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetTrigger asChild>
@@ -16,7 +16,7 @@ export function TopBar() {
               <Menu className="h-4 w-4" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[220px] p-0">
+          <SheetContent side="left" className="w-[240px] p-0">
             <SheetTitle className="sr-only">Navigation</SheetTitle>
             <MobileNav onNavigate={() => setMobileNavOpen(false)} />
           </SheetContent>
