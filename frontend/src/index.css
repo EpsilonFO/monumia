@@ -43,6 +43,11 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+    --color-gray-fg: var(--gray-fg);
+    --color-gray-muted: var(--gray-muted);
+    --shadow-card: var(--shadow-card);
+    --shadow-pop: var(--shadow-pop);
+    --shadow-nav: var(--shadow-nav);
     --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
     --font-serif: 'PT Serif', Georgia, 'Times New Roman', serif;
     --font-hand: 'Caveat', cursive;
@@ -82,6 +87,12 @@
     --sidebar-accent-foreground: #fdf9f0;
     --sidebar-border: #0e3f9a;
     --sidebar-ring: #5c95ff;
+    /* Couche identité « confiance chaleureuse » (refonte 2026-06) */
+    --gray-fg: #4a5160;   /* texte secondaire lisible sur crème (AA) */
+    --gray-muted: #6a7180; /* texte tertiaire / hint */
+    --shadow-card: 0 1px 2px rgba(7, 42, 114, 0.04), 0 8px 20px -10px rgba(7, 42, 114, 0.12);
+    --shadow-pop: 0 10px 34px -14px rgba(7, 42, 114, 0.30);
+    --shadow-nav: 1px 0 0 rgba(7, 42, 114, 0.05), 10px 0 30px -22px rgba(7, 42, 114, 0.18);
 }
 
 @layer base {

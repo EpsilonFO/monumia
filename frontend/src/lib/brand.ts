@@ -13,6 +13,8 @@ export const C = {
   paleOrange: '#feeedd', // teinte de l'orange
   danger:     '#c0271d', // rouge — échéance imminente (< 30 j) ou dépassée
   paleDanger: '#fbeae8', // teinte du rouge
+  grayFg:     '#4a5160', // texte secondaire lisible sur crème (AA)
+  grayMuted:  '#6a7180', // texte tertiaire / hint
 } as const;
 
 // Police titres (PT Serif) — pour les styles inline ; le corps utilise Inter via var(--font-sans)
