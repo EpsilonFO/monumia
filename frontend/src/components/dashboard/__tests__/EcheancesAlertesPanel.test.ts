@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildFeedRows } from '../echeances-alertes-utils';
+import { buildFeedRows, groupFeedByHorizon } from '../echeances-alertes-utils';
 import { ROUTES } from '@/constants/routes';
 import type { Monument } from '@/types';
 import type { Notification } from '@/types';
@@ -221,5 +221,35 @@ describe('buildFeedRows — no display cap', () => {
     );
     const rows = buildFeedRows(deadlines, [], []);
     expect(rows.filter((r) => r.id.startsWith('deadline-'))).toHaveLength(9);
+  });
+});
+
+describe('groupFeedByHorizon', () => {
+  it('répartit les échéances par horizon, péril en « cette semaine », notifs en « à noter »', () => {
+    const rows = buildFeedRows(
+      [
+        makeDeadline({ id: 'past', joursRestants: -3, source: 'dossier', dossierId: 'x', monumentId: 'm' }),
+        makeDeadline({ id: 'soon', joursRestants: 4 }),
+        makeDeadline({ id: 'month', joursRestants: 20 }),
+        makeDeadline({ id: 'later', joursRestants: 200 }),
+      ],
+      [makeMonument({ id: 'mp', etatConservation: 'peril' })],
+      [makeNotification({ id: 'n1' })]
+    );
+    const groups = groupFeedByHorizon(rows);
+    const byKey = Object.fromEntries(groups.map((g) => [g.key, g.rows.map((r) => r.id)]));
+
+    expect(byKey['retard']).toContain('deadline-past');
+    expect(byKey['semaine']).toEqual(expect.arrayContaining(['peril-mp', 'deadline-soon']));
+    expect(byKey['mois']).toContain('deadline-month');
+    expect(byKey['plus_tard']).toContain('deadline-later');
+    expect(byKey['alertes']).toContain('notif-n1');
+    // ordre des groupes
+    expect(groups.map((g) => g.key)).toEqual(['retard', 'semaine', 'mois', 'plus_tard', 'alertes']);
+  });
+
+  it('exclut les groupes vides', () => {
+    const groups = groupFeedByHorizon(buildFeedRows([makeDeadline({ id: 'a', joursRestants: 3 })], [], []));
+    expect(groups.map((g) => g.key)).toEqual(['semaine']);
   });
 });
