@@ -2,10 +2,13 @@ import { useMemo, useEffect } from 'react';
 import { Link } from 'react-router';
 import { ArrowUpRight, FolderKanban } from 'lucide-react';
 import { C } from '@/lib/brand';
-import { KpiCards } from '@/components/dashboard/KpiCards';
-import { NextDeadlineBanner } from '@/components/dashboard/NextDeadlineBanner';
+import { NextActionCard } from '@/components/dashboard/NextActionCard';
+import { StatChips } from '@/components/dashboard/StatChips';
+import { AgendaPanel } from '@/components/dashboard/AgendaPanel';
 import { ProjectsInProgress } from '@/components/dashboard/ProjectsInProgress';
-import { EcheancesAlertesPanel } from '@/components/dashboard/EcheancesAlertesPanel';
+import { useSuiviStore } from '@/stores/useSuiviStore';
+import { projectStage } from '@/lib/project-stats';
+import type { ProjectStage } from '@/lib/project-stats';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
@@ -128,85 +131,82 @@ export function DashboardPage() {
     return out;
   }, [displayMonuments, diagMap, userDossiers]);
 
+  const suivis = useSuiviStore((s) => s.suivis);
+
+  const stageByMonument = useMemo<Record<string, ProjectStage>>(() => {
+    const out: Record<string, ProjectStage> = {};
+    for (const m of displayMonuments) {
+      out[m.id] = projectStage(
+        diagMap[m.id] ?? null,
+        userDossiers.filter((d) => d.monumentId === m.id),
+        suivis.filter((s) => s.monumentId === m.id),
+      );
+    }
+    return out;
+  }, [displayMonuments, diagMap, userDossiers, suivis]);
+
+  const semaineCount = useMemo(
+    () => allDeadlines.filter((d) => d.joursRestants >= 0 && d.joursRestants <= 7).length,
+    [allDeadlines],
+  );
+  const summaryLine =
+    semaineCount > 0
+      ? `Vous avez ${semaineCount} action${semaineCount > 1 ? 's' : ''} prioritaire${semaineCount > 1 ? 's' : ''} cette semaine.`
+      : 'Rien d’urgent cette semaine — vous êtes à jour. 🎉';
+
   if (!user) return null;
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
 
   return (
-    <div className="space-y-9">
-      {/* ─── HERO GREETING ─── */}
-      <div
-        className="relative overflow-hidden rounded-2xl px-8 py-9"
-        style={{ background: C.paleBlue, border: `1px solid ${C.border}` }}
-      >
-        {/* Atmosphère : halos diffus + fines règles horizontales (esprit landing) */}
-        <div className="pointer-events-none absolute inset-0" aria-hidden>
-          <div
-            className="absolute -right-16 -top-28 h-72 w-72 rounded-full blur-[120px]"
-            style={{ background: 'rgba(92,149,255,0.35)' }}
-          />
-          <div
-            className="absolute -bottom-28 left-1/3 h-64 w-64 rounded-full blur-[120px]"
-            style={{ background: 'rgba(241,113,5,0.16)' }}
-          />
-          <div
-            className="absolute inset-0 opacity-[0.04]"
-            style={{
-              backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 31px, ${C.blue} 31px, ${C.blue} 32px)`,
-            }}
-          />
-        </div>
-
-        <div className="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-8">
+      {/* ─── EN-TÊTE ─── */}
+      <div>
+        <span
+          className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em]"
+          style={{ color: C.blue }}
+        >
+          <span aria-hidden style={{ width: 22, height: 2, borderRadius: 2, background: C.orange }} />
+          {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </span>
+        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <span
-              className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em]"
-              style={{ color: C.blue }}
-            >
-              <span aria-hidden style={{ width: 22, height: 2, borderRadius: 2, background: C.orange }} />
-              {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </span>
-            <h1
-              className="mt-3 text-[clamp(1.8rem,4vw,2.6rem)] leading-[1.1]"
-              style={{ fontFamily: 'var(--font-serif)', color: C.ink }}
-            >
+            <h1 className="text-[clamp(1.8rem,4vw,2.5rem)] leading-[1.1]" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
               {greeting}, <span style={{ color: C.blue }}>{user.prenom}</span>
             </h1>
+            <p className="mt-1 text-[14px]" style={{ color: C.grayFg }}>
+              {summaryLine}
+            </p>
           </div>
-
           <Link
             to={userMonuments.length === 0 ? ROUTES.PROJET_NEW : ROUTES.PROJETS}
-            className="group inline-flex shrink-0 items-center gap-2 rounded-lg px-5 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="group inline-flex shrink-0 items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: C.orange }}
           >
             <FolderKanban className="h-4 w-4" />
-            {userMonuments.length === 0 ? 'Créer un projet' : 'Mes projets'}
+            {userMonuments.length === 0 ? 'Créer un projet' : 'Nouveau projet'}
             <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </Link>
         </div>
       </div>
 
-      {/* ─── PROCHAINE ÉCHÉANCE (bandeau) ─── */}
-      <NextDeadlineBanner deadlines={nextDeadlines} />
+      {/* ─── À FAIRE MAINTENANT ─── */}
+      <NextActionCard deadlines={nextDeadlines} />
 
       {/* ─── KPI ─── */}
-      <KpiCards stats={dashboardStats} />
+      <StatChips stats={dashboardStats} />
 
-      {/* ─── MES PROJETS (pleine largeur) ─── */}
+      {/* ─── VOS PROJETS (parcours) ─── */}
       <section>
-        <SectionHeading eyebrow="Vos monuments" title="Projets en cours" />
-        <ProjectsInProgress monuments={displayMonuments} statsByMonument={statsByMonument} />
+        <SectionHeading eyebrow="Vos monuments" title="Vos projets" />
+        <ProjectsInProgress monuments={displayMonuments} statsByMonument={statsByMonument} stageByMonument={stageByMonument} />
       </section>
 
-      {/* ─── ÉCHÉANCIER (toutes les échéances, pleine largeur) ─── */}
+      {/* ─── VOTRE AGENDA ─── */}
       <section>
-        <SectionHeading eyebrow="Ne rien laisser passer" title="Échéancier" />
-        <EcheancesAlertesPanel
-          deadlines={allDeadlines}
-          monuments={userMonuments}
-          notifications={userNotifications}
-        />
+        <SectionHeading eyebrow="Ne rien laisser passer" title="Votre agenda" />
+        <AgendaPanel deadlines={allDeadlines} monuments={userMonuments} notifications={userNotifications} />
       </section>
     </div>
   );
