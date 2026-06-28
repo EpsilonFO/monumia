@@ -24,7 +24,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { formatFileSize } from '@/lib/format-utils';
 import { ACCEPT_ATTR, MAX_FILE_SIZE_MB, validateFile } from '@/constants/file-types';
 import { toast } from 'sonner';
-import type { DocumentType } from '@/types';
+import type { Document, DocumentType } from '@/types';
 
 const TYPE_LABELS: Record<DocumentType, string> = {
   photo: 'Photo',
@@ -44,9 +44,11 @@ const TYPE_LABELS: Record<DocumentType, string> = {
 interface UploadDocumentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Appelé avec le document fraîchement déposé — pour ouvrir « Gérer l'accès ». */
+  onUploaded?: (doc: Document) => void;
 }
 
-export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialogProps) {
+export function UploadDocumentDialog({ open, onOpenChange, onUploaded }: UploadDocumentDialogProps) {
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const uploadDocument = useDocumentStore((s) => s.uploadDocument);
@@ -91,7 +93,7 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
 
     setLoading(true);
     try {
-      await uploadDocument(
+      const doc = await uploadDocument(
         {
           file,
           nom,
@@ -104,6 +106,9 @@ export function UploadDocumentDialog({ open, onOpenChange }: UploadDocumentDialo
       );
       toast.success('Document importé avec succès');
       handleClose();
+      // Le document est créé avec un défaut sûr (chef + adjoints) ; on ouvre
+      // aussitôt « Gérer l'accès » pour que l'auteur choisisse qui peut le voir.
+      if (doc.monumentIds.length > 0) onUploaded?.(doc);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de l\'import');
     } finally {

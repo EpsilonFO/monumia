@@ -1,10 +1,19 @@
-import { CheckCircle2, Download, Eye, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { CheckCircle2, Download, Eye, Loader2, Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { templateService } from '@/services/template.service';
 import { formatBadge } from '@/lib/template-format';
 import type { ChecklistItem, Template } from '@/types';
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { documentService } from '@/services/document.service';
 
 /** Défense : un label malformé (dossier stocké avec un objet document
  *  {nom, …} au lieu d'une chaîne) ne doit pas faire planter le rendu React. */
@@ -42,6 +51,32 @@ export function DossierChecklist({
   const sorted = [...items].sort((a, b) => a.ordre - b.ordre);
   const uploaded = items.filter((i) => i.statut === 'fourni').length;
 
+  // Documents du projet que l'utilisateur a le DROIT de voir (le backend filtre
+  // déjà selon la visibilité). Une pièce « fournie » dont le documentId n'y est
+  // pas est donc masquée pour lui → cadenas au lieu de « Voir ». La page dossier
+  // expose l'id projet via la route (/projets/:projetId/...), pas besoin d'y toucher.
+  const { projetId } = useParams();
+  const [viewableDocIds, setViewableDocIds] = useState<Set<string> | null>(null);
+
+  // Re-fetch quand l'ensemble des pièces fournies change (dépôt/remplacement) :
+  // sans ça, un document fraîchement déposé n'est pas dans l'ensemble « visibles »
+  // et s'affiche à tort comme « Réservé » jusqu'au rechargement de la page.
+  const fourniKey = items
+    .filter((i) => i.documentId)
+    .map((i) => i.documentId)
+    .sort()
+    .join(',');
+
+  useEffect(() => {
+    if (!projetId) { setViewableDocIds(null); return; }
+    let cancelled = false;
+    documentService
+      .getAll({ monumentId: projetId })
+      .then((docs) => { if (!cancelled) setViewableDocIds(new Set(docs.map((d) => d.id))); })
+      .catch(() => { if (!cancelled) setViewableDocIds(null); });
+    return () => { cancelled = true; };
+  }, [projetId, fourniKey]);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-sm text-[#8E92A4]">
@@ -57,6 +92,9 @@ export function DossierChecklist({
             readOnly={readOnly}
             canModify={canModifyItem ? canModifyItem(item) : true}
             busy={busyItemId === item.id}
+            hidden={
+              !!item.documentId && viewableDocIds !== null && !viewableDocIds.has(item.documentId)
+            }
             onRequestAttach={onRequestAttach}
             onPreview={onPreview}
             onRequestDelete={onRequestDelete}
@@ -73,6 +111,7 @@ function DocumentRow({
   readOnly,
   canModify = true,
   busy,
+  hidden = false,
   onRequestAttach,
   onPreview,
   onRequestDelete,
@@ -82,6 +121,7 @@ function DocumentRow({
   readOnly?: boolean;
   canModify?: boolean;
   busy?: boolean;
+  hidden?: boolean;
   onRequestAttach?: (item: ChecklistItem) => void;
   onPreview?: (documentId: string) => void;
   onRequestDelete?: (item: ChecklistItem) => void;
@@ -119,7 +159,23 @@ function DocumentRow({
 
       <div className="flex items-center gap-1.5 shrink-0">
         <ModelButton templates={templates} />
-        {isFourni && item.documentId && onPreview && (
+        {isFourni && item.documentId && hidden && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[#E4E2DC] text-[#8E92A4] cursor-default"
+                  aria-label="Accès réservé"
+                >
+                  <Lock className="h-3 w-3" />
+                  Réservé
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Accès réservé&nbsp;: vous n'avez pas accès à ce document.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+        {isFourni && item.documentId && !hidden && onPreview && (
           <button
             type="button"
             onClick={() => onPreview(item.documentId!)}
@@ -129,7 +185,7 @@ function DocumentRow({
             Voir
           </button>
         )}
-        {!readOnly && isFourni && item.documentId && onRequestDelete && canModify && (
+        {!readOnly && isFourni && item.documentId && onRequestDelete && canModify && !hidden && (
           <button
             type="button"
             disabled={busy}
@@ -143,7 +199,7 @@ function DocumentRow({
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         )}
-        {!readOnly && onRequestAttach && (!isFourni || canModify) && (
+        {!readOnly && onRequestAttach && (!isFourni || canModify) && !hidden && (
           <button
             type="button"
             disabled={busy}

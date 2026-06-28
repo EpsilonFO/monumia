@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
 import { ensureFreshAccessToken } from '@/lib/token-refresh';
-import type { Document, DocumentType } from '@/types';
+import type { Document, DocumentType, DocumentVisibility } from '@/types';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 const STORAGE_BUCKET = 'documents';
@@ -72,6 +72,8 @@ export interface UploadDocumentPayload {
   monumentIds?: string[];
   description?: string;
   tags?: string[];
+  visibility?: DocumentVisibility;
+  allowedUserIds?: string[];
 }
 
 function toDocument(row: Record<string, unknown>): Document {
@@ -90,6 +92,9 @@ function toDocument(row: Record<string, unknown>): Document {
     dateUpload: row.date_upload as string,
     dateDocument: row.date_document as string | undefined,
     description: row.description as string | undefined,
+    visibility: (row.visibility as DocumentVisibility) ?? 'team',
+    allowedUserIds: (row.allowed_user_ids as string[]) ?? [],
+    trashedAt: (row.trashed_at as string | null) ?? undefined,
   };
 }
 
@@ -105,10 +110,11 @@ async function getSignedUrl(documentId: string): Promise<string> {
 }
 
 export const documentService = {
-  async getAll(params?: { monumentId?: string; type?: string }): Promise<Document[]> {
+  async getAll(params?: { monumentId?: string; type?: string; trashed?: boolean }): Promise<Document[]> {
     const url = new URL(`${BASE}/documents`);
     if (params?.monumentId) url.searchParams.set('monument_id', params.monumentId);
     if (params?.type) url.searchParams.set('type', params.type);
+    if (params?.trashed) url.searchParams.set('trashed', 'true');
 
     const res = await authFetch(url.toString());
     const rows = await handleResponse<Record<string, unknown>[]>(res);
@@ -137,6 +143,8 @@ export const documentService = {
       url,
       monument_ids: monumentIds,
       description: payload.description ?? null,
+      visibility: payload.visibility ?? null,
+      allowed_user_ids: payload.allowedUserIds ?? [],
     };
 
     const res = await authFetch(`${BASE}/documents`, {
@@ -147,10 +155,25 @@ export const documentService = {
     return toDocument(row);
   },
 
-  async update(id: string, updates: { nom?: string; type?: string; description?: string; tags?: string[] }): Promise<Document> {
+  async update(
+    id: string,
+    updates: {
+      nom?: string;
+      type?: string;
+      description?: string;
+      tags?: string[];
+      visibility?: DocumentVisibility;
+      allowedUserIds?: string[];
+    },
+  ): Promise<Document> {
+    const body: Record<string, unknown> = { ...updates };
+    if (updates.allowedUserIds !== undefined) {
+      body.allowed_user_ids = updates.allowedUserIds;
+      delete body.allowedUserIds;
+    }
     const res = await authFetch(`${BASE}/documents/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify(updates),
+      body: JSON.stringify(body),
     });
     const row = await handleResponse<Record<string, unknown>>(res);
     return toDocument(row);
@@ -193,6 +216,26 @@ export const documentService = {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.detail ?? `HTTP ${res.status}`);
     }
+  },
+
+  async trash(id: string): Promise<Document> {
+    const res = await authFetch(`${BASE}/documents/${id}/trash`, { method: 'POST' });
+    const row = await handleResponse<Record<string, unknown>>(res);
+    return toDocument(row);
+  },
+
+  async restore(id: string): Promise<Document> {
+    const res = await authFetch(`${BASE}/documents/${id}/restore`, { method: 'POST' });
+    const row = await handleResponse<Record<string, unknown>>(res);
+    return toDocument(row);
+  },
+
+  async removeFromProject(id: string, monumentId: string): Promise<Document> {
+    const res = await authFetch(`${BASE}/documents/${id}/projects/${monumentId}`, {
+      method: 'DELETE',
+    });
+    const row = await handleResponse<Record<string, unknown>>(res);
+    return toDocument(row);
   },
 
   getSignedUrl,

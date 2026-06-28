@@ -5,6 +5,8 @@ export type DocumentType =
   | 'extrait_cadastral' | 'cerfa' | 'arrete' | 'diagnostic'
   | 'rapport' | 'correspondance' | 'autre';
 
+export type DocumentVisibility = 'team' | 'responsables' | 'custom';
+
 export interface Document {
   id: ID;
   monumentIds: ID[];
@@ -24,4 +26,8 @@ export interface Document {
   dateUpload: string;
   dateDocument?: string;
   description?: string;
+  visibility: DocumentVisibility;
+  allowedUserIds: ID[];
+  /** Posé quand le document a été retiré de tous ses projets/dossiers (corbeille). */
+  trashedAt?: string;
 }

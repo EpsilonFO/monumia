@@ -4,16 +4,24 @@ import { documentService, type UploadDocumentPayload } from '@/services/document
 
 interface DocumentState {
   documents: Document[];
+  trashedDocuments: Document[];
   loading: boolean;
   error: string | null;
 
   fetchDocuments: (params?: { monumentId?: string; type?: string }) => Promise<void>;
   uploadDocument: (payload: UploadDocumentPayload, userId: string) => Promise<Document>;
-  updateDocument: (id: string, updates: { nom?: string; type?: string; description?: string }) => Promise<void>;
+  updateDocument: (
+    id: string,
+    updates: { nom?: string; type?: string; description?: string; visibility?: Document['visibility']; allowedUserIds?: string[] },
+  ) => Promise<void>;
   deleteDocument: (id: string) => Promise<void>;
   addToProjects: (documentId: string, monumentIds: string[]) => Promise<Document>;
   linkToDossier: (documentId: string, dossierId: string) => Promise<void>;
   unlinkFromDossier: (documentId: string, dossierId: string) => Promise<void>;
+  fetchTrashed: () => Promise<void>;
+  trashDocument: (id: string) => Promise<void>;
+  restoreDocument: (id: string) => Promise<void>;
+  removeFromProject: (documentId: string, monumentId: string) => Promise<void>;
 
   // Selectors (sync, from local state)
   getDocument: (id: string) => Document | undefined;
@@ -24,6 +32,7 @@ interface DocumentState {
 
 export const useDocumentStore = create<DocumentState>()((set, get) => ({
   documents: [],
+  trashedDocuments: [],
   loading: false,
   error: null,
 
@@ -54,6 +63,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
     await documentService.delete(id);
     set((state) => ({
       documents: state.documents.filter((d) => d.id !== id),
+      trashedDocuments: state.trashedDocuments.filter((d) => d.id !== id),
     }));
   },
 
@@ -85,6 +95,46 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
           : d
       ),
     }));
+  },
+
+  fetchTrashed: async () => {
+    try {
+      const trashedDocuments = await documentService.getAll({ trashed: true });
+      set({ trashedDocuments });
+    } catch (e) {
+      set({ error: (e as Error).message });
+    }
+  },
+
+  trashDocument: async (id) => {
+    const updated = await documentService.trash(id);
+    set((state) => ({
+      documents: state.documents.filter((d) => d.id !== id),
+      trashedDocuments: [updated, ...state.trashedDocuments.filter((d) => d.id !== id)],
+    }));
+  },
+
+  restoreDocument: async (id) => {
+    const updated = await documentService.restore(id);
+    set((state) => ({
+      trashedDocuments: state.trashedDocuments.filter((d) => d.id !== id),
+      documents: [updated, ...state.documents.filter((d) => d.id !== id)],
+    }));
+  },
+
+  removeFromProject: async (documentId, monumentId) => {
+    const updated = await documentService.removeFromProject(documentId, monumentId);
+    set((state) => {
+      const isTrashed = !!updated.trashedAt;
+      return {
+        documents: isTrashed
+          ? state.documents.filter((d) => d.id !== documentId)
+          : state.documents.map((d) => (d.id === documentId ? updated : d)),
+        trashedDocuments: isTrashed
+          ? [updated, ...state.trashedDocuments.filter((d) => d.id !== documentId)]
+          : state.trashedDocuments,
+      };
+    });
   },
 
   getDocument: (id) => get().documents.find((d) => d.id === id),

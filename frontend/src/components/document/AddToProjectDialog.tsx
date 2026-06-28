@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+import { C } from '@/lib/brand';
 import { availableProjectsForDocument } from '@/lib/document-projects';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
@@ -81,15 +81,15 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
         <DialogHeader>
           <DialogTitle>Ajouter à un autre projet</DialogTitle>
           {document && (
-            <p className="text-[13px] text-[#8E92A4] truncate">{document.nom}</p>
+            <p className="text-[13px] truncate" style={{ color: '#6a7180' }}>{document.nom}</p>
           )}
         </DialogHeader>
 
         {projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
-            <Building2 className="h-8 w-8 text-[#8E92A4]/50" />
-            <p className="text-sm text-[#5C6178]">Aucun autre projet disponible.</p>
-            <p className="text-xs text-[#8E92A4]">
+            <Building2 className="h-8 w-8" style={{ color: '#6a718080' }} />
+            <p className="text-sm" style={{ color: '#6a7180' }}>Aucun autre projet disponible.</p>
+            <p className="text-xs" style={{ color: '#6a7180' }}>
               Ce document est déjà rattaché à tous vos projets.
             </p>
           </div>
@@ -97,9 +97,10 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
           <>
             {projects.length > 8 && (
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8E92A4]" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#6a7180' }} />
                 <Input
-                  className="pl-9 h-10 text-[14px] bg-white border-[#E4E2DC] focus:border-[#1A237E] focus:ring-[#1A237E]/10"
+                  className="pl-9 h-10 text-[14px]"
+                  style={{ background: C.card, borderColor: C.border }}
                   aria-label="Rechercher un projet"
                   placeholder="Rechercher un projet..."
                   value={search}
@@ -108,7 +109,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
               </div>
             )}
 
-            <div className="flex-1 min-h-0 overflow-y-auto border border-[#E4E2DC] rounded-lg divide-y divide-[#E4E2DC]/60">
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-lg divide-y" style={{ border: `1px solid ${C.border}`, borderColor: C.border }}>
               {filtered.map((m) => {
                 const isSelected = selected.has(m.id);
                 return (
@@ -117,25 +118,24 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
                     type="button"
                     aria-pressed={isSelected}
                     onClick={() => toggle(m.id)}
-                    className={cn(
-                      'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors',
-                      isSelected ? 'bg-[#E8EAF6]' : 'hover:bg-[#F8F7F4]',
-                    )}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors"
+                    style={{ background: isSelected ? C.paleBlue : undefined }}
                   >
-                    <div className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center bg-[#E8EAF6]">
-                      <Building2 className="h-4 w-4 text-[#1A237E]" strokeWidth={1.8} />
+                    <div className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center" style={{ background: C.paleBlue }}>
+                      <Building2 className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-medium text-[#1B1E2E] truncate">{m.nom}</p>
+                      <p className="text-[13px] font-medium truncate" style={{ color: C.ink }}>{m.nom}</p>
                       {m.commune && (
-                        <p className="text-[11px] text-[#8E92A4] truncate">{m.commune}</p>
+                        <p className="text-[11px] truncate" style={{ color: '#6a7180' }}>{m.commune}</p>
                       )}
                     </div>
                     <div
-                      className={cn(
-                        'h-5 w-5 shrink-0 rounded-md border flex items-center justify-center transition-colors',
-                        isSelected ? 'border-[#1A237E] bg-[#1A237E]' : 'border-[#E4E2DC]',
-                      )}
+                      className="h-5 w-5 shrink-0 rounded-md border flex items-center justify-center transition-colors"
+                      style={{
+                        borderColor: isSelected ? C.blue : C.border,
+                        background: isSelected ? C.blue : undefined,
+                      }}
                     >
                       {isSelected && <Check className="h-3 w-3 text-white" strokeWidth={2.5} />}
                     </div>
@@ -143,11 +143,11 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
                 );
               })}
               {filtered.length === 0 && (
-                <p className="text-sm text-[#8E92A4] text-center py-8">Aucun projet trouvé.</p>
+                <p className="text-sm text-center py-8" style={{ color: '#6a7180' }}>Aucun projet trouvé.</p>
               )}
             </div>
 
-            <p className="text-[11px] text-[#8E92A4]">
+            <p className="text-[11px]" style={{ color: '#6a7180' }}>
               Le même document sera rattaché à chaque projet sélectionné, sans créer de copie.
             </p>
           </>
@@ -158,7 +158,8 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
             type="button"
             onClick={() => onOpenChange(false)}
             disabled={submitting}
-            className="px-4 py-2 text-[13px] font-medium border border-[#E4E2DC] rounded-lg text-[#5C6178] hover:bg-[#F8F7F4] transition-colors"
+            className="px-4 py-2 text-[13px] font-medium rounded-lg transition-colors"
+            style={{ border: `1px solid ${C.border}`, color: '#6a7180' }}
           >
             Annuler
           </button>
@@ -168,7 +169,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
               onClick={handleAdd}
               disabled={selected.size === 0 || submitting}
               className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg disabled:opacity-50 hover:shadow-md transition-all"
-              style={{ background: '#1A237E' }}
+              style={{ background: C.orange }}
             >
               {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Rattacher à {selected.size} projet{selected.size > 1 ? 's' : ''}
