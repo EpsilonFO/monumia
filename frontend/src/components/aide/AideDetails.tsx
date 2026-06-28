@@ -34,8 +34,8 @@ type Tone = 'green' | 'red' | 'amber' | 'muted';
 
 function EvalLine({ critere, explication, tone }: { critere: string; explication?: string; tone: Tone }) {
   const Icon = tone === 'green' ? CheckCircle2 : tone === 'red' ? XCircle : tone === 'amber' ? HelpCircle : Info;
-  const iconClass = tone === 'green' ? 'text-green-600' : tone === 'red' ? 'text-red-500' : tone === 'amber' ? 'text-amber-500' : 'text-muted-foreground';
-  const textClass = tone === 'red' ? 'text-red-700' : tone === 'amber' ? 'text-amber-700' : tone === 'muted' ? 'text-muted-foreground' : '';
+  const iconClass = tone === 'green' ? 'text-success' : tone === 'red' ? 'text-destructive' : tone === 'amber' ? 'text-warning' : 'text-muted-foreground';
+  const textClass = tone === 'red' ? 'text-destructive' : tone === 'amber' ? 'text-warning' : tone === 'muted' ? 'text-muted-foreground' : '';
   return (
     <div className="space-y-0.5">
       <div className="flex items-start gap-2 text-sm">
@@ -307,10 +307,10 @@ function EligibilityBadge({ matchResult }: { matchResult: AideMatchResult }) {
 
   const className =
     status === 'eligible'
-      ? 'border-green-300 text-green-700 bg-green-50'
+      ? 'border-success text-success bg-success-muted'
       : status === 'potential'
-        ? 'border-amber-300 text-amber-700 bg-amber-50'
-        : 'border-red-200 text-red-600 bg-red-50';
+        ? 'border-warning text-warning bg-warning-muted'
+        : 'border-destructive text-destructive bg-destructive-muted';
 
   return (
     <Badge variant="outline" className={className}>

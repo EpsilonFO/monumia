@@ -17,18 +17,18 @@ export function AidesPaywallBanner({ montantTotal, nombreAides, nombreAidesAvecT
     : <><span className="font-semibold">{nombreAides}</span> aide{nombreAides > 1 ? 's' : ''} identifiée{nombreAides > 1 ? 's' : ''}{nombreAidesAvecTaux > 0 && <>, dont <span className="font-semibold">{nombreAidesAvecTaux}</span> avec financement en pourcentage</>}</>;
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 flex items-start gap-4">
-      <div className="shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-        <Sparkles className="h-5 w-5 text-amber-600" />
+    <div className="rounded-xl border border-warning bg-warning-muted p-5 flex items-start gap-4">
+      <div className="shrink-0 w-10 h-10 rounded-full bg-warning-muted flex items-center justify-center">
+        <Sparkles className="h-5 w-5 text-warning" />
       </div>
       <div className="flex-1 space-y-2">
-        <h3 className="text-base font-medium text-amber-900">
+        <h3 className="text-base font-medium text-foreground">
           {montantLine}
         </h3>
-        <p className="text-sm text-amber-800/80">
+        <p className="text-sm text-muted-foreground">
           Le détail des aides identifiées pour votre monument est masqué. Débloquez-le pour consulter le nom des aides, les organismes, et postuler.
         </p>
-        <Button asChild size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
+        <Button asChild size="sm" className="bg-warning text-warning-foreground hover:opacity-90">
           <Link to="/tarifs" state={{ from: pathname }}>
             <Lock className="h-3.5 w-3.5 mr-1.5" />
             Découvrir les aides
