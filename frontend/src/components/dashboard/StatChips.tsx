@@ -1,9 +1,7 @@
 import { IconMonument, IconDossier, IconAide } from '@/components/icons';
 import { C } from '@/lib/brand';
-import { formatCurrency } from '@/lib/format-utils';
 import type { ComponentType } from 'react';
 import type { DashboardStats } from '@/lib/project-stats';
-import { Euro } from 'lucide-react';
 
 interface Chip {
   icon: ComponentType<{ size?: number; className?: string }>;
@@ -18,11 +16,10 @@ export function StatChips({ stats }: { stats: DashboardStats }) {
     { icon: IconMonument, value: String(stats.projetsActifs), label: 'Projets suivis', accent: C.blue, tint: C.paleBlue },
     { icon: IconDossier, value: String(stats.dossiersEnCours), label: 'Dossiers en cours', accent: C.orange, tint: C.paleOrange },
     { icon: IconAide, value: String(stats.aidesIdentifiees), label: 'Aides identifiées', accent: C.blueLight, tint: C.paleBlue },
-    { icon: Euro, value: formatCurrency(stats.montantPotentielTotal), label: 'Montant potentiel', accent: C.blueDark, tint: C.paleBlue },
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       {chips.map((c) => {
         const Icon = c.icon;
         return (
