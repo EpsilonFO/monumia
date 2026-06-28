@@ -10,18 +10,17 @@ import type { Dossier, AideSuiviStatut } from '@/types';
 import { C, SERIF } from '@/lib/brand';
 
 // Couleurs catégorielles des monuments — 8 teintes distinctes via tokens de thème.
-// Les 3 couleurs de catégorie rares (violet, sarcelle, bordeaux) sont provisoirement
-// mappées sur les chart tokens les plus proches (chart-2, info, chart-4) en
-// l'absence de tokens dédiés ; à affiner lors de l'extension de la palette de thème.
+// Les 3 teintes de catégorie (violet, sarcelle, bordeaux) utilisent des tokens dédiés
+// --cat-violet / --cat-teal / --cat-burgundy, avec variantes dark-mode correspondantes.
 const MONUMENT_COLORS = [
   C.blue,
   C.orange,
   'var(--color-success)',
-  'var(--color-chart-2)',
+  'var(--color-cat-violet)',
   'var(--color-warning)',
-  'var(--color-info)',
-  'var(--color-chart-4)',
-  'var(--color-primary)',
+  'var(--color-cat-teal)',
+  'var(--color-cat-burgundy)',
+  'var(--color-blue-light)',
 ];
 
 interface DossierCardProps {
@@ -112,7 +111,7 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
         <div className="px-5 pb-4 space-y-2 mt-auto">
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-muted-foreground">Progression</span>
-            <span className="font-semibold text-muted-foreground tabular-nums">{dossier.progressionPourcentage}%</span>
+            <span className="font-semibold text-gray-fg tabular-nums">{dossier.progressionPourcentage}%</span>
           </div>
           <Progress value={dossier.progressionPourcentage} className="h-1" />
 

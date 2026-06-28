@@ -29,7 +29,7 @@ export function DossierPipeline({ dossiers }: DossierPipelineProps) {
               col.step <= 2 && 'border-t-info bg-info-muted/30',
               col.step === 3 && 'border-t-warning bg-warning-muted/30',
               col.step === 4 && 'border-t-success bg-success-muted/30',
-              col.step === 5 && 'border-t-purple-400 bg-purple-50/30',
+              col.step === 5 && 'border-t-muted-foreground/40 bg-muted/30',
             )}
           >
             {col.dossiers.length === 0 ? (
