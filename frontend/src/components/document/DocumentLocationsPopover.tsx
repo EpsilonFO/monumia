@@ -44,7 +44,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
           title="Où est utilisé ce fichier ?"
           aria-label="Informations : où est utilisé ce fichier"
         >
-          <Info className="h-3.5 w-3.5" style={{ color: '#6a7180' }} />
+          <Info className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -59,7 +59,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
         </div>
         <div className="p-2 space-y-1">
           {hasNothing && (
-            <p className="px-2 py-3 text-[12px]" style={{ color: '#6a7180' }}>
+            <p className="px-2 py-3 text-[12px] text-muted-foreground">
               Ce document n'est rattaché à aucun projet ni dossier.
             </p>
           )}
@@ -81,8 +81,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
                     {dossiers.map((titre, i) => (
                       <li
                         key={i}
-                        className="flex items-start gap-1.5 text-[11px] break-words"
-                        style={{ color: '#6a7180' }}
+                        className="flex items-start gap-1.5 text-[11px] break-words text-muted-foreground"
                       >
                         <FolderOpen className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
                         <span className="break-words">{titre}</span>
@@ -96,15 +95,14 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
           {orphanDossiers.length > 0 && (
             <div className="rounded-lg px-2 py-2" style={{ background: C.cream }}>
               <div className="flex items-center gap-2 mb-1.5">
-                <FolderOpen className="h-3 w-3 shrink-0" style={{ color: '#6a7180' }} strokeWidth={1.8} />
+                <FolderOpen className="h-3 w-3 shrink-0 text-muted-foreground" strokeWidth={1.8} />
                 <span className="text-[12px] font-medium" style={{ color: C.ink }}>Dossiers</span>
               </div>
               <ul className="ml-[18px] space-y-1">
                 {orphanDossiers.map((titre, i) => (
                   <li
                     key={i}
-                    className="flex items-start gap-1.5 text-[11px] break-words"
-                    style={{ color: '#6a7180' }}
+                    className="flex items-start gap-1.5 text-[11px] break-words text-muted-foreground"
                   >
                     <FolderOpen className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
                     <span className="break-words">{titre}</span>

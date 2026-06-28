@@ -81,15 +81,15 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
         <DialogHeader>
           <DialogTitle>Ajouter à un autre projet</DialogTitle>
           {document && (
-            <p className="text-[13px] truncate" style={{ color: '#6a7180' }}>{document.nom}</p>
+            <p className="text-[13px] truncate text-muted-foreground">{document.nom}</p>
           )}
         </DialogHeader>
 
         {projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
-            <Building2 className="h-8 w-8" style={{ color: '#6a718080' }} />
-            <p className="text-sm" style={{ color: '#6a7180' }}>Aucun autre projet disponible.</p>
-            <p className="text-xs" style={{ color: '#6a7180' }}>
+            <Building2 className="h-8 w-8 text-muted-foreground opacity-50" />
+            <p className="text-sm text-muted-foreground">Aucun autre projet disponible.</p>
+            <p className="text-xs text-muted-foreground">
               Ce document est déjà rattaché à tous vos projets.
             </p>
           </div>
@@ -97,7 +97,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
           <>
             {projects.length > 8 && (
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#6a7180' }} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   className="pl-9 h-10 text-[14px]"
                   style={{ background: C.card, borderColor: C.border }}
@@ -127,7 +127,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-medium truncate" style={{ color: C.ink }}>{m.nom}</p>
                       {m.commune && (
-                        <p className="text-[11px] truncate" style={{ color: '#6a7180' }}>{m.commune}</p>
+                        <p className="text-[11px] truncate text-muted-foreground">{m.commune}</p>
                       )}
                     </div>
                     <div
@@ -143,11 +143,11 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
                 );
               })}
               {filtered.length === 0 && (
-                <p className="text-sm text-center py-8" style={{ color: '#6a7180' }}>Aucun projet trouvé.</p>
+                <p className="text-sm text-center py-8 text-muted-foreground">Aucun projet trouvé.</p>
               )}
             </div>
 
-            <p className="text-[11px]" style={{ color: '#6a7180' }}>
+            <p className="text-[11px] text-muted-foreground">
               Le même document sera rattaché à chaque projet sélectionné, sans créer de copie.
             </p>
           </>
@@ -158,8 +158,8 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
             type="button"
             onClick={() => onOpenChange(false)}
             disabled={submitting}
-            className="px-4 py-2 text-[13px] font-medium rounded-lg transition-colors"
-            style={{ border: `1px solid ${C.border}`, color: '#6a7180' }}
+            className="px-4 py-2 text-[13px] font-medium rounded-lg transition-colors text-muted-foreground"
+            style={{ border: `1px solid ${C.border}` }}
           >
             Annuler
           </button>

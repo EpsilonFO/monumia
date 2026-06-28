@@ -62,9 +62,9 @@ export function DocumentTile({
             <p className="text-[13px] font-semibold leading-tight line-clamp-1" style={{ color: C.ink }}>
               {document.nom}
             </p>
-            <p className="text-[11px] mt-0.5 truncate" style={{ color: '#8E92A4' }}>{document.nomFichier}</p>
+            <p className="text-[11px] mt-0.5 truncate text-muted-foreground">{document.nomFichier}</p>
             {uploaderName && !isUploader && (
-              <p className="text-[11px]" style={{ color: '#8E92A4' }}>Ajouté par {uploaderName}</p>
+              <p className="text-[11px] text-muted-foreground">Ajouté par {uploaderName}</p>
             )}
           </div>
           {variant === 'normal' && (
@@ -77,7 +77,7 @@ export function DocumentTile({
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={stop}>
               <button className="shrink-0 p-1 rounded-md transition-colors hover:bg-black/[0.04] opacity-0 group-hover:opacity-100">
-                <MoreVertical className="h-3.5 w-3.5" style={{ color: '#8E92A4' }} />
+                <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onClick={stop}>
@@ -130,7 +130,7 @@ export function DocumentTile({
           <Badge className="text-[10px] font-semibold border-0 px-1.5 py-0.5" style={{ background: accent.bg, color: accent.text }}>
             {typeLabel(document.type)}
           </Badge>
-          <span className="text-[11px]" style={{ color: '#8E92A4' }}>{formatFileSize(document.tailleFichier)}</span>
+          <span className="text-[11px] text-muted-foreground">{formatFileSize(document.tailleFichier)}</span>
           {restricted && (
             <span
               className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
@@ -144,7 +144,7 @@ export function DocumentTile({
 
         {/* Repère multi-projets */}
         {variant === 'normal' && multiProject && (
-          <p className="text-[11px]" style={{ color: '#6a7180' }}>
+          <p className="text-[11px] text-muted-foreground">
             Aussi dans {document.monumentIds.length - 1} autre{document.monumentIds.length - 1 > 1 ? 's' : ''} projet{document.monumentIds.length - 1 > 1 ? 's' : ''}
           </p>
         )}

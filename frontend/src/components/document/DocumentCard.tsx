@@ -49,18 +49,18 @@ const typeLabels: Record<string, string> = {
 };
 
 const typeAccent: Record<string, { bg: string; text: string }> = {
-  photo: { bg: '#F3E8FF', text: '#7C3AED' },
-  plan: { bg: '#E8EAF6', text: '#1A237E' },
-  devis: { bg: '#FEF3C7', text: '#92400E' },
-  facture: { bg: '#FBF0EC', text: '#C75B3A' },
-  attestation: { bg: '#ECFDF5', text: '#065F46' },
-  extrait_cadastral: { bg: '#E0F2F1', text: '#00695C' },
-  cerfa: { bg: '#E0F7FA', text: '#006064' },
-  arrete: { bg: '#FFEBEE', text: '#B71C1C' },
-  diagnostic: { bg: '#E8EAF6', text: '#283593' },
-  rapport: { bg: '#F1F5F9', text: '#334155' },
-  correspondance: { bg: '#FCE4EC', text: '#880E4F' },
-  autre: { bg: '#F3F4F6', text: '#374151' },
+  photo:             { bg: 'var(--info-muted)',        text: 'var(--cat-violet)' },
+  plan:              { bg: 'var(--secondary)',          text: 'var(--primary)' },
+  devis:             { bg: 'var(--warning-muted)',      text: 'var(--warning)' },
+  facture:           { bg: 'var(--destructive-muted)',  text: 'var(--destructive)' },
+  attestation:       { bg: 'var(--success-muted)',      text: 'var(--success)' },
+  extrait_cadastral: { bg: 'var(--success-muted)',      text: 'var(--cat-teal)' },
+  cerfa:             { bg: 'var(--info-muted)',         text: 'var(--info)' },
+  arrete:            { bg: 'var(--destructive-muted)',  text: 'var(--destructive)' },
+  diagnostic:        { bg: 'var(--secondary)',          text: 'var(--primary)' },
+  rapport:           { bg: 'var(--muted)',              text: 'var(--muted-foreground)' },
+  correspondance:    { bg: 'var(--destructive-muted)',  text: 'var(--cat-burgundy)' },
+  autre:             { bg: 'var(--muted)',              text: 'var(--muted-foreground)' },
 };
 
 export function DocumentCard({ document, dossierNames, monumentNames, onClick, onRename, onDelete, onAddToProject, myRole, uploaderName, onDocumentUpdated }: DocumentCardProps) {
@@ -101,7 +101,7 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
     <>
       <div
         onClick={onClick}
-        className="group relative bg-white rounded-xl border border-[#E4E2DC]/80 overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:shadow-black/[0.03] hover:border-[#E4E2DC]"
+        className="group relative bg-card rounded-xl border border-border/80 overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:shadow-black/[0.03] hover:border-border"
       >
         {/* Top accent strip */}
         <div className="h-1" style={{ background: accent.text }} />
@@ -116,17 +116,17 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
               <Icon className="h-4 w-4" style={{ color: accent.text }} strokeWidth={1.8} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-semibold text-[#1B1E2E] leading-tight line-clamp-1">{document.nom}</p>
-              <p className="text-[11px] text-[#8E92A4] mt-0.5 truncate">{document.nomFichier}</p>
+              <p className="text-[13px] font-semibold text-foreground leading-tight line-clamp-1">{document.nom}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{document.nomFichier}</p>
               {uploaderName && (
-                <p className="text-[11px] text-[#8E92A4]">Ajouté par {uploaderName}</p>
+                <p className="text-[11px] text-muted-foreground">Ajouté par {uploaderName}</p>
               )}
             </div>
             {((onRename && canModify) || (onDelete && canModify) || onAddToProject || canManageAccess) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                  <button className="shrink-0 p-1 rounded-md hover:bg-[#F8F7F4] transition-colors opacity-0 group-hover:opacity-100">
-                    <MoreVertical className="h-3.5 w-3.5 text-[#8E92A4]" />
+                  <button className="shrink-0 p-1 rounded-md hover:bg-muted transition-colors opacity-0 group-hover:opacity-100">
+                    <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
@@ -163,11 +163,10 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
             >
               {typeLabels[document.type] ?? document.type}
             </Badge>
-            <span className="text-[11px] text-[#8E92A4]">{formatFileSize(document.tailleFichier)}</span>
+            <span className="text-[11px] text-muted-foreground">{formatFileSize(document.tailleFichier)}</span>
             {isRestricted && (
               <span
-                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
-                style={{ background: '#FBEAE8', color: '#C0271D' }}
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-destructive-muted text-destructive"
                 title="Visible uniquement par certaines personnes"
               >
                 <Lock className="h-2.5 w-2.5" />
@@ -178,23 +177,23 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
 
           {/* Monument link */}
           {linkedMonuments.length > 0 && (
-            <p className="text-[11px] text-[#8E92A4] truncate">{linkedMonuments.join(', ')}</p>
+            <p className="text-[11px] text-muted-foreground truncate">{linkedMonuments.join(', ')}</p>
           )}
 
           {/* Dossiers */}
           {linkedDossiers.length > 0 && (
-            <div className="pt-2 border-t border-[#E4E2DC]/60">
-              <p className="text-[10px] uppercase tracking-[0.08em] font-semibold text-[#8E92A4] flex items-center gap-1 mb-1">
+            <div className="pt-2 border-t border-border/60">
+              <p className="text-[10px] uppercase tracking-[0.08em] font-semibold text-muted-foreground flex items-center gap-1 mb-1">
                 <FolderOpen className="h-3 w-3" strokeWidth={1.8} />Dossiers
               </p>
               {linkedDossiers.map((name) => (
-                <p key={name} className="text-[11px] text-[#1B1E2E] truncate">{name}</p>
+                <p key={name} className="text-[11px] text-foreground truncate">{name}</p>
               ))}
             </div>
           )}
 
           {document.dossiersUtilises.length > 0 && linkedDossiers.length === 0 && (
-            <p className="text-[11px] text-[#8E92A4] pt-2 border-t border-[#E4E2DC]/60">
+            <p className="text-[11px] text-muted-foreground pt-2 border-t border-border/60">
               Utilisé dans {document.dossiersUtilises.length} dossier{document.dossiersUtilises.length > 1 ? 's' : ''}
             </p>
           )}
@@ -217,13 +216,13 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleRename(); }}
             autoFocus
-            className="h-10 text-[14px] bg-white border-[#E4E2DC] focus:border-[#1A237E] focus:ring-[#1A237E]/10"
+            className="h-10 text-[14px] bg-card border-border focus:border-primary focus:ring-primary/10"
           />
           <DialogFooter>
-            <button onClick={() => setRenameOpen(false)} disabled={loading} className="px-4 py-2 text-[13px] font-medium border border-[#E4E2DC] rounded-lg text-[#5C6178] hover:bg-[#F8F7F4] transition-colors">
+            <button onClick={() => setRenameOpen(false)} disabled={loading} className="px-4 py-2 text-[13px] font-medium border border-border rounded-lg text-muted-foreground hover:bg-muted transition-colors">
               Annuler
             </button>
-            <button onClick={handleRename} disabled={!newName.trim() || loading} className="px-4 py-2 text-[13px] font-semibold text-white rounded-lg disabled:opacity-50 hover:shadow-md transition-all" style={{ background: '#1A237E' }}>
+            <button onClick={handleRename} disabled={!newName.trim() || loading} className="px-4 py-2 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg disabled:opacity-50 hover:shadow-md transition-all">
               {loading ? 'Enregistrement...' : 'Enregistrer'}
             </button>
           </DialogFooter>
