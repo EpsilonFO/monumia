@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ArrowLeft, Check, Loader2, Sparkles } from 'lucide-react';
 import { C, SERIF } from '@/lib/brand';
-import type { ProjectQuestionnaireAnswers, QcmQuestion } from '@/types';
+import { cn } from '@/lib/utils';
+import type { ProjectQuestionnaireAnswers, QcmOption, QcmQuestion } from '@/types';
 
 interface ProjectQuestionnaireProps {
   /** Questions générées par le moteur d'aides (faits manquants du diagnostic). */
   questions: QcmQuestion[];
   value: ProjectQuestionnaireAnswers;
   onChange: (answers: ProjectQuestionnaireAnswers) => void;
-  /** Appelé sur l'écran de fin, quand l'utilisateur lance le diagnostic. */
+  /** Appelé sur l'écran de fin, quand l'utilisateur valide. */
   onComplete: () => void;
   /** Vrai pendant l'enregistrement + le diagnostic (spinner sur le bouton final). */
   submitting?: boolean;
+  /** Si fourni, affiche un bouton « Annuler » (utilisé par le dialog « Refaire »). */
+  onCancel?: () => void;
+  /** Libellé du bouton final. */
+  completeLabel?: string;
+  /** Encadré dans une carte (wizard) ou nu, dans un dialog (redo). */
+  framed?: boolean;
 }
 
 /** Délai avant l'auto-avance : laisse voir sa réponse se cocher. */
@@ -25,12 +32,29 @@ function prefersReducedMotion(): boolean {
   );
 }
 
+/** Le moteur fournit souvent une option « Je ne sais pas » : on évite alors de la dupliquer en bas. */
+function isUnknownOption(o: QcmOption): boolean {
+  const id = o.id.toLowerCase();
+  const l = o.label.toLowerCase();
+  return (
+    id === 'skip' ||
+    id === 'unknown' ||
+    id === 'nsp' ||
+    l.includes('ne sais pas') ||
+    l.includes('ne sait pas') ||
+    l.includes('je ne sais') ||
+    l.includes('incertain') ||
+    l.includes('pas sûr') ||
+    l.includes('aucune idée')
+  );
+}
+
 /**
  * Questionnaire du moteur d'aides, posé **une question à la fois** (style Doctolib).
  * On clique une réponse → elle se coche → la question suivante glisse automatiquement.
- * La dernière mène à un écran de fin avec le bouton « Lancer le diagnostic » (jamais
- * de lancement par accident). Données inchangées : `value` reste un Record id→option,
- * une question non répondue (« Je ne sais pas ») est gérée par le moteur.
+ * La dernière mène à un écran de fin avec le bouton final (jamais de lancement par accident).
+ * Données inchangées : `value` reste un Record id→option ; une question non répondue
+ * (« Je ne sais pas ») est gérée par le moteur.
  */
 export function ProjectQuestionnaire({
   questions,
@@ -38,6 +62,9 @@ export function ProjectQuestionnaire({
   onChange,
   onComplete,
   submitting,
+  onCancel,
+  completeLabel = 'Lancer le diagnostic',
+  framed = true,
 }: ProjectQuestionnaireProps) {
   const total = questions.length;
   const [index, setIndex] = useState(0);
@@ -56,7 +83,6 @@ export function ProjectQuestionnaire({
     }
   };
 
-  // Nettoyage du timer au démontage.
   useEffect(() => clearTimer, []);
 
   // Focus à chaque changement d'écran (accessibilité + clavier).
@@ -68,7 +94,6 @@ export function ProjectQuestionnaire({
     }
     const current = questions[index];
     if (!current) return;
-    // En revenant sur une question répondue, on focalise l'option choisie ; sinon la 1re.
     const targetId = value[current.id] ?? current.options[0]?.id;
     if (targetId) optionRefs.current[`${current.id}:${targetId}`]?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,66 +143,82 @@ export function ProjectQuestionnaire({
   };
 
   const slideClass = dir === 'fwd' ? 'q-in-fwd' : 'q-in-back';
+  const shellClass = framed ? 'mx-auto max-w-xl overflow-hidden rounded-3xl border' : 'overflow-hidden';
+  const shellStyle = framed
+    ? { background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }
+    : undefined;
+  const pad = framed ? 'px-6 sm:px-8' : 'px-0';
 
   // ─── Écran de fin ───
   if (onFinish) {
     const answered = questions.filter((qq) => value[qq.id] !== undefined).length;
     return (
-      <div
-        key="finish"
-        className={`flex flex-col items-center gap-4 rounded-2xl border px-6 py-10 text-center ${slideClass}`}
-        style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
-      >
-        <span
-          className="flex h-16 w-16 items-center justify-center rounded-full"
-          style={{ background: C.paleOrange }}
-          aria-hidden
-        >
-          <Sparkles className="h-7 w-7" style={{ color: C.orange }} />
-        </span>
-        <h2
-          ref={finishRef}
-          tabIndex={-1}
-          className="text-[clamp(1.4rem,3vw,1.9rem)] leading-tight outline-none"
-          style={{ fontFamily: SERIF, color: C.ink }}
-        >
-          C&apos;est tout&nbsp;! 🎉
-        </h2>
-        <p className="max-w-sm text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
-          {answered > 0
-            ? `Vous avez répondu à ${answered} question${answered > 1 ? 's' : ''}. Lançons le diagnostic pour découvrir vos aides.`
-            : 'Pas de souci si vous avez passé des questions. Lançons le diagnostic pour découvrir vos aides.'}
-        </p>
-        <button
-          type="button"
-          onClick={onComplete}
-          disabled={submitting}
-          className="group mt-1 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-[15px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
-          style={{ background: C.orange }}
-        >
-          {submitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Analyse des aides en cours…
-            </>
-          ) : (
-            <>
-              Lancer le diagnostic
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </>
-          )}
-        </button>
-        {!submitting && (
+      <div className={cn(shellClass, slideClass)} style={shellStyle}>
+        <div className={cn('flex flex-col items-center gap-4 py-10 text-center', pad)}>
+          <span
+            className="flex h-16 w-16 items-center justify-center rounded-full"
+            style={{ background: C.paleOrange }}
+            aria-hidden
+          >
+            <Sparkles className="h-7 w-7" style={{ color: C.orange }} />
+          </span>
+          <h2
+            ref={finishRef}
+            tabIndex={-1}
+            className="text-[clamp(1.4rem,3vw,1.9rem)] leading-tight outline-none"
+            style={{ fontFamily: SERIF, color: C.ink }}
+          >
+            C&apos;est tout&nbsp;! 🎉
+          </h2>
+          <p className="max-w-sm text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
+            {answered > 0
+              ? `Vous avez répondu à ${answered} question${answered > 1 ? 's' : ''}. `
+              : 'Pas de souci si vous avez passé des questions. '}
+            On met à jour vos aides.
+          </p>
           <button
             type="button"
-            onClick={goBack}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium underline-offset-2 hover:underline"
-            style={{ color: C.grayMuted }}
+            onClick={onComplete}
+            disabled={submitting}
+            className="group mt-1 inline-flex min-h-12 items-center gap-2 rounded-xl px-6 py-3 text-[15px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
+            style={{ background: C.orange }}
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Revoir mes réponses
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analyse des aides en cours…
+              </>
+            ) : (
+              <>
+                {completeLabel}
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </>
+            )}
           </button>
-        )}
+          {!submitting && (
+            <div className="flex items-center gap-5">
+              <button
+                type="button"
+                onClick={goBack}
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium underline-offset-2 hover:underline"
+                style={{ color: C.grayMuted }}
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Revoir mes réponses
+              </button>
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="text-[13px] underline-offset-2 hover:underline"
+                  style={{ color: C.grayMuted }}
+                >
+                  Annuler
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -185,21 +226,22 @@ export function ProjectQuestionnaire({
   // ─── Une question à la fois ───
   // La barre reflète la position courante (jamais 0 % sur la 1re question).
   const pct = Math.round(((index + 1) / total) * 100);
+  const showSkipLink = !q!.options.some(isUnknownOption);
 
   return (
-    <div className="space-y-6">
-      {/* Progression « Question X sur Y » + barre */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-[12px] font-semibold">
-          <span aria-live="polite" style={{ color: C.grayMuted }}>
-            Question {index + 1} sur {total}
+    <div className={shellClass} style={shellStyle}>
+      {/* Progression */}
+      <div className={cn('pt-6 pb-4', pad)}>
+        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em]">
+          <span aria-live="polite" style={{ color: C.orange }}>
+            Question {index + 1} <span style={{ color: C.grayMuted }}>/ {total}</span>
           </span>
-          <span className="tabular-nums" style={{ color: C.orange }}>
+          <span className="tabular-nums" style={{ color: C.grayMuted }}>
             {pct}&nbsp;%
           </span>
         </div>
         <div
-          className="h-1.5 w-full overflow-hidden rounded-full"
+          className="mt-2 h-1.5 w-full overflow-hidden rounded-full"
           style={{ background: C.border }}
           role="progressbar"
           aria-valuemin={0}
@@ -213,19 +255,19 @@ export function ProjectQuestionnaire({
         </div>
       </div>
 
-      {/* Panneau de la question (glisse à chaque changement) */}
-      <div key={index} className={slideClass}>
-        <fieldset role="radiogroup" className="space-y-4">
-          <legend className="mb-1 w-full">
+      {/* Question (glisse à chaque changement) */}
+      <div key={index} className={cn(slideClass, pad, 'pb-2')}>
+        <fieldset role="radiogroup" className="space-y-5">
+          <legend className="w-full">
             <span
-              className="block text-[clamp(1.25rem,3vw,1.6rem)] leading-snug"
+              className="block text-[clamp(1.3rem,3.2vw,1.7rem)] leading-snug"
               style={{ fontFamily: SERIF, color: C.ink }}
             >
               {q!.question}
             </span>
           </legend>
 
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {q!.options.map((option, optionIndex) => {
               const selected = value[q!.id] === option.id;
               const refKey = `${q!.id}:${option.id}`;
@@ -242,45 +284,52 @@ export function ProjectQuestionnaire({
                   tabIndex={roving ? 0 : -1}
                   onClick={() => commit(option.id)}
                   onKeyDown={(e) => onOptionKeyDown(e, optionIndex)}
-                  className="group flex min-h-14 w-full items-center gap-3.5 rounded-2xl border px-5 py-4 text-left text-[15px] transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  style={{
-                    borderColor: selected ? C.orange : C.border,
-                    background: selected ? C.paleOrange : C.card,
-                    color: C.ink,
-                    boxShadow: selected ? 'var(--shadow-card)' : 'none',
-                  }}
+                  className={cn(
+                    'group flex min-h-[3.5rem] w-full items-center gap-4 rounded-2xl border px-5 py-3.5 text-left text-[15px] leading-snug transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    selected
+                      ? 'border-accent bg-[#feeedd] shadow-[var(--shadow-card)]'
+                      : 'border-border bg-card hover:border-[#efcaa0] hover:bg-[#fbf3e8]',
+                  )}
+                  style={{ color: C.ink }}
                 >
                   <span
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors"
-                    style={{
-                      borderColor: selected ? C.orange : C.border,
-                      background: selected ? C.orange : 'transparent',
-                    }}
+                    className={cn(
+                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+                      selected ? 'border-accent bg-accent text-white' : 'border-[#d8cfc0]',
+                    )}
                   >
-                    {selected && <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />}
+                    {selected ? (
+                      <Check className="h-4 w-4" strokeWidth={3} />
+                    ) : (
+                      <span className="h-2 w-2 rounded-full bg-[#d8cfc0] transition-colors group-hover:bg-[#e6a866]" />
+                    )}
                   </span>
-                  <span className="leading-snug">{option.label}</span>
+                  <span>{option.label}</span>
                 </button>
               );
             })}
           </div>
-        </fieldset>
 
-        {/* Passer sans bloquer */}
-        <div className="mt-3 flex justify-center">
-          <button
-            type="button"
-            onClick={skip}
-            className="text-[13px] underline-offset-2 transition-colors hover:underline"
-            style={{ color: C.grayMuted }}
-          >
-            Je ne sais pas
-          </button>
-        </div>
+          {showSkipLink && (
+            <div className="pt-0.5">
+              <button
+                type="button"
+                onClick={skip}
+                className="text-[13px] underline-offset-2 transition-colors hover:underline"
+                style={{ color: C.grayMuted }}
+              >
+                Je ne sais pas
+              </button>
+            </div>
+          )}
+        </fieldset>
       </div>
 
-      {/* Navigation bas : précédent + réassurance */}
-      <div className="flex items-center justify-between pt-1">
+      {/* Navigation bas */}
+      <div
+        className={cn('mt-3 flex items-center justify-between border-t py-4', pad)}
+        style={{ borderColor: C.border }}
+      >
         <button
           type="button"
           onClick={goBack}
@@ -291,9 +340,20 @@ export function ProjectQuestionnaire({
           <ArrowLeft className="h-4 w-4" />
           Précédent
         </button>
-        <span className="text-[12px]" style={{ color: C.grayMuted }}>
-          Vous pourrez tout modifier plus tard
-        </span>
+        {onCancel ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-[13px] underline-offset-2 hover:underline"
+            style={{ color: C.grayMuted }}
+          >
+            Annuler
+          </button>
+        ) : (
+          <span className="hidden text-[12px] sm:block" style={{ color: C.grayMuted }}>
+            Vous pourrez refaire ce questionnaire plus tard
+          </span>
+        )}
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Shield, Calendar, AlertTriangle, Wrench, Building2, Eye, Compass,
   ScrollText, FolderOpen, ChevronLeft, ChevronDown, Edit2, Trash2, Loader2,
-  CheckCircle2, HelpCircle, XCircle, Users, FilePlus2,
+  CheckCircle2, HelpCircle, XCircle, Users, FilePlus2, SlidersHorizontal,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,6 +24,7 @@ import { TeamPanel } from '@/components/sharing/TeamPanel';
 import { projectPermissions } from '@/lib/project-permissions';
 import { ProjectSummaryBar } from '@/components/project/ProjectSummaryBar';
 import { ProjectEcheancier } from '@/components/project/ProjectEcheancier';
+import { RetakeQuestionnaireDialog } from '@/components/project/RetakeQuestionnaireDialog';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
@@ -85,6 +86,7 @@ export function ProjectDetailPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [retakeOpen, setRetakeOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [showNonEligibles, setShowNonEligibles] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
@@ -318,6 +320,23 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <div className="space-y-8">
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+                style={{ background: C.paleBlue, borderColor: C.border }}
+              >
+                <p className="text-[13px]" style={{ color: C.grayFg }}>
+                  Ces aides sont calculées à partir de vos réponses au questionnaire.
+                </p>
+                <button
+                  onClick={() => setRetakeOpen(true)}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border bg-white px-4 py-2 text-[13px] font-semibold transition-shadow hover:shadow-sm"
+                  style={{ borderColor: C.blue, color: C.blue }}
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  Refaire le questionnaire
+                </button>
+              </div>
+
               <ProjectEcheancier deadlines={deadlines} />
 
               <section className="space-y-3">
@@ -512,6 +531,12 @@ export function ProjectDetailPage() {
           />
         </TabsContent>
       </Tabs>
+
+      <RetakeQuestionnaireDialog
+        monument={monument}
+        open={retakeOpen}
+        onClose={() => setRetakeOpen(false)}
+      />
 
       <DocumentPreviewDialog document={previewDoc} open={!!previewDoc} onOpenChange={(open) => { if (!open) setPreviewDoc(null); }} onAddToProject={(doc) => { setPreviewDoc(null); setAddToProjectDoc(doc); }} />
       <AddToProjectDialog
