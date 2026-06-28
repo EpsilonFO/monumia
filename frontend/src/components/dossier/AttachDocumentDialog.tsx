@@ -184,7 +184,7 @@ export function AttachDocumentDialog({
         <div className="flex-1 min-h-0 overflow-y-auto space-y-5 pr-1">
           {/* 1 — Téléverser un nouveau document */}
           <section className="space-y-3">
-            <h3 className="text-[13px] font-semibold text-[#1B1E2E]">Téléverser un nouveau document</h3>
+            <h3 className="text-[13px] font-semibold text-foreground">Téléverser un nouveau document</h3>
             <form onSubmit={handleUpload} className="space-y-3">
               <div
                 onClick={() => fileInputRef.current?.click()}
@@ -290,11 +290,11 @@ export function AttachDocumentDialog({
 
           {/* Séparation claire entre « téléverser » et « choisir un existant ». */}
           <div className="flex items-center gap-3">
-            <span className="h-px flex-1" style={{ background: '#E4E2DC' }} />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8E92A4]">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               ou choisir parmi mes documents
             </span>
-            <span className="h-px flex-1" style={{ background: '#E4E2DC' }} />
+            <span className="h-px flex-1 bg-border" />
           </div>
 
           {/* 2 — Choisir un document existant (« Mes documents ») */}

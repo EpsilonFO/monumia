@@ -9,15 +9,19 @@ import { formatDate, isUrgent, daysUntil } from '@/lib/date-utils';
 import type { Dossier, AideSuiviStatut } from '@/types';
 import { C, SERIF } from '@/lib/brand';
 
+// Couleurs catégorielles des monuments — 8 teintes distinctes via tokens de thème.
+// Les 3 couleurs de catégorie rares (violet, sarcelle, bordeaux) sont provisoirement
+// mappées sur les chart tokens les plus proches (chart-2, info, chart-4) en
+// l'absence de tokens dédiés ; à affiner lors de l'extension de la palette de thème.
 const MONUMENT_COLORS = [
   C.blue,
   C.orange,
-  '#065F46',
-  '#7C3AED',
-  '#92400E',
-  '#006064',
-  '#880E4F',
-  '#1565C0',
+  'var(--color-success)',
+  'var(--color-chart-2)',
+  'var(--color-warning)',
+  'var(--color-info)',
+  'var(--color-chart-4)',
+  'var(--color-primary)',
 ];
 
 interface DossierCardProps {
@@ -47,7 +51,7 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
   return (
     <Link to={ROUTES.PROJET_DOSSIER(dossier.monumentId, dossier.id)} className="block h-full">
       <div
-        className="group relative bg-white rounded-xl border border-[#E4E2DC]/80 overflow-hidden transition-all duration-200 hover:shadow-md hover:shadow-black/[0.03] hover:border-[#E4E2DC] flex flex-col h-full"
+        className="group relative bg-card rounded-xl border border-border/80 overflow-hidden transition-all duration-200 hover:shadow-md hover:shadow-black/[0.03] hover:border-border flex flex-col h-full"
         style={{ borderLeft: `4px solid ${color}` }}
       >
 
@@ -68,15 +72,15 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
           </div>
           <div className="flex items-start justify-between gap-2">
             <h3
-              className="text-[16px] font-normal text-[#222b35] leading-tight line-clamp-2 min-h-[2.5em]"
+              className="text-[16px] font-normal text-foreground leading-tight line-clamp-2 min-h-[2.5em]"
               style={{ fontFamily: SERIF }}
             >
               {aideName}
             </h3>
-            <ChevronRight className="h-4 w-4 text-[#E4E2DC] group-hover:text-[#f17105] transition-colors shrink-0 mt-0.5" />
+            <ChevronRight className="h-4 w-4 text-border group-hover:text-accent transition-colors shrink-0 mt-0.5" />
           </div>
           {monument?.commune && (
-            <div className="mt-1.5 text-[12px] text-[#8E92A4] truncate">
+            <div className="mt-1.5 text-[12px] text-muted-foreground truncate">
               {monument.commune}
             </div>
           )}
@@ -85,20 +89,20 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
         {piecesTotal > 0 && (
           <div className="px-5 pb-3 flex items-center gap-4 text-[12px]">
             {fournis > 0 && (
-              <span className="flex items-center gap-1.5 text-green-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+              <span className="flex items-center gap-1.5 text-success">
+                <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
                 {fournis} fourni{fournis > 1 ? 's' : ''}
               </span>
             )}
             {manquants > 0 && (
-              <span className="flex items-center gap-1.5 text-red-600">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+              <span className="flex items-center gap-1.5 text-destructive">
+                <span className="w-1.5 h-1.5 rounded-full bg-destructive shrink-0" />
                 {manquants} manquant{manquants > 1 ? 's' : ''}
               </span>
             )}
             {enAttente > 0 && (
-              <span className="flex items-center gap-1.5 text-[#8E92A4]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#C0BDBA] shrink-0" />
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <span className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />
                 {enAttente} en attente
               </span>
             )}
@@ -107,17 +111,17 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
 
         <div className="px-5 pb-4 space-y-2 mt-auto">
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-[#8E92A4]">Progression</span>
-            <span className="font-semibold text-[#5C6178] tabular-nums">{dossier.progressionPourcentage}%</span>
+            <span className="text-muted-foreground">Progression</span>
+            <span className="font-semibold text-muted-foreground tabular-nums">{dossier.progressionPourcentage}%</span>
           </div>
           <Progress value={dossier.progressionPourcentage} className="h-1" />
 
           {nextDeadline && (
-            <div className={`flex items-center gap-1.5 text-[11px] pt-0.5 ${isUrgent(nextDeadline.date) ? 'text-red-600 font-medium' : 'text-[#8E92A4]'}`}>
+            <div className={`flex items-center gap-1.5 text-[11px] pt-0.5 ${isUrgent(nextDeadline.date) ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
               <Calendar className="h-3 w-3 shrink-0" strokeWidth={1.8} />
               <span className="truncate">{nextDeadline.label} · {formatDate(nextDeadline.date)}</span>
               {isUrgent(nextDeadline.date) && (
-                <span className="ml-auto bg-red-50 text-red-600 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0">
+                <span className="ml-auto bg-destructive-muted text-destructive text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0">
                   J-{daysUntil(nextDeadline.date)}
                 </span>
               )}

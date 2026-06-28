@@ -21,7 +21,7 @@ export function DiagnosticCard({ diagnostic, monument }: DiagnosticCardProps) {
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-sm leading-tight">{monument.nom}</CardTitle>
-          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0">
+          <Badge variant="outline" className="bg-success-muted text-success border-success/30 shrink-0">
             <Compass className="h-3 w-3 mr-1" />
             Diagnostic fait
           </Badge>
