@@ -11,13 +11,13 @@ export function PageHeader({ title, description, action }: PageHeaderProps) {
     <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
       <div>
         <h1
-          className="text-[clamp(1.6rem,3vw,2.2rem)] font-light tracking-[-0.02em] text-[#1B1E2E]"
+          className="text-[clamp(1.6rem,3vw,2.2rem)] font-light tracking-[-0.02em] text-foreground"
           style={{ fontFamily: "'Cormorant Garamond', serif" }}
         >
           {title}
         </h1>
         {description && (
-          <p className="text-[14px] mt-1 text-[#8E92A4]">{description}</p>
+          <p className="text-[14px] mt-1 text-muted-foreground">{description}</p>
         )}
       </div>
       {action && <div className="flex-shrink-0">{action}</div>}

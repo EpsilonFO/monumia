@@ -17,9 +17,9 @@ const typeIcons = {
 };
 
 const typeColors = {
-  urgent: 'text-red-600',
-  opportunite: 'text-amber-600',
-  info: 'text-blue-600',
+  urgent: 'text-destructive',
+  opportunite: 'text-warning',
+  info: 'text-info',
 };
 
 function getLink(n: Notification): string | undefined {
