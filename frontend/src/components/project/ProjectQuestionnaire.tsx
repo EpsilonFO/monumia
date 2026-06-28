@@ -267,7 +267,12 @@ export function ProjectQuestionnaire({
             </span>
           </legend>
 
-          <div className="space-y-3">
+          <div
+            className={cn(
+              'grid gap-2.5',
+              q!.options.length > 4 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1',
+            )}
+          >
             {q!.options.map((option, optionIndex) => {
               const selected = value[q!.id] === option.id;
               const refKey = `${q!.id}:${option.id}`;

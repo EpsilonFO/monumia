@@ -43,7 +43,8 @@ export function RetakeQuestionnaireDialog({ monument, open, onClose }: RetakeQue
     if (!open) return;
     let cancelled = false;
     setLoading(true);
-    setAnswers((monument.questionnaire ?? {}) as ProjectQuestionnaireAnswers);
+    // Redo « à blanc » : on ne pré-coche pas les réponses précédentes.
+    setAnswers({});
     aideService
       .runDeterministicDiagnostic(monument.id, {})
       .then((res) => {
@@ -58,7 +59,7 @@ export function RetakeQuestionnaireDialog({ monument, open, onClose }: RetakeQue
     return () => {
       cancelled = true;
     };
-  }, [open, monument.id, monument.questionnaire]);
+  }, [open, monument.id]);
 
   const handleComplete = async () => {
     setSubmitting(true);

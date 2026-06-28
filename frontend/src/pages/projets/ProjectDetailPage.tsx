@@ -320,17 +320,11 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <div className="space-y-8">
-              <div
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
-                style={{ background: C.paleBlue, borderColor: C.border }}
-              >
-                <p className="text-[13px]" style={{ color: C.grayFg }}>
-                  Ces aides sont calculées à partir de vos réponses au questionnaire.
-                </p>
+              <div className="flex justify-end">
                 <button
                   onClick={() => setRetakeOpen(true)}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border bg-white px-4 py-2 text-[13px] font-semibold transition-shadow hover:shadow-sm"
-                  style={{ borderColor: C.blue, color: C.blue }}
+                  className="inline-flex items-center gap-1.5 text-[12.5px] font-medium underline-offset-2 transition-colors hover:underline"
+                  style={{ color: C.grayMuted }}
                 >
                   <SlidersHorizontal className="h-3.5 w-3.5" />
                   Refaire le questionnaire
