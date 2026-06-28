@@ -153,3 +153,19 @@
   font-family: var(--font-hand);
 }
 
+/* ─── Questionnaire « une question à la fois » : glissé entrant ─── */
+@keyframes q-in-fwd-kf {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes q-in-back-kf {
+  from { opacity: 0; transform: translateX(-28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.q-in-fwd { animation: q-in-fwd-kf 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.q-in-back { animation: q-in-back-kf 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .q-in-fwd,
+  .q-in-back { animation: none; }
+}
+

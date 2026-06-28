@@ -386,45 +386,47 @@ export function ProjectWizardPage() {
         {step === 2 && (
           <div className="space-y-8">
             {loadingQuestions ? (
-              <div className="flex items-center gap-3 py-10 text-[14px]" style={{ color: '#6a7180' }}>
+              <div className="flex items-center gap-3 py-10 text-[14px]" style={{ color: C.grayMuted }}>
                 <Loader2 className="h-4 w-4 animate-spin" style={{ color: C.blueLight }} />
                 Analyse de votre monument…
               </div>
             ) : questions.length === 0 ? (
-              <p className="text-[15px] leading-relaxed" style={{ color: '#6a7180' }}>
-                Aucune précision supplémentaire n'est nécessaire pour votre monument. Lancez le
-                diagnostic pour découvrir les aides mobilisables.
-              </p>
-            ) : (
-              <>
-                <p className="text-[15px] leading-relaxed" style={{ color: '#6a7180' }}>
-                  Quelques questions pour affiner les aides proposées. Vous pourrez les modifier
-                  plus tard.
+              <div className="space-y-8">
+                <p className="text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
+                  Aucune précision supplémentaire n'est nécessaire pour votre monument. Lancez le
+                  diagnostic pour découvrir les aides mobilisables.
                 </p>
-                <ProjectQuestionnaire questions={questions} value={answers} onChange={setAnswers} />
-              </>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={handleQuestionnaireNext}
+                    className="group inline-flex items-center gap-2 rounded-xl px-6 py-3 text-[14px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
+                    style={{ background: C.orange }}
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Analyse des aides en cours…
+                      </>
+                    ) : (
+                      <>
+                        Voir les aides
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <ProjectQuestionnaire
+                questions={questions}
+                value={answers}
+                onChange={setAnswers}
+                onComplete={handleQuestionnaireNext}
+                submitting={saving}
+              />
             )}
-            <div className="flex justify-end">
-              <button
-                type="button"
-                disabled={saving || loadingQuestions}
-                onClick={handleQuestionnaireNext}
-                className="group inline-flex items-center gap-2 rounded-lg px-6 py-3 text-[14px] font-semibold text-white transition-all hover:shadow-lg disabled:opacity-60"
-                style={{ background: C.orange }}
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Analyse des aides en cours…
-                  </>
-                ) : (
-                  <>
-                    {questions.length === 0 ? 'Voir les aides' : 'Lancer le diagnostic'}
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </>
-                )}
-              </button>
-            </div>
           </div>
         )}
       </div>
