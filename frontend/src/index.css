@@ -38,6 +38,9 @@
     --color-info: var(--info);
     --color-info-foreground: var(--info-foreground);
     --color-info-muted: var(--info-muted);
+    --color-blue-light: var(--blue-light);
+    --color-blue-dark: var(--blue-dark);
+    --color-orange-vif: var(--orange-vif);
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
@@ -93,6 +96,9 @@
     --info: #1f5fc2;
     --info-foreground: #fdf9f0;
     --info-muted: #e7eefc;
+    --blue-light: #5c95ff;
+    --blue-dark: #072a72;
+    --orange-vif: #fc8905;
     --border: #ece3d2;
     --input: #ece3d2;
     --ring: #0a369d;
@@ -144,6 +150,9 @@
     --info: #5c95ff;
     --info-foreground: #0a1530;
     --info-muted: #18233f;
+    --blue-light: #87b0ff;
+    --blue-dark: #4d74c0;
+    --orange-vif: #ff9d2e;
     --border: #2a2f3c;
     --input: #2a2f3c;
     --ring: #5c95ff;

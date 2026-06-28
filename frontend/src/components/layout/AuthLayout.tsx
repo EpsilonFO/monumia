@@ -69,7 +69,7 @@ export function AuthLayout({
           {/* Filet dégradé — signature de la sidebar */}
           <div
             className="mt-6 h-px w-40"
-            style={{ background: `linear-gradient(to right, ${C.orange}99, ${C.blueDark}, transparent)` }}
+            style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--accent) 60%, transparent), ${C.blueDark}, transparent)` }}
           />
         </div>
 

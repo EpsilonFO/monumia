@@ -1,20 +1,20 @@
-// Charte Monumia — valeurs reprises telles quelles de la landing (branche landing-page)
+// Charte Monumia — pointe vers les tokens de thème CSS (mode sombre automatique)
 export const C = {
-  blue:       '#0a369d', // bleu profond — institutionnel
-  blueLight:  '#5c95ff', // bleu clair — liens, infographies
-  blueDark:   '#072a72', // bleu foncé — frises, accents sidebar
-  orange:     '#f17105', // orange — action, signature (CTA)
-  orangeVif:  '#fc8905', // orange vif — accentuation, badges (parcimonie)
-  cream:      '#fdf9f0', // crème — fond par excellence
-  ink:        '#222b35', // noir bleuté — corps de texte
-  card:       '#fffefb', // carte, à peine plus claire que le crème
-  border:     '#ece3d2', // bordure chaude
-  paleBlue:   '#eef3ff', // teinte du bleu clair
-  paleOrange: '#feeedd', // teinte de l'orange
-  danger:     '#c0271d', // rouge — échéance imminente (< 30 j) ou dépassée
-  paleDanger: '#fbeae8', // teinte du rouge
-  grayFg:     '#4a5160', // texte secondaire lisible sur crème (AA)
-  grayMuted:  '#6a7180', // texte tertiaire / hint
+  blue:       'var(--primary)',        // bleu profond — institutionnel
+  blueLight:  'var(--blue-light)',     // bleu clair — liens, infographies
+  blueDark:   'var(--blue-dark)',      // bleu foncé — frises, accents sidebar
+  orange:     'var(--accent)',         // orange — action, signature (CTA)
+  orangeVif:  'var(--orange-vif)',     // orange vif — accentuation, badges
+  cream:      'var(--background)',     // crème — fond par excellence
+  ink:        'var(--foreground)',     // noir bleuté — corps de texte
+  card:       'var(--card)',           // carte
+  border:     'var(--border)',         // bordure
+  paleBlue:   'var(--secondary)',      // teinte du bleu clair
+  paleOrange: 'var(--warning-muted)', // teinte de l'orange
+  danger:     'var(--destructive)',    // rouge — échéance imminente/dépassée
+  paleDanger: 'var(--destructive-muted)', // teinte du rouge
+  grayFg:     'var(--gray-fg)',        // texte secondaire lisible (AA)
+  grayMuted:  'var(--gray-muted)',     // texte tertiaire / hint
 } as const;
 
 // Police titres (PT Serif) — pour les styles inline ; le corps utilise Inter via var(--font-sans)
