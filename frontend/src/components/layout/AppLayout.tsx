@@ -37,7 +37,7 @@ export function AppLayout() {
   }, [pathname]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F8F7F4]">
+    <div className="flex h-screen overflow-hidden bg-muted">
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <TopBar />

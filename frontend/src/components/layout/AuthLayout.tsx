@@ -49,7 +49,7 @@ export function AuthLayout({
           <div className="absolute -bottom-28 -left-16 h-72 w-72 rounded-full blur-[130px]" style={{ background: 'rgba(241,113,5,0.18)' }} />
           <div
             className="absolute inset-0 opacity-[0.05]"
-            style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 31px, #ffffff 31px, #ffffff 32px)' }}
+            style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 31px, var(--card) 31px, var(--card) 32px)' }}
           />
         </div>
 

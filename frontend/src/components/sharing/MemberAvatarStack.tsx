@@ -25,8 +25,7 @@ export function MemberAvatarStack({
       ))}
       {overflow > 0 && (
         <span
-          className={`inline-flex items-center justify-center rounded-full font-semibold ${s.box} ${s.text}`}
-          style={{ backgroundColor: '#f0efe9', color: '#5C6178' }}
+          className={`inline-flex items-center justify-center rounded-full font-semibold bg-muted text-gray-fg ${s.box} ${s.text}`}
           title={`${overflow} autre${overflow > 1 ? 's' : ''}`}
         >
           +{overflow}
