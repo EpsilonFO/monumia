@@ -293,7 +293,7 @@ export function ProjectQuestionnaire({
                     'group flex min-h-[3.5rem] w-full items-center gap-4 rounded-2xl border px-5 py-3.5 text-left text-[15px] leading-snug transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                     selected
                       ? 'border-accent bg-warning-muted shadow-[var(--shadow-card)]'
-                      : 'border-border bg-card hover:border-warning hover:bg-warning-muted',
+                      : 'border-border bg-card hover:border-warning-muted hover:bg-warning-muted',
                   )}
                   style={{ color: C.ink }}
                 >
