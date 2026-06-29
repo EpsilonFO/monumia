@@ -1,5 +1,3 @@
-import { C } from '@/lib/brand';
-
 /** Initiales lisibles : 1re lettre du prénom + 1re du nom, repli email puis « ? ». */
 export function initials(prenom: string, nom: string, fallback = ''): string {
   const p = prenom.trim();
@@ -13,14 +11,14 @@ export function initials(prenom: string, nom: string, fallback = ''): string {
 
 /** Palette d'avatars dérivée de l'identité de marque (fond pâle + texte soutenu). */
 const AVATAR_PALETTE: ReadonlyArray<{ bg: string; fg: string }> = [
-  { bg: C.paleBlue, fg: C.blue },
-  { bg: C.paleOrange, fg: C.orange },
-  { bg: '#e7f3ec', fg: '#1f7a4d' },
-  { bg: '#efe9f6', fg: '#6b3fa0' },
-  { bg: '#e2f1f3', fg: '#1f6b75' },
-  { bg: '#fbe9ef', fg: '#a83a5b' },
-  { bg: '#f6efdc', fg: '#8a6d1f' },
-  { bg: '#f0efe9', fg: '#5C6178' },
+  { bg: 'var(--cat-1-soft)', fg: 'var(--cat-1)' },
+  { bg: 'var(--cat-2-soft)', fg: 'var(--cat-2)' },
+  { bg: 'var(--cat-9-soft)', fg: 'var(--cat-9)' },
+  { bg: 'var(--cat-4-soft)', fg: 'var(--cat-4)' },
+  { bg: 'var(--cat-3-soft)', fg: 'var(--cat-3)' },
+  { bg: 'var(--cat-8-soft)', fg: 'var(--cat-8)' },
+  { bg: 'var(--cat-7-soft)', fg: 'var(--cat-7)' },
+  { bg: 'var(--cat-10-soft)', fg: 'var(--cat-10)' },
 ];
 
 /** Couleur déterministe à partir d'une graine (userId ou nom). */

@@ -17,18 +17,18 @@ const LABELS: Record<string, string> = {
 };
 
 const ACCENT: Record<string, { bg: string; text: string }> = {
-  photo: { bg: '#F3E8FF', text: '#7C3AED' },
-  plan: { bg: '#E8EAF6', text: '#1A237E' },
-  devis: { bg: '#FEF3C7', text: '#92400E' },
-  facture: { bg: '#FBF0EC', text: '#C75B3A' },
-  attestation: { bg: '#ECFDF5', text: '#065F46' },
-  extrait_cadastral: { bg: '#E0F2F1', text: '#00695C' },
-  cerfa: { bg: '#E0F7FA', text: '#006064' },
-  arrete: { bg: '#FFEBEE', text: '#B71C1C' },
-  diagnostic: { bg: '#E8EAF6', text: '#283593' },
-  rapport: { bg: '#F1F5F9', text: '#334155' },
-  correspondance: { bg: '#FCE4EC', text: '#880E4F' },
-  autre: { bg: '#F3F4F6', text: '#374151' },
+  photo:             { bg: 'var(--cat-4-soft)',  text: 'var(--cat-4)' },
+  plan:              { bg: 'var(--cat-1-soft)',  text: 'var(--cat-1)' },
+  devis:             { bg: 'var(--cat-7-soft)',  text: 'var(--cat-7)' },
+  facture:           { bg: 'var(--cat-2-soft)',  text: 'var(--cat-2)' },
+  attestation:       { bg: 'var(--cat-9-soft)',  text: 'var(--cat-9)' },
+  extrait_cadastral: { bg: 'var(--cat-3-soft)',  text: 'var(--cat-3)' },
+  cerfa:             { bg: 'var(--cat-11-soft)', text: 'var(--cat-11)' },
+  arrete:            { bg: 'var(--cat-5-soft)',  text: 'var(--cat-5)' },
+  diagnostic:        { bg: 'var(--cat-10-soft)', text: 'var(--cat-10)' },
+  rapport:           { bg: 'var(--muted)',       text: 'var(--gray-fg)' },
+  correspondance:    { bg: 'var(--cat-12-soft)', text: 'var(--cat-12)' },
+  autre:             { bg: 'var(--muted)',       text: 'var(--gray-fg)' },
 };
 
 export function typeIcon(type: DocumentType): LucideIcon {

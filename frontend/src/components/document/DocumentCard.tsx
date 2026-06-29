@@ -49,7 +49,7 @@ const typeLabels: Record<string, string> = {
 };
 
 const typeAccent: Record<string, { bg: string; text: string }> = {
-  photo:             { bg: 'var(--info-muted)',        text: 'var(--cat-violet)' },
+  photo:             { bg: 'var(--cat-violet-soft)',    text: 'var(--cat-violet)' },
   plan:              { bg: 'var(--secondary)',          text: 'var(--primary)' },
   devis:             { bg: 'var(--warning-muted)',      text: 'var(--warning)' },
   facture:           { bg: 'var(--destructive-muted)',  text: 'var(--destructive)' },
@@ -59,7 +59,7 @@ const typeAccent: Record<string, { bg: string; text: string }> = {
   arrete:            { bg: 'var(--destructive-muted)',  text: 'var(--destructive)' },
   diagnostic:        { bg: 'var(--secondary)',          text: 'var(--primary)' },
   rapport:           { bg: 'var(--muted)',              text: 'var(--muted-foreground)' },
-  correspondance:    { bg: 'var(--destructive-muted)',  text: 'var(--cat-burgundy)' },
+  correspondance:    { bg: 'var(--cat-burgundy-soft)',   text: 'var(--cat-burgundy)' },
   autre:             { bg: 'var(--muted)',              text: 'var(--muted-foreground)' },
 };
 
