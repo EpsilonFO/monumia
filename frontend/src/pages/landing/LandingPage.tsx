@@ -144,7 +144,7 @@ export function LandingPage() {
       <header
         className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ${
           scrolled
-            ? 'bg-[#F8F7F4]/80 backdrop-blur-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] border-b'
+            ? 'bg-muted/80 backdrop-blur-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] border-b'
             : ''
         }`}
         style={{ borderColor: scrolled ? C.border : 'transparent' }}
@@ -161,9 +161,9 @@ export function LandingPage() {
           </div>
 
           <nav className="hidden md:flex items-center gap-10 text-[13px] font-medium uppercase tracking-[0.12em]" style={{ color: C.textLight }}>
-            <a href="#fonctionnalites" className="transition-colors duration-300 hover:text-[#1A237E]">Fonctionnalités</a>
-            <a href="#methode" className="transition-colors duration-300 hover:text-[#1A237E]">Méthode</a>
-            <a href="#pour-qui" className="transition-colors duration-300 hover:text-[#1A237E]">Pour qui</a>
+            <a href="#fonctionnalites" className="transition-colors duration-300 hover:text-primary">Fonctionnalités</a>
+            <a href="#methode" className="transition-colors duration-300 hover:text-primary">Méthode</a>
+            <a href="#pour-qui" className="transition-colors duration-300 hover:text-primary">Pour qui</a>
           </nav>
 
           <button
@@ -587,8 +587,8 @@ export function LandingPage() {
           </p>
 
           <div className="flex items-center gap-8 text-[12px] uppercase tracking-[0.12em]" style={{ color: C.textLight }}>
-            <a href="#" className="transition-colors duration-300 hover:text-[#1A237E]">Mentions légales</a>
-            <a href="#" className="transition-colors duration-300 hover:text-[#1A237E]">Contact</a>
+            <a href="#" className="transition-colors duration-300 hover:text-primary">Mentions légales</a>
+            <a href="#" className="transition-colors duration-300 hover:text-primary">Contact</a>
           </div>
         </div>
         <p className="mt-8 text-center text-[11px] uppercase tracking-[0.15em]" style={{ color: `${C.textLight}80` }}>
