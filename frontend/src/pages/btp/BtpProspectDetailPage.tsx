@@ -14,12 +14,12 @@ import { cn } from '@/lib/utils';
 import type { ProspectStatus } from '@/types';
 
 const STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string }> = {
-  a_contacter: { label: 'À contacter', color: 'bg-gray-100 text-gray-700' },
-  contacte: { label: 'Contacté', color: 'bg-blue-100 text-blue-700' },
-  en_discussion: { label: 'En discussion', color: 'bg-amber-100 text-amber-700' },
-  devis_envoye: { label: 'Devis envoyé', color: 'bg-purple-100 text-purple-700' },
-  gagne: { label: 'Gagné ✓', color: 'bg-emerald-100 text-emerald-700' },
-  perdu: { label: 'Perdu', color: 'bg-red-100 text-red-700' },
+  a_contacter: { label: 'À contacter', color: 'bg-muted text-muted-foreground' },
+  contacte: { label: 'Contacté', color: 'bg-info-muted text-info' },
+  en_discussion: { label: 'En discussion', color: 'bg-warning-muted text-warning' },
+  devis_envoye: { label: 'Devis envoyé', color: 'bg-cat-violet-soft text-cat-violet' },
+  gagne: { label: 'Gagné ✓', color: 'bg-success-muted text-success' },
+  perdu: { label: 'Perdu', color: 'bg-destructive-muted text-destructive' },
 };
 
 const PROTECTION_LABELS: Record<string, string> = {
@@ -213,7 +213,7 @@ export function BtpProspectDetailPage() {
 
               {prospect.dateProchainContact && (
                 <div className="flex items-center gap-2 pt-2 border-t">
-                  <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+                  <Clock className="h-4 w-4 text-warning shrink-0" />
                   <div>
                     <p className="text-xs text-muted-foreground">Prochain contact</p>
                     <p className="text-sm font-medium">
@@ -251,11 +251,11 @@ export function BtpProspectDetailPage() {
           {/* Financement synthèse */}
           <Card className={cn(
             'border-2',
-            prospect.financementIdentifie ? 'border-emerald-200 bg-emerald-50/50' : 'border-muted'
+            prospect.financementIdentifie ? 'border-success/30 bg-success-muted/50' : 'border-muted'
           )}>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className={cn('h-4 w-4', prospect.financementIdentifie ? 'text-emerald-600' : 'text-muted-foreground')} />
+                <TrendingUp className={cn('h-4 w-4', prospect.financementIdentifie ? 'text-success' : 'text-muted-foreground')} />
                 Analyse financement
               </CardTitle>
             </CardHeader>
@@ -264,10 +264,10 @@ export function BtpProspectDetailPage() {
                 <>
                   <div className="text-center py-2">
                     <p className="text-xs text-muted-foreground mb-1">Financement public identifié</p>
-                    <p className="text-3xl font-bold text-emerald-700">
+                    <p className="text-3xl font-bold text-success">
                       {formatCurrency(prospect.totalFinancementPotentiel)}
                     </p>
-                    <p className="text-sm text-emerald-600 mt-1">
+                    <p className="text-sm text-success mt-1">
                       soit {prospect.tauxCouvertureEstime}% des travaux
                     </p>
                   </div>
@@ -280,7 +280,7 @@ export function BtpProspectDetailPage() {
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Aides & subventions</span>
-                        <span className="font-medium text-emerald-700">
+                        <span className="font-medium text-success">
                           — {formatCurrency(prospect.totalFinancementPotentiel)}
                         </span>
                       </div>
@@ -291,11 +291,11 @@ export function BtpProspectDetailPage() {
                     </div>
                   )}
 
-                  <div className="bg-emerald-100/80 rounded-lg p-3">
-                    <p className="text-xs text-emerald-800 font-medium mb-1">
+                  <div className="bg-success-muted rounded-lg p-3">
+                    <p className="text-xs text-success font-medium mb-1">
                       ✓ Argument commercial clé
                     </p>
-                    <p className="text-xs text-emerald-700">
+                    <p className="text-xs text-success/80">
                       Avec {prospect.tauxCouvertureEstime}% du projet financé par des aides
                       publiques, le reste à charge est considérablement réduit.
                       C'est le moment d'entreprendre les travaux.
@@ -334,7 +334,7 @@ export function BtpProspectDetailPage() {
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-2">
                   {item.done ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
                   ) : (
                     <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30 shrink-0" />
                   )}

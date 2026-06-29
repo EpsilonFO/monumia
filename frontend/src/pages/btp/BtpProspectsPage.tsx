@@ -18,12 +18,12 @@ import { cn } from '@/lib/utils';
 import type { Prospect, ProspectStatus } from '@/types';
 
 const STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string; icon: typeof Clock }> = {
-  a_contacter: { label: 'À contacter', color: 'bg-gray-100 text-gray-700', icon: Clock },
-  contacte: { label: 'Contacté', color: 'bg-blue-100 text-blue-700', icon: Phone },
-  en_discussion: { label: 'En discussion', color: 'bg-amber-100 text-amber-700', icon: Users },
-  devis_envoye: { label: 'Devis envoyé', color: 'bg-purple-100 text-purple-700', icon: Target },
-  gagne: { label: 'Gagné ✓', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2 },
-  perdu: { label: 'Perdu', color: 'bg-red-100 text-red-700', icon: AlertCircle },
+  a_contacter: { label: 'À contacter', color: 'bg-muted text-muted-foreground', icon: Clock },
+  contacte: { label: 'Contacté', color: 'bg-info-muted text-info', icon: Phone },
+  en_discussion: { label: 'En discussion', color: 'bg-warning-muted text-warning', icon: Users },
+  devis_envoye: { label: 'Devis envoyé', color: 'bg-cat-violet-soft text-cat-violet', icon: Target },
+  gagne: { label: 'Gagné ✓', color: 'bg-success-muted text-success', icon: CheckCircle2 },
+  perdu: { label: 'Perdu', color: 'bg-destructive-muted text-destructive', icon: AlertCircle },
 };
 
 const PROTECTION_LABELS: Record<string, string> = {
@@ -101,16 +101,16 @@ export function BtpProspectsPage() {
             <p className="text-2xl font-bold">{filtered.length}</p>
           </CardContent>
         </Card>
-        <Card className="bg-blue-50">
+        <Card className="bg-info-muted">
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">CA potentiel</p>
-            <p className="text-2xl font-bold text-blue-700">{formatCurrency(totalCA)}</p>
+            <p className="text-2xl font-bold text-info">{formatCurrency(totalCA)}</p>
           </CardContent>
         </Card>
-        <Card className="bg-emerald-50">
+        <Card className="bg-success-muted">
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">Financements identifiés</p>
-            <p className="text-2xl font-bold text-emerald-700">{formatCurrency(totalFinancement)}</p>
+            <p className="text-2xl font-bold text-success">{formatCurrency(totalFinancement)}</p>
           </CardContent>
         </Card>
       </div>
@@ -196,7 +196,7 @@ function ProspectCard({
   return (
     <Card className={cn(
       'transition-all hover:shadow-md',
-      p.statut === 'gagne' && 'border-emerald-200 bg-emerald-50/30',
+      p.statut === 'gagne' && 'border-success/30 bg-success-muted/30',
       p.statut === 'perdu' && 'opacity-60',
     )}>
       <CardContent className="pt-4 pb-3">
@@ -235,16 +235,16 @@ function ProspectCard({
 
           {/* Financement */}
           {p.financementIdentifie ? (
-            <div className="flex items-center justify-between bg-emerald-50 rounded-lg px-3 py-2">
+            <div className="flex items-center justify-between bg-success-muted rounded-lg px-3 py-2">
               <div>
                 <p className="text-xs text-muted-foreground">Financement identifié</p>
-                <p className="text-sm font-bold text-emerald-700">
+                <p className="text-sm font-bold text-success">
                   {formatCurrency(p.totalFinancementPotentiel)}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">Couverture estimée</p>
-                <p className="text-sm font-bold text-emerald-700">{p.tauxCouvertureEstime}%</p>
+                <p className="text-sm font-bold text-success">{p.tauxCouvertureEstime}%</p>
               </div>
             </div>
           ) : (
@@ -267,9 +267,9 @@ function ProspectCard({
               <Badge
                 className={cn(
                   'text-xs',
-                  daysUntil <= 0 ? 'bg-red-100 text-red-700' :
-                  daysUntil <= 3 ? 'bg-amber-100 text-amber-700' :
-                  'bg-gray-100 text-gray-700'
+                  daysUntil <= 0 ? 'bg-destructive-muted text-destructive' :
+                  daysUntil <= 3 ? 'bg-warning-muted text-warning' :
+                  'bg-muted text-muted-foreground'
                 )}
               >
                 <Phone className="h-3 w-3 mr-1" />

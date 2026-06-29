@@ -16,12 +16,12 @@ import { C } from '@/lib/brand';
 import type { ProspectStatus } from "@/types";
 
 const STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string; icon: typeof Clock }> = {
-  a_contacter: { label: 'À contacter', color: 'bg-gray-100 text-gray-700', icon: Clock },
-  contacte: { label: 'Contacté', color: 'bg-blue-100 text-blue-700', icon: Phone },
-  en_discussion: { label: 'En discussion', color: 'bg-amber-100 text-amber-700', icon: Users },
-  devis_envoye: { label: 'Devis envoyé', color: 'bg-purple-100 text-purple-700', icon: Target },
-  gagne: { label: 'Gagné', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2 },
-  perdu: { label: 'Perdu', color: 'bg-red-100 text-red-700', icon: AlertCircle },
+  a_contacter: { label: 'À contacter', color: 'bg-muted text-muted-foreground', icon: Clock },
+  contacte: { label: 'Contacté', color: 'bg-info-muted text-info', icon: Phone },
+  en_discussion: { label: 'En discussion', color: 'bg-warning-muted text-warning', icon: Users },
+  devis_envoye: { label: 'Devis envoyé', color: 'bg-cat-violet-soft text-cat-violet', icon: Target },
+  gagne: { label: 'Gagné', color: 'bg-success-muted text-success', icon: CheckCircle2 },
+  perdu: { label: 'Perdu', color: 'bg-destructive-muted text-destructive', icon: AlertCircle },
 };
 
 export function BtpDashboardPage() {
@@ -132,7 +132,7 @@ export function BtpDashboardPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-[17px] flex items-center gap-2" style={{ fontFamily: 'var(--font-serif)' }}>
-                  <AlertCircle className="h-4 w-4 text-amber-500" />
+                  <AlertCircle className="h-4 w-4 text-warning" />
                   Relances à prévoir
                 </CardTitle>
               </CardHeader>
@@ -166,10 +166,10 @@ export function BtpDashboardPage() {
                             className={cn(
                               'shrink-0 ml-2 text-xs',
                               daysUntil <= 3
-                                ? 'bg-red-100 text-red-700'
+                                ? 'bg-destructive-muted text-destructive'
                                 : daysUntil <= 7
-                                  ? 'bg-amber-100 text-amber-700'
-                                  : 'bg-gray-100 text-gray-700'
+                                  ? 'bg-warning-muted text-warning'
+                                  : 'bg-muted text-muted-foreground'
                             )}
                           >
                             {daysUntil <= 0 ? 'Aujourd\'hui' : `J-${daysUntil}`}
@@ -238,7 +238,7 @@ export function BtpDashboardPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-[17px] flex items-center gap-2" style={{ fontFamily: 'var(--font-serif)' }}>
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <CheckCircle2 className="h-4 w-4 text-success" />
                   Marchés gagnés
                 </CardTitle>
               </CardHeader>
@@ -246,14 +246,14 @@ export function BtpDashboardPage() {
                 {recentWins.map((p) => (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between p-2.5 rounded-lg border bg-emerald-50/50"
+                    className="flex items-center justify-between p-2.5 rounded-lg border bg-success-muted/50"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{p.monumentNom}</p>
                       <p className="text-xs text-muted-foreground">{p.commune}</p>
                     </div>
                     <div className="text-right shrink-0 ml-3">
-                      <p className="text-sm font-bold text-emerald-700">
+                      <p className="text-sm font-bold text-success">
                         {formatCurrency(p.montantTravaux ?? 0)}
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -282,8 +282,8 @@ export function BtpDashboardPage() {
                     ? Math.round((stats.gagnes.length / userProspects.length) * 100)
                     : 0
                 }
-                color="text-emerald-600"
-                barColor="bg-emerald-500"
+                color="text-success"
+                barColor="bg-success"
               />
               <ConversionStat
                 label="Avec financement identifié"
@@ -294,8 +294,8 @@ export function BtpDashboardPage() {
                       )
                     : 0
                 }
-                color="text-blue-600"
-                barColor="bg-blue-500"
+                color="text-info"
+                barColor="bg-info"
               />
               <div className="pt-2 border-t">
                 <p className="text-xs text-muted-foreground mb-1">Financement moyen couvert</p>
@@ -381,7 +381,7 @@ function KPICard({ icon: Icon, label, value, sub, variant, linkTo }: KPICardProp
   const variantStyle: Record<KPICardProps['variant'], { accent: string; tint: string }> = {
     default: { accent: C.blue, tint: C.paleBlue },
     accent: { accent: C.blueLight, tint: C.paleBlue },
-    success: { accent: '#0f7a52', tint: '#e7f5ee' },
+    success: { accent: 'var(--success)', tint: 'var(--success-muted)' },
     warning: { accent: C.orange, tint: C.paleOrange },
   };
   const cls = variantStyle[variant];

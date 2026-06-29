@@ -13,14 +13,14 @@ import { cn } from '@/lib/utils';
 import type { Aide, AideCategory } from '@/types';
 
 const CATEGORY_COLORS: Record<string, string> = {
-  etat_drac: 'bg-blue-100 text-blue-700',
-  region: 'bg-purple-100 text-purple-700',
-  departement: 'bg-violet-100 text-violet-700',
-  europe: 'bg-indigo-100 text-indigo-700',
-  fondation_patrimoine: 'bg-amber-100 text-amber-700',
-  mecenat: 'bg-orange-100 text-orange-700',
-  fiscalite: 'bg-emerald-100 text-emerald-700',
-  autre: 'bg-gray-100 text-gray-700',
+  etat_drac: 'bg-info-muted text-info',
+  region: 'bg-cat-violet-soft text-cat-violet',
+  departement: 'bg-cat-10-soft text-cat-10',
+  europe: 'bg-cat-1-soft text-cat-1',
+  fondation_patrimoine: 'bg-warning-muted text-warning',
+  mecenat: 'bg-cat-2-soft text-cat-2',
+  fiscalite: 'bg-success-muted text-success',
+  autre: 'bg-muted text-muted-foreground',
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -76,15 +76,15 @@ export function BtpAidesPage() {
       />
 
       {/* Info banner BTP */}
-      <Card className="border-amber-200 bg-amber-50">
+      <Card className="border-warning/30 bg-warning-muted">
         <CardContent className="pt-4 pb-3">
           <div className="flex items-start gap-3">
-            <TrendingUp className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <TrendingUp className="h-5 w-5 text-warning shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-amber-800">
+              <p className="text-sm font-medium text-foreground">
                 Utilisez ce catalogue comme outil commercial
               </p>
-              <p className="text-xs text-amber-700 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Identifiez les aides applicables à un monument prospect pour démontrer que son projet peut être
                 financé à {Math.round(totalTaux)}% en moyenne. C'est votre meilleur argument pour déclencher les travaux.
               </p>
@@ -102,19 +102,19 @@ export function BtpAidesPage() {
             <p className="text-xs text-muted-foreground">avec taux défini</p>
           </CardContent>
         </Card>
-        <Card className="bg-blue-50">
+        <Card className="bg-info-muted">
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">Taux max le plus élevé</p>
-            <p className="text-xl font-bold text-blue-700">
+            <p className="text-xl font-bold text-info">
               {Math.max(...aides.filter(a => a.tauxMax).map(a => a.tauxMax ?? 0))}%
             </p>
             <p className="text-xs text-muted-foreground">FIP petites communes</p>
           </CardContent>
         </Card>
-        <Card className="bg-emerald-50">
+        <Card className="bg-success-muted">
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">Aides avec date limite</p>
-            <p className="text-xl font-bold text-emerald-700">
+            <p className="text-xl font-bold text-success">
               {aides.filter(a => a.dateLimite).length}
             </p>
             <p className="text-xs text-muted-foreground">à déclencher rapidement</p>
@@ -196,7 +196,7 @@ function AideRow({
                   {CATEGORY_LABELS[aide.categorie]}
                 </Badge>
                 {aide.dateLimite && (
-                  <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
+                  <Badge variant="outline" className="text-xs text-warning border-warning/40">
                     <Calendar className="h-3 w-3 mr-1" />
                     Limite : {new Date(aide.dateLimite).toLocaleDateString('fr-FR')}
                   </Badge>
