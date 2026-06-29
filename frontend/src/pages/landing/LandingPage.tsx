@@ -24,17 +24,17 @@ import {
    ──────────────────────────────────────────── */
 
 const C = {
-  bg:          '#F8F7F4',   // warm parchment white
-  bgAlt:       '#FFFFFF',   // pure white for alternating sections
-  text:        '#1B1E2E',   // deep navy foreground
-  textMuted:   '#5C6178',   // secondary text
-  textLight:   '#8E92A4',   // tertiary / labels
-  royal:       '#1A237E',   // royal blue — primary brand
-  royalLight:  '#3949AB',   // lighter royal blue
-  royalPale:   '#E8EAF6',   // very pale royal tint
-  terra:       '#C75B3A',   // terracotta — accent brand
-  terraPale:   '#FBF0EC',   // very pale terracotta tint
-  border:      '#E4E2DC',   // warm neutral border
+  bg:          'var(--background)',   // crème charte
+  bgAlt:       'var(--card)',         // cartes / sections alternées
+  text:        'var(--foreground)',   // texte principal
+  textMuted:   'var(--gray-fg)',      // texte secondaire (AA)
+  textLight:   'var(--muted-foreground)', // texte tertiaire / labels
+  royal:       'var(--primary)',      // bleu profond Monumia
+  royalLight:  'var(--blue-light)',   // bleu clair
+  royalPale:   'var(--secondary)',    // teinte bleu pâle
+  terra:       'var(--accent)',       // orange — accent/signature
+  terraPale:   'var(--warning-muted)',// teinte orange pâle
+  border:      'var(--border)',       // bordure
 } as const;
 
 /* ────────────────────────────────────────────
@@ -339,7 +339,7 @@ export function LandingPage() {
                     <span className="text-[13px] font-semibold tracking-[0.15em]" style={{ color: C.textLight }}>{f.num}</span>
                     <div
                       className="flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-500 group-hover:scale-105"
-                      style={{ borderColor: `${C.royal}20`, color: C.royal }}
+                      style={{ borderColor: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: C.royal }}
                     >
                       <f.icon className="h-[17px] w-[17px]" />
                     </div>
@@ -419,7 +419,7 @@ export function LandingPage() {
                   <div className="relative z-10">
                     <div
                       className="flex h-13 w-13 items-center justify-center rounded-full border mb-8"
-                      style={{ borderColor: `${C.terra}30`, color: C.terra }}
+                      style={{ borderColor: 'color-mix(in srgb, var(--accent) 19%, transparent)', color: C.terra }}
                     >
                       <s.icon className="h-5 w-5" />
                     </div>
@@ -538,8 +538,8 @@ export function LandingPage() {
         <Reveal>
           <div className="mx-auto max-w-4xl text-center relative overflow-hidden rounded-2xl px-8 py-24 sm:px-16" style={{ background: C.royal }}>
             {/* decorative glows */}
-            <div className="pointer-events-none absolute -top-20 right-[-10%] h-60 w-60 rounded-full blur-[100px]" style={{ background: `${C.royalLight}40` }} />
-            <div className="pointer-events-none absolute -bottom-20 left-[-10%] h-48 w-48 rounded-full blur-[100px]" style={{ background: `${C.terra}20` }} />
+            <div className="pointer-events-none absolute -top-20 right-[-10%] h-60 w-60 rounded-full blur-[100px]" style={{ background: 'color-mix(in srgb, var(--blue-light) 25%, transparent)' }} />
+            <div className="pointer-events-none absolute -bottom-20 left-[-10%] h-48 w-48 rounded-full blur-[100px]" style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }} />
 
             <div className="relative">
               <h2
@@ -547,6 +547,7 @@ export function LandingPage() {
                 style={{ fontFamily: "'Cormorant Garamond', serif" }}
               >
                 Prêt à financer votre{' '}
+                {/* doré décoratif bespoke — section CTA toujours sombre, hors palette charte */}
                 <em className="italic" style={{ color: '#E8C9A0' }}>patrimoine</em> ?
               </h2>
               <p className="mx-auto mt-6 max-w-md text-[16px] leading-[1.8] text-white/50">
@@ -591,7 +592,7 @@ export function LandingPage() {
             <a href="#" className="transition-colors duration-300 hover:text-primary">Contact</a>
           </div>
         </div>
-        <p className="mt-8 text-center text-[11px] uppercase tracking-[0.15em]" style={{ color: `${C.textLight}80` }}>
+        <p className="mt-8 text-center text-[11px] uppercase tracking-[0.15em]" style={{ color: 'color-mix(in srgb, var(--muted-foreground) 50%, transparent)' }}>
           © {new Date().getFullYear()} Monumia. Tous droits réservés.
         </p>
       </footer>
