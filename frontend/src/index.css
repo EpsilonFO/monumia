@@ -47,6 +47,18 @@
     --color-cat-violet-soft: var(--cat-violet-soft);
     --color-cat-teal-soft: var(--cat-teal-soft);
     --color-cat-burgundy-soft: var(--cat-burgundy-soft);
+    --color-cat-1: var(--cat-1);   --color-cat-1-soft: var(--cat-1-soft);
+    --color-cat-2: var(--cat-2);   --color-cat-2-soft: var(--cat-2-soft);
+    --color-cat-3: var(--cat-3);   --color-cat-3-soft: var(--cat-3-soft);
+    --color-cat-4: var(--cat-4);   --color-cat-4-soft: var(--cat-4-soft);
+    --color-cat-5: var(--cat-5);   --color-cat-5-soft: var(--cat-5-soft);
+    --color-cat-6: var(--cat-6);   --color-cat-6-soft: var(--cat-6-soft);
+    --color-cat-7: var(--cat-7);   --color-cat-7-soft: var(--cat-7-soft);
+    --color-cat-8: var(--cat-8);   --color-cat-8-soft: var(--cat-8-soft);
+    --color-cat-9: var(--cat-9);   --color-cat-9-soft: var(--cat-9-soft);
+    --color-cat-10: var(--cat-10); --color-cat-10-soft: var(--cat-10-soft);
+    --color-cat-11: var(--cat-11); --color-cat-11-soft: var(--cat-11-soft);
+    --color-cat-12: var(--cat-12); --color-cat-12-soft: var(--cat-12-soft);
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);

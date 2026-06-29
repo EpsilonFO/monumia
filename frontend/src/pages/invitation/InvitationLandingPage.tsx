@@ -268,7 +268,7 @@ function SecondaryButton({ onClick, children }: { onClick: () => void; children:
     <button
       type="button"
       onClick={onClick}
-      className="h-12 w-full rounded-lg border text-[14px] font-medium transition-colors hover:bg-white"
+      className="h-12 w-full rounded-lg border text-[14px] font-medium transition-colors hover:bg-card"
       style={{ borderColor: C.border, color: C.blue }}
     >
       {children}

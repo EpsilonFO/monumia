@@ -1,12 +1,12 @@
 export const AIDE_CATEGORIES = [
-  { value: 'etat_drac', label: 'État (DRAC)', color: 'bg-blue-100 text-blue-800' },
-  { value: 'region', label: 'Région', color: 'bg-purple-100 text-purple-800' },
-  { value: 'departement', label: 'Département', color: 'bg-indigo-100 text-indigo-800' },
-  { value: 'fondation_patrimoine', label: 'Fondation du Patrimoine', color: 'bg-amber-100 text-amber-800' },
-  { value: 'europe', label: 'Europe', color: 'bg-cyan-100 text-cyan-800' },
-  { value: 'mecenat', label: 'Mécénat', color: 'bg-emerald-100 text-emerald-800' },
-  { value: 'fiscalite', label: 'Fiscalité', color: 'bg-rose-100 text-rose-800' },
-  { value: 'autre', label: 'Autre', color: 'bg-gray-100 text-gray-800' },
+  { value: 'etat_drac', label: 'État (DRAC)', color: 'bg-info-muted text-info' },
+  { value: 'region', label: 'Région', color: 'bg-cat-violet-soft text-cat-violet' },
+  { value: 'departement', label: 'Département', color: 'bg-cat-10-soft text-cat-10' },
+  { value: 'fondation_patrimoine', label: 'Fondation du Patrimoine', color: 'bg-warning-muted text-warning' },
+  { value: 'europe', label: 'Europe', color: 'bg-cat-1-soft text-cat-1' },
+  { value: 'mecenat', label: 'Mécénat', color: 'bg-cat-2-soft text-cat-2' },
+  { value: 'fiscalite', label: 'Fiscalité', color: 'bg-success-muted text-success' },
+  { value: 'autre', label: 'Autre', color: 'bg-muted text-muted-foreground' },
 ] as const;
 
 export const AIDE_TYPES = [
