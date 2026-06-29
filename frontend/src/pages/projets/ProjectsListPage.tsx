@@ -119,7 +119,7 @@ export function ProjectsListPage() {
           <h1 className="text-[28px]" style={{ fontFamily: SERIF, color: C.ink }}>
             Mes projets
           </h1>
-          <p className="text-[14px]" style={{ color: '#6a7180' }}>
+          <p className="text-[14px] text-muted-foreground">
             Chaque monument et ses aides, dossiers et échéances réunis.
           </p>
         </div>
@@ -128,7 +128,7 @@ export function ProjectsListPage() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <Loader2 className="h-5 w-5 animate-spin" style={{ color: '#8E92A4' }} />
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : monuments.length === 0 ? (
         <div
@@ -140,7 +140,7 @@ export function ProjectsListPage() {
             <h2 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
               Aucun projet pour le moment
             </h2>
-            <p className="max-w-md text-[14px]" style={{ color: '#6a7180' }}>
+            <p className="max-w-md text-[14px] text-muted-foreground">
               Créez votre premier projet pour identifier les aides mobilisables sur votre
               monument.
             </p>
@@ -152,8 +152,7 @@ export function ProjectsListPage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1 sm:max-w-md">
               <Search
-                className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
-                style={{ color: '#8E92A4' }}
+                className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
                 strokeWidth={1.8}
               />
               <Input
@@ -183,8 +182,8 @@ export function ProjectsListPage() {
 
           {visibleMonuments.length === 0 ? (
             <div
-              className="rounded-xl border py-12 text-center text-[14px]"
-              style={{ background: C.card, borderColor: C.border, color: '#6a7180' }}
+              className="rounded-xl border py-12 text-center text-[14px] text-muted-foreground"
+              style={{ background: C.card, borderColor: C.border }}
             >
               Aucun projet ne correspond à votre recherche.
             </div>

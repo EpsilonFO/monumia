@@ -16,16 +16,16 @@ import { ROUTES } from '@/constants/routes';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
-// Tokens du tableau de bord (mêmes clés, couleurs de la charte app).
+// Tokens du tableau de bord — CSS custom properties de thème
 const C = {
-  bg: '#fdf9f0', // crème
-  bgAlt: '#fffefb', // carte
-  text: '#222b35', // encre
-  textMuted: '#5c6472',
-  textLight: '#8c92a0',
-  royal: '#0a369d', // bleu institutionnel (mots-clés, focus)
-  terra: '#f17105', // orange (CTA, accents)
-  border: '#ece3d2',
+  bg: 'var(--muted)',
+  bgAlt: 'var(--card)',
+  text: 'var(--foreground)',
+  textMuted: 'var(--muted-foreground)',
+  textLight: 'var(--muted-foreground)',
+  royal: 'var(--primary)',
+  terra: 'var(--accent)',
+  border: 'var(--border)',
 } as const;
 
 const FONT_HEADING = "'PT Serif', Georgia, 'Times New Roman', serif";
@@ -193,7 +193,7 @@ export function OnboardingProfile() {
     !!form.typeProprietaire
   );
 
-  const inputCls = 'h-10 text-[14px] bg-white border-[#ece3d2] focus:border-[#0a369d] focus:ring-[#0a369d]/10';
+  const inputCls = 'h-10 text-[14px] bg-card border-border focus:border-primary focus:ring-primary/10';
 
   return (
     <div className="space-y-5">
@@ -241,9 +241,9 @@ export function OnboardingProfile() {
               value={form.telephone}
               onChange={(e) => handlePhoneChange(e.target.value)}
               placeholder="02 33 40 00 00"
-              className={`${inputCls}${phoneError ? ' border-red-400 focus:border-red-400' : ''}`}
+              className={`${inputCls}${phoneError ? ' border-destructive focus:border-destructive' : ''}`}
             />
-            {phoneError && <p className="text-[12px] text-red-500 mt-0.5">{phoneError}</p>}
+            {phoneError && <p className="text-[12px] text-destructive mt-0.5">{phoneError}</p>}
           </div>
         </div>
       </div>
@@ -277,7 +277,7 @@ export function OnboardingProfile() {
                   {communeSuggestions.map((c) => (
                     <li
                       key={c.codeInsee}
-                      className="px-4 py-3 text-[14px] cursor-pointer flex justify-between transition-colors hover:bg-[#fdf9f0]"
+                      className="px-4 py-3 text-[14px] cursor-pointer flex justify-between transition-colors hover:bg-muted"
                       style={{ color: C.text }}
                       onMouseDown={() => selectCommune(c)}
                     >
@@ -388,7 +388,7 @@ export function OnboardingProfile() {
       <div className="flex items-center justify-between pt-1">
         <button
           onClick={() => navigate('/onboarding')}
-          className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium border transition-all duration-300 hover:bg-[#fdf9f0]"
+          className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium border transition-all duration-300 hover:bg-muted"
           style={{ borderColor: C.border, color: C.textMuted }}
         >
           <ChevronLeft className="h-3.5 w-3.5" />

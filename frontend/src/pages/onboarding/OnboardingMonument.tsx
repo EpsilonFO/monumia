@@ -13,16 +13,16 @@ import { Search, PenLine, ChevronLeft, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
 
-// Tokens du tableau de bord (mêmes clés, couleurs de la charte app).
+// Tokens du tableau de bord — CSS custom properties de thème
 const C = {
-  bg: '#fdf9f0',
-  bgAlt: '#fffefb',
-  text: '#222b35',
-  textMuted: '#5c6472',
-  textLight: '#8c92a0',
-  royal: '#0a369d',
-  terra: '#f17105',
-  border: '#ece3d2',
+  bg: 'var(--muted)',
+  bgAlt: 'var(--card)',
+  text: 'var(--foreground)',
+  textMuted: 'var(--muted-foreground)',
+  textLight: 'var(--muted-foreground)',
+  royal: 'var(--primary)',
+  terra: 'var(--accent)',
+  border: 'var(--border)',
 } as const;
 
 const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
@@ -273,7 +273,7 @@ export function OnboardingMonument() {
       <div className="flex justify-start">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 rounded-lg px-5 py-3 text-[14px] font-medium border transition-colors duration-200 hover:bg-[#fdf9f0]"
+          className="flex items-center gap-2 rounded-lg px-5 py-3 text-[14px] font-medium border transition-colors duration-200 hover:bg-muted"
           style={{ borderColor: C.border, color: C.textMuted }}
         >
           <ChevronLeft className="h-4 w-4" />

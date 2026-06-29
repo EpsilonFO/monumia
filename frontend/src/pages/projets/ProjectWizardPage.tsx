@@ -268,7 +268,7 @@ export function ProjectWizardPage() {
               </span>
               <span
                 className="hidden text-[13px] sm:inline"
-                style={{ color: current ? C.ink : '#6a7180', fontWeight: current ? 600 : 400 }}
+                style={{ color: current ? C.ink : 'var(--muted-foreground)', fontWeight: current ? 600 : 400 }}
               >
                 {STEP_LABELS[s]}
               </span>
@@ -308,8 +308,7 @@ export function ProjectWizardPage() {
               <button
                 type="button"
                 onClick={() => setShowForm(false)}
-                className="text-[13px] underline-offset-2 hover:underline"
-                style={{ color: '#6a7180' }}
+                className="text-[13px] underline-offset-2 hover:underline text-muted-foreground"
               >
                 ← Changer de méthode
               </button>
@@ -343,7 +342,7 @@ export function ProjectWizardPage() {
                   >
                     Rechercher dans la base Mérimée
                   </h3>
-                  <p className="mb-6 text-[14px]" style={{ color: '#6a7180' }}>
+                  <p className="mb-6 text-[14px] text-muted-foreground">
                     Les informations connues de votre monument seront pré-remplies
                     automatiquement.
                   </p>
@@ -362,7 +361,7 @@ export function ProjectWizardPage() {
                   >
                     Saisie manuelle
                   </h3>
-                  <p className="mb-6 text-[14px]" style={{ color: '#6a7180' }}>
+                  <p className="mb-6 text-[14px] text-muted-foreground">
                     Votre monument n'est pas dans la base ? Renseignez ses informations
                     manuellement.
                   </p>

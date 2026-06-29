@@ -202,7 +202,7 @@ export function DocumentsPage() {
             <h1 className="text-[22px] leading-tight" style={{ fontFamily: SERIF, color: C.ink }}>
               Mes documents
             </h1>
-            <p className="text-[13px]" style={{ color: '#6a7180' }}>
+            <p className="text-[13px] text-muted-foreground">
               Tous vos fichiers, classés par projet
             </p>
           </div>
@@ -222,7 +222,7 @@ export function DocumentsPage() {
       {/* Filtres */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#8E92A4' }} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9 h-10 text-[14px]"
             style={{ background: C.card, borderColor: C.border }}
@@ -267,7 +267,7 @@ export function DocumentsPage() {
       ) : (
         <div className="space-y-8">
           {totalVisible === 0 && (search.trim() !== '' || filterType !== 'all') && (
-            <p className="text-[13px]" style={{ color: '#6a7180' }}>
+            <p className="text-[13px] text-muted-foreground">
               Aucun document ne correspond à votre recherche.
             </p>
           )}
@@ -279,7 +279,7 @@ export function DocumentsPage() {
                 <span className="h-3 w-3 rounded-full" style={{ background: section.color }} />
                 <h2 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>{section.name}</h2>
                 {roleByMonument[section.mid] && <RoleBadge role={roleByMonument[section.mid]!} />}
-                <span className="text-[12px] tabular-nums" style={{ color: '#6a7180' }}>
+                <span className="text-[12px] tabular-nums text-muted-foreground">
                   {section.docs.length} document{section.docs.length > 1 ? 's' : ''}
                 </span>
                 <Link
@@ -313,9 +313,9 @@ export function DocumentsPage() {
           {!activeProject && sansProjet.length > 0 && (
             <section className="space-y-3">
               <div className="flex items-center gap-2.5 border-b pb-2" style={{ borderColor: C.border }}>
-                <span className="h-3 w-3 rounded-full" style={{ background: '#9aa1ad' }} />
+                <span className="h-3 w-3 rounded-full" style={{ background: 'var(--muted-foreground)' }} />
                 <h2 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>Sans projet (personnels)</h2>
-                <span className="text-[12px] tabular-nums" style={{ color: '#6a7180' }}>
+                <span className="text-[12px] tabular-nums text-muted-foreground">
                   {sansProjet.length} document{sansProjet.length > 1 ? 's' : ''}
                 </span>
               </div>
@@ -324,7 +324,7 @@ export function DocumentsPage() {
                   <DocumentTile
                     key={`solo-${doc.id}`}
                     document={doc}
-                    accentColor="#9aa1ad"
+                    accentColor="var(--muted-foreground)"
                     monumentNames={monumentNames}
                     dossiersById={dossiersById}
                     uploaderName={uploaderNames[doc.userId]}
@@ -341,9 +341,9 @@ export function DocumentsPage() {
           {!activeProject && orphanDocs.length > 0 && (
             <section className="space-y-3">
               <div className="flex items-center gap-2.5 border-b pb-2" style={{ borderColor: C.border }}>
-                <span className="h-3 w-3 rounded-full" style={{ background: '#9aa1ad' }} />
+                <span className="h-3 w-3 rounded-full" style={{ background: 'var(--muted-foreground)' }} />
                 <h2 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>Autres documents partagés</h2>
-                <span className="text-[12px] tabular-nums" style={{ color: '#6a7180' }}>
+                <span className="text-[12px] tabular-nums text-muted-foreground">
                   {orphanDocs.length} document{orphanDocs.length > 1 ? 's' : ''}
                 </span>
               </div>
@@ -352,7 +352,7 @@ export function DocumentsPage() {
                   <DocumentTile
                     key={`orphan-${doc.id}`}
                     document={doc}
-                    accentColor="#9aa1ad"
+                    accentColor="var(--muted-foreground)"
                     monumentNames={monumentNames}
                     dossiersById={dossiersById}
                     uploaderName={uploaderNames[doc.userId]}
@@ -369,7 +369,7 @@ export function DocumentsPage() {
           {!activeProject && trashedDocuments.length > 0 && (
             <Collapsible open={trashOpen} onOpenChange={setTrashOpen}>
               <CollapsibleTrigger asChild>
-                <button className="flex items-center gap-2 text-[13px] font-medium" style={{ color: '#6a7180' }}>
+                <button className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
                   {trashOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   <Trash2 className="h-3.5 w-3.5" />
                   Documents supprimés ({trashedDocuments.length})
@@ -381,7 +381,7 @@ export function DocumentsPage() {
                     <DocumentTile
                       key={`trash-${doc.id}`}
                       document={doc}
-                      accentColor="#c0271d"
+                      accentColor="var(--destructive)"
                       monumentNames={monumentNames}
                       dossiersById={dossiersById}
                       uploaderName={uploaderNames[doc.userId]}
@@ -414,8 +414,8 @@ export function DocumentsPage() {
             <button
               onClick={() => setRenameDoc(null)}
               disabled={renameLoading}
-              className="px-4 py-2 text-[13px] font-medium border rounded-lg transition-colors"
-              style={{ borderColor: C.border, color: '#5C6178' }}
+              className="px-4 py-2 text-[13px] font-medium border rounded-lg transition-colors text-muted-foreground"
+              style={{ borderColor: C.border }}
             >
               Annuler
             </button>

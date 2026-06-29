@@ -3,7 +3,7 @@ import { Building2, Home, Users, ArrowRight } from 'lucide-react';
 import { AuthEyebrow } from '@/components/layout/AuthLayout';
 import { C, SERIF } from '@/lib/brand';
 
-const MUTED = '#5c6472';
+const MUTED = 'var(--muted-foreground)';
 
 export function SegmentChoice() {
   const navigate = useNavigate();

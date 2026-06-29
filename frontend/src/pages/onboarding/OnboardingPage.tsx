@@ -13,7 +13,7 @@ export function OnboardingPage() {
       panelHeadline={
         <>
           Bienvenue sur<br />
-          <span style={{ color: '#f17105' }}>Monumia</span>
+          <span style={{ color: 'var(--accent)' }}>Monumia</span>
         </>
       }
       panelDescription="Quelques étapes pour configurer votre espace et identifier les aides adaptées à votre patrimoine."

@@ -120,7 +120,7 @@ export function AideProjectPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[13px]" style={{ color: '#6a7180' }}>
+      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
         <Link to={ROUTES.PROJETS} className="hover:opacity-70 transition-opacity">Projets</Link>
         <span>/</span>
         <Link to={ROUTES.PROJET_DETAIL(monument.id)} className="hover:opacity-70 transition-opacity">{monument.nom}</Link>

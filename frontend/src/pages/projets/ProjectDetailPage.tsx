@@ -193,7 +193,7 @@ export function ProjectDetailPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-[20px]" style={{ fontFamily: SERIF, color: C.ink }}>Projet introuvable</h1>
-        <p className="text-[14px]" style={{ color: '#6a7180' }}>Ce projet n'existe pas ou a été supprimé.</p>
+        <p className="text-[14px] text-muted-foreground">Ce projet n'existe pas ou a été supprimé.</p>
         <Link to={ROUTES.PROJETS} className="inline-flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.blue }}>
           <ChevronLeft className="h-3.5 w-3.5" /> Retour aux projets
         </Link>
@@ -276,7 +276,7 @@ export function ProjectDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[13px]" style={{ color: '#6a7180' }}>
+      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
         <Link to={ROUTES.PROJETS} className="hover:opacity-70 transition-opacity">Projets</Link>
         <span>/</span>
         <span style={{ color: C.ink }}>{monument.nom}</span>
@@ -306,7 +306,7 @@ export function ProjectDetailPage() {
                 <h2 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
                   Découvrez les aides pour <em className="italic" style={{ color: C.orange }}>{monument.nom}</em>
                 </h2>
-                <p className="text-[14px] mt-1" style={{ color: '#6a7180' }}>Notre moteur analyse les aides publiques et privées applicables.</p>
+                <p className="text-[14px] mt-1 text-muted-foreground">Notre moteur analyse les aides publiques et privées applicables.</p>
               </div>
               <button
                 onClick={handleRunDiagnostic}
@@ -335,10 +335,10 @@ export function ProjectDetailPage() {
 
               <section className="space-y-3">
                 <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />Éligibles ({eligibles.length})
+                  <CheckCircle2 className="h-4 w-4 text-success" />Éligibles ({eligibles.length})
                 </h3>
                 {eligibles.length === 0 ? (
-                  <p className="text-[13px]" style={{ color: '#6a7180' }}>Aucune aide pleinement éligible pour le moment.</p>
+                  <p className="text-[13px] text-muted-foreground">Aucune aide pleinement éligible pour le moment.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {eligibles.map((match) => (<AideCard key={match.aide.id} match={match} monumentId={monument.id} />))}
@@ -351,7 +351,7 @@ export function ProjectDetailPage() {
                   <HelpCircle className="h-4 w-4" style={{ color: C.orangeVif }} />À confirmer ({potentiels.length})
                 </h3>
                 {potentiels.length === 0 ? (
-                  <p className="text-[13px]" style={{ color: '#6a7180' }}>Aucune aide à confirmer.</p>
+                  <p className="text-[13px] text-muted-foreground">Aucune aide à confirmer.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {potentiels.map((match) => (<AideCard key={match.aide.id} match={match} monumentId={monument.id} />))}
@@ -365,12 +365,12 @@ export function ProjectDetailPage() {
                   className="flex items-center gap-2 text-[15px]"
                   style={{ fontFamily: SERIF, color: C.ink }}
                 >
-                  <XCircle className="h-4 w-4 text-red-500" />Non éligibles ({nonEligibles.length})
+                  <XCircle className="h-4 w-4 text-destructive" />Non éligibles ({nonEligibles.length})
                   <ChevronDown className={`h-4 w-4 transition-transform ${showNonEligibles ? 'rotate-180' : ''}`} />
                 </button>
                 {showNonEligibles && (
                   nonEligibles.length === 0 ? (
-                    <p className="text-[13px]" style={{ color: '#6a7180' }}>Aucune aide non éligible.</p>
+                    <p className="text-[13px] text-muted-foreground">Aucune aide non éligible.</p>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {nonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} monumentId={monument.id} />))}
@@ -386,7 +386,7 @@ export function ProjectDetailPage() {
         <TabsContent value="monument" className="mt-4 space-y-4">
           <div className="flex justify-end gap-2">
             {projectPermissions(monument?.myRole ?? null).canDeleteProject && (
-              <button onClick={() => setConfirmDeleteOpen(true)} disabled={deleting} aria-label="Supprimer le projet" className="flex items-center justify-center w-9 h-9 shrink-0 border rounded-lg transition-colors hover:text-red-600 hover:border-red-200" style={{ borderColor: C.border, color: '#6a7180' }}>
+              <button onClick={() => setConfirmDeleteOpen(true)} disabled={deleting} aria-label="Supprimer le projet" className="flex items-center justify-center w-9 h-9 shrink-0 border rounded-lg transition-colors hover:text-destructive hover:border-destructive/30 text-muted-foreground" style={{ borderColor: C.border }}>
                 {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" strokeWidth={1.8} />}
               </button>
             )}
@@ -419,10 +419,10 @@ export function ProjectDetailPage() {
             <Panel title="État actuel" icon={<AlertTriangle className="h-4 w-4" style={{ color: C.orangeVif }} strokeWidth={1.8} />}>
               <div className="space-y-3 text-[13px]">
                 <div className="flex items-center gap-2">
-                  <span style={{ color: '#6a7180' }}>Conservation :</span>
+                  <span className="text-muted-foreground">Conservation :</span>
                   <Badge variant="outline" className="text-[12px]" style={{ borderColor: C.border }}>{ETAT_LABELS[monument.etatConservation] ?? monument.etatConservation}</Badge>
                 </div>
-                {monument.descriptionEtat && <p className="leading-relaxed" style={{ color: '#6a7180' }}>{monument.descriptionEtat}</p>}
+                {monument.descriptionEtat && <p className="leading-relaxed text-muted-foreground">{monument.descriptionEtat}</p>}
               </div>
             </Panel>
 
@@ -434,14 +434,14 @@ export function ProjectDetailPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-[13px]" style={{ color: '#6a7180' }}>Aucun travail envisagé</p>
+                <p className="text-[13px] text-muted-foreground">Aucun travail envisagé</p>
               )}
             </Panel>
           </div>
 
           {monument.descriptionGenerale && (
             <Panel title="Description générale de la protection">
-              <p className="text-[13px] leading-relaxed" style={{ color: '#6a7180' }}>{monument.descriptionGenerale}</p>
+              <p className="text-[13px] leading-relaxed text-muted-foreground">{monument.descriptionGenerale}</p>
             </Panel>
           )}
 
@@ -457,7 +457,7 @@ export function ProjectDetailPage() {
             </Panel>
           )}
 
-          <div className="flex items-center gap-4 text-[12px]" style={{ color: '#6a7180' }}>
+          <div className="flex items-center gap-4 text-[12px] text-muted-foreground">
             <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Créé le {formatDate(monument.createdAt)}</div>
             <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Modifié le {formatDate(monument.updatedAt)}</div>
           </div>
@@ -590,7 +590,7 @@ function Panel({ title, icon, children }: { title: string; icon?: React.ReactNod
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-2">
-      <span className="shrink-0" style={{ color: '#6a7180' }}>{label} :</span>
+      <span className="shrink-0 text-muted-foreground">{label} :</span>
       <span className="font-medium" style={{ color: C.ink }}>{value}</span>
     </div>
   );

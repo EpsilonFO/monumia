@@ -93,8 +93,8 @@ export function ProfilePage() {
     }
   };
 
-  const inputCls = 'h-10 text-[14px] bg-white border-[#E4E2DC] focus:border-[#1A237E] focus:ring-[#1A237E]/10 font-sans';
-  const labelCls = 'text-[13px] font-medium text-[#1B1E2E] font-sans';
+  const inputCls = 'h-10 text-[14px] bg-card border-border focus:border-primary focus:ring-primary/10 font-sans';
+  const labelCls = 'text-[13px] font-medium text-foreground font-sans';
 
   return (
     <div className="h-full flex flex-col gap-4">
@@ -106,7 +106,7 @@ export function ProfilePage() {
       {/* ═══════ TOP: Personal info — full width ═══════ */}
       <Panel>
         <PanelHeader
-          icon={<div className="w-7 h-7 rounded-lg bg-[#E8EAF6] flex items-center justify-center"><User className="h-4 w-4 text-[#1A237E]" strokeWidth={1.8} /></div>}
+          icon={<div className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center"><User className="h-4 w-4 text-primary" strokeWidth={1.8} /></div>}
           title="Informations personnelles"
         />
         <div className="px-6 py-4">
@@ -130,25 +130,25 @@ export function ProfilePage() {
                   value={form.telephone}
                   onChange={(e) => handlePhoneChange(e.target.value)}
                   placeholder="06 12 34 56 78"
-                  className={`${inputCls}${phoneError ? ' border-red-400 focus:border-red-400 focus:ring-red-400/10' : ''}`}
+                  className={`${inputCls}${phoneError ? ' border-destructive focus:border-destructive focus:ring-destructive/10' : ''}`}
                 />
-                {phoneError && <p className="text-[12px] text-red-500 mt-0.5">{phoneError}</p>}
+                {phoneError && <p className="text-[12px] text-destructive mt-0.5">{phoneError}</p>}
               </div>
             </div>
 
             {/* Separator */}
-            <div className="w-px bg-[#E4E2DC] self-stretch" />
+            <div className="w-px bg-border self-stretch" />
 
             {/* Right column */}
             <div className="flex-1 space-y-3">
               <div className="space-y-1">
                 <Label className={labelCls}>Email</Label>
-                <p className="h-10 flex items-center text-[14px] text-[#1B1E2E] font-sans">{currentUser.email}</p>
+                <p className="h-10 flex items-center text-[14px] text-foreground font-sans">{currentUser.email}</p>
               </div>
               <div className="space-y-1">
                 <Label className={labelCls}>Mot de passe</Label>
                 <button
-                  className="w-full h-10 flex items-center justify-center gap-2 text-[13px] font-medium border border-[#E4E2DC] rounded-lg text-[#5C6178] hover:bg-[#F8F7F4] hover:border-[#C75B3A]/30 hover:text-[#C75B3A] transition-all duration-200 font-sans"
+                  className="w-full h-10 flex items-center justify-center gap-2 text-[13px] font-medium border border-border rounded-lg text-muted-foreground hover:bg-muted hover:border-accent/30 hover:text-accent transition-all duration-200 font-sans"
                 >
                   <KeyRound className="h-3.5 w-3.5" strokeWidth={1.8} />
                   Changer le mot de passe
@@ -158,12 +158,11 @@ export function ProfilePage() {
           </div>
 
           {/* Save button */}
-          <div className="mt-4 pt-3 border-t border-[#E4E2DC]">
+          <div className="mt-4 pt-3 border-t border-border">
             <button
               onClick={handleSave}
               disabled={saving || !!phoneError}
-              className="inline-flex items-center gap-2 px-6 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-300 disabled:opacity-50 hover:shadow-md"
-              style={{ background: '#1A237E' }}
+              className="inline-flex items-center gap-2 px-6 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-300 disabled:opacity-50 hover:shadow-md bg-primary"
             >
               <Save className="h-3.5 w-3.5" strokeWidth={1.8} />
               {saving ? 'Enregistrement…' : 'Enregistrer les modifications'}
@@ -178,18 +177,18 @@ export function ProfilePage() {
         <Panel>
           <PanelHeader
             icon={
-              <div className="w-7 h-7 rounded-lg bg-[#FBF0EC] flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-warning-muted flex items-center justify-center">
                 {isCommune
-                  ? <Building2 className="h-4 w-4 text-[#C75B3A]" strokeWidth={1.8} />
-                  : <Home className="h-4 w-4 text-[#C75B3A]" strokeWidth={1.8} />}
+                  ? <Building2 className="h-4 w-4 text-accent" strokeWidth={1.8} />
+                  : <Home className="h-4 w-4 text-accent" strokeWidth={1.8} />}
               </div>
             }
             title={isCommune ? 'Ma commune' : 'Mon profil propriétaire'}
           />
           <div className="px-6 py-4 space-y-2.5 font-sans">
             <div className="flex items-center gap-2">
-              <span className="text-[13px] text-[#8E92A4] font-sans">Segment :</span>
-              <Badge variant="outline" className="text-[12px] border-[#E4E2DC] text-[#1B1E2E] font-sans">
+              <span className="text-[13px] text-muted-foreground font-sans">Segment :</span>
+              <Badge variant="outline" className="text-[12px] border-border text-foreground font-sans">
                 {isCommune ? 'Commune' : 'Propriétaire privé'}
               </Badge>
             </div>
@@ -218,7 +217,7 @@ export function ProfilePage() {
         {/* Notification preferences — 2x2 grid with separator */}
         <Panel>
           <PanelHeader
-            icon={<div className="w-7 h-7 rounded-lg bg-[#E8EAF6] flex items-center justify-center"><Bell className="h-4 w-4 text-[#1A237E]" strokeWidth={1.8} /></div>}
+            icon={<div className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center"><Bell className="h-4 w-4 text-primary" strokeWidth={1.8} /></div>}
             title="Préférences de notification"
           />
           <div className="px-6 py-4">
@@ -240,7 +239,7 @@ export function ProfilePage() {
               </div>
 
               {/* Separator */}
-              <div className="w-px bg-[#E4E2DC] self-stretch" />
+              <div className="w-px bg-border self-stretch" />
 
               {/* Right column */}
               <div className="flex-1 space-y-3">
@@ -269,7 +268,7 @@ export function ProfilePage() {
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-[#E4E2DC]/80 overflow-hidden flex flex-col">
+    <div className="bg-card rounded-xl border border-border/80 overflow-hidden flex flex-col">
       {children}
     </div>
   );
@@ -277,9 +276,9 @@ function Panel({ children }: { children: React.ReactNode }) {
 
 function PanelHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
-    <div className="flex items-center gap-2.5 px-6 py-3 border-b border-[#E4E2DC]">
+    <div className="flex items-center gap-2.5 px-6 py-3 border-b border-border">
       {icon}
-      <h3 className="text-[15px] font-normal text-[#1B1E2E]" style={{ fontFamily: FONT }}>{title}</h3>
+      <h3 className="text-[15px] font-normal text-foreground" style={{ fontFamily: FONT }}>{title}</h3>
     </div>
   );
 }
@@ -287,8 +286,8 @@ function PanelHeader({ icon, title }: { icon: React.ReactNode; title: string }) 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-2 text-[13px] font-sans">
-      <span className="text-[#8E92A4]">{label} :</span>
-      <span className="font-medium text-[#1B1E2E]">{value}</span>
+      <span className="text-muted-foreground">{label} :</span>
+      <span className="font-medium text-foreground">{value}</span>
     </div>
   );
 }
@@ -299,8 +298,8 @@ function NotifToggle({ label, description, checked, onChange }: {
   return (
     <div className="flex items-center justify-between gap-4">
       <div>
-        <p className="text-[13px] font-medium text-[#1B1E2E] font-sans">{label}</p>
-        <p className="text-[12px] text-[#8E92A4] font-sans">{description}</p>
+        <p className="text-[13px] font-medium text-foreground font-sans">{label}</p>
+        <p className="text-[12px] text-muted-foreground font-sans">{description}</p>
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
     </div>

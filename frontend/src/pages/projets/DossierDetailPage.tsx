@@ -207,7 +207,7 @@ export function DossierDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[13px]" style={{ color: '#6a7180' }}>
+      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
         <Link to={ROUTES.PROJETS} className="hover:opacity-70 transition-opacity">Projets</Link>
         <span>/</span>
         <Link to={`${ROUTES.PROJET_DETAIL(monument.id)}?tab=dossiers`} className="hover:opacity-70 transition-opacity">{monument.nom}</Link>
@@ -248,7 +248,7 @@ export function DossierDetailPage() {
           <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" style={{ color: C.orange }} />
           <div className="text-[13px]">
             <p className="font-semibold" style={{ color: C.ink }}>Dépôt manuel obligatoire</p>
-            <p className="mt-0.5" style={{ color: '#6a7180' }}>Monumia vous aide à préparer votre dossier, mais le dépôt auprès de l'organisme doit être effectué par vos soins.</p>
+            <p className="mt-0.5 text-muted-foreground">Monumia vous aide à préparer votre dossier, mais le dépôt auprès de l'organisme doit être effectué par vos soins.</p>
           </div>
         </div>
 
@@ -266,8 +266,7 @@ export function DossierDetailPage() {
                 <button
                   onClick={() => setConfirmDeleteOpen(true)}
                   disabled={deleting}
-                  className="inline-flex w-full items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold rounded-lg border transition-colors hover:bg-[#fdf2f1] disabled:opacity-60"
-                  style={{ color: '#c0271d', borderColor: '#e7c3bf' }}
+                  className="inline-flex w-full items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold rounded-lg border transition-colors hover:bg-destructive-muted disabled:opacity-60 text-destructive border-destructive/30"
                 >
                   {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" strokeWidth={1.8} />}
                   Supprimer le dossier

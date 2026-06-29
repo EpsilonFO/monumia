@@ -12,12 +12,12 @@ import { C, SERIF } from '@/lib/brand';
 import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
 import { toast } from 'sonner';
 
-const MUTED = '#5c6472';
-const LIGHT = '#8c92a0';
-const SUCCESS = '#2e7d32';
+const MUTED = 'var(--muted-foreground)';
+const LIGHT = 'var(--muted-foreground)';
+const SUCCESS = 'var(--success)';
 
 const inputCls =
-  'h-12 text-[15px] bg-white border-[#ece3d2] focus:border-[#0a369d] focus:ring-[#0a369d]/10';
+  'h-12 text-[15px] bg-card border-border focus:border-primary focus:ring-primary/10';
 
 export function LoginPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -97,7 +97,7 @@ export function LoginPage() {
             className="flex-1 rounded-lg py-2.5 text-[14px] font-semibold transition-all duration-200"
             style={{
               background: tab === t ? C.blue : 'transparent',
-              color: tab === t ? '#ffffff' : C.blue,
+              color: tab === t ? 'white' : C.blue,
             }}
           >
             {t === 'login' ? 'Connexion' : 'Inscription'}
