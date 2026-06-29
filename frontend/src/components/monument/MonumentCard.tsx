@@ -17,7 +17,7 @@ const protectionLabels: Record<string, string> = {
 const etatColors: Record<string, { bg: string; text: string }> = {
   bon: { bg: 'var(--success-muted)', text: 'var(--success)' },
   moyen: { bg: 'var(--warning-muted)', text: 'var(--warning)' },
-  mauvais: { bg: 'var(--warning-muted)', text: 'var(--accent)' },
+  mauvais: { bg: 'var(--cat-2-soft)', text: 'var(--cat-2)' },
   peril: { bg: 'var(--destructive-muted)', text: 'var(--destructive)' },
 };
 

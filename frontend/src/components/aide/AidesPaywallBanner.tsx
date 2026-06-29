@@ -18,8 +18,8 @@ export function AidesPaywallBanner({ montantTotal, nombreAides, nombreAidesAvecT
 
   return (
     <div className="rounded-xl border border-warning bg-warning-muted p-5 flex items-start gap-4">
-      <div className="shrink-0 w-10 h-10 rounded-full bg-warning-muted flex items-center justify-center">
-        <Sparkles className="h-5 w-5 text-warning" />
+      <div className="shrink-0 w-10 h-10 rounded-full bg-warning flex items-center justify-center">
+        <Sparkles className="h-5 w-5 text-warning-foreground" />
       </div>
       <div className="flex-1 space-y-2">
         <h3 className="text-base font-medium text-foreground">

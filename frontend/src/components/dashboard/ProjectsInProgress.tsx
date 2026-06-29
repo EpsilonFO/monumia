@@ -35,7 +35,7 @@ const PHOTO_SCRIM =
 const ETAT_TONE: Record<Monument['etatConservation'], { fg: string; dot: string; label: string }> = {
   bon: { fg: 'var(--success)', dot: 'var(--success)', label: 'Bon état' },
   moyen: { fg: 'var(--warning)', dot: 'var(--warning)', label: 'État moyen' },
-  mauvais: { fg: C.orange, dot: C.orange, label: 'Mauvais état' },
+  mauvais: { fg: 'var(--cat-2)', dot: 'var(--cat-2)', label: 'Mauvais état' },
   peril: { fg: C.danger, dot: C.danger, label: 'En péril' },
 };
 

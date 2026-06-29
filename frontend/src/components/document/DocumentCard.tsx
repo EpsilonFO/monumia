@@ -54,7 +54,7 @@ const typeAccent: Record<string, { bg: string; text: string }> = {
   devis:             { bg: 'var(--warning-muted)',      text: 'var(--warning)' },
   facture:           { bg: 'var(--destructive-muted)',  text: 'var(--destructive)' },
   attestation:       { bg: 'var(--success-muted)',      text: 'var(--success)' },
-  extrait_cadastral: { bg: 'var(--success-muted)',      text: 'var(--cat-teal)' },
+  extrait_cadastral: { bg: 'var(--cat-teal-soft)',      text: 'var(--cat-teal)' },
   cerfa:             { bg: 'var(--info-muted)',         text: 'var(--info)' },
   arrete:            { bg: 'var(--destructive-muted)',  text: 'var(--destructive)' },
   diagnostic:        { bg: 'var(--secondary)',          text: 'var(--primary)' },
