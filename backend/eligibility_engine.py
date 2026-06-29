@@ -386,30 +386,54 @@ def evaluate_aide(
 # ---------------------------------------------------------------------------
 
 
-def _numeric_tranches(thresholds: list[float], unit: str | None) -> list[dict]:
-    """Construit des options MECE à partir de seuils triés.
+def _normalize_boundary(op: str, val: float, is_integer: bool) -> float | None:
+    """Convertit un (opérateur, valeur de seuil) en une BORNE `b` telle que la
+    bande basse `{x < b}` et la bande haute `{x >= b}` aient chacune une valeur
+    de vérité CONSTANTE pour ce prédicat — le point de bascule tombe pile sur la
+    frontière de tranche, jamais à l'intérieur.
 
-    Chaque option porte un `repr` (valeur représentative de la tranche) : comme
-    les bornes sont les seuils eux-mêmes, tout prédicat de seuil a une valeur de
-    vérité CONSTANTE dans la tranche, donc évaluer au représentant est exact.
+    C'est nécessaire pour les seuils STRICTS : `gt: 0` bascule entre 0 (faux) et
+    1 (vrai), donc sa frontière utile est 1, pas 0. Sans ce décalage, la tranche
+    haute « 0 ou plus » a pour représentant 0, qui échoue `gt: 0` → l'aide
+    devenait inatteignable et le label « Moins de 0 » était absurde.
+
+    Sur les entiers : `gt: n` → `n+1`, `lte: n` → `n+1`. `gte`/`lt`/`eq` gardent
+    `n` (déjà sur la frontière). Sur les flottants on ne décale pas (pas de seuil
+    strict dans le corpus, et un epsilon polluerait les libellés).
     """
-    ts = sorted(set(thresholds))
+    step = 1 if is_integer else 0
+    if op == "gt":
+        return val + step  # x > n  ⇔  x >= n+1  (entiers)
+    if op == "lte":
+        return val + step  # x <= n ⇔  x <  n+1  (entiers)
+    return val  # gte, lt, eq, neq… : la valeur est déjà la frontière
+
+
+def _numeric_tranches(boundaries: list[float], unit: str | None) -> list[dict]:
+    """Construit des options MECE à partir de bornes triées (cf.
+    `_normalize_boundary`). Chaque option porte un `repr` (valeur représentative
+    de la tranche), strictement intérieur à la bande, donc évaluer un prédicat de
+    seuil au représentant est exact.
+    """
+    ts = sorted(set(boundaries))
     suffix = f" {unit}" if unit and unit not in ("€",) else (unit or "")
 
     def fmt(v: float) -> str:
         return str(int(v)) if float(v).is_integer() else str(v)
 
     options = []
-    # Tranche basse : strictement sous le plus petit seuil.
-    options.append(
-        {"id": f"lt{fmt(ts[0])}", "label": f"Moins de {fmt(ts[0])}{suffix}", "repr": ts[0] - 1}
-    )
+    # Tranche basse : strictement sous la plus petite borne. Omise si elle ne
+    # contient aucune valeur atteignable (borne basse <= 0 pour un compteur).
+    if ts[0] - 1 >= 0:
+        options.append(
+            {"id": f"lt{fmt(ts[0])}", "label": f"Moins de {fmt(ts[0])}{suffix}", "repr": ts[0] - 1}
+        )
     # Tranches intermédiaires.
     for lo, hi in zip(ts, ts[1:], strict=False):
         options.append(
             {"id": f"{fmt(lo)}_{fmt(hi)}", "label": f"De {fmt(lo)} à {fmt(hi)}{suffix}", "repr": lo}
         )
-    # Tranche haute : au-dessus du plus grand seuil.
+    # Tranche haute : au-dessus de la plus grande borne (incluse).
     options.append(
         {"id": f"ge{fmt(ts[-1])}", "label": f"{fmt(ts[-1])}{suffix} ou plus", "repr": ts[-1]}
     )
@@ -430,14 +454,17 @@ def _options_for_fact(fact: FactDef, gate_conds: list[Condition]) -> list[dict]:
             for o in fact.options or []
         ]
     # integer / number : tranches à partir des seuils des prédicats des gates.
-    thresholds = []
+    # On normalise selon l'OPÉRATEUR (cf. _normalize_boundary) pour gérer les
+    # seuils stricts ; sans ça `gt: 0` produisait « Moins de 0 / 0 ou plus ».
+    is_integer = fact.type == "integer"
+    boundaries = []
     for c in gate_conds:
-        for _op, val in c.predicate.root.items():
-            if isinstance(val, (int, float)):
-                thresholds.append(val)
-    if not thresholds:
+        for op, val in c.predicate.root.items():
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                boundaries.append(_normalize_boundary(op, val, is_integer))
+    if not boundaries:
         return []
-    return _numeric_tranches(thresholds, fact.unit)
+    return _numeric_tranches(boundaries, fact.unit)
 
 
 def build_questions(
