@@ -292,21 +292,21 @@ export function ProjectQuestionnaire({
                   className={cn(
                     'group flex min-h-[3.5rem] w-full items-center gap-4 rounded-2xl border px-5 py-3.5 text-left text-[15px] leading-snug transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                     selected
-                      ? 'border-accent bg-[#feeedd] shadow-[var(--shadow-card)]'
-                      : 'border-border bg-card hover:border-[#efcaa0] hover:bg-[#fbf3e8]',
+                      ? 'border-accent bg-warning-muted shadow-[var(--shadow-card)]'
+                      : 'border-border bg-card hover:border-warning hover:bg-warning-muted',
                   )}
                   style={{ color: C.ink }}
                 >
                   <span
                     className={cn(
                       'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
-                      selected ? 'border-accent bg-accent text-white' : 'border-[#d8cfc0]',
+                      selected ? 'border-accent bg-accent text-white' : 'border-border',
                     )}
                   >
                     {selected ? (
                       <Check className="h-4 w-4" strokeWidth={3} />
                     ) : (
-                      <span className="h-2 w-2 rounded-full bg-[#d8cfc0] transition-colors group-hover:bg-[#e6a866]" />
+                      <span className="h-2 w-2 rounded-full bg-muted transition-colors group-hover:bg-accent" />
                     )}
                   </span>
                   <span>{option.label}</span>

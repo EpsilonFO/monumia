@@ -25,10 +25,10 @@ const protectionLabels: Record<string, string> = {
 };
 
 const etatStyles: Record<string, { bg: string; text: string; label: string }> = {
-  bon: { bg: '#ECFDF5', text: '#065F46', label: 'Bon état' },
-  moyen: { bg: '#FEF3C7', text: '#92400E', label: 'État moyen' },
+  bon: { bg: 'var(--success-muted)', text: 'var(--success)', label: 'Bon état' },
+  moyen: { bg: 'var(--warning-muted)', text: 'var(--warning)', label: 'État moyen' },
   mauvais: { bg: C.paleOrange, text: C.orange, label: 'Mauvais état' },
-  peril: { bg: '#FFEBEE', text: '#B71C1C', label: 'En péril' },
+  peril: { bg: 'var(--destructive-muted)', text: 'var(--destructive)', label: 'En péril' },
 };
 
 // Code couleur unique des échéances : < 30 j (ou dépassée) → rouge · 30–100 j → orange · > 100 j → bleu
@@ -68,7 +68,7 @@ export function ProjectCard({ monument, stats }: ProjectCardProps) {
               style={{ color: C.border }}
             />
           </div>
-          <div className="flex items-center gap-1.5 text-[12px]" style={{ color: '#6a7180' }}>
+          <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
             <MapPin className="h-3 w-3 shrink-0" strokeWidth={1.8} />
             <span>
               {monument.commune ?? '—'}
@@ -97,7 +97,7 @@ export function ProjectCard({ monument, stats }: ProjectCardProps) {
 
         <div className="mt-auto space-y-3 px-5 pb-5">
           <div>
-            <div className="mb-1 flex items-center justify-between text-[11px]" style={{ color: '#6a7180' }}>
+            <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
               <span>Complétude</span>
               <span className="tabular-nums">{monument.completionPercentage}%</span>
             </div>
@@ -120,7 +120,7 @@ export function ProjectCard({ monument, stats }: ProjectCardProps) {
                 next && nextLabel && (
                   <span
                     className="inline-flex items-center gap-1.5 font-medium"
-                    style={{ color: urgencyColor[nextLabel.urgency] ?? '#6a7180' }}
+                    style={{ color: urgencyColor[nextLabel.urgency] ?? 'var(--muted-foreground)' }}
                   >
                     <CalendarClock className="h-3.5 w-3.5" strokeWidth={2} />
                     {nextLabel.text}

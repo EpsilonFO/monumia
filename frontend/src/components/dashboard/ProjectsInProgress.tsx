@@ -33,8 +33,8 @@ const PHOTO_SCRIM =
 
 /** État de conservation → pastille colorée (vert/ambre/orange/rouge), repris du code couleur projet. */
 const ETAT_TONE: Record<Monument['etatConservation'], { fg: string; dot: string; label: string }> = {
-  bon: { fg: '#0f7a52', dot: '#16a34a', label: 'Bon état' },
-  moyen: { fg: '#92600e', dot: '#d99a06', label: 'État moyen' },
+  bon: { fg: 'var(--success)', dot: 'var(--success)', label: 'Bon état' },
+  moyen: { fg: 'var(--warning)', dot: 'var(--warning)', label: 'État moyen' },
   mauvais: { fg: C.orange, dot: C.orange, label: 'Mauvais état' },
   peril: { fg: C.danger, dot: C.danger, label: 'En péril' },
 };
@@ -119,8 +119,8 @@ function ProjectCard({
         ) : (
           <Clover
             size={featured ? 320 : 220}
-            className="pointer-events-none absolute -right-16 -top-20"
-            style={{ color: '#ffffff', opacity: 0.08 }}
+            className="pointer-events-none absolute -right-16 -top-20 text-white"
+            style={{ opacity: 0.08 }}
           />
         )}
 
@@ -184,8 +184,7 @@ function ProjectCard({
         )}
         <div className="flex items-end justify-between gap-4">
           <div
-            className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px]"
-            style={{ color: 'rgba(34,43,53,0.72)' }}
+            className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-foreground/70"
           >
             <span className="inline-flex items-center gap-1.5">
               <ScrollText className="h-3.5 w-3.5" aria-hidden />
@@ -229,7 +228,7 @@ export function ProjectsInProgress({ monuments, statsByMonument, stageByMonument
           className="relative mb-1 flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl"
           style={{ background: `linear-gradient(135deg, ${C.blue}, ${C.blueDark})` }}
         >
-          <Clover size={70} className="pointer-events-none absolute -right-4 -top-5" style={{ color: '#ffffff', opacity: 0.12 }} />
+          <Clover size={70} className="pointer-events-none absolute -right-4 -top-5 text-white" style={{ opacity: 0.12 }} />
           <Landmark className="relative h-6 w-6 text-white" aria-hidden />
         </div>
         <p className="text-[15px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>

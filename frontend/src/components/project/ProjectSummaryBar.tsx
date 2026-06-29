@@ -47,7 +47,7 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRelancer, r
             {monument.nom}
           </h1>
           {location && (
-            <div className="flex items-center gap-1.5 text-[14px]" style={{ color: '#6a7180' }}>
+            <div className="flex items-center gap-1.5 text-[14px] text-muted-foreground">
               <MapPin className="h-3.5 w-3.5" style={{ color: C.blueLight }} />
               <span>{location}</span>
             </div>
@@ -108,7 +108,7 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRelancer, r
 function KpiTile({ icon, label, value, valueColor }: { icon: React.ReactNode; label: string; value: string; valueColor?: string }) {
   return (
     <div className="rounded-xl border px-4 py-3" style={{ borderColor: C.border, background: C.cream }}>
-      <div className="flex items-center gap-1.5 text-[12px]" style={{ color: '#6a7180' }}>
+      <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
         {icon}
         <span>{label}</span>
       </div>

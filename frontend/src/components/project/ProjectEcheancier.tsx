@@ -34,7 +34,7 @@ export function ProjectEcheancier({ deadlines }: ProjectEcheancierProps) {
         </div>
         <div>
           <p className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>Aucune échéance à venir</p>
-          <p className="text-[13px]" style={{ color: '#6a7180' }}>
+          <p className="text-[13px] text-muted-foreground">
             Les dates limites des aides et des dossiers apparaîtront ici.
           </p>
         </div>
@@ -47,7 +47,7 @@ export function ProjectEcheancier({ deadlines }: ProjectEcheancierProps) {
       <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: C.border }}>
         <CalendarClock className="h-4 w-4" style={{ color: C.blue }} />
         <h3 className="text-[16px]" style={{ fontFamily: SERIF, color: C.ink }}>Échéancier</h3>
-        <span className="text-[12px]" style={{ color: '#6a7180' }}>
+        <span className="text-[12px] text-muted-foreground">
           · {deadlines.length} échéance{deadlines.length > 1 ? 's' : ''}
         </span>
       </div>
@@ -66,7 +66,7 @@ export function ProjectEcheancier({ deadlines }: ProjectEcheancierProps) {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-medium leading-snug line-clamp-2" style={{ color: C.ink }}>{d.label}</p>
-                <p className="text-[11px] mt-0.5" style={{ color: '#6a7180' }}>
+                <p className="text-[11px] mt-0.5 text-muted-foreground">
                   {d.source === 'aide' ? 'Aide' : 'Dossier'} · {formatDate(d.date)}
                 </p>
               </div>
