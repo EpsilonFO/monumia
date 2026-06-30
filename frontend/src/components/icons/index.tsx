@@ -8,15 +8,32 @@ type IconProps = Omit<SVGProps<SVGSVGElement>, 'strokeWidth'> & {
 type IconBaseProps = IconProps & { children: ReactNode };
 
 /**
- * Ancienne DA (trait). Conservée provisoirement pour les icônes pas encore
- * migrées — la Task 2 du plan banque-d'icônes les réécrit toutes en DA remplie.
+ * Banque d'icônes Monumia — DA « fait main ».
+ *
+ * Deux bases, un seul langage visuel (line-art arrondi, motif « écho ») :
+ *  - IconBaseFilled : pour les 3 SVG fournis par le fondateur (contours remplis,
+ *    evenodd), icônes vedettes au tracé organique.
+ *  - IconBaseStroke : pour toutes les icônes dessinées (centerlines, trait
+ *    uniforme arrondi). Épaisseur calée pour s'accorder aux vedettes.
+ *
+ * Toutes utilisent currentColor → elles épousent les tokens de thème.
+ * Pour changer une icône partout : éditer son tracé ici, une seule fois.
  */
-function IconBase({ size = 20, strokeWidth = 1.75, children, ...props }: IconBaseProps) {
+
+function IconBaseFilled({ size = 20, children, ...props }: IconBaseProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="currentColor" aria-hidden {...props}>
+      {children}
+    </svg>
+  );
+}
+
+function IconBaseStroke({ size = 20, strokeWidth = 6, children, ...props }: IconBaseProps) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 24 24"
+      viewBox="0 0 100 100"
       fill="none"
       stroke="currentColor"
       strokeWidth={strokeWidth}
@@ -30,31 +47,11 @@ function IconBase({ size = 20, strokeWidth = 1.75, children, ...props }: IconBas
   );
 }
 
-/**
- * Nouvelle DA Monumia « fait main » : rempli, viewBox 100×100, currentColor,
- * formes arrondies + motif « ligne en écho » (contours emboîtés via fill-rule
- * evenodd). C'est la base de toutes les icônes de marque.
- */
-function IconBaseFilled({ size = 20, children, ...props }: IconBaseProps) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 100 100"
-      fill="currentColor"
-      aria-hidden
-      {...props}
-    >
-      {children}
-    </svg>
-  );
-}
+/* ================================================================== */
+/* Icônes vedettes — SVG fournis (rempli)                              */
+/* ================================================================== */
 
-/* ------------------------------------------------------------------ */
-/* SVG fournis par le fondateur — intégrés verbatim (icônes vedettes)  */
-/* ------------------------------------------------------------------ */
-
-/** 🔔 Notifications — cloche fournie. */
+/** 🔔 Notifications. */
 export function IconNotification(p: IconProps) {
   return (
     <IconBaseFilled {...p}>
@@ -63,7 +60,7 @@ export function IconNotification(p: IconProps) {
   );
 }
 
-/** ⬇️ Télécharger / exporter — fourni. */
+/** ⬇️ Télécharger / exporter. */
 export function IconTelecharger(p: IconProps) {
   return (
     <IconBaseFilled {...p}>
@@ -72,7 +69,7 @@ export function IconTelecharger(p: IconProps) {
   );
 }
 
-/** ⚙️ Réglages / paramètres — écrou/engrenage fourni. */
+/** ⚙️ Réglages / paramètres. */
 export function IconReglages(p: IconProps) {
   return (
     <IconBaseFilled {...p}>
@@ -81,126 +78,568 @@ export function IconReglages(p: IconProps) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Icônes témoins (Task 1) — DA fait-main, motif écho                  */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/* Icônes dessinées (tracé) — DA fait-main, motif écho                 */
+/* ================================================================== */
 
-/** 🛡️ Protection / Monument Historique — bouclier à double écho. */
-export function IconProtection(p: IconProps) {
-  return (
-    <IconBaseFilled {...p}>
-      <path
-        fillRule="evenodd"
-        d="M50 12 C58 16 70 20 82 22 C84 22 85 24 85 30 C85 55 78 78 50 90 C22 78 15 55 15 30 C15 24 16 22 18 22 C30 20 42 16 50 12 Z M50 20 C57 24 67 27 76 29 C78 30 78 32 78 36 C78 56 72 73 50 83 C28 73 22 56 22 36 C22 32 22 30 24 29 C33 27 43 24 50 20 Z M50 28 C56 31 64 34 71 35 C72 36 72 38 72 41 C72 57 67 70 50 78 C33 70 28 57 28 41 C28 38 28 36 29 35 C36 34 44 31 50 28 Z M50 35 C55 38 61 40 67 41 C68 42 68 43 68 46 C68 58 64 68 50 74 C36 68 32 58 32 46 C32 43 32 42 33 41 C39 40 45 38 50 35 Z"
-      />
-    </IconBaseFilled>
-  );
-}
-
-/** 🏛️ Patrimoine / monument / projet — temple en trait, double fronton + socle (écho). */
-export function IconMonument(p: IconProps) {
-  return (
-    <IconBaseFilled {...p}>
-      <path
-        fillRule="evenodd"
-        d="M50 9 L93 42 L7 42 Z M50 20 L78 40 L22 40 Z M50 23 L73 39 L27 39 Z M50 31 L64 37 L36 37 Z M12 44 H88 V52 H12 Z M16 46.5 H84 V49.5 H16 Z M23 54 H33 V79 H23 Z M26 57 H30 V76 H26 Z M45 54 H55 V79 H45 Z M48 57 H52 V76 H48 Z M67 54 H77 V79 H67 Z M70 57 H74 V76 H70 Z M9 81 H91 V89 H9 Z M13 83.5 H87 V86.5 H13 Z"
-      />
-    </IconBaseFilled>
-  );
-}
-
-/** 🗂️ Dossier — chemise contour + contour intérieur (écho). */
-export function IconDossier(p: IconProps) {
-  return (
-    <IconBaseFilled {...p}>
-      <path
-        fillRule="evenodd"
-        d="M14 34 C14 28 18 26 24 26 H40 C42 26 44 27 45 29 L48 34 H78 C84 34 86 38 86 44 V72 C86 78 82 80 76 80 H24 C18 80 14 76 14 70 Z M22 36 C20 36 20 38 20 42 V70 C20 74 22 74 26 74 H74 C78 74 80 74 80 70 V44 C80 41 79 40 76 40 H45 C43 40 42 39 41 37 L39 33 H26 C24 33 23 34 22 36 Z M30 46 H70 C73 46 74 47 74 50 V66 C74 69 73 70 70 70 H30 C27 70 26 69 26 66 V50 C26 47 27 46 30 46 Z M32 50 C30 50 30 51 30 53 V64 C30 66 31 66 33 66 H67 C69 66 70 66 70 64 V52 C70 50 69 50 67 50 H32 Z"
-      />
-    </IconBaseFilled>
-  );
-}
-
-/** 💶 Les aides — billet (argent/subvention) à médaillon + écho. Remplace l'étoile. */
-export function IconAide(p: IconProps) {
-  return (
-    <IconBaseFilled {...p}>
-      <path
-        fillRule="evenodd"
-        d="M20 30 H80 Q88 30 88 38 V62 Q88 70 80 70 H20 Q12 70 12 62 V38 Q12 30 20 30 Z M24 36 H76 Q82 36 82 40 V60 Q82 64 76 64 H24 Q18 64 18 60 V40 Q18 36 24 36 Z M40 50 a10 10 0 1 0 20 0 a10 10 0 1 0 -20 0 Z M45 50 a5 5 0 1 0 10 0 a5 5 0 1 0 -10 0 Z M25 44 H31 V56 H25 Z M69 44 H75 V56 H69 Z"
-      />
-    </IconBaseFilled>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Icônes encore en DA trait — réécrites en DA remplie à la Task 2      */
-/* ------------------------------------------------------------------ */
+/* --- Navigation / cœur --- */
 
 export function IconDashboard(p: IconProps) {
   return (
-    <IconBase {...p}>
-      <rect x="3" y="3" width="7" height="9" rx="2" />
-      <rect x="14" y="3" width="7" height="5" rx="2" />
-      <rect x="14" y="12" width="7" height="9" rx="2" />
-      <rect x="3" y="16" width="7" height="5" rx="2" />
-    </IconBase>
+    <IconBaseStroke {...p}>
+      <rect x="14" y="14" width="30" height="30" rx="7" />
+      <rect x="56" y="14" width="30" height="18" rx="7" />
+      <rect x="56" y="44" width="30" height="42" rx="7" />
+      <rect x="14" y="56" width="30" height="30" rx="7" />
+    </IconBaseStroke>
+  );
+}
+
+/** 🏛️ Patrimoine / monument / projet — double fronton + socle (écho). */
+export function IconMonument(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M10 42 L50 16 L90 42" />
+      <path d="M23 41 L50 25 L77 41" />
+      <path d="M14 47 H86" />
+      <path d="M26 50 V80 M42 50 V80 M58 50 V80 M74 50 V80" />
+      <path d="M12 84 H88" />
+      <path d="M16 79 H84" />
+    </IconBaseStroke>
   );
 }
 
 export function IconDocuments(p: IconProps) {
   return (
-    <IconBase {...p}>
-      <path d="M8 3 h6 l4 4 v11 a2 2 0 0 1 -2 2 H8 a2 2 0 0 1 -2 -2 V5 a2 2 0 0 1 2 -2 Z" />
-      <path d="M14 3 v4 h4" />
-      <path d="M9.5 12.5 h5 M9.5 15.5 h5" />
-    </IconBase>
+    <IconBaseStroke {...p}>
+      <path d="M36 24 V16 H62 L78 32 V70" />
+      <path d="M24 30 H50 L64 44 V84 H24 Z" />
+      <path d="M50 30 V44 H64" />
+      <path d="M34 58 H54 M34 70 H50" />
+    </IconBaseStroke>
   );
 }
 
-export function IconAgenda(p: IconProps) {
+export function IconDocument(p: IconProps) {
   return (
-    <IconBase {...p}>
-      <rect x="3.5" y="5" width="17" height="16" rx="2.5" />
-      <path d="M3.5 9.5 h17 M8 3 v4 M16 3 v4" />
-      <circle cx="12" cy="15" r="1.5" fill="currentColor" stroke="none" />
-    </IconBase>
+    <IconBaseStroke {...p}>
+      <path d="M28 14 H58 L74 30 V86 H28 Z" />
+      <path d="M58 14 V30 H74" />
+      <path d="M38 44 H64 M38 56 H64 M38 68 H56" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconDocumentValide(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M28 14 H58 L74 30 V86 H28 Z" />
+      <path d="M58 14 V30 H74" />
+      <path d="M37 58 L46 67 L64 47" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconDocumentAlerte(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M28 14 H58 L74 30 V86 H28 Z" />
+      <path d="M58 14 V30 H74" />
+      <path d="M51 44 V62" />
+      <circle cx="51" cy="73" r="2.6" fill="currentColor" stroke="none" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconArchive(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <rect x="16" y="24" width="68" height="18" rx="5" />
+      <path d="M22 42 V80 Q22 84 26 84 H74 Q78 84 78 80 V42" />
+      <path d="M40 56 H60" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconDevis(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M30 14 H70 V84 L61 90 L50 84 L39 90 L30 84 Z" />
+      <path d="M40 34 H60 M40 46 H60 M40 58 H54" />
+    </IconBaseStroke>
+  );
+}
+
+/* --- Dossiers --- */
+
+/** 🗂️ Dossier — chemise + écho. */
+export function IconDossier(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M14 34 Q14 28 20 28 H40 L47 35 H80 Q86 35 86 41 V74 Q86 80 80 80 H20 Q14 80 14 74 Z" />
+      <path d="M22 70 H78" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconDossierOuvert(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M16 76 V36 Q16 30 22 30 H40 L47 37 H78 Q84 37 84 43 V50" />
+      <path d="M16 78 L28 52 H92 L80 78 Z" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconAjouterDossier(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M14 34 Q14 28 20 28 H40 L47 35 H80 Q86 35 86 41 V74 Q86 80 80 80 H20 Q14 80 14 74 Z" />
+      <path d="M50 50 V70 M40 60 H60" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconRetirerDossier(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M14 34 Q14 28 20 28 H40 L47 35 H80 Q86 35 86 41 V74 Q86 80 80 80 H20 Q14 80 14 74 Z" />
+      <path d="M40 60 H60" />
+    </IconBaseStroke>
   );
 }
 
 export function IconDepot(p: IconProps) {
   return (
-    <IconBase {...p}>
-      <path d="M12 15 V4 M8 8 l4 -4 l4 4" />
-      <path d="M4 14 v3 a2 2 0 0 0 2 2 h12 a2 2 0 0 0 2 -2 v-3" />
-    </IconBase>
+    <IconBaseStroke {...p}>
+      <path d="M50 16 V58" />
+      <path d="M34 32 L50 16 L66 32" />
+      <path d="M22 62 V78 H78 V62" />
+    </IconBaseStroke>
   );
 }
 
 export function IconSuivi(p: IconProps) {
   return (
-    <IconBase {...p}>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M8.5 12.5 l2.5 2.5 l4.5 -5" />
-    </IconBase>
+    <IconBaseStroke {...p}>
+      <path d="M18 74 A36 36 0 1 1 82 74" />
+      <path d="M50 72 L67 46" />
+      <circle cx="50" cy="72" r="3.5" fill="currentColor" stroke="none" />
+    </IconBaseStroke>
   );
 }
 
-export function IconHelp(p: IconProps) {
+/* --- Aides / finances --- */
+
+/** 💶 Les aides — billet (double bord = écho) + médaillon. Remplace l'étoile. */
+export function IconAide(p: IconProps) {
   return (
-    <IconBase {...p}>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M9.6 9.6 a2.4 2.4 0 0 1 4.3 1.4 c0 1.6 -1.9 1.8 -1.9 3.2" />
-      <circle cx="12" cy="17" r="0.7" fill="currentColor" stroke="none" />
-    </IconBase>
+    <IconBaseStroke {...p}>
+      <rect x="12" y="30" width="76" height="40" rx="8" />
+      <rect x="20" y="37" width="60" height="26" rx="4" />
+      <circle cx="50" cy="50" r="9" />
+      <path d="M28 44 V56 M72 44 V56" />
+    </IconBaseStroke>
+  );
+}
+
+/** 💡 Accompagnement / suggestion (ex-Sparkles « magie »). */
+export function IconAccompagnement(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M50 16 A22 22 0 0 1 64 56 Q60 60 60 66 H40 Q40 60 36 56 A22 22 0 0 1 50 16 Z" />
+      <path d="M42 74 H58 M45 82 H55" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconSubvention(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <ellipse cx="50" cy="30" rx="26" ry="10" />
+      <path d="M24 30 V48 A26 10 0 0 0 76 48 V30" />
+      <path d="M24 48 V66 A26 10 0 0 0 76 66 V48" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconTendance(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M16 64 L40 40 L54 54 L84 24" />
+      <path d="M64 24 H84 V44" />
+    </IconBaseStroke>
+  );
+}
+
+/* --- Patrimoine / protection --- */
+
+/** 🛡️ Protection / Monument Historique — bouclier + écho intérieur. */
+export function IconProtection(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M50 14 L80 24 V46 Q80 74 50 86 Q20 74 20 46 V24 Z" />
+      <path d="M50 24 L70 31 V47 Q70 66 50 75 Q30 66 30 47 V31 Z" />
+      <path d="M42 50 L48 57 L60 43" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconDiagnostic(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <circle cx="50" cy="50" r="34" />
+      <path d="M64 36 L54 54 L36 64 L46 46 Z" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconLocalisation(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M50 86 C32 66 24 54 24 40 A26 26 0 0 1 76 40 C76 54 68 66 50 86 Z" />
+      <circle cx="50" cy="40" r="9" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconCalendrier(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <rect x="16" y="22" width="68" height="64" rx="9" />
+      <path d="M16 40 H84 M34 14 V30 M66 14 V30" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconEcheance(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M84 44 V31 Q84 22 75 22 H25 Q16 22 16 31 V77 Q16 86 25 86 H50" />
+      <path d="M16 40 H84 M34 14 V30 M66 14 V30" />
+      <circle cx="68" cy="66" r="16" />
+      <path d="M68 58 V66 H75" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconTemps(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <circle cx="50" cy="50" r="34" />
+      <path d="M50 30 V50 L65 60" />
+    </IconBaseStroke>
+  );
+}
+
+/* --- BTP / artisans --- */
+
+export function IconChantier(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M22 62 A28 28 0 0 1 78 62" />
+      <path d="M44 35 H56 Q60 35 60 40 V60" />
+      <path d="M12 62 H88 V70 H12 Z" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconProspect(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <circle cx="50" cy="50" r="34" />
+      <circle cx="50" cy="50" r="18" />
+      <circle cx="50" cy="50" r="4" fill="currentColor" stroke="none" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconContact(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <rect x="14" y="26" width="72" height="48" rx="9" />
+      <path d="M18 32 L50 56 L82 32" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconEquipe(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <circle cx="38" cy="38" r="13" />
+      <path d="M15 77 Q15 56 38 56 Q54 56 60 67" />
+      <circle cx="67" cy="44" r="11" />
+      <path d="M59 60 Q85 59 85 79" />
+    </IconBaseStroke>
   );
 }
 
 export function IconAccount(p: IconProps) {
   return (
-    <IconBase {...p}>
-      <circle cx="12" cy="8.5" r="3.5" />
-      <path d="M5.5 19 a6.5 6.5 0 0 1 13 0" />
-    </IconBase>
+    <IconBaseStroke {...p}>
+      <circle cx="50" cy="36" r="16" />
+      <path d="M20 82 Q20 56 50 56 Q80 56 80 82" />
+    </IconBaseStroke>
+  );
+}
+
+/** Alias sémantique de IconAccount. */
+export const IconCompte = IconAccount;
+
+export function IconHelp(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <circle cx="50" cy="50" r="34" />
+      <path d="M39 41 Q41 30 52 30 Q65 30 65 42 Q65 53 52 55 V61" />
+      <circle cx="52" cy="71" r="2.6" fill="currentColor" stroke="none" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconAgenda(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <rect x="24" y="16" width="54" height="70" rx="8" />
+      <path d="M24 36 H78" />
+      <path d="M16 28 H24 M16 48 H24 M16 68 H24" />
+      <circle cx="51" cy="61" r="3" fill="currentColor" stroke="none" />
+    </IconBaseStroke>
+  );
+}
+
+/* --- Statuts --- */
+
+export function IconSucces(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <circle cx="50" cy="50" r="34" />
+      <path d="M36 51 L46 61 L66 39" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconAttention(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M50 16 L88 82 H12 Z" />
+      <path d="M50 42 V62" />
+      <circle cx="50" cy="72" r="2.6" fill="currentColor" stroke="none" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconErreur(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <circle cx="50" cy="50" r="34" />
+      <path d="M39 39 L61 61 M61 39 L39 61" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconInfo(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <circle cx="50" cy="50" r="34" />
+      <path d="M50 46 V66" />
+      <circle cx="50" cy="34" r="2.6" fill="currentColor" stroke="none" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconVerrou(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <rect x="22" y="46" width="56" height="40" rx="8" />
+      <path d="M34 46 V36 A16 16 0 0 1 66 36 V46" />
+      <path d="M50 62 V72" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconPublic(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <circle cx="50" cy="50" r="34" />
+      <path d="M16 50 H84 M50 16 V84" />
+      <path d="M50 16 Q30 50 50 84 Q70 50 50 16" />
+    </IconBaseStroke>
+  );
+}
+
+/* --- Actions de marque --- */
+
+export function IconRecherche(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <circle cx="44" cy="44" r="24" />
+      <path d="M62 62 L82 82" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconModifier(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M64 22 L78 36 L40 74 L24 78 L28 62 Z" />
+      <path d="M58 28 L72 42" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconSupprimer(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M24 32 H76" />
+      <path d="M32 32 V80 Q32 84 36 84 H64 Q68 84 68 80 V32" />
+      <path d="M40 32 V24 H60 V32" />
+      <path d="M44 44 V72 M56 44 V72" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconVoir(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M12 50 Q50 22 88 50 Q50 78 12 50 Z" />
+      <circle cx="50" cy="50" r="11" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconRafraichir(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M78 38 A34 34 0 1 0 82 58" />
+      <path d="M80 20 V40 H60" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconAjouter(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M50 22 V78 M22 50 H78" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconLienExterne(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M70 56 V76 Q70 80 66 80 H28 Q24 80 24 76 V38 Q24 34 28 34 H48" />
+      <path d="M58 20 H80 V42" />
+      <path d="M80 20 L46 54" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconModele(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <rect x="18" y="18" width="64" height="64" rx="9" />
+      <path d="M18 38 H82 M42 38 V82" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconRegle(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M50 22 V82 M30 82 H70" />
+      <path d="M20 34 H80" />
+      <path d="M20 34 L10 54 H30 Z" />
+      <path d="M80 34 L70 54 H90 Z" />
+      <circle cx="50" cy="24" r="4" fill="currentColor" stroke="none" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconLivre(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M50 28 Q34 20 16 24 V76 Q34 72 50 80 Q66 72 84 76 V24 Q66 20 50 28 Z" />
+      <path d="M50 28 V80" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconCle(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <circle cx="36" cy="40" r="18" />
+      <path d="M48 52 L80 84" />
+      <path d="M70 74 L80 64 M62 66 L72 56" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconEnregistrer(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M22 18 H68 L82 32 V82 H22 Z" />
+      <path d="M34 18 V40 H66 V18" />
+      <rect x="36" y="54" width="28" height="28" rx="3" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconMaison(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M16 50 L50 20 L84 50" />
+      <path d="M26 44 V82 H74 V44" />
+      <path d="M42 82 V60 H58 V82" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconImage(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <rect x="16" y="22" width="68" height="56" rx="9" />
+      <circle cx="38" cy="42" r="7" />
+      <path d="M20 72 L42 52 L56 64 L70 52 L82 64" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconListe(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M42 30 H82 M42 50 H82 M42 70 H82" />
+      <path d="M20 28 L25 33 L33 24" />
+      <path d="M20 48 L25 53 L33 44" />
+      <circle cx="25" cy="70" r="3.2" fill="currentColor" stroke="none" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconCitation(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M28 38 Q18 44 18 58 H36 V42 Q36 38 32 38 Z" />
+      <path d="M58 38 Q48 44 48 58 H66 V42 Q66 38 62 38 Z" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconParchemin(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M28 24 H78 Q86 24 86 32 V72 Q86 80 78 80 H30" />
+      <path d="M28 24 Q20 24 20 32 V74 Q20 80 14 80" />
+      <path d="M40 42 H72 M40 56 H64" />
+    </IconBaseStroke>
+  );
+}
+
+export function IconDeconnexion(p: IconProps) {
+  return (
+    <IconBaseStroke {...p}>
+      <path d="M44 24 H26 Q20 24 20 30 V70 Q20 76 26 76 H44" />
+      <path d="M52 50 H86" />
+      <path d="M72 36 L86 50 L72 64" />
+    </IconBaseStroke>
   );
 }
