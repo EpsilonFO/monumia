@@ -93,6 +93,7 @@ export function ProjectDetailPage() {
   const [accessDoc, setAccessDoc] = useState<Document | null>(null);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
+  const [confirmRefaireOpen, setConfirmRefaireOpen] = useState(false);
 
   const tabParam = searchParams.get('tab');
   // L'onglet « Aides » est réservé au chef de projet et à son adjoint. Pour un
@@ -187,6 +188,15 @@ export function ProjectDetailPage() {
     }
   }, [projetId, setDiagnostic, monument?.questionnaire]);
 
+  // « Refaire le questionnaire » : on prévient que les réponses et le diagnostic
+  // actuels seront effacés, puis on renvoie sur l'étape 2 du wizard (questionnaire
+  // vierge), exactement comme juste après la saisie de la fiche monument.
+  const confirmRefaire = useCallback(() => {
+    if (!projetId) return;
+    setConfirmRefaireOpen(false);
+    navigate(`${ROUTES.PROJET_NEW}?monument=${projetId}`);
+  }, [projetId, navigate]);
+
   if (notFound || (!monument && !projetId)) {
     return (
       <div className="space-y-4">
@@ -280,7 +290,7 @@ export function ProjectDetailPage() {
         <span style={{ color: C.ink }}>{monument.nom}</span>
       </div>
 
-      <ProjectSummaryBar monument={monument} stats={stats} members={members} onRelancer={handleRunDiagnostic} relancing={running} />
+      <ProjectSummaryBar monument={monument} stats={stats} members={members} onRefaireQuestionnaire={() => setConfirmRefaireOpen(true)} />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
@@ -552,6 +562,23 @@ export function ProjectDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmRefaireOpen} onOpenChange={setConfirmRefaireOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Refaire le questionnaire ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vos réponses actuelles seront effacées et le diagnostic d'aides sera recalculé à partir
+              de zéro. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRefaire}>Refaire le questionnaire</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }

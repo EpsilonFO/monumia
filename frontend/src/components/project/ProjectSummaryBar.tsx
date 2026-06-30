@@ -1,4 +1,4 @@
-import { MapPin, Shield, Sparkles, Coins, CalendarClock, RefreshCw, Loader2 } from 'lucide-react';
+import { MapPin, Shield, Sparkles, Coins, CalendarClock, ClipboardList } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { C, SERIF } from '@/lib/brand';
 import { formatCurrency } from '@/lib/format-utils';
@@ -15,11 +15,10 @@ interface ProjectSummaryBarProps {
   monument: Monument;
   stats: ProjectStats;
   members?: ProjectMember[];
-  onRelancer: () => void;
-  relancing?: boolean;
+  onRefaireQuestionnaire: () => void;
 }
 
-export function ProjectSummaryBar({ monument, stats, members = [], onRelancer, relancing = false }: ProjectSummaryBarProps) {
+export function ProjectSummaryBar({ monument, stats, members = [], onRefaireQuestionnaire }: ProjectSummaryBarProps) {
   const echeance = stats.prochaineEcheance;
   const echeanceLabel = echeance ? deadlineLabel(echeance.date) : null;
   // Code couleur unique : < 30 j (ou dépassée) → rouge · 30–100 j → orange · > 100 j → bleu
@@ -72,13 +71,12 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRelancer, r
 
         {projectPermissions(monument.myRole ?? null).canAccessAides && (
           <button
-            onClick={onRelancer}
-            disabled={relancing}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md disabled:opacity-60 shrink-0"
+            onClick={onRefaireQuestionnaire}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md shrink-0"
             style={{ background: C.orange }}
           >
-            {relancing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" strokeWidth={2} />}
-            Relancer le moteur
+            <ClipboardList className="h-4 w-4" strokeWidth={2} />
+            Refaire le questionnaire
           </button>
         )}
       </div>
