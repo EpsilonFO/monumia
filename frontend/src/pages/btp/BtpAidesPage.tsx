@@ -1,8 +1,5 @@
 import { useState, useMemo } from 'react';
-import {
-  HandCoins, Search, Info,
-  TrendingUp, Calendar, CheckCircle2,
-} from 'lucide-react';
+import { IconSubvention, IconRecherche, IconInfo, IconTendance, IconCalendrier, IconSucces } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -79,7 +76,7 @@ export function BtpAidesPage() {
       <Card className="border-warning/30 bg-warning-muted">
         <CardContent className="pt-4 pb-3">
           <div className="flex items-start gap-3">
-            <TrendingUp className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+            <IconTendance className="h-5 w-5 text-warning shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-foreground">
                 Utilisez ce catalogue comme outil commercial
@@ -125,7 +122,7 @@ export function BtpAidesPage() {
       {/* Filtres */}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Rechercher une aide..."
             value={search}
@@ -166,7 +163,7 @@ export function BtpAidesPage() {
         ))}
         {filtered.length === 0 && (
           <div className="text-center py-8">
-            <HandCoins className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <IconSubvention className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-muted-foreground text-sm">Aucune aide correspondante</p>
           </div>
         )}
@@ -197,7 +194,7 @@ function AideRow({
                 </Badge>
                 {aide.dateLimite && (
                   <Badge variant="outline" className="text-xs text-warning border-warning/40">
-                    <Calendar className="h-3 w-3 mr-1" />
+                    <IconCalendrier className="h-3 w-3 mr-1" />
                     Limite : {new Date(aide.dateLimite).toLocaleDateString('fr-FR')}
                   </Badge>
                 )}
@@ -244,7 +241,7 @@ function AideRow({
               className="text-xs h-7"
               onClick={onToggle}
             >
-              <Info className="h-3.5 w-3.5 mr-1" />
+              <IconInfo className="h-3.5 w-3.5 mr-1" />
               {expanded ? 'Moins d\'infos' : 'Détail & démarche'}
             </Button>
             <div className="flex items-center gap-1.5">
@@ -281,7 +278,7 @@ function AideRow({
                     const nom = typeof raw === 'string' ? raw : raw.nom;
                     return (
                       <div key={i} className="flex items-start gap-2 text-xs">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                        <IconSucces className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
                         <span>{nom}</span>
                       </div>
                     );

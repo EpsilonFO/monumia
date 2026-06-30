@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Upload, File, X, Loader2, Check } from 'lucide-react';
+import { X, Loader2, Check } from 'lucide-react';
+import { IconDepot, IconDocument } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -151,7 +152,7 @@ export function UploadDocumentDialog({ open, onOpenChange, onUploaded }: UploadD
             {file ? (
               <div className="flex items-center justify-between gap-3 text-left">
                 <div className="flex items-center gap-3 min-w-0">
-                  <File className="h-8 w-8 text-primary shrink-0" />
+                  <IconDocument className="h-8 w-8 text-primary shrink-0" />
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{file.name}</p>
                     <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
@@ -167,7 +168,7 @@ export function UploadDocumentDialog({ open, onOpenChange, onUploaded }: UploadD
               </div>
             ) : (
               <div className="space-y-2">
-                <Upload className="h-8 w-8 text-muted-foreground mx-auto" />
+                <IconDepot className="h-8 w-8 text-muted-foreground mx-auto" />
                 <p className="text-sm text-muted-foreground">
                   Glissez un fichier ici ou <span className="text-primary font-medium">parcourez</span>
                 </p>
@@ -262,7 +263,7 @@ export function UploadDocumentDialog({ open, onOpenChange, onUploaded }: UploadD
                 </>
               ) : (
                 <>
-                  <Upload className="h-4 w-4 mr-2" />
+                  <IconDepot className="h-4 w-4 mr-2" />
                   Importer
                 </>
               )}

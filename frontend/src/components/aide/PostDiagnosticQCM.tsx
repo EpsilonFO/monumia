@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { HelpCircle, ChevronRight, ChevronLeft, CheckCircle2, ClipboardCheck, Search, SlidersHorizontal } from 'lucide-react';
+import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { IconHelp, IconSucces, IconListe, IconRecherche, IconReglages } from '@/components/icons';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { computeEliminatedAideIds, sanitizeQcmQuestions } from '@/lib/qcm';
@@ -87,7 +88,7 @@ export function PostDiagnosticQCM({
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
             <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-              <HelpCircle className="h-4 w-4 text-primary" />
+              <IconHelp className="h-4 w-4 text-primary" />
             </div>
             <DialogTitle
               className="text-[17px] font-normal text-foreground"
@@ -119,7 +120,7 @@ export function PostDiagnosticQCM({
             <div className="space-y-3">
               <div className="flex gap-3 items-start">
                 <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 mt-0.5">
-                  <Search className="h-4 w-4 text-primary" strokeWidth={1.8} />
+                  <IconRecherche className="h-4 w-4 text-primary" strokeWidth={1.8} />
                 </div>
                 <div>
                   <p className="text-[14px] font-medium text-foreground">Lever les incertitudes</p>
@@ -132,7 +133,7 @@ export function PostDiagnosticQCM({
 
               <div className="flex gap-3 items-start">
                 <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 mt-0.5">
-                  <SlidersHorizontal className="h-4 w-4 text-primary" strokeWidth={1.8} />
+                  <IconReglages className="h-4 w-4 text-primary" strokeWidth={1.8} />
                 </div>
                 <div>
                   <p className="text-[14px] font-medium text-foreground">Affiner vos résultats</p>
@@ -145,7 +146,7 @@ export function PostDiagnosticQCM({
 
               <div className="flex gap-3 items-start">
                 <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 mt-0.5">
-                  <ClipboardCheck className="h-4 w-4 text-primary" strokeWidth={1.8} />
+                  <IconListe className="h-4 w-4 text-primary" strokeWidth={1.8} />
                 </div>
                 <div>
                   <p className="text-[14px] font-medium text-foreground">Rapide et sans engagement</p>
@@ -195,7 +196,7 @@ export function PostDiagnosticQCM({
                         }`}
                       >
                         {isSelected && (
-                          <CheckCircle2 className="h-3 w-3 text-white" />
+                          <IconSucces className="h-3 w-3 text-white" />
                         )}
                       </div>
                       <span>{option.label}</span>

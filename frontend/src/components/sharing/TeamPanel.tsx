@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Loader2, Mail, MoreVertical, UserPlus, LogOut } from 'lucide-react';
+import { Loader2, MoreVertical } from 'lucide-react';
+import { IconContact, IconEquipe, IconDeconnexion } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -81,7 +82,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
           style={{ background: C.card, borderColor: C.border }}
         >
           <label className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: C.ink }}>
-            <UserPlus className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />
+            <IconEquipe className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />
             Inviter une personne
           </label>
           <div className="flex gap-2">
@@ -188,7 +189,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
               className="flex items-center gap-3 rounded-lg border border-dashed px-3 py-2.5"
               style={{ borderColor: C.border }}
             >
-              <Mail className="h-4 w-4 text-muted-foreground" />
+              <IconContact className="h-4 w-4 text-muted-foreground" />
               <p className="text-[13px] flex-1 truncate text-gray-fg">{inv.email}</p>
               <span className="text-[11px] text-muted-foreground">Invitation envoyée</span>
               {perms.canInvite && (
@@ -212,7 +213,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
             onClick={() => setConfirmLeave(true)}
             className="inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition-colors hover:bg-destructive-muted text-destructive border-destructive-muted"
           >
-            <LogOut className="h-4 w-4" strokeWidth={1.8} />
+            <IconDeconnexion className="h-4 w-4" strokeWidth={1.8} />
             Quitter ce projet
           </button>
         </div>

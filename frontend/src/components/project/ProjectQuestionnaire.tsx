@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, ArrowLeft, Check, Loader2, Sparkles } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Check, Loader2 } from 'lucide-react';
+import { IconAccompagnement } from '@/components/icons';
 import { C, SERIF } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 import type { ProjectQuestionnaireAnswers, QcmOption, QcmQuestion } from '@/types';
@@ -160,7 +161,7 @@ export function ProjectQuestionnaire({
             style={{ background: C.paleOrange }}
             aria-hidden
           >
-            <Sparkles className="h-7 w-7" style={{ color: C.orange }} />
+            <IconAccompagnement className="h-7 w-7" style={{ color: C.orange }} />
           </span>
           <h2
             ref={finishRef}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, File, FileText, Loader2, Search, Upload, X } from 'lucide-react';
+import { Check, Loader2, X } from 'lucide-react';
+import { IconDocument, IconRecherche, IconDepot } from '@/components/icons';
 import {
   Dialog,
   DialogContent,
@@ -196,7 +197,7 @@ export function AttachDocumentDialog({
                 {file ? (
                   <div className="flex items-center justify-between gap-3 text-left">
                     <div className="flex items-center gap-3 min-w-0">
-                      <File className="h-8 w-8 text-primary shrink-0" />
+                      <IconDocument className="h-8 w-8 text-primary shrink-0" />
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{file.name}</p>
                         <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
@@ -215,7 +216,7 @@ export function AttachDocumentDialog({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <Upload className="h-8 w-8 text-muted-foreground mx-auto" />
+                    <IconDepot className="h-8 w-8 text-muted-foreground mx-auto" />
                     <p className="text-sm text-muted-foreground">
                       Glissez un fichier ici ou <span className="text-primary font-medium">parcourez</span>
                     </p>
@@ -277,7 +278,7 @@ export function AttachDocumentDialog({
                         </>
                       ) : (
                         <>
-                          <Upload className="h-4 w-4 mr-2" />
+                          <IconDepot className="h-4 w-4 mr-2" />
                           Importer et rattacher
                         </>
                       )}
@@ -301,7 +302,7 @@ export function AttachDocumentDialog({
           <section className="space-y-3">
             <div className="flex gap-2">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   className="pl-9"
                   placeholder="Rechercher dans mes documents..."
@@ -329,7 +330,7 @@ export function AttachDocumentDialog({
                 </div>
               ) : filtered.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
-                  <FileText className="h-8 w-8 opacity-50" />
+                  <IconDocument className="h-8 w-8 opacity-50" />
                   <p className="text-sm text-center px-4">
                     Aucun document existant — utilisez la zone de téléversement ci-dessus.
                   </p>
@@ -349,7 +350,7 @@ export function AttachDocumentDialog({
                             attachingId && !busy && 'opacity-50 cursor-not-allowed',
                           )}
                         >
-                          <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                          <IconDocument className="h-5 w-5 text-muted-foreground shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium truncate">{doc.nom}</span>

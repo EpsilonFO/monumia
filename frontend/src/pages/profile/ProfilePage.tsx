@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 const FR_PHONE_REGEX = /^(?:\+33|0033|0)[1-9](?:[\s.\-]?\d{2}){4}$/;
 const isValidPhone = (v: string) => !v || FR_PHONE_REGEX.test(v.trim());
-import { Save, Bell, Building2, Home, KeyRound, User } from 'lucide-react';
+import { IconEnregistrer, IconNotification, IconMonument, IconMaison, IconCle, IconCompte } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -106,7 +106,7 @@ export function ProfilePage() {
       {/* ═══════ TOP: Personal info — full width ═══════ */}
       <Panel>
         <PanelHeader
-          icon={<div className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center"><User className="h-4 w-4 text-primary" strokeWidth={1.8} /></div>}
+          icon={<div className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center"><IconCompte className="h-4 w-4 text-primary" strokeWidth={1.8} /></div>}
           title="Informations personnelles"
         />
         <div className="px-6 py-4">
@@ -150,7 +150,7 @@ export function ProfilePage() {
                 <button
                   className="w-full h-10 flex items-center justify-center gap-2 text-[13px] font-medium border border-border rounded-lg text-muted-foreground hover:bg-muted hover:border-accent/30 hover:text-accent transition-all duration-200 font-sans"
                 >
-                  <KeyRound className="h-3.5 w-3.5" strokeWidth={1.8} />
+                  <IconCle className="h-3.5 w-3.5" strokeWidth={1.8} />
                   Changer le mot de passe
                 </button>
               </div>
@@ -164,7 +164,7 @@ export function ProfilePage() {
               disabled={saving || !!phoneError}
               className="inline-flex items-center gap-2 px-6 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-300 disabled:opacity-50 hover:shadow-md bg-primary"
             >
-              <Save className="h-3.5 w-3.5" strokeWidth={1.8} />
+              <IconEnregistrer className="h-3.5 w-3.5" strokeWidth={1.8} />
               {saving ? 'Enregistrement…' : 'Enregistrer les modifications'}
             </button>
           </div>
@@ -179,8 +179,8 @@ export function ProfilePage() {
             icon={
               <div className="w-7 h-7 rounded-lg bg-warning-muted flex items-center justify-center">
                 {isCommune
-                  ? <Building2 className="h-4 w-4 text-accent" strokeWidth={1.8} />
-                  : <Home className="h-4 w-4 text-accent" strokeWidth={1.8} />}
+                  ? <IconMonument className="h-4 w-4 text-accent" strokeWidth={1.8} />
+                  : <IconMaison className="h-4 w-4 text-accent" strokeWidth={1.8} />}
               </div>
             }
             title={isCommune ? 'Ma commune' : 'Mon profil propriétaire'}
@@ -217,7 +217,7 @@ export function ProfilePage() {
         {/* Notification preferences — 2x2 grid with separator */}
         <Panel>
           <PanelHeader
-            icon={<div className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center"><Bell className="h-4 w-4 text-primary" strokeWidth={1.8} /></div>}
+            icon={<div className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center"><IconNotification className="h-4 w-4 text-primary" strokeWidth={1.8} /></div>}
             title="Préférences de notification"
           />
           <div className="px-6 py-4">

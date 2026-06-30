@@ -1,4 +1,4 @@
-import { Download, FileText, ExternalLink } from 'lucide-react';
+import { IconTelecharger, IconDocument, IconLienExterne } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { AIDE_CATEGORIES } from '@/constants/aide-categories';
 import { templateService } from '@/services/template.service';
@@ -28,7 +28,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
             style={{ background: C.paleBlue }}
           >
-            <FileText className="h-5 w-5" style={{ color: C.blue }} strokeWidth={1.8} />
+            <IconDocument className="h-5 w-5" style={{ color: C.blue }} strokeWidth={1.8} />
           </div>
           <span
             className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${badge.className}`}
@@ -82,7 +82,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
               style={{ borderColor: C.border }}
               aria-label="Source officielle"
             >
-              <ExternalLink className="h-3.5 w-3.5" />
+              <IconLienExterne className="h-3.5 w-3.5" />
             </a>
           )}
           <button
@@ -91,7 +91,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white transition-all hover:shadow-md"
             style={{ background: C.blue }}
           >
-            <Download className="h-3.5 w-3.5" strokeWidth={2} />
+            <IconTelecharger className="h-3.5 w-3.5" strokeWidth={2} />
             Télécharger
           </button>
         </div>

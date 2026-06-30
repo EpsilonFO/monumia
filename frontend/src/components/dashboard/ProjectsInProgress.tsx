@@ -1,14 +1,13 @@
 import { Link } from 'react-router';
+import { ArrowUpRight, ChevronRight } from 'lucide-react';
 import {
-  ArrowUpRight,
-  ChevronRight,
-  ScrollText,
-  CalendarClock,
-  Landmark,
-  Shield,
-  MapPin,
-  Users,
-} from 'lucide-react';
+  IconParchemin,
+  IconEcheance,
+  IconMonument,
+  IconProtection,
+  IconLocalisation,
+  IconEquipe,
+} from '@/components/icons';
 import { Clover } from '@/components/illustrations';
 import { ROLE_LABELS } from '@/components/sharing/RoleBadge';
 import { sharedRole } from '@/lib/project-permissions';
@@ -129,13 +128,13 @@ function ProjectCard({
           <div className="flex flex-wrap items-center gap-2">
             {protection && (
               <GlassBadge>
-                <Shield className="h-3 w-3" strokeWidth={2.4} aria-hidden />
+                <IconProtection className="h-3 w-3" strokeWidth={2.4} aria-hidden />
                 {protection}
               </GlassBadge>
             )}
             {role && (
               <GlassBadge>
-                <Users className="h-3 w-3" strokeWidth={2.4} aria-hidden />
+                <IconEquipe className="h-3 w-3" strokeWidth={2.4} aria-hidden />
                 {ROLE_LABELS[role]}
               </GlassBadge>
             )}
@@ -165,7 +164,7 @@ function ProjectCard({
               className="mt-1.5 inline-flex items-center gap-1.5 text-[12px]"
               style={{ color: 'rgba(255,255,255,0.78)' }}
             >
-              <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden />
+              <IconLocalisation className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden />
               <span className="truncate">
                 {monument.commune ?? '—'}
                 {monument.departement ? ` · ${monument.departement}` : ''}
@@ -187,7 +186,7 @@ function ProjectCard({
             className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-foreground/70"
           >
             <span className="inline-flex items-center gap-1.5">
-              <ScrollText className="h-3.5 w-3.5" aria-hidden />
+              <IconParchemin className="h-3.5 w-3.5" aria-hidden />
               {dossiersActifs} dossier{dossiersActifs > 1 ? 's' : ''}
             </span>
             {next && (
@@ -198,7 +197,7 @@ function ProjectCard({
                   fontWeight: next.urgency === 'urgent' || next.urgency === 'past' ? 600 : undefined,
                 }}
               >
-                <CalendarClock className="h-3.5 w-3.5" aria-hidden />
+                <IconEcheance className="h-3.5 w-3.5" aria-hidden />
                 {next.label} · {formatDateShort(next.date)}
               </span>
             )}
@@ -229,7 +228,7 @@ export function ProjectsInProgress({ monuments, statsByMonument, stageByMonument
           style={{ background: `linear-gradient(135deg, ${C.blue}, ${C.blueDark})` }}
         >
           <Clover size={70} className="pointer-events-none absolute -right-4 -top-5 text-white" style={{ opacity: 0.12 }} />
-          <Landmark className="relative h-6 w-6 text-white" aria-hidden />
+          <IconMonument className="relative h-6 w-6 text-white" aria-hidden />
         </div>
         <p className="text-[15px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
           Aucun projet en cours

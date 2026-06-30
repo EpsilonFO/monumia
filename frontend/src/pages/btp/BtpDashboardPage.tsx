@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router';
+import { ArrowRight, ChevronRight } from 'lucide-react';
 import {
-  TrendingUp, Users, Euro, Target, ArrowRight,
-  ChevronRight, AlertCircle, CheckCircle2, Clock, Phone,
-} from 'lucide-react';
+  IconTendance, IconEquipe, IconSubvention, IconProspect,
+  IconAttention, IconSucces, IconTemps, IconContact,
+} from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,13 +16,13 @@ import { cn } from '@/lib/utils';
 import { C } from '@/lib/brand';
 import type { ProspectStatus } from "@/types";
 
-const STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string; icon: typeof Clock }> = {
-  a_contacter: { label: 'À contacter', color: 'bg-muted text-muted-foreground', icon: Clock },
-  contacte: { label: 'Contacté', color: 'bg-info-muted text-info', icon: Phone },
-  en_discussion: { label: 'En discussion', color: 'bg-warning-muted text-warning', icon: Users },
-  devis_envoye: { label: 'Devis envoyé', color: 'bg-cat-violet-soft text-cat-violet', icon: Target },
-  gagne: { label: 'Gagné', color: 'bg-success-muted text-success', icon: CheckCircle2 },
-  perdu: { label: 'Perdu', color: 'bg-destructive-muted text-destructive', icon: AlertCircle },
+const STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string; icon: typeof IconTemps }> = {
+  a_contacter: { label: 'À contacter', color: 'bg-muted text-muted-foreground', icon: IconTemps },
+  contacte: { label: 'Contacté', color: 'bg-info-muted text-info', icon: IconContact },
+  en_discussion: { label: 'En discussion', color: 'bg-warning-muted text-warning', icon: IconEquipe },
+  devis_envoye: { label: 'Devis envoyé', color: 'bg-cat-violet-soft text-cat-violet', icon: IconProspect },
+  gagne: { label: 'Gagné', color: 'bg-success-muted text-success', icon: IconSucces },
+  perdu: { label: 'Perdu', color: 'bg-destructive-muted text-destructive', icon: IconAttention },
 };
 
 export function BtpDashboardPage() {
@@ -94,7 +95,7 @@ export function BtpDashboardPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
-          icon={Users}
+          icon={IconEquipe}
           label="Prospects actifs"
           value={stats.actifs.length}
           sub={`${userProspects.length} au total`}
@@ -102,21 +103,21 @@ export function BtpDashboardPage() {
           linkTo="/btp/prospects"
         />
         <KPICard
-          icon={Euro}
+          icon={IconSubvention}
           label="CA potentiel"
           value={formatCurrency(stats.caPotentiel)}
           sub="en cours de négociation"
           variant="accent"
         />
         <KPICard
-          icon={TrendingUp}
+          icon={IconTendance}
           label="Financement identifié"
           value={formatCurrency(stats.financementTotal)}
           sub={`${stats.avecFinancement.length} monuments qualifiés`}
           variant="success"
         />
         <KPICard
-          icon={CheckCircle2}
+          icon={IconSucces}
           label="Marchés gagnés"
           value={formatCurrency(stats.caGagne)}
           sub={`${stats.gagnes.length} contrat${stats.gagnes.length > 1 ? 's' : ''}`}
@@ -132,7 +133,7 @@ export function BtpDashboardPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-[17px] flex items-center gap-2" style={{ fontFamily: 'var(--font-serif)' }}>
-                  <AlertCircle className="h-4 w-4 text-warning" />
+                  <IconAttention className="h-4 w-4 text-warning" />
                   Relances à prévoir
                 </CardTitle>
               </CardHeader>
@@ -238,7 +239,7 @@ export function BtpDashboardPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-[17px] flex items-center gap-2" style={{ fontFamily: 'var(--font-serif)' }}>
-                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <IconSucces className="h-4 w-4 text-success" />
                   Marchés gagnés
                 </CardTitle>
               </CardHeader>
@@ -323,13 +324,13 @@ export function BtpDashboardPage() {
             <CardContent className="space-y-2">
               <Button asChild variant="default" className="w-full justify-start">
                 <Link to="/btp/prospects/new">
-                  <Users className="h-4 w-4 mr-2" />
+                  <IconEquipe className="h-4 w-4 mr-2" />
                   Ajouter un prospect
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-start">
                 <Link to="/btp/aides">
-                  <Target className="h-4 w-4 mr-2" />
+                  <IconProspect className="h-4 w-4 mr-2" />
                   Catalogue des aides
                 </Link>
               </Button>
@@ -369,7 +370,7 @@ export function BtpDashboardPage() {
 }
 
 interface KPICardProps {
-  icon: typeof Users;
+  icon: typeof IconEquipe;
   label: string;
   value: string | number;
   sub?: string;

@@ -1,4 +1,4 @@
-import { Info, FolderOpen } from 'lucide-react';
+import { IconInfo, IconDossierOuvert } from '@/components/icons';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { C, SERIF } from '@/lib/brand';
 import { projectColor } from '@/lib/project-color';
@@ -44,7 +44,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
           title="Où est utilisé ce fichier ?"
           aria-label="Informations : où est utilisé ce fichier"
         >
-          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+          <IconInfo className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -83,7 +83,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
                         key={i}
                         className="flex items-start gap-1.5 text-[11px] break-words text-muted-foreground"
                       >
-                        <FolderOpen className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
+                        <IconDossierOuvert className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
                         <span className="break-words">{titre}</span>
                       </li>
                     ))}
@@ -95,7 +95,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
           {orphanDossiers.length > 0 && (
             <div className="rounded-lg px-2 py-2" style={{ background: C.cream }}>
               <div className="flex items-center gap-2 mb-1.5">
-                <FolderOpen className="h-3 w-3 shrink-0 text-muted-foreground" strokeWidth={1.8} />
+                <IconDossierOuvert className="h-3 w-3 shrink-0 text-muted-foreground" strokeWidth={1.8} />
                 <span className="text-[12px] font-medium" style={{ color: C.ink }}>Dossiers</span>
               </div>
               <ul className="ml-[18px] space-y-1">
@@ -104,7 +104,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
                     key={i}
                     className="flex items-start gap-1.5 text-[11px] break-words text-muted-foreground"
                   >
-                    <FolderOpen className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
+                    <IconDossierOuvert className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
                     <span className="break-words">{titre}</span>
                   </li>
                 ))}

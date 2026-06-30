@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router';
-import { ArrowLeft, Clock } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { IconTemps } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -9,11 +10,11 @@ export function TarifsPage() {
   const from = (location.state as { from?: string } | null)?.from;
 
   return (
-    <div className="min-h-screen bg-muted flex items-center justify-center p-6">
+    <div className="min-h-screen bg-app-bg flex items-center justify-center p-6">
       <Card className="max-w-lg w-full">
         <CardContent className="p-8 text-center space-y-6">
           <div className="mx-auto w-14 h-14 rounded-full bg-warning-muted flex items-center justify-center">
-            <Clock className="h-7 w-7 text-warning" />
+            <IconTemps className="h-7 w-7 text-warning" />
           </div>
           <div className="space-y-2">
             <h1 className="text-2xl font-light text-foreground">Tarifs</h1>

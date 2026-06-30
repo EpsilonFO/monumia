@@ -1,14 +1,15 @@
-import { Globe, Lock, Users, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
+import { IconPublic, IconVerrou, IconEquipe } from '@/components/icons';
 import { RoleBadge } from '@/components/sharing/RoleBadge';
 import { MemberAvatar } from '@/components/sharing/MemberAvatar';
 import { allowedVisibilities, customIdsForPreset, VISIBILITY_META } from '@/lib/document-visibility';
 import { C } from '@/lib/brand';
 import type { DocumentVisibility, ID, ProjectMember, ProjectRole } from '@/types';
 
-const ICONS: Record<DocumentVisibility, typeof Globe> = {
-  team: Globe,
-  responsables: Lock,
-  custom: Users,
+const ICONS: Record<DocumentVisibility, typeof IconPublic> = {
+  team: IconPublic,
+  responsables: IconVerrou,
+  custom: IconEquipe,
 };
 
 export interface DocumentVisibilityValue {

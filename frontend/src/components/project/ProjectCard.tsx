@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
-import { MapPin, Shield, ChevronRight, Sparkles, CalendarClock } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import { IconLocalisation, IconProtection, IconAccompagnement, IconEcheance } from '@/components/icons';
 import { Progress } from '@/components/ui/progress';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
@@ -69,7 +70,7 @@ export function ProjectCard({ monument, stats }: ProjectCardProps) {
             />
           </div>
           <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <MapPin className="h-3 w-3 shrink-0" strokeWidth={1.8} />
+            <IconLocalisation className="h-3 w-3 shrink-0" strokeWidth={1.8} />
             <span>
               {monument.commune ?? '—'}
               {monument.departement ? ` (${monument.departement})` : ''}
@@ -84,7 +85,7 @@ export function ProjectCard({ monument, stats }: ProjectCardProps) {
             className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium"
             style={{ background: C.paleBlue, color: C.blue }}
           >
-            <Shield className="h-3 w-3" strokeWidth={2} />
+            <IconProtection className="h-3 w-3" strokeWidth={2} />
             {protectionLabels[monument.protection] ?? monument.protection}
           </span>
           <span
@@ -108,7 +109,7 @@ export function ProjectCard({ monument, stats }: ProjectCardProps) {
             <div className="flex items-center justify-between border-t pt-3 text-[12px]" style={{ borderColor: C.border }}>
               {stats ? (
                 <span className="inline-flex items-center gap-1.5" style={{ color: C.blue }}>
-                  <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
+                  <IconAccompagnement className="h-3.5 w-3.5" strokeWidth={2} />
                   {stats.aidesIdentifiees} aide{stats.aidesIdentifiees > 1 ? 's' : ''}
                 </span>
               ) : (
@@ -122,7 +123,7 @@ export function ProjectCard({ monument, stats }: ProjectCardProps) {
                     className="inline-flex items-center gap-1.5 font-medium"
                     style={{ color: urgencyColor[nextLabel.urgency] ?? 'var(--muted-foreground)' }}
                   >
-                    <CalendarClock className="h-3.5 w-3.5" strokeWidth={2} />
+                    <IconEcheance className="h-3.5 w-3.5" strokeWidth={2} />
                     {nextLabel.text}
                   </span>
                 )

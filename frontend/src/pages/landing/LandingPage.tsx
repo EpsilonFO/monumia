@@ -1,23 +1,24 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  Search,
-  FileCheck,
-  Euro,
   ArrowRight,
-  Building2,
-  Users,
-  HardHat,
-  Sparkles,
-  TrendingUp,
-  Landmark,
-  Clock,
-  Shield,
-  CheckCircle2,
   ArrowUpRight,
   ChevronDown,
   Minus,
 } from 'lucide-react';
+import {
+  IconRecherche,
+  IconDocumentValide,
+  IconSubvention,
+  IconMonument,
+  IconEquipe,
+  IconChantier,
+  IconAccompagnement,
+  IconTendance,
+  IconTemps,
+  IconProtection,
+  IconSucces,
+} from '@/components/icons';
 
 /* ────────────────────────────────────────────
    Colors — brand palette
@@ -249,13 +250,13 @@ export function LandingPage() {
           <Reveal delay={350}>
             <div className="mt-10 flex flex-wrap items-center gap-8 text-[14px] font-medium" style={{ color: C.textLight }}>
               <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" style={{ color: C.terra }} />100 % gratuit
+                <IconSucces className="h-4 w-4" style={{ color: C.terra }} />100 % gratuit
               </span>
               <span className="flex items-center gap-2">
-                <Shield className="h-4 w-4" style={{ color: C.royal }} />Données sécurisées
+                <IconProtection className="h-4 w-4" style={{ color: C.royal }} />Données sécurisées
               </span>
               <span className="flex items-center gap-2">
-                <Clock className="h-4 w-4" style={{ color: C.terra }} />Résultat instantané
+                <IconTemps className="h-4 w-4" style={{ color: C.terra }} />Résultat instantané
               </span>
             </div>
           </Reveal>
@@ -326,12 +327,12 @@ export function LandingPage() {
 
           <div className="grid gap-px sm:grid-cols-2 lg:grid-cols-3 rounded-lg overflow-hidden" style={{ background: C.border }}>
             {([
-              { icon: Search, title: 'Diagnostic intelligent', desc: "Croisez les caractéristiques de votre monument avec l'ensemble des dispositifs d'aide — DRAC, régions, fondations, fiscal.", num: '01' },
-              { icon: Euro, title: "Catalogue d'aides complet", desc: 'Plus de 150 dispositifs agrégés : subventions, prêts, déductions fiscales, mécénat, labels patrimoniaux.', num: '02' },
-              { icon: FileCheck, title: 'Gestion de dossiers', desc: 'Constituez vos demandes pas à pas : checklists, pièces jointes, jalons et collaborateurs.', num: '03' },
-              { icon: Landmark, title: 'Fiche monument', desc: 'Centralisez toutes les données de votre bien : protection, état, travaux prévus, photos.', num: '04' },
-              { icon: Building2, title: 'Base Mérimée', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '05' },
-              { icon: TrendingUp, title: 'Tableaux de bord', desc: "Suivez l'avancement de vos dossiers, les échéances et le montant total de vos financements.", num: '06' },
+              { icon: IconRecherche, title: 'Diagnostic intelligent', desc: "Croisez les caractéristiques de votre monument avec l'ensemble des dispositifs d'aide — DRAC, régions, fondations, fiscal.", num: '01' },
+              { icon: IconSubvention, title: "Catalogue d'aides complet", desc: 'Plus de 150 dispositifs agrégés : subventions, prêts, déductions fiscales, mécénat, labels patrimoniaux.', num: '02' },
+              { icon: IconDocumentValide, title: 'Gestion de dossiers', desc: 'Constituez vos demandes pas à pas : checklists, pièces jointes, jalons et collaborateurs.', num: '03' },
+              { icon: IconMonument, title: 'Fiche monument', desc: 'Centralisez toutes les données de votre bien : protection, état, travaux prévus, photos.', num: '04' },
+              { icon: IconMonument, title: 'Base Mérimée', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '05' },
+              { icon: IconTendance, title: 'Tableaux de bord', desc: "Suivez l'avancement de vos dossiers, les échéances et le montant total de vos financements.", num: '06' },
             ] as const).map((f, i) => (
               <Reveal key={f.title} delay={i * 70}>
                 <div className="group relative h-full p-8 lg:p-10 transition-all duration-500" style={{ background: C.bgAlt }}>
@@ -388,19 +389,19 @@ export function LandingPage() {
                 step: '01',
                 title: 'Décrivez votre monument',
                 desc: 'Renseignez localisation, protection, état de conservation et travaux envisagés. Importez depuis Mérimée si votre bien est répertorié.',
-                icon: Landmark,
+                icon: IconMonument,
               },
               {
                 step: '02',
                 title: 'Lancez le diagnostic',
                 desc: "Notre moteur croise votre situation avec l'ensemble des aides nationales, régionales et privées. Résultat instantané.",
-                icon: Sparkles,
+                icon: IconAccompagnement,
               },
               {
                 step: '03',
                 title: 'Constituez vos dossiers',
                 desc: 'Créez vos demandes de subvention avec checklists complètes, suivi documentaire et collaboration.',
-                icon: FileCheck,
+                icon: IconDocumentValide,
               },
             ] as const).map((s, i) => (
               <Reveal key={s.step} delay={i * 150}>
@@ -471,7 +472,7 @@ export function LandingPage() {
           <div className="grid gap-6 lg:grid-cols-3">
             {([
               {
-                icon: Building2,
+                icon: IconMonument,
                 title: 'Communes',
                 desc: "Identifiez les financements pour vos bâtiments publics. Pilotez la restauration de votre patrimoine communal en toute clarté.",
                 tags: ['Aides collectivités', 'Multi-monuments', 'Échéances'],
@@ -479,7 +480,7 @@ export function LandingPage() {
                 accent: C.royal,
               },
               {
-                icon: Users,
+                icon: IconEquipe,
                 title: 'Propriétaires privés',
                 desc: "Château, manoir, demeure — découvrez subventions, fiscal et mécénat accessibles aux particuliers.",
                 tags: ['Déductions fiscales', 'Fondation du Patrimoine', 'Mécénat'],
@@ -487,7 +488,7 @@ export function LandingPage() {
                 accent: C.terra,
               },
               {
-                icon: HardHat,
+                icon: IconChantier,
                 title: 'Professionnels BTP',
                 desc: "Accédez à des projets de rénovation financés. Gérez vos prospects grâce au CRM intégré.",
                 tags: ['CRM prospects', 'Intelligence financement', 'Pipeline'],

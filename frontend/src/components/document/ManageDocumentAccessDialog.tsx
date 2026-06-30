@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { IconVoir } from '@/components/icons';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { MemberAvatar } from '@/components/sharing/MemberAvatar';
@@ -85,7 +86,7 @@ export function ManageDocumentAccessDialog({ document, myRole, open, onOpenChang
         {members.length > 0 && (
           <div className="rounded-lg border px-3 py-2.5 border-border">
             <p className="flex items-center gap-1.5 text-[12px] font-semibold text-foreground">
-              <Eye className="h-3.5 w-3.5" strokeWidth={1.8} />
+              <IconVoir className="h-3.5 w-3.5" strokeWidth={1.8} />
               Peuvent voir ce document ({viewers.length})
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router';
-import { Landmark, ShieldCheck, Clock } from 'lucide-react';
+import { IconMonument, IconProtection, IconTemps } from '@/components/icons';
 import { C, SERIF } from '@/lib/brand';
 
 interface AuthLayoutProps {
@@ -17,9 +17,9 @@ interface AuthLayoutProps {
 }
 
 const REASSURANCE = [
-  { icon: Landmark, label: '150+ aides référencées' },
-  { icon: ShieldCheck, label: 'Vos données sécurisées' },
-  { icon: Clock, label: 'Résultat instantané' },
+  { icon: IconMonument, label: '150+ aides référencées' },
+  { icon: IconProtection, label: 'Vos données sécurisées' },
+  { icon: IconTemps, label: 'Résultat instantané' },
 ];
 
 /**

@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Menu, LogOut } from 'lucide-react';
+import { Menu } from 'lucide-react';
+import { IconDeconnexion } from '@/components/icons';
 import { BtpSidebar } from './BtpSidebar';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -58,7 +59,7 @@ export function BtpLayout() {
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={handleLogout} title="Changer de profil">
-              <LogOut className="h-5 w-5" />
+              <IconDeconnexion className="h-5 w-5" />
             </Button>
           </div>
         </header>

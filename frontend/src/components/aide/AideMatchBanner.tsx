@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Compass } from 'lucide-react';
+import { IconDiagnostic } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Disclaimer } from '@/components/shared/Disclaimer';
@@ -67,7 +67,7 @@ export function AideMatchBanner({ result, isRunning, onLaunch, monumentName }: A
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="py-8 text-center space-y-4">
           <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-            <Compass className="h-8 w-8 text-primary" />
+            <IconDiagnostic className="h-8 w-8 text-primary" />
           </div>
           <div>
             <h2 className="text-xl font-bold">
@@ -79,7 +79,7 @@ export function AideMatchBanner({ result, isRunning, onLaunch, monumentName }: A
             </p>
           </div>
           <Button size="lg" onClick={onLaunch}>
-            <Compass className="h-4 w-4 mr-2" />
+            <IconDiagnostic className="h-4 w-4 mr-2" />
             Lancer le diagnostic
           </Button>
         </CardContent>

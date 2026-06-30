@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Download, ExternalLink, FileWarning, FolderPlus, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { IconTelecharger, IconLienExterne, IconDocumentAlerte, IconAjouterDossier } from '@/components/icons';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -81,10 +82,10 @@ function ImagePreview({ url, alt }: { url: string; alt: string }) {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-        <FileWarning className="h-12 w-12 text-muted-foreground/50" />
+        <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
         <p className="text-sm">Impossible de charger l'image.</p>
         <Button variant="outline" size="sm" onClick={() => downloadFile(url, 'image')}>
-          <Download className="h-4 w-4 mr-1.5" />
+          <IconTelecharger className="h-4 w-4 mr-1.5" />
           Télécharger
         </Button>
       </div>
@@ -119,7 +120,7 @@ function TextPreview({ url }: { url: string }) {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-        <FileWarning className="h-12 w-12 text-muted-foreground/50" />
+        <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
         <p className="text-sm">Impossible de charger le fichier texte.</p>
       </div>
     );
@@ -144,14 +145,14 @@ function OfficePreview({ url, title, filename }: { url: string; title: string; f
   if (isLocalUrl(url)) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-        <FileWarning className="h-12 w-12 text-muted-foreground/50" />
+        <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
         <p className="text-sm font-medium">Prévisualisation Office indisponible en local</p>
         <p className="text-xs text-center max-w-xs">
           Le visualiseur Word/Excel nécessite une URL accessible depuis Internet.
           Il fonctionnera normalement en production.
         </p>
         <Button variant="outline" size="sm" onClick={() => downloadFile(url, filename)}>
-          <Download className="h-4 w-4 mr-1.5" />
+          <IconTelecharger className="h-4 w-4 mr-1.5" />
           Télécharger pour ouvrir localement
         </Button>
       </div>
@@ -220,19 +221,19 @@ export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToPro
               <div className="flex gap-2 shrink-0">
                 {onAddToProject && (
                   <Button variant="outline" size="sm" onClick={() => onAddToProject(document)}>
-                    <FolderPlus className="h-4 w-4 mr-1.5" />
+                    <IconAjouterDossier className="h-4 w-4 mr-1.5" />
                     Ajouter à un projet
                   </Button>
                 )}
                 {signedUrl && (
                   <>
                     <Button variant="outline" size="sm" onClick={() => downloadFile(signedUrl, document.nomFichier)}>
-                      <Download className="h-4 w-4 mr-1.5" />
+                      <IconTelecharger className="h-4 w-4 mr-1.5" />
                       Télécharger
                     </Button>
                     <Button variant="outline" size="sm" asChild>
                       <a href={signedUrl} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="h-4 w-4 mr-1.5" />
+                        <IconLienExterne className="h-4 w-4 mr-1.5" />
                         Ouvrir
                       </a>
                     </Button>
@@ -250,7 +251,7 @@ export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToPro
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-              <FileWarning className="h-12 w-12 text-muted-foreground/50" />
+              <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
               <p className="text-sm">Impossible de charger le document.</p>
               <p className="text-xs">{error}</p>
             </div>
@@ -262,7 +263,7 @@ export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToPro
               {previewType === 'pdf' && (
                 <object data={signedUrl} type="application/pdf" className="w-full h-full">
                   <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-                    <FileWarning className="h-12 w-12 text-muted-foreground/50" />
+                    <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
                     <p className="text-sm">Impossible d'afficher le PDF dans le navigateur.</p>
                     <Button variant="outline" size="sm" asChild>
                       <a href={signedUrl} target="_blank" rel="noopener noreferrer">
@@ -280,7 +281,7 @@ export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToPro
               )}
               {previewType === 'none' && (
                 <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-                  <FileWarning className="h-12 w-12 text-muted-foreground/50" />
+                  <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
                   <p className="text-sm font-medium">Format non prévisualisable</p>
                   <p className="text-xs">
                     {document.mimeType.includes('heic') || document.mimeType.includes('heif')
@@ -288,7 +289,7 @@ export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToPro
                       : 'Aperçu non disponible pour ce type de fichier.'}
                   </p>
                   <Button variant="outline" size="sm" onClick={() => downloadFile(signedUrl!, document.nomFichier)}>
-                    <Download className="h-4 w-4 mr-1.5" />
+                    <IconTelecharger className="h-4 w-4 mr-1.5" />
                     Télécharger
                   </Button>
                 </div>

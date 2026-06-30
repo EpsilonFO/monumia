@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, LayoutTemplate } from 'lucide-react';
+import { IconRecherche, IconModele } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -45,7 +45,7 @@ export function TemplateLibraryPage() {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9 h-10 text-[14px] bg-card border-border focus:border-primary focus:ring-primary/10"
             placeholder="Rechercher un modèle..."
@@ -77,7 +77,7 @@ export function TemplateLibraryPage() {
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          icon={LayoutTemplate}
+          icon={IconModele}
           title="Aucun modèle"
           description={
             search || filterType !== 'all'

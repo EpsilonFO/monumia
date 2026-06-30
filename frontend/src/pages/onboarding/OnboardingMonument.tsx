@@ -9,7 +9,8 @@ import { monumentService } from '@/services/monument.service';
 
 import { merimeeService } from '@/services/merimee.service';
 import { REGIONS } from '@/constants/regions';
-import { Search, PenLine, ChevronLeft, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ArrowRight } from 'lucide-react';
+import { IconRecherche, IconModifier } from '@/components/icons';
 import { toast } from 'sonner';
 import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
 
@@ -220,11 +221,11 @@ export function OnboardingMonument() {
       <Tabs defaultValue="merimee">
         <TabsList className="grid w-full grid-cols-2 h-12">
           <TabsTrigger value="merimee" className="gap-2 text-[14px]">
-            <Search className="h-4 w-4" />
+            <IconRecherche className="h-4 w-4" />
             Recherche Monumia
           </TabsTrigger>
           <TabsTrigger value="manual" className="gap-2 text-[14px]">
-            <PenLine className="h-4 w-4" />
+            <IconModifier className="h-4 w-4" />
             Saisie manuelle
           </TabsTrigger>
         </TabsList>

@@ -1,6 +1,5 @@
 import { NavLink, useNavigate } from 'react-router';
-import { Gauge, Users, HandCoins, Archive, LogOut } from 'lucide-react';
-import { IconAccount } from '@/components/icons';
+import { IconAccount, IconSuivi, IconEquipe, IconSubvention, IconArchive, IconDeconnexion } from '@/components/icons';
 import { SidebarNav } from './SidebarNav';
 import type { SidebarSection } from './SidebarNav';
 import { C } from '@/lib/brand';
@@ -11,15 +10,15 @@ const btpSections: SidebarSection[] = [
   {
     title: 'Pilotage',
     items: [
-      { to: '/btp', icon: Gauge, label: 'Tableau de bord', end: true },
-      { to: '/btp/prospects', icon: Users, label: 'Prospects' },
+      { to: '/btp', icon: IconSuivi, label: 'Tableau de bord', end: true },
+      { to: '/btp/prospects', icon: IconEquipe, label: 'Prospects' },
     ],
   },
   {
     title: 'Outils',
     items: [
-      { to: '/btp/aides', icon: HandCoins, label: 'Catalogue aides' },
-      { to: '/btp/documents', icon: Archive, label: 'Documents' },
+      { to: '/btp/aides', icon: IconSubvention, label: 'Catalogue aides' },
+      { to: '/btp/documents', icon: IconArchive, label: 'Documents' },
     ],
   },
 ];
@@ -56,7 +55,7 @@ function BtpAccount({ onNavigate }: { onNavigate?: () => void }) {
         className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium transition-colors hover:bg-[var(--color-secondary)]"
         style={{ color: C.grayMuted }}
       >
-        <LogOut className="h-3.5 w-3.5" strokeWidth={1.8} />
+        <IconDeconnexion className="h-3.5 w-3.5" strokeWidth={1.8} />
         Changer de profil
       </button>
     </div>

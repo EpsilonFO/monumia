@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Eye, EyeOff, Loader2, ArrowRight, Check, X } from 'lucide-react';
+import { EyeOff, Loader2, ArrowRight, Check, X } from 'lucide-react';
+import { IconVoir } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -140,7 +141,7 @@ export function LoginPage() {
                 style={{ color: LIGHT }}
                 onClick={() => setShowLoginPwd((v) => !v)}
               >
-                {showLoginPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showLoginPwd ? <EyeOff className="h-4 w-4" /> : <IconVoir className="h-4 w-4" />}
               </button>
             </div>
           </div>
@@ -195,7 +196,7 @@ export function LoginPage() {
                 style={{ color: LIGHT }}
                 onClick={() => setShowRegisterPwd((v) => !v)}
               >
-                {showRegisterPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showRegisterPwd ? <EyeOff className="h-4 w-4" /> : <IconVoir className="h-4 w-4" />}
               </button>
             </div>
             {registerForm.password && (

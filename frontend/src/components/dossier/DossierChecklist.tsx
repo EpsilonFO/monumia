@@ -1,4 +1,7 @@
-import { BookMarked, CheckCircle2, Download, Eye, Loader2, Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import {
+  IconLivre, IconSucces, IconTelecharger, IconVoir, IconVerrou, IconAjouter, IconRafraichir, IconSupprimer,
+} from '@/components/icons';
 import { Link, useParams } from 'react-router';
 import { ROUTES } from '@/constants/routes';
 import { Badge } from '@/components/ui/badge';
@@ -89,7 +92,7 @@ export function DossierChecklist({
           className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors"
           style={{ color: 'var(--color-primary)' }}
         >
-          <BookMarked className="h-3.5 w-3.5" />
+          <IconLivre className="h-3.5 w-3.5" />
           Bibliothèque de modèles
         </Link>
       </div>
@@ -147,7 +150,7 @@ function DocumentRow({
       )}
     >
       {isFourni ? (
-        <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+        <IconSucces className="h-4 w-4 shrink-0 text-success" />
       ) : (
         <div className="w-4 h-4 shrink-0 rounded-full border-2 border-border" />
       )}
@@ -178,7 +181,7 @@ function DocumentRow({
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground cursor-default"
                   aria-label="Accès réservé"
                 >
-                  <Lock className="h-3 w-3" />
+                  <IconVerrou className="h-3 w-3" />
                   Réservé
                 </span>
               </TooltipTrigger>
@@ -192,7 +195,7 @@ function DocumentRow({
             onClick={() => onPreview(item.documentId!)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-success/30 text-success hover:bg-success-muted transition-colors"
           >
-            <Eye className="h-3 w-3" />
+            <IconVoir className="h-3 w-3" />
             Voir
           </button>
         )}
@@ -207,7 +210,7 @@ function DocumentRow({
               busy && 'opacity-60 cursor-not-allowed',
             )}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <IconSupprimer className="h-3.5 w-3.5" />
           </button>
         )}
         {!readOnly && onRequestAttach && (!isFourni || canModify) && !hidden && (
@@ -226,9 +229,9 @@ function DocumentRow({
             {busy ? (
               <Loader2 className="h-3 w-3 animate-spin" />
             ) : isFourni ? (
-              <RefreshCw className="h-3 w-3" />
+              <IconRafraichir className="h-3 w-3" />
             ) : (
-              <Plus className="h-3 w-3" />
+              <IconAjouter className="h-3 w-3" />
             )}
             {busy ? 'Envoi…' : isFourni ? 'Remplacer' : 'Ajouter'}
           </button>
@@ -256,7 +259,7 @@ function ModelButton({ templates }: { templates: Template[] }) {
         className={pill}
         title={`Télécharger le modèle : ${t.nom}`}
       >
-        <Download className="h-3 w-3" />
+        <IconTelecharger className="h-3 w-3" />
         Modèle
       </button>
     );
@@ -266,7 +269,7 @@ function ModelButton({ templates }: { templates: Template[] }) {
     <Popover>
       <PopoverTrigger asChild>
         <button type="button" className={pill}>
-          <Download className="h-3 w-3" />
+          <IconTelecharger className="h-3 w-3" />
           Modèles ({templates.length})
         </button>
       </PopoverTrigger>
@@ -288,7 +291,7 @@ function ModelButton({ templates }: { templates: Template[] }) {
                   {badge.label}
                 </span>
                 <span className="flex-1 truncate text-[13px] text-foreground">{t.nom}</span>
-                <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <IconTelecharger className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               </button>
             );
           })}

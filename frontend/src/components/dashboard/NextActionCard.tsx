@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
-import { ArrowRight, Sparkles, FileText } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
+import { IconAccompagnement, IconDocument } from '@/components/icons';
 import { C, DEADLINE_TONE } from '@/lib/brand';
 import { deadlineLabel } from '@/lib/date-utils';
 import { deadlineLink } from '@/lib/project-stats';
@@ -29,7 +30,7 @@ export function NextActionCard({ deadlines }: { deadlines: ProjectDeadline[] }) 
   const [first, ...rest] = deadlines;
   const { text, urgency } = deadlineLabel(first.date);
   const tone = DEADLINE_TONE[urgency];
-  const Icon = first.source === 'aide' ? Sparkles : FileText;
+  const Icon = first.source === 'aide' ? IconAccompagnement : IconDocument;
 
   return (
     <Link

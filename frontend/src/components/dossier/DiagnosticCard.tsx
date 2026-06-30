@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
-import { Compass, ChevronRight, Calendar } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import { IconDiagnostic, IconCalendrier } from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ export function DiagnosticCard({ diagnostic, monument }: DiagnosticCardProps) {
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-sm leading-tight">{monument.nom}</CardTitle>
           <Badge variant="outline" className="bg-success-muted text-success border-success/30 shrink-0">
-            <Compass className="h-3 w-3 mr-1" />
+            <IconDiagnostic className="h-3 w-3 mr-1" />
             Diagnostic fait
           </Badge>
         </div>
@@ -42,7 +43,7 @@ export function DiagnosticCard({ diagnostic, monument }: DiagnosticCardProps) {
 
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
+            <IconCalendrier className="h-3 w-3" />
             {formatDate(diagnostic.timestamp)}
           </span>
           <Button asChild size="sm" variant="outline">

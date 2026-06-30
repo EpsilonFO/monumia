@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
+import { ChevronLeft, ChevronDown, Loader2 } from 'lucide-react';
 import {
-  Shield, Calendar, AlertTriangle, Wrench, Building2, Eye, Compass,
-  ScrollText, FolderOpen, ChevronLeft, ChevronDown, Edit2, Trash2, Loader2,
-  CheckCircle2, HelpCircle, XCircle, Users, FilePlus2, SlidersHorizontal,
-} from 'lucide-react';
+  IconProtection, IconCalendrier, IconAttention, IconReglages, IconMonument, IconVoir, IconDiagnostic,
+  IconParchemin, IconDossierOuvert, IconModifier, IconSupprimer,
+  IconSucces, IconHelp, IconErreur, IconEquipe, IconAjouterDossier,
+} from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -274,6 +275,28 @@ export function ProjectDetailPage() {
   const potentiels = [...(diagnostic?.aidesPotentiellementEligibles ?? [])].filter((m) => !dossierAideIds.has(m.aide.id)).sort(byDeadline);
   const nonEligibles = (diagnostic?.aidesNonEligibles ?? []).filter((m) => !dossierAideIds.has(m.aide.id));
 
+  // L'affichage des aides s'adapte au nombre : 1 → bandeau pleine largeur (occupe
+  // l'espace) · 2 → deux colonnes · 3+ → grille trois colonnes. Évite tout vide.
+  const renderAideList = (list: AideMatchResult[]) =>
+    list.length === 1 ? (
+      <AideCard match={list[0]} monumentId={monument.id} layout="hero" />
+    ) : (
+      <div className={`grid grid-cols-1 gap-4 ${list.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
+        {list.map((match) => (
+          <AideCard key={match.aide.id} match={match} monumentId={monument.id} layout="grid" />
+        ))}
+      </div>
+    );
+
+  // Onglets du projet — chaque entrée = un grand bouton lisible (icône + libellé + compteur).
+  const projectTabs: { value: string; label: string; icon: typeof IconVoir; count: number | null }[] = [
+    ...(canAccessAides ? [{ value: 'aides', label: 'Aides', icon: IconDiagnostic, count: eligibles.length + potentiels.length }] : []),
+    { value: 'monument', label: 'Monument', icon: IconVoir, count: null },
+    { value: 'dossiers', label: 'Dossiers', icon: IconParchemin, count: dossiers.length },
+    { value: 'documents', label: 'Documents', icon: IconDossierOuvert, count: projectDocuments.length },
+    { value: 'equipe', label: 'Équipe', icon: IconEquipe, count: members.length },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -285,22 +308,44 @@ export function ProjectDetailPage() {
       <ProjectSummaryBar monument={monument} stats={stats} members={members} onRelancer={handleRunDiagnostic} relancing={running} />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
-          {canAccessAides && (
-            <TabsTrigger value="aides" className="gap-1.5"><Compass className="h-4 w-4" />Aides ({eligibles.length + potentiels.length})</TabsTrigger>
-          )}
-          <TabsTrigger value="monument" className="gap-1.5"><Eye className="h-4 w-4" />Monument</TabsTrigger>
-          <TabsTrigger value="dossiers" className="gap-1.5"><ScrollText className="h-4 w-4" />Dossiers ({dossiers.length})</TabsTrigger>
-          <TabsTrigger value="documents" className="gap-1.5"><FolderOpen className="h-4 w-4" />Documents ({projectDocuments.length})</TabsTrigger>
-          <TabsTrigger value="equipe" className="gap-1.5"><Users className="h-4 w-4" />Équipe ({members.length})</TabsTrigger>
-        </TabsList>
+        <div role="tablist" aria-label="Sections du projet" className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+          {projectTabs.map(({ value, label, icon: Icon, count }) => {
+            const active = activeTab === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => handleTabChange(value)}
+                className={`relative flex items-center justify-center gap-2 overflow-hidden rounded-xl px-4 py-3.5 text-[15px] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                  active
+                    ? 'bg-primary text-primary-foreground shadow-pop'
+                    : 'border border-border bg-card text-foreground hover:-translate-y-0.5 hover:border-primary hover:shadow-md'
+                }`}
+              >
+                <Icon className={`h-5 w-5 shrink-0 ${active ? 'text-primary-foreground' : 'text-primary'}`} strokeWidth={2} />
+                <span className="truncate">{label}</span>
+                {count !== null && (
+                  <span
+                    className={`inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[12px] font-bold tabular-nums ${
+                      active ? 'bg-white/25 text-primary-foreground' : 'bg-secondary text-primary'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
         {/* AIDES */}
         <TabsContent value="aides" className="mt-4 space-y-6">
           {!diagnostic ? (
             <div className="rounded-2xl border py-10 text-center space-y-4" style={{ background: C.paleBlue, borderColor: C.border }}>
               <div className="mx-auto w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#fff' }}>
-                <Compass className="h-7 w-7" style={{ color: C.blue }} />
+                <IconDiagnostic className="h-7 w-7" style={{ color: C.blue }} />
               </div>
               <div>
                 <h2 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
@@ -314,7 +359,7 @@ export function ProjectDetailPage() {
                 className="inline-flex items-center gap-2 px-6 py-3 text-[13px] font-semibold text-white rounded-lg transition-all duration-300 hover:shadow-md disabled:opacity-60"
                 style={{ background: C.orange }}
               >
-                {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Compass className="h-4 w-4" strokeWidth={1.8} />}
+                {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconDiagnostic className="h-4 w-4" strokeWidth={1.8} />}
                 Lancer le moteur
               </button>
             </div>
@@ -326,7 +371,7 @@ export function ProjectDetailPage() {
                   className="inline-flex items-center gap-1.5 text-[12.5px] font-medium underline-offset-2 transition-colors hover:underline"
                   style={{ color: C.grayMuted }}
                 >
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <IconReglages className="h-3.5 w-3.5" />
                   Refaire le questionnaire
                 </button>
               </div>
@@ -335,28 +380,20 @@ export function ProjectDetailPage() {
 
               <section className="space-y-3">
                 <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                  <CheckCircle2 className="h-4 w-4 text-success" />Éligibles ({eligibles.length})
+                  <IconSucces className="h-4 w-4 text-success" />Éligibles ({eligibles.length})
                 </h3>
                 {eligibles.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground">Aucune aide pleinement éligible pour le moment.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {eligibles.map((match) => (<AideCard key={match.aide.id} match={match} monumentId={monument.id} />))}
-                  </div>
-                )}
+                ) : renderAideList(eligibles)}
               </section>
 
               <section className="space-y-3">
                 <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                  <HelpCircle className="h-4 w-4" style={{ color: C.orangeVif }} />À confirmer ({potentiels.length})
+                  <IconHelp className="h-4 w-4" style={{ color: C.orangeVif }} />À confirmer ({potentiels.length})
                 </h3>
                 {potentiels.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground">Aucune aide à confirmer.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {potentiels.map((match) => (<AideCard key={match.aide.id} match={match} monumentId={monument.id} />))}
-                  </div>
-                )}
+                ) : renderAideList(potentiels)}
               </section>
 
               <section className="space-y-3">
@@ -365,7 +402,7 @@ export function ProjectDetailPage() {
                   className="flex items-center gap-2 text-[15px]"
                   style={{ fontFamily: SERIF, color: C.ink }}
                 >
-                  <XCircle className="h-4 w-4 text-destructive" />Non éligibles ({nonEligibles.length})
+                  <IconErreur className="h-4 w-4 text-destructive" />Non éligibles ({nonEligibles.length})
                   <ChevronDown className={`h-4 w-4 transition-transform ${showNonEligibles ? 'rotate-180' : ''}`} />
                 </button>
                 {showNonEligibles && (
@@ -387,18 +424,18 @@ export function ProjectDetailPage() {
           <div className="flex justify-end gap-2">
             {projectPermissions(monument?.myRole ?? null).canDeleteProject && (
               <button onClick={() => setConfirmDeleteOpen(true)} disabled={deleting} aria-label="Supprimer le projet" className="flex items-center justify-center w-9 h-9 shrink-0 border rounded-lg transition-colors hover:text-destructive hover:border-destructive/30 text-muted-foreground" style={{ borderColor: C.border }}>
-                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" strokeWidth={1.8} />}
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconSupprimer className="h-4 w-4" strokeWidth={1.8} />}
               </button>
             )}
             {projectPermissions(monument?.myRole ?? null).canEditProject && (
               <button onClick={() => setIsEditing(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
-                <Edit2 className="h-3.5 w-3.5" strokeWidth={1.8} />Éditer
+                <IconModifier className="h-3.5 w-3.5" strokeWidth={1.8} />Éditer
               </button>
             )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Panel title="Identification" icon={<Building2 className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />}>
+            <Panel title="Identification" icon={<IconMonument className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />}>
               <div className="space-y-2 text-[13px]">
                 {monument.referenceMerimee && <InfoRow label="Réf. Mérimée" value={monument.referenceMerimee} />}
                 <InfoRow label="Localisation" value={monument.commune ?? ''} />
@@ -407,7 +444,7 @@ export function ProjectDetailPage() {
               </div>
             </Panel>
 
-            <Panel title="Statut juridique" icon={<Shield className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />}>
+            <Panel title="Statut juridique" icon={<IconProtection className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />}>
               <div className="space-y-2 text-[13px]">
                 <InfoRow label="Protection" value={PROTECTION_LABELS[monument.protection] ?? monument.protection} />
                 {monument.dateProtection && <InfoRow label="Date" value={formatDate(monument.dateProtection)} />}
@@ -416,7 +453,7 @@ export function ProjectDetailPage() {
               </div>
             </Panel>
 
-            <Panel title="État actuel" icon={<AlertTriangle className="h-4 w-4" style={{ color: C.orangeVif }} strokeWidth={1.8} />}>
+            <Panel title="État actuel" icon={<IconAttention className="h-4 w-4" style={{ color: C.orangeVif }} strokeWidth={1.8} />}>
               <div className="space-y-3 text-[13px]">
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">Conservation :</span>
@@ -426,7 +463,7 @@ export function ProjectDetailPage() {
               </div>
             </Panel>
 
-            <Panel title="Travaux envisagés" icon={<Wrench className="h-4 w-4" style={{ color: C.orange }} strokeWidth={1.8} />}>
+            <Panel title="Travaux envisagés" icon={<IconReglages className="h-4 w-4" style={{ color: C.orange }} strokeWidth={1.8} />}>
               {monument.travauxEnvisages && monument.travauxEnvisages.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {monument.travauxEnvisages.map((t) => (
@@ -458,8 +495,8 @@ export function ProjectDetailPage() {
           )}
 
           <div className="flex items-center gap-4 text-[12px] text-muted-foreground">
-            <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Créé le {formatDate(monument.createdAt)}</div>
-            <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Modifié le {formatDate(monument.updatedAt)}</div>
+            <div className="flex items-center gap-1"><IconCalendrier className="h-3 w-3" />Créé le {formatDate(monument.createdAt)}</div>
+            <div className="flex items-center gap-1"><IconCalendrier className="h-3 w-3" />Modifié le {formatDate(monument.updatedAt)}</div>
           </div>
         </TabsContent>
 
@@ -471,12 +508,12 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <EmptyState
-              icon={ScrollText}
+              icon={IconParchemin}
               title="Aucun dossier pour ce projet"
               description="Ouvrez une aide depuis l'onglet « Aides » pour démarrer une candidature."
               action={
                 <button onClick={() => handleTabChange('aides')} className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
-                  <Compass className="h-4 w-4" strokeWidth={1.8} />Voir les aides
+                  <IconDiagnostic className="h-4 w-4" strokeWidth={1.8} />Voir les aides
                 </button>
               }
             />
@@ -487,7 +524,7 @@ export function ProjectDetailPage() {
         <TabsContent value="documents" className="mt-4 space-y-4">
           <div className="flex justify-end">
             <button onClick={() => setAddDocOpen(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
-              <FilePlus2 className="h-3.5 w-3.5" strokeWidth={1.8} />Ajouter un document
+              <IconAjouterDossier className="h-3.5 w-3.5" strokeWidth={1.8} />Ajouter un document
             </button>
           </div>
           {projectDocuments.length > 0 ? (
@@ -509,7 +546,7 @@ export function ProjectDetailPage() {
               ))}
             </div>
           ) : (
-            <EmptyState icon={FolderOpen} title="Aucun document" description="Les documents rattachés à ce projet apparaîtront ici." />
+            <EmptyState icon={IconDossierOuvert} title="Aucun document" description="Les documents rattachés à ce projet apparaîtront ici." />
           )}
         </TabsContent>
 

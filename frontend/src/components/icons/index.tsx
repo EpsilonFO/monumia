@@ -1,9 +1,12 @@
-import type { ReactNode, SVGProps } from 'react';
+import type { ComponentType, ReactNode, SVGProps } from 'react';
 
-type IconProps = Omit<SVGProps<SVGSVGElement>, 'strokeWidth'> & {
+export type IconProps = Omit<SVGProps<SVGSVGElement>, 'strokeWidth'> & {
   size?: number;
   strokeWidth?: number;
 };
+
+/** Type d'un composant de la banque — à réutiliser partout où une icône est passée en prop. */
+export type IconComponent = ComponentType<IconProps>;
 
 type IconBaseProps = IconProps & { children: ReactNode };
 
@@ -28,7 +31,11 @@ function IconBaseFilled({ size = 20, children, ...props }: IconBaseProps) {
   );
 }
 
-function IconBaseStroke({ size = 20, strokeWidth = 6, children, ...props }: IconBaseProps) {
+function IconBaseStroke({ size = 20, children, ...props }: IconBaseProps) {
+  // NB : on impose un trait gras calibré pour le viewBox 100 et on IGNORE tout
+  // `strokeWidth` hérité (les appels historiques passaient des valeurs ~1.8
+  // calibrées pour l'ancien viewBox 24 → quasi invisibles ici). strokeWidth
+  // est donc placé APRÈS {...props} pour écraser toute valeur entrante.
   return (
     <svg
       width={size}
@@ -36,11 +43,11 @@ function IconBaseStroke({ size = 20, strokeWidth = 6, children, ...props }: Icon
       viewBox="0 0 100 100"
       fill="none"
       stroke="currentColor"
-      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
       {...props}
+      strokeWidth={8.5}
     >
       {children}
     </svg>

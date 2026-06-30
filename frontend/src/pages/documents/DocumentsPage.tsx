@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { Upload, Search, FolderOpen, Trash2, ChevronDown, ChevronRight, FileStack } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { IconDepot, IconRecherche, IconDossierOuvert, IconSupprimer, IconDocuments } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -196,7 +197,7 @@ export function DocumentsPage() {
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ background: C.paleBlue }}>
-            <FileStack className="h-5 w-5" style={{ color: C.blue }} strokeWidth={1.8} />
+            <IconDocuments className="h-5 w-5" style={{ color: C.blue }} strokeWidth={1.8} />
           </div>
           <div>
             <h1 className="text-[22px] leading-tight" style={{ fontFamily: SERIF, color: C.ink }}>
@@ -212,7 +213,7 @@ export function DocumentsPage() {
           className="inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md"
           style={{ background: C.orange }}
         >
-          <Upload className="h-3.5 w-3.5" strokeWidth={2} />Ajouter un document
+          <IconDepot className="h-3.5 w-3.5" strokeWidth={2} />Ajouter un document
         </button>
       </div>
 
@@ -222,7 +223,7 @@ export function DocumentsPage() {
       {/* Filtres */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9 h-10 text-[14px]"
             style={{ background: C.card, borderColor: C.border }}
@@ -251,7 +252,7 @@ export function DocumentsPage() {
         </div>
       ) : isEmpty ? (
         <EmptyState
-          icon={FolderOpen}
+          icon={IconDossierOuvert}
           title="Aucun document"
           description="Ajoutez vos premiers documents pour les utiliser dans vos projets et dossiers."
           action={
@@ -260,7 +261,7 @@ export function DocumentsPage() {
               className="inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg hover:shadow-md transition-all"
               style={{ background: C.orange }}
             >
-              <Upload className="h-3.5 w-3.5" strokeWidth={2} />Ajouter un document
+              <IconDepot className="h-3.5 w-3.5" strokeWidth={2} />Ajouter un document
             </button>
           }
         />
@@ -371,7 +372,7 @@ export function DocumentsPage() {
               <CollapsibleTrigger asChild>
                 <button className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
                   {trashOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <IconSupprimer className="h-3.5 w-3.5" />
                   Documents supprimés ({trashedDocuments.length})
                 </button>
               </CollapsibleTrigger>

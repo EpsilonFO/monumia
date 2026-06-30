@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { Receipt, Image, FileSpreadsheet, FileArchive, FolderOpen, FolderPlus, MoreVertical, Pencil, Trash2, ScrollText, Scale, FileSearch, PenTool, FileText, Stamp, FileBadge, ClipboardList, Lock, ShieldCheck } from 'lucide-react';
+import { MoreVertical } from 'lucide-react';
+import {
+  IconDevis, IconImage, IconArchive, IconDossierOuvert, IconAjouterDossier, IconModifier,
+  IconSupprimer, IconParchemin, IconRegle, IconDiagnostic, IconDocument, IconDocumentValide,
+  IconListe, IconVerrou, IconProtection,
+} from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -36,10 +41,10 @@ interface DocumentCardProps {
   onDocumentUpdated?: () => void;
 }
 
-const typeIcons: Record<string, typeof FileText> = {
-  photo: Image, plan: FileSpreadsheet, devis: ClipboardList, facture: Receipt,
-  attestation: FileBadge, extrait_cadastral: FileSpreadsheet, cerfa: Stamp,
-  arrete: Scale, diagnostic: FileSearch, rapport: ScrollText, correspondance: PenTool, autre: FileArchive,
+const typeIcons: Record<string, typeof IconDocument> = {
+  photo: IconImage, plan: IconDevis, devis: IconListe, facture: IconDevis,
+  attestation: IconDocumentValide, extrait_cadastral: IconDevis, cerfa: IconDocumentValide,
+  arrete: IconRegle, diagnostic: IconDiagnostic, rapport: IconParchemin, correspondance: IconModifier, autre: IconArchive,
 };
 
 const typeLabels: Record<string, string> = {
@@ -74,7 +79,7 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
   const isRestricted = document.visibility !== 'team';
   const [accessOpen, setAccessOpen] = useState(false);
 
-  const Icon = typeIcons[document.type] ?? FileText;
+  const Icon = typeIcons[document.type] ?? IconDocument;
   const accent = typeAccent[document.type] ?? typeAccent.autre;
   const linkedMonuments = monumentNames ? document.monumentIds.map((id) => monumentNames[id]).filter(Boolean) : [];
   const linkedDossiers = dossierNames ? document.dossiersUtilises.map((id) => dossierNames[id]).filter(Boolean) : [];
@@ -132,22 +137,22 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
                 <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                   {onAddToProject && (
                     <DropdownMenuItem onClick={() => onAddToProject(document)}>
-                      <FolderPlus className="h-3.5 w-3.5 mr-2" />Ajouter à un projet
+                      <IconAjouterDossier className="h-3.5 w-3.5 mr-2" />Ajouter à un projet
                     </DropdownMenuItem>
                   )}
                   {canManageAccess && (
                     <DropdownMenuItem onClick={() => setAccessOpen(true)}>
-                      <ShieldCheck className="h-3.5 w-3.5 mr-2" />Gérer l'accès
+                      <IconProtection className="h-3.5 w-3.5 mr-2" />Gérer l'accès
                     </DropdownMenuItem>
                   )}
                   {onRename && canModify && (
                     <DropdownMenuItem onClick={() => { setNewName(document.nom); setRenameOpen(true); }}>
-                      <Pencil className="h-3.5 w-3.5 mr-2" />Renommer
+                      <IconModifier className="h-3.5 w-3.5 mr-2" />Renommer
                     </DropdownMenuItem>
                   )}
                   {onDelete && canModify && (
                     <DropdownMenuItem className="text-destructive" onClick={handleDelete}>
-                      <Trash2 className="h-3.5 w-3.5 mr-2" />Supprimer
+                      <IconSupprimer className="h-3.5 w-3.5 mr-2" />Supprimer
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -169,7 +174,7 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
                 className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-destructive-muted text-destructive"
                 title="Visible uniquement par certaines personnes"
               >
-                <Lock className="h-2.5 w-2.5" />
+                <IconVerrou className="h-2.5 w-2.5" />
                 Accès restreint
               </span>
             )}
@@ -184,7 +189,7 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
           {linkedDossiers.length > 0 && (
             <div className="pt-2 border-t border-border/60">
               <p className="text-[10px] uppercase tracking-[0.08em] font-semibold text-muted-foreground flex items-center gap-1 mb-1">
-                <FolderOpen className="h-3 w-3" strokeWidth={1.8} />Dossiers
+                <IconDossierOuvert className="h-3 w-3" strokeWidth={1.8} />Dossiers
               </p>
               {linkedDossiers.map((name) => (
                 <p key={name} className="text-[11px] text-foreground truncate">{name}</p>

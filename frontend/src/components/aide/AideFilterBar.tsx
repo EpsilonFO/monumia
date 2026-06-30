@@ -1,4 +1,4 @@
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { IconRecherche, IconReglages } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -32,7 +32,7 @@ export function AideFilterBar() {
     <div className="space-y-4">
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           className="pl-9"
           placeholder="Rechercher une aide..."
@@ -60,7 +60,7 @@ export function AideFilterBar() {
       {filters.modeProjet && (
         <div className="space-y-2">
           <p className="text-sm font-medium flex items-center gap-1.5">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <IconReglages className="h-3.5 w-3.5" />
             Travaux envisagés
           </p>
           <div className="flex flex-wrap gap-1.5">

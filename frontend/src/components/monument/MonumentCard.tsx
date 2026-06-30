@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router';
-import { MapPin, Shield, ChevronRight, Compass, FolderOpen } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import { IconLocalisation, IconProtection, IconDiagnostic, IconDossierOuvert } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useAideStore } from '@/stores/useAideStore';
@@ -55,7 +56,7 @@ export function MonumentCard({ monument }: MonumentCardProps) {
             <ChevronRight className="h-4 w-4 text-border group-hover:text-destructive transition-colors shrink-0 mt-0.5" />
           </div>
           <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <MapPin className="h-3 w-3 shrink-0" strokeWidth={1.8} />
+            <IconLocalisation className="h-3 w-3 shrink-0" strokeWidth={1.8} />
             <span>{monument.commune}{monument.departement ? ` (${monument.departement})` : ''}</span>
           </div>
         </div>
@@ -63,7 +64,7 @@ export function MonumentCard({ monument }: MonumentCardProps) {
         {/* Badges */}
         <div className="px-5 pb-3 flex items-center gap-2 flex-wrap">
           <Badge className="text-[10px] font-semibold border-0 gap-1 bg-secondary text-primary">
-            <Shield className="h-3 w-3" strokeWidth={1.8} />
+            <IconProtection className="h-3 w-3" strokeWidth={1.8} />
             {protectionLabels[monument.protection] ?? monument.protection}
           </Badge>
           <Badge className="text-[10px] font-semibold border-0" style={{ background: etat.bg, color: etat.text }}>
@@ -86,7 +87,7 @@ export function MonumentCard({ monument }: MonumentCardProps) {
             onClick={handleDossierClick}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[12px] font-medium border border-border rounded-lg text-gray-fg hover:bg-muted transition-colors"
           >
-            <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.8} />
+            <IconDossierOuvert className="h-3.5 w-3.5" strokeWidth={1.8} />
             Dossiers
           </button>
           <button
@@ -97,7 +98,7 @@ export function MonumentCard({ monument }: MonumentCardProps) {
                 : 'bg-primary text-white hover:opacity-90'
             }`}
           >
-            <Compass className="h-3.5 w-3.5" strokeWidth={1.8} />
+            <IconDiagnostic className="h-3.5 w-3.5" strokeWidth={1.8} />
             {hasDiagnostic ? 'Diagnostic' : 'Diagnostiquer'}
           </button>
         </div>

@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { AlertTriangle, Compass, Info, Bell } from 'lucide-react';
+import { IconAttention, IconDiagnostic, IconInfo, IconNotification } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { formatRelative } from '@/lib/date-utils';
 import { ROUTES } from '@/constants/routes';
@@ -11,9 +11,9 @@ interface NotificationItemProps {
 }
 
 const typeIcons = {
-  urgent: AlertTriangle,
-  opportunite: Compass,
-  info: Info,
+  urgent: IconAttention,
+  opportunite: IconDiagnostic,
+  info: IconInfo,
 };
 
 const typeColors = {
@@ -33,7 +33,7 @@ function getLink(n: Notification): string | undefined {
 }
 
 export function NotificationItem({ notification, onRead }: NotificationItemProps) {
-  const Icon = typeIcons[notification.type] ?? Bell;
+  const Icon = typeIcons[notification.type] ?? IconNotification;
   const link = getLink(notification);
 
   const content = (

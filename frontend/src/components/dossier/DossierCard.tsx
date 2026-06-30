@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
-import { MapPin, Calendar, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import { IconLocalisation, IconCalendrier } from '@/components/icons';
 import { Progress } from '@/components/ui/progress';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useSuiviStore } from '@/stores/useSuiviStore';
@@ -61,7 +62,7 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
                 className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
                 style={{ background: `${color}14`, color }}
               >
-                <MapPin className="h-3 w-3 shrink-0" strokeWidth={2} />
+                <IconLocalisation className="h-3 w-3 shrink-0" strokeWidth={2} />
                 <span className="truncate max-w-[140px]">{monument.nom}</span>
               </span>
             ) : (
@@ -117,7 +118,7 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
 
           {nextDeadline && (
             <div className={`flex items-center gap-1.5 text-[11px] pt-0.5 ${isUrgent(nextDeadline.date) ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
-              <Calendar className="h-3 w-3 shrink-0" strokeWidth={1.8} />
+              <IconCalendrier className="h-3 w-3 shrink-0" strokeWidth={1.8} />
               <span className="truncate">{nextDeadline.label} · {formatDate(nextDeadline.date)}</span>
               {isUrgent(nextDeadline.date) && (
                 <span className="ml-auto bg-destructive-muted text-destructive text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0">

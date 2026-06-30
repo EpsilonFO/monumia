@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { Info, TriangleAlert, Lightbulb, FileText } from 'lucide-react';
+import type { ReactNode, ComponentType } from 'react';
+import { IconInfo, IconAccompagnement, IconDocument, IconAttention } from '@/components/icons';
 import { C } from '@/lib/brand';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -12,12 +12,12 @@ type Variant = 'remarque' | 'attention' | 'astuce' | 'exemple';
 
 const TONE: Record<
   Variant,
-  { label: string; fg: string; tint: string; node: string; Icon: typeof Info }
+  { label: string; fg: string; tint: string; node: string; Icon: ComponentType<{ size?: number; className?: string }> }
 > = {
-  remarque: { label: 'Remarque', fg: C.blue, tint: C.paleBlue, node: C.blueLight, Icon: Info },
-  attention: { label: 'Attention', fg: C.danger, tint: C.paleDanger, node: C.danger, Icon: TriangleAlert },
-  astuce: { label: 'Astuce', fg: C.orange, tint: C.paleOrange, node: C.orange, Icon: Lightbulb },
-  exemple: { label: 'Exemple', fg: C.ink, tint: '#f3eee1', node: C.blueDark, Icon: FileText },
+  remarque: { label: 'Remarque', fg: C.blue, tint: C.paleBlue, node: C.blueLight, Icon: IconInfo },
+  attention: { label: 'Attention', fg: C.danger, tint: C.paleDanger, node: C.danger, Icon: IconAttention },
+  astuce: { label: 'Astuce', fg: C.orange, tint: C.paleOrange, node: C.orange, Icon: IconAccompagnement },
+  exemple: { label: 'Exemple', fg: C.ink, tint: '#f3eee1', node: C.blueDark, Icon: IconDocument },
 };
 
 export function Callout({ node, children }: BlockProps) {

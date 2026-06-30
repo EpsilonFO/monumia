@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
+import { Check, Loader2 } from 'lucide-react';
 import {
-  Check,
-  Loader2,
-  Sparkles,
-  Building2,
-  Telescope,
-  ListChecks,
-  Quote,
-  ScrollText,
-} from 'lucide-react';
+  IconAccompagnement,
+  IconMonument,
+  IconDiagnostic,
+  IconCitation,
+  IconParchemin,
+  IconListe,
+} from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 
 const STAGES = [
@@ -192,7 +191,7 @@ export function AideMatchProgress({ monumentName }: AideMatchProgressProps) {
       <CardContent className="py-10 px-6 sm:px-10 space-y-9">
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-accent font-medium">
-            <Sparkles className="h-3 w-3" />
+            <IconAccompagnement className="h-3 w-3" />
             Diagnostic en cours
           </div>
           <h2 className="font-serif text-3xl sm:text-4xl leading-[1.1] text-foreground">
@@ -290,7 +289,7 @@ export function AideMatchProgress({ monumentName }: AideMatchProgressProps) {
 
         <div className="rounded-xl border border-primary/15 bg-primary/[0.025] px-5 py-4">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-primary/70 font-medium mb-2">
-            <Telescope className="h-3 w-3" />
+            <IconDiagnostic className="h-3 w-3" />
             Aide examinée à l'instant
           </div>
           <div className="relative h-7 overflow-hidden">
@@ -306,7 +305,7 @@ export function AideMatchProgress({ monumentName }: AideMatchProgressProps) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-xl border border-border bg-card px-5 py-4 flex flex-col">
             <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground font-medium">
-              <ListChecks className="h-3 w-3" />
+              <IconListe className="h-3 w-3" />
               Aides analysées
             </div>
             <div className="font-serif text-4xl text-primary tabular-nums mt-2 leading-none">
@@ -320,7 +319,7 @@ export function AideMatchProgress({ monumentName }: AideMatchProgressProps) {
             className="rounded-xl border border-accent/20 bg-accent/[0.04] px-5 py-4 factoid-in"
           >
             <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-accent font-medium">
-              <Quote className="h-3 w-3" />
+              <IconCitation className="h-3 w-3" />
               {factoid.title}
             </div>
             <p className="font-serif text-[15px] leading-snug text-foreground mt-2 italic">
@@ -330,14 +329,14 @@ export function AideMatchProgress({ monumentName }: AideMatchProgressProps) {
 
           <div className="rounded-xl border border-border bg-card px-5 py-4 flex flex-col">
             <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground font-medium">
-              <Building2 className="h-3 w-3" />
+              <IconMonument className="h-3 w-3" />
               Dossier
             </div>
             <p className="font-serif text-lg leading-snug text-foreground mt-2 truncate">
               {monumentName ?? 'Monument'}
             </p>
             <p className="text-xs text-muted-foreground mt-auto pt-2 flex items-center gap-1.5">
-              <ScrollText className="h-3 w-3" />
+              <IconParchemin className="h-3 w-3" />
               {seconds < 60
                 ? `${seconds}s d'analyse`
                 : `${Math.floor(seconds / 60)} min ${seconds % 60}s`}

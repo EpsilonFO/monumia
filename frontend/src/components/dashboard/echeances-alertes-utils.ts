@@ -1,6 +1,7 @@
+import { type ComponentType } from 'react';
 import {
-  CalendarClock, Bell, ShieldAlert, Sparkles, FileText,
-} from 'lucide-react';
+  IconNotification, IconProtection, IconAccompagnement, IconDocument,
+} from '@/components/icons';
 import { ROUTES } from '@/constants/routes';
 import { deadlineLabel, formatRelative, formatDateShort } from '@/lib/date-utils';
 import { deadlineLink } from '@/lib/project-stats';
@@ -14,7 +15,7 @@ export interface FeedRow {
   kind: FeedKind;
   category: 'deadline' | 'peril' | 'notif';
   days?: number; // joursRestants pour les échéances ; undefined sinon
-  icon: typeof CalendarClock;
+  icon: ComponentType<{ size?: number; className?: string }>;
   label: string; // titre principal
   sub: string; // ligne secondaire
   badge: string; // pastille à droite : "J-3" | "Auj." | "Péril" | "68%" | "Nouveau"
@@ -55,7 +56,7 @@ export function buildFeedRows(
       kind,
       category: 'deadline',
       days: d.joursRestants,
-      icon: d.source === 'aide' ? Sparkles : FileText,
+      icon: d.source === 'aide' ? IconAccompagnement : IconDocument,
       label: d.label,
       sub: `${d.source === 'aide' ? 'Aide' : 'Dossier'} · ${formatDateShort(d.date)}`,
       badge: d.joursRestants < 0 ? 'En retard' : joursBadge(d),
@@ -74,7 +75,7 @@ export function buildFeedRows(
         id: `peril-${m.id}`,
         kind: 'urgent',
         category: 'peril',
-        icon: ShieldAlert,
+        icon: IconProtection,
         label: m.nom,
         sub: m.etatConservation === 'peril' ? 'État en péril' : 'Travaux urgents (critique)',
         badge: 'Péril',
@@ -95,7 +96,7 @@ export function buildFeedRows(
         id: `notif-${n.id}`,
         kind,
         category: 'notif',
-        icon: Bell,
+        icon: IconNotification,
         label: n.titre,
         sub: formatRelative(n.dateCreation),
         badge: 'Nouveau',

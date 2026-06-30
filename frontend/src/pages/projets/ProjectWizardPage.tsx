@@ -15,7 +15,8 @@ import { REGIONS } from '@/constants/regions';
 import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
-import { Search, PenLine, ArrowRight, Check, Loader2 } from 'lucide-react';
+import { ArrowRight, Check, Loader2 } from 'lucide-react';
+import { IconRecherche, IconModifier } from '@/components/icons';
 import { toast } from 'sonner';
 import type {
   AideDiagnosticResult,
@@ -322,11 +323,11 @@ export function ProjectWizardPage() {
             <Tabs defaultValue="merimee">
               <TabsList className="grid h-12 w-full grid-cols-2">
                 <TabsTrigger value="merimee" className="gap-2 text-[14px]">
-                  <Search className="h-4 w-4" />
+                  <IconRecherche className="h-4 w-4" />
                   Rechercher (Mérimée)
                 </TabsTrigger>
                 <TabsTrigger value="manual" className="gap-2 text-[14px]">
-                  <PenLine className="h-4 w-4" />
+                  <IconModifier className="h-4 w-4" />
                   Saisie manuelle
                 </TabsTrigger>
               </TabsList>

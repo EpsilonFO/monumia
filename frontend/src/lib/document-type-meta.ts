@@ -1,13 +1,14 @@
 import {
-  Receipt, Image, FileSpreadsheet, FileArchive, ScrollText, Scale, FileSearch,
-  PenTool, FileText, Stamp, FileBadge, ClipboardList, type LucideIcon,
-} from 'lucide-react';
+  IconDevis, IconImage, IconArchive, IconParchemin, IconRegle, IconDiagnostic,
+  IconModifier, IconDocument, IconDocumentValide, IconListe,
+  type IconComponent,
+} from '@/components/icons';
 import type { DocumentType } from '@/types';
 
-const ICONS: Record<string, LucideIcon> = {
-  photo: Image, plan: FileSpreadsheet, devis: ClipboardList, facture: Receipt,
-  attestation: FileBadge, extrait_cadastral: FileSpreadsheet, cerfa: Stamp,
-  arrete: Scale, diagnostic: FileSearch, rapport: ScrollText, correspondance: PenTool, autre: FileArchive,
+const ICONS: Record<string, IconComponent> = {
+  photo: IconImage, plan: IconDevis, devis: IconListe, facture: IconDevis,
+  attestation: IconDocumentValide, extrait_cadastral: IconDevis, cerfa: IconDocumentValide,
+  arrete: IconRegle, diagnostic: IconDiagnostic, rapport: IconParchemin, correspondance: IconModifier, autre: IconArchive,
 };
 
 const LABELS: Record<string, string> = {
@@ -31,8 +32,8 @@ const ACCENT: Record<string, { bg: string; text: string }> = {
   autre:             { bg: 'var(--muted)',       text: 'var(--gray-fg)' },
 };
 
-export function typeIcon(type: DocumentType): LucideIcon {
-  return ICONS[type] ?? FileText;
+export function typeIcon(type: DocumentType): IconComponent {
+  return ICONS[type] ?? IconDocument;
 }
 export function typeLabel(type: DocumentType): string {
   return LABELS[type] ?? type;

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, Shield, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { IconRecherche, IconLocalisation, IconProtection } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,9 +17,11 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
   const [results, setResults] = useState<MerimeeRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (abortRef.current) abortRef.current.abort();
 
     if (query.length < 2) {
       setResults([]);
@@ -28,10 +31,14 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
 
     setLoading(true);
     debounceRef.current = setTimeout(async () => {
-      const data = await merimeeService.search(query);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const data = await merimeeService.search(query, controller.signal);
+      // Ignore les réponses d'une requête annulée (frappe plus récente).
+      if (controller.signal.aborted) return;
       setResults(data);
       setLoading(false);
-    }, 300);
+    }, 250);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -41,7 +48,7 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
   return (
     <div className="space-y-4">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           className="pl-9"
           placeholder="Rechercher par nom, commune ou référence Mérimée..."
@@ -77,7 +84,7 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
                       {record.titre_editorial_de_la_notice}
                     </p>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="h-3.5 w-3.5 shrink-0" />
+                      <IconLocalisation className="h-3.5 w-3.5 shrink-0" />
                       <span className="truncate">
                         {record.commune_actuelle
                           ? `${record.commune_forme_index} → ${record.commune_actuelle}`
@@ -87,7 +94,7 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Shield className="h-3.5 w-3.5 shrink-0" />
+                      <IconProtection className="h-3.5 w-3.5 shrink-0" />
                       <span>{record.typologie_de_la_protection}</span>
                     </div>
                   </div>

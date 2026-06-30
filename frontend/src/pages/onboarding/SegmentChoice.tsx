@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router';
-import { Building2, Home, Users, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
+import { IconMonument, IconMaison, IconEquipe } from '@/components/icons';
 import { AuthEyebrow } from '@/components/layout/AuthLayout';
 import { C, SERIF } from '@/lib/brand';
 
@@ -11,7 +12,7 @@ export function SegmentChoice() {
   const segments = [
     {
       key: 'commune',
-      icon: Building2,
+      icon: IconMonument,
       title: 'Je suis une commune',
       desc: 'Maire, adjoint au patrimoine, secrétaire de mairie… Gérez les monuments de votre collectivité.',
       tint: C.paleBlue,
@@ -20,7 +21,7 @@ export function SegmentChoice() {
     },
     {
       key: 'prive',
-      icon: Home,
+      icon: IconMaison,
       title: 'Je suis propriétaire privé',
       desc: 'Château, manoir, demeure historique… Trouvez les aides disponibles pour votre bien.',
       tint: C.paleOrange,
@@ -29,7 +30,7 @@ export function SegmentChoice() {
     },
     {
       key: 'collaborateur',
-      icon: Users,
+      icon: IconEquipe,
       title: 'Je rejoins un projet',
       desc: 'On m’a invité à collaborer. Maire, artisan, architecte… rejoignez le projet d’une autre personne.',
       tint: C.paleBlue,

@@ -1,4 +1,7 @@
-import { FolderPlus, MoreVertical, Trash2, Lock, RotateCcw, Eye, FolderMinus, Pencil } from 'lucide-react';
+import { MoreVertical } from 'lucide-react';
+import {
+  IconAjouterDossier, IconSupprimer, IconVerrou, IconRafraichir, IconVoir, IconRetirerDossier, IconModifier,
+} from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -84,20 +87,20 @@ export function DocumentTile({
               {variant === 'normal' ? (
                 <>
                   <DropdownMenuItem onClick={() => onPreview(document)}>
-                    <Eye className="h-3.5 w-3.5 mr-2" />Aperçu
+                    <IconVoir className="h-3.5 w-3.5 mr-2" />Aperçu
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onAddToProject(document)}>
-                    <FolderPlus className="h-3.5 w-3.5 mr-2" />Ajouter à un projet
+                    <IconAjouterDossier className="h-3.5 w-3.5 mr-2" />Ajouter à un projet
                   </DropdownMenuItem>
                   {onRename && canModify && (
                     <DropdownMenuItem onClick={() => onRename(document)}>
-                      <Pencil className="h-3.5 w-3.5 mr-2" />Renommer
+                      <IconModifier className="h-3.5 w-3.5 mr-2" />Renommer
                     </DropdownMenuItem>
                   )}
                   {/* Auteur : supprimer (→ corbeille). Responsable non-auteur : retirer du projet de la section. */}
                   {isUploader ? (
                     <DropdownMenuItem className="text-destructive" onClick={() => onTrash(document)}>
-                      <Trash2 className="h-3.5 w-3.5 mr-2" />Supprimer
+                      <IconSupprimer className="h-3.5 w-3.5 mr-2" />Supprimer
                     </DropdownMenuItem>
                   ) : (
                     canModify && sectionMonumentId && (
@@ -105,7 +108,7 @@ export function DocumentTile({
                         className="text-destructive"
                         onClick={() => onRemoveFromProject(document, sectionMonumentId)}
                       >
-                        <FolderMinus className="h-3.5 w-3.5 mr-2" />
+                        <IconRetirerDossier className="h-3.5 w-3.5 mr-2" />
                         Retirer de {monumentNames[sectionMonumentId] ?? 'ce projet'}
                       </DropdownMenuItem>
                     )
@@ -114,10 +117,10 @@ export function DocumentTile({
               ) : (
                 <>
                   <DropdownMenuItem onClick={() => onRestore(document)}>
-                    <RotateCcw className="h-3.5 w-3.5 mr-2" />Restaurer
+                    <IconRafraichir className="h-3.5 w-3.5 mr-2" />Restaurer
                   </DropdownMenuItem>
                   <DropdownMenuItem className="text-destructive" onClick={() => onDeletePermanent(document)}>
-                    <Trash2 className="h-3.5 w-3.5 mr-2" />Supprimer définitivement
+                    <IconSupprimer className="h-3.5 w-3.5 mr-2" />Supprimer définitivement
                   </DropdownMenuItem>
                 </>
               )}
@@ -137,7 +140,7 @@ export function DocumentTile({
               style={{ background: C.paleBlue, color: C.blue }}
               title={VISIBILITY_META[document.visibility].help}
             >
-              <Lock className="h-2.5 w-2.5" strokeWidth={2.2} />Accès restreint
+              <IconVerrou className="h-2.5 w-2.5" strokeWidth={2.2} />Accès restreint
             </span>
           )}
         </div>

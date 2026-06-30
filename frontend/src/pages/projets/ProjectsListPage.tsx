@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { Plus, Landmark, Search, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { IconAjouter, IconMonument, IconRecherche } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -107,7 +108,7 @@ export function ProjectsListPage() {
       className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[13px] font-semibold text-white transition-all hover:shadow-md"
       style={{ background: C.orange }}
     >
-      <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+      <IconAjouter className="h-3.5 w-3.5" strokeWidth={2} />
       Nouveau projet
     </Link>
   );
@@ -135,7 +136,7 @@ export function ProjectsListPage() {
           className="flex flex-col items-center justify-center gap-4 rounded-xl border py-16 text-center"
           style={{ background: C.card, borderColor: C.border }}
         >
-          <Landmark className="h-8 w-8" style={{ color: C.blueLight }} strokeWidth={1.5} />
+          <IconMonument className="h-8 w-8" style={{ color: C.blueLight }} strokeWidth={1.5} />
           <div className="space-y-1">
             <h2 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
               Aucun projet pour le moment
@@ -151,7 +152,7 @@ export function ProjectsListPage() {
         <>
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1 sm:max-w-md">
-              <Search
+              <IconRecherche
                 className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
                 strokeWidth={1.8}
               />

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FolderMinus, Loader2, Trash2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { IconRetirerDossier, IconSupprimer } from '@/components/icons';
 import {
   Dialog,
   DialogContent,
@@ -59,7 +60,7 @@ export function DeleteDossierDocumentDialog({
             {busyScope === 'dossier' ? (
               <Loader2 className="h-5 w-5 shrink-0 mt-0.5 animate-spin text-muted-foreground" />
             ) : (
-              <FolderMinus className="h-5 w-5 shrink-0 mt-0.5 text-primary" />
+              <IconRetirerDossier className="h-5 w-5 shrink-0 mt-0.5 text-primary" />
             )}
             <div>
               <p className="text-sm font-medium">Retirer du dossier uniquement</p>
@@ -78,7 +79,7 @@ export function DeleteDossierDocumentDialog({
             {busyScope === 'everywhere' ? (
               <Loader2 className="h-5 w-5 shrink-0 mt-0.5 animate-spin text-destructive" />
             ) : (
-              <Trash2 className="h-5 w-5 shrink-0 mt-0.5 text-destructive" />
+              <IconSupprimer className="h-5 w-5 shrink-0 mt-0.5 text-destructive" />
             )}
             <div>
               <p className="text-sm font-medium text-destructive">Supprimer partout</p>
