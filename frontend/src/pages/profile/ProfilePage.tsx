@@ -136,7 +136,12 @@ export function ProfilePage() {
           className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:gap-7 sm:px-8"
           style={{ background: 'linear-gradient(120deg, var(--secondary) 0%, var(--card) 62%)' }}
         >
-          <CompletionRing percent={completion.percent} initials={initials} />
+          <span
+            className="flex h-[88px] w-[88px] shrink-0 items-center justify-center rounded-full text-[26px] font-semibold"
+            style={{ background: C.paleBlue, color: C.blue, fontFamily: SERIF }}
+          >
+            {initials || <IconCompte className="h-9 w-9" />}
+          </span>
 
           <div className="min-w-0 flex-1">
             <span
@@ -157,17 +162,10 @@ export function ProfilePage() {
               <Badge variant="outline" className="border-border bg-[var(--card)]/70 text-[12px] text-foreground">
                 {isCommune ? 'Commune' : 'Propriétaire privé'}
               </Badge>
-              {complete ? (
-                <span className="inline-flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.blue }}>
-                  <IconSucces className="h-4 w-4" style={{ color: C.orange }} />
-                  Profil complet — vous êtes prêt à avancer.
-                </span>
-              ) : (
-                <span className="text-[13px]" style={{ color: C.grayFg }}>
-                  Profil complété à <span className="font-semibold" style={{ color: C.blue }}>{completion.percent} %</span>
-                  {' '}· il ne manque que {completion.missing[0]}.
-                </span>
-              )}
+              <span className="inline-flex items-center gap-1.5 text-[12.5px]" style={{ color: C.grayMuted }}>
+                <IconSucces className="h-3.5 w-3.5" style={{ color: complete ? C.orange : C.grayMuted }} />
+                {complete ? 'Profil complet' : 'Profil presque complet'}
+              </span>
             </div>
           </div>
         </div>
@@ -190,6 +188,11 @@ export function ProfilePage() {
                 className={`${inputCls}${phoneError ? ' border-destructive focus:border-destructive focus:ring-destructive/10' : ''}`}
               />
               {phoneError && <p className="mt-1 text-[12px] text-destructive">{phoneError}</p>}
+              {!form.telephone && !phoneError && (
+                <p className="mt-1 text-[12px]" style={{ color: C.grayMuted }}>
+                  Recommandé pour être joignable sur vos dossiers.
+                </p>
+              )}
             </Field>
             <Field id="email" label="Adresse email" icon={<IconContact className="h-4 w-4" />} hint="Non modifiable">
               <div className="flex h-11 items-center rounded-md border border-dashed border-border bg-[var(--secondary)]/40 px-3 text-[15px] text-muted-foreground">
@@ -344,49 +347,6 @@ export function ProfilePage() {
 }
 
 /* ── Sous-composants ── */
-
-/** Signature ludique : jauge circulaire de complétion autour de l'avatar. */
-function CompletionRing({ percent, initials }: { percent: number; initials: string }) {
-  const size = 96;
-  const stroke = 5;
-  const r = (size - stroke) / 2;
-  const circ = 2 * Math.PI * r;
-  const offset = circ * (1 - Math.min(percent, 100) / 100);
-  const done = percent >= 100;
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90" aria-hidden>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--secondary)" strokeWidth={stroke} />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circ}
-          strokeDashoffset={offset}
-          style={{ transition: 'stroke-dashoffset 800ms cubic-bezier(0.22,1,0.36,1)' }}
-        />
-      </svg>
-      <span
-        className="absolute inset-[9px] flex items-center justify-center rounded-full text-[24px] font-semibold"
-        style={{ background: C.paleBlue, color: C.blue, fontFamily: SERIF }}
-      >
-        {initials || <IconCompte className="h-8 w-8" />}
-      </span>
-      {done && (
-        <span
-          className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full ring-2 ring-[var(--card)]"
-          style={{ background: C.orange }}
-        >
-          <IconSucces className="h-4 w-4 text-white" />
-        </span>
-      )}
-    </div>
-  );
-}
 
 function Field({ id, label, icon, hint, children }: {
   id: string; label: string; icon: React.ReactNode; hint?: string; children: React.ReactNode;
