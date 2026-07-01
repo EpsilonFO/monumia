@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { IconLocalisation, IconProtection, IconEcheance } from '@/components/icons';
+import { Clover } from '@/components/illustrations';
 import { ParcoursTrail } from '@/components/project/ParcoursTrail';
 import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
 import { ROUTES } from '@/constants/routes';
@@ -7,7 +8,6 @@ import { C, SERIF } from '@/lib/brand';
 import { deadlineLabel } from '@/lib/date-utils';
 import { formatCurrency } from '@/lib/format-utils';
 import { montantTileMode } from '@/lib/project-card-view';
-import { projectColor, projectColorSoft } from '@/lib/project-color';
 import { isProjectShared } from '@/lib/project-permissions';
 import { PROJECT_STAGES } from '@/lib/project-stats';
 import type { ProjectStats, ProjectStage } from '@/lib/project-stats';
@@ -34,9 +34,6 @@ const urgencyColor: Record<string, string> = {
 };
 
 export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
-  const accent = projectColor(monument.id);
-  const soft = projectColorSoft(monument.id);
-
   const shared = isProjectShared(monument);
   const members = monument.members ?? [];
   const protection = protectionLabels[monument.protection];
@@ -59,11 +56,19 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
     <Link to={ROUTES.PROJET_DETAIL(monument.id)}>
       <div
         className="group flex h-full flex-col overflow-hidden rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_-28px_rgba(7,42,114,0.55)]"
-        style={{ background: soft, borderColor: C.border }}
+        style={{ background: C.card, borderColor: C.border }}
       >
-        {/* En-tête : la couleur du projet porte son identité */}
-        <div className="px-5 py-4" style={{ background: accent }}>
-          <div className="flex items-start justify-between gap-3">
+        {/* En-tête bleu institutionnel + quadrilobe (motif du logo) en filigrane */}
+        <div
+          className="relative overflow-hidden px-5 py-4"
+          style={{ background: `linear-gradient(135deg, ${C.blue}, ${C.blueDark})` }}
+        >
+          <Clover
+            size={140}
+            className="pointer-events-none absolute -right-8 -top-10 text-white"
+            style={{ opacity: 0.08 }}
+          />
+          <div className="relative flex items-start justify-between gap-3">
             <h3
               className="line-clamp-2 text-[20px] font-bold leading-tight text-white"
               style={{ fontFamily: SERIF }}
@@ -75,7 +80,7 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
             )}
           </div>
           {(monument.commune || monument.departement) && (
-            <p className="mt-1.5 flex items-center gap-1.5 text-[13.5px] text-white/85">
+            <p className="relative mt-1.5 flex items-center gap-1.5 text-[13.5px] text-white/85">
               <IconLocalisation className="h-4 w-4 shrink-0" strokeWidth={1.8} aria-hidden />
               <span className="truncate">
                 {monument.commune ?? '—'}
@@ -85,7 +90,7 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
           )}
           {protection && (
             <span
-              className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold text-white"
+              className="relative mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold text-white"
               style={{
                 background: 'rgba(255,255,255,0.18)',
                 border: '1px solid rgba(255,255,255,0.34)',
@@ -97,20 +102,20 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
           )}
         </div>
 
-        {/* Corps : fond lavé dans la teinte du projet */}
+        {/* Corps crème */}
         <div className="flex flex-1 flex-col px-5 py-5">
-          {/* Point focal : le montant d'aides */}
+          {/* Point focal : le montant d'aides, en orange (couleur d'action) */}
           {tileMode === 'money' && stats ? (
             <div>
               <p
                 className="text-[11px] font-semibold uppercase tracking-[0.12em]"
-                style={{ color: accent }}
+                style={{ color: C.orange }}
               >
                 Jusqu'à
               </p>
               <p
                 className="mt-0.5 text-[32px] font-bold leading-none tabular-nums"
-                style={{ fontFamily: SERIF, color: accent }}
+                style={{ fontFamily: SERIF, color: C.orange }}
               >
                 {formatCurrency(stats.montantPotentiel)}
               </p>
@@ -122,7 +127,7 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
             <div>
               <p
                 className="text-[26px] font-bold leading-none tabular-nums"
-                style={{ fontFamily: SERIF, color: accent }}
+                style={{ fontFamily: SERIF, color: C.orange }}
               >
                 {stats.aidesIdentifiees} aide{stats.aidesIdentifiees > 1 ? 's' : ''}
               </p>
@@ -134,7 +139,7 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
             <div>
               <p
                 className="text-[20px] font-bold leading-tight"
-                style={{ fontFamily: SERIF, color: accent }}
+                style={{ fontFamily: SERIF, color: C.orange }}
               >
                 Estimez vos aides
               </p>
@@ -148,7 +153,7 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
           <div className="mt-auto space-y-3 pt-5">
             {stage && (
               <div>
-                <ParcoursTrail stage={stage} accent={accent} />
+                <ParcoursTrail stage={stage} accent={C.orange} />
                 <p className="mt-2.5 text-[13.5px] font-semibold" style={{ color: C.ink }}>
                   {stepText}
                 </p>
