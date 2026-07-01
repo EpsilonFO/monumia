@@ -18,7 +18,9 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { monumentService } from '@/services/monument.service';
 import { dossierService } from '@/services/dossier.service';
 import { aideService } from '@/services/aide.service';
-import { computeProjectStats } from '@/lib/project-stats';
+import { computeProjectStats, projectStage, type ProjectStage } from '@/lib/project-stats';
+import { useSuiviStore } from '@/stores/useSuiviStore';
+import { suiviService } from '@/services/suivi.service';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 
@@ -31,6 +33,8 @@ export function ProjectsListPage() {
   const dossiers = useDossierStore((s) => s.dossiers);
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
   const setDiagnostic = useAideStore((s) => s.setDiagnostic);
+  const suivis = useSuiviStore((s) => s.suivis);
+  const loadedSuivis = useSuiviStore((s) => s.loadedMonuments);
 
   const [loading, setLoading] = useState(monuments.length === 0);
   const [search, setSearch] = useState('');
@@ -68,6 +72,18 @@ export function ProjectsListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monuments]);
 
+  // Charge les suivis (par monument) absents du store, pour que le parcours
+  // atteigne l'étape « Suivi ». Gardé par loadedMonuments → une fois par
+  // monument et par session (même motif que le diagnostic ci-dessus).
+  useEffect(() => {
+    for (const m of monuments) {
+      if (!loadedSuivis[m.id]) {
+        suiviService.fetchByMonument(m.id).catch(console.error);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monuments]);
+
   const visibleMonuments = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = q
@@ -101,6 +117,18 @@ export function ProjectsListPage() {
     }
     return sorted;
   }, [monuments, search, sortKey]);
+
+  const stageByMonument = useMemo<Record<string, ProjectStage>>(() => {
+    const out: Record<string, ProjectStage> = {};
+    for (const m of monuments) {
+      out[m.id] = projectStage(
+        diagnosticsByMonument[m.id] ?? null,
+        dossiers.filter((d) => d.monumentId === m.id),
+        suivis.filter((s) => s.monumentId === m.id),
+      );
+    }
+    return out;
+  }, [monuments, diagnosticsByMonument, dossiers, suivis]);
 
   const newProjectButton = (
     <Link
@@ -199,6 +227,7 @@ export function ProjectsListPage() {
                     diagnosticsByMonument[monument.id] ?? null,
                     dossiers
                   )}
+                  stage={stageByMonument[monument.id]}
                 />
               ))}
             </div>
