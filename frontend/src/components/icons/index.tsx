@@ -40,6 +40,7 @@ import {
   MapPin,
   Notebook,
   PencilSimple,
+  Phone,
   Plus,
   Question,
   Quotes,
@@ -74,6 +75,8 @@ import {
 export type IconProps = Omit<SVGProps<SVGSVGElement>, 'strokeWidth'> & {
   size?: number;
   strokeWidth?: number;
+  /** Surcharge ponctuelle de la graisse (ex. `bold` pour un rendu net sur fond plein). */
+  weight?: IconWeight;
 };
 
 export type IconComponent = ComponentType<IconProps>;
@@ -81,10 +84,10 @@ export type IconComponent = ComponentType<IconProps>;
 /** Graisse Phosphor appliquée à toute la banque. Options : thin/light/regular/bold/fill/duotone. */
 const WEIGHT: IconWeight = 'duotone';
 
-/** Enveloppe une icône Phosphor : graisse imposée + taille par défaut cohérente (surchargée par size/className). */
+/** Enveloppe une icône Phosphor : graisse imposée par défaut, surchargeable via `weight`. */
 function icon(PhIcon: PhosphorIcon): IconComponent {
-  function IconWrapper({ size = 20, ...props }: IconProps) {
-    return <PhIcon weight={WEIGHT} size={size} {...props} />;
+  function IconWrapper({ size = 20, weight = WEIGHT, ...props }: IconProps) {
+    return <PhIcon weight={weight} size={size} {...props} />;
   }
   return IconWrapper;
 }
@@ -136,6 +139,7 @@ export const IconTemps = icon(Clock);
 export const IconChantier = icon(HardHat);
 export const IconProspect = icon(Target);
 export const IconContact = icon(Envelope);
+export const IconTelephone = icon(Phone);
 export const IconEquipe = icon(Users);
 
 /* Statuts */
