@@ -2,7 +2,7 @@ import { NavLink } from 'react-router';
 import { landingUrl } from '@/lib/session';
 import { cn } from '@/lib/utils';
 import { C, SERIF } from '@/lib/brand';
-import { IconHelp, IconLivre } from '@/components/icons';
+import { IconLivre } from '@/components/icons';
 import { ownerNavItems, OwnerAccountMenu, useOwnerBrand, type NavItem } from './ownerNav';
 
 /** Onglets de la barre haute = nav privée + le Blog public (ressources). */
@@ -78,14 +78,6 @@ export function TopBar() {
 
         {/* Actions à droite */}
         <div className="ml-auto flex items-center gap-1 md:gap-1.5">
-          <a
-            href="mailto:contact@monumia.fr"
-            className="hidden items-center gap-2 rounded-full px-3 py-2 text-[13.5px] font-medium transition-colors hover:bg-[var(--secondary)] md:flex"
-            style={{ color: C.grayFg }}
-          >
-            <IconHelp size={18} className="shrink-0" />
-            Aide
-          </a>
           <OwnerAccountMenu />
         </div>
       </div>
