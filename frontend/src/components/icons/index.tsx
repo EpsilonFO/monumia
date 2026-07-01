@@ -79,7 +79,7 @@ export type IconProps = Omit<SVGProps<SVGSVGElement>, 'strokeWidth'> & {
 export type IconComponent = ComponentType<IconProps>;
 
 /** Graisse Phosphor appliquée à toute la banque. Options : thin/light/regular/bold/fill/duotone. */
-const WEIGHT: IconWeight = 'bold';
+const WEIGHT: IconWeight = 'duotone';
 
 /** Enveloppe une icône Phosphor : graisse imposée + taille par défaut cohérente (surchargée par size/className). */
 function icon(PhIcon: PhosphorIcon): IconComponent {
