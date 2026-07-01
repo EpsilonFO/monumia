@@ -1,26 +1,85 @@
-import { useState } from 'react';
-import { Menu } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
-import { MobileNav } from './MobileNav';
+import { NavLink } from 'react-router';
+import { landingUrl } from '@/lib/session';
+import { cn } from '@/lib/utils';
+import { C, SERIF } from '@/lib/brand';
+import { IconLivre } from '@/components/icons';
+import { ownerNavItems, OwnerAccountMenu, useOwnerBrand, type NavItem } from './ownerNav';
+
+/** Onglets de la barre haute = nav privée + le Blog public (ressources). */
+const topBarNavItems: NavItem[] = [
+  ...ownerNavItems,
+  { to: '/blog', icon: IconLivre, label: 'Blog' },
+];
 
 export function TopBar() {
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { tagline } = useOwnerBrand();
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-6 h-14 shrink-0 bg-white/60 backdrop-blur-xl border-b border-[#E0DDD6]/60">
-      <div className="flex items-center gap-3">
-        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden h-8 w-8">
-              <Menu className="h-4 w-4" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-[220px] p-0">
-            <SheetTitle className="sr-only">Navigation</SheetTitle>
-            <MobileNav onNavigate={() => setMobileNavOpen(false)} />
-          </SheetContent>
-        </Sheet>
+    <header
+      className="z-30 shrink-0 bg-[var(--card)]/85 backdrop-blur-xl"
+      style={{
+        boxShadow: '0 1px 2px rgba(7, 42, 114, 0.04), 0 6px 16px -12px rgba(7, 42, 114, 0.18)',
+        borderBottom: '1px solid var(--color-border)',
+      }}
+    >
+      <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-2 px-4 md:gap-4 md:px-6">
+        {/* Marque */}
+        <a href={landingUrl()} className="flex shrink-0 items-center gap-2.5">
+          <img src="/monumia.png" alt="" className="h-8 w-8" aria-hidden />
+          <span className="hidden leading-tight sm:block">
+            <span
+              className="block text-[18px] font-bold tracking-[-0.01em]"
+              style={{ fontFamily: SERIF, color: C.ink }}
+            >
+              Monumia
+            </span>
+            <span
+              className="block text-[10px] font-bold uppercase tracking-[0.15em]"
+              style={{ color: C.orange }}
+            >
+              {tagline}
+            </span>
+          </span>
+        </a>
+
+        {/* Onglets — visibles en bureau, repliés en bas sur mobile (voir BottomNav) */}
+        <nav className="ml-2 hidden h-full items-center gap-1 md:flex lg:gap-2">
+          {topBarNavItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  cn(
+                    'group relative flex h-16 items-center gap-2 px-2.5 text-[14.5px] font-medium transition-colors',
+                    isActive
+                      ? 'text-[color:var(--primary)]'
+                      : 'text-[color:var(--gray-fg)] hover:text-[color:var(--primary)]',
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <Icon size={19} className="shrink-0" />
+                    {item.label}
+                    <span
+                      aria-hidden
+                      className="absolute inset-x-1.5 bottom-0 h-[2.5px] rounded-t-full transition-opacity"
+                      style={{ background: C.orange, opacity: isActive ? 1 : 0 }}
+                    />
+                  </>
+                )}
+              </NavLink>
+            );
+          })}
+        </nav>
+
+        {/* Actions à droite */}
+        <div className="ml-auto flex items-center gap-1 md:gap-1.5">
+          <OwnerAccountMenu />
+        </div>
       </div>
     </header>
   );

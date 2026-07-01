@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
+import { ChevronLeft, ChevronDown, Loader2 } from 'lucide-react';
 import {
-  Shield, Calendar, AlertTriangle, Wrench, Building2, Eye, Compass,
-  ScrollText, FolderOpen, ChevronLeft, ChevronDown, Edit2, Trash2, Loader2,
-  CheckCircle2, HelpCircle, XCircle, Users, FilePlus2,
-} from 'lucide-react';
+  IconProtection, IconCalendrier, IconAttention, IconReglages, IconMonument, IconVoir, IconDiagnostic,
+  IconParchemin, IconDossierOuvert, IconModifier, IconSupprimer,
+  IconSucces, IconHelp, IconErreur, IconEquipe, IconAjouterDossier,
+} from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -16,6 +17,7 @@ import { MonumentForm } from '@/components/monument/MonumentForm';
 import { AideCard } from '@/components/aide/AideCard';
 import { DossierCard } from '@/components/dossier/DossierCard';
 import { DocumentCard } from '@/components/document/DocumentCard';
+import { DocumentGrid } from '@/components/document/DocumentGrid';
 import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { AddToProjectDialog } from '@/components/document/AddToProjectDialog';
@@ -24,6 +26,7 @@ import { TeamPanel } from '@/components/sharing/TeamPanel';
 import { projectPermissions } from '@/lib/project-permissions';
 import { ProjectSummaryBar } from '@/components/project/ProjectSummaryBar';
 import { ProjectEcheancier } from '@/components/project/ProjectEcheancier';
+import { RetakeQuestionnaireDialog } from '@/components/project/RetakeQuestionnaireDialog';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
@@ -85,6 +88,7 @@ export function ProjectDetailPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [retakeOpen, setRetakeOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [showNonEligibles, setShowNonEligibles] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
@@ -201,7 +205,7 @@ export function ProjectDetailPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-[20px]" style={{ fontFamily: SERIF, color: C.ink }}>Projet introuvable</h1>
-        <p className="text-[14px]" style={{ color: '#6a7180' }}>Ce projet n'existe pas ou a été supprimé.</p>
+        <p className="text-[14px] text-muted-foreground">Ce projet n'existe pas ou a été supprimé.</p>
         <Link to={ROUTES.PROJETS} className="inline-flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.blue }}>
           <ChevronLeft className="h-3.5 w-3.5" /> Retour aux projets
         </Link>
@@ -282,9 +286,31 @@ export function ProjectDetailPage() {
   const potentiels = [...(diagnostic?.aidesPotentiellementEligibles ?? [])].filter((m) => !dossierAideIds.has(m.aide.id)).sort(byDeadline);
   const nonEligibles = (diagnostic?.aidesNonEligibles ?? []).filter((m) => !dossierAideIds.has(m.aide.id));
 
+  // L'affichage des aides s'adapte au nombre : 1 → bandeau pleine largeur (occupe
+  // l'espace) · 2 → deux colonnes · 3+ → grille trois colonnes. Évite tout vide.
+  const renderAideList = (list: AideMatchResult[]) =>
+    list.length === 1 ? (
+      <AideCard match={list[0]} monumentId={monument.id} layout="hero" />
+    ) : (
+      <div className={`grid grid-cols-1 gap-4 ${list.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
+        {list.map((match) => (
+          <AideCard key={match.aide.id} match={match} monumentId={monument.id} layout="grid" />
+        ))}
+      </div>
+    );
+
+  // Onglets du projet — chaque entrée = un grand bouton lisible (icône + libellé + compteur).
+  const projectTabs: { value: string; label: string; icon: typeof IconVoir; count: number | null }[] = [
+    ...(canAccessAides ? [{ value: 'aides', label: 'Aides', icon: IconDiagnostic, count: eligibles.length + potentiels.length }] : []),
+    { value: 'monument', label: 'Monument', icon: IconVoir, count: null },
+    { value: 'dossiers', label: 'Dossiers', icon: IconParchemin, count: dossiers.length },
+    { value: 'documents', label: 'Documents', icon: IconDossierOuvert, count: projectDocuments.length },
+    { value: 'equipe', label: 'Équipe', icon: IconEquipe, count: members.length },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[13px]" style={{ color: '#6a7180' }}>
+      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
         <Link to={ROUTES.PROJETS} className="hover:opacity-70 transition-opacity">Projets</Link>
         <span>/</span>
         <span style={{ color: C.ink }}>{monument.nom}</span>
@@ -293,28 +319,50 @@ export function ProjectDetailPage() {
       <ProjectSummaryBar monument={monument} stats={stats} members={members} onRefaireQuestionnaire={() => setConfirmRefaireOpen(true)} />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
-          {canAccessAides && (
-            <TabsTrigger value="aides" className="gap-1.5"><Compass className="h-4 w-4" />Aides ({eligibles.length + potentiels.length})</TabsTrigger>
-          )}
-          <TabsTrigger value="monument" className="gap-1.5"><Eye className="h-4 w-4" />Monument</TabsTrigger>
-          <TabsTrigger value="dossiers" className="gap-1.5"><ScrollText className="h-4 w-4" />Dossiers ({dossiers.length})</TabsTrigger>
-          <TabsTrigger value="documents" className="gap-1.5"><FolderOpen className="h-4 w-4" />Documents ({projectDocuments.length})</TabsTrigger>
-          <TabsTrigger value="equipe" className="gap-1.5"><Users className="h-4 w-4" />Équipe ({members.length})</TabsTrigger>
-        </TabsList>
+        <div role="tablist" aria-label="Sections du projet" className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+          {projectTabs.map(({ value, label, icon: Icon, count }) => {
+            const active = activeTab === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => handleTabChange(value)}
+                className={`relative flex items-center justify-center gap-2 overflow-hidden rounded-xl px-4 py-3.5 text-[15px] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                  active
+                    ? 'bg-primary text-primary-foreground shadow-pop'
+                    : 'border border-border bg-card text-foreground hover:-translate-y-0.5 hover:border-primary hover:shadow-md'
+                }`}
+              >
+                <Icon className={`h-5 w-5 shrink-0 ${active ? 'text-primary-foreground' : 'text-primary'}`} strokeWidth={2} />
+                <span className="truncate">{label}</span>
+                {count !== null && (
+                  <span
+                    className={`inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[12px] font-bold tabular-nums ${
+                      active ? 'bg-white/25 text-primary-foreground' : 'bg-secondary text-primary'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
         {/* AIDES */}
         <TabsContent value="aides" className="mt-4 space-y-6">
           {!diagnostic ? (
             <div className="rounded-2xl border py-10 text-center space-y-4" style={{ background: C.paleBlue, borderColor: C.border }}>
               <div className="mx-auto w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#fff' }}>
-                <Compass className="h-7 w-7" style={{ color: C.blue }} />
+                <IconDiagnostic className="h-7 w-7" style={{ color: C.blue }} />
               </div>
               <div>
                 <h2 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
                   Découvrez les aides pour <em className="italic" style={{ color: C.orange }}>{monument.nom}</em>
                 </h2>
-                <p className="text-[14px] mt-1" style={{ color: '#6a7180' }}>Notre moteur analyse les aides publiques et privées applicables.</p>
+                <p className="text-[14px] mt-1 text-muted-foreground">Notre moteur analyse les aides publiques et privées applicables.</p>
               </div>
               <button
                 onClick={handleRunDiagnostic}
@@ -322,38 +370,41 @@ export function ProjectDetailPage() {
                 className="inline-flex items-center gap-2 px-6 py-3 text-[13px] font-semibold text-white rounded-lg transition-all duration-300 hover:shadow-md disabled:opacity-60"
                 style={{ background: C.orange }}
               >
-                {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Compass className="h-4 w-4" strokeWidth={1.8} />}
+                {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconDiagnostic className="h-4 w-4" strokeWidth={1.8} />}
                 Lancer le moteur
               </button>
             </div>
           ) : (
             <div className="space-y-8">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setRetakeOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-[12.5px] font-medium underline-offset-2 transition-colors hover:underline"
+                  style={{ color: C.grayMuted }}
+                >
+                  <IconReglages className="h-3.5 w-3.5" />
+                  Refaire le questionnaire
+                </button>
+              </div>
+
               <ProjectEcheancier deadlines={deadlines} />
 
               <section className="space-y-3">
                 <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />Éligibles ({eligibles.length})
+                  <IconSucces className="h-4 w-4 text-success" />Éligibles ({eligibles.length})
                 </h3>
                 {eligibles.length === 0 ? (
-                  <p className="text-[13px]" style={{ color: '#6a7180' }}>Aucune aide pleinement éligible pour le moment.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {eligibles.map((match) => (<AideCard key={match.aide.id} match={match} monumentId={monument.id} />))}
-                  </div>
-                )}
+                  <p className="text-[13px] text-muted-foreground">Aucune aide pleinement éligible pour le moment.</p>
+                ) : renderAideList(eligibles)}
               </section>
 
               <section className="space-y-3">
                 <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                  <HelpCircle className="h-4 w-4" style={{ color: C.orangeVif }} />À confirmer ({potentiels.length})
+                  <IconHelp className="h-4 w-4" style={{ color: C.orangeVif }} />À confirmer ({potentiels.length})
                 </h3>
                 {potentiels.length === 0 ? (
-                  <p className="text-[13px]" style={{ color: '#6a7180' }}>Aucune aide à confirmer.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {potentiels.map((match) => (<AideCard key={match.aide.id} match={match} monumentId={monument.id} />))}
-                  </div>
-                )}
+                  <p className="text-[13px] text-muted-foreground">Aucune aide à confirmer.</p>
+                ) : renderAideList(potentiels)}
               </section>
 
               <section className="space-y-3">
@@ -362,12 +413,12 @@ export function ProjectDetailPage() {
                   className="flex items-center gap-2 text-[15px]"
                   style={{ fontFamily: SERIF, color: C.ink }}
                 >
-                  <XCircle className="h-4 w-4 text-red-500" />Non éligibles ({nonEligibles.length})
+                  <IconErreur className="h-4 w-4 text-destructive" />Non éligibles ({nonEligibles.length})
                   <ChevronDown className={`h-4 w-4 transition-transform ${showNonEligibles ? 'rotate-180' : ''}`} />
                 </button>
                 {showNonEligibles && (
                   nonEligibles.length === 0 ? (
-                    <p className="text-[13px]" style={{ color: '#6a7180' }}>Aucune aide non éligible.</p>
+                    <p className="text-[13px] text-muted-foreground">Aucune aide non éligible.</p>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {nonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} monumentId={monument.id} />))}
@@ -383,19 +434,19 @@ export function ProjectDetailPage() {
         <TabsContent value="monument" className="mt-4 space-y-4">
           <div className="flex justify-end gap-2">
             {projectPermissions(monument?.myRole ?? null).canDeleteProject && (
-              <button onClick={() => setConfirmDeleteOpen(true)} disabled={deleting} aria-label="Supprimer le projet" className="flex items-center justify-center w-9 h-9 shrink-0 border rounded-lg transition-colors hover:text-red-600 hover:border-red-200" style={{ borderColor: C.border, color: '#6a7180' }}>
-                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" strokeWidth={1.8} />}
+              <button onClick={() => setConfirmDeleteOpen(true)} disabled={deleting} aria-label="Supprimer le projet" className="flex items-center justify-center w-9 h-9 shrink-0 border rounded-lg transition-colors hover:text-destructive hover:border-destructive/30 text-muted-foreground" style={{ borderColor: C.border }}>
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconSupprimer className="h-4 w-4" strokeWidth={1.8} />}
               </button>
             )}
             {projectPermissions(monument?.myRole ?? null).canEditProject && (
               <button onClick={() => setIsEditing(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
-                <Edit2 className="h-3.5 w-3.5" strokeWidth={1.8} />Éditer
+                <IconModifier className="h-3.5 w-3.5" strokeWidth={1.8} />Éditer
               </button>
             )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Panel title="Identification" icon={<Building2 className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />}>
+            <Panel title="Identification" icon={<IconMonument className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />}>
               <div className="space-y-2 text-[13px]">
                 {monument.referenceMerimee && <InfoRow label="Réf. Mérimée" value={monument.referenceMerimee} />}
                 <InfoRow label="Localisation" value={monument.commune ?? ''} />
@@ -404,7 +455,7 @@ export function ProjectDetailPage() {
               </div>
             </Panel>
 
-            <Panel title="Statut juridique" icon={<Shield className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />}>
+            <Panel title="Statut juridique" icon={<IconProtection className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />}>
               <div className="space-y-2 text-[13px]">
                 <InfoRow label="Protection" value={PROTECTION_LABELS[monument.protection] ?? monument.protection} />
                 {monument.dateProtection && <InfoRow label="Date" value={formatDate(monument.dateProtection)} />}
@@ -413,17 +464,17 @@ export function ProjectDetailPage() {
               </div>
             </Panel>
 
-            <Panel title="État actuel" icon={<AlertTriangle className="h-4 w-4" style={{ color: C.orangeVif }} strokeWidth={1.8} />}>
+            <Panel title="État actuel" icon={<IconAttention className="h-4 w-4" style={{ color: C.orangeVif }} strokeWidth={1.8} />}>
               <div className="space-y-3 text-[13px]">
                 <div className="flex items-center gap-2">
-                  <span style={{ color: '#6a7180' }}>Conservation :</span>
+                  <span className="text-muted-foreground">Conservation :</span>
                   <Badge variant="outline" className="text-[12px]" style={{ borderColor: C.border }}>{ETAT_LABELS[monument.etatConservation] ?? monument.etatConservation}</Badge>
                 </div>
-                {monument.descriptionEtat && <p className="leading-relaxed" style={{ color: '#6a7180' }}>{monument.descriptionEtat}</p>}
+                {monument.descriptionEtat && <p className="leading-relaxed text-muted-foreground">{monument.descriptionEtat}</p>}
               </div>
             </Panel>
 
-            <Panel title="Travaux envisagés" icon={<Wrench className="h-4 w-4" style={{ color: C.orange }} strokeWidth={1.8} />}>
+            <Panel title="Travaux envisagés" icon={<IconReglages className="h-4 w-4" style={{ color: C.orange }} strokeWidth={1.8} />}>
               {monument.travauxEnvisages && monument.travauxEnvisages.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {monument.travauxEnvisages.map((t) => (
@@ -431,14 +482,14 @@ export function ProjectDetailPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-[13px]" style={{ color: '#6a7180' }}>Aucun travail envisagé</p>
+                <p className="text-[13px] text-muted-foreground">Aucun travail envisagé</p>
               )}
             </Panel>
           </div>
 
           {monument.descriptionGenerale && (
             <Panel title="Description générale de la protection">
-              <p className="text-[13px] leading-relaxed" style={{ color: '#6a7180' }}>{monument.descriptionGenerale}</p>
+              <p className="text-[13px] leading-relaxed text-muted-foreground">{monument.descriptionGenerale}</p>
             </Panel>
           )}
 
@@ -454,9 +505,9 @@ export function ProjectDetailPage() {
             </Panel>
           )}
 
-          <div className="flex items-center gap-4 text-[12px]" style={{ color: '#6a7180' }}>
-            <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Créé le {formatDate(monument.createdAt)}</div>
-            <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />Modifié le {formatDate(monument.updatedAt)}</div>
+          <div className="flex items-center gap-4 text-[12px] text-muted-foreground">
+            <div className="flex items-center gap-1"><IconCalendrier className="h-3 w-3" />Créé le {formatDate(monument.createdAt)}</div>
+            <div className="flex items-center gap-1"><IconCalendrier className="h-3 w-3" />Modifié le {formatDate(monument.updatedAt)}</div>
           </div>
         </TabsContent>
 
@@ -468,12 +519,12 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <EmptyState
-              icon={ScrollText}
+              icon={IconParchemin}
               title="Aucun dossier pour ce projet"
               description="Ouvrez une aide depuis l'onglet « Aides » pour démarrer une candidature."
               action={
                 <button onClick={() => handleTabChange('aides')} className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
-                  <Compass className="h-4 w-4" strokeWidth={1.8} />Voir les aides
+                  <IconDiagnostic className="h-4 w-4" strokeWidth={1.8} />Voir les aides
                 </button>
               }
             />
@@ -484,14 +535,15 @@ export function ProjectDetailPage() {
         <TabsContent value="documents" className="mt-4 space-y-4">
           <div className="flex justify-end">
             <button onClick={() => setAddDocOpen(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
-              <FilePlus2 className="h-3.5 w-3.5" strokeWidth={1.8} />Ajouter un document
+              <IconAjouterDossier className="h-3.5 w-3.5" strokeWidth={1.8} />Ajouter un document
             </button>
           </div>
           {projectDocuments.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {projectDocuments.map((doc) => (
+            <DocumentGrid
+              items={projectDocuments}
+              keyOf={(doc) => doc.id}
+              renderItem={(doc) => (
                 <DocumentCard
-                  key={doc.id}
                   document={doc}
                   dossierNames={dossierNames}
                   monumentNames={monumentNames}
@@ -503,10 +555,10 @@ export function ProjectDetailPage() {
                   uploaderName={uploaderNames[doc.userId]}
                   onDocumentUpdated={reloadProjectDocuments}
                 />
-              ))}
-            </div>
+              )}
+            />
           ) : (
-            <EmptyState icon={FolderOpen} title="Aucun document" description="Les documents rattachés à ce projet apparaîtront ici." />
+            <EmptyState icon={IconDossierOuvert} title="Aucun document" description="Les documents rattachés à ce projet apparaîtront ici." />
           )}
         </TabsContent>
 
@@ -522,6 +574,12 @@ export function ProjectDetailPage() {
           />
         </TabsContent>
       </Tabs>
+
+      <RetakeQuestionnaireDialog
+        monument={monument}
+        open={retakeOpen}
+        onClose={() => setRetakeOpen(false)}
+      />
 
       <DocumentPreviewDialog document={previewDoc} open={!!previewDoc} onOpenChange={(open) => { if (!open) setPreviewDoc(null); }} onAddToProject={(doc) => { setPreviewDoc(null); setAddToProjectDoc(doc); }} />
       <AddToProjectDialog
@@ -598,7 +656,7 @@ function Panel({ title, icon, children }: { title: string; icon?: React.ReactNod
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-2">
-      <span className="shrink-0" style={{ color: '#6a7180' }}>{label} :</span>
+      <span className="shrink-0 text-muted-foreground">{label} :</span>
       <span className="font-medium" style={{ color: C.ink }}>{value}</span>
     </div>
   );

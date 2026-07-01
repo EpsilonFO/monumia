@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Loader2, Mail, MoreVertical, UserPlus, LogOut } from 'lucide-react';
+import { Loader2, MoreVertical } from 'lucide-react';
+import { IconContact, IconEquipe, IconDeconnexion } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -70,7 +71,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
         <h2 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
           Équipe du projet
         </h2>
-        <p className="text-[13px]" style={{ color: '#6a7180' }}>
+        <p className="text-[13px] text-muted-foreground">
           Les personnes ci-dessous peuvent consulter et travailler sur ce projet.
         </p>
       </div>
@@ -81,7 +82,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
           style={{ background: C.card, borderColor: C.border }}
         >
           <label className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: C.ink }}>
-            <UserPlus className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />
+            <IconEquipe className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />
             Inviter une personne
           </label>
           <div className="flex gap-2">
@@ -91,7 +92,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
-              className="h-10 text-[14px] bg-white"
+              className="h-10 text-[14px] bg-card"
               style={{ borderColor: C.border }}
             />
             <button
@@ -105,21 +106,21 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
               {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Inviter'}
             </button>
           </div>
-          <p className="text-[11px]" style={{ color: '#8E92A4' }}>
+          <p className="text-[11px] text-muted-foreground">
             Un email d'invitation lui sera envoyé.
           </p>
         </div>
       )}
 
       {isSolo && (
-        <p className="text-[13px]" style={{ color: '#6a7180' }}>
+        <p className="text-[13px] text-muted-foreground">
           Vous êtes seul sur ce projet pour l'instant.
           {perms.canInvite ? ' Invitez vos collaborateurs ci-dessus.' : ''}
         </p>
       )}
 
       <div className="space-y-2">
-        <p className="text-[12px] font-semibold uppercase tracking-wide" style={{ color: '#8E92A4' }}>
+        <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
           Personnes ayant accès ({members.length})
         </p>
         {members.map((m, mi) => {
@@ -135,11 +136,11 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-[14px] font-medium truncate" style={{ color: C.ink }}>
-                    {m.prenom} {m.nom} {isMe && <span style={{ color: '#8E92A4' }}>(vous)</span>}
+                    {m.prenom} {m.nom} {isMe && <span className="text-muted-foreground">(vous)</span>}
                   </p>
                   <RoleBadge role={m.role} />
                 </div>
-                <p className="text-[12px] truncate" style={{ color: '#8E92A4' }}>
+                <p className="text-[12px] truncate text-muted-foreground">
                   {[m.metier, m.email].filter(Boolean).join(' · ')}
                 </p>
               </div>
@@ -147,8 +148,8 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     aria-label="Gérer ce membre"
-                    className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium hover:bg-[#F8F7F4]"
-                    style={{ borderColor: C.border, color: '#5C6178' }}
+                    className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium hover:bg-muted text-gray-fg"
+                    style={{ borderColor: C.border }}
                   >
                     Gérer <MoreVertical className="h-3.5 w-3.5" />
                   </DropdownMenuTrigger>
@@ -166,7 +167,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
                         Rétrograder collaborateur
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem className="text-[#c0271d]" onClick={() => setConfirmRemove(m)}>
+                    <DropdownMenuItem className="text-destructive" onClick={() => setConfirmRemove(m)}>
                       Retirer du projet
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -179,7 +180,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
 
       {invitations.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[12px] font-semibold uppercase tracking-wide" style={{ color: '#8E92A4' }}>
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
             Invitations en attente ({invitations.length})
           </p>
           {invitations.map((inv) => (
@@ -188,14 +189,13 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
               className="flex items-center gap-3 rounded-lg border border-dashed px-3 py-2.5"
               style={{ borderColor: C.border }}
             >
-              <Mail className="h-4 w-4" style={{ color: '#8E92A4' }} />
-              <p className="text-[13px] flex-1 truncate" style={{ color: '#5C6178' }}>{inv.email}</p>
-              <span className="text-[11px]" style={{ color: '#8E92A4' }}>Invitation envoyée</span>
+              <IconContact className="h-4 w-4 text-muted-foreground" />
+              <p className="text-[13px] flex-1 truncate text-gray-fg">{inv.email}</p>
+              <span className="text-[11px] text-muted-foreground">Invitation envoyée</span>
               {perms.canInvite && (
                 <button
                   type="button"
-                  className="text-[12px] hover:underline"
-                  style={{ color: '#c0271d' }}
+                  className="text-[12px] hover:underline text-destructive"
                   onClick={() => act(() => sharingService.revokeInvitation(monumentId, inv.id), 'Invitation annulée')}
                 >
                   Annuler
@@ -211,10 +211,9 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
           <button
             type="button"
             onClick={() => setConfirmLeave(true)}
-            className="inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition-colors hover:bg-[#fdf2f1]"
-            style={{ color: '#c0271d', borderColor: '#e7c3bf' }}
+            className="inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition-colors hover:bg-destructive-muted text-destructive border-destructive-muted"
           >
-            <LogOut className="h-4 w-4" strokeWidth={1.8} />
+            <IconDeconnexion className="h-4 w-4" strokeWidth={1.8} />
             Quitter ce projet
           </button>
         </div>

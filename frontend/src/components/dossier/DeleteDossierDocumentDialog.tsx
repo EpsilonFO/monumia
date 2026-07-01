@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FolderMinus, Loader2, Trash2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { IconRetirerDossier, IconSupprimer } from '@/components/icons';
 import {
   Dialog,
   DialogContent,
@@ -54,12 +55,12 @@ export function DeleteDossierDocumentDialog({
             type="button"
             disabled={!!busyScope}
             onClick={() => handle('dossier')}
-            className="w-full flex items-start gap-3 p-3 text-left rounded-lg border border-[#E4E2DC] hover:bg-[#F8F7F4] transition-colors disabled:opacity-60"
+            className="w-full flex items-start gap-3 p-3 text-left rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-60"
           >
             {busyScope === 'dossier' ? (
               <Loader2 className="h-5 w-5 shrink-0 mt-0.5 animate-spin text-muted-foreground" />
             ) : (
-              <FolderMinus className="h-5 w-5 shrink-0 mt-0.5 text-[#1A237E]" />
+              <IconRetirerDossier className="h-5 w-5 shrink-0 mt-0.5 text-primary" />
             )}
             <div>
               <p className="text-sm font-medium">Retirer du dossier uniquement</p>
@@ -73,16 +74,16 @@ export function DeleteDossierDocumentDialog({
             type="button"
             disabled={!!busyScope}
             onClick={() => handle('everywhere')}
-            className="w-full flex items-start gap-3 p-3 text-left rounded-lg border border-red-200 hover:bg-red-50 transition-colors disabled:opacity-60"
+            className="w-full flex items-start gap-3 p-3 text-left rounded-lg border border-destructive/20 hover:bg-destructive-muted transition-colors disabled:opacity-60"
           >
             {busyScope === 'everywhere' ? (
-              <Loader2 className="h-5 w-5 shrink-0 mt-0.5 animate-spin text-red-600" />
+              <Loader2 className="h-5 w-5 shrink-0 mt-0.5 animate-spin text-destructive" />
             ) : (
-              <Trash2 className="h-5 w-5 shrink-0 mt-0.5 text-red-600" />
+              <IconSupprimer className="h-5 w-5 shrink-0 mt-0.5 text-destructive" />
             )}
             <div>
-              <p className="text-sm font-medium text-red-700">Supprimer partout</p>
-              <p className="text-xs text-red-600/80">
+              <p className="text-sm font-medium text-destructive">Supprimer partout</p>
+              <p className="text-xs text-destructive/80">
                 Retire le document de ce dossier et le supprime définitivement de la bibliothèque.
               </p>
             </div>

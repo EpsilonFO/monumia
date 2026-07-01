@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, LayoutTemplate } from 'lucide-react';
+import { IconRecherche, IconModele } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -45,16 +45,16 @@ export function TemplateLibraryPage() {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8E92A4]" />
+          <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            className="pl-9 h-10 text-[14px] bg-white border-[#E4E2DC] focus:border-[#1A237E] focus:ring-[#1A237E]/10"
+            className="pl-9 h-10 text-[14px] bg-card border-border focus:border-primary focus:ring-primary/10"
             placeholder="Rechercher un modèle..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-full sm:w-56 h-10 text-[14px] bg-white border-[#E4E2DC]">
+          <SelectTrigger className="w-full sm:w-56 h-10 text-[14px] bg-card border-border">
             <SelectValue placeholder="Type de document" />
           </SelectTrigger>
           <SelectContent>
@@ -72,12 +72,12 @@ export function TemplateLibraryPage() {
       {loading && !loaded ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-44 rounded-xl bg-[#E4E2DC]/30 animate-pulse" />
+            <div key={i} className="h-44 rounded-xl bg-border/30 animate-pulse" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          icon={LayoutTemplate}
+          icon={IconModele}
           title="Aucun modèle"
           description={
             search || filterType !== 'all'

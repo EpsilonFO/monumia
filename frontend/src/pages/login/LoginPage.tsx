@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Eye, EyeOff, Loader2, ArrowRight, Check, X } from 'lucide-react';
+import { EyeOff, Loader2, ArrowRight, Check, X } from 'lucide-react';
+import { IconVoir } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -12,18 +13,32 @@ import { C, SERIF } from '@/lib/brand';
 import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
 import { toast } from 'sonner';
 
-const MUTED = '#5c6472';
-const LIGHT = '#8c92a0';
-const SUCCESS = '#2e7d32';
+const MUTED = 'var(--muted-foreground)';
+const LIGHT = 'var(--muted-foreground)';
+const SUCCESS = 'var(--success)';
 
 const inputCls =
-  'h-12 text-[15px] bg-white border-[#ece3d2] focus:border-[#0a369d] focus:ring-[#0a369d]/10';
+  'h-12 text-[15px] bg-card border-border focus:border-primary focus:ring-primary/10';
 
 export function LoginPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const setPendingCredentials = usePendingRegistrationStore((s) => s.setCredentials);
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'login' | 'register'>('login');
+  const [tab, setTab] = useState<'login' | 'register' | 'forgot'>('login');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotState, setForgotState] = useState<'idle' | 'sending' | 'sent'>('idle');
+
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotState('sending');
+    try {
+      await authService.requestPasswordReset(forgotEmail);
+      setForgotState('sent');
+    } catch {
+      // Réponse volontairement indifférenciée (le back répond toujours 200).
+      setForgotState('sent');
+    }
+  };
 
   // --- Connexion ---
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
@@ -97,7 +112,7 @@ export function LoginPage() {
             className="flex-1 rounded-lg py-2.5 text-[14px] font-semibold transition-all duration-200"
             style={{
               background: tab === t ? C.blue : 'transparent',
-              color: tab === t ? '#ffffff' : C.blue,
+              color: tab === t ? 'white' : C.blue,
             }}
           >
             {t === 'login' ? 'Connexion' : 'Inscription'}
@@ -140,9 +155,19 @@ export function LoginPage() {
                 style={{ color: LIGHT }}
                 onClick={() => setShowLoginPwd((v) => !v)}
               >
-                {showLoginPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showLoginPwd ? <EyeOff className="h-4 w-4" /> : <IconVoir className="h-4 w-4" />}
               </button>
             </div>
+          </div>
+          <div className="text-right -mt-2">
+            <button
+              type="button"
+              onClick={() => { setForgotEmail(loginForm.email); setForgotState('idle'); setTab('forgot'); }}
+              className="text-[13px] font-medium underline underline-offset-2"
+              style={{ color: C.blue }}
+            >
+              Mot de passe oublié ?
+            </button>
           </div>
           <button
             type="submit"
@@ -195,7 +220,7 @@ export function LoginPage() {
                 style={{ color: LIGHT }}
                 onClick={() => setShowRegisterPwd((v) => !v)}
               >
-                {showRegisterPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showRegisterPwd ? <EyeOff className="h-4 w-4" /> : <IconVoir className="h-4 w-4" />}
               </button>
             </div>
             {registerForm.password && (
@@ -232,6 +257,56 @@ export function LoginPage() {
             <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
           </button>
         </form>
+      )}
+
+      {/* ── Mot de passe oublié ── */}
+      {tab === 'forgot' && (
+        forgotState === 'sent' ? (
+          <div className="space-y-4">
+            <div className="rounded-xl p-4 text-[14px]" style={{ background: C.paleBlue, color: C.ink }}>
+              Si un compte existe pour <span className="font-semibold">{forgotEmail || 'cette adresse'}</span>, un email vient d'être envoyé avec un lien pour choisir un nouveau mot de passe. Pensez à vérifier vos courriers indésirables.
+            </div>
+            <button
+              onClick={() => setTab('login')}
+              className="flex h-12 w-full items-center justify-center rounded-lg text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
+              style={{ background: C.orange }}
+            >
+              Retour à la connexion
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleForgot} className="space-y-5">
+            <p className="text-[14px]" style={{ color: MUTED }}>
+              Indiquez votre email : nous vous enverrons un lien pour choisir un nouveau mot de passe. Rien à retenir.
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="forgot-email" className="text-[14px] font-medium" style={{ color: C.ink }}>Email</Label>
+              <Input
+                id="forgot-email"
+                type="email"
+                autoComplete="email"
+                placeholder="marie.dupont@mairie.fr"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                required
+                className={inputCls}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={forgotState === 'sending' || !forgotEmail}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              style={{ background: C.orange }}
+            >
+              {forgotState === 'sending' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Recevoir le lien'}
+            </button>
+            <p className="text-center text-[13px]" style={{ color: MUTED }}>
+              <button type="button" onClick={() => setTab('login')} className="font-semibold underline underline-offset-2" style={{ color: C.orange }}>
+                Retour à la connexion
+              </button>
+            </p>
+          </form>
+        )
       )}
 
       {/* footer note */}

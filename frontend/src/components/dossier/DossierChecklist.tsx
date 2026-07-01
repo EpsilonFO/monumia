@@ -1,4 +1,9 @@
-import { CheckCircle2, Download, Eye, Loader2, Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import {
+  IconLivre, IconSucces, IconTelecharger, IconVoir, IconVerrou, IconAjouter, IconRafraichir, IconSupprimer,
+} from '@/components/icons';
+import { Link, useParams } from 'react-router';
+import { ROUTES } from '@/constants/routes';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -6,7 +11,6 @@ import { templateService } from '@/services/template.service';
 import { formatBadge } from '@/lib/template-format';
 import type { ChecklistItem, Template } from '@/types';
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router';
 import {
   Tooltip,
   TooltipContent,
@@ -79,8 +83,18 @@ export function DossierChecklist({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-sm text-[#8E92A4]">
-        <span className="font-medium text-[#1B1E2E]">{uploaded}/{items.length}</span> documents ajoutés
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm" style={{ color: 'var(--color-gray-muted)' }}>
+          <span className="font-medium" style={{ color: 'var(--color-foreground)' }}>{uploaded}/{items.length}</span> documents ajoutés
+        </p>
+        <Link
+          to={ROUTES.MODELES}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors"
+          style={{ color: 'var(--color-primary)' }}
+        >
+          <IconLivre className="h-3.5 w-3.5" />
+          Bibliothèque de modèles
+        </Link>
       </div>
 
       <div className="space-y-1.5">
@@ -132,18 +146,18 @@ function DocumentRow({
     <div
       className={cn(
         'flex items-center gap-3 py-2.5 px-3 rounded-lg border transition-colors',
-        isFourni ? 'bg-green-50/60 border-green-200' : 'border-[#E4E2DC] hover:border-[#C5C3BC]',
+        isFourni ? 'bg-success-muted/60 border-success/30' : 'border-border hover:border-border/70',
       )}
     >
       {isFourni ? (
-        <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+        <IconSucces className="h-4 w-4 shrink-0 text-success" />
       ) : (
-        <div className="w-4 h-4 shrink-0 rounded-full border-2 border-[#E4E2DC]" />
+        <div className="w-4 h-4 shrink-0 rounded-full border-2 border-border" />
       )}
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className={cn('text-sm font-medium', isFourni && 'text-green-800')}>
+          <span className={cn('text-sm font-medium', isFourni && 'text-success')}>
             {labelText(item.label)}
           </span>
           {item.obligatoire && (
@@ -164,10 +178,10 @@ function DocumentRow({
             <Tooltip>
               <TooltipTrigger asChild>
                 <span
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[#E4E2DC] text-[#8E92A4] cursor-default"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground cursor-default"
                   aria-label="Accès réservé"
                 >
-                  <Lock className="h-3 w-3" />
+                  <IconVerrou className="h-3 w-3" />
                   Réservé
                 </span>
               </TooltipTrigger>
@@ -179,9 +193,9 @@ function DocumentRow({
           <button
             type="button"
             onClick={() => onPreview(item.documentId!)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-green-300 text-green-700 hover:bg-green-100 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-success/30 text-success hover:bg-success-muted transition-colors"
           >
-            <Eye className="h-3 w-3" />
+            <IconVoir className="h-3 w-3" />
             Voir
           </button>
         )}
@@ -192,11 +206,11 @@ function DocumentRow({
             onClick={() => onRequestDelete(item)}
             aria-label="Supprimer"
             className={cn(
-              'inline-flex items-center justify-center h-[30px] w-[30px] rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors',
+              'inline-flex items-center justify-center h-[30px] w-[30px] rounded-lg border border-destructive/20 text-destructive hover:bg-destructive-muted transition-colors',
               busy && 'opacity-60 cursor-not-allowed',
             )}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <IconSupprimer className="h-3.5 w-3.5" />
           </button>
         )}
         {!readOnly && onRequestAttach && (!isFourni || canModify) && !hidden && (
@@ -208,16 +222,16 @@ function DocumentRow({
               'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors',
               busy && 'opacity-60 cursor-not-allowed',
               isFourni
-                ? 'border-[#E4E2DC] text-[#5C6178] hover:bg-[#F8F7F4]'
-                : 'border-[#1A237E]/20 text-[#1A237E] hover:bg-[#E8EAF6]/50',
+                ? 'border-border text-muted-foreground hover:bg-muted'
+                : 'border-primary/20 text-primary hover:bg-secondary/50',
             )}
           >
             {busy ? (
               <Loader2 className="h-3 w-3 animate-spin" />
             ) : isFourni ? (
-              <RefreshCw className="h-3 w-3" />
+              <IconRafraichir className="h-3 w-3" />
             ) : (
-              <Plus className="h-3 w-3" />
+              <IconAjouter className="h-3 w-3" />
             )}
             {busy ? 'Envoi…' : isFourni ? 'Remplacer' : 'Ajouter'}
           </button>
@@ -234,7 +248,7 @@ function ModelButton({ templates }: { templates: Template[] }) {
   if (templates.length === 0) return null;
 
   const pill =
-    'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors border-[#f17105]/30 text-[#b9560a] bg-[#feeedd]/50 hover:bg-[#feeedd]';
+    'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors border-accent/30 text-warning bg-warning-muted/50 hover:bg-warning-muted';
 
   if (templates.length === 1) {
     const t = templates[0];
@@ -245,7 +259,7 @@ function ModelButton({ templates }: { templates: Template[] }) {
         className={pill}
         title={`Télécharger le modèle : ${t.nom}`}
       >
-        <Download className="h-3 w-3" />
+        <IconTelecharger className="h-3 w-3" />
         Modèle
       </button>
     );
@@ -255,12 +269,12 @@ function ModelButton({ templates }: { templates: Template[] }) {
     <Popover>
       <PopoverTrigger asChild>
         <button type="button" className={pill}>
-          <Download className="h-3 w-3" />
+          <IconTelecharger className="h-3 w-3" />
           Modèles ({templates.length})
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-1.5">
-        <p className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#8E92A4]">
+        <p className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Modèles suggérés
         </p>
         <div className="space-y-0.5">
@@ -271,13 +285,13 @@ function ModelButton({ templates }: { templates: Template[] }) {
                 key={t.id}
                 type="button"
                 onClick={() => templateService.download(t)}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-[#F8F7F4]"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-muted"
               >
                 <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${badge.className}`}>
                   {badge.label}
                 </span>
-                <span className="flex-1 truncate text-[13px] text-[#222b35]">{t.nom}</span>
-                <Download className="h-3.5 w-3.5 shrink-0 text-[#8E92A4]" />
+                <span className="flex-1 truncate text-[13px] text-foreground">{t.nom}</span>
+                <IconTelecharger className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               </button>
             );
           })}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, User, Bell, HardHat, MapPin, Wrench } from 'lucide-react';
+import { IconEnregistrer, IconCompte, IconNotification, IconChantier, IconLocalisation, IconReglages } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -70,7 +70,7 @@ export function BtpProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <User className="h-4 w-4" />
+              <IconCompte className="h-4 w-4" />
               Informations personnelles
             </CardTitle>
           </CardHeader>
@@ -111,7 +111,7 @@ export function BtpProfilePage() {
               />
             </div>
             <Button onClick={handleSave} disabled={saving}>
-              <Save className="h-4 w-4 mr-2" />
+              <IconEnregistrer className="h-4 w-4 mr-2" />
               {saving ? 'Enregistrement…' : 'Enregistrer'}
             </Button>
           </CardContent>
@@ -121,7 +121,7 @@ export function BtpProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <HardHat className="h-4 w-4" />
+              <IconChantier className="h-4 w-4" />
               Mon entreprise
             </CardTitle>
           </CardHeader>
@@ -147,7 +147,7 @@ export function BtpProfilePage() {
 
                 <div>
                   <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
-                    <Wrench className="h-3 w-3" />
+                    <IconReglages className="h-3 w-3" />
                     Spécialités
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -161,7 +161,7 @@ export function BtpProfilePage() {
 
                 <div>
                   <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
+                    <IconLocalisation className="h-3 w-3" />
                     Zones d'intervention
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -181,7 +181,7 @@ export function BtpProfilePage() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Bell className="h-4 w-4" />
+              <IconNotification className="h-4 w-4" />
               Préférences de notification
             </CardTitle>
             <CardDescription>

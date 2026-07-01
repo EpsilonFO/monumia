@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
-import { ChevronLeft, Clock, Loader2, FolderOpen, FilePlus2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { ChevronLeft, Loader2 } from 'lucide-react';
+import { IconDossierOuvert, IconAjouterDossier } from '@/components/icons';
 import { AideDetails } from '@/components/aide/AideDetails';
+import { AideHero } from '@/components/aide/AideHero';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { useDossierStore } from '@/stores/useDossierStore';
@@ -11,7 +12,6 @@ import { monumentService } from '@/services/monument.service';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
 import { C, SERIF } from '@/lib/brand';
-import { deadlineLabel } from '@/lib/date-utils';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
 import type { Aide, AideMatchResult } from '@/types';
@@ -113,14 +113,21 @@ export function AideProjectPage() {
 
   if (!aide || !monument || !canAccessAides) return <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blueLight }} /></div>;
 
-  const echeance = !aide.permanent && aide.dateLimite ? deadlineLabel(aide.dateLimite) : null;
-  const echeanceColor =
-    echeance?.urgency === 'urgent' || echeance?.urgency === 'past' ? C.danger
-      : echeance?.urgency === 'warning' ? C.orange : C.blue;
+  const cta = (
+    <button
+      onClick={handleOpenOrView}
+      disabled={opening}
+      className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[13px] font-semibold text-white transition-all duration-200 hover:shadow-md disabled:opacity-60"
+      style={{ background: existingDossier ? C.blue : C.orange }}
+    >
+      {opening ? <Loader2 className="h-4 w-4 animate-spin" /> : existingDossier ? <IconDossierOuvert className="h-4 w-4" /> : <IconAjouterDossier className="h-4 w-4" />}
+      {existingDossier ? 'Voir le dossier' : 'Ouvrir un dossier'}
+    </button>
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[13px]" style={{ color: '#6a7180' }}>
+    <div className="space-y-5">
+      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
         <Link to={ROUTES.PROJETS} className="hover:opacity-70 transition-opacity">Projets</Link>
         <span>/</span>
         <Link to={ROUTES.PROJET_DETAIL(monument.id)} className="hover:opacity-70 transition-opacity">{monument.nom}</Link>
@@ -128,29 +135,9 @@ export function AideProjectPage() {
         <span className="truncate" style={{ color: C.ink }}>{aide.nomCourt}</span>
       </div>
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-3">
-          <h1 className="text-[clamp(1.4rem,3vw,1.9rem)] leading-tight" style={{ fontFamily: SERIF, color: C.ink }}>{aide.nomCourt}</h1>
-          {echeance && (
-            <Badge variant="outline" className="gap-1.5" style={{ borderColor: echeanceColor, color: echeanceColor, background: C.card }}>
-              <Clock className="h-3 w-3" />
-              {echeance.urgency === 'past' ? 'Échéance dépassée' : `Date limite — ${echeance.text}`}
-            </Badge>
-          )}
-        </div>
+      <AideHero aide={aide} matchResult={matchResult} cta={cta} />
 
-        <button
-          onClick={handleOpenOrView}
-          disabled={opening}
-          className="inline-flex items-center gap-2 px-5 py-3 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md disabled:opacity-60"
-          style={{ background: existingDossier ? C.blue : C.orange }}
-        >
-          {opening ? <Loader2 className="h-4 w-4 animate-spin" /> : existingDossier ? <FolderOpen className="h-4 w-4" /> : <FilePlus2 className="h-4 w-4" />}
-          {existingDossier ? 'Voir le dossier' : 'Ouvrir un dossier'}
-        </button>
-      </div>
-
-      <AideDetails aide={aide} matchResult={matchResult} monumentName={monument.nom} />
+      <AideDetails aide={aide} matchResult={matchResult} monumentName={monument.nom} showHeader={false} />
     </div>
   );
 }

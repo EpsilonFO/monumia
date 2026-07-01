@@ -9,7 +9,7 @@ import {
   AIDE_REFUS_MOTIF_LABELS,
 } from '@/types';
 import { suiviService } from '@/services/suivi.service';
-import { AIDE_STATUT_PILL } from './AideStatutBadge';
+import { AIDE_STATUT_STYLES } from './AideStatutBadge';
 import { C } from '@/lib/brand';
 
 interface Props {
@@ -33,7 +33,6 @@ export function AideStatutSelect({ monumentId, aideId, suivi }: Props) {
 
   // Un dossier est toujours suivi : à défaut de suivi enregistré, il est « À faire ».
   const statut: AideSuiviStatut = suivi?.statut ?? 'a_faire';
-  const pill = AIDE_STATUT_PILL[statut];
 
   // PUT = upsert complet : on renvoie toujours les valeurs courantes fusionnées.
   async function save(patch: SavePatch) {
@@ -65,8 +64,7 @@ export function AideStatutSelect({ monumentId, aideId, suivi }: Props) {
             value={statut}
             disabled={saving}
             onChange={(e) => save({ statut: e.target.value as AideSuiviStatut })}
-            className="appearance-none rounded-lg pl-4 pr-10 py-2 text-[14px] font-semibold border cursor-pointer shadow-sm transition-shadow hover:shadow focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-60"
-            style={{ background: pill.bg, color: pill.fg, borderColor: `${pill.fg}33` }}
+            className={`appearance-none rounded-lg pl-4 pr-10 py-2 text-[14px] font-semibold border cursor-pointer shadow-sm transition-shadow hover:shadow focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-60 ${AIDE_STATUT_STYLES[statut]}`}
           >
             {AIDE_SUIVI_STATUTS.map((s) => (
               <option key={s} value={s}>
@@ -75,15 +73,14 @@ export function AideStatutSelect({ monumentId, aideId, suivi }: Props) {
             ))}
           </select>
           <ChevronDown
-            className="pointer-events-none absolute right-3 h-4 w-4"
-            style={{ color: pill.fg }}
+            className={`pointer-events-none absolute right-3 h-4 w-4 ${AIDE_STATUT_STYLES[statut].split(' ').find(c => c.startsWith('text-'))}`}
           />
         </div>
       </div>
 
       {statut === 'accorde' && (
         <div className="flex items-center gap-2">
-          <label className="text-[#6a7180]">Montant obtenu (€)</label>
+          <label className="text-muted-foreground">Montant obtenu (€)</label>
           <input
             type="number"
             min="0"
@@ -91,8 +88,7 @@ export function AideStatutSelect({ monumentId, aideId, suivi }: Props) {
             disabled={saving}
             onChange={(e) => setMontant(e.target.value)}
             onBlur={() => save({ montantObtenu: montant === '' ? undefined : Number(montant) })}
-            className="rounded-md border px-2.5 py-1.5 w-36 focus:outline-none focus:ring-2 focus:ring-offset-1"
-            style={{ borderColor: '#e5e7eb' }}
+            className="rounded-md border border-border px-2.5 py-1.5 w-36 focus:outline-none focus:ring-2 focus:ring-offset-1"
           />
         </div>
       )}
@@ -100,7 +96,7 @@ export function AideStatutSelect({ monumentId, aideId, suivi }: Props) {
       {statut === 'refuse' && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <label className="text-[#6a7180]">Motif du refus</label>
+            <label className="text-muted-foreground">Motif du refus</label>
             <select
               value={motif}
               disabled={saving}
@@ -109,8 +105,7 @@ export function AideStatutSelect({ monumentId, aideId, suivi }: Props) {
                 setMotif(m);
                 save({ motifRefusCode: m });
               }}
-              className="rounded-md border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-offset-1"
-              style={{ borderColor: '#e5e7eb' }}
+              className="rounded-md border border-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-offset-1"
             >
               {AIDE_REFUS_MOTIFS.map((m) => (
                 <option key={m} value={m}>
@@ -126,8 +121,7 @@ export function AideStatutSelect({ monumentId, aideId, suivi }: Props) {
             disabled={saving}
             onChange={(e) => setMotifDetail(e.target.value)}
             onBlur={() => save({ motifRefusDetail: motifDetail })}
-            className="rounded-md border px-2.5 py-1.5 w-full max-w-sm focus:outline-none focus:ring-2 focus:ring-offset-1"
-            style={{ borderColor: '#e5e7eb' }}
+            className="rounded-md border border-border px-2.5 py-1.5 w-full max-w-sm focus:outline-none focus:ring-2 focus:ring-offset-1"
           />
         </div>
       )}

@@ -1,4 +1,4 @@
-import { MapPin, Shield, Sparkles, Coins, CalendarClock, ClipboardList } from 'lucide-react';
+import { IconLocalisation, IconProtection, IconAccompagnement, IconSubvention, IconEcheance, IconRafraichir } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { C, SERIF } from '@/lib/brand';
 import { formatCurrency } from '@/lib/format-utils';
@@ -46,14 +46,14 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRefaireQues
             {monument.nom}
           </h1>
           {location && (
-            <div className="flex items-center gap-1.5 text-[14px]" style={{ color: '#6a7180' }}>
-              <MapPin className="h-3.5 w-3.5" style={{ color: C.blueLight }} />
+            <div className="flex items-center gap-1.5 text-[14px] text-muted-foreground">
+              <IconLocalisation className="h-3.5 w-3.5" style={{ color: C.blueLight }} />
               <span>{location}</span>
             </div>
           )}
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="outline" className="gap-1" style={{ borderColor: C.border, color: C.blue, background: C.paleBlue }}>
-              <Shield className="h-3 w-3" />
+              <IconProtection className="h-3 w-3" />
               {PROTECTION_LABELS_SHORT[monument.protection] ?? monument.protection}
             </Badge>
             <Badge variant="outline" style={{ borderColor: C.border, color: C.ink }}>
@@ -75,7 +75,7 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRefaireQues
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md shrink-0"
             style={{ background: C.orange }}
           >
-            <ClipboardList className="h-4 w-4" strokeWidth={2} />
+            <IconRafraichir className="h-4 w-4" strokeWidth={2} />
             Refaire le questionnaire
           </button>
         )}
@@ -83,17 +83,17 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRefaireQues
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <KpiTile
-          icon={<Sparkles className="h-4 w-4" style={{ color: C.blue }} />}
+          icon={<IconAccompagnement className="h-4 w-4" style={{ color: C.blue }} />}
           label="Aides identifiées"
           value={String(stats.aidesIdentifiees)}
         />
         <KpiTile
-          icon={<Coins className="h-4 w-4" style={{ color: C.orange }} />}
+          icon={<IconSubvention className="h-4 w-4" style={{ color: C.orange }} />}
           label="Montant potentiel"
           value={stats.montantPotentiel > 0 ? formatCurrency(stats.montantPotentiel) : '—'}
         />
         <KpiTile
-          icon={<CalendarClock className="h-4 w-4" style={{ color: echeanceColor }} />}
+          icon={<IconEcheance className="h-4 w-4" style={{ color: echeanceColor }} />}
           label="Prochaine échéance"
           value={echeanceLabel ? echeanceLabel.text : 'Aucune'}
           valueColor={echeanceLabel ? echeanceColor : undefined}
@@ -106,7 +106,7 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRefaireQues
 function KpiTile({ icon, label, value, valueColor }: { icon: React.ReactNode; label: string; value: string; valueColor?: string }) {
   return (
     <div className="rounded-xl border px-4 py-3" style={{ borderColor: C.border, background: C.cream }}>
-      <div className="flex items-center gap-1.5 text-[12px]" style={{ color: '#6a7180' }}>
+      <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
         {icon}
         <span>{label}</span>
       </div>

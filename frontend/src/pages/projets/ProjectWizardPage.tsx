@@ -15,7 +15,8 @@ import { REGIONS } from '@/constants/regions';
 import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
-import { Search, PenLine, ArrowRight, Check, Loader2 } from 'lucide-react';
+import { ArrowRight, Check, Loader2 } from 'lucide-react';
+import { IconRecherche, IconModifier } from '@/components/icons';
 import { toast } from 'sonner';
 import type {
   AideDiagnosticResult,
@@ -273,7 +274,7 @@ export function ProjectWizardPage() {
               </span>
               <span
                 className="hidden text-[13px] sm:inline"
-                style={{ color: current ? C.ink : '#6a7180', fontWeight: current ? 600 : 400 }}
+                style={{ color: current ? C.ink : 'var(--muted-foreground)', fontWeight: current ? 600 : 400 }}
               >
                 {STEP_LABELS[s]}
               </span>
@@ -313,8 +314,7 @@ export function ProjectWizardPage() {
               <button
                 type="button"
                 onClick={() => setShowForm(false)}
-                className="text-[13px] underline-offset-2 hover:underline"
-                style={{ color: '#6a7180' }}
+                className="text-[13px] underline-offset-2 hover:underline text-muted-foreground"
               >
                 ← Changer de méthode
               </button>
@@ -328,11 +328,11 @@ export function ProjectWizardPage() {
             <Tabs defaultValue="merimee">
               <TabsList className="grid h-12 w-full grid-cols-2">
                 <TabsTrigger value="merimee" className="gap-2 text-[14px]">
-                  <Search className="h-4 w-4" />
+                  <IconRecherche className="h-4 w-4" />
                   Rechercher (Mérimée)
                 </TabsTrigger>
                 <TabsTrigger value="manual" className="gap-2 text-[14px]">
-                  <PenLine className="h-4 w-4" />
+                  <IconModifier className="h-4 w-4" />
                   Saisie manuelle
                 </TabsTrigger>
               </TabsList>
@@ -348,7 +348,7 @@ export function ProjectWizardPage() {
                   >
                     Rechercher dans la base Mérimée
                   </h3>
-                  <p className="mb-6 text-[14px]" style={{ color: '#6a7180' }}>
+                  <p className="mb-6 text-[14px] text-muted-foreground">
                     Les informations connues de votre monument seront pré-remplies
                     automatiquement.
                   </p>
@@ -367,7 +367,7 @@ export function ProjectWizardPage() {
                   >
                     Saisie manuelle
                   </h3>
-                  <p className="mb-6 text-[14px]" style={{ color: '#6a7180' }}>
+                  <p className="mb-6 text-[14px] text-muted-foreground">
                     Votre monument n'est pas dans la base ? Renseignez ses informations
                     manuellement.
                   </p>
@@ -391,45 +391,47 @@ export function ProjectWizardPage() {
         {step === 2 && (
           <div className="space-y-8">
             {loadingQuestions ? (
-              <div className="flex items-center gap-3 py-10 text-[14px]" style={{ color: '#6a7180' }}>
+              <div className="flex items-center gap-3 py-10 text-[14px]" style={{ color: C.grayMuted }}>
                 <Loader2 className="h-4 w-4 animate-spin" style={{ color: C.blueLight }} />
                 Analyse de votre monument…
               </div>
             ) : questions.length === 0 ? (
-              <p className="text-[15px] leading-relaxed" style={{ color: '#6a7180' }}>
-                Aucune précision supplémentaire n'est nécessaire pour votre monument. Lancez le
-                diagnostic pour découvrir les aides mobilisables.
-              </p>
-            ) : (
-              <>
-                <p className="text-[15px] leading-relaxed" style={{ color: '#6a7180' }}>
-                  Quelques questions pour affiner les aides proposées. Vous pourrez les modifier
-                  plus tard.
+              <div className="space-y-8">
+                <p className="text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
+                  Aucune précision supplémentaire n'est nécessaire pour votre monument. Lancez le
+                  diagnostic pour découvrir les aides mobilisables.
                 </p>
-                <ProjectQuestionnaire questions={questions} value={answers} onChange={setAnswers} />
-              </>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={handleQuestionnaireNext}
+                    className="group inline-flex items-center gap-2 rounded-xl px-6 py-3 text-[14px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
+                    style={{ background: C.orange }}
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Analyse des aides en cours…
+                      </>
+                    ) : (
+                      <>
+                        Voir les aides
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <ProjectQuestionnaire
+                questions={questions}
+                value={answers}
+                onChange={setAnswers}
+                onComplete={handleQuestionnaireNext}
+                submitting={saving}
+              />
             )}
-            <div className="flex justify-end">
-              <button
-                type="button"
-                disabled={saving || loadingQuestions}
-                onClick={handleQuestionnaireNext}
-                className="group inline-flex items-center gap-2 rounded-lg px-6 py-3 text-[14px] font-semibold text-white transition-all hover:shadow-lg disabled:opacity-60"
-                style={{ background: C.orange }}
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Analyse des aides en cours…
-                  </>
-                ) : (
-                  <>
-                    {questions.length === 0 ? 'Voir les aides' : 'Lancer le diagnostic'}
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </>
-                )}
-              </button>
-            </div>
           </div>
         )}
       </div>

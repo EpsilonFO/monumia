@@ -1,27 +1,28 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router';
+import { ArrowRight, ChevronRight } from 'lucide-react';
 import {
-  TrendingUp, Users, Euro, Target, ArrowRight,
-  ChevronRight, AlertCircle, CheckCircle2, Clock, Phone,
-} from 'lucide-react';
+  IconTendance, IconEquipe, IconSubvention, IconProspect,
+  IconAttention, IconSucces, IconTemps, IconContact,
+} from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useProspectStore } from '@/stores/useProspectStore';
 import { formatCurrency } from '@/lib/format-utils';
 import { cn } from '@/lib/utils';
+import { C } from '@/lib/brand';
 import type { ProspectStatus } from "@/types";
 
-const STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string; icon: typeof Clock }> = {
-  a_contacter: { label: 'À contacter', color: 'bg-gray-100 text-gray-700', icon: Clock },
-  contacte: { label: 'Contacté', color: 'bg-blue-100 text-blue-700', icon: Phone },
-  en_discussion: { label: 'En discussion', color: 'bg-amber-100 text-amber-700', icon: Users },
-  devis_envoye: { label: 'Devis envoyé', color: 'bg-purple-100 text-purple-700', icon: Target },
-  gagne: { label: 'Gagné', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2 },
-  perdu: { label: 'Perdu', color: 'bg-red-100 text-red-700', icon: AlertCircle },
+const STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string; icon: typeof IconTemps }> = {
+  a_contacter: { label: 'À contacter', color: 'bg-muted text-muted-foreground', icon: IconTemps },
+  contacte: { label: 'Contacté', color: 'bg-info-muted text-info', icon: IconContact },
+  en_discussion: { label: 'En discussion', color: 'bg-warning-muted text-warning', icon: IconEquipe },
+  devis_envoye: { label: 'Devis envoyé', color: 'bg-cat-violet-soft text-cat-violet', icon: IconProspect },
+  gagne: { label: 'Gagné', color: 'bg-success-muted text-success', icon: IconSucces },
+  perdu: { label: 'Perdu', color: 'bg-destructive-muted text-destructive', icon: IconAttention },
 };
 
 export function BtpDashboardPage() {
@@ -76,15 +77,25 @@ export function BtpDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={`Bonjour, ${user?.prenom ?? 'Thomas'}`}
-        description={`${user?.btp?.raisonSociale ?? 'Votre entreprise'} — Vue d'ensemble de vos opportunités patrimoine`}
-      />
+      <div>
+        <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.blue }}>
+          <span aria-hidden style={{ width: 22, height: 2, borderRadius: 2, background: C.orange }} />
+          {user?.btp?.raisonSociale ?? 'Votre entreprise'}
+        </span>
+        <h1 className="mt-2 text-[clamp(1.7rem,3.5vw,2.3rem)] leading-tight" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
+          Bonjour, <span style={{ color: C.blue }}>{user?.prenom ?? ''}</span>
+        </h1>
+        <p className="mt-1 text-[14px]" style={{ color: C.grayFg }}>
+          {urgentProspects.length > 0
+            ? `Vous avez ${urgentProspects.length} relance${urgentProspects.length > 1 ? 's' : ''} à prévoir.`
+            : 'Aucune relance urgente — bonne prospection !'}
+        </p>
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
-          icon={Users}
+          icon={IconEquipe}
           label="Prospects actifs"
           value={stats.actifs.length}
           sub={`${userProspects.length} au total`}
@@ -92,21 +103,21 @@ export function BtpDashboardPage() {
           linkTo="/btp/prospects"
         />
         <KPICard
-          icon={Euro}
+          icon={IconSubvention}
           label="CA potentiel"
           value={formatCurrency(stats.caPotentiel)}
           sub="en cours de négociation"
           variant="accent"
         />
         <KPICard
-          icon={TrendingUp}
+          icon={IconTendance}
           label="Financement identifié"
           value={formatCurrency(stats.financementTotal)}
           sub={`${stats.avecFinancement.length} monuments qualifiés`}
           variant="success"
         />
         <KPICard
-          icon={CheckCircle2}
+          icon={IconSucces}
           label="Marchés gagnés"
           value={formatCurrency(stats.caGagne)}
           sub={`${stats.gagnes.length} contrat${stats.gagnes.length > 1 ? 's' : ''}`}
@@ -121,8 +132,8 @@ export function BtpDashboardPage() {
           {urgentProspects.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-500" />
+                <CardTitle className="text-[17px] flex items-center gap-2" style={{ fontFamily: 'var(--font-serif)' }}>
+                  <IconAttention className="h-4 w-4 text-warning" />
                   Relances à prévoir
                 </CardTitle>
               </CardHeader>
@@ -156,10 +167,10 @@ export function BtpDashboardPage() {
                             className={cn(
                               'shrink-0 ml-2 text-xs',
                               daysUntil <= 3
-                                ? 'bg-red-100 text-red-700'
+                                ? 'bg-destructive-muted text-destructive'
                                 : daysUntil <= 7
-                                  ? 'bg-amber-100 text-amber-700'
-                                  : 'bg-gray-100 text-gray-700'
+                                  ? 'bg-warning-muted text-warning'
+                                  : 'bg-muted text-muted-foreground'
                             )}
                           >
                             {daysUntil <= 0 ? 'Aujourd\'hui' : `J-${daysUntil}`}
@@ -176,7 +187,7 @@ export function BtpDashboardPage() {
           {/* Pipeline visuel */}
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base">Pipeline commercial</CardTitle>
+              <CardTitle className="text-[17px]" style={{ fontFamily: 'var(--font-serif)' }}>Pipeline commercial</CardTitle>
               <Button asChild variant="ghost" size="sm">
                 <Link to="/btp/prospects">
                   Gérer les prospects
@@ -227,8 +238,8 @@ export function BtpDashboardPage() {
           {recentWins.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                <CardTitle className="text-[17px] flex items-center gap-2" style={{ fontFamily: 'var(--font-serif)' }}>
+                  <IconSucces className="h-4 w-4 text-success" />
                   Marchés gagnés
                 </CardTitle>
               </CardHeader>
@@ -236,14 +247,14 @@ export function BtpDashboardPage() {
                 {recentWins.map((p) => (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between p-2.5 rounded-lg border bg-emerald-50/50"
+                    className="flex items-center justify-between p-2.5 rounded-lg border bg-success-muted/50"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{p.monumentNom}</p>
                       <p className="text-xs text-muted-foreground">{p.commune}</p>
                     </div>
                     <div className="text-right shrink-0 ml-3">
-                      <p className="text-sm font-bold text-emerald-700">
+                      <p className="text-sm font-bold text-success">
                         {formatCurrency(p.montantTravaux ?? 0)}
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -262,7 +273,7 @@ export function BtpDashboardPage() {
           {/* Taux de conversion */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Performance</CardTitle>
+              <CardTitle className="text-[17px]" style={{ fontFamily: 'var(--font-serif)' }}>Performance</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <ConversionStat
@@ -272,8 +283,8 @@ export function BtpDashboardPage() {
                     ? Math.round((stats.gagnes.length / userProspects.length) * 100)
                     : 0
                 }
-                color="text-emerald-600"
-                barColor="bg-emerald-500"
+                color="text-success"
+                barColor="bg-success"
               />
               <ConversionStat
                 label="Avec financement identifié"
@@ -284,8 +295,8 @@ export function BtpDashboardPage() {
                       )
                     : 0
                 }
-                color="text-blue-600"
-                barColor="bg-blue-500"
+                color="text-info"
+                barColor="bg-info"
               />
               <div className="pt-2 border-t">
                 <p className="text-xs text-muted-foreground mb-1">Financement moyen couvert</p>
@@ -308,18 +319,18 @@ export function BtpDashboardPage() {
           {/* Actions rapides */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Actions rapides</CardTitle>
+              <CardTitle className="text-[17px]" style={{ fontFamily: 'var(--font-serif)' }}>Actions rapides</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <Button asChild variant="default" className="w-full justify-start">
                 <Link to="/btp/prospects/new">
-                  <Users className="h-4 w-4 mr-2" />
+                  <IconEquipe className="h-4 w-4 mr-2" />
                   Ajouter un prospect
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-start">
                 <Link to="/btp/aides">
-                  <Target className="h-4 w-4 mr-2" />
+                  <IconProspect className="h-4 w-4 mr-2" />
                   Catalogue des aides
                 </Link>
               </Button>
@@ -336,7 +347,7 @@ export function BtpDashboardPage() {
           {user?.btp && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Vos spécialités</CardTitle>
+                <CardTitle className="text-[17px]" style={{ fontFamily: 'var(--font-serif)' }}>Vos spécialités</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-1.5">
@@ -359,7 +370,7 @@ export function BtpDashboardPage() {
 }
 
 interface KPICardProps {
-  icon: typeof Users;
+  icon: typeof IconEquipe;
   label: string;
   value: string | number;
   sub?: string;
@@ -368,29 +379,30 @@ interface KPICardProps {
 }
 
 function KPICard({ icon: Icon, label, value, sub, variant, linkTo }: KPICardProps) {
-  const variantClasses = {
-    default: { bg: 'bg-primary/10', icon: 'text-primary' },
-    accent: { bg: 'bg-blue-100', icon: 'text-blue-600' },
-    success: { bg: 'bg-emerald-100', icon: 'text-emerald-600' },
-    warning: { bg: 'bg-amber-100', icon: 'text-amber-600' },
+  const variantStyle: Record<KPICardProps['variant'], { accent: string; tint: string }> = {
+    default: { accent: C.blue, tint: C.paleBlue },
+    accent: { accent: C.blueLight, tint: C.paleBlue },
+    success: { accent: 'var(--success)', tint: 'var(--success-muted)' },
+    warning: { accent: C.orange, tint: C.paleOrange },
   };
-  const cls = variantClasses[variant];
+  const cls = variantStyle[variant];
 
   const card = (
-    <Card className={cn('transition-all', linkTo && 'hover:shadow-md hover:border-primary/30 cursor-pointer')}>
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-start gap-3">
-          <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0', cls.bg)}>
-            <Icon className={cn('h-5 w-5', cls.icon)} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xl font-bold leading-tight truncate">{value}</p>
-            <p className="text-xs text-muted-foreground">{label}</p>
-            {sub && <p className="text-xs text-muted-foreground/70 mt-0.5">{sub}</p>}
-          </div>
+    <div
+      className={cn('rounded-2xl border px-4 py-3.5 transition-shadow', linkTo && 'hover:shadow-[var(--shadow-pop)] cursor-pointer')}
+      style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
+    >
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: cls.tint, color: cls.accent }}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-[20px] font-bold leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: cls.accent }}>{value}</p>
+          <p className="mt-1 truncate text-[12px] font-medium" style={{ color: C.grayMuted }}>{label}</p>
+          {sub && <p className="truncate text-[11px]" style={{ color: C.grayMuted, opacity: 0.8 }}>{sub}</p>}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 
   if (linkTo) return <Link to={linkTo}>{card}</Link>;

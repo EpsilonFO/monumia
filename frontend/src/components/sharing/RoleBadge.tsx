@@ -1,4 +1,3 @@
-import { C } from '@/lib/brand';
 import type { ProjectRole } from '@/types';
 
 export const ROLE_LABELS: Record<ProjectRole, string> = {
@@ -7,18 +6,16 @@ export const ROLE_LABELS: Record<ProjectRole, string> = {
   member: 'Collaborateur',
 };
 
-const TONES: Record<ProjectRole, { bg: string; fg: string }> = {
-  owner: { bg: C.paleBlue, fg: C.blue },
-  co_owner: { bg: C.paleOrange, fg: C.orange },
-  member: { bg: '#f0efe9', fg: '#5C6178' },
+const ROLE_STYLES: Record<ProjectRole, string> = {
+  owner:    'bg-secondary text-primary',
+  co_owner: 'bg-warning-muted text-accent',
+  member:   'bg-muted text-muted-foreground',
 };
 
 export function RoleBadge({ role }: { role: ProjectRole }) {
-  const tone = TONES[role];
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
-      style={{ backgroundColor: tone.bg, color: tone.fg }}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${ROLE_STYLES[role]}`}
     >
       {ROLE_LABELS[role]}
     </span>

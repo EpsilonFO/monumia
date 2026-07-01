@@ -1,40 +1,41 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  Search,
-  FileCheck,
-  Euro,
   ArrowRight,
-  Building2,
-  Users,
-  HardHat,
-  Sparkles,
-  TrendingUp,
-  Landmark,
-  Clock,
-  Shield,
-  CheckCircle2,
   ArrowUpRight,
   ChevronDown,
   Minus,
 } from 'lucide-react';
+import {
+  IconRecherche,
+  IconDocumentValide,
+  IconSubvention,
+  IconMonument,
+  IconEquipe,
+  IconChantier,
+  IconAccompagnement,
+  IconTendance,
+  IconTemps,
+  IconProtection,
+  IconSucces,
+} from '@/components/icons';
 
 /* ────────────────────────────────────────────
    Colors — brand palette
    ──────────────────────────────────────────── */
 
 const C = {
-  bg:          '#F8F7F4',   // warm parchment white
-  bgAlt:       '#FFFFFF',   // pure white for alternating sections
-  text:        '#1B1E2E',   // deep navy foreground
-  textMuted:   '#5C6178',   // secondary text
-  textLight:   '#8E92A4',   // tertiary / labels
-  royal:       '#1A237E',   // royal blue — primary brand
-  royalLight:  '#3949AB',   // lighter royal blue
-  royalPale:   '#E8EAF6',   // very pale royal tint
-  terra:       '#C75B3A',   // terracotta — accent brand
-  terraPale:   '#FBF0EC',   // very pale terracotta tint
-  border:      '#E4E2DC',   // warm neutral border
+  bg:          'var(--background)',   // crème charte
+  bgAlt:       'var(--card)',         // cartes / sections alternées
+  text:        'var(--foreground)',   // texte principal
+  textMuted:   'var(--gray-fg)',      // texte secondaire (AA)
+  textLight:   'var(--muted-foreground)', // texte tertiaire / labels
+  royal:       'var(--primary)',      // bleu profond Monumia
+  royalLight:  'var(--blue-light)',   // bleu clair
+  royalPale:   'var(--secondary)',    // teinte bleu pâle
+  terra:       'var(--accent)',       // orange — accent/signature
+  terraPale:   'var(--warning-muted)',// teinte orange pâle
+  border:      'var(--border)',       // bordure
 } as const;
 
 /* ────────────────────────────────────────────
@@ -144,7 +145,7 @@ export function LandingPage() {
       <header
         className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ${
           scrolled
-            ? 'bg-[#F8F7F4]/80 backdrop-blur-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] border-b'
+            ? 'bg-muted/80 backdrop-blur-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] border-b'
             : ''
         }`}
         style={{ borderColor: scrolled ? C.border : 'transparent' }}
@@ -161,9 +162,9 @@ export function LandingPage() {
           </div>
 
           <nav className="hidden md:flex items-center gap-10 text-[13px] font-medium uppercase tracking-[0.12em]" style={{ color: C.textLight }}>
-            <a href="#fonctionnalites" className="transition-colors duration-300 hover:text-[#1A237E]">Fonctionnalités</a>
-            <a href="#methode" className="transition-colors duration-300 hover:text-[#1A237E]">Méthode</a>
-            <a href="#pour-qui" className="transition-colors duration-300 hover:text-[#1A237E]">Pour qui</a>
+            <a href="#fonctionnalites" className="transition-colors duration-300 hover:text-primary">Fonctionnalités</a>
+            <a href="#methode" className="transition-colors duration-300 hover:text-primary">Méthode</a>
+            <a href="#pour-qui" className="transition-colors duration-300 hover:text-primary">Pour qui</a>
           </nav>
 
           <button
@@ -249,13 +250,13 @@ export function LandingPage() {
           <Reveal delay={350}>
             <div className="mt-10 flex flex-wrap items-center gap-8 text-[14px] font-medium" style={{ color: C.textLight }}>
               <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" style={{ color: C.terra }} />100 % gratuit
+                <IconSucces className="h-4 w-4" style={{ color: C.terra }} />100 % gratuit
               </span>
               <span className="flex items-center gap-2">
-                <Shield className="h-4 w-4" style={{ color: C.royal }} />Données sécurisées
+                <IconProtection className="h-4 w-4" style={{ color: C.royal }} />Données sécurisées
               </span>
               <span className="flex items-center gap-2">
-                <Clock className="h-4 w-4" style={{ color: C.terra }} />Résultat instantané
+                <IconTemps className="h-4 w-4" style={{ color: C.terra }} />Résultat instantané
               </span>
             </div>
           </Reveal>
@@ -326,12 +327,12 @@ export function LandingPage() {
 
           <div className="grid gap-px sm:grid-cols-2 lg:grid-cols-3 rounded-lg overflow-hidden" style={{ background: C.border }}>
             {([
-              { icon: Search, title: 'Diagnostic intelligent', desc: "Croisez les caractéristiques de votre monument avec l'ensemble des dispositifs d'aide — DRAC, régions, fondations, fiscal.", num: '01' },
-              { icon: Euro, title: "Catalogue d'aides complet", desc: 'Plus de 150 dispositifs agrégés : subventions, prêts, déductions fiscales, mécénat, labels patrimoniaux.', num: '02' },
-              { icon: FileCheck, title: 'Gestion de dossiers', desc: 'Constituez vos demandes pas à pas : checklists, pièces jointes, jalons et collaborateurs.', num: '03' },
-              { icon: Landmark, title: 'Fiche monument', desc: 'Centralisez toutes les données de votre bien : protection, état, travaux prévus, photos.', num: '04' },
-              { icon: Building2, title: 'Base Mérimée', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '05' },
-              { icon: TrendingUp, title: 'Tableaux de bord', desc: "Suivez l'avancement de vos dossiers, les échéances et le montant total de vos financements.", num: '06' },
+              { icon: IconRecherche, title: 'Diagnostic intelligent', desc: "Croisez les caractéristiques de votre monument avec l'ensemble des dispositifs d'aide — DRAC, régions, fondations, fiscal.", num: '01' },
+              { icon: IconSubvention, title: "Catalogue d'aides complet", desc: 'Plus de 150 dispositifs agrégés : subventions, prêts, déductions fiscales, mécénat, labels patrimoniaux.', num: '02' },
+              { icon: IconDocumentValide, title: 'Gestion de dossiers', desc: 'Constituez vos demandes pas à pas : checklists, pièces jointes, jalons et collaborateurs.', num: '03' },
+              { icon: IconMonument, title: 'Fiche monument', desc: 'Centralisez toutes les données de votre bien : protection, état, travaux prévus, photos.', num: '04' },
+              { icon: IconMonument, title: 'Base Mérimée', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '05' },
+              { icon: IconTendance, title: 'Tableaux de bord', desc: "Suivez l'avancement de vos dossiers, les échéances et le montant total de vos financements.", num: '06' },
             ] as const).map((f, i) => (
               <Reveal key={f.title} delay={i * 70}>
                 <div className="group relative h-full p-8 lg:p-10 transition-all duration-500" style={{ background: C.bgAlt }}>
@@ -339,7 +340,7 @@ export function LandingPage() {
                     <span className="text-[13px] font-semibold tracking-[0.15em]" style={{ color: C.textLight }}>{f.num}</span>
                     <div
                       className="flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-500 group-hover:scale-105"
-                      style={{ borderColor: `${C.royal}20`, color: C.royal }}
+                      style={{ borderColor: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: C.royal }}
                     >
                       <f.icon className="h-[17px] w-[17px]" />
                     </div>
@@ -388,19 +389,19 @@ export function LandingPage() {
                 step: '01',
                 title: 'Décrivez votre monument',
                 desc: 'Renseignez localisation, protection, état de conservation et travaux envisagés. Importez depuis Mérimée si votre bien est répertorié.',
-                icon: Landmark,
+                icon: IconMonument,
               },
               {
                 step: '02',
                 title: 'Lancez le diagnostic',
                 desc: "Notre moteur croise votre situation avec l'ensemble des aides nationales, régionales et privées. Résultat instantané.",
-                icon: Sparkles,
+                icon: IconAccompagnement,
               },
               {
                 step: '03',
                 title: 'Constituez vos dossiers',
                 desc: 'Créez vos demandes de subvention avec checklists complètes, suivi documentaire et collaboration.',
-                icon: FileCheck,
+                icon: IconDocumentValide,
               },
             ] as const).map((s, i) => (
               <Reveal key={s.step} delay={i * 150}>
@@ -419,7 +420,7 @@ export function LandingPage() {
                   <div className="relative z-10">
                     <div
                       className="flex h-13 w-13 items-center justify-center rounded-full border mb-8"
-                      style={{ borderColor: `${C.terra}30`, color: C.terra }}
+                      style={{ borderColor: 'color-mix(in srgb, var(--accent) 19%, transparent)', color: C.terra }}
                     >
                       <s.icon className="h-5 w-5" />
                     </div>
@@ -471,7 +472,7 @@ export function LandingPage() {
           <div className="grid gap-6 lg:grid-cols-3">
             {([
               {
-                icon: Building2,
+                icon: IconMonument,
                 title: 'Communes',
                 desc: "Identifiez les financements pour vos bâtiments publics. Pilotez la restauration de votre patrimoine communal en toute clarté.",
                 tags: ['Aides collectivités', 'Multi-monuments', 'Échéances'],
@@ -479,7 +480,7 @@ export function LandingPage() {
                 accent: C.royal,
               },
               {
-                icon: Users,
+                icon: IconEquipe,
                 title: 'Propriétaires privés',
                 desc: "Château, manoir, demeure — découvrez subventions, fiscal et mécénat accessibles aux particuliers.",
                 tags: ['Déductions fiscales', 'Fondation du Patrimoine', 'Mécénat'],
@@ -487,7 +488,7 @@ export function LandingPage() {
                 accent: C.terra,
               },
               {
-                icon: HardHat,
+                icon: IconChantier,
                 title: 'Professionnels BTP',
                 desc: "Accédez à des projets de rénovation financés. Gérez vos prospects grâce au CRM intégré.",
                 tags: ['CRM prospects', 'Intelligence financement', 'Pipeline'],
@@ -538,8 +539,8 @@ export function LandingPage() {
         <Reveal>
           <div className="mx-auto max-w-4xl text-center relative overflow-hidden rounded-2xl px-8 py-24 sm:px-16" style={{ background: C.royal }}>
             {/* decorative glows */}
-            <div className="pointer-events-none absolute -top-20 right-[-10%] h-60 w-60 rounded-full blur-[100px]" style={{ background: `${C.royalLight}40` }} />
-            <div className="pointer-events-none absolute -bottom-20 left-[-10%] h-48 w-48 rounded-full blur-[100px]" style={{ background: `${C.terra}20` }} />
+            <div className="pointer-events-none absolute -top-20 right-[-10%] h-60 w-60 rounded-full blur-[100px]" style={{ background: 'color-mix(in srgb, var(--blue-light) 25%, transparent)' }} />
+            <div className="pointer-events-none absolute -bottom-20 left-[-10%] h-48 w-48 rounded-full blur-[100px]" style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }} />
 
             <div className="relative">
               <h2
@@ -547,6 +548,7 @@ export function LandingPage() {
                 style={{ fontFamily: "'Cormorant Garamond', serif" }}
               >
                 Prêt à financer votre{' '}
+                {/* doré décoratif bespoke — section CTA toujours sombre, hors palette charte */}
                 <em className="italic" style={{ color: '#E8C9A0' }}>patrimoine</em> ?
               </h2>
               <p className="mx-auto mt-6 max-w-md text-[16px] leading-[1.8] text-white/50">
@@ -587,11 +589,11 @@ export function LandingPage() {
           </p>
 
           <div className="flex items-center gap-8 text-[12px] uppercase tracking-[0.12em]" style={{ color: C.textLight }}>
-            <a href="#" className="transition-colors duration-300 hover:text-[#1A237E]">Mentions légales</a>
-            <a href="#" className="transition-colors duration-300 hover:text-[#1A237E]">Contact</a>
+            <a href="#" className="transition-colors duration-300 hover:text-primary">Mentions légales</a>
+            <a href="#" className="transition-colors duration-300 hover:text-primary">Contact</a>
           </div>
         </div>
-        <p className="mt-8 text-center text-[11px] uppercase tracking-[0.15em]" style={{ color: `${C.textLight}80` }}>
+        <p className="mt-8 text-center text-[11px] uppercase tracking-[0.15em]" style={{ color: 'color-mix(in srgb, var(--muted-foreground) 50%, transparent)' }}>
           © {new Date().getFullYear()} Monumia. Tous droits réservés.
         </p>
       </footer>

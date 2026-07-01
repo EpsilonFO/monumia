@@ -1,4 +1,4 @@
-import { CalendarClock, FileText, Sparkles } from 'lucide-react';
+import { IconEcheance, IconDocument, IconAccompagnement } from '@/components/icons';
 import { C, SERIF } from '@/lib/brand';
 import { formatDate } from '@/lib/date-utils';
 import type { ProjectDeadline } from '@/lib/project-stats';
@@ -30,11 +30,11 @@ export function ProjectEcheancier({ deadlines }: ProjectEcheancierProps) {
         style={{ background: C.card, borderColor: C.border }}
       >
         <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: C.paleBlue }}>
-          <CalendarClock className="h-5 w-5" style={{ color: C.blue }} />
+          <IconEcheance className="h-5 w-5" style={{ color: C.blue }} />
         </div>
         <div>
           <p className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>Aucune échéance à venir</p>
-          <p className="text-[13px]" style={{ color: '#6a7180' }}>
+          <p className="text-[13px] text-muted-foreground">
             Les dates limites des aides et des dossiers apparaîtront ici.
           </p>
         </div>
@@ -45,16 +45,16 @@ export function ProjectEcheancier({ deadlines }: ProjectEcheancierProps) {
   return (
     <div className="rounded-2xl border overflow-hidden" style={{ background: C.card, borderColor: C.border }}>
       <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: C.border }}>
-        <CalendarClock className="h-4 w-4" style={{ color: C.blue }} />
+        <IconEcheance className="h-4 w-4" style={{ color: C.blue }} />
         <h3 className="text-[16px]" style={{ fontFamily: SERIF, color: C.ink }}>Échéancier</h3>
-        <span className="text-[12px]" style={{ color: '#6a7180' }}>
+        <span className="text-[12px] text-muted-foreground">
           · {deadlines.length} échéance{deadlines.length > 1 ? 's' : ''}
         </span>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 p-4">
         {deadlines.map((d) => {
           const style = URGENCY_STYLE[d.urgency];
-          const SourceIcon = d.source === 'aide' ? Sparkles : FileText;
+          const SourceIcon = d.source === 'aide' ? IconAccompagnement : IconDocument;
           return (
             <div
               key={d.id}
@@ -66,7 +66,7 @@ export function ProjectEcheancier({ deadlines }: ProjectEcheancierProps) {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-medium leading-snug line-clamp-2" style={{ color: C.ink }}>{d.label}</p>
-                <p className="text-[11px] mt-0.5" style={{ color: '#6a7180' }}>
+                <p className="text-[11px] mt-0.5 text-muted-foreground">
                   {d.source === 'aide' ? 'Aide' : 'Dossier'} · {formatDate(d.date)}
                 </p>
               </div>

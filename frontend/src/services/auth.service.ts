@@ -104,4 +104,13 @@ export const authService = {
     });
     return handleResponse(res);
   },
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const res = await fetch(`${BASE}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    await handleResponse(res);
+  },
 };

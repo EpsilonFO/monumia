@@ -1,4 +1,4 @@
-import { Info, FolderOpen } from 'lucide-react';
+import { IconInfo, IconDossierOuvert, IconLocalisation } from '@/components/icons';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { C, SERIF } from '@/lib/brand';
 import { projectColor } from '@/lib/project-color';
@@ -8,9 +8,11 @@ interface Props {
   document: Document;
   monumentNames: Record<string, string>;
   dossiersById: Record<string, { titre: string; monumentId: string }>;
+  /** Déclencheur libellé (chip « Où est-ce rangé ? ») plutôt que la petite icône. */
+  labelled?: boolean;
 }
 
-export function DocumentLocationsPopover({ document, monumentNames, dossiersById }: Props) {
+export function DocumentLocationsPopover({ document, monumentNames, dossiersById, labelled = false }: Props) {
   // Dossiers regroupés sous leur projet (un dossier appartient à un seul projet).
   const dossiersByProject = new Map<string, string[]>();
   for (const did of document.dossiersUtilises) {
@@ -36,16 +38,36 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
 
   const hasNothing = renderedProjectIds.length === 0 && orphanDossiers.length === 0;
 
+  // Résumé factuel pour le déclencheur libellé (« Rangé dans … »), sans question.
+  const projectCount = renderedProjectIds.length;
+  const summary = projectCount >= 2
+    ? `${projectCount} projets`
+    : projectCount === 1
+      ? monumentNames[renderedProjectIds[0]]
+      : orphanDossiers.length > 0
+        ? 'un dossier'
+        : 'aucun projet';
+
   return (
     <Popover>
       <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
-        <button
-          className="shrink-0 p-1 rounded-md transition-colors hover:bg-black/[0.04]"
-          title="Où est utilisé ce fichier ?"
-          aria-label="Informations : où est utilisé ce fichier"
-        >
-          <Info className="h-3.5 w-3.5" style={{ color: '#6a7180' }} />
-        </button>
+        {labelled ? (
+          <button
+            className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground transition-colors hover:underline underline-offset-2"
+            title="Voir où est rangé ce fichier"
+          >
+            <IconLocalisation className="h-4 w-4" weight="fill" style={{ color: C.blue }} />
+            Rangé dans <span className="font-semibold" style={{ color: C.ink }}>{summary}</span>
+          </button>
+        ) : (
+          <button
+            className="shrink-0 p-1 rounded-md transition-colors hover:bg-black/[0.04]"
+            title="Où est utilisé ce fichier ?"
+            aria-label="Informations : où est utilisé ce fichier"
+          >
+            <IconInfo className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align="end"
@@ -59,7 +81,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
         </div>
         <div className="p-2 space-y-1">
           {hasNothing && (
-            <p className="px-2 py-3 text-[12px]" style={{ color: '#6a7180' }}>
+            <p className="px-2 py-3 text-[12px] text-muted-foreground">
               Ce document n'est rattaché à aucun projet ni dossier.
             </p>
           )}
@@ -81,10 +103,9 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
                     {dossiers.map((titre, i) => (
                       <li
                         key={i}
-                        className="flex items-start gap-1.5 text-[11px] break-words"
-                        style={{ color: '#6a7180' }}
+                        className="flex items-start gap-1.5 text-[11px] break-words text-muted-foreground"
                       >
-                        <FolderOpen className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
+                        <IconDossierOuvert className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
                         <span className="break-words">{titre}</span>
                       </li>
                     ))}
@@ -96,17 +117,16 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
           {orphanDossiers.length > 0 && (
             <div className="rounded-lg px-2 py-2" style={{ background: C.cream }}>
               <div className="flex items-center gap-2 mb-1.5">
-                <FolderOpen className="h-3 w-3 shrink-0" style={{ color: '#6a7180' }} strokeWidth={1.8} />
+                <IconDossierOuvert className="h-3 w-3 shrink-0 text-muted-foreground" strokeWidth={1.8} />
                 <span className="text-[12px] font-medium" style={{ color: C.ink }}>Dossiers</span>
               </div>
               <ul className="ml-[18px] space-y-1">
                 {orphanDossiers.map((titre, i) => (
                   <li
                     key={i}
-                    className="flex items-start gap-1.5 text-[11px] break-words"
-                    style={{ color: '#6a7180' }}
+                    className="flex items-start gap-1.5 text-[11px] break-words text-muted-foreground"
                   >
-                    <FolderOpen className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
+                    <IconDossierOuvert className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
                     <span className="break-words">{titre}</span>
                   </li>
                 ))}

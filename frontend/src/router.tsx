@@ -7,7 +7,12 @@ import { SegmentChoice } from '@/pages/onboarding/SegmentChoice';
 import { OnboardingProfile } from '@/pages/onboarding/OnboardingProfile';
 import { OnboardingMonument } from '@/pages/onboarding/OnboardingMonument';
 import { LoginPage } from '@/pages/login/LoginPage';
+import { ResetPasswordPage } from '@/pages/login/ResetPasswordPage';
 import { TarifsPage } from '@/pages/tarifs/TarifsPage';
+import { BlogLayout } from '@/components/blog/BlogLayout';
+import { BlogIndexPage } from '@/pages/blog/BlogIndexPage';
+import { BlogCategoryPage } from '@/pages/blog/BlogCategoryPage';
+import { BlogArticlePage } from '@/pages/blog/BlogArticlePage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 // Owner / Commune pages
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
@@ -60,10 +65,27 @@ export const router = createBrowserRouter([
     element: <LoginPage />,
   },
 
+  // Reset password landing page (public — arrives from email link)
+  {
+    path: '/reset-password',
+    element: <ResetPasswordPage />,
+  },
+
   // Tarifs page (public)
   {
     path: '/tarifs',
     element: <TarifsPage />,
+  },
+
+  // Blog (public)
+  {
+    path: '/blog',
+    element: <BlogLayout />,
+    children: [
+      { index: true, element: <BlogIndexPage /> },
+      { path: 'categorie/:categorySlug', element: <BlogCategoryPage /> },
+      { path: 'article/:slug', element: <BlogArticlePage /> },
+    ],
   },
 
   // Invitation acceptance page (public — no auth required)

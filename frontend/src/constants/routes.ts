@@ -1,5 +1,6 @@
 export const ROUTES = {
   LANDING: '/',
+  RESET_PASSWORD: '/reset-password',
 
   ONBOARDING: '/onboarding',
   ONBOARDING_PROFIL: '/onboarding/profil',

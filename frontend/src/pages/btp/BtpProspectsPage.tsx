@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router';
+import { ChevronRight } from 'lucide-react';
 import {
-  Users, Search,
-  ChevronRight, CheckCircle2, Clock, Phone, Target, AlertCircle,
-  Building2, MapPin,
-} from 'lucide-react';
+  IconEquipe, IconRecherche,
+  IconSucces, IconTemps, IconContact, IconProspect, IconAttention,
+  IconMonument, IconLocalisation,
+} from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,13 +18,13 @@ import { formatCurrency } from '@/lib/format-utils';
 import { cn } from '@/lib/utils';
 import type { Prospect, ProspectStatus } from '@/types';
 
-const STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string; icon: typeof Clock }> = {
-  a_contacter: { label: 'À contacter', color: 'bg-gray-100 text-gray-700', icon: Clock },
-  contacte: { label: 'Contacté', color: 'bg-blue-100 text-blue-700', icon: Phone },
-  en_discussion: { label: 'En discussion', color: 'bg-amber-100 text-amber-700', icon: Users },
-  devis_envoye: { label: 'Devis envoyé', color: 'bg-purple-100 text-purple-700', icon: Target },
-  gagne: { label: 'Gagné ✓', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2 },
-  perdu: { label: 'Perdu', color: 'bg-red-100 text-red-700', icon: AlertCircle },
+const STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string; icon: typeof IconTemps }> = {
+  a_contacter: { label: 'À contacter', color: 'bg-muted text-muted-foreground', icon: IconTemps },
+  contacte: { label: 'Contacté', color: 'bg-info-muted text-info', icon: IconContact },
+  en_discussion: { label: 'En discussion', color: 'bg-warning-muted text-warning', icon: IconEquipe },
+  devis_envoye: { label: 'Devis envoyé', color: 'bg-cat-violet-soft text-cat-violet', icon: IconProspect },
+  gagne: { label: 'Gagné ✓', color: 'bg-success-muted text-success', icon: IconSucces },
+  perdu: { label: 'Perdu', color: 'bg-destructive-muted text-destructive', icon: IconAttention },
 };
 
 const PROTECTION_LABELS: Record<string, string> = {
@@ -87,7 +88,7 @@ export function BtpProspectsPage() {
         />
         <Button asChild>
           <Link to="/btp/prospects/new">
-            <Users className="h-4 w-4 mr-2" />
+            <IconEquipe className="h-4 w-4 mr-2" />
             Nouveau prospect
           </Link>
         </Button>
@@ -101,16 +102,16 @@ export function BtpProspectsPage() {
             <p className="text-2xl font-bold">{filtered.length}</p>
           </CardContent>
         </Card>
-        <Card className="bg-blue-50">
+        <Card className="bg-info-muted">
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">CA potentiel</p>
-            <p className="text-2xl font-bold text-blue-700">{formatCurrency(totalCA)}</p>
+            <p className="text-2xl font-bold text-info">{formatCurrency(totalCA)}</p>
           </CardContent>
         </Card>
-        <Card className="bg-emerald-50">
+        <Card className="bg-success-muted">
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">Financements identifiés</p>
-            <p className="text-2xl font-bold text-emerald-700">{formatCurrency(totalFinancement)}</p>
+            <p className="text-2xl font-bold text-success">{formatCurrency(totalFinancement)}</p>
           </CardContent>
         </Card>
       </div>
@@ -118,7 +119,7 @@ export function BtpProspectsPage() {
       {/* Filtres */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Rechercher..."
             value={search}
@@ -156,7 +157,7 @@ export function BtpProspectsPage() {
       {/* Liste des prospects */}
       {filtered.length === 0 ? (
         <div className="text-center py-12">
-          <Users className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+          <IconEquipe className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground">Aucun prospect trouvé</p>
           <Button asChild variant="outline" className="mt-3">
             <Link to="/btp/prospects/new">Ajouter un premier prospect</Link>
@@ -196,7 +197,7 @@ function ProspectCard({
   return (
     <Card className={cn(
       'transition-all hover:shadow-md',
-      p.statut === 'gagne' && 'border-emerald-200 bg-emerald-50/30',
+      p.statut === 'gagne' && 'border-success/30 bg-success-muted/30',
       p.statut === 'perdu' && 'opacity-60',
     )}>
       <CardContent className="pt-4 pb-3">
@@ -206,7 +207,7 @@ function ProspectCard({
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-sm leading-tight truncate">{p.monumentNom}</p>
               <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
-                <MapPin className="h-3 w-3 shrink-0" />
+                <IconLocalisation className="h-3 w-3 shrink-0" />
                 <span className="truncate">{p.commune} ({p.departement})</span>
               </div>
             </div>
@@ -235,21 +236,21 @@ function ProspectCard({
 
           {/* Financement */}
           {p.financementIdentifie ? (
-            <div className="flex items-center justify-between bg-emerald-50 rounded-lg px-3 py-2">
+            <div className="flex items-center justify-between bg-success-muted rounded-lg px-3 py-2">
               <div>
                 <p className="text-xs text-muted-foreground">Financement identifié</p>
-                <p className="text-sm font-bold text-emerald-700">
+                <p className="text-sm font-bold text-success">
                   {formatCurrency(p.totalFinancementPotentiel)}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">Couverture estimée</p>
-                <p className="text-sm font-bold text-emerald-700">{p.tauxCouvertureEstime}%</p>
+                <p className="text-sm font-bold text-success">{p.tauxCouvertureEstime}%</p>
               </div>
             </div>
           ) : (
             <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
-              <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+              <IconAttention className="h-4 w-4 text-muted-foreground shrink-0" />
               <p className="text-xs text-muted-foreground">Financement à identifier</p>
             </div>
           )}
@@ -267,12 +268,12 @@ function ProspectCard({
               <Badge
                 className={cn(
                   'text-xs',
-                  daysUntil <= 0 ? 'bg-red-100 text-red-700' :
-                  daysUntil <= 3 ? 'bg-amber-100 text-amber-700' :
-                  'bg-gray-100 text-gray-700'
+                  daysUntil <= 0 ? 'bg-destructive-muted text-destructive' :
+                  daysUntil <= 3 ? 'bg-warning-muted text-warning' :
+                  'bg-muted text-muted-foreground'
                 )}
               >
-                <Phone className="h-3 w-3 mr-1" />
+                <IconContact className="h-3 w-3 mr-1" />
                 {daysUntil <= 0 ? 'Relance aujourd\'hui' : `Relance J-${daysUntil}`}
               </Badge>
             )}
@@ -281,7 +282,7 @@ function ProspectCard({
           {/* Contact */}
           {p.contactNom && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground border-t pt-2">
-              <Building2 className="h-3 w-3 shrink-0" />
+              <IconMonument className="h-3 w-3 shrink-0" />
               <span className="truncate">{p.contactNom}</span>
               {p.contactFonction && (
                 <span className="text-muted-foreground/60">— {p.contactFonction}</span>

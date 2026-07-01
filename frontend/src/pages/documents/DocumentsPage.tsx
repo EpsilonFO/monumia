@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { Upload, Search, FolderOpen, Trash2, ChevronDown, ChevronRight, FileStack } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { IconDepot, IconRecherche, IconDossierOuvert, IconSupprimer, IconDocuments } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -8,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { EmptyState } from '@/components/shared/EmptyState';
 import { RoleBadge } from '@/components/sharing/RoleBadge';
 import { DocumentTile } from '@/components/document/DocumentTile';
+import { DocumentGrid } from '@/components/document/DocumentGrid';
 import { ProjectLegend, type LegendItem } from '@/components/document/ProjectLegend';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { UploadDocumentDialog } from '@/components/document/UploadDocumentDialog';
@@ -196,13 +198,13 @@ export function DocumentsPage() {
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ background: C.paleBlue }}>
-            <FileStack className="h-5 w-5" style={{ color: C.blue }} strokeWidth={1.8} />
+            <IconDocuments className="h-5 w-5" style={{ color: C.blue }} strokeWidth={1.8} />
           </div>
           <div>
             <h1 className="text-[22px] leading-tight" style={{ fontFamily: SERIF, color: C.ink }}>
               Mes documents
             </h1>
-            <p className="text-[13px]" style={{ color: '#6a7180' }}>
+            <p className="text-[13px] text-muted-foreground">
               Tous vos fichiers, classés par projet
             </p>
           </div>
@@ -212,7 +214,7 @@ export function DocumentsPage() {
           className="inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md"
           style={{ background: C.orange }}
         >
-          <Upload className="h-3.5 w-3.5" strokeWidth={2} />Ajouter un document
+          <IconDepot className="h-3.5 w-3.5" strokeWidth={2} />Ajouter un document
         </button>
       </div>
 
@@ -222,7 +224,7 @@ export function DocumentsPage() {
       {/* Filtres */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#8E92A4' }} />
+          <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9 h-10 text-[14px]"
             style={{ background: C.card, borderColor: C.border }}
@@ -244,14 +246,14 @@ export function DocumentsPage() {
 
       {/* Contenu */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-40 rounded-xl animate-pulse" style={{ background: `${C.border}66` }} />
+        <div className="flex flex-col gap-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-[144px] rounded-2xl animate-pulse" style={{ background: `${C.border}66` }} />
           ))}
         </div>
       ) : isEmpty ? (
         <EmptyState
-          icon={FolderOpen}
+          icon={IconDossierOuvert}
           title="Aucun document"
           description="Ajoutez vos premiers documents pour les utiliser dans vos projets et dossiers."
           action={
@@ -260,14 +262,14 @@ export function DocumentsPage() {
               className="inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg hover:shadow-md transition-all"
               style={{ background: C.orange }}
             >
-              <Upload className="h-3.5 w-3.5" strokeWidth={2} />Ajouter un document
+              <IconDepot className="h-3.5 w-3.5" strokeWidth={2} />Ajouter un document
             </button>
           }
         />
       ) : (
         <div className="space-y-8">
           {totalVisible === 0 && (search.trim() !== '' || filterType !== 'all') && (
-            <p className="text-[13px]" style={{ color: '#6a7180' }}>
+            <p className="text-[13px] text-muted-foreground">
               Aucun document ne correspond à votre recherche.
             </p>
           )}
@@ -279,7 +281,7 @@ export function DocumentsPage() {
                 <span className="h-3 w-3 rounded-full" style={{ background: section.color }} />
                 <h2 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>{section.name}</h2>
                 {roleByMonument[section.mid] && <RoleBadge role={roleByMonument[section.mid]!} />}
-                <span className="text-[12px] tabular-nums" style={{ color: '#6a7180' }}>
+                <span className="text-[12px] tabular-nums text-muted-foreground">
                   {section.docs.length} document{section.docs.length > 1 ? 's' : ''}
                 </span>
                 <Link
@@ -291,10 +293,11 @@ export function DocumentsPage() {
                   Voir le projet
                 </Link>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {section.docs.map((doc) => (
+              <DocumentGrid
+                items={section.docs}
+                keyOf={(doc) => `${section.mid}-${doc.id}`}
+                renderItem={(doc) => (
                   <DocumentTile
-                    key={`${section.mid}-${doc.id}`}
                     document={doc}
                     accentColor={section.color}
                     monumentNames={monumentNames}
@@ -304,8 +307,8 @@ export function DocumentsPage() {
                     sectionMonumentId={section.mid}
                     {...tileHandlers}
                   />
-                ))}
-              </div>
+                )}
+              />
             </section>
           ))}
 
@@ -313,18 +316,19 @@ export function DocumentsPage() {
           {!activeProject && sansProjet.length > 0 && (
             <section className="space-y-3">
               <div className="flex items-center gap-2.5 border-b pb-2" style={{ borderColor: C.border }}>
-                <span className="h-3 w-3 rounded-full" style={{ background: '#9aa1ad' }} />
+                <span className="h-3 w-3 rounded-full" style={{ background: 'var(--muted-foreground)' }} />
                 <h2 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>Sans projet (personnels)</h2>
-                <span className="text-[12px] tabular-nums" style={{ color: '#6a7180' }}>
+                <span className="text-[12px] tabular-nums text-muted-foreground">
                   {sansProjet.length} document{sansProjet.length > 1 ? 's' : ''}
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sansProjet.map((doc) => (
+              <DocumentGrid
+                items={sansProjet}
+                keyOf={(doc) => `solo-${doc.id}`}
+                renderItem={(doc) => (
                   <DocumentTile
-                    key={`solo-${doc.id}`}
                     document={doc}
-                    accentColor="#9aa1ad"
+                    accentColor="var(--muted-foreground)"
                     monumentNames={monumentNames}
                     dossiersById={dossiersById}
                     uploaderName={uploaderNames[doc.userId]}
@@ -332,8 +336,8 @@ export function DocumentsPage() {
                     sectionMonumentId={null}
                     {...tileHandlers}
                   />
-                ))}
-              </div>
+                )}
+              />
             </section>
           )}
 
@@ -341,18 +345,19 @@ export function DocumentsPage() {
           {!activeProject && orphanDocs.length > 0 && (
             <section className="space-y-3">
               <div className="flex items-center gap-2.5 border-b pb-2" style={{ borderColor: C.border }}>
-                <span className="h-3 w-3 rounded-full" style={{ background: '#9aa1ad' }} />
+                <span className="h-3 w-3 rounded-full" style={{ background: 'var(--muted-foreground)' }} />
                 <h2 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>Autres documents partagés</h2>
-                <span className="text-[12px] tabular-nums" style={{ color: '#6a7180' }}>
+                <span className="text-[12px] tabular-nums text-muted-foreground">
                   {orphanDocs.length} document{orphanDocs.length > 1 ? 's' : ''}
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {orphanDocs.map((doc) => (
+              <DocumentGrid
+                items={orphanDocs}
+                keyOf={(doc) => `orphan-${doc.id}`}
+                renderItem={(doc) => (
                   <DocumentTile
-                    key={`orphan-${doc.id}`}
                     document={doc}
-                    accentColor="#9aa1ad"
+                    accentColor="var(--muted-foreground)"
                     monumentNames={monumentNames}
                     dossiersById={dossiersById}
                     uploaderName={uploaderNames[doc.userId]}
@@ -360,8 +365,8 @@ export function DocumentsPage() {
                     sectionMonumentId={null}
                     {...tileHandlers}
                   />
-                ))}
-              </div>
+                )}
+              />
             </section>
           )}
 
@@ -369,19 +374,20 @@ export function DocumentsPage() {
           {!activeProject && trashedDocuments.length > 0 && (
             <Collapsible open={trashOpen} onOpenChange={setTrashOpen}>
               <CollapsibleTrigger asChild>
-                <button className="flex items-center gap-2 text-[13px] font-medium" style={{ color: '#6a7180' }}>
+                <button className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
                   {trashOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <IconSupprimer className="h-3.5 w-3.5" />
                   Documents supprimés ({trashedDocuments.length})
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {trashedDocuments.map((doc) => (
+                <DocumentGrid
+                  items={trashedDocuments}
+                  keyOf={(doc) => `trash-${doc.id}`}
+                  renderItem={(doc) => (
                     <DocumentTile
-                      key={`trash-${doc.id}`}
                       document={doc}
-                      accentColor="#c0271d"
+                      accentColor="var(--destructive)"
                       monumentNames={monumentNames}
                       dossiersById={dossiersById}
                       uploaderName={uploaderNames[doc.userId]}
@@ -390,8 +396,8 @@ export function DocumentsPage() {
                       variant="trash"
                       {...tileHandlers}
                     />
-                  ))}
-                </div>
+                  )}
+                />
               </CollapsibleContent>
             </Collapsible>
           )}
@@ -414,8 +420,8 @@ export function DocumentsPage() {
             <button
               onClick={() => setRenameDoc(null)}
               disabled={renameLoading}
-              className="px-4 py-2 text-[13px] font-medium border rounded-lg transition-colors"
-              style={{ borderColor: C.border, color: '#5C6178' }}
+              className="px-4 py-2 text-[13px] font-medium border rounded-lg transition-colors text-muted-foreground"
+              style={{ borderColor: C.border }}
             >
               Annuler
             </button>

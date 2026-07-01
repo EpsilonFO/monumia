@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router';
-import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { BottomNav } from './BottomNav';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useAideStore } from '@/stores/useAideStore';
@@ -37,16 +37,14 @@ export function AppLayout() {
   }, [pathname]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F8F7F4]">
-      <Sidebar />
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <TopBar />
-        <main ref={mainRef} className="flex-1 overflow-y-auto">
-          <div className="p-4 md:p-6 lg:p-8 max-w-[1200px]">
-            <Outlet />
-          </div>
-        </main>
-      </div>
+    <div className="flex h-screen flex-col overflow-hidden bg-app-bg">
+      <TopBar />
+      <main ref={mainRef} className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[1200px] px-4 pt-4 pb-8 md:px-6 md:py-6 lg:px-8">
+          <Outlet />
+        </div>
+      </main>
+      <BottomNav />
     </div>
   );
 }

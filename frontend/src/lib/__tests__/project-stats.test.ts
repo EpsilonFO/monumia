@@ -3,10 +3,13 @@ import {
   mergeProjectDeadlines,
   computeProjectStats,
   aggregateDashboardStats,
+  projectStage,
+  PROJECT_STAGES,
 } from '@/lib/project-stats';
 import type { Monument } from '@/types';
 import type { Aide, AideDiagnosticResult, AideMatchResult } from '@/types';
 import type { Dossier, DossierEcheance } from '@/types';
+import type { AideSuivi } from '@/types';
 
 // ---- ISO date helpers (relative to "now") ----
 const iso = (offsetDays: number): string => {
@@ -252,5 +255,57 @@ describe('aggregateDashboardStats', () => {
         { nom: 'Château', montant: 50000 },
       ])
     );
+  });
+});
+
+function makeSuivi(partial: Partial<AideSuivi> & { id: string }): AideSuivi {
+  return {
+    id: partial.id,
+    monumentId: partial.monumentId ?? 'm1',
+    aideId: partial.aideId ?? 'a1',
+    userId: 'u1',
+    statut: partial.statut ?? 'a_faire',
+    historique: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as AideSuivi;
+}
+
+describe('projectStage', () => {
+  it('a 4 étapes ordonnées', () => {
+    expect(PROJECT_STAGES.map((s) => s.key)).toEqual(['estimation', 'dossier', 'depot', 'suivi']);
+  });
+
+  it('rien fait → reachedIndex -1, current estimation', () => {
+    const s = projectStage(null, [], []);
+    expect(s.reachedIndex).toBe(-1);
+    expect(s.current).toBe('estimation');
+    expect(s.reached).toEqual([]);
+  });
+
+  it('diagnostic présent → étape estimation atteinte', () => {
+    const diag = makeDiagnostic('m1', [], [], 0);
+    const s = projectStage(diag, [], []);
+    expect(s.reachedIndex).toBe(0);
+    expect(s.reached).toEqual(['estimation']);
+  });
+
+  it('dossier en cours → étape dossier atteinte', () => {
+    const diag = makeDiagnostic('m1', [], [], 0);
+    const s = projectStage(diag, [makeDossier({ id: 'd1', monumentId: 'm1', statut: 'en_cours' })], []);
+    expect(s.reachedIndex).toBe(1);
+    expect(s.current).toBe('dossier');
+  });
+
+  it('dossier prêt/soumis → étape dépôt atteinte (étapes monotones)', () => {
+    const s = projectStage(makeDiagnostic('m1', [], [], 0), [makeDossier({ id: 'd1', monumentId: 'm1', statut: 'soumis' })], []);
+    expect(s.reachedIndex).toBe(2);
+    expect(s.reached).toEqual(['estimation', 'dossier', 'depot']);
+  });
+
+  it('suivi déposé/accordé/refusé → étape suivi atteinte', () => {
+    const s = projectStage(makeDiagnostic('m1', [], [], 0), [], [makeSuivi({ id: 's1', statut: 'accorde' })]);
+    expect(s.reachedIndex).toBe(3);
+    expect(s.current).toBe('suivi');
   });
 });

@@ -1,26 +1,28 @@
 import { Link } from 'react-router';
+import { ArrowUpRight, ChevronRight } from 'lucide-react';
 import {
-  ArrowUpRight,
-  ChevronRight,
-  ScrollText,
-  CalendarClock,
-  Landmark,
-  Shield,
-  MapPin,
-  Users,
-} from 'lucide-react';
+  IconParchemin,
+  IconEcheance,
+  IconMonument,
+  IconProtection,
+  IconLocalisation,
+  IconEquipe,
+} from '@/components/icons';
+import { Clover } from '@/components/illustrations';
 import { ROLE_LABELS } from '@/components/sharing/RoleBadge';
 import { sharedRole } from '@/lib/project-permissions';
 import { C, DEADLINE_TONE } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { formatDateShort } from '@/lib/date-utils';
 import { PROTECTION_LABELS_SHORT } from '@/constants/monument-options';
+import { ParcoursStepper } from './ParcoursStepper';
 import type { Monument } from '@/types';
-import type { ProjectStats } from '@/lib/project-stats';
+import type { ProjectStats, ProjectStage } from '@/lib/project-stats';
 
 interface ProjectsInProgressProps {
   monuments: Monument[];
   statsByMonument: Record<string, ProjectStats>;
+  stageByMonument?: Record<string, ProjectStage>;
 }
 
 /** Voile bleu Monumia posé sur la photo : laisse respirer le cliché en haut, plombe
@@ -30,9 +32,9 @@ const PHOTO_SCRIM =
 
 /** État de conservation → pastille colorée (vert/ambre/orange/rouge), repris du code couleur projet. */
 const ETAT_TONE: Record<Monument['etatConservation'], { fg: string; dot: string; label: string }> = {
-  bon: { fg: '#0f7a52', dot: '#16a34a', label: 'Bon état' },
-  moyen: { fg: '#92600e', dot: '#d99a06', label: 'État moyen' },
-  mauvais: { fg: C.orange, dot: C.orange, label: 'Mauvais état' },
+  bon: { fg: 'var(--success)', dot: 'var(--success)', label: 'Bon état' },
+  moyen: { fg: 'var(--warning)', dot: 'var(--warning)', label: 'État moyen' },
+  mauvais: { fg: 'var(--cat-2)', dot: 'var(--cat-2)', label: 'Mauvais état' },
   peril: { fg: C.danger, dot: C.danger, label: 'En péril' },
 };
 
@@ -41,23 +43,6 @@ function heroPhoto(m: Monument): string | null {
   if (!m.photos?.length) return null;
   const facade = m.photos.find((p) => p.type === 'facade');
   return (facade ?? m.photos[0])?.url || null;
-}
-
-/** Quadrilobe Monumia (4 cercles r23 centrés à 21) — emblème décoratif, fonds bleus uniquement. */
-function Clover({ size = 88, className, style }: { size?: number; className?: string; style?: React.CSSProperties }) {
-  const c = 44;
-  const d = 21;
-  const r = 23;
-  return (
-    <svg viewBox="0 0 88 88" width={size} height={size} aria-hidden className={className} style={style}>
-      <g fill="currentColor">
-        <circle cx={c} cy={c - d} r={r} />
-        <circle cx={c} cy={c + d} r={r} />
-        <circle cx={c - d} cy={c} r={r} />
-        <circle cx={c + d} cy={c} r={r} />
-      </g>
-    </svg>
-  );
 }
 
 /** Kicker éditorial : filet orange + petites caps (repris de la landing). */
@@ -93,10 +78,12 @@ function GlassBadge({ children }: { children: React.ReactNode }) {
 function ProjectCard({
   monument,
   stats,
+  stage,
   featured = false,
 }: {
   monument: Monument;
   stats?: ProjectStats;
+  stage?: ProjectStage;
   featured?: boolean;
 }) {
   const dossiersActifs = stats?.dossiersActifs ?? 0;
@@ -131,8 +118,8 @@ function ProjectCard({
         ) : (
           <Clover
             size={featured ? 320 : 220}
-            className="pointer-events-none absolute -right-16 -top-20"
-            style={{ color: '#ffffff', opacity: 0.08 }}
+            className="pointer-events-none absolute -right-16 -top-20 text-white"
+            style={{ opacity: 0.08 }}
           />
         )}
 
@@ -141,13 +128,13 @@ function ProjectCard({
           <div className="flex flex-wrap items-center gap-2">
             {protection && (
               <GlassBadge>
-                <Shield className="h-3 w-3" strokeWidth={2.4} aria-hidden />
+                <IconProtection className="h-3 w-3" strokeWidth={2.4} aria-hidden />
                 {protection}
               </GlassBadge>
             )}
             {role && (
               <GlassBadge>
-                <Users className="h-3 w-3" strokeWidth={2.4} aria-hidden />
+                <IconEquipe className="h-3 w-3" strokeWidth={2.4} aria-hidden />
                 {ROLE_LABELS[role]}
               </GlassBadge>
             )}
@@ -177,7 +164,7 @@ function ProjectCard({
               className="mt-1.5 inline-flex items-center gap-1.5 text-[12px]"
               style={{ color: 'rgba(255,255,255,0.78)' }}
             >
-              <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden />
+              <IconLocalisation className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden />
               <span className="truncate">
                 {monument.commune ?? '—'}
                 {monument.departement ? ` · ${monument.departement}` : ''}
@@ -187,47 +174,49 @@ function ProjectCard({
         </div>
       </div>
 
-      {/* ── Corps crème : métadonnées + appel à l'action ── */}
-      <div
-        className={`relative flex flex-1 items-end justify-between gap-4 ${
-          featured ? 'px-6 py-5 md:px-7' : 'px-5 py-4'
-        }`}
-      >
-        <div
-          className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px]"
-          style={{ color: 'rgba(34,43,53,0.72)' }}
-        >
-          <span className="inline-flex items-center gap-1.5">
-            <ScrollText className="h-3.5 w-3.5" aria-hidden />
-            {dossiersActifs} dossier{dossiersActifs > 1 ? 's' : ''}
-          </span>
-          {next && (
-            <span
-              className="inline-flex items-center gap-1.5"
-              style={{
-                color: DEADLINE_TONE[next.urgency].fg,
-                fontWeight: next.urgency === 'urgent' || next.urgency === 'past' ? 600 : undefined,
-              }}
-            >
-              <CalendarClock className="h-3.5 w-3.5" aria-hidden />
-              {next.label} · {formatDateShort(next.date)}
+      {/* ── Corps crème : parcours + métadonnées ── */}
+      <div className={`flex flex-1 flex-col gap-3 ${featured ? 'px-6 py-5 md:px-7' : 'px-5 py-4'}`}>
+        {stage && (
+          <div className="border-b pb-3" style={{ borderColor: C.border }}>
+            <ParcoursStepper stage={stage} />
+          </div>
+        )}
+        <div className="flex items-end justify-between gap-4">
+          <div
+            className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-foreground/70"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <IconParchemin className="h-3.5 w-3.5" aria-hidden />
+              {dossiersActifs} dossier{dossiersActifs > 1 ? 's' : ''}
             </span>
-          )}
-        </div>
+            {next && (
+              <span
+                className="inline-flex items-center gap-1.5"
+                style={{
+                  color: DEADLINE_TONE[next.urgency].fg,
+                  fontWeight: next.urgency === 'urgent' || next.urgency === 'past' ? 600 : undefined,
+                }}
+              >
+                <IconEcheance className="h-3.5 w-3.5" aria-hidden />
+                {next.label} · {formatDateShort(next.date)}
+              </span>
+            )}
+          </div>
 
-        <span
-          className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold"
-          style={{ color: C.orange }}
-        >
-          Voir le projet
-          <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-        </span>
+          <span
+            className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold"
+            style={{ color: C.orange }}
+          >
+            Voir le projet
+            <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          </span>
+        </div>
       </div>
     </Link>
   );
 }
 
-export function ProjectsInProgress({ monuments, statsByMonument }: ProjectsInProgressProps) {
+export function ProjectsInProgress({ monuments, statsByMonument, stageByMonument }: ProjectsInProgressProps) {
   if (monuments.length === 0) {
     return (
       <div
@@ -238,8 +227,8 @@ export function ProjectsInProgress({ monuments, statsByMonument }: ProjectsInPro
           className="relative mb-1 flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl"
           style={{ background: `linear-gradient(135deg, ${C.blue}, ${C.blueDark})` }}
         >
-          <Clover size={70} className="pointer-events-none absolute -right-4 -top-5" style={{ color: '#ffffff', opacity: 0.12 }} />
-          <Landmark className="relative h-6 w-6 text-white" aria-hidden />
+          <Clover size={70} className="pointer-events-none absolute -right-4 -top-5 text-white" style={{ opacity: 0.12 }} />
+          <IconMonument className="relative h-6 w-6 text-white" aria-hidden />
         </div>
         <p className="text-[15px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
           Aucun projet en cours
@@ -261,13 +250,13 @@ export function ProjectsInProgress({ monuments, statsByMonument }: ProjectsInPro
 
   if (monuments.length === 1) {
     const m = monuments[0];
-    return <ProjectCard monument={m} stats={statsByMonument[m.id]} featured />;
+    return <ProjectCard monument={m} stats={statsByMonument[m.id]} stage={stageByMonument?.[m.id]} featured />;
   }
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-3">
       {monuments.map((m) => (
-        <ProjectCard key={m.id} monument={m} stats={statsByMonument[m.id]} />
+        <ProjectCard key={m.id} monument={m} stats={statsByMonument[m.id]} stage={stageByMonument?.[m.id]} />
       ))}
     </div>
   );

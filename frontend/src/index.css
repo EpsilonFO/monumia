@@ -13,6 +13,7 @@
     --radius-3xl: calc(var(--radius) + 12px);
     --radius-4xl: calc(var(--radius) + 16px);
     --color-background: var(--background);
+    --color-app-bg: var(--app-bg);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
     --color-card-foreground: var(--card-foreground);
@@ -27,6 +28,38 @@
     --color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
     --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-destructive-muted: var(--destructive-muted);
+    --color-success: var(--success);
+    --color-success-foreground: var(--success-foreground);
+    --color-success-muted: var(--success-muted);
+    --color-warning: var(--warning);
+    --color-warning-foreground: var(--warning-foreground);
+    --color-warning-muted: var(--warning-muted);
+    --color-info: var(--info);
+    --color-info-foreground: var(--info-foreground);
+    --color-info-muted: var(--info-muted);
+    --color-blue-light: var(--blue-light);
+    --color-blue-dark: var(--blue-dark);
+    --color-orange-vif: var(--orange-vif);
+    --color-cat-violet: var(--cat-violet);
+    --color-cat-teal: var(--cat-teal);
+    --color-cat-burgundy: var(--cat-burgundy);
+    --color-cat-violet-soft: var(--cat-violet-soft);
+    --color-cat-teal-soft: var(--cat-teal-soft);
+    --color-cat-burgundy-soft: var(--cat-burgundy-soft);
+    --color-cat-1: var(--cat-1);   --color-cat-1-soft: var(--cat-1-soft);
+    --color-cat-2: var(--cat-2);   --color-cat-2-soft: var(--cat-2-soft);
+    --color-cat-3: var(--cat-3);   --color-cat-3-soft: var(--cat-3-soft);
+    --color-cat-4: var(--cat-4);   --color-cat-4-soft: var(--cat-4-soft);
+    --color-cat-5: var(--cat-5);   --color-cat-5-soft: var(--cat-5-soft);
+    --color-cat-6: var(--cat-6);   --color-cat-6-soft: var(--cat-6-soft);
+    --color-cat-7: var(--cat-7);   --color-cat-7-soft: var(--cat-7-soft);
+    --color-cat-8: var(--cat-8);   --color-cat-8-soft: var(--cat-8-soft);
+    --color-cat-9: var(--cat-9);   --color-cat-9-soft: var(--cat-9-soft);
+    --color-cat-10: var(--cat-10); --color-cat-10-soft: var(--cat-10-soft);
+    --color-cat-11: var(--cat-11); --color-cat-11-soft: var(--cat-11-soft);
+    --color-cat-12: var(--cat-12); --color-cat-12-soft: var(--cat-12-soft);
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
@@ -43,6 +76,11 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+    --color-gray-fg: var(--gray-fg);
+    --color-gray-muted: var(--gray-muted);
+    --shadow-card: var(--shadow-card);
+    --shadow-pop: var(--shadow-pop);
+    --shadow-nav: var(--shadow-nav);
     --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
     --font-serif: 'PT Serif', Georgia, 'Times New Roman', serif;
     --font-hand: 'Caveat', cursive;
@@ -52,6 +90,7 @@
     --radius: 0.625rem;
     /* Charte Monumia — alignée sur la landing (branche landing-page) */
     --background: #fdf9f0;
+    --app-bg: #f8f7f4;
     --foreground: #222b35;
     --card: #fffefb;
     --card-foreground: #222b35;
@@ -66,6 +105,36 @@
     --accent: #f17105;
     --accent-foreground: #fdf9f0;
     --destructive: #b3261e;
+    --destructive-foreground: #fdf9f0;
+    --destructive-muted: #fbe9e7;
+    --success: #0f7a52;
+    --success-foreground: #fdf9f0;
+    --success-muted: #e4f5ec;
+    --warning: #b9560a;
+    --warning-foreground: #fdf9f0;
+    --warning-muted: #fdeede;
+    --info: #1f5fc2;
+    --info-foreground: #fdf9f0;
+    --info-muted: #e7eefc;
+    --blue-light: #5c95ff;
+    --blue-dark: #072a72;
+    --orange-vif: #fc8905;
+    /* Palette catégorielle (identité projet/type/avatar — non sémantique) */
+    --cat-1: #0a369d;  --cat-1-soft: #eef3ff;
+    --cat-2: #c2410c;  --cat-2-soft: #feeedd;
+    --cat-3: #0f766e;  --cat-3-soft: #e2f1f3;
+    --cat-4: #7c3aed;  --cat-4-soft: #f3e8ff;
+    --cat-5: #b91c1c;  --cat-5-soft: #fbeae8;
+    --cat-6: #0369a1;  --cat-6-soft: #e0f2fe;
+    --cat-7: #a16207;  --cat-7-soft: #f6efdc;
+    --cat-8: #9d174d;  --cat-8-soft: #fce4ec;
+    --cat-9: #15803d;  --cat-9-soft: #e7f3ec;
+    --cat-10: #4338ca; --cat-10-soft: #e8eafc;
+    --cat-11: #0e7490; --cat-11-soft: #e0f7fa;
+    --cat-12: #880e4f; --cat-12-soft: #fbe9ef;
+    --cat-violet: var(--cat-4);    --cat-violet-soft: var(--cat-4-soft);
+    --cat-teal: var(--cat-3);      --cat-teal-soft: var(--cat-3-soft);
+    --cat-burgundy: var(--cat-12); --cat-burgundy-soft: var(--cat-12-soft);
     --border: #ece3d2;
     --input: #ece3d2;
     --ring: #0a369d;
@@ -82,6 +151,81 @@
     --sidebar-accent-foreground: #fdf9f0;
     --sidebar-border: #0e3f9a;
     --sidebar-ring: #5c95ff;
+    /* Couche identité « confiance chaleureuse » (refonte 2026-06) */
+    --gray-fg: #4a5160;   /* texte secondaire lisible sur crème (AA) */
+    --gray-muted: #6a7180; /* texte tertiaire / hint */
+    --shadow-card: 0 1px 2px rgba(7, 42, 114, 0.04), 0 8px 20px -10px rgba(7, 42, 114, 0.12);
+    --shadow-pop: 0 10px 34px -14px rgba(7, 42, 114, 0.30);
+    --shadow-nav: 1px 0 0 rgba(7, 42, 114, 0.05), 10px 0 30px -22px rgba(7, 42, 114, 0.18);
+}
+
+.dark {
+    --background: #14171f;
+    --app-bg: #11141c;
+    --foreground: #e8eaf0;
+    --card: #1a1e28;
+    --card-foreground: #e8eaf0;
+    --popover: #1a1e28;
+    --popover-foreground: #e8eaf0;
+    --primary: #5c95ff;
+    --primary-foreground: #0a1530;
+    --secondary: #1f2740;
+    --secondary-foreground: #cdd9f5;
+    --muted: #222734;
+    --muted-foreground: #9aa3b5;
+    --accent: #fc8905;
+    --accent-foreground: #1a1200;
+    --destructive: #e5544b;
+    --destructive-foreground: #1a1200;
+    --destructive-muted: #3a1f1d;
+    --success: #4ec79a;
+    --success-foreground: #04130d;
+    --success-muted: #16302a;
+    --warning: #f0a04b;
+    --warning-foreground: #1a1200;
+    --warning-muted: #33260f;
+    --info: #5c95ff;
+    --info-foreground: #0a1530;
+    --info-muted: #18233f;
+    --blue-light: #87b0ff;
+    --blue-dark: #4d74c0;
+    --orange-vif: #ff9d2e;
+    --cat-1: #5c95ff;  --cat-1-soft: #18233f;
+    --cat-2: #fb923c;  --cat-2-soft: #3a2410;
+    --cat-3: #2dd4bf;  --cat-3-soft: #0f2e2b;
+    --cat-4: #a78bfa;  --cat-4-soft: #241a3a;
+    --cat-5: #f87171;  --cat-5-soft: #3a1d1d;
+    --cat-6: #38bdf8;  --cat-6-soft: #0c2638;
+    --cat-7: #d9a441;  --cat-7-soft: #2e2410;
+    --cat-8: #f472b6;  --cat-8-soft: #331425;
+    --cat-9: #4ade80;  --cat-9-soft: #16301f;
+    --cat-10: #818cf8; --cat-10-soft: #1e1f44;
+    --cat-11: #22d3ee; --cat-11-soft: #0c2b32;
+    --cat-12: #f0649f; --cat-12-soft: #33152a;
+    --cat-violet: var(--cat-4);    --cat-violet-soft: var(--cat-4-soft);
+    --cat-teal: var(--cat-3);      --cat-teal-soft: var(--cat-3-soft);
+    --cat-burgundy: var(--cat-12); --cat-burgundy-soft: var(--cat-12-soft);
+    --border: #2a2f3c;
+    --input: #2a2f3c;
+    --ring: #5c95ff;
+    --chart-1: #5c95ff;
+    --chart-2: #87b0ff;
+    --chart-3: #fc8905;
+    --chart-4: #f0a04b;
+    --chart-5: #b8ccff;
+    --sidebar: #11141c;
+    --sidebar-foreground: #cdd9f5;
+    --sidebar-primary: #fc8905;
+    --sidebar-primary-foreground: #1a1200;
+    --sidebar-accent: #1f2740;
+    --sidebar-accent-foreground: #cdd9f5;
+    --sidebar-border: #2a2f3c;
+    --sidebar-ring: #5c95ff;
+    --gray-fg: #b3bccd;
+    --gray-muted: #9aa3b5;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 20px -10px rgba(0, 0, 0, 0.5);
+    --shadow-pop: 0 10px 34px -14px rgba(0, 0, 0, 0.6);
+    --shadow-nav: 1px 0 0 rgba(255, 255, 255, 0.04), 10px 0 30px -22px rgba(0, 0, 0, 0.5);
 }
 
 @layer base {
@@ -142,38 +286,19 @@
   font-family: var(--font-hand);
 }
 
-/* ─── Frise verticale — échéancier du tableau de bord ─── */
-/* La ligne (spine) se « dessine » de haut en bas ; chaque connecteur est décalé. */
-@keyframes frise-draw-kf {
-  from { transform: scaleY(0); }
-  to   { transform: scaleY(1); }
+/* ─── Questionnaire « une question à la fois » : glissé entrant ─── */
+@keyframes q-in-fwd-kf {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
-.frise-draw {
-  transform-origin: top center;
-  animation: frise-draw-kf 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+@keyframes q-in-back-kf {
+  from { opacity: 0; transform: translateX(-28px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
-/* Les nœuds apparaissent en « pop » ; fill backwards pour que le survol (scale) reste libre. */
-@keyframes frise-pop-kf {
-  from { opacity: 0; transform: translateY(7px) scale(0.5); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-.frise-pop {
-  animation: frise-pop-kf 480ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
-}
-/* Halo pulsant des échéances urgentes (toujours actif, attire l'œil). */
-@keyframes frise-halo-kf {
-  0%, 100% { opacity: 0.55; transform: scale(1); }
-  50%      { opacity: 0;    transform: scale(1.9); }
-}
-.frise-halo-pulse {
-  animation: frise-halo-kf 2.8s ease-in-out infinite;
-}
+.q-in-fwd { animation: q-in-fwd-kf 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.q-in-back { animation: q-in-back-kf 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 @media (prefers-reduced-motion: reduce) {
-  .frise-draw,
-  .frise-pop,
-  .frise-halo-pulse {
-    animation: none;
-  }
-  .frise-draw { transform: scaleY(1); }
-  .frise-pop  { opacity: 1; transform: none; }
+  .q-in-fwd,
+  .q-in-back { animation: none; }
 }
+

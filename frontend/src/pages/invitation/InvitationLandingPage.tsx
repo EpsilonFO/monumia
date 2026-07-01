@@ -13,14 +13,14 @@ import { C, SERIF } from '@/lib/brand';
 import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
 import { toast } from 'sonner';
 
-const SUCCESS = '#2e7d32';
+const SUCCESS = 'var(--success)';
 import type { InvitationPreview } from '@/types';
 
 type Mode = 'choice' | 'signup' | 'login';
 
-const MUTED = '#5c6472';
-const LIGHT = '#8c92a0';
-const INPUT_CLS = 'h-12 text-[15px] bg-white border-[#ece3d2] focus:border-[#0a369d] focus:ring-[#0a369d]/10';
+const MUTED = 'var(--muted-foreground)';
+const LIGHT = 'var(--muted-foreground)';
+const INPUT_CLS = 'h-12 text-[15px] bg-card border-border focus:border-primary focus:ring-primary/10';
 
 export function InvitationLandingPage() {
   const { token = '' } = useParams();
@@ -182,7 +182,7 @@ export function InvitationLandingPage() {
             </FormField>
           </div>
           <FormField label="Email" htmlFor="inv-email">
-            <Input id="inv-email" type="email" value={form.email} disabled className={`${INPUT_CLS} disabled:bg-[#f3eee1] disabled:text-[#8c92a0]`} />
+            <Input id="inv-email" type="email" value={form.email} disabled className={`${INPUT_CLS} disabled:bg-muted disabled:text-muted-foreground`} />
           </FormField>
           <FormField label="Mot de passe" htmlFor="inv-password">
             <Input id="inv-password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className={INPUT_CLS} />
@@ -268,7 +268,7 @@ function SecondaryButton({ onClick, children }: { onClick: () => void; children:
     <button
       type="button"
       onClick={onClick}
-      className="h-12 w-full rounded-lg border text-[14px] font-medium transition-colors hover:bg-white"
+      className="h-12 w-full rounded-lg border text-[14px] font-medium transition-colors hover:bg-card"
       style={{ borderColor: C.border, color: C.blue }}
     >
       {children}

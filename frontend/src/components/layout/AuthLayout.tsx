@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router';
-import { Landmark, ShieldCheck, Clock } from 'lucide-react';
+import { IconMonument, IconProtection, IconTemps } from '@/components/icons';
 import { C, SERIF } from '@/lib/brand';
 
 interface AuthLayoutProps {
@@ -17,9 +17,9 @@ interface AuthLayoutProps {
 }
 
 const REASSURANCE = [
-  { icon: Landmark, label: '150+ aides référencées' },
-  { icon: ShieldCheck, label: 'Vos données sécurisées' },
-  { icon: Clock, label: 'Résultat instantané' },
+  { icon: IconMonument, label: '150+ aides référencées' },
+  { icon: IconProtection, label: 'Vos données sécurisées' },
+  { icon: IconTemps, label: 'Résultat instantané' },
 ];
 
 /**
@@ -49,7 +49,7 @@ export function AuthLayout({
           <div className="absolute -bottom-28 -left-16 h-72 w-72 rounded-full blur-[130px]" style={{ background: 'rgba(241,113,5,0.18)' }} />
           <div
             className="absolute inset-0 opacity-[0.05]"
-            style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 31px, #ffffff 31px, #ffffff 32px)' }}
+            style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 31px, var(--card) 31px, var(--card) 32px)' }}
           />
         </div>
 
@@ -69,7 +69,7 @@ export function AuthLayout({
           {/* Filet dégradé — signature de la sidebar */}
           <div
             className="mt-6 h-px w-40"
-            style={{ background: `linear-gradient(to right, ${C.orange}99, ${C.blueDark}, transparent)` }}
+            style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--accent) 60%, transparent), ${C.blueDark}, transparent)` }}
           />
         </div>
 

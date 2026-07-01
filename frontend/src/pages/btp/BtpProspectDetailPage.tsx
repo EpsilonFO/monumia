@@ -1,9 +1,10 @@
 import { useParams, Link, useNavigate } from 'react-router';
+import { ArrowLeft } from 'lucide-react';
 import {
-  ArrowLeft, MapPin, Shield, Phone,
-  User, Mail, FileText, TrendingUp, CheckCircle2,
-  AlertCircle, Clock, Trash2, ExternalLink,
-} from 'lucide-react';
+  IconLocalisation, IconProtection, IconContact,
+  IconCompte, IconDocument, IconTendance, IconSucces,
+  IconAttention, IconTemps, IconSupprimer, IconLienExterne,
+} from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,12 +15,12 @@ import { cn } from '@/lib/utils';
 import type { ProspectStatus } from '@/types';
 
 const STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string }> = {
-  a_contacter: { label: 'À contacter', color: 'bg-gray-100 text-gray-700' },
-  contacte: { label: 'Contacté', color: 'bg-blue-100 text-blue-700' },
-  en_discussion: { label: 'En discussion', color: 'bg-amber-100 text-amber-700' },
-  devis_envoye: { label: 'Devis envoyé', color: 'bg-purple-100 text-purple-700' },
-  gagne: { label: 'Gagné ✓', color: 'bg-emerald-100 text-emerald-700' },
-  perdu: { label: 'Perdu', color: 'bg-red-100 text-red-700' },
+  a_contacter: { label: 'À contacter', color: 'bg-muted text-muted-foreground' },
+  contacte: { label: 'Contacté', color: 'bg-info-muted text-info' },
+  en_discussion: { label: 'En discussion', color: 'bg-warning-muted text-warning' },
+  devis_envoye: { label: 'Devis envoyé', color: 'bg-cat-violet-soft text-cat-violet' },
+  gagne: { label: 'Gagné ✓', color: 'bg-success-muted text-success' },
+  perdu: { label: 'Perdu', color: 'bg-destructive-muted text-destructive' },
 };
 
 const PROTECTION_LABELS: Record<string, string> = {
@@ -94,7 +95,7 @@ export function BtpProspectDetailPage() {
               navigate('/btp/prospects');
             }}
           >
-            <Trash2 className="h-4 w-4" />
+            <IconSupprimer className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -105,7 +106,7 @@ export function BtpProspectDetailPage() {
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold tracking-tight truncate">{prospect.monumentNom}</h1>
             <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4 shrink-0" />
+              <IconLocalisation className="h-4 w-4 shrink-0" />
               <span>{prospect.adresse}, {prospect.codePostal} {prospect.commune}</span>
             </div>
           </div>
@@ -120,7 +121,7 @@ export function BtpProspectDetailPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="h-4 w-4 text-primary" />
+                <IconProtection className="h-4 w-4 text-primary" />
                 Caractéristiques du monument
               </CardTitle>
             </CardHeader>
@@ -158,7 +159,7 @@ export function BtpProspectDetailPage() {
 
               {prospect.referenceMerimee && (
                 <div className="flex items-center gap-2 pt-2 border-t">
-                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                  <IconLienExterne className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">
                     Référence Mérimée : <span className="font-mono">{prospect.referenceMerimee}</span>
                   </span>
@@ -171,7 +172,7 @@ export function BtpProspectDetailPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <User className="h-4 w-4 text-primary" />
+                <IconCompte className="h-4 w-4 text-primary" />
                 Contact
               </CardTitle>
             </CardHeader>
@@ -179,7 +180,7 @@ export function BtpProspectDetailPage() {
               {prospect.contactNom && (
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <User className="h-4 w-4 text-primary" />
+                    <IconCompte className="h-4 w-4 text-primary" />
                   </div>
                   <div>
                     <p className="text-sm font-medium">{prospect.contactNom}</p>
@@ -196,7 +197,7 @@ export function BtpProspectDetailPage() {
                     href={`mailto:${prospect.contactEmail}`}
                     className="flex items-center gap-2 text-sm text-primary hover:underline"
                   >
-                    <Mail className="h-4 w-4 shrink-0" />
+                    <IconContact className="h-4 w-4 shrink-0" />
                     {prospect.contactEmail}
                   </a>
                 )}
@@ -205,7 +206,7 @@ export function BtpProspectDetailPage() {
                     href={`tel:${prospect.contactTelephone}`}
                     className="flex items-center gap-2 text-sm text-primary hover:underline"
                   >
-                    <Phone className="h-4 w-4 shrink-0" />
+                    <IconContact className="h-4 w-4 shrink-0" />
                     {prospect.contactTelephone}
                   </a>
                 )}
@@ -213,7 +214,7 @@ export function BtpProspectDetailPage() {
 
               {prospect.dateProchainContact && (
                 <div className="flex items-center gap-2 pt-2 border-t">
-                  <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+                  <IconTemps className="h-4 w-4 text-warning shrink-0" />
                   <div>
                     <p className="text-xs text-muted-foreground">Prochain contact</p>
                     <p className="text-sm font-medium">
@@ -235,7 +236,7 @@ export function BtpProspectDetailPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-primary" />
+                  <IconDocument className="h-4 w-4 text-primary" />
                   Notes commerciales
                 </CardTitle>
               </CardHeader>
@@ -251,11 +252,11 @@ export function BtpProspectDetailPage() {
           {/* Financement synthèse */}
           <Card className={cn(
             'border-2',
-            prospect.financementIdentifie ? 'border-emerald-200 bg-emerald-50/50' : 'border-muted'
+            prospect.financementIdentifie ? 'border-success/30 bg-success-muted/50' : 'border-muted'
           )}>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className={cn('h-4 w-4', prospect.financementIdentifie ? 'text-emerald-600' : 'text-muted-foreground')} />
+                <IconTendance className={cn('h-4 w-4', prospect.financementIdentifie ? 'text-success' : 'text-muted-foreground')} />
                 Analyse financement
               </CardTitle>
             </CardHeader>
@@ -264,10 +265,10 @@ export function BtpProspectDetailPage() {
                 <>
                   <div className="text-center py-2">
                     <p className="text-xs text-muted-foreground mb-1">Financement public identifié</p>
-                    <p className="text-3xl font-bold text-emerald-700">
+                    <p className="text-3xl font-bold text-success">
                       {formatCurrency(prospect.totalFinancementPotentiel)}
                     </p>
-                    <p className="text-sm text-emerald-600 mt-1">
+                    <p className="text-sm text-success mt-1">
                       soit {prospect.tauxCouvertureEstime}% des travaux
                     </p>
                   </div>
@@ -280,7 +281,7 @@ export function BtpProspectDetailPage() {
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Aides & subventions</span>
-                        <span className="font-medium text-emerald-700">
+                        <span className="font-medium text-success">
                           — {formatCurrency(prospect.totalFinancementPotentiel)}
                         </span>
                       </div>
@@ -291,11 +292,11 @@ export function BtpProspectDetailPage() {
                     </div>
                   )}
 
-                  <div className="bg-emerald-100/80 rounded-lg p-3">
-                    <p className="text-xs text-emerald-800 font-medium mb-1">
+                  <div className="bg-success-muted rounded-lg p-3">
+                    <p className="text-xs text-success font-medium mb-1">
                       ✓ Argument commercial clé
                     </p>
-                    <p className="text-xs text-emerald-700">
+                    <p className="text-xs text-success/80">
                       Avec {prospect.tauxCouvertureEstime}% du projet financé par des aides
                       publiques, le reste à charge est considérablement réduit.
                       C'est le moment d'entreprendre les travaux.
@@ -304,7 +305,7 @@ export function BtpProspectDetailPage() {
                 </>
               ) : (
                 <div className="text-center py-4">
-                  <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <IconAttention className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">
                     Financement à analyser
                   </p>
@@ -334,7 +335,7 @@ export function BtpProspectDetailPage() {
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-2">
                   {item.done ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <IconSucces className="h-4 w-4 text-success shrink-0" />
                   ) : (
                     <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30 shrink-0" />
                   )}
