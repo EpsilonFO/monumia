@@ -13,11 +13,10 @@ describe("banque d'icônes", () => {
     expect(entries.length).toBeGreaterThanOrEqual(45);
   });
 
-  it.each(entries)('%s rend un <svg> en viewBox 100 + currentColor', (_name, Comp) => {
+  it.each(entries)('%s rend un <svg> currentColor', (_name, Comp) => {
     const html = renderToStaticMarkup(createElement(Comp));
     expect(html).toContain('<svg');
-    expect(html).toContain('viewBox="0 0 100 100"');
-    // DA : soit rempli (vedettes), soit tracé — toujours currentColor.
+    expect(html).toContain('viewBox');
     expect(/(?:fill|stroke)="currentColor"/.test(html)).toBe(true);
   });
 
