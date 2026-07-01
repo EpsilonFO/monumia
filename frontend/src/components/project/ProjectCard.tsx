@@ -1,25 +1,15 @@
 import { Link } from 'react-router';
-import { ArrowUpRight } from 'lucide-react';
-import {
-  IconLocalisation,
-  IconProtection,
-  IconAccompagnement,
-  IconEcheance,
-  IconSubvention,
-  IconDiagnostic,
-} from '@/components/icons';
-import { Clover } from '@/components/illustrations';
+import { IconLocalisation, IconProtection, IconEcheance } from '@/components/icons';
 import { ParcoursTrail } from '@/components/project/ParcoursTrail';
+import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { deadlineLabel } from '@/lib/date-utils';
 import { formatCurrency } from '@/lib/format-utils';
 import { montantTileMode } from '@/lib/project-card-view';
-import { RoleBadge } from '@/components/sharing/RoleBadge';
-import { SharedBadge } from '@/components/sharing/SharedBadge';
-import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
+import { projectColor, projectColorSoft } from '@/lib/project-color';
 import { isProjectShared } from '@/lib/project-permissions';
-import type { ReactNode } from 'react';
+import { PROJECT_STAGES } from '@/lib/project-stats';
 import type { ProjectStats, ProjectStage } from '@/lib/project-stats';
 import type { Monument } from '@/types';
 
@@ -30,188 +20,155 @@ interface ProjectCardProps {
 }
 
 const protectionLabels: Record<string, string> = {
-  classe: 'Classé MH',
-  inscrit: 'Inscrit MH',
-  abords: 'Abords MH',
-  spr: 'SPR',
-  non_protege: 'Non protégé',
+  classe: 'Classé Monument Historique',
+  inscrit: 'Inscrit Monument Historique',
+  abords: 'Abords Monument Historique',
+  spr: 'Site patrimonial remarquable',
 };
 
-const etatStyles: Record<string, { bg: string; text: string; label: string }> = {
-  bon: { bg: 'var(--success-muted)', text: 'var(--success)', label: 'Bon état' },
-  moyen: { bg: 'var(--warning-muted)', text: 'var(--warning)', label: 'État moyen' },
-  mauvais: { bg: 'var(--cat-2-soft)', text: 'var(--cat-2)', label: 'Mauvais état' },
-  peril: { bg: 'var(--destructive-muted)', text: 'var(--destructive)', label: 'En péril' },
-};
-
-// Code couleur unique des échéances : < 30 j (ou dépassée) → rouge · 30–100 j → orange · > 100 j → bleu
+// Code couleur des échéances : dépassée/urgent → rouge · 30–100 j → orange.
 const urgencyColor: Record<string, string> = {
   past: C.danger,
   urgent: C.danger,
   warning: C.orange,
-  normal: C.blue,
 };
 
-/** Petit intitulé éditorial (filet orange + petites caps), repris de la landing/dashboard. */
-function Kicker({ children }: { children: ReactNode }) {
-  return (
-    <span
-      className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em]"
-      style={{ color: C.blue }}
-    >
-      <span aria-hidden style={{ width: 18, height: 2, borderRadius: 2, background: C.orange }} />
-      {children}
-    </span>
-  );
-}
-
 export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
-  const etat = etatStyles[monument.etatConservation] ?? etatStyles.moyen;
+  const accent = projectColor(monument.id);
+  const soft = projectColorSoft(monument.id);
+
   const shared = isProjectShared(monument);
-  const role = shared ? monument.myRole ?? null : null;
   const members = monument.members ?? [];
+  const protection = protectionLabels[monument.protection];
+
+  const tileMode = montantTileMode(stats);
+
+  // Ligne d'étape en clair (une seule) : « Étape 3 sur 4 · Dépôt du dossier ».
+  const stepText =
+    stage && stage.reachedIndex >= 0
+      ? `Étape ${stage.reachedIndex + 1} sur ${PROJECT_STAGES.length} · ${PROJECT_STAGES[stage.reachedIndex].label}`
+      : 'À commencer : Estimation';
+
+  // Échéance affichée UNIQUEMENT si elle presse (dépassée, urgente, ou proche).
   const next = stats?.prochaineEcheance ?? null;
   const nextLabel = next ? deadlineLabel(next.date) : null;
-  const tileMode = montantTileMode(stats);
+  const pressing = nextLabel && nextLabel.urgency !== 'normal';
+  const dlColor = nextLabel ? urgencyColor[nextLabel.urgency] : undefined;
 
   return (
     <Link to={ROUTES.PROJET_DETAIL(monument.id)}>
       <div
-        className="group relative flex h-full flex-col overflow-hidden rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_-28px_rgba(7,42,114,0.6)]"
-        style={{ background: C.card, borderColor: C.border }}
+        className="group flex h-full flex-col overflow-hidden rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_-28px_rgba(7,42,114,0.55)]"
+        style={{ background: soft, borderColor: C.border }}
       >
-        {/* Filigrane décoratif (quadrilobe), jamais de photo */}
-        <Clover
-          size={150}
-          className="pointer-events-none absolute -right-10 -top-12"
-          style={{ color: C.blue, opacity: 0.04 }}
-        />
-
-        {/* 1 · En-tête identité */}
-        <div className="relative px-5 pt-5">
-          <h3
-            className="line-clamp-2 text-[17px] leading-tight"
-            style={{ fontFamily: SERIF, color: C.ink }}
-          >
-            {monument.nom}
-          </h3>
-          <div className="mt-1.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <IconLocalisation className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden />
-            <span className="truncate">
-              {monument.commune ?? '—'}
-              {monument.departement ? ` (${monument.departement})` : ''}
-            </span>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {shared && <SharedBadge count={monument.memberCount} />}
-            {role && <RoleBadge role={role} />}
-            <span
-              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium"
-              style={{ background: C.paleBlue, color: C.blue }}
+        {/* En-tête : la couleur du projet porte son identité */}
+        <div className="px-5 py-4" style={{ background: accent }}>
+          <div className="flex items-start justify-between gap-3">
+            <h3
+              className="line-clamp-2 text-[20px] font-bold leading-tight text-white"
+              style={{ fontFamily: SERIF }}
             >
-              <IconProtection className="h-3 w-3" strokeWidth={2} aria-hidden />
-              {protectionLabels[monument.protection] ?? monument.protection}
-            </span>
-            <span
-              className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
-              style={{ background: etat.bg, color: etat.text }}
-            >
-              {etat.label}
-            </span>
+              {monument.nom}
+            </h3>
+            {shared && members.length > 0 && (
+              <MemberAvatarStack people={members} size="sm" />
+            )}
           </div>
+          {(monument.commune || monument.departement) && (
+            <p className="mt-1.5 flex items-center gap-1.5 text-[13.5px] text-white/85">
+              <IconLocalisation className="h-4 w-4 shrink-0" strokeWidth={1.8} aria-hidden />
+              <span className="truncate">
+                {monument.commune ?? '—'}
+                {monument.departement ? ` · ${monument.departement}` : ''}
+              </span>
+            </p>
+          )}
+          {protection && (
+            <span
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold text-white"
+              style={{
+                background: 'rgba(255,255,255,0.18)',
+                border: '1px solid rgba(255,255,255,0.34)',
+              }}
+            >
+              <IconProtection className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden />
+              {protection}
+            </span>
+          )}
         </div>
 
-        {/* 2 · Parcours illustré */}
-        {stage && (
-          <div className="relative mt-5 px-5">
-            <Kicker>Votre parcours</Kicker>
-            <div className="mt-3">
-              <ParcoursTrail stage={stage} />
+        {/* Corps : fond lavé dans la teinte du projet */}
+        <div className="flex flex-1 flex-col px-5 py-5">
+          {/* Point focal : le montant d'aides */}
+          {tileMode === 'money' && stats ? (
+            <div>
+              <p
+                className="text-[11px] font-semibold uppercase tracking-[0.12em]"
+                style={{ color: accent }}
+              >
+                Jusqu'à
+              </p>
+              <p
+                className="mt-0.5 text-[32px] font-bold leading-none tabular-nums"
+                style={{ fontFamily: SERIF, color: accent }}
+              >
+                {formatCurrency(stats.montantPotentiel)}
+              </p>
+              <p className="mt-1.5 text-[13.5px] font-medium" style={{ color: C.ink }}>
+                d'aides à mobiliser
+              </p>
             </div>
-          </div>
-        )}
+          ) : tileMode === 'count' && stats ? (
+            <div>
+              <p
+                className="text-[26px] font-bold leading-none tabular-nums"
+                style={{ fontFamily: SERIF, color: accent }}
+              >
+                {stats.aidesIdentifiees} aide{stats.aidesIdentifiees > 1 ? 's' : ''}
+              </p>
+              <p className="mt-1.5 text-[13.5px] font-medium" style={{ color: C.ink }}>
+                repérée{stats.aidesIdentifiees > 1 ? 's' : ''} pour ce monument
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p
+                className="text-[20px] font-bold leading-tight"
+                style={{ fontFamily: SERIF, color: accent }}
+              >
+                Estimez vos aides
+              </p>
+              <p className="mt-1.5 text-[13.5px] font-medium" style={{ color: C.ink }}>
+                Lancez l'estimation, c'est rapide
+              </p>
+            </div>
+          )}
 
-        {/* 3 · Tuile motivation (montant) */}
-        <div className="relative mt-5 px-5">
-          <div className="rounded-xl px-4 py-3" style={{ background: C.paleBlue }}>
-            {tileMode === 'money' && stats ? (
-              <div className="flex items-center gap-3">
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-                  style={{ background: '#fff', color: C.orange }}
-                >
-                  <IconSubvention className="h-5 w-5" strokeWidth={2} aria-hidden />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-medium text-muted-foreground">Jusqu'à</p>
-                  <p
-                    className="leading-none"
-                    style={{ fontFamily: SERIF, color: C.blue }}
-                  >
-                    <span className="text-[22px] font-bold">{formatCurrency(stats.montantPotentiel)}</span>
-                  </p>
-                  <p className="mt-1 text-[12px] text-muted-foreground">
-                    {stats.aidesIdentifiees} aide{stats.aidesIdentifiees > 1 ? 's' : ''} identifiée
-                    {stats.aidesIdentifiees > 1 ? 's' : ''}
-                  </p>
-                </div>
-              </div>
-            ) : tileMode === 'count' && stats ? (
-              <div className="flex items-center gap-3">
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-                  style={{ background: '#fff', color: C.blue }}
-                >
-                  <IconAccompagnement className="h-5 w-5" strokeWidth={2} aria-hidden />
-                </span>
-                <p className="text-[13px] font-semibold" style={{ color: C.ink }}>
-                  {stats.aidesIdentifiees} aide{stats.aidesIdentifiees > 1 ? 's' : ''} identifiée
-                  {stats.aidesIdentifiees > 1 ? 's' : ''}
-                </p>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-                  style={{ background: '#fff', color: C.orange }}
-                >
-                  <IconDiagnostic className="h-5 w-5" strokeWidth={2} aria-hidden />
-                </span>
-                <p className="text-[13px] font-medium" style={{ color: C.ink }}>
-                  Lancez l'estimation pour découvrir vos aides
+          {/* Bas de carte : progression + échéance pressante, alignés en grille */}
+          <div className="mt-auto space-y-3 pt-5">
+            {stage && (
+              <div>
+                <ParcoursTrail stage={stage} accent={accent} />
+                <p className="mt-2.5 text-[13.5px] font-semibold" style={{ color: C.ink }}>
+                  {stepText}
                 </p>
               </div>
             )}
-          </div>
-        </div>
 
-        {/* 4 · Pied : échéance / avatars + affordance d'ouverture */}
-        <div
-          className="relative mt-auto flex items-center justify-between gap-3 border-t px-5 py-4"
-          style={{ borderColor: C.border }}
-        >
-          <div className="min-w-0 text-[12px]">
-            {shared && members.length > 0 ? (
-              <MemberAvatarStack people={members} size="sm" />
-            ) : next && nextLabel ? (
+            {pressing && nextLabel && (
               <span
-                className="inline-flex items-center gap-1.5 font-medium"
-                style={{ color: urgencyColor[nextLabel.urgency] ?? 'var(--muted-foreground)' }}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold"
+                style={{
+                  color: dlColor,
+                  background: `color-mix(in srgb, ${dlColor} 14%, transparent)`,
+                }}
               >
-                <IconEcheance className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+                <IconEcheance className="h-4 w-4" strokeWidth={2} aria-hidden />
+                {nextLabel.urgency === 'past' ? 'En retard : ' : 'À faire avant le '}
                 {nextLabel.text}
               </span>
-            ) : (
-              <span className="text-muted-foreground">Aucune échéance</span>
             )}
           </div>
-          <span
-            className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold"
-            style={{ color: C.orange }}
-          >
-            Ouvrir
-            <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-          </span>
         </div>
       </div>
     </Link>

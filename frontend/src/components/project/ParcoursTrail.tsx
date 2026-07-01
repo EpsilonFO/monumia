@@ -20,71 +20,48 @@ const STAGE_ICON: Record<ProjectStageKey, IconComponent> = {
 };
 
 /**
- * « Chemin » horizontal illustré : 4 jalons reliés, franchis en orange (coche),
- * étape en cours mise en valeur (anneau), étapes à venir en bleu pâle.
+ * Frise de progression dépouillée : 4 jalons reliés, teintés à la couleur du
+ * projet (`accent`). Franchi = pastille pleine + coche ; en cours = pastille
+ * pleine + halo coloré ; à venir = pastille claire cerclée. Aucun libellé sous
+ * les jalons — l'étape en cours est nommée en clair par la carte (une ligne).
  */
-export function ParcoursTrail({ stage }: { stage: ProjectStage }) {
-  const currentLabel =
-    stage.reachedIndex >= 0 ? PROJECT_STAGES[stage.reachedIndex].label : null;
+export function ParcoursTrail({ stage, accent }: { stage: ProjectStage; accent: string }) {
   const last = PROJECT_STAGES.length - 1;
 
   return (
-    <div className="space-y-2.5">
-      <ol className="flex items-start" aria-label="Avancement du projet">
-        {PROJECT_STAGES.map((s, i) => {
-          const state = jalonState(i, stage.reachedIndex);
-          const done = state === 'done';
-          const current = state === 'current';
-          const active = done || current;
-          const Icon = STAGE_ICON[s.key];
-          return (
-            <li key={s.key} className="flex flex-1 flex-col items-center gap-1.5">
-              <div className="flex w-full items-center">
-                <span
-                  className="h-0.5 flex-1 rounded-full"
-                  style={{ background: i === 0 ? 'transparent' : active ? C.orange : C.border }}
-                />
-                <span
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors"
-                  style={{
-                    background: active ? C.orange : C.paleBlue,
-                    color: active ? '#fff' : C.blue,
-                    boxShadow: current ? `0 0 0 4px ${C.paleOrange}` : 'none',
-                  }}
-                >
-                  {done ? (
-                    <Check className="h-4 w-4" strokeWidth={3} aria-hidden />
-                  ) : (
-                    <Icon className="h-4 w-4" strokeWidth={2} aria-hidden />
-                  )}
-                </span>
-                <span
-                  className="h-0.5 flex-1 rounded-full"
-                  style={{ background: i === last ? 'transparent' : done ? C.orange : C.border }}
-                />
-              </div>
-              <span
-                className="text-center text-[11px] font-medium leading-tight"
-                style={{ color: active ? C.ink : C.grayMuted }}
-              >
-                {s.label}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-      <p className="text-center text-[12px]" style={{ color: C.grayMuted }}>
-        {currentLabel ? (
-          <>
-            Vous en êtes à :{' '}
-            <span className="font-semibold" style={{ color: C.ink }}>
-              {currentLabel}
+    <ol className="flex items-center" aria-label="Avancement du projet">
+      {PROJECT_STAGES.map((s, i) => {
+        const state = jalonState(i, stage.reachedIndex);
+        const done = state === 'done';
+        const current = state === 'current';
+        const active = done || current;
+        const Icon = STAGE_ICON[s.key];
+        return (
+          <li key={s.key} className="flex flex-1 items-center last:flex-none">
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors"
+              style={{
+                background: active ? accent : C.card,
+                color: active ? '#fff' : C.grayMuted,
+                border: active ? 'none' : `2px solid ${C.border}`,
+                boxShadow: current ? `0 0 0 4px color-mix(in srgb, ${accent} 24%, transparent)` : 'none',
+              }}
+            >
+              {done ? (
+                <Check className="h-5 w-5" strokeWidth={3} aria-hidden />
+              ) : (
+                <Icon className="h-5 w-5" strokeWidth={2} aria-hidden />
+              )}
             </span>
-          </>
-        ) : (
-          'Parcours pas encore commencé'
-        )}
-      </p>
-    </div>
+            {i < last && (
+              <span
+                className="mx-1.5 h-1 flex-1 rounded-full"
+                style={{ background: done ? accent : C.border }}
+              />
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
