@@ -162,3 +162,11 @@ export function getArticleBySlug(slug: string): BlogArticle | undefined {
 export function getArticlesByCategory(categorySlug: string): BlogArticle[] {
   return BLOG_ARTICLES.filter((a) => a.categorySlug === categorySlug);
 }
+
+/** Premier article non lu de la liste, dans l'ordre fourni (ou undefined). */
+export function nextUnread(
+  articles: BlogArticle[],
+  readSlugs: Set<string>,
+): BlogArticle | undefined {
+  return articles.find((a) => !readSlugs.has(a.slug));
+}
