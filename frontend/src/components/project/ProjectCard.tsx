@@ -1,6 +1,5 @@
 import { Link } from 'react-router';
 import { IconLocalisation, IconProtection, IconEcheance } from '@/components/icons';
-import { Clover } from '@/components/illustrations';
 import { ParcoursTrail } from '@/components/project/ParcoursTrail';
 import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
 import { ROUTES } from '@/constants/routes';
@@ -60,7 +59,7 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
       >
         {/* En-tête bleu institutionnel */}
         <div
-          className="relative px-6 pt-6 pb-7"
+          className="relative px-6 py-6"
           style={{ background: `linear-gradient(135deg, ${C.blue}, ${C.blueDark})` }}
         >
           <div className="flex items-start justify-between gap-3">
@@ -95,19 +94,10 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
               {protection}
             </span>
           )}
-
-          {/* Sceau quadrilobe (motif du logo) à cheval sur la couture — signature de marque */}
-          <span
-            className="absolute bottom-0 right-6 z-10 flex h-12 w-12 translate-y-1/2 items-center justify-center rounded-full border"
-            style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
-            aria-hidden
-          >
-            <Clover size={26} style={{ color: C.orange }} />
-          </span>
         </div>
 
         {/* Corps crème, aéré */}
-        <div className="flex flex-1 flex-col px-6 pb-6 pt-7">
+        <div className="flex flex-1 flex-col p-6">
           {/* Point focal : le montant d'aides, en orange (couleur d'action) */}
           {tileMode === 'money' && stats ? (
             <div>
