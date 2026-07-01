@@ -53,7 +53,7 @@ export function BlogIndexPage() {
       {featured && <FeaturedArticle article={featured} />}
 
       {/* ─── CORPS ÉDITORIAL : rail gauche · articles · rail droit ─── */}
-      <div className="grid grid-cols-1 gap-x-10 gap-y-12 lg:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)_16rem]">
+      <div className="grid grid-cols-1 gap-x-10 gap-y-12 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_16rem]">
         {/* Rail gauche : sommaire des thèmes (ancres) */}
         <aside className="hidden lg:block">
           <div className="sticky top-24 space-y-6">
@@ -61,22 +61,34 @@ export function BlogIndexPage() {
               <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.blue, opacity: 0.7 }}>
                 Explorer par thème
               </p>
-              <ul className="space-y-1">
+              <ul className="space-y-2">
                 {BLOG_CATEGORIES.map((category) => {
                   const tone = categoryTone(category);
+                  const Icon = category.icon;
                   const count = getArticlesByCategory(category.slug).length;
                   if (count === 0) return null;
                   return (
                     <li key={category.slug}>
-                      <a
-                        href={`#cat-${category.slug}`}
-                        className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] transition-colors hover:bg-[var(--muted)]"
-                        style={{ color: C.ink }}
+                      <Link
+                        to={`/blog/categorie/${category.slug}`}
+                        className="group flex items-center gap-3 rounded-xl border p-2.5 transition-all duration-300 hover:-translate-y-0.5"
+                        style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
                       >
-                        <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: tone.fg }} />
-                        <span className="flex-1 whitespace-nowrap">{category.stepLabel}</span>
-                        <span className="shrink-0 text-[11px] tabular-nums" style={{ color: C.grayMuted }}>{count}</span>
-                      </a>
+                        <span
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                          style={{ background: tone.soft, color: tone.fg }}
+                        >
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block whitespace-nowrap text-[13px] font-medium leading-tight" style={{ color: C.ink }}>
+                            {category.stepLabel}
+                          </span>
+                          <span className="block text-[11px]" style={{ color: C.grayMuted }}>
+                            {count} article{count > 1 ? 's' : ''}
+                          </span>
+                        </span>
+                      </Link>
                     </li>
                   );
                 })}
