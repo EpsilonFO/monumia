@@ -186,7 +186,7 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
 
         {/* 4 · Pied : échéance / avatars + affordance d'ouverture */}
         <div
-          className="relative mt-5 flex items-center justify-between gap-3 border-t px-5 py-4"
+          className="relative mt-auto flex items-center justify-between gap-3 border-t px-5 py-4"
           style={{ borderColor: C.border }}
         >
           <div className="min-w-0 text-[12px]">
