@@ -19,6 +19,7 @@ import { RoleBadge } from '@/components/sharing/RoleBadge';
 import { SharedBadge } from '@/components/sharing/SharedBadge';
 import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
 import { isProjectShared } from '@/lib/project-permissions';
+import type { ReactNode } from 'react';
 import type { ProjectStats, ProjectStage } from '@/lib/project-stats';
 import type { Monument } from '@/types';
 
@@ -52,7 +53,7 @@ const urgencyColor: Record<string, string> = {
 };
 
 /** Petit intitulé éditorial (filet orange + petites caps), repris de la landing/dashboard. */
-function Kicker({ children }: { children: React.ReactNode }) {
+function Kicker({ children }: { children: ReactNode }) {
   return (
     <span
       className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em]"
