@@ -13,6 +13,7 @@
     --radius-3xl: calc(var(--radius) + 12px);
     --radius-4xl: calc(var(--radius) + 16px);
     --color-background: var(--background);
+    --color-app-bg: var(--app-bg);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
     --color-card-foreground: var(--card-foreground);
@@ -89,6 +90,7 @@
     --radius: 0.625rem;
     /* Charte Monumia — alignée sur la landing (branche landing-page) */
     --background: #fdf9f0;
+    --app-bg: #f8f7f4;
     --foreground: #222b35;
     --card: #fffefb;
     --card-foreground: #222b35;
@@ -159,6 +161,7 @@
 
 .dark {
     --background: #14171f;
+    --app-bg: #11141c;
     --foreground: #e8eaf0;
     --card: #1a1e28;
     --card-foreground: #e8eaf0;

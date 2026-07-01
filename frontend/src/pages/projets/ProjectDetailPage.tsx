@@ -17,6 +17,7 @@ import { MonumentForm } from '@/components/monument/MonumentForm';
 import { AideCard } from '@/components/aide/AideCard';
 import { DossierCard } from '@/components/dossier/DossierCard';
 import { DocumentCard } from '@/components/document/DocumentCard';
+import { DocumentGrid } from '@/components/document/DocumentGrid';
 import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { AddToProjectDialog } from '@/components/document/AddToProjectDialog';
@@ -528,10 +529,11 @@ export function ProjectDetailPage() {
             </button>
           </div>
           {projectDocuments.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {projectDocuments.map((doc) => (
+            <DocumentGrid
+              items={projectDocuments}
+              keyOf={(doc) => doc.id}
+              renderItem={(doc) => (
                 <DocumentCard
-                  key={doc.id}
                   document={doc}
                   dossierNames={dossierNames}
                   monumentNames={monumentNames}
@@ -543,8 +545,8 @@ export function ProjectDetailPage() {
                   uploaderName={uploaderNames[doc.userId]}
                   onDocumentUpdated={reloadProjectDocuments}
                 />
-              ))}
-            </div>
+              )}
+            />
           ) : (
             <EmptyState icon={IconDossierOuvert} title="Aucun document" description="Les documents rattachés à ce projet apparaîtront ici." />
           )}

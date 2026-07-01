@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { EmptyState } from '@/components/shared/EmptyState';
 import { RoleBadge } from '@/components/sharing/RoleBadge';
 import { DocumentTile } from '@/components/document/DocumentTile';
+import { DocumentGrid } from '@/components/document/DocumentGrid';
 import { ProjectLegend, type LegendItem } from '@/components/document/ProjectLegend';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { UploadDocumentDialog } from '@/components/document/UploadDocumentDialog';
@@ -245,9 +246,9 @@ export function DocumentsPage() {
 
       {/* Contenu */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-40 rounded-xl animate-pulse" style={{ background: `${C.border}66` }} />
+        <div className="flex flex-col gap-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-[144px] rounded-2xl animate-pulse" style={{ background: `${C.border}66` }} />
           ))}
         </div>
       ) : isEmpty ? (
@@ -292,10 +293,11 @@ export function DocumentsPage() {
                   Voir le projet
                 </Link>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {section.docs.map((doc) => (
+              <DocumentGrid
+                items={section.docs}
+                keyOf={(doc) => `${section.mid}-${doc.id}`}
+                renderItem={(doc) => (
                   <DocumentTile
-                    key={`${section.mid}-${doc.id}`}
                     document={doc}
                     accentColor={section.color}
                     monumentNames={monumentNames}
@@ -305,8 +307,8 @@ export function DocumentsPage() {
                     sectionMonumentId={section.mid}
                     {...tileHandlers}
                   />
-                ))}
-              </div>
+                )}
+              />
             </section>
           ))}
 
@@ -320,10 +322,11 @@ export function DocumentsPage() {
                   {sansProjet.length} document{sansProjet.length > 1 ? 's' : ''}
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sansProjet.map((doc) => (
+              <DocumentGrid
+                items={sansProjet}
+                keyOf={(doc) => `solo-${doc.id}`}
+                renderItem={(doc) => (
                   <DocumentTile
-                    key={`solo-${doc.id}`}
                     document={doc}
                     accentColor="var(--muted-foreground)"
                     monumentNames={monumentNames}
@@ -333,8 +336,8 @@ export function DocumentsPage() {
                     sectionMonumentId={null}
                     {...tileHandlers}
                   />
-                ))}
-              </div>
+                )}
+              />
             </section>
           )}
 
@@ -348,10 +351,11 @@ export function DocumentsPage() {
                   {orphanDocs.length} document{orphanDocs.length > 1 ? 's' : ''}
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {orphanDocs.map((doc) => (
+              <DocumentGrid
+                items={orphanDocs}
+                keyOf={(doc) => `orphan-${doc.id}`}
+                renderItem={(doc) => (
                   <DocumentTile
-                    key={`orphan-${doc.id}`}
                     document={doc}
                     accentColor="var(--muted-foreground)"
                     monumentNames={monumentNames}
@@ -361,8 +365,8 @@ export function DocumentsPage() {
                     sectionMonumentId={null}
                     {...tileHandlers}
                   />
-                ))}
-              </div>
+                )}
+              />
             </section>
           )}
 
@@ -377,10 +381,11 @@ export function DocumentsPage() {
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {trashedDocuments.map((doc) => (
+                <DocumentGrid
+                  items={trashedDocuments}
+                  keyOf={(doc) => `trash-${doc.id}`}
+                  renderItem={(doc) => (
                     <DocumentTile
-                      key={`trash-${doc.id}`}
                       document={doc}
                       accentColor="var(--destructive)"
                       monumentNames={monumentNames}
@@ -391,8 +396,8 @@ export function DocumentsPage() {
                       variant="trash"
                       {...tileHandlers}
                     />
-                  ))}
-                </div>
+                  )}
+                />
               </CollapsibleContent>
             </Collapsible>
           )}

@@ -1,4 +1,4 @@
-import { IconMonument, IconDossier, IconAide } from '@/components/icons';
+import { IconMonument, IconDossier } from '@/components/icons';
 import { C } from '@/lib/brand';
 import type { ComponentType } from 'react';
 import type { DashboardStats } from '@/lib/project-stats';
@@ -15,11 +15,10 @@ export function StatChips({ stats }: { stats: DashboardStats }) {
   const chips: Chip[] = [
     { icon: IconMonument, value: String(stats.projetsActifs), label: 'Projets suivis', accent: C.blue, tint: C.paleBlue },
     { icon: IconDossier, value: String(stats.dossiersEnCours), label: 'Dossiers en cours', accent: C.orange, tint: C.paleOrange },
-    { icon: IconAide, value: String(stats.aidesIdentifiees), label: 'Aides identifiées', accent: C.blueLight, tint: C.paleBlue },
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {chips.map((c) => {
         const Icon = c.icon;
         return (

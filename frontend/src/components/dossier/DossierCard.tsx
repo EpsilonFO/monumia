@@ -1,18 +1,33 @@
 import { Link } from 'react-router';
-import { ChevronRight } from 'lucide-react';
-import { IconLocalisation, IconCalendrier } from '@/components/icons';
-import { Progress } from '@/components/ui/progress';
+import { ArrowRight } from 'lucide-react';
+import { IconLocalisation, IconCalendrier, IconSucces, IconErreur, IconTemps } from '@/components/icons';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useSuiviStore } from '@/stores/useSuiviStore';
-import { AideStatutBadge } from '@/components/aide/AideStatutBadge';
 import { ROUTES } from '@/constants/routes';
 import { formatDate, isUrgent, daysUntil } from '@/lib/date-utils';
+import { AIDE_SUIVI_STATUT_LABELS } from '@/types';
 import type { Dossier, AideSuiviStatut } from '@/types';
 import { C, SERIF } from '@/lib/brand';
 
+// Couleur pilote de la carte = statut d'avancement. Reprend le code couleur des
+// tokens de thème (voir AIDE_STATUT_STYLES) : anneau, pastille et liseré partagent
+// la même teinte pour un repérage immédiat.
+const STATUT_ACCENT: Record<AideSuiviStatut, string> = {
+  a_faire:        'var(--muted-foreground)',
+  en_preparation: 'var(--info)',
+  depose:         'var(--warning)',
+  accorde:        'var(--success)',
+  refuse:         'var(--destructive)',
+};
+const STATUT_TINT: Record<AideSuiviStatut, string> = {
+  a_faire:        'var(--muted)',
+  en_preparation: 'var(--info-muted)',
+  depose:         'var(--warning-muted)',
+  accorde:        'var(--success-muted)',
+  refuse:         'var(--destructive-muted)',
+};
+
 // Couleurs catégorielles des monuments — 8 teintes distinctes via tokens de thème.
-// Les 3 teintes de catégorie (violet, sarcelle, bordeaux) utilisent des tokens dédiés
-// --cat-violet / --cat-teal / --cat-burgundy, avec variantes dark-mode correspondantes.
 const MONUMENT_COLORS = [
   C.blue,
   C.orange,
@@ -24,12 +39,48 @@ const MONUMENT_COLORS = [
   'var(--color-blue-light)',
 ];
 
+// Anneau de progression — repère visuel principal, grand et lisible. Arc coloré
+// selon le statut sur une piste gris clair, pourcentage en gras au centre.
+function ProgressRing({ value, color }: { value: number; color: string }) {
+  const size = 76;
+  const stroke = 8;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(100, value));
+  const offset = circ * (1 - clamped / 100);
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90" aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 500ms ease' }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[19px] font-bold leading-none tabular-nums" style={{ color: C.ink }}>
+          {clamped}
+          <span className="text-[12px] font-semibold">%</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 interface DossierCardProps {
   dossier: Dossier;
   monumentColor?: string;
 }
 
-export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
+export function DossierCard({ dossier }: DossierCardProps) {
   const monuments = useMonumentStore((s) => s.monuments);
   const monument = monuments.find((m) => m.id === dossier.monumentId);
 
@@ -38,90 +89,98 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
     s.suivis.find((x) => x.monumentId === dossier.monumentId && x.aideId === dossier.aideId),
   );
   const statut: AideSuiviStatut = suivi?.statut ?? 'a_faire';
+  const accent = STATUT_ACCENT[statut];
+  const tint = STATUT_TINT[statut];
 
   const nextDeadline = dossier.echeances.find((e) => !e.accomplie);
+  const urgent = nextDeadline ? isUrgent(nextDeadline.date) : false;
   const fournis = dossier.checklist.filter((c) => c.statut === 'fourni').length;
   const manquants = dossier.checklist.filter((c) => c.statut === 'manquant').length;
   const enAttente = dossier.checklist.filter((c) => c.statut === 'en_attente').length;
   const piecesTotal = dossier.checklist.length;
 
   const [aideName] = dossier.titre.split(' — ');
-  const color = monumentColor ?? C.blue;
 
   return (
-    <Link to={ROUTES.PROJET_DOSSIER(dossier.monumentId, dossier.id)} className="block h-full">
+    <Link to={ROUTES.PROJET_DOSSIER(dossier.monumentId, dossier.id)} className="group block h-full">
       <div
-        className="group relative bg-card rounded-xl border border-border/80 overflow-hidden transition-all duration-200 hover:shadow-md hover:shadow-black/[0.03] hover:border-border flex flex-col h-full"
-        style={{ borderLeft: `4px solid ${color}` }}
+        className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+        style={{ borderLeft: `6px solid ${accent}` }}
       >
-
-        <div className="px-5 pt-5 pb-3">
-          <div className="mb-2.5 flex items-center justify-between gap-2">
-            {monument ? (
-              <span
-                className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                style={{ background: `${color}14`, color }}
+        <div className="flex flex-col gap-4 p-5">
+          {/* En-tête : anneau + identité */}
+          <div className="flex items-start gap-4">
+            <ProgressRing value={dossier.progressionPourcentage} color={accent} />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              {monument && (
+                <span
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-semibold uppercase tracking-wide"
+                  style={{ background: tint, color: accent }}
+                >
+                  <IconLocalisation className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                  <span className="truncate">{monument.nom}</span>
+                </span>
+              )}
+              <h3
+                className="line-clamp-2 text-[18px] font-normal leading-tight text-foreground"
+                style={{ fontFamily: SERIF }}
               >
-                <IconLocalisation className="h-3 w-3 shrink-0" strokeWidth={2} />
-                <span className="truncate max-w-[140px]">{monument.nom}</span>
-              </span>
-            ) : (
-              <span />
-            )}
-            <AideStatutBadge statut={statut} />
+                {aideName}
+              </h3>
+              {monument?.commune && (
+                <div className="truncate text-[13px] text-muted-foreground">{monument.commune}</div>
+              )}
+            </div>
           </div>
-          <div className="flex items-start justify-between gap-2">
-            <h3
-              className="text-[16px] font-normal text-foreground leading-tight line-clamp-2 min-h-[2.5em]"
-              style={{ fontFamily: SERIF }}
-            >
-              {aideName}
-            </h3>
-            <ChevronRight className="h-4 w-4 text-border group-hover:text-accent transition-colors shrink-0 mt-0.5" />
-          </div>
-          {monument?.commune && (
-            <div className="mt-1.5 text-[12px] text-muted-foreground truncate">
-              {monument.commune}
+
+          {/* Statut — pastille franche à point coloré */}
+          <span
+            className="inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[13.5px] font-semibold"
+            style={{ background: tint, color: accent }}
+          >
+            <span className="h-2 w-2 rounded-full" style={{ background: accent }} />
+            {AIDE_SUIVI_STATUT_LABELS[statut]}
+          </span>
+
+          {/* Pièces — chips lisibles */}
+          {piecesTotal > 0 && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px]">
+              {fournis > 0 && (
+                <span className="flex items-center gap-1.5 font-medium text-success">
+                  <IconSucces className="h-4 w-4 shrink-0" strokeWidth={2} />
+                  {fournis} fourni{fournis > 1 ? 's' : ''}
+                </span>
+              )}
+              {manquants > 0 && (
+                <span className="flex items-center gap-1.5 font-medium text-destructive">
+                  <IconErreur className="h-4 w-4 shrink-0" strokeWidth={2} />
+                  {manquants} manquant{manquants > 1 ? 's' : ''}
+                </span>
+              )}
+              {enAttente > 0 && (
+                <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                  <span className="h-2 w-2 rounded-full bg-border shrink-0" />
+                  {enAttente} en attente
+                </span>
+              )}
             </div>
           )}
-        </div>
 
-        {piecesTotal > 0 && (
-          <div className="px-5 pb-3 flex items-center gap-4 text-[12px]">
-            {fournis > 0 && (
-              <span className="flex items-center gap-1.5 text-success">
-                <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
-                {fournis} fourni{fournis > 1 ? 's' : ''}
-              </span>
-            )}
-            {manquants > 0 && (
-              <span className="flex items-center gap-1.5 text-destructive">
-                <span className="w-1.5 h-1.5 rounded-full bg-destructive shrink-0" />
-                {manquants} manquant{manquants > 1 ? 's' : ''}
-              </span>
-            )}
-            {enAttente > 0 && (
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <span className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />
-                {enAttente} en attente
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="px-5 pb-4 space-y-2 mt-auto">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-muted-foreground">Progression</span>
-            <span className="font-semibold text-gray-fg tabular-nums">{dossier.progressionPourcentage}%</span>
-          </div>
-          <Progress value={dossier.progressionPourcentage} className="h-1" />
-
+          {/* Échéance */}
           {nextDeadline && (
-            <div className={`flex items-center gap-1.5 text-[11px] pt-0.5 ${isUrgent(nextDeadline.date) ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
-              <IconCalendrier className="h-3 w-3 shrink-0" strokeWidth={1.8} />
-              <span className="truncate">{nextDeadline.label} · {formatDate(nextDeadline.date)}</span>
-              {isUrgent(nextDeadline.date) && (
-                <span className="ml-auto bg-destructive-muted text-destructive text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0">
+            <div
+              className={`flex items-center gap-2 text-[13px] ${urgent ? 'font-semibold text-destructive' : 'text-muted-foreground'}`}
+            >
+              {urgent ? (
+                <IconTemps className="h-4 w-4 shrink-0" strokeWidth={2} />
+              ) : (
+                <IconCalendrier className="h-4 w-4 shrink-0" strokeWidth={1.8} />
+              )}
+              <span className="truncate">
+                {nextDeadline.label} · {formatDate(nextDeadline.date)}
+              </span>
+              {urgent && (
+                <span className="ml-auto shrink-0 rounded-md bg-destructive px-2 py-0.5 text-[12px] font-bold text-destructive-foreground">
                   J-{daysUntil(nextDeadline.date)}
                 </span>
               )}
@@ -129,6 +188,16 @@ export function DossierCard({ dossier, monumentColor }: DossierCardProps) {
           )}
         </div>
 
+        {/* Action franche — invitation claire à ouvrir le dossier */}
+        <div className="mt-auto px-5 pb-5">
+          <span
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[15px] font-semibold text-white transition-shadow duration-200 group-hover:shadow-md"
+            style={{ background: C.blue }}
+          >
+            Ouvrir le dossier
+            <ArrowRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-0.5" />
+          </span>
+        </div>
       </div>
     </Link>
   );

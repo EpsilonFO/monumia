@@ -157,8 +157,8 @@ export const IconRecherche = icon(MagnifyingGlass);
 export const IconModifier = icon(PencilSimple);
 export const IconSupprimer = icon(Trash);
 export const IconVoir = icon(Eye);
-export const IconRafraichir = icon(ArrowsClockwise);
-export const IconAjouter = icon(Plus);
+export const IconRafraichir = icon(ArrowsClockwise, 'bold');
+export const IconAjouter = icon(Plus, 'bold');
 export const IconLienExterne = icon(ArrowSquareOut);
 
 /* Divers */

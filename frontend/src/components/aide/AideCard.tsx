@@ -389,7 +389,7 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
             {facts.map((f, i) => {
               const Icon = f.icon;
               return (
-                <div key={i} className="flex min-w-0 flex-col gap-1">
+                <div key={i} className="flex min-w-0 flex-col items-center gap-1 text-center">
                   <Icon className="h-5 w-5" style={{ color: f.accent }} strokeWidth={1.8} />
                   <span className="text-[14px] font-bold leading-tight" style={{ color: f.valueColor ?? C.ink }}>{f.value}</span>
                   <span className="text-[10.5px] leading-tight text-muted-foreground">{f.label}</span>

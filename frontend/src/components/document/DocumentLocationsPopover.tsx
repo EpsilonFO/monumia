@@ -1,4 +1,4 @@
-import { IconInfo, IconDossierOuvert } from '@/components/icons';
+import { IconInfo, IconDossierOuvert, IconLocalisation } from '@/components/icons';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { C, SERIF } from '@/lib/brand';
 import { projectColor } from '@/lib/project-color';
@@ -8,9 +8,11 @@ interface Props {
   document: Document;
   monumentNames: Record<string, string>;
   dossiersById: Record<string, { titre: string; monumentId: string }>;
+  /** Déclencheur libellé (chip « Où est-ce rangé ? ») plutôt que la petite icône. */
+  labelled?: boolean;
 }
 
-export function DocumentLocationsPopover({ document, monumentNames, dossiersById }: Props) {
+export function DocumentLocationsPopover({ document, monumentNames, dossiersById, labelled = false }: Props) {
   // Dossiers regroupés sous leur projet (un dossier appartient à un seul projet).
   const dossiersByProject = new Map<string, string[]>();
   for (const did of document.dossiersUtilises) {
@@ -36,16 +38,36 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
 
   const hasNothing = renderedProjectIds.length === 0 && orphanDossiers.length === 0;
 
+  // Résumé factuel pour le déclencheur libellé (« Rangé dans … »), sans question.
+  const projectCount = renderedProjectIds.length;
+  const summary = projectCount >= 2
+    ? `${projectCount} projets`
+    : projectCount === 1
+      ? monumentNames[renderedProjectIds[0]]
+      : orphanDossiers.length > 0
+        ? 'un dossier'
+        : 'aucun projet';
+
   return (
     <Popover>
       <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
-        <button
-          className="shrink-0 p-1 rounded-md transition-colors hover:bg-black/[0.04]"
-          title="Où est utilisé ce fichier ?"
-          aria-label="Informations : où est utilisé ce fichier"
-        >
-          <IconInfo className="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
+        {labelled ? (
+          <button
+            className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground transition-colors hover:underline underline-offset-2"
+            title="Voir où est rangé ce fichier"
+          >
+            <IconLocalisation className="h-4 w-4" weight="fill" style={{ color: C.blue }} />
+            Rangé dans <span className="font-semibold" style={{ color: C.ink }}>{summary}</span>
+          </button>
+        ) : (
+          <button
+            className="shrink-0 p-1 rounded-md transition-colors hover:bg-black/[0.04]"
+            title="Où est utilisé ce fichier ?"
+            aria-label="Informations : où est utilisé ce fichier"
+          >
+            <IconInfo className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align="end"

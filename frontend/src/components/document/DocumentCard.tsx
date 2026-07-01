@@ -1,28 +1,14 @@
 import { useState } from 'react';
-import { MoreVertical } from 'lucide-react';
 import {
-  IconDevis, IconImage, IconArchive, IconDossierOuvert, IconAjouterDossier, IconModifier,
-  IconSupprimer, IconParchemin, IconRegle, IconDiagnostic, IconDocument, IconDocumentValide,
-  IconListe, IconVerrou, IconProtection,
+  IconAjouterDossier, IconModifier, IconSupprimer, IconProtection, IconDossierOuvert,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { formatFileSize } from '@/lib/format-utils';
 import { canDeleteDocument } from '@/lib/project-permissions';
 import { canEditVisibility } from '@/lib/document-visibility';
+import { DocumentCardView, type DocMenuAction } from '@/components/document/DocumentCardView';
 import { ManageDocumentAccessDialog } from './ManageDocumentAccessDialog';
 import { useAuthStore } from '@/stores/useAuthStore';
 import type { Document, ProjectRole } from '@/types';
@@ -41,52 +27,22 @@ interface DocumentCardProps {
   onDocumentUpdated?: () => void;
 }
 
-const typeIcons: Record<string, typeof IconDocument> = {
-  photo: IconImage, plan: IconDevis, devis: IconListe, facture: IconDevis,
-  attestation: IconDocumentValide, extrait_cadastral: IconDevis, cerfa: IconDocumentValide,
-  arrete: IconRegle, diagnostic: IconDiagnostic, rapport: IconParchemin, correspondance: IconModifier, autre: IconArchive,
-};
-
-const typeLabels: Record<string, string> = {
-  photo: 'Photo', plan: 'Plan', devis: 'Devis', facture: 'Facture',
-  attestation: 'Attestation', extrait_cadastral: 'Extrait cadastral', cerfa: 'CERFA',
-  arrete: 'Arrêté', diagnostic: 'Diagnostic', rapport: 'Rapport', correspondance: 'Correspondance', autre: 'Autre',
-};
-
-const typeAccent: Record<string, { bg: string; text: string }> = {
-  photo:             { bg: 'var(--cat-violet-soft)',    text: 'var(--cat-violet)' },
-  plan:              { bg: 'var(--secondary)',          text: 'var(--primary)' },
-  devis:             { bg: 'var(--warning-muted)',      text: 'var(--warning)' },
-  facture:           { bg: 'var(--destructive-muted)',  text: 'var(--destructive)' },
-  attestation:       { bg: 'var(--success-muted)',      text: 'var(--success)' },
-  extrait_cadastral: { bg: 'var(--cat-teal-soft)',      text: 'var(--cat-teal)' },
-  cerfa:             { bg: 'var(--info-muted)',         text: 'var(--info)' },
-  arrete:            { bg: 'var(--destructive-muted)',  text: 'var(--destructive)' },
-  diagnostic:        { bg: 'var(--secondary)',          text: 'var(--primary)' },
-  rapport:           { bg: 'var(--muted)',              text: 'var(--muted-foreground)' },
-  correspondance:    { bg: 'var(--cat-burgundy-soft)',   text: 'var(--cat-burgundy)' },
-  autre:             { bg: 'var(--muted)',              text: 'var(--muted-foreground)' },
-};
-
-export function DocumentCard({ document, dossierNames, monumentNames, onClick, onRename, onDelete, onAddToProject, myRole, uploaderName, onDocumentUpdated }: DocumentCardProps) {
+export function DocumentCard({
+  document, dossierNames, onClick, onRename, onDelete, onAddToProject, myRole, uploaderName, onDocumentUpdated,
+}: DocumentCardProps) {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const isUploader = document.userId === currentUserId;
-  // Suppression / renommage : l'auteur, ou un owner/co_owner du projet (tous les
-  // droits sur les docs). Un membre ne peut agir que sur les siens. Consultation
-  // ouverte à tous.
   const canModify = canDeleteDocument(isUploader, myRole);
   const canManageAccess = canEditVisibility(isUploader, myRole);
-  const isRestricted = document.visibility !== 'team';
+
   const [accessOpen, setAccessOpen] = useState(false);
-
-  const Icon = typeIcons[document.type] ?? IconDocument;
-  const accent = typeAccent[document.type] ?? typeAccent.autre;
-  const linkedMonuments = monumentNames ? document.monumentIds.map((id) => monumentNames[id]).filter(Boolean) : [];
-  const linkedDossiers = dossierNames ? document.dossiersUtilises.map((id) => dossierNames[id]).filter(Boolean) : [];
-
   const [renameOpen, setRenameOpen] = useState(false);
   const [newName, setNewName] = useState(document.nom);
   const [loading, setLoading] = useState(false);
+
+  const linkedDossiers = dossierNames
+    ? document.dossiersUtilises.map((id) => dossierNames[id]).filter(Boolean)
+    : [];
 
   const handleRename = async () => {
     if (!onRename || !newName.trim() || newName === document.nom) { setRenameOpen(false); return; }
@@ -95,115 +51,50 @@ export function DocumentCard({ document, dossierNames, monumentNames, onClick, o
     finally { setLoading(false); }
   };
 
-  const handleDelete = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDelete = async () => {
     if (!onDelete) return;
     if (!confirm(`Supprimer "${document.nom}" ?`)) return;
     await onDelete(document.id);
   };
 
+  const menuActions: DocMenuAction[] = [
+    ...(onAddToProject
+      ? [{ label: 'Ajouter à un projet', icon: IconAjouterDossier, onClick: () => onAddToProject(document) }]
+      : []),
+    ...(canManageAccess
+      ? [{ label: "Gérer l'accès", icon: IconProtection, onClick: () => setAccessOpen(true) }]
+      : []),
+    ...(onRename && canModify
+      ? [{ label: 'Renommer', icon: IconModifier, onClick: () => { setNewName(document.nom); setRenameOpen(true); } }]
+      : []),
+    ...(onDelete && canModify
+      ? [{ label: 'Supprimer', icon: IconSupprimer, onClick: handleDelete, destructive: true }]
+      : []),
+  ];
+
   return (
     <>
-      <div
-        onClick={onClick}
-        className="group relative bg-card rounded-xl border border-border/80 overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:shadow-black/[0.03] hover:border-border"
-      >
-        {/* Top accent strip */}
-        <div className="h-1" style={{ background: accent.text }} />
-
-        <div className="p-4 space-y-2.5">
-          {/* Header row */}
-          <div className="flex items-start gap-2.5">
-            <div
-              className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center"
-              style={{ background: accent.bg }}
-            >
-              <Icon className="h-4 w-4" style={{ color: accent.text }} strokeWidth={1.8} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-semibold text-foreground leading-tight line-clamp-1">{document.nom}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{document.nomFichier}</p>
-              {uploaderName && (
-                <p className="text-[11px] text-muted-foreground">Ajouté par {uploaderName}</p>
-              )}
-            </div>
-            {((onRename && canModify) || (onDelete && canModify) || onAddToProject || canManageAccess) && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                  <button className="shrink-0 p-1 rounded-md hover:bg-muted transition-colors opacity-0 group-hover:opacity-100">
-                    <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                  {onAddToProject && (
-                    <DropdownMenuItem onClick={() => onAddToProject(document)}>
-                      <IconAjouterDossier className="h-3.5 w-3.5 mr-2" />Ajouter à un projet
-                    </DropdownMenuItem>
-                  )}
-                  {canManageAccess && (
-                    <DropdownMenuItem onClick={() => setAccessOpen(true)}>
-                      <IconProtection className="h-3.5 w-3.5 mr-2" />Gérer l'accès
-                    </DropdownMenuItem>
-                  )}
-                  {onRename && canModify && (
-                    <DropdownMenuItem onClick={() => { setNewName(document.nom); setRenameOpen(true); }}>
-                      <IconModifier className="h-3.5 w-3.5 mr-2" />Renommer
-                    </DropdownMenuItem>
-                  )}
-                  {onDelete && canModify && (
-                    <DropdownMenuItem className="text-destructive" onClick={handleDelete}>
-                      <IconSupprimer className="h-3.5 w-3.5 mr-2" />Supprimer
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-
-          {/* Meta row */}
-          <div className="flex items-center gap-2">
-            <Badge
-              className="text-[10px] font-semibold border-0 px-1.5 py-0.5"
-              style={{ background: accent.bg, color: accent.text }}
-            >
-              {typeLabels[document.type] ?? document.type}
-            </Badge>
-            <span className="text-[11px] text-muted-foreground">{formatFileSize(document.tailleFichier)}</span>
-            {isRestricted && (
-              <span
-                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-destructive-muted text-destructive"
-                title="Visible uniquement par certaines personnes"
-              >
-                <IconVerrou className="h-2.5 w-2.5" />
-                Accès restreint
-              </span>
-            )}
-          </div>
-
-          {/* Monument link */}
-          {linkedMonuments.length > 0 && (
-            <p className="text-[11px] text-muted-foreground truncate">{linkedMonuments.join(', ')}</p>
-          )}
-
-          {/* Dossiers */}
-          {linkedDossiers.length > 0 && (
-            <div className="pt-2 border-t border-border/60">
-              <p className="text-[10px] uppercase tracking-[0.08em] font-semibold text-muted-foreground flex items-center gap-1 mb-1">
-                <IconDossierOuvert className="h-3 w-3" strokeWidth={1.8} />Dossiers
-              </p>
-              {linkedDossiers.map((name) => (
-                <p key={name} className="text-[11px] text-foreground truncate">{name}</p>
-              ))}
-            </div>
-          )}
-
-          {document.dossiersUtilises.length > 0 && linkedDossiers.length === 0 && (
-            <p className="text-[11px] text-muted-foreground pt-2 border-t border-border/60">
+      <DocumentCardView
+        document={document}
+        onPreview={() => onClick?.()}
+        uploaderName={uploaderName}
+        menuActions={menuActions}
+        footer={
+          linkedDossiers.length > 0 ? (
+            <span className="inline-flex items-center gap-1.5" title="Dossiers utilisant ce document">
+              <IconDossierOuvert className="h-3.5 w-3.5" strokeWidth={1.8} />
+              {linkedDossiers.length === 1
+                ? linkedDossiers[0]
+                : `Utilisé dans ${linkedDossiers.length} dossiers`}
+            </span>
+          ) : document.dossiersUtilises.length > 0 ? (
+            <span className="inline-flex items-center gap-1.5">
+              <IconDossierOuvert className="h-3.5 w-3.5" strokeWidth={1.8} />
               Utilisé dans {document.dossiersUtilises.length} dossier{document.dossiersUtilises.length > 1 ? 's' : ''}
-            </p>
-          )}
-        </div>
-      </div>
+            </span>
+          ) : undefined
+        }
+      />
 
       <ManageDocumentAccessDialog
         document={document}

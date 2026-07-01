@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { IconAide, IconTemps, IconSucces, IconHelp, IconErreur } from '@/components/icons';
 import { AIDE_CATEGORIES, AIDE_TYPES } from '@/constants/aide-categories';
-import { formatCurrency } from '@/lib/format-utils';
+import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import { deadlineLabel } from '@/lib/date-utils';
 import { C, SERIF, DEADLINE_TONE } from '@/lib/brand';
 import { decodeHtml, getEligibilityStatus } from './AideDetails';
@@ -104,7 +104,7 @@ export function AideHero({ aide, matchResult, cta }: {
               {aide.tauxMax ? (
                 <>
                   <p className="leading-none" style={{ fontFamily: SERIF, color: C.blue }}>
-                    <span className="text-[34px] font-bold">jusqu'à {aide.tauxMax}&nbsp;%</span>
+                    <span className="text-[34px] font-bold">jusqu'à {formatPercentage(aide.tauxMax)}</span>
                   </p>
                   <p className="mt-1.5 text-[13px] leading-snug text-muted-foreground">
                     de vos travaux{aide.montantMax ? `, dans la limite de ${formatCurrency(aide.montantMax)}` : ''}
