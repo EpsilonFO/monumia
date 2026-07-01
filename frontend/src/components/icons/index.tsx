@@ -84,9 +84,11 @@ export type IconComponent = ComponentType<IconProps>;
 /** Graisse Phosphor appliquée à toute la banque. Options : thin/light/regular/bold/fill/duotone. */
 const WEIGHT: IconWeight = 'duotone';
 
-/** Enveloppe une icône Phosphor : graisse imposée par défaut, surchargeable via `weight`. */
-function icon(PhIcon: PhosphorIcon): IconComponent {
-  function IconWrapper({ size = 20, weight = WEIGHT, ...props }: IconProps) {
+/** Enveloppe une icône Phosphor : graisse imposée par défaut, surchargeable via `weight`.
+ * `defaultWeight` permet d'imposer une autre graisse à une icône précise (ex. le
+ * duotone salit les glyphes « pleins » comme le téléchargement → bold). */
+function icon(PhIcon: PhosphorIcon, defaultWeight: IconWeight = WEIGHT): IconComponent {
+  function IconWrapper({ size = 20, weight = defaultWeight, ...props }: IconProps) {
     return <PhIcon weight={weight} size={size} {...props} />;
   }
   return IconWrapper;
@@ -99,7 +101,7 @@ export const IconDocuments = icon(Files);
 export const IconDossier = icon(Folder);
 export const IconNotification = icon(Bell);
 export const IconReglages = icon(GearSix);
-export const IconTelecharger = icon(DownloadSimple);
+export const IconTelecharger = icon(DownloadSimple, 'bold');
 export const IconAccount = icon(User);
 export const IconCompte = IconAccount;
 export const IconHelp = icon(Question);
