@@ -291,7 +291,7 @@ def forgot_password(
     try:
         anon.auth.reset_password_for_email(
             body.email,
-            {"redirect_to": f"{frontend_url}/login"},
+            {"redirect_to": f"{frontend_url}/reset-password"},
         )
     except Exception:  # noqa: BLE001 — on n'expose jamais l'erreur au client
         pass
