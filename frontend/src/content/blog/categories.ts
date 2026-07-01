@@ -15,6 +15,8 @@ export type BlogCategorySlug =
 export interface BlogCategory {
   slug: BlogCategorySlug;
   label: string;
+  /** Libellé court pour les badges (le `label` complet reste pour les titres). */
+  shortLabel: string;
   description: string;
   /** Numéro de token de couleur `--cat-N` / `--cat-N-soft`. */
   tone: 1 | 2 | 3 | 4;
@@ -28,6 +30,7 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
   {
     slug: 'protections-statuts',
     label: 'Protections & statuts patrimoniaux',
+    shortLabel: 'Protections & statuts',
     description:
       "Comprendre le statut de votre bien : Monument Historique classé ou inscrit, Site Patrimonial Remarquable, abords, base Mérimée.",
     tone: 1,
@@ -37,6 +40,7 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
   {
     slug: 'aides-financements',
     label: 'Aides & financements',
+    shortLabel: 'Aides & financements',
     description:
       'Subventions, taux et plafonds, cofinancement, fiscalité : pour vous y retrouver dans les financements du patrimoine.',
     tone: 2,
@@ -46,6 +50,7 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
   {
     slug: 'demarches-dossiers',
     label: 'Démarches & dossiers',
+    shortLabel: 'Démarches & dossiers',
     description:
       'Diagnostic, étude préalable, pièces du dossier, échéances : réussir vos démarches administratives.',
     tone: 3,
@@ -55,6 +60,7 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
   {
     slug: 'travaux-techniques',
     label: 'Travaux & techniques de restauration',
+    shortLabel: 'Travaux & techniques',
     description:
       "Le vocabulaire technique des travaux : maîtrise d'ouvrage et d'œuvre, lots, matériaux et corps de métier.",
     tone: 4,

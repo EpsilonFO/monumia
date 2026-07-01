@@ -11,12 +11,12 @@ export function CategoryBadge({ category, asLink = false }: CategoryBadgeProps) 
   const tone = categoryTone(category);
   const Icon = category.icon;
   const className =
-    'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide';
+    'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide';
   const style = { background: tone.soft, color: tone.fg };
   const content = (
     <>
       <Icon className="h-3.5 w-3.5" />
-      {category.label}
+      {category.shortLabel}
     </>
   );
   if (asLink) {

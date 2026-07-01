@@ -53,7 +53,7 @@ export function BlogIndexPage() {
       {featured && <FeaturedArticle article={featured} />}
 
       {/* ─── CORPS ÉDITORIAL : rail gauche · articles · rail droit ─── */}
-      <div className="grid grid-cols-1 gap-x-10 gap-y-12 lg:grid-cols-[12rem_minmax(0,1fr)] xl:grid-cols-[12rem_minmax(0,1fr)_16rem]">
+      <div className="grid grid-cols-1 gap-x-10 gap-y-12 lg:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)_16rem]">
         {/* Rail gauche : sommaire des thèmes (ancres) */}
         <aside className="hidden lg:block">
           <div className="sticky top-24 space-y-6">
@@ -74,8 +74,8 @@ export function BlogIndexPage() {
                         style={{ color: C.ink }}
                       >
                         <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: tone.fg }} />
-                        <span className="min-w-0 flex-1 truncate">{category.stepLabel}</span>
-                        <span className="text-[11px] tabular-nums" style={{ color: C.grayMuted }}>{count}</span>
+                        <span className="flex-1 whitespace-nowrap">{category.stepLabel}</span>
+                        <span className="shrink-0 text-[11px] tabular-nums" style={{ color: C.grayMuted }}>{count}</span>
                       </a>
                     </li>
                   );
