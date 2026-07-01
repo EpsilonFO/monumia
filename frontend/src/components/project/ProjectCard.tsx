@@ -1,20 +1,31 @@
 import { Link } from 'react-router';
-import { ChevronRight } from 'lucide-react';
-import { IconLocalisation, IconProtection, IconAccompagnement, IconEcheance } from '@/components/icons';
-import { Progress } from '@/components/ui/progress';
+import { ArrowUpRight } from 'lucide-react';
+import {
+  IconLocalisation,
+  IconProtection,
+  IconAccompagnement,
+  IconEcheance,
+  IconSubvention,
+  IconDiagnostic,
+} from '@/components/icons';
+import { Clover } from '@/components/illustrations';
+import { ParcoursTrail } from '@/components/project/ParcoursTrail';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { deadlineLabel } from '@/lib/date-utils';
+import { formatCurrency } from '@/lib/format-utils';
+import { montantTileMode } from '@/lib/project-card-view';
 import { RoleBadge } from '@/components/sharing/RoleBadge';
 import { SharedBadge } from '@/components/sharing/SharedBadge';
 import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
 import { isProjectShared } from '@/lib/project-permissions';
-import type { ProjectStats } from '@/lib/project-stats';
+import type { ProjectStats, ProjectStage } from '@/lib/project-stats';
 import type { Monument } from '@/types';
 
 interface ProjectCardProps {
   monument: Monument;
   stats?: ProjectStats;
+  stage?: ProjectStage;
 }
 
 const protectionLabels: Record<string, string> = {
@@ -40,96 +51,166 @@ const urgencyColor: Record<string, string> = {
   normal: C.blue,
 };
 
-export function ProjectCard({ monument, stats }: ProjectCardProps) {
+/** Petit intitulé éditorial (filet orange + petites caps), repris de la landing/dashboard. */
+function Kicker({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em]"
+      style={{ color: C.blue }}
+    >
+      <span aria-hidden style={{ width: 18, height: 2, borderRadius: 2, background: C.orange }} />
+      {children}
+    </span>
+  );
+}
+
+export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
   const etat = etatStyles[monument.etatConservation] ?? etatStyles.moyen;
   const shared = isProjectShared(monument);
-  // Sur un projet partagé, on affiche le rôle réel — y compris « Chef de projet »
-  // (owner). Sur un projet personnel (non partagé), pas de badge de rôle.
   const role = shared ? monument.myRole ?? null : null;
   const members = monument.members ?? [];
   const next = stats?.prochaineEcheance ?? null;
   const nextLabel = next ? deadlineLabel(next.date) : null;
+  const tileMode = montantTileMode(stats);
 
   return (
     <Link to={ROUTES.PROJET_DETAIL(monument.id)}>
       <div
-        className="group flex h-full flex-col overflow-hidden rounded-xl border transition-all duration-200 hover:shadow-md"
+        className="group relative flex h-full flex-col overflow-hidden rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_-28px_rgba(7,42,114,0.6)]"
         style={{ background: C.card, borderColor: C.border }}
       >
-        <div className="px-5 pt-5 pb-3">
-          <div className="mb-2 flex items-start justify-between gap-2">
-            <h3
-              className="line-clamp-2 h-[2.6em] text-[16px] leading-tight"
-              style={{ fontFamily: SERIF, color: C.ink }}
-            >
-              {monument.nom}
-            </h3>
-            <ChevronRight
-              className="mt-0.5 h-4 w-4 shrink-0 transition-colors"
-              style={{ color: C.border }}
-            />
-          </div>
-          <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <IconLocalisation className="h-3 w-3 shrink-0" strokeWidth={1.8} />
-            <span>
+        {/* Filigrane décoratif (quadrilobe), jamais de photo */}
+        <Clover
+          size={150}
+          className="pointer-events-none absolute -right-10 -top-12"
+          style={{ color: C.blue, opacity: 0.04 }}
+        />
+
+        {/* 1 · En-tête identité */}
+        <div className="relative px-5 pt-5">
+          <h3
+            className="line-clamp-2 text-[17px] leading-tight"
+            style={{ fontFamily: SERIF, color: C.ink }}
+          >
+            {monument.nom}
+          </h3>
+          <div className="mt-1.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+            <IconLocalisation className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden />
+            <span className="truncate">
               {monument.commune ?? '—'}
               {monument.departement ? ` (${monument.departement})` : ''}
             </span>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5 px-5 pb-3">
-          {shared && <SharedBadge count={monument.memberCount} />}
-          {role && <RoleBadge role={role} />}
-          <span
-            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium"
-            style={{ background: C.paleBlue, color: C.blue }}
-          >
-            <IconProtection className="h-3 w-3" strokeWidth={2} />
-            {protectionLabels[monument.protection] ?? monument.protection}
-          </span>
-          <span
-            className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
-            style={{ background: etat.bg, color: etat.text }}
-          >
-            {etat.label}
-          </span>
-        </div>
-
-        <div className="mt-auto space-y-3 px-5 pb-5">
-          <div>
-            <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>Complétude</span>
-              <span className="tabular-nums">{monument.completionPercentage}%</span>
-            </div>
-            <Progress value={monument.completionPercentage} className="h-1.5" />
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {shared && <SharedBadge count={monument.memberCount} />}
+            {role && <RoleBadge role={role} />}
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium"
+              style={{ background: C.paleBlue, color: C.blue }}
+            >
+              <IconProtection className="h-3 w-3" strokeWidth={2} aria-hidden />
+              {protectionLabels[monument.protection] ?? monument.protection}
+            </span>
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
+              style={{ background: etat.bg, color: etat.text }}
+            >
+              {etat.label}
+            </span>
           </div>
+        </div>
 
-          {(stats || (shared && members.length > 0)) && (
-            <div className="flex items-center justify-between border-t pt-3 text-[12px]" style={{ borderColor: C.border }}>
-              {stats ? (
-                <span className="inline-flex items-center gap-1.5" style={{ color: C.blue }}>
-                  <IconAccompagnement className="h-3.5 w-3.5" strokeWidth={2} />
-                  {stats.aidesIdentifiees} aide{stats.aidesIdentifiees > 1 ? 's' : ''}
-                </span>
-              ) : (
-                <span />
-              )}
-              {shared && members.length > 0 ? (
-                <MemberAvatarStack people={members} size="sm" />
-              ) : (
-                next && nextLabel && (
-                  <span
-                    className="inline-flex items-center gap-1.5 font-medium"
-                    style={{ color: urgencyColor[nextLabel.urgency] ?? 'var(--muted-foreground)' }}
-                  >
-                    <IconEcheance className="h-3.5 w-3.5" strokeWidth={2} />
-                    {nextLabel.text}
-                  </span>
-                )
-              )}
+        {/* 2 · Parcours illustré */}
+        {stage && (
+          <div className="relative mt-5 px-5">
+            <Kicker>Votre parcours</Kicker>
+            <div className="mt-3">
+              <ParcoursTrail stage={stage} />
             </div>
-          )}
+          </div>
+        )}
+
+        {/* 3 · Tuile motivation (montant) */}
+        <div className="relative mt-5 px-5">
+          <div className="rounded-xl px-4 py-3" style={{ background: C.paleBlue }}>
+            {tileMode === 'money' && stats ? (
+              <div className="flex items-center gap-3">
+                <span
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                  style={{ background: '#fff', color: C.orange }}
+                >
+                  <IconSubvention className="h-5 w-5" strokeWidth={2} aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-muted-foreground">Jusqu'à</p>
+                  <p
+                    className="leading-none"
+                    style={{ fontFamily: SERIF, color: C.blue }}
+                  >
+                    <span className="text-[22px] font-bold">{formatCurrency(stats.montantPotentiel)}</span>
+                  </p>
+                  <p className="mt-1 text-[12px] text-muted-foreground">
+                    {stats.aidesIdentifiees} aide{stats.aidesIdentifiees > 1 ? 's' : ''} identifiée
+                    {stats.aidesIdentifiees > 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+            ) : tileMode === 'count' && stats ? (
+              <div className="flex items-center gap-3">
+                <span
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                  style={{ background: '#fff', color: C.blue }}
+                >
+                  <IconAccompagnement className="h-5 w-5" strokeWidth={2} aria-hidden />
+                </span>
+                <p className="text-[13px] font-semibold" style={{ color: C.ink }}>
+                  {stats.aidesIdentifiees} aide{stats.aidesIdentifiees > 1 ? 's' : ''} identifiée
+                  {stats.aidesIdentifiees > 1 ? 's' : ''}
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                  style={{ background: '#fff', color: C.orange }}
+                >
+                  <IconDiagnostic className="h-5 w-5" strokeWidth={2} aria-hidden />
+                </span>
+                <p className="text-[13px] font-medium" style={{ color: C.ink }}>
+                  Lancez l'estimation pour découvrir vos aides
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 4 · Pied : échéance / avatars + affordance d'ouverture */}
+        <div
+          className="relative mt-5 flex items-center justify-between gap-3 border-t px-5 py-4"
+          style={{ borderColor: C.border }}
+        >
+          <div className="min-w-0 text-[12px]">
+            {shared && members.length > 0 ? (
+              <MemberAvatarStack people={members} size="sm" />
+            ) : next && nextLabel ? (
+              <span
+                className="inline-flex items-center gap-1.5 font-medium"
+                style={{ color: urgencyColor[nextLabel.urgency] ?? 'var(--muted-foreground)' }}
+              >
+                <IconEcheance className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+                {nextLabel.text}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">Aucune échéance</span>
+            )}
+          </div>
+          <span
+            className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold"
+            style={{ color: C.orange }}
+          >
+            Ouvrir
+            <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          </span>
         </div>
       </div>
     </Link>
