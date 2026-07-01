@@ -59,6 +59,10 @@ class UpdateNotificationsRequest(BaseModel):
     emailNotifications: bool | None = None
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -270,6 +274,28 @@ def login(
         "token_type": "bearer",
         "user": _get_profile(supabase, user_id),
     }
+
+
+@router.post("/forgot-password")
+def forgot_password(
+    body: ForgotPasswordRequest,
+    anon: Client = Depends(get_anon_supabase),
+):
+    """Envoie un email de réinitialisation de mot de passe.
+
+    Réponse toujours 200 : on ne révèle pas si l'adresse correspond à un compte.
+    """
+    import os
+
+    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+    try:
+        anon.auth.reset_password_for_email(
+            body.email,
+            {"redirect_to": f"{frontend_url}/login"},
+        )
+    except Exception:  # noqa: BLE001 — on n'expose jamais l'erreur au client
+        pass
+    return {"message": "Si un compte existe pour cette adresse, un email a été envoyé."}
 
 
 @router.post("/refresh")
