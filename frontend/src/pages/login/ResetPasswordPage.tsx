@@ -64,6 +64,7 @@ export function ResetPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!ready || saving) return;
     if (password !== confirm) {
       toast.error('Les deux mots de passe ne correspondent pas');
       return;
