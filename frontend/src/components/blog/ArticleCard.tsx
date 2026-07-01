@@ -15,8 +15,8 @@ export function ArticleCard({ article }: { article: BlogArticle }) {
   return (
     <Link
       to={`/blog/article/${article.slug}`}
-      className="group flex flex-col rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_50px_-28px_rgba(7,42,114,0.5)]"
-      style={{ background: C.card, borderColor: C.border }}
+      className="group flex flex-col rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-0.5"
+      style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
     >
       <div className="flex items-center justify-between gap-2">
         {category && <CategoryBadge category={category} />}

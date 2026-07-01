@@ -35,9 +35,10 @@ export function ParcoursCard({
   return (
     <Link
       to={ctaTo}
-      className="group flex flex-col rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_50px_-28px_rgba(7,42,114,0.5)]"
-      style={{ background: C.card, borderColor: C.border }}
+      className="group relative flex flex-col overflow-hidden rounded-2xl border p-5 pt-6 transition-all duration-300 hover:-translate-y-0.5"
+      style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
     >
+      <span aria-hidden className="absolute inset-x-0 top-0 h-1.5" style={{ background: tone.fg }} />
       <div className="flex items-center gap-3">
         <span
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
