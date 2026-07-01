@@ -60,6 +60,15 @@ sudo docker compose up -d --build \
   app-frontend-build app-backend \
   landing-build
 
+# ── Sync aides YAML → aides_v3 ────────────────────────
+# Git est la source de vérité des aides ; le moteur déterministe les sert depuis
+# les YAML (id = slug) mais la création de dossier (POST /api/dossiers) résout le
+# slug dans aides_v3. Sans ce sync, toute aide ajoutée en YAML mais absente de
+# aides_v3 renvoie « Aide introuvable » à la création. Idempotent (upsert par slug).
+echo "Syncing aides YAML → aides_v3 (beta + prod)..."
+sudo docker exec monumia-beta-backend uv run python scripts/load_aides_yaml.py || echo "⚠️  sync aides beta ÉCHOUÉ"
+sudo docker exec monumia-app-backend  uv run python scripts/load_aides_yaml.py || echo "⚠️  sync aides prod ÉCHOUÉ"
+
 echo "Starting nginx..."
 sudo docker compose up -d nginx
 
