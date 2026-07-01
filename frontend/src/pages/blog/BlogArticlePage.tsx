@@ -1,19 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { CategoryBadge } from '@/components/blog/CategoryBadge';
 import { MarkdownArticle } from '@/components/blog/markdown/MarkdownArticle';
 import { Toc } from '@/components/blog/markdown/Toc';
-import { useReadArticles } from '@/components/blog/useReadArticles';
-import {
-  getAllArticles,
-  getArticleBySlug,
-  getArticlesByCategory,
-  nextUnread,
-} from '@/content/blog/articles';
+import { getArticleBySlug, getArticlesByCategory } from '@/content/blog/articles';
 import { getCategory } from '@/content/blog/categories';
 import { C } from '@/lib/brand';
-import { IconSucces, IconTemps } from '@/components/icons';
+import { IconTemps } from '@/components/icons';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
 
 export function BlogArticlePage() {
@@ -21,9 +15,6 @@ export function BlogArticlePage() {
   const article = slug ? getArticleBySlug(slug) : undefined;
   const [loaded, setLoaded] = useState<{ slug: string; md: string } | null>(null);
   const body = article && loaded?.slug === article.slug ? loaded.md : '';
-
-  const { readSlugs, isRead, markRead } = useReadArticles();
-  const [progress, setProgress] = useState(0);
 
   useDocumentMeta(
     article ? `${article.title} — Blog Monumia` : 'Article introuvable',
@@ -42,42 +33,6 @@ export function BlogArticlePage() {
     };
   }, [article]);
 
-  // Progression de lecture + marquage « lu » à 70 %. Le layout blog défile un
-  // conteneur interne (<main overflow-y-auto>), pas la fenêtre : on résout donc
-  // le vrai ancêtre défilable et on retombe sur la fenêtre à défaut.
-  const articleRef = useRef<HTMLElement>(null);
-  const markedRef = useRef(false);
-  useEffect(() => {
-    markedRef.current = false;
-    setProgress(0);
-  }, [article]);
-  useEffect(() => {
-    function findScroller(start: HTMLElement | null): HTMLElement | null {
-      let el = start?.parentElement ?? null;
-      while (el && el !== document.body) {
-        const oy = getComputedStyle(el).overflowY;
-        if (oy === 'auto' || oy === 'scroll') return el;
-        el = el.parentElement;
-      }
-      return null;
-    }
-    const scroller = findScroller(articleRef.current);
-    const target: HTMLElement | Window = scroller ?? window;
-    function onScroll() {
-      const el = scroller ?? document.documentElement;
-      const max = el.scrollHeight - el.clientHeight;
-      const ratio = max > 0 ? Math.min(1, el.scrollTop / max) : 0;
-      setProgress(ratio);
-      if (article && !markedRef.current && ratio >= 0.7) {
-        markedRef.current = true;
-        markRead(article.slug);
-      }
-    }
-    target.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => target.removeEventListener('scroll', onScroll);
-  }, [article, markRead]);
-
   if (!article) {
     return (
       <div className="space-y-4 text-center">
@@ -92,33 +47,14 @@ export function BlogArticlePage() {
   }
 
   const category = getCategory(article.categorySlug);
-  const read = isRead(article.slug);
   const related = getArticlesByCategory(article.categorySlug)
     .filter((a) => a.slug !== article.slug)
     .slice(0, 3);
-  // Étape suivante : 1er non-lu du parcours courant, sinon 1er non-lu global.
-  const nextStep =
-    nextUnread(
-      getArticlesByCategory(article.categorySlug).filter((a) => a.slug !== article.slug),
-      readSlugs,
-    ) ?? nextUnread(getAllExceptCurrent(article.slug), readSlugs);
 
   return (
-    <article ref={articleRef}>
-      {/* Barre de progression de lecture (collante) */}
-      <div
-        className="fixed inset-x-0 top-0 z-40 h-1"
-        style={{ background: 'transparent' }}
-        aria-hidden
-      >
-        <div
-          className="h-full transition-[width] duration-150"
-          style={{ width: `${Math.round(progress * 100)}%`, background: C.orange }}
-        />
-      </div>
-
+    <article>
       {/* Fil d'ariane */}
-      <nav className="text-[12.5px]" style={{ color: C.grayFg }} aria-label="Fil d'ariane">
+      <nav className="text-[12.5px]" style={{ color: C.grayFg }} aria-label="Fil d’ariane">
         <Link to="/blog" className="hover:underline">
           Blog
         </Link>
@@ -144,14 +80,6 @@ export function BlogArticlePage() {
               <IconTemps className="h-3.5 w-3.5" /> {article.readingTimeMin} min de lecture
             </span>
           )}
-          {read && (
-            <span
-              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-semibold"
-              style={{ background: C.successMuted, color: C.success }}
-            >
-              <IconSucces className="h-3.5 w-3.5" /> Déjà lu
-            </span>
-          )}
         </div>
         <h1
           className="mt-3 text-[clamp(1.9rem,3.6vw,2.7rem)] font-normal leading-[1.12] tracking-[-0.01em]"
@@ -173,31 +101,6 @@ export function BlogArticlePage() {
 
         <div className="min-w-0 max-w-2xl">
           <MarkdownArticle body={body} />
-
-          {/* Encart « étape suivante » */}
-          {nextStep && (
-            <div
-              className="mt-10 rounded-2xl border p-5"
-              style={{ background: C.successMuted, borderColor: C.border }}
-            >
-              <p
-                className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.14em]"
-                style={{ color: C.success }}
-              >
-                <IconSucces className="h-4 w-4" /> Repère acquis — étape suivante
-              </p>
-              <Link
-                to={`/blog/article/${nextStep.slug}`}
-                className="group mt-2 block text-[18px] font-normal leading-snug hover:underline"
-                style={{ fontFamily: 'var(--font-serif)', color: C.ink }}
-              >
-                {nextStep.title}
-                <span className="ml-1 inline-block transition-transform duration-300 group-hover:translate-x-0.5" style={{ color: C.orange }}>
-                  →
-                </span>
-              </Link>
-            </div>
-          )}
         </div>
 
         {/* Rail droit */}
@@ -215,8 +118,8 @@ export function BlogArticlePage() {
                       <Link
                         key={a.slug}
                         to={`/blog/article/${a.slug}`}
-                        className="group block rounded-xl border p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-24px_rgba(7,42,114,0.55)]"
-                        style={{ background: C.card, borderColor: C.border }}
+                        className="group block rounded-xl border p-4 transition-all duration-300 hover:-translate-y-0.5"
+                        style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
                       >
                         {cat && (
                           <span className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: C.orange }}>
@@ -259,9 +162,4 @@ export function BlogArticlePage() {
       </div>
     </article>
   );
-}
-
-/** Tous les articles sauf l'article courant, dans l'ordre du trajet (parcours). */
-function getAllExceptCurrent(currentSlug: string) {
-  return getAllArticles().filter((a) => a.slug !== currentSlug);
 }
