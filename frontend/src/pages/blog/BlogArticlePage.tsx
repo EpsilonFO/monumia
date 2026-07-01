@@ -42,26 +42,40 @@ export function BlogArticlePage() {
     };
   }, [article]);
 
-  // Progression de lecture (scroll de la fenêtre) + marquage « lu » à 70 %.
+  // Progression de lecture + marquage « lu » à 70 %. Le layout blog défile un
+  // conteneur interne (<main overflow-y-auto>), pas la fenêtre : on résout donc
+  // le vrai ancêtre défilable et on retombe sur la fenêtre à défaut.
+  const articleRef = useRef<HTMLElement>(null);
   const markedRef = useRef(false);
   useEffect(() => {
     markedRef.current = false;
     setProgress(0);
   }, [article]);
   useEffect(() => {
+    function findScroller(start: HTMLElement | null): HTMLElement | null {
+      let el = start?.parentElement ?? null;
+      while (el && el !== document.body) {
+        const oy = getComputedStyle(el).overflowY;
+        if (oy === 'auto' || oy === 'scroll') return el;
+        el = el.parentElement;
+      }
+      return null;
+    }
+    const scroller = findScroller(articleRef.current);
+    const target: HTMLElement | Window = scroller ?? window;
     function onScroll() {
-      const doc = document.documentElement;
-      const max = doc.scrollHeight - doc.clientHeight;
-      const ratio = max > 0 ? Math.min(1, doc.scrollTop / max) : 0;
+      const el = scroller ?? document.documentElement;
+      const max = el.scrollHeight - el.clientHeight;
+      const ratio = max > 0 ? Math.min(1, el.scrollTop / max) : 0;
       setProgress(ratio);
       if (article && !markedRef.current && ratio >= 0.7) {
         markedRef.current = true;
         markRead(article.slug);
       }
     }
-    window.addEventListener('scroll', onScroll, { passive: true });
+    target.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
-    return () => window.removeEventListener('scroll', onScroll);
+    return () => target.removeEventListener('scroll', onScroll);
   }, [article, markRead]);
 
   if (!article) {
@@ -90,7 +104,7 @@ export function BlogArticlePage() {
     ) ?? nextUnread(getAllExceptCurrent(article.slug), readSlugs);
 
   return (
-    <article>
+    <article ref={articleRef}>
       {/* Barre de progression de lecture (collante) */}
       <div
         className="fixed inset-x-0 top-0 z-40 h-1"
