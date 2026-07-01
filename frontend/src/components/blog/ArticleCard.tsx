@@ -14,16 +14,8 @@ export function ArticleCard({ article }: { article: BlogArticle }) {
       className="group flex flex-col rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-0.5"
       style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
     >
-      <div className="flex items-center justify-between gap-2">
+      <div>
         {category && <CategoryBadge category={category} />}
-        {article.readingTimeMin && (
-          <span
-            className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-medium"
-            style={{ color: C.grayFg }}
-          >
-            <IconTemps className="h-3.5 w-3.5" /> {article.readingTimeMin} min
-          </span>
-        )}
       </div>
       <h3
         className="mt-3 text-[19px] font-normal leading-snug"
@@ -34,12 +26,22 @@ export function ArticleCard({ article }: { article: BlogArticle }) {
       <p className="mt-2 line-clamp-3 text-[13px] leading-relaxed" style={{ color: C.grayFg }}>
         {article.excerpt}
       </p>
-      <span
-        className="mt-4 text-[13px] font-semibold group-hover:underline"
-        style={{ color: C.orange }}
-      >
-        Lire l’article →
-      </span>
+      <div className="mt-4 flex items-center gap-3">
+        <span
+          className="text-[13px] font-semibold group-hover:underline"
+          style={{ color: C.orange }}
+        >
+          Lire l’article →
+        </span>
+        {article.readingTimeMin && (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-medium"
+            style={{ color: C.grayMuted }}
+          >
+            <IconTemps className="h-3.5 w-3.5" /> {article.readingTimeMin} min
+          </span>
+        )}
+      </div>
     </Link>
   );
 }
