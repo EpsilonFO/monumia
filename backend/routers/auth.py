@@ -1,3 +1,4 @@
+import contextlib
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -288,13 +289,12 @@ def forgot_password(
     import os
 
     frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-    try:
+    # On n'expose jamais l'erreur au client (ne pas révéler si l'adresse existe).
+    with contextlib.suppress(Exception):
         anon.auth.reset_password_for_email(
             body.email,
             {"redirect_to": f"{frontend_url}/reset-password"},
         )
-    except Exception:  # noqa: BLE001 — on n'expose jamais l'erreur au client
-        pass
     return {"message": "Si un compte existe pour cette adresse, un email a été envoyé."}
 
 
