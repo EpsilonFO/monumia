@@ -15,6 +15,8 @@ export const C = {
   paleDanger: 'var(--destructive-muted)', // teinte du rouge
   grayFg:     'var(--gray-fg)',        // texte secondaire lisible (AA)
   grayMuted:  'var(--gray-muted)',     // texte tertiaire / hint
+  success:      'var(--success)',        // vert — article lu / réussite
+  successMuted: 'var(--success-muted)',  // vert clair — fond « lu »
 } as const;
 
 // Police titres (PT Serif) — pour les styles inline ; le corps utilise Inter via var(--font-sans)
