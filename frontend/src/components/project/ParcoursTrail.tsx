@@ -50,7 +50,7 @@ export function ParcoursTrail({ stage, accent }: { stage: ProjectStage; accent: 
               {done ? (
                 <Check className="h-5 w-5" strokeWidth={3} aria-hidden />
               ) : (
-                <Icon className="h-5 w-5" strokeWidth={2} aria-hidden />
+                <Icon className="h-5 w-5" weight="bold" aria-hidden />
               )}
             </span>
             {i < last && (
