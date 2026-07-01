@@ -6,8 +6,18 @@ Run from backend/:  .venv/bin/python -m unittest discover
 import unittest
 from datetime import date
 
-from aides_schema import Aide, Calendrier, load_all_aides, load_facts, load_pending_facts
+from aides_schema import (
+    Aide,
+    Calendrier,
+    Condition,
+    FactDef,
+    load_all_aides,
+    load_facts,
+    load_pending_facts,
+)
 from eligibility_engine import (
+    _normalize_boundary,
+    _options_for_fact,
     build_context,
     candidature_close,
     engine_ready_aides,
@@ -256,6 +266,72 @@ class TestQuestionGeneration(unittest.TestCase):
         res = run_deterministic_diagnostic(AIDES, FACTS, m, 3000)
         counts = [len(q["aideIds"]) for q in res["qcmQuestions"]]
         self.assertEqual(counts, sorted(counts, reverse=True))
+
+
+class TestNumericTranches(unittest.TestCase):
+    """Génération d'options pour les faits numériques — gestion des seuils
+    stricts (régression du bug « Moins de 0 / 0 ou plus jours par an »)."""
+
+    @staticmethod
+    def _gate(fact: str, predicate: dict) -> Condition:
+        return Condition.model_validate(
+            {"id": "c", "text": "t", "kind": "user_fact", "fact": fact, "predicate": predicate}
+        )
+
+    @staticmethod
+    def _fact(type_: str, unit: str | None = None) -> FactDef:
+        return FactDef.model_validate(
+            {"type": type_, "scope": "monument", "question": "q?", "unit": unit}
+        )
+
+    def test_normalize_boundary_strict_integer(self):
+        # gt:n et lte:n se décalent de +1 sur un entier ; gte/lt/eq inchangés.
+        self.assertEqual(_normalize_boundary("gt", 0, True), 1)
+        self.assertEqual(_normalize_boundary("lte", 5, True), 6)
+        self.assertEqual(_normalize_boundary("gte", 25, True), 25)
+        self.assertEqual(_normalize_boundary("lt", 1800, True), 1800)
+        # Sur un flottant, pas de décalage (pas d'epsilon).
+        self.assertEqual(_normalize_boundary("gt", 0, False), 0)
+
+    def test_gt_zero_produces_sane_options(self):
+        # Le cas signalé : jours d'ouverture, gt:0 (≡ « au moins 1 jour »).
+        fact = self._fact("integer", "jours/an")
+        opts = _options_for_fact(fact, [self._gate("jours_ouverture_public_par_an", {"gt": 0})])
+        labels = [o["label"] for o in opts]
+        self.assertNotIn("Moins de 0 jours/an", labels)
+        # Frontière utile = 1 : « Moins de 1 » (= 0 jour) et « 1 ou plus ».
+        self.assertEqual([o["repr"] for o in opts], [0, 1])
+        self.assertIn("1 jours/an ou plus", labels)
+
+    def test_gt_zero_reachable_via_questionnaire(self):
+        # Régression dure : avec gt:0 une option DOIT garder l'aide éligible.
+        from aides_schema import evaluate_predicate
+
+        opts = _options_for_fact(
+            self._fact("integer", "jours/an"),
+            [self._gate("jours_ouverture_public_par_an", {"gt": 0})],
+        )
+        satisfying = [o for o in opts if evaluate_predicate({"gt": 0}, o["repr"]) is True]
+        self.assertTrue(satisfying, "au moins une tranche doit satisfaire gt:0")
+
+    def test_gte_thresholds_unchanged(self):
+        # Les seuils non stricts gardent leur comportement MECE d'origine.
+        opts = _options_for_fact(
+            self._fact("integer", "ans"),
+            [
+                self._gate("duree_location_envisagee_ans", {"gte": 6}),
+                self._gate("duree_location_envisagee_ans", {"gte": 9}),
+            ],
+        )
+        self.assertEqual([o["repr"] for o in opts], [5, 6, 9])
+
+    def test_low_band_dropped_when_below_zero(self):
+        # gte:0 → borne 0 → la bande « < 0 » est vide et omise.
+        opts = _options_for_fact(
+            self._fact("integer", "jours/an"),
+            [self._gate("jours_ouverture_public_par_an", {"gte": 0})],
+        )
+        self.assertFalse(any(o["id"].startswith("lt") for o in opts))
 
 
 class TestDiagnosticShape(unittest.TestCase):

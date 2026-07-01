@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MerimeeSearch } from '@/components/monument/MerimeeSearch';
 import { MonumentForm } from '@/components/monument/MonumentForm';
@@ -42,16 +42,21 @@ const STEP_LABELS: Record<WizardStep, string> = {
 
 export function ProjectWizardPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // « Refaire le questionnaire » d'un projet existant : on rejoue directement
+  // l'étape 2 du wizard pour ce monument (questionnaire vierge), sans repasser
+  // par la création de la fiche.
+  const existingMonumentId = searchParams.get('monument');
   const user = useAuthStore((s) => s.user);
   const addMonument = useMonumentStore((s) => s.addMonument);
   const setActiveMonument = useMonumentStore((s) => s.setActiveMonument);
   const setDiagnostic = useAideStore((s) => s.setDiagnostic);
 
-  const [step, setStep] = useState<WizardStep>(1);
+  const [step, setStep] = useState<WizardStep>(existingMonumentId ? 2 : 1);
   const [prefillData, setPrefillData] = useState<Partial<Monument> | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [monumentId, setMonumentId] = useState<string | null>(null);
+  const [monumentId, setMonumentId] = useState<string | null>(existingMonumentId);
   const [answers, setAnswers] = useState<ProjectQuestionnaireAnswers>({});
   // Questionnaire du moteur d'aides : on lance un premier diagnostic déterministe
   // (sans réponses) dès l'étape 2 pour obtenir les questions à poser (faits
@@ -291,7 +296,7 @@ export function ProjectWizardPage() {
               className="text-[12px] font-semibold uppercase tracking-[0.2em]"
               style={{ color: C.orange }}
             >
-              Nouveau projet
+              {existingMonumentId ? 'Questionnaire' : 'Nouveau projet'}
             </div>
             <h1
               className="text-[clamp(1.8rem,4vw,2.4rem)]"
