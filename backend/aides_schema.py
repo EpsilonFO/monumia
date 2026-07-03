@@ -260,6 +260,10 @@ FIELD_REGISTRY: dict[str, dict] = {
     "commune.population": {"type": "integer"},
     "commune.programmes": {"type": "list"},
     "commune.eligible_detr": {"type": "boolean"},
+    # SIREN de l'EPCI d'appartenance de la commune (référentiel BANATIC) —
+    # enrichissement à câbler : pas encore de colonne dans `communes`. Permet
+    # les aides intercommunales (ex. CC Moret Seine et Loing = 247700032).
+    "commune.epci": {"type": "string"},
 }
 
 OPS_BY_FIELD_TYPE: dict[str, frozenset[str]] = {
