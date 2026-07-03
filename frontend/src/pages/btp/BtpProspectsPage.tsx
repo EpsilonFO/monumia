@@ -2,9 +2,7 @@ import { useState, useMemo } from 'react';
 import { Link } from 'react-router';
 import { ChevronRight } from 'lucide-react';
 import {
-  IconEquipe, IconRecherche,
-  IconSucces, IconTemps, IconContact, IconProspect, IconAttention,
-  IconMonument, IconLocalisation,
+  IconEquipe, IconRecherche, IconSucces, IconTemps, IconContact, IconAttention, IconMonument, IconLocalisation, IconDiscussion, IconDevis, IconAjouter,
 } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,9 +19,9 @@ import type { Prospect, ProspectStatus } from '@/types';
 const STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string; icon: typeof IconTemps }> = {
   a_contacter: { label: 'À contacter', color: 'bg-muted text-muted-foreground', icon: IconTemps },
   contacte: { label: 'Contacté', color: 'bg-info-muted text-info', icon: IconContact },
-  en_discussion: { label: 'En discussion', color: 'bg-warning-muted text-warning', icon: IconEquipe },
-  devis_envoye: { label: 'Devis envoyé', color: 'bg-cat-violet-soft text-cat-violet', icon: IconProspect },
-  gagne: { label: 'Gagné ✓', color: 'bg-success-muted text-success', icon: IconSucces },
+  en_discussion: { label: 'En discussion', color: 'bg-warning-muted text-warning', icon: IconDiscussion },
+  devis_envoye: { label: 'Devis envoyé', color: 'bg-cat-violet-soft text-cat-violet', icon: IconDevis },
+  gagne: { label: 'Gagné', color: 'bg-success-muted text-success', icon: IconSucces },
   perdu: { label: 'Perdu', color: 'bg-destructive-muted text-destructive', icon: IconAttention },
 };
 
@@ -88,7 +86,7 @@ export function BtpProspectsPage() {
         />
         <Button asChild>
           <Link to="/btp/prospects/new">
-            <IconEquipe className="h-4 w-4 mr-2" />
+            <IconAjouter className="h-4 w-4 mr-2" />
             Nouveau prospect
           </Link>
         </Button>

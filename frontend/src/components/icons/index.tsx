@@ -1,19 +1,22 @@
-import type { ComponentType, SVGProps } from 'react';
 import {
   Archive,
   ArrowSquareOut,
   ArrowsClockwise,
   Bank,
   Bell,
+  Blueprint,
   BookOpen,
   CalendarBlank,
   CalendarCheck,
+  CalendarDots,
+  ChatsCircle,
   CheckCircle,
   Clock,
   Coins,
   Compass,
   DownloadSimple,
   Envelope,
+  EnvelopeOpen,
   Eye,
   FileText,
   FileX,
@@ -23,23 +26,24 @@ import {
   FolderMinus,
   FolderOpen,
   FolderPlus,
-  Gauge,
   GearSix,
   Globe,
   HandCoins,
   HardHat,
   House,
+  IdentificationCard,
   Image,
   Info,
   Key,
-  Layout,
   Lightbulb,
   ListChecks,
+  ListNumbers,
   Lock,
   MagnifyingGlass,
   MapPin,
-  Notebook,
+  MapTrifold,
   PencilSimple,
+  Path,
   Phone,
   Plus,
   Question,
@@ -50,7 +54,9 @@ import {
   SealCheck,
   ShieldCheck,
   SignOut,
+  Signpost,
   SquaresFour,
+  Stamp,
   Target,
   TrendUp,
   Trash,
@@ -62,24 +68,28 @@ import {
   type Icon as PhosphorIcon,
   type IconWeight,
 } from '@phosphor-icons/react';
+import type { IconComponent, IconProps } from './types';
 
 /**
- * Banque d'icônes Monumia — adossée à Phosphor (https://phosphoricons.com).
+ * Banque d'icônes Monumia — adossée à Phosphor (https://phosphoricons.com),
+ * plus les icônes propres à la marque (`./monumia.tsx` : monument à rosace
+ * quadrilobe, tracés fait-main du fondateur).
  *
  * Le site n'importe QUE depuis ce fichier, sous des noms métier
- * (`IconNotification`, `IconAide`…). Pour changer de style d'icônes partout :
- * ajuster `WEIGHT` (graisse) ci-dessous, ou re-pointer un `Icon*` vers une autre
- * icône Phosphor — sur une seule ligne, sans toucher au reste du code.
+ * (`IconNotification`, `IconAide`…). Un concept = une icône :
+ * l'aide financière est TOUJOURS `IconAide`, le conseil `IconConseil`,
+ * l'organisme qui verse `IconInstitution`… Pour changer un glyphe partout :
+ * re-pointer une seule ligne ici, sans toucher au reste du code.
  */
 
-export type IconProps = Omit<SVGProps<SVGSVGElement>, 'strokeWidth'> & {
-  size?: number;
-  strokeWidth?: number;
-  /** Surcharge ponctuelle de la graisse (ex. `bold` pour un rendu net sur fond plein). */
-  weight?: IconWeight;
-};
-
-export type IconComponent = ComponentType<IconProps>;
+export type { IconComponent, IconProps } from './types';
+export {
+  IconMonument,
+  IconProjet,
+  IconClocheMonumia,
+  IconEcrouMonumia,
+  IconTelechargementMonumia,
+} from './monumia';
 
 /** Graisse Phosphor appliquée à toute la banque. Options : thin/light/regular/bold/fill/duotone. */
 const WEIGHT: IconWeight = 'duotone';
@@ -94,9 +104,8 @@ function icon(PhIcon: PhosphorIcon, defaultWeight: IconWeight = WEIGHT): IconCom
   return IconWrapper;
 }
 
-/* Navigation / cœur */
+/* Navigation / cœur — IconMonument (façade à rosace quadrilobe) vient de ./monumia */
 export const IconDashboard = icon(SquaresFour);
-export const IconMonument = icon(Bank);
 export const IconDocuments = icon(Files);
 export const IconDossier = icon(Folder);
 export const IconNotification = icon(Bell);
@@ -105,7 +114,7 @@ export const IconTelecharger = icon(DownloadSimple, 'bold');
 export const IconAccount = icon(User);
 export const IconCompte = IconAccount;
 export const IconHelp = icon(Question);
-export const IconAgenda = icon(Notebook);
+export const IconAgenda = icon(CalendarDots);
 export const IconDeconnexion = icon(SignOut);
 
 /* Documents */
@@ -114,23 +123,34 @@ export const IconDocumentValide = icon(SealCheck);
 export const IconDocumentAlerte = icon(FileX);
 export const IconArchive = icon(Archive);
 export const IconDevis = icon(Receipt);
+export const IconPlan = icon(Blueprint);
+export const IconCadastre = icon(MapTrifold);
+export const IconCourrier = icon(EnvelopeOpen);
 export const IconDossierOuvert = icon(FolderOpen);
 export const IconAjouterDossier = icon(FolderPlus);
 export const IconRetirerDossier = icon(FolderMinus);
 export const IconDepot = icon(UploadSimple);
-export const IconModele = icon(Layout);
+export const IconModele = icon(Stamp);
 
-/* Aides / finances */
+/* Aides / finances — l'aide financière a UNE icône : la main aux pièces */
 export const IconAide = icon(HandCoins);
 export const IconSubvention = icon(Coins);
 export const IconTendance = icon(TrendUp);
-export const IconAccompagnement = icon(Lightbulb);
+export const IconInstitution = icon(Bank);
+/** Guidage / être accompagné sur le chemin (panneau indicateur). */
+export const IconAccompagnement = icon(Signpost);
+/** Astuce, bon conseil (ampoule) — distinct de l'accompagnement. */
+export const IconConseil = icon(Lightbulb);
+/** Étapes d'une démarche (liste numérotée). */
+export const IconEtapes = icon(ListNumbers);
 
 /* Patrimoine / protection */
+/** Fiche descriptive du monument (carte d'identité) — distincte d'IconMonument (le projet). */
+export const IconFiche = icon(IdentificationCard);
 export const IconProtection = icon(ShieldCheck);
 export const IconDiagnostic = icon(Compass);
 export const IconLocalisation = icon(MapPin);
-export const IconSuivi = icon(Gauge);
+export const IconSuivi = icon(Path);
 
 /* Temps */
 export const IconCalendrier = icon(CalendarBlank);
@@ -143,6 +163,7 @@ export const IconProspect = icon(Target);
 export const IconContact = icon(Envelope);
 export const IconTelephone = icon(Phone);
 export const IconEquipe = icon(Users);
+export const IconDiscussion = icon(ChatsCircle);
 
 /* Statuts */
 export const IconSucces = icon(CheckCircle);

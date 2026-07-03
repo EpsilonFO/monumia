@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { X, Loader2, Check } from 'lucide-react';
-import { IconDepot, IconDocument } from '@/components/icons';
+import { IconDepot, IconDocument, IconTelechargementMonumia } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -168,7 +168,7 @@ export function UploadDocumentDialog({ open, onOpenChange, onUploaded }: UploadD
               </div>
             ) : (
               <div className="space-y-2">
-                <IconDepot className="h-8 w-8 text-muted-foreground mx-auto" />
+                <IconTelechargementMonumia className="h-8 w-8 text-muted-foreground mx-auto" />
                 <p className="text-sm text-muted-foreground">
                   Glissez un fichier ici ou <span className="text-primary font-medium">parcourez</span>
                 </p>

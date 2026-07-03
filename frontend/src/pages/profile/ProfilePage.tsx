@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
   IconEnregistrer,
-  IconNotification,
   IconMaison,
   IconMonument,
   IconCompte,
@@ -12,6 +11,7 @@ import {
   IconProtection,
   IconSucces,
   IconDeconnexion,
+  IconClocheMonumia,
 } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -299,7 +299,7 @@ export function ProfilePage() {
         {/* Colonne droite : notifications */}
         <Panel>
           <PanelHeader
-            icon={<IconNotification className="h-4 w-4 text-primary" strokeWidth={1.8} />}
+            icon={<IconClocheMonumia className="h-5 w-5 text-primary" />}
             title="Vous prévenir"
           />
           <div className="divide-y divide-border px-6">

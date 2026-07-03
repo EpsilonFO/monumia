@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router';
-import { ArrowRight, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import {
-  IconTendance, IconEquipe, IconSubvention, IconProspect,
-  IconAttention, IconSucces, IconTemps, IconContact,
+  IconTendance, IconEquipe, IconSubvention, IconDevis, IconDiscussion,
+  IconDocuments, IconAjouter, IconAttention, IconSucces, IconTemps, IconContact,
 } from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,8 +19,8 @@ import type { ProspectStatus } from "@/types";
 const STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string; icon: typeof IconTemps }> = {
   a_contacter: { label: 'À contacter', color: 'bg-muted text-muted-foreground', icon: IconTemps },
   contacte: { label: 'Contacté', color: 'bg-info-muted text-info', icon: IconContact },
-  en_discussion: { label: 'En discussion', color: 'bg-warning-muted text-warning', icon: IconEquipe },
-  devis_envoye: { label: 'Devis envoyé', color: 'bg-cat-violet-soft text-cat-violet', icon: IconProspect },
+  en_discussion: { label: 'En discussion', color: 'bg-warning-muted text-warning', icon: IconDiscussion },
+  devis_envoye: { label: 'Devis envoyé', color: 'bg-cat-violet-soft text-cat-violet', icon: IconDevis },
   gagne: { label: 'Gagné', color: 'bg-success-muted text-success', icon: IconSucces },
   perdu: { label: 'Perdu', color: 'bg-destructive-muted text-destructive', icon: IconAttention },
 };
@@ -324,19 +324,19 @@ export function BtpDashboardPage() {
             <CardContent className="space-y-2">
               <Button asChild variant="default" className="w-full justify-start">
                 <Link to="/btp/prospects/new">
-                  <IconEquipe className="h-4 w-4 mr-2" />
+                  <IconAjouter className="h-4 w-4 mr-2" />
                   Ajouter un prospect
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-start">
                 <Link to="/btp/aides">
-                  <IconProspect className="h-4 w-4 mr-2" />
+                  <IconSubvention className="h-4 w-4 mr-2" />
                   Catalogue des aides
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-start">
                 <Link to="/btp/documents">
-                  <ArrowRight className="h-4 w-4 mr-2" />
+                  <IconDocuments className="h-4 w-4 mr-2" />
                   Mes documents
                 </Link>
               </Button>

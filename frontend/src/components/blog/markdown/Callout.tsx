@@ -1,5 +1,5 @@
 import type { ReactNode, ComponentType } from 'react';
-import { IconInfo, IconAccompagnement, IconDocument, IconAttention } from '@/components/icons';
+import { IconInfo, IconConseil, IconDocument, IconAttention } from '@/components/icons';
 import { C } from '@/lib/brand';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -16,7 +16,7 @@ const TONE: Record<
 > = {
   remarque: { label: 'Remarque', fg: C.blue, tint: C.paleBlue, node: C.blueLight, Icon: IconInfo },
   attention: { label: 'Attention', fg: C.danger, tint: C.paleDanger, node: C.danger, Icon: IconAttention },
-  astuce: { label: 'Astuce', fg: C.orange, tint: C.paleOrange, node: C.orange, Icon: IconAccompagnement },
+  astuce: { label: 'Astuce', fg: C.orange, tint: C.paleOrange, node: C.orange, Icon: IconConseil },
   exemple: { label: 'Exemple', fg: C.ink, tint: '#f3eee1', node: C.blueDark, Icon: IconDocument },
 };
 

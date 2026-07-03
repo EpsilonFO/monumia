@@ -11,10 +11,10 @@ import {
   IconVerrou,
   IconSubvention,
   IconTendance,
-  IconMonument,
+  IconInstitution,
   IconPublic,
   IconDevis,
-  IconAccompagnement,
+  IconAide,
 } from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -72,15 +72,15 @@ const DEADLINE_STRIPE: Record<Urgency, string> = {
 
 // Pastille ronde par catégorie d'aide — petite touche d'identité reprise de la
 // landing (icône dans un cercle teinté).
-const CATEGORY_ICON: Record<string, typeof IconMonument> = {
-  etat_drac: IconMonument,
-  region: IconMonument,
-  departement: IconMonument,
-  fondation_patrimoine: IconMonument,
+const CATEGORY_ICON: Record<string, typeof IconInstitution> = {
+  etat_drac: IconInstitution,
+  region: IconInstitution,
+  departement: IconInstitution,
+  fondation_patrimoine: IconInstitution,
   europe: IconPublic,
   mecenat: IconSubvention,
   fiscalite: IconDevis,
-  autre: IconAccompagnement,
+  autre: IconAide,
 };
 
 function getEligibilityStatus(match: AideMatchResult) {
@@ -102,7 +102,7 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
   const deadline = !aide.permanent && aide.dateLimite ? deadlineInfo(aide.dateLimite) : null;
   const redAlert = deadline?.urgency === 'urgent' || deadline?.urgency === 'past';
   const DeadlineIcon = redAlert ? IconTemps : IconEcheance;
-  const CategoryIcon = CATEGORY_ICON[aide.categorie] ?? IconAccompagnement;
+  const CategoryIcon = CATEGORY_ICON[aide.categorie] ?? IconAide;
   // Teinte de la pastille ronde selon le statut (vert éligible · orange à confirmer).
   const statusTone =
     status === 'eligible'

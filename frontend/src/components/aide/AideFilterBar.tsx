@@ -1,4 +1,4 @@
-import { IconRecherche, IconReglages } from '@/components/icons';
+import { IconRecherche, IconChantier } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -60,7 +60,7 @@ export function AideFilterBar() {
       {filters.modeProjet && (
         <div className="space-y-2">
           <p className="text-sm font-medium flex items-center gap-1.5">
-            <IconReglages className="h-3.5 w-3.5" />
+            <IconChantier className="h-3.5 w-3.5" />
             Travaux envisagés
           </p>
           <div className="flex flex-wrap gap-1.5">
