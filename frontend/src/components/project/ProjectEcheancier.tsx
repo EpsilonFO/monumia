@@ -1,4 +1,4 @@
-import { IconEcheance, IconDocument, IconAccompagnement } from '@/components/icons';
+import { IconEcheance, IconDocument, IconAide } from '@/components/icons';
 import { C, SERIF } from '@/lib/brand';
 import { formatDate } from '@/lib/date-utils';
 import type { ProjectDeadline } from '@/lib/project-stats';
@@ -54,7 +54,7 @@ export function ProjectEcheancier({ deadlines }: ProjectEcheancierProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 p-4">
         {deadlines.map((d) => {
           const style = URGENCY_STYLE[d.urgency];
-          const SourceIcon = d.source === 'aide' ? IconAccompagnement : IconDocument;
+          const SourceIcon = d.source === 'aide' ? IconAide : IconDocument;
           return (
             <div
               key={d.id}

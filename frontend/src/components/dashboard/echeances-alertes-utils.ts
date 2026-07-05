@@ -1,6 +1,6 @@
 import { type ComponentType } from 'react';
 import {
-  IconNotification, IconProtection, IconAccompagnement, IconDocument,
+  IconNotification, IconProtection, IconAide, IconDocument,
 } from '@/components/icons';
 import { ROUTES } from '@/constants/routes';
 import { deadlineLabel, formatRelative, formatDateShort } from '@/lib/date-utils';
@@ -56,7 +56,7 @@ export function buildFeedRows(
       kind,
       category: 'deadline',
       days: d.joursRestants,
-      icon: d.source === 'aide' ? IconAccompagnement : IconDocument,
+      icon: d.source === 'aide' ? IconAide : IconDocument,
       label: d.label,
       sub: `${d.source === 'aide' ? 'Aide' : 'Dossier'} · ${formatDateShort(d.date)}`,
       badge: d.joursRestants < 0 ? 'En retard' : joursBadge(d),

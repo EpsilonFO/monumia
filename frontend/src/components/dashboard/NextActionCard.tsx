@@ -17,7 +17,7 @@ export function NextActionCard({ deadlines }: { deadlines: ProjectDeadline[] }) 
         <AllClear />
         <div>
           <p className="text-[15px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
-            Tout est à jour 🎉
+            Tout est à jour
           </p>
           <p className="text-[13px]" style={{ color: C.grayMuted }}>
             Aucune échéance ne réclame votre attention pour le moment.

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router';
-import { IconAccount, IconSuivi, IconEquipe, IconSubvention, IconArchive, IconDeconnexion } from '@/components/icons';
+import { IconAccount, IconDashboard, IconEquipe, IconSubvention, IconDocuments, IconDeconnexion } from '@/components/icons';
 import { SidebarNav } from './SidebarNav';
 import type { SidebarSection } from './SidebarNav';
 import { C } from '@/lib/brand';
@@ -10,7 +10,7 @@ const btpSections: SidebarSection[] = [
   {
     title: 'Pilotage',
     items: [
-      { to: '/btp', icon: IconSuivi, label: 'Tableau de bord', end: true },
+      { to: '/btp', icon: IconDashboard, label: 'Tableau de bord', end: true },
       { to: '/btp/prospects', icon: IconEquipe, label: 'Prospects' },
     ],
   },
@@ -18,7 +18,7 @@ const btpSections: SidebarSection[] = [
     title: 'Outils',
     items: [
       { to: '/btp/aides', icon: IconSubvention, label: 'Catalogue aides' },
-      { to: '/btp/documents', icon: IconArchive, label: 'Documents' },
+      { to: '/btp/documents', icon: IconDocuments, label: 'Documents' },
     ],
   },
 ];

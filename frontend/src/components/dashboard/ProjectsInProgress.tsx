@@ -3,7 +3,7 @@ import { ArrowUpRight, ChevronRight } from 'lucide-react';
 import {
   IconParchemin,
   IconEcheance,
-  IconMonument,
+  IconProjet,
   IconProtection,
   IconLocalisation,
   IconEquipe,
@@ -228,7 +228,7 @@ export function ProjectsInProgress({ monuments, statsByMonument, stageByMonument
           style={{ background: `linear-gradient(135deg, ${C.blue}, ${C.blueDark})` }}
         >
           <Clover size={70} className="pointer-events-none absolute -right-4 -top-5 text-white" style={{ opacity: 0.12 }} />
-          <IconMonument className="relative h-6 w-6 text-white" aria-hidden />
+          <IconProjet className="relative h-6 w-6 text-white" aria-hidden />
         </div>
         <p className="text-[15px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
           Aucun projet en cours

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Loader2, X } from 'lucide-react';
-import { IconDocument, IconRecherche, IconDepot } from '@/components/icons';
+import { IconDocument, IconRecherche, IconDepot, IconTelechargementMonumia } from '@/components/icons';
 import {
   Dialog,
   DialogContent,
@@ -216,7 +216,7 @@ export function AttachDocumentDialog({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <IconDepot className="h-8 w-8 text-muted-foreground mx-auto" />
+                    <IconTelechargementMonumia className="h-8 w-8 text-muted-foreground mx-auto" />
                     <p className="text-sm text-muted-foreground">
                       Glissez un fichier ici ou <span className="text-primary font-medium">parcourez</span>
                     </p>

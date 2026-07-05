@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Loader2 } from 'lucide-react';
-import { IconAjouter, IconMonument, IconRecherche } from '@/components/icons';
+import { IconAjouter, IconProjet, IconRecherche } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -164,7 +164,7 @@ export function ProjectsListPage() {
           className="flex flex-col items-center justify-center gap-4 rounded-xl border py-16 text-center"
           style={{ background: C.card, borderColor: C.border }}
         >
-          <IconMonument className="h-8 w-8" style={{ color: C.blueLight }} strokeWidth={1.5} />
+          <IconProjet className="h-8 w-8" style={{ color: C.blueLight }} strokeWidth={1.5} />
           <div className="space-y-1">
             <h2 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
               Aucun projet pour le moment

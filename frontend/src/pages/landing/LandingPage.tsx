@@ -11,13 +11,14 @@ import {
   IconDocumentValide,
   IconSubvention,
   IconMonument,
+  IconParchemin,
   IconEquipe,
   IconChantier,
-  IconAccompagnement,
   IconTendance,
   IconTemps,
   IconProtection,
   IconSucces,
+  IconDiagnostic,
 } from '@/components/icons';
 
 /* ────────────────────────────────────────────
@@ -331,7 +332,7 @@ export function LandingPage() {
               { icon: IconSubvention, title: "Catalogue d'aides complet", desc: 'Plus de 150 dispositifs agrégés : subventions, prêts, déductions fiscales, mécénat, labels patrimoniaux.', num: '02' },
               { icon: IconDocumentValide, title: 'Gestion de dossiers', desc: 'Constituez vos demandes pas à pas : checklists, pièces jointes, jalons et collaborateurs.', num: '03' },
               { icon: IconMonument, title: 'Fiche monument', desc: 'Centralisez toutes les données de votre bien : protection, état, travaux prévus, photos.', num: '04' },
-              { icon: IconMonument, title: 'Base Mérimée', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '05' },
+              { icon: IconParchemin, title: 'Base Mérimée', desc: 'Les informations de votre monument pré-remplies avec les données officielles du Ministère de la Culture.', num: '05' },
               { icon: IconTendance, title: 'Tableaux de bord', desc: "Suivez l'avancement de vos dossiers, les échéances et le montant total de vos financements.", num: '06' },
             ] as const).map((f, i) => (
               <Reveal key={f.title} delay={i * 70}>
@@ -395,7 +396,7 @@ export function LandingPage() {
                 step: '02',
                 title: 'Lancez le diagnostic',
                 desc: "Notre moteur croise votre situation avec l'ensemble des aides nationales, régionales et privées. Résultat instantané.",
-                icon: IconAccompagnement,
+                icon: IconDiagnostic,
               },
               {
                 step: '03',

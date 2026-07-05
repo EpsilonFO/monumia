@@ -1,4 +1,4 @@
-import { IconLocalisation, IconProtection, IconAccompagnement, IconSubvention, IconEcheance, IconRafraichir } from '@/components/icons';
+import { IconLocalisation, IconProtection, IconAide, IconSubvention, IconEcheance, IconRafraichir } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { C, SERIF } from '@/lib/brand';
 import { formatCurrency } from '@/lib/format-utils';
@@ -83,7 +83,7 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRefaireQues
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <KpiTile
-          icon={<IconAccompagnement className="h-4 w-4" style={{ color: C.blue }} />}
+          icon={<IconAide className="h-4 w-4" style={{ color: C.blue }} />}
           label="Aides identifiées"
           value={String(stats.aidesIdentifiees)}
         />

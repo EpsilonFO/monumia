@@ -1,9 +1,9 @@
-import type { ComponentType } from 'react';
 import {
   IconProtection,
   IconSubvention,
   IconDossier,
   IconChantier,
+  type IconComponent,
 } from '@/components/icons';
 
 export type BlogCategorySlug =
@@ -20,8 +20,8 @@ export interface BlogCategory {
   description: string;
   /** Numéro de token de couleur `--cat-N` / `--cat-N-soft`. */
   tone: 1 | 2 | 3 | 4;
-  /** Icône Phosphor de la catégorie (banque @/components/icons). */
-  icon: ComponentType<{ className?: string }>;
+  /** Icône de la catégorie (banque @/components/icons). */
+  icon: IconComponent;
   /** Verbe d'action court du parcours (carte-parcours). */
   stepLabel: string;
 }

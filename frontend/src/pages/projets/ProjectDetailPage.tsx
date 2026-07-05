@@ -2,9 +2,9 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronDown, Loader2 } from 'lucide-react';
 import {
-  IconProtection, IconCalendrier, IconAttention, IconReglages, IconMonument, IconVoir, IconDiagnostic,
-  IconParchemin, IconDossierOuvert, IconModifier, IconSupprimer,
-  IconSucces, IconHelp, IconErreur, IconEquipe, IconAjouterDossier,
+  type IconComponent,
+  IconProtection, IconCalendrier, IconAttention, IconReglages, IconMonument, IconDiagnostic, IconModifier,
+  IconSupprimer, IconSucces, IconHelp, IconErreur, IconEquipe, IconAide, IconDossier, IconDocuments, IconDepot,
 } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
@@ -300,11 +300,11 @@ export function ProjectDetailPage() {
     );
 
   // Onglets du projet — chaque entrée = un grand bouton lisible (icône + libellé + compteur).
-  const projectTabs: { value: string; label: string; icon: typeof IconVoir; count: number | null }[] = [
-    ...(canAccessAides ? [{ value: 'aides', label: 'Aides', icon: IconDiagnostic, count: eligibles.length + potentiels.length }] : []),
-    { value: 'monument', label: 'Monument', icon: IconVoir, count: null },
-    { value: 'dossiers', label: 'Dossiers', icon: IconParchemin, count: dossiers.length },
-    { value: 'documents', label: 'Documents', icon: IconDossierOuvert, count: projectDocuments.length },
+  const projectTabs: { value: string; label: string; icon: IconComponent; count: number | null }[] = [
+    ...(canAccessAides ? [{ value: 'aides', label: 'Aides', icon: IconAide, count: eligibles.length + potentiels.length }] : []),
+    { value: 'monument', label: 'Monument', icon: IconMonument, count: null },
+    { value: 'dossiers', label: 'Dossiers', icon: IconDossier, count: dossiers.length },
+    { value: 'documents', label: 'Documents', icon: IconDocuments, count: projectDocuments.length },
     { value: 'equipe', label: 'Équipe', icon: IconEquipe, count: members.length },
   ];
 
@@ -519,12 +519,12 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <EmptyState
-              icon={IconParchemin}
+              icon={IconDossier}
               title="Aucun dossier pour ce projet"
               description="Ouvrez une aide depuis l'onglet « Aides » pour démarrer une candidature."
               action={
                 <button onClick={() => handleTabChange('aides')} className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
-                  <IconDiagnostic className="h-4 w-4" strokeWidth={1.8} />Voir les aides
+                  <IconAide className="h-4 w-4" strokeWidth={1.8} />Voir les aides
                 </button>
               }
             />
@@ -535,7 +535,7 @@ export function ProjectDetailPage() {
         <TabsContent value="documents" className="mt-4 space-y-4">
           <div className="flex justify-end">
             <button onClick={() => setAddDocOpen(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
-              <IconAjouterDossier className="h-3.5 w-3.5" strokeWidth={1.8} />Ajouter un document
+              <IconDepot className="h-3.5 w-3.5" strokeWidth={1.8} />Ajouter un document
             </button>
           </div>
           {projectDocuments.length > 0 ? (
@@ -558,7 +558,7 @@ export function ProjectDetailPage() {
               )}
             />
           ) : (
-            <EmptyState icon={IconDossierOuvert} title="Aucun document" description="Les documents rattachés à ce projet apparaîtront ici." />
+            <EmptyState icon={IconDocuments} title="Aucun document" description="Les documents rattachés à ce projet apparaîtront ici." />
           )}
         </TabsContent>
 

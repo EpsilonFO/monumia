@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ArrowLeft, Check, Loader2 } from 'lucide-react';
-import { IconAccompagnement } from '@/components/icons';
+import { IconSucces } from '@/components/icons';
 import { C, SERIF } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 import type { ProjectQuestionnaireAnswers, QcmOption, QcmQuestion } from '@/types';
@@ -161,7 +161,7 @@ export function ProjectQuestionnaire({
             style={{ background: C.paleOrange }}
             aria-hidden
           >
-            <IconAccompagnement className="h-7 w-7" style={{ color: C.orange }} />
+            <IconSucces className="h-7 w-7" style={{ color: C.orange }} />
           </span>
           <h2
             ref={finishRef}
@@ -169,7 +169,7 @@ export function ProjectQuestionnaire({
             className="text-[clamp(1.4rem,3vw,1.9rem)] leading-tight outline-none"
             style={{ fontFamily: SERIF, color: C.ink }}
           >
-            C&apos;est tout&nbsp;! 🎉
+            C&apos;est tout&nbsp;!
           </h2>
           <p className="max-w-sm text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
             {answered > 0

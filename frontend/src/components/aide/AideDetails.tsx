@@ -4,14 +4,14 @@ import { ChevronDown } from 'lucide-react';
 import {
   IconLienExterne,
   IconTemps,
-  IconMonument,
+  IconInstitution,
   IconDocument,
   IconSubvention,
   IconSucces,
   IconErreur,
   IconHelp,
   IconInfo,
-  IconAccompagnement,
+  IconEtapes,
   IconDiagnostic,
   IconEcheance,
   IconRegle,
@@ -334,7 +334,7 @@ function EssentialCard({ aide }: { aide: Aide }) {
       </div>
       <div className="h-[3px]" style={{ background: C.orange }} />
       <div>
-        <EssentialFact first icon={IconMonument} label="Qui verse l'aide" value={aide.organisme} />
+        <EssentialFact first icon={IconInstitution} label="Qui verse l'aide" value={aide.organisme} />
         {moneyLabel && (
           <EssentialFact
             icon={IconSubvention}
@@ -475,7 +475,7 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
           )}
 
           {aide.demarcheDescription && (
-            <SectionCard icon={IconAccompagnement} title="Les étapes de la demande">
+            <SectionCard icon={IconEtapes} title="Les étapes de la demande">
               <DemarcheSteps description={aide.demarcheDescription} />
             </SectionCard>
           )}
