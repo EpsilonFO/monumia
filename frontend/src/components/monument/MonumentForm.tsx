@@ -5,7 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import {
@@ -259,24 +260,36 @@ function Step4EtatActuel({ data, onChange }: StepProps) {
         </Select>
       </div>
       <div className="md:col-span-2">
-        <Label>Travaux envisagés</Label>
-        <div className="flex flex-wrap gap-2 mt-2">
+        <div className="flex items-baseline justify-between">
+          <Label>Travaux envisagés</Label>
+          {selectedTravaux.length > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {selectedTravaux.length} sélectionné{selectedTravaux.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {WORK_TYPES.map((w) => {
             const selected = selectedTravaux.includes(w.value as WorkType);
+            const toggle = () => {
+              const next = selected
+                ? selectedTravaux.filter((v) => v !== w.value)
+                : [...selectedTravaux, w.value as WorkType];
+              onChange({ travauxEnvisages: next });
+            };
             return (
-              <Badge
+              <label
                 key={w.value}
-                variant={selected ? 'default' : 'outline'}
-                className="cursor-pointer"
-                onClick={() => {
-                  const next = selected
-                    ? selectedTravaux.filter((v) => v !== w.value)
-                    : [...selectedTravaux, w.value as WorkType];
-                  onChange({ travauxEnvisages: next });
-                }}
+                className={cn(
+                  'flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors select-none',
+                  selected
+                    ? 'border-primary bg-primary/5 text-foreground'
+                    : 'border-input hover:border-primary/40 hover:bg-accent/50'
+                )}
               >
-                {w.label}
-              </Badge>
+                <Checkbox checked={selected} onCheckedChange={toggle} />
+                <span className="leading-tight">{w.label}</span>
+              </label>
             );
           })}
         </div>

@@ -17,9 +17,11 @@ PROTECTION_LABELS = {
 
 OWNERSHIP_LABELS = {
     "public_commune": "Commune",
+    "public_epci": "Intercommunalité (EPCI)",
     "public_departement": "Département",
     "public_region": "Région",
     "public_etat": "État",
+    "syndicat_mixte": "Syndicat mixte / Parc naturel régional",
     "prive_personne_physique": "Propriétaire privé (personne physique)",
     "prive_sci": "SCI",
     "association": "Association",

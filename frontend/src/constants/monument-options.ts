@@ -8,9 +8,11 @@ export const PROTECTION_LEVELS = [
 
 export const OWNERSHIP_TYPES = [
   { value: 'public_commune', label: 'Commune' },
+  { value: 'public_epci', label: 'Intercommunalité (EPCI)' },
   { value: 'public_departement', label: 'Département' },
   { value: 'public_region', label: 'Région' },
   { value: 'public_etat', label: 'État' },
+  { value: 'syndicat_mixte', label: 'Syndicat mixte / Parc naturel régional' },
   { value: 'prive_personne_physique', label: 'Propriétaire privé (personne physique)' },
   { value: 'prive_sci', label: 'SCI' },
   { value: 'association', label: 'Association' },

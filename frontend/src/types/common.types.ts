@@ -15,8 +15,8 @@ export type WorkType =
   | 'mise_en_securite' | 'restauration_generale' | 'etude_prealable'
   | 'facade' | 'couverture';
 
-export type OwnershipType = 'public_commune' | 'public_departement'
-  | 'public_region' | 'public_etat' | 'prive_personne_physique'
+export type OwnershipType = 'public_commune' | 'public_epci' | 'public_departement'
+  | 'public_region' | 'public_etat' | 'syndicat_mixte' | 'prive_personne_physique'
   | 'prive_sci' | 'association' | 'mixte';
 
 export type ID = string;
