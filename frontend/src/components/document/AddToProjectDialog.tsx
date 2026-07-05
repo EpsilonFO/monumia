@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
-import { IconMonument, IconRecherche } from '@/components/icons';
+import { IconProjet, IconRecherche } from '@/components/icons';
 import {
   Dialog,
   DialogContent,
@@ -88,7 +88,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
 
         {projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
-            <IconMonument className="h-8 w-8 text-muted-foreground opacity-50" />
+            <IconProjet className="h-8 w-8 text-muted-foreground opacity-50" />
             <p className="text-sm text-muted-foreground">Aucun autre projet disponible.</p>
             <p className="text-xs text-muted-foreground">
               Ce document est déjà rattaché à tous vos projets.
@@ -123,7 +123,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
                     style={{ background: isSelected ? C.paleBlue : undefined }}
                   >
                     <div className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center" style={{ background: C.paleBlue }}>
-                      <IconMonument className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />
+                      <IconProjet className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-medium truncate" style={{ color: C.ink }}>{m.nom}</p>

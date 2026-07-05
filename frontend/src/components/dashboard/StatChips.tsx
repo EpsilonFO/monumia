@@ -1,4 +1,4 @@
-import { IconMonument, IconDossier } from '@/components/icons';
+import { IconProjet, IconDossier } from '@/components/icons';
 import { C } from '@/lib/brand';
 import type { ComponentType } from 'react';
 import type { DashboardStats } from '@/lib/project-stats';
@@ -13,7 +13,7 @@ interface Chip {
 
 export function StatChips({ stats }: { stats: DashboardStats }) {
   const chips: Chip[] = [
-    { icon: IconMonument, value: String(stats.projetsActifs), label: 'Projets suivis', accent: C.blue, tint: C.paleBlue },
+    { icon: IconProjet, value: String(stats.projetsActifs), label: 'Projets suivis', accent: C.blue, tint: C.paleBlue },
     { icon: IconDossier, value: String(stats.dossiersEnCours), label: 'Dossiers en cours', accent: C.orange, tint: C.paleOrange },
   ];
 

@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { IconAttention, IconDiagnostic, IconInfo, IconNotification } from '@/components/icons';
+import { IconAttention, IconAide, IconInfo, IconNotification } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { formatRelative } from '@/lib/date-utils';
 import { ROUTES } from '@/constants/routes';
@@ -12,7 +12,7 @@ interface NotificationItemProps {
 
 const typeIcons = {
   urgent: IconAttention,
-  opportunite: IconDiagnostic,
+  opportunite: IconAide,
   info: IconInfo,
 };
 

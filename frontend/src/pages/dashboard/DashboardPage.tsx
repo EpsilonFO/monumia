@@ -1,7 +1,7 @@
 import { useMemo, useEffect } from 'react';
 import { Link } from 'react-router';
 import { ArrowUpRight } from 'lucide-react';
-import { IconDossierOuvert } from '@/components/icons';
+import { IconAjouter } from '@/components/icons';
 import { C } from '@/lib/brand';
 import { NextActionCard } from '@/components/dashboard/NextActionCard';
 import { StatChips } from '@/components/dashboard/StatChips';
@@ -167,7 +167,7 @@ export function DashboardPage() {
   const summaryLine =
     semaineCount > 0
       ? `Vous avez ${semaineCount} action${semaineCount > 1 ? 's' : ''} prioritaire${semaineCount > 1 ? 's' : ''} cette semaine.`
-      : 'Rien d’urgent cette semaine — vous êtes à jour. 🎉';
+      : 'Rien d’urgent cette semaine — vous êtes à jour.';
 
   if (!user) return null;
 
@@ -199,7 +199,7 @@ export function DashboardPage() {
             className="group inline-flex shrink-0 items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: C.orange }}
           >
-            <IconDossierOuvert className="h-4 w-4" />
+            <IconAjouter className="h-4 w-4" />
             {userMonuments.length === 0 ? 'Créer un projet' : 'Nouveau projet'}
             <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </Link>

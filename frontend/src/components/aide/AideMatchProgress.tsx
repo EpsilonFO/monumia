@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import {
-  IconAccompagnement,
   IconMonument,
   IconDiagnostic,
   IconCitation,
@@ -191,7 +190,7 @@ export function AideMatchProgress({ monumentName }: AideMatchProgressProps) {
       <CardContent className="py-10 px-6 sm:px-10 space-y-9">
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-accent font-medium">
-            <IconAccompagnement className="h-3 w-3" />
+            <IconDiagnostic className="h-3 w-3" />
             Diagnostic en cours
           </div>
           <h2 className="font-serif text-3xl sm:text-4xl leading-[1.1] text-foreground">

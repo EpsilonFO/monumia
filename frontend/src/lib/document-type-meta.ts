@@ -1,14 +1,14 @@
 import {
   IconDevis, IconImage, IconArchive, IconParchemin, IconRegle, IconDiagnostic,
-  IconModifier, IconDocument, IconDocumentValide, IconListe,
+  IconPlan, IconCadastre, IconCourrier, IconDocument, IconDocumentValide,
   type IconComponent,
 } from '@/components/icons';
 import type { DocumentType } from '@/types';
 
 const ICONS: Record<string, IconComponent> = {
-  photo: IconImage, plan: IconDevis, devis: IconListe, facture: IconDevis,
-  attestation: IconDocumentValide, extrait_cadastral: IconDevis, cerfa: IconDocumentValide,
-  arrete: IconRegle, diagnostic: IconDiagnostic, rapport: IconParchemin, correspondance: IconModifier, autre: IconArchive,
+  photo: IconImage, plan: IconPlan, devis: IconDevis, facture: IconDevis,
+  attestation: IconDocumentValide, extrait_cadastral: IconCadastre, cerfa: IconDocumentValide,
+  arrete: IconRegle, diagnostic: IconDiagnostic, rapport: IconParchemin, correspondance: IconCourrier, autre: IconArchive,
 };
 
 const LABELS: Record<string, string> = {
