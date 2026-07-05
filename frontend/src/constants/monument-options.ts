@@ -47,8 +47,12 @@ export const WORK_TYPES = [
   { value: 'chauffage', label: 'Chauffage' },
   { value: 'accessibilite', label: 'Accessibilité' },
   { value: 'mise_en_securite', label: 'Mise en sécurité' },
-  { value: 'restauration_generale', label: 'Restauration générale' },
   { value: 'etude_prealable', label: 'Étude préalable' },
+  { value: 'mobilier', label: 'Mobilier' },
+  { value: 'orgues', label: 'Orgues' },
+  { value: 'parcs_jardins', label: 'Parcs et jardins' },
+  { value: 'protection_solaire', label: 'Protection solaire' },
+  { value: 'ventilation', label: 'Ventilation' },
 ] as const;
 
 export const MATERIAUX = [

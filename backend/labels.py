@@ -42,7 +42,6 @@ TRAVAUX_LABELS = {
     "chauffage": "Chauffage",
     "accessibilite": "Accessibilité",
     "mise_en_securite": "Mise en sécurité",
-    "restauration_generale": "Restauration générale",
     "etude_prealable": "Étude préalable",
     "mobilier": "Mobilier",
     "orgues": "Orgues",
