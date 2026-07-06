@@ -67,6 +67,9 @@ type IconType = ComponentType<{ className?: string; strokeWidth?: number; style?
 function SectionCard({ icon: Icon, title, tint = 'plain', children }: {
   icon: IconType;
   title: ReactNode;
+  /** `success` = cadre vert signature du diagnostic. Le contenu coloré (pastilles,
+   *  critères orange/rouge) doit alors vivre sur des surfaces blanches internes,
+   *  jamais à même le vert (clash de teintes). */
   tint?: 'plain' | 'success';
   children: ReactNode;
 }) {
@@ -83,7 +86,9 @@ function SectionCard({ icon: Icon, title, tint = 'plain', children }: {
       <h3 className="mb-3.5 flex items-center gap-2.5 text-[17px]" style={{ fontFamily: SERIF, color: C.ink }}>
         <span
           className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-          style={success ? { background: 'var(--success)', color: 'var(--success-foreground)' } : { background: 'var(--secondary)', color: 'var(--primary)' }}
+          style={success
+            ? { background: 'var(--success)', color: 'var(--success-foreground)' }
+            : { background: 'var(--secondary)', color: 'var(--primary)' }}
         >
           <Icon className="h-[16px] w-[16px]" strokeWidth={2} />
         </span>
@@ -170,7 +175,7 @@ function EligibilitySummary({ matchResult }: { matchResult: AideMatchResult }) {
 function EvalLine({ critere, explication, tone }: { critere: string; explication?: string; tone: EvalTone }) {
   const Icon = tone === 'green' ? IconSucces : tone === 'red' ? IconErreur : tone === 'amber' ? IconHelp : IconInfo;
   const iconClass = tone === 'green' ? 'text-success' : tone === 'red' ? 'text-destructive' : tone === 'amber' ? 'text-warning' : 'text-muted-foreground';
-  const textClass = tone === 'red' ? 'text-destructive' : tone === 'amber' ? 'text-warning' : tone === 'muted' ? 'text-muted-foreground' : '';
+  const textClass = tone === 'red' ? 'text-destructive' : tone === 'muted' ? 'text-muted-foreground' : '';
   return (
     <div className="space-y-0.5">
       <div className="flex items-start gap-2 text-sm">
@@ -182,14 +187,44 @@ function EvalLine({ critere, explication, tone }: { critere: string; explication
   );
 }
 
-function EvalGroup({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
+const GROUP_TONES: Record<EvalTone, { bg: string; fg: string }> = {
+  green: { bg: 'var(--success-muted)', fg: 'var(--success)' },
+  amber: { bg: 'var(--warning-muted)', fg: 'var(--warning)' },
+  red:   { bg: 'var(--destructive-muted)', fg: 'var(--destructive)' },
+  muted: { bg: 'var(--muted)', fg: 'var(--muted-foreground)' },
+};
+
+/**
+ * Groupe de critères repliable : une rangée blanche qui annonce l'essentiel
+ * (nature du groupe + compte) et ne déplie le détail qu'à la demande. Les
+ * groupes qui demandent une action au propriétaire s'ouvrent d'eux-mêmes ;
+ * le fond blanc garantit la lisibilité des tons orange/rouge dans le cadre vert.
+ */
+function EvalGroup({ icon: Icon, tone, title, count, defaultOpen = false, children }: {
+  icon: IconType;
+  tone: EvalTone;
+  title: string;
+  count: number;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const t = GROUP_TONES[tone];
   return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}{count != null ? ` (${count})` : ''}
-      </p>
-      {children}
-    </div>
+    <Collapsible defaultOpen={defaultOpen} className="rounded-xl border bg-card" style={{ borderColor: C.border }}>
+      <CollapsibleTrigger className="group flex w-full items-center gap-3 px-4 py-3 text-left">
+        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: t.bg, color: t.fg }}>
+          <Icon className="h-4 w-4" strokeWidth={2} />
+        </span>
+        <span className="flex-1 text-[14px] font-semibold leading-snug" style={{ color: C.ink }}>{title}</span>
+        <span className="rounded-full px-2.5 py-0.5 text-[12px] font-bold tabular-nums" style={{ background: t.bg, color: t.fg }}>
+          {count}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="space-y-2 pb-3.5 pl-14 pr-4">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -204,14 +239,17 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
 
   if (!hasNature) {
     return (
-      <div className="space-y-2">
-        {matchResult.criteresRemplis.map((c, i) => <EvalLine key={`ok-${i}`} critere={c} tone="green" />)}
-        {eliminatoires.map((c, i) => <EvalLine key={`ko-${i}`} critere={c} tone="red" />)}
-        {evals.map((e, i) => {
-          const clarified = e.verdict === 'incertitude' && e.clarified;
-          const tone: EvalTone = e.verdict === 'oui' || clarified ? 'green' : e.verdict === 'non' ? 'red' : e.verdict === 'info' ? 'muted' : 'amber';
-          return <EvalLine key={`ev-${i}`} critere={e.critere} explication={e.explication} tone={tone} />;
-        })}
+      <div className="space-y-3 rounded-xl border bg-card p-4" style={{ borderColor: C.border }}>
+        <EligibilitySummary matchResult={matchResult} />
+        <div className="space-y-2">
+          {matchResult.criteresRemplis.map((c, i) => <EvalLine key={`ok-${i}`} critere={c} tone="green" />)}
+          {eliminatoires.map((c, i) => <EvalLine key={`ko-${i}`} critere={c} tone="red" />)}
+          {evals.map((e, i) => {
+            const clarified = e.verdict === 'incertitude' && e.clarified;
+            const tone: EvalTone = e.verdict === 'oui' || clarified ? 'green' : e.verdict === 'non' ? 'red' : e.verdict === 'info' ? 'muted' : 'amber';
+            return <EvalLine key={`ev-${i}`} critere={e.critere} explication={e.explication} tone={tone} />;
+          })}
+        </div>
       </div>
     );
   }
@@ -224,43 +262,38 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
   const infos = evals.filter((e) => e.nature === 'info' || e.nature === 'modulateur');
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {eliminatoires.length > 0 && (
-        <EvalGroup title="Ce qui ne correspond pas">
+        <EvalGroup icon={IconErreur} tone="red" title="Ce qui ne correspond pas" count={eliminatoires.length} defaultOpen>
           {eliminatoires.map((c, i) => <EvalLine key={i} critere={c} tone="red" />)}
         </EvalGroup>
       )}
       {aVerifier.length > 0 && (
-        <EvalGroup title="À vérifier de votre côté" count={aVerifier.length}>
+        <EvalGroup icon={IconHelp} tone="amber" title="À vérifier de votre côté" count={aVerifier.length} defaultOpen>
           {aVerifier.map((e, i) => <EvalLine key={i} critere={e.critere} tone="amber" />)}
         </EvalGroup>
       )}
       {financeur.length > 0 && (
-        <EvalGroup title="À confirmer avec l'organisme" count={financeur.length}>
+        <EvalGroup icon={IconContact} tone="muted" title="À confirmer avec l'organisme" count={financeur.length}>
           {financeur.map((e, i) => (
             <EvalLine key={i} critere={e.critere} explication={e.explication} tone={e.verdict === 'incertitude' ? 'amber' : 'muted'} />
           ))}
         </EvalGroup>
       )}
       {valides.length > 0 && (
-        <EvalGroup title="Déjà validé grâce à vos réponses" count={valides.length}>
+        <EvalGroup icon={IconSucces} tone="green" title="Déjà validé grâce à vos réponses" count={valides.length}>
           {valides.map((e, i) => <EvalLine key={i} critere={e.critere} tone="green" />)}
         </EvalGroup>
       )}
       {autos.length > 0 && (
-        <EvalGroup title="Vérifié automatiquement" count={autos.length}>
+        <EvalGroup icon={IconSucces} tone="green" title="Vérifié automatiquement" count={autos.length}>
           {autos.map((e, i) => <EvalLine key={i} critere={e.critere} tone="green" />)}
         </EvalGroup>
       )}
       {infos.length > 0 && (
-        <details className="group">
-          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Bon à savoir ({infos.length})
-          </summary>
-          <div className="mt-1.5 space-y-1.5">
-            {infos.map((e, i) => <EvalLine key={i} critere={e.critere} tone="muted" />)}
-          </div>
-        </details>
+        <EvalGroup icon={IconInfo} tone="muted" title="Bon à savoir" count={infos.length}>
+          {infos.map((e, i) => <EvalLine key={i} critere={e.critere} tone="muted" />)}
+        </EvalGroup>
       )}
     </div>
   );
@@ -467,10 +500,7 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
                 </span>
               )}
             >
-              <div className="space-y-4">
-                <EligibilitySummary matchResult={matchResult} />
-                <EligibilityAnalysis matchResult={matchResult} />
-              </div>
+              <EligibilityAnalysis matchResult={matchResult} />
             </SectionCard>
           )}
 

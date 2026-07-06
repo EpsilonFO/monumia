@@ -5,7 +5,7 @@ import { IconAjouter } from '@/components/icons';
 import { C } from '@/lib/brand';
 import { NextActionCard } from '@/components/dashboard/NextActionCard';
 import { StatChips } from '@/components/dashboard/StatChips';
-import { AgendaPanel } from '@/components/dashboard/AgendaPanel';
+import { buildUpcomingRows } from '@/components/dashboard/echeances-alertes-utils';
 import { ProjectsInProgress } from '@/components/dashboard/ProjectsInProgress';
 import { useSuiviStore } from '@/stores/useSuiviStore';
 import { projectStage } from '@/lib/project-stats';
@@ -133,6 +133,13 @@ export function DashboardPage() {
     return future.filter((d) => d.date === soonest);
   }, [allDeadlines]);
 
+  // Section « Ensuite » de la carte agenda unifiée : le reste du flux
+  // (échéances suivantes, monuments en péril, notifications non lues).
+  const upcomingRows = useMemo(
+    () => buildUpcomingRows(allDeadlines, nextDeadlines, userMonuments, userNotifications),
+    [allDeadlines, nextDeadlines, userMonuments, userNotifications],
+  );
+
   const statsByMonument = useMemo<Record<string, ProjectStats>>(() => {
     const out: Record<string, ProjectStats> = {};
     for (const m of displayMonuments) {
@@ -195,7 +202,7 @@ export function DashboardPage() {
             </p>
           </div>
           <Link
-            to={userMonuments.length === 0 ? ROUTES.PROJET_NEW : ROUTES.PROJETS}
+            to={ROUTES.PROJET_NEW}
             className="group inline-flex shrink-0 items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: C.orange }}
           >
@@ -206,8 +213,8 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* ─── À FAIRE MAINTENANT ─── */}
-      <NextActionCard deadlines={nextDeadlines} />
+      {/* ─── À FAIRE MAINTENANT (carte agenda unifiée) ─── */}
+      <NextActionCard deadlines={nextDeadlines} upcoming={upcomingRows} />
 
       {/* ─── KPI ─── */}
       <StatChips stats={dashboardStats} />
@@ -218,11 +225,6 @@ export function DashboardPage() {
         <ProjectsInProgress monuments={displayMonuments} statsByMonument={statsByMonument} stageByMonument={stageByMonument} />
       </section>
 
-      {/* ─── VOTRE AGENDA ─── */}
-      <section>
-        <SectionHeading eyebrow="Ne rien laisser passer" title="Votre agenda" />
-        <AgendaPanel deadlines={allDeadlines} monuments={userMonuments} notifications={userNotifications} />
-      </section>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildFeedRows, groupFeedByHorizon } from '../echeances-alertes-utils';
+import { buildFeedRows, buildUpcomingRows } from '../echeances-alertes-utils';
 import { ROUTES } from '@/constants/routes';
 import type { Monument } from '@/types';
 import type { Notification } from '@/types';
@@ -224,32 +224,45 @@ describe('buildFeedRows — no display cap', () => {
   });
 });
 
-describe('groupFeedByHorizon', () => {
-  it('répartit les échéances par horizon, péril en « cette semaine », notifs en « à noter »', () => {
-    const rows = buildFeedRows(
-      [
-        makeDeadline({ id: 'past', joursRestants: -3, source: 'dossier', dossierId: 'x', monumentId: 'm' }),
-        makeDeadline({ id: 'soon', joursRestants: 4 }),
-        makeDeadline({ id: 'month', joursRestants: 20 }),
-        makeDeadline({ id: 'later', joursRestants: 200 }),
-      ],
-      [makeMonument({ id: 'mp', etatConservation: 'peril' })],
-      [makeNotification({ id: 'n1' })]
-    );
-    const groups = groupFeedByHorizon(rows);
-    const byKey = Object.fromEntries(groups.map((g) => [g.key, g.rows.map((r) => r.id)]));
+describe('buildUpcomingRows — section « Ensuite » de la carte agenda unifiée', () => {
+  it('exclut les échéances déjà affichées dans le bloc principal', () => {
+    const all = [
+      makeDeadline({ id: 'a', joursRestants: 3 }),
+      makeDeadline({ id: 'b', joursRestants: 3 }),
+      makeDeadline({ id: 'c', joursRestants: 15 }),
+    ];
+    const shown = [all[0], all[1]]; // les deux tombent le même jour → toutes deux en haut
 
-    expect(byKey['retard']).toContain('deadline-past');
-    expect(byKey['semaine']).toEqual(expect.arrayContaining(['peril-mp', 'deadline-soon']));
-    expect(byKey['mois']).toContain('deadline-month');
-    expect(byKey['plus_tard']).toContain('deadline-later');
-    expect(byKey['alertes']).toContain('notif-n1');
-    // ordre des groupes
-    expect(groups.map((g) => g.key)).toEqual(['retard', 'semaine', 'mois', 'plus_tard', 'alertes']);
+    const rows = buildUpcomingRows(all, shown, [], []);
+
+    expect(rows.map((r) => r.id)).toEqual(['deadline-c']);
   });
 
-  it('exclut les groupes vides', () => {
-    const groups = groupFeedByHorizon(buildFeedRows([makeDeadline({ id: 'a', joursRestants: 3 })], [], []));
-    expect(groups.map((g) => g.key)).toEqual(['semaine']);
+  it('conserve les monuments en péril et les notifications non lues', () => {
+    const all = [makeDeadline({ id: 'a', joursRestants: 3 })];
+    const rows = buildUpcomingRows(
+      all,
+      all,
+      [makeMonument({ id: 'mp', etatConservation: 'peril' })],
+      [makeNotification({ id: 'n1' }), makeNotification({ id: 'n2', lue: true })]
+    );
+
+    expect(rows.map((r) => r.id)).toEqual(['peril-mp', 'notif-n1']);
+  });
+
+  it('trie par urgence puis par proximité, comme le flux agenda', () => {
+    const all = [
+      makeDeadline({ id: 'loin', joursRestants: 200 }),
+      makeDeadline({ id: 'proche', joursRestants: 5 }),
+    ];
+
+    const rows = buildUpcomingRows(all, [], [], []);
+
+    expect(rows.map((r) => r.id)).toEqual(['deadline-proche', 'deadline-loin']);
+  });
+
+  it('retourne un tableau vide sans échéance restante ni alerte', () => {
+    const all = [makeDeadline({ id: 'a', joursRestants: 3 })];
+    expect(buildUpcomingRows(all, all, [], [])).toEqual([]);
   });
 });

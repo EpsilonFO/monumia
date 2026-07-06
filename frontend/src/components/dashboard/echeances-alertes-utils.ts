@@ -109,42 +109,21 @@ export function buildFeedRows(
   return rows.sort((a, b) => a.rank - b.rank || a.sortKey - b.sortKey);
 }
 
-export type HorizonKey = 'retard' | 'semaine' | 'mois' | 'plus_tard' | 'alertes';
-
-export interface FeedGroup {
-  key: HorizonKey;
-  title: string;
-  rows: FeedRow[];
-}
-
-const HORIZON_ORDER: { key: HorizonKey; title: string }[] = [
-  { key: 'retard', title: 'En retard' },
-  { key: 'semaine', title: 'Cette semaine' },
-  { key: 'mois', title: 'Ce mois-ci' },
-  { key: 'plus_tard', title: 'Plus tard' },
-  { key: 'alertes', title: 'À noter' },
-];
-
-function horizonOf(row: FeedRow): HorizonKey {
-  if (row.category === 'peril') return 'semaine';
-  if (row.category === 'notif') return 'alertes';
-  const d = row.days ?? 0;
-  if (d < 0) return 'retard';
-  if (d <= 7) return 'semaine';
-  if (d <= 31) return 'mois';
-  return 'plus_tard';
-}
-
-/** Regroupe le flux (sorti de buildFeedRows, déjà trié) par horizon temporel. Pur. */
-export function groupFeedByHorizon(rows: FeedRow[]): FeedGroup[] {
-  const buckets = new Map<HorizonKey, FeedRow[]>();
-  for (const row of rows) {
-    const key = horizonOf(row);
-    const arr = buckets.get(key) ?? [];
-    arr.push(row);
-    buckets.set(key, arr);
-  }
-  return HORIZON_ORDER.map(({ key, title }) => ({ key, title, rows: buckets.get(key) ?? [] })).filter(
-    (g) => g.rows.length > 0
+/**
+ * Flux agenda pour la section « Ensuite » de la carte unifiée : le flux complet
+ * (échéances + périls + notifications) moins les échéances déjà affichées dans
+ * le bloc principal de la carte. Pur — exporté pour les tests unitaires.
+ */
+export function buildUpcomingRows(
+  deadlines: ProjectDeadline[],
+  shownDeadlines: ProjectDeadline[],
+  monuments: Monument[],
+  notifications: Notification[]
+): FeedRow[] {
+  const shownIds = new Set(shownDeadlines.map((d) => d.id));
+  return buildFeedRows(
+    deadlines.filter((d) => !shownIds.has(d.id)),
+    monuments,
+    notifications
   );
 }

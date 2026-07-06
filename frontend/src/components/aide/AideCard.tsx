@@ -193,8 +193,8 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
     </CardTitle>
   );
 
-  const description = (
-    <p className={`text-sm text-muted-foreground line-clamp-2 ${locked ? 'blur-sm select-none pointer-events-none' : ''}`}>
+  const description = (className = '') => (
+    <p className={`text-sm text-muted-foreground line-clamp-2 ${className} ${locked ? 'blur-sm select-none pointer-events-none' : ''}`}>
       {aide.description}
     </p>
   );
@@ -268,6 +268,17 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
       : deadline.urgency === 'warning'
         ? { bg: C.paleOrange, fg: C.orange }
         : { bg: C.paleBlue, fg: C.blue };
+  // Valeur courte pour l'encadré : le libellé « Échéance » porte déjà le sens,
+  // la date seule suffit (« Avant le … » ferait passer la valeur sur 2 lignes).
+  const deadlineFactValue = !deadline
+    ? aide.permanent
+      ? "Toute l'année"
+      : 'Sur demande'
+    : deadline.urgency === 'past'
+      ? 'Dépassée'
+      : deadline.urgency === 'urgent'
+        ? deadline.text
+        : formatDateShort(aide.dateLimite ?? '');
   const facts: { icon: typeof IconSubvention; accent: string; label: string; value: string; valueColor?: string }[] = [];
   if (aide.montantMax != null) facts.push({ icon: IconSubvention, accent: C.orange, label: 'Montant max', value: formatCurrency(aide.montantMax) });
   if (aide.tauxMax != null) facts.push({ icon: IconTendance, accent: C.blue, label: 'des travaux', value: `${aide.tauxMax} %` });
@@ -275,7 +286,7 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
     icon: deadline ? DeadlineIcon : IconCalendrier,
     accent: dTone.fg,
     label: 'Échéance',
-    value: deadline ? deadline.text : aide.permanent ? "Toute l'année" : 'Sur demande',
+    value: deadlineFactValue,
     valueColor: deadline ? dTone.fg : undefined,
   });
 
@@ -329,10 +340,10 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
                   </h3>
                   {statusPill}
                 </div>
-                <p className="mt-0.5 text-[12.5px] text-muted-foreground">{categoryConfig?.label ?? aide.categorie}</p>
+                <p className="mt-1 text-[11px] font-bold uppercase tracking-wider" style={{ color: C.blue }}>{categoryConfig?.label ?? aide.categorie}</p>
               </div>
             </div>
-            {description}
+            {description()}
             {criteriaSummary}
           </div>
           <div className="flex shrink-0 flex-col gap-4 lg:w-72">
@@ -364,23 +375,26 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
   if (layout === 'grid') {
     return (
       <Card className={`${cardBase} h-full gap-0 py-0`} onClick={handleCardClick}>
-        <div className="flex h-full flex-col gap-4 p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: C.paleBlue }}>
-              <CategoryIcon className="h-[22px] w-[22px]" style={{ color: C.blue }} strokeWidth={1.7} />
+        <div className="flex h-full flex-col gap-3 p-5">
+          {/* Rang d'identité à hauteur fixe : icône + catégorie mise en avant,
+              statut à droite — le titre passe en dessous, en pleine largeur. */}
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: C.paleBlue }}>
+              <CategoryIcon className="h-[18px] w-[18px]" style={{ color: C.blue }} strokeWidth={1.7} />
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="text-[17px] leading-snug" style={{ fontFamily: SERIF, color: C.blue }}>
-                  <span className={locked ? 'blur-sm select-none pointer-events-none' : undefined}>{aide.nomCourt}</span>
-                </h3>
-                {statusPill}
-              </div>
-              <p className="mt-0.5 text-[12px] text-muted-foreground">{categoryConfig?.label ?? aide.categorie}</p>
-            </div>
+            <span className="min-w-0 truncate text-[11px] font-bold uppercase tracking-wider" style={{ color: C.blue }}>
+              {categoryConfig?.label ?? aide.categorie}
+            </span>
+            <span className="ml-auto shrink-0">{statusPill}</span>
           </div>
 
-          {description}
+          {/* Hauteur réservée sur 2 lignes pour que les cartes d'une même
+              rangée gardent leurs sections alignées quel que soit le nom. */}
+          <h3 className="line-clamp-2 min-h-[2lh] text-[17px] leading-snug" style={{ fontFamily: SERIF, color: C.blue }}>
+            <span className={locked ? 'blur-sm select-none pointer-events-none' : undefined}>{aide.nomCourt}</span>
+          </h3>
+
+          {description('min-h-[2lh]')}
 
           <div
             className="grid gap-3 rounded-xl px-3 py-3"
@@ -390,8 +404,10 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
               const Icon = f.icon;
               return (
                 <div key={i} className="flex min-w-0 flex-col items-center gap-1 text-center">
-                  <Icon className="h-5 w-5" style={{ color: f.accent }} strokeWidth={1.8} />
-                  <span className="text-[14px] font-bold leading-tight" style={{ color: f.valueColor ?? C.ink }}>{f.value}</span>
+                  <Icon className="h-5 w-5 shrink-0" style={{ color: f.accent }} strokeWidth={1.8} />
+                  {/* Zone de valeur à hauteur fixe (2 lignes) : un encadré dont une
+                      valeur se replie ne grandit plus par rapport à ses voisins. */}
+                  <span className="flex min-h-[2lh] items-center text-[14px] font-bold leading-tight" style={{ color: f.valueColor ?? C.ink }}>{f.value}</span>
                   <span className="text-[10.5px] leading-tight text-muted-foreground">{f.label}</span>
                 </div>
               );
@@ -420,7 +436,7 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {description}
+        {description()}
         {deadlinePill}
         {amountsInline}
         {criteria}
