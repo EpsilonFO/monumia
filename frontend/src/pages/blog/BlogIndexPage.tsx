@@ -1,13 +1,17 @@
 import { Link } from 'react-router';
 
 import { ArticleCard } from '@/components/blog/ArticleCard';
+import { BandMotif } from '@/components/blog/BandMotif';
+import { BlogParcoursNav } from '@/components/blog/BlogParcoursNav';
 import { BlogSectionHeading } from '@/components/blog/BlogSectionHeading';
 import { CategoryBadge } from '@/components/blog/CategoryBadge';
+import { MonumiaCta } from '@/components/blog/MonumiaCta';
 import type { BlogArticle } from '@/content/blog/articles';
 import { getAllArticles, getArticlesByCategory } from '@/content/blog/articles';
 import { BLOG_CATEGORIES, categoryTone, getCategory } from '@/content/blog/categories';
 import { C } from '@/lib/brand';
-import { IconTemps } from '@/components/icons';
+import { IconSubvention, IconTemps } from '@/components/icons';
+import { Clover } from '@/components/illustrations';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
 
 function pubTime(a: BlogArticle): number {
@@ -27,7 +31,7 @@ export function BlogIndexPage() {
   const essentiels = byRecent.filter((a) => a.slug !== featured?.slug).slice(0, 4);
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-10">
       {/* ─── EN-TÊTE (sobre, à la manière du tableau de bord) ─── */}
       <header>
         <span
@@ -49,78 +53,55 @@ export function BlogIndexPage() {
         </p>
       </header>
 
+      {/* ─── FRISE DU PARCOURS (nav par thème, dans l'ordre du projet) ─── */}
+      <BlogParcoursNav />
+
       {/* ─── ARTICLE À LA UNE ─── */}
       {featured && <FeaturedArticle article={featured} />}
 
-      {/* ─── CORPS ÉDITORIAL : rail gauche · articles · rail droit ─── */}
-      <div className="grid grid-cols-1 gap-x-10 gap-y-12 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_16rem]">
-        {/* Rail gauche : sommaire des thèmes (ancres) */}
-        <aside className="hidden lg:block">
-          <div className="sticky top-24 space-y-6">
-            <nav aria-label="Thèmes du blog">
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.blue, opacity: 0.7 }}>
-                Explorer par thème
-              </p>
-              <ul className="space-y-2">
-                {BLOG_CATEGORIES.map((category) => {
-                  const tone = categoryTone(category);
-                  const Icon = category.icon;
-                  const count = getArticlesByCategory(category.slug).length;
-                  if (count === 0) return null;
-                  return (
-                    <li key={category.slug}>
-                      <Link
-                        to={`/blog/categorie/${category.slug}`}
-                        className="group flex items-center gap-3 rounded-xl border p-2.5 transition-all duration-300 hover:-translate-y-0.5"
-                        style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
-                      >
-                        <span
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                          style={{ background: tone.soft, color: tone.fg }}
-                        >
-                          <Icon className="h-5 w-5" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block whitespace-nowrap text-[13px] font-medium leading-tight" style={{ color: C.ink }}>
-                            {category.stepLabel}
-                          </span>
-                          <span className="block text-[11px]" style={{ color: C.grayMuted }}>
-                            {count} article{count > 1 ? 's' : ''}
-                          </span>
-                        </span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </nav>
-          </div>
-        </aside>
-
-        {/* Colonne centrale : sections par thème (tous les liens dans le DOM → SEO) */}
+      {/* ─── CORPS : sections 2 colonnes · rail droit d'infos ─── */}
+      <div className="grid grid-cols-1 gap-x-10 gap-y-12 lg:grid-cols-[minmax(0,1fr)_16rem]">
+        {/* Sections par thème (tous les liens dans le DOM → SEO) */}
         <div className="min-w-0 space-y-12">
-          {BLOG_CATEGORIES.map((category) => {
+          {BLOG_CATEGORIES.map((category, i) => {
             const items = getArticlesByCategory(category.slug).filter((a) => a.slug !== featured?.slug);
             if (items.length === 0) return null;
+            const tone = categoryTone(category);
+            const Icon = category.icon;
             return (
-              <section key={category.slug} id={`cat-${category.slug}`} className="scroll-mt-24">
-                <BlogSectionHeading
-                  eyebrow={category.stepLabel}
-                  title={category.label}
-                  action={
-                    <Link
-                      to={`/blog/categorie/${category.slug}`}
-                      className="shrink-0 text-[13px] font-semibold hover:underline"
-                      style={{ color: C.orange }}
-                    >
-                      Tout voir →
-                    </Link>
-                  }
+              // Chapitre coloré : panneau teinté du thème, icône fantôme, numéro d'étape.
+              <section
+                key={category.slug}
+                id={`cat-${category.slug}`}
+                className="relative overflow-hidden rounded-3xl p-5 scroll-mt-24 sm:p-7"
+                style={{ background: tone.soft }}
+              >
+                <Icon
+                  aria-hidden
+                  className="absolute -bottom-9 -right-8 h-44 w-44 -rotate-6"
+                  style={{ color: tone.fg, opacity: 0.06 }}
                 />
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {items.map((a) => (
-                    <ArticleCard key={a.slug} article={a} />
-                  ))}
+                <div className="relative">
+                  <BlogSectionHeading
+                    eyebrow={category.stepLabel}
+                    title={category.label}
+                    numeral={`0${i + 1}`}
+                    accent={tone.fg}
+                    action={
+                      <Link
+                        to={`/blog/categorie/${category.slug}`}
+                        className="shrink-0 text-[13px] font-semibold hover:underline"
+                        style={{ color: C.orange }}
+                      >
+                        Tout voir →
+                      </Link>
+                    }
+                  />
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    {items.map((a) => (
+                      <ArticleCard key={a.slug} article={a} />
+                    ))}
+                  </div>
                 </div>
               </section>
             );
@@ -134,73 +115,82 @@ export function BlogIndexPage() {
         </div>
 
         {/* Rail droit : sélection + repère chiffré + accès Monumia */}
-        <aside className="hidden xl:block">
+        <aside className="hidden lg:block">
           <div className="sticky top-24 space-y-6">
             {essentiels.length > 0 && (
               <section
-                className="rounded-2xl border p-5"
+                className="relative overflow-hidden rounded-2xl border p-5"
                 style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
               >
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.blue, opacity: 0.7 }}>
+                <p
+                  className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em]"
+                  style={{ color: C.blue }}
+                >
+                  <span aria-hidden style={{ width: 18, height: 2, borderRadius: 2, background: C.orange }} />
                   À lire en priorité
                 </p>
-                <ul className="space-y-3.5">
-                  {essentiels.map((a) => {
+                <ol className="mt-3.5 space-y-3.5">
+                  {essentiels.map((a, i) => {
                     const cat = getCategory(a.categorySlug);
                     const tone = cat ? categoryTone(cat) : null;
                     return (
                       <li key={a.slug}>
-                        <Link to={`/blog/article/${a.slug}`} className="group flex gap-2.5">
-                          {tone && <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: tone.fg }} />}
+                        <Link to={`/blog/article/${a.slug}`} className="group flex items-start gap-3">
                           <span
-                            className="text-[13.5px] font-medium leading-snug group-hover:underline"
-                            style={{ fontFamily: 'var(--font-serif)', color: C.ink }}
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[15px] font-bold"
+                            style={{
+                              fontFamily: 'var(--font-serif)',
+                              background: tone?.soft ?? C.paleBlue,
+                              color: tone?.fg ?? C.blue,
+                            }}
+                            aria-hidden
                           >
-                            {a.title}
+                            {i + 1}
+                          </span>
+                          <span className="min-w-0">
+                            <span
+                              className="block text-[13.5px] font-medium leading-snug group-hover:underline"
+                              style={{ fontFamily: 'var(--font-serif)', color: C.ink }}
+                            >
+                              {a.title}
+                            </span>
+                            <span className="mt-0.5 block text-[11px]" style={{ color: C.grayMuted }}>
+                              {cat?.shortLabel}
+                              {a.readingTimeMin ? ` · ${a.readingTimeMin} min` : ''}
+                            </span>
                           </span>
                         </Link>
                       </li>
                     );
                   })}
-                </ul>
+                </ol>
               </section>
             )}
 
             {/* Repère chiffré (rappel de la promesse produit) */}
             <section
-              className="rounded-2xl border p-5"
+              className="relative overflow-hidden rounded-2xl border p-5"
               style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
             >
-              <p className="text-[26px] font-bold leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: C.orange }}>
-                150+
-              </p>
-              <p className="mt-1.5 text-[12.5px] leading-relaxed" style={{ color: C.grayFg }}>
+              <div className="flex items-center gap-3">
+                <span
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: C.paleOrange, color: C.orange }}
+                >
+                  <IconSubvention className="h-5 w-5" />
+                </span>
+                <p className="text-[26px] font-bold leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: C.orange }}>
+                  150+
+                </p>
+              </div>
+              <p className="mt-2.5 text-[12.5px] leading-relaxed" style={{ color: C.grayFg }}>
                 aides au patrimoine référencées — nos articles vous aident à comprendre
                 lesquelles vous concernent.
               </p>
             </section>
 
-            {/* Accès Monumia */}
-            <section
-              className="rounded-2xl border p-5"
-              style={{ background: C.paleBlue, borderColor: C.border }}
-            >
-              <p className="text-[15px] font-semibold leading-snug" style={{ fontFamily: 'var(--font-serif)', color: C.blue }}>
-                Un projet sur un bien protégé&nbsp;?
-              </p>
-              <p className="mt-2 text-[12.5px] leading-relaxed" style={{ color: C.ink, opacity: 0.72 }}>
-                Monumia identifie votre statut et les aides mobilisables, et vous guide
-                pas à pas.
-              </p>
-              <Link
-                to="/login"
-                className="group mt-4 inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
-                style={{ background: C.orange, boxShadow: '0 10px 30px -8px rgba(241,113,5,0.55)' }}
-              >
-                Découvrir Monumia
-                <span className="transition-transform duration-300 group-hover:translate-x-0.5">→</span>
-              </Link>
-            </section>
+            {/* Accès Monumia (masqué si connecté) */}
+            <MonumiaCta />
           </div>
         </aside>
       </div>
@@ -212,7 +202,7 @@ export function BlogIndexPage() {
 function FeaturedArticle({ article }: { article: BlogArticle }) {
   const category = getCategory(article.categorySlug);
   const tone = category ? categoryTone(category) : null;
-  const Icon = category?.icon;
+  const Icon = article.icon ?? category?.icon;
   return (
     <Link
       to={`/blog/article/${article.slug}`}
@@ -252,8 +242,11 @@ function FeaturedArticle({ article }: { article: BlogArticle }) {
           className="relative hidden items-center justify-center overflow-hidden sm:flex"
           style={{ background: tone.soft, color: tone.fg }}
         >
-          <span className="absolute -right-6 -top-6 h-28 w-28 rounded-full" style={{ background: tone.fg, opacity: 0.1 }} />
-          <span className="absolute -bottom-8 -left-4 h-24 w-24 rounded-full" style={{ background: tone.fg, opacity: 0.1 }} />
+          <BandMotif
+            slug={article.slug}
+            className="absolute -right-4 bottom-0 h-24 w-auto opacity-[0.13]"
+          />
+          <Clover size={92} className="absolute -left-5 -top-6" style={{ color: tone.fg, opacity: 0.09 }} />
           <Icon className="relative h-24 w-24" />
         </div>
       )}

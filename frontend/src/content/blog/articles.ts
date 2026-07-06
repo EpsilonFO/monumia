@@ -1,3 +1,19 @@
+import type { ComponentType } from 'react';
+
+import {
+  IconAide,
+  IconCadastre,
+  IconDiagnostic,
+  IconEquipe,
+  IconEtapes,
+  IconInstitution,
+  IconLivre,
+  IconLocalisation,
+  IconPlan,
+  IconRegle,
+  IconTendance,
+  IconVoir,
+} from '@/components/icons';
 import type { BlogCategorySlug } from './categories';
 
 export interface BlogArticle {
@@ -10,6 +26,8 @@ export interface BlogArticle {
   readingTimeMin?: number;
   /** Date de publication ISO (AAAA-MM-JJ), optionnelle pour les stubs. */
   publishedAt?: string;
+  /** Icône propre à l'article (bandeau de carte) — à défaut, celle de la catégorie. */
+  icon?: ComponentType<{ className?: string }>;
   /** Charge le corps Markdown en lazy. */
   body: () => Promise<string>;
 }
@@ -35,6 +53,7 @@ const ARTICLE_META: ArticleMeta[] = [
   // Protections & statuts
   {
     slug: 'classe-ou-inscrit',
+    icon: IconRegle,
     title: 'Classé ou inscrit : quelle différence ?',
     categorySlug: 'protections-statuts',
     excerpt:
@@ -45,6 +64,7 @@ const ARTICLE_META: ArticleMeta[] = [
   },
   {
     slug: 'site-patrimonial-remarquable',
+    icon: IconLocalisation,
     title: 'Le Site Patrimonial Remarquable (SPR)',
     categorySlug: 'protections-statuts',
     excerpt:
@@ -55,6 +75,7 @@ const ARTICLE_META: ArticleMeta[] = [
   },
   {
     slug: 'perimetre-et-abords',
+    icon: IconCadastre,
     title: "Périmètre et abords d'un Monument Historique",
     categorySlug: 'protections-statuts',
     excerpt:
@@ -65,6 +86,7 @@ const ARTICLE_META: ArticleMeta[] = [
   },
   {
     slug: 'base-merimee',
+    icon: IconLivre,
     title: "La base Mérimée, mode d'emploi",
     categorySlug: 'protections-statuts',
     excerpt:
@@ -74,6 +96,7 @@ const ARTICLE_META: ArticleMeta[] = [
   // Aides & financements
   {
     slug: 'taux-plafond-base-eligible',
+    icon: IconTendance,
     title: 'Taux, plafond et base éligible : comment lire une aide',
     categorySlug: 'aides-financements',
     excerpt:
@@ -82,6 +105,7 @@ const ARTICLE_META: ArticleMeta[] = [
   },
   {
     slug: 'subvention-vs-pret',
+    icon: IconAide,
     title: 'Subvention, avance remboursable, prêt : les différences',
     categorySlug: 'aides-financements',
     excerpt:
@@ -92,6 +116,7 @@ const ARTICLE_META: ArticleMeta[] = [
   },
   {
     slug: 'cofinancement',
+    icon: IconEquipe,
     title: 'Le cofinancement expliqué simplement',
     categorySlug: 'aides-financements',
     excerpt:
@@ -100,6 +125,7 @@ const ARTICLE_META: ArticleMeta[] = [
   },
   {
     slug: 'drac',
+    icon: IconInstitution,
     title: 'La DRAC : rôle et interlocuteurs',
     categorySlug: 'aides-financements',
     excerpt:
@@ -111,6 +137,7 @@ const ARTICLE_META: ArticleMeta[] = [
   // Démarches & dossiers
   {
     slug: 'etat-de-conservation',
+    icon: IconVoir,
     title: 'État de conservation et urgence des travaux',
     categorySlug: 'demarches-dossiers',
     excerpt:
@@ -119,6 +146,7 @@ const ARTICLE_META: ArticleMeta[] = [
   },
   {
     slug: 'etude-prealable',
+    icon: IconEtapes,
     title: "L'étude préalable, étape par étape",
     categorySlug: 'demarches-dossiers',
     excerpt:
@@ -129,6 +157,7 @@ const ARTICLE_META: ArticleMeta[] = [
   },
   {
     slug: 'diagnostic-prealable',
+    icon: IconDiagnostic,
     title: 'Le diagnostic préalable : pourquoi, comment',
     categorySlug: 'demarches-dossiers',
     excerpt:
@@ -138,6 +167,7 @@ const ARTICLE_META: ArticleMeta[] = [
   // Travaux & techniques
   {
     slug: 'maitrise-ouvrage-oeuvre',
+    icon: IconPlan,
     title: "Maîtrise d'ouvrage et maîtrise d'œuvre",
     categorySlug: 'travaux-techniques',
     excerpt:

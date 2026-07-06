@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { CategoryBadge } from '@/components/blog/CategoryBadge';
+import { MonumiaCta } from '@/components/blog/MonumiaCta';
 import { MarkdownArticle } from '@/components/blog/markdown/MarkdownArticle';
 import { Toc } from '@/components/blog/markdown/Toc';
 import { getArticleBySlug, getArticlesByCategory } from '@/content/blog/articles';
@@ -140,23 +141,8 @@ export function BlogArticlePage() {
               </section>
             )}
 
-            {/* CTA Monumia */}
-            <section className="relative overflow-hidden rounded-2xl border p-5" style={{ background: C.paleBlue, borderColor: C.border }}>
-              <p className="text-[16px] font-semibold leading-snug" style={{ fontFamily: 'var(--font-serif)', color: C.blue }}>
-                Un projet sur un bien protégé&nbsp;?
-              </p>
-              <p className="mt-2 text-[12.5px] leading-relaxed" style={{ color: C.grayFg }}>
-                Monumia identifie votre statut et les aides mobilisables, et vous guide dans vos démarches.
-              </p>
-              <Link
-                to="/login"
-                className="group mt-4 inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
-                style={{ background: C.orange, boxShadow: '0 10px 30px -8px rgba(241,113,5,0.55)' }}
-              >
-                Découvrir Monumia
-                <span className="transition-transform duration-300 group-hover:translate-x-0.5">→</span>
-              </Link>
-            </section>
+            {/* CTA Monumia (masqué si connecté) */}
+            <MonumiaCta />
           </div>
         </aside>
       </div>
