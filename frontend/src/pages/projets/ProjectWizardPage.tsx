@@ -227,6 +227,12 @@ export function ProjectWizardPage() {
     }
   };
 
+  // Hors AppLayout, plus de scroll-reset automatique : on remonte en haut à
+  // chaque changement d'étape (le formulaire monument peut être long).
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [step]);
+
   // Dès l'entrée à l'étape 2, on calcule le diagnostic déterministe de base
   // (sans réponses) pour en déduire les questions à poser — les faits manquants
   // qui bloquent le plus d'aides. Le moteur étant pur et rapide, c'est immédiat.

@@ -14,7 +14,7 @@ import {
 import { Clover } from '@/components/illustrations';
 import { C } from '@/lib/brand';
 import type { Monument } from '@/types';
-import { WIZARD_STEPS, WizardRail, type WizardProgress, type WizardStepKey } from './WizardRail';
+import { WIZARD_STEPS, WizardRail, encouragement, type WizardProgress, type WizardStepKey } from './WizardRail';
 
 interface WizardShellProps {
   step: WizardStepKey;
@@ -44,6 +44,9 @@ export function WizardShell({
   const [quitOpen, setQuitOpen] = useState(false);
 
   const quit = () => {
+    // Le diagnostic (étape 3) navigue de lui-même vers le projet : une navigation
+    // concurrente arracherait l'utilisateur en plein vol.
+    if (step === 3) return;
     if (confirmQuit) setQuitOpen(true);
     else navigate(exitTo);
   };
@@ -76,7 +79,9 @@ export function WizardShell({
               </p>
               {showBar && (
                 <p className="text-[11px] tabular-nums" style={{ color: C.grayMuted }}>
-                  Question {qNum} / {qTotal}
+                  {progress && progress.index >= progress.total
+                    ? 'Terminé'
+                    : `Question ${qNum} / ${qTotal}`}
                 </p>
               )}
             </div>
@@ -102,17 +107,28 @@ export function WizardShell({
               />
             </div>
           )}
+          {showBar && (
+            <p
+              className="mt-1.5 text-center text-[15px] leading-tight"
+              style={{ fontFamily: "'Caveat', cursive", color: C.blue }}
+              aria-live="polite"
+            >
+              {encouragement(step, progress)}
+            </p>
+          )}
         </header>
 
-        <button
-          type="button"
-          onClick={quit}
-          className="absolute right-5 top-5 z-10 hidden items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors hover:bg-black/5 lg:inline-flex"
-          style={{ color: C.grayFg }}
-        >
-          <X className="h-4 w-4" />
-          Quitter
-        </button>
+        {step !== 3 && (
+          <button
+            type="button"
+            onClick={quit}
+            className="absolute right-5 top-5 z-10 hidden items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors hover:bg-black/5 lg:inline-flex"
+            style={{ color: C.grayFg }}
+          >
+            <X className="h-4 w-4" />
+            Quitter
+          </button>
+        )}
 
         <main className="relative mx-auto w-full max-w-[760px] flex-1 px-5 py-10 sm:py-14">
           <Clover

@@ -26,4 +26,8 @@ describe('encouragement', () => {
   it('diagnostic en cours', () => {
     expect(encouragement(3, null)).toBe('Votre diagnostic arrive…');
   });
+
+  it('écran de fin', () => {
+    expect(encouragement(2, { index: 12, total: 12 })).toBe('C’est tout !');
+  });
 });

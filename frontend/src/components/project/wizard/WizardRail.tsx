@@ -44,6 +44,7 @@ export function encouragement(step: WizardStepKey, progress: WizardProgress | nu
   if (step === 1) return 'C’est parti !';
   if (step === 3) return 'Votre diagnostic arrive…';
   if (!progress || progress.total === 0) return 'Encore un instant…';
+  if (progress.index >= progress.total) return 'C’est tout !';
   const remaining = progress.total - progress.index;
   const ratio = progress.index / progress.total;
   if (ratio >= 0.75) return 'Presque fini !';

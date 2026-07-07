@@ -12,8 +12,8 @@ interface MerimeeSearchProps {
 /** Tonalité du badge de protection, dérivée du texte Mérimée (pas d'enum côté API). */
 function protectionTone(typologie: string | undefined): { bg: string; fg: string; label: string } {
   const t = (typologie ?? '').toLowerCase();
-  if (t.includes('classé')) return { bg: 'var(--secondary)', fg: 'var(--primary)', label: 'Classé MH' };
-  if (t.includes('inscrit')) return { bg: 'var(--info-muted)', fg: 'var(--info)', label: 'Inscrit MH' };
+  if (/(?:^|[^a-zà-ÿ])classé/.test(t)) return { bg: 'var(--secondary)', fg: 'var(--primary)', label: 'Classé MH' };
+  if (/(?:^|[^a-zà-ÿ])inscrit/.test(t)) return { bg: 'var(--info-muted)', fg: 'var(--info)', label: 'Inscrit MH' };
   return { bg: 'var(--muted)', fg: 'var(--gray-fg)', label: typologie || 'Protection inconnue' };
 }
 
@@ -59,7 +59,7 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
         />
         <input
           type="search"
-          className="h-14 w-full rounded-2xl border pl-12 pr-4 text-[16px] outline-none transition-shadow placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-14 w-full rounded-2xl border pl-12 pr-4 text-[16px] outline-none transition-shadow placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
           style={{ borderColor: C.border, background: C.card, boxShadow: 'var(--shadow-card)', color: C.ink }}
           placeholder="Nom du monument, commune ou référence…"
           value={query}
