@@ -41,3 +41,25 @@ def get_current_user_id(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token invalide ou expiré",
         ) from e
+
+
+def get_current_auth_user(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    supabase: Client = Depends(get_supabase),
+):
+    """Comme get_current_user_id, mais renvoie l'utilisateur auth complet.
+
+    Nécessaire au flux OAuth : email et user_metadata (given_name…) doivent
+    venir du token, jamais du client. N'exige PAS de ligne dans public.users.
+    """
+    token = credentials.credentials
+    try:
+        response = supabase.auth.get_user(token)
+        if response is None or response.user is None:
+            raise ValueError("No user in response")
+        return response.user
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalide ou expiré",
+        ) from e

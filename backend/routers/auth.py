@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from supabase import Client
 
-from db import get_anon_supabase, get_current_user_id, get_supabase
+from db import get_anon_supabase, get_current_auth_user, get_current_user_id, get_supabase
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -135,6 +135,20 @@ def _default_notification_preferences() -> dict:
         "dossierUpdates": True,
         "emailNotifications": False,
     }
+
+
+def _prefill_from_auth_user(auth_user) -> dict:
+    """Prénom/nom/email depuis les métadonnées du provider OAuth (Google)."""
+    meta = getattr(auth_user, "user_metadata", None) or {}
+    prenom = (meta.get("given_name") or "").strip()
+    nom = (meta.get("family_name") or "").strip()
+    if not prenom and not nom:
+        full = (meta.get("full_name") or meta.get("name") or "").strip()
+        if full:
+            parts = full.split(" ", 1)
+            prenom = parts[0]
+            nom = parts[1] if len(parts) > 1 else ""
+    return {"email": auth_user.email, "prenom": prenom, "nom": nom}
 
 
 # ---------------------------------------------------------------------------
@@ -275,6 +289,24 @@ def login(
         "token_type": "bearer",
         "user": _get_profile(supabase, user_id),
     }
+
+
+@router.get("/oauth/profile-status")
+def oauth_profile_status(
+    auth_user=Depends(get_current_auth_user),
+    supabase: Client = Depends(get_supabase),
+):
+    """Après un login OAuth : le profil applicatif existe-t-il déjà ?
+
+    exists=true  → connexion normale (le front pose la session).
+    exists=false → le front envoie l'utilisateur dans l'onboarding, prérempli.
+    """
+    result = (
+        supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
+    )
+    if result is not None and result.data:
+        return {"exists": True, "user": _get_profile(supabase, auth_user.id)}
+    return {"exists": False, "prefill": _prefill_from_auth_user(auth_user)}
 
 
 @router.post("/forgot-password")
