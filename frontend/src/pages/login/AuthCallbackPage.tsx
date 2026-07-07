@@ -42,9 +42,15 @@ export function AuthCallbackPage() {
 
     authService
       .oauthProfileStatus(parsed.accessToken)
-      .then((status) => {
+      .then(async (status) => {
         if (status.exists && status.user) {
-          setAuth(status.user, parsed.accessToken, parsed.refreshToken || null);
+          // Le refresh token du hash part en cookie httpOnly avant d'entrer
+          // dans l'app. Échec non bloquant : la session reste valable jusqu'à
+          // expiration de l'access token.
+          if (parsed.refreshToken) {
+            await authService.oauthSession(parsed.accessToken, parsed.refreshToken).catch(() => {});
+          }
+          setAuth(status.user, parsed.accessToken);
           navigate(
             status.user.segment === 'btp'
               ? '/btp'

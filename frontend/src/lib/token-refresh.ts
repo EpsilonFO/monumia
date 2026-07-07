@@ -4,19 +4,56 @@ const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 let refreshPromise: Promise<boolean> | null = null;
 
-async function doRefresh(): Promise<boolean> {
-  const { refreshToken, setTokens, logout } = useAuthStore.getState();
-  if (!refreshToken) {
-    logout();
-    return false;
+const STORAGE_KEY = 'monumia-auth';
+
+/** Refresh token de l'ancien format localStorage (avant cookie httpOnly). */
+export function readLegacyRefreshToken(): string | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return typeof parsed?.state?.refreshToken === 'string' ? parsed.state.refreshToken : null;
+  } catch {
+    return null;
   }
+}
+
+/** Retire les champs sensibles hérités sans toucher au reste de l'entrée. */
+export function purgeLegacyTokens(): void {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed?.state && ('refreshToken' in parsed.state || 'token' in parsed.state)) {
+      delete parsed.state.refreshToken;
+      delete parsed.state.token;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+    }
+  } catch {
+    /* entrée illisible : on la laisse, partialize l'assainira au prochain write */
+  }
+}
+
+async function doRefresh(): Promise<boolean> {
+  const { setTokens, setUser, logout } = useAuthStore.getState();
+
+  // Migration one-shot : un refresh token de l'ancien format est envoyé une
+  // dernière fois dans le body ; ensuite le cookie httpOnly prend le relais.
+  const legacy = readLegacyRefreshToken();
 
   try {
     const res = await fetch(`${BASE}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      credentials: 'include',
+      ...(legacy
+        ? {
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: legacy }),
+          }
+        : {}),
     });
+
+    if (legacy) purgeLegacyTokens();
 
     if (!res.ok) {
       logout();
@@ -24,11 +61,12 @@ async function doRefresh(): Promise<boolean> {
     }
 
     const data = await res.json();
-    if (!data.access_token || !data.refresh_token) {
+    if (!data.access_token) {
       logout();
       return false;
     }
-    setTokens(data.access_token, data.refresh_token);
+    setTokens(data.access_token);
+    if (data.user) setUser(data.user);
     return true;
   } catch {
     logout();

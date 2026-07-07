@@ -72,7 +72,7 @@ export function InvitationLandingPage() {
     }
     setBusy(true);
     try {
-      const { user: u, access_token, refresh_token } = await authService.registerCollaborator({
+      const { user: u, access_token } = await authService.registerCollaborator({
         email: form.email,
         password: form.password,
         prenom: form.prenom,
@@ -80,7 +80,7 @@ export function InvitationLandingPage() {
         metier: form.metier,
         telephone: form.telephone || undefined,
       });
-      setAuth(u, access_token, refresh_token);
+      setAuth(u, access_token);
       await acceptAndGo();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Échec de l'inscription");
@@ -92,11 +92,11 @@ export function InvitationLandingPage() {
   const handleLogin = async () => {
     setBusy(true);
     try {
-      const { user: u, access_token, refresh_token } = await authService.login({
+      const { user: u, access_token } = await authService.login({
         email: form.email,
         password: form.password,
       });
-      setAuth(u, access_token, refresh_token);
+      setAuth(u, access_token);
       await acceptAndGo();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Connexion impossible');

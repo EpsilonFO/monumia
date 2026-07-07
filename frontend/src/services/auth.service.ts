@@ -1,4 +1,5 @@
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
+import { ApiError } from '@/lib/api-error';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -44,16 +45,18 @@ export interface OauthProfileStatusResponse {
 
 export interface AuthResponse {
   access_token: string;
-  refresh_token: string | null;
   token_type: string;
   user: import('@/types').User;
 }
 
 export const authService = {
+  // credentials: 'include' sur les appels d'auth : nécessaire pour recevoir /
+  // envoyer le cookie httpOnly `monumia_refresh` posé par le backend.
   async login(payload: LoginPayload): Promise<AuthResponse> {
     const res = await fetch(`${BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(payload),
     });
     return handleResponse<AuthResponse>(res);
@@ -63,6 +66,7 @@ export const authService = {
     const res = await fetch(`${BASE}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(payload),
     });
     return handleResponse<AuthResponse>(res);
@@ -72,6 +76,7 @@ export const authService = {
     const res = await fetch(`${BASE}/auth/register-collaborator`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(payload),
     });
     return handleResponse<AuthResponse>(res);
@@ -108,17 +113,31 @@ export const authService = {
     return handleResponse(res);
   },
 
+  /** Échange unique post-callback Google : le refresh token part en cookie httpOnly. */
+  async oauthSession(accessToken: string, refreshToken: string): Promise<void> {
+    const res = await fetch(`${BASE}/auth/oauth/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      credentials: 'include',
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, body.detail ?? `HTTP ${res.status}`);
+    }
+  },
+
   async logout(): Promise<void> {
     await authFetch(`${BASE}/auth/logout`, {
       method: 'POST',
+      credentials: 'include',
     });
   },
 
-  async refreshSession(refreshToken: string): Promise<AuthResponse> {
+  async refreshSession(): Promise<AuthResponse> {
     const res = await fetch(`${BASE}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      credentials: 'include',
     });
     return handleResponse<AuthResponse>(res);
   },

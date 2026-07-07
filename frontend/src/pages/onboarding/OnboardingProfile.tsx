@@ -149,10 +149,15 @@ export function OnboardingProfile() {
             },
             oauthAccessToken!,
           );
+          // Le refresh token du hash Google part en cookie httpOnly. Échec
+          // non bloquant : la session tient jusqu'à expiration de l'access token.
+          if (oauthRefreshToken) {
+            await authService.oauthSession(oauthAccessToken!, oauthRefreshToken).catch(() => {});
+          }
           clearOAuthSession();
-          setAuth(user, oauthAccessToken!, oauthRefreshToken || null);
+          setAuth(user, oauthAccessToken!);
         } else {
-          const { user, access_token, refresh_token } = await authService.registerCollaborator({
+          const { user, access_token } = await authService.registerCollaborator({
             email: pendingEmail!,
             password: pendingPassword!,
             prenom: form.prenom,
@@ -161,7 +166,7 @@ export function OnboardingProfile() {
             telephone: form.telephone || undefined,
           });
           clearPendingCredentials();
-          setAuth(user, access_token, refresh_token);
+          setAuth(user, access_token);
         }
         navigate(ROUTES.PROJETS);
       } catch (err: unknown) {
@@ -199,10 +204,15 @@ export function OnboardingProfile() {
           },
           oauthAccessToken!,
         );
+        // Le refresh token du hash Google part en cookie httpOnly. Échec
+        // non bloquant : la session tient jusqu'à expiration de l'access token.
+        if (oauthRefreshToken) {
+          await authService.oauthSession(oauthAccessToken!, oauthRefreshToken).catch(() => {});
+        }
         clearOAuthSession();
-        setAuth(user, oauthAccessToken!, oauthRefreshToken || null);
+        setAuth(user, oauthAccessToken!);
       } else {
-        const { user, access_token, refresh_token } = await authService.register({
+        const { user, access_token } = await authService.register({
           email: email!,
           password: password!,
           prenom: form.prenom,
@@ -216,7 +226,7 @@ export function OnboardingProfile() {
           btp: btpData,
         });
         clearPendingCredentials();
-        setAuth(user, access_token, refresh_token);
+        setAuth(user, access_token);
       }
       navigate(segment === 'btp' ? '/btp' : '/app');
     } catch (err: unknown) {
