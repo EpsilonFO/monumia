@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react';
 import {
+  IconAide,
   IconDiagnostic,
   IconListe,
   IconLocalisation,
@@ -19,10 +20,30 @@ export interface WizardProgress {
   total: number;
 }
 
-export const WIZARD_STEPS: Array<{ key: WizardStepKey; label: string; icon: IconComponent }> = [
-  { key: 1, label: 'Votre monument', icon: IconMonument },
-  { key: 2, label: 'Questionnaire', icon: IconListe },
-  { key: 3, label: 'Diagnostic', icon: IconDiagnostic },
+export const WIZARD_STEPS: Array<{
+  key: WizardStepKey;
+  label: string;
+  hint: string;
+  icon: IconComponent;
+}> = [
+  {
+    key: 1,
+    label: 'Votre monument',
+    hint: 'Retrouvez-le dans la base Mérimée ou décrivez-le vous-même.',
+    icon: IconMonument,
+  },
+  {
+    key: 2,
+    label: 'Questionnaire',
+    hint: 'Des questions simples, sans aucune paperasse.',
+    icon: IconListe,
+  },
+  {
+    key: 3,
+    label: 'Diagnostic',
+    hint: 'Les aides mobilisables pour votre projet.',
+    icon: IconDiagnostic,
+  },
 ];
 
 // Mêmes tonalités que MonumentFiche (bg pâle + texte soutenu par niveau).
@@ -76,7 +97,7 @@ export function WizardRail({ step, monument, progress, onQuit }: WizardRailProps
 
   return (
     <aside
-      className="hidden w-[320px] shrink-0 flex-col justify-between p-6 lg:flex"
+      className="hidden w-[320px] shrink-0 flex-col justify-between overflow-y-auto p-6 lg:flex"
       style={{ background: C.card, boxShadow: 'var(--shadow-nav)' }}
     >
       <div className="space-y-8">
@@ -107,7 +128,7 @@ export function WizardRail({ step, monument, progress, onQuit }: WizardRailProps
                 aria-current={current ? 'step' : undefined}
                 aria-label={`${s.label} (${STATE_TEXT[state]})`}
               >
-                <div className="flex items-center gap-3 py-1">
+                <div className="flex items-start gap-3 py-1">
                   <span
                     aria-hidden
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors"
@@ -129,21 +150,28 @@ export function WizardRail({ step, monument, progress, onQuit }: WizardRailProps
                       <Icon className="h-4 w-4" weight="bold" />
                     )}
                   </span>
-                  <span
-                    aria-hidden
-                    className="text-[14px]"
-                    style={{
-                      color: current ? C.ink : done ? C.grayFg : C.grayMuted,
-                      fontWeight: current ? 700 : 500,
-                    }}
-                  >
-                    {s.label}
+                  <span aria-hidden className="min-w-0 pt-0.5">
+                    <span
+                      className="block text-[14px] leading-tight"
+                      style={{
+                        color: current ? C.ink : done ? C.grayFg : C.grayMuted,
+                        fontWeight: current ? 700 : 500,
+                      }}
+                    >
+                      {s.label}
+                    </span>
+                    <span
+                      className="mt-0.5 block text-[12px] leading-snug"
+                      style={{ color: C.grayMuted, opacity: done ? 0.75 : 1 }}
+                    >
+                      {done ? 'Fait !' : s.hint}
+                    </span>
                   </span>
                 </div>
                 {i < WIZARD_STEPS.length - 1 && (
                   <span
                     aria-hidden
-                    className="ml-[17px] block h-5 w-[2px] rounded-full"
+                    className="ml-[17px] block h-4 w-[2px] rounded-full"
                     style={{
                       background: done
                         ? C.success
@@ -156,7 +184,7 @@ export function WizardRail({ step, monument, progress, onQuit }: WizardRailProps
           })}
         </ol>
 
-        {monument && (
+        {monument ? (
           <div
             className="rounded-2xl border p-4"
             style={{
@@ -189,35 +217,79 @@ export function WizardRail({ step, monument, progress, onQuit }: WizardRailProps
               {PROTECTION_LABELS_SHORT[monument.protection] ?? monument.protection}
             </span>
           </div>
+        ) : (
+          // La place du monument est réservée dès le départ : l'utilisateur
+          // voit où son choix va s'inscrire.
+          <div
+            className="flex items-center gap-3 rounded-2xl border border-dashed p-4"
+            style={{ borderColor: `color-mix(in srgb, ${C.blue} 25%, transparent)` }}
+          >
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+              style={{ background: 'var(--secondary)', color: C.blue }}
+            >
+              <IconMonument className="h-5 w-5" />
+            </span>
+            <p className="text-[13px] leading-snug" style={{ color: C.grayMuted }}>
+              Votre monument apparaîtra ici dès que vous l&rsquo;aurez choisi.
+            </p>
+          </div>
         )}
       </div>
 
-      {encouragement(step, progress) ? (
-        // Encart signature : bleu profond institutionnel, écriture manuscrite
-        // crème, quadrilobe orange vif — le duo Monumia condensé.
+      <div className="mt-8 space-y-3">
+        {/* Ce que le parcours rapporte, toujours visible : on avance pour
+            quelque chose de concret. */}
         <div
-          className="relative mt-8 flex items-center justify-between gap-3 overflow-hidden rounded-2xl p-4"
-          style={{ background: C.blue }}
+          className="flex items-start gap-3 rounded-2xl p-4"
+          style={{ background: 'var(--warning-muted)' }}
         >
-          <Clover
-            size={72}
-            className="pointer-events-none absolute -bottom-5 -right-4"
-            style={{ color: '#fff', opacity: 0.08 }}
-          />
-          <p
-            aria-live="polite"
-            className="relative text-[22px] leading-tight"
-            style={{ fontFamily: "'Caveat', cursive", color: 'var(--primary-foreground)' }}
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: C.orange, color: '#fff' }}
           >
-            {encouragement(step, progress)}
-          </p>
-          <Clover size={34} className="relative shrink-0" style={{ color: C.orangeVif }} />
+            <IconAide className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p
+              className="text-[11px] font-semibold uppercase tracking-[0.14em]"
+              style={{ color: C.orange }}
+            >
+              À la clé
+            </p>
+            <p className="mt-1 text-[13px] leading-snug" style={{ color: C.ink }}>
+              La liste des aides publiques mobilisables pour votre projet, prête à consulter.
+            </p>
+          </div>
         </div>
-      ) : (
-        <div className="mt-8 flex justify-end">
-          <Clover size={38} className="shrink-0" style={{ color: C.orange, opacity: 0.22 }} />
-        </div>
-      )}
+
+        {encouragement(step, progress) ? (
+          // Encart signature : bleu profond institutionnel, écriture manuscrite
+          // crème, quadrilobe orange vif — le duo Monumia condensé.
+          <div
+            className="relative flex items-center justify-between gap-3 overflow-hidden rounded-2xl p-4"
+            style={{ background: C.blue }}
+          >
+            <Clover
+              size={72}
+              className="pointer-events-none absolute -bottom-5 -right-4"
+              style={{ color: '#fff', opacity: 0.08 }}
+            />
+            <p
+              aria-live="polite"
+              className="relative text-[22px] leading-tight"
+              style={{ fontFamily: "'Caveat', cursive", color: 'var(--primary-foreground)' }}
+            >
+              {encouragement(step, progress)}
+            </p>
+            <Clover size={34} className="relative shrink-0" style={{ color: C.orangeVif }} />
+          </div>
+        ) : (
+          <div className="flex justify-end pr-1">
+            <Clover size={34} className="shrink-0" style={{ color: C.orange, opacity: 0.22 }} />
+          </div>
+        )}
+      </div>
     </aside>
   );
 }
