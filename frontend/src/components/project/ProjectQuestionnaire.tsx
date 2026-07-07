@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
 import { AllClear } from '@/components/illustrations';
 import { AnswerCard } from '@/components/project/wizard/AnswerCard';
+import { isUnknownAnswer } from '@/components/project/wizard/unknownAnswer';
 import { C, SERIF } from '@/lib/brand';
 import { cn } from '@/lib/utils';
-import type { ProjectQuestionnaireAnswers, QcmOption, QcmQuestion } from '@/types';
+import type { ProjectQuestionnaireAnswers, QcmQuestion } from '@/types';
 
 interface ProjectQuestionnaireProps {
   /** Questions générées par le moteur d'aides (faits manquants du diagnostic). */
@@ -29,23 +30,6 @@ function prefersReducedMotion(): boolean {
     typeof window !== 'undefined' &&
     !!window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
-}
-
-/** Le moteur fournit souvent une option « Je ne sais pas » : on évite alors de la dupliquer en bas. */
-function isUnknownOption(o: QcmOption): boolean {
-  const id = o.id.toLowerCase();
-  const l = o.label.toLowerCase();
-  return (
-    id === 'skip' ||
-    id === 'unknown' ||
-    id === 'nsp' ||
-    l.includes('ne sais pas') ||
-    l.includes('ne sait pas') ||
-    l.includes('je ne sais') ||
-    l.includes('incertain') ||
-    l.includes('pas sûr') ||
-    l.includes('aucune idée')
   );
 }
 
@@ -207,7 +191,9 @@ export function ProjectQuestionnaire({
   // ─── Une question à la fois ───
   // La barre reflète la position courante (jamais 0 % sur la 1re question).
   const pct = Math.round(((index + 1) / total) * 100);
-  const showSkipCard = !q!.options.some(isUnknownOption);
+  // Le moteur fournit souvent une option « Je ne sais pas » native : on évite
+  // alors de la dupliquer en bas.
+  const showSkipCard = !q!.options.some(isUnknownAnswer);
 
   return (
     <div>

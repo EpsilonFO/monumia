@@ -1,8 +1,9 @@
 import { Check } from 'lucide-react';
+import { IconHelp } from '@/components/icons';
 import { C } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 import type { QcmOption } from '@/types';
-import { iconForOption } from './iconForOption';
+import { isUnknownAnswer } from './unknownAnswer';
 
 const LETTERS = 'ABCDEFGHIJKL';
 
@@ -28,8 +29,9 @@ interface AnswerCardProps {
 }
 
 /**
- * Carte-réponse du questionnaire : tuile d'icône illustrative (heuristique
- * mots-clés, pastille lettrée en repli), libellé, coche à droite. Hover =
+ * Carte-réponse du questionnaire : pastille lettrée A/B/C (toujours — les
+ * libellés du moteur sont imprévisibles, pas de devinette d'icône), « ? »
+ * pour les options « je ne sais pas », libellé, coche à droite. Hover =
  * léger lift + ombre pop ; sélection = bordure accent + fond orange pâle.
  */
 export function AnswerCard({
@@ -41,8 +43,11 @@ export function AnswerCard({
   onKeyDown,
   buttonRef,
 }: AnswerCardProps) {
-  const Icon = iconForOption(option);
-  const tile = TILE_TONES[optionIndex % TILE_TONES.length];
+  const unknown = isUnknownAnswer(option);
+  // « Je ne sais pas » = ton neutre : ce n'est pas une réponse comme les autres.
+  const tile = unknown
+    ? { bg: 'var(--muted)', fg: 'var(--gray-fg)' }
+    : TILE_TONES[optionIndex % TILE_TONES.length];
 
   return (
     <button
@@ -70,8 +75,8 @@ export function AnswerCard({
             : { background: tile.bg, color: tile.fg }
         }
       >
-        {Icon ? (
-          <Icon className="h-5 w-5" />
+        {unknown ? (
+          <IconHelp className="h-5 w-5" />
         ) : (
           <span className="text-[14px] font-bold">{LETTERS[optionIndex] ?? '•'}</span>
         )}
