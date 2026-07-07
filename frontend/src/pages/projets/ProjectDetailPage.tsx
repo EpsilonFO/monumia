@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronDown, Loader2 } from 'lucide-react';
 import {
   type IconComponent,
-  IconReglages, IconDiagnostic, IconSucces, IconHelp, IconErreur,
+  IconDiagnostic, IconSucces, IconHelp, IconErreur,
   IconEquipe, IconAide, IconDossier, IconDocuments, IconDepot, IconMonument,
 } from '@/components/icons';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
@@ -25,8 +25,8 @@ import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog'
 import { TeamPanel } from '@/components/sharing/TeamPanel';
 import { projectPermissions } from '@/lib/project-permissions';
 import { ProjectSummaryBar } from '@/components/project/ProjectSummaryBar';
+import { ProjectDetailSkeleton } from '@/components/skeletons';
 import { ProjectEcheancier } from '@/components/project/ProjectEcheancier';
-import { RetakeQuestionnaireDialog } from '@/components/project/RetakeQuestionnaireDialog';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
@@ -88,7 +88,6 @@ export function ProjectDetailPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [retakeOpen, setRetakeOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [showNonEligibles, setShowNonEligibles] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
@@ -213,7 +212,7 @@ export function ProjectDetailPage() {
     );
   }
 
-  if (!monument || !stats) return <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blueLight }} /></div>;
+  if (!monument || !stats) return <ProjectDetailSkeleton />;
 
   const handleSave = async (data: Partial<Monument>) => {
     setSaving(true);
@@ -379,17 +378,6 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <div className="space-y-8">
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setRetakeOpen(true)}
-                  className="inline-flex items-center gap-1.5 text-[12.5px] font-medium underline-offset-2 transition-colors hover:underline"
-                  style={{ color: C.grayMuted }}
-                >
-                  <IconReglages className="h-3.5 w-3.5" />
-                  Refaire le questionnaire
-                </button>
-              </div>
-
               <ProjectEcheancier deadlines={deadlines} />
 
               <section className="space-y-3">
@@ -507,12 +495,6 @@ export function ProjectDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <RetakeQuestionnaireDialog
-        monument={monument}
-        open={retakeOpen}
-        onClose={() => setRetakeOpen(false)}
-      />
-
       <DocumentPreviewDialog document={previewDoc} open={!!previewDoc} onOpenChange={(open) => { if (!open) setPreviewDoc(null); }} onAddToProject={(doc) => { setPreviewDoc(null); setAddToProjectDoc(doc); }} />
       <AddToProjectDialog
         document={addToProjectDoc}
@@ -556,15 +538,22 @@ export function ProjectDetailPage() {
       <AlertDialog open={confirmRefaireOpen} onOpenChange={setConfirmRefaireOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Refaire le questionnaire ?</AlertDialogTitle>
+            <AlertDialogTitle>Refaire le questionnaire&nbsp;?</AlertDialogTitle>
             <AlertDialogDescription>
-              Vos réponses actuelles seront effacées et le diagnostic d'aides sera recalculé à partir
-              de zéro. Cette action est irréversible.
+              Vous repartirez de vos informations monument déjà enregistrées&nbsp;: seules
+              les réponses au questionnaire seront redemandées. Vos réponses actuelles
+              seront remplacées et le diagnostic d&rsquo;aides recalculé.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRefaire}>Refaire le questionnaire</AlertDialogAction>
+            <AlertDialogAction
+              onClick={confirmRefaire}
+              className="text-white hover:opacity-90"
+              style={{ background: C.orange }}
+            >
+              Refaire le questionnaire
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
