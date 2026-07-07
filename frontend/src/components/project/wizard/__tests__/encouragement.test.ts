@@ -11,8 +11,9 @@ describe('encouragement', () => {
     expect(encouragement(2, { index: 1, total: 12 })).toBe('');
   });
 
-  it('au quart : sur la bonne voie', () => {
-    expect(encouragement(2, { index: 3, total: 12 })).toBe('Vous êtes sur la bonne voie.');
+  it('silencieux jusqu’à la moitié', () => {
+    expect(encouragement(2, { index: 3, total: 12 })).toBe('');
+    expect(encouragement(2, { index: 5, total: 12 })).toBe('');
   });
 
   it('à mi-parcours : compte les questions restantes', () => {
