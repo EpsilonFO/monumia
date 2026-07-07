@@ -4,11 +4,10 @@ import { CLOCHE_D, ECROU_D, TELECHARGEMENT_D } from './founder-paths';
 /**
  * Icônes propres à Monumia — celles qu'aucune bibliothèque ne peut fournir.
  *
- * - `IconMonument` : le médaillon — le quadrilobe aux proportions EXACTES du
- *   logo (Clover : lobes r 23 centrés à 21, mis à l'échelle ×2,54), assez
- *   grand pour rester lisible partout (Ø 87 % du cadre), encadrant un donjon
- *   crénelé — comme les médaillons quadrilobés qui encadrent les reliefs des
- *   façades gothiques. Le monument DANS la marque.
+ * - `IconMonument` : une façade à pignon percée d'une ROSACE — le quadrilobe
+ *   aux proportions EXACTES du logo (lobes r 58.5 décalés de 53.5, réduits
+ *   ×0,32), en trait au-dessus d'une porte en plein cintre. La marque en
+ *   détail (la rosace), pas en cadre : densité d'encre alignée sur Phosphor.
  * - `IconProjet` : un monument sous échafaudage (le projet = un chantier).
  * - `IconClocheMonumia` / `IconEcrouMonumia` / `IconTelechargementMonumia` :
  *   les tracés fait-main du fondateur (remplis, ronds, ligne en écho).
@@ -18,17 +17,17 @@ import { CLOCHE_D, ECROU_D, TELECHARGEMENT_D } from './founder-paths';
 
 /* ---------------------------------------------------------------- monument */
 
-// Médaillon : quadrilobe plein cadre aux proportions du logo (union de 4
-// cercles r 58.5 centrés à 53.5 du cœur, contour en 8 arcs), lavis + trait ;
-// à l'intérieur, un donjon plein à trois merlons, porte percée en blanc.
-const MEDAILLON =
-  'M 128 16 A 58.5 58.5 0 0 1 186.3 69.7 A 58.5 58.5 0 0 1 240 128 ' +
-  'A 58.5 58.5 0 0 1 186.3 186.3 A 58.5 58.5 0 0 1 128 240 A 58.5 58.5 0 0 1 69.7 186.3 ' +
-  'A 58.5 58.5 0 0 1 16 128 A 58.5 58.5 0 0 1 69.7 69.7 A 58.5 58.5 0 0 1 128 16 Z';
-const DONJON =
-  'M 96 188 L 96 64 L 112 64 L 112 86 L 120 86 L 120 64 L 136 64 L 136 86 ' +
-  'L 144 86 L 144 64 L 160 64 L 160 188 Z';
-const PORTE = 'M 118 188 L 118 162 A 10 10 0 0 1 138 162 L 138 188 Z';
+// Façade à pignon (même famille qu'IconProjet), rosace quadrilobée en trait
+// (8 arcs, proportions du logo réduites ×0,32 : r 18.8, lobes décalés de 18.7),
+// porte en plein cintre. Lavis duotone = la façade seule. Emprise quasi pleine
+// (40–216) à la manière des bâtiments Phosphor ; 14 u d'air entre rosace et
+// porte, traits compris — elles ne doivent jamais se toucher.
+const FACADE = 'M 128 30 L 216 100 L 216 220 L 40 220 L 40 100 Z';
+const PORTE = 'M 106 220 L 106 190 A 22 22 0 0 1 150 190 L 150 220';
+const ROSACE =
+  'M 128 66 A 18.8 18.8 0 0 1 146.7 83.3 A 18.8 18.8 0 0 1 164 102 ' +
+  'A 18.8 18.8 0 0 1 146.7 120.7 A 18.8 18.8 0 0 1 128 138 A 18.8 18.8 0 0 1 109.3 120.7 ' +
+  'A 18.8 18.8 0 0 1 92 102 A 18.8 18.8 0 0 1 109.3 83.3 A 18.8 18.8 0 0 1 128 66 Z';
 
 // Calibré sur Phosphor (trait ≈ 16/256 en regular) pour la parité optique en nav.
 const STROKE_BY_WEIGHT: Record<string, number> = {
@@ -54,7 +53,7 @@ export function IconMonument({ size = 20, weight = 'duotone', strokeWidth: _sw, 
         aria-hidden
         {...props}
       >
-        <path fillRule="evenodd" d={`${MEDAILLON} ${DONJON}`} />
+        <path fillRule="evenodd" d={`${FACADE} ${PORTE} Z ${ROSACE}`} />
       </svg>
     );
   }
@@ -69,10 +68,11 @@ export function IconMonument({ size = 20, weight = 'duotone', strokeWidth: _sw, 
       aria-hidden
       {...props}
     >
-      {weight === 'duotone' && <path d={MEDAILLON} opacity={0.2} />}
-      <path fillRule="evenodd" d={`${DONJON} ${PORTE}`} />
+      {weight === 'duotone' && <path d={FACADE} opacity={0.2} />}
       <g fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-        <path d={MEDAILLON} />
+        <path d={FACADE} />
+        <path d={PORTE} />
+        <path d={ROSACE} />
       </g>
     </svg>
   );
