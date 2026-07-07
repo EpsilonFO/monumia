@@ -16,7 +16,23 @@ from aides_schema import (
     evaluate_predicate,
     load_all_aides,
     load_facts,
+    load_pending_facts,
 )
+
+
+class TestLoadersAreCached(unittest.TestCase):
+    """Les YAML ne changent qu'au déploiement : les loaders doivent être mis en
+    cache, sinon chaque requête de diagnostic reparse ~130 fichiers (~0,7 s de
+    CPU, sérialisé par le GIL quand le dashboard lance N diagnostics)."""
+
+    def test_load_all_aides_returns_cached_result(self):
+        self.assertIs(load_all_aides(), load_all_aides())
+
+    def test_load_facts_returns_cached_result(self):
+        self.assertIs(load_facts(), load_facts())
+
+    def test_load_pending_facts_returns_cached_result(self):
+        self.assertIs(load_pending_facts(), load_pending_facts())
 
 
 class TestEvaluatePredicate(unittest.TestCase):
