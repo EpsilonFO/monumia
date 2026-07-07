@@ -57,28 +57,10 @@ const PROTECTION_TONE: Record<string, { bg: string; fg: string }> = {
 
 const STATE_TEXT = { done: 'étape faite', current: 'étape en cours', upcoming: 'étape à venir' };
 
-/**
- * Message chaleureux du rail, fonction de la progression. Volontairement
- * sobre (pas de gamification lourde) : il rassure, il ne distrait pas.
- * Chaîne vide = rien à dire (début de parcours) : l'appelant masque la zone.
- */
-export function encouragement(step: WizardStepKey, progress: WizardProgress | null): string {
-  if (step === 1) return '';
-  if (step === 3) return 'Votre diagnostic arrive…';
-  if (!progress || progress.total === 0) return '';
-  if (progress.index >= progress.total) return 'C’est tout !';
-  const remaining = progress.total - progress.index;
-  const ratio = progress.index / progress.total;
-  if (ratio >= 0.75) return 'Presque fini !';
-  if (ratio >= 0.5) {
-    return remaining === 1 ? 'Plus qu’une question !' : `Plus que ${remaining} questions\u00a0!`;
-  }
-  return '';
-}
-
 interface WizardRailProps {
   step: WizardStepKey;
   monument: Monument | null;
+  /** Accepté pour stabilité d'interface (header mobile du shell l'utilise). */
   progress: WizardProgress | null;
   onQuit: () => void;
 }
@@ -89,7 +71,7 @@ interface WizardRailProps {
  * verte + coche (fait), orange + halo (en cours), cercle clair cerclé (à
  * venir). Aucun état propre : tout vient des props.
  */
-export function WizardRail({ step, monument, progress, onQuit }: WizardRailProps) {
+export function WizardRail({ step, monument, onQuit }: WizardRailProps) {
   const tone = monument
     ? (PROTECTION_TONE[monument.protection] ?? PROTECTION_TONE.non_protege)
     : PROTECTION_TONE.non_protege;
@@ -262,32 +244,9 @@ export function WizardRail({ step, monument, progress, onQuit }: WizardRailProps
           </div>
         </div>
 
-        {encouragement(step, progress) ? (
-          // Encart signature : bleu profond institutionnel, écriture manuscrite
-          // crème, quadrilobe orange vif — le duo Monumia condensé.
-          <div
-            className="relative flex items-center justify-between gap-3 overflow-hidden rounded-2xl p-4"
-            style={{ background: C.blue }}
-          >
-            <Clover
-              size={72}
-              className="pointer-events-none absolute -bottom-5 -right-4"
-              style={{ color: '#fff', opacity: 0.08 }}
-            />
-            <p
-              aria-live="polite"
-              className="relative text-[22px] leading-tight"
-              style={{ fontFamily: "'Caveat', cursive", color: 'var(--primary-foreground)' }}
-            >
-              {encouragement(step, progress)}
-            </p>
-            <Clover size={34} className="relative shrink-0" style={{ color: C.orangeVif }} />
-          </div>
-        ) : (
-          <div className="flex justify-end pr-1">
-            <Clover size={34} className="shrink-0" style={{ color: C.orange, opacity: 0.22 }} />
-          </div>
-        )}
+        <div className="flex justify-end pr-1">
+          <Clover size={34} className="shrink-0" style={{ color: C.orange, opacity: 0.22 }} />
+        </div>
       </div>
     </aside>
   );

@@ -14,7 +14,7 @@ import {
 import { Clover } from '@/components/illustrations';
 import { C } from '@/lib/brand';
 import type { Monument } from '@/types';
-import { WIZARD_STEPS, WizardRail, encouragement, type WizardProgress, type WizardStepKey } from './WizardRail';
+import { WIZARD_STEPS, WizardRail, type WizardProgress, type WizardStepKey } from './WizardRail';
 
 interface WizardShellProps {
   step: WizardStepKey;
@@ -116,15 +116,6 @@ export function WizardShell({
                 }}
               />
             </div>
-          )}
-          {showBar && encouragement(step, progress) && (
-            <p
-              className="mt-1.5 text-center text-[15px] leading-tight"
-              style={{ fontFamily: "'Caveat', cursive", color: C.blue }}
-              aria-live="polite"
-            >
-              {encouragement(step, progress)}
-            </p>
           )}
         </header>
 
