@@ -22,7 +22,7 @@ const UPCOMING_PREVIEW = 3;
 interface NextActionCardProps {
   /** Échéance(s) les plus proches — affichées dans le bloc principal. */
   deadlines: ProjectDeadline[];
-  /** Reste du flux agenda (échéances suivantes, périls, notifications). */
+  /** Reste du flux agenda (échéances suivantes, notifications). */
   upcoming: FeedRow[];
 }
 
@@ -138,7 +138,7 @@ function UpcomingList({ rows, standalone }: { rows: FeedRow[]; standalone: boole
           const inner = (
             <div className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-muted/60">
               <span
-                className="inline-flex w-16 shrink-0 justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums"
+                className="inline-flex min-w-16 shrink-0 justify-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums"
                 style={{ background: accent.tint, color: accent.fg }}
               >
                 {row.badge}

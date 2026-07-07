@@ -304,9 +304,34 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
 /* Étapes de la demande — parcours numéroté                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Découpe une démarche écrite en un seul paragraphe « 1. … 2. … 3. … » en
+ * étapes. On ne coupe que sur des numéros séquentiels (1, 2, 3…) suivis d'un
+ * point : « 4 000 € », « avant le 15 juillet » ou un « 2. » isolé au milieu du
+ * texte ne déclenchent donc pas de coupe. L'éventuel préambule avant « 1. »
+ * devient la première ligne.
+ */
+function splitInlineSteps(text: string): string[] {
+  const starts: number[] = [];
+  let expected = 1;
+  for (const m of text.matchAll(/(?:^|\s)(\d{1,2})[.)]\s+/g)) {
+    if (Number(m[1]) === expected) {
+      starts.push(m.index);
+      expected += 1;
+    }
+  }
+  if (starts.length < 2) return [text];
+  const parts = starts.map((s, i) => text.slice(s, starts[i + 1]));
+  if (starts[0] > 0) parts.unshift(text.slice(0, starts[0]));
+  return parts;
+}
+
 function DemarcheSteps({ description }: { description: string }) {
-  const steps = decodeHtml(description)
-    .split('\n')
+  const decoded = decodeHtml(description);
+  const lines = decoded.split('\n').map((s) => s.trim()).filter(Boolean);
+  // Une seule « ligne » : la démarche est probablement numérotée inline.
+  const parts = lines.length > 1 ? lines : splitInlineSteps(decoded.trim());
+  const steps = parts
     .map((s) => s.trim().replace(/^[-•\d.)\s]+/, ''))
     .filter(Boolean);
 
@@ -505,6 +530,8 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
             </SectionCard>
           )}
 
+          {showDocumentsRequis && <DocumentsCollapsible docs={aide.documentsRequis} />}
+
           {aide.demarcheDescription && (
             <SectionCard icon={IconEtapes} title="Les étapes de la demande">
               <DemarcheSteps description={aide.demarcheDescription} />
@@ -542,7 +569,6 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
         </div>
       </div>
 
-      {showDocumentsRequis && <DocumentsCollapsible docs={aide.documentsRequis} />}
     </div>
   );
 }

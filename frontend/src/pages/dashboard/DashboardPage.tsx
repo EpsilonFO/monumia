@@ -103,10 +103,10 @@ export function DashboardPage() {
   }, [allDeadlines]);
 
   // Section « Ensuite » de la carte agenda unifiée : le reste du flux
-  // (échéances suivantes, monuments en péril, notifications non lues).
+  // (échéances suivantes, notifications non lues).
   const upcomingRows = useMemo(
-    () => buildUpcomingRows(allDeadlines, nextDeadlines, userMonuments, userNotifications),
-    [allDeadlines, nextDeadlines, userMonuments, userNotifications],
+    () => buildUpcomingRows(allDeadlines, nextDeadlines, userNotifications),
+    [allDeadlines, nextDeadlines, userNotifications],
   );
 
   const statsByMonument = useMemo<Record<string, ProjectStats>>(() => {

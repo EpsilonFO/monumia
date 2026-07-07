@@ -1,11 +1,8 @@
 import { type ComponentType } from 'react';
-import {
-  IconNotification, IconProtection, IconAide, IconDocument,
-} from '@/components/icons';
-import { ROUTES } from '@/constants/routes';
+import { IconNotification, IconAide, IconDocument } from '@/components/icons';
 import { deadlineLabel, formatRelative, formatDateShort } from '@/lib/date-utils';
 import { deadlineLink } from '@/lib/project-stats';
-import type { Monument, Notification } from '@/types';
+import type { Notification } from '@/types';
 import type { ProjectDeadline } from '@/lib/project-stats';
 
 export type FeedKind = 'urgent' | 'warning' | 'info';
@@ -13,12 +10,12 @@ export type FeedKind = 'urgent' | 'warning' | 'info';
 export interface FeedRow {
   id: string;
   kind: FeedKind;
-  category: 'deadline' | 'peril' | 'notif';
+  category: 'deadline' | 'notif';
   days?: number; // joursRestants pour les échéances ; undefined sinon
   icon: ComponentType<{ size?: number; className?: string }>;
   label: string; // titre principal
   sub: string; // ligne secondaire
-  badge: string; // pastille à droite : "J-3" | "Auj." | "Péril" | "68%" | "Nouveau"
+  badge: string; // pastille à droite : "J-3" | "Auj." | "En retard" | "Nouveau"
   to?: string; // lien éventuel
   rank: number; // rang d'urgence pour le tri : urgent=0, warning=1, info=2
   sortKey: number; // tri secondaire au sein d'un même rang
@@ -40,7 +37,6 @@ function joursBadge(d: ProjectDeadline): string {
  */
 export function buildFeedRows(
   deadlines: ProjectDeadline[],
-  monuments: Monument[],
   notifications: Notification[]
 ): FeedRow[] {
   const rows: FeedRow[] = [];
@@ -64,26 +60,6 @@ export function buildFeedRows(
       rank: RANK[kind],
       sortKey: d.joursRestants,
     });
-  }
-
-  // Monuments en péril / urgence critique — en tête du groupe urgent
-  const perilIds = new Set<string>();
-  for (const m of monuments) {
-    if (m.etatConservation === 'peril' || m.urgenceTravaux === 'critique') {
-      perilIds.add(m.id);
-      rows.push({
-        id: `peril-${m.id}`,
-        kind: 'urgent',
-        category: 'peril',
-        icon: IconProtection,
-        label: m.nom,
-        sub: m.etatConservation === 'peril' ? 'État en péril' : 'Travaux urgents (critique)',
-        badge: 'Péril',
-        to: ROUTES.PROJET_DETAIL(m.id),
-        rank: RANK.urgent,
-        sortKey: -1,
-      });
-    }
   }
 
   // Notifications non lues (max 3, déjà triées par récence en amont)
@@ -111,19 +87,17 @@ export function buildFeedRows(
 
 /**
  * Flux agenda pour la section « Ensuite » de la carte unifiée : le flux complet
- * (échéances + périls + notifications) moins les échéances déjà affichées dans
- * le bloc principal de la carte. Pur — exporté pour les tests unitaires.
+ * (échéances + notifications) moins les échéances déjà affichées dans le bloc
+ * principal de la carte. Pur — exporté pour les tests unitaires.
  */
 export function buildUpcomingRows(
   deadlines: ProjectDeadline[],
   shownDeadlines: ProjectDeadline[],
-  monuments: Monument[],
   notifications: Notification[]
 ): FeedRow[] {
   const shownIds = new Set(shownDeadlines.map((d) => d.id));
   return buildFeedRows(
     deadlines.filter((d) => !shownIds.has(d.id)),
-    monuments,
     notifications
   );
 }
