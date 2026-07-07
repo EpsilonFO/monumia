@@ -80,38 +80,41 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
         <p className="text-xs text-muted-foreground">{currentStepInfo.description}</p>
       </div>
 
-      {/* Step Content */}
-      <Card>
-        <CardContent className="pt-6 min-h-[460px]">
-          {currentStep === 1 && <Step1Identification data={formData} onChange={update} />}
-          {currentStep === 2 && <Step2StatutJuridique data={formData} onChange={update} />}
-          {currentStep === 3 && <Step3DescriptionPhysique data={formData} onChange={update} />}
-          {currentStep === 4 && <Step4EtatActuel data={formData} onChange={update} />}
-        </CardContent>
-      </Card>
+      {/* Carré blanc (ajusté au contenu) + navigation en colonne à sa droite,
+          calée en haut : elle ne bouge pas quand le carré grandit.
+          En mobile, la colonne repasse sous le carré. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <Card className="min-w-0 flex-1">
+          <CardContent className="pt-6">
+            {currentStep === 1 && <Step1Identification data={formData} onChange={update} />}
+            {currentStep === 2 && <Step2StatutJuridique data={formData} onChange={update} />}
+            {currentStep === 3 && <Step3DescriptionPhysique data={formData} onChange={update} />}
+            {currentStep === 4 && <Step4EtatActuel data={formData} onChange={update} />}
+          </CardContent>
+        </Card>
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={handlePrev}
-          disabled={currentStep === 1}
-        >
-          <ChevronLeft className="h-4 w-4 mr-1" />
-          Précédent
-        </Button>
-        <Button
-          onClick={handleNext}
-          disabled={!canProceed || (saving && currentStep === lastStep)}
-          className="h-12 px-8 text-base"
-        >
-          {saving && currentStep === lastStep
-            ? <Loader2 className="h-5 w-5 animate-spin" />
-            : currentStep === lastStep
-              ? isEditing ? 'Enregistrer' : 'Terminer'
-              : <>Suivant <ChevronRight className="h-5 w-5 ml-1.5" /></>}
-        </Button>
+        <div className="flex shrink-0 items-center justify-end gap-3 sm:w-44 sm:flex-col sm:items-stretch">
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={handlePrev}
+            disabled={currentStep === 1}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Précédent
+          </Button>
+          <Button
+            onClick={handleNext}
+            disabled={!canProceed || (saving && currentStep === lastStep)}
+            className="h-12 px-8 text-base"
+          >
+            {saving && currentStep === lastStep
+              ? <Loader2 className="h-5 w-5 animate-spin" />
+              : currentStep === lastStep
+                ? isEditing ? 'Enregistrer' : 'Terminer'
+                : <>Suivant <ChevronRight className="h-5 w-5 ml-1.5" /></>}
+          </Button>
+        </div>
       </div>
     </div>
   );

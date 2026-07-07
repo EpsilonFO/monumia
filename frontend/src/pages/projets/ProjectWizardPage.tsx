@@ -8,12 +8,7 @@ import { WizardShell } from '@/components/project/wizard/WizardShell';
 import { DiagnosticLoader } from '@/components/project/wizard/DiagnosticLoader';
 import type { WizardProgress, WizardStepKey } from '@/components/project/wizard/WizardRail';
 import { AllClear } from '@/components/illustrations';
-import {
-  IconAttention,
-  IconDocument,
-  IconModifier,
-  IconRafraichir,
-} from '@/components/icons';
+import { IconAttention, IconRafraichir } from '@/components/icons';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useAideStore } from '@/stores/useAideStore';
@@ -39,13 +34,6 @@ import type {
 const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
   REGIONS.map((r) => [r.label.toLowerCase(), r.value])
 );
-
-/** Puces de réassurance de l'étape monument (public peu à l'aise : on rassure
- *  d'emblée) — en bleu/orange/bleu, le rythme de la marque. */
-const REASSURANCE = [
-  { icon: IconModifier, label: 'Modifiable à tout moment', bg: 'var(--secondary)', fg: 'var(--primary)' },
-  { icon: IconDocument, label: 'Aucun document requis', bg: 'var(--warning-muted)', fg: 'var(--accent)' },
-] as const;
 
 export function ProjectWizardPage() {
   const navigate = useNavigate();
@@ -293,8 +281,8 @@ export function ProjectWizardPage() {
       exitTo={exitTo}
     >
       {step === 1 && (
-        <div className="space-y-5">
-          <div className="space-y-2">
+        <div className="space-y-4">
+          <div className="space-y-1.5">
             <div
               className="text-[12px] font-semibold uppercase tracking-[0.2em]"
               style={{ color: C.orange }}
@@ -312,19 +300,6 @@ export function ProjectWizardPage() {
               pour votre projet.
             </p>
           </div>
-
-          <ul className="flex flex-wrap gap-2.5">
-            {REASSURANCE.map(({ icon: Icon, label, bg, fg }) => (
-              <li
-                key={label}
-                className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-semibold"
-                style={{ background: bg, color: fg }}
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </li>
-            ))}
-          </ul>
 
           {mode === 'search' ? (
             <div className="space-y-4">
