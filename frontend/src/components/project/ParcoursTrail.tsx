@@ -19,44 +19,81 @@ const STAGE_ICON: Record<ProjectStageKey, IconComponent> = {
   suivi: IconSuivi,
 };
 
+const STATE_TEXT = { done: 'étape faite', current: 'étape en cours', upcoming: 'étape à venir' };
+
 /**
- * Frise de progression dépouillée : 4 jalons reliés, teintés à la couleur du
- * projet (`accent`). Franchi = pastille pleine + coche ; en cours = pastille
- * pleine + halo coloré ; à venir = pastille claire cerclée. Aucun libellé sous
- * les jalons — l'étape en cours est nommée en clair par la carte (une ligne).
+ * Frise de progression à étapes NOMMÉES : chaque jalon porte son libellé en
+ * toutes lettres (public peu à l'aise avec l'informatique — pas de code
+ * visuel implicite). Fait = pastille verte + coche ; en cours = pastille
+ * orange + halo + libellé en gras ; à venir = pastille claire cerclée.
+ * Horizontale sur desktop, elle devient une liste verticale (façon
+ * check-list) sur mobile où les libellés ne tiennent plus côte à côte.
+ *
+ * L'état est annoncé via `aria-label` sur chaque jalon — PAS de span
+ * `sr-only` : positionnés en absolu hors de tout ancêtre positionné, ils
+ * débordaient du viewport et créaient une scrollbar fantôme sur <html>.
  */
-export function ParcoursTrail({ stage, accent }: { stage: ProjectStage; accent: string }) {
+export function ParcoursTrail({ stage }: { stage: ProjectStage }) {
   const last = PROJECT_STAGES.length - 1;
 
   return (
-    <ol className="flex items-center" aria-label="Avancement du projet">
+    <ol
+      className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-0"
+      aria-label="Avancement du projet"
+    >
       {PROJECT_STAGES.map((s, i) => {
         const state = jalonState(i, stage.reachedIndex);
         const done = state === 'done';
         const current = state === 'current';
-        const active = done || current;
         const Icon = STAGE_ICON[s.key];
         return (
-          <li key={s.key} className="flex flex-1 items-center last:flex-none">
+          <li
+            key={s.key}
+            className="flex items-center sm:flex-1 sm:last:flex-none"
+            aria-current={current ? 'step' : undefined}
+            aria-label={`${s.label} (${STATE_TEXT[state]})`}
+          >
             <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors"
+              aria-hidden
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors"
               style={{
-                background: active ? accent : C.card,
-                color: active ? '#fff' : C.grayMuted,
-                border: active ? 'none' : `2px solid ${C.border}`,
-                boxShadow: current ? `0 0 0 4px color-mix(in srgb, ${accent} 24%, transparent)` : 'none',
+                background: done ? C.success : current ? C.orange : C.card,
+                color: done || current ? '#fff' : C.grayMuted,
+                // Neutres bleutés : la frise vit sur la tuile bleu pâle de la carte.
+                border:
+                  done || current
+                    ? 'none'
+                    : `2px solid color-mix(in srgb, ${C.blue} 22%, transparent)`,
+                boxShadow: current
+                  ? `0 0 0 4px color-mix(in srgb, ${C.orange} 22%, transparent)`
+                  : 'none',
               }}
             >
               {done ? (
-                <Check className="h-5 w-5" strokeWidth={3} aria-hidden />
+                <Check className="h-4 w-4" strokeWidth={3} />
               ) : (
-                <Icon className="h-5 w-5" weight="bold" aria-hidden />
+                <Icon className="h-4 w-4" weight="bold" />
               )}
+            </span>
+            <span
+              aria-hidden
+              className="ml-2 whitespace-nowrap text-[13px]"
+              style={{
+                color: current ? C.ink : done ? C.grayFg : C.grayMuted,
+                fontWeight: current ? 700 : 500,
+              }}
+            >
+              {s.label}
             </span>
             {i < last && (
               <span
-                className="mx-1.5 h-1 flex-1 rounded-full"
-                style={{ background: done ? accent : C.border }}
+                aria-hidden
+                className="mx-2.5 hidden h-[2px] min-w-3 flex-1 rounded-full sm:block"
+                style={{
+                  background: done
+                    ? C.success
+                    : `color-mix(in srgb, ${C.blue} 16%, transparent)`,
+                }}
               />
             )}
           </li>

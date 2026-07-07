@@ -8,6 +8,7 @@ import { OnboardingProfile } from '@/pages/onboarding/OnboardingProfile';
 import { OnboardingMonument } from '@/pages/onboarding/OnboardingMonument';
 import { LoginPage } from '@/pages/login/LoginPage';
 import { ResetPasswordPage } from '@/pages/login/ResetPasswordPage';
+import { AuthCallbackPage } from '@/pages/login/AuthCallbackPage';
 import { TarifsPage } from '@/pages/tarifs/TarifsPage';
 import { BlogLayout } from '@/components/blog/BlogLayout';
 import { BlogIndexPage } from '@/pages/blog/BlogIndexPage';
@@ -71,6 +72,12 @@ export const router = createBrowserRouter([
     element: <ResetPasswordPage />,
   },
 
+  // OAuth callback landing page (public — arrives from Supabase redirect)
+  {
+    path: '/auth/callback',
+    element: <AuthCallbackPage />,
+  },
+
   // Tarifs page (public)
   {
     path: '/tarifs',
@@ -105,6 +112,18 @@ export const router = createBrowserRouter([
     ],
   },
 
+  // Wizard de création — plein écran immersif, hors du shell AppLayout.
+  // Le chemin est inchangé : « Refaire le questionnaire » (?monument=id) et
+  // tous les ROUTES.PROJET_NEW continuent de fonctionner.
+  {
+    path: '/app/projets/nouveau',
+    element: (
+      <ProtectedRoute>
+        <ProjectWizardPage />
+      </ProtectedRoute>
+    ),
+  },
+
   // Owner / Commune app (protégé)
   {
     path: '/app',
@@ -117,7 +136,6 @@ export const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       // Unified Projet tab
       { path: 'projets', element: <ProjectsListPage /> },
-      { path: 'projets/nouveau', element: <ProjectWizardPage /> },
       { path: 'projets/:projetId', element: <ProjectDetailPage /> },
       { path: 'projets/:projetId/aides/:aideId', element: <AideProjectPage /> },
       { path: 'projets/:projetId/dossiers/:dossierId', element: <DossierDetailPage /> },

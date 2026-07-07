@@ -19,17 +19,6 @@ export const ownerNavItems: NavItem[] = [
   { to: ROUTES.DOCUMENTS, icon: IconDocuments, label: 'Mes documents' },
 ];
 
-function segmentTagline(segment?: string): string {
-  if (segment === 'commune') return 'Commune';
-  if (segment === 'prive') return 'Propriétaire';
-  return 'Patrimoine';
-}
-
-export function useOwnerBrand() {
-  const user = useAuthStore((s) => s.user);
-  return { tagline: segmentTagline(user?.segment) };
-}
-
 /** Avatar de compte ancré à droite de la barre haute — mène directement au profil. */
 export function OwnerAccountMenu() {
   const user = useAuthStore((s) => s.user);

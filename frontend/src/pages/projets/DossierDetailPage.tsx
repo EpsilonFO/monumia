@@ -13,6 +13,7 @@ import { DossierChecklist } from '@/components/dossier/DossierChecklist';
 import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
+import { DossierDetailSkeleton } from '@/components/skeletons';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
@@ -202,7 +203,7 @@ export function DossierDetailPage() {
     );
   }
 
-  if (!dossier || !monument) return <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blueLight }} /></div>;
+  if (!dossier || !monument) return <DossierDetailSkeleton />;
 
   const [aideName] = dossier.titre.split(' — ');
 

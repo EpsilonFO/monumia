@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { IconAide, IconTemps, IconSucces, IconHelp, IconErreur } from '@/components/icons';
+import { IconTemps, IconSucces, IconHelp, IconErreur } from '@/components/icons';
 import { AIDE_CATEGORIES, AIDE_TYPES } from '@/constants/aide-categories';
 import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import { deadlineLabel } from '@/lib/date-utils';
@@ -22,12 +22,12 @@ const VERDICT = {
   potential: {
     bg: 'bg-warning-muted', fg: 'text-warning', border: 'border-warning/30', Icon: IconHelp,
     title: 'Vous y êtes presque',
-    sub: 'Quelques points restent à vérifier — on vous montre lesquels juste en dessous.',
+    sub: 'Quelques points restent à vérifier — ils sont détaillés ci-dessous.',
   },
   'non-eligible': {
     bg: 'bg-destructive-muted', fg: 'text-destructive', border: 'border-destructive/30', Icon: IconErreur,
     title: 'Cette aide ne semble pas correspondre à ce projet',
-    sub: "Elle ne colle pas aux caractéristiques que vous avez renseignées.",
+    sub: "Elle ne correspond pas aux caractéristiques que vous avez renseignées.",
   },
 } as const;
 
@@ -61,14 +61,6 @@ export function AideHero({ aide, matchResult, cta }: {
       className="relative overflow-hidden rounded-3xl border"
       style={{ borderColor: C.border, background: C.card, boxShadow: 'var(--shadow-card)' }}
     >
-      {/* Filigrane de marque — la main qui reçoit l'aide */}
-      <IconAide
-        size={220}
-        className="pointer-events-none absolute -right-10 -top-14 select-none"
-        style={{ color: C.blue, opacity: 0.05 }}
-        aria-hidden
-      />
-
       <div className="relative space-y-5 p-6 sm:p-8">
         <div className="flex flex-wrap items-center gap-2">
           {cat && <Badge className={cat.color}>{cat.label}</Badge>}
@@ -86,7 +78,7 @@ export function AideHero({ aide, matchResult, cta }: {
 
         <div className="grid gap-3 sm:grid-cols-5">
           {v && (
-            <div className={`flex items-start gap-3 rounded-2xl border p-4 ${v.bg} ${v.border} ${hasMoney ? 'sm:col-span-3' : 'sm:col-span-5'}`}>
+            <div className={`flex items-center gap-3 rounded-2xl border p-4 ${v.bg} ${v.border} ${hasMoney ? 'sm:col-span-3' : 'sm:col-span-5'}`}>
               <v.Icon className={`h-6 w-6 shrink-0 ${v.fg}`} strokeWidth={2} />
               <div className="space-y-0.5">
                 <p className={`text-[15px] font-semibold leading-snug ${v.fg}`}>{v.title}</p>
@@ -100,7 +92,7 @@ export function AideHero({ aide, matchResult, cta }: {
               className={`rounded-2xl border p-4 ${v ? 'sm:col-span-2' : 'sm:col-span-5'}`}
               style={{ borderColor: C.border, background: 'var(--secondary)' }}
             >
-              <p className="text-[12px] font-medium text-muted-foreground">Vous pouvez obtenir</p>
+              <p className="text-[12px] font-medium text-muted-foreground">Montant potentiel</p>
               {aide.tauxMax ? (
                 <>
                   <p className="leading-none" style={{ fontFamily: SERIF, color: C.blue }}>

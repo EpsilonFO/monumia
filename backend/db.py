@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from supabase import Client, create_client
+from supabase import Client, ClientOptions, create_client
 
 load_dotenv()
 load_dotenv(".env.local", override=True)  # local overrides, gitignored
@@ -19,10 +19,17 @@ def get_supabase() -> Client:
 
 
 def get_anon_supabase() -> Client:
-    """Anon client — used for Auth operations (login, register, logout)."""
+    """Anon client — used for Auth operations (login, register, logout).
+
+    auto_refresh_token doit rester désactivé : le client est créé par requête,
+    mais le timer d'auto-refresh de gotrue survit à la requête et consommerait
+    en arrière-plan le refresh token rendu au frontend (rotation à usage
+    unique → session du client invalidée, déconnexion forcée à l'expiration).
+    """
     url = os.environ["SUPABASE_URL"]
     key = os.environ["SUPABASE_PUBLISHABLE_KEY"]
-    return create_client(url, key)
+    options = ClientOptions(auto_refresh_token=False, persist_session=False)
+    return create_client(url, key, options)
 
 
 def get_current_user_id(
@@ -36,6 +43,28 @@ def get_current_user_id(
         if response is None or response.user is None:
             raise ValueError("No user in response")
         return response.user.id
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalide ou expiré",
+        ) from e
+
+
+def get_current_auth_user(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    supabase: Client = Depends(get_supabase),
+):
+    """Comme get_current_user_id, mais renvoie l'utilisateur auth complet.
+
+    Nécessaire au flux OAuth : email et user_metadata (given_name…) doivent
+    venir du token, jamais du client. N'exige PAS de ligne dans public.users.
+    """
+    token = credentials.credentials
+    try:
+        response = supabase.auth.get_user(token)
+        if response is None or response.user is None:
+            raise ValueError("No user in response")
+        return response.user
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

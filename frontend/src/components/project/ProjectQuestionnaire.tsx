@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, ArrowLeft, Check, Loader2 } from 'lucide-react';
-import { IconSucces } from '@/components/icons';
+import { ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { AllClear } from '@/components/illustrations';
+import { AnswerCard } from '@/components/project/wizard/AnswerCard';
+import { isUnknownAnswer } from '@/components/project/wizard/unknownAnswer';
 import { C, SERIF } from '@/lib/brand';
 import { cn } from '@/lib/utils';
-import type { ProjectQuestionnaireAnswers, QcmOption, QcmQuestion } from '@/types';
+import type { ProjectQuestionnaireAnswers, QcmQuestion } from '@/types';
 
 interface ProjectQuestionnaireProps {
   /** Questions générées par le moteur d'aides (faits manquants du diagnostic). */
@@ -14,12 +16,10 @@ interface ProjectQuestionnaireProps {
   onComplete: () => void;
   /** Vrai pendant l'enregistrement + le diagnostic (spinner sur le bouton final). */
   submitting?: boolean;
-  /** Si fourni, affiche un bouton « Annuler » (utilisé par le dialog « Refaire »). */
-  onCancel?: () => void;
   /** Libellé du bouton final. */
   completeLabel?: string;
-  /** Encadré dans une carte (wizard) ou nu, dans un dialog (redo). */
-  framed?: boolean;
+  /** Remonte la position courante (rail + header mobile du shell). */
+  onProgress?: (progress: { index: number; total: number }) => void;
 }
 
 /** Délai avant l'auto-avance : laisse voir sa réponse se cocher. */
@@ -30,23 +30,6 @@ function prefersReducedMotion(): boolean {
     typeof window !== 'undefined' &&
     !!window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
-}
-
-/** Le moteur fournit souvent une option « Je ne sais pas » : on évite alors de la dupliquer en bas. */
-function isUnknownOption(o: QcmOption): boolean {
-  const id = o.id.toLowerCase();
-  const l = o.label.toLowerCase();
-  return (
-    id === 'skip' ||
-    id === 'unknown' ||
-    id === 'nsp' ||
-    l.includes('ne sais pas') ||
-    l.includes('ne sait pas') ||
-    l.includes('je ne sais') ||
-    l.includes('incertain') ||
-    l.includes('pas sûr') ||
-    l.includes('aucune idée')
   );
 }
 
@@ -63,9 +46,8 @@ export function ProjectQuestionnaire({
   onChange,
   onComplete,
   submitting,
-  onCancel,
   completeLabel = 'Lancer le diagnostic',
-  framed = true,
+  onProgress,
 }: ProjectQuestionnaireProps) {
   const total = questions.length;
   const [index, setIndex] = useState(0);
@@ -99,6 +81,13 @@ export function ProjectQuestionnaire({
     if (targetId) optionRefs.current[`${current.id}:${targetId}`]?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, onFinish]);
+
+  // Le shell (rail desktop + header mobile) affiche la progression : on la
+  // lui remonte à chaque changement d'écran (index === total sur la fin).
+  useEffect(() => {
+    onProgress?.({ index: Math.min(index, total), total });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, total]);
 
   const goNext = () => {
     clearTimer();
@@ -144,82 +133,57 @@ export function ProjectQuestionnaire({
   };
 
   const slideClass = dir === 'fwd' ? 'q-in-fwd' : 'q-in-back';
-  const shellClass = framed ? 'mx-auto max-w-xl overflow-hidden rounded-3xl border' : 'overflow-hidden';
-  const shellStyle = framed
-    ? { background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }
-    : undefined;
-  const pad = framed ? 'px-6 sm:px-8' : 'px-0';
 
   // ─── Écran de fin ───
   if (onFinish) {
     const answered = questions.filter((qq) => value[qq.id] !== undefined).length;
     return (
-      <div className={cn(shellClass, slideClass)} style={shellStyle}>
-        <div className={cn('flex flex-col items-center gap-4 py-10 text-center', pad)}>
-          <span
-            className="flex h-16 w-16 items-center justify-center rounded-full"
-            style={{ background: C.paleOrange }}
-            aria-hidden
-          >
-            <IconSucces className="h-7 w-7" style={{ color: C.orange }} />
-          </span>
-          <h2
-            ref={finishRef}
-            tabIndex={-1}
-            className="text-[clamp(1.4rem,3vw,1.9rem)] leading-tight outline-none"
-            style={{ fontFamily: SERIF, color: C.ink }}
-          >
-            C&apos;est tout&nbsp;!
-          </h2>
-          <p className="max-w-sm text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
-            {answered > 0
-              ? `Vous avez répondu à ${answered} question${answered > 1 ? 's' : ''}. `
-              : 'Pas de souci si vous avez passé des questions. '}
-            On met à jour vos aides.
-          </p>
+      <div className={cn('flex flex-col items-center gap-5 py-10 text-center', slideClass)}>
+        <AllClear />
+        <h2
+          ref={finishRef}
+          tabIndex={-1}
+          className="text-[clamp(1.5rem,3.4vw,2rem)] leading-tight outline-none"
+          style={{ fontFamily: SERIF, color: C.ink }}
+        >
+          C&rsquo;est tout&nbsp;!
+        </h2>
+        <p className="max-w-sm text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
+          {answered > 0
+            ? `Vous avez répondu à ${answered} question${answered > 1 ? 's' : ''}. `
+            : 'Pas de souci si vous avez passé des questions. '}
+          On met à jour vos aides.
+        </p>
+        <button
+          type="button"
+          onClick={onComplete}
+          disabled={submitting}
+          className="group mt-1 inline-flex min-h-[3.25rem] items-center gap-2 rounded-2xl px-7 py-3.5 text-[16px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
+          style={{ background: C.orange }}
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Analyse des aides en cours…
+            </>
+          ) : (
+            <>
+              {completeLabel}
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </>
+          )}
+        </button>
+        {!submitting && (
           <button
             type="button"
-            onClick={onComplete}
-            disabled={submitting}
-            className="group mt-1 inline-flex min-h-12 items-center gap-2 rounded-xl px-6 py-3 text-[15px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
-            style={{ background: C.orange }}
+            onClick={goBack}
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium underline-offset-2 hover:underline"
+            style={{ color: C.grayMuted }}
           >
-            {submitting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Analyse des aides en cours…
-              </>
-            ) : (
-              <>
-                {completeLabel}
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </>
-            )}
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Revoir mes réponses
           </button>
-          {!submitting && (
-            <div className="flex items-center gap-5">
-              <button
-                type="button"
-                onClick={goBack}
-                className="inline-flex items-center gap-1.5 text-[13px] font-medium underline-offset-2 hover:underline"
-                style={{ color: C.grayMuted }}
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Revoir mes réponses
-              </button>
-              {onCancel && (
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  className="text-[13px] underline-offset-2 hover:underline"
-                  style={{ color: C.grayMuted }}
-                >
-                  Annuler
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+        )}
       </div>
     );
   }
@@ -227,17 +191,22 @@ export function ProjectQuestionnaire({
   // ─── Une question à la fois ───
   // La barre reflète la position courante (jamais 0 % sur la 1re question).
   const pct = Math.round(((index + 1) / total) * 100);
-  const showSkipLink = !q!.options.some(isUnknownOption);
+  // Le moteur fournit souvent une option « Je ne sais pas » native : on évite
+  // alors de la dupliquer en bas.
+  const showSkipCard = !q!.options.some(isUnknownAnswer);
 
   return (
-    <div className={shellClass} style={shellStyle}>
-      {/* Progression */}
-      <div className={cn('pt-6 pb-4', pad)}>
+    <div>
+      {/* Barre fine de progression, en tête de scène. */}
+      <div className="pb-4">
         <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em]">
           <span aria-live="polite" style={{ color: C.orange }}>
-            Question {index + 1} <span style={{ color: C.grayMuted }}>/ {total}</span>
+            Question {index + 1} <span style={{ color: C.grayMuted }}>sur {total}</span>
           </span>
-          <span className="tabular-nums" style={{ color: C.grayMuted }}>
+          <span
+            className="rounded-full px-2 py-0.5 tabular-nums tracking-normal"
+            style={{ background: 'var(--secondary)', color: C.blue }}
+          >
             {pct}&nbsp;%
           </span>
         </div>
@@ -251,17 +220,20 @@ export function ProjectQuestionnaire({
         >
           <div
             className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${pct}%`, background: C.orange }}
+            style={{
+              width: `${pct}%`,
+              background: 'linear-gradient(90deg, var(--accent), var(--orange-vif))',
+            }}
           />
         </div>
       </div>
 
       {/* Question (glisse à chaque changement) */}
-      <div key={index} className={cn(slideClass, pad, 'pb-2')}>
-        <fieldset role="radiogroup" className="space-y-5">
+      <div key={index} className={cn(slideClass, 'pb-1')}>
+        <fieldset role="radiogroup" className="space-y-4">
           <legend className="w-full">
             <span
-              className="block text-[clamp(1.3rem,3.2vw,1.7rem)] leading-snug"
+              className="block text-[clamp(1.25rem,2.8vw,1.6rem)] leading-snug"
               style={{ fontFamily: SERIF, color: C.ink }}
             >
               {q!.question}
@@ -271,7 +243,7 @@ export function ProjectQuestionnaire({
           <div
             className={cn(
               'grid gap-2.5',
-              q!.options.length > 4 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1',
+              q!.options.length > 3 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1',
             )}
           >
             {q!.options.map((option, optionIndex) => {
@@ -279,61 +251,38 @@ export function ProjectQuestionnaire({
               const refKey = `${q!.id}:${option.id}`;
               const roving = selected || (value[q!.id] === undefined && optionIndex === 0);
               return (
-                <button
+                <AnswerCard
                   key={option.id}
-                  ref={(el) => {
+                  option={option}
+                  optionIndex={optionIndex}
+                  selected={selected}
+                  roving={roving}
+                  onSelect={() => commit(option.id)}
+                  onKeyDown={(e) => onOptionKeyDown(e, optionIndex)}
+                  buttonRef={(el) => {
                     optionRefs.current[refKey] = el;
                   }}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  tabIndex={roving ? 0 : -1}
-                  onClick={() => commit(option.id)}
-                  onKeyDown={(e) => onOptionKeyDown(e, optionIndex)}
-                  className={cn(
-                    'group flex min-h-[3.5rem] w-full items-center gap-4 rounded-2xl border px-5 py-3.5 text-left text-[15px] leading-snug transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                    selected
-                      ? 'border-accent bg-warning-muted shadow-[var(--shadow-card)]'
-                      : 'border-border bg-card hover:border-warning hover:bg-warning-muted',
-                  )}
-                  style={{ color: C.ink }}
-                >
-                  <span
-                    className={cn(
-                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
-                      selected ? 'border-accent bg-accent text-white' : 'border-border',
-                    )}
-                  >
-                    {selected ? (
-                      <Check className="h-4 w-4" strokeWidth={3} />
-                    ) : (
-                      <span className="h-2 w-2 rounded-full bg-muted transition-colors group-hover:bg-accent" />
-                    )}
-                  </span>
-                  <span>{option.label}</span>
-                </button>
+                />
               );
             })}
           </div>
 
-          {showSkipLink && (
-            <div className="pt-0.5">
-              <button
-                type="button"
-                onClick={skip}
-                className="text-[13px] underline-offset-2 transition-colors hover:underline"
-                style={{ color: C.grayMuted }}
-              >
-                Je ne sais pas
-              </button>
-            </div>
+          {showSkipCard && (
+            <button
+              type="button"
+              onClick={skip}
+              className="w-full rounded-2xl border border-dashed px-5 py-3 text-[14px] font-medium transition-colors hover:border-warning hover:bg-warning-muted"
+              style={{ borderColor: C.border, color: C.grayFg }}
+            >
+              Je ne sais pas — passer cette question
+            </button>
           )}
         </fieldset>
       </div>
 
       {/* Navigation bas */}
       <div
-        className={cn('mt-3 flex items-center justify-between border-t py-4', pad)}
+        className="mt-3 flex items-center justify-between border-t py-3"
         style={{ borderColor: C.border }}
       >
         <button
@@ -346,20 +295,9 @@ export function ProjectQuestionnaire({
           <ArrowLeft className="h-4 w-4" />
           Précédent
         </button>
-        {onCancel ? (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="text-[13px] underline-offset-2 hover:underline"
-            style={{ color: C.grayMuted }}
-          >
-            Annuler
-          </button>
-        ) : (
-          <span className="hidden text-[12px] sm:block" style={{ color: C.grayMuted }}>
-            Vous pourrez refaire ce questionnaire plus tard
-          </span>
-        )}
+        <span className="hidden text-[12px] sm:block" style={{ color: C.grayMuted }}>
+          Vous pourrez refaire ce questionnaire plus tard
+        </span>
       </div>
     </div>
   );

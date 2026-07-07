@@ -36,11 +36,13 @@ async function syncSupabaseSession(): Promise<void> {
   sessionSyncPromise = (async () => {
     const fresh = await ensureFreshAccessToken();
     if (!fresh) return;
-    const { token, refreshToken } = useAuthStore.getState();
+    const { token } = useAuthStore.getState();
     if (!token) return;
     await supabase.auth.setSession({
       access_token: token,
-      refresh_token: refreshToken ?? '',
+      // Jamais utilisé (autoRefreshToken désactivé, token frais garanti par
+      // ensureFreshAccessToken) mais setSession exige une valeur non vide.
+      refresh_token: 'cookie-managed',
     });
   })().finally(() => {
     sessionSyncPromise = null;

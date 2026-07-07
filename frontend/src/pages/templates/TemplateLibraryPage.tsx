@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { TemplateCard } from '@/components/template/TemplateCard';
+import { TemplateGridSkeleton } from '@/components/skeletons';
 import { useTemplateStore } from '@/stores/useTemplateStore';
 import { normalize } from '@/lib/template-matching';
 
@@ -70,11 +71,7 @@ export function TemplateLibraryPage() {
 
       {/* Content */}
       {loading && !loaded ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-44 rounded-xl bg-border/30 animate-pulse" />
-          ))}
-        </div>
+        <TemplateGridSkeleton />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={IconModele}

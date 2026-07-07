@@ -3,10 +3,9 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronDown, Loader2 } from 'lucide-react';
 import {
   type IconComponent,
-  IconProtection, IconCalendrier, IconAttention, IconReglages, IconMonument, IconDiagnostic, IconModifier,
-  IconSupprimer, IconSucces, IconHelp, IconErreur, IconEquipe, IconAide, IconDossier, IconDocuments, IconDepot,
+  IconDiagnostic, IconSucces, IconHelp, IconErreur,
+  IconEquipe, IconAide, IconDossier, IconDocuments, IconDepot, IconMonument,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -14,6 +13,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MonumentForm } from '@/components/monument/MonumentForm';
+import { MonumentFiche } from '@/components/monument/MonumentFiche';
 import { AideCard } from '@/components/aide/AideCard';
 import { DossierCard } from '@/components/dossier/DossierCard';
 import { DocumentCard } from '@/components/document/DocumentCard';
@@ -25,8 +25,8 @@ import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog'
 import { TeamPanel } from '@/components/sharing/TeamPanel';
 import { projectPermissions } from '@/lib/project-permissions';
 import { ProjectSummaryBar } from '@/components/project/ProjectSummaryBar';
+import { ProjectDetailSkeleton } from '@/components/skeletons';
 import { ProjectEcheancier } from '@/components/project/ProjectEcheancier';
-import { RetakeQuestionnaireDialog } from '@/components/project/RetakeQuestionnaireDialog';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
@@ -38,11 +38,11 @@ import { dossierService } from '@/services/dossier.service';
 import { suiviService } from '@/services/suivi.service';
 import { sharingService } from '@/services/sharing.service';
 import { computeProjectStats, mergeProjectDeadlines } from '@/lib/project-stats';
-import { formatDate, daysUntil } from '@/lib/date-utils';
+import { daysUntil } from '@/lib/date-utils';
 import { C, SERIF } from '@/lib/brand';
+import { aideGridSpans } from '@/lib/aide-grid';
 import { isAccessLostError } from '@/lib/api-error';
 import { ROUTES } from '@/constants/routes';
-import { WORK_TYPES, OWNERSHIP_TYPES, PROTECTION_LABELS, ETAT_LABELS } from '@/constants/monument-options';
 import { toast } from 'sonner';
 import type { Monument, Document, AideMatchResult, ProjectMember, ProjectInvitation } from '@/types';
 
@@ -88,7 +88,6 @@ export function ProjectDetailPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [retakeOpen, setRetakeOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [showNonEligibles, setShowNonEligibles] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
@@ -213,7 +212,7 @@ export function ProjectDetailPage() {
     );
   }
 
-  if (!monument || !stats) return <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blueLight }} /></div>;
+  if (!monument || !stats) return <ProjectDetailSkeleton />;
 
   const handleSave = async (data: Partial<Monument>) => {
     setSaving(true);
@@ -278,7 +277,6 @@ export function ProjectDetailPage() {
     );
   }
 
-  const workTypeLabels = WORK_TYPES.reduce<Record<string, string>>((acc, w) => { acc[w.value] = w.label; return acc; }, {});
   // Une aide déjà passée en dossier disparaît de la liste des aides : elle vit
   // désormais dans l'onglet « Dossiers ». Supprimer le dossier l'y fait réapparaître.
   const dossierAideIds = new Set(dossiers.map((d) => d.aideId));
@@ -286,18 +284,22 @@ export function ProjectDetailPage() {
   const potentiels = [...(diagnostic?.aidesPotentiellementEligibles ?? [])].filter((m) => !dossierAideIds.has(m.aide.id)).sort(byDeadline);
   const nonEligibles = (diagnostic?.aidesNonEligibles ?? []).filter((m) => !dossierAideIds.has(m.aide.id));
 
-  // L'affichage des aides s'adapte au nombre : 1 → bandeau pleine largeur (occupe
-  // l'espace) · 2 → deux colonnes · 3+ → grille trois colonnes. Évite tout vide.
-  const renderAideList = (list: AideMatchResult[]) =>
-    list.length === 1 ? (
-      <AideCard match={list[0]} monumentId={monument.id} layout="hero" />
-    ) : (
-      <div className={`grid grid-cols-1 gap-4 ${list.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
-        {list.map((match) => (
-          <AideCard key={match.aide.id} match={match} monumentId={monument.id} layout="grid" />
+  // L'affichage des aides s'adapte au nombre : 1 → bandeau pleine largeur, sinon
+  // grille 6 colonnes où chaque carte s'étale (rangées de deux ou de trois) pour
+  // que chaque rangée soit pleine — jamais de case vide (voir aideGridSpans).
+  const renderAideList = (list: AideMatchResult[]) => {
+    if (list.length === 1) return <AideCard match={list[0]} monumentId={monument.id} layout="hero" />;
+    const spans = aideGridSpans(list.length);
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+        {list.map((match, i) => (
+          <div key={match.aide.id} className={spans[i]}>
+            <AideCard match={match} monumentId={monument.id} layout="grid" />
+          </div>
         ))}
       </div>
     );
+  };
 
   // Onglets du projet — chaque entrée = un grand bouton lisible (icône + libellé + compteur).
   const projectTabs: { value: string; label: string; icon: IconComponent; count: number | null }[] = [
@@ -376,17 +378,6 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <div className="space-y-8">
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setRetakeOpen(true)}
-                  className="inline-flex items-center gap-1.5 text-[12.5px] font-medium underline-offset-2 transition-colors hover:underline"
-                  style={{ color: C.grayMuted }}
-                >
-                  <IconReglages className="h-3.5 w-3.5" />
-                  Refaire le questionnaire
-                </button>
-              </div>
-
               <ProjectEcheancier deadlines={deadlines} />
 
               <section className="space-y-3">
@@ -431,84 +422,13 @@ export function ProjectDetailPage() {
         </TabsContent>
 
         {/* MONUMENT */}
-        <TabsContent value="monument" className="mt-4 space-y-4">
-          <div className="flex justify-end gap-2">
-            {projectPermissions(monument?.myRole ?? null).canDeleteProject && (
-              <button onClick={() => setConfirmDeleteOpen(true)} disabled={deleting} aria-label="Supprimer le projet" className="flex items-center justify-center w-9 h-9 shrink-0 border rounded-lg transition-colors hover:text-destructive hover:border-destructive/30 text-muted-foreground" style={{ borderColor: C.border }}>
-                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconSupprimer className="h-4 w-4" strokeWidth={1.8} />}
-              </button>
-            )}
-            {projectPermissions(monument?.myRole ?? null).canEditProject && (
-              <button onClick={() => setIsEditing(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
-                <IconModifier className="h-3.5 w-3.5" strokeWidth={1.8} />Éditer
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Panel title="Identification" icon={<IconMonument className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />}>
-              <div className="space-y-2 text-[13px]">
-                {monument.referenceMerimee && <InfoRow label="Réf. Mérimée" value={monument.referenceMerimee} />}
-                <InfoRow label="Localisation" value={monument.commune ?? ''} />
-                <InfoRow label="Département" value={monument.departement ?? ''} />
-                {monument.siecleConstruction && <InfoRow label="Siècle" value={monument.siecleConstruction} />}
-              </div>
-            </Panel>
-
-            <Panel title="Statut juridique" icon={<IconProtection className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />}>
-              <div className="space-y-2 text-[13px]">
-                <InfoRow label="Protection" value={PROTECTION_LABELS[monument.protection] ?? monument.protection} />
-                {monument.dateProtection && <InfoRow label="Date" value={formatDate(monument.dateProtection)} />}
-                <InfoRow label="Propriétaire" value={OWNERSHIP_TYPES.find((o) => o.value === monument.proprietaire)?.label ?? monument.proprietaire} />
-                {monument.affectataire && <InfoRow label="Affectation" value={monument.affectataire} />}
-              </div>
-            </Panel>
-
-            <Panel title="État actuel" icon={<IconAttention className="h-4 w-4" style={{ color: C.orangeVif }} strokeWidth={1.8} />}>
-              <div className="space-y-3 text-[13px]">
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">Conservation :</span>
-                  <Badge variant="outline" className="text-[12px]" style={{ borderColor: C.border }}>{ETAT_LABELS[monument.etatConservation] ?? monument.etatConservation}</Badge>
-                </div>
-                {monument.descriptionEtat && <p className="leading-relaxed text-muted-foreground">{monument.descriptionEtat}</p>}
-              </div>
-            </Panel>
-
-            <Panel title="Travaux envisagés" icon={<IconReglages className="h-4 w-4" style={{ color: C.orange }} strokeWidth={1.8} />}>
-              {monument.travauxEnvisages && monument.travauxEnvisages.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {monument.travauxEnvisages.map((t) => (
-                    <Badge key={t} className="text-[12px] border-0" style={{ background: C.paleOrange, color: C.orange }}>{workTypeLabels[t] ?? t}</Badge>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[13px] text-muted-foreground">Aucun travail envisagé</p>
-              )}
-            </Panel>
-          </div>
-
-          {monument.descriptionGenerale && (
-            <Panel title="Description générale de la protection">
-              <p className="text-[13px] leading-relaxed text-muted-foreground">{monument.descriptionGenerale}</p>
-            </Panel>
-          )}
-
-          {monument.photos && monument.photos.length > 0 && (
-            <Panel title="Photos">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {monument.photos.map((p) => (
-                  <div key={p.url} className="aspect-square rounded-lg overflow-hidden border" style={{ borderColor: C.border }}>
-                    <img src={p.url} alt={p.legende ?? monument.nom} className="w-full h-full object-cover" />
-                  </div>
-                ))}
-              </div>
-            </Panel>
-          )}
-
-          <div className="flex items-center gap-4 text-[12px] text-muted-foreground">
-            <div className="flex items-center gap-1"><IconCalendrier className="h-3 w-3" />Créé le {formatDate(monument.createdAt)}</div>
-            <div className="flex items-center gap-1"><IconCalendrier className="h-3 w-3" />Modifié le {formatDate(monument.updatedAt)}</div>
-          </div>
+        <TabsContent value="monument" className="mt-4">
+          <MonumentFiche
+            monument={monument}
+            canDelete={projectPermissions(monument.myRole ?? null).canDeleteProject}
+            deleting={deleting}
+            onDelete={() => setConfirmDeleteOpen(true)}
+          />
         </TabsContent>
 
         {/* DOSSIERS */}
@@ -575,12 +495,6 @@ export function ProjectDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <RetakeQuestionnaireDialog
-        monument={monument}
-        open={retakeOpen}
-        onClose={() => setRetakeOpen(false)}
-      />
-
       <DocumentPreviewDialog document={previewDoc} open={!!previewDoc} onOpenChange={(open) => { if (!open) setPreviewDoc(null); }} onAddToProject={(doc) => { setPreviewDoc(null); setAddToProjectDoc(doc); }} />
       <AddToProjectDialog
         document={addToProjectDoc}
@@ -624,40 +538,26 @@ export function ProjectDetailPage() {
       <AlertDialog open={confirmRefaireOpen} onOpenChange={setConfirmRefaireOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Refaire le questionnaire ?</AlertDialogTitle>
+            <AlertDialogTitle>Refaire le questionnaire&nbsp;?</AlertDialogTitle>
             <AlertDialogDescription>
-              Vos réponses actuelles seront effacées et le diagnostic d'aides sera recalculé à partir
-              de zéro. Cette action est irréversible.
+              Vous repartirez de vos informations monument déjà enregistrées&nbsp;: seules
+              les réponses au questionnaire seront redemandées. Vos réponses actuelles
+              seront remplacées et le diagnostic d&rsquo;aides recalculé.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRefaire}>Refaire le questionnaire</AlertDialogAction>
+            <AlertDialogAction
+              onClick={confirmRefaire}
+              className="text-white hover:opacity-90"
+              style={{ background: C.orange }}
+            >
+              Refaire le questionnaire
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-    </div>
-  );
-}
-
-function Panel({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border overflow-hidden" style={{ background: C.card, borderColor: C.border }}>
-      <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: C.border }}>
-        {icon && <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: C.cream }}>{icon}</div>}
-        <h3 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>{title}</h3>
-      </div>
-      <div className="px-5 py-4">{children}</div>
-    </div>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline gap-2">
-      <span className="shrink-0 text-muted-foreground">{label} :</span>
-      <span className="font-medium" style={{ color: C.ink }}>{value}</span>
     </div>
   );
 }

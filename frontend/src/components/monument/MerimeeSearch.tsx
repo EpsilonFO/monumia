@@ -1,15 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
-import { IconRecherche, IconLocalisation, IconProtection } from '@/components/icons';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { IconRecherche, IconLocalisation } from '@/components/icons';
+import { C, SERIF } from '@/lib/brand';
 import { merimeeService } from '@/services/merimee.service';
 import type { MerimeeRecord } from '@/types';
 
 interface MerimeeSearchProps {
   onSelect: (record: MerimeeRecord) => void;
+}
+
+/** Tonalité du badge de protection, dérivée du texte Mérimée (pas d'enum côté API). */
+function protectionTone(typologie: string | undefined): { bg: string; fg: string; label: string } {
+  const t = (typologie ?? '').toLowerCase();
+  if (/(?:^|[^a-zà-ÿ])classé/.test(t)) return { bg: 'var(--secondary)', fg: 'var(--primary)', label: 'Classé MH' };
+  if (/(?:^|[^a-zà-ÿ])inscrit/.test(t)) return { bg: 'var(--info-muted)', fg: 'var(--info)', label: 'Inscrit MH' };
+  return { bg: 'var(--muted)', fg: 'var(--gray-fg)', label: typologie || 'Protection inconnue' };
 }
 
 export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
@@ -48,10 +53,15 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
   return (
     <div className="space-y-4">
       <div className="relative">
-        <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          className="pl-9"
-          placeholder="Rechercher par nom, commune ou référence Mérimée..."
+        <IconRecherche
+          className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2"
+          style={{ color: C.grayMuted }}
+        />
+        <input
+          type="search"
+          className="h-14 w-full rounded-2xl border pl-12 pr-4 text-[16px] outline-none transition-shadow placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+          style={{ borderColor: C.border, background: C.card, boxShadow: 'var(--shadow-card)', color: C.ink }}
+          placeholder="Nom du monument, commune ou référence…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -59,58 +69,69 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
 
       {query.length >= 2 && loading && (
         <div className="flex justify-center py-4">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blueLight }} />
         </div>
       )}
 
       {query.length >= 2 && !loading && results.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-4">
-          Aucun résultat trouvé pour &laquo;&nbsp;{query}&nbsp;&raquo;
+        <p className="py-4 text-center text-[14px]" style={{ color: C.grayMuted }}>
+          Aucun résultat pour «&nbsp;{query}&nbsp;». Vous pourrez décrire votre monument
+          vous-même juste en dessous.
         </p>
       )}
 
+      {/* px/py internes sur la liste : les cartes se soulèvent au hover
+          (translate-y) — sans cette marge, le conteneur à scroll rogne leur
+          bord supérieur. */}
       {results.length > 0 && (
-        <div className="space-y-2 max-h-80 overflow-y-auto">
-          {results.map((record) => (
-            <Card
-              key={record.reference}
-              className="cursor-pointer hover:border-primary/50 transition-colors"
-              onClick={() => onSelect(record)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1 min-w-0 flex-1">
-                    <p className="font-medium leading-tight">
-                      {record.titre_editorial_de_la_notice}
-                    </p>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <IconLocalisation className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">
-                        {record.commune_actuelle
-                          ? `${record.commune_forme_index} → ${record.commune_actuelle}`
-                          : record.commune_forme_index}
-                        {' — '}
-                        {record.departement_en_lettres}
+        <ul className="max-h-[30vh] space-y-2.5 overflow-y-auto px-1 py-1.5">
+          {results.map((record) => {
+            const tone = protectionTone(record.typologie_de_la_protection);
+            return (
+              <li key={record.reference}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(record)}
+                  className="group w-full rounded-2xl border-2 border-border bg-card p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-warning hover:shadow-[var(--shadow-pop)]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className="text-[16px] leading-snug"
+                        style={{ fontFamily: SERIF, color: C.ink }}
+                      >
+                        {record.titre_editorial_de_la_notice}
+                      </p>
+                      <p
+                        className="mt-1.5 flex items-center gap-1.5 text-[13px]"
+                        style={{ color: C.grayFg }}
+                      >
+                        <IconLocalisation className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">
+                          {record.commune_actuelle || record.commune_forme_index}
+                          {' — '}
+                          {record.departement_en_lettres}
+                        </span>
+                      </p>
+                      <span
+                        className="mt-2 inline-flex rounded-full px-2.5 py-0.5 text-[12px] font-semibold"
+                        style={{ background: tone.bg, color: tone.fg }}
+                      >
+                        {tone.label}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <IconProtection className="h-3.5 w-3.5 shrink-0" />
-                      <span>{record.typologie_de_la_protection}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <Badge variant="outline" className="text-xs font-mono">
+                    <span
+                      className="shrink-0 rounded-md border px-1.5 py-0.5 font-mono text-[11px]"
+                      style={{ borderColor: C.border, color: C.grayMuted }}
+                    >
                       {record.reference}
-                    </Badge>
-                    <Button size="sm" variant="ghost" className="text-xs h-7">
-                      Sélectionner
-                    </Button>
+                    </span>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );

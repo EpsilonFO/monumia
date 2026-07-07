@@ -1,11 +1,13 @@
 import contextlib
+import os
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from supabase import Client
 
-from db import get_anon_supabase, get_current_user_id, get_supabase
+from db import get_anon_supabase, get_current_auth_user, get_current_user_id, get_supabase
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -37,12 +39,38 @@ class RegisterCollaboratorRequest(BaseModel):
     telephone: str | None = None
 
 
+class RegisterOauthRequest(BaseModel):
+    """Comme RegisterRequest, sans email/password : l'utilisateur auth existe
+    déjà (créé par le provider OAuth), l'email est lu depuis le token."""
+
+    prenom: str
+    nom: str
+    segment: str  # 'commune' | 'prive' | 'btp'
+    telephone: str | None = None
+    commune_code_insee: str | None = None
+    commune_fonction: str | None = None
+    prive_type_proprietaire: str | None = None
+    prive_regime_fiscal: str | None = None
+    btp: dict | None = None
+
+
+class RegisterCollaboratorOauthRequest(BaseModel):
+    prenom: str
+    nom: str
+    metier: str
+    telephone: str | None = None
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
 
 
 class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class OauthSessionRequest(BaseModel):
     refresh_token: str
 
 
@@ -62,6 +90,35 @@ class UpdateNotificationsRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: str
+
+
+# ---------------------------------------------------------------------------
+# Cookie de refresh token (httpOnly : jamais lisible par le JavaScript)
+# ---------------------------------------------------------------------------
+
+REFRESH_COOKIE = "monumia_refresh"
+REFRESH_COOKIE_MAX_AGE = 30 * 24 * 3600  # 30 jours, renouvelé à chaque rotation
+
+
+def _cookie_secure() -> bool:
+    # true par défaut (prod HTTPS) ; COOKIE_SECURE=false en local http.
+    return os.environ.get("COOKIE_SECURE", "true").lower() != "false"
+
+
+def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    response.set_cookie(
+        key=REFRESH_COOKIE,
+        value=refresh_token,
+        max_age=REFRESH_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=_cookie_secure(),
+        samesite="lax",
+        path="/auth",  # envoyé uniquement sur les endpoints d'auth
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(key=REFRESH_COOKIE, path="/auth")
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +194,20 @@ def _default_notification_preferences() -> dict:
     }
 
 
+def _prefill_from_auth_user(auth_user) -> dict:
+    """Prénom/nom/email depuis les métadonnées du provider OAuth (Google)."""
+    meta = getattr(auth_user, "user_metadata", None) or {}
+    prenom = (meta.get("given_name") or "").strip()
+    nom = (meta.get("family_name") or "").strip()
+    if not prenom and not nom:
+        full = (meta.get("full_name") or meta.get("name") or "").strip()
+        if full:
+            parts = full.split(" ", 1)
+            prenom = parts[0]
+            nom = parts[1] if len(parts) > 1 else ""
+    return {"email": auth_user.email, "prenom": prenom, "nom": nom}
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -159,6 +230,7 @@ def _validate_password(password: str) -> None:
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(
     body: RegisterRequest,
+    response: Response,
     anon: Client = Depends(get_anon_supabase),
     supabase: Client = Depends(get_supabase),
 ):
@@ -199,9 +271,10 @@ def register(
     supabase.table("users").insert(profile).execute()
 
     session = auth_response.session
+    if session and session.refresh_token:
+        _set_refresh_cookie(response, session.refresh_token)
     return {
         "access_token": session.access_token if session else None,
-        "refresh_token": session.refresh_token if session else None,
         "token_type": "bearer",
         "user": _get_profile(supabase, user_id),
     }
@@ -210,6 +283,7 @@ def register(
 @router.post("/register-collaborator", status_code=status.HTTP_201_CREATED)
 def register_collaborator(
     body: RegisterCollaboratorRequest,
+    response: Response,
     anon: Client = Depends(get_anon_supabase),
     supabase: Client = Depends(get_supabase),
 ):
@@ -240,9 +314,10 @@ def register_collaborator(
     supabase.table("users").insert(profile).execute()
 
     session = auth_response.session
+    if session and session.refresh_token:
+        _set_refresh_cookie(response, session.refresh_token)
     return {
         "access_token": session.access_token if session else None,
-        "refresh_token": session.refresh_token if session else None,
         "token_type": "bearer",
         "user": _get_profile(supabase, user_id),
     }
@@ -251,6 +326,7 @@ def register_collaborator(
 @router.post("/login")
 def login(
     body: LoginRequest,
+    response: Response,
     anon: Client = Depends(get_anon_supabase),
     supabase: Client = Depends(get_supabase),
 ):
@@ -269,12 +345,109 @@ def login(
 
     user_id = auth_response.user.id
 
+    _set_refresh_cookie(response, auth_response.session.refresh_token)
     return {
         "access_token": auth_response.session.access_token,
-        "refresh_token": auth_response.session.refresh_token,
         "token_type": "bearer",
         "user": _get_profile(supabase, user_id),
     }
+
+
+@router.get("/oauth/profile-status")
+def oauth_profile_status(
+    auth_user=Depends(get_current_auth_user),
+    supabase: Client = Depends(get_supabase),
+):
+    """Après un login OAuth : le profil applicatif existe-t-il déjà ?
+
+    exists=true  → connexion normale (le front pose la session).
+    exists=false → le front envoie l'utilisateur dans l'onboarding, prérempli.
+    """
+    result = supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
+    if result is not None and result.data:
+        return {"exists": True, "user": _get_profile(supabase, auth_user.id)}
+    return {"exists": False, "prefill": _prefill_from_auth_user(auth_user)}
+
+
+@router.post("/register-oauth", status_code=status.HTTP_201_CREATED)
+def register_oauth(
+    body: RegisterOauthRequest,
+    auth_user=Depends(get_current_auth_user),
+    supabase: Client = Depends(get_supabase),
+):
+    """Fin d'onboarding d'un compte créé via OAuth : crée la ligne users.
+
+    Idempotent : une re-soumission (double clic, retry réseau) renvoie le
+    profil existant au lieu d'échouer.
+    """
+    existing = supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
+    if existing is not None and existing.data:
+        return {"user": _get_profile(supabase, auth_user.id)}
+
+    profile: dict[str, Any] = {
+        "id": auth_user.id,
+        "email": auth_user.email,
+        "prenom": body.prenom,
+        "nom": body.nom,
+        "segment": body.segment,
+        "telephone": body.telephone,
+        "commune_code_insee": body.commune_code_insee,
+        "commune_fonction": body.commune_fonction,
+        "prive_type_proprietaire": body.prive_type_proprietaire,
+        "prive_regime_fiscal": body.prive_regime_fiscal,
+        "btp": body.btp,
+        "onboarding_complete": False,
+        "notification_preferences": _default_notification_preferences(),
+    }
+    # Course entre deux soumissions : la ligne vient d'être créée par
+    # l'autre requête — l'idempotence retombe sur le profil existant.
+    with contextlib.suppress(Exception):
+        supabase.table("users").insert(profile).execute()
+
+    return {"user": _get_profile(supabase, auth_user.id)}
+
+
+@router.post("/register-collaborator-oauth", status_code=status.HTTP_201_CREATED)
+def register_collaborator_oauth(
+    body: RegisterCollaboratorOauthRequest,
+    auth_user=Depends(get_current_auth_user),
+    supabase: Client = Depends(get_supabase),
+):
+    """Miroir OAuth de /register-collaborator : pas de segment/QCM, onboarding terminé."""
+    existing = supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
+    if existing is not None and existing.data:
+        return {"user": _get_profile(supabase, auth_user.id)}
+
+    profile: dict[str, Any] = {
+        "id": auth_user.id,
+        "email": auth_user.email,
+        "prenom": body.prenom,
+        "nom": body.nom,
+        "segment": "prive",  # valeur neutre : non utilisée pour un collaborateur
+        "telephone": body.telephone,
+        "account_type": "collaborateur",
+        "metier": body.metier,
+        "onboarding_complete": True,
+        "notification_preferences": _default_notification_preferences(),
+    }
+    # Course entre deux soumissions : la ligne vient d'être créée par
+    # l'autre requête — l'idempotence retombe sur le profil existant.
+    with contextlib.suppress(Exception):
+        supabase.table("users").insert(profile).execute()
+
+    return {"user": _get_profile(supabase, auth_user.id)}
+
+
+@router.post("/oauth/session", status_code=status.HTTP_204_NO_CONTENT)
+def oauth_session(
+    body: OauthSessionRequest,
+    response: Response,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Échange unique post-callback OAuth : le refresh token reçu dans le hash
+    d'URL part en cookie httpOnly et ne repassera plus jamais côté client.
+    Le Bearer (access token du même hash) authentifie l'appel."""
+    _set_refresh_cookie(response, body.refresh_token)
 
 
 @router.post("/forgot-password")
@@ -300,12 +473,21 @@ def forgot_password(
 
 @router.post("/refresh")
 def refresh(
-    body: RefreshRequest,
+    request: Request,
+    response: Response,
+    body: RefreshRequest | None = None,
     anon: Client = Depends(get_anon_supabase),
     supabase: Client = Depends(get_supabase),
 ):
+    """Renouvelle la session. Le refresh token vient du cookie httpOnly ;
+    le body reste accepté transitoirement (migration des sessions qui
+    l'avaient encore en localStorage)."""
+    refresh_token = request.cookies.get(REFRESH_COOKIE) or (body.refresh_token if body else None)
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="Aucun refresh token")
+
     try:
-        auth_response = anon.auth.refresh_session(body.refresh_token)
+        auth_response = anon.auth.refresh_session(refresh_token)
     except Exception as e:
         raise HTTPException(status_code=401, detail="Refresh token invalide ou expiré") from e
 
@@ -314,23 +496,30 @@ def refresh(
 
     user_id = auth_response.user.id if auth_response.user else auth_response.session.user.id
 
+    _set_refresh_cookie(response, auth_response.session.refresh_token)
     return {
         "access_token": auth_response.session.access_token,
-        "refresh_token": auth_response.session.refresh_token,
         "token_type": "bearer",
         "user": _get_profile(supabase, user_id),
     }
 
 
+_optional_bearer = HTTPBearer(auto_error=False)
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
-    user_id: str = Depends(get_current_user_id),
+    response: Response,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_optional_bearer),
     anon: Client = Depends(get_anon_supabase),
 ):
-    import contextlib
+    """Déconnexion : efface toujours le cookie, révoque la session si possible.
 
+    L'auth est facultative : un access token expiré ne doit pas empêcher
+    d'effacer le cookie (sinon la session ressusciterait au prochain boot)."""
     with contextlib.suppress(Exception):
-        anon.auth.sign_out()  # Already invalid token — still return 204
+        anon.auth.sign_out()
+    _clear_refresh_cookie(response)
 
 
 @router.get("/me")

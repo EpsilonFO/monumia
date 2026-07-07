@@ -1,14 +1,38 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
-import { ArrowRight } from 'lucide-react';
-import { IconAccompagnement, IconDocument } from '@/components/icons';
+import { ArrowRight, ChevronRight } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { C, DEADLINE_TONE } from '@/lib/brand';
 import { deadlineLabel } from '@/lib/date-utils';
 import { deadlineLink } from '@/lib/project-stats';
 import type { ProjectDeadline } from '@/lib/project-stats';
+import type { FeedRow } from './echeances-alertes-utils';
 import { AllClear } from '@/components/illustrations';
 
-export function NextActionCard({ deadlines }: { deadlines: ProjectDeadline[] }) {
-  if (deadlines.length === 0) {
+const KIND_ACCENT: Record<FeedRow['kind'], { fg: string; tint: string }> = {
+  urgent: { fg: C.danger, tint: C.paleDanger },
+  warning: { fg: C.orange, tint: C.paleOrange },
+  info: { fg: C.blue, tint: C.paleBlue },
+};
+
+/** Nombre de lignes « Ensuite » visibles avant dépliage. */
+const UPCOMING_PREVIEW = 3;
+
+interface NextActionCardProps {
+  /** Échéance(s) les plus proches — affichées dans le bloc principal. */
+  deadlines: ProjectDeadline[];
+  /** Reste du flux agenda (échéances suivantes, périls, notifications). */
+  upcoming: FeedRow[];
+}
+
+/**
+ * Carte agenda unifiée : l'action prioritaire en avant, suivie des prochaines
+ * échéances et alertes (« Ensuite »). Remplace l'ancien duo NextActionCard +
+ * AgendaPanel qui répétait la même information en haut et en bas de page.
+ */
+export function NextActionCard({ deadlines, upcoming }: NextActionCardProps) {
+  if (deadlines.length === 0 && upcoming.length === 0) {
     return (
       <div
         className="flex items-center gap-4 rounded-2xl border px-6 py-5"
@@ -27,46 +51,126 @@ export function NextActionCard({ deadlines }: { deadlines: ProjectDeadline[] }) 
     );
   }
 
+  const first = deadlines[0];
+  // Sans action principale, la barre d'accent reflète la ligne la plus urgente.
+  const tone = first
+    ? DEADLINE_TONE[deadlineLabel(first.date).urgency]
+    : DEADLINE_TONE[upcoming[0].kind === 'urgent' ? 'urgent' : upcoming[0].kind === 'warning' ? 'warning' : 'normal'];
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-2xl border"
+      style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
+    >
+      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: tone.node }} aria-hidden />
+      {first ? <MainAction deadlines={deadlines} /> : null}
+      {upcoming.length > 0 && (
+        <UpcomingList rows={upcoming} standalone={!first} />
+      )}
+    </div>
+  );
+}
+
+/** Bloc principal : la prochaine action, avec date façon éphéméride et CTA. */
+function MainAction({ deadlines }: { deadlines: ProjectDeadline[] }) {
   const [first, ...rest] = deadlines;
   const { text, urgency } = deadlineLabel(first.date);
   const tone = DEADLINE_TONE[urgency];
-  const Icon = first.source === 'aide' ? IconAccompagnement : IconDocument;
+  const date = parseISO(first.date);
+  const month = format(date, 'MMM', { locale: fr }).replace('.', '');
 
   return (
     <Link
       to={deadlineLink(first)}
-      className="group relative block overflow-hidden rounded-2xl border transition-shadow hover:shadow-[var(--shadow-pop)]"
-      style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
+      className="group flex flex-col gap-4 px-6 py-5 pl-7 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center"
     >
-      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: tone.node }} aria-hidden />
-      <div className="flex flex-col gap-4 px-6 py-5 pl-7 sm:flex-row sm:items-center">
-        <span
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
-          style={{ background: tone.tint, color: tone.fg }}
-        >
-          <Icon className="h-6 w-6" aria-hidden />
+      <span
+        className="flex h-16 w-14 shrink-0 flex-col items-center justify-center rounded-2xl"
+        style={{ background: tone.tint, color: tone.fg }}
+        aria-hidden
+      >
+        <span className="text-[22px] font-bold leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)' }}>
+          {format(date, 'd')}
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="inline-flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.18em]" style={{ color: tone.fg }}>
-            <span aria-hidden style={{ width: 18, height: 2, borderRadius: 2, background: tone.node }} />
-            À faire maintenant · {text}
-          </p>
-          <p className="mt-1 truncate text-[17px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
-            {first.label}
-          </p>
-          <p className="text-[12.5px]" style={{ color: C.grayMuted }}>
-            {first.source === 'aide' ? 'Demande d’aide' : 'Dossier'}
-            {rest.length > 0 ? ` · et ${rest.length} autre${rest.length > 1 ? 's' : ''} ce jour-là` : ''}
-          </p>
-        </div>
-        <span
-          className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-xl px-4 py-2.5 text-[13px] font-semibold text-white sm:self-center"
-          style={{ background: C.orange }}
-        >
-          Je m'en occupe
-          <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
-        </span>
+        <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em]">{month}</span>
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="inline-flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.18em]" style={{ color: tone.fg }}>
+          <span aria-hidden style={{ width: 18, height: 2, borderRadius: 2, background: tone.node }} />
+          À faire maintenant · {text}
+        </p>
+        <p className="mt-1 truncate text-[17px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
+          {first.label}
+        </p>
+        <p className="text-[12.5px]" style={{ color: C.grayMuted }}>
+          {first.source === 'aide' ? 'Demande d’aide' : 'Dossier'}
+          {rest.length > 0 ? ` · et ${rest.length} autre${rest.length > 1 ? 's' : ''} ce jour-là` : ''}
+        </p>
       </div>
+      <span
+        className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-xl px-4 py-2.5 text-[13px] font-semibold text-white sm:self-center"
+        style={{ background: C.orange }}
+      >
+        Je m'en occupe
+        <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+      </span>
     </Link>
+  );
+}
+
+/** Section « Ensuite » : les prochaines échéances/alertes en lignes compactes, dépliables. */
+function UpcomingList({ rows, standalone }: { rows: FeedRow[]; standalone: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? rows : rows.slice(0, UPCOMING_PREVIEW);
+  const hidden = rows.length - UPCOMING_PREVIEW;
+
+  return (
+    <div
+      className="px-6 pb-4 pl-7 pt-4"
+      style={standalone ? undefined : { borderTop: `1px dashed ${C.border}` }}
+    >
+      <h3 className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.grayMuted }}>
+        {standalone ? 'À noter' : 'Ensuite'}
+      </h3>
+      <ul>
+        {visible.map((row) => {
+          const accent = KIND_ACCENT[row.kind];
+          const inner = (
+            <div className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-muted/60">
+              <span
+                className="inline-flex w-16 shrink-0 justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums"
+                style={{ background: accent.tint, color: accent.fg }}
+              >
+                {row.badge}
+              </span>
+              <p className="min-w-0 flex-1 truncate text-[13px] font-medium" style={{ color: C.ink }}>
+                {row.label}
+              </p>
+              <span className="hidden shrink-0 text-[11.5px] sm:inline" style={{ color: C.grayMuted }}>
+                {row.sub}
+              </span>
+              {row.to && (
+                <ChevronRight
+                  className="h-4 w-4 shrink-0 opacity-30 transition-transform group-hover:translate-x-0.5 group-hover:opacity-60"
+                  style={{ color: C.ink }}
+                  aria-hidden
+                />
+              )}
+            </div>
+          );
+          return <li key={row.id}>{row.to ? <Link to={row.to}>{inner}</Link> : inner}</li>;
+        })}
+      </ul>
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1 px-2 text-[12px] font-semibold transition-opacity hover:opacity-70"
+          style={{ color: C.blue }}
+        >
+          {expanded ? 'Réduire' : `+ ${hidden} autre${hidden > 1 ? 's' : ''}`}
+        </button>
+      )}
+    </div>
   );
 }

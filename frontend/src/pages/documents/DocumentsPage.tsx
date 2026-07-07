@@ -18,6 +18,7 @@ import { AddToProjectDialog } from '@/components/document/AddToProjectDialog';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
+import { DocumentsListSkeleton } from '@/components/skeletons';
 import { C, SERIF } from '@/lib/brand';
 import { projectColor } from '@/lib/project-color';
 import { groupDocumentsByProject } from '@/lib/group-documents';
@@ -246,11 +247,7 @@ export function DocumentsPage() {
 
       {/* Contenu */}
       {loading ? (
-        <div className="flex flex-col gap-3">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-[144px] rounded-2xl animate-pulse" style={{ background: `${C.border}66` }} />
-          ))}
-        </div>
+        <DocumentsListSkeleton />
       ) : isEmpty ? (
         <EmptyState
           icon={IconDossierOuvert}

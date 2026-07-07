@@ -302,3 +302,30 @@
   .q-in-back { animation: none; }
 }
 
+/* ─── Squelettes de chargement : voile crème + reflet chaud qui balaie ─── */
+@keyframes skeleton-sweep-kf {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--muted) 72%, var(--border));
+}
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--card) 70%, transparent) 50%,
+    transparent 100%
+  );
+  animation: skeleton-sweep-kf 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer::after { animation: none; }
+}
+

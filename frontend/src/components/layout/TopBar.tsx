@@ -3,7 +3,7 @@ import { landingUrl } from '@/lib/session';
 import { cn } from '@/lib/utils';
 import { C, SERIF } from '@/lib/brand';
 import { IconLivre } from '@/components/icons';
-import { ownerNavItems, OwnerAccountMenu, useOwnerBrand, type NavItem } from './ownerNav';
+import { ownerNavItems, OwnerAccountMenu, type NavItem } from './ownerNav';
 
 /** Onglets de la barre haute = nav privée + le Blog public (ressources). */
 const topBarNavItems: NavItem[] = [
@@ -12,8 +12,6 @@ const topBarNavItems: NavItem[] = [
 ];
 
 export function TopBar() {
-  const { tagline } = useOwnerBrand();
-
   return (
     <header
       className="z-30 shrink-0 bg-[var(--card)]/85 backdrop-blur-xl"
@@ -26,19 +24,11 @@ export function TopBar() {
         {/* Marque */}
         <a href={landingUrl()} className="flex shrink-0 items-center gap-2.5">
           <img src="/monumia.png" alt="" className="h-8 w-8" aria-hidden />
-          <span className="hidden leading-tight sm:block">
-            <span
-              className="block text-[18px] font-bold tracking-[-0.01em]"
-              style={{ fontFamily: SERIF, color: C.ink }}
-            >
-              Monumia
-            </span>
-            <span
-              className="block text-[10px] font-bold uppercase tracking-[0.15em]"
-              style={{ color: C.orange }}
-            >
-              {tagline}
-            </span>
+          <span
+            className="hidden text-[18px] font-bold leading-tight tracking-[-0.01em] sm:block"
+            style={{ fontFamily: SERIF, color: C.ink }}
+          >
+            Monumia
           </span>
         </a>
 

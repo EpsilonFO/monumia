@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { Loader2 } from 'lucide-react';
 import { IconAjouter, IconProjet, IconRecherche } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import {
@@ -11,78 +10,31 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ProjectCard } from '@/components/project/ProjectCard';
+import { ProjectListSkeleton } from '@/components/skeletons';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
-import { useAuthStore } from '@/stores/useAuthStore';
-import { monumentService } from '@/services/monument.service';
-import { dossierService } from '@/services/dossier.service';
-import { aideService } from '@/services/aide.service';
 import { computeProjectStats, projectStage, type ProjectStage } from '@/lib/project-stats';
 import { useSuiviStore } from '@/stores/useSuiviStore';
-import { suiviService } from '@/services/suivi.service';
+import { useProjectsData } from '@/hooks/useProjectsData';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 
 type ProjectSortKey = 'recent' | 'oldest' | 'name' | 'modified';
 
 export function ProjectsListPage() {
-  const token = useAuthStore((s) => s.token);
   const monuments = useMonumentStore((s) => s.monuments);
-  const setMonuments = useMonumentStore((s) => s.setMonuments);
   const dossiers = useDossierStore((s) => s.dossiers);
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
-  const setDiagnostic = useAideStore((s) => s.setDiagnostic);
   const suivis = useSuiviStore((s) => s.suivis);
-  const loadedSuivis = useSuiviStore((s) => s.loadedMonuments);
 
-  const [loading, setLoading] = useState(monuments.length === 0);
+  // Charge monuments, dossiers, diagnostics et suivis ; `loading` ne retombe
+  // qu'une fois TOUT arrivé, pour que le squelette couvre aussi le nombre
+  // d'aides et l'avancement (sinon les cartes s'affichent vides puis sautent).
+  const { loading } = useProjectsData();
+
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<ProjectSortKey>('recent');
-
-  useEffect(() => {
-    if (!token) return;
-    // Toujours rafraîchir au montage (revenir sur l'onglet doit refléter les
-    // changements faits par les autres membres). On garde l'affichage en cache
-    // pendant le rechargement — le spinner n'apparaît que si rien n'est encore là.
-    monumentService
-      .getAll()
-      .then(setMonuments)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
-
-  useEffect(() => {
-    if (token) dossierService.fetchAll().catch(console.error);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
-
-  useEffect(() => {
-    for (const m of monuments) {
-      if (!diagnosticsByMonument[m.id]) {
-        aideService
-          .runProjectDiagnostic(m.id, m.questionnaire)
-          .then((result) => setDiagnostic(m.id, result))
-          .catch(console.error);
-      }
-    }
-    // Recalcule le diagnostic déterministe par monument à chaque changement de
-    // liste ; le garde par-id évite les recalculs en double une fois stocké.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monuments]);
-
-  // Charge les suivis (par monument) absents du store, pour que le parcours
-  // atteigne l'étape « Suivi ». Gardé par loadedMonuments → une fois par
-  // monument et par session (même motif que le diagnostic ci-dessus).
-  useEffect(() => {
-    for (const m of monuments) {
-      if (!loadedSuivis[m.id]) {
-        suiviService.fetchByMonument(m.id).catch(console.error);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monuments]);
 
   const visibleMonuments = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -156,9 +108,7 @@ export function ProjectsListPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
+        <ProjectListSkeleton />
       ) : monuments.length === 0 ? (
         <div
           className="flex flex-col items-center justify-center gap-4 rounded-xl border py-16 text-center"
@@ -178,36 +128,40 @@ export function ProjectsListPage() {
         </div>
       ) : (
         <>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="relative flex-1 sm:max-w-md">
-              <IconRecherche
-                className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-                strokeWidth={1.8}
-              />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher un projet..."
-                className="h-10 pl-9 text-[14px]"
-                style={{ background: C.card, borderColor: C.border }}
-              />
-            </div>
+          {/* Recherche et tri : utiles seulement quand la liste devient longue.
+              La plupart des comptes ont 1-2 projets — on leur épargne ce bruit. */}
+          {monuments.length > 3 && (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="relative flex-1 sm:max-w-md">
+                <IconRecherche
+                  className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+                  strokeWidth={1.8}
+                />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Rechercher un projet..."
+                  className="h-10 pl-9 text-[14px]"
+                  style={{ background: C.card, borderColor: C.border }}
+                />
+              </div>
 
-            <Select value={sortKey} onValueChange={(v) => setSortKey(v as ProjectSortKey)}>
-              <SelectTrigger
-                className="h-10 w-full text-[14px] sm:w-56"
-                style={{ background: C.card, borderColor: C.border }}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recent">Créés récemment</SelectItem>
-                <SelectItem value="oldest">Plus anciens</SelectItem>
-                <SelectItem value="modified">Récemment modifiés</SelectItem>
-                <SelectItem value="name">Nom (A → Z)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <Select value={sortKey} onValueChange={(v) => setSortKey(v as ProjectSortKey)}>
+                <SelectTrigger
+                  className="h-10 w-full text-[14px] sm:w-56"
+                  style={{ background: C.card, borderColor: C.border }}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">Créés récemment</SelectItem>
+                  <SelectItem value="oldest">Plus anciens</SelectItem>
+                  <SelectItem value="modified">Récemment modifiés</SelectItem>
+                  <SelectItem value="name">Nom (A → Z)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {visibleMonuments.length === 0 ? (
             <div
@@ -217,7 +171,9 @@ export function ProjectsListPage() {
               Aucun projet ne correspond à votre recherche.
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            /* Liste verticale (façon Doctolib) : une carte horizontale par projet,
+               lisible de haut en bas — même rendu avec 1, 2 ou 20 projets. */
+            <div className="space-y-4">
               {visibleMonuments.map((monument) => (
                 <ProjectCard
                   key={monument.id}

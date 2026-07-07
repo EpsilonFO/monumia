@@ -11,11 +11,10 @@ import { setSessionCookie, clearSessionCookie } from '@/lib/session';
 interface AuthState {
   user: User | null;
   token: string | null;
-  refreshToken: string | null;
   isOnboarded: boolean;
 
-  setAuth: (user: User, token: string, refreshToken?: string | null) => void;
-  setTokens: (token: string, refreshToken: string) => void;
+  setAuth: (user: User, token: string) => void;
+  setTokens: (token: string) => void;
   setUser: (user: User) => void;
   updateProfile: (updates: Partial<User>) => Promise<void>;
   completeOnboarding: () => void;
@@ -29,17 +28,15 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       token: null,
-      refreshToken: null,
       isOnboarded: false,
 
-      setAuth: (user, token, refreshToken = null) => {
-        set({ user, token, refreshToken, isOnboarded: user.onboardingComplete });
+      setAuth: (user, token) => {
+        set({ user, token, isOnboarded: user.onboardingComplete });
         // Let the landing page (separate origin) know a session is active.
         setSessionCookie();
       },
 
-      setTokens: (token, refreshToken) =>
-        set({ token, refreshToken }),
+      setTokens: (token) => set({ token }),
 
       setUser: (user) => set({ user, isOnboarded: user.onboardingComplete }),
 
@@ -74,7 +71,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        set({ user: null, token: null, refreshToken: null, isOnboarded: false });
+        set({ user: null, token: null, isOnboarded: false });
         clearSessionCookie();
         // Reset all data stores to prevent data leaking between accounts
         useMonumentStore.setState({ monuments: [], activeMonumentId: null });
@@ -85,10 +82,12 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'monumia-auth',
-      // Keep the cross-domain session hint in sync with the rehydrated token,
-      // so the landing page reflects the right state after a page reload.
+      // Les tokens ne touchent JAMAIS le localStorage : seul le profil est
+      // persisté (UX). La session est restaurée au boot via le cookie httpOnly.
+      partialize: (state) => ({ user: state.user, isOnboarded: state.isOnboarded }),
+      // Keep the cross-domain session hint in sync after a page reload.
       onRehydrateStorage: () => (state) => {
-        if (state?.token) setSessionCookie();
+        if (state?.user) setSessionCookie();
         else clearSessionCookie();
       },
     }

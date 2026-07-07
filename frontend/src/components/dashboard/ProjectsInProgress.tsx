@@ -1,10 +1,9 @@
 import { Link } from 'react-router';
 import { ArrowUpRight, ChevronRight } from 'lucide-react';
 import {
-  IconParchemin,
+  IconDossier,
   IconEcheance,
   IconProjet,
-  IconProtection,
   IconLocalisation,
   IconEquipe,
 } from '@/components/icons';
@@ -14,7 +13,8 @@ import { sharedRole } from '@/lib/project-permissions';
 import { C, DEADLINE_TONE } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { formatDateShort } from '@/lib/date-utils';
-import { PROTECTION_LABELS_SHORT } from '@/constants/monument-options';
+import { formatCurrency } from '@/lib/format-utils';
+import { montantTileMode } from '@/lib/project-card-view';
 import { ParcoursStepper } from './ParcoursStepper';
 import type { Monument } from '@/types';
 import type { ProjectStats, ProjectStage } from '@/lib/project-stats';
@@ -29,14 +29,6 @@ interface ProjectsInProgressProps {
  *  le bas en bleu profond pour que le titre blanc reste lisible sur n'importe quelle image. */
 const PHOTO_SCRIM =
   'linear-gradient(to top, rgba(7,42,114,0.94) 6%, rgba(7,42,114,0.58) 40%, rgba(7,42,114,0.08) 82%)';
-
-/** État de conservation → pastille colorée (vert/ambre/orange/rouge), repris du code couleur projet. */
-const ETAT_TONE: Record<Monument['etatConservation'], { fg: string; dot: string; label: string }> = {
-  bon: { fg: 'var(--success)', dot: 'var(--success)', label: 'Bon état' },
-  moyen: { fg: 'var(--warning)', dot: 'var(--warning)', label: 'État moyen' },
-  mauvais: { fg: 'var(--cat-2)', dot: 'var(--cat-2)', label: 'Mauvais état' },
-  peril: { fg: C.danger, dot: C.danger, label: 'En péril' },
-};
 
 /** Photo héros : on privilégie la façade, sinon le premier cliché disponible. */
 function heroPhoto(m: Monument): string | null {
@@ -58,7 +50,7 @@ function Kicker({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Badge « prestige » en verre, posé sur le héros (protection MH). */
+/** Badge en verre posé sur le héros (rôle sur projet partagé). */
 function GlassBadge({ children }: { children: React.ReactNode }) {
   return (
     <span
@@ -89,12 +81,18 @@ function ProjectCard({
   const dossiersActifs = stats?.dossiersActifs ?? 0;
   const next = stats?.prochaineEcheance ?? null;
   const photo = heroPhoto(monument);
-  const etat = ETAT_TONE[monument.etatConservation] ?? ETAT_TONE.moyen;
-  const protection =
-    monument.protection !== 'non_protege'
-      ? PROTECTION_LABELS_SHORT[monument.protection] ?? null
-      : null;
   const role = sharedRole(monument.myRole);
+
+  // Kicker du héros : l'accroche aides du projet (montant si estimé, sinon le
+  // nombre d'aides repérées, sinon l'invitation à estimer) — plutôt qu'un
+  // « En cours » identique sur toutes les cartes.
+  const aidesMode = montantTileMode(stats);
+  const kicker =
+    aidesMode === 'money' && stats
+      ? `Jusqu’à ${formatCurrency(stats.montantPotentiel)} d’aides`
+      : aidesMode === 'count' && stats
+        ? `${stats.aidesIdentifiees} aide${stats.aidesIdentifiees > 1 ? 's' : ''} repérée${stats.aidesIdentifiees > 1 ? 's' : ''}`
+        : 'Aides à estimer';
 
   return (
     <Link
@@ -123,34 +121,19 @@ function ProjectCard({
           />
         )}
 
-        {/* Badges prestige (haut) : protection + rôle à gauche, état (toujours présent) à droite */}
-        <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            {protection && (
-              <GlassBadge>
-                <IconProtection className="h-3 w-3" strokeWidth={2.4} aria-hidden />
-                {protection}
-              </GlassBadge>
-            )}
-            {role && (
-              <GlassBadge>
-                <IconEquipe className="h-3 w-3" strokeWidth={2.4} aria-hidden />
-                {ROLE_LABELS[role]}
-              </GlassBadge>
-            )}
+        {/* Badge rôle (haut) : uniquement si le projet est partagé avec moi */}
+        {role && (
+          <div className="absolute left-0 top-0 p-4">
+            <GlassBadge>
+              <IconEquipe className="h-3 w-3" strokeWidth={2.4} aria-hidden />
+              {ROLE_LABELS[role]}
+            </GlassBadge>
           </div>
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
-            style={{ background: 'rgba(255,255,255,0.92)', color: etat.fg }}
-          >
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: etat.dot }} />
-            {etat.label}
-          </span>
-        </div>
+        )}
 
         {/* Titre en surimpression (ancré en bas → hauteur de héros constante) */}
         <div className="absolute inset-x-0 bottom-0 p-5">
-          <Kicker>En cours</Kicker>
+          <Kicker>{kicker}</Kicker>
           <p
             className={`mt-2 line-clamp-2 font-bold leading-tight text-white ${
               featured ? 'text-[clamp(1.6rem,3vw,2.4rem)]' : 'text-[20px]'
@@ -186,7 +169,7 @@ function ProjectCard({
             className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-foreground/70"
           >
             <span className="inline-flex items-center gap-1.5">
-              <IconParchemin className="h-3.5 w-3.5" aria-hidden />
+              <IconDossier className="h-3.5 w-3.5" aria-hidden />
               {dossiersActifs} dossier{dossiersActifs > 1 ? 's' : ''}
             </span>
             {next && (
