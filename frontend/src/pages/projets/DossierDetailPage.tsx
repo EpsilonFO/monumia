@@ -110,6 +110,24 @@ export function DossierDetailPage() {
     return map;
   }, [dossier, templates, aide?.categorie]);
 
+  // Lien de téléchargement officiel de la pièce (Cerfa / formulaire / modèle),
+  // affiché en hypertexte dans « Les documents à préparer » de l'aide. Le lien est
+  // perdu à la création du dossier (la checklist ne stocke que le libellé), on le
+  // retrouve en rapprochant le libellé de la pièce du nom du document requis.
+  const documentUrlByItemId = useMemo(() => {
+    if (!dossier || !aide) return {};
+    const urlByNom = new Map<string, string>();
+    for (const doc of aide.documentsRequis ?? []) {
+      if (typeof doc === 'object' && doc.url) urlByNom.set(doc.nom, doc.url);
+    }
+    const map: Record<string, string> = {};
+    for (const item of dossier.checklist) {
+      const url = urlByNom.get(item.label);
+      if (url) map[item.id] = url;
+    }
+    return map;
+  }, [dossier, aide]);
+
   const handleAttach = async (document: Document) => {
     if (!attachingItem || !dossier || !monument) return;
     const itemId = attachingItem.id;
@@ -235,6 +253,7 @@ export function DossierDetailPage() {
               <DossierChecklist
                 items={dossier.checklist}
                 templatesByItemId={templatesByItemId}
+                documentUrlByItemId={documentUrlByItemId}
                 onRequestAttach={(item) => setAttachingItem(item)}
                 onPreview={handlePreview}
                 onRequestDelete={handleDeleteItem}

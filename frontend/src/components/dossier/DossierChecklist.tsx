@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import {
-  IconLivre, IconSucces, IconTelecharger, IconVoir, IconVerrou, IconAjouter, IconRafraichir, IconSupprimer,
+  IconLivre, IconSucces, IconTelecharger, IconVoir, IconVerrou, IconAjouter, IconRafraichir, IconSupprimer, IconLienExterne,
 } from '@/components/icons';
 import { Link, useParams } from 'react-router';
 import { ROUTES } from '@/constants/routes';
@@ -33,6 +33,8 @@ interface DossierChecklistProps {
   items: ChecklistItem[];
   /** Modèles de la bibliothèque correspondant à chaque pièce (par id de pièce). */
   templatesByItemId?: Record<string, Template[]>;
+  /** Lien de téléchargement officiel de la pièce (Cerfa / formulaire), par id de pièce. */
+  documentUrlByItemId?: Record<string, string>;
   onRequestAttach?: (item: ChecklistItem) => void;
   onPreview?: (documentId: string) => void;
   onRequestDelete?: (item: ChecklistItem) => void;
@@ -45,6 +47,7 @@ interface DossierChecklistProps {
 export function DossierChecklist({
   items,
   templatesByItemId,
+  documentUrlByItemId,
   onRequestAttach,
   onPreview,
   onRequestDelete,
@@ -103,6 +106,7 @@ export function DossierChecklist({
             key={item.id}
             item={item}
             templates={templatesByItemId?.[item.id] ?? []}
+            documentUrl={documentUrlByItemId?.[item.id]}
             readOnly={readOnly}
             canModify={canModifyItem ? canModifyItem(item) : true}
             busy={busyItemId === item.id}
@@ -122,6 +126,7 @@ export function DossierChecklist({
 function DocumentRow({
   item,
   templates,
+  documentUrl,
   readOnly,
   canModify = true,
   busy,
@@ -132,6 +137,7 @@ function DocumentRow({
 }: {
   item: ChecklistItem;
   templates: Template[];
+  documentUrl?: string;
   readOnly?: boolean;
   canModify?: boolean;
   busy?: boolean;
@@ -212,6 +218,19 @@ function DocumentRow({
           >
             <IconSupprimer className="h-3.5 w-3.5" />
           </button>
+        )}
+        {documentUrl && (
+          <a
+            href={documentUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Télécharger le document (formulaire / Cerfa / modèle officiel)"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-primary/20 text-primary hover:bg-secondary/50 transition-colors"
+          >
+            <IconTelecharger className="h-3 w-3" />
+            Télécharger
+            <IconLienExterne className="h-3 w-3" />
+          </a>
         )}
         {!readOnly && onRequestAttach && (!isFourni || canModify) && !hidden && (
           <button
