@@ -52,6 +52,13 @@ class RegisterOauthRequest(BaseModel):
     btp: dict | None = None
 
 
+class RegisterCollaboratorOauthRequest(BaseModel):
+    prenom: str
+    nom: str
+    metier: str
+    telephone: str | None = None
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -354,6 +361,36 @@ def register_oauth(
         "prive_regime_fiscal": body.prive_regime_fiscal,
         "btp": body.btp,
         "onboarding_complete": False,
+        "notification_preferences": _default_notification_preferences(),
+    }
+    supabase.table("users").insert(profile).execute()
+
+    return {"user": _get_profile(supabase, auth_user.id)}
+
+
+@router.post("/register-collaborator-oauth", status_code=status.HTTP_201_CREATED)
+def register_collaborator_oauth(
+    body: RegisterCollaboratorOauthRequest,
+    auth_user=Depends(get_current_auth_user),
+    supabase: Client = Depends(get_supabase),
+):
+    """Miroir OAuth de /register-collaborator : pas de segment/QCM, onboarding terminé."""
+    existing = (
+        supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
+    )
+    if existing is not None and existing.data:
+        return {"user": _get_profile(supabase, auth_user.id)}
+
+    profile: dict[str, Any] = {
+        "id": auth_user.id,
+        "email": auth_user.email,
+        "prenom": body.prenom,
+        "nom": body.nom,
+        "segment": "prive",  # valeur neutre : non utilisée pour un collaborateur
+        "telephone": body.telephone,
+        "account_type": "collaborateur",
+        "metier": body.metier,
+        "onboarding_complete": True,
         "notification_preferences": _default_notification_preferences(),
     }
     supabase.table("users").insert(profile).execute()

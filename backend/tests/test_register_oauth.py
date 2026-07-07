@@ -117,5 +117,53 @@ class RegisterOauthTest(unittest.TestCase):
         self.assertEqual(result["user"]["email"], "marie@exemple.fr")
 
 
+COLLAB_ROW = {
+    "id": "user-1",
+    "email": "marie@exemple.fr",
+    "prenom": "Marie",
+    "nom": "Dupont",
+    "segment": "prive",
+    "telephone": None,
+    "prive_type_proprietaire": None,
+    "prive_regime_fiscal": None,
+    "btp": None,
+    "onboarding_complete": True,
+    "notification_preferences": {},
+    "created_at": "2026-01-01T00:00:00Z",
+    "account_type": "collaborateur",
+    "metier": "architecte",
+}
+
+
+class RegisterCollaboratorOauthTest(unittest.TestCase):
+    def test_creation_collaborateur(self):
+        from routers.auth import RegisterCollaboratorOauthRequest, register_collaborator_oauth
+
+        supabase = _FakeSupabase([None, _Resp(None), _Resp(dict(COLLAB_ROW))])
+        body = RegisterCollaboratorOauthRequest(
+            prenom="Marie", nom="Dupont", metier="architecte"
+        )
+        result = register_collaborator_oauth(body, auth_user=AUTH_USER, supabase=supabase)
+
+        row = supabase.inserted[0]
+        self.assertEqual(row["account_type"], "collaborateur")
+        self.assertEqual(row["metier"], "architecte")
+        self.assertTrue(row["onboarding_complete"])
+        self.assertEqual(row["segment"], "prive")  # valeur neutre
+        self.assertEqual(result["user"]["accountType"], "collaborateur")
+
+    def test_idempotent(self):
+        from routers.auth import RegisterCollaboratorOauthRequest, register_collaborator_oauth
+
+        supabase = _FakeSupabase([_Resp({"id": "user-1"}), _Resp(dict(COLLAB_ROW))])
+        body = RegisterCollaboratorOauthRequest(
+            prenom="Marie", nom="Dupont", metier="architecte"
+        )
+        result = register_collaborator_oauth(body, auth_user=AUTH_USER, supabase=supabase)
+
+        self.assertEqual(supabase.inserted, [])
+        self.assertEqual(result["user"]["accountType"], "collaborateur")
+
+
 if __name__ == "__main__":
     unittest.main()
