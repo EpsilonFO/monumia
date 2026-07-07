@@ -6,15 +6,14 @@ import { iconForOption } from './iconForOption';
 
 const LETTERS = 'ABCDEFGHIJKL';
 
-// Tuiles d'icônes colorées : la palette catégorielle de la charte, cyclée par
-// position — chaque réponse a sa couleur, la sélection reste orange.
+// Tuiles d'icônes : le duo de marque décliné — les bleus (monument,
+// information) alternent avec les oranges (action). Cyclé par position,
+// la sélection reste orange plein.
 const TILE_TONES = [
-  { bg: 'var(--cat-1-soft)', fg: 'var(--cat-1)' },
-  { bg: 'var(--cat-3-soft)', fg: 'var(--cat-3)' },
-  { bg: 'var(--cat-4-soft)', fg: 'var(--cat-4)' },
-  { bg: 'var(--cat-2-soft)', fg: 'var(--cat-2)' },
-  { bg: 'var(--cat-9-soft)', fg: 'var(--cat-9)' },
-  { bg: 'var(--cat-10-soft)', fg: 'var(--cat-10)' },
+  { bg: 'var(--secondary)', fg: 'var(--primary)' },
+  { bg: 'var(--warning-muted)', fg: 'var(--accent)' },
+  { bg: 'var(--info-muted)', fg: 'var(--info)' },
+  { bg: 'color-mix(in srgb, var(--orange-vif) 16%, #fff)', fg: 'var(--orange-vif)' },
 ] as const;
 
 interface AnswerCardProps {

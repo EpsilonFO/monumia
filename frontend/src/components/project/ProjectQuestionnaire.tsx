@@ -217,7 +217,10 @@ export function ProjectQuestionnaire({
           <span aria-live="polite" style={{ color: C.orange }}>
             Question {index + 1} <span style={{ color: C.grayMuted }}>sur {total}</span>
           </span>
-          <span className="tabular-nums" style={{ color: C.grayMuted }}>
+          <span
+            className="rounded-full px-2 py-0.5 tabular-nums tracking-normal"
+            style={{ background: 'var(--secondary)', color: C.blue }}
+          >
             {pct}&nbsp;%
           </span>
         </div>

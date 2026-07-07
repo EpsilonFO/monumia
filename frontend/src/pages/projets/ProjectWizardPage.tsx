@@ -41,11 +41,12 @@ const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
   REGIONS.map((r) => [r.label.toLowerCase(), r.value])
 );
 
-/** Puces de réassurance de l'étape monument (public peu à l'aise : on rassure d'emblée). */
+/** Puces de réassurance de l'étape monument (public peu à l'aise : on rassure
+ *  d'emblée) — en bleu/orange/bleu, le rythme de la marque. */
 const REASSURANCE = [
-  { icon: IconTemps, label: 'Environ 5 minutes', bg: 'var(--cat-1-soft)', fg: 'var(--cat-1)' },
-  { icon: IconModifier, label: 'Modifiable à tout moment', bg: 'var(--cat-3-soft)', fg: 'var(--cat-3)' },
-  { icon: IconDocument, label: 'Aucun document requis', bg: 'var(--cat-4-soft)', fg: 'var(--cat-4)' },
+  { icon: IconTemps, label: 'Environ 5 minutes', bg: 'var(--secondary)', fg: 'var(--primary)' },
+  { icon: IconModifier, label: 'Modifiable à tout moment', bg: 'var(--warning-muted)', fg: 'var(--accent)' },
+  { icon: IconDocument, label: 'Aucun document requis', bg: 'var(--info-muted)', fg: 'var(--info)' },
 ] as const;
 
 export function ProjectWizardPage() {

@@ -193,18 +193,25 @@ export function WizardRail({ step, monument, progress, onQuit }: WizardRailProps
       </div>
 
       {encouragement(step, progress) ? (
+        // Encart signature : bleu profond institutionnel, écriture manuscrite
+        // crème, quadrilobe orange vif — le duo Monumia condensé.
         <div
-          className="mt-8 flex items-center justify-between gap-3 rounded-2xl p-4"
-          style={{ background: 'var(--secondary)' }}
+          className="relative mt-8 flex items-center justify-between gap-3 overflow-hidden rounded-2xl p-4"
+          style={{ background: C.blue }}
         >
+          <Clover
+            size={72}
+            className="pointer-events-none absolute -bottom-5 -right-4"
+            style={{ color: '#fff', opacity: 0.08 }}
+          />
           <p
             aria-live="polite"
-            className="text-[22px] leading-tight"
-            style={{ fontFamily: "'Caveat', cursive", color: C.blue }}
+            className="relative text-[22px] leading-tight"
+            style={{ fontFamily: "'Caveat', cursive", color: 'var(--primary-foreground)' }}
           >
             {encouragement(step, progress)}
           </p>
-          <Clover size={38} className="shrink-0" style={{ color: C.orange, opacity: 0.45 }} />
+          <Clover size={34} className="relative shrink-0" style={{ color: C.orangeVif }} />
         </div>
       ) : (
         <div className="mt-8 flex justify-end">
