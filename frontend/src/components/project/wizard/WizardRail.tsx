@@ -48,7 +48,7 @@ export function encouragement(step: WizardStepKey, progress: WizardProgress | nu
   const ratio = progress.index / progress.total;
   if (ratio >= 0.75) return 'Presque fini !';
   if (ratio >= 0.5) {
-    return remaining === 1 ? 'Plus qu’une question !' : `Plus que ${remaining} questions !`;
+    return remaining === 1 ? 'Plus qu’une question !' : `Plus que ${remaining} questions\u00a0!`;
   }
   if (ratio >= 0.25) return 'Vous êtes sur la bonne voie.';
   return 'C’est parti !';
