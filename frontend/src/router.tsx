@@ -112,6 +112,18 @@ export const router = createBrowserRouter([
     ],
   },
 
+  // Wizard de création — plein écran immersif, hors du shell AppLayout.
+  // Le chemin est inchangé : « Refaire le questionnaire » (?monument=id) et
+  // tous les ROUTES.PROJET_NEW continuent de fonctionner.
+  {
+    path: '/app/projets/nouveau',
+    element: (
+      <ProtectedRoute>
+        <ProjectWizardPage />
+      </ProtectedRoute>
+    ),
+  },
+
   // Owner / Commune app (protégé)
   {
     path: '/app',
@@ -124,7 +136,6 @@ export const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       // Unified Projet tab
       { path: 'projets', element: <ProjectsListPage /> },
-      { path: 'projets/nouveau', element: <ProjectWizardPage /> },
       { path: 'projets/:projetId', element: <ProjectDetailPage /> },
       { path: 'projets/:projetId/aides/:aideId', element: <AideProjectPage /> },
       { path: 'projets/:projetId/dossiers/:dossierId', element: <DossierDetailPage /> },
