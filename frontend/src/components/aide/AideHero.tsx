@@ -22,12 +22,12 @@ const VERDICT = {
   potential: {
     bg: 'bg-warning-muted', fg: 'text-warning', border: 'border-warning/30', Icon: IconHelp,
     title: 'Vous y êtes presque',
-    sub: 'Quelques points restent à vérifier — on vous montre lesquels juste en dessous.',
+    sub: 'Quelques points restent à vérifier — ils sont détaillés ci-dessous.',
   },
   'non-eligible': {
     bg: 'bg-destructive-muted', fg: 'text-destructive', border: 'border-destructive/30', Icon: IconErreur,
     title: 'Cette aide ne semble pas correspondre à ce projet',
-    sub: "Elle ne colle pas aux caractéristiques que vous avez renseignées.",
+    sub: "Elle ne correspond pas aux caractéristiques que vous avez renseignées.",
   },
 } as const;
 
@@ -92,7 +92,7 @@ export function AideHero({ aide, matchResult, cta }: {
               className={`rounded-2xl border p-4 ${v ? 'sm:col-span-2' : 'sm:col-span-5'}`}
               style={{ borderColor: C.border, background: 'var(--secondary)' }}
             >
-              <p className="text-[12px] font-medium text-muted-foreground">Vous pouvez obtenir</p>
+              <p className="text-[12px] font-medium text-muted-foreground">Montant potentiel</p>
               {aide.tauxMax ? (
                 <>
                   <p className="leading-none" style={{ fontFamily: SERIF, color: C.blue }}>

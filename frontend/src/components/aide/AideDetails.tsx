@@ -16,6 +16,7 @@ import {
   IconEcheance,
   IconRegle,
   IconParchemin,
+  IconFiche,
   IconContact,
 } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -274,7 +275,7 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
         </EvalGroup>
       )}
       {financeur.length > 0 && (
-        <EvalGroup icon={IconContact} tone="muted" title="À confirmer avec l'organisme" count={financeur.length}>
+        <EvalGroup icon={IconInstitution} tone="muted" title="À confirmer avec l'organisme" count={financeur.length}>
           {financeur.map((e, i) => (
             <EvalLine key={i} critere={e.critere} explication={e.explication} tone={e.verdict === 'incertitude' ? 'amber' : 'muted'} />
           ))}
@@ -362,7 +363,7 @@ function EssentialCard({ aide }: { aide: Aide }) {
   return (
     <div className="overflow-hidden rounded-2xl border" style={{ borderColor: C.border, background: C.card, boxShadow: 'var(--shadow-card)' }}>
       <div className="flex items-center gap-2.5 px-5 py-3.5" style={{ background: 'var(--blue-dark)' }}>
-        <IconParchemin className="h-[18px] w-[18px]" style={{ color: 'var(--background)' }} strokeWidth={2} />
+        <IconFiche className="h-[18px] w-[18px]" style={{ color: 'var(--background)' }} strokeWidth={2} />
         <span className="text-[15px] tracking-wide" style={{ fontFamily: SERIF, color: 'var(--background)' }}>L'essentiel de l'aide</span>
       </div>
       <div className="h-[3px]" style={{ background: C.orange }} />
@@ -446,7 +447,7 @@ function DocumentsCollapsible({ docs }: { docs: (string | AideDocument)[] }) {
           <span className="flex flex-col">
             <span className="text-[16px]" style={{ fontFamily: SERIF, color: C.ink }}>Les documents à préparer</span>
             <span className="text-[13px] text-muted-foreground">
-              {docs.length} document{docs.length > 1 ? 's' : ''} à réunir — cliquez pour voir la liste
+              {docs.length} document{docs.length > 1 ? 's' : ''} à réunir
             </span>
           </span>
         </span>
@@ -485,7 +486,7 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Colonne de lecture */}
         <div className="space-y-5 lg:col-span-2">
-          <SectionCard icon={IconParchemin} title="En bref">
+          <SectionCard icon={IconParchemin} title="Présentation de l'aide">
             <EnBref text={decodeHtml(aide.descriptionLongue || aide.description)} />
           </SectionCard>
 

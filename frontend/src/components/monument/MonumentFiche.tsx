@@ -163,7 +163,7 @@ export function MonumentFiche({ monument, canDelete, deleting, onDelete }: Monum
   const urgence = monument.urgenceTravaux ? URGENCE_TONE[monument.urgenceTravaux] : null;
   const travaux = monument.travauxEnvisages ?? [];
 
-  // Carte d'identité : seuls les champs renseignés apparaissent.
+  // Fiche info : seuls les champs renseignés apparaissent.
   const fields = [
     monument.referenceMerimee && { icon: IconParchemin, label: 'Réf. Mérimée', value: monument.referenceMerimee },
     monument.commune && { icon: IconLocalisation, label: 'Commune', value: monument.commune },
@@ -192,7 +192,7 @@ export function MonumentFiche({ monument, canDelete, deleting, onDelete }: Monum
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* Carte d'identité — la pièce maîtresse : fond légèrement teinté + quadrilobe fantôme. */}
+      {/* Fiche info — la pièce maîtresse : fond légèrement teinté + quadrilobe fantôme. */}
       <section
         className="relative overflow-hidden rounded-2xl border p-5 sm:p-6"
         style={{
@@ -210,7 +210,7 @@ export function MonumentFiche({ monument, canDelete, deleting, onDelete }: Monum
           <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: C.blue, color: '#fff' }}>
             <IconMonument className="h-[16px] w-[16px]" strokeWidth={2} />
           </span>
-          Carte d'identité
+          Fiche info
         </h3>
         {fields.length > 0 ? (
           <div className="relative grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
