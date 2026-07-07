@@ -323,9 +323,7 @@ def oauth_profile_status(
     exists=true  → connexion normale (le front pose la session).
     exists=false → le front envoie l'utilisateur dans l'onboarding, prérempli.
     """
-    result = (
-        supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
-    )
+    result = supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
     if result is not None and result.data:
         return {"exists": True, "user": _get_profile(supabase, auth_user.id)}
     return {"exists": False, "prefill": _prefill_from_auth_user(auth_user)}
@@ -342,9 +340,7 @@ def register_oauth(
     Idempotent : une re-soumission (double clic, retry réseau) renvoie le
     profil existant au lieu d'échouer.
     """
-    existing = (
-        supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
-    )
+    existing = supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
     if existing is not None and existing.data:
         return {"user": _get_profile(supabase, auth_user.id)}
 
@@ -363,7 +359,12 @@ def register_oauth(
         "onboarding_complete": False,
         "notification_preferences": _default_notification_preferences(),
     }
-    supabase.table("users").insert(profile).execute()
+    try:
+        supabase.table("users").insert(profile).execute()
+    except Exception:
+        # Course entre deux soumissions : la ligne vient d'être créée par
+        # l'autre requête — l'idempotence retombe sur le profil existant.
+        pass
 
     return {"user": _get_profile(supabase, auth_user.id)}
 
@@ -375,9 +376,7 @@ def register_collaborator_oauth(
     supabase: Client = Depends(get_supabase),
 ):
     """Miroir OAuth de /register-collaborator : pas de segment/QCM, onboarding terminé."""
-    existing = (
-        supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
-    )
+    existing = supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
     if existing is not None and existing.data:
         return {"user": _get_profile(supabase, auth_user.id)}
 
@@ -393,7 +392,12 @@ def register_collaborator_oauth(
         "onboarding_complete": True,
         "notification_preferences": _default_notification_preferences(),
     }
-    supabase.table("users").insert(profile).execute()
+    try:
+        supabase.table("users").insert(profile).execute()
+    except Exception:
+        # Course entre deux soumissions : la ligne vient d'être créée par
+        # l'autre requête — l'idempotence retombe sur le profil existant.
+        pass
 
     return {"user": _get_profile(supabase, auth_user.id)}
 

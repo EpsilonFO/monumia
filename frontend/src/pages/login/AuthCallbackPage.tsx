@@ -64,7 +64,7 @@ export function AuthCallbackPage() {
           navigate('/onboarding', { replace: true });
         }
       })
-      .catch(() => setError(ERROR_MESSAGE));
+      .catch((err: unknown) => { console.error(err); setError(ERROR_MESSAGE); });
   }, [navigate, setAuth, setPendingSession]);
 
   return (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -34,6 +34,16 @@ function GoogleLogo() {
 export function GoogleButton() {
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    // Retour depuis l’écran Google via « Précédent » : le navigateur peut
+    // restaurer la page depuis le bfcache avec l’état loading figé.
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setLoading(false);
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
+
   const handleClick = async () => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
@@ -41,6 +51,7 @@ export function GoogleButton() {
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) {
+      console.error(error);
       toast.error('Impossible d’ouvrir la connexion Google. Réessayez, ou utilisez votre adresse email.');
       setLoading(false);
     }
@@ -51,7 +62,7 @@ export function GoogleButton() {
       type="button"
       onClick={handleClick}
       disabled={loading}
-      className="flex h-12 w-full items-center justify-center gap-3 rounded-lg border text-[15px] font-semibold transition-colors duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50"
+      className="flex h-12 w-full items-center justify-center gap-3 rounded-lg border text-[15px] font-semibold transition-colors duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
       style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
     >
       {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <GoogleLogo />}

@@ -13,6 +13,10 @@ class _Resp:
         self.data = data
 
 
+class _RaiseOnExecute:
+    """Sentinel : quand cette valeur est dépilée par execute(), lève une exception."""
+
+
 class _UsersQuery:
     """Mime le chaînage fluent supabase-py ; capture les insert, répond en file."""
 
@@ -37,7 +41,10 @@ class _UsersQuery:
         return self
 
     def execute(self):
-        return self._responses.pop(0)
+        resp = self._responses.pop(0)
+        if isinstance(resp, _RaiseOnExecute):
+            raise Exception("UNIQUE constraint failed: users_pkey")
+        return resp
 
 
 class _FakeSupabase:
@@ -107,14 +114,22 @@ class RegisterOauthTest(unittest.TestCase):
 
     def test_idempotent_si_profil_deja_cree(self):
         # 1) maybe_single trouve la ligne 2) single de _get_profile
-        supabase = _FakeSupabase(
-            [_Resp({"id": "user-1"}), _Resp(dict(PROFILE_ROW))]
-        )
+        supabase = _FakeSupabase([_Resp({"id": "user-1"}), _Resp(dict(PROFILE_ROW))])
         body = RegisterOauthRequest(prenom="Marie", nom="Dupont", segment="prive")
         result = register_oauth(body, auth_user=AUTH_USER, supabase=supabase)
 
         self.assertEqual(supabase.inserted, [])  # pas de second insert
         self.assertEqual(result["user"]["email"], "marie@exemple.fr")
+
+    def test_insert_concurrent_retombe_sur_le_profil(self):
+        # Simule une course : maybe_single ne voit rien (None brut), insert lève
+        # une violation d'unicité, _get_profile retombe sur la ligne existante.
+        # File : 1) maybe_single 2) insert (_RaiseOnExecute) 3) single _get_profile
+        supabase = _FakeSupabase([None, _RaiseOnExecute(), _Resp(dict(PROFILE_ROW))])
+        body = RegisterOauthRequest(prenom="Marie", nom="Dupont", segment="prive")
+        result = register_oauth(body, auth_user=AUTH_USER, supabase=supabase)
+
+        self.assertEqual(result["user"]["prenom"], "Marie")
 
 
 COLLAB_ROW = {
@@ -140,9 +155,7 @@ class RegisterCollaboratorOauthTest(unittest.TestCase):
         from routers.auth import RegisterCollaboratorOauthRequest, register_collaborator_oauth
 
         supabase = _FakeSupabase([None, _Resp(None), _Resp(dict(COLLAB_ROW))])
-        body = RegisterCollaboratorOauthRequest(
-            prenom="Marie", nom="Dupont", metier="architecte"
-        )
+        body = RegisterCollaboratorOauthRequest(prenom="Marie", nom="Dupont", metier="architecte")
         result = register_collaborator_oauth(body, auth_user=AUTH_USER, supabase=supabase)
 
         row = supabase.inserted[0]
@@ -150,15 +163,15 @@ class RegisterCollaboratorOauthTest(unittest.TestCase):
         self.assertEqual(row["metier"], "architecte")
         self.assertTrue(row["onboarding_complete"])
         self.assertEqual(row["segment"], "prive")  # valeur neutre
+        self.assertEqual(row["email"], "marie@exemple.fr")  # email depuis le token
+        self.assertIsNone(row["telephone"])
         self.assertEqual(result["user"]["accountType"], "collaborateur")
 
     def test_idempotent(self):
         from routers.auth import RegisterCollaboratorOauthRequest, register_collaborator_oauth
 
         supabase = _FakeSupabase([_Resp({"id": "user-1"}), _Resp(dict(COLLAB_ROW))])
-        body = RegisterCollaboratorOauthRequest(
-            prenom="Marie", nom="Dupont", metier="architecte"
-        )
+        body = RegisterCollaboratorOauthRequest(prenom="Marie", nom="Dupont", metier="architecte")
         result = register_collaborator_oauth(body, auth_user=AUTH_USER, supabase=supabase)
 
         self.assertEqual(supabase.inserted, [])
