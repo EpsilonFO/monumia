@@ -43,9 +43,9 @@ const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
 
 /** Puces de réassurance de l'étape monument (public peu à l'aise : on rassure d'emblée). */
 const REASSURANCE = [
-  { icon: IconTemps, label: 'Environ 5 minutes' },
-  { icon: IconModifier, label: 'Modifiable à tout moment' },
-  { icon: IconDocument, label: 'Aucun document requis' },
+  { icon: IconTemps, label: 'Environ 5 minutes', bg: 'var(--cat-1-soft)', fg: 'var(--cat-1)' },
+  { icon: IconModifier, label: 'Modifiable à tout moment', bg: 'var(--cat-3-soft)', fg: 'var(--cat-3)' },
+  { icon: IconDocument, label: 'Aucun document requis', bg: 'var(--cat-4-soft)', fg: 'var(--cat-4)' },
 ] as const;
 
 export function ProjectWizardPage() {
@@ -227,12 +227,6 @@ export function ProjectWizardPage() {
     }
   };
 
-  // Hors AppLayout, plus de scroll-reset automatique : on remonte en haut à
-  // chaque changement d'étape (le formulaire monument peut être long).
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [step]);
-
   // Dès l'entrée à l'étape 2, on calcule le diagnostic déterministe de base
   // (sans réponses) pour en déduire les questions à poser — les faits manquants
   // qui bloquent le plus d'aides. Le moteur étant pur et rapide, c'est immédiat.
@@ -300,8 +294,8 @@ export function ProjectWizardPage() {
       exitTo={exitTo}
     >
       {step === 1 && (
-        <div className="space-y-8">
-          <div className="space-y-3">
+        <div className="space-y-6">
+          <div className="space-y-2.5">
             <div
               className="text-[12px] font-semibold uppercase tracking-[0.2em]"
               style={{ color: C.orange }}
@@ -321,13 +315,13 @@ export function ProjectWizardPage() {
           </div>
 
           <ul className="flex flex-wrap gap-2.5">
-            {REASSURANCE.map(({ icon: Icon, label }) => (
+            {REASSURANCE.map(({ icon: Icon, label, bg, fg }) => (
               <li
                 key={label}
-                className="inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[13px] font-medium"
-                style={{ borderColor: C.border, background: C.card, color: C.grayFg }}
+                className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-semibold"
+                style={{ background: bg, color: fg }}
               >
-                <Icon className="h-4 w-4" style={{ color: C.blue }} />
+                <Icon className="h-4 w-4" />
                 {label}
               </li>
             ))}
@@ -397,8 +391,9 @@ export function ProjectWizardPage() {
       )}
 
       {step === 2 && (
-        <div className="space-y-8">
-          <div className="space-y-3">
+        <div className="space-y-5">
+          {/* En-tête compact : la vraie vedette de l'écran, c'est la question. */}
+          <div className="space-y-1.5">
             <div
               className="text-[12px] font-semibold uppercase tracking-[0.2em]"
               style={{ color: C.orange }}
@@ -406,12 +401,12 @@ export function ProjectWizardPage() {
               {existingMonumentId ? 'Questionnaire' : 'Nouveau projet'}
             </div>
             <h1
-              className="text-[clamp(1.8rem,4vw,2.4rem)] leading-tight"
+              className="text-[clamp(1.4rem,3vw,1.8rem)] leading-tight"
               style={{ fontFamily: SERIF, color: C.ink }}
             >
               Précisons votre projet
             </h1>
-            <p className="max-w-lg text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
+            <p className="max-w-lg text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
               Vos réponses affinent la liste des aides. Répondez librement&nbsp;—
               «&nbsp;Je ne sais pas&nbsp;» est une réponse tout à fait valable.
             </p>

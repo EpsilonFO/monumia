@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { encouragement } from '../WizardRail';
 
 describe('encouragement', () => {
-  it('étape monument', () => {
-    expect(encouragement(1, null)).toBe('C’est parti !');
+  it('étape monument : silencieux', () => {
+    expect(encouragement(1, null)).toBe('');
   });
 
-  it('début de questionnaire', () => {
-    expect(encouragement(2, { index: 0, total: 12 })).toBe('C’est parti !');
+  it('début de questionnaire : silencieux', () => {
+    expect(encouragement(2, { index: 0, total: 12 })).toBe('');
+    expect(encouragement(2, { index: 1, total: 12 })).toBe('');
   });
 
   it('au quart : sur la bonne voie', () => {

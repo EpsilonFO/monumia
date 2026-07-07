@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { X } from 'lucide-react';
 import {
@@ -42,6 +42,13 @@ export function WizardShell({
 }: WizardShellProps) {
   const navigate = useNavigate();
   const [quitOpen, setQuitOpen] = useState(false);
+  const sceneRef = useRef<HTMLElement>(null);
+
+  // La page ne scrolle jamais (h-dvh + overflow-hidden) : c'est la scène qui
+  // porte le scroll interne de secours — on la remonte à chaque étape.
+  useEffect(() => {
+    sceneRef.current?.scrollTo(0, 0);
+  }, [step]);
 
   const quit = () => {
     // Le diagnostic (étape 3) navigue de lui-même vers le projet : une navigation
@@ -60,18 +67,18 @@ export function WizardShell({
   const pct = qTotal > 0 ? Math.round((qNum / qTotal) * 100) : 0;
 
   return (
-    <div className="flex min-h-screen" style={{ background: 'var(--app-bg)' }}>
+    <div className="flex h-dvh overflow-hidden" style={{ background: 'var(--app-bg)' }}>
       <WizardRail step={step} monument={monument} progress={progress} onQuit={quit} />
 
       <div className="relative flex min-w-0 flex-1 flex-col">
         {/* Header mobile : logo, étape, progression fine, monument en chip. */}
         <header
-          className="sticky top-0 z-10 border-b px-4 py-3 lg:hidden"
+          className="z-10 shrink-0 border-b px-4 py-3 lg:hidden"
           style={{ background: C.card, borderColor: C.border }}
         >
           <div className="flex items-center justify-between gap-3">
             <button type="button" onClick={quit} aria-label="Quitter la création de projet">
-              <Clover size={22} style={{ color: C.blue }} />
+              <img src="/monumia.png" alt="" className="h-7 w-7" aria-hidden />
             </button>
             <div className="min-w-0 text-center">
               <p className="text-[13px] font-semibold" style={{ color: C.ink }}>
@@ -103,11 +110,14 @@ export function WizardShell({
             >
               <div
                 className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${pct}%`, background: C.orange }}
+                style={{
+                  width: `${pct}%`,
+                  background: 'linear-gradient(90deg, var(--accent), var(--orange-vif))',
+                }}
               />
             </div>
           )}
-          {showBar && (
+          {showBar && encouragement(step, progress) && (
             <p
               className="mt-1.5 text-center text-[15px] leading-tight"
               style={{ fontFamily: "'Caveat', cursive", color: C.blue }}
@@ -130,13 +140,18 @@ export function WizardShell({
           </button>
         )}
 
-        <main className="relative mx-auto w-full max-w-[760px] flex-1 px-5 py-10 sm:py-14">
-          <Clover
-            size={180}
-            className="pointer-events-none absolute -right-8 top-4 hidden md:block"
-            style={{ color: C.blue, opacity: 0.04 }}
-          />
-          <div className="relative">{children}</div>
+        {/* Scène : tout tient à l'écran (contenu centré verticalement) ; si un
+            contenu long déborde (formulaire monument), elle scrolle en interne
+            — la page, elle, ne bouge jamais. */}
+        <main ref={sceneRef} className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <div className="relative mx-auto my-auto w-full max-w-[760px] px-5 py-6 sm:py-8">
+            <Clover
+              size={180}
+              className="pointer-events-none absolute -right-8 top-4 hidden md:block"
+              style={{ color: C.blue, opacity: 0.04 }}
+            />
+            <div className="relative">{children}</div>
+          </div>
         </main>
       </div>
 

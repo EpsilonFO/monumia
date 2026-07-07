@@ -6,6 +6,17 @@ import { iconForOption } from './iconForOption';
 
 const LETTERS = 'ABCDEFGHIJKL';
 
+// Tuiles d'icônes colorées : la palette catégorielle de la charte, cyclée par
+// position — chaque réponse a sa couleur, la sélection reste orange.
+const TILE_TONES = [
+  { bg: 'var(--cat-1-soft)', fg: 'var(--cat-1)' },
+  { bg: 'var(--cat-3-soft)', fg: 'var(--cat-3)' },
+  { bg: 'var(--cat-4-soft)', fg: 'var(--cat-4)' },
+  { bg: 'var(--cat-2-soft)', fg: 'var(--cat-2)' },
+  { bg: 'var(--cat-9-soft)', fg: 'var(--cat-9)' },
+  { bg: 'var(--cat-10-soft)', fg: 'var(--cat-10)' },
+] as const;
+
 interface AnswerCardProps {
   option: QcmOption;
   optionIndex: number;
@@ -32,6 +43,7 @@ export function AnswerCard({
   buttonRef,
 }: AnswerCardProps) {
   const Icon = iconForOption(option);
+  const tile = TILE_TONES[optionIndex % TILE_TONES.length];
 
   return (
     <button
@@ -52,11 +64,11 @@ export function AnswerCard({
     >
       <span
         aria-hidden
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors"
         style={
           selected
-            ? { background: C.orange, borderColor: 'transparent', color: '#fff' }
-            : { background: '#fff', borderColor: C.border, color: C.blue }
+            ? { background: C.orange, color: '#fff' }
+            : { background: tile.bg, color: tile.fg }
         }
       >
         {Icon ? (

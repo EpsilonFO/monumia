@@ -3,6 +3,7 @@ import { iconForOption } from '../iconForOption';
 import {
   IconChantier,
   IconErreur,
+  IconHelp,
   IconMaison,
   IconProtection,
   IconSucces,
@@ -29,5 +30,11 @@ describe('iconForOption', () => {
 
   it('retourne null sans correspondance', () => {
     expect(iconForOption({ id: 'g', label: 'Peut-être' })).toBe(null);
+  });
+
+  it('« je ne sais pas » → point d’interrogation (jamais de pastille lettrée)', () => {
+    expect(iconForOption({ id: 'h', label: 'Je ne sais pas' })).toBe(IconHelp);
+    expect(iconForOption({ id: 'i', label: 'Incertain' })).toBe(IconHelp);
+    expect(iconForOption({ id: 'skip', label: 'Aucune importance' })).toBe(IconHelp);
   });
 });

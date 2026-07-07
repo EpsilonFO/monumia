@@ -81,7 +81,7 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
       )}
 
       {results.length > 0 && (
-        <ul className="max-h-96 space-y-2.5 overflow-y-auto pr-1">
+        <ul className="max-h-[36vh] space-y-2.5 overflow-y-auto pr-1">
           {results.map((record) => {
             const tone = protectionTone(record.typologie_de_la_protection);
             return (

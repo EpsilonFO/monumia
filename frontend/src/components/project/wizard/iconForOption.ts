@@ -5,6 +5,7 @@ import {
   IconCompte,
   IconEquipe,
   IconErreur,
+  IconHelp,
   IconInstitution,
   IconMaison,
   IconMonument,
@@ -28,6 +29,7 @@ function normalize(s: string): string {
  * (« sinon », « nonobstant »).
  */
 const RULES: Array<[RegExp, IconComponent]> = [
+  [/ne sais pas|ne sait pas|incertain|pas sur|aucune idee/, IconHelp],
   [/^oui\b/, IconSucces],
   [/^non\b/, IconErreur],
   [/toit|couvertur|charpente|ardoise|tuile|zinc/, IconMaison],
@@ -48,6 +50,10 @@ const RULES: Array<[RegExp, IconComponent]> = [
  * l'illustration ne doit jamais bloquer l'affichage d'une réponse.
  */
 export function iconForOption(option: QcmOption): IconComponent | null {
+  // Options « Je ne sais pas » natives du moteur : identifiables par leur id
+  // avant même le libellé (une pastille lettrée serait déroutante ici).
+  const id = (option.id ?? '').toLowerCase();
+  if (id === 'skip' || id === 'unknown' || id === 'nsp') return IconHelp;
   const label = normalize(option.label ?? '');
   for (const [re, icon] of RULES) {
     if (re.test(label)) return icon;

@@ -231,14 +231,17 @@ export function ProjectQuestionnaire({
         >
           <div
             className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${pct}%`, background: C.orange }}
+            style={{
+              width: `${pct}%`,
+              background: 'linear-gradient(90deg, var(--accent), var(--orange-vif))',
+            }}
           />
         </div>
       </div>
 
       {/* Question (glisse à chaque changement) */}
-      <div key={index} className={cn(slideClass, 'pb-2')}>
-        <fieldset role="radiogroup" className="space-y-6">
+      <div key={index} className={cn(slideClass, 'pb-1')}>
+        <fieldset role="radiogroup" className="space-y-4">
           <legend className="w-full">
             <span
               className="block text-[clamp(1.4rem,3.4vw,1.9rem)] leading-snug"
@@ -250,8 +253,8 @@ export function ProjectQuestionnaire({
 
           <div
             className={cn(
-              'grid gap-3',
-              q!.options.length > 4 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1',
+              'grid gap-2.5',
+              q!.options.length > 3 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1',
             )}
           >
             {q!.options.map((option, optionIndex) => {
@@ -290,7 +293,7 @@ export function ProjectQuestionnaire({
 
       {/* Navigation bas */}
       <div
-        className="mt-4 flex items-center justify-between border-t py-4"
+        className="mt-3 flex items-center justify-between border-t py-3"
         style={{ borderColor: C.border }}
       >
         <button

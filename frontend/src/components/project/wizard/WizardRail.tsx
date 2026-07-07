@@ -39,11 +39,12 @@ const STATE_TEXT = { done: 'étape faite', current: 'étape en cours', upcoming:
 /**
  * Message chaleureux du rail, fonction de la progression. Volontairement
  * sobre (pas de gamification lourde) : il rassure, il ne distrait pas.
+ * Chaîne vide = rien à dire (début de parcours) : l'appelant masque la zone.
  */
 export function encouragement(step: WizardStepKey, progress: WizardProgress | null): string {
-  if (step === 1) return 'C’est parti !';
+  if (step === 1) return '';
   if (step === 3) return 'Votre diagnostic arrive…';
-  if (!progress || progress.total === 0) return 'Encore un instant…';
+  if (!progress || progress.total === 0) return '';
   if (progress.index >= progress.total) return 'C’est tout !';
   const remaining = progress.total - progress.index;
   const ratio = progress.index / progress.total;
@@ -52,7 +53,7 @@ export function encouragement(step: WizardStepKey, progress: WizardProgress | nu
     return remaining === 1 ? 'Plus qu’une question !' : `Plus que ${remaining} questions\u00a0!`;
   }
   if (ratio >= 0.25) return 'Vous êtes sur la bonne voie.';
-  return 'C’est parti !';
+  return '';
 }
 
 interface WizardRailProps {
@@ -85,8 +86,11 @@ export function WizardRail({ step, monument, progress, onQuit }: WizardRailProps
           className="flex items-center gap-2.5"
           aria-label="Quitter la création de projet"
         >
-          <Clover size={26} style={{ color: C.blue }} />
-          <span className="text-[19px]" style={{ fontFamily: SERIF, color: C.ink }}>
+          <img src="/monumia.png" alt="" className="h-8 w-8" aria-hidden />
+          <span
+            className="text-[18px] font-bold tracking-[-0.01em]"
+            style={{ fontFamily: SERIF, color: C.ink }}
+          >
             Monumia
           </span>
         </button>
@@ -188,16 +192,25 @@ export function WizardRail({ step, monument, progress, onQuit }: WizardRailProps
         )}
       </div>
 
-      <div className="flex items-end justify-between gap-3 pt-8">
-        <p
-          aria-live="polite"
-          className="text-[22px] leading-tight"
-          style={{ fontFamily: "'Caveat', cursive", color: C.blue }}
+      {encouragement(step, progress) ? (
+        <div
+          className="mt-8 flex items-center justify-between gap-3 rounded-2xl p-4"
+          style={{ background: 'var(--secondary)' }}
         >
-          {encouragement(step, progress)}
-        </p>
-        <Clover size={40} className="shrink-0" style={{ color: C.orange, opacity: 0.22 }} />
-      </div>
+          <p
+            aria-live="polite"
+            className="text-[22px] leading-tight"
+            style={{ fontFamily: "'Caveat', cursive", color: C.blue }}
+          >
+            {encouragement(step, progress)}
+          </p>
+          <Clover size={38} className="shrink-0" style={{ color: C.orange, opacity: 0.45 }} />
+        </div>
+      ) : (
+        <div className="mt-8 flex justify-end">
+          <Clover size={38} className="shrink-0" style={{ color: C.orange, opacity: 0.22 }} />
+        </div>
+      )}
     </aside>
   );
 }
