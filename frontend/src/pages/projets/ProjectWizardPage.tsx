@@ -1,9 +1,20 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Navigate, useNavigate, useSearchParams } from 'react-router';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { MerimeeSearch } from '@/components/monument/MerimeeSearch';
 import { MonumentForm } from '@/components/monument/MonumentForm';
 import { ProjectQuestionnaire } from '@/components/project/ProjectQuestionnaire';
+import { WizardShell } from '@/components/project/wizard/WizardShell';
+import { DiagnosticLoader } from '@/components/project/wizard/DiagnosticLoader';
+import type { WizardProgress, WizardStepKey } from '@/components/project/wizard/WizardRail';
+import { AllClear } from '@/components/illustrations';
+import {
+  IconAttention,
+  IconDocument,
+  IconModifier,
+  IconRafraichir,
+  IconTemps,
+} from '@/components/icons';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useAideStore } from '@/stores/useAideStore';
@@ -15,8 +26,6 @@ import { REGIONS } from '@/constants/regions';
 import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
-import { ArrowRight, Check, Loader2 } from 'lucide-react';
-import { IconRecherche, IconModifier } from '@/components/icons';
 import { toast } from 'sonner';
 import type {
   AideDiagnosticResult,
@@ -32,13 +41,12 @@ const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
   REGIONS.map((r) => [r.label.toLowerCase(), r.value])
 );
 
-type WizardStep = 1 | 2 | 3;
-
-const STEP_LABELS: Record<WizardStep, string> = {
-  1: 'Le monument',
-  2: 'Votre projet',
-  3: 'Diagnostic',
-};
+/** Puces de réassurance de l'étape monument (public peu à l'aise : on rassure d'emblée). */
+const REASSURANCE = [
+  { icon: IconTemps, label: 'Environ 5 minutes' },
+  { icon: IconModifier, label: 'Modifiable à tout moment' },
+  { icon: IconDocument, label: 'Aucun document requis' },
+] as const;
 
 export function ProjectWizardPage() {
   const navigate = useNavigate();
@@ -52,12 +60,14 @@ export function ProjectWizardPage() {
   const setActiveMonument = useMonumentStore((s) => s.setActiveMonument);
   const setDiagnostic = useAideStore((s) => s.setDiagnostic);
 
-  const [step, setStep] = useState<WizardStep>(existingMonumentId ? 2 : 1);
+  const [step, setStep] = useState<WizardStepKey>(existingMonumentId ? 2 : 1);
+  const [mode, setMode] = useState<'search' | 'manual'>('search');
   const [prefillData, setPrefillData] = useState<Partial<Monument> | null>(null);
-  const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [monumentId, setMonumentId] = useState<string | null>(existingMonumentId);
+  const [monument, setMonument] = useState<Monument | null>(null);
   const [answers, setAnswers] = useState<ProjectQuestionnaireAnswers>({});
+  const [progress, setProgress] = useState<WizardProgress | null>(null);
   // Questionnaire du moteur d'aides : on lance un premier diagnostic déterministe
   // (sans réponses) dès l'étape 2 pour obtenir les questions à poser (faits
   // manquants) et le résultat de base. Les réponses ne sont jamais renvoyées au
@@ -65,6 +75,19 @@ export function ProjectWizardPage() {
   const [questions, setQuestions] = useState<QcmQuestion[]>([]);
   const [baseResult, setBaseResult] = useState<AideDiagnosticResult | null>(null);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  // Hors AppLayout, le store peut être vide (arrivée directe ?monument=id) :
+  // on charge la fiche pour la mini-fiche du rail.
+  useEffect(() => {
+    if (!existingMonumentId) return;
+    monumentService
+      .getById(existingMonumentId)
+      .then(setMonument)
+      .catch(() => {
+        // Non bloquant : le rail affiche simplement moins de contexte.
+      });
+  }, [existingMonumentId]);
 
   const handleMerimeeSelect = async (searchRecord: MerimeeRecord) => {
     try {
@@ -149,7 +172,7 @@ export function ProjectWizardPage() {
         proprietaire: proprietaireGuess,
         descriptionGenerale: record.precision_de_la_protection || undefined,
       });
-      setShowForm(true);
+      setMode('manual');
     } catch (err) {
       toast.error(
         err instanceof Error
@@ -193,6 +216,7 @@ export function ProjectWizardPage() {
       addMonument(monument);
       setActiveMonument(monument.id);
       setMonumentId(monument.id);
+      setMonument(monument);
       setStep(2);
     } catch (err) {
       toast.error(
@@ -207,7 +231,7 @@ export function ProjectWizardPage() {
   // (sans réponses) pour en déduire les questions à poser — les faits manquants
   // qui bloquent le plus d'aides. Le moteur étant pur et rapide, c'est immédiat.
   useEffect(() => {
-    if (step !== 2 || !monumentId || baseResult) return;
+    if (step !== 2 || !monumentId || baseResult || loadError) return;
     let cancelled = false;
     setLoadingQuestions(true);
     aideService
@@ -219,8 +243,7 @@ export function ProjectWizardPage() {
       })
       .catch((err) => {
         console.error('Erreur diagnostic déterministe:', err);
-        if (!cancelled)
-          toast.error('Impossible de charger le questionnaire. Vous pourrez le lancer depuis le projet.');
+        if (!cancelled) setLoadError(true);
       })
       .finally(() => {
         if (!cancelled) setLoadingQuestions(false);
@@ -228,7 +251,7 @@ export function ProjectWizardPage() {
     return () => {
       cancelled = true;
     };
-  }, [step, monumentId, baseResult]);
+  }, [step, monumentId, baseResult, loadError]);
 
   // Étape 2 → projet : on persiste les réponses sur le monument (la page projet
   // recalcule le même diagnostic à partir de là), on résout le QCM côté client
@@ -236,15 +259,13 @@ export function ProjectWizardPage() {
   const handleQuestionnaireNext = async () => {
     if (!monumentId) return;
     setSaving(true);
+    setStep(3);
     try {
       await monumentService.update(monumentId, { questionnaire: answers });
     } catch (err) {
       // Column may not exist yet (pre-migration) — degrade gracefully.
       console.error('Erreur enregistrement questionnaire (ignorée):', err);
     }
-    // Ré-évaluation déterministe AVEC les réponses : c'est ici que les user_fact
-    // satisfaits promeuvent les aides en éligibles. On amorce le store pour
-    // éviter un écran vide à l'arrivée (la page projet recalcule à l'identique).
     try {
       setDiagnostic(monumentId, await aideService.runProjectDiagnostic(monumentId, answers));
     } catch (err) {
@@ -254,69 +275,110 @@ export function ProjectWizardPage() {
     navigate(ROUTES.PROJET_DETAIL(monumentId));
   };
 
-  const StepIndicator = (
-    <div className="flex items-center gap-3">
-      {([1, 2, 3] as WizardStep[]).map((s, i) => {
-        const done = s < step;
-        const current = s === step;
-        return (
-          <div key={s} className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span
-                className="flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-semibold transition-colors"
-                style={{
-                  background: done || current ? C.orange : 'transparent',
-                  border: `1px solid ${done || current ? C.orange : C.border}`,
-                  color: done || current ? '#fff' : C.ink,
-                }}
-              >
-                {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : s}
-              </span>
-              <span
-                className="hidden text-[13px] sm:inline"
-                style={{ color: current ? C.ink : 'var(--muted-foreground)', fontWeight: current ? 600 : 400 }}
-              >
-                {STEP_LABELS[s]}
-              </span>
-            </div>
-            {i < 2 && <span className="h-px w-6" style={{ background: C.border }} />}
-          </div>
-        );
-      })}
-    </div>
-  );
+  // Le wizard vit hors AppLayout : on réintroduit son garde de segment.
+  if (user && user.segment === 'btp') {
+    return <Navigate to="/btp" replace />;
+  }
+
+  const exitTo = existingMonumentId
+    ? ROUTES.PROJET_DETAIL(existingMonumentId)
+    : ROUTES.PROJETS;
+  const confirmQuit = step === 2 && Object.keys(answers).length > 0;
 
   return (
-    <div className="min-h-screen" style={{ background: C.cream }}>
-      <div className="mx-auto max-w-3xl px-5 py-10 space-y-10">
-        <div className="space-y-6">
-          {StepIndicator}
-          <div className="space-y-2">
+    <WizardShell
+      step={step}
+      monument={monument}
+      progress={step === 2 ? progress : null}
+      confirmQuit={confirmQuit}
+      exitTo={exitTo}
+    >
+      {step === 1 && (
+        <div className="space-y-8">
+          <div className="space-y-3">
             <div
               className="text-[12px] font-semibold uppercase tracking-[0.2em]"
               style={{ color: C.orange }}
             >
-              {existingMonumentId ? 'Questionnaire' : 'Nouveau projet'}
+              Nouveau projet
             </div>
             <h1
-              className="text-[clamp(1.8rem,4vw,2.4rem)]"
+              className="text-[clamp(1.8rem,4vw,2.4rem)] leading-tight"
               style={{ fontFamily: SERIF, color: C.ink }}
             >
-              {step === 1 && 'Ajoutez votre monument'}
-              {step === 2 && 'Précisez votre projet'}
+              Commençons par votre monument
             </h1>
+            <p className="max-w-lg text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
+              Quelques informations suffisent pour identifier les aides mobilisables
+              pour votre projet.
+            </p>
           </div>
-        </div>
 
-        {step === 1 &&
-          (showForm ? (
+          <ul className="flex flex-wrap gap-2.5">
+            {REASSURANCE.map(({ icon: Icon, label }) => (
+              <li
+                key={label}
+                className="inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[13px] font-medium"
+                style={{ borderColor: C.border, background: C.card, color: C.grayFg }}
+              >
+                <Icon className="h-4 w-4" style={{ color: C.blue }} />
+                {label}
+              </li>
+            ))}
+          </ul>
+
+          {mode === 'search' ? (
+            <div className="space-y-5">
+              <div
+                className="rounded-2xl border p-6 sm:p-8"
+                style={{
+                  borderColor: C.border,
+                  background: 'linear-gradient(135deg, var(--secondary) 0%, var(--card) 48%)',
+                  boxShadow: 'var(--shadow-card)',
+                }}
+              >
+                <h2 className="mb-1.5 text-[19px]" style={{ fontFamily: SERIF, color: C.ink }}>
+                  Où se trouve votre monument&nbsp;?
+                </h2>
+                <p className="mb-5 text-[14px]" style={{ color: C.grayFg }}>
+                  Cherchez-le dans la base Mérimée&nbsp;: sa fiche sera pré-remplie
+                  automatiquement.
+                </p>
+                <MerimeeSearch onSelect={handleMerimeeSelect} />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPrefillData(null);
+                  setMode('manual');
+                }}
+                className="group flex w-full items-center justify-between rounded-2xl border border-dashed px-6 py-5 text-left transition-colors hover:border-warning hover:bg-warning-muted"
+                style={{ borderColor: C.border }}
+              >
+                <span>
+                  <span className="block text-[15px] font-semibold" style={{ color: C.ink }}>
+                    Mon monument n&rsquo;est pas dans la liste
+                  </span>
+                  <span className="mt-0.5 block text-[13px]" style={{ color: C.grayFg }}>
+                    Décrivez-le vous-même en quelques champs simples.
+                  </span>
+                </span>
+                <ArrowRight
+                  className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-1"
+                  style={{ color: C.orange }}
+                />
+              </button>
+            </div>
+          ) : (
             <div className="space-y-6">
               <button
                 type="button"
-                onClick={() => setShowForm(false)}
-                className="text-[13px] underline-offset-2 hover:underline text-muted-foreground"
+                onClick={() => setMode('search')}
+                className="text-[13px] underline-offset-2 hover:underline"
+                style={{ color: C.grayMuted }}
               >
-                ← Changer de méthode
+                ← Revenir à la recherche
               </button>
               <MonumentForm
                 initialData={prefillData ?? undefined}
@@ -324,117 +386,104 @@ export function ProjectWizardPage() {
                 saving={saving}
               />
             </div>
-          ) : (
-            <Tabs defaultValue="merimee">
-              <TabsList className="grid h-12 w-full grid-cols-2">
-                <TabsTrigger value="merimee" className="gap-2 text-[14px]">
-                  <IconRecherche className="h-4 w-4" />
-                  Rechercher (Mérimée)
-                </TabsTrigger>
-                <TabsTrigger value="manual" className="gap-2 text-[14px]">
-                  <IconModifier className="h-4 w-4" />
-                  Saisie manuelle
-                </TabsTrigger>
-              </TabsList>
+          )}
+        </div>
+      )}
 
-              <TabsContent value="merimee" className="mt-6">
-                <div
-                  className="rounded-xl border p-8"
-                  style={{ borderColor: C.border, background: C.card }}
-                >
-                  <h3
-                    className="mb-2 text-[20px]"
-                    style={{ fontFamily: SERIF, color: C.ink }}
-                  >
-                    Rechercher dans la base Mérimée
-                  </h3>
-                  <p className="mb-6 text-[14px] text-muted-foreground">
-                    Les informations connues de votre monument seront pré-remplies
-                    automatiquement.
-                  </p>
-                  <MerimeeSearch onSelect={handleMerimeeSelect} />
-                </div>
-              </TabsContent>
-
-              <TabsContent value="manual" className="mt-6">
-                <div
-                  className="rounded-xl border p-8"
-                  style={{ borderColor: C.border, background: C.card }}
-                >
-                  <h3
-                    className="mb-2 text-[20px]"
-                    style={{ fontFamily: SERIF, color: C.ink }}
-                  >
-                    Saisie manuelle
-                  </h3>
-                  <p className="mb-6 text-[14px] text-muted-foreground">
-                    Votre monument n'est pas dans la base ? Renseignez ses informations
-                    manuellement.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPrefillData(null);
-                      setShowForm(true);
-                    }}
-                    className="group inline-flex items-center gap-2 rounded-lg px-6 py-3 text-[14px] font-semibold text-white transition-all hover:shadow-lg"
-                    style={{ background: C.orange }}
-                  >
-                    Créer une fiche monument
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </button>
-                </div>
-              </TabsContent>
-            </Tabs>
-          ))}
-
-        {step === 2 && (
-          <div className="space-y-8">
-            {loadingQuestions ? (
-              <div className="flex items-center gap-3 py-10 text-[14px]" style={{ color: C.grayMuted }}>
-                <Loader2 className="h-4 w-4 animate-spin" style={{ color: C.blueLight }} />
-                Analyse de votre monument…
-              </div>
-            ) : questions.length === 0 ? (
-              <div className="space-y-8">
-                <p className="text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
-                  Aucune précision supplémentaire n'est nécessaire pour votre monument. Lancez le
-                  diagnostic pour découvrir les aides mobilisables.
-                </p>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={handleQuestionnaireNext}
-                    className="group inline-flex items-center gap-2 rounded-xl px-6 py-3 text-[14px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
-                    style={{ background: C.orange }}
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Analyse des aides en cours…
-                      </>
-                    ) : (
-                      <>
-                        Voir les aides
-                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <ProjectQuestionnaire
-                questions={questions}
-                value={answers}
-                onChange={setAnswers}
-                onComplete={handleQuestionnaireNext}
-                submitting={saving}
-              />
-            )}
+      {step === 2 && (
+        <div className="space-y-8">
+          <div className="space-y-3">
+            <div
+              className="text-[12px] font-semibold uppercase tracking-[0.2em]"
+              style={{ color: C.orange }}
+            >
+              {existingMonumentId ? 'Questionnaire' : 'Nouveau projet'}
+            </div>
+            <h1
+              className="text-[clamp(1.8rem,4vw,2.4rem)] leading-tight"
+              style={{ fontFamily: SERIF, color: C.ink }}
+            >
+              Précisons votre projet
+            </h1>
+            <p className="max-w-lg text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
+              Vos réponses affinent la liste des aides. Répondez librement&nbsp;—
+              «&nbsp;Je ne sais pas&nbsp;» est une réponse tout à fait valable.
+            </p>
           </div>
-        )}
-      </div>
-    </div>
+
+          {loadingQuestions ? (
+            <div
+              className="flex items-center gap-3 py-10 text-[14px]"
+              style={{ color: C.grayMuted }}
+            >
+              <Loader2 className="h-4 w-4 animate-spin" style={{ color: C.blueLight }} />
+              Analyse de votre monument…
+            </div>
+          ) : loadError ? (
+            <div
+              className="flex flex-col items-start gap-4 rounded-2xl border p-6"
+              style={{ borderColor: C.border, background: C.card }}
+            >
+              <span
+                className="flex h-11 w-11 items-center justify-center rounded-xl"
+                style={{ background: 'var(--destructive-muted)', color: 'var(--destructive)' }}
+              >
+                <IconAttention className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-[15px] font-semibold" style={{ color: C.ink }}>
+                  Le questionnaire n&rsquo;a pas pu être chargé.
+                </p>
+                <p className="mt-1 text-[14px]" style={{ color: C.grayFg }}>
+                  Vérifiez votre connexion puis réessayez&nbsp;— vos informations
+                  monument sont bien enregistrées.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLoadError(false)}
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[14px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)]"
+                style={{ background: C.orange }}
+              >
+                <IconRafraichir className="h-4 w-4" />
+                Réessayer
+              </button>
+            </div>
+          ) : questions.length === 0 ? (
+            <div className="flex flex-col items-center gap-5 py-8 text-center">
+              <AllClear />
+              <p
+                className="max-w-md text-[15px] leading-relaxed"
+                style={{ color: C.grayFg }}
+              >
+                Aucune précision supplémentaire n&rsquo;est nécessaire pour votre
+                monument. Lancez le diagnostic pour découvrir les aides mobilisables.
+              </p>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleQuestionnaireNext}
+                className="group inline-flex items-center gap-2 rounded-2xl px-7 py-3.5 text-[16px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
+                style={{ background: C.orange }}
+              >
+                Voir les aides
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </button>
+            </div>
+          ) : (
+            <ProjectQuestionnaire
+              questions={questions}
+              value={answers}
+              onChange={setAnswers}
+              onComplete={handleQuestionnaireNext}
+              submitting={saving}
+              onProgress={setProgress}
+            />
+          )}
+        </div>
+      )}
+
+      {step === 3 && <DiagnosticLoader />}
+    </WizardShell>
   );
 }
