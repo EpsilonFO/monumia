@@ -295,8 +295,8 @@ export function ProjectWizardPage() {
       exitTo={exitTo}
     >
       {step === 1 && (
-        <div className="space-y-6">
-          <div className="space-y-2.5">
+        <div className="space-y-5">
+          <div className="space-y-2">
             <div
               className="text-[12px] font-semibold uppercase tracking-[0.2em]"
               style={{ color: C.orange }}
@@ -304,12 +304,12 @@ export function ProjectWizardPage() {
               Nouveau projet
             </div>
             <h1
-              className="text-[clamp(1.8rem,4vw,2.4rem)] leading-tight"
+              className="text-[clamp(1.5rem,3.2vw,2rem)] leading-tight"
               style={{ fontFamily: SERIF, color: C.ink }}
             >
               Commençons par votre monument
             </h1>
-            <p className="max-w-lg text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
+            <p className="max-w-lg text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
               Quelques informations suffisent pour identifier les aides mobilisables
               pour votre projet.
             </p>
@@ -329,19 +329,19 @@ export function ProjectWizardPage() {
           </ul>
 
           {mode === 'search' ? (
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div
-                className="rounded-2xl border p-6 sm:p-8"
+                className="rounded-2xl border p-5 sm:p-6"
                 style={{
                   borderColor: C.border,
                   background: 'linear-gradient(135deg, var(--secondary) 0%, var(--card) 48%)',
                   boxShadow: 'var(--shadow-card)',
                 }}
               >
-                <h2 className="mb-1.5 text-[19px]" style={{ fontFamily: SERIF, color: C.ink }}>
+                <h2 className="mb-1 text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
                   Où se trouve votre monument&nbsp;?
                 </h2>
-                <p className="mb-5 text-[14px]" style={{ color: C.grayFg }}>
+                <p className="mb-4 text-[14px]" style={{ color: C.grayFg }}>
                   Cherchez-le dans la base Mérimée&nbsp;: sa fiche sera pré-remplie
                   automatiquement.
                 </p>
@@ -354,7 +354,7 @@ export function ProjectWizardPage() {
                   setPrefillData(null);
                   setMode('manual');
                 }}
-                className="group flex w-full items-center justify-between rounded-2xl border border-dashed px-6 py-5 text-left transition-colors hover:border-warning hover:bg-warning-muted"
+                className="group flex w-full items-center justify-between rounded-2xl border border-dashed px-6 py-4 text-left transition-colors hover:border-warning hover:bg-warning-muted"
                 style={{ borderColor: C.border }}
               >
                 <span>
@@ -393,25 +393,29 @@ export function ProjectWizardPage() {
 
       {step === 2 && (
         <div className="space-y-5">
-          {/* En-tête compact : la vraie vedette de l'écran, c'est la question. */}
-          <div className="space-y-1.5">
-            <div
-              className="text-[12px] font-semibold uppercase tracking-[0.2em]"
-              style={{ color: C.orange }}
-            >
-              {existingMonumentId ? 'Questionnaire' : 'Nouveau projet'}
+          {/* Pendant le questionnaire lui-même, pas d'en-tête : la question est
+              la vedette et tout doit tenir à l'écran — le rail situe déjà
+              l'étape. L'en-tête ne sert que les états d'attente/erreur/vide. */}
+          {(loadingQuestions || loadError || questions.length === 0) && (
+            <div className="space-y-1.5">
+              <div
+                className="text-[12px] font-semibold uppercase tracking-[0.2em]"
+                style={{ color: C.orange }}
+              >
+                {existingMonumentId ? 'Questionnaire' : 'Nouveau projet'}
+              </div>
+              <h1
+                className="text-[clamp(1.4rem,3vw,1.8rem)] leading-tight"
+                style={{ fontFamily: SERIF, color: C.ink }}
+              >
+                Précisons votre projet
+              </h1>
+              <p className="max-w-lg text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
+                Vos réponses affinent la liste des aides. Répondez librement&nbsp;—
+                «&nbsp;Je ne sais pas&nbsp;» est une réponse tout à fait valable.
+              </p>
             </div>
-            <h1
-              className="text-[clamp(1.4rem,3vw,1.8rem)] leading-tight"
-              style={{ fontFamily: SERIF, color: C.ink }}
-            >
-              Précisons votre projet
-            </h1>
-            <p className="max-w-lg text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
-              Vos réponses affinent la liste des aides. Répondez librement&nbsp;—
-              «&nbsp;Je ne sais pas&nbsp;» est une réponse tout à fait valable.
-            </p>
-          </div>
+          )}
 
           {loadingQuestions ? (
             <div

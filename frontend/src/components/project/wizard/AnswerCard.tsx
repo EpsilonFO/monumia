@@ -54,7 +54,7 @@ export function AnswerCard({
       onClick={onSelect}
       onKeyDown={onKeyDown}
       className={cn(
-        'group flex min-h-[4.25rem] w-full items-center gap-4 rounded-2xl border-2 px-4 py-3.5 text-left text-[15px] font-medium leading-snug transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'group flex min-h-[3.5rem] w-full items-center gap-3.5 rounded-2xl border-2 px-4 py-2.5 text-left text-[15px] font-medium leading-snug transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         selected
           ? 'border-accent bg-warning-muted shadow-[var(--shadow-card)]'
           : 'border-border bg-card hover:-translate-y-0.5 hover:border-warning hover:shadow-[var(--shadow-pop)]',
@@ -63,7 +63,7 @@ export function AnswerCard({
     >
       <span
         aria-hidden
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors"
         style={
           selected
             ? { background: C.orange, color: '#fff' }

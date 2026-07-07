@@ -144,7 +144,7 @@ export function WizardShell({
             contenu long déborde (formulaire monument), elle scrolle en interne
             — la page, elle, ne bouge jamais. */}
         <main ref={sceneRef} className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <div className="relative mx-auto my-auto w-full max-w-[760px] px-5 py-6 sm:py-8">
+          <div className="relative mx-auto my-auto w-full max-w-[760px] px-5 py-4 sm:py-6">
             <Clover
               size={180}
               className="pointer-events-none absolute -right-8 top-4 hidden md:block"

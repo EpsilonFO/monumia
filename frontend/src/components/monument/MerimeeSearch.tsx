@@ -80,8 +80,11 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
         </p>
       )}
 
+      {/* px/py internes sur la liste : les cartes se soulèvent au hover
+          (translate-y) — sans cette marge, le conteneur à scroll rogne leur
+          bord supérieur. */}
       {results.length > 0 && (
-        <ul className="max-h-[36vh] space-y-2.5 overflow-y-auto pr-1">
+        <ul className="max-h-[30vh] space-y-2.5 overflow-y-auto px-1 py-1.5">
           {results.map((record) => {
             const tone = protectionTone(record.typologie_de_la_protection);
             return (

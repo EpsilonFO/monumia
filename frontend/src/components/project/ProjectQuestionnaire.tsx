@@ -212,7 +212,7 @@ export function ProjectQuestionnaire({
   return (
     <div>
       {/* Barre fine de progression, en tête de scène. */}
-      <div className="pb-5">
+      <div className="pb-4">
         <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em]">
           <span aria-live="polite" style={{ color: C.orange }}>
             Question {index + 1} <span style={{ color: C.grayMuted }}>sur {total}</span>
@@ -247,7 +247,7 @@ export function ProjectQuestionnaire({
         <fieldset role="radiogroup" className="space-y-4">
           <legend className="w-full">
             <span
-              className="block text-[clamp(1.4rem,3.4vw,1.9rem)] leading-snug"
+              className="block text-[clamp(1.25rem,2.8vw,1.6rem)] leading-snug"
               style={{ fontFamily: SERIF, color: C.ink }}
             >
               {q!.question}
