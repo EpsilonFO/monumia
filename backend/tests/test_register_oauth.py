@@ -90,6 +90,21 @@ class RegisterOauthTest(unittest.TestCase):
         self.assertIn("notification_preferences", row)
         self.assertEqual(result["user"]["prenom"], "Marie")
 
+    def test_creation_quand_maybe_single_renvoie_data_none(self):
+        # 1) maybe_single renvoie _Resp(None) (.data is None, pas None brut)
+        # 2) insert 3) single de _get_profile
+        supabase = _FakeSupabase([_Resp(None), _Resp(None), _Resp(dict(PROFILE_ROW))])
+        body = RegisterOauthRequest(
+            prenom="Marie",
+            nom="Dupont",
+            segment="prive",
+            prive_type_proprietaire="personne_physique",
+        )
+        result = register_oauth(body, auth_user=AUTH_USER, supabase=supabase)
+
+        self.assertEqual(len(supabase.inserted), 1)
+        self.assertEqual(result["user"]["prenom"], "Marie")
+
     def test_idempotent_si_profil_deja_cree(self):
         # 1) maybe_single trouve la ligne 2) single de _get_profile
         supabase = _FakeSupabase(
