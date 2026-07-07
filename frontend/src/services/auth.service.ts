@@ -30,6 +30,18 @@ export interface RegisterCollaboratorPayload {
   telephone?: string;
 }
 
+export type RegisterOauthPayload = Omit<RegisterPayload, 'email' | 'password'>;
+export type RegisterCollaboratorOauthPayload = Omit<
+  RegisterCollaboratorPayload,
+  'email' | 'password'
+>;
+
+export interface OauthProfileStatusResponse {
+  exists: boolean;
+  user?: import('@/types').User;
+  prefill?: { email: string; prenom: string; nom: string };
+}
+
 export interface AuthResponse {
   access_token: string;
   refresh_token: string | null;
@@ -63,6 +75,37 @@ export const authService = {
       body: JSON.stringify(payload),
     });
     return handleResponse<AuthResponse>(res);
+  },
+
+  async oauthProfileStatus(accessToken: string): Promise<OauthProfileStatusResponse> {
+    const res = await fetch(`${BASE}/auth/oauth/profile-status`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return handleResponse<OauthProfileStatusResponse>(res);
+  },
+
+  async registerOauth(
+    payload: RegisterOauthPayload,
+    accessToken: string,
+  ): Promise<{ user: import('@/types').User }> {
+    const res = await fetch(`${BASE}/auth/register-oauth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(res);
+  },
+
+  async registerCollaboratorOauth(
+    payload: RegisterCollaboratorOauthPayload,
+    accessToken: string,
+  ): Promise<{ user: import('@/types').User }> {
+    const res = await fetch(`${BASE}/auth/register-collaborator-oauth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(res);
   },
 
   async logout(): Promise<void> {
