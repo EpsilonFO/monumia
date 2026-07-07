@@ -142,6 +142,37 @@ class RefreshCookieTest(unittest.TestCase):
         self.assertNotIn("refresh_token", res.json())
         self.assertIn("monumia_refresh=rt-1", res.headers.get("set-cookie", ""))
 
+    def test_refresh_via_cookie_renvoie_un_nouvel_access_token_et_fait_tourner_le_cookie(self):
+        self.client.cookies.set("monumia_refresh", "rt-1")
+        res = self.client.post("/auth/refresh")
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertEqual(body["access_token"], "at-2")
+        self.assertNotIn("refresh_token", body)
+        self.assertIn("monumia_refresh=rt-2", res.headers.get("set-cookie", ""))
+
+    def test_refresh_via_body_reste_supporte_pour_la_migration(self):
+        res = self.client.post("/auth/refresh", json={"refresh_token": "rt-1"})
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("monumia_refresh=rt-2", res.headers.get("set-cookie", ""))
+
+    def test_refresh_sans_cookie_ni_body_echoue_en_401(self):
+        res = self.client.post("/auth/refresh")
+        self.assertEqual(res.status_code, 401)
+
+    def test_refresh_avec_token_invalide_echoue_en_401(self):
+        self.client.cookies.set("monumia_refresh", "rt-vole")
+        res = self.client.post("/auth/refresh")
+        self.assertEqual(res.status_code, 401)
+
+    def test_logout_efface_le_cookie_meme_sans_access_token(self):
+        self.client.cookies.set("monumia_refresh", "rt-1")
+        res = self.client.post("/auth/logout")  # pas de header Authorization
+        self.assertEqual(res.status_code, 204)
+        cookie = res.headers.get("set-cookie", "")
+        self.assertIn("monumia_refresh=", cookie)
+        self.assertIn("Max-Age=0", cookie)
+
 
 if __name__ == "__main__":
     unittest.main()

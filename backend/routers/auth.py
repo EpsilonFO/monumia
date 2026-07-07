@@ -461,12 +461,21 @@ def forgot_password(
 
 @router.post("/refresh")
 def refresh(
-    body: RefreshRequest,
+    request: Request,
+    response: Response,
+    body: RefreshRequest | None = None,
     anon: Client = Depends(get_anon_supabase),
     supabase: Client = Depends(get_supabase),
 ):
+    """Renouvelle la session. Le refresh token vient du cookie httpOnly ;
+    le body reste accepté transitoirement (migration des sessions qui
+    l'avaient encore en localStorage)."""
+    refresh_token = request.cookies.get(REFRESH_COOKIE) or (body.refresh_token if body else None)
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="Aucun refresh token")
+
     try:
-        auth_response = anon.auth.refresh_session(body.refresh_token)
+        auth_response = anon.auth.refresh_session(refresh_token)
     except Exception as e:
         raise HTTPException(status_code=401, detail="Refresh token invalide ou expiré") from e
 
@@ -475,23 +484,30 @@ def refresh(
 
     user_id = auth_response.user.id if auth_response.user else auth_response.session.user.id
 
+    _set_refresh_cookie(response, auth_response.session.refresh_token)
     return {
         "access_token": auth_response.session.access_token,
-        "refresh_token": auth_response.session.refresh_token,
         "token_type": "bearer",
         "user": _get_profile(supabase, user_id),
     }
 
 
+_optional_bearer = HTTPBearer(auto_error=False)
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
-    user_id: str = Depends(get_current_user_id),
+    response: Response,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_optional_bearer),
     anon: Client = Depends(get_anon_supabase),
 ):
-    import contextlib
+    """Déconnexion : efface toujours le cookie, révoque la session si possible.
 
+    L'auth est facultative : un access token expiré ne doit pas empêcher
+    d'effacer le cookie (sinon la session ressusciterait au prochain boot)."""
     with contextlib.suppress(Exception):
-        anon.auth.sign_out()  # Already invalid token — still return 204
+        anon.auth.sign_out()
+    _clear_refresh_cookie(response)
 
 
 @router.get("/me")
