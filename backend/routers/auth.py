@@ -37,6 +37,21 @@ class RegisterCollaboratorRequest(BaseModel):
     telephone: str | None = None
 
 
+class RegisterOauthRequest(BaseModel):
+    """Comme RegisterRequest, sans email/password : l'utilisateur auth existe
+    déjà (créé par le provider OAuth), l'email est lu depuis le token."""
+
+    prenom: str
+    nom: str
+    segment: str  # 'commune' | 'prive' | 'btp'
+    telephone: str | None = None
+    commune_code_insee: str | None = None
+    commune_fonction: str | None = None
+    prive_type_proprietaire: str | None = None
+    prive_regime_fiscal: str | None = None
+    btp: dict | None = None
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -307,6 +322,43 @@ def oauth_profile_status(
     if result is not None and result.data:
         return {"exists": True, "user": _get_profile(supabase, auth_user.id)}
     return {"exists": False, "prefill": _prefill_from_auth_user(auth_user)}
+
+
+@router.post("/register-oauth", status_code=status.HTTP_201_CREATED)
+def register_oauth(
+    body: RegisterOauthRequest,
+    auth_user=Depends(get_current_auth_user),
+    supabase: Client = Depends(get_supabase),
+):
+    """Fin d'onboarding d'un compte créé via OAuth : crée la ligne users.
+
+    Idempotent : une re-soumission (double clic, retry réseau) renvoie le
+    profil existant au lieu d'échouer.
+    """
+    existing = (
+        supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
+    )
+    if existing is not None and existing.data:
+        return {"user": _get_profile(supabase, auth_user.id)}
+
+    profile: dict[str, Any] = {
+        "id": auth_user.id,
+        "email": auth_user.email,
+        "prenom": body.prenom,
+        "nom": body.nom,
+        "segment": body.segment,
+        "telephone": body.telephone,
+        "commune_code_insee": body.commune_code_insee,
+        "commune_fonction": body.commune_fonction,
+        "prive_type_proprietaire": body.prive_type_proprietaire,
+        "prive_regime_fiscal": body.prive_regime_fiscal,
+        "btp": body.btp,
+        "onboarding_complete": False,
+        "notification_preferences": _default_notification_preferences(),
+    }
+    supabase.table("users").insert(profile).execute()
+
+    return {"user": _get_profile(supabase, auth_user.id)}
 
 
 @router.post("/forgot-password")
