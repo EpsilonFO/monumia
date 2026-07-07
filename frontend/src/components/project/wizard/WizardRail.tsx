@@ -35,7 +35,7 @@ export const WIZARD_STEPS: Array<{
   {
     key: 2,
     label: 'Questionnaire',
-    hint: 'Des questions simples, sans aucune paperasse.',
+    hint: 'Des questions simples, sans aucun document.',
     icon: IconListe,
   },
   {

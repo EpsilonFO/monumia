@@ -13,7 +13,6 @@ import {
   IconDocument,
   IconModifier,
   IconRafraichir,
-  IconTemps,
 } from '@/components/icons';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
@@ -44,9 +43,8 @@ const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
 /** Puces de réassurance de l'étape monument (public peu à l'aise : on rassure
  *  d'emblée) — en bleu/orange/bleu, le rythme de la marque. */
 const REASSURANCE = [
-  { icon: IconTemps, label: 'Environ 5 minutes', bg: 'var(--secondary)', fg: 'var(--primary)' },
-  { icon: IconModifier, label: 'Modifiable à tout moment', bg: 'var(--warning-muted)', fg: 'var(--accent)' },
-  { icon: IconDocument, label: 'Aucun document requis', bg: 'var(--info-muted)', fg: 'var(--info)' },
+  { icon: IconModifier, label: 'Modifiable à tout moment', bg: 'var(--secondary)', fg: 'var(--primary)' },
+  { icon: IconDocument, label: 'Aucun document requis', bg: 'var(--warning-muted)', fg: 'var(--accent)' },
 ] as const;
 
 export function ProjectWizardPage() {
