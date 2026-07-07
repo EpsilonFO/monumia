@@ -8,6 +8,7 @@ import { OnboardingProfile } from '@/pages/onboarding/OnboardingProfile';
 import { OnboardingMonument } from '@/pages/onboarding/OnboardingMonument';
 import { LoginPage } from '@/pages/login/LoginPage';
 import { ResetPasswordPage } from '@/pages/login/ResetPasswordPage';
+import { AuthCallbackPage } from '@/pages/login/AuthCallbackPage';
 import { TarifsPage } from '@/pages/tarifs/TarifsPage';
 import { BlogLayout } from '@/components/blog/BlogLayout';
 import { BlogIndexPage } from '@/pages/blog/BlogIndexPage';
@@ -69,6 +70,12 @@ export const router = createBrowserRouter([
   {
     path: '/reset-password',
     element: <ResetPasswordPage />,
+  },
+
+  // OAuth callback landing page (public — arrives from Supabase redirect)
+  {
+    path: '/auth/callback',
+    element: <AuthCallbackPage />,
   },
 
   // Tarifs page (public)
