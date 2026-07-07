@@ -399,12 +399,10 @@ def register_oauth(
         "onboarding_complete": False,
         "notification_preferences": _default_notification_preferences(),
     }
-    try:
+    # Course entre deux soumissions : la ligne vient d'être créée par
+    # l'autre requête — l'idempotence retombe sur le profil existant.
+    with contextlib.suppress(Exception):
         supabase.table("users").insert(profile).execute()
-    except Exception:
-        # Course entre deux soumissions : la ligne vient d'être créée par
-        # l'autre requête — l'idempotence retombe sur le profil existant.
-        pass
 
     return {"user": _get_profile(supabase, auth_user.id)}
 
@@ -432,12 +430,10 @@ def register_collaborator_oauth(
         "onboarding_complete": True,
         "notification_preferences": _default_notification_preferences(),
     }
-    try:
+    # Course entre deux soumissions : la ligne vient d'être créée par
+    # l'autre requête — l'idempotence retombe sur le profil existant.
+    with contextlib.suppress(Exception):
         supabase.table("users").insert(profile).execute()
-    except Exception:
-        # Course entre deux soumissions : la ligne vient d'être créée par
-        # l'autre requête — l'idempotence retombe sur le profil existant.
-        pass
 
     return {"user": _get_profile(supabase, auth_user.id)}
 

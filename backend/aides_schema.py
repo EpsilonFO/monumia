@@ -40,7 +40,7 @@ toujours d'effect `info` ; une `discretionary` est `info` par défaut,
 from __future__ import annotations
 
 from datetime import date
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Any, Literal
 
@@ -558,13 +558,13 @@ class Aide(BaseModel):
 # retournées sont PARTAGÉES entre requêtes — ne jamais les modifier en place.
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_facts(path: Path = FACTS_FILE) -> dict[str, FactDef]:
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     return {key: FactDef.model_validate(val) for key, val in raw.items()}
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_pending_facts(path: Path = FACTS_PENDING_FILE) -> dict[str, FactDef]:
     """Faits en attente d'approbation. Fichier absent ou vide ⇒ {}."""
     if not path.exists():
@@ -581,6 +581,6 @@ def load_aide(path: Path) -> Aide:
     return aide
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_all_aides(directory: Path = AIDES_DIR) -> dict[str, Aide]:
     return {p.stem: load_aide(p) for p in sorted(directory.glob("*.yaml"))}
