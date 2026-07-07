@@ -128,7 +128,7 @@ class RefreshCookieTest(unittest.TestCase):
         cookie = res.headers.get("set-cookie", "")
         self.assertIn("monumia_refresh=rt-1", cookie)
         self.assertIn("HttpOnly", cookie)
-        self.assertIn("Path=/auth", cookie)
+        self.assertIn("Path=/", cookie)
         self.assertIn("SameSite=lax", cookie)
 
     def test_register_pose_le_cookie_et_ne_renvoie_plus_le_refresh_token(self):

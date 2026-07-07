@@ -98,6 +98,12 @@ class ForgotPasswordRequest(BaseModel):
 
 REFRESH_COOKIE = "monumia_refresh"
 REFRESH_COOKIE_MAX_AGE = 30 * 24 * 3600  # 30 jours, renouvelé à chaque rotation
+# path="/" et non "/auth" : le path d'un cookie est comparé à l'URL vue par le
+# NAVIGATEUR. En prod le front tape /api/auth/refresh (nginx retire /api avant
+# de proxifier vers FastAPI qui, lui, voit /auth). Un cookie posé sur /auth ne
+# serait donc jamais renvoyé sur /api/auth/* → refresh 401 → déconnexion à
+# chaque réouverture. "/" couvre local (/auth) comme prod (/api/auth).
+REFRESH_COOKIE_PATH = "/"
 
 
 def _cookie_secure() -> bool:
@@ -113,12 +119,12 @@ def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
         httponly=True,
         secure=_cookie_secure(),
         samesite="lax",
-        path="/auth",  # envoyé uniquement sur les endpoints d'auth
+        path=REFRESH_COOKIE_PATH,
     )
 
 
 def _clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie(key=REFRESH_COOKIE, path="/auth")
+    response.delete_cookie(key=REFRESH_COOKIE, path=REFRESH_COOKIE_PATH)
 
 
 # ---------------------------------------------------------------------------
