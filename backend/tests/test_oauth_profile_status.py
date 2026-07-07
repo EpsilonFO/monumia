@@ -66,16 +66,12 @@ PROFILE_ROW = {
 
 
 def _auth_user(metadata=None):
-    return SimpleNamespace(
-        id="user-1", email="marie@exemple.fr", user_metadata=metadata or {}
-    )
+    return SimpleNamespace(id="user-1", email="marie@exemple.fr", user_metadata=metadata or {})
 
 
 class OauthProfileStatusTest(unittest.TestCase):
     def test_profil_existant_renvoie_le_user(self):
-        supabase = _FakeSupabase(
-            [_Resp({"id": "user-1"}), _Resp(dict(PROFILE_ROW))]
-        )
+        supabase = _FakeSupabase([_Resp({"id": "user-1"}), _Resp(dict(PROFILE_ROW))])
         result = oauth_profile_status(auth_user=_auth_user(), supabase=supabase)
         self.assertTrue(result["exists"])
         self.assertEqual(result["user"]["prenom"], "Marie")
