@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router';
 import { ArrowUpRight } from 'lucide-react';
 import { IconAjouter } from '@/components/icons';
@@ -7,6 +7,12 @@ import { NextActionCard } from '@/components/dashboard/NextActionCard';
 import { StatChips } from '@/components/dashboard/StatChips';
 import { buildUpcomingRows } from '@/components/dashboard/echeances-alertes-utils';
 import { ProjectsInProgress } from '@/components/dashboard/ProjectsInProgress';
+import {
+  NextActionCardSkeleton,
+  StatChipsSkeleton,
+  ProjectsInProgressSkeleton,
+} from '@/components/skeletons';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useSuiviStore } from '@/stores/useSuiviStore';
 import { projectStage } from '@/lib/project-stats';
 import type { ProjectStage } from '@/lib/project-stats';
@@ -15,10 +21,7 @@ import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { useNotificationStore } from '@/stores/useNotificationStore';
-import { monumentService } from '@/services/monument.service';
-import { dossierService } from '@/services/dossier.service';
-import { aideService } from '@/services/aide.service';
-import { suiviService } from '@/services/suivi.service';
+import { useProjectsData } from '@/hooks/useProjectsData';
 import { ROUTES } from '@/constants/routes';
 import {
   aggregateDashboardStats,
@@ -31,19 +34,14 @@ import type { AideDiagnosticResult } from '@/types';
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
-  const setMonuments = useMonumentStore((s) => s.setMonuments);
   const dossiers = useDossierStore((s) => s.dossiers);
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
-  const setDiagnostic = useAideStore((s) => s.setDiagnostic);
   const notifications = useNotificationStore((s) => s.notifications);
 
-  // Rafraîchir au montage : revenir au tableau de bord reflète les changements
-  // (projets/dossiers) faits par les autres membres, sans recharger la page.
-  useEffect(() => {
-    if (!user) return;
-    monumentService.getAll().then(setMonuments).catch(console.error);
-    dossierService.fetchAll().catch(console.error);
-  }, [user, setMonuments]);
+  // Charge monuments, dossiers, diagnostics et suivis ; `loading` ne retombe
+  // qu'une fois TOUT arrivé, pour que les squelettes couvrent aussi le nombre
+  // d'aides et l'avancement (sinon les cartes s'affichent vides puis sautent).
+  const { loading } = useProjectsData();
 
   const userMonuments = useMemo(
     () => (user ? monuments.filter((m) => m.userId === user.id) : []),
@@ -54,35 +52,6 @@ export function DashboardPage() {
   // (Le store ne contient que des monuments accessibles à l'utilisateur.)
   // Les KPI, le bandeau d'échéance et l'échéancier restent basés sur `userMonuments`.
   const displayMonuments = monuments;
-
-  // Recalcule le diagnostic déterministe par monument qui n'en a pas encore,
-  // à chaque changement de liste. On dépend uniquement de `[displayMonuments]` :
-  // inclure `diagnosticsByMonument` relancerait l'effet à chaque stockage. Le
-  // moteur étant déterministe, le résultat est toujours défini et stocké — le
-  // garde par-id dédoublonne donc les recalculs.
-  useEffect(() => {
-    for (const m of displayMonuments) {
-      if (!diagnosticsByMonument[m.id]) {
-        aideService
-          .runProjectDiagnostic(m.id, m.questionnaire)
-          .then((result) => setDiagnostic(m.id, result))
-          .catch(console.error);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayMonuments]);
-
-  // Charge les suivis (par monument) absents du store, pour que le parcours
-  // puisse atteindre l'étape « Suivi ». Gardé par loadedMonuments → une fois
-  // par monument et par session (comme le diagnostic).
-  useEffect(() => {
-    for (const m of displayMonuments) {
-      if (!loadedSuivis[m.id]) {
-        suiviService.fetchByMonument(m.id).catch(console.error);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayMonuments]);
 
   const diagMap = useMemo<Record<string, AideDiagnosticResult | null>>(() => {
     const out: Record<string, AideDiagnosticResult | null> = {};
@@ -153,7 +122,6 @@ export function DashboardPage() {
   }, [displayMonuments, diagMap, userDossiers]);
 
   const suivis = useSuiviStore((s) => s.suivis);
-  const loadedSuivis = useSuiviStore((s) => s.loadedMonuments);
 
   const stageByMonument = useMemo<Record<string, ProjectStage>>(() => {
     const out: Record<string, ProjectStage> = {};
@@ -197,9 +165,15 @@ export function DashboardPage() {
             <h1 className="text-[clamp(1.8rem,4vw,2.5rem)] leading-[1.1]" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
               {greeting}, <span style={{ color: C.blue }}>{user.prenom}</span>
             </h1>
-            <p className="mt-1 text-[14px]" style={{ color: C.grayFg }}>
-              {summaryLine}
-            </p>
+            {loading ? (
+              // La phrase de synthèse dépend des échéances : ne rien affirmer
+              // (« vous êtes à jour ») tant qu'elles ne sont pas chargées.
+              <Skeleton className="mt-2 h-4 w-72 max-w-full" />
+            ) : (
+              <p className="mt-1 text-[14px]" style={{ color: C.grayFg }}>
+                {summaryLine}
+              </p>
+            )}
           </div>
           <Link
             to={ROUTES.PROJET_NEW}
@@ -214,15 +188,23 @@ export function DashboardPage() {
       </div>
 
       {/* ─── À FAIRE MAINTENANT (carte agenda unifiée) ─── */}
-      <NextActionCard deadlines={nextDeadlines} upcoming={upcomingRows} />
+      {loading ? (
+        <NextActionCardSkeleton />
+      ) : (
+        <NextActionCard deadlines={nextDeadlines} upcoming={upcomingRows} />
+      )}
 
       {/* ─── KPI ─── */}
-      <StatChips stats={dashboardStats} />
+      {loading ? <StatChipsSkeleton /> : <StatChips stats={dashboardStats} />}
 
       {/* ─── VOS PROJETS (parcours) ─── */}
       <section>
         <SectionHeading eyebrow="Vos monuments" title="Vos projets" />
-        <ProjectsInProgress monuments={displayMonuments} statsByMonument={statsByMonument} stageByMonument={stageByMonument} />
+        {loading ? (
+          <ProjectsInProgressSkeleton />
+        ) : (
+          <ProjectsInProgress monuments={displayMonuments} statsByMonument={statsByMonument} stageByMonument={stageByMonument} />
+        )}
       </section>
 
     </div>
