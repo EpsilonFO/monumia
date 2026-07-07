@@ -1,7 +1,9 @@
 import contextlib
+import os
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from supabase import Client
 
@@ -84,6 +86,35 @@ class UpdateNotificationsRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: str
+
+
+# ---------------------------------------------------------------------------
+# Cookie de refresh token (httpOnly : jamais lisible par le JavaScript)
+# ---------------------------------------------------------------------------
+
+REFRESH_COOKIE = "monumia_refresh"
+REFRESH_COOKIE_MAX_AGE = 30 * 24 * 3600  # 30 jours, renouvelé à chaque rotation
+
+
+def _cookie_secure() -> bool:
+    # true par défaut (prod HTTPS) ; COOKIE_SECURE=false en local http.
+    return os.environ.get("COOKIE_SECURE", "true").lower() != "false"
+
+
+def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    response.set_cookie(
+        key=REFRESH_COOKIE,
+        value=refresh_token,
+        max_age=REFRESH_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=_cookie_secure(),
+        samesite="lax",
+        path="/auth",  # envoyé uniquement sur les endpoints d'auth
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(key=REFRESH_COOKIE, path="/auth")
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +226,7 @@ def _validate_password(password: str) -> None:
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(
     body: RegisterRequest,
+    response: Response,
     anon: Client = Depends(get_anon_supabase),
     supabase: Client = Depends(get_supabase),
 ):
@@ -235,9 +267,10 @@ def register(
     supabase.table("users").insert(profile).execute()
 
     session = auth_response.session
+    if session and session.refresh_token:
+        _set_refresh_cookie(response, session.refresh_token)
     return {
         "access_token": session.access_token if session else None,
-        "refresh_token": session.refresh_token if session else None,
         "token_type": "bearer",
         "user": _get_profile(supabase, user_id),
     }
@@ -246,6 +279,7 @@ def register(
 @router.post("/register-collaborator", status_code=status.HTTP_201_CREATED)
 def register_collaborator(
     body: RegisterCollaboratorRequest,
+    response: Response,
     anon: Client = Depends(get_anon_supabase),
     supabase: Client = Depends(get_supabase),
 ):
@@ -276,9 +310,10 @@ def register_collaborator(
     supabase.table("users").insert(profile).execute()
 
     session = auth_response.session
+    if session and session.refresh_token:
+        _set_refresh_cookie(response, session.refresh_token)
     return {
         "access_token": session.access_token if session else None,
-        "refresh_token": session.refresh_token if session else None,
         "token_type": "bearer",
         "user": _get_profile(supabase, user_id),
     }
@@ -287,6 +322,7 @@ def register_collaborator(
 @router.post("/login")
 def login(
     body: LoginRequest,
+    response: Response,
     anon: Client = Depends(get_anon_supabase),
     supabase: Client = Depends(get_supabase),
 ):
@@ -305,9 +341,9 @@ def login(
 
     user_id = auth_response.user.id
 
+    _set_refresh_cookie(response, auth_response.session.refresh_token)
     return {
         "access_token": auth_response.session.access_token,
-        "refresh_token": auth_response.session.refresh_token,
         "token_type": "bearer",
         "user": _get_profile(supabase, user_id),
     }
