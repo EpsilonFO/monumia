@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { usePendingRegistrationStore } from '@/stores/usePendingRegistrationStore';
 import { authService } from '@/services/auth.service';
 import { AuthLayout } from '@/components/layout/AuthLayout';
+import { GoogleButton } from '@/components/auth/GoogleButton';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
@@ -119,6 +120,20 @@ export function LoginPage() {
           </button>
         ))}
       </div>
+
+      {/* ── Connexion Google (login + inscription) ── */}
+      {tab !== 'forgot' && (
+        <div className="space-y-5">
+          <GoogleButton />
+          <div className="flex items-center gap-3" aria-hidden="true">
+            <span className="h-px flex-1" style={{ background: 'var(--border)' }} />
+            <span className="text-[13px] whitespace-nowrap" style={{ color: MUTED }}>
+              ou avec votre adresse email
+            </span>
+            <span className="h-px flex-1" style={{ background: 'var(--border)' }} />
+          </div>
+        </div>
+      )}
 
       {/* ── Connexion ── */}
       {tab === 'login' && (
