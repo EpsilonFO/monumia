@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { usePendingRegistrationStore } from '@/stores/usePendingRegistrationStore';
+import { usePendingOAuthStore } from '@/stores/usePendingOAuthStore';
 import { authService } from '@/services/auth.service';
-import { ChevronLeft, ArrowRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ArrowRight, Loader2, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { MetierSelect } from '@/components/sharing/MetierSelect';
 import { ROUTES } from '@/constants/routes';
@@ -47,6 +48,13 @@ export function OnboardingProfile() {
   const pendingEmail = usePendingRegistrationStore((s) => s.email);
   const pendingPassword = usePendingRegistrationStore((s) => s.password);
   const clearPendingCredentials = usePendingRegistrationStore((s) => s.clear);
+  const oauthAccessToken = usePendingOAuthStore((s) => s.accessToken);
+  const oauthRefreshToken = usePendingOAuthStore((s) => s.refreshToken);
+  const oauthEmail = usePendingOAuthStore((s) => s.email);
+  const oauthPrenom = usePendingOAuthStore((s) => s.prenom);
+  const oauthNom = usePendingOAuthStore((s) => s.nom);
+  const clearOAuthSession = usePendingOAuthStore((s) => s.clear);
+  const isOAuth = Boolean(oauthAccessToken);
   const [loading, setLoading] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
 
@@ -60,8 +68,8 @@ export function OnboardingProfile() {
   };
 
   const [form, setForm] = useState({
-    prenom: '',
-    nom: '',
+    prenom: oauthPrenom ?? '',
+    nom: oauthNom ?? '',
     telephone: '',
     metier: '',
     communeNom: '',
@@ -114,7 +122,7 @@ export function OnboardingProfile() {
     setForm((prev) => ({ ...prev, ...updates }));
 
   const handleSubmit = async () => {
-    if (!pendingEmail || !pendingPassword) {
+    if (!isOAuth && (!pendingEmail || !pendingPassword)) {
       toast.error('Session expirée, recommencez l\'inscription.');
       navigate('/login');
       return;
@@ -131,16 +139,30 @@ export function OnboardingProfile() {
       }
       setLoading(true);
       try {
-        const { user, access_token, refresh_token } = await authService.registerCollaborator({
-          email: pendingEmail,
-          password: pendingPassword,
-          prenom: form.prenom,
-          nom: form.nom,
-          metier: form.metier,
-          telephone: form.telephone || undefined,
-        });
-        clearPendingCredentials();
-        setAuth(user, access_token, refresh_token);
+        if (isOAuth) {
+          const { user } = await authService.registerCollaboratorOauth(
+            {
+              prenom: form.prenom,
+              nom: form.nom,
+              metier: form.metier,
+              telephone: form.telephone || undefined,
+            },
+            oauthAccessToken!,
+          );
+          clearOAuthSession();
+          setAuth(user, oauthAccessToken!, oauthRefreshToken || null);
+        } else {
+          const { user, access_token, refresh_token } = await authService.registerCollaborator({
+            email: pendingEmail!,
+            password: pendingPassword!,
+            prenom: form.prenom,
+            nom: form.nom,
+            metier: form.metier,
+            telephone: form.telephone || undefined,
+          });
+          clearPendingCredentials();
+          setAuth(user, access_token, refresh_token);
+        }
         navigate(ROUTES.PROJETS);
       } catch (err: unknown) {
         toast.error(err instanceof Error ? err.message : 'Erreur lors de la creation du compte');
@@ -162,22 +184,40 @@ export function OnboardingProfile() {
 
     setLoading(true);
     try {
-      const { user, access_token, refresh_token } = await authService.register({
-        email,
-        password,
-        prenom: form.prenom,
-        nom: form.nom,
-        segment,
-        telephone: form.telephone || undefined,
-        commune_code_insee: segment === 'commune' ? form.communeCodeInsee : undefined,
-        commune_fonction: segment === 'commune' ? (form.communeFonction || 'autre') : undefined,
-        prive_type_proprietaire: segment === 'prive' ? (form.typeProprietaire || 'personne_physique') : undefined,
-        prive_regime_fiscal: segment === 'prive' ? (form.regimeFiscal || undefined) : undefined,
-        btp: btpData,
-      });
-
-      clearPendingCredentials();
-      setAuth(user, access_token, refresh_token);
+      if (isOAuth) {
+        const { user } = await authService.registerOauth(
+          {
+            prenom: form.prenom,
+            nom: form.nom,
+            segment,
+            telephone: form.telephone || undefined,
+            commune_code_insee: segment === 'commune' ? form.communeCodeInsee : undefined,
+            commune_fonction: segment === 'commune' ? (form.communeFonction || 'autre') : undefined,
+            prive_type_proprietaire: segment === 'prive' ? (form.typeProprietaire || 'personne_physique') : undefined,
+            prive_regime_fiscal: segment === 'prive' ? (form.regimeFiscal || undefined) : undefined,
+            btp: btpData,
+          },
+          oauthAccessToken!,
+        );
+        clearOAuthSession();
+        setAuth(user, oauthAccessToken!, oauthRefreshToken || null);
+      } else {
+        const { user, access_token, refresh_token } = await authService.register({
+          email: email!,
+          password: password!,
+          prenom: form.prenom,
+          nom: form.nom,
+          segment,
+          telephone: form.telephone || undefined,
+          commune_code_insee: segment === 'commune' ? form.communeCodeInsee : undefined,
+          commune_fonction: segment === 'commune' ? (form.communeFonction || 'autre') : undefined,
+          prive_type_proprietaire: segment === 'prive' ? (form.typeProprietaire || 'personne_physique') : undefined,
+          prive_regime_fiscal: segment === 'prive' ? (form.regimeFiscal || undefined) : undefined,
+          btp: btpData,
+        });
+        clearPendingCredentials();
+        setAuth(user, access_token, refresh_token);
+      }
       navigate(segment === 'btp' ? '/btp' : '/app');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la création du compte');
@@ -218,6 +258,24 @@ export function OnboardingProfile() {
             ? 'Quelques informations sur votre entreprise'
             : 'Quelques informations vous concernant'}
         </p>
+        {isOAuth && (
+          <div
+            className="flex items-start gap-2.5 rounded-xl p-4 text-[14px] leading-[1.55]"
+            style={{ background: 'var(--secondary)', color: C.text }}
+          >
+            <Check className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: 'var(--success)' }} />
+            <span>
+              Vous êtes connecté avec votre compte Google
+              {oauthEmail ? (
+                <>
+                  {' '}
+                  (<span className="font-semibold">{oauthEmail}</span>)
+                </>
+              ) : null}
+              . Il ne reste que quelques informations à compléter.
+            </span>
+          </div>
+        )}
       </div>
 
       {/* personal info card */}
