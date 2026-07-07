@@ -70,6 +70,10 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class OauthSessionRequest(BaseModel):
+    refresh_token: str
+
+
 class UpdateProfileRequest(BaseModel):
     prenom: str | None = None
     nom: str | None = None
@@ -436,6 +440,18 @@ def register_collaborator_oauth(
         pass
 
     return {"user": _get_profile(supabase, auth_user.id)}
+
+
+@router.post("/oauth/session", status_code=status.HTTP_204_NO_CONTENT)
+def oauth_session(
+    body: OauthSessionRequest,
+    response: Response,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Échange unique post-callback OAuth : le refresh token reçu dans le hash
+    d'URL part en cookie httpOnly et ne repassera plus jamais côté client.
+    Le Bearer (access token du même hash) authentifie l'appel."""
+    _set_refresh_cookie(response, body.refresh_token)
 
 
 @router.post("/forgot-password")

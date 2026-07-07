@@ -59,9 +59,17 @@ class _UsersQuery:
         return self._responses.pop(0)
 
 
+class _FakeServiceAuth:
+    def get_user(self, token):
+        if token != "at-oauth":
+            raise ValueError("bad token")
+        return SimpleNamespace(user=SimpleNamespace(id="user-1"))
+
+
 class _FakeSupabase:
     def __init__(self, users_responses):
         self._users = _UsersQuery(list(users_responses))
+        self.auth = _FakeServiceAuth()
 
     def table(self, name):
         return self._users
@@ -172,6 +180,25 @@ class RefreshCookieTest(unittest.TestCase):
         cookie = res.headers.get("set-cookie", "")
         self.assertIn("monumia_refresh=", cookie)
         self.assertIn("Max-Age=0", cookie)
+
+    def test_oauth_session_pose_le_cookie(self):
+        res = self.client.post(
+            "/auth/oauth/session",
+            json={"refresh_token": "rt-google"},
+            headers={"Authorization": "Bearer at-oauth"},
+        )
+        self.assertEqual(res.status_code, 204)
+        cookie = res.headers.get("set-cookie", "")
+        self.assertIn("monumia_refresh=rt-google", cookie)
+        self.assertIn("HttpOnly", cookie)
+
+    def test_oauth_session_refuse_un_access_token_invalide(self):
+        res = self.client.post(
+            "/auth/oauth/session",
+            json={"refresh_token": "rt-google"},
+            headers={"Authorization": "Bearer falsifie"},
+        )
+        self.assertEqual(res.status_code, 401)
 
 
 if __name__ == "__main__":
