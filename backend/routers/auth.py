@@ -271,6 +271,7 @@ def register(
         "prive_regime_fiscal": body.prive_regime_fiscal,
         "btp": body.btp,
         "onboarding_complete": False,
+        "has_aides_access": True,
         "notification_preferences": _default_notification_preferences(),
     }
 
@@ -315,6 +316,7 @@ def register_collaborator(
         "account_type": "collaborateur",
         "metier": body.metier,
         "onboarding_complete": True,
+        "has_aides_access": True,
         "notification_preferences": _default_notification_preferences(),
     }
     supabase.table("users").insert(profile).execute()
@@ -403,6 +405,7 @@ def register_oauth(
         "prive_regime_fiscal": body.prive_regime_fiscal,
         "btp": body.btp,
         "onboarding_complete": False,
+        "has_aides_access": True,
         "notification_preferences": _default_notification_preferences(),
     }
     # Course entre deux soumissions : la ligne vient d'être créée par
@@ -434,6 +437,7 @@ def register_collaborator_oauth(
         "account_type": "collaborateur",
         "metier": body.metier,
         "onboarding_complete": True,
+        "has_aides_access": True,
         "notification_preferences": _default_notification_preferences(),
     }
     # Course entre deux soumissions : la ligne vient d'être créée par
