@@ -86,6 +86,8 @@ services:
   # ── Nginx (single entry point) ──────────────────────
   nginx:
     image: nginx:alpine
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     container_name: monumia-nginx
     ports:
       - "80:80"
