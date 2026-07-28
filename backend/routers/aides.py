@@ -10,7 +10,7 @@ from aides_schema import load_all_aides, load_facts, load_pending_facts
 from db import get_current_user_id, get_supabase
 from eligibility_engine import aide_display_dict, run_deterministic_diagnostic
 from matching_engine import _build_criteria_labels, fetch_aides_with_joins, run_diagnostic
-from routers.monuments import _enrich_monument
+from routers.monuments import _enrich_monument, enrich_monument_with_population
 from services.project_access import require_project_access
 
 logger = logging.getLogger(__name__)
@@ -230,17 +230,34 @@ async def diagnostic(
     return _camelise_diagnostic(result)
 
 
-def _resolve_population(supabase: Client, code_insee: str | None) -> int | None:
-    if not code_insee:
-        return None
-    r = (
-        supabase.table("communes")
-        .select("population")
-        .eq("code_insee", code_insee)
-        .limit(1)
-        .execute()
-    )
-    return r.data[0].get("population") if r.data else None
+def deterministic_diagnostic_for(
+    monument: dict,
+    population: int | None,
+    answers: dict[str, object] | None,
+) -> dict:
+    """Lance le moteur déterministe et rend le résultat prêt pour le frontend.
+
+    Purement CPU (les YAML sont en cache, ~2 ms par monument) : aucun appel
+    réseau, d'où la possibilité de l'exécuter pour tous les projets d'un coup
+    dans /dashboard.
+    """
+    aides = load_all_aides()
+    facts = {**load_facts(), **load_pending_facts()}
+
+    try:
+        result = run_deterministic_diagnostic(
+            aides=aides,
+            facts=facts,
+            monument=monument,
+            population=population,
+            answers=answers,
+        )
+    except Exception as exc:
+        logger.error("run_deterministic_diagnostic crashed:\n%s", traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Erreur moteur déterministe : {exc}") from exc
+
+    result["qcmAnswers"] = answers or {}
+    return _camelise_diagnostic(result)
 
 
 @router.post("/diagnostic-deterministe")
@@ -264,26 +281,9 @@ def diagnostic_deterministe(
     )
     if not monument_result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
-    monument = _enrich_monument(supabase, monument_result.data)
-    population = _resolve_population(supabase, monument.get("code_insee"))
+    monument, population = enrich_monument_with_population(supabase, monument_result.data)
 
-    aides = load_all_aides()
-    facts = {**load_facts(), **load_pending_facts()}
-
-    try:
-        result = run_deterministic_diagnostic(
-            aides=aides,
-            facts=facts,
-            monument=monument,
-            population=population,
-            answers=body.answers,
-        )
-    except Exception as exc:
-        logger.error("run_deterministic_diagnostic crashed:\n%s", traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Erreur moteur déterministe : {exc}") from exc
-
-    result["qcmAnswers"] = body.answers or {}
-    return _camelise_diagnostic(result)
+    return deterministic_diagnostic_for(monument, population, body.answers)
 
 
 @router.patch("/diagnostics/by-id/{diagnostic_id}/qcm-answers")

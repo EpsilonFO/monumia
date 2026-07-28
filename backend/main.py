@@ -2,12 +2,14 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from logging_config import setup_logging
 from routers import (
     aides,
     auth,
     communes,
+    dashboard,
     documents,
     dossiers,
     invitations,
@@ -34,6 +36,10 @@ app = FastAPI(
     redoc_url="/redoc" if _DOCS_ENABLED else None,
     openapi_url="/openapi.json" if _DOCS_ENABLED else None,
 )
+
+# Les réponses JSON partaient non compressées : le catalogue d'aides pesait
+# 1,1 Mo sur le fil. Seuil à 1 Ko pour ne rien compresser inutilement.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.add_middleware(
     CORSMiddleware,
@@ -63,4 +69,5 @@ app.include_router(sharing.router)
 app.include_router(communes.router)
 app.include_router(templates.router)
 app.include_router(invitations.router)
+app.include_router(dashboard.router)
 app.include_router(waitlist.router)

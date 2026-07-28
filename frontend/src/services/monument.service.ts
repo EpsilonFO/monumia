@@ -5,7 +5,7 @@ const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 // The backend returns snake_case keys directly as stored in DB.
 // The Monument type uses camelCase. We need a mapping layer.
-function toMonument(row: Record<string, unknown>): Monument {
+export function toMonument(row: Record<string, unknown>): Monument {
   return {
     id: row.id as string,
     userId: row.user_id as string,

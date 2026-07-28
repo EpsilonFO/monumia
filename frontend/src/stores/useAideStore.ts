@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Aide, AideDiagnosticResult, AideCategory, WorkType } from '@/types';
+import type { Aide, AideDiagnosticResult, AideCategory, ProjectDigest, WorkType } from '@/types';
 
 interface AideFilters {
   categories: AideCategory[];
@@ -14,9 +14,17 @@ interface AideState {
   error: string | null;
   filters: AideFilters;
   diagnosticsByMonument: Record<string, AideDiagnosticResult>;
+  /**
+   * Digests par projet, servis en bloc par `GET /dashboard`. Volontairement
+   * distincts de `diagnosticsByMonument` : un digest ne porte pas les aides non
+   * éligibles ni le détail des conditions, et écraserait un diagnostic complet
+   * dont la page projet a besoin.
+   */
+  digestsByMonument: Record<string, ProjectDigest>;
   lastDiagnosticMonumentId: string | null;
 
   setAides: (aides: Aide[]) => void;
+  setDigests: (digests: Record<string, ProjectDigest>) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setFilters: (filters: Partial<AideFilters>) => void;
@@ -40,9 +48,11 @@ export const useAideStore = create<AideState>()((set, get) => ({
   error: null,
   filters: defaultFilters,
   diagnosticsByMonument: {},
+  digestsByMonument: {},
   lastDiagnosticMonumentId: null,
 
   setAides: (aides) => set({ aides, loading: false, error: null }),
+  setDigests: (digests) => set({ digestsByMonument: digests }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error, loading: false }),
 

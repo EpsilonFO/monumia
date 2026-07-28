@@ -25,7 +25,7 @@ type ProjectSortKey = 'recent' | 'oldest' | 'name' | 'modified';
 export function ProjectsListPage() {
   const monuments = useMonumentStore((s) => s.monuments);
   const dossiers = useDossierStore((s) => s.dossiers);
-  const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
+  const digestsByMonument = useAideStore((s) => s.digestsByMonument);
   const suivis = useSuiviStore((s) => s.suivis);
 
   // Charge monuments, dossiers, diagnostics et suivis ; `loading` ne retombe
@@ -74,13 +74,13 @@ export function ProjectsListPage() {
     const out: Record<string, ProjectStage> = {};
     for (const m of monuments) {
       out[m.id] = projectStage(
-        diagnosticsByMonument[m.id] ?? null,
+        digestsByMonument[m.id] ?? null,
         dossiers.filter((d) => d.monumentId === m.id),
         suivis.filter((s) => s.monumentId === m.id),
       );
     }
     return out;
-  }, [monuments, diagnosticsByMonument, dossiers, suivis]);
+  }, [monuments, digestsByMonument, dossiers, suivis]);
 
   const newProjectButton = (
     <Link
@@ -180,7 +180,7 @@ export function ProjectsListPage() {
                   monument={monument}
                   stats={computeProjectStats(
                     monument,
-                    diagnosticsByMonument[monument.id] ?? null,
+                    digestsByMonument[monument.id] ?? null,
                     dossiers
                   )}
                   stage={stageByMonument[monument.id]}

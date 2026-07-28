@@ -5,7 +5,7 @@ import { authFetch, handleResponse } from '@/lib/auth-fetch';
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 // Backend renvoie du snake_case, le frontend utilise du camelCase.
-function toSuivi(row: Record<string, unknown>): AideSuivi {
+export function toSuivi(row: Record<string, unknown>): AideSuivi {
   return {
     id: row.id as string,
     monumentId: (row.monument_id ?? row.monumentId) as string,

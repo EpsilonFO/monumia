@@ -186,32 +186,44 @@ class AddPhotoRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _enrich_monument(supabase: Client, monument: dict) -> dict:
-    """Join commune data (commune, departement, region) via code_insee.
+def enrich_monument_with_population(supabase: Client, monument: dict) -> tuple[dict, int | None]:
+    """Join commune data (commune, departement, region) + population via code_insee.
 
     `region` is stored as the kebab-case code (e.g. "ile-de-france") so it
     matches both `aides_v3.regions` (used by the SQL pre-filter) and the
     frontend `Region` type. The INSEE display label (e.g. "Île-de-France")
     is exposed separately as `region_label`.
+
+    La population sort de la même ligne : les appelants qui en ont besoin (le
+    diagnostic déterministe) interrogeaient `communes` une seconde fois sur le
+    même code_insee.
     """
     code_insee = monument.get("code_insee")
     if not code_insee:
-        return monument
+        return monument, None
 
     result = (
         supabase.table("communes")
-        .select("nom_commune, departement, departement_num, region, region_code")
+        .select("nom_commune, departement, departement_num, region, region_code, population")
         .eq("code_insee", code_insee)
         .limit(1)
         .execute()
     )
-    if result.data:
-        row = result.data[0]
-        monument["commune"] = row["nom_commune"]
-        monument["departement"] = row["departement"]
-        monument["departement_num"] = row["departement_num"]
-        monument["region"] = row.get("region_code")
-        monument["region_label"] = row.get("region")
+    if not result.data:
+        return monument, None
+
+    row = result.data[0]
+    monument["commune"] = row["nom_commune"]
+    monument["departement"] = row["departement"]
+    monument["departement_num"] = row["departement_num"]
+    monument["region"] = row.get("region_code")
+    monument["region_label"] = row.get("region")
+    return monument, row.get("population")
+
+
+def _enrich_monument(supabase: Client, monument: dict) -> dict:
+    """Voir enrich_monument_with_population — variante sans la population."""
+    monument, _ = enrich_monument_with_population(supabase, monument)
     return monument
 
 
@@ -284,11 +296,15 @@ def build_members_index(
 # ---------------------------------------------------------------------------
 
 
-@router.get("")
-def list_monuments(
-    user_id: str = Depends(get_current_user_id),
-    supabase: Client = Depends(get_supabase),
-):
+def fetch_user_monuments(
+    supabase: Client, user_id: str
+) -> tuple[list[dict], dict[str, int | None]]:
+    """Tous les projets accessibles à l'utilisateur, enrichis et prêts à servir.
+
+    Renvoie aussi la population par code_insee, récupérée dans la même requête
+    `communes` : le dashboard en a besoin pour le moteur déterministe, et la
+    rechercher séparément coûtait un aller-retour par monument.
+    """
     # Tous les projets où l'utilisateur est membre (owner inclus via backfill)
     memberships = (
         supabase.table("project_members")
@@ -308,7 +324,7 @@ def list_monuments(
 
     monument_ids = list(role_by_id.keys())
     if not monument_ids:
-        return []
+        return [], {}
 
     monuments = (
         supabase.table("monuments")
@@ -320,15 +336,23 @@ def list_monuments(
     ) or []
 
     # Batch-enrich with commune data (préservé de la version d'origine)
+    population_by_code: dict[str, int | None] = {}
     code_insees = list({m["code_insee"] for m in monuments if m.get("code_insee")})
     if code_insees:
         communes_result = (
             supabase.table("communes")
-            .select("code_insee, nom_commune, departement, departement_num, region, region_code")
+            .select(
+                "code_insee, nom_commune, departement, departement_num, region, region_code, population"
+            )
             .in_("code_insee", code_insees)
             .execute()
         )
         communes_by_code = {c["code_insee"]: c for c in (communes_result.data or [])}
+        # Les lignes PostgREST ne sont pas typées : on resserre explicitement en
+        # {str: int | None} plutôt que de propager du JSON quelconque.
+        for code, row in communes_by_code.items():
+            pop = row.get("population")
+            population_by_code[str(code)] = pop if isinstance(pop, int) else None
         for m in monuments:
             commune_data = communes_by_code.get(m.get("code_insee"))
             if commune_data:
@@ -364,6 +388,15 @@ def list_monuments(
         preview = members_by_monument.get(m["id"], [])
         m["members"] = preview
         m["member_count"] = len(preview)
+    return monuments, population_by_code
+
+
+@router.get("")
+def list_monuments(
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    monuments, _ = fetch_user_monuments(supabase, user_id)
     return monuments
 
 

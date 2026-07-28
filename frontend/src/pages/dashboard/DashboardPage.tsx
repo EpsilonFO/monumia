@@ -29,18 +29,18 @@ import {
   computeProjectStats,
 } from '@/lib/project-stats';
 import type { ProjectStats } from '@/lib/project-stats';
-import type { AideDiagnosticResult } from '@/types';
+import type { ProjectDigest } from '@/types';
 
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const dossiers = useDossierStore((s) => s.dossiers);
-  const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
+  const digestsByMonument = useAideStore((s) => s.digestsByMonument);
   const notifications = useNotificationStore((s) => s.notifications);
 
-  // Charge monuments, dossiers, diagnostics et suivis ; `loading` ne retombe
-  // qu'une fois TOUT arrivé, pour que les squelettes couvrent aussi le nombre
-  // d'aides et l'avancement (sinon les cartes s'affichent vides puis sautent).
+  // Charge monuments, dossiers, digests d'aides et suivis en un seul appel :
+  // tout arrive ensemble, donc les squelettes couvrent aussi le nombre d'aides
+  // et l'avancement sans que les cartes « sautent ».
   const { loading } = useProjectsData();
 
   const userMonuments = useMemo(
@@ -53,13 +53,13 @@ export function DashboardPage() {
   // Les KPI, le bandeau d'échéance et l'échéancier restent basés sur `userMonuments`.
   const displayMonuments = monuments;
 
-  const diagMap = useMemo<Record<string, AideDiagnosticResult | null>>(() => {
-    const out: Record<string, AideDiagnosticResult | null> = {};
+  const diagMap = useMemo<Record<string, ProjectDigest | null>>(() => {
+    const out: Record<string, ProjectDigest | null> = {};
     for (const m of displayMonuments) {
-      out[m.id] = diagnosticsByMonument[m.id] ?? null;
+      out[m.id] = digestsByMonument[m.id] ?? null;
     }
     return out;
-  }, [displayMonuments, diagnosticsByMonument]);
+  }, [displayMonuments, digestsByMonument]);
 
   const userDossiers = useMemo(
     () => (user ? dossiers.filter((d) => d.userId === user.id) : []),

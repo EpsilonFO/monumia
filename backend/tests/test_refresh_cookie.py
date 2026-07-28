@@ -4,6 +4,8 @@ Utilise TestClient + dependency_overrides : les fakes miment supabase-py
 (même approche fluent-query que test_oauth_profile_status.py).
 """
 
+import base64
+import json
 import unittest
 from types import SimpleNamespace
 
@@ -11,6 +13,27 @@ from fastapi.testclient import TestClient
 
 from db import get_anon_supabase, get_supabase
 from main import app
+
+
+def _fake_jwt(sub: str = "user-1") -> str:
+    """Access token de forme valide (header lisible, signature factice).
+
+    `get_current_user_id` valide désormais le token en local : il lit d'abord
+    l'en-tête pour choisir la voie de vérification. Un jeton opaque ne
+    passerait plus l'analyse, d'où ce jeton bien formé — la signature n'est
+    jamais vérifiée ici, `_FakeServiceAuth.get_claims` renvoyant les claims.
+    """
+
+    def b64(payload: dict) -> str:
+        raw = json.dumps(payload).encode()
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+    header = b64({"alg": "ES256", "kid": "test-key", "typ": "JWT"})
+    body = b64({"sub": sub, "aud": "authenticated"})
+    return f"{header}.{body}.c2lnbmF0dXJl"
+
+
+AT_OAUTH = _fake_jwt()
 
 PROFILE_ROW = {
     "id": "user-1",
@@ -61,9 +84,14 @@ class _UsersQuery:
 
 class _FakeServiceAuth:
     def get_user(self, token):
-        if token != "at-oauth":
+        if token != AT_OAUTH:
             raise ValueError("bad token")
         return SimpleNamespace(user=SimpleNamespace(id="user-1"))
+
+    def get_claims(self, token):
+        if token != AT_OAUTH:
+            raise ValueError("bad token")
+        return SimpleNamespace(claims={"sub": "user-1"})
 
 
 class _FakeSupabase:
@@ -185,7 +213,7 @@ class RefreshCookieTest(unittest.TestCase):
         res = self.client.post(
             "/auth/oauth/session",
             json={"refresh_token": "rt-google"},
-            headers={"Authorization": "Bearer at-oauth"},
+            headers={"Authorization": f"Bearer {AT_OAUTH}"},
         )
         self.assertEqual(res.status_code, 204)
         cookie = res.headers.get("set-cookie", "")

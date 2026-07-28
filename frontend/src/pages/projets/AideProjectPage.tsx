@@ -23,6 +23,7 @@ export function AideProjectPage() {
   const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === projetId));
   const addMonument = useMonumentStore((s) => s.addMonument);
   const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
+  const setDiagnostic = useAideStore((s) => s.setDiagnostic);
 
   const dossiers = useDossierStore((s) => s.dossiers);
   const dossierLoaded = useDossierStore((s) => s.loaded);
@@ -60,6 +61,20 @@ export function AideProjectPage() {
       navigate(ROUTES.PROJET_DETAIL(projetId), { replace: true });
     }
   }, [monument, canAccessAides, projetId, navigate]);
+
+  // Le diagnostic complet porte les critères remplis / à débloquer affichés ici.
+  // On l'obtient sur place quand il manque : le dashboard ne charge plus qu'un
+  // digest par projet, donc arriver par une échéance ne le fournit plus.
+  const questionnaireKey = monument?.questionnaire ? JSON.stringify(monument.questionnaire) : '';
+  useEffect(() => {
+    if (!projetId || diagnostic) return;
+    let cancelled = false;
+    aideService
+      .runProjectDiagnostic(projetId, questionnaireKey ? JSON.parse(questionnaireKey) : {})
+      .then((result) => { if (!cancelled) setDiagnostic(projetId, result); })
+      .catch(console.error);
+    return () => { cancelled = true; };
+  }, [projetId, diagnostic, questionnaireKey, setDiagnostic]);
 
   useEffect(() => {
     if (!aideId) return;

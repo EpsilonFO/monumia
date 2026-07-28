@@ -9,7 +9,7 @@ import { authFetch, handleResponse } from '@/lib/auth-fetch';
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 // Backend returns snake_case, frontend uses camelCase
-function toDossier(row: Record<string, unknown>): Dossier {
+export function toDossier(row: Record<string, unknown>): Dossier {
   return {
     id: row.id as string,
     monumentId: (row.monument_id ?? row.monumentId) as string,

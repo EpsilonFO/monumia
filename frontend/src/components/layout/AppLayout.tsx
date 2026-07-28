@@ -4,15 +4,12 @@ import { TopBar } from './TopBar';
 import { BottomNav } from './BottomNav';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
-import { useAideStore } from '@/stores/useAideStore';
 import { monumentService } from '@/services/monument.service';
-import { aideService } from '@/services/aide.service';
 
 export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
   const setMonuments = useMonumentStore((s) => s.setMonuments);
-  const setAides = useAideStore((s) => s.setAides);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -23,11 +20,14 @@ export function AppLayout() {
     }
   }, [user, navigate]);
 
+  // Le catalogue complet des aides (1,1 Mo de JSON) était chargé ici à chaque
+  // montage alors que seule la page BTP « Catalogue des aides » le lit — elle le
+  // charge désormais elle-même. Reste la liste des projets, dont toutes les
+  // pages de cet espace ont besoin.
   useEffect(() => {
     if (!token) return;
     monumentService.getAll().then(setMonuments).catch(console.error);
-    aideService.getAll().then(setAides).catch(console.error);
-  }, [token, setMonuments, setAides]);
+  }, [token, setMonuments]);
 
   const mainRef = useRef<HTMLElement>(null);
   const { pathname } = useLocation();

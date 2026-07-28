@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { IconSubvention, IconRecherche, IconInfo, IconTendance, IconCalendrier, IconSucces } from '@/components/icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { useAideStore } from '@/stores/useAideStore';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { aideService } from '@/services/aide.service';
 import { cn } from '@/lib/utils';
 import type { Aide, AideCategory } from '@/types';
 
@@ -33,9 +35,20 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function BtpAidesPage() {
   const aides = useAideStore((s) => s.aides);
+  const setAides = useAideStore((s) => s.setAides);
+  const token = useAuthStore((s) => s.token);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<AideCategory | 'all'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Le catalogue complet vit ici, la seule page qui le lit : la carte dépliée
+  // affiche descriptionLongue, la démarche et les pièces requises. Il était
+  // chargé pour tout le monde depuis AppLayout, y compris sur le dashboard qui
+  // n'en lit rien — et jamais dans l'espace BTP, où cette page est servie.
+  useEffect(() => {
+    if (!token || aides.length > 0) return;
+    aideService.getAll().then(setAides).catch(console.error);
+  }, [token, aides.length, setAides]);
 
   const filtered = useMemo(() => {
     let result = aides;

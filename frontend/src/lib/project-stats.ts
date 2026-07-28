@@ -1,7 +1,7 @@
 import { daysUntil, deadlineLabel } from '@/lib/date-utils';
 import { ROUTES } from '@/constants/routes';
 import type { Monument } from '@/types';
-import type { AideDiagnosticResult, AideMatchResult } from '@/types';
+import type { AideDigest, ProjectDigest } from '@/types';
 import type { Dossier } from '@/types';
 import type { AideSuivi } from '@/types';
 
@@ -42,7 +42,7 @@ export function deadlineLink(d: ProjectDeadline): string {
  * Sorted ascending by `joursRestants`.
  */
 export function mergeProjectDeadlines(
-  diagnostic: AideDiagnosticResult | null,
+  diagnostic: ProjectDigest | null,
   dossiers: Dossier[]
 ): ProjectDeadline[] {
   const deadlines: ProjectDeadline[] = [];
@@ -50,7 +50,7 @@ export function mergeProjectDeadlines(
   if (diagnostic) {
     // Les aides à débloquer comptent aussi : leur date limite est bien réelle,
     // et c'est elle qui dit combien de temps il reste pour faire la démarche.
-    const matches: AideMatchResult[] = [
+    const matches: { aide: AideDigest }[] = [
       ...diagnostic.aidesEligibles,
       ...diagnostic.aidesPotentiellementEligibles,
       ...(diagnostic.aidesAtteignables ?? []),
@@ -105,7 +105,7 @@ export interface ProjectStats {
 
 export function computeProjectStats(
   monument: Monument,
-  diagnostic: AideDiagnosticResult | null,
+  diagnostic: ProjectDigest | null,
   dossiers: Dossier[]
 ): ProjectStats {
   const aidesIdentifiees = diagnostic
@@ -147,7 +147,7 @@ export interface DashboardStats {
 
 export function aggregateDashboardStats(
   monuments: Monument[],
-  diagnosticsByMonument: Record<string, AideDiagnosticResult | null>,
+  diagnosticsByMonument: Record<string, ProjectDigest | null>,
   dossiers: Dossier[]
 ): DashboardStats {
   let aidesIdentifiees = 0;
@@ -161,7 +161,7 @@ export function aggregateDashboardStats(
     const monumentDossiers = dossiers.filter((d) => d.monumentId === monument.id);
 
     if (diagnostic) {
-      const matches: AideMatchResult[] = [
+      const matches: { aide: AideDigest }[] = [
         ...diagnostic.aidesEligibles,
         ...diagnostic.aidesPotentiellementEligibles,
         ...(diagnostic.aidesAtteignables ?? []),
@@ -228,7 +228,7 @@ export interface ProjectStage {
  * Monotone : une étape avancée implique les précédentes comme atteintes.
  */
 export function projectStage(
-  diagnostic: AideDiagnosticResult | null,
+  diagnostic: ProjectDigest | null,
   dossiers: Dossier[],
   suivis: AideSuivi[]
 ): ProjectStage {

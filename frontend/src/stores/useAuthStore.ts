@@ -6,6 +6,7 @@ import { useMonumentStore } from './useMonumentStore';
 import { useDossierStore } from './useDossierStore';
 import { useDocumentStore } from './useDocumentStore';
 import { useAideStore } from './useAideStore';
+import { useSuiviStore } from './useSuiviStore';
 import { setSessionCookie, clearSessionCookie } from '@/lib/session';
 
 interface AuthState {
@@ -77,7 +78,14 @@ export const useAuthStore = create<AuthState>()(
         useMonumentStore.setState({ monuments: [], activeMonumentId: null });
         useDossierStore.setState({ dossiers: [], loaded: false });
         useDocumentStore.setState({ documents: [], loading: false, error: null });
-        useAideStore.setState({ aides: [], diagnosticsByMonument: {}, loading: false, error: null });
+        useAideStore.setState({
+          aides: [],
+          diagnosticsByMonument: {},
+          digestsByMonument: {},
+          loading: false,
+          error: null,
+        });
+        useSuiviStore.setState({ suivis: [], loadedMonuments: {} });
       },
     }),
     {

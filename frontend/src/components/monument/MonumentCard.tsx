@@ -28,7 +28,11 @@ const etatLabels: Record<string, string> = {
 
 export function MonumentCard({ monument }: MonumentCardProps) {
   const navigate = useNavigate();
-  const hasDiagnostic = useAideStore((s) => !!s.diagnosticsByMonument[monument.id]);
+  // Un digest suffit à savoir qu'un diagnostic existe : le dashboard n'en charge
+  // plus la version complète, réservée à la page du projet.
+  const hasDiagnostic = useAideStore(
+    (s) => !!s.diagnosticsByMonument[monument.id] || !!s.digestsByMonument[monument.id],
+  );
   const etat = etatColors[monument.etatConservation] ?? etatColors.moyen;
 
   const handleDossierClick = (e: React.MouseEvent) => {

@@ -202,3 +202,31 @@ export interface AideDiagnosticResult {
   qcmQuestions?: QcmQuestion[];
   qcmAnswers?: Record<string, string>;
 }
+
+/** Vue allégée d'une aide : ce qu'une vignette de projet en montre. */
+export interface AideDigest {
+  id: ID;
+  nom: string;
+  categorie: AideCategory;
+  permanent: boolean;
+  dateLimite?: string;
+  montantMax?: number;
+}
+
+/**
+ * Ce que le dashboard et la liste des projets consomment réellement d'un
+ * diagnostic : des compteurs, deux montants, des dates limites. Servi tel quel
+ * par `GET /dashboard`, qui évite ainsi d'envoyer les ~95 aides non éligibles
+ * et leurs conditions détaillées par projet (1,7 Mo contre quelques kilo-octets).
+ *
+ * `AideDiagnosticResult` en est un sur-ensemble structurel : les fonctions de
+ * `project-stats` acceptent les deux indifféremment.
+ */
+export interface ProjectDigest {
+  monumentId: ID;
+  aidesEligibles: { aide: AideDigest }[];
+  aidesPotentiellementEligibles: { aide: AideDigest }[];
+  aidesAtteignables?: { aide: AideDigest }[];
+  montantPotentielTotal?: number;
+  montantAtteignableTotal?: number;
+}
