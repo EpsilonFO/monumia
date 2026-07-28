@@ -1,30 +1,17 @@
 #!/bin/bash
-set -e
+set -eo pipefail
 cd ~/monumia
 git pull
 
 # ── Migrations Supabase ───────────────────────────────
-# Pousse les migrations de supabase/migrations/ vers le projet ciblé AVANT de
-# (re)démarrer les backends, pour que la DB soit prête. La connection string
-# Postgres (percent-encodée) doit être dans le .env de l'environnement, sous
-# SUPABASE_DB_URL. `db push` est idempotent : seules les migrations non encore
-# appliquées sont jouées. No-op (avec avertissement) si le CLI ou la variable
-# manque, pour ne pas bloquer le déploiement.
-push_migrations() {
-  local label="$1" env_file="$2"
-  if ! command -v supabase >/dev/null 2>&1; then
-    echo "⚠️  supabase CLI introuvable — migrations $label IGNORÉES."
-    return 0
-  fi
-  local db_url
-  db_url=$(grep -E '^SUPABASE_DB_URL=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- || true)
-  if [ -z "$db_url" ]; then
-    echo "⚠️  SUPABASE_DB_URL absent de $env_file — migrations $label IGNORÉES."
-    return 0
-  fi
-  echo "Pushing DB migrations ($label)..."
-  supabase db push --db-url "$db_url" --yes
-}
+# Voir scripts/lib-migrations.sh. Échec dur si le CLI, le .env ou la
+# connection string manquent : on refuse de déployer plutôt que de laisser
+# tourner un backend sur un schéma périmé.
+#
+# NB: beta et prod sont migrées dans la foulée l'une de l'autre, donc la beta
+# n'est pas un vrai filet de sécurité pour le schéma prod. Découpler les deux
+# (un argument beta|prod|all) reste à faire.
+source scripts/lib-migrations.sh
 
 push_migrations "beta" backend/.env.beta
 push_migrations "prod" backend/.env
@@ -65,11 +52,41 @@ sudo docker compose up -d --build \
 # les YAML (id = slug) mais la création de dossier (POST /api/dossiers) résout le
 # slug dans aides_v3. Sans ce sync, toute aide ajoutée en YAML mais absente de
 # aides_v3 renvoie « Aide introuvable » à la création. Idempotent (upsert par slug).
+#
+# Un échec ici n'interrompt pas le déploiement (on veut rendre la main à nginx
+# dans tous les cas), mais il est mémorisé et ressort en code de sortie non nul,
+# pour ne pas se perdre dans le défilement des logs Docker.
+sync_failures=""
+sync_aides() {
+  local label="$1" container="$2"
+  if sudo docker exec "$container" uv run python scripts/load_aides_yaml.py; then
+    echo "   sync aides $label : OK"
+  else
+    echo "   sync aides $label : ÉCHEC"
+    sync_failures="$sync_failures $label"
+  fi
+}
+
 echo "Syncing aides YAML → aides_v3 (beta + prod)..."
-sudo docker exec monumia-beta-backend uv run python scripts/load_aides_yaml.py || echo "⚠️  sync aides beta ÉCHOUÉ"
-sudo docker exec monumia-app-backend  uv run python scripts/load_aides_yaml.py || echo "⚠️  sync aides prod ÉCHOUÉ"
+sync_aides beta monumia-beta-backend
+sync_aides prod monumia-app-backend
 
 echo "Starting nginx..."
 sudo docker compose up -d nginx
 
-echo "Beta + Prod deployed!"
+# ── Récapitulatif ─────────────────────────────────────
+echo
+echo "─────────────────────────────────────"
+echo "  migrations beta : OK"
+echo "  migrations prod : OK"
+if [ -n "$sync_failures" ]; then
+  echo "  sync aides      : ÉCHEC ($sync_failures)"
+  echo "─────────────────────────────────────"
+  echo "❌ Déployé, mais le sync des aides a échoué."
+  echo "   Toute aide présente en YAML mais absente de aides_v3 renverra"
+  echo "   « Aide introuvable » à la création de dossier."
+  exit 1
+fi
+echo "  sync aides      : OK"
+echo "─────────────────────────────────────"
+echo "✅ Beta + Prod déployés."
