@@ -38,6 +38,7 @@ export function AideProjectPage() {
   const matchResult: AideMatchResult | null = useMemo(() => {
     if (!diagnostic || !aideId) return null;
     return diagnostic.aidesEligibles.find((m) => m.aide.id === aideId)
+      ?? diagnostic.aidesAtteignables?.find((m) => m.aide.id === aideId)
       ?? diagnostic.aidesPotentiellementEligibles.find((m) => m.aide.id === aideId)
       ?? diagnostic.aidesNonEligibles.find((m) => m.aide.id === aideId)
       ?? null;

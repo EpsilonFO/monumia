@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { IconTemps, IconSucces, IconHelp, IconErreur } from '@/components/icons';
+import { IconTemps, IconSucces, IconHelp, IconErreur, IconCle } from '@/components/icons';
 import { AIDE_CATEGORIES, AIDE_TYPES } from '@/constants/aide-categories';
 import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import { deadlineLabel } from '@/lib/date-utils';
 import { C, SERIF, DEADLINE_TONE } from '@/lib/brand';
-import { decodeHtml, getEligibilityStatus } from './AideDetails';
+import { decodeHtml } from './AideDetails';
+import { getEligibilityStatus } from './eligibility-status';
 import type { Aide, AideMatchResult } from '@/types';
 
 /**
@@ -18,6 +19,11 @@ const VERDICT = {
     bg: 'bg-success-muted', fg: 'text-success', border: 'border-success/30', Icon: IconSucces,
     title: 'Bonne nouvelle, vous semblez éligible',
     sub: "D'après les informations de votre projet, cette aide est faite pour vous.",
+  },
+  atteignable: {
+    bg: 'bg-info-muted', fg: 'text-info', border: 'border-info/30', Icon: IconCle,
+    title: 'À portée de main',
+    sub: 'Un critère vous manque, mais une démarche permet de l\'obtenir : le plan d\'action est détaillé ci-dessous.',
   },
   potential: {
     bg: 'bg-warning-muted', fg: 'text-warning', border: 'border-warning/30', Icon: IconHelp,

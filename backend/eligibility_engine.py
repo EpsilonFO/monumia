@@ -25,7 +25,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date
 
-from aides_schema import Aide, Condition, FactDef, evaluate_predicate
+from aides_schema import Aide, AppliesIf, Condition, FactDef, evaluate_predicate
 from labels import (
     DEPARTEMENT_LABELS,
     ETAT_LABELS,
@@ -41,6 +41,25 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Contexte d'évaluation
 # ---------------------------------------------------------------------------
+
+
+def split_reserved_answers(
+    answers: dict[str, object] | None,
+) -> tuple[dict[str, object], dict[str, object]]:
+    """Sépare les réponses aux faits des clés RÉSERVÉES, préfixées « _ ».
+
+    Le front transporte les métadonnées du diagnostic (aujourd'hui `_raisons`,
+    les intentions de projet) dans le même dict que les réponses, parce que ce
+    dict est persisté tel quel dans `monuments.questionnaire` et retransmis à
+    chaque appel. Aucune clé de l'ontologie ne commence par « _ » : le préfixe
+    est donc un espace de noms sûr. Les réservées ne doivent jamais atteindre
+    `build_context`, sinon elles seraient traitées comme des faits inconnus.
+    """
+    facts_answers: dict[str, object] = {}
+    reserved: dict[str, object] = {}
+    for key, value in (answers or {}).items():
+        (reserved if key.startswith("_") else facts_answers)[key] = value
+    return facts_answers, reserved
 
 
 def build_context(
@@ -86,13 +105,21 @@ OUI, NON, INCERTITUDE, INFO = "oui", "non", "incertitude", "info"
 @dataclass
 class AideVerdict:
     aide: Aide
-    status: str  # "eligible" | "potentiel" | "non_eligible"
+    status: str  # "eligible" | "atteignable" | "potentiel" | "non_eligible"
     criteres_remplis: list[str] = field(default_factory=list)
     criteres_non_remplis: list[str] = field(default_factory=list)
     raison_ineligibilite: str | None = None
     evaluations: list[dict] = field(default_factory=list)
     # fact_key → liste de (condition, predicate) des gates user_fact en incertitude
     missing_facts: dict[str, list[Condition]] = field(default_factory=dict)
+    # Plans d'action des gates en échec sur un fait porteur d'un `levier`
+    # (cf. aides_schema.Levier) — ce sont eux qui rendent l'aide « atteignable ».
+    leviers: list[dict] = field(default_factory=list)
+    # fact_key → conditions SYNTHÉTIQUES portant le prédicat d'applicabilité, pour
+    # les faits « passerelles » : ceux qu'un `applies_if.fact` interroge sans que
+    # personne ne les pose. Sans eux, une condition dont l'applicabilité est
+    # indéterminée reste éternellement en incertitude (cf. _gateway_condition).
+    gateway_facts: dict[str, list[Condition]] = field(default_factory=dict)
 
 
 def _tranche_repr(option_id: str):
@@ -155,14 +182,157 @@ def _resolve_fact_value(ctx: dict, fact_key: str, facts: dict[str, FactDef]):
     return _normalize_answer(facts.get(fact_key), ctx.get("_answers", {}).get(fact_key))
 
 
+def _evaluate_clause(clause: AppliesIf | None, ctx: dict, facts: dict[str, FactDef]) -> bool | None:
+    """Évalue une clause d'applicabilité. None = indéterminé (fail-closed).
+
+    Sert aux deux niveaux : la condition (`Condition.applies_if`) et l'aide
+    entière (`Aide.applies_if`, son périmètre).
+    """
+    if clause is None:
+        return True
+    pred = clause.predicate.root
+    if clause.field:
+        return evaluate_predicate(pred, ctx.get(clause.field))
+    return evaluate_predicate(pred, _resolve_fact_value(ctx, clause.fact, facts))
+
+
 def _applies(cond: Condition, ctx: dict, facts: dict[str, FactDef]) -> bool | None:
     """La condition s'applique-t-elle à ce profil ? None = indéterminé (fail-closed)."""
-    if cond.applies_if is None:
-        return True
-    pred = cond.applies_if.predicate.root
-    if cond.applies_if.field:
-        return evaluate_predicate(pred, ctx.get(cond.applies_if.field))
-    return evaluate_predicate(pred, _resolve_fact_value(ctx, cond.applies_if.fact, facts))
+    return _evaluate_clause(cond.applies_if, ctx, facts)
+
+
+def hors_perimetre(aide: Aide, ctx: dict, facts: dict[str, FactDef]) -> bool:
+    """Vrai si l'utilisateur a répondu que cette aide ne concerne pas son projet.
+
+    Fail-closed : tant que le fait de périmètre est inconnu, l'aide reste
+    candidate (et la question est posée). Seule une réponse explicitement
+    négative l'écarte.
+    """
+    return aide.applies_if is not None and _evaluate_clause(aide.applies_if, ctx, facts) is False
+
+
+def _scoped_conditions(aide: Aide) -> list[Condition]:
+    """Conditions de l'aide, chacune héritant du PÉRIMÈTRE de l'aide.
+
+    Reporter la clause de l'aide sur ses conditions les fait entrer telles
+    quelles dans la mécanique existante : le fait de périmètre est posé comme
+    fait passerelle, et chaque question de l'aide en hérite d'un `dependsOn`.
+    Une aide de 27 conditions se déclare donc en une ligne de YAML.
+
+    Une condition qui porte DÉJÀ sa propre clause garde la sienne : elle est
+    plus spécifique, et le branchement conditionnel se désactive alors de
+    lui-même (fail-closed, la question est posée). Un gate qui porte sur le fait
+    de périmètre lui-même n'hérite de rien : il serait sa propre condition
+    d'applicabilité.
+    """
+    clause = aide.applies_if
+    if clause is None:
+        return aide.conditions
+    return [
+        c
+        if c.applies_if is not None or c.fact == clause.fact
+        else c.model_copy(update={"applies_if": clause})
+        for c in aide.conditions
+    ]
+
+
+def _fmt_number(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else str(round(value, 2))
+
+
+def _numeric_gap(predicate: dict, value, fact: FactDef) -> str | None:
+    """Écart chiffré entre la réponse et le seuil d'un gate numérique en échec.
+
+    « Il vous manque 8 jours/an » vaut mieux que « critère non satisfait » : le
+    propriétaire sait immédiatement si l'effort est à sa portée. On réutilise
+    `_normalize_boundary` pour que les seuils STRICTS donnent le bon écart
+    (`gt: 0` sur un entier ⇒ frontière 1, donc il manque 1 et pas 0).
+
+    None dès que l'écart n'a pas de sens : booléen, enum, combinateur, seuil non
+    numérique. Jamais d'approximation.
+    """
+    if len(predicate) != 1:
+        return None
+    op, bound = next(iter(predicate.items()))
+    if op not in ("gte", "gt", "lte", "lt"):
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if isinstance(bound, bool) or not isinstance(bound, (int, float)):
+        return None
+
+    is_integer = fact.type == "integer"
+    frontier = _normalize_boundary(op, bound, is_integer)
+    unit = f" {fact.unit}" if fact.unit else ""
+    if op in ("gte", "gt"):
+        missing = frontier - value
+        return f"Il en manque {_fmt_number(missing)}{unit}" if missing > 0 else None
+    excess = value - frontier + (1 if is_integer else 0)
+    return f"Vous dépassez de {_fmt_number(excess)}{unit}" if excess > 0 else None
+
+
+def _levier_plan(cond: Condition, fact: FactDef, value) -> dict:
+    """Plan d'action affichable pour un gate en échec sur un fait à levier."""
+    levier = fact.levier
+    assert levier is not None  # garanti par l'appelant
+    plan = {
+        "factId": cond.fact,
+        "critere": cond.text,
+        "resume": levier.resume,
+        "demarche": levier.demarche,
+        "organisme": levier.organisme,
+        "cout": levier.cout,
+        "delai": levier.delai,
+        "url": levier.url,
+    }
+    ecart = _numeric_gap(cond.predicate.root, value, fact) if cond.predicate else None
+    if ecart:
+        plan["ecart"] = ecart
+    return plan
+
+
+def _perimetre_texte(fact: FactDef | None) -> str:
+    """Libellé du critère de périmètre, affiché dans l'analyse d'éligibilité."""
+    return fact.question if fact else "Cette aide ne concerne que certains projets."
+
+
+def _perimetre_condition(aide: Aide, fact: FactDef | None) -> Condition:
+    """Gate synthétique sur le fait de périmètre d'une aide, pour le poser."""
+    assert aide.applies_if is not None and aide.applies_if.fact  # garanti par l'appelant
+    return Condition.model_validate(
+        {
+            "id": "perimetre",
+            "text": _perimetre_texte(fact),
+            "kind": "user_fact",
+            "fact": aide.applies_if.fact,
+            "predicate": aide.applies_if.predicate.root,
+        }
+    )
+
+
+def _gateway_condition(cond: Condition) -> Condition:
+    """Projette une condition sur son fait PASSERELLE (`applies_if.fact`).
+
+    La condition d'origine porte son prédicat sur son propre fait ; ce qu'on veut
+    poser à l'utilisateur, c'est le fait qui décide si elle s'applique. On
+    fabrique donc un gate synthétique { fact: applies_if.fact, predicate:
+    applies_if.predicate } : le générateur de questions en tire des options
+    correctes (bornes numériques, options d'enum) sans cas particulier.
+
+    Ce gate synthétique ne sert QU'À poser la question : il ne participe pas au
+    calcul des éliminations (répondre « la condition ne s'applique pas » libère
+    l'aide, ça ne l'élimine jamais).
+    """
+    assert cond.applies_if is not None and cond.applies_if.fact  # garanti par l'appelant
+    return Condition.model_validate(
+        {
+            "id": cond.id,
+            "text": cond.text,
+            "kind": "user_fact",
+            "fact": cond.applies_if.fact,
+            "predicate": cond.applies_if.predicate.root,
+        }
+    )
 
 
 def _evaluate_hard_filters(
@@ -274,11 +444,45 @@ def evaluate_aide(
 
     has_non = bool(hard_fails)
     has_incertitude = False
+    has_levier = False
 
-    for cond in aide.conditions:
+    # Périmètre de l'aide encore inconnu : on ne peut pas conclure, même si
+    # toutes ses conditions sont satisfaites. On pose la question (fait
+    # passerelle) et on maintient l'aide en incertitude.
+    if aide.applies_if is not None and _evaluate_clause(aide.applies_if, ctx, facts) is None:
+        perimetre_fact = facts.get(aide.applies_if.fact or "")
+        has_incertitude = True
+        verdict.gateway_facts.setdefault(aide.applies_if.fact or "", []).append(
+            _perimetre_condition(aide, perimetre_fact)
+        )
+        verdict.evaluations.append(
+            {
+                "critere": _perimetre_texte(perimetre_fact),
+                "verdict": INCERTITUDE,
+                "explication": "Cette aide ne s'adresse qu'à certains projets.",
+                "detail": _perimetre_texte(perimetre_fact),
+                "clarified": False,
+                "nature": "user_fact",
+                "categorie": aide.applies_if.fact,
+            }
+        )
+
+    for cond in _scoped_conditions(aide):
         applies = _applies(cond, ctx, facts)
         if applies is False:
             continue  # condition non applicable à ce profil → ni gate, ni affichée
+
+        # Applicabilité indéterminée faute de connaître le fait passerelle : on
+        # le pose, sinon la condition reste bloquée en incertitude pour toujours.
+        if (
+            applies is None
+            and cond.effect == "gate"
+            and cond.applies_if is not None
+            and cond.applies_if.fact
+        ):
+            verdict.gateway_facts.setdefault(cond.applies_if.fact, []).append(
+                _gateway_condition(cond)
+            )
 
         nature = _condition_nature(cond)
 
@@ -300,10 +504,13 @@ def evaluate_aide(
             )
             continue
 
+        fact: FactDef | None = None
+        value = None
         if cond.kind == "auto":
             result = evaluate_predicate(cond.predicate.root, ctx.get(cond.field))
             cat = None
         elif cond.kind == "user_fact":
+            fact = facts.get(cond.fact or "")
             value = _resolve_fact_value(ctx, cond.fact, facts)
             result = evaluate_predicate(cond.predicate.root, value)
             cat = cond.fact
@@ -341,6 +548,23 @@ def evaluate_aide(
                     "nature": nature,
                 }
             )
+        elif result is False and fact is not None and fact.levier is not None:
+            # Gate en échec sur un fait ACTIONNABLE : l'aide n'est pas perdue,
+            # elle est à débloquer. On n'alimente ni criteres_non_remplis ni
+            # raison_ineligibilite — le front l'afficherait en rouge, alors que
+            # c'est une opportunité assortie d'une démarche.
+            has_levier = True
+            plan = _levier_plan(cond, fact, value)
+            verdict.leviers.append(plan)
+            verdict.evaluations.append(
+                {
+                    "critere": cond.text,
+                    "verdict": NON,
+                    "explication": plan["resume"],
+                    "nature": nature,
+                    "levier": True,
+                }
+            )
         elif result is False:
             has_non = True
             verdict.criteres_non_remplis.append(cond.text)
@@ -372,8 +596,13 @@ def evaluate_aide(
                 verdict.missing_facts.setdefault(cat, []).append(cond)
             verdict.evaluations.append(ev)
 
+    # Précédence : un refus ferme (hard_filter ou gate sans levier) l'emporte sur
+    # tout. Sinon un échec « à débloquer » prime sur l'incertitude : c'est
+    # l'information la plus actionnable, et le QCM continue d'alimenter l'aide.
     if has_non:
         verdict.status = "non_eligible"
+    elif has_levier:
+        verdict.status = "atteignable"
     elif has_incertitude:
         verdict.status = "potentiel"
     else:
@@ -467,11 +696,53 @@ def _options_for_fact(fact: FactDef, gate_conds: list[Condition]) -> list[dict]:
     return _numeric_tranches(boundaries, fact.unit)
 
 
+def _depends_on(
+    fact_conds: list[Condition],
+    built: dict[str, dict],
+    options_by_fact: dict[str, list[dict]],
+) -> dict | None:
+    """Branchement conditionnel d'une question sur une autre.
+
+    Si TOUTES les conditions candidates d'un fait ne s'appliquent que sous la
+    même clause `applies_if.fact = G`, la question n'a de sens que pour les
+    réponses à G qui rendent au moins une de ces conditions applicable : le
+    front saute la question sinon. Une seule condition sans `applies_if` (ou
+    portant sur un autre fait passerelle) suffit à annuler le branchement —
+    fail-closed : dans le doute, on pose la question.
+    """
+    gateways = {c.applies_if.fact for c in fact_conds if c.applies_if and c.applies_if.fact}
+    if len(gateways) != 1 or any(c.applies_if is None or not c.applies_if.fact for c in fact_conds):
+        return None
+    gateway = gateways.pop()
+    if gateway not in built:
+        return None  # G n'est pas posé : rien à quoi se brancher
+
+    show_for = []
+    for opt in options_by_fact[gateway]:
+        # Option « je ne sais pas » : le fait reste inconnu, donc la condition
+        # peut s'appliquer — on garde la question (fail-closed).
+        applicable = opt.get("unknown") or any(
+            evaluate_predicate(c.applies_if.predicate.root, opt.get("value", opt.get("repr")))
+            is not False
+            for c in fact_conds
+            if c.applies_if
+        )
+        if applicable:
+            show_for.append(opt["id"])
+    if not show_for or len(show_for) == len(options_by_fact[gateway]):
+        return None  # jamais applicable, ou toujours : pas de branchement utile
+    return {"questionId": gateway, "showForOptionIds": show_for}
+
+
 def build_questions(
     verdicts: list[AideVerdict],
     facts: dict[str, FactDef],
 ) -> list[dict]:
     """Construit les QcmQuestion (contrat front) depuis les faits manquants.
+
+    Deux sources : les gates en incertitude (`missing_facts`, qui pilotent les
+    éliminations) et les faits PASSERELLES (`gateway_facts`, qui débloquent
+    l'applicabilité d'une condition sans jamais éliminer personne).
 
     eliminationsParOption[option] = aides dont un gate sur ce fait devient
     IMPOSSIBLE si l'utilisateur choisit cette option — calculé en évaluant le
@@ -479,22 +750,41 @@ def build_questions(
     """
     # fact_key → {aide_slug → [conditions gate sur ce fait]}
     by_fact: dict[str, dict[str, list[Condition]]] = {}
+    gateway_by_fact: dict[str, dict[str, list[Condition]]] = {}
+    montant_by_slug: dict[str, float] = {}
     for v in verdicts:
-        if v.status != "potentiel":
+        if v.status not in ("potentiel", "atteignable"):
             continue
+        montant_by_slug[v.aide.slug] = v.aide.financement.montant_max or 0
         for fact_key, conds in v.missing_facts.items():
             by_fact.setdefault(fact_key, {})[v.aide.slug] = conds
+        for fact_key, conds in v.gateway_facts.items():
+            gateway_by_fact.setdefault(fact_key, {})[v.aide.slug] = conds
 
-    # Tri : faits débloquant le plus d'aides en premier.
-    ordered = sorted(by_fact.items(), key=lambda kv: len(kv[1]), reverse=True)
+    def aide_slugs(fact_key: str) -> list[str]:
+        return sorted(set(by_fact.get(fact_key, {})) | set(gateway_by_fact.get(fact_key, {})))
 
-    questions = []
-    for fact_key, aides_conds in ordered:
+    # Tri : les faits PASSERELLES d'abord (une question dont dépend une autre se
+    # pose avant elle), puis ceux qui débloquent le plus d'aides. Le graphe
+    # d'applicabilité n'a qu'un niveau dans le corpus : pas de tri topologique.
+    ordered = sorted(
+        set(by_fact) | set(gateway_by_fact),
+        key=lambda k: (k not in gateway_by_fact, -len(aide_slugs(k)), k),
+    )
+
+    questions: list[dict] = []
+    built: dict[str, dict] = {}
+    options_by_fact: dict[str, list[dict]] = {}
+    for fact_key in ordered:
         fact = facts.get(fact_key)
         if fact is None:
             continue
-        all_gate_conds = [c for conds in aides_conds.values() for c in conds]
-        options = _options_for_fact(fact, all_gate_conds)
+        aides_conds = by_fact.get(fact_key, {})
+        gateway_conds = gateway_by_fact.get(fact_key, {})
+        all_conds = [c for conds in aides_conds.values() for c in conds] + [
+            c for conds in gateway_conds.values() for c in conds
+        ]
+        options = _options_for_fact(fact, all_conds)
         if not options:
             continue
 
@@ -506,24 +796,35 @@ def build_questions(
             eliminated = []
             for slug, conds in aides_conds.items():
                 # L'aide est éliminée si AU MOINS un de ses gates sur ce fait
-                # devient faux à cette valeur.
+                # devient faux à cette valeur. Les gates synthétiques des faits
+                # passerelles sont exclus : ils libèrent, ils n'éliminent pas.
                 if any(evaluate_predicate(c.predicate.root, test_value) is False for c in conds):
                     eliminated.append(slug)
             if eliminated:
                 elim[opt["id"]] = sorted(eliminated)
 
-        questions.append(
-            {
-                "id": fact_key,
-                "question": fact.question,
-                "options": [{"id": o["id"], "label": o["label"]} for o in options]
-                + [{"id": "skip", "label": "Je ne sais pas"}],
-                "aideIds": sorted(aides_conds.keys()),
-                "eliminatingOptionIds": [],
-                "eliminationsParOption": elim,
-                "categorie": fact_key,
-            }
-        )
+        slugs = aide_slugs(fact_key)
+        question = {
+            "id": fact_key,
+            "question": fact.question,
+            "help": fact.help,
+            "options": [{"id": o["id"], "label": o["label"]} for o in options]
+            + [{"id": "skip", "label": "Je ne sais pas"}],
+            "aideIds": slugs,
+            # Enjeu de la question : le total des montants max en jeu derrière
+            # elle. 0 quand aucune des aides n'est chiffrée — le front n'affiche
+            # alors que leur nombre plutôt qu'un « jusqu'à 0 € » absurde.
+            "enjeuMax": sum(montant_by_slug.get(s, 0) for s in slugs),
+            "eliminatingOptionIds": [],
+            "eliminationsParOption": elim,
+            "categorie": fact_key,
+        }
+        depends_on = _depends_on(all_conds, built, options_by_fact)
+        if depends_on:
+            question["dependsOn"] = depends_on
+        options_by_fact[fact_key] = options
+        built[fact_key] = question
+        questions.append(question)
     return questions
 
 
@@ -549,6 +850,8 @@ def aide_display_dict(aide: Aide) -> dict:
         "organisme": aide.organisme,
         "categorie": aide.categorie,
         "type": aide.type,
+        # Finalités de l'aide — sert au préfiltre « Votre projet » et au debug.
+        "raison": aide.raison,
         "montant_max": f.montant_max,
         "montant_min": f.montant_min,
         "taux_max": f.taux_max,
@@ -579,18 +882,26 @@ def _match_result(verdict: AideVerdict) -> dict:
     """Forme AideMatchResult attendue par le front."""
     incertitudes = [e for e in verdict.evaluations if e["verdict"] == INCERTITUDE]
     n_non = sum(1 for e in verdict.evaluations if e["verdict"] == NON)
+    n_leviers = len(verdict.leviers)
     if verdict.status == "eligible":
         explication = "Tous les critères vérifiables sont satisfaits."
+    elif verdict.status == "atteignable":
+        explication = f"{n_leviers} démarche(s) à engager pour débloquer cette aide."
     elif verdict.status == "potentiel":
         explication = f"{len(incertitudes)} information(s) à confirmer."
     else:
         explication = verdict.raison_ineligibilite or f"{n_non} critère(s) non satisfait(s)."
     return {
         "aide": aide_display_dict(verdict.aide),
+        # Statut explicite : le front l'utilise tel quel plutôt que de le
+        # re-dériver de `eligible` + incertitudes (dérivation conservée en
+        # repli pour l'ancien chemin LLM, qui ne renseigne pas ce champ).
+        "statut": verdict.status,
         "eligible": verdict.status != "non_eligible",
         "criteresRemplis": verdict.criteres_remplis,
         "criteresNonRemplis": verdict.criteres_non_remplis,
         "raisonIneligibilite": verdict.raison_ineligibilite,
+        "leviers": verdict.leviers,
         "llmEvaluation": {
             "explication": explication,
             "evaluations": verdict.evaluations,
@@ -609,6 +920,17 @@ def engine_ready_aides(aides: dict[str, Aide]) -> dict[str, Aide]:
     return {
         slug: a for slug, a in aides.items() if not any(c.kind == "untyped" for c in a.conditions)
     }
+
+
+def hors_projet(aide: Aide, raisons: set[str]) -> bool:
+    """Vrai si l'aide ne sert AUCUNE des finalités déclarées par l'utilisateur.
+
+    Fail-open : une aide sans `raison` renseignée passe toujours (on ne masque
+    jamais une aide faute de donnée). `raisons` vide ⇒ aucun filtrage.
+    """
+    if not raisons or not aide.raison:
+        return False
+    return not (set(aide.raison) & raisons)
 
 
 def candidature_close(aide: Aide, today: date | None = None) -> bool:
@@ -638,6 +960,14 @@ def run_deterministic_diagnostic(
     Retourne la forme AideDiagnosticResult (aide en snake_case, à caméliser par
     le routeur comme pour run_diagnostic).
     """
+    fact_answers, reserved = split_reserved_answers(answers)
+    raw_raisons = reserved.get("_raisons")
+    raisons = (
+        {r for r in raw_raisons if isinstance(r, str)}
+        if isinstance(raw_raisons, (list, tuple, set))
+        else set()
+    )
+
     ready = engine_ready_aides(aides)
     # Exclure les aides dont la fenêtre de candidature est close (cf.
     # prefiltrer_aides côté SQL) : une aide à date limite dépassée et non
@@ -645,27 +975,50 @@ def run_deterministic_diagnostic(
     ready_avant_dates = len(ready)
     ready = {slug: a for slug, a in ready.items() if not candidature_close(a)}
     closes = ready_avant_dates - len(ready)
-    ctx = build_context(monument, population, answers)
+    # Exclure les aides hors du projet déclaré (étape « Votre projet ») : leurs
+    # faits manquants pollueraient le questionnaire (« À quelle fréquence la
+    # manifestation est-elle organisée ? » pour un ravalement de façade).
+    ready_avant_raisons = len(ready)
+    ready = {slug: a for slug, a in ready.items() if not hors_projet(a, raisons)}
+    hors_sujet = ready_avant_raisons - len(ready)
+
+    ctx = build_context(monument, population, fact_answers)
+    # Exclure les aides dont l'utilisateur a déclaré qu'elles ne le concernent
+    # pas (périmètre de l'aide : festivals, compagnies, écoles d'art…). Même
+    # traitement que les aides hors projet : elles n'ont jamais été candidates.
+    ready_avant_perimetre = len(ready)
+    ready = {slug: a for slug, a in ready.items() if not hors_perimetre(a, ctx, facts)}
+    hors_sujet += ready_avant_perimetre - len(ready)
 
     verdicts = [evaluate_aide(a, monument, population, ctx, facts) for a in ready.values()]
 
     eligibles = [v for v in verdicts if v.status == "eligible"]
     potentiels = [v for v in verdicts if v.status == "potentiel"]
     non_eligibles = [v for v in verdicts if v.status == "non_eligible"]
+    # « À débloquer » : triées par enjeu décroissant, la plus grosse démarche
+    # payante en tête. Les aides sans montant chiffré ferment la marche.
+    atteignables = sorted(
+        (v for v in verdicts if v.status == "atteignable"),
+        key=lambda v: v.aide.financement.montant_max or 0,
+        reverse=True,
+    )
 
     questions = build_questions(verdicts, facts)
 
     montant_total = sum(
         v.aide.financement.montant_max or 0 for v in eligibles if v.aide.financement.montant_max
     )
+    montant_atteignable = sum(v.aide.financement.montant_max or 0 for v in atteignables)
 
     logger.info(
-        "DIAGNOSTIC DÉTERMINISTE %s | ready=%d (closes exclues=%d) éligibles=%d "
-        "potentiels=%d non=%d questions=%d",
+        "DIAGNOSTIC DÉTERMINISTE %s | ready=%d (closes exclues=%d, hors projet=%d) éligibles=%d "
+        "atteignables=%d potentiels=%d non=%d questions=%d",
         monument.get("nom", "?"),
         len(ready),
         closes,
+        hors_sujet,
         len(eligibles),
+        len(atteignables),
         len(potentiels),
         len(non_eligibles),
         len(questions),
@@ -676,7 +1029,9 @@ def run_deterministic_diagnostic(
         "totalAidesAnalysees": len(ready),
         "aidesEligibles": [_match_result(v) for v in eligibles],
         "aidesPotentiellementEligibles": [_match_result(v) for v in potentiels],
+        "aidesAtteignables": [_match_result(v) for v in atteignables],
         "aidesNonEligibles": [_match_result(v) for v in non_eligibles],
         "montantPotentielTotal": montant_total if montant_total > 0 else None,
+        "montantAtteignableTotal": montant_atteignable if montant_atteignable > 0 else None,
         "qcmQuestions": questions,
     }

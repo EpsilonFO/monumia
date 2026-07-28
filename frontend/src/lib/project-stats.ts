@@ -48,9 +48,12 @@ export function mergeProjectDeadlines(
   const deadlines: ProjectDeadline[] = [];
 
   if (diagnostic) {
+    // Les aides à débloquer comptent aussi : leur date limite est bien réelle,
+    // et c'est elle qui dit combien de temps il reste pour faire la démarche.
     const matches: AideMatchResult[] = [
       ...diagnostic.aidesEligibles,
       ...diagnostic.aidesPotentiellementEligibles,
+      ...(diagnostic.aidesAtteignables ?? []),
     ];
     for (const match of matches) {
       const aide = match.aide;
@@ -93,6 +96,8 @@ export function mergeProjectDeadlines(
 export interface ProjectStats {
   aidesIdentifiees: number;
   montantPotentiel: number;
+  /** Montant des aides « à débloquer ». Compté à part : il n'est pas acquis. */
+  montantAtteignable: number;
   dossiersActifs: number;
   prochaineEcheance: ProjectDeadline | null;
   completion: number;
@@ -104,9 +109,15 @@ export function computeProjectStats(
   dossiers: Dossier[]
 ): ProjectStats {
   const aidesIdentifiees = diagnostic
-    ? diagnostic.aidesEligibles.length + diagnostic.aidesPotentiellementEligibles.length
+    ? diagnostic.aidesEligibles.length
+      + diagnostic.aidesPotentiellementEligibles.length
+      + (diagnostic.aidesAtteignables?.length ?? 0)
     : 0;
+  // Le montant potentiel reste celui des aides atteignables EN L'ÉTAT : gonfler
+  // le chiffre avec des aides qui supposent encore une démarche serait mentir
+  // au propriétaire. Les secondes sont exposées séparément.
   const montantPotentiel = diagnostic?.montantPotentielTotal ?? 0;
+  const montantAtteignable = diagnostic?.montantAtteignableTotal ?? 0;
 
   const monumentDossiers = dossiers.filter((d) => d.monumentId === monument.id);
   const dossiersActifs = monumentDossiers.filter((d) => d.statut !== 'soumis').length;
@@ -117,6 +128,7 @@ export function computeProjectStats(
   return {
     aidesIdentifiees,
     montantPotentiel,
+    montantAtteignable,
     dossiersActifs,
     prochaineEcheance,
     completion: monument.completionPercentage,
@@ -152,8 +164,11 @@ export function aggregateDashboardStats(
       const matches: AideMatchResult[] = [
         ...diagnostic.aidesEligibles,
         ...diagnostic.aidesPotentiellementEligibles,
+        ...(diagnostic.aidesAtteignables ?? []),
       ];
       aidesIdentifiees += matches.length;
+      // Volontairement sans `montantAtteignableTotal` : ce montant suppose une
+      // démarche encore à faire, il n'a pas sa place dans un total « potentiel ».
       montantPotentielTotal += diagnostic.montantPotentielTotal ?? 0;
       for (const match of matches) {
         const categorie = match.aide.categorie;

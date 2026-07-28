@@ -1,0 +1,81 @@
+import type { ComponentType } from 'react';
+import { IconSucces, IconErreur, IconHelp, IconCle } from '@/components/icons';
+import type { AideMatchResult, AideStatut } from '@/types';
+
+/**
+ * Statut d'éligibilité affichable, partagé par le bandeau, le badge et les
+ * cartes. `atteignable` (« à débloquer ») est la nuance qui manquait : une aide
+ * bloquée sur un seul critère actionnable n'est pas un refus, c'est une
+ * démarche à engager.
+ */
+export type EligibilityStatus = 'eligible' | 'potential' | 'atteignable' | 'non-eligible';
+
+const STATUT_TO_STATUS: Record<AideStatut, EligibilityStatus> = {
+  eligible: 'eligible',
+  atteignable: 'atteignable',
+  potentiel: 'potential',
+  non_eligible: 'non-eligible',
+};
+
+/**
+ * Le moteur déterministe donne le statut explicitement (`statut`) : c'est la
+ * seule source qui distingue « à débloquer » de « non éligible ». La dérivation
+ * historique reste le repli pour l'ancien chemin LLM, qui ne le renseigne pas.
+ */
+export function getEligibilityStatus(matchResult: AideMatchResult): EligibilityStatus {
+  const fromEngine = matchResult.statut && STATUT_TO_STATUS[matchResult.statut];
+  if (fromEngine) return fromEngine;
+  const hasPendingIncertitudes = matchResult.llmEvaluation?.incertitudes?.some(
+    (inc) => typeof inc === 'string' || !inc.clarified,
+  );
+  return matchResult.eligible && hasPendingIncertitudes
+    ? 'potential'
+    : matchResult.eligible
+      ? 'eligible'
+      : 'non-eligible';
+}
+
+type StatusIcon = ComponentType<{ className?: string; strokeWidth?: number }>;
+
+/** Badge de statut : classes token, libellé complet, icône. */
+export const STATUS_BADGE: Record<
+  EligibilityStatus,
+  { className: string; label: string; icon: StatusIcon }
+> = {
+  eligible: {
+    className: 'border-success text-success bg-success-muted',
+    label: 'Éligible',
+    icon: IconSucces,
+  },
+  atteignable: {
+    className: 'border-info text-info bg-info-muted',
+    label: 'À débloquer',
+    icon: IconCle,
+  },
+  potential: {
+    className: 'border-warning text-warning bg-warning-muted',
+    label: 'Potentiellement éligible',
+    icon: IconHelp,
+  },
+  'non-eligible': {
+    className: 'border-destructive text-destructive bg-destructive-muted',
+    label: 'Non éligible',
+    icon: IconErreur,
+  },
+};
+
+/** Teinte de la pastille ronde des cartes d'aide. */
+export const STATUS_TONE: Record<EligibilityStatus, { tint: string; accent: string }> = {
+  eligible: { tint: 'var(--success-muted)', accent: 'var(--success)' },
+  atteignable: { tint: 'var(--info-muted)', accent: 'var(--info)' },
+  potential: { tint: 'var(--warning-muted)', accent: 'var(--warning)' },
+  'non-eligible': { tint: 'var(--destructive-muted)', accent: 'var(--destructive)' },
+};
+
+/** Libellé court de la pastille : « À confirmer » se lit mieux que « Potentiellement éligible ». */
+export const STATUS_PILL_LABEL: Record<EligibilityStatus, string> = {
+  eligible: 'Éligible',
+  atteignable: 'À débloquer',
+  potential: 'À confirmer',
+  'non-eligible': 'Non éligible',
+};

@@ -77,14 +77,19 @@ def _to_camel(aide: dict) -> dict:
     return out
 
 
+_DIAGNOSTIC_BUCKETS = (
+    "aidesEligibles",
+    "aidesPotentiellementEligibles",
+    "aidesAtteignables",
+    "aidesNonEligibles",
+)
+
+
 def _camelise_diagnostic(result: dict) -> dict:
     """Convert aide objects inside diagnostic results to camelCase."""
-    for match in result.get("aidesEligibles", []):
-        match["aide"] = _to_camel(match["aide"])
-    for match in result.get("aidesPotentiellementEligibles", []):
-        match["aide"] = _to_camel(match["aide"])
-    for match in result.get("aidesNonEligibles", []):
-        match["aide"] = _to_camel(match["aide"])
+    for bucket in _DIAGNOSTIC_BUCKETS:
+        for match in result.get(bucket, []):
+            match["aide"] = _to_camel(match["aide"])
     return result
 
 

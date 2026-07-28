@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronDown, Loader2 } from 'lucide-react';
 import {
   type IconComponent,
-  IconDiagnostic, IconSucces, IconHelp, IconErreur,
+  IconDiagnostic, IconSucces, IconHelp, IconErreur, IconCle,
   IconEquipe, IconAide, IconDossier, IconDocuments, IconDepot, IconMonument,
 } from '@/components/icons';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
@@ -44,7 +44,10 @@ import { aideGridSpans } from '@/lib/aide-grid';
 import { isAccessLostError } from '@/lib/api-error';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
-import type { Monument, Document, AideMatchResult, ProjectMember, ProjectInvitation } from '@/types';
+import type {
+  Monument, Document, AideMatchResult, ProjectMember, ProjectInvitation,
+  ProjectQuestionnaireAnswers,
+} from '@/types';
 
 /** Tri : aides avec une échéance à venir d'abord (de la plus proche à la plus lointaine),
  *  puis les permanentes / sans date / échéances dépassées. */
@@ -131,7 +134,7 @@ export function ProjectDetailPage() {
   useEffect(() => {
     if (!projetId) return;
     let cancelled = false;
-    const answers: Record<string, string> = questionnaireKey ? JSON.parse(questionnaireKey) : {};
+    const answers: ProjectQuestionnaireAnswers = questionnaireKey ? JSON.parse(questionnaireKey) : {};
     aideService.runProjectDiagnostic(projetId, answers)
       .then((result) => { if (!cancelled) setDiagnostic(projetId, result); })
       .catch(console.error);
@@ -182,7 +185,7 @@ export function ProjectDetailPage() {
     if (!projetId) return;
     setRunning(true);
     try {
-      const answers = (monument?.questionnaire ?? {}) as Record<string, string>;
+      const answers = monument?.questionnaire ?? {};
       setDiagnostic(projetId, await aideService.runProjectDiagnostic(projetId, answers));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors du diagnostic');
@@ -282,6 +285,9 @@ export function ProjectDetailPage() {
   const dossierAideIds = new Set(dossiers.map((d) => d.aideId));
   const eligibles = [...(diagnostic?.aidesEligibles ?? [])].filter((m) => !dossierAideIds.has(m.aide.id)).sort(byDeadline);
   const potentiels = [...(diagnostic?.aidesPotentiellementEligibles ?? [])].filter((m) => !dossierAideIds.has(m.aide.id)).sort(byDeadline);
+  // « À débloquer » : ordre du backend conservé (enjeu décroissant) — c'est le
+  // montant en jeu qui décide si la démarche vaut la peine, pas l'échéance.
+  const atteignables = (diagnostic?.aidesAtteignables ?? []).filter((m) => !dossierAideIds.has(m.aide.id));
   const nonEligibles = (diagnostic?.aidesNonEligibles ?? []).filter((m) => !dossierAideIds.has(m.aide.id));
 
   // L'affichage des aides s'adapte au nombre : 1 → bandeau pleine largeur, sinon
@@ -303,7 +309,8 @@ export function ProjectDetailPage() {
 
   // Onglets du projet — chaque entrée = un grand bouton lisible (icône + libellé + compteur).
   const projectTabs: { value: string; label: string; icon: IconComponent; count: number | null }[] = [
-    ...(canAccessAides ? [{ value: 'aides', label: 'Aides', icon: IconAide, count: eligibles.length + potentiels.length }] : []),
+    // Les aides à débloquer comptent : ce sont des pistes vivantes, pas des refus.
+    ...(canAccessAides ? [{ value: 'aides', label: 'Aides', icon: IconAide, count: eligibles.length + atteignables.length + potentiels.length }] : []),
     { value: 'monument', label: 'Monument', icon: IconMonument, count: null },
     { value: 'dossiers', label: 'Dossiers', icon: IconDossier, count: dossiers.length },
     { value: 'documents', label: 'Documents', icon: IconDocuments, count: projectDocuments.length },
@@ -397,6 +404,19 @@ export function ProjectDetailPage() {
                   <p className="text-[13px] text-muted-foreground">Aucune aide à confirmer.</p>
                 ) : renderAideList(potentiels)}
               </section>
+
+              {atteignables.length > 0 && (
+                <section className="space-y-3">
+                  <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
+                    <IconCle className="h-4 w-4 text-info" />À débloquer ({atteignables.length})
+                  </h3>
+                  <p className="text-[13px] text-muted-foreground">
+                    Une démarche vous sépare de ces aides. Ouvrez la fiche pour voir laquelle,
+                    auprès de qui et en combien de temps.
+                  </p>
+                  {renderAideList(atteignables)}
+                </section>
+              )}
 
               <section className="space-y-3">
                 <button

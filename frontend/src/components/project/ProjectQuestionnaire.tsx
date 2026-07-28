@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
 import { AllClear } from '@/components/illustrations';
 import { AnswerCard } from '@/components/project/wizard/AnswerCard';
 import { isUnknownAnswer } from '@/components/project/wizard/unknownAnswer';
+import { IconInfo, IconSubvention } from '@/components/icons';
+import { formatCurrency } from '@/lib/format-utils';
 import { C, SERIF } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 import type { ProjectQuestionnaireAnswers, QcmQuestion } from '@/types';
@@ -25,6 +27,65 @@ interface ProjectQuestionnaireProps {
 /** Délai avant l'auto-avance : laisse voir sa réponse se cocher. */
 const ADVANCE_MS = 420;
 
+/**
+ * Au-delà, le texte d'aide est replié à trois lignes. Seuil calé sur la largeur
+ * de lecture (62ch) : les textes courts s'affichent en entier, les longs (la
+ * moitié de l'ontologie dépasse 190 caractères) ne poussent pas les réponses
+ * sous la ligne de flottaison.
+ */
+const HELP_CLAMP_CHARS = 170;
+
+/**
+ * Note explicative d'une question : encart distinct de la question elle-même,
+ * en contraste lisible, replié à trois lignes quand il est long. Même geste que
+ * « Lire la suite » sur la fiche d'aide.
+ */
+function QuestionHelp({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > HELP_CLAMP_CHARS;
+  return (
+    <div
+      className="flex max-w-[62ch] gap-2.5 rounded-xl border-l-[3px] py-2.5 pl-3 pr-3.5"
+      style={{ borderColor: C.blueLight, background: 'var(--secondary)' }}
+    >
+      <IconInfo className="mt-[3px] h-4 w-4 shrink-0" style={{ color: C.blue }} />
+      <div className="min-w-0">
+        <p
+          className={cn('text-[14px] leading-relaxed', !open && long && 'line-clamp-3')}
+          style={{ color: C.grayFg }}
+        >
+          {text}
+        </p>
+        {long && (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="mt-1 text-[13px] font-semibold underline-offset-2 hover:underline"
+            style={{ color: C.blue }}
+          >
+            {open ? 'Réduire' : 'Lire la suite'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Une question conditionnelle n'est posée que si la réponse à la question dont
+ * elle dépend la rend pertinente. Fail-closed : tant que cette question n'est
+ * pas répondue (ou qu'elle est passée), on pose quand même — mieux vaut une
+ * question de trop qu'une aide écartée sans que l'utilisateur l'ait su.
+ * Le moteur garantit que la question porteuse est posée AVANT ses dépendantes.
+ */
+function isVisible(question: QcmQuestion, answers: ProjectQuestionnaireAnswers): boolean {
+  const dep = question.dependsOn;
+  if (!dep) return true;
+  const answer = answers[dep.questionId];
+  if (typeof answer !== 'string' || answer === 'skip') return true;
+  return dep.showForOptionIds.includes(answer);
+}
+
 function prefersReducedMotion(): boolean {
   return (
     typeof window !== 'undefined' &&
@@ -41,7 +102,7 @@ function prefersReducedMotion(): boolean {
  * (« Je ne sais pas ») est gérée par le moteur.
  */
 export function ProjectQuestionnaire({
-  questions,
+  questions: allQuestions,
   value,
   onChange,
   onComplete,
@@ -49,6 +110,14 @@ export function ProjectQuestionnaire({
   completeLabel = 'Lancer le diagnostic',
   onProgress,
 }: ProjectQuestionnaireProps) {
+  // Le parcours ne connaît que les questions PERTINENTES pour les réponses déjà
+  // données : la progression, la navigation et l'écran de fin se calculent
+  // dessus. Une question porteuse répondue peut en faire disparaître d'autres —
+  // toujours situées après elle, donc l'index courant reste valide.
+  const questions = useMemo(
+    () => allQuestions.filter((q) => isVisible(q, value)),
+    [allQuestions, value],
+  );
   const total = questions.length;
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
@@ -195,19 +264,30 @@ export function ProjectQuestionnaire({
   // alors de la dupliquer en bas.
   const showSkipCard = !q!.options.some(isUnknownAnswer);
 
+  // L'enjeu vit sur la ligne de progression, pas entre la question et ses
+  // réponses : il motive sans s'intercaler dans la lecture.
+  const enjeuLabel = q!.enjeuMax
+    ? `Jusqu'à ${formatCurrency(q!.enjeuMax)} en jeu`
+    : `${q!.aideIds.length} aide${q!.aideIds.length > 1 ? 's' : ''} concernée${q!.aideIds.length > 1 ? 's' : ''}`;
+
   return (
     <div>
       {/* Barre fine de progression, en tête de scène. */}
       <div className="pb-4">
-        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em]">
-          <span aria-live="polite" style={{ color: C.orange }}>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+          <span
+            aria-live="polite"
+            className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+            style={{ color: C.orange }}
+          >
             Question {index + 1} <span style={{ color: C.grayMuted }}>sur {total}</span>
           </span>
           <span
-            className="rounded-full px-2 py-0.5 tabular-nums tracking-normal"
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
             style={{ background: 'var(--secondary)', color: C.blue }}
           >
-            {pct}&nbsp;%
+            <IconSubvention className="h-3.5 w-3.5" />
+            {enjeuLabel}
           </span>
         </div>
         <div
@@ -229,8 +309,11 @@ export function ProjectQuestionnaire({
       </div>
 
       {/* Question (glisse à chaque changement) */}
-      <div key={index} className={cn(slideClass, 'pb-1')}>
+      <div key={q!.id} className={cn(slideClass, 'pb-1')}>
         <fieldset role="radiogroup" className="space-y-4">
+          {/* La légende ne porte QUE la question : c'est elle qui nomme le
+              groupe de boutons radio pour les lecteurs d'écran. La note
+              explicative vit à côté, où elle peut être repliée. */}
           <legend className="w-full">
             <span
               className="block text-[clamp(1.25rem,2.8vw,1.6rem)] leading-snug"
@@ -239,6 +322,8 @@ export function ProjectQuestionnaire({
               {q!.question}
             </span>
           </legend>
+
+          {q!.help && <QuestionHelp text={q!.help} />}
 
           <div
             className={cn(

@@ -1,4 +1,10 @@
-import type { Aide, AideCategory, AideDiagnosticResult, WorkType } from '@/types';
+import type {
+  Aide,
+  AideCategory,
+  AideDiagnosticResult,
+  ProjectQuestionnaireAnswers,
+  WorkType,
+} from '@/types';
 import { useAideStore } from '@/stores/useAideStore';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
 
@@ -77,10 +83,14 @@ export const aideService = {
    * répondu positivement promeut l'aide en éligible, un répondu négativement la
    * rétrograde — ce qu'une simple élimination côté client ne permettait pas.
    * Source unique : wizard, page projet, liste et dashboard.
+   *
+   * `answers` est le `questionnaire` du monument tel quel : réponses aux faits
+   * et clés réservées (`_raisons`, les intentions de projet) mêlées — le
+   * backend les sépare.
    */
   async runProjectDiagnostic(
     monumentId: string,
-    answers?: Record<string, string>,
+    answers?: ProjectQuestionnaireAnswers,
   ): Promise<AideDiagnosticResult> {
     return this.runDeterministicDiagnostic(monumentId, answers ?? {});
   },

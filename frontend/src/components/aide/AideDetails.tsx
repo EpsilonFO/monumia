@@ -10,6 +10,7 @@ import {
   IconSucces,
   IconErreur,
   IconHelp,
+  IconCle,
   IconInfo,
   IconEtapes,
   IconDiagnostic,
@@ -25,7 +26,8 @@ import { AIDE_CATEGORIES, AIDE_TYPES } from '@/constants/aide-categories';
 import { formatCurrency } from '@/lib/format-utils';
 import { deadlineLabel } from '@/lib/date-utils';
 import { C, SERIF, DEADLINE_TONE } from '@/lib/brand';
-import type { Aide, AideDocument, AideMatchResult } from '@/types';
+import { getEligibilityStatus, STATUS_BADGE } from './eligibility-status';
+import type { Aide, AideDocument, AideLevier, AideMatchResult } from '@/types';
 
 export const decodeHtml = (text: string | null | undefined): string => {
   if (!text) return '';
@@ -33,20 +35,6 @@ export const decodeHtml = (text: string | null | undefined): string => {
   el.innerHTML = text;
   return el.value;
 };
-
-export type EligibilityStatus = 'eligible' | 'potential' | 'non-eligible';
-
-/** Statut d'éligibilité affichable, partagé entre le bandeau et le badge. */
-export function getEligibilityStatus(matchResult: AideMatchResult): EligibilityStatus {
-  const hasPendingIncertitudes = matchResult.llmEvaluation?.incertitudes?.some(
-    (inc) => typeof inc === 'string' || !inc.clarified,
-  );
-  return matchResult.eligible && hasPendingIncertitudes
-    ? 'potential'
-    : matchResult.eligible
-      ? 'eligible'
-      : 'non-eligible';
-}
 
 interface AideDetailsProps {
   aide: Aide;
@@ -140,12 +128,13 @@ function EnBref({ text }: { text: string }) {
 /* ------------------------------------------------------------------ */
 
 type Evaluation = NonNullable<NonNullable<AideMatchResult['llmEvaluation']>['evaluations']>[number];
-type EvalTone = 'green' | 'red' | 'amber' | 'muted';
+type EvalTone = 'green' | 'red' | 'amber' | 'info' | 'muted';
 
-function CountPill({ icon: Icon, tone, children }: { icon: IconType; tone: 'success' | 'warning' | 'destructive'; children: ReactNode }) {
+function CountPill({ icon: Icon, tone, children }: { icon: IconType; tone: 'success' | 'warning' | 'info' | 'destructive'; children: ReactNode }) {
   const map = {
     success: 'bg-success-muted text-success',
     warning: 'bg-warning-muted text-warning',
+    info: 'bg-info-muted text-info',
     destructive: 'bg-destructive-muted text-destructive',
   } as const;
   return (
@@ -161,21 +150,79 @@ function EligibilitySummary({ matchResult }: { matchResult: AideMatchResult }) {
   const validated = matchResult.criteresRemplis.length
     + evals.filter((e) => e.verdict === 'oui' || (e.verdict === 'incertitude' && e.clarified)).length;
   const toVerify = evals.filter((e) => e.verdict === 'incertitude' && !e.clarified).length;
-  const blocking = (matchResult.criteresNonRemplis?.length ?? 0) + evals.filter((e) => e.verdict === 'non').length;
-  if (validated + toVerify + blocking === 0) return null;
+  // Un critère à débloquer n'est pas bloquant : il a une démarche en face.
+  const toUnlock = matchResult.leviers?.length ?? 0;
+  const blocking = (matchResult.criteresNonRemplis?.length ?? 0)
+    + evals.filter((e) => e.verdict === 'non' && !e.levier).length;
+  if (validated + toVerify + toUnlock + blocking === 0) return null;
 
   return (
     <div className="flex flex-wrap gap-2">
       {validated > 0 && <CountPill icon={IconSucces} tone="success">{validated} remplie{validated > 1 ? 's' : ''}</CountPill>}
+      {toUnlock > 0 && <CountPill icon={IconCle} tone="info">{toUnlock} à débloquer</CountPill>}
       {toVerify > 0 && <CountPill icon={IconHelp} tone="warning">{toVerify} à vérifier</CountPill>}
       {blocking > 0 && <CountPill icon={IconErreur} tone="destructive">{blocking} bloquante{blocking > 1 ? 's' : ''}</CountPill>}
     </div>
   );
 }
 
+/**
+ * Plan d'action d'un critère à débloquer : ce qu'il faut faire, auprès de qui,
+ * pour combien et en combien de temps. C'est la différence entre « vous n'y
+ * avez pas droit » et « voilà comment y avoir droit ».
+ */
+function LevierPlan({ levier }: { levier: AideLevier }) {
+  const facts = [
+    levier.organisme && { label: 'Auprès de', value: levier.organisme },
+    levier.cout && { label: 'Coût', value: levier.cout },
+    levier.delai && { label: 'Délai', value: levier.delai },
+  ].filter((f): f is { label: string; value: string } => !!f);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-start gap-2 text-sm">
+        <IconCle className="mt-0.5 h-4 w-4 shrink-0 text-info" />
+        <span style={{ color: C.ink }}>{levier.critere}</span>
+      </div>
+      <div className="space-y-1.5 pl-6">
+        <p className="text-[13px] font-medium leading-snug" style={{ color: C.ink }}>
+          {levier.resume}
+        </p>
+        {levier.ecart && (
+          <p className="text-[12.5px] font-semibold text-info">{levier.ecart}</p>
+        )}
+        {levier.demarche && (
+          <p className="text-xs leading-relaxed text-muted-foreground">{levier.demarche}</p>
+        )}
+        {facts.length > 0 && (
+          <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            {facts.map((f) => (
+              <div key={f.label} className="flex gap-1.5">
+                <dt className="text-muted-foreground">{f.label}</dt>
+                <dd style={{ color: C.ink }}>{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {levier.url && (
+          <a
+            href={levier.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-info underline underline-offset-2"
+          >
+            Ouvrir la démarche
+            <IconLienExterne className="h-3 w-3" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EvalLine({ critere, explication, tone }: { critere: string; explication?: string; tone: EvalTone }) {
-  const Icon = tone === 'green' ? IconSucces : tone === 'red' ? IconErreur : tone === 'amber' ? IconHelp : IconInfo;
-  const iconClass = tone === 'green' ? 'text-success' : tone === 'red' ? 'text-destructive' : tone === 'amber' ? 'text-warning' : 'text-muted-foreground';
+  const Icon = tone === 'green' ? IconSucces : tone === 'red' ? IconErreur : tone === 'amber' ? IconHelp : tone === 'info' ? IconCle : IconInfo;
+  const iconClass = tone === 'green' ? 'text-success' : tone === 'red' ? 'text-destructive' : tone === 'amber' ? 'text-warning' : tone === 'info' ? 'text-info' : 'text-muted-foreground';
   const textClass = tone === 'red' ? 'text-destructive' : tone === 'muted' ? 'text-muted-foreground' : '';
   return (
     <div className="space-y-0.5">
@@ -191,6 +238,7 @@ function EvalLine({ critere, explication, tone }: { critere: string; explication
 const GROUP_TONES: Record<EvalTone, { bg: string; fg: string }> = {
   green: { bg: 'var(--success-muted)', fg: 'var(--success)' },
   amber: { bg: 'var(--warning-muted)', fg: 'var(--warning)' },
+  info:  { bg: 'var(--info-muted)', fg: 'var(--info)' },
   red:   { bg: 'var(--destructive-muted)', fg: 'var(--destructive)' },
   muted: { bg: 'var(--muted)', fg: 'var(--muted-foreground)' },
 };
@@ -236,6 +284,7 @@ function EvalGroup({ icon: Icon, tone, title, count, defaultOpen = false, childr
 function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) {
   const evals: Evaluation[] = matchResult.llmEvaluation?.evaluations ?? [];
   const eliminatoires = matchResult.criteresNonRemplis ?? [];
+  const leviers = matchResult.leviers ?? [];
   const hasNature = evals.some((e) => !!e.nature);
 
   if (!hasNature) {
@@ -247,7 +296,7 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
           {eliminatoires.map((c, i) => <EvalLine key={`ko-${i}`} critere={c} tone="red" />)}
           {evals.map((e, i) => {
             const clarified = e.verdict === 'incertitude' && e.clarified;
-            const tone: EvalTone = e.verdict === 'oui' || clarified ? 'green' : e.verdict === 'non' ? 'red' : e.verdict === 'info' ? 'muted' : 'amber';
+            const tone: EvalTone = e.verdict === 'oui' || clarified ? 'green' : e.levier ? 'info' : e.verdict === 'non' ? 'red' : e.verdict === 'info' ? 'muted' : 'amber';
             return <EvalLine key={`ev-${i}`} critere={e.critere} explication={e.explication} tone={tone} />;
           })}
         </div>
@@ -256,6 +305,8 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
   }
 
   const isClarified = (e: Evaluation) => e.verdict === 'incertitude' && e.clarified;
+  // Les critères à débloquer ont leur propre groupe, alimenté par `leviers` :
+  // ils ne doivent apparaître ni en rouge, ni parmi les critères validés.
   const aVerifier = evals.filter((e) => e.verdict === 'incertitude' && e.nature === 'user_fact' && !e.clarified);
   const financeur = evals.filter((e) => e.nature === 'discretionary' || e.nature === 'manual_check' || (e.nature === 'auto' && e.verdict === 'incertitude'));
   const valides = evals.filter((e) => e.nature === 'user_fact' && (e.verdict === 'oui' || isClarified(e)));
@@ -267,6 +318,11 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
       {eliminatoires.length > 0 && (
         <EvalGroup icon={IconErreur} tone="red" title="Ce qui ne correspond pas" count={eliminatoires.length} defaultOpen>
           {eliminatoires.map((c, i) => <EvalLine key={i} critere={c} tone="red" />)}
+        </EvalGroup>
+      )}
+      {leviers.length > 0 && (
+        <EvalGroup icon={IconCle} tone="info" title="À débloquer" count={leviers.length} defaultOpen>
+          {leviers.map((levier, i) => <LevierPlan key={i} levier={levier} />)}
         </EvalGroup>
       )}
       {aVerifier.length > 0 && (
@@ -574,23 +630,11 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
 }
 
 function EligibilityBadge({ matchResult }: { matchResult: AideMatchResult }) {
-  const status = getEligibilityStatus(matchResult);
-  const className =
-    status === 'eligible'
-      ? 'border-success text-success bg-success-muted'
-      : status === 'potential'
-        ? 'border-warning text-warning bg-warning-muted'
-        : 'border-destructive text-destructive bg-destructive-muted';
-
+  const { className, label, icon: Icon } = STATUS_BADGE[getEligibilityStatus(matchResult)];
   return (
     <Badge variant="outline" className={className}>
-      {status === 'eligible' ? (
-        <><IconSucces className="h-3 w-3 mr-1" />Éligible</>
-      ) : status === 'potential' ? (
-        <><IconHelp className="h-3 w-3 mr-1" />Potentiellement éligible</>
-      ) : (
-        <><IconErreur className="h-3 w-3 mr-1" />Non éligible</>
-      )}
+      <Icon className="h-3 w-3 mr-1" />
+      {label}
     </Badge>
   );
 }

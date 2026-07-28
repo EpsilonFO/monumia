@@ -4,6 +4,7 @@ import {
   IconSucces,
   IconErreur,
   IconHelp,
+  IconCle,
   IconLienExterne,
   IconTemps,
   IconEcheance,
@@ -24,6 +25,12 @@ import { ROUTES } from '@/constants/routes';
 import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import { daysUntil, formatDateShort } from '@/lib/date-utils';
 import { C, SERIF } from '@/lib/brand';
+import {
+  getEligibilityStatus,
+  STATUS_BADGE,
+  STATUS_PILL_LABEL,
+  STATUS_TONE,
+} from './eligibility-status';
 import type { AideMatchResult } from '@/types';
 
 interface AideCardProps {
@@ -83,16 +90,6 @@ const CATEGORY_ICON: Record<string, typeof IconInstitution> = {
   autre: IconAide,
 };
 
-function getEligibilityStatus(match: AideMatchResult) {
-  // Only unresolved incertitudes (not yet clarified by QCM) count as "potential" status
-  const hasPendingIncertitudes = match.llmEvaluation?.incertitudes?.some(
-    (inc) => typeof inc === 'string' || !inc.clarified
-  );
-  if (match.eligible && hasPendingIncertitudes) return 'potential';
-  if (match.eligible) return 'eligible';
-  return 'non-eligible';
-}
-
 export function AideCard({ match, showEligibility = true, locked = false, monumentId, layout = 'tile' }: AideCardProps) {
   const { aide, criteresRemplis, criteresNonRemplis } = match;
   const { pathname } = useLocation();
@@ -103,13 +100,9 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
   const redAlert = deadline?.urgency === 'urgent' || deadline?.urgency === 'past';
   const DeadlineIcon = redAlert ? IconTemps : IconEcheance;
   const CategoryIcon = CATEGORY_ICON[aide.categorie] ?? IconAide;
-  // Teinte de la pastille ronde selon le statut (vert éligible · orange à confirmer).
-  const statusTone =
-    status === 'eligible'
-      ? { tint: 'var(--success-muted)', accent: 'var(--success)' }
-      : status === 'potential'
-        ? { tint: 'var(--warning-muted)', accent: 'var(--warning)' }
-        : { tint: 'var(--destructive-muted)', accent: 'var(--destructive)' };
+  const statusTone = STATUS_TONE[status];
+  const statusBadge = STATUS_BADGE[status];
+  const StatusIcon = statusBadge.icon;
   const aideDetailUrl = monumentId
     ? ROUTES.PROJET_AIDE(monumentId, aide.id)
     : ROUTES.PROJETS;
@@ -118,9 +111,11 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
     ? 'hover:border-warning'
     : status === 'eligible'
       ? 'hover:border-success'
-      : status === 'potential'
-        ? 'hover:border-warning'
-        : 'hover:border-border';
+      : status === 'atteignable'
+        ? 'hover:border-info'
+        : status === 'potential'
+          ? 'hover:border-warning'
+          : 'hover:border-border';
 
   const handleCardClick = () => {
     if (locked) {
@@ -148,32 +143,9 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
         {categoryConfig?.label ?? aide.categorie}
       </Badge>
       {showEligibility && (
-        <Badge
-          variant="outline"
-          className={
-            status === 'eligible'
-              ? 'border-success text-success bg-success-muted'
-              : status === 'potential'
-                ? 'border-warning text-warning bg-warning-muted'
-                : 'border-destructive text-destructive bg-destructive-muted'
-          }
-        >
-          {status === 'eligible' ? (
-            <>
-              <IconSucces className="h-3 w-3 mr-1" />
-              Éligible
-            </>
-          ) : status === 'potential' ? (
-            <>
-              <IconHelp className="h-3 w-3 mr-1" />
-              Potentiellement éligible
-            </>
-          ) : (
-            <>
-              <IconErreur className="h-3 w-3 mr-1" />
-              Non éligible
-            </>
-          )}
+        <Badge variant="outline" className={statusBadge.className}>
+          <StatusIcon className="h-3 w-3 mr-1" />
+          {statusBadge.label}
         </Badge>
       )}
       {locked && (
@@ -220,6 +192,12 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
           <span>{c}</span>
         </div>
       ))}
+      {status === 'atteignable' && (match.leviers ?? []).slice(0, 2).map((levier, i) => (
+        <div key={`lev-${i}`} className="flex items-start gap-1.5 text-xs text-info">
+          <IconCle className="mt-0.5 h-3 w-3 shrink-0" />
+          <span>{levier.resume}</span>
+        </div>
+      ))}
       {status === 'potential' && match.llmEvaluation?.incertitudes.slice(0, 2).map((c, i) => {
         const isClarified = typeof c !== 'string' && c.clarified;
         return (
@@ -246,7 +224,7 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
   const statusPill = showEligibility ? (
     <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ background: statusTone.tint, color: statusTone.accent }}>
       <span className="h-1.5 w-1.5 rounded-full" style={{ background: statusTone.accent }} />
-      {status === 'eligible' ? 'Éligible' : status === 'potential' ? 'À confirmer' : 'Non éligible'}
+      {STATUS_PILL_LABEL[status]}
     </span>
   ) : null;
 

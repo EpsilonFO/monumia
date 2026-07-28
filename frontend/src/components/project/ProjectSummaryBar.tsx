@@ -91,6 +91,13 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRefaireQues
           icon={<IconSubvention className="h-4 w-4" style={{ color: C.orange }} />}
           label="Montant potentiel"
           value={stats.montantPotentiel > 0 ? formatCurrency(stats.montantPotentiel) : '—'}
+          // Le montant à débloquer reste HORS du chiffre principal : il suppose
+          // une démarche encore à faire. Mentionné à côté, jamais additionné.
+          note={
+            stats.montantAtteignable > 0
+              ? `+ ${formatCurrency(stats.montantAtteignable)} à débloquer`
+              : undefined
+          }
         />
         <KpiTile
           icon={<IconEcheance className="h-4 w-4" style={{ color: echeanceColor }} />}
@@ -103,7 +110,7 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRefaireQues
   );
 }
 
-function KpiTile({ icon, label, value, valueColor }: { icon: React.ReactNode; label: string; value: string; valueColor?: string }) {
+function KpiTile({ icon, label, value, valueColor, note }: { icon: React.ReactNode; label: string; value: string; valueColor?: string; note?: string }) {
   return (
     <div className="rounded-xl border px-4 py-3" style={{ borderColor: C.border, background: C.cream }}>
       <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
@@ -113,6 +120,7 @@ function KpiTile({ icon, label, value, valueColor }: { icon: React.ReactNode; la
       <p className="mt-1 text-[18px] font-semibold" style={{ color: valueColor ?? C.ink }}>
         {value}
       </p>
+      {note && <p className="text-[12px] font-medium" style={{ color: 'var(--info)' }}>{note}</p>}
     </div>
   );
 }

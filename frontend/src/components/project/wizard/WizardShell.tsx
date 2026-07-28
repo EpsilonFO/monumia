@@ -14,7 +14,16 @@ import {
 import { Clover } from '@/components/illustrations';
 import { C } from '@/lib/brand';
 import type { Monument } from '@/types';
-import { WIZARD_STEPS, WizardRail, type WizardProgress, type WizardStepKey } from './WizardRail';
+import {
+  WIZARD_STEPS,
+  WIZARD_STEP_QUESTIONNAIRE,
+  WizardRail,
+  type WizardProgress,
+  type WizardStepKey,
+} from './WizardRail';
+
+/** Dernière étape : le diagnostic tourne et navigue seul vers le projet. */
+const STEP_DIAGNOSTIC = WIZARD_STEPS[WIZARD_STEPS.length - 1].key;
 
 interface WizardShellProps {
   step: WizardStepKey;
@@ -51,9 +60,9 @@ export function WizardShell({
   }, [step]);
 
   const quit = () => {
-    // Le diagnostic (étape 3) navigue de lui-même vers le projet : une navigation
-    // concurrente arracherait l'utilisateur en plein vol.
-    if (step === 3) return;
+    // Le diagnostic (dernière étape) navigue de lui-même vers le projet : une
+    // navigation concurrente arracherait l'utilisateur en plein vol.
+    if (step === STEP_DIAGNOSTIC) return;
     if (confirmQuit) setQuitOpen(true);
     else navigate(exitTo);
   };
@@ -63,7 +72,7 @@ export function WizardShell({
   // travers le booléen `showBar` dans le JSX.
   const qTotal = progress?.total ?? 0;
   const qNum = progress ? Math.min(progress.index + 1, progress.total) : 0;
-  const showBar = step === 2 && qTotal > 0;
+  const showBar = step === WIZARD_STEP_QUESTIONNAIRE && qTotal > 0;
   const pct = qTotal > 0 ? Math.round((qNum / qTotal) * 100) : 0;
 
   return (
@@ -119,7 +128,7 @@ export function WizardShell({
           )}
         </header>
 
-        {step !== 3 && (
+        {step !== STEP_DIAGNOSTIC && (
           <button
             type="button"
             onClick={quit}

@@ -95,6 +95,15 @@ def check_field_predicate(where: str, field: str | None, predicate: Predicate) -
 
 def check_aide(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
     errors = []
+    if aide.applies_if:
+        errors.extend(
+            check_fact_predicate(
+                f"{aide.slug} (périmètre)",
+                aide.applies_if.fact,
+                aide.applies_if.predicate,
+                facts,
+            )
+        )
     for cond in aide.conditions:
         where = f"{aide.slug} / {cond.id}"
         if cond.kind == "user_fact":
@@ -162,6 +171,9 @@ def main() -> int:
         for ref in [c.fact, c.applies_if.fact if c.applies_if else None]
         if ref
     )
+    # Les faits de périmètre comptent comme utilisés : ils déclenchent la
+    # première question du questionnaire.
+    fact_usage.update(a.applies_if.fact for a in aides if a.applies_if and a.applies_if.fact)
     n_cond = sum(kinds.values())
     n_typed = n_cond - kinds.get("untyped", 0)
 

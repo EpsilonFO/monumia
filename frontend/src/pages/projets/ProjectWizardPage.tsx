@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { MerimeeSearch } from '@/components/monument/MerimeeSearch';
 import { MonumentForm } from '@/components/monument/MonumentForm';
 import { ProjectQuestionnaire } from '@/components/project/ProjectQuestionnaire';
+import { ProjectIntentStep } from '@/components/project/wizard/ProjectIntentStep';
 import { WizardShell } from '@/components/project/wizard/WizardShell';
 import { DiagnosticLoader } from '@/components/project/wizard/DiagnosticLoader';
 import type { WizardProgress, WizardStepKey } from '@/components/project/wizard/WizardRail';
@@ -16,13 +17,13 @@ import { monumentService } from '@/services/monument.service';
 import { merimeeService } from '@/services/merimee.service';
 import { aideService } from '@/services/aide.service';
 import { sanitizeQcmQuestions } from '@/lib/qcm';
+import { RAISONS_KEY, readRaisons } from '@/constants/raisons';
 import { REGIONS } from '@/constants/regions';
 import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { toast } from 'sonner';
 import type {
-  AideDiagnosticResult,
   MerimeeRecord,
   Monument,
   ProjectQuestionnaireAnswers,
@@ -38,9 +39,9 @@ const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
 export function ProjectWizardPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  // « Refaire le questionnaire » d'un projet existant : on rejoue directement
-  // l'étape 2 du wizard pour ce monument (questionnaire vierge), sans repasser
-  // par la création de la fiche.
+  // « Refaire le questionnaire » d'un projet existant : on reprend à l'étape
+  // « Votre projet » (intentions préremplies, questionnaire vierge), sans
+  // repasser par la création de la fiche.
   const existingMonumentId = searchParams.get('monument');
   const user = useAuthStore((s) => s.user);
   const addMonument = useMonumentStore((s) => s.addMonument);
@@ -54,23 +55,38 @@ export function ProjectWizardPage() {
   const [monumentId, setMonumentId] = useState<string | null>(existingMonumentId);
   const [monument, setMonument] = useState<Monument | null>(null);
   const [answers, setAnswers] = useState<ProjectQuestionnaireAnswers>({});
+  // Intentions de l'étape « Votre projet » (finalités du catalogue). Elles
+  // préfiltrent les aides candidates AVANT la génération du questionnaire.
+  const [raisons, setRaisons] = useState<string[]>([]);
   const [progress, setProgress] = useState<WizardProgress | null>(null);
   // Questionnaire du moteur d'aides : on lance un premier diagnostic déterministe
-  // (sans réponses) dès l'étape 2 pour obtenir les questions à poser (faits
-  // manquants) et le résultat de base. Les réponses ne sont jamais renvoyées au
-  // moteur : elles se résolvent côté client via eliminationsParOption.
+  // (intentions seules, sans réponses) dès l'étape 3 pour obtenir les questions à
+  // poser (faits manquants) et le résultat de base. Les réponses ne sont jamais
+  // renvoyées au moteur : elles se résolvent côté client via eliminationsParOption.
   const [questions, setQuestions] = useState<QcmQuestion[]>([]);
-  const [baseResult, setBaseResult] = useState<AideDiagnosticResult | null>(null);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // Intentions pour lesquelles le questionnaire courant a été calculé : revenir
+  // en arrière et cocher autre chose doit le régénérer.
+  const [loadedRaisonsKey, setLoadedRaisonsKey] = useState<string | null>(null);
+  const raisonsKey = raisons.join('|');
 
   // Hors AppLayout, le store peut être vide (arrivée directe ?monument=id) :
   // on charge la fiche pour la mini-fiche du rail.
+  const raisonsPrefilled = useRef(false);
   useEffect(() => {
     if (!existingMonumentId) return;
     monumentService
       .getById(existingMonumentId)
-      .then(setMonument)
+      .then((m) => {
+        setMonument(m);
+        // Préremplissage unique : ne jamais écraser ce que l'utilisateur vient
+        // de cocher si la fiche arrive en retard.
+        if (raisonsPrefilled.current) return;
+        raisonsPrefilled.current = true;
+        const previous = readRaisons(m.questionnaire);
+        if (previous.length > 0) setRaisons(previous);
+      })
       .catch(() => {
         // Non bloquant : le rail affiche simplement moins de contexte.
       });
@@ -214,19 +230,20 @@ export function ProjectWizardPage() {
     }
   };
 
-  // Dès l'entrée à l'étape 2, on calcule le diagnostic déterministe de base
-  // (sans réponses) pour en déduire les questions à poser — les faits manquants
-  // qui bloquent le plus d'aides. Le moteur étant pur et rapide, c'est immédiat.
+  // Dès l'entrée à l'étape 3, on calcule le diagnostic déterministe de base
+  // (intentions seules, sans réponses) pour en déduire les questions à poser —
+  // les faits manquants qui bloquent le plus d'aides, restreints aux aides qui
+  // servent le projet déclaré. Le moteur étant pur et rapide, c'est immédiat.
   useEffect(() => {
-    if (step !== 2 || !monumentId || baseResult || loadError) return;
+    if (step !== 3 || !monumentId || loadedRaisonsKey === raisonsKey || loadError) return;
     let cancelled = false;
     setLoadingQuestions(true);
     aideService
-      .runDeterministicDiagnostic(monumentId, {})
+      .runDeterministicDiagnostic(monumentId, { [RAISONS_KEY]: raisons })
       .then((result) => {
         if (cancelled) return;
-        setBaseResult(result);
         setQuestions(sanitizeQcmQuestions(result.qcmQuestions));
+        setLoadedRaisonsKey(raisonsKey);
       })
       .catch((err) => {
         console.error('Erreur diagnostic déterministe:', err);
@@ -238,23 +255,35 @@ export function ProjectWizardPage() {
     return () => {
       cancelled = true;
     };
-  }, [step, monumentId, baseResult, loadError]);
+  }, [step, monumentId, raisons, raisonsKey, loadedRaisonsKey, loadError]);
 
-  // Étape 2 → projet : on persiste les réponses sur le monument (la page projet
-  // recalcule le même diagnostic à partir de là), on résout le QCM côté client
-  // (eliminationsParOption) et on amorce le store pour éviter un écran vide.
+  // Étape 2 → 3 : changer d'intentions périme les réponses déjà données (leurs
+  // questions peuvent disparaître) — on repart d'un questionnaire propre.
+  const handleIntentNext = () => {
+    if (loadedRaisonsKey !== null && loadedRaisonsKey !== raisonsKey) {
+      setAnswers({});
+      setQuestions([]);
+    }
+    setStep(3);
+  };
+
+  // Étape 3 → projet : on persiste réponses ET intentions sur le monument (la
+  // page projet recalcule le même diagnostic à partir de là), on résout le QCM
+  // côté client (eliminationsParOption) et on amorce le store pour éviter un
+  // écran vide.
   const handleQuestionnaireNext = async () => {
     if (!monumentId) return;
+    const questionnaire: ProjectQuestionnaireAnswers = { ...answers, [RAISONS_KEY]: raisons };
     setSaving(true);
-    setStep(3);
+    setStep(4);
     try {
-      await monumentService.update(monumentId, { questionnaire: answers });
+      await monumentService.update(monumentId, { questionnaire });
     } catch (err) {
       // Column may not exist yet (pre-migration) — degrade gracefully.
       console.error('Erreur enregistrement questionnaire (ignorée):', err);
     }
     try {
-      setDiagnostic(monumentId, await aideService.runProjectDiagnostic(monumentId, answers));
+      setDiagnostic(monumentId, await aideService.runProjectDiagnostic(monumentId, questionnaire));
     } catch (err) {
       console.error('Erreur diagnostic:', err);
     }
@@ -270,13 +299,13 @@ export function ProjectWizardPage() {
   const exitTo = existingMonumentId
     ? ROUTES.PROJET_DETAIL(existingMonumentId)
     : ROUTES.PROJETS;
-  const confirmQuit = step === 2 && Object.keys(answers).length > 0;
+  const confirmQuit = step === 3 && Object.keys(answers).length > 0;
 
   return (
     <WizardShell
       step={step}
       monument={monument}
-      progress={step === 2 ? progress : null}
+      progress={step === 3 ? progress : null}
       confirmQuit={confirmQuit}
       exitTo={exitTo}
     >
@@ -365,6 +394,15 @@ export function ProjectWizardPage() {
       )}
 
       {step === 2 && (
+        <ProjectIntentStep
+          value={raisons}
+          onChange={setRaisons}
+          onNext={handleIntentNext}
+          retake={!!existingMonumentId}
+        />
+      )}
+
+      {step === 3 && (
         <div className="space-y-5">
           {/* Pendant le questionnaire lui-même, pas d'en-tête : la question est
               la vedette et tout doit tenir à l'écran — le rail situe déjà
@@ -462,7 +500,7 @@ export function ProjectWizardPage() {
         </div>
       )}
 
-      {step === 3 && <DiagnosticLoader />}
+      {step === 4 && <DiagnosticLoader />}
     </WizardShell>
   );
 }

@@ -26,8 +26,14 @@ from eligibility_engine import engine_ready_aides, run_deterministic_diagnostic
 
 
 def _parse_answer(raw: str):
-    """k=v → (k, v) en coerçant true/false/entier."""
+    """k=v → (k, v) en coerçant true/false/entier.
+
+    Les clés réservées (`_raisons`) attendent une liste : « a,b » → ["a", "b"].
+    """
     key, _, val = raw.partition("=")
+    key = key.strip()
+    if key.startswith("_"):
+        return key, [v.strip() for v in val.split(",") if v.strip()]
     low = val.strip().lower()
     if low in ("true", "vrai", "oui"):
         coerced = True
@@ -38,7 +44,7 @@ def _parse_answer(raw: str):
             coerced = int(val)
         except ValueError:
             coerced = val
-    return key.strip(), coerced
+    return key, coerced
 
 
 def main() -> int:
@@ -81,22 +87,36 @@ def main() -> int:
         print(f"Réponses : {answers}")
     print(f"Aides engine-ready analysées : {len(engine_ready_aides(aides))}\n")
 
-    def show(title, bucket, with_reason=False):
+    def show(title, bucket, with_reason=False, with_leviers=False):
         print(f"── {title} ({len(bucket)}) ──")
         for m in bucket:
+            montant = m["aide"].get("montant_max")
             line = f"  {m['aide']['id']}"
+            if montant:
+                line += f"  ({montant:,.0f} €)".replace(",", " ")
             if with_reason and m.get("raisonIneligibilite"):
                 line += f"  ✗ {m['raisonIneligibilite']}"
             print(line)
+            if with_leviers:
+                for levier in m.get("leviers") or []:
+                    ecart = f" [{levier['ecart']}]" if levier.get("ecart") else ""
+                    print(f"      → {levier['resume']}{ecart}")
+                    if levier.get("organisme"):
+                        print(f"        {levier['organisme']} · {levier.get('delai') or 'délai ?'}")
         print()
 
     show("ÉLIGIBLES", res["aidesEligibles"])
+    show("À DÉBLOQUER", res["aidesAtteignables"], with_leviers=True)
     show("POTENTIELLES", res["aidesPotentiellementEligibles"])
     show("NON ÉLIGIBLES", res["aidesNonEligibles"], with_reason=True)
 
     print(f"── QUESTIONS ({len(res['qcmQuestions'])}) ──")
     for q in res["qcmQuestions"]:
-        print(f"  [{q['categorie']}] {q['question']}  → {q['aideIds']}")
+        enjeu = f"{q['enjeuMax']:,.0f} €".replace(",", " ") if q["enjeuMax"] else "-"
+        dep = q.get("dependsOn")
+        suffix = f"  ⤷ si {dep['questionId']} ∈ {dep['showForOptionIds']}" if dep else ""
+        print(f"  [{q['categorie']}] {q['question']}")
+        print(f"      enjeu {enjeu} · {len(q['aideIds'])} aide(s){suffix}")
     return 0
 
 

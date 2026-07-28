@@ -97,14 +97,44 @@ export interface AideEvaluation {
    * l'analyse en sections. auto | user_fact | manual_check | discretionary |
    * modulateur | info. Absent sur l'ancien chemin LLM. */
   nature?: 'auto' | 'user_fact' | 'manual_check' | 'discretionary' | 'modulateur' | 'info';
+  /** Échec sur un critère ACTIONNABLE : à afficher comme démarche à engager,
+   *  jamais comme motif de refus. Le plan détaillé est dans `AideMatchResult.leviers`. */
+  levier?: boolean;
+}
+
+/** Statut d'éligibilité rendu par le moteur déterministe (absent sur le chemin LLM). */
+export type AideStatut = 'eligible' | 'atteignable' | 'potentiel' | 'non_eligible';
+
+/**
+ * Démarche qui débloque une aide bloquée sur un seul critère actionnable :
+ * obtenir un label, s'engager à ouvrir, choisir une entreprise certifiée…
+ * C'est ce qui distingue « non éligible » de « à débloquer ».
+ */
+export interface AideLevier {
+  /** Clé du fait de l'ontologie sur lequel porte le levier. */
+  factId?: string;
+  /** Critère de l'aide, tel qu'écrit dans son règlement. */
+  critere: string;
+  resume: string;
+  demarche?: string | null;
+  organisme?: string | null;
+  cout?: string | null;
+  delai?: string | null;
+  url?: string | null;
+  /** Écart chiffré à combler, sur un critère numérique (« Il en manque 8 jours/an »). */
+  ecart?: string;
 }
 
 export interface AideMatchResult {
   aide: Aide;
+  /** Statut explicite du moteur déterministe : à préférer à toute dérivation. */
+  statut?: AideStatut;
   eligible: boolean;
   criteresRemplis: string[];
   criteresNonRemplis: string[];
   raisonIneligibilite?: string;
+  /** Plans d'action des critères à débloquer (statut « atteignable »). */
+  leviers?: AideLevier[];
   llmEvaluation?: {
     explication: string;
     /** One verdict per bullet of conditions_eligibilite_detail. */
@@ -125,9 +155,23 @@ export interface QcmOption {
   label: string;
 }
 
+/**
+ * Branchement conditionnel : la question ne concerne que les profils ayant
+ * répondu à `questionId` par l'une des `showForOptionIds`. Émis par le moteur
+ * déterministe quand toutes les conditions candidates du fait partagent la même
+ * clause `applies_if`. Fail-closed côté front : tant que la question dont elle
+ * dépend n'est pas répondue (ou est passée), la question reste posée.
+ */
+export interface QcmDependsOn {
+  questionId: string;
+  showForOptionIds: string[];
+}
+
 export interface QcmQuestion {
   id: string;
   question: string;
+  /** Texte d'aide du fait (ontologie) : lève l'ambiguïté sans quitter l'écran. */
+  help?: string | null;
   options: QcmOption[];
   aideIds: string[];
   eliminatingOptionIds: string[];
@@ -135,6 +179,9 @@ export interface QcmQuestion {
   eliminationsParOption?: Record<string, string[]>;
   categorie?: string;
   incertitudesGroupees?: string[];
+  dependsOn?: QcmDependsOn;
+  /** Montants max cumulés des aides suspendues à cette question (0 si aucune chiffrée). */
+  enjeuMax?: number;
 }
 
 export interface AideDiagnosticResult {
@@ -146,8 +193,12 @@ export interface AideDiagnosticResult {
   totalAidesAnalysees: number;
   aidesEligibles: AideMatchResult[];
   aidesPotentiellementEligibles: AideMatchResult[];
+  /** « À débloquer » : bloquées sur un seul critère actionnable, triées par enjeu
+   *  décroissant. Absent sur l'ancien chemin LLM. */
+  aidesAtteignables?: AideMatchResult[];
   aidesNonEligibles: AideMatchResult[];
   montantPotentielTotal?: number;
+  montantAtteignableTotal?: number;
   qcmQuestions?: QcmQuestion[];
   qcmAnswers?: Record<string, string>;
 }

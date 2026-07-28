@@ -5,6 +5,7 @@ import {
   IconListe,
   IconLocalisation,
   IconMonument,
+  IconProjet,
   type IconComponent,
 } from '@/components/icons';
 import { Clover } from '@/components/illustrations';
@@ -12,7 +13,10 @@ import { C, SERIF } from '@/lib/brand';
 import { PROTECTION_LABELS_SHORT } from '@/constants/monument-options';
 import type { Monument } from '@/types';
 
-export type WizardStepKey = 1 | 2 | 3;
+export type WizardStepKey = 1 | 2 | 3 | 4;
+
+/** Étape du questionnaire : c'est elle qui porte la barre de progression. */
+export const WIZARD_STEP_QUESTIONNAIRE: WizardStepKey = 3;
 
 /** Progression du questionnaire : index 0-based, index === total sur l'écran de fin. */
 export interface WizardProgress {
@@ -34,12 +38,18 @@ export const WIZARD_STEPS: Array<{
   },
   {
     key: 2,
+    label: 'Votre projet',
+    hint: 'Ce que vous voulez faire : les aides suivent votre intention.',
+    icon: IconProjet,
+  },
+  {
+    key: 3,
     label: 'Questionnaire',
     hint: 'Des questions simples, sans aucun document.',
     icon: IconListe,
   },
   {
-    key: 3,
+    key: 4,
     label: 'Diagnostic',
     hint: 'Les aides mobilisables pour votre projet.',
     icon: IconDiagnostic,

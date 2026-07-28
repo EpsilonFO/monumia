@@ -202,6 +202,33 @@ class FactOption(BaseModel):
     unknown: bool = False
 
 
+class Levier(BaseModel):
+    """Démarche accessible qui transforme un fait défavorable en fait favorable.
+
+    Un gate en échec sur un fait porteur d'un levier ne refuse pas l'aide : il la
+    rend « atteignable ». Répondre « non » à « avez-vous le label ? » ne doit pas
+    faire disparaître silencieusement 500 k€ d'aides — le propriétaire doit voir
+    la démarche, son organisme, son coût et son délai, puis décider.
+
+    `resume` est la seule information obligatoire : une phrase qui dit ce qu'il y
+    a à faire. Les autres champs enrichissent le plan d'action quand la source
+    les donne ; on ne les invente pas.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    resume: str
+    # Comment s'y prendre concrètement (étapes, formulaire, interlocuteur).
+    demarche: str | None = None
+    # Qui délivre / instruit (Fondation du patrimoine, Région, DRAC…).
+    organisme: str | None = None
+    # Coût pour le propriétaire, texte fidèle à la source (« gratuit », « 2 % du
+    # montant des travaux »…) — jamais un montant inventé.
+    cout: str | None = None
+    delai: str | None = None
+    url: str | None = None
+
+
 class FactDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -216,6 +243,10 @@ class FactDef(BaseModel):
     # Champ de donnée permettant de pré-remplir la réponse sans question
     # (ex : merimee.siecle_construction pour annee_construction).
     auto_source: str | None = None
+    # Fait ACTIONNABLE : une démarche permet de le rendre favorable. Les aides
+    # bloquées uniquement là-dessus passent en statut « atteignable » au lieu
+    # d'être refusées (cf. Levier).
+    levier: Levier | None = None
 
     @model_validator(mode="after")
     def _options_iff_enum(self) -> FactDef:
@@ -289,7 +320,10 @@ class AppliesIf(BaseModel):
     — ex. « engagement de location 9 ans » seulement si l'usage prévu est la
     location) : exactement l'un des deux. Prédicat faux ⇒ condition ignorée ;
     prédicat inconnu ⇒ la condition reste potentiellement applicable
-    (fail-closed)."""
+    (fail-closed).
+
+    Le même modèle porte la clause de PÉRIMÈTRE d'une aide entière
+    (`Aide.applies_if`), qui n'accepte elle qu'un `fact`."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -518,6 +552,21 @@ class Aide(BaseModel):
     cumul: Cumul = Cumul()
     calendrier: Calendrier = Calendrier()
     hard_filters: HardFilters = HardFilters()
+    # PÉRIMÈTRE de l'aide : elle ne concerne qu'un type de projet ou de porteur,
+    # que seul l'utilisateur peut déclarer. À réserver aux aides d'un autre
+    # métier que celui du demandeur type (festivals, compagnies, écoles d'art) :
+    # sans elle, leurs conditions polluent le questionnaire de tout le monde
+    # (« détenez-vous une licence d'entrepreneur de spectacles ? » pour un
+    # ravalement de façade). La finalité `raison` ne suffit pas : elle n'a que
+    # quatre valeurs et « valorisation_rayonnement » couvre 89 aides.
+    #
+    # Le fait est posé EN PREMIER dans le questionnaire (il débloque le plus
+    # d'aides), et toutes les questions de l'aide s'y branchent. Réponse
+    # négative ⇒ l'aide est écartée du résultat ; réponse inconnue ⇒ l'aide
+    # reste candidate mais incertaine (fail-closed).
+    #
+    # Seul un `fact` est admis : un champ structuré relève de `hard_filters`.
+    applies_if: AppliesIf | None = None
     conditions: list[Condition] = []
     flags: Flags = Flags()
     # Étapes de constitution du dossier (prose numérotée, fidèle à la source).
@@ -535,6 +584,14 @@ class Aide(BaseModel):
         if not isinstance(v, list):
             return v
         return [{"nom": d} if isinstance(d, str) else d for d in v]
+
+    @model_validator(mode="after")
+    def _perimetre_cible_un_fait(self) -> Aide:
+        if self.applies_if and not self.applies_if.fact:
+            raise ValueError(
+                "applies_if d'une aide cible un `fact` — un champ structuré relève de hard_filters"
+            )
+        return self
 
     @model_validator(mode="after")
     def _unique_condition_ids(self) -> Aide:
