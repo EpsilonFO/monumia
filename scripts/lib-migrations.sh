@@ -16,6 +16,29 @@
 #
 # Usage : push_migrations <label> <chemin/vers/.env>
 
+# read_db_url <chemin/vers/.env>
+#
+# Écrit SUPABASE_DB_URL sur stdout, ou retourne non zéro si le fichier ou la
+# variable manquent. Utilisé par push_migrations et par backup-db.sh, pour que
+# la connection string ne soit parsée qu'à un seul endroit.
+#
+# sed plutôt que `cut -d= -f2-` : préserve les '=' internes à la valeur. On
+# tolère guillemets et CRLF, que le parsing précédent laissait passer dans
+# l'URL (échec de connexion parfaitement opaque à l'arrivée).
+read_db_url() {
+  local env_file="$1"
+  [ -f "$env_file" ] || return 1
+
+  local db_url
+  db_url=$(sed -nE 's/^SUPABASE_DB_URL=//p' "$env_file" | head -1)
+  db_url="${db_url%$'\r'}"
+  db_url="${db_url%\"}"; db_url="${db_url#\"}"
+  db_url="${db_url%\'}"; db_url="${db_url#\'}"
+
+  [ -n "$db_url" ] || return 1
+  printf '%s' "$db_url"
+}
+
 push_migrations() {
   local label="$1" env_file="$2"
 
@@ -30,14 +53,8 @@ push_migrations() {
     exit 1
   fi
 
-  # sed plutôt que `cut -d= -f2-` : préserve les '=' internes à la valeur.
-  # On tolère guillemets et CRLF, que le parsing précédent laissait passer dans
-  # l'URL (échec de connexion parfaitement opaque à l'arrivée).
   local db_url
-  db_url=$(sed -nE 's/^SUPABASE_DB_URL=//p' "$env_file" | head -1)
-  db_url="${db_url%$'\r'}"
-  db_url="${db_url%\"}"; db_url="${db_url#\"}"
-  db_url="${db_url%\'}"; db_url="${db_url#\'}"
+  db_url=$(read_db_url "$env_file" || true)
 
   if [ -z "$db_url" ]; then
     echo "❌ SUPABASE_DB_URL absent ou vide dans $env_file : migrations $label impossibles."
