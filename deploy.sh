@@ -12,40 +12,47 @@ git pull
 # n'est pas un vrai filet de sécurité pour le schéma prod. Découpler les deux
 # (un argument beta|prod|all) reste à faire.
 source scripts/lib-migrations.sh
+source scripts/lib-release.sh
 
 push_migrations "beta" backend/.env.beta
 push_migrations "prod" backend/.env
 
-echo "Stopping nginx..."
-sudo docker stop monumia-nginx 2>/dev/null || true
-sudo docker stop patrys-nginx 2>/dev/null || true  # ancien nom, à retirer après la 1re migration
+SHA=$(git rev-parse --short HEAD)
 
-# NB: les volumes restent préfixés patrys_* (nom de projet compose figé
-# dans docker-compose.yml) ; seuls les containers s'appellent monumia-*.
+# ── Build ─────────────────────────────────────────────
+# Toute la construction se fait pendant que nginx et les backends servent
+# normalement. C'est l'essentiel du gain : les ~90 s de builds vite ne sont
+# plus dans la fenêtre de coupure, elles sont à côté.
+echo "Building images ($SHA)..."
+sudo docker compose build \
+  app-frontend-build beta-frontend-build \
+  landing-build landing-beta-build \
+  app-backend beta-backend
 
-# ── Beta cleanup ──────────────────────────────────────
-echo "Cleaning beta containers & volumes..."
-sudo docker rm -f monumia-beta-frontend-build patrys-beta-frontend-build 2>/dev/null || true
-sudo docker rm -f monumia-landing-beta-build 2>/dev/null || true
-sudo docker rm -f $(sudo docker ps -a -q --filter volume=patrys_beta_frontend_dist) 2>/dev/null || true
-sudo docker rm -f $(sudo docker ps -a -q --filter volume=patrys_landing_beta_dist) 2>/dev/null || true
-sudo docker volume rm -f patrys_beta_frontend_dist patrys_landing_beta_dist
+# ── Publication du statique ───────────────────────────
+# Extraction de /dist hors des images vers /srv/monumia/<cible>/releases/<sha>,
+# puis bascule atomique du lien `current`. nginx ne s'arrête pas.
+echo "Publishing static releases..."
+publish_dist app          monumia-app-frontend-build  "$SHA"
+publish_dist beta         monumia-beta-frontend-build "$SHA"
+publish_dist landing      monumia-landing-build       "$SHA"
+publish_dist landing-beta monumia-landing-beta-build  "$SHA"
 
-# ── Prod cleanup ──────────────────────────────────────
-echo "Cleaning prod containers & volumes..."
-sudo docker rm -f monumia-app-frontend-build patrys-app-frontend-build 2>/dev/null || true
-sudo docker rm -f monumia-landing-build patrys-landing-build 2>/dev/null || true
-sudo docker rm -f $(sudo docker ps -a -q --filter volume=patrys_app_frontend_dist) 2>/dev/null || true
-sudo docker rm -f $(sudo docker ps -a -q --filter volume=patrys_landing_dist) 2>/dev/null || true
-sudo docker volume rm -f patrys_app_frontend_dist
-sudo docker volume rm -f patrys_landing_dist
+# ── Backends ──────────────────────────────────────────
+# Seul point de coupure restant : la recréation des conteneurs backend, soit
+# 2 à 4 s de 502 sur /api/ pendant le démarrage de uvicorn. Le statique continue
+# d'être servi. Si l'image n'a pas changé, compose ne recrée rien et il n'y a
+# aucune coupure du tout (le code Python vient du bind mount ./backend:/app,
+# donc `git pull` suffit à le mettre à jour).
+echo "Restarting backends..."
+sudo docker compose up -d --no-deps app-backend beta-backend
 
-# ── Rebuild everything ────────────────────────────────
-echo "Building beta + prod..."
-sudo docker compose up -d --build \
-  beta-frontend-build beta-backend landing-beta-build \
-  app-frontend-build app-backend \
-  landing-build
+# ── nginx ─────────────────────────────────────────────
+# `up -d` est un no-op s'il tourne déjà avec la bonne config. Il ne recrée le
+# conteneur que si docker-compose.yml a changé.
+nginx_reload_failed=""
+sudo docker compose up -d nginx
+reload_nginx || nginx_reload_failed="oui"
 
 # ── Sync aides YAML → aides_v3 ────────────────────────
 # Git est la source de vérité des aides ; le moteur déterministe les sert depuis
@@ -71,22 +78,33 @@ echo "Syncing aides YAML → aides_v3 (beta + prod)..."
 sync_aides beta monumia-beta-backend
 sync_aides prod monumia-app-backend
 
-echo "Starting nginx..."
-sudo docker compose up -d nginx
+# ── Nettoyage des anciennes releases ──────────────────
+# On en garde 3 par cible, plus celle en ligne : de quoi revenir en arrière
+# plusieurs fois sans laisser le disque se remplir.
+for target in app beta landing landing-beta; do
+  prune_releases "$target" 3
+done
 
 # ── Récapitulatif ─────────────────────────────────────
 echo
 echo "─────────────────────────────────────"
+echo "  release         : $SHA"
 echo "  migrations beta : OK"
 echo "  migrations prod : OK"
+[ -n "$sync_failures" ] && echo "  sync aides      : ÉCHEC ($sync_failures)" || echo "  sync aides      : OK"
+[ -n "$nginx_reload_failed" ] && echo "  nginx           : reload REFUSÉ" || echo "  nginx           : OK"
+echo "─────────────────────────────────────"
+
 if [ -n "$sync_failures" ]; then
-  echo "  sync aides      : ÉCHEC ($sync_failures)"
-  echo "─────────────────────────────────────"
   echo "❌ Déployé, mais le sync des aides a échoué."
   echo "   Toute aide présente en YAML mais absente de aides_v3 renverra"
   echo "   « Aide introuvable » à la création de dossier."
   exit 1
 fi
-echo "  sync aides      : OK"
-echo "─────────────────────────────────────"
-echo "✅ Beta + Prod déployés."
+if [ -n "$nginx_reload_failed" ]; then
+  echo "❌ Déployé, mais nginx.conf est invalide et n'a pas été rechargé."
+  echo "   nginx tourne toujours avec sa configuration précédente."
+  exit 1
+fi
+echo "✅ Beta + Prod déployés ($SHA)."
+echo "   Rollback : ./rollback.sh app|beta|landing|landing-beta"

@@ -30,6 +30,13 @@ services:
     restart: unless-stopped
 
   # ── Frontend builds ──────────────────────────────────
+  # Ces services ne sont JAMAIS démarrés : ils ne servent qu'à construire les
+  # images (`docker compose build`). deploy.sh extrait ensuite /dist de l'image
+  # vers /srv/monumia/<cible>/releases/<sha> et bascule un lien symbolique.
+  #
+  # Ils montaient auparavant un volume nommé sur /dist, ce qui obligeait à
+  # supprimer le volume à chaque déploiement (Docker n'initialise un volume
+  # nommé que s'il est vide), donc à arrêter nginx. Voir scripts/lib-release.sh.
   landing-build:
     build:
       context: ./landing
@@ -39,8 +46,6 @@ services:
         VITE_API_URL: https://app.monumia.fr/api
     image: monumia-landing-build
     container_name: monumia-landing-build
-    volumes:
-      - landing_dist:/dist
 
   app-frontend-build:
     build:
@@ -52,8 +57,6 @@ services:
         VITE_SUPABASE_ANON_KEY: ${APP_SUPABASE_ANON_KEY}
     image: monumia-app-frontend-build
     container_name: monumia-app-frontend-build
-    volumes:
-      - app_frontend_dist:/dist
 
   beta-frontend-build:
     build:
@@ -65,8 +68,6 @@ services:
         VITE_SUPABASE_ANON_KEY: ${BETA_SUPABASE_ANON_KEY}
     image: monumia-beta-frontend-build
     container_name: monumia-beta-frontend-build
-    volumes:
-      - beta_frontend_dist:/dist
 
   # Landing servie sous beta.monumia.fr/landing — preview avant la prod.
   # Buildée avec base=/landing/ pour que les assets résolvent sous ce chemin.
@@ -80,8 +81,6 @@ services:
         VITE_API_URL: https://beta.monumia.fr/api
     image: monumia-landing-beta-build
     container_name: monumia-landing-beta-build
-    volumes:
-      - landing_beta_dist:/dist
 
   # ── Nginx (single entry point) ──────────────────────
   nginx:
@@ -94,19 +93,20 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - landing_dist:/usr/share/nginx/landing:ro
-      - app_frontend_dist:/usr/share/nginx/app:ro
-      - beta_frontend_dist:/usr/share/nginx/beta:ro
-      - landing_beta_dist:/usr/share/nginx/landing-beta:ro
+      # Répertoires de releases sur l'hôte, remplis par deploy.sh. nginx sert
+      # <cible>/current, un lien symbolique relatif vers releases/<sha>. Monter
+      # la racine (et pas `current` directement) est indispensable : le lien doit
+      # pouvoir se résoudre à l'intérieur du conteneur, et une bascule côté hôte
+      # doit être visible sans recréer le conteneur.
+      - /srv/monumia/landing:/usr/share/nginx/landing:ro
+      - /srv/monumia/app:/usr/share/nginx/app:ro
+      - /srv/monumia/beta:/usr/share/nginx/beta:ro
+      - /srv/monumia/landing-beta:/usr/share/nginx/landing-beta:ro
       - certbot_www:/var/www/certbot:ro
       - certbot_conf:/etc/letsencrypt:ro
     depends_on:
       - app-backend
       - beta-backend
-      - landing-build
-      - app-frontend-build
-      - beta-frontend-build
-      - landing-beta-build
     networks:
       - default
       - web
@@ -122,10 +122,10 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 volumes:
-  landing_dist:
-  app_frontend_dist:
-  beta_frontend_dist:
-  landing_beta_dist:
+  # Les anciens volumes de dist (patrys_landing_dist, patrys_app_frontend_dist,
+  # patrys_beta_frontend_dist, patrys_landing_beta_dist) ne sont plus référencés,
+  # le statique vit sous /srv/monumia. Ils subsistent sur le VPS et peuvent être
+  # supprimés une fois le nouveau déploiement validé.
   certbot_www:
   certbot_conf:
 
