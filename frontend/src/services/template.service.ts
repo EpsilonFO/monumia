@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
 import type { Template } from '@/types';
 
@@ -28,7 +28,7 @@ function toTemplate(row: Record<string, unknown>): Template {
 
 /** Public URL of a template file (the `templates` bucket is public). */
 function getPublicUrl(storagePath: string): string {
-  return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath).data.publicUrl;
+  return getSupabase().storage.from(STORAGE_BUCKET).getPublicUrl(storagePath).data.publicUrl;
 }
 
 /** Trigger a browser download of a template file. */

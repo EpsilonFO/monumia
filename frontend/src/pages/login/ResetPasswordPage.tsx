@@ -5,7 +5,7 @@ import { IconVoir } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AuthLayout } from '@/components/layout/AuthLayout';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
 import { C, SERIF } from '@/lib/brand';
 import { toast } from 'sonner';
@@ -49,7 +49,7 @@ export function ResetPasswordPage() {
       return;
     }
 
-    supabase.auth
+    getSupabase().auth
       .setSession({ access_token: accessToken, refresh_token: refreshToken ?? '' })
       .then(({ error }) => {
         if (error) {
@@ -75,9 +75,9 @@ export function ResetPasswordPage() {
     }
     setSaving(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      const { error } = await getSupabase().auth.updateUser({ password });
       if (error) throw new Error(error.message);
-      await supabase.auth.signOut().catch(() => {});
+      await getSupabase().auth.signOut().catch(() => {});
       toast.success('Votre mot de passe a été changé. Connectez-vous avec le nouveau.');
       navigate('/login');
     } catch (err: unknown) {

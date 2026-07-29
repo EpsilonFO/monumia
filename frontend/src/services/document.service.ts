@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
 import { ensureFreshAccessToken } from '@/lib/token-refresh';
@@ -38,7 +38,7 @@ async function syncSupabaseSession(): Promise<void> {
     if (!fresh) return;
     const { token } = useAuthStore.getState();
     if (!token) return;
-    await supabase.auth.setSession({
+    await getSupabase().auth.setSession({
       access_token: token,
       // Jamais utilisé (autoRefreshToken désactivé, token frais garanti par
       // ensureFreshAccessToken) mais setSession exige une valeur non vide.
@@ -56,7 +56,7 @@ async function uploadToStorage(file: File, userId: string): Promise<string> {
 
   await syncSupabaseSession();
 
-  const { error } = await supabase.storage
+  const { error } = await getSupabase().storage
     .from(STORAGE_BUCKET)
     .upload(path, file, { upsert: false });
 
