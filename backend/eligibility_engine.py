@@ -492,6 +492,15 @@ def evaluate_aide(
                 explication = "Apprécié par le financeur — point de vigilance pour le dossier."
             elif nature == "modulateur":
                 explication = "Peut moduler le taux ou le montant (n'affecte pas l'éligibilité)."
+            elif nature == "manual_check":
+                # Vraie condition, mais dont la vérification n'a de sens qu'au
+                # montage du dossier (plan de financement, pièces justificatives).
+                # La poser en amont ne renseignerait personne et éliminerait à
+                # tort ; on l'affiche à confirmer avec l'organisme, sans gater.
+                explication = (
+                    "À confirmer avec l'organisme au moment du dossier "
+                    "(sans incidence sur votre éligibilité)."
+                )
             else:
                 explication = "Information sur l'aide."
             verdict.evaluations.append(

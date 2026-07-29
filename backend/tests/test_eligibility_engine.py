@@ -602,6 +602,88 @@ class TestPerimetreAide(unittest.TestCase):
         self.assertEqual(sans_perimetre, [])
 
 
+class TestConditionsNonBloquantes(unittest.TestCase):
+    """`manual_check` + `effect: info` : vraie condition d'éligibilité, mais dont
+    la vérification n'a de sens qu'au montage du dossier. Affichée « à confirmer
+    avec l'organisme », sans question et sans gater.
+
+    Cas d'école : l'autofinancement minimum de 20 %. Quasi universel (article
+    L.1111-10 du CGCT), donc sans pouvoir discriminant, et impossible à trancher
+    avant d'avoir chiffré les travaux — le demander éliminait à tort.
+    """
+
+    def _run(self, conditions):
+        aide = _fixture_aide(conditions)
+        return run_deterministic_diagnostic({aide.slug: aide}, FACTS, _monument(), 3000)
+
+    def test_ne_bloque_pas_et_ne_pose_pas_de_question(self):
+        res = self._run(
+            [
+                {
+                    "id": "autofinancement",
+                    "text": "Autofinancement minimum de 20 % par la commune",
+                    "kind": "manual_check",
+                    "effect": "info",
+                }
+            ]
+        )
+        self.assertEqual(len(res["aidesEligibles"]), 1)
+        self.assertEqual(res["qcmQuestions"], [])
+
+    def test_reste_affichee_avec_la_bonne_nature(self):
+        """Ni supprimée, ni fondue dans « Bon à savoir » : le front la range dans
+        « À confirmer avec l'organisme », et le verdict `info` lui donne le petit
+        « i » au lieu du point d'interrogation."""
+        res = self._run(
+            [
+                {
+                    "id": "autofinancement",
+                    "text": "Autofinancement minimum de 20 % par la commune",
+                    "kind": "manual_check",
+                    "effect": "info",
+                }
+            ]
+        )
+        evaluation = res["aidesEligibles"][0]["llmEvaluation"]["evaluations"][0]
+        self.assertEqual(evaluation["nature"], "manual_check")
+        self.assertEqual(evaluation["verdict"], "info")
+        self.assertIn("sans incidence", evaluation["explication"])
+
+    def test_manual_check_gate_reste_bloquant(self):
+        """Contraste : le manual_check par défaut (effect gate) maintient bien
+        l'aide en incertitude. Seul `effect: info` la libère."""
+        res = self._run(
+            [{"id": "mc", "text": "À vérifier auprès du financeur", "kind": "manual_check"}]
+        )
+        self.assertEqual(len(res["aidesPotentiellementEligibles"]), 1)
+        self.assertEqual(res["aidesEligibles"], [])
+
+    def test_corpus_autofinancement_ne_gate_plus_nulle_part(self):
+        """Garde-fou : une prochaine ingestion qui regaterait sur ce fait
+        ferait réapparaître la question piège."""
+        refs = sorted(
+            f"{slug} / {c.id}"
+            for slug, aide in AIDES.items()
+            for c in aide.conditions
+            if c.fact == "autofinancement_pct"
+            or (c.applies_if and c.applies_if.fact == "autofinancement_pct")
+        )
+        self.assertEqual(refs, [])
+
+    def test_corpus_les_conditions_dautofinancement_sont_conservees(self):
+        """Retypées, pas supprimées : le critère et sa citation source restent
+        affichables. Ancre nommée plutôt qu'un compte, moins fragile."""
+        cond = next(
+            c
+            for c in AIDES["region-hauts-de-france"].conditions
+            if c.id == "autofinancement-minimum-20-public"
+        )
+        self.assertEqual((cond.kind, cond.effect), ("manual_check", "info"))
+        self.assertIn("L1111-10", cond.quote or "")
+        # La clause d'applicabilité (maîtres d'ouvrage publics) est préservée.
+        self.assertIsNotNone(cond.applies_if)
+
+
 class TestLeviers(unittest.TestCase):
     """Statut « atteignable » : un gate en échec sur un fait ACTIONNABLE ne
     refuse pas l'aide, il la met à débloquer avec son plan d'action."""

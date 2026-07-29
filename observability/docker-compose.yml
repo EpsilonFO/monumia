@@ -1,0 +1,39 @@
+# Stack d'observabilité, séparée de la stack applicative.
+#
+#   cd observability && sudo docker compose up -d
+#
+# Nom de projet distinct de `patrys` pour qu'un `docker compose down` dans l'un
+# ne touche jamais à l'autre.
+name: monumia-observability
+
+services:
+  alloy:
+    image: grafana/alloy:latest
+    container_name: monumia-alloy
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    env_file:
+      - ./alloy.env
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      # Nécessaire pour lister les conteneurs et lire leurs logs.
+      #
+      # À savoir : monter le socket Docker, même en :ro, donne à ce conteneur
+      # l'accès complet à l'API Docker, donc l'équivalent de root sur l'hôte. Le
+      # :ro protège le fichier, pas les appels API. C'est le prix de la collecte
+      # par nom de conteneur ; l'alternative (lire /var/lib/docker/containers)
+      # évite le socket mais ne fournit que des identifiants, pas des noms.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Positions de lecture, pour ne pas réexpédier tout l'historique à chaque
+      # redémarrage (et consommer le quota pour rien).
+      - alloy_data:/var/lib/alloy/data
+    restart: unless-stopped
+    # Pas de `ports:` : l'interface de debug d'Alloy n'a aucune raison d'être
+    # joignable. Au besoin, un tunnel ponctuel suffit :
+    #   ssh -L 12345:localhost:12345 <vps>
+    #   sudo docker compose exec alloy ...
+
+volumes:
+  alloy_data:

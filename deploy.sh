@@ -85,6 +85,13 @@ for target in app beta landing landing-beta; do
   prune_releases "$target" 3
 done
 
+# ── Nettoyage du cache de build Docker ────────────────
+# Chaque déploiement reconstruit quatre bundles vite plus l'image backend, et
+# rien ne purgeait jamais : 503 entrées et 33 Go de cache s'étaient accumulés,
+# sur un disque de 72 Go. On garde 7 jours, de quoi servir les déploiements de
+# la semaine sans laisser la place se remplir indéfiniment.
+echo "Pruning Docker build cache (>7j)..."
+sudo docker builder prune -f --filter until=168h 2>&1 | tail -1
 # ── Récapitulatif ─────────────────────────────────────
 echo
 echo "─────────────────────────────────────"

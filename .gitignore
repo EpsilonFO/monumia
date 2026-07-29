@@ -36,6 +36,9 @@ landing/.env
 landing/.env.*
 test_rag/.env.rag
 
+# Identifiants Grafana Cloud (voir observability/alloy.env.example)
+observability/alloy.env
+
 supabase/seed.sql
 supabase/snippets/
 

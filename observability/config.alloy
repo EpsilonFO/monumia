@@ -1,0 +1,52 @@
+// Collecte des logs Docker de l'hôte et envoi vers Grafana Cloud Loki.
+//
+// Un fichier séparé de la stack applicative : Alloy collecte les logs de TOUS
+// les conteneurs du VPS, pas
+// seulement ceux de Monumia. Le mêler au docker-compose.yml du projet aurait
+// laissé croire qu'il en fait partie, et l'aurait exposé aux redémarrages de
+// deploy.sh sans raison.
+
+// ── Découverte ────────────────────────────────────────
+discovery.docker "hote" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+}
+
+// Docker préfixe les noms de conteneurs d'un "/" qu'on retire, sinon toutes les
+// requêtes Loki devraient s'écrire {container="/monumia-nginx"}.
+discovery.relabel "conteneurs" {
+  targets = discovery.docker.hote.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+// ── Lecture ───────────────────────────────────────────
+// Volontairement PAS de parsing JSON ici, et c'est un choix, pas un oubli.
+// Dans Loki chaque combinaison de labels crée un flux : mettre `uri` ou
+// `request_time` en label ferait exploser la cardinalité et saturerait le
+// palier gratuit en quelques jours. Les lignes partent brutes, et on parse à
+// la requête avec `| json`, ce qui ne coûte rien côté stockage.
+loki.source.docker "hote" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.conteneurs.output
+  labels     = { job = "docker", vps = "monumia" }
+  forward_to = [loki.write.grafana_cloud.receiver]
+}
+
+// ── Envoi ─────────────────────────────────────────────
+// Identifiants par variables d'environnement (alloy.env, gitignoré) : ils ne
+// doivent pas atterrir dans le dépôt.
+loki.write "grafana_cloud" {
+  endpoint {
+    url = sys.env("LOKI_URL")
+
+    basic_auth {
+      username = sys.env("LOKI_USERNAME")
+      password = sys.env("LOKI_TOKEN")
+    }
+  }
+}
