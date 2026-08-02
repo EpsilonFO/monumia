@@ -3,6 +3,7 @@
 Run from backend/:  .venv/bin/python -m unittest discover
 """
 
+import re
 import unittest
 from datetime import date
 
@@ -657,6 +658,27 @@ class TestConditionsNonBloquantes(unittest.TestCase):
         )
         self.assertEqual(len(res["aidesPotentiellementEligibles"]), 1)
         self.assertEqual(res["aidesEligibles"], [])
+
+    def test_corpus_aucune_participation_minimale_ne_bloque(self):
+        """La règle des 20 % doit être traitée de la même façon PARTOUT.
+
+        Trois conditions l'exprimaient déjà en `manual_check` + gate (dont sur
+        drac-mh-classes et drac-mh-inscrits) : retyper les seuls `user_fact`
+        avait laissé deux poids deux mesures, ces aides restant bloquées en
+        « potentiel » sur un critère devenu non bloquant ailleurs.
+        """
+        motif = re.compile(
+            r"autofinancement|participation minimale du maître d.ouvrage"
+            r"|participation minimum|contribution\s+\S+\s+minimale",
+            re.I,
+        )
+        bloquantes = sorted(
+            f"{slug} / {c.id}"
+            for slug, aide in AIDES.items()
+            for c in aide.conditions
+            if c.effect == "gate" and motif.search(" ".join(c.text.split()))
+        )
+        self.assertEqual(bloquantes, [])
 
     def test_corpus_autofinancement_ne_gate_plus_nulle_part(self):
         """Garde-fou : une prochaine ingestion qui regaterait sur ce fait
