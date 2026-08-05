@@ -23,7 +23,7 @@ from eligibility_engine import (
     _numeric_gap,
     _options_for_fact,
     build_context,
-    candidature_close,
+    disponibilite,
     engine_ready_aides,
     evaluate_aide,
     run_deterministic_diagnostic,
@@ -82,37 +82,69 @@ class TestEngineReady(unittest.TestCase):
         self.assertIn("drac-mh-classes", READY)
 
 
-class TestCandidatureClose(unittest.TestCase):
-    """Fenêtre de candidature : mêmes règles que prefiltrer_aides (SQL)."""
+class TestDisponibilite(unittest.TestCase):
+    """Fenêtre de candidature : axe transverse au statut, jamais un filtre."""
 
     TODAY = date(2026, 6, 22)
 
-    def _aide(self, **calendrier) -> Aide:
-        return _fixture_aide([]).model_copy(update={"calendrier": Calendrier(**calendrier)})
+    def _aide(self, slug: str = "fixture-aide", **calendrier) -> Aide:
+        return _fixture_aide([], slug=slug).model_copy(
+            update={"calendrier": Calendrier(**calendrier)}
+        )
 
-    def test_permanente_jamais_close(self):
-        self.assertFalse(candidature_close(self._aide(permanent=True), self.TODAY))
+    def test_permanente_toujours_disponible(self):
+        """`permanent: true` court-circuite les dates (6 YAML les cumulent)."""
+        a = self._aide(permanent=True, date_limite=date(2026, 2, 13))
+        self.assertEqual(disponibilite(a, self.TODAY), "maintenant")
 
-    def test_sans_date_limite_jamais_close(self):
-        self.assertFalse(candidature_close(self._aide(permanent=False), self.TODAY))
+    def test_sans_aucune_date_reputee_ouverte(self):
+        self.assertEqual(disponibilite(self._aide(permanent=False), self.TODAY), "maintenant")
 
-    def test_date_passee_est_close(self):
+    def test_date_limite_passee_est_bientot(self):
         a = self._aide(permanent=False, date_limite=date(2026, 2, 13))
-        self.assertTrue(candidature_close(a, self.TODAY))
+        self.assertEqual(disponibilite(a, self.TODAY), "bientot")
 
-    def test_date_future_pas_close(self):
-        a = self._aide(permanent=False, date_limite=date(2026, 8, 31))
-        self.assertFalse(candidature_close(a, self.TODAY))
-
-    def test_date_du_jour_pas_close(self):
+    def test_date_limite_du_jour_encore_ouverte(self):
         a = self._aide(permanent=False, date_limite=self.TODAY)
-        self.assertFalse(candidature_close(a, self.TODAY))
+        self.assertEqual(disponibilite(a, self.TODAY), "maintenant")
 
-    def test_diagnostic_exclut_les_aides_closes(self):
-        """Une aide engine-ready mais close ne doit pas être analysée."""
+    def test_date_limite_future_est_maintenant(self):
+        a = self._aide(permanent=False, date_limite=date(2026, 8, 31))
+        self.assertEqual(disponibilite(a, self.TODAY), "maintenant")
+
+    def test_date_ouverture_future_est_bientot(self):
+        a = self._aide(permanent=False, date_ouverture=date(2026, 9, 1))
+        self.assertEqual(disponibilite(a, self.TODAY), "bientot")
+
+    def test_fenetre_en_cours_est_maintenant(self):
+        a = self._aide(
+            permanent=False, date_ouverture=date(2026, 1, 15), date_limite=date(2026, 8, 31)
+        )
+        self.assertEqual(disponibilite(a, self.TODAY), "maintenant")
+
+    def test_diagnostic_conserve_les_aides_closes(self):
+        """Une aide close reste analysée, marquée « bientôt » — pas exclue."""
         a = self._aide(permanent=False, date_limite=date(2026, 2, 13))
-        res = run_deterministic_diagnostic({"fixture-aide": a}, FACTS, _monument(), 3000)
-        self.assertEqual(res["totalAidesAnalysees"], 0)
+        res = run_deterministic_diagnostic(
+            {"fixture-aide": a}, FACTS, _monument(), 3000, today=self.TODAY
+        )
+        self.assertEqual(res["totalAidesAnalysees"], 1)
+        self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fixture-aide"])
+        self.assertEqual(res["aidesEligibles"][0]["disponibilite"], "bientot")
+
+    def test_montant_potentiel_ignore_les_bientot(self):
+        """Le montant affiché se veut mobilisable en l'état : fenêtre ouverte only."""
+        ouverte = self._aide(slug="fx-ouverte", permanent=True).model_copy(
+            update={"financement": Financement(montant_max=10_000)}
+        )
+        close = self._aide(
+            slug="fx-close", permanent=False, date_limite=date(2026, 2, 13)
+        ).model_copy(update={"financement": Financement(montant_max=90_000)})
+        res = run_deterministic_diagnostic(
+            {a.slug: a for a in (ouverte, close)}, FACTS, _monument(), 3000, today=self.TODAY
+        )
+        self.assertEqual(len(res["aidesEligibles"]), 2)
+        self.assertEqual(res["montantPotentielTotal"], 10_000)
 
 
 class TestRaisonPrefilter(unittest.TestCase):

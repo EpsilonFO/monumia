@@ -106,6 +106,13 @@ export interface AideEvaluation {
 export type AideStatut = 'eligible' | 'atteignable' | 'potentiel' | 'non_eligible';
 
 /**
+ * Fenêtre de candidature à la date du diagnostic, orthogonale au statut :
+ * « maintenant » = déposable aujourd'hui · « bientot » = fenêtre pas encore
+ * ouverte ou déjà refermée (dispositif annuel dont la session est passée).
+ */
+export type AideDisponibilite = 'maintenant' | 'bientot';
+
+/**
  * Démarche qui débloque une aide bloquée sur un seul critère actionnable :
  * obtenir un label, s'engager à ouvrir, choisir une entreprise certifiée…
  * C'est ce qui distingue « non éligible » de « à débloquer ».
@@ -129,6 +136,10 @@ export interface AideMatchResult {
   aide: Aide;
   /** Statut explicite du moteur déterministe : à préférer à toute dérivation. */
   statut?: AideStatut;
+  /** Fenêtre de candidature du jour. Absent sur l'ancien chemin LLM et sur le
+   *  moteur client (`matching-engine.ts`) : lire via `getDisponibilite`, qui
+   *  retombe sur « maintenant ». */
+  disponibilite?: AideDisponibilite;
   eligible: boolean;
   criteresRemplis: string[];
   criteresNonRemplis: string[];
@@ -224,9 +235,9 @@ export interface AideDigest {
  */
 export interface ProjectDigest {
   monumentId: ID;
-  aidesEligibles: { aide: AideDigest }[];
-  aidesPotentiellementEligibles: { aide: AideDigest }[];
-  aidesAtteignables?: { aide: AideDigest }[];
+  aidesEligibles: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
+  aidesPotentiellementEligibles: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
+  aidesAtteignables?: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
   montantPotentielTotal?: number;
   montantAtteignableTotal?: number;
 }

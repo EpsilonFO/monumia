@@ -6,7 +6,7 @@ import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import { deadlineLabel } from '@/lib/date-utils';
 import { C, SERIF, DEADLINE_TONE } from '@/lib/brand';
 import { decodeHtml } from './AideDetails';
-import { getEligibilityStatus } from './eligibility-status';
+import { getDisponibilite, getEligibilityStatus } from './eligibility-status';
 import type { Aide, AideMatchResult } from '@/types';
 
 /**
@@ -37,12 +37,17 @@ const VERDICT = {
   },
 } as const;
 
-function deadlinePill(aide: Aide) {
+function deadlinePill(aide: Aide, bientot: boolean) {
   if (aide.permanent || !aide.dateLimite) {
     return { label: 'Ouvert toute l\'année', tone: null as null | (typeof DEADLINE_TONE)['normal'] };
   }
   const ech = deadlineLabel(aide.dateLimite);
   const tone = DEADLINE_TONE[ech.urgency];
+  // Session écoulée d'un dispositif reconduit : la date passée ne dit pas que
+  // l'aide a disparu, seulement qu'il faut viser la prochaine session.
+  if (bientot && ech.urgency === 'past') {
+    return { label: 'Prochaine session à venir', tone: DEADLINE_TONE.normal };
+  }
   const label =
     ech.urgency === 'past' ? 'Candidatures closes'
       : ech.urgency === 'normal' ? `À déposer avant le ${ech.text}`
@@ -59,7 +64,8 @@ export function AideHero({ aide, matchResult, cta }: {
   const type = AIDE_TYPES.find((t) => t.value === aide.type);
   const status = matchResult ? getEligibilityStatus(matchResult) : null;
   const v = status ? VERDICT[status] : null;
-  const { label: echeanceLabel, tone } = deadlinePill(aide);
+  const bientot = matchResult ? getDisponibilite(matchResult) === 'bientot' : false;
+  const { label: echeanceLabel, tone } = deadlinePill(aide, bientot);
   const hasMoney = !!(aide.tauxMax || aide.montantMax);
 
   return (

@@ -224,6 +224,25 @@ def main() -> int:
     if sans_raison:
         print(f"raison : {sans_raison} aide(s) sans finalité — valeur en base préservée au load")
 
+    # Dette de calendrier : sans `permanent` ni aucune date structurée, la
+    # disponibilité (« maintenant » / « bientôt ») est indéterminable et l'aide
+    # est réputée ouverte par défaut. Non bloquant, même en --strict : 22
+    # fichiers sont dans ce cas et l'information n'est pas toujours sourçable.
+    sans_calendrier = sorted(
+        a.slug
+        for a in aides
+        if not a.calendrier.permanent
+        and not a.calendrier.date_ouverture
+        and not a.calendrier.date_limite
+    )
+    if sans_calendrier:
+        print(
+            f"calendrier : {len(sans_calendrier)} aide(s) non permanentes sans date "
+            f"d'ouverture ni date limite — disponibilité indéterminable, réputée ouverte :"
+        )
+        for slug in sans_calendrier:
+            print(f"  {slug}")
+
     if errors:
         print(f"\n✗ {len(errors)} erreur(s) :")
         for err in errors:

@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import date
+from typing import Literal
 
 from aides_schema import Aide, AppliesIf, Condition, FactDef, evaluate_predicate
 from labels import (
@@ -887,7 +888,7 @@ def aide_display_dict(aide: Aide) -> dict:
     }
 
 
-def _match_result(verdict: AideVerdict) -> dict:
+def _match_result(verdict: AideVerdict, today: date | None = None) -> dict:
     """Forme AideMatchResult attendue par le front."""
     incertitudes = [e for e in verdict.evaluations if e["verdict"] == INCERTITUDE]
     n_non = sum(1 for e in verdict.evaluations if e["verdict"] == NON)
@@ -906,6 +907,11 @@ def _match_result(verdict: AideVerdict) -> dict:
         # re-dériver de `eligible` + incertitudes (dérivation conservée en
         # repli pour l'ancien chemin LLM, qui ne renseigne pas ce champ).
         "statut": verdict.status,
+        # Fenêtre de candidature, orthogonale au statut : une aide peut être
+        # pleinement éligible mais pas déposable aujourd'hui. Hors de
+        # `aide_display_dict` à dessein — c'est une lecture du jour, pas un
+        # attribut de l'aide.
+        "disponibilite": disponibilite(verdict.aide, today),
         "eligible": verdict.status != "non_eligible",
         "criteresRemplis": verdict.criteres_remplis,
         "criteresNonRemplis": verdict.criteres_non_remplis,
@@ -942,19 +948,34 @@ def hors_projet(aide: Aide, raisons: set[str]) -> bool:
     return not (set(aide.raison) & raisons)
 
 
-def candidature_close(aide: Aide, today: date | None = None) -> bool:
-    """Vrai si la fenêtre de dépôt des candidatures est passée.
+Disponibilite = Literal["maintenant", "bientot"]
 
-    Reproduit la logique SQL de `prefiltrer_aides` (migration
-    20260528203714) pour que le moteur déterministe et le diagnostic LLM
-    masquent les mêmes aides : une aide est close si elle n'est PAS permanente
-    et que sa date limite est strictement dépassée. Une aide permanente
-    (dépôt au fil de l'eau) ou sans date limite n'est jamais close.
+
+def disponibilite(aide: Aide, today: date | None = None) -> Disponibilite:
+    """Fenêtre de candidature à la date du jour — axe transverse au statut.
+
+    « maintenant » = le dossier peut être déposé aujourd'hui. « bientot » =
+    tous les autres cas de fenêtre fermée, qu'elle ne soit pas encore ouverte
+    (`date_ouverture` future) ou déjà refermée (`date_limite` passée). Les
+    dispositifs annuels reconduits tombent dans le second cas : leur date
+    périmée ne dit pas que l'aide a disparu, seulement que la session est
+    passée — d'où l'affichage en « disponibles bientôt » plutôt qu'une
+    exclusion du diagnostic.
+
+    Ne s'appuie que sur les dates structurées : `permanent: true` (dépôt au fil
+    de l'eau) court-circuite tout, et une aide sans aucune date est réputée
+    ouverte (fail-open : on ne masque jamais une aide faute de donnée).
+    `date_limite == today` reste ouvert, comme partout ailleurs.
     """
     cal = aide.calendrier
-    if cal.permanent or cal.date_limite is None:
-        return False
-    return cal.date_limite < (today or date.today())
+    if cal.permanent:
+        return "maintenant"
+    t = today or date.today()
+    if cal.date_ouverture and cal.date_ouverture > t:
+        return "bientot"
+    if cal.date_limite and cal.date_limite < t:
+        return "bientot"
+    return "maintenant"
 
 
 def run_deterministic_diagnostic(
@@ -963,12 +984,16 @@ def run_deterministic_diagnostic(
     monument: dict,
     population: int | None,
     answers: dict[str, object] | None = None,
+    today: date | None = None,
 ) -> dict:
     """Diagnostic 100 % déterministe sur les aides engine-ready.
 
     Retourne la forme AideDiagnosticResult (aide en snake_case, à caméliser par
-    le routeur comme pour run_diagnostic).
+    le routeur comme pour run_diagnostic). `today` est résolu une fois pour
+    toute la passe : la disponibilité de chaque aide est datée du même jour, et
+    les tests peuvent la figer.
     """
+    today = today or date.today()
     fact_answers, reserved = split_reserved_answers(answers)
     raw_raisons = reserved.get("_raisons")
     raisons = (
@@ -978,12 +1003,9 @@ def run_deterministic_diagnostic(
     )
 
     ready = engine_ready_aides(aides)
-    # Exclure les aides dont la fenêtre de candidature est close (cf.
-    # prefiltrer_aides côté SQL) : une aide à date limite dépassée et non
-    # permanente n'est plus mobilisable, on ne l'analyse donc pas.
-    ready_avant_dates = len(ready)
-    ready = {slug: a for slug, a in ready.items() if not candidature_close(a)}
-    closes = ready_avant_dates - len(ready)
+    # La fenêtre de candidature n'écarte plus aucune aide : elle est portée par
+    # `disponibilite` sur chaque résultat (cf. _match_result). Une session
+    # passée n'est pas une inéligibilité, c'est un dossier à préparer.
     # Exclure les aides hors du projet déclaré (étape « Votre projet ») : leurs
     # faits manquants pollueraient le questionnaire (« À quelle fréquence la
     # manifestation est-elle organisée ? » pour un ravalement de façade).
@@ -1014,17 +1036,20 @@ def run_deterministic_diagnostic(
 
     questions = build_questions(verdicts, facts)
 
+    # Le montant potentiel est présenté comme mobilisable en l'état : on n'y
+    # compte donc que les éligibles dont la fenêtre est ouverte aujourd'hui.
     montant_total = sum(
-        v.aide.financement.montant_max or 0 for v in eligibles if v.aide.financement.montant_max
+        v.aide.financement.montant_max or 0
+        for v in eligibles
+        if v.aide.financement.montant_max and disponibilite(v.aide, today) == "maintenant"
     )
     montant_atteignable = sum(v.aide.financement.montant_max or 0 for v in atteignables)
 
     logger.info(
-        "DIAGNOSTIC DÉTERMINISTE %s | ready=%d (closes exclues=%d, hors projet=%d) éligibles=%d "
+        "DIAGNOSTIC DÉTERMINISTE %s | ready=%d (hors projet=%d) éligibles=%d "
         "atteignables=%d potentiels=%d non=%d questions=%d",
         monument.get("nom", "?"),
         len(ready),
-        closes,
         hors_sujet,
         len(eligibles),
         len(atteignables),
@@ -1036,10 +1061,10 @@ def run_deterministic_diagnostic(
     return {
         "monumentId": monument.get("id"),
         "totalAidesAnalysees": len(ready),
-        "aidesEligibles": [_match_result(v) for v in eligibles],
-        "aidesPotentiellementEligibles": [_match_result(v) for v in potentiels],
-        "aidesAtteignables": [_match_result(v) for v in atteignables],
-        "aidesNonEligibles": [_match_result(v) for v in non_eligibles],
+        "aidesEligibles": [_match_result(v, today) for v in eligibles],
+        "aidesPotentiellementEligibles": [_match_result(v, today) for v in potentiels],
+        "aidesAtteignables": [_match_result(v, today) for v in atteignables],
+        "aidesNonEligibles": [_match_result(v, today) for v in non_eligibles],
         "montantPotentielTotal": montant_total if montant_total > 0 else None,
         "montantAtteignableTotal": montant_atteignable if montant_atteignable > 0 else None,
         "qcmQuestions": questions,

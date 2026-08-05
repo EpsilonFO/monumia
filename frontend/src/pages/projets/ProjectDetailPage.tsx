@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronDown, Loader2 } from 'lucide-react';
 import {
   type IconComponent,
-  IconDiagnostic, IconSucces, IconHelp, IconErreur, IconCle,
+  IconDiagnostic, IconSucces, IconHelp, IconErreur, IconCle, IconCalendrier,
   IconEquipe, IconAide, IconDossier, IconDocuments, IconDepot, IconMonument,
 } from '@/components/icons';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
@@ -41,6 +41,7 @@ import { computeProjectStats, mergeProjectDeadlines } from '@/lib/project-stats'
 import { daysUntil } from '@/lib/date-utils';
 import { C, SERIF } from '@/lib/brand';
 import { aideGridSpans } from '@/lib/aide-grid';
+import { getDisponibilite } from '@/components/aide/eligibility-status';
 import { isAccessLostError } from '@/lib/api-error';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
@@ -58,6 +59,15 @@ function byDeadline(a: AideMatchResult, b: AideMatchResult): number {
     return d < 0 ? Infinity : d;
   };
   return key(a) - key(b);
+}
+
+/** Tri des « disponibles bientôt » : la prochaine fenêtre à s'ouvrir d'abord.
+ *  `byDeadline` ne convient pas ici — ces aides ont justement une date limite
+ *  passée ou absente, et c'est l'ouverture qui les départage. */
+function byOuverture(a: AideMatchResult, b: AideMatchResult): number {
+  const key = (m: AideMatchResult) =>
+    m.aide.dateOuverture ? new Date(m.aide.dateOuverture).getTime() : Infinity;
+  return key(a) - key(b) || a.aide.nomCourt.localeCompare(b.aide.nomCourt, 'fr');
 }
 
 export function ProjectDetailPage() {
@@ -284,6 +294,11 @@ export function ProjectDetailPage() {
   // désormais dans l'onglet « Dossiers ». Supprimer le dossier l'y fait réapparaître.
   const dossierAideIds = new Set(dossiers.map((d) => d.aideId));
   const eligibles = [...(diagnostic?.aidesEligibles ?? [])].filter((m) => !dossierAideIds.has(m.aide.id)).sort(byDeadline);
+  // Les éligibles se scindent selon la fenêtre de candidature : celles qu'on
+  // peut déposer aujourd'hui, et celles dont la session est passée ou à venir
+  // (dispositifs annuels) — un dossier à préparer, pas une aide perdue.
+  const eligiblesMaintenant = eligibles.filter((m) => getDisponibilite(m) === 'maintenant');
+  const eligiblesBientot = eligibles.filter((m) => getDisponibilite(m) === 'bientot').sort(byOuverture);
   const potentiels = [...(diagnostic?.aidesPotentiellementEligibles ?? [])].filter((m) => !dossierAideIds.has(m.aide.id)).sort(byDeadline);
   // « À débloquer » : ordre du backend conservé (enjeu décroissant) — c'est le
   // montant en jeu qui décide si la démarche vaut la peine, pas l'échéance.
@@ -389,12 +404,25 @@ export function ProjectDetailPage() {
 
               <section className="space-y-3">
                 <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                  <IconSucces className="h-4 w-4 text-success" />Éligibles ({eligibles.length})
+                  <IconSucces className="h-4 w-4 text-success" />Disponibles maintenant ({eligiblesMaintenant.length})
                 </h3>
-                {eligibles.length === 0 ? (
+                {eligiblesMaintenant.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground">Aucune aide pleinement éligible pour le moment.</p>
-                ) : renderAideList(eligibles)}
+                ) : renderAideList(eligiblesMaintenant)}
               </section>
+
+              {eligiblesBientot.length > 0 && (
+                <section className="space-y-3">
+                  <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
+                    <IconCalendrier className="h-4 w-4 text-info" />Disponibles bientôt ({eligiblesBientot.length})
+                  </h3>
+                  <p className="text-[13px] text-muted-foreground">
+                    Vous remplissez les critères, mais la fenêtre de candidature est fermée ou pas
+                    encore ouverte. Préparez votre dossier pour la prochaine session.
+                  </p>
+                  {renderAideList(eligiblesBientot)}
+                </section>
+              )}
 
               <section className="space-y-3">
                 <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>

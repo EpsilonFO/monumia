@@ -26,6 +26,8 @@ import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import { daysUntil, formatDateShort } from '@/lib/date-utils';
 import { C, SERIF } from '@/lib/brand';
 import {
+  DISPONIBILITE_BIENTOT_PILL,
+  getDisponibilite,
   getEligibilityStatus,
   STATUS_BADGE,
   STATUS_PILL_LABEL,
@@ -97,7 +99,11 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
   const status = getEligibilityStatus(match);
   const deadline = !aide.permanent && aide.dateLimite ? deadlineInfo(aide.dateLimite) : null;
-  const redAlert = deadline?.urgency === 'urgent' || deadline?.urgency === 'past';
+  // Fenêtre fermée : la date limite affichée est celle de la session écoulée,
+  // pas une échéance manquée. Toute la signalétique rouge est neutralisée — le
+  // message est « revenez à la prochaine session », pas « c'est raté ».
+  const bientot = getDisponibilite(match) === 'bientot';
+  const redAlert = !bientot && (deadline?.urgency === 'urgent' || deadline?.urgency === 'past');
   const DeadlineIcon = redAlert ? IconTemps : IconEcheance;
   const CategoryIcon = CATEGORY_ICON[aide.categorie] ?? IconAide;
   const statusTone = STATUS_TONE[status];
@@ -132,9 +138,22 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
   // agencement différent.
   const stripe = deadline && DEADLINE_STRIPE[deadline.urgency] ? (
     <div
-      className={`absolute inset-y-0 left-0 ${redAlert ? 'w-1.5' : 'w-1'} ${DEADLINE_STRIPE[deadline.urgency]}`}
+      className={`absolute inset-y-0 left-0 ${redAlert ? 'w-1.5' : 'w-1'} ${bientot ? DEADLINE_STRIPE.normal : DEADLINE_STRIPE[deadline.urgency]}`}
       aria-hidden
     />
+  ) : null;
+
+  // Pastille « Ouvre bientôt » : le pendant calendaire du statut, affichée à
+  // côté de lui (hero, grid) ou dans la rangée de badges (tile).
+  const BientotIcon = DISPONIBILITE_BIENTOT_PILL.icon;
+  const bientotPill = bientot ? (
+    <span
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+      style={{ background: DISPONIBILITE_BIENTOT_PILL.tint, color: DISPONIBILITE_BIENTOT_PILL.accent }}
+    >
+      <BientotIcon className="h-3 w-3" />
+      {DISPONIBILITE_BIENTOT_PILL.label}
+    </span>
   ) : null;
 
   const badges = (
@@ -146,6 +165,12 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
         <Badge variant="outline" className={statusBadge.className}>
           <StatusIcon className="h-3 w-3 mr-1" />
           {statusBadge.label}
+        </Badge>
+      )}
+      {bientot && (
+        <Badge variant="outline" className={`${DISPONIBILITE_BIENTOT_PILL.className} gap-1`}>
+          <BientotIcon className="h-2.5 w-2.5" />
+          {DISPONIBILITE_BIENTOT_PILL.label}
         </Badge>
       )}
       {locked && (
@@ -171,7 +196,9 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
     </p>
   );
 
-  const deadlinePill = deadline ? (
+  // Fenêtre fermée : le badge « Ouvre bientôt » de la rangée du haut porte déjà
+  // l'information calendaire — inutile de doubler avec une date de session close.
+  const deadlinePill = deadline && !bientot ? (
     <span className={`inline-flex items-center gap-1.5 ${DEADLINE_PILL[deadline.urgency]}`}>
       <DeadlineIcon className={redAlert ? 'h-4 w-4' : 'h-3.5 w-3.5'} />
       {deadline.text}
@@ -238,7 +265,7 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
 
   // Informations clés en lignes « icône + libellé + valeur » — lisibles d'un
   // coup d'œil, sans capsules ni traits de séparation.
-  const dRed = deadline?.urgency === 'urgent' || deadline?.urgency === 'past';
+  const dRed = redAlert;
   const dTone = !deadline
     ? { bg: C.paleBlue, fg: C.blue }
     : dRed
@@ -248,20 +275,22 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
         : { bg: C.paleBlue, fg: C.blue };
   // Valeur courte pour l'encadré : le libellé « Échéance » porte déjà le sens,
   // la date seule suffit (« Avant le … » ferait passer la valeur sur 2 lignes).
-  const deadlineFactValue = !deadline
-    ? aide.permanent
-      ? "Toute l'année"
-      : 'Sur demande'
-    : deadline.urgency === 'past'
-      ? 'Dépassée'
-      : deadline.urgency === 'urgent'
-        ? deadline.text
-        : formatDateShort(aide.dateLimite ?? '');
+  const deadlineFactValue = bientot
+    ? 'Prochaine session'
+    : !deadline
+      ? aide.permanent
+        ? "Toute l'année"
+        : 'Sur demande'
+      : deadline.urgency === 'past'
+        ? 'Dépassée'
+        : deadline.urgency === 'urgent'
+          ? deadline.text
+          : formatDateShort(aide.dateLimite ?? '');
   const facts: { icon: typeof IconSubvention; accent: string; label: string; value: string; valueColor?: string }[] = [];
   if (aide.montantMax != null) facts.push({ icon: IconSubvention, accent: C.orange, label: 'Montant max', value: formatCurrency(aide.montantMax) });
   if (aide.tauxMax != null) facts.push({ icon: IconTendance, accent: C.blue, label: 'des travaux', value: `${aide.tauxMax} %` });
   facts.push({
-    icon: deadline ? DeadlineIcon : IconCalendrier,
+    icon: deadline && !bientot ? DeadlineIcon : IconCalendrier,
     accent: dTone.fg,
     label: 'Échéance',
     value: deadlineFactValue,
@@ -317,6 +346,7 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
                     <span className={locked ? 'blur-sm select-none pointer-events-none' : undefined}>{aide.nomCourt}</span>
                   </h3>
                   {statusPill}
+                  {bientotPill}
                 </div>
                 <p className="mt-1 text-[11px] font-bold uppercase tracking-wider" style={{ color: C.blue }}>{categoryConfig?.label ?? aide.categorie}</p>
               </div>
@@ -363,7 +393,9 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
             <span className="min-w-0 truncate text-[11px] font-bold uppercase tracking-wider" style={{ color: C.blue }}>
               {categoryConfig?.label ?? aide.categorie}
             </span>
-            <span className="ml-auto shrink-0">{statusPill}</span>
+            {/* Les pastilles ne se compriment pas : c'est la catégorie qui
+                s'élide quand la carte est étroite. */}
+            <span className="ml-auto flex shrink-0 items-center gap-1.5">{statusPill}{bientotPill}</span>
           </div>
 
           {/* Hauteur réservée sur 2 lignes pour que les cartes d'une même

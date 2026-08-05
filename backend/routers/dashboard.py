@@ -45,7 +45,11 @@ def build_digest(result: dict, monument_id: str) -> dict:
                     "permanent": match["aide"].get("permanent", False),
                     "dateLimite": match["aide"].get("dateLimite"),
                     "montantMax": match["aide"].get("montantMax"),
-                }
+                },
+                # Fenêtre de candidature du jour : le digest reste un
+                # sous-ensemble structurel du diagnostic complet, que les
+                # fonctions de project-stats consomment indifféremment.
+                "disponibilite": match.get("disponibilite", "maintenant"),
             }
             for match in result.get(bucket, [])
         ]

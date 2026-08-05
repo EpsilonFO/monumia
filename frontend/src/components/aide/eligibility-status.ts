@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
-import { IconSucces, IconErreur, IconHelp, IconCle } from '@/components/icons';
-import type { AideMatchResult, AideStatut } from '@/types';
+import { IconSucces, IconErreur, IconHelp, IconCle, IconCalendrier } from '@/components/icons';
+import type { AideDisponibilite, AideMatchResult, AideStatut } from '@/types';
 
 /**
  * Statut d'éligibilité affichable, partagé par le bandeau, le badge et les
@@ -35,7 +35,34 @@ export function getEligibilityStatus(matchResult: AideMatchResult): EligibilityS
       : 'non-eligible';
 }
 
+/**
+ * Fenêtre de candidature du jour, orthogonale au statut. Seul le moteur
+ * déterministe la renseigne : l'ancien chemin LLM et le moteur client
+ * (`matching-engine.ts`) retombent sur « maintenant », ce qui préserve
+ * l'affichage historique (aucune aide marquée « ouvre bientôt » à tort).
+ */
+export function getDisponibilite(matchResult: {
+  disponibilite?: AideDisponibilite;
+}): AideDisponibilite {
+  return matchResult.disponibilite ?? 'maintenant';
+}
+
 type StatusIcon = ComponentType<{ className?: string; strokeWidth?: number }>;
+
+/**
+ * Pastille « Ouvre bientôt » : même teinte info que « à débloquer » — dans les
+ * deux cas l'aide reste une piste, c'est juste le moment qui n'est pas venu.
+ * Rien de rouge : une session passée n'est pas une échéance manquée.
+ */
+export const DISPONIBILITE_BIENTOT_PILL = {
+  label: 'Ouvre bientôt',
+  icon: IconCalendrier as StatusIcon,
+  /** Variante `Badge variant="outline"` (vignettes). */
+  className: 'border-info text-info bg-info-muted',
+  /** Variante pastille à pré-point coloré (cartes hero et grid). */
+  tint: 'var(--info-muted)',
+  accent: 'var(--info)',
+} as const;
 
 /** Badge de statut : classes token, libellé complet, icône. */
 export const STATUS_BADGE: Record<
