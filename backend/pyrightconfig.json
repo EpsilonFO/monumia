@@ -1,6 +1,7 @@
 {
   "include": ["."],
   "exclude": ["scripts", ".venv"],
+  "extraPaths": ["scripts"],
   "typeCheckingMode": "basic",
   "reportOptionalMemberAccess": "none",
   "reportOptionalSubscript": "none",
