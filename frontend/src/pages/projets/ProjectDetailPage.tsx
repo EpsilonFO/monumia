@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { MonumentForm } from '@/components/monument/MonumentForm';
 import { MonumentFiche } from '@/components/monument/MonumentFiche';
 import { AideCard } from '@/components/aide/AideCard';
+import { AidesPaywallBanner } from '@/components/aide/AidesPaywallBanner';
 import { DossierCard } from '@/components/dossier/DossierCard';
 import { DocumentCard } from '@/components/document/DocumentCard';
 import { DocumentGrid } from '@/components/document/DocumentGrid';
@@ -24,6 +25,7 @@ import { AddToProjectDialog } from '@/components/document/AddToProjectDialog';
 import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
 import { TeamPanel } from '@/components/sharing/TeamPanel';
 import { projectPermissions } from '@/lib/project-permissions';
+import { useAidesAccess } from '@/hooks/useAidesAccess';
 import { ProjectSummaryBar } from '@/components/project/ProjectSummaryBar';
 import { ProjectDetailSkeleton } from '@/components/skeletons';
 import { ProjectEcheancier } from '@/components/project/ProjectEcheancier';
@@ -125,6 +127,9 @@ export function ProjectDetailPage() {
   // L'onglet « Aides » est réservé au chef de projet et à son adjoint. Pour un
   // collaborateur, on retombe sur « Dossiers ».
   const canAccessAides = projectPermissions(monument?.myRole ?? null).canAccessAides;
+  // Paywall : le détail des aides de CE projet est-il payé ? Sans rapport avec
+  // canAccessAides, qui relève du rôle dans l'équipe.
+  const { locked } = useAidesAccess(projetId);
   const requestedTab =
     tabParam === 'monument' || tabParam === 'dossiers' || tabParam === 'documents' || tabParam === 'equipe'
       ? tabParam
@@ -327,18 +332,28 @@ export function ProjectDetailPage() {
   // grille 6 colonnes où chaque carte s'étale (rangées de deux ou de trois) pour
   // que chaque rangée soit pleine — jamais de case vide (voir aideGridSpans).
   const renderAideList = (list: AideMatchResult[]) => {
-    if (list.length === 1) return <AideCard match={list[0]} monumentId={monument.id} layout="hero" />;
+    if (list.length === 1)
+      return <AideCard match={list[0]} monumentId={monument.id} layout="hero" locked={locked} />;
     const spans = aideGridSpans(list.length);
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
         {list.map((match, i) => (
           <div key={match.aide.id} className={spans[i]}>
-            <AideCard match={match} monumentId={monument.id} layout="grid" />
+            <AideCard match={match} monumentId={monument.id} layout="grid" locked={locked} />
           </div>
         ))}
       </div>
     );
   };
+
+  // Enjeu chiffré du bandeau paywall : le montant agrégé du diagnostic, ou à
+  // défaut la somme des plafonds des aides à portée (les non éligibles sont
+  // exclues — elles ne sont pas un gain possible).
+  const aidesAPortee = [...eligibles, ...atteignables, ...potentiels];
+  const montantPaywall =
+    diagnostic?.montantPotentielTotal ??
+    aidesAPortee.reduce((sum, m) => sum + (m.aide.montantMax ?? 0), 0);
+  const nombreAidesAvecTaux = aidesAPortee.filter((m) => m.aide.tauxMax != null).length;
 
   // Onglets du projet — chaque entrée = un grand bouton lisible (icône + libellé + compteur).
   const projectTabs: { value: string; label: string; icon: IconComponent; count: number | null }[] = [
@@ -418,6 +433,15 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <div className="space-y-8">
+              {locked && (
+                <AidesPaywallBanner
+                  monumentId={monument.id}
+                  montantTotal={montantPaywall}
+                  nombreAides={aidesAPortee.length}
+                  nombreAidesAvecTaux={nombreAidesAvecTaux}
+                />
+              )}
+
               <ProjectEcheancier deadlines={deadlines} />
 
               <section className="space-y-3">
@@ -479,7 +503,7 @@ export function ProjectDetailPage() {
                     <p className="text-[13px] text-muted-foreground">Aucune aide non éligible.</p>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                      {nonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} monumentId={monument.id} />))}
+                      {nonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} monumentId={monument.id} locked={locked} />))}
                     </div>
                   )
                 )}

@@ -8,6 +8,7 @@ import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { projectPermissions } from '@/lib/project-permissions';
+import { useAidesAccess } from '@/hooks/useAidesAccess';
 import { monumentService } from '@/services/monument.service';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
@@ -50,6 +51,10 @@ export function AideProjectPage() {
   // renvoyé vers le projet.
   const canAccessAides = monument ? projectPermissions(monument.myRole ?? null).canAccessAides : true;
 
+  // Paywall : la fiche complète d'une aide est précisément ce que l'offre
+  // « Dossier » vend. Sur un projet non débloqué, l'URL directe mène aux tarifs.
+  const { locked, loading: accessLoading } = useAidesAccess(projetId);
+
   useEffect(() => {
     if (monument || !projetId || monumentFetchedRef.current) return;
     monumentFetchedRef.current = true;
@@ -61,6 +66,13 @@ export function AideProjectPage() {
       navigate(ROUTES.PROJET_DETAIL(projetId), { replace: true });
     }
   }, [monument, canAccessAides, projetId, navigate]);
+
+  useEffect(() => {
+    // On attend la réponse du serveur : rediriger sur l'état initial
+    // (verrouillé par défaut) éjecterait un abonné à chaque rechargement.
+    if (accessLoading || !locked || !projetId) return;
+    navigate(ROUTES.TARIFS(projetId), { replace: true });
+  }, [accessLoading, locked, projetId, navigate]);
 
   // Le diagnostic complet porte les critères remplis / à débloquer affichés ici.
   // On l'obtient sur place quand il manque : le dashboard ne charge plus qu'un
@@ -127,7 +139,9 @@ export function AideProjectPage() {
     );
   }
 
-  if (!aide || !monument || !canAccessAides) return <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blueLight }} /></div>;
+  // `locked` fait partie du garde : sans lui, la fiche complète s'afficherait le
+  // temps d'un rendu avant que la redirection de l'effet ne prenne effet.
+  if (!aide || !monument || !canAccessAides || locked) return <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blueLight }} /></div>;
 
   const cta = (
     <button

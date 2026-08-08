@@ -4,10 +4,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
+from config import ALLOWED_ORIGINS
 from logging_config import setup_logging
 from routers import (
     aides,
     auth,
+    billing,
     communes,
     dashboard,
     documents,
@@ -43,14 +45,8 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "https://monumia.fr",
-        "https://www.monumia.fr",
-        "https://app.monumia.fr",
-        "https://beta.monumia.fr",
-    ],
+    # Même liste que les redirections de retour de paiement (config.py).
+    allow_origins=list(ALLOWED_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -71,3 +67,4 @@ app.include_router(templates.router)
 app.include_router(invitations.router)
 app.include_router(dashboard.router)
 app.include_router(waitlist.router)
+app.include_router(billing.router)

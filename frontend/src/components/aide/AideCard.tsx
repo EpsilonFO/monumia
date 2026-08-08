@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { ChevronRight, ArrowRight } from 'lucide-react';
 import {
   IconSucces,
@@ -94,7 +94,6 @@ const CATEGORY_ICON: Record<string, typeof IconInstitution> = {
 
 export function AideCard({ match, showEligibility = true, locked = false, monumentId, layout = 'tile' }: AideCardProps) {
   const { aide, criteresRemplis, criteresNonRemplis } = match;
-  const { pathname } = useLocation();
   const navigate = useNavigate();
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
   const status = getEligibilityStatus(match);
@@ -125,7 +124,9 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
 
   const handleCardClick = () => {
     if (locked) {
-      navigate('/tarifs', { state: { from: pathname } });
+      // Le projet part dans l'URL : la page Tarifs a besoin de savoir quoi
+      // débloquer, et l'aller-retour vers Stripe efface tout state React.
+      navigate(ROUTES.TARIFS(monumentId));
     } else {
       navigate(aideDetailUrl);
     }
@@ -176,24 +177,34 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
       {locked && (
         <Badge variant="outline" className="border-warning text-warning bg-warning-muted gap-1">
           <IconVerrou className="h-2.5 w-2.5" />
-          Accès premium
+          À débloquer
         </Badge>
       )}
     </div>
   );
 
-  const title = (
-    <CardTitle className="text-base leading-tight">
-      <span className={locked ? 'blur-sm select-none pointer-events-none' : undefined}>
-        {aide.nomCourt}
-      </span>
-    </CardTitle>
+  /**
+   * Nom de l'aide, ou marque de verrou quand le projet n'est pas débloqué.
+   *
+   * Le nom n'est pas flouté mais absent : le serveur ne l'envoie pas pour un
+   * projet non payé (cf. redact_locked_aide côté backend). Un floutage CSS
+   * n'aurait rien caché — le nom aurait voyagé quand même, lisible dans les
+   * outils de développement. Le cadenas dit donc franchement ce qu'il en est,
+   * plutôt que de mimer un texte illisible.
+   */
+  const titleText = locked ? (
+    <span className="inline-flex items-baseline gap-1.5">
+      <IconVerrou className="h-[0.8em] w-[0.8em] shrink-0 self-center opacity-70" />
+      <span className="italic">{aide.nomCourt}</span>
+    </span>
+  ) : (
+    aide.nomCourt
   );
 
+  const title = <CardTitle className="text-base leading-tight">{titleText}</CardTitle>;
+
   const description = (className = '') => (
-    <p className={`text-sm text-muted-foreground line-clamp-2 ${className} ${locked ? 'blur-sm select-none pointer-events-none' : ''}`}>
-      {aide.description}
-    </p>
+    <p className={`text-sm text-muted-foreground line-clamp-2 ${className}`}>{aide.description}</p>
   );
 
   // Fenêtre fermée : le badge « Ouvre bientôt » de la rangée du haut porte déjà
@@ -297,15 +308,23 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
     valueColor: deadline ? dTone.fg : undefined,
   });
 
-  // Bouton principal clair — signal d'action fort, en bleu charte.
+  // Bouton principal clair — signal d'action fort, en bleu charte. Verrouillé,
+  // il annonce sa vraie destination : la page Tarifs, pas la fiche de l'aide.
   const detailButton = (fullWidth: boolean) => (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); handleCardClick(); }}
       className={`inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-[13.5px] font-semibold text-white transition-shadow duration-200 hover:shadow-md ${fullWidth ? 'w-full' : ''}`}
-      style={{ background: C.blue }}
+      style={{ background: locked ? C.orange : C.blue }}
     >
-      Voir l'aide
+      {locked ? (
+        <>
+          <IconVerrou className="h-3.5 w-3.5" />
+          Débloquer
+        </>
+      ) : (
+        "Voir l'aide"
+      )}
       <ArrowRight className="h-4 w-4" />
     </button>
   );
@@ -343,7 +362,7 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-[20px] leading-snug" style={{ fontFamily: SERIF, color: C.blue }}>
-                    <span className={locked ? 'blur-sm select-none pointer-events-none' : undefined}>{aide.nomCourt}</span>
+                    {titleText}
                   </h3>
                   {statusPill}
                   {bientotPill}
@@ -401,7 +420,7 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
           {/* Hauteur réservée sur 2 lignes pour que les cartes d'une même
               rangée gardent leurs sections alignées quel que soit le nom. */}
           <h3 className="line-clamp-2 min-h-[2lh] text-[17px] leading-snug" style={{ fontFamily: SERIF, color: C.blue }}>
-            <span className={locked ? 'blur-sm select-none pointer-events-none' : undefined}>{aide.nomCourt}</span>
+            {titleText}
           </h3>
 
           {description('min-h-[2lh]')}
