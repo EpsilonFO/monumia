@@ -26,26 +26,21 @@ Run :
     cd backend && uv run python scripts/veille_quotes_audit.py [slug ...] [--details=N]
 """
 
-import subprocess
 import sys
 from collections import Counter
-from functools import cache
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from aides_schema import AIDES_DIR, DATA_DIR, Aide, load_aide
+from aides_schema import AIDES_DIR, Aide, load_aide
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from veille_text import (
-    QuoteMatch,
-    find_quote_in_any,
-    flatten_markdown_links,
-    strip_front_matter,
-)
-
-SOURCES_DIR = DATA_DIR / "sources"
+# Chargement des baselines mutualisé avec l'étage A : une seule définition de
+# ce qu'est un snapshot exploitable, sinon l'audit et la veille divergeraient
+# sur le périmètre exact qu'ils mesurent.
+from veille_collect import PDF_MIN_TEXT, load_baselines
+from veille_text import QuoteMatch, find_quote_in_any
 
 # En-dessous de ce ratio de préfixe commun, une quote introuvable est réputée
 # avoir disparu de la source ; au-dessus, elle y est encore mais divergente
@@ -53,64 +48,6 @@ SOURCES_DIR = DATA_DIR / "sources"
 # cas appellent des actions opposées — supprimer la condition vs corriger la
 # citation — d'où la séparation dans le rapport.
 PREFIX_DIVERGENCE = 0.30
-
-# En-dessous de ce nombre de caractères extraits, un PDF de règlement est réputé
-# ILLISIBLE : c'est un scan (ou un export d'images) dont `pdftotext` ne tire que
-# les en-têtes. Mesuré : 7 PDF du dépôt sur 109 sont dans ce cas, dont 3 rendent
-# zéro caractère, et ils portent à eux seuls une centaine de quotes.
-#
-# Les compter comme baseline serait deux fois trompeur : leurs quotes seraient
-# imputées à la « dette » alors qu'elles n'ont jamais été vérifiables, et leurs
-# maigres en-têtes produiraient des diagnostics de préfixe qui n'ont aucun sens.
-# On les isole donc dans une catégorie propre, auditable.
-PDF_MIN_TEXT = 1000
-
-
-@cache
-def pdf_to_text(path: Path) -> str | None:
-    """Texte d'un PDF via `pdftotext`. None si l'outil ou l'extraction manque.
-
-    Mode par défaut (pas `-layout`) : l'ordre de lecture rend mieux la prose
-    continue des règlements, et l'effondrement des blancs de `normalize()` rend
-    de toute façon l'indentation physique non signifiante.
-    """
-    try:
-        out = subprocess.run(
-            ["pdftotext", str(path), "-"], capture_output=True, timeout=60, check=False
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return None
-    return out.stdout.decode("utf-8", errors="replace") if out.returncode == 0 else None
-
-
-def load_baselines(slug: str) -> tuple[list[tuple[str, str, str]], list[str]]:
-    """Documents archivés d'une aide, et la liste de ses PDF illisibles.
-
-    TOUS les snapshots du dossier sont chargés, pas seulement `source.snapshot` :
-    une aide a souvent une page d'appel à projets, un règlement PDF et un
-    formulaire, et une quote n'est justifiée que par l'un d'eux.
-    """
-    directory = SOURCES_DIR / slug
-    if not directory.is_dir():
-        return [], []
-    docs: list[tuple[str, str, str]] = []
-    illisibles: list[str] = []
-    for path in sorted(directory.iterdir()):
-        suffix = path.suffix.lower()
-        if suffix == ".md":
-            # Liens aplatis : les quotes ont été saisies depuis le rendu visuel
-            # de la page, où l'URL d'une ancre en milieu de phrase n'apparaît pas.
-            body = strip_front_matter(path.read_text(encoding="utf-8"))
-            docs.append((path.name, flatten_markdown_links(body), "text"))
-        elif suffix == ".pdf":
-            text = pdf_to_text(path)
-            if text is None:
-                illisibles.append(f"{path.name} (pdftotext indisponible ou en échec)")
-            elif len(text.strip()) < PDF_MIN_TEXT:
-                illisibles.append(f"{path.name} ({len(text.strip())} car. extraits)")
-            else:
-                docs.append((path.name, text, "pdf"))
-    return docs, illisibles
 
 
 def audit_aide(aide: Aide) -> tuple[list[tuple[str, QuoteMatch, str | None]], list[str], bool]:
