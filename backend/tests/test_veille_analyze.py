@@ -1,0 +1,366 @@
+"""Tests du triage de la veille (scripts/veille_analyze.py).
+
+Le triage décide QUI part à l'étage C (coûteux) et QUI part en ré-ingestion
+complète (encore plus coûteux, et du temps humain). Deux règles portent
+l'essentiel du risque et sont testées sous tous les angles :
+
+  - une quote ne « régresse » que si elle était retrouvée dans la baseline ET
+    que le document qui la justifiait a été re-téléchargé ;
+  - une panne réseau n'escalade jamais.
+
+Run from backend/:  uv run pytest tests/test_veille_analyze.py
+"""
+
+import sys
+import unittest
+from datetime import date
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+
+from veille_analyze import (  # noqa: E402
+    MIN_CONTENU_UTILE,
+    analyze,
+    contenu_utile,
+)
+from veille_collect import AideCollect, FetchResult, MonitoredUrl  # noqa: E402
+
+from aides_schema import Aide  # noqa: E402
+
+TODAY = date(2026, 8, 6)
+URL = "https://ex.fr/aide"
+PDF_URL = "https://ex.fr/reglement.pdf"
+
+# Assez longue pour dépasser MIN_CONTENU_UTILE : sinon tous les tests butent
+# d'abord sur la règle « page servie mais vide » et ne testent rien de ce
+# qu'ils annoncent. C'est arrivé, d'où ce commentaire.
+BASELINE = """# Aide à la restauration du patrimoine rural
+
+## Bénéficiaires
+
+Les propriétaires privés et les collectivités territoriales peuvent déposer un
+dossier, dès lors que l'édifice est situé sur le territoire régional et qu'il
+présente un intérêt patrimonial reconnu par le service de l'inventaire.
+
+## Conditions d'éligibilité
+
+Les édifices doivent être antérieurs à 1800.
+Les travaux portent sur le gros œuvre : charpente, couverture, maçonnerie.
+Un architecte du patrimoine est requis pour les édifices classés.
+L'édifice doit être visible depuis l'espace public ou ouvert à la visite au
+moins quarante jours par an, dont les journées européennes du patrimoine.
+
+## Montant et modalités
+
+La subvention est de 5 000 € en moyenne.
+Le taux d'intervention est plafonné à 30 % du montant des travaux hors taxes.
+Le dépôt se fait en ligne avant le 31 octobre.
+Le versement intervient sur présentation des factures acquittées, après visite
+de conformité du service instructeur.
+"""
+
+
+# Règlement de remplacement, de volume comparable à BASELINE : distingue une
+# refonte éditoriale d'un simple défaut de collecte.
+REGLEMENT_REMPLACE = """# Dispositif de soutien aux équipements sportifs
+
+## Porteurs éligibles
+
+Le dispositif est réservé aux collectivités territoriales et à leurs
+groupements. Les associations et les propriétaires privés en sont exclus.
+
+## Nature des opérations
+
+Les opérations retenues portent sur la construction, l'extension ou la
+rénovation thermique d'équipements sportifs couverts.
+Le taux d'intervention est fixé à 30 % du montant hors taxes.
+Les travaux d'entretien courant ne sont pas pris en charge.
+Une visite préalable est organisée par le service des sports avant instruction.
+
+## Dépôt
+
+Le dossier est déposé sur le portail régional, au fil de l'eau.
+La commission se réunit trois fois par an pour examiner les demandes reçues.
+"""
+
+
+def make_aide(**kwargs) -> Aide:
+    base = {
+        "slug": "mon-aide",
+        "nom": "Aide test",
+        "organisme": "Organisme test",
+        "categorie": "region",
+        "type": "subvention",
+        "description": "Une aide de test.",
+        "source": {"url_officielle": URL},
+    }
+    return Aide.model_validate({**base, **kwargs})
+
+
+def condition(cond_id: str, quote: str) -> dict:
+    return {"id": cond_id, "text": f"Condition {cond_id}", "kind": "info", "quote": quote}
+
+
+def make_collect(
+    aide: Aide,
+    *,
+    fresh: str | None = BASELINE,
+    baseline: str | None = BASELINE,
+    baseline_sha: str | None = "sha-baseline",
+    fresh_sha: str = "sha-fraiche",
+    status: int | None = 200,
+    error: str | None = None,
+    baseline_docs: list | None = None,
+    extra_urls: list[MonitoredUrl] | None = None,
+) -> AideCollect:
+    murl = MonitoredUrl(
+        url=URL,
+        role="officielle",
+        baseline_path=Path("2026-07-01-page.md"),
+        baseline_sha=baseline_sha,
+        baseline_body=baseline,
+    )
+    result = FetchResult(
+        url=URL,
+        status=status,
+        error=error,
+        raw_text=fresh,
+        body_md=fresh,
+        sha256=fresh_sha if fresh is not None else None,
+    )
+    urls = [murl, *(extra_urls or [])]
+    return AideCollect(
+        slug=aide.slug,
+        urls=urls,
+        fetched={URL: result},
+        baseline_docs=(
+            baseline_docs
+            if baseline_docs is not None
+            else ([("2026-07-01-page.md", baseline, "text")] if baseline else [])
+        ),
+    )
+
+
+class TestPagesInchangees(unittest.TestCase):
+    def test_sha_identique_court_circuite_le_diff(self):
+        aide = make_aide()
+        col = make_collect(aide, baseline_sha="meme-sha", fresh_sha="meme-sha")
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.statut, "OK")
+        self.assertTrue(an.urls[0].sha_identique)
+        # Le diff n'est même pas calculé : c'est tout l'intérêt du chemin rapide.
+        self.assertIsNone(an.urls[0].diff)
+
+    def test_bruit_typographique_seul_reste_OK(self):
+        # Le sha change (les CMS glissent un jeton à chaque requête) mais le
+        # fond est identique : c'est le cas le plus fréquent du parc.
+        aide = make_aide()
+        cosmetique = BASELINE.replace("antérieurs à 1800", "antérieurs à 1800").replace(
+            "5 000 €", "5 000 €"
+        )
+        an = analyze(aide, make_collect(aide, fresh=cosmetique), today=TODAY)
+        self.assertEqual(an.statut, "OK")
+
+
+class TestChangementsCirconscrits(unittest.TestCase):
+    def test_montant_modifie_declenche_la_mise_a_jour(self):
+        aide = make_aide()
+        modifie = BASELINE.replace("5 000 €", "8 000 €")
+        an = analyze(aide, make_collect(aide, fresh=modifie), today=TODAY)
+        self.assertEqual(an.statut, "MAJ_LLM")
+        self.assertTrue(any("a changé" in r for r in an.raisons))
+
+    def test_refonte_complete_escalade(self):
+        # Page entièrement réécrite, de volume comparable : ce n'est pas un
+        # défaut de collecte, c'est un règlement remplacé.
+        aide = make_aide()
+        refonte = REGLEMENT_REMPLACE
+        an = analyze(aide, make_collect(aide, fresh=refonte), today=TODAY)
+        self.assertEqual(an.statut, "ESCALADE_INGESTION")
+        self.assertTrue(any("refonte" in r for r in an.raisons))
+
+
+class TestQuotes(unittest.TestCase):
+    """Garde-fous du signal « citation disparue »."""
+
+    def test_regression_declenche_la_mise_a_jour(self):
+        aide = make_aide(
+            conditions=[condition("architecte", "Un architecte du patrimoine est requis")]
+        )
+        # La phrase disparaît de la source, le reste ne bouge pas.
+        fresh = BASELINE.replace(
+            "Un architecte du patrimoine est requis pour les édifices classés.\n", ""
+        )
+        an = analyze(aide, make_collect(aide, fresh=fresh), today=TODAY)
+        self.assertEqual(an.statut, "MAJ_LLM")
+        self.assertEqual([q.cond_id for q in an.regressions], ["architecte"])
+
+    def test_dette_preexistante_ne_declenche_rien(self):
+        # La quote n'était DÉJÀ pas dans la baseline : c'est de la dette
+        # d'ingestion, pas un changement de source. Sans ce garde-fou, 56 aides
+        # partiraient au modèle dès le premier passage.
+        aide = make_aide(
+            conditions=[condition("jamais-vue", "Une phrase absente de partout depuis toujours")]
+        )
+        an = analyze(aide, make_collect(aide), today=TODAY)
+        self.assertEqual(an.statut, "OK")
+        self.assertEqual(an.regressions, [])
+        self.assertEqual([q.cond_id for q in an.dette_quotes], ["jamais-vue"])
+
+    def test_quote_justifiee_par_un_pdf_non_retelecharge_ne_declenche_rien(self):
+        # 802 quotes du dépôt sont justifiées par un PDF souvent sans URL
+        # connue : leur absence du HTML frais ne prouve rien.
+        aide = make_aide(conditions=[condition("du-pdf", "Le plafond réglementaire est de 40 %")])
+        col = make_collect(
+            aide,
+            baseline_docs=[
+                ("2026-07-01-page.md", BASELINE, "text"),
+                ("2026-07-01-reglement.pdf", "Le plafond réglementaire est de 40 %.", "pdf"),
+            ],
+        )
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.statut, "OK")
+        self.assertEqual(an.regressions, [])
+        self.assertEqual([q.cond_id for q in an.non_recontrolables], ["du-pdf"])
+
+    def test_regressions_massives_escaladent(self):
+        aide = make_aide(
+            conditions=[
+                condition("c1", "Les édifices doivent être antérieurs à 1800"),
+                condition("c2", "La subvention est de 5 000 € en moyenne"),
+                condition("c3", "Le dépôt se fait en ligne avant le 31 octobre"),
+                condition("c4", "Les travaux portent sur le gros œuvre"),
+            ]
+        )
+        # Le règlement est remplacé par un autre de volume comparable : toutes
+        # les citations tombent.
+        an = analyze(aide, make_collect(aide, fresh=REGLEMENT_REMPLACE), today=TODAY)
+        self.assertEqual(an.statut, "ESCALADE_INGESTION")
+        self.assertTrue(any("citations recontrôlables" in r or "refonte" in r for r in an.raisons))
+
+    def test_quotes_ignorees_si_rien_n_a_pu_etre_telecharge(self):
+        # Sans contenu frais, conclure « la citation a disparu » serait faux.
+        aide = make_aide(
+            conditions=[condition("c1", "Les édifices doivent être antérieurs à 1800")]
+        )
+        col = make_collect(aide, fresh=None, status=None, error="ConnectTimeout")
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.quotes, [])
+
+
+class TestErreursReseau(unittest.TestCase):
+    def test_page_morte_escalade(self):
+        aide = make_aide()
+        an = analyze(aide, make_collect(aide, fresh=None, status=404), today=TODAY)
+        self.assertEqual(an.statut, "ESCALADE_INGESTION")
+        self.assertIn("morte", an.raisons[0])
+
+    def test_timeout_est_reessayable_jamais_escalade(self):
+        aide = make_aide()
+        col = make_collect(aide, fresh=None, status=None, error="ConnectTimeout: délai dépassé")
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.statut, "ERREUR_HTTP")
+
+    def test_403_anti_bot_est_reessayable(self):
+        aide = make_aide()
+        an = analyze(aide, make_collect(aide, fresh=None, status=403), today=TODAY)
+        self.assertEqual(an.statut, "ERREUR_HTTP")
+
+    def test_500_est_reessayable(self):
+        aide = make_aide()
+        an = analyze(aide, make_collect(aide, fresh=None, status=503), today=TODAY)
+        self.assertEqual(an.statut, "ERREUR_HTTP")
+
+    def test_panne_generalisee_signalee_dans_la_raison(self):
+        aide = make_aide()
+        col = make_collect(aide, fresh=None, status=None, error="ConnectError")
+        an = analyze(aide, col, today=TODAY, panne_generalisee=True)
+        self.assertEqual(an.statut, "ERREUR_HTTP")
+        self.assertIn("panne réseau généralisée", an.raisons[0])
+
+    def test_page_servie_mais_vide_est_un_echec_de_collecte(self):
+        # Mesuré sur neuf aides Auvergne-Rhône-Alpes : 200 OK, 980 octets de
+        # coquille HTML, zéro caractère utile. La baseline prouve que la page
+        # AVAIT du contenu : ce n'est donc pas le financeur qui l'a vidée, c'est
+        # un rendu JavaScript ou un pare-feu. Ré-ingérer se heurterait au même
+        # mur — d'où un statut réessayable, et surtout pas une escalade.
+        aide = make_aide()
+        an = analyze(aide, make_collect(aide, fresh="# Accès refusé\n"), today=TODAY)
+        self.assertEqual(an.statut, "ERREUR_HTTP")
+        self.assertTrue(any("--proxy jina" in r for r in an.raisons))
+
+    def test_page_vraiment_videe_sans_baseline_escalade(self):
+        # Sans baseline, rien ne dit que la page a jamais eu du contenu :
+        # l'escalade reste le bon réflexe.
+        aide = make_aide()
+        col = make_collect(aide, fresh="# Accès refusé\n", baseline=None, baseline_sha="sha-b")
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.statut, "ESCALADE_INGESTION")
+        self.assertTrue(any("contenu utile" in r for r in an.raisons))
+
+
+class TestSansBaseline(unittest.TestCase):
+    def test_aucun_snapshot(self):
+        aide = make_aide()
+        col = make_collect(aide, baseline=None, baseline_sha=None)
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.statut, "SANS_BASELINE")
+
+    def test_aucune_url_surveillable(self):
+        aide = make_aide(source={})
+        an = analyze(aide, AideCollect(slug=aide.slug), today=TODAY)
+        self.assertEqual(an.statut, "SANS_BASELINE")
+        self.assertIn("aucune URL surveillable", an.raisons[0])
+
+
+class TestDatesPerimees(unittest.TestCase):
+    def test_source_inchangee_demande_un_arbitrage_humain(self):
+        aide = make_aide(calendrier={"permanent": False, "date_limite": "2025-10-31"})
+        col = make_collect(aide, baseline_sha="meme-sha", fresh_sha="meme-sha")
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.statut, "DATE_PERIMEE_SOURCE_INCHANGEE")
+        self.assertEqual(an.date_limite_perimee, date(2025, 10, 31))
+
+    def test_page_modifiee_prime_sur_la_date(self):
+        # Si la page a bougé, la nouvelle échéance y est peut-être : c'est un
+        # cas pour l'étage C, pas pour l'arbitrage humain.
+        aide = make_aide(calendrier={"permanent": False, "date_limite": "2025-10-31"})
+        fresh = BASELINE.replace("31 octobre", "30 novembre")
+        an = analyze(aide, make_collect(aide, fresh=fresh), today=TODAY)
+        self.assertEqual(an.statut, "MAJ_LLM")
+        self.assertTrue(any("date limite dépassée" in r and "modifiée" in r for r in an.raisons))
+
+    def test_date_future_ne_declenche_rien(self):
+        aide = make_aide(calendrier={"permanent": False, "date_limite": "2027-01-31"})
+        col = make_collect(aide, baseline_sha="meme-sha", fresh_sha="meme-sha")
+        self.assertEqual(analyze(aide, col, today=TODAY).statut, "OK")
+
+
+class TestContenuUtile(unittest.TestCase):
+    def test_chrome_de_page_ne_compte_pas(self):
+        menu = "\n".join("  * [Nos rubriques](https://ex.fr/rubriques)" for _ in range(80))
+        self.assertLess(contenu_utile(menu), MIN_CONTENU_UTILE)
+
+    def test_prose_compte(self):
+        self.assertGreater(contenu_utile(BASELINE * 3), MIN_CONTENU_UTILE)
+
+
+class TestFormulaireUrl(unittest.TestCase):
+    def test_formulaire_mort_ne_declenche_pas_d_escalade(self):
+        # `formulaire_url` n'est qu'un contrôle de vivacité : son contenu n'est
+        # ni diffé ni cité, et sa mort ne justifie pas une ré-ingestion.
+        aide = make_aide(source={"url_officielle": URL, "formulaire_url": "https://ex.fr/form"})
+        col = make_collect(
+            aide,
+            baseline_sha="meme-sha",
+            fresh_sha="meme-sha",
+            extra_urls=[MonitoredUrl(url="https://ex.fr/form", role="formulaire")],
+        )
+        col.fetched["https://ex.fr/form"] = FetchResult(url="https://ex.fr/form", status=404)
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.statut, "OK")
+
+
+if __name__ == "__main__":
+    unittest.main()

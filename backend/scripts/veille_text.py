@@ -177,6 +177,51 @@ def normalize(s: str) -> str:
     return normalize_with_offsets(s)[0]
 
 
+# Cible d'un lien markdown, et jeton opaque à l'intérieur : longue suite
+# alphanumérique mêlant lettres ET chiffres.
+_LINK_TARGET_RE = re.compile(r"\]\(([^)]*)\)")
+_OPAQUE_TOKEN_RE = re.compile(
+    r"(?=[A-Za-z0-9_%-]*[0-9])(?=[A-Za-z0-9_%-]*[A-Za-z])[A-Za-z0-9_%-]{20,}"
+)
+
+
+def mask_url_tokens(line: str) -> str:
+    """Neutralise les jetons volatils à l'intérieur des cibles de liens.
+
+    Deux mécanismes très répandus réencodent leurs URL À CHAQUE REQUÊTE, ce qui
+    ferait clignoter les pages concernées indéfiniment :
+      - l'anti-spam de Cloudflare (`/cdn-cgi/l/email-protection#<hex>`), qui
+        chiffre les adresses courriel avec une clé tirée au hasard ;
+      - les URL signées de Rails ActiveStorage, qui embarquent une expiration.
+
+    Mesuré au premier passage réel : 15 aides sur 37 candidates à la mise à jour
+    ne différaient QUE par ces jetons.
+
+    Le masquage est délibérément confiné aux cibles de liens. Une suite opaque
+    dans la prose peut être un numéro de dossier ou une référence de délibération
+    — la masquer cacherait un vrai changement.
+    """
+    return _LINK_TARGET_RE.sub(
+        lambda m: "](" + _OPAQUE_TOKEN_RE.sub("<jeton>", m.group(1)) + ")", line
+    )
+
+
+def normalize_line(raw: str) -> str:
+    """Forme canonique d'UNE ligne pour le diff : normalisation + masquage.
+
+    Toute comparaison de lignes doit passer par ici. `veille_analyze` indexe le
+    chrome de site sur cette forme et `normalized_diff` filtre sur elle : deux
+    recettes légèrement différentes ne se rencontreraient jamais, et le filtre
+    de chrome deviendrait silencieusement inopérant sur toutes les lignes
+    contenant un jeton d'URL — ce qui est arrivé, et a laissé passer les
+    changements de navigation d'un portail régional entier.
+
+    Les jetons d'URL sont masqués ICI et non dans `normalize()` : le matching de
+    quotes, calibré à 94 % de réussite, ne doit pas bouger d'un pouce.
+    """
+    return normalize(mask_url_tokens(raw))
+
+
 def normalize_lines(text: str) -> list[tuple[str, str]]:
     """Découpe en lignes et retourne les paires (normalisée, brute) non vides.
 
@@ -187,8 +232,7 @@ def normalize_lines(text: str) -> list[tuple[str, str]]:
     """
     pairs = []
     for raw in text.splitlines():
-        norm = normalize(raw)
-        if norm:
+        if norm := normalize_line(raw):
             pairs.append((norm, raw.strip()))
     return pairs
 
@@ -560,13 +604,22 @@ class NormalizedDiff:
         return self.changed == 0
 
 
-def normalized_diff(old: str, new: str, *, max_lines: int = 400) -> NormalizedDiff:
+def normalized_diff(
+    old: str, new: str, *, max_lines: int = 400, extra_noise: frozenset[str] = frozenset()
+) -> NormalizedDiff:
     """Diff de fond entre deux documents, insensible au bruit.
 
     Deux couches de désensibilisation, indispensables sur 142 aides : la
     normalisation (un CMS qui change ses apostrophes ferait sinon clignoter
     toutes les pages) et le filtre de bruit (menus, bandeaux cookies, liens de
     partage — présents sur chaque page et régénérés à chaque requête).
+
+    `extra_noise` : formes normalisées de lignes à écarter en plus du filtre de
+    bruit intégré. C'est par là que l'analyse injecte le chrome détecté
+    STRUCTURELLEMENT — une ligne qui change à l'identique sur plusieurs pages
+    distinctes appartient au gabarit du site, pas au règlement (voir
+    `veille_analyze.lignes_de_chrome`). Aucune liste de motifs ne rattrape les
+    carrousels, crédits photo et bandeaux RGPD des portails régionaux.
 
     `max_lines` borne le texte du diff seul, pas le calcul : le ratio reste
     juste même quand l'affichage est tronqué, sinon un plafond d'affichage
@@ -576,7 +629,7 @@ def normalized_diff(old: str, new: str, *, max_lines: int = 400) -> NormalizedDi
     keep: list[list[tuple[str, str]]] = [[], []]
     for slot, text in ((0, old), (1, new)):
         for norm, raw in normalize_lines(text):
-            if is_noise_line(raw):
+            if norm in extra_noise or is_noise_line(raw):
                 noise += 1
             else:
                 keep[slot].append((norm, raw))
