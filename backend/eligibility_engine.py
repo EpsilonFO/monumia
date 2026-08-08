@@ -26,7 +26,15 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Literal
 
-from aides_schema import Aide, AppliesIf, Condition, FactDef, evaluate_predicate
+from aides_schema import (
+    ENUM_FACT_TYPES,
+    Aide,
+    AppliesIf,
+    Condition,
+    FactDef,
+    MultiValue,
+    evaluate_predicate,
+)
 from labels import (
     DEPARTEMENT_LABELS,
     ETAT_LABELS,
@@ -149,7 +157,8 @@ def _tranche_repr(option_id: str):
 def _normalize_answer(fact: FactDef | None, raw):
     """Convertit une réponse du QCM (id d'option) vers la valeur typée attendue
     par les prédicats : oui/non → bool, tranche numérique → représentant, enum →
-    id (déjà la valeur), `skip`/option `unknown` → None (fait non renseigné).
+    id (déjà la valeur), multi_enum → MultiValue des ids cochés, `skip`/option
+    `unknown` → None (fait non renseigné).
 
     Sans cette normalisation, passer l'id brut « non » à un prédicat `eq: false`
     donnerait `"non" == False` → False, marquant l'aide non éligible à tort.
@@ -166,6 +175,14 @@ def _normalize_answer(fact: FactDef | None, raw):
         if raw == "non":
             return False
         return None
+    if fact.type == "multi_enum":
+        # Le front envoie une liste d'ids ; une réponse d'avant le passage en
+        # choix multiple (chaîne unique, déjà persistée dans
+        # `monuments.questionnaire`) reste lisible telle quelle.
+        raws = raw if isinstance(raw, (list, tuple)) else [raw]
+        unknown_ids = {o.id for o in fact.options or [] if o.unknown}
+        kept = [v for v in raws if isinstance(v, str) and v != "skip" and v not in unknown_ids]
+        return MultiValue(kept) if kept else None
     if fact.type == "enum":
         for opt in fact.options or []:
             if opt.id == raw and opt.unknown:
@@ -687,7 +704,7 @@ def _options_for_fact(fact: FactDef, gate_conds: list[Condition]) -> list[dict]:
             {"id": "oui", "label": "Oui", "value": True},
             {"id": "non", "label": "Non", "value": False},
         ]
-    if fact.type == "enum":
+    if fact.type in ENUM_FACT_TYPES:
         return [
             {"id": o.id, "label": o.label, "value": o.id, "unknown": o.unknown}
             for o in fact.options or []
@@ -757,6 +774,12 @@ def build_questions(
     eliminationsParOption[option] = aides dont un gate sur ce fait devient
     IMPOSSIBLE si l'utilisateur choisit cette option — calculé en évaluant le
     prédicat à la valeur de l'option. Exact, pas de réparation de monotonie.
+
+    Sur une question à choix multiple (`multiple: true`), chaque entrée vaut
+    « si c'était la seule case cochée » : cocher une case de plus ne peut que
+    LIBÉRER des aides (sémantique existentielle, cf. MultiValue), d'où
+    l'intersection côté front. Le verdict qui compte reste celui du moteur,
+    réévalué avec les réponses complètes.
     """
     # fact_key → {aide_slug → [conditions gate sur ce fait]}
     by_fact: dict[str, dict[str, list[Condition]]] = {}
@@ -814,12 +837,24 @@ def build_questions(
                 elim[opt["id"]] = sorted(eliminated)
 
         slugs = aide_slugs(fact_key)
+        multiple = fact.type == "multi_enum"
+        # `unknown` est remonté au front : ces options portent un « ? » plutôt
+        # qu'une pastille lettrée, ne comptent pour aucune élimination, et sont
+        # exclusives des autres en choix multiple.
+        shown_options = [
+            {"id": o["id"], "label": o["label"], **({"unknown": True} if o.get("unknown") else {})}
+            for o in options
+        ]
+        # Le pseudo-choix « passer » n'a pas de sens en choix multiple : ne rien
+        # cocher passe déjà la question.
+        if not multiple:
+            shown_options.append({"id": "skip", "label": "Passer cette question"})
         question = {
             "id": fact_key,
             "question": fact.question,
             "help": fact.help,
-            "options": [{"id": o["id"], "label": o["label"]} for o in options]
-            + [{"id": "skip", "label": "Je ne sais pas"}],
+            "multiple": multiple,
+            "options": shown_options,
             "aideIds": slugs,
             # Enjeu de la question : le total des montants max en jeu derrière
             # elle. 0 quand aucune des aides n'est chiffrée — le front n'affiche

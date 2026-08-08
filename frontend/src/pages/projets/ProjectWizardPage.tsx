@@ -423,7 +423,7 @@ export function ProjectWizardPage() {
               </h1>
               <p className="max-w-lg text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
                 Vos réponses affinent la liste des aides. Répondez librement&nbsp;—
-                «&nbsp;Je ne sais pas&nbsp;» est une réponse tout à fait valable.
+                passer une question est tout à fait valable.
               </p>
             </div>
           )}

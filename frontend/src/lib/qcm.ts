@@ -9,25 +9,44 @@ export function sanitizeQcmQuestions(questions: QcmQuestion[] | undefined): QcmQ
   );
 }
 
+/** Ids « je ne sais pas » d'une question : ils ne portent aucune élimination. */
+function isSkipId(q: QcmQuestion, id: string): boolean {
+  return id === 'skip' || (q.options.find((o) => o.id === id)?.unknown ?? false);
+}
+
 /** Compute eliminated aide IDs purely from answers + questions (no API call needed).
  *  Supports both fine-grained (eliminationsParOption) and coarse (eliminatingOptionIds) formats.
+ *
+ *  Question à choix multiple : la réponse est un tableau d'ids et une aide n'est
+ *  écartée que si CHAQUE case cochée l'écarte — cocher une case de plus ne peut
+ *  que libérer des aides (sémantique existentielle du moteur, cf. MultiValue).
  */
 export function computeEliminatedAideIds(
-  answers: Record<string, string>,
+  answers: Record<string, string | string[]>,
   questions: QcmQuestion[],
 ): string[] {
   const eliminated = new Set<string>();
   for (const q of questions) {
-    const selected = answers[q.id];
-    if (!selected || selected === 'skip') continue;
-    // Fine-grained: per-option elimination map
-    const perOption = q.eliminationsParOption?.[selected];
-    if (perOption && perOption.length > 0) {
-      for (const aideId of perOption) eliminated.add(aideId);
+    const answer = answers[q.id];
+    const selected = (Array.isArray(answer) ? answer : [answer]).filter(
+      (id): id is string => !!id && !isSkipId(q, id),
+    );
+    if (selected.length === 0) continue;
+
+    // Fine-grained: per-option elimination map, intersected across the selection.
+    let common: string[] | null = null;
+    for (const id of selected) {
+      const perOption = q.eliminationsParOption?.[id] ?? [];
+      common = common === null ? perOption : common.filter((a) => perOption.includes(a));
+      if (common.length === 0) break;
+    }
+    if (common && common.length > 0) {
+      for (const aideId of common) eliminated.add(aideId);
       continue;
     }
-    // Coarse: if selected option is in eliminatingOptionIds, eliminate all aides of the question
-    if ((q.eliminatingOptionIds ?? []).includes(selected)) {
+    // Coarse: eliminate all aides of the question when EVERY selected option does
+    const coarse = q.eliminatingOptionIds ?? [];
+    if (coarse.length > 0 && selected.every((id) => coarse.includes(id))) {
       for (const aideId of q.aideIds ?? []) eliminated.add(aideId);
     }
   }

@@ -10,9 +10,11 @@ Exemples :
     uv run python scripts/try_diagnostic.py --region ile-de-france \\
         --proprietaire public_commune --protection inscrit \\
         --travaux toiture,facade --population 4000
-    # avec des réponses déjà connues (lève des incertitudes) :
+    # avec des réponses déjà connues (lève des incertitudes) ; un fait à choix
+    # multiple prend ses options séparées par des virgules :
     uv run python scripts/try_diagnostic.py --region ile-de-france \\
-        --answer travaux_commences=false --answer usage_batiment=activite_culturelle
+        --answer travaux_commences=false \\
+        --answer usage_batiment=habitation,activite_culturelle
 """
 
 import argparse
@@ -28,11 +30,12 @@ from eligibility_engine import engine_ready_aides, run_deterministic_diagnostic
 def _parse_answer(raw: str):
     """k=v → (k, v) en coerçant true/false/entier.
 
-    Les clés réservées (`_raisons`) attendent une liste : « a,b » → ["a", "b"].
+    Les clés réservées (`_raisons`) et les faits `multi_enum` attendent une
+    liste : « a,b » → ["a", "b"].
     """
     key, _, val = raw.partition("=")
     key = key.strip()
-    if key.startswith("_"):
+    if key.startswith("_") or "," in val:
         return key, [v.strip() for v in val.split(",") if v.strip()]
     low = val.strip().lower()
     if low in ("true", "vrai", "oui"):

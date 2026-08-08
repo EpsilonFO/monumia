@@ -7,7 +7,7 @@ import { IconInfo, IconSubvention } from '@/components/icons';
 import { formatCurrency } from '@/lib/format-utils';
 import { C, SERIF } from '@/lib/brand';
 import { cn } from '@/lib/utils';
-import type { ProjectQuestionnaireAnswers, QcmQuestion } from '@/types';
+import type { ProjectQuestionnaireAnswers, QcmOption, QcmQuestion } from '@/types';
 
 interface ProjectQuestionnaireProps {
   /** Questions générées par le moteur d'aides (faits manquants du diagnostic). */
@@ -72,18 +72,32 @@ function QuestionHelp({ text }: { text: string }) {
 }
 
 /**
+ * Réponse à une question, toujours vue comme une liste d'ids : une seule case
+ * pour une question simple, plusieurs pour une question à choix multiple.
+ */
+function selectedIds(question: QcmQuestion, answers: ProjectQuestionnaireAnswers): string[] {
+  const answer = answers[question.id];
+  if (Array.isArray(answer)) return answer;
+  return typeof answer === 'string' ? [answer] : [];
+}
+
+/**
  * Une question conditionnelle n'est posée que si la réponse à la question dont
  * elle dépend la rend pertinente. Fail-closed : tant que cette question n'est
  * pas répondue (ou qu'elle est passée), on pose quand même — mieux vaut une
  * question de trop qu'une aide écartée sans que l'utilisateur l'ait su.
  * Le moteur garantit que la question porteuse est posée AVANT ses dépendantes.
+ * Sur une question porteuse à choix multiple, une seule case pertinente suffit.
  */
 function isVisible(question: QcmQuestion, answers: ProjectQuestionnaireAnswers): boolean {
   const dep = question.dependsOn;
   if (!dep) return true;
   const answer = answers[dep.questionId];
-  if (typeof answer !== 'string' || answer === 'skip') return true;
-  return dep.showForOptionIds.includes(answer);
+  const given = (Array.isArray(answer) ? answer : [answer]).filter(
+    (id): id is string => typeof id === 'string' && id !== 'skip',
+  );
+  if (given.length === 0) return true;
+  return given.some((id) => dep.showForOptionIds.includes(id));
 }
 
 function prefersReducedMotion(): boolean {
@@ -98,8 +112,9 @@ function prefersReducedMotion(): boolean {
  * Questionnaire du moteur d'aides, posé **une question à la fois** (style Doctolib).
  * On clique une réponse → elle se coche → la question suivante glisse automatiquement.
  * La dernière mène à un écran de fin avec le bouton final (jamais de lancement par accident).
- * Données inchangées : `value` reste un Record id→option ; une question non répondue
- * (« Je ne sais pas ») est gérée par le moteur.
+ * `value` mappe id de question → id d'option, ou → liste d'ids sur une question à
+ * choix multiple (`multiple`), qui attend alors un « Continuer » explicite. Une
+ * question passée n'a simplement pas de clé : le moteur la traite comme inconnue.
  */
 export function ProjectQuestionnaire({
   questions: allQuestions,
@@ -146,7 +161,7 @@ export function ProjectQuestionnaire({
     }
     const current = questions[index];
     if (!current) return;
-    const targetId = value[current.id] ?? current.options[0]?.id;
+    const targetId = selectedIds(current, value)[0] ?? current.options[0]?.id;
     if (targetId) optionRefs.current[`${current.id}:${targetId}`]?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, onFinish]);
@@ -178,7 +193,39 @@ export function ProjectQuestionnaire({
     advanceTimer.current = setTimeout(goNext, prefersReducedMotion() ? 180 : ADVANCE_MS);
   };
 
-  /** « Je ne sais pas » : on efface l'éventuelle réponse et on avance (le moteur gère). */
+  /**
+   * Choix multiple : coche/décoche, sans jamais avancer tout seul (c'est
+   * « Continuer » qui le fait). Les réponses « je ne sais pas » sont exclusives
+   * des autres — cocher « pas encore décidé » ET « association » n'aurait aucun
+   * sens. Sélection vide ⇒ on efface la clé : la question est passée.
+   */
+  const toggle = (option: QcmOption) => {
+    if (!q) return;
+    const current = selectedIds(q, value);
+    const optionOf = (id: string) => q.options.find((o) => o.id === id);
+    let next: string[];
+    if (current.includes(option.id)) {
+      next = current.filter((id) => id !== option.id);
+    } else if (isUnknownAnswer(option)) {
+      next = [option.id];
+    } else {
+      const kept = current.filter((id) => {
+        const o = optionOf(id);
+        return o ? !isUnknownAnswer(o) : true;
+      });
+      next = [...kept, option.id];
+    }
+    // Ordre du moteur : la réponse persistée ne dépend pas de l'ordre des clics.
+    const rank = (id: string) => q.options.findIndex((o) => o.id === id);
+    next.sort((a, b) => rank(a) - rank(b));
+
+    const answers = { ...value };
+    if (next.length === 0) delete answers[q.id];
+    else answers[q.id] = next;
+    onChange(answers);
+  };
+
+  /** « Passer cette question » : on efface l'éventuelle réponse et on avance (le moteur gère). */
   const skip = () => {
     if (!q) return;
     if (value[q.id] !== undefined) {
@@ -260,9 +307,13 @@ export function ProjectQuestionnaire({
   // ─── Une question à la fois ───
   // La barre reflète la position courante (jamais 0 % sur la 1re question).
   const pct = Math.round(((index + 1) / total) * 100);
-  // Le moteur fournit souvent une option « Je ne sais pas » native : on évite
+  // Le moteur fournit souvent une option « je ne sais pas » native : on évite
   // alors de la dupliquer en bas.
   const showSkipCard = !q!.options.some(isUnknownAnswer);
+  // Choix multiple : pas d'auto-avance possible (l'utilisateur n'a pas fini de
+  // cocher), donc un bouton « Continuer » explicite dans la barre du bas.
+  const multiple = !!q!.multiple;
+  const chosen = selectedIds(q!, value);
 
   // L'enjeu vit sur la ligne de progression, pas entre la question et ses
   // réponses : il motive sans s'intercaler dans la lecture.
@@ -310,7 +361,7 @@ export function ProjectQuestionnaire({
 
       {/* Question (glisse à chaque changement) */}
       <div key={q!.id} className={cn(slideClass, 'pb-1')}>
-        <fieldset role="radiogroup" className="space-y-4">
+        <fieldset role={multiple ? 'group' : 'radiogroup'} className="space-y-4">
           {/* La légende ne porte QUE la question : c'est elle qui nomme le
               groupe de boutons radio pour les lecteurs d'écran. La note
               explicative vit à côté, où elle peut être repliée. */}
@@ -321,6 +372,16 @@ export function ProjectQuestionnaire({
             >
               {q!.question}
             </span>
+            {/* La consigne doit être lue AVANT de cliquer : la forme carrée des
+                cases ne suffit pas à dire qu'on peut en cocher plusieurs. */}
+            {multiple && (
+              <span
+                className="mt-1.5 block text-[13px] font-semibold"
+                style={{ color: C.orange }}
+              >
+                Plusieurs réponses possibles
+              </span>
+            )}
           </legend>
 
           {q!.help && <QuestionHelp text={q!.help} />}
@@ -332,9 +393,9 @@ export function ProjectQuestionnaire({
             )}
           >
             {q!.options.map((option, optionIndex) => {
-              const selected = value[q!.id] === option.id;
+              const selected = chosen.includes(option.id);
               const refKey = `${q!.id}:${option.id}`;
-              const roving = selected || (value[q!.id] === undefined && optionIndex === 0);
+              const roving = selected || (chosen.length === 0 && optionIndex === 0);
               return (
                 <AnswerCard
                   key={option.id}
@@ -342,7 +403,8 @@ export function ProjectQuestionnaire({
                   optionIndex={optionIndex}
                   selected={selected}
                   roving={roving}
-                  onSelect={() => commit(option.id)}
+                  multiple={multiple}
+                  onSelect={() => (multiple ? toggle(option) : commit(option.id))}
                   onKeyDown={(e) => onOptionKeyDown(e, optionIndex)}
                   buttonRef={(el) => {
                     optionRefs.current[refKey] = el;
@@ -352,14 +414,18 @@ export function ProjectQuestionnaire({
             })}
           </div>
 
-          {showSkipCard && (
+          {/* En choix multiple, « passer » effacerait des cases cochées : on ne
+              le propose plus dès qu'il y en a (« Continuer » prend le relais).
+              En choix simple il reste offert, y compris sur une question déjà
+              répondue où l'on revient — c'est le seul moyen de se dédire. */}
+          {showSkipCard && (!multiple || chosen.length === 0) && (
             <button
               type="button"
               onClick={skip}
               className="w-full rounded-2xl border border-dashed px-5 py-3 text-[14px] font-medium transition-colors hover:border-warning hover:bg-warning-muted"
               style={{ borderColor: C.border, color: C.grayFg }}
             >
-              Je ne sais pas — passer cette question
+              Passer cette question
             </button>
           )}
         </fieldset>
@@ -380,9 +446,21 @@ export function ProjectQuestionnaire({
           <ArrowLeft className="h-4 w-4" />
           Précédent
         </button>
-        <span className="hidden text-[12px] sm:block" style={{ color: C.grayMuted }}>
-          Vous pourrez refaire ce questionnaire plus tard
-        </span>
+        {multiple ? (
+          <button
+            type="button"
+            onClick={goNext}
+            className="group inline-flex min-h-11 items-center gap-2 rounded-xl px-5 py-2.5 text-[15px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)]"
+            style={{ background: C.orange }}
+          >
+            Continuer
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </button>
+        ) : (
+          <span className="hidden text-[12px] sm:block" style={{ color: C.grayMuted }}>
+            Vous pourrez refaire ce questionnaire plus tard
+          </span>
+        )}
       </div>
     </div>
   );

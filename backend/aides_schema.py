@@ -123,6 +123,23 @@ COMPARISON_OPS = frozenset({"eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in
 COMBINATOR_OPS = frozenset({"any_of", "all_of"})
 
 
+class MultiValue(tuple):
+    """Valeur d'un fait à choix MULTIPLE (`multi_enum`) : les options cochées.
+
+    Un prédicat est satisfait dès qu'UNE des valeurs cochées le satisfait, et
+    réfuté seulement si TOUTES le réfutent (sémantique existentielle). C'est ce
+    que veut dire cocher plusieurs cases : « l'une de ces entités déposera la
+    demande », « le bâtiment a ces usages ». Un règlement réservé aux
+    associations reste donc ouvert à qui a coché « association » + « personne
+    physique » — le dossier passera par l'association.
+
+    Le tri de la sélection ne change rien au résultat (any/all), et une
+    sélection vide vaut fait inconnu (None), jamais faux.
+    """
+
+    __slots__ = ()
+
+
 class Predicate(RootModel[dict[str, Any]]):
     @model_validator(mode="after")
     def _check(self) -> Predicate:
@@ -147,6 +164,17 @@ def evaluate_predicate(predicate: dict[str, Any], value: Any) -> bool | None:
     C'est l'embryon du moteur d'évaluation déterministe : le diagnostic
     remplacera l'appel LLM par cette fonction appliquée aux faits connus.
     """
+    # Fait à choix multiple : on distribue le prédicat ENTIER sur chaque valeur
+    # cochée (cf. MultiValue). Distribuer avant les combinateurs est équivalent
+    # à le faire après — toutes les branches lisent la même valeur — et évite de
+    # dupliquer la logique de Kleene.
+    if isinstance(value, MultiValue):
+        if not value:
+            return None
+        results = [evaluate_predicate(predicate, v) for v in value]
+        if any(r is True for r in results):
+            return True
+        return False if all(r is False for r in results) else None
     op, ref = next(iter(predicate.items()))
     if op in COMBINATOR_OPS:
         # Logique de Kleene à trois valeurs : un seul True établit un any_of et
@@ -190,6 +218,10 @@ def evaluate_predicate(predicate: dict[str, Any], value: Any) -> bool | None:
 # Ontologie des faits
 # ---------------------------------------------------------------------------
 
+# Faits à options : même déclaration, une seule réponse (`enum`) ou plusieurs
+# (`multi_enum`).
+ENUM_FACT_TYPES = frozenset({"enum", "multi_enum"})
+
 
 class FactOption(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -232,7 +264,10 @@ class Levier(BaseModel):
 class FactDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    type: Literal["boolean", "integer", "number", "enum"]
+    # `multi_enum` = mêmes options qu'un enum, mais plusieurs cochables. À
+    # réserver aux faits où le cumul est la réalité (usages d'un bâtiment,
+    # entités susceptibles de déposer) : cf. MultiValue pour la sémantique.
+    type: Literal["boolean", "integer", "number", "enum", "multi_enum"]
     # Où la réponse persiste : sur le monument, le projet de travaux, ou le
     # propriétaire. Détermine la réutilisation entre diagnostics.
     scope: Literal["monument", "projet", "proprietaire"]
@@ -250,10 +285,10 @@ class FactDef(BaseModel):
 
     @model_validator(mode="after")
     def _options_iff_enum(self) -> FactDef:
-        if self.type == "enum" and not self.options:
-            raise ValueError("un fait de type enum doit définir `options`")
-        if self.type != "enum" and self.options:
-            raise ValueError("`options` est réservé aux faits de type enum")
+        if self.type in ENUM_FACT_TYPES and not self.options:
+            raise ValueError(f"un fait de type {self.type} doit définir `options`")
+        if self.type not in ENUM_FACT_TYPES and self.options:
+            raise ValueError("`options` est réservé aux faits enum / multi_enum")
         return self
 
 
@@ -263,6 +298,9 @@ OPS_BY_FACT_TYPE: dict[str, frozenset[str]] = {
     "integer": frozenset({"eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in"}),
     "number": frozenset({"eq", "neq", "gt", "gte", "lt", "lte"}),
     "enum": frozenset({"eq", "neq", "in", "not_in"}),
+    # Un multi_enum se compare option par option (cf. MultiValue) : mêmes
+    # opérateurs qu'un enum, `contains` n'a rien à y faire.
+    "multi_enum": frozenset({"eq", "neq", "in", "not_in"}),
 }
 
 

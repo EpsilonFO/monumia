@@ -7,10 +7,16 @@ describe('isUnknownAnswer', () => {
     expect(isUnknownAnswer({ id: 'NSP', label: 'Sans opinion' })).toBe(true);
   });
 
+  it('détecte le drapeau `unknown` de l’ontologie', () => {
+    expect(isUnknownAnswer({ id: 'pas_encore_decide', label: 'Pas encore décidé', unknown: true }))
+      .toBe(true);
+  });
+
   it('détecte par libellé, accents normalisés', () => {
     expect(isUnknownAnswer({ id: 'a', label: 'Je ne sais pas' })).toBe(true);
     expect(isUnknownAnswer({ id: 'b', label: 'Incertain' })).toBe(true);
     expect(isUnknownAnswer({ id: 'c', label: 'Pas sûr' })).toBe(true);
+    expect(isUnknownAnswer({ id: 'd', label: 'Passer cette question' })).toBe(true);
   });
 
   it('laisse passer les réponses normales', () => {
