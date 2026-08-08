@@ -14,6 +14,8 @@ from aides_schema import (
     Condition,
     FactDef,
     Financement,
+    MultiValue,
+    evaluate_predicate,
     load_all_aides,
     load_facts,
     load_pending_facts,
@@ -953,6 +955,98 @@ class TestNumericTranches(unittest.TestCase):
             [self._gate("jours_ouverture_public_par_an", {"gte": 0})],
         )
         self.assertFalse(any(o["id"].startswith("lt") for o in opts))
+
+
+class TestMultiEnum(unittest.TestCase):
+    """Faits à choix multiple : un prédicat est satisfait dès qu'UNE case cochée
+    le satisfait, réfuté seulement si toutes le réfutent (cf. MultiValue)."""
+
+    @staticmethod
+    def _gate(fact: str, predicate: dict) -> dict:
+        return {
+            "id": "c-multi",
+            "text": f"Condition sur {fact}",
+            "kind": "user_fact",
+            "fact": fact,
+            "predicate": predicate,
+        }
+
+    def _status(self, fact: str, predicate: dict, answer) -> str:
+        aide = _fixture_aide([self._gate(fact, predicate)])
+        m = _monument()
+        ctx = build_context(m, 3000, {fact: answer})
+        return evaluate_aide(aide, m, 3000, ctx, FACTS).status
+
+    def _questions(self, fact: str, predicate: dict) -> dict:
+        aide = _fixture_aide([self._gate(fact, predicate)])
+        res = run_deterministic_diagnostic({aide.slug: aide}, FACTS, _monument(), 3000)
+        return {q["id"]: q for q in res["qcmQuestions"]}
+
+    def test_les_deux_faits_cumulables_sont_bien_multi(self):
+        for key in ("usage_batiment", "statut_juridique_porteur"):
+            self.assertEqual(FACTS[key].type, "multi_enum", key)
+
+    def test_une_valeur_cochee_suffit_a_satisfaire(self):
+        self.assertIs(
+            evaluate_predicate({"eq": "location"}, MultiValue(["habitation", "location"])), True
+        )
+
+    def test_refute_seulement_si_toutes_les_valeurs_refutent(self):
+        self.assertIs(
+            evaluate_predicate({"eq": "location"}, MultiValue(["habitation", "cultuel"])), False
+        )
+
+    def test_selection_vide_vaut_fait_inconnu(self):
+        self.assertIsNone(evaluate_predicate({"eq": "location"}, MultiValue([])))
+
+    def test_une_case_pertinente_rend_eligible(self):
+        """Le cas d'usage : on dépose sous l'entité qui correspond au guichet."""
+        status = self._status(
+            "statut_juridique_porteur",
+            {"in": ["association"]},
+            ["prive_personne_physique", "association"],
+        )
+        self.assertEqual(status, "eligible")
+
+    def test_aucune_case_pertinente_refuse(self):
+        status = self._status(
+            "statut_juridique_porteur",
+            {"in": ["association"]},
+            ["prive_personne_physique", "prive_sci"],
+        )
+        self.assertEqual(status, "non_eligible")
+
+    def test_option_unknown_laisse_le_fait_inconnu(self):
+        status = self._status(
+            "statut_juridique_porteur", {"in": ["association"]}, ["pas_encore_decide"]
+        )
+        self.assertEqual(status, "potentiel")
+
+    def test_reponse_unique_deja_persistee_reste_lisible(self):
+        """Réponse d'avant le passage en choix multiple : une chaîne, pas une liste."""
+        self.assertEqual(
+            self._status("usage_batiment", {"eq": "activite_culturelle"}, "activite_culturelle"),
+            "eligible",
+        )
+
+    def test_question_multiple_sans_pseudo_choix_passer(self):
+        q = self._questions("usage_batiment", {"eq": "activite_culturelle"})["usage_batiment"]
+        self.assertTrue(q["multiple"])
+        self.assertNotIn("skip", [o["id"] for o in q["options"]])
+
+    def test_question_simple_garde_le_pseudo_choix_passer(self):
+        q = self._questions("travaux_commences", {"eq": False})["travaux_commences"]
+        self.assertFalse(q["multiple"])
+        self.assertEqual(q["options"][-1], {"id": "skip", "label": "Passer cette question"})
+
+    def test_option_unknown_remontee_au_front(self):
+        q = self._questions("statut_juridique_porteur", {"in": ["association"]})[
+            "statut_juridique_porteur"
+        ]
+        unknowns = [o["id"] for o in q["options"] if o.get("unknown")]
+        self.assertEqual(unknowns, ["pas_encore_decide"])
+        # Une option « pas encore décidé » n'élimine personne.
+        self.assertNotIn("pas_encore_decide", q["eliminationsParOption"])
 
 
 class TestDiagnosticShape(unittest.TestCase):

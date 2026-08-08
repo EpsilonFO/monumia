@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { CommuneAutocomplete } from '@/components/monument/CommuneAutocomplete';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
@@ -127,10 +128,24 @@ interface StepProps {
   onChange: (updates: Partial<Monument>) => void;
 }
 
+/**
+ * Un champ = son intitulé, un peu d'air, puis la saisie. Sans cet interligne,
+ * l'intitulé collait au placeholder et les deux se lisaient comme un seul bloc.
+ */
+const FIELD = 'space-y-1.5';
+
+/**
+ * `w-fit` (défaut shadcn) laisse le déclencheur grandir avec le libellé choisi :
+ * « Site Patrimonial Remarquable (SPR) » débordait alors sur le champ voisin.
+ * On fixe la largeur à la cellule dès le placeholder, et on tronque au-delà (…).
+ */
+const SELECT_TRIGGER =
+  'w-full min-w-0 [&>span[data-slot=select-value]]:block [&>span[data-slot=select-value]]:truncate';
+
 function Step1Identification({ data, onChange }: StepProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="md:col-span-2">
+      <div className={cn(FIELD, 'md:col-span-2')}>
         <Label htmlFor="nom">Nom du monument *</Label>
         <Input
           id="nom"
@@ -139,13 +154,21 @@ function Step1Identification({ data, onChange }: StepProps) {
           placeholder="Ex : Église Saint-Malo"
         />
       </div>
-      <div>
+      {/* Pleine largeur comme le nom : « Saint-Caradec-Trégomel » ou
+          « Colleville-Montgomery » doivent tenir en entier dans le champ, et
+          les suggestions (qui en épousent la largeur) rester lisibles. */}
+      <div className={cn(FIELD, 'md:col-span-2')}>
         <Label htmlFor="commune">Commune *</Label>
-        <Input
+        {/* Choisir dans la liste fournit le code INSEE, dont le backend déduit
+            département, région et population : c'est ce qui rend les aides
+            territoriales évaluables. La saisie libre reste acceptée. */}
+        <CommuneAutocomplete
           id="commune"
           value={data.commune ?? ''}
-          onChange={(e) => onChange({ commune: e.target.value })}
-          placeholder="Ex : Valognes"
+          onChange={(nom) => onChange({ commune: nom, codeInsee: '' })}
+          onSelect={(commune) =>
+            onChange({ commune: commune.nom, codeInsee: commune.codeInsee })
+          }
         />
       </div>
     </div>
@@ -153,15 +176,25 @@ function Step1Identification({ data, onChange }: StepProps) {
 }
 
 function Step2StatutJuridique({ data, onChange }: StepProps) {
+  // Un bien non protégé n'a ni date ni détail de protection : les deux champs
+  // sont grisés, et vidés au passage pour qu'aucune valeur saisie avant ne
+  // survive en douce dans la fiche.
+  const sansProtection = data.protection === 'non_protege';
+
+  const setProtection = (protection: Monument['protection']) => {
+    onChange(
+      protection === 'non_protege'
+        ? { protection, dateProtection: '', typeProtection: '' }
+        : { protection },
+    );
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
+      <div className={FIELD}>
         <Label htmlFor="protection">Niveau de protection *</Label>
-        <Select
-          value={data.protection ?? ''}
-          onValueChange={(v) => onChange({ protection: v as Monument['protection'] })}
-        >
-          <SelectTrigger id="protection">
+        <Select value={data.protection ?? ''} onValueChange={setProtection}>
+          <SelectTrigger id="protection" className={SELECT_TRIGGER}>
             <SelectValue placeholder="Sélectionner..." />
           </SelectTrigger>
           <SelectContent>
@@ -173,31 +206,43 @@ function Step2StatutJuridique({ data, onChange }: StepProps) {
           </SelectContent>
         </Select>
       </div>
-      <div>
-        <Label htmlFor="dateProtection">Date de protection</Label>
+      <div className={FIELD}>
+        {/* Champ désactivé : l'intitulé s'estompe avec lui, sinon seul le cadre
+            grisé le signale et l'œil ne le voit pas. */}
+        <Label htmlFor="dateProtection" className={cn(sansProtection && 'opacity-60')}>
+          Date de protection
+        </Label>
         <Input
           id="dateProtection"
           type="date"
           value={data.dateProtection ?? ''}
           onChange={(e) => onChange({ dateProtection: e.target.value })}
+          disabled={sansProtection}
         />
       </div>
-      <div className="md:col-span-2">
-        <Label htmlFor="typeProtection">Détail de la protection</Label>
+      <div className={cn(FIELD, 'md:col-span-2')}>
+        <Label htmlFor="typeProtection" className={cn(sansProtection && 'opacity-60')}>
+          Détail de la protection
+        </Label>
         <Input
           id="typeProtection"
           value={data.typeProtection ?? ''}
           onChange={(e) => onChange({ typeProtection: e.target.value })}
-          placeholder="Ex : Classé MH par arrêté du 16 juin 1928"
+          placeholder={
+            sansProtection
+              ? 'Sans objet pour un bien non protégé'
+              : 'Ex : Classé MH par arrêté du 16 juin 1928'
+          }
+          disabled={sansProtection}
         />
       </div>
-      <div>
+      <div className={FIELD}>
         <Label htmlFor="proprietaire">Type de propriétaire *</Label>
         <Select
           value={data.proprietaire ?? ''}
           onValueChange={(v) => onChange({ proprietaire: v as Monument['proprietaire'] })}
         >
-          <SelectTrigger id="proprietaire">
+          <SelectTrigger id="proprietaire" className={SELECT_TRIGGER}>
             <SelectValue placeholder="Sélectionner..." />
           </SelectTrigger>
           <SelectContent>
@@ -216,7 +261,7 @@ function Step2StatutJuridique({ data, onChange }: StepProps) {
 function Step3DescriptionPhysique({ data, onChange }: StepProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
+      <div className={FIELD}>
         <Label htmlFor="siecleConstruction">Siècle de construction</Label>
         <Input
           id="siecleConstruction"
@@ -225,7 +270,7 @@ function Step3DescriptionPhysique({ data, onChange }: StepProps) {
           placeholder="Ex : XVe siècle"
         />
       </div>
-      <div className="md:col-span-2">
+      <div className={cn(FIELD, 'md:col-span-2')}>
         <Label htmlFor="descriptionGenerale">Description générale de la protection</Label>
         <Textarea
           id="descriptionGenerale"
@@ -244,13 +289,13 @@ function Step4EtatActuel({ data, onChange }: StepProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
+      <div className={FIELD}>
         <Label htmlFor="etatConservation">État de conservation *</Label>
         <Select
           value={data.etatConservation ?? ''}
           onValueChange={(v) => onChange({ etatConservation: v as Monument['etatConservation'] })}
         >
-          <SelectTrigger id="etatConservation">
+          <SelectTrigger id="etatConservation" className={SELECT_TRIGGER}>
             <SelectValue placeholder="Sélectionner..." />
           </SelectTrigger>
           <SelectContent>

@@ -23,6 +23,8 @@ interface AnswerCardProps {
   selected: boolean;
   /** Roving tabindex : seul l'élément « actif » du radiogroup est tabbable. */
   roving: boolean;
+  /** Question à choix multiple : case à cocher (carrée) plutôt que radio. */
+  multiple?: boolean;
   onSelect: () => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>) => void;
   buttonRef: (el: HTMLButtonElement | null) => void;
@@ -33,12 +35,15 @@ interface AnswerCardProps {
  * libellés du moteur sont imprévisibles, pas de devinette d'icône), « ? »
  * pour les options « je ne sais pas », libellé, coche à droite. Hover =
  * léger lift + ombre pop ; sélection = bordure accent + fond orange pâle.
+ * En choix multiple, la coche devient carrée et l'élément un `checkbox` :
+ * la forme dit « on peut en cocher plusieurs » avant même de cliquer.
  */
 export function AnswerCard({
   option,
   optionIndex,
   selected,
   roving,
+  multiple,
   onSelect,
   onKeyDown,
   buttonRef,
@@ -53,7 +58,7 @@ export function AnswerCard({
     <button
       ref={buttonRef}
       type="button"
-      role="radio"
+      role={multiple ? 'checkbox' : 'radio'}
       aria-checked={selected}
       tabIndex={roving ? 0 : -1}
       onClick={onSelect}
@@ -85,7 +90,8 @@ export function AnswerCard({
       <span
         aria-hidden
         className={cn(
-          'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+          'flex h-6 w-6 shrink-0 items-center justify-center border-2 transition-colors',
+          multiple ? 'rounded-md' : 'rounded-full',
           selected ? 'border-accent bg-accent text-white' : 'border-border',
         )}
       >

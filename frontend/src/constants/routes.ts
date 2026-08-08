@@ -8,6 +8,10 @@ export const ROUTES = {
 
   DASHBOARD: '/app',
 
+  // Page Tarifs (publique). Le projet passe par l'URL et non par le state de
+  // navigation : l'aller-retour vers Stripe quitte le site et perd tout state.
+  TARIFS: (monumentId?: string) => (monumentId ? `/tarifs?projet=${monumentId}` : '/tarifs'),
+
   // Onglet unifié « Projet » (projet = monument)
   PROJETS: '/app/projets',
   PROJET_NEW: '/app/projets/nouveau',

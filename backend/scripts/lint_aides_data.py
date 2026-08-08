@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from aides_schema import (
     AIDES_DIR,
     COMBINATOR_OPS,
+    ENUM_FACT_TYPES,
     FIELD_REGISTRY,
     OPS_BY_FACT_TYPE,
     OPS_BY_FIELD_TYPE,
@@ -61,7 +62,7 @@ def check_fact_predicate(
     for op, val in _leaf_ops_and_values(predicate.root):
         if op not in allowed_ops:
             errors.append(f"{where}: opérateur « {op} » invalide pour un fait {fact.type}")
-        if fact.type == "enum":
+        if fact.type in ENUM_FACT_TYPES:
             option_ids = {o.id for o in fact.options or []}
             vals = val if isinstance(val, list) else [val]
             bad = [v for v in vals if v not in option_ids]

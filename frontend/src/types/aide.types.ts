@@ -164,6 +164,9 @@ export interface AideDiagnosticRequest {
 export interface QcmOption {
   id: string;
   label: string;
+  /** Réponse « je ne sais pas / pas encore décidé » : le fait reste inconnu.
+   *  N'élimine aucune aide, et exclut les autres cases en choix multiple. */
+  unknown?: boolean;
 }
 
 /**
@@ -183,6 +186,9 @@ export interface QcmQuestion {
   question: string;
   /** Texte d'aide du fait (ontologie) : lève l'ambiguïté sans quitter l'écran. */
   help?: string | null;
+  /** Fait `multi_enum` : plusieurs options cochables, la réponse est un tableau
+   *  d'ids. Une aide reste retenue dès qu'UNE case cochée satisfait son critère. */
+  multiple?: boolean;
   options: QcmOption[];
   aideIds: string[];
   eliminatingOptionIds: string[];
@@ -211,7 +217,9 @@ export interface AideDiagnosticResult {
   montantPotentielTotal?: number;
   montantAtteignableTotal?: number;
   qcmQuestions?: QcmQuestion[];
-  qcmAnswers?: Record<string, string>;
+  /** Réponses renvoyées telles quelles par le moteur : un id d'option, ou un
+   *  tableau d'ids sur une question à choix multiple. */
+  qcmAnswers?: Record<string, string | string[]>;
 }
 
 /** Vue allégée d'une aide : ce qu'une vignette de projet en montre. */
