@@ -7,6 +7,7 @@ import { useDossierStore } from './useDossierStore';
 import { useDocumentStore } from './useDocumentStore';
 import { useAideStore } from './useAideStore';
 import { useSuiviStore } from './useSuiviStore';
+import { useBillingStore } from './useBillingStore';
 import { setSessionCookie, clearSessionCookie } from '@/lib/session';
 
 interface AuthState {
@@ -86,6 +87,9 @@ export const useAuthStore = create<AuthState>()(
           error: null,
         });
         useSuiviStore.setState({ suivis: [], loadedMonuments: {} });
+        // Sinon les projets débloqués du compte précédent resteraient ouverts
+        // pour le suivant, le temps que /billing/access réponde.
+        useBillingStore.getState().reset();
       },
     }),
     {

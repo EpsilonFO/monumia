@@ -11,6 +11,7 @@ from db import get_current_user_id, get_supabase
 from eligibility_engine import aide_display_dict, run_deterministic_diagnostic
 from matching_engine import _build_criteria_labels, fetch_aides_with_joins, run_diagnostic
 from routers.monuments import _enrich_monument, enrich_monument_with_population
+from services import stripe_billing as billing
 from services.project_access import require_project_access
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,59 @@ def _camelise_diagnostic(result: dict) -> dict:
     for bucket in _DIAGNOSTIC_BUCKETS:
         for match in result.get(bucket, []):
             match["aide"] = _to_camel(match["aide"])
+    return result
+
+
+# Ce que voit un projet non débloqué. Le libellé remplace le nom de l'aide dans
+# l'échéancier, où il n'est pas flouté : il doit rester présentable.
+LOCKED_AIDE_LABEL = "Aide masquée"
+
+# Champs retirés d'une aide non débloquée. Le montant, le taux, la catégorie et
+# la date limite RESTENT visibles : c'est tout l'argumentaire de vente, montrer
+# ce qu'il y a à gagner sans dire où le demander. Ce qui part, c'est ce qu'on
+# vend — l'identité du financeur et le moyen de le contacter.
+_REDACTED_AIDE_FIELDS = (
+    "organisme",
+    "urlOfficielle",
+    "formulaireUrl",
+    "contact",
+    "contactEmail",
+    "contactTelephone",
+    "documentsRequis",
+    "procedure",
+    "conditions",
+)
+
+
+def redact_locked_aide(aide: dict) -> dict:
+    """Anonymise une aide dont le projet n'est pas débloqué.
+
+    Le floutage CSS côté navigateur ne cache rien : le nom part quand même dans
+    la réponse HTTP, et l'onglet Réseau des devtools suffit à le lire. La seule
+    frontière qui tienne est ici, côté serveur.
+
+    L'`id` est conservé : il sert de clé de rendu, et ne révèle rien à lui seul —
+    la fiche complète d'une aide, elle, reste derrière son propre contrôle.
+    """
+    aide["nom"] = LOCKED_AIDE_LABEL
+    aide["nomCourt"] = LOCKED_AIDE_LABEL
+    aide["description"] = "Débloquez ce projet pour voir de quelle aide il s'agit."
+    for field in _REDACTED_AIDE_FIELDS:
+        if field in aide:
+            aide[field] = None
+    aide["locked"] = True
+    return aide
+
+
+def redact_diagnostic_if_locked(
+    result: dict, supabase: Client, user_id: str, monument_id: str
+) -> dict:
+    """Applique la redaction à tout un diagnostic si le projet n'est pas payé."""
+    if billing.has_monument_access(supabase, user_id, monument_id):
+        return result
+    for bucket in _DIAGNOSTIC_BUCKETS:
+        for match in result.get(bucket, []):
+            match["aide"] = redact_locked_aide(match["aide"])
     return result
 
 
@@ -227,7 +281,9 @@ async def diagnostic(
         result["id"] = insert_result.data[0]["id"]
     result["qcmAnswers"] = {}
 
-    return _camelise_diagnostic(result)
+    return redact_diagnostic_if_locked(
+        _camelise_diagnostic(result), supabase, user_id, body.monument_id
+    )
 
 
 def deterministic_diagnostic_for(
@@ -283,7 +339,12 @@ def diagnostic_deterministe(
         raise HTTPException(status_code=404, detail="Monument introuvable")
     monument, population = enrich_monument_with_population(supabase, monument_result.data)
 
-    return deterministic_diagnostic_for(monument, population, body.answers)
+    return redact_diagnostic_if_locked(
+        deterministic_diagnostic_for(monument, population, body.answers),
+        supabase,
+        user_id,
+        body.monument_id,
+    )
 
 
 @router.patch("/diagnostics/by-id/{diagnostic_id}/qcm-answers")
@@ -366,10 +427,19 @@ def list_diagnostics(
         if commune_result.data:
             population = commune_result.data.get("population")
 
-    return [
+    # L'accès est le même pour tous les diagnostics d'un projet : une seule
+    # vérification, appliquée à l'ensemble.
+    locked = not billing.has_monument_access(supabase, user_id, monument_id)
+    hydrated = [
         _camelise_diagnostic(_hydrate_diagnostic(d, aides_by_id, monument, user, population))
         for d in diagnostics
     ]
+    if locked:
+        for result in hydrated:
+            for bucket in _DIAGNOSTIC_BUCKETS:
+                for match in result.get(bucket, []):
+                    match["aide"] = redact_locked_aide(match["aide"])
+    return hydrated
 
 
 def _hydrate_diagnostic(

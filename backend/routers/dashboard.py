@@ -12,8 +12,9 @@ from fastapi import APIRouter, Depends
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
-from routers.aides import deterministic_diagnostic_for
+from routers.aides import LOCKED_AIDE_LABEL, deterministic_diagnostic_for
 from routers.monuments import fetch_user_monuments
+from services import stripe_billing as billing
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -23,7 +24,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 _DIGEST_BUCKETS = ("aidesEligibles", "aidesPotentiellementEligibles", "aidesAtteignables")
 
 
-def build_digest(result: dict, monument_id: str) -> dict:
+def build_digest(result: dict, monument_id: str, *, locked: bool = False) -> dict:
     """Réduit un diagnostic complet à ce que les vignettes de projet affichent.
 
     Un diagnostic complet pèse ~1,7 Mo : l'essentiel vient des ~95 aides non
@@ -40,7 +41,10 @@ def build_digest(result: dict, monument_id: str) -> dict:
             {
                 "aide": {
                     "id": match["aide"]["id"],
-                    "nom": match["aide"]["nom"],
+                    # Le nom alimente l'échéancier du projet : sur un projet non
+                    # débloqué, il ne doit pas plus sortir d'ici que du
+                    # diagnostic complet.
+                    "nom": LOCKED_AIDE_LABEL if locked else match["aide"]["nom"],
                     "categorie": match["aide"]["categorie"],
                     "permanent": match["aide"].get("permanent", False),
                     "dateLimite": match["aide"].get("dateLimite"),
@@ -89,6 +93,12 @@ def get_dashboard(
     for row in suivi_rows:
         suivis.setdefault(row["monument_id"], []).append(row)
 
+    # Droits d'accès lus UNE fois pour tout le dashboard : un abonnement ouvre
+    # tous les projets, sinon seuls les projets payés à l'unité sont nommés.
+    access = billing.access_snapshot(supabase, user_id)
+    unlocked = set(access["unlockedMonumentIds"])
+    all_access = access["allAccess"]
+
     # Un diagnostic par projet, avec les réponses déjà enregistrées du
     # questionnaire — exactement ce que le frontend demandait monument par
     # monument, puis réduit à son digest avant de partir sur le réseau.
@@ -100,6 +110,7 @@ def get_dashboard(
                 m.get("questionnaire") or {},
             ),
             m["id"],
+            locked=not all_access and m["id"] not in unlocked,
         )
         for m in monuments
     }
