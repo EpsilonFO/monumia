@@ -75,12 +75,18 @@ def _validate_names(slug: str, label: str | None) -> None:
         raise SystemExit(f"label invalide : {label}")
 
 
-def _prepare(slug: str, label: str | None) -> tuple[Path, str]:
-    """Valide les noms, crée le dossier de l'aide, retourne (dossier, horodatage)."""
+def _prepare(slug: str, label: str | None, jour: date | None = None) -> tuple[Path, str]:
+    """Valide les noms, crée le dossier de l'aide, retourne (dossier, horodatage).
+
+    `jour` est la date du PASSAGE, pas celle de l'écriture. Un appelant qui en
+    porte une (la veille date tout son passage d'un seul coup) la fournit, sinon
+    c'est aujourd'hui. Sans ça, un passage qui franchit minuit archiverait la
+    preuve à une date que la fiche qu'il vient d'écrire ne porte pas.
+    """
     _validate_names(slug, label)
     out_dir = SOURCES_DIR / slug
     out_dir.mkdir(parents=True, exist_ok=True)
-    return out_dir, date.today().isoformat() + (f"-{label}" if label else "")
+    return out_dir, (jour or date.today()).isoformat() + (f"-{label}" if label else "")
 
 
 def _resolve_target(
@@ -120,6 +126,7 @@ def write_md_snapshot(
     *,
     label: str | None = None,
     body_is_markdown: bool = False,
+    jour: date | None = None,
 ) -> Path:
     """Archive une source textuelle. `raw_text` est le contenu BRUT récupéré.
 
@@ -130,7 +137,7 @@ def write_md_snapshot(
     `body_is_markdown=True` quand la source est déjà du texte (fichier .md, page
     récupérée via un proxy) : la conversion html2text l'abîmerait.
     """
-    out_dir, stamp = _prepare(slug, label)
+    out_dir, stamp = _prepare(slug, label, jour)
     sha = hashlib.sha256(raw_text.encode()).hexdigest()
     path, already = _resolve_target(out_dir, stamp, ".md", sha, _read_md_sha)
     if not already:
@@ -145,6 +152,7 @@ def write_pdf_snapshot(
     *,
     url: str | None = None,
     label: str | None = None,
+    jour: date | None = None,
 ) -> Path:
     """Archive un PDF et sa provenance.
 
@@ -154,7 +162,7 @@ def write_pdf_snapshot(
     dater son contenu — c'est le cas des 109 PDF déjà présents dans le dépôt,
     qui resteront sans provenance (ils sont antérieurs à ce sidecar).
     """
-    out_dir, stamp = _prepare(slug, label)
+    out_dir, stamp = _prepare(slug, label, jour)
     sha = hashlib.sha256(content).hexdigest()
     path, already = _resolve_target(
         out_dir, stamp, ".pdf", sha, lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
