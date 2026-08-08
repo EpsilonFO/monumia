@@ -11,11 +11,13 @@ Run from backend/:  uv run pytest tests/test_veille_update.py
 
 import argparse
 import json
+import os
 import sys
 import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -364,7 +366,7 @@ class TestRafraichirSnapshots(unittest.TestCase):
         snapshot_source.SOURCES_DIR = Path(tmp.name)
         try:
             with tmp:
-                noms = veille_update.rafraichir_snapshots(an, collect)
+                noms = veille_update.rafraichir_snapshots(an, collect, jour=AUJOURD_HUI)
                 return noms, sorted(p.name for p in (Path(tmp.name) / an.slug).glob("*"))
         finally:
             snapshot_source.SOURCES_DIR = reel
@@ -431,6 +433,15 @@ class TestRunStageC(unittest.TestCase):
 
         self.module = veille_aides
         veille_aides.mettre_a_jour = faux
+        # L'étage C se saute lui-même quand la clé du modèle manque. Sans ce
+        # forçage, ces tests passaient sur la machine du dev (où `backend/.env`
+        # est chargé) et échouaient en CI, où aucune clé n'existe : c'est le
+        # contenu de l'environnement, pas le câblage, qui décidait du résultat.
+        # `patch.dict` restaure l'environnement entier au teardown, y compris
+        # une clé retirée à l'intérieur d'un test.
+        env = patch.dict(os.environ, {"DEEPSEEK_API_KEY": "cle-de-test"})
+        env.start()
+        self.addCleanup(env.stop)
 
     def tearDown(self):
         self.module.mettre_a_jour = self.reel
@@ -482,12 +493,16 @@ class TestRunStageC(unittest.TestCase):
         self.assertIn("dispositif fusionné", analyses["aide-0"].raisons)
 
     def test_cle_absente_saute_l_etage_sans_echouer(self):
+        spec = self.module.REGISTRE["gpt-luna"]
+        os.environ.pop(spec.env_key, None)
+        self.assertFalse(ModelSpec.cle_presente.fget(spec))  # type: ignore[attr-defined]
         analyses = analyses_factices("MAJ_LLM")
         majs = self._lancer(self._args(model="gpt-luna"), analyses)
-        if not ModelSpec.cle_presente.fget(self.module.REGISTRE["gpt-luna"]):  # type: ignore[attr-defined]
-            self.assertEqual(majs, {})
-            self.assertEqual(self.appels, [])
-            self.assertEqual(analyses["aide-0"].statut, "MAJ_LLM")
+        self.assertEqual(majs, {})
+        self.assertEqual(self.appels, [])
+        # L'aide reste candidate : une clé manquante diffère le passage, elle ne
+        # le solde pas.
+        self.assertEqual(analyses["aide-0"].statut, "MAJ_LLM")
 
 
 class TestManifesteEtRapport(unittest.TestCase):

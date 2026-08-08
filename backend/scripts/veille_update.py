@@ -229,11 +229,11 @@ def mettre_a_jour(
     if not dry_run:
         assert applied.texte is not None
         chemin.write_text(applied.texte, encoding="utf-8")
-        res.snapshots = rafraichir_snapshots(an, collect)
+        res.snapshots = rafraichir_snapshots(an, collect, jour=aujourd_hui)
     return res
 
 
-def rafraichir_snapshots(an: AideAnalysis, collect: AideCollect) -> list[str]:
+def rafraichir_snapshots(an: AideAnalysis, collect: AideCollect, *, jour: date) -> list[str]:
     """Ré-archive les pages qui ont motivé la mise à jour. Voir le point 4 en tête.
 
     Seules les pages dont le diff a réellement bougé sont ré-écrites : le bruit
@@ -243,6 +243,10 @@ def rafraichir_snapshots(an: AideAnalysis, collect: AideCollect) -> list[str]:
     Une page récupérée via proxy est exclue : son texte ne passe pas par la même
     chaîne de conversion que les baselines, et l'archiver ferait diverger tous
     les diffs suivants pour une raison purement technique.
+
+    `jour` est la date du passage, celle-là même qui date la fiche : un passage
+    entamé avant minuit ne doit pas laisser un snapshot du lendemain à côté d'un
+    `verified_at` de la veille.
     """
     ecrits: list[str] = []
     for u in an.urls:
@@ -253,7 +257,9 @@ def rafraichir_snapshots(an: AideAnalysis, collect: AideCollect) -> list[str]:
         # `snapshot_source`, donc valides — mais un fichier renommé à la main
         # n'a pas à faire échouer une mise à jour par ailleurs correcte.
         label = u.murl.label if u.murl.label and NAME_RE.fullmatch(u.murl.label) else None
-        ecrits.append(write_md_snapshot(an.slug, u.murl.url, res.raw_text, label=label).name)
+        ecrits.append(
+            write_md_snapshot(an.slug, u.murl.url, res.raw_text, label=label, jour=jour).name
+        )
     return ecrits
 
 
