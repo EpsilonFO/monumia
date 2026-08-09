@@ -59,23 +59,10 @@ class Piece(BaseModel):
 
     nom: str
     description: str | None = None
-    portee: Literal["porteur", "monument", "operation"]
+    portee: Literal[PORTEES]  # type: ignore[valid-type]
     perissable: bool = False
     seuil_alerte_mois: int | None = None
-    type_document: Literal[
-        "photo",
-        "plan",
-        "devis",
-        "facture",
-        "attestation",
-        "extrait_cadastral",
-        "cerfa",
-        "arrete",
-        "diagnostic",
-        "rapport",
-        "correspondance",
-        "autre",
-    ] = "autre"
+    type_document: Literal[TYPE_DOCUMENTS] = "autre"  # type: ignore[valid-type]
 
     @model_validator(mode="after")
     def _coherence_peremption(self) -> Piece:
