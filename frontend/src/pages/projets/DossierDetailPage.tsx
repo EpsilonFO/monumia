@@ -72,6 +72,7 @@ export function DossierDetailPage() {
   const [accessDoc, setAccessDoc] = useState<Document | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [reprise, setReprise] = useState(false);
 
   const monumentFetchedRef = useRef(false);
 
@@ -173,11 +174,33 @@ export function DossierDetailPage() {
 
   // Confirmer une pièce reprise n'est pas un remplacement : ouvert à tout membre
   // du projet (le backend l'exempte de la garde « auteur du document »).
+  //
+  // La confirmation reproduit les DEUX associations du rattachement manuel (cf.
+  // handleAttach) : le document rejoint le projet et le dossier. C'est fait ici,
+  // et non au moment de la reprise, à dessein — associer automatiquement le
+  // document au projet rendrait un document « équipe » visible par toute
+  // l'équipe sans que personne ne l'ait décidé. À la confirmation, l'utilisateur
+  // est l'acteur explicite, comme dans le flux manuel. Sans le lien au dossier,
+  // le document pourrait aussi partir en corbeille (_should_auto_trash) alors
+  // qu'une pièce « fournie » le référence encore.
   const handleConfirmItem = async (item: ChecklistItem) => {
-    if (!dossier) return;
+    if (!dossier || !monument || !item.documentId) return;
+    const documentId = item.documentId;
     setBusyItemId(item.id);
     try {
+      const doc = documents.find((d) => d.id === documentId)
+        ?? await documentService.getById(documentId);
+      if (!doc.monumentIds.includes(monument.id)) {
+        await addToProjectsStore(doc.id, [monument.id]);
+      }
+      if (!doc.dossiersUtilises.includes(dossier.id)) {
+        await linkToDossierStore(doc.id, dossier.id);
+      }
       await dossierService.updateChecklistItem(dossier.id, item.id, 'fourni');
+      // Le document venait d'ailleurs : il n'était pas dans le store, les mises à
+      // jour optimistes ci-dessus n'ont donc rien pu y refléter. Sans ce rechargement,
+      // `canModifyItem` le croirait absent et masquerait « Remplacer ».
+      fetchDocuments().catch(() => {});
       toast.success('Pièce confirmée');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la confirmation');
@@ -200,6 +223,29 @@ export function DossierDetailPage() {
       toast.error(err instanceof Error ? err.message : 'Erreur lors du rejet de la pièce');
     } finally {
       setBusyItemId(null);
+    }
+  };
+
+  // Rejoue la reprise sur ce dossier. Indispensable aux dossiers antérieurs à la
+  // fonctionnalité — ceux, précisément, dont le porteur a déjà un stock de
+  // documents. Le nombre annoncé est le GAIN de cet appel, pas le total des
+  // pièces reprises du dossier.
+  const handleReprendrePieces = async () => {
+    if (!dossier) return;
+    const avant = dossier.checklist.filter((i) => i.statut === 'repris').length;
+    setReprise(true);
+    try {
+      const maj = await dossierService.reprendrePieces(dossier.id);
+      const gain = maj.checklist.filter((i) => i.statut === 'repris').length - avant;
+      toast.success(
+        gain > 0
+          ? `${gain} pièce${gain > 1 ? 's' : ''} reprise${gain > 1 ? 's' : ''} de vos documents — à vérifier`
+          : 'Aucune pièce à reprendre pour l’instant',
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la reprise des pièces');
+    } finally {
+      setReprise(false);
     }
   };
 
@@ -289,8 +335,23 @@ export function DossierDetailPage() {
         )}
 
         <div className="rounded-2xl border overflow-hidden" style={{ background: C.card, borderColor: C.border }}>
-          <div className="px-5 py-3 border-b" style={{ borderColor: C.border }}>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-b" style={{ borderColor: C.border }}>
             <h3 className="text-[16px]" style={{ fontFamily: SERIF, color: C.ink }}>Pièces du dossier</h3>
+            {canManageDossier && dossier.statut !== 'soumis' && (
+              <button
+                type="button"
+                onClick={handleReprendrePieces}
+                disabled={reprise}
+                title="Rechercher, parmi vos documents déjà déposés, ceux qui correspondent aux pièces demandées"
+                className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition-colors disabled:opacity-60"
+                style={{ borderColor: C.border, color: C.blue }}
+              >
+                {reprise
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <IconRafraichir className="h-3.5 w-3.5" />}
+                {reprise ? 'Recherche…' : 'Reprendre mes pièces'}
+              </button>
+            )}
           </div>
           <div className="px-5 py-4">
             {dossier.checklist.length === 0 ? (
