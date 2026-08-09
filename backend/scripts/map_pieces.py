@@ -112,7 +112,7 @@ def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int, li
             i += 1
             continue
 
-        correspondance = re.match(r"^  - nom: (.*)$", ligne)
+        correspondance = re.match(r"^  - nom:\s*(.*)$", ligne)
         if not correspondance:
             i += 1
             continue
@@ -136,6 +136,15 @@ def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int, li
 
             # Plier les lignes (YAML `>` behavior)
             libelle_reconstruit = " ".join(ligne for ligne in continuation_lines if ligne).strip()
+
+            # Vérifier si le libellé est lisible
+            if not libelle_reconstruit or libelle_reconstruit[0] in (">", "|"):
+                non_traites.append(f"(ligne {i + 1}) {libelle_reconstruit or '(vide)'}")
+                for k in range(i + 1, fin_bloc):
+                    sortie.append(lignes[k])
+                i = fin_bloc
+                continue
+
             normalized = normaliser(libelle_reconstruit)
             piece_id = mapping.get(normalized)
 
@@ -170,7 +179,14 @@ def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int, li
 
         # Cas 2: valeur simple
         else:
-            normalized = normaliser(valeur_brute)
+            # Vérifier si le libellé est lisible
+            libelle_simple = valeur_brute.strip()
+            if not libelle_simple or libelle_simple[0] in (">", "|"):
+                non_traites.append(f"(ligne {i + 1}) {libelle_simple or '(vide)'}")
+                i += 1
+                continue
+
+            normalized = normaliser(libelle_simple)
             piece_id = mapping.get(normalized)
             if piece_id is None:
                 i += 1

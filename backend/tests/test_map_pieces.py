@@ -176,5 +176,50 @@ class BlockScalarTests(unittest.TestCase):
         )
 
 
+class UnreadableLabelTests(unittest.TestCase):
+    """Tests pour les libellés illisibles (indicateurs non reconnus, valeurs vides)."""
+
+    def test_block_scalar_indicateur_non_reconnu(self) -> None:
+        """Un item avec bloc scalar indicateur non standard (>2-, |+, etc.) est illisible."""
+        yaml = (
+            "nom: Aide test\n"
+            "documents_requis:\n"
+            "  - nom: >2-\n"
+            "      Première ligne de contenu\n"
+            "      Deuxième ligne de contenu\n"
+            "tags: []\n"
+        )
+        mapping = {"premiere ligne de contenu deuxieme ligne de contenu": "some_id"}
+        texte, n, non_traites = inserer_piece_ids(yaml, mapping)
+        # L'indicateur >2- n'est pas reconnu : le libellé brut vaut '>2-', qui est illisible
+        self.assertEqual(n, 0)  # Pas de piece_id inséré
+        self.assertGreater(len(non_traites), 0)  # Au moins une entrée
+        self.assertEqual(texte, yaml)  # Texte inchangé
+
+    def test_nom_sans_valeur(self) -> None:
+        """Un item avec `- nom:` sans valeur suivante est illisible."""
+        yaml = "nom: Aide test\ndocuments_requis:\n  - nom:\n  - nom: Relevé bancaire\n\ntags: []\n"
+        mapping = {"releve bancaire": "rib"}
+        texte, n, non_traites = inserer_piece_ids(yaml, mapping)
+        # Le premier item a une valeur vide après strip()
+        self.assertEqual(n, 1)  # Le deuxième item doit être traité
+        self.assertGreater(len(non_traites), 0)  # Au moins le premier item non lisible
+        # Le deuxième item DOIT avoir son piece_id
+        self.assertIn("  - nom: Relevé bancaire\n    piece_id: rib\n", texte)
+
+    def test_libelle_ordinaire_absent_du_mapping_nominal(self) -> None:
+        """Un libellé ordinaire absent du mapping n'est PAS un non-traité — c'est nominal."""
+        yaml = (
+            "nom: Aide test\n"
+            "documents_requis:\n"
+            "  - nom: Pièce sans correspondance nulle part\n"
+            "tags: []\n"
+        )
+        texte, n, non_traites = inserer_piece_ids(yaml, {})
+        self.assertEqual(n, 0)  # Pas d'insertion
+        self.assertEqual(non_traites, [])  # VIDE — ce n'est pas un non-traité
+        self.assertEqual(texte, yaml)  # Inchangé
+
+
 if __name__ == "__main__":
     unittest.main()
