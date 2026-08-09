@@ -1,0 +1,239 @@
+"""
+Rattachement one-shot des libellés de `documents_requis` au référentiel de
+pièces canoniques (data/pieces.yaml).
+
+À USAGE UNIQUE, jamais appelé à l'exécution. Le résultat est de la donnée
+statique versionnée dans git : en production, aucun modèle n'est sollicité.
+
+Trois étapes :
+  1. `--collecter`  : liste les libellés distincts et écrit le rapport de
+                      relecture dans data/reviews/pieces-mapping-<date>.md
+  2. `--proposer`   : soumet les libellés au modèle, vocabulaire cible fermé,
+                      et écrit le mapping proposé dans le rapport
+  3. `--appliquer`  : insère les piece_id validés dans les YAML d'aides
+
+Le mapping validé vit dans data/reviews/pieces-mapping-<date>.yaml, relu à la
+main avant `--appliquer`. Un libellé sans correspondance sûre reste absent du
+mapping : c'est un résultat valide, pas un échec.
+
+Run :
+    cd backend && uv run python scripts/map_pieces.py --collecter
+    cd backend && uv run python scripts/map_pieces.py --proposer
+    # relecture humaine du .yaml produit
+    cd backend && uv run python scripts/map_pieces.py --appliquer
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+import unicodedata
+from datetime import date
+from pathlib import Path
+
+import yaml
+from dotenv import load_dotenv
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from aides_schema import AIDES_DIR, DATA_DIR
+from pieces_schema import load_pieces
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+REVIEWS_DIR = DATA_DIR / "reviews"
+MODELE = "claude-opus-5"
+LOT = 40  # libellés par appel — au-delà, le modèle survole
+
+
+def normaliser(label: str) -> str:
+    """Forme canonique d'un libellé : minuscules, sans accent, espaces réduits.
+
+    Sert de clé de mapping. Deux libellés qui ne diffèrent que par la casse ou
+    l'accentuation partagent donc leur rattachement.
+    """
+    sans_accent = "".join(
+        c for c in unicodedata.normalize("NFD", label) if unicodedata.category(c) != "Mn"
+    )
+    return re.sub(r"\s+", " ", sans_accent).strip().strip(".;:").lower()
+
+
+def collecter_libelles(aides_dir: Path = AIDES_DIR) -> dict[str, list[str]]:
+    """Libellé normalisé → slugs des aides qui le demandent, du plus fréquent au moins."""
+    index: dict[str, list[str]] = {}
+    for chemin in sorted(aides_dir.glob("*.yaml")):
+        brut = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
+        for doc in brut.get("documents_requis") or []:
+            nom = doc.get("nom") if isinstance(doc, dict) else doc
+            if not isinstance(nom, str) or not nom.strip():
+                continue
+            index.setdefault(normaliser(nom), []).append(chemin.stem)
+    return dict(sorted(index.items(), key=lambda kv: -len(kv[1])))
+
+
+def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int]:
+    """Insère `piece_id:` sous chaque `- nom:` du bloc documents_requis.
+
+    Patch TEXTUEL et non re-dump YAML : un `yaml.dump` réordonnerait les clés et
+    reformaterait les 142 fiches, produisant un diff illisible.
+
+    Un item qui porte déjà un piece_id est laissé tel quel (idempotence).
+    """
+    lignes = texte.split("\n")
+    sortie: list[str] = []
+    dans_bloc = False
+    inserees = 0
+
+    for i, ligne in enumerate(lignes):
+        sortie.append(ligne)
+
+        if ligne.startswith("documents_requis:"):
+            dans_bloc = True
+            continue
+
+        # Toute clé de premier niveau referme le bloc.
+        if dans_bloc and ligne and not ligne.startswith((" ", "-", "#")):
+            dans_bloc = False
+            continue
+
+        if not dans_bloc:
+            continue
+
+        correspondance = re.match(r"^  - nom: (.+)$", ligne)
+        if not correspondance:
+            continue
+
+        piece_id = mapping.get(normaliser(correspondance.group(1)))
+        if piece_id is None:
+            continue
+
+        # Déjà rattaché ? On regarde les lignes de propriétés de cet item.
+        deja = False
+        for suivante in lignes[i + 1 :]:
+            if not suivante.startswith("    "):
+                break
+            if suivante.startswith("    piece_id:"):
+                deja = True
+                break
+        if deja:
+            continue
+
+        sortie.append(f"    piece_id: {piece_id}")
+        inserees += 1
+
+    return "\n".join(sortie), inserees
+
+
+def _prompt(libelles: list[str], pieces: dict) -> str:
+    catalogue = "\n".join(f"- {pid} : {p.nom} ({p.portee})" for pid, p in pieces.items())
+    liste = "\n".join(f"{i + 1}. {lab}" for i, lab in enumerate(libelles))
+    return (
+        "Tu rattaches des libellés de pièces de dossier administratif français à un "
+        "référentiel FERMÉ de pièces canoniques.\n\n"
+        f"Référentiel :\n{catalogue}\n\n"
+        f"Libellés à rattacher :\n{liste}\n\n"
+        "Règles :\n"
+        "- ne réponds QUE par des identifiants du référentiel ci-dessus ;\n"
+        "- si aucune pièce ne correspond avec certitude, réponds null — c'est le bon "
+        "réflexe, une pièce propre à une seule aide n'a rien à réutiliser ;\n"
+        "- ne rattache pas deux pièces différentes au même id par approximation.\n\n"
+        'Réponds en JSON strict : {"resultats": [{"libelle": "...", "piece_id": "..." '
+        'ou null, "confiance": "haute"|"moyenne"|"faible"}]}'
+    )
+
+
+def proposer(libelles: list[str]) -> dict[str, str]:
+    """Un appel par lot de LOT libellés. Ne garde que les rattachements de confiance haute."""
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    pieces = load_pieces()
+    connus = set(pieces)
+    mapping: dict[str, str] = {}
+
+    for debut in range(0, len(libelles), LOT):
+        lot = libelles[debut : debut + LOT]
+        reponse = client.messages.create(
+            model=MODELE,
+            max_tokens=8000,
+            messages=[{"role": "user", "content": _prompt(lot, pieces)}],
+        )
+        texte = "".join(b.text for b in reponse.content if b.type == "text")
+        brut = json.loads(texte[texte.index("{") : texte.rindex("}") + 1])
+        for res in brut.get("resultats", []):
+            pid = res.get("piece_id")
+            # Anti-hallucination : un id hors référentiel est rejeté, pas corrigé.
+            if pid in connus and res.get("confiance") == "haute":
+                mapping[normaliser(res["libelle"])] = pid
+        print(f"  lot {debut // LOT + 1} : {len(mapping)} rattachements cumulés")
+
+    return mapping
+
+
+def _chemin_rapport(suffixe: str) -> Path:
+    REVIEWS_DIR.mkdir(parents=True, exist_ok=True)
+    return REVIEWS_DIR / f"pieces-mapping-{date.today().isoformat()}.{suffixe}"
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--collecter", action="store_true")
+    parser.add_argument("--proposer", action="store_true")
+    parser.add_argument("--appliquer", action="store_true")
+    args = parser.parse_args()
+
+    index = collecter_libelles()
+
+    if args.collecter:
+        lignes = [f"# Libellés de pièces — {date.today().isoformat()}", ""]
+        lignes.append(
+            f"{len(index)} libellés distincts, {sum(len(v) for v in index.values())} demandes."
+        )
+        lignes.append("")
+        for libelle, slugs in index.items():
+            lignes.append(f"- ({len(slugs)}×) {libelle}")
+        chemin = _chemin_rapport("md")
+        chemin.write_text("\n".join(lignes) + "\n", encoding="utf-8")
+        print(f"✓ {chemin}")
+        return 0
+
+    if args.proposer:
+        mapping = proposer(list(index))
+        chemin = _chemin_rapport("yaml")
+        chemin.write_text(
+            "# Mapping proposé — À RELIRE avant --appliquer.\n"
+            "# Retirer une ligne = ne pas rattacher ce libellé.\n\n"
+            + yaml.safe_dump(mapping, allow_unicode=True, sort_keys=True),
+            encoding="utf-8",
+        )
+        print(f"✓ {chemin} — {len(mapping)}/{len(index)} libellés rattachés")
+        return 0
+
+    if args.appliquer:
+        chemin = _chemin_rapport("yaml")
+        if not chemin.exists():
+            print(f"✗ mapping introuvable : {chemin} (lancer --proposer d'abord)")
+            return 1
+        mapping = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
+        inconnus = set(mapping.values()) - set(load_pieces())
+        if inconnus:
+            print(f"✗ pièces inconnues dans le mapping : {sorted(inconnus)}")
+            return 1
+        total = 0
+        for fiche in sorted(AIDES_DIR.glob("*.yaml")):
+            texte, n = inserer_piece_ids(fiche.read_text(encoding="utf-8"), mapping)
+            if n:
+                fiche.write_text(texte, encoding="utf-8")
+                total += n
+        print(f"✓ {total} piece_id insérés — relancer scripts/lint_aides_data.py")
+        return 0
+
+    parser.print_help()
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
