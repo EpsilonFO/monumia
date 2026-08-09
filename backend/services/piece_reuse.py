@@ -27,10 +27,17 @@ STATUTS_INTOUCHABLES = ("fourni", "en_attente", "repris")
 
 
 def age_mois(date_iso: str | None, now: datetime) -> int | None:
-    """Âge d'un document en mois pleins. None si la date est absente ou illisible.
+    """Écart en mois calendaires entre la date du document et `now`.
 
-    Une date illisible ne doit pas faire échouer la reprise : on préfère un
-    document non marqué à un dossier qui ne se remplit pas.
+    Ce n'est PAS un nombre de mois pleins : seuls les couples (année, mois) sont
+    comparés, sans tenir compte du jour. Le 31 janvier et le 1er février sont
+    donc à « 1 mois » d'écart. L'approximation vaut ±1 mois ; elle est assumée,
+    le seuil ne sert qu'à signaler un document ancien à relire, jamais à trancher
+    une échéance.
+
+    None si la date est absente ou illisible : une date illisible ne doit pas
+    faire échouer la reprise, on préfère un document non marqué à un dossier qui
+    ne se remplit pas.
     """
     if not date_iso:
         return None
