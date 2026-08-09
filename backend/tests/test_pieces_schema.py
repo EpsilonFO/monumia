@@ -60,5 +60,37 @@ class PieceValidationTests(unittest.TestCase):
             self._piece(couleur="bleu")
 
 
+class DocumentPieceIdTests(unittest.TestCase):
+    """Le champ piece_id d'une pièce demandée est validé contre le référentiel."""
+
+    def test_piece_id_connu_accepte(self) -> None:
+        from aides_schema import Document
+
+        doc = Document.model_validate({"nom": "RIB", "piece_id": "rib"})
+        self.assertEqual(doc.piece_id, "rib")
+
+    def test_piece_id_inconnu_refuse(self) -> None:
+        from aides_schema import Document
+
+        with self.assertRaises(pydantic.ValidationError):
+            Document.model_validate({"nom": "RIB", "piece_id": "piece_qui_nexiste_pas"})
+
+    def test_piece_id_absent_reste_none(self) -> None:
+        from aides_schema import Document
+
+        doc = Document.model_validate({"nom": "Pièce très spécifique"})
+        self.assertIsNone(doc.piece_id)
+
+    def test_corpus_ne_reference_que_des_pieces_connues(self) -> None:
+        """Filet CI : la veille ajoute des aides en continu."""
+        from aides_schema import load_all_aides
+
+        connues = set(load_pieces())
+        for slug, aide in load_all_aides().items():
+            for doc in aide.documents_requis:
+                if doc.piece_id is not None:
+                    self.assertIn(doc.piece_id, connues, f"{slug} : pièce inconnue")
+
+
 if __name__ == "__main__":
     unittest.main()
