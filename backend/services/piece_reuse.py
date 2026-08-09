@@ -36,7 +36,7 @@ def age_mois(date_iso: str | None, now: datetime) -> int | None:
         return None
     try:
         dt = datetime.fromisoformat(date_iso)
-    except ValueError:
+    except (TypeError, ValueError):
         return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
@@ -79,8 +79,8 @@ def _stock(
         .data
         or []
     )
-    # La corbeille est revérifiée en Python : `.or_()` et `.is_()` se composent
-    # en une seule expression PostgREST, et un document jeté proposé à la
+    # Défense en profondeur : la corbeille est revérifiée en Python plutôt que
+    # de faire confiance au seul `.is_()`, car un document jeté proposé à la
     # reprise serait une régression silencieuse. Le coût est nul (liste courte).
     rows = [r for r in rows if not r.get("trashed_at")]
 
@@ -94,13 +94,22 @@ def _stock(
     return par_piece
 
 
-def _candidat(piece: Piece, doc_par_piece: dict, piece_id: str, monument_id: str) -> dict | None:
-    """Document réutilisable pour cette pièce, selon sa portée."""
+def _candidat(
+    piece: Piece, doc_par_piece: dict, piece_id: str, monument_id: str, user_id: str
+) -> dict | None:
+    """Document réutilisable pour cette pièce, selon sa portée.
+
+    `porteur` est propre au demandeur : même visible (co-membre d'équipe), le
+    document d'un tiers ne doit jamais être rattaché silencieusement à ma
+    place. `monument` est propre au projet, mutualisé entre co-propriétaires.
+    """
     if piece.portee == "operation":
         return None
     docs = doc_par_piece.get(piece_id, [])
     if piece.portee == "monument":
         docs = [d for d in docs if monument_id in (d.get("monument_ids") or [])]
+    elif piece.portee == "porteur":
+        docs = [d for d in docs if d.get("user_id") == user_id]
     return choisir_document(docs)
 
 
@@ -126,7 +135,6 @@ def apply_reuse(
         for item in checklist
         if item.get("pieceId") in pieces and item.get("statut") not in STATUTS_INTOUCHABLES
     }
-    demandes.discard(None)
     if not demandes:
         return [dict(item) for item in checklist], 0
 
@@ -143,7 +151,7 @@ def apply_reuse(
             nouvelle.append(copie)
             continue
 
-        doc = _candidat(piece, doc_par_piece, piece_id, monument_id)
+        doc = _candidat(piece, doc_par_piece, piece_id, monument_id, user_id)
         if doc is None:
             nouvelle.append(copie)
             continue

@@ -104,6 +104,35 @@ class PorteeTests(unittest.TestCase):
         self.assertEqual(n, 1)
         self.assertEqual(items[0]["documentId"], "d1")
 
+    def test_piece_monument_hors_projet_non_reprise(self) -> None:
+        """Une pièce `monument` rattachée à un AUTRE projet ne doit pas être reprise."""
+        doc = _doc("d1", "titre_propriete", monument_ids=["p2"])
+        items, n = _reprendre([_item("i1", "titre_propriete")], [doc])
+        self.assertEqual(n, 0)
+        self.assertEqual(items[0]["statut"], "manquant")
+
+    def test_piece_porteur_dun_autre_non_reprise(self) -> None:
+        """Une pièce `porteur` visible (équipe) mais déposée par un tiers ne doit
+        jamais être rattachée à ma place : `porteur` est propre au demandeur."""
+        doc = _doc("d1", "rib", user_id="u2", monument_ids=["p1"], visibility="team")
+        items, n = _reprendre(
+            [_item("i1", "rib")],
+            [doc],
+            user_id="u1",
+            members=[{"monument_id": "p1", "role": "member"}],
+            owned=(),
+        )
+        self.assertEqual(n, 0)
+        self.assertEqual(items[0]["statut"], "manquant")
+
+    def test_piece_porteur_reprise_hors_projet(self) -> None:
+        """C'est tout l'intérêt de `porteur` : mon propre RIB compte même s'il
+        n'est rattaché à aucun projet."""
+        doc = _doc("d1", "rib", monument_ids=[])
+        items, n = _reprendre([_item("i1", "rib")], [doc])
+        self.assertEqual(n, 1)
+        self.assertEqual(items[0]["documentId"], "d1")
+
     def test_piece_operation_jamais_reprise(self) -> None:
         items, n = _reprendre([_item("i1", "devis_travaux")], [_doc("d1", "devis_travaux")])
         self.assertEqual(n, 0)
