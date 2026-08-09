@@ -16,11 +16,16 @@ Le mapping validé vit dans data/reviews/pieces-mapping-<date>.yaml, relu à la
 main avant `--appliquer`. Un libellé sans correspondance sûre reste absent du
 mapping : c'est un résultat valide, pas un échec.
 
+La relecture humaine de 845 libellés ne tient pas dans une journée : `--appliquer`
+accepte donc `--mapping <chemin>` pour désigner le fichier relu, quelle que soit
+sa date. Sans cet argument, le fichier du jour est utilisé.
+
 Run :
     cd backend && uv run python scripts/map_pieces.py --collecter
     cd backend && uv run python scripts/map_pieces.py --proposer
-    # relecture humaine du .yaml produit
-    cd backend && uv run python scripts/map_pieces.py --appliquer
+    # relecture humaine du .yaml produit, sur plusieurs jours
+    cd backend && uv run python scripts/map_pieces.py --appliquer \
+        --mapping data/reviews/pieces-mapping-2026-08-09.yaml
 """
 
 from __future__ import annotations
@@ -267,6 +272,17 @@ def main() -> int:
     parser.add_argument("--collecter", action="store_true")
     parser.add_argument("--proposer", action="store_true")
     parser.add_argument("--appliquer", action="store_true")
+    parser.add_argument(
+        "--mapping",
+        type=Path,
+        default=None,
+        metavar="CHEMIN",
+        help=(
+            "Fichier de mapping relu à appliquer. Par défaut, celui du jour "
+            "(data/reviews/pieces-mapping-<aujourd'hui>.yaml) — insuffisant dès "
+            "que la relecture s'étale sur plusieurs jours."
+        ),
+    )
     args = parser.parse_args()
 
     index = collecter_libelles()
@@ -297,9 +313,12 @@ def main() -> int:
         return 0
 
     if args.appliquer:
-        chemin = _chemin_rapport("yaml")
+        chemin = args.mapping or _chemin_rapport("yaml")
         if not chemin.exists():
-            print(f"✗ mapping introuvable : {chemin} (lancer --proposer d'abord)")
+            indice = (
+                "" if args.mapping else " (lancer --proposer d'abord, ou passer --mapping <chemin>)"
+            )
+            print(f"✗ mapping introuvable : {chemin}{indice}")
             return 1
         mapping = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
         inconnus = set(mapping.values()) - set(load_pieces())
