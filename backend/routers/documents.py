@@ -10,7 +10,9 @@ from services.project_access import (
     allowed_visibilities,
     can_modify_document,
     can_view_document,
+    filter_visible_documents,
     get_project_role,
+    my_project_roles,
     require_project_access,
     role_at_least,
 )
@@ -186,50 +188,6 @@ def _should_auto_trash(monument_ids: list | None, dossiers_utilises: list | None
     return not (monument_ids or []) and not (dossiers_utilises or [])
 
 
-def _best_role(monument_ids: list | None, my_roles: dict[str, str]) -> str | None:
-    """Meilleur rôle du viewer parmi les projets du document (None si aucun)."""
-    best = None
-    for mid in monument_ids or []:
-        r = my_roles.get(mid)
-        if r is not None and (best is None or role_at_least(r, best)):
-            best = r
-    return best
-
-
-def _filter_visible(rows: list[dict], user_id: str, my_roles: dict[str, str]) -> list[dict]:
-    """Ne garde que les documents que `user_id` a le droit de voir (règle existante)."""
-    return [
-        r
-        for r in rows
-        if can_view_document(
-            visibility=r.get("visibility") or "team",
-            allowed_user_ids=r.get("allowed_user_ids") or [],
-            uploader_id=r.get("user_id"),
-            viewer_id=user_id,
-            viewer_role=_best_role(r.get("monument_ids"), my_roles),
-        )
-    ]
-
-
-def _my_project_roles(supabase: Client, user_id: str) -> dict[str, str]:
-    """Tous mes projets → mon rôle (owner gagne sur une éventuelle ligne membre)."""
-    roles: dict[str, str] = {}
-    members = (
-        supabase.table("project_members")
-        .select("monument_id, role")
-        .eq("user_id", user_id)
-        .execute()
-        .data
-        or []
-    )
-    for m in members:
-        roles[m["monument_id"]] = m["role"]
-    owned = supabase.table("monuments").select("id").eq("user_id", user_id).execute().data or []
-    for o in owned:
-        roles[o["id"]] = "owner"
-    return roles
-
-
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -268,7 +226,7 @@ def list_documents(
 
     # Vue « Mes documents » : tout ce que je peux voir (mes uploads + les documents
     # des projets où je suis membre, filtrés par les droits de consultation).
-    my_roles = _my_project_roles(supabase, user_id)
+    my_roles = my_project_roles(supabase, user_id)
 
     if trashed:
         # Corbeille personnelle : uniquement MES documents jetés.
@@ -292,7 +250,7 @@ def list_documents(
     if type:
         query = query.eq("type", type)
     rows = query.order("date_upload", desc=True).execute().data or []
-    return _filter_visible(rows, user_id, my_roles)
+    return filter_visible_documents(rows, user_id, my_roles)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

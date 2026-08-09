@@ -139,3 +139,54 @@ def require_project_access(
     if not role_at_least(role, minimum):
         raise HTTPException(status_code=403, detail="Action non autorisée pour votre rôle")
     return role
+
+
+def best_role(monument_ids: list | None, my_roles: dict[str, str]) -> str | None:
+    """Meilleur rôle du lecteur parmi les projets d'un document (None si aucun)."""
+    best = None
+    for mid in monument_ids or []:
+        r = my_roles.get(mid)
+        if r is not None and (best is None or role_at_least(r, best)):
+            best = r
+    return best
+
+
+def filter_visible_documents(
+    rows: list[dict], user_id: str, my_roles: dict[str, str]
+) -> list[dict]:
+    """Ne garde que les documents que `user_id` a le droit de voir.
+
+    Point de passage unique de la règle de visibilité sur une LISTE. Toute
+    fonctionnalité qui propose des documents à l'utilisateur (liste, reprise de
+    pièces…) doit passer par ici, sous peine d'ouvrir un chemin d'accès parallèle.
+    """
+    return [
+        r
+        for r in rows
+        if can_view_document(
+            visibility=r.get("visibility") or "team",
+            allowed_user_ids=r.get("allowed_user_ids") or [],
+            uploader_id=r.get("user_id"),
+            viewer_id=user_id,
+            viewer_role=best_role(r.get("monument_ids"), my_roles),
+        )
+    ]
+
+
+def my_project_roles(supabase: Client, user_id: str) -> dict[str, str]:
+    """Tous mes projets → mon rôle (owner gagne sur une éventuelle ligne membre)."""
+    roles: dict[str, str] = {}
+    members = (
+        supabase.table("project_members")
+        .select("monument_id, role")
+        .eq("user_id", user_id)
+        .execute()
+        .data
+        or []
+    )
+    for m in members:
+        roles[m["monument_id"]] = m["role"]
+    owned = supabase.table("monuments").select("id").eq("user_id", user_id).execute().data or []
+    for o in owned:
+        roles[o["id"]] = "owner"
+    return roles

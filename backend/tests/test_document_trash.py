@@ -5,8 +5,6 @@ import unittest
 from fastapi import HTTPException
 
 from routers.documents import (
-    _best_role,
-    _filter_visible,
     _should_auto_trash,
     delete_document,
     list_documents,
@@ -15,6 +13,7 @@ from routers.documents import (
     trash_document,
     unlink_from_dossier,
 )
+from services.project_access import best_role, filter_visible_documents
 
 
 class ShouldAutoTrashTests(unittest.TestCase):
@@ -32,12 +31,12 @@ class BestRoleTests(unittest.TestCase):
     ROLES = {"m1": "member", "m2": "owner", "m3": "co_owner"}
 
     def test_picks_highest_among_linked(self):
-        self.assertEqual(_best_role(["m1", "m3"], self.ROLES), "co_owner")
-        self.assertEqual(_best_role(["m1", "m2"], self.ROLES), "owner")
+        self.assertEqual(best_role(["m1", "m3"], self.ROLES), "co_owner")
+        self.assertEqual(best_role(["m1", "m2"], self.ROLES), "owner")
 
     def test_none_when_no_membership(self):
-        self.assertIsNone(_best_role(["mX"], self.ROLES))
-        self.assertIsNone(_best_role([], self.ROLES))
+        self.assertIsNone(best_role(["mX"], self.ROLES))
+        self.assertIsNone(best_role([], self.ROLES))
 
 
 class FilterVisibleTests(unittest.TestCase):
@@ -54,18 +53,18 @@ class FilterVisibleTests(unittest.TestCase):
 
     def test_uploader_sees_own_even_without_role(self):
         rows = [self._row(user_id="u1", monument_ids=[])]
-        self.assertEqual(len(_filter_visible(rows, "u1", {})), 1)
+        self.assertEqual(len(filter_visible_documents(rows, "u1", {})), 1)
 
     def test_member_sees_team_not_responsables(self):
         roles = {"m1": "member"}
         team = self._row(visibility="team")
         resp = self._row(visibility="responsables")
-        out = _filter_visible([team, resp], "u1", roles)
+        out = filter_visible_documents([team, resp], "u1", roles)
         self.assertEqual([r["visibility"] for r in out], ["team"])
 
     def test_non_member_excluded(self):
         rows = [self._row(visibility="team", monument_ids=["mX"])]
-        self.assertEqual(_filter_visible(rows, "u1", {}), [])
+        self.assertEqual(filter_visible_documents(rows, "u1", {}), [])
 
 
 # ---------------------------------------------------------------------------
@@ -358,7 +357,7 @@ class ListDocumentsTests(unittest.TestCase):
 
     def test_non_trashed_member_sees_team_not_responsables(self):
         """trashed=False + rôle member → doc team inclus, doc responsables exclu."""
-        # project_members renvoie une liste (itérée par _my_project_roles)
+        # project_members renvoie une liste (itérée par my_project_roles)
         fake = self._make_fake(
             docs=[self.TEAM_DOC, self.RESP_DOC],
             pm_data=[{"monument_id": "m1", "role": "member"}],

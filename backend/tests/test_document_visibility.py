@@ -110,5 +110,49 @@ class CanEditVisibilityTests(unittest.TestCase):
         self.assertTrue(can_edit_visibility("owner", is_uploader=False))
 
 
+class FilterVisibleDocumentsTests(unittest.TestCase):
+    """Filtrage d'une liste de documents selon les rôles projet du lecteur."""
+
+    def _doc(self, doc_id, visibility, uploader, monument_ids=("p1",), allowed=()):
+        return {
+            "id": doc_id,
+            "visibility": visibility,
+            "user_id": uploader,
+            "monument_ids": list(monument_ids),
+            "allowed_user_ids": list(allowed),
+        }
+
+    def test_membre_ne_voit_pas_un_document_responsables(self) -> None:
+        from services.project_access import filter_visible_documents
+
+        rows = [self._doc("d1", "responsables", "u2")]
+        visibles = filter_visible_documents(rows, "u1", {"p1": "member"})
+        self.assertEqual(visibles, [])
+
+    def test_membre_voit_un_document_team(self) -> None:
+        from services.project_access import filter_visible_documents
+
+        rows = [self._doc("d1", "team", "u2")]
+        visibles = filter_visible_documents(rows, "u1", {"p1": "member"})
+        self.assertEqual([d["id"] for d in visibles], ["d1"])
+
+    def test_auteur_voit_toujours_son_document(self) -> None:
+        from services.project_access import filter_visible_documents
+
+        rows = [self._doc("d1", "custom", "u1", monument_ids=())]
+        visibles = filter_visible_documents(rows, "u1", {})
+        self.assertEqual([d["id"] for d in visibles], ["d1"])
+
+    def test_best_role_retient_le_plus_eleve(self) -> None:
+        from services.project_access import best_role
+
+        self.assertEqual(best_role(["p1", "p2"], {"p1": "member", "p2": "owner"}), "owner")
+
+    def test_best_role_sans_projet_est_none(self) -> None:
+        from services.project_access import best_role
+
+        self.assertIsNone(best_role([], {"p1": "owner"}))
+
+
 if __name__ == "__main__":
     unittest.main()
