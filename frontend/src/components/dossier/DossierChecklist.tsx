@@ -65,10 +65,10 @@ export function DossierChecklist({
   const sorted = [...items].sort((a, b) => a.ordre - b.ordre);
   const { confirmees, aVerifier, total } = compterChecklist(items);
 
-  // Documents du projet que l'utilisateur a le DROIT de voir (le backend filtre
-  // déjà selon la visibilité). Une pièce « fournie » dont le documentId n'y est
-  // pas est donc masquée pour lui → cadenas au lieu de « Voir ». La page dossier
-  // expose l'id projet via la route (/projets/:projetId/...), pas besoin d'y toucher.
+  // Documents que l'utilisateur a le DROIT de voir (le backend filtre déjà selon
+  // la visibilité). Une pièce dont le documentId n'y est pas est masquée pour lui
+  // → cadenas au lieu de « Voir ». La page dossier expose l'id projet via la
+  // route (/projets/:projetId/...), pas besoin d'y toucher.
   const { projetId } = useParams();
   const [viewableDocIds, setViewableDocIds] = useState<Set<string> | null>(null);
 
@@ -84,10 +84,29 @@ export function DossierChecklist({
   useEffect(() => {
     if (!projetId) { setViewableDocIds(null); return; }
     let cancelled = false;
-    documentService
-      .getAll({ monumentId: projetId })
-      .then((docs) => { if (!cancelled) setViewableDocIds(new Set(docs.map((d) => d.id))); })
-      .catch(() => { if (!cancelled) setViewableDocIds(null); });
+    (async () => {
+      let visibles: Set<string>;
+      try {
+        const docs = await documentService.getAll({ monumentId: projetId });
+        visibles = new Set(docs.map((d) => d.id));
+      } catch {
+        if (!cancelled) setViewableDocIds(null);
+        return;
+      }
+      // Une pièce reprise vient par construction d'un AUTRE projet (ou d'aucun) :
+      // son document n'est jamais dans la liste du projet, et conclure « accès
+      // réservé » afficherait un cadenas sur mon propre RIB. On interroge donc le
+      // backend document par document — `getById` applique la même règle de
+      // visibilité (`_require_document_view`), aucun chemin d'accès parallèle.
+      const absents = [...new Set(fourniKey ? fourniKey.split(',') : [])]
+        .filter((id) => id && !visibles.has(id));
+      const resolus = await Promise.all(
+        absents.map((id) => documentService.getById(id).then(() => id).catch(() => null)),
+      );
+      if (cancelled) return;
+      for (const id of resolus) if (id) visibles.add(id);
+      setViewableDocIds(visibles);
+    })();
     return () => { cancelled = true; };
   }, [projetId, fourniKey]);
 
@@ -209,7 +228,11 @@ function DocumentRow({
       </div>
 
       <div className="flex items-center gap-1.5 shrink-0">
-        {!readOnly && isRepris && onConfirm && (
+        {/* Confirmer une pièce qu'on ne peut pas ouvrir serait confirmer à
+            l'aveugle : le bouton disparaît avec « Voir », il ne reste que le
+            cadenas. Le rejet, lui, ne demande pas de consulter le document — il
+            reste offert pour ne pas laisser la pièce dans une impasse. */}
+        {!readOnly && isRepris && !hidden && onConfirm && (
           <button
             type="button"
             disabled={busy}
