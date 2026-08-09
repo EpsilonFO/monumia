@@ -1,10 +1,15 @@
 """Endpoint de reprise des pièces et détachement d'un document."""
 
 import unittest
+import uuid
 from unittest.mock import patch
 
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
+from db import get_current_user_id, get_supabase
+from main import app
 from routers.dossiers import UpdateChecklistItemRequest, update_checklist_item
 
 
@@ -18,12 +23,17 @@ class _Query:
         self._store = store
         self._table = table
         self._update = None
+        self._insert = None
 
     def select(self, *a, **k):
         return self
 
     def update(self, values, *a, **k):
         self._update = values
+        return self
+
+    def insert(self, values, *a, **k):
+        self._insert = values
         return self
 
     def eq(self, *a, **k):
@@ -45,6 +55,9 @@ class _Query:
         return self
 
     def execute(self):
+        if self._insert is not None:
+            self._store.inserts.setdefault(self._table, []).append(self._insert)
+            return _Resp([self._insert])
         if self._update is not None:
             self._store.updates.setdefault(self._table, []).append(self._update)
             return _Resp([self._store.rows.get(self._table)])
@@ -55,6 +68,7 @@ class _FakeSupabase:
     def __init__(self, rows):
         self.rows = rows
         self.updates: dict[str, list] = {}
+        self.inserts: dict[str, list] = {}
 
     def table(self, name):
         return _Query(self, name)
@@ -99,10 +113,215 @@ class ReprendrePiecesTests(unittest.TestCase):
         self.assertEqual(ecrit["progression_pourcentage"], 0)
 
 
+class ResolutionPieceIdsTests(unittest.TestCase):
+    """Les dossiers créés avant le rattachement du corpus n'ont aucun `pieceId`
+    dans leur JSONB : sans re-résolution depuis l'aide, l'endpoint serait un
+    no-op définitif sur exactement les dossiers qu'il vise."""
+
+    _AIDE = {
+        "documents_requis": [
+            {"nom": "RIB", "piece_id": "rib"},
+            {"nom": "Pièce propre à cette aide"},
+        ]
+    }
+
+    def _dossier(self) -> dict:
+        return {
+            "id": "d1",
+            "monument_id": "p1",
+            "aide_id": "drac-restauration",
+            "checklist": [
+                {"id": "i1", "label": "RIB", "ordre": 1, "statut": "manquant", "obligatoire": True},
+                {
+                    "id": "i2",
+                    "label": "Pièce propre à cette aide",
+                    "ordre": 2,
+                    "statut": "manquant",
+                    "obligatoire": True,
+                },
+            ],
+        }
+
+    def _appeler(self, supabase, retour_reprise=(None, 0)):
+        from routers.dossiers import reprendre_pieces
+
+        vues: dict = {}
+
+        def _capture(_sb, checklist, *_a, **_k):
+            vues["checklist"] = checklist
+            return (retour_reprise[0] or checklist), retour_reprise[1]
+
+        with (
+            patch("routers.dossiers.require_project_access", return_value=None),
+            patch("routers.dossiers.apply_reuse", side_effect=_capture),
+        ):
+            reprendre_pieces("d1", user_id="u1", supabase=supabase)
+        return vues["checklist"]
+
+    def test_le_piece_id_est_reresolu_par_libelle_exact(self) -> None:
+        supabase = _FakeSupabase({"dossiers": self._dossier(), "aides_v3": self._AIDE})
+
+        checklist = self._appeler(supabase)
+
+        self.assertEqual(checklist[0]["pieceId"], "rib")
+        # Une pièce sans rattachement dans l'aide en reste dépourvue : on ne
+        # devine jamais un piece_id, on recopie celui du corpus.
+        self.assertIsNone(checklist[1].get("pieceId"))
+
+    def test_les_piece_ids_reresolus_sont_persistes_meme_sans_reprise(self) -> None:
+        supabase = _FakeSupabase({"dossiers": self._dossier(), "aides_v3": self._AIDE})
+
+        self._appeler(supabase)
+
+        ecrit = supabase.updates["dossiers"][0]
+        self.assertEqual(ecrit["checklist"][0]["pieceId"], "rib")
+        self.assertEqual(ecrit["progression_pourcentage"], 0)
+
+    def test_aide_introuvable_ne_fait_pas_echouer_la_reprise(self) -> None:
+        supabase = _FakeSupabase({"dossiers": self._dossier(), "aides_v3": None})
+
+        checklist = self._appeler(supabase)
+
+        self.assertIsNone(checklist[0].get("pieceId"))
+        self.assertNotIn("dossiers", supabase.updates)
+
+    def test_un_piece_id_deja_present_n_est_pas_ecrase(self) -> None:
+        dossier = self._dossier()
+        dossier["checklist"][0]["pieceId"] = "titre_propriete"
+        supabase = _FakeSupabase({"dossiers": dossier, "aides_v3": self._AIDE})
+
+        checklist = self._appeler(supabase)
+
+        self.assertEqual(checklist[0]["pieceId"], "titre_propriete")
+
+
+class _RecordingQuery:
+    """Note le champ sur lequel porte le filtre, pour vérifier slug vs UUID."""
+
+    def __init__(self, journal):
+        self._journal = journal
+
+    def select(self, *a, **k):
+        return self
+
+    def eq(self, field, value, *a, **k):
+        self._journal.append((field, value))
+        return self
+
+    def maybe_single(self):
+        return self
+
+    def execute(self):
+        return _Resp({"documents_requis": []})
+
+
+class _RecordingSupabase:
+    def __init__(self):
+        self.journal: list[tuple[str, str]] = []
+
+    def table(self, name):
+        return _RecordingQuery(self.journal)
+
+
+class FetchAideTests(unittest.TestCase):
+    """`dossiers.aide_id` stocke un slug OU un UUID (cf. create_dossier)."""
+
+    def test_un_slug_filtre_sur_slug(self) -> None:
+        from routers.dossiers import _fetch_aide
+
+        supabase = _RecordingSupabase()
+        _fetch_aide(supabase, "drac-restauration")
+        self.assertEqual(supabase.journal, [("slug", "drac-restauration")])
+
+    def test_un_uuid_filtre_sur_id(self) -> None:
+        from routers.dossiers import _fetch_aide
+
+        supabase = _RecordingSupabase()
+        identifiant = str(uuid.uuid4())
+        _fetch_aide(supabase, identifiant)
+        self.assertEqual(supabase.journal, [("id", identifiant)])
+
+    def test_aide_id_vide_ne_declenche_aucune_requete(self) -> None:
+        from routers.dossiers import _fetch_aide
+
+        supabase = _RecordingSupabase()
+        self.assertIsNone(_fetch_aide(supabase, None))
+        self.assertEqual(supabase.journal, [])
+
+
+class CreationRobusteTests(unittest.TestCase):
+    """La reprise est un confort greffé sur la création de dossier, qui marchait
+    avant elle : son échec ne doit pas se transformer en 500."""
+
+    def _supabase(self) -> _FakeSupabase:
+        return _FakeSupabase(
+            {
+                "monuments": {"id": "p1", "nom": "Chapelle"},
+                "aides_v3": {"id": "a1", "nom": "Aide", "documents_requis": [{"nom": "RIB"}]},
+                "users": {"id": "u1", "nom": "Dupont"},
+                "dossiers": {"id": "d1"},
+            }
+        )
+
+    def test_un_apply_reuse_qui_leve_n_empeche_pas_la_creation(self) -> None:
+        from routers.dossiers import CreateDossierRequest, create_dossier
+
+        supabase = self._supabase()
+        body = CreateDossierRequest(monument_id="p1", aide_id="a1", travaux_prevus=[])
+
+        with (
+            patch("routers.dossiers.require_project_access", return_value=None),
+            patch("routers.dossiers._enrich_monument", side_effect=lambda _sb, m: m),
+            patch("routers.dossiers.apply_reuse", side_effect=RuntimeError("PostgREST HS")),
+        ):
+            cree = create_dossier(body, user_id="u1", supabase=supabase)
+
+        # Le dossier est bien inséré, avec sa checklist d'origine : aucune pièce
+        # reprise, exactement le comportement d'avant le lot.
+        self.assertEqual(cree["user_id"], "u1")
+        self.assertEqual(cree["checklist"][0]["label"], "RIB")
+        self.assertEqual(cree["checklist"][0]["statut"], "manquant")
+        self.assertNotIn("documentId", cree["checklist"][0])
+        self.assertEqual(len(supabase.inserts["dossiers"]), 1)
+
+
 class DetachementSchemaTests(unittest.TestCase):
     def test_detacher_absent_par_defaut(self) -> None:
         body = UpdateChecklistItemRequest(statut="fourni", document_id="doc1")
         self.assertFalse(body.detacher)
+
+    def test_fourni_et_detacher_est_rejete(self) -> None:
+        with self.assertRaises(ValidationError):
+            UpdateChecklistItemRequest(statut="fourni", detacher=True)
+
+    def test_statut_hors_vocabulaire_est_rejete(self) -> None:
+        with self.assertRaises(ValidationError):
+            UpdateChecklistItemRequest(statut="valide")
+
+
+class ValidationHttpTests(unittest.TestCase):
+    """`fourni` + `detacher` était le seul chemin, atteignable depuis un client,
+    par lequel un dossier pouvait se déclarer complet sans document : la pièce
+    comptait dans la progression sans rien derrière. Le refus doit intervenir
+    avant le handler, donc en 422."""
+
+    def setUp(self) -> None:
+        app.dependency_overrides[get_current_user_id] = lambda: "u1"
+        app.dependency_overrides[get_supabase] = lambda: _FakeSupabase({"dossiers": _DOSSIER})
+        self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+
+    def test_fourni_et_detacher_renvoie_422(self) -> None:
+        reponse = self.client.patch(
+            "/dossiers/d1/checklist/i1", json={"statut": "fourni", "detacher": True}
+        )
+        self.assertEqual(reponse.status_code, 422)
+
+    def test_statut_inconnu_renvoie_422(self) -> None:
+        reponse = self.client.patch("/dossiers/d1/checklist/i1", json={"statut": "valide"})
+        self.assertEqual(reponse.status_code, 422)
 
 
 # ---------------------------------------------------------------------------
