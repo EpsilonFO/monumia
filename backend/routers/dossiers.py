@@ -10,7 +10,9 @@ from routers.monuments import _enrich_monument
 from services.dossier_service import create_dossier_from_aide
 from services.piece_reuse import apply_reuse
 from services.project_access import (
+    best_role,
     can_delete_document,
+    can_view_document,
     get_project_role,
     require_project_access,
 )
@@ -106,6 +108,46 @@ def _document_uploader(supabase: Client, document_id: str) -> str | None:
     if res and res.data:
         return res.data.get("user_id")
     return None
+
+
+def _ensure_document_visible(supabase: Client, document_id: str, user_id: str) -> None:
+    """Refuse de rattacher un document que l'appelant n'a pas le droit de voir.
+
+    `get_supabase()` fournit le client service-role : sans ce contrôle, tout
+    membre pourrait rattacher — et donc, via l'estampillage, faire entrer dans
+    le stock de reprise de la victime — la ligne `documents` de n'importe qui,
+    y compris d'un autre projet. Un document introuvable est laissé passer
+    (rien à protéger : l'écriture qui suit sur un id inexistant ne touche
+    aucune ligne). Même convention que `_require_document_view` dans
+    `routers/documents.py` : 404 et non 403, pour ne pas révéler l'existence
+    d'un document masqué.
+    """
+    res = (
+        supabase.table("documents")
+        .select("user_id, visibility, allowed_user_ids, monument_ids")
+        .eq("id", document_id)
+        .maybe_single()
+        .execute()
+    )
+    doc = res.data if res else None
+    if not doc:
+        return
+    monument_ids = doc.get("monument_ids") or []
+    # Rôle le plus élevé de l'appelant parmi les projets du document, résolu
+    # projet par projet (comme `_highest_project_role` dans `routers/documents.py`)
+    # plutôt que via `my_project_roles` : ce dernier balaie TOUS les projets de
+    # l'appelant, coûteux et inutile ici où le document ne porte qu'une poignée
+    # de `monument_ids`.
+    roles = {mid: r for mid in monument_ids if (r := get_project_role(supabase, mid, user_id))}
+    role = best_role(monument_ids, roles)
+    if not can_view_document(
+        visibility=doc.get("visibility") or "team",
+        allowed_user_ids=doc.get("allowed_user_ids") or [],
+        uploader_id=doc.get("user_id"),
+        viewer_id=user_id,
+        viewer_role=role,
+    ):
+        raise HTTPException(status_code=404, detail="Document introuvable")
 
 
 def _recalculate_progression(dossier: dict) -> int:
@@ -278,8 +320,20 @@ def update_checklist_item(
     if target is None:
         raise HTTPException(status_code=404, detail="Item de checklist introuvable")
 
+    # Confirmer une pièce reprise n'est pas un remplacement : le document
+    # attaché ne change pas, on accepte seulement une suggestion déjà en place.
+    # La garde protège contre le remplacement/retrait du document d'autrui —
+    # elle ne doit donc pas s'appliquer ici. Tous les autres chemins (y compris
+    # le rejet via `detacher`, qui lui retire bien le document) restent gardés.
+    est_confirmation = (
+        body.statut == "fourni"
+        and body.document_id is None
+        and not body.detacher
+        and target.get("origine") == "repris"
+    )
+
     current_doc_id = target.get("documentId")
-    if current_doc_id:
+    if current_doc_id and not est_confirmation:
         uploader_id = _document_uploader(supabase, current_doc_id)
         if uploader_id is not None and not can_delete_document(
             role, is_uploader=(uploader_id == user_id)
@@ -292,6 +346,17 @@ def update_checklist_item(
         target.pop("origine", None)
         target.pop("perime", None)
     elif body.document_id is not None:
+        piece_id = target.get("pieceId")
+        if piece_id:
+            # Le client supabase est service-role (RLS inopérante) : sans ce
+            # contrôle, n'importe quel membre pourrait rattacher — et donc,
+            # juste après, estampiller — la ligne `documents` de n'importe qui,
+            # y compris d'un autre projet. Seuls les items du référentiel
+            # (porteurs d'un `pieceId`) alimentent ensuite le stock de reprise
+            # par `piece_id` ; c'est ce chemin, et lui seul, qui porte le risque
+            # décrit (un item hors référentiel ne peut pas empoisonner le stock
+            # d'autrui, faute d'estampillage).
+            _ensure_document_visible(supabase, body.document_id, user_id)
         target["documentId"] = body.document_id
         # L'item n'est plus « repris » dès qu'un document est choisi à la main.
         target.pop("origine", None)
@@ -299,7 +364,6 @@ def update_checklist_item(
         # Estampillage : le document incarne désormais cette pièce canonique.
         # C'est le SEUL chemin de remplissage de documents.piece_id — le stock
         # se constitue par l'usage normal, sans saisie supplémentaire.
-        piece_id = target.get("pieceId")
         if piece_id:
             supabase.table("documents").update({"piece_id": piece_id}).eq(
                 "id", body.document_id
