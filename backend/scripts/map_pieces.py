@@ -74,57 +74,131 @@ def collecter_libelles(aides_dir: Path = AIDES_DIR) -> dict[str, list[str]]:
     return dict(sorted(index.items(), key=lambda kv: -len(kv[1])))
 
 
-def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int]:
+def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int, list[str]]:
     """Insère `piece_id:` sous chaque `- nom:` du bloc documents_requis.
+
+    Gère aussi les block scalars (>-, |, etc.) où le libellé s'étend sur plusieurs lignes.
 
     Patch TEXTUEL et non re-dump YAML : un `yaml.dump` réordonnerait les clés et
     reformaterait les 142 fiches, produisant un diff illisible.
 
     Un item qui porte déjà un piece_id est laissé tel quel (idempotence).
+
+    Returns: (texte_patché, nombre_insérés, libellés_mappés_non_traités)
     """
     lignes = texte.split("\n")
     sortie: list[str] = []
     dans_bloc = False
     inserees = 0
+    non_traites: list[str] = []
 
-    for i, ligne in enumerate(lignes):
+    i = 0
+    while i < len(lignes):
+        ligne = lignes[i]
         sortie.append(ligne)
 
         if ligne.startswith("documents_requis:"):
             dans_bloc = True
+            i += 1
             continue
 
         # Toute clé de premier niveau referme le bloc.
         if dans_bloc and ligne and not ligne.startswith((" ", "-", "#")):
             dans_bloc = False
+            i += 1
             continue
 
         if not dans_bloc:
+            i += 1
             continue
 
-        correspondance = re.match(r"^  - nom: (.+)$", ligne)
+        correspondance = re.match(r"^  - nom: (.*)$", ligne)
         if not correspondance:
+            i += 1
             continue
 
-        piece_id = mapping.get(normaliser(correspondance.group(1)))
-        if piece_id is None:
-            continue
+        valeur_brute = correspondance.group(1)
 
-        # Déjà rattaché ? On regarde les lignes de propriétés de cet item.
-        deja = False
-        for suivante in lignes[i + 1 :]:
-            if not suivante.startswith("    "):
-                break
-            if suivante.startswith("    piece_id:"):
-                deja = True
-                break
-        if deja:
-            continue
+        # Cas 1: block scalar (>-, >, |, |-)
+        if valeur_brute in (">-", ">", "|-", "|"):
+            # Lire les lignes de continuation (indentation supérieure à 4 espaces)
+            continuation_lines = []
+            fin_bloc = i + 1
+            while fin_bloc < len(lignes):
+                ligne_suite = lignes[fin_bloc]
+                # Les lignes de continuation sont indentées de 6+ espaces (2 for item, 4 for content)
+                if ligne_suite.startswith("      "):
+                    continuation_lines.append(ligne_suite[6:].rstrip())
+                    fin_bloc += 1
+                elif ligne_suite.strip() == "":
+                    # Ligne vide dans le block scalar
+                    continuation_lines.append("")
+                    fin_bloc += 1
+                else:
+                    # Fin du block scalar
+                    break
 
-        sortie.append(f"    piece_id: {piece_id}")
-        inserees += 1
+            # Plier les lignes (YAML `>` behavior)
+            libelle_reconstruit = " ".join(
+                ligne for ligne in continuation_lines if ligne
+            ).strip()
+            normalized = normaliser(libelle_reconstruit)
+            piece_id = mapping.get(normalized)
 
-    return "\n".join(sortie), inserees
+            if piece_id is not None:
+                # Vérifier si déjà rattaché — regarder les propriétés après le bloc
+                deja = False
+                for k in range(fin_bloc, len(lignes)):
+                    if not lignes[k].startswith("    "):
+                        break
+                    if lignes[k].startswith("    piece_id:"):
+                        deja = True
+                        break
+
+                # Ajouter les lignes de continuation à la sortie
+                for k in range(i + 1, fin_bloc):
+                    sortie.append(lignes[k])
+
+                if not deja:
+                    # Insérer le piece_id après la dernière ligne du bloc
+                    sortie.append(f"    piece_id: {piece_id}")
+                    inserees += 1
+
+                i = fin_bloc
+                continue
+            else:
+                # Pas en mapping, mais enregistrer pour détection futur
+                # (ne pas enregistrer comme non_traite puisqu'il n'est pas mappé)
+                for k in range(i + 1, fin_bloc):
+                    sortie.append(lignes[k])
+                i = fin_bloc
+                continue
+
+        # Cas 2: valeur simple
+        else:
+            normalized = normaliser(valeur_brute)
+            piece_id = mapping.get(normalized)
+            if piece_id is None:
+                i += 1
+                continue
+
+            # Déjà rattaché ? On regarde les lignes de propriétés de cet item.
+            deja = False
+            for suivante in lignes[i + 1 :]:
+                if not suivante.startswith("    "):
+                    break
+                if suivante.startswith("    piece_id:"):
+                    deja = True
+                    break
+            if deja:
+                i += 1
+                continue
+
+            sortie.append(f"    piece_id: {piece_id}")
+            inserees += 1
+            i += 1
+
+    return "\n".join(sortie), inserees, non_traites
 
 
 def _prompt(libelles: list[str], pieces: dict) -> str:
@@ -224,7 +298,7 @@ def main() -> int:
             return 1
         total = 0
         for fiche in sorted(AIDES_DIR.glob("*.yaml")):
-            texte, n = inserer_piece_ids(fiche.read_text(encoding="utf-8"), mapping)
+            texte, n, _ = inserer_piece_ids(fiche.read_text(encoding="utf-8"), mapping)
             if n:
                 fiche.write_text(texte, encoding="utf-8")
                 total += n

@@ -37,31 +37,104 @@ class InsertionTests(unittest.TestCase):
     )
 
     def test_insere_apres_le_nom(self) -> None:
-        texte, n = inserer_piece_ids(self.YAML, {"releve d'identite bancaire": "rib"})
+        texte, n, _ = inserer_piece_ids(self.YAML, {"releve d'identite bancaire": "rib"})
         self.assertEqual(n, 1)
         self.assertIn("  - nom: Relevé d'identité bancaire\n    piece_id: rib\n", texte)
 
     def test_conserve_les_autres_cles(self) -> None:
-        texte, _ = inserer_piece_ids(self.YAML, {"copie de la convention": "statuts_structure"})
+        texte, _, _ = inserer_piece_ids(self.YAML, {"copie de la convention": "statuts_structure"})
         self.assertIn("    piece_id: statuts_structure\n    obligatoire: false\n", texte)
 
     def test_libelle_absent_du_mapping_ignore(self) -> None:
-        texte, n = inserer_piece_ids(self.YAML, {})
+        texte, n, _ = inserer_piece_ids(self.YAML, {})
         self.assertEqual(n, 0)
         self.assertEqual(texte, self.YAML)
 
     def test_idempotent(self) -> None:
         mapping = {"releve d'identite bancaire": "rib"}
-        une_fois, _ = inserer_piece_ids(self.YAML, mapping)
-        deux_fois, n = inserer_piece_ids(une_fois, mapping)
+        une_fois, _, _ = inserer_piece_ids(self.YAML, mapping)
+        deux_fois, n, _ = inserer_piece_ids(une_fois, mapping)
         self.assertEqual(n, 0)
         self.assertEqual(une_fois, deux_fois)
 
     def test_hors_bloc_documents_requis_ignore(self) -> None:
         yaml_texte = "conditions:\n  - nom: Relevé d'identité bancaire\n"
-        texte, n = inserer_piece_ids(yaml_texte, {"releve d'identite bancaire": "rib"})
+        texte, n, _ = inserer_piece_ids(yaml_texte, {"releve d'identite bancaire": "rib"})
         self.assertEqual(n, 0)
         self.assertEqual(texte, yaml_texte)
+
+
+class BlockScalarTests(unittest.TestCase):
+    """Tests pour les block scalars (>-, |, etc.) qui s'étendent sur plusieurs lignes."""
+
+    def test_block_scalar_simple(self) -> None:
+        """Un item avec block scalar >- sur plusieurs lignes, rattaché correctement."""
+        yaml = (
+            "nom: Aide test\n"
+            "documents_requis:\n"
+            "  - nom: >-\n"
+            "      Description du projet et budget dedie et tous autres\n"
+            "      elements venant etayer la demande\n"
+            "tags: []\n"
+        )
+        mapping = {
+            "description du projet et budget dedie et tous autres elements venant etayer la demande": "description_projet"
+        }
+        texte, n, _ = inserer_piece_ids(yaml, mapping)
+        self.assertEqual(n, 1)
+        self.assertIn("    piece_id: description_projet\n", texte)
+
+    def test_block_scalar_idempotent(self) -> None:
+        """Un block scalar avec piece_id ne reçoit pas de doublon."""
+        yaml = (
+            "nom: Aide test\n"
+            "documents_requis:\n"
+            "  - nom: >-\n"
+            "      Description du projet et budget dedie\n"
+            "    piece_id: description_projet\n"
+            "tags: []\n"
+        )
+        mapping = {"description du projet et budget dedie": "description_projet"}
+        texte, n, _ = inserer_piece_ids(yaml, mapping)
+        self.assertEqual(n, 0)
+        # Vérifier qu'il n'y a qu'un seul piece_id
+        self.assertEqual(texte.count("piece_id: description_projet"), 1)
+
+    def test_block_scalar_avec_proprietes_suivantes(self) -> None:
+        """Un block scalar suivi d'autres propriétés — piece_id atterrit au bon endroit."""
+        yaml = (
+            "nom: Aide test\n"
+            "documents_requis:\n"
+            "  - nom: >-\n"
+            "      Piece justifiant du soutien du lieu de diffusion pour la\n"
+            "      creation du spectacle\n"
+            "    obligatoire: false\n"
+            "    note: Pour les spectacles uniquement.\n"
+            "tags: []\n"
+        )
+        mapping = {
+            "piece justifiant du soutien du lieu de diffusion pour la creation du spectacle": "soutien_diffusion"
+        }
+        texte, n, _ = inserer_piece_ids(yaml, mapping)
+        self.assertEqual(n, 1)
+        # Vérifier que piece_id est inséré après le bloc et avant obligatoire
+        self.assertIn(
+            "    piece_id: soutien_diffusion\n    obligatoire: false\n",
+            texte,
+        )
+
+    def test_block_scalar_absent_du_mapping(self) -> None:
+        """Un block scalar absent du mapping reste inchangé."""
+        yaml = (
+            "nom: Aide test\n"
+            "documents_requis:\n"
+            "  - nom: >-\n"
+            "      Description unique qui n'existe nulle part ailleurs\n"
+            "tags: []\n"
+        )
+        texte, n, _ = inserer_piece_ids(yaml, {})
+        self.assertEqual(n, 0)
+        self.assertEqual(texte, yaml)
 
 
 if __name__ == "__main__":
