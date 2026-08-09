@@ -130,18 +130,12 @@ def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int, li
                 if ligne_suite.startswith("      "):
                     continuation_lines.append(ligne_suite[6:].rstrip())
                     fin_bloc += 1
-                elif ligne_suite.strip() == "":
-                    # Ligne vide dans le block scalar
-                    continuation_lines.append("")
-                    fin_bloc += 1
                 else:
-                    # Fin du block scalar
+                    # Fin du block scalar (y compris lignes vides et propriétés)
                     break
 
             # Plier les lignes (YAML `>` behavior)
-            libelle_reconstruit = " ".join(
-                ligne for ligne in continuation_lines if ligne
-            ).strip()
+            libelle_reconstruit = " ".join(ligne for ligne in continuation_lines if ligne).strip()
             normalized = normaliser(libelle_reconstruit)
             piece_id = mapping.get(normalized)
 
@@ -297,12 +291,20 @@ def main() -> int:
             print(f"✗ pièces inconnues dans le mapping : {sorted(inconnus)}")
             return 1
         total = 0
+        tous_non_traites: list[str] = []
         for fiche in sorted(AIDES_DIR.glob("*.yaml")):
-            texte, n, _ = inserer_piece_ids(fiche.read_text(encoding="utf-8"), mapping)
+            texte, n, non_traites = inserer_piece_ids(fiche.read_text(encoding="utf-8"), mapping)
             if n:
                 fiche.write_text(texte, encoding="utf-8")
                 total += n
+            tous_non_traites.extend(non_traites)
         print(f"✓ {total} piece_id insérés — relancer scripts/lint_aides_data.py")
+        if tous_non_traites:
+            print(
+                f"⚠ {len(tous_non_traites)} libellés non traités (parsing ou insertion échouée) :"
+            )
+            for libelle in tous_non_traites:
+                print(f"  - {libelle}")
         return 0
 
     parser.print_help()
