@@ -1,8 +1,10 @@
+import logging
 import uuid
 from datetime import UTC
+from typing import Literal, Self
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
@@ -18,6 +20,8 @@ from services.project_access import (
 )
 
 router = APIRouter(prefix="/dossiers", tags=["dossiers"])
+
+logger = logging.getLogger(__name__)
 
 COLUMNS = "*"
 
@@ -52,12 +56,24 @@ class UpdateDossierRequest(BaseModel):
 
 
 class UpdateChecklistItemRequest(BaseModel):
-    statut: str  # 'fourni' | 'repris' | 'en_attente' | 'manquant'
+    # Vocabulaire fermé : le statut part tel quel dans le JSONB de la checklist,
+    # une chaîne libre y écrirait n'importe quoi (et « fourni » mal orthographié
+    # ferait disparaître la pièce de la progression sans erreur).
+    statut: Literal["fourni", "repris", "en_attente", "manquant"]
     document_id: str | None = None
     # `document_id: None` signifie « champ non fourni » (le front n'envoie la clé
     # que pour rattacher). Rejeter une pièce reprise demande de VIDER le champ :
     # d'où ce drapeau explicite, plutôt qu'une sémantique du null ambiguë.
     detacher: bool = False
+
+    @model_validator(mode="after")
+    def _refuse_fourni_sans_document(self) -> Self:
+        """« fourni » + détachement produirait une pièce comptée dans la
+        progression sans aucun document derrière : un dossier qui se déclare
+        complet tout seul, ce que la conception exclut explicitement."""
+        if self.statut == "fourni" and self.detacher:
+            raise ValueError("Une pièce « fournie » ne peut pas être détachée de son document")
+        return self
 
 
 class UpdateSectionRequest(BaseModel):
@@ -80,6 +96,65 @@ class AddEcheanceRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _fetch_aide(supabase: Client, aide_id: str | None) -> dict | None:
+    """Fiche d'aide par UUID ou slug.
+
+    Le moteur déterministe identifie les aides par leur slug (lecture des YAML),
+    donc un `aide_id` — celui du corps de requête comme celui stocké dans
+    `dossiers.aide_id` — peut être l'un ou l'autre.
+    """
+    if not aide_id:
+        return None
+    query = supabase.table("aides_v3").select("*")
+    query = query.eq("id", aide_id) if _is_uuid(aide_id) else query.eq("slug", aide_id)
+    result = query.maybe_single().execute()
+    return result.data if result else None
+
+
+def _resoudre_piece_ids(supabase: Client, dossier: dict) -> tuple[list[dict], int]:
+    """Re-remplit les `pieceId` absents de la checklist, depuis l'aide du dossier.
+
+    Le `pieceId` est figé dans le JSONB au moment de la création : les dossiers
+    créés avant le rattachement du corpus n'en portent aucun, et la reprise y
+    serait un no-op définitif — précisément sur les dossiers pour lesquels elle
+    a le plus de valeur.
+
+    Le rapprochement est exact, pas flou : le `label` d'un item EST le
+    `documents_requis[].nom` de l'aide (cf. `create_dossier_from_aide`), et l'on
+    ne rapproche qu'à l'intérieur d'une même aide. Renvoie une NOUVELLE
+    checklist et le nombre d'items nouvellement rattachés.
+    """
+    checklist = [dict(item) for item in dossier.get("checklist") or []]
+    orphelins = [item for item in checklist if not item.get("pieceId")]
+    if not orphelins:
+        return checklist, 0
+
+    aide = _fetch_aide(supabase, dossier.get("aide_id"))
+    if not aide:
+        # Aide supprimée ou renommée : rien à re-résoudre. Ce n'est pas une
+        # erreur — les items déjà rattachés restent traités par la reprise.
+        return checklist, 0
+
+    documents_requis = aide.get("documents_requis") or aide.get("documentsRequis") or []
+    piece_par_nom: dict[str, str] = {}
+    for doc in documents_requis:
+        if not isinstance(doc, dict):
+            continue
+        nom = doc.get("nom") or doc.get("label")
+        piece_id = doc.get("piece_id") or doc.get("pieceId")
+        if isinstance(nom, str) and piece_id:
+            piece_par_nom[nom] = piece_id
+
+    resolus = 0
+    for item in orphelins:
+        label = item.get("label")
+        piece_id = piece_par_nom.get(label) if isinstance(label, str) else None
+        if piece_id:
+            item["pieceId"] = piece_id
+            resolus += 1
+    return checklist, resolus
 
 
 def _get_dossier_or_404(supabase: Client, dossier_id: str, user_id: str) -> dict:
@@ -212,16 +287,8 @@ def create_dossier(
     if not monument_result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
 
-    # Fetch aide par UUID ou slug : le moteur déterministe identifie les aides
-    # par leur slug (lecture des YAML), donc body.aide_id peut être l'un ou l'autre.
-    aide_query = supabase.table("aides_v3").select("*")
-    aide_query = (
-        aide_query.eq("id", body.aide_id)
-        if _is_uuid(body.aide_id)
-        else aide_query.eq("slug", body.aide_id)
-    )
-    aide_result = aide_query.maybe_single().execute()
-    if not aide_result or not aide_result.data:
+    aide = _fetch_aide(supabase, body.aide_id)
+    if not aide:
         raise HTTPException(status_code=404, detail="Aide introuvable")
 
     # Fetch user profile
@@ -244,7 +311,7 @@ def create_dossier(
             travaux_labels = [code_to_label.get(c, c) for c in body.travaux_prevus]
 
     dossier = create_dossier_from_aide(
-        aide=aide_result.data,
+        aide=aide,
         monument=monument,
         user=user_result.data,
         travaux_prevus=travaux_labels,
@@ -258,7 +325,22 @@ def create_dossier(
     # Pré-remplissage : les pièces déjà déposées ailleurs sont rattachées dans
     # un état « repris » à confirmer — jamais « fourni », pour qu'un dossier ne
     # se déclare pas complet sans relecture.
-    dossier["checklist"], _ = apply_reuse(supabase, dossier["checklist"], body.monument_id, user_id)
+    #
+    # La reprise est un confort, pas un prérequis : elle est sur le chemin
+    # critique d'une fonctionnalité qui marchait avant elle. Une erreur
+    # PostgREST, un référentiel illisible ou une table `documents` indisponible
+    # ne doivent pas transformer la création de dossier en 500 ; on journalise
+    # et l'on poursuit avec la checklist d'origine.
+    try:
+        dossier["checklist"], _ = apply_reuse(
+            supabase, dossier["checklist"], body.monument_id, user_id
+        )
+    except Exception:
+        logger.exception(
+            "Reprise des pièces impossible, création du dossier poursuivie (monument=%s, aide=%s)",
+            body.monument_id,
+            body.aide_id,
+        )
 
     result = supabase.table("dossiers").insert(dossier).execute()
     return result.data[0]
@@ -396,14 +478,22 @@ def reprendre_pieces(
     Sans cet endpoint la fonctionnalité ne servirait qu'aux nouveaux dossiers,
     alors que les utilisateurs qui ont un stock sont précisément les anciens.
 
+    Les `pieceId` sont re-résolus depuis l'aide avant la reprise : sans cela
+    l'endpoint serait un no-op définitif sur tous les dossiers créés avant le
+    rattachement du corpus, c'est-à-dire sur ceux qu'il vise.
+
     Le résultat dépend de l'appelant : le stock est filtré par SA visibilité.
+
+    Contrairement à la création de dossier, aucun filet ici : la reprise EST
+    l'objet de l'appel, son échec doit remonter à l'utilisateur.
     """
     dossier = _require_dossier_write(supabase, dossier_id, user_id)
 
-    checklist, repris = apply_reuse(
-        supabase, dossier.get("checklist") or [], dossier["monument_id"], user_id
-    )
-    if repris:
+    checklist, resolus = _resoudre_piece_ids(supabase, dossier)
+    checklist, repris = apply_reuse(supabase, checklist, dossier["monument_id"], user_id)
+    # Les `pieceId` re-résolus valent la peine d'être persistés même sans
+    # reprise : ils rendent la prochaine tentative immédiate.
+    if repris or resolus:
         supabase.table("dossiers").update(
             {
                 "checklist": checklist,
