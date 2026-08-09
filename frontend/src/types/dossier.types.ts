@@ -9,7 +9,7 @@ export type DossierStatus =
   | 'pret'
   | 'soumis';
 
-export type ChecklistItemStatus = 'fourni' | 'en_attente' | 'manquant';
+export type ChecklistItemStatus = 'fourni' | 'repris' | 'en_attente' | 'manquant';
 
 export interface Dossier {
   id: ID;
@@ -43,6 +43,12 @@ export interface ChecklistItem {
   description: string;
   statut: ChecklistItemStatus;
   documentId?: ID;
+  /** Pièce canonique du référentiel (backend/data/pieces.yaml), si rattachée. */
+  pieceId?: string;
+  /** 'repris' : rattaché automatiquement depuis un autre dossier, à confirmer. */
+  origine?: 'repris';
+  /** Pièce périssable dont le document dépasse son seuil d'alerte. */
+  perime?: boolean;
   obligatoire: boolean;
   categorie: 'administratif' | 'technique' | 'financier' | 'photographique' | 'document';
   ordre: number;

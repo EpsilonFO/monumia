@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import {
-  IconLivre, IconSucces, IconTelecharger, IconVoir, IconVerrou, IconAjouter, IconRafraichir, IconSupprimer, IconLienExterne,
+  IconLivre, IconSucces, IconTelecharger, IconVoir, IconVerrou, IconAjouter, IconRafraichir, IconSupprimer, IconLienExterne, IconAttention,
 } from '@/components/icons';
 import { Link, useParams } from 'react-router';
 import { ROUTES } from '@/constants/routes';
@@ -18,6 +18,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { documentService } from '@/services/document.service';
+import { compterChecklist } from '@/lib/checklist-progress';
 
 /** Défense : un label malformé (dossier stocké avec un objet document
  *  {nom, …} au lieu d'une chaîne) ne doit pas faire planter le rendu React. */
@@ -38,6 +39,10 @@ interface DossierChecklistProps {
   onRequestAttach?: (item: ChecklistItem) => void;
   onPreview?: (documentId: string) => void;
   onRequestDelete?: (item: ChecklistItem) => void;
+  /** Confirme une pièce reprise (« c'est bien ce document »). */
+  onConfirm?: (item: ChecklistItem) => void;
+  /** Rejette une pièce reprise (mauvais document). */
+  onReject?: (item: ChecklistItem) => void;
   /** Vrai si l'utilisateur peut remplacer/supprimer la pièce (= il en est l'auteur). */
   canModifyItem?: (item: ChecklistItem) => boolean;
   busyItemId?: string | null;
@@ -51,12 +56,14 @@ export function DossierChecklist({
   onRequestAttach,
   onPreview,
   onRequestDelete,
+  onConfirm,
+  onReject,
   canModifyItem,
   busyItemId,
   readOnly,
 }: DossierChecklistProps) {
   const sorted = [...items].sort((a, b) => a.ordre - b.ordre);
-  const uploaded = items.filter((i) => i.statut === 'fourni').length;
+  const { confirmees, aVerifier, total } = compterChecklist(items);
 
   // Documents du projet que l'utilisateur a le DROIT de voir (le backend filtre
   // déjà selon la visibilité). Une pièce « fournie » dont le documentId n'y est
@@ -88,7 +95,8 @@ export function DossierChecklist({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm" style={{ color: 'var(--color-gray-muted)' }}>
-          <span className="font-medium" style={{ color: 'var(--color-foreground)' }}>{uploaded}/{items.length}</span> documents ajoutés
+          <span className="font-medium" style={{ color: 'var(--color-foreground)' }}>{confirmees}/{total}</span> documents confirmés
+          {aVerifier > 0 && <span> · {aVerifier} à vérifier</span>}
         </p>
         <Link
           to={ROUTES.MODELES}
@@ -116,6 +124,8 @@ export function DossierChecklist({
             onRequestAttach={onRequestAttach}
             onPreview={onPreview}
             onRequestDelete={onRequestDelete}
+            onConfirm={onConfirm}
+            onReject={onReject}
           />
         ))}
       </div>
@@ -134,6 +144,8 @@ function DocumentRow({
   onRequestAttach,
   onPreview,
   onRequestDelete,
+  onConfirm,
+  onReject,
 }: {
   item: ChecklistItem;
   templates: Template[];
@@ -145,18 +157,26 @@ function DocumentRow({
   onRequestAttach?: (item: ChecklistItem) => void;
   onPreview?: (documentId: string) => void;
   onRequestDelete?: (item: ChecklistItem) => void;
+  onConfirm?: (item: ChecklistItem) => void;
+  onReject?: (item: ChecklistItem) => void;
 }) {
   const isFourni = item.statut === 'fourni';
+  const isRepris = item.statut === 'repris';
 
   return (
     <div
       className={cn(
         'flex items-center gap-3 py-2.5 px-3 rounded-lg border transition-colors',
-        isFourni ? 'bg-success-muted/60 border-success/30' : 'border-border hover:border-border/70',
+        isFourni && 'bg-success-muted/60 border-success/30',
+        isRepris && !item.perime && 'bg-secondary/40 border-primary/30',
+        isRepris && item.perime && 'bg-warning-muted/50 border-accent/40',
+        !isFourni && !isRepris && 'border-border hover:border-border/70',
       )}
     >
       {isFourni ? (
         <IconSucces className="h-4 w-4 shrink-0 text-success" />
+      ) : isRepris ? (
+        <IconRafraichir className="h-4 w-4 shrink-0" style={{ color: 'var(--color-primary)' }} />
       ) : (
         <div className="w-4 h-4 shrink-0 rounded-full border-2 border-border" />
       )}
@@ -171,6 +191,17 @@ function DocumentRow({
               Requis
             </Badge>
           )}
+          {isRepris && !item.perime && (
+            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-primary/40 text-primary">
+              Repris — à vérifier
+            </Badge>
+          )}
+          {isRepris && item.perime && (
+            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-accent/50 text-warning">
+              <IconAttention className="h-2.5 w-2.5 mr-0.5" />
+              Repris — document ancien
+            </Badge>
+          )}
         </div>
         {item.description && (
           <p className="text-xs text-muted-foreground truncate">{item.description}</p>
@@ -178,8 +209,29 @@ function DocumentRow({
       </div>
 
       <div className="flex items-center gap-1.5 shrink-0">
+        {!readOnly && isRepris && onConfirm && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onConfirm(item)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-success/30 text-success hover:bg-success-muted transition-colors"
+          >
+            <IconSucces className="h-3 w-3" />
+            C’est bien ça
+          </button>
+        )}
+        {!readOnly && isRepris && onReject && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onReject(item)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors"
+          >
+            Ce n’est pas ça
+          </button>
+        )}
         <ModelButton templates={templates} />
-        {isFourni && item.documentId && hidden && (
+        {(isFourni || isRepris) && item.documentId && hidden && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -195,7 +247,7 @@ function DocumentRow({
             </Tooltip>
           </TooltipProvider>
         )}
-        {isFourni && item.documentId && !hidden && onPreview && (
+        {(isFourni || isRepris) && item.documentId && !hidden && onPreview && (
           <button
             type="button"
             onClick={() => onPreview(item.documentId!)}

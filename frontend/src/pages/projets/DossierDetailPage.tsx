@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { ChevronLeft, Loader2 } from 'lucide-react';
-import { IconDocument, IconAttention, IconSupprimer, IconLivre } from '@/components/icons';
+import { IconDocument, IconAttention, IconSupprimer, IconLivre, IconRafraichir } from '@/components/icons';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -171,6 +171,38 @@ export function DossierDetailPage() {
     }
   };
 
+  // Confirmer une pièce reprise n'est pas un remplacement : ouvert à tout membre
+  // du projet (le backend l'exempte de la garde « auteur du document »).
+  const handleConfirmItem = async (item: ChecklistItem) => {
+    if (!dossier) return;
+    setBusyItemId(item.id);
+    try {
+      await dossierService.updateChecklistItem(dossier.id, item.id, 'fourni');
+      toast.success('Pièce confirmée');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la confirmation');
+    } finally {
+      setBusyItemId(null);
+    }
+  };
+
+  // Rejeter une pièce reprise détache son document : contrairement à la
+  // confirmation, cette action reste soumise à la garde d'accès du backend
+  // (seul l'auteur du document, ou un chef de projet/adjoint, peut la retirer —
+  // 403 sinon).
+  const handleRejectItem = async (item: ChecklistItem) => {
+    if (!dossier) return;
+    setBusyItemId(item.id);
+    try {
+      await dossierService.detacherChecklistItem(dossier.id, item.id);
+      toast.success('Pièce retirée du dossier');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors du rejet de la pièce');
+    } finally {
+      setBusyItemId(null);
+    }
+  };
+
   // Remplacer / supprimer une pièce : l'auteur du document, OU un chef de projet /
   // adjoint (tous les droits sur les docs). Un collaborateur ne peut agir que sur
   // les siens. Consultation ouverte à tous.
@@ -242,6 +274,20 @@ export function DossierDetailPage() {
       )}
 
       <div className="space-y-6">
+        {dossier.checklist.some((i) => i.statut === 'repris') && (
+          <div className="flex items-start gap-3 p-4 rounded-xl border" style={{ borderColor: C.border, background: C.paleBlue }}>
+            <IconRafraichir className="h-5 w-5 shrink-0 mt-0.5" style={{ color: C.blue }} />
+            <div className="text-[13px]">
+              <p className="font-semibold" style={{ color: C.ink }}>
+                {dossier.checklist.filter((i) => i.statut === 'repris').length} pièces reprises de vos documents
+              </p>
+              <p className="mt-0.5 text-muted-foreground">
+                Elles proviennent d’autres dossiers. Vérifiez chacune avant l’envoi&nbsp;: elles ne comptent pas comme fournies tant qu’elles ne sont pas confirmées.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="rounded-2xl border overflow-hidden" style={{ background: C.card, borderColor: C.border }}>
           <div className="px-5 py-3 border-b" style={{ borderColor: C.border }}>
             <h3 className="text-[16px]" style={{ fontFamily: SERIF, color: C.ink }}>Pièces du dossier</h3>
@@ -257,6 +303,8 @@ export function DossierDetailPage() {
                 onRequestAttach={(item) => setAttachingItem(item)}
                 onPreview={handlePreview}
                 onRequestDelete={handleDeleteItem}
+                onConfirm={handleConfirmItem}
+                onReject={handleRejectItem}
                 canModifyItem={canModifyItem}
                 busyItemId={busyItemId}
                 readOnly={dossier.statut === 'soumis'}
