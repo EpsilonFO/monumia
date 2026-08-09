@@ -8,6 +8,7 @@ from supabase import Client
 from db import get_current_user_id, get_supabase
 from routers.monuments import _enrich_monument
 from services.dossier_service import create_dossier_from_aide
+from services.piece_reuse import apply_reuse
 from services.project_access import (
     can_delete_document,
     get_project_role,
@@ -49,8 +50,12 @@ class UpdateDossierRequest(BaseModel):
 
 
 class UpdateChecklistItemRequest(BaseModel):
-    statut: str  # 'fourni' | 'en_attente' | 'manquant'
+    statut: str  # 'fourni' | 'repris' | 'en_attente' | 'manquant'
     document_id: str | None = None
+    # `document_id: None` signifie « champ non fourni » (le front n'envoie la clé
+    # que pour rattacher). Rejeter une pièce reprise demande de VIDER le champ :
+    # d'où ce drapeau explicite, plutôt qu'une sémantique du null ambiguë.
+    detacher: bool = False
 
 
 class UpdateSectionRequest(BaseModel):
@@ -208,6 +213,11 @@ def create_dossier(
     # pour que le rattachement dossier↔aide (masquage de l'aide, suivi) matche.
     dossier["aide_id"] = body.aide_id
 
+    # Pré-remplissage : les pièces déjà déposées ailleurs sont rattachées dans
+    # un état « repris » à confirmer — jamais « fourni », pour qu'un dossier ne
+    # se déclare pas complet sans relecture.
+    dossier["checklist"], _ = apply_reuse(supabase, dossier["checklist"], body.monument_id, user_id)
+
     result = supabase.table("dossiers").insert(dossier).execute()
     return result.data[0]
 
@@ -277,8 +287,28 @@ def update_checklist_item(
             raise HTTPException(status_code=403, detail="Vous ne pouvez pas modifier cette pièce")
 
     target["statut"] = body.statut
-    if body.document_id is not None:
+    if body.detacher:
+        target["documentId"] = None
+        target.pop("origine", None)
+        target.pop("perime", None)
+    elif body.document_id is not None:
         target["documentId"] = body.document_id
+        # L'item n'est plus « repris » dès qu'un document est choisi à la main.
+        target.pop("origine", None)
+        target.pop("perime", None)
+        # Estampillage : le document incarne désormais cette pièce canonique.
+        # C'est le SEUL chemin de remplissage de documents.piece_id — le stock
+        # se constitue par l'usage normal, sans saisie supplémentaire.
+        piece_id = target.get("pieceId")
+        if piece_id:
+            supabase.table("documents").update({"piece_id": piece_id}).eq(
+                "id", body.document_id
+            ).execute()
+    elif body.statut == "fourni":
+        # Confirmation d'une pièce reprise : le document reste, l'item devient
+        # définitif et sort de l'état « à vérifier ».
+        target.pop("origine", None)
+        target.pop("perime", None)
 
     progression = _recalculate_progression({**dossier, "checklist": checklist})
     supabase.table("dossiers").update(
@@ -287,6 +317,37 @@ def update_checklist_item(
             "progression_pourcentage": progression,
         }
     ).eq("id", dossier_id).execute()
+
+    return _get_dossier_or_404(supabase, dossier_id, user_id)
+
+
+@router.post("/{dossier_id}/reprendre-pieces")
+def reprendre_pieces(
+    dossier_id: str,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Rejoue la reprise sur un dossier existant.
+
+    Sans cet endpoint la fonctionnalité ne servirait qu'aux nouveaux dossiers,
+    alors que les utilisateurs qui ont un stock sont précisément les anciens.
+
+    Le résultat dépend de l'appelant : le stock est filtré par SA visibilité.
+    """
+    dossier = _require_dossier_write(supabase, dossier_id, user_id)
+
+    checklist, repris = apply_reuse(
+        supabase, dossier.get("checklist") or [], dossier["monument_id"], user_id
+    )
+    if repris:
+        supabase.table("dossiers").update(
+            {
+                "checklist": checklist,
+                "progression_pourcentage": _recalculate_progression(
+                    {**dossier, "checklist": checklist}
+                ),
+            }
+        ).eq("id", dossier_id).execute()
 
     return _get_dossier_or_404(supabase, dossier_id, user_id)
 
