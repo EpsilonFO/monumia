@@ -330,9 +330,10 @@ FIELD_REGISTRY: dict[str, dict] = {
     "commune.population": {"type": "integer"},
     "commune.programmes": {"type": "list"},
     "commune.eligible_detr": {"type": "boolean"},
-    # SIREN de l'EPCI d'appartenance de la commune (référentiel BANATIC) —
-    # enrichissement à câbler : pas encore de colonne dans `communes`. Permet
+    # SIREN de l'EPCI d'appartenance de la commune (référentiel BANATIC), pour
     # les aides intercommunales (ex. CC Moret Seine et Loing = 247700032).
+    # Colonne `communes.epci_siren`, alimentée par
+    # scripts/seeds/seed_communes_epci.py.
     "commune.epci": {"type": "string"},
 }
 

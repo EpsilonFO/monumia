@@ -243,7 +243,7 @@ export function TarifsPage() {
             className="mx-auto mt-5 max-w-2xl text-[16.5px] font-medium leading-[1.65]"
             style={{ color: C.grayFg }}
           >
-            L’estimation de vos aides est gratuite et le reste. Ce qui se paie, c’est le passage à
+            L’estimation de vos aides est gratuite. Ce qui se paie, c’est le passage à
             l’action : savoir de quelles aides il s’agit, auprès de qui les demander, et avec quelles
             pièces.
           </p>
@@ -339,7 +339,6 @@ export function TarifsPage() {
             payé : sans Customer côté Stripe, l'ouverture échouerait. */}
         <Reassurance
           subscription={access?.subscription ?? null}
-          testMode={!!access?.testMode}
           onOpenPortal={hasPaid ? openPortal : undefined}
         />
       </div>
@@ -623,11 +622,9 @@ function PaymentSuccess({
 
 function Reassurance({
   subscription,
-  testMode,
   onOpenPortal,
 }: {
   subscription: { status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null;
-  testMode: boolean;
   onOpenPortal?: () => void;
 }) {
   const periodEnd = subscription?.currentPeriodEnd
@@ -678,15 +675,6 @@ function Reassurance({
               </button>
             </>
           )}
-        </p>
-      )}
-
-      {testMode && (
-        <p
-          className="mx-auto max-w-md rounded-lg border px-3 py-2 text-center text-[12.5px] font-semibold"
-          style={{ background: C.paleOrange, borderColor: C.orange, color: C.ink }}
-        >
-          Stripe est en mode test : aucun paiement réel n’est encaissé.
         </p>
       )}
     </div>

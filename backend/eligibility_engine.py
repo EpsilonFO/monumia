@@ -81,6 +81,11 @@ def build_context(
     Un chemin absent du dict (commune.programmes, commune.eligible_detr tant que
     l'enrichissement n'existe pas) ⇒ valeur None à l'évaluation ⇒ incertitude
     (fail-closed). `answers` mappe fact_key → réponse de l'utilisateur.
+
+    `commune.epci` est posé par l'enrichissement commune (cf.
+    routers.monuments.enrich_monument_with_population) quand la commune a un
+    SIREN d'EPCI : absent pour une commune isolée, ce qui laisse les aides
+    intercommunales en incertitude plutôt que de les déclarer non éligibles.
     """
     ctx: dict[str, object] = {
         "monument.protection": monument.get("protection"),
@@ -93,7 +98,7 @@ def build_context(
         "commune.population": population,
     }
     # Champs d'enrichissement commune : présents seulement si la donnée existe.
-    for path in ("commune.programmes", "commune.eligible_detr"):
+    for path in ("commune.programmes", "commune.eligible_detr", "commune.epci"):
         if path in monument:
             ctx[path] = monument[path]
     ctx["_answers"] = dict(answers or {})

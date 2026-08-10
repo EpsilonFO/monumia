@@ -186,6 +186,26 @@ class AddPhotoRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _attach_epci(monument: dict, commune_row: dict) -> None:
+    """Pose le rattachement intercommunal sur le monument.
+
+    `commune.epci` est un chemin du FIELD_REGISTRY : les aides intercommunales
+    (ex. CC Moret Seine et Loing = SIREN 247700032) le comparent au SIREN de
+    leur EPCI porteur. La clé est écrite en notation pointée parce que
+    `eligibility_engine.build_context` lit les champs d'enrichissement commune
+    directement sous leur chemin de registre.
+
+    Clé absente si la commune n'a pas d'EPCI (îles mono-communales) ou si la
+    colonne n'est pas encore seedée : le moteur y voit une incertitude
+    fail-closed, jamais une non-éligibilité. `communes.epci_nom` reste hors du
+    monument — aucun affichage ne le consomme, les libellés d'EPCI sont déjà
+    dans le texte des conditions.
+    """
+    siren = commune_row.get("epci_siren")
+    if siren:
+        monument["commune.epci"] = siren
+
+
 def enrich_monument_with_population(supabase: Client, monument: dict) -> tuple[dict, int | None]:
     """Join commune data (commune, departement, region) + population via code_insee.
 
@@ -204,7 +224,9 @@ def enrich_monument_with_population(supabase: Client, monument: dict) -> tuple[d
 
     result = (
         supabase.table("communes")
-        .select("nom_commune, departement, departement_num, region, region_code, population")
+        .select(
+            "nom_commune, departement, departement_num, region, region_code, population, epci_siren"
+        )
         .eq("code_insee", code_insee)
         .limit(1)
         .execute()
@@ -218,6 +240,7 @@ def enrich_monument_with_population(supabase: Client, monument: dict) -> tuple[d
     monument["departement_num"] = row["departement_num"]
     monument["region"] = row.get("region_code")
     monument["region_label"] = row.get("region")
+    _attach_epci(monument, row)
     return monument, row.get("population")
 
 
@@ -342,7 +365,8 @@ def fetch_user_monuments(
         communes_result = (
             supabase.table("communes")
             .select(
-                "code_insee, nom_commune, departement, departement_num, region, region_code, population"
+                "code_insee, nom_commune, departement, departement_num, region, region_code, "
+                "population, epci_siren"
             )
             .in_("code_insee", code_insees)
             .execute()
@@ -361,6 +385,7 @@ def fetch_user_monuments(
                 m["departement_num"] = commune_data["departement_num"]
                 m["region"] = commune_data.get("region_code")
                 m["region_label"] = commune_data.get("region")
+                _attach_epci(m, commune_data)
 
     # Aperçu des membres par projet (avatars + compteur côté liste, sans 1 requête/carte).
     all_members = (

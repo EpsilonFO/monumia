@@ -242,6 +242,47 @@ class TestHardFilters(unittest.TestCase):
         self.assertEqual(v_big.status, "non_eligible")
 
 
+class TestEpciGating(unittest.TestCase):
+    """Aides intercommunales : le gate `commune.epci` contre le SIREN de l'EPCI.
+
+    Les hard_filters d'une aide de la CCMSL ne bornent que le département (77) :
+    sans le rattachement intercommunal, toute la Seine-et-Marne restait en
+    « potentiel ». Le SIREN vient de communes.epci_siren, posé sur le monument
+    par routers.monuments._attach_epci.
+    """
+
+    CCMSL = "247700032"
+    AIDE = "ccmsl-renovation-facades"
+
+    def _monument_77(self, **over):
+        return _monument(
+            protection="non_protege",
+            departement_num="77",
+            proprietaire="prive_personne_physique",
+            travaux_envisages=["facade"],
+            **over,
+        )
+
+    def _status(self, monument):
+        return evaluate_aide(
+            AIDES[self.AIDE], monument, 3000, build_context(monument, 3000), FACTS
+        ).status
+
+    def test_epci_absent_reste_incertain(self):
+        """Commune non enrichie : fail-closed, jamais un rejet."""
+        m = self._monument_77()
+        self.assertNotIn("commune.epci", build_context(m, 3000))
+        self.assertNotEqual(self._status(m), "non_eligible")
+
+    def test_autre_epci_du_departement_est_rejete(self):
+        m = self._monument_77(**{"commune.epci": "200072346"})
+        self.assertEqual(self._status(m), "non_eligible")
+
+    def test_epci_porteur_ne_declenche_pas_le_rejet(self):
+        m = self._monument_77(**{"commune.epci": self.CCMSL})
+        self.assertNotEqual(self._status(m), "non_eligible")
+
+
 class TestUserFactGating(unittest.TestCase):
     def test_unanswered_fact_is_potentiel_not_eligible(self):
         """Sans réponse, un gate user_fact laisse l'aide potentielle (fail-closed)."""

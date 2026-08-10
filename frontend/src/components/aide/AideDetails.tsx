@@ -3,7 +3,6 @@ import type { ComponentType, ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import {
   IconLienExterne,
-  IconTemps,
   IconInstitution,
   IconDocument,
   IconSubvention,
@@ -472,9 +471,6 @@ function EssentialCard({ aide }: { aide: Aide }) {
             </span>
           )}
         />
-        {aide.delaiInstruction && (
-          <EssentialFact icon={IconTemps} label="Délai de réponse" value={aide.delaiInstruction} />
-        )}
       </div>
     </div>
   );
