@@ -1,6 +1,6 @@
 """
-Moteur de diagnostic déterministe — remplace les deux phases LLM de
-matching_engine.py par l'évaluation des conditions typées (aide_conditions).
+Moteur de diagnostic déterministe : évaluation des conditions typées
+(aide_conditions). Seul moteur de matching du produit.
 
 Aucun appel réseau, aucun LLM. Source de vérité : les YAML typés
 (backend/data/aides/*.yaml) chargés via aides_schema. Ne traite QUE les aides
@@ -8,15 +8,15 @@ Aucun appel réseau, aucun LLM. Source de vérité : les YAML typés
 produit n'affichera que les aides dont la donnée est compilée).
 
 Pipeline :
-  1. hard_filters (déterministe, sémantique identique à prefiltrer_aides)
+  1. hard_filters (périmètre géographique, protection, propriétaire, population)
   2. évaluation des conditions `gate` contre le contexte (monument + commune +
      réponses aux faits) → éligible / potentiel / non éligible
   3. génération des questions depuis les faits manquants (dédup par fait, tri
      par nombre d'aides débloquées), avec eliminationsParOption CALCULÉ.
 
-La sortie a la forme AideDiagnosticResult attendue par le frontend (le champ
-historique `llmEvaluation` est conservé pour compat d'affichage — il ne
-contient plus rien de LLM, juste les verdicts déterministes par condition).
+La sortie a la forme AideDiagnosticResult attendue par le frontend. Attention au
+champ `llmEvaluation` : le nom est un vestige, il ne contient rien de LLM, juste
+les verdicts déterministes par condition. Le frontend le lit sous ce nom.
 """
 
 from __future__ import annotations
@@ -361,7 +361,7 @@ def _gateway_condition(cond: Condition) -> Condition:
 def _evaluate_hard_filters(
     aide: Aide, monument: dict, population: int | None
 ) -> tuple[list[str], list[str]]:
-    """Évalue les hard_filters (sémantique prefiltrer_aides), SANS court-circuit.
+    """Évalue les hard_filters, SANS court-circuit.
 
     Retourne (critères structurels satisfaits, critères éliminatoires). Tout
     critère éliminatoire rend l'aide non éligible — mais on continue d'évaluer

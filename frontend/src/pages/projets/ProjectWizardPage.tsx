@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { MerimeeSearch } from '@/components/monument/MerimeeSearch';
 import { MonumentForm } from '@/components/monument/MonumentForm';
@@ -194,9 +194,9 @@ export function ProjectWizardPage() {
         commune: data.commune ?? '',
         codeInsee: data.codeInsee ?? '',
         protection: data.protection ?? 'non_protege',
-        proprietaire:
-          data.proprietaire ??
-          (user.segment === 'commune' ? 'public_commune' : 'prive_personne_physique'),
+        // Le formulaire impose le type de propriétaire (champ requis) : ce
+        // repli ne sert qu'à satisfaire le type.
+        proprietaire: data.proprietaire ?? 'prive_personne_physique',
         etatConservation: data.etatConservation ?? 'moyen',
         referenceMerimee: data.referenceMerimee,
         dateProtection: data.dateProtection,
@@ -290,11 +290,6 @@ export function ProjectWizardPage() {
     // Leave `saving` true through the navigation — the component unmounts.
     navigate(ROUTES.PROJET_DETAIL(monumentId));
   };
-
-  // Le wizard vit hors AppLayout : on réintroduit son garde de segment.
-  if (user && user.segment === 'btp') {
-    return <Navigate to="/btp" replace />;
-  }
 
   const exitTo = existingMonumentId
     ? ROUTES.PROJET_DETAIL(existingMonumentId)

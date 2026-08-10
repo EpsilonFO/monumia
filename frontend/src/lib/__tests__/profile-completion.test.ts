@@ -7,7 +7,6 @@ const base = {
   email: 'jean@exemple.fr',
   prenom: 'Jean',
   nom: 'Dupont',
-  segment: 'prive',
 } as unknown as User;
 
 describe('computeProfileCompletion', () => {

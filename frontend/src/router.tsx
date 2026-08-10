@@ -1,9 +1,7 @@
 import { createBrowserRouter, Navigate, useParams } from 'react-router';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { BtpLayout } from '@/components/layout/BtpLayout';
 import { OnboardingPage } from '@/pages/onboarding/OnboardingPage';
-import { SegmentChoice } from '@/pages/onboarding/SegmentChoice';
 import { OnboardingProfile } from '@/pages/onboarding/OnboardingProfile';
 import { OnboardingMonument } from '@/pages/onboarding/OnboardingMonument';
 import { LoginPage } from '@/pages/login/LoginPage';
@@ -25,13 +23,6 @@ import { DossierDetailPage } from '@/pages/projets/DossierDetailPage';
 import { DocumentsPage } from '@/pages/documents/DocumentsPage';
 import { TemplateLibraryPage } from '@/pages/templates/TemplateLibraryPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
-// BTP pages
-import { BtpDashboardPage } from '@/pages/btp/BtpDashboardPage';
-import { BtpProspectsPage } from '@/pages/btp/BtpProspectsPage';
-import { BtpProspectDetailPage } from '@/pages/btp/BtpProspectDetailPage';
-import { BtpAidesPage } from '@/pages/btp/BtpAidesPage';
-import { BtpDocumentsPage } from '@/pages/btp/BtpDocumentsPage';
-import { BtpProfilePage } from '@/pages/btp/BtpProfilePage';
 import { InvitationLandingPage } from '@/pages/invitation/InvitationLandingPage';
 
 // Legacy redirect: /app/monuments/:monumentId → /app/projets/:monumentId (id preserved)
@@ -41,20 +32,19 @@ function LegacyMonumentRedirect() {
   return <Navigate to={`/app/projets/${monumentId ?? ''}`} replace />;
 }
 
-// Root: send logged-in users to their dashboard (segment-aware), others to login.
+// Root: send logged-in users to their dashboard, others to login.
 // The landing page (separate origin) links here so the app picks the right space.
 // eslint-disable-next-line react-refresh/only-export-components
 function RootRedirect() {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
   if (!user || !token) return <Navigate to="/login" replace />;
-  if (user.segment === 'btp') return <Navigate to="/btp" replace />;
   if (user.accountType === 'collaborateur') return <Navigate to="/app/projets" replace />;
   return <Navigate to="/app" replace />;
 }
 
 export const router = createBrowserRouter([
-  // Root redirects by auth/segment (landing page is now on monumia.fr)
+  // Root redirects by auth state (landing page is now on monumia.fr)
   {
     path: '/',
     element: <RootRedirect />,
@@ -101,13 +91,14 @@ export const router = createBrowserRouter([
     element: <InvitationLandingPage />,
   },
 
-  // Onboarding — credentials kept in memory only (usePendingRegistrationStore)
+  // Onboarding — ne sert plus qu'au parcours Google : l'inscription par email
+  // crée le compte d'un seul coup depuis /login. Session OAuth en mémoire
+  // uniquement (usePendingOAuthStore).
   {
     path: '/onboarding',
     element: <OnboardingPage />,
     children: [
-      { index: true, element: <SegmentChoice /> },
-      { path: 'profil', element: <OnboardingProfile /> },
+      { index: true, element: <OnboardingProfile /> },
       { path: 'monument', element: <OnboardingMonument /> },
     ],
   },
@@ -149,24 +140,6 @@ export const router = createBrowserRouter([
       { path: 'dossiers/:dossierId', element: <Navigate to="/app/projets" replace /> },
       { path: 'aides', element: <Navigate to="/app/projets" replace /> },
       { path: 'aides/:aideId', element: <Navigate to="/app/projets" replace /> },
-    ],
-  },
-
-  // BTP app (protégé)
-  {
-    path: '/btp',
-    element: (
-      <ProtectedRoute>
-        <BtpLayout />
-      </ProtectedRoute>
-    ),
-    children: [
-      { index: true, element: <BtpDashboardPage /> },
-      { path: 'prospects', element: <BtpProspectsPage /> },
-      { path: 'prospects/:prospectId', element: <BtpProspectDetailPage /> },
-      { path: 'aides', element: <BtpAidesPage /> },
-      { path: 'documents', element: <BtpDocumentsPage /> },
-      { path: 'profil', element: <BtpProfilePage /> },
     ],
   },
 

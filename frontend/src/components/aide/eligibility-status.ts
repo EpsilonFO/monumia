@@ -18,9 +18,9 @@ const STATUT_TO_STATUS: Record<AideStatut, EligibilityStatus> = {
 };
 
 /**
- * Le moteur déterministe donne le statut explicitement (`statut`) : c'est la
- * seule source qui distingue « à débloquer » de « non éligible ». La dérivation
- * historique reste le repli pour l'ancien chemin LLM, qui ne le renseigne pas.
+ * Le moteur donne le statut explicitement (`statut`) : c'est la seule source qui
+ * distingue « à débloquer » de « non éligible ». La dérivation depuis
+ * `eligible` + incertitudes ne sert que de repli, si le champ manque.
  */
 export function getEligibilityStatus(matchResult: AideMatchResult): EligibilityStatus {
   const fromEngine = matchResult.statut && STATUT_TO_STATUS[matchResult.statut];
@@ -36,10 +36,9 @@ export function getEligibilityStatus(matchResult: AideMatchResult): EligibilityS
 }
 
 /**
- * Fenêtre de candidature du jour, orthogonale au statut. Seul le moteur
- * déterministe la renseigne : l'ancien chemin LLM et le moteur client
- * (`matching-engine.ts`) retombent sur « maintenant », ce qui préserve
- * l'affichage historique (aucune aide marquée « ouvre bientôt » à tort).
+ * Fenêtre de candidature du jour, orthogonale au statut. Retombe sur
+ * « maintenant » quand le moteur ne la renseigne pas, ce qui évite de marquer
+ * une aide « ouvre bientôt » à tort.
  */
 export function getDisponibilite(matchResult: {
   disponibilite?: AideDisponibilite;

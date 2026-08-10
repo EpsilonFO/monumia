@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
   IconEnregistrer,
-  IconMaison,
-  IconMonument,
   IconCompte,
   IconContact,
   IconTelephone,
@@ -16,34 +14,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import { C, SERIF } from '@/lib/brand';
 import { computeProfileCompletion } from '@/lib/profile-completion';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useSegmentLabel } from '@/hooks/useSegment';
-
-const FR_PHONE_REGEX = /^(?:\+33|0033|0)[1-9](?:[\s.\-]?\d{2}){4}$/;
-const isValidPhone = (v: string) => !v || FR_PHONE_REGEX.test(v.trim());
-
-const FONCTION_LABELS: Record<string, string> = {
-  maire: 'Maire',
-  adjoint_patrimoine: 'Adjoint au patrimoine',
-  secretaire_mairie: 'Secrétaire de mairie',
-  dgs: 'Directeur général des services',
-  autre: 'Autre',
-};
-const TYPE_PROPRIETAIRE_LABELS: Record<string, string> = {
-  personne_physique: 'Personne physique',
-  sci: 'SCI',
-  association: 'Association',
-  autre: 'Autre',
-};
-const REGIME_FISCAL_LABELS: Record<string, string> = {
-  monuments_historiques: 'Régime Monuments Historiques',
-  droit_commun: 'Droit commun',
-  mecenat: 'Mécénat',
-};
+import { isValidPhone } from '@/lib/phone';
 
 const DEFAULT_NOTIF_PREFS = {
   urgentDeadlines: true,
@@ -58,7 +33,6 @@ export function ProfilePage() {
   const _updateNotifPrefs = useAuthStore((s) => s.updateNotificationPreferences);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
-  const { isCommune, isPrive } = useSegmentLabel();
 
   const [form, setForm] = useState({
     prenom: user?.prenom ?? '',
@@ -159,9 +133,6 @@ export function ProfilePage() {
             </h1>
 
             <div className="mt-3 flex flex-wrap items-center gap-2.5">
-              <Badge variant="outline" className="border-border bg-[var(--card)]/70 text-[12px] text-foreground">
-                {isCommune ? 'Commune' : 'Propriétaire privé'}
-              </Badge>
               <span className="inline-flex items-center gap-1.5 text-[12.5px]" style={{ color: C.grayMuted }}>
                 <IconSucces className="h-3.5 w-3.5" style={{ color: complete ? C.orange : C.grayMuted }} />
                 {complete ? 'Profil complet' : 'Profil presque complet'}
@@ -220,42 +191,8 @@ export function ProfilePage() {
 
       {/* ═════════ GRILLE — remplit la largeur ═════════ */}
       <div className="grid gap-5 lg:grid-cols-2">
-        {/* Colonne gauche : segment + sécurité */}
+        {/* Colonne gauche : sécurité */}
         <div className="flex flex-col gap-5">
-          <Panel>
-            <PanelHeader
-              icon={isCommune
-                ? <IconMonument className="h-4 w-4 text-accent" strokeWidth={1.8} />
-                : <IconMaison className="h-4 w-4 text-accent" strokeWidth={1.8} />}
-              tint="warning"
-              title={isCommune ? 'Ma commune' : 'Mon patrimoine'}
-            />
-            <div className="space-y-2.5 px-6 py-5">
-              {isCommune && currentUser.commune && (
-                <>
-                  <InfoRow label="Commune" value={currentUser.commune.nom} />
-                  <InfoRow label="Code INSEE" value={currentUser.commune.codeInsee} />
-                  <InfoRow label="Département" value={currentUser.commune.departement} />
-                  <InfoRow label="Population" value={`${currentUser.commune.population} hab.`} />
-                  <InfoRow label="Fonction" value={FONCTION_LABELS[currentUser.commune.fonction] ?? currentUser.commune.fonction} />
-                </>
-              )}
-              {isPrive && currentUser.prive && (
-                <>
-                  <InfoRow label="Type" value={TYPE_PROPRIETAIRE_LABELS[currentUser.prive.typeProprietaire] ?? currentUser.prive.typeProprietaire} />
-                  {currentUser.prive.regimeFiscal && (
-                    <InfoRow label="Régime fiscal" value={REGIME_FISCAL_LABELS[currentUser.prive.regimeFiscal] ?? currentUser.prive.regimeFiscal} />
-                  )}
-                </>
-              )}
-              {((isCommune && !currentUser.commune) || (isPrive && !currentUser.prive)) && (
-                <p className="text-[13.5px]" style={{ color: C.grayMuted }}>
-                  Ces informations seront renseignées avec votre premier projet.
-                </p>
-              )}
-            </div>
-          </Panel>
-
           <Panel>
             <PanelHeader
               icon={<IconProtection className="h-4 w-4 text-primary" strokeWidth={1.8} />}
@@ -378,15 +315,6 @@ function PanelHeader({ icon, title, tint = 'blue' }: { icon: React.ReactNode; ti
         {icon}
       </span>
       <h3 className="text-[17px]" style={{ fontFamily: SERIF, color: C.ink }}>{title}</h3>
-    </div>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline gap-2 text-[14px]">
-      <span className="text-muted-foreground">{label} :</span>
-      <span className="font-medium text-foreground">{value}</span>
     </div>
   );
 }

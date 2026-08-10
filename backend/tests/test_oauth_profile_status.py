@@ -46,18 +46,13 @@ class _FakeSupabase:
         return self._users
 
 
-# Ligne users sans commune (segment prive) : _get_profile ne touche pas la
-# table communes, le fake reste simple.
+# _get_profile ne lit que la table users : le fake reste simple.
 PROFILE_ROW = {
     "id": "user-1",
     "email": "marie@exemple.fr",
     "prenom": "Marie",
     "nom": "Dupont",
-    "segment": "prive",
     "telephone": None,
-    "prive_type_proprietaire": "personne_physique",
-    "prive_regime_fiscal": None,
-    "btp": None,
     "onboarding_complete": False,
     "notification_preferences": {},
     "created_at": "2026-01-01T00:00:00Z",

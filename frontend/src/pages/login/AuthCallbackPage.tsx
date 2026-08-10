@@ -52,11 +52,7 @@ export function AuthCallbackPage() {
           }
           setAuth(status.user, parsed.accessToken);
           navigate(
-            status.user.segment === 'btp'
-              ? '/btp'
-              : status.user.accountType === 'collaborateur'
-                ? ROUTES.PROJETS
-                : '/app',
+            status.user.accountType === 'collaborateur' ? ROUTES.PROJETS : '/app',
             { replace: true },
           );
         } else {

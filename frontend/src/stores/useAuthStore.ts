@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, UserSegment, NotificationPreferences } from '@/types';
+import type { User, NotificationPreferences } from '@/types';
 import { authService } from '@/services/auth.service';
 import { useMonumentStore } from './useMonumentStore';
 import { useDossierStore } from './useDossierStore';
@@ -20,7 +20,6 @@ interface AuthState {
   setUser: (user: User) => void;
   updateProfile: (updates: Partial<User>) => Promise<void>;
   completeOnboarding: () => void;
-  setSegment: (segment: UserSegment) => void;
   updateNotificationPreferences: (prefs: Partial<NotificationPreferences>) => Promise<void>;
   logout: () => void;
 }
@@ -61,11 +60,6 @@ export const useAuthStore = create<AuthState>()(
             : null,
         })),
 
-      setSegment: (segment) =>
-        set((state) => ({
-          user: state.user ? { ...state.user, segment } : null,
-        })),
-
       updateNotificationPreferences: async (prefs) => {
         if (!get().token) return;
         const updated = await authService.updateNotificationPreferences(prefs);
@@ -79,13 +73,7 @@ export const useAuthStore = create<AuthState>()(
         useMonumentStore.setState({ monuments: [], activeMonumentId: null });
         useDossierStore.setState({ dossiers: [], loaded: false });
         useDocumentStore.setState({ documents: [], loading: false, error: null });
-        useAideStore.setState({
-          aides: [],
-          diagnosticsByMonument: {},
-          digestsByMonument: {},
-          loading: false,
-          error: null,
-        });
+        useAideStore.setState({ diagnosticsByMonument: {}, digestsByMonument: {} });
         useSuiviStore.setState({ suivis: [], loadedMonuments: {} });
         // Sinon les projets débloqués du compte précédent resteraient ouverts
         // pour le suivant, le temps que /billing/access réponde.

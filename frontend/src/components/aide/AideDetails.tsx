@@ -277,8 +277,8 @@ function EvalGroup({ icon: Icon, tone, title, count, defaultOpen = false, childr
 }
 
 /**
- * Détail de l'analyse, groupé selon la nature des conditions. Si les évaluations
- * ne portent pas de `nature` (ancien chemin LLM), bascule sur un rendu à plat.
+ * Détail de l'analyse, groupé selon la nature des conditions. Si aucune
+ * évaluation ne porte de `nature`, bascule sur un rendu à plat.
  */
 function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) {
   const evals: Evaluation[] = matchResult.llmEvaluation?.evaluations ?? [];

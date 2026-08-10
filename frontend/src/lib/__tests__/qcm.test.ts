@@ -64,7 +64,7 @@ describe('computeEliminatedAideIds', () => {
     ).toEqual(['aide-commune']);
   });
 
-  it('format grossier (chemin LLM) : toutes les aides de la question tombent', () => {
+  it('format grossier (sans eliminationsParOption) : toutes les aides de la question tombent', () => {
     const q = question({
       multiple: false,
       eliminationsParOption: undefined,
