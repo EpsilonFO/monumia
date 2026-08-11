@@ -1,9 +1,10 @@
-"""Tests de l'origine de retour après paiement.
+"""Tests des URLs que le backend fabrique à destination d'un navigateur :
+retours de paiement Stripe et liens d'invitation envoyés par email.
 
-Stripe redirige le navigateur vers l'URL qu'on lui donne. La déduire de la
-requête évite de configurer une variable par machine (et d'atterrir en
-production depuis un poste de développement), mais l'en-tête vient du client :
-la liste blanche est la seule chose qui empêche une redirection arbitraire.
+Les déduire de la requête évite de configurer une variable par machine (et
+d'envoyer en production un utilisateur parti de la beta), mais l'en-tête vient
+du client : la liste blanche est la seule chose qui empêche une redirection
+arbitraire.
 """
 
 import unittest
@@ -11,7 +12,7 @@ import unittest
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from config import resolve_app_origin
+from config import default_app_url, request_app_origin, resolve_app_origin
 from services import stripe_billing as billing
 
 FALLBACK = "https://app.monumia.fr"
@@ -83,6 +84,46 @@ class ReturnOriginTest(unittest.TestCase):
     def test_referer_hostile_ignore(self):
         request = _request({"referer": "https://attaquant.example/tarifs"})
         self.assertEqual(billing.return_origin(request), billing.app_url())
+
+
+class InvitationOriginTest(unittest.TestCase):
+    """Le lien d'invitation doit suivre l'environnement de l'invitant.
+
+    Régression vécue : l'URL était codée en dur sur `app.monumia.fr`, donc une
+    invitation créée depuis la beta envoyait le destinataire en production, où
+    le jeton n'existe pas — « Invitation introuvable ».
+    """
+
+    def _invite_url(self, headers: dict) -> str:
+        request = _request(headers)
+        return f"{request_app_origin(request)}/invitation/tok123"
+
+    def test_invitation_depuis_la_beta_reste_sur_la_beta(self):
+        self.assertEqual(
+            self._invite_url({"origin": "https://beta.monumia.fr"}),
+            "https://beta.monumia.fr/invitation/tok123",
+        )
+
+    def test_invitation_depuis_la_prod_reste_en_prod(self):
+        self.assertEqual(
+            self._invite_url({"origin": "https://app.monumia.fr"}),
+            "https://app.monumia.fr/invitation/tok123",
+        )
+
+    def test_invitation_depuis_localhost(self):
+        self.assertEqual(
+            self._invite_url({"origin": "http://localhost:3000"}),
+            "http://localhost:3000/invitation/tok123",
+        )
+
+    def test_origine_hostile_retombe_sur_la_configuration(self):
+        self.assertEqual(
+            self._invite_url({"origin": "https://attaquant.example"}),
+            f"{default_app_url()}/invitation/tok123",
+        )
+
+    def test_sans_entete_retombe_sur_la_configuration(self):
+        self.assertEqual(self._invite_url({}), f"{default_app_url()}/invitation/tok123")
 
 
 if __name__ == "__main__":

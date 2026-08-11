@@ -26,12 +26,22 @@ function GoogleLogo() {
   );
 }
 
+interface GoogleButtonProps {
+  /** Libellé du bouton (défaut : « Continuer avec Google »). */
+  label?: string;
+  /**
+   * Appelé juste avant de quitter la page, pour mettre de côté le contexte qui
+   * doit survivre à la redirection (ex. le jeton d'invitation en cours).
+   */
+  beforeRedirect?: () => void;
+}
+
 /**
  * « Continuer avec Google » : lance la redirection OAuth Supabase vers Google.
  * En cas de succès le navigateur quitte la page ; le retour se fait sur
- * /auth/callback qui décide entre connexion directe et onboarding.
+ * /auth/callback qui décide entre connexion directe et complétion de profil.
  */
-export function GoogleButton() {
+export function GoogleButton({ label = 'Continuer avec Google', beforeRedirect }: GoogleButtonProps = {}) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -46,6 +56,7 @@ export function GoogleButton() {
 
   const handleClick = async () => {
     setLoading(true);
+    beforeRedirect?.();
     const { error } = await getSupabase().auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
@@ -66,7 +77,7 @@ export function GoogleButton() {
       style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
     >
       {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <GoogleLogo />}
-      Continuer avec Google
+      {label}
     </button>
   );
 }

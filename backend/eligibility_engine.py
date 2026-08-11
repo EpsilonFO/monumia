@@ -1076,13 +1076,13 @@ def run_deterministic_diagnostic(
 
     questions = build_questions(verdicts, facts)
 
-    # Le montant potentiel est présenté comme mobilisable en l'état : on n'y
-    # compte donc que les éligibles dont la fenêtre est ouverte aujourd'hui.
-    montant_total = sum(
-        v.aide.financement.montant_max or 0
-        for v in eligibles
-        if v.aide.financement.montant_max and disponibilite(v.aide, today) == "maintenant"
-    )
+    # Le montant potentiel couvre tout ce qui est à portée sans démarche
+    # préalable : les éligibles (« disponibles maintenant »), les potentiels
+    # (« à confirmer ») et, pour ces deux statuts, ceux dont la fenêtre est
+    # fermée ou pas encore ouverte (« disponibles bientôt »). Les atteignables
+    # en sont exclus, quelle que soit leur fenêtre : ils supposent une démarche
+    # et sont chiffrés à part dans `montantAtteignableTotal`.
+    montant_total = sum(v.aide.financement.montant_max or 0 for v in eligibles + potentiels)
     montant_atteignable = sum(v.aide.financement.montant_max or 0 for v in atteignables)
 
     logger.info(

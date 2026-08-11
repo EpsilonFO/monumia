@@ -134,8 +134,8 @@ class TestDisponibilite(unittest.TestCase):
         self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fixture-aide"])
         self.assertEqual(res["aidesEligibles"][0]["disponibilite"], "bientot")
 
-    def test_montant_potentiel_ignore_les_bientot(self):
-        """Le montant affiché se veut mobilisable en l'état : fenêtre ouverte only."""
+    def test_montant_potentiel_compte_les_bientot(self):
+        """Le montant couvre aussi les aides « disponibles bientôt »."""
         ouverte = self._aide(slug="fx-ouverte", permanent=True).model_copy(
             update={"financement": Financement(montant_max=10_000)}
         )
@@ -146,7 +146,26 @@ class TestDisponibilite(unittest.TestCase):
             {a.slug: a for a in (ouverte, close)}, FACTS, _monument(), 3000, today=self.TODAY
         )
         self.assertEqual(len(res["aidesEligibles"]), 2)
-        self.assertEqual(res["montantPotentielTotal"], 10_000)
+        self.assertEqual(res["montantPotentielTotal"], 100_000)
+
+    def test_montant_potentiel_compte_les_a_confirmer(self):
+        """Les aides « à confirmer » (statut potentiel) entrent dans le total."""
+        certaine = self._aide(slug="fx-certaine", permanent=True).model_copy(
+            update={"financement": Financement(montant_max=10_000)}
+        )
+        a_confirmer = _fixture_aide(
+            [{"id": "mc", "text": "À vérifier auprès du financeur", "kind": "manual_check"}],
+            slug="fx-a-confirmer",
+        ).model_copy(update={"financement": Financement(montant_max=5_000)})
+        res = run_deterministic_diagnostic(
+            {a.slug: a for a in (certaine, a_confirmer)},
+            FACTS,
+            _monument(),
+            3000,
+            today=self.TODAY,
+        )
+        self.assertEqual(len(res["aidesPotentiellementEligibles"]), 1)
+        self.assertEqual(res["montantPotentielTotal"], 15_000)
 
 
 class TestRaisonPrefilter(unittest.TestCase):

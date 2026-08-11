@@ -2,18 +2,17 @@
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from supabase import Client
 
+from config import request_app_origin
 from db import get_current_user_id, get_supabase
 from services.email_service import send_invitation_email
 from services.invitations import generate_invite_token, invitation_expiry_iso
 from services.project_access import require_project_access
 
 router = APIRouter(prefix="/projects", tags=["sharing"])
-
-APP_URL = "https://app.monumia.fr"
 
 
 class InviteRequest(BaseModel):
@@ -89,6 +88,7 @@ def list_members(
 def create_invitation(
     monument_id: str,
     body: InviteRequest,
+    request: Request,
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
@@ -131,11 +131,14 @@ def create_invitation(
         if inviter and inviter.data
         else "Un membre"
     )
+    # Le lien suit l'environnement d'où part l'invitation : envoyée depuis la
+    # beta, elle renvoie sur la beta — sinon le destinataire atterrit en
+    # production, où le jeton n'existe pas (« Invitation introuvable »).
     send_invitation_email(
         to_email=email,
         inviter_nom=inviter_nom,
         monument_nom=monument["nom"],
-        invite_url=f"{APP_URL}/invitation/{token}",
+        invite_url=f"{request_app_origin(request)}/invitation/{token}",
         expires_label=expires_at[:10],
     )
     return {
