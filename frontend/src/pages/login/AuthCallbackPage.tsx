@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { usePendingOAuthStore } from '@/stores/usePendingOAuthStore';
 import { authService } from '@/services/auth.service';
 import { parseOAuthCallbackHash } from '@/lib/oauth-callback';
+import { takePendingInvitation } from '@/lib/pending-invitation';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 
@@ -35,6 +36,12 @@ export function AuthCallbackPage() {
     // Nettoie l'URL pour ne pas laisser traîner les jetons.
     window.history.replaceState(null, '', window.location.pathname);
 
+    // Google lancé depuis un lien d'invitation : on rend la main à l'écran
+    // d'invitation, qui possède tout le parcours collaborateur (rôle sur le
+    // projet, acceptation). Consommé ici même en cas d'erreur, pour ne pas
+    // laisser un jeton traîner sur une tentative suivante.
+    const pendingInvitation = takePendingInvitation();
+
     if (parsed.status === 'error') {
       setError(ERROR_MESSAGE);
       return;
@@ -52,8 +59,8 @@ export function AuthCallbackPage() {
           }
           setAuth(status.user, parsed.accessToken);
           navigate(
-            status.user.segment === 'btp'
-              ? '/btp'
+            pendingInvitation
+              ? `/invitation/${pendingInvitation}`
               : status.user.accountType === 'collaborateur'
                 ? ROUTES.PROJETS
                 : '/app',
@@ -67,7 +74,10 @@ export function AuthCallbackPage() {
             prenom: status.prefill?.prenom ?? '',
             nom: status.prefill?.nom ?? '',
           });
-          navigate('/onboarding', { replace: true });
+          navigate(
+            pendingInvitation ? `/invitation/${pendingInvitation}` : '/onboarding',
+            { replace: true },
+          );
         }
       })
       .catch((err: unknown) => { console.error(err); setError(ERROR_MESSAGE); });

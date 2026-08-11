@@ -1,9 +1,15 @@
-"""Origines autorisées, partagées par CORS et les redirections de paiement.
+"""Origines autorisées, partagées par CORS et par toutes les URLs que le backend
+fabrique à destination d'un navigateur (retours de paiement, liens d'invitation).
 
-Une seule liste pour les deux usages : une origine acceptée par CORS est une
-origine où l'on accepte de renvoyer l'utilisateur après un paiement, et
-l'inverse aussi. Deux listes finiraient par diverger.
+Une seule liste pour ces usages : une origine acceptée par CORS est une origine
+où l'on accepte de renvoyer l'utilisateur, et l'inverse aussi. Deux listes
+finiraient par diverger.
 """
+
+import os
+from urllib.parse import urlparse
+
+from fastapi import Request
 
 # Ports de développement : 3000 = application (frontend/vite.config.ts),
 # 3001 = landing (landing/vite.config.ts).
@@ -30,3 +36,31 @@ def resolve_app_origin(origin: str | None, fallback: str) -> str:
     if origin and origin.rstrip("/") in ALLOWED_ORIGINS:
         return origin.rstrip("/")
     return fallback.rstrip("/")
+
+
+def default_app_url() -> str:
+    """Origine de repli de l'application, quand la requête n'en dit rien."""
+    return (os.environ.get("APP_URL", "").strip() or "https://app.monumia.fr").rstrip("/")
+
+
+def request_app_origin(request: Request, fallback: str | None = None) -> str:
+    """Origine de l'application déduite de la requête, validée par la liste blanche.
+
+    Sert à fabriquer une URL que le navigateur suivra ensuite : retour de
+    paiement, lien d'invitation envoyé par email. Une action lancée depuis la
+    beta doit renvoyer vers la beta, et depuis localhost vers localhost — sans
+    variable d'environnement à poser par machine, et sans risque de renvoyer un
+    testeur de la beta vers la production.
+
+    `Origin` d'abord (présent sur toute requête cross-origin, et sur les POST
+    même en same-origin), puis `Referer`. La liste blanche est indispensable :
+    ces deux en-têtes viennent du client.
+    """
+    origin = request.headers.get("origin")
+    if not origin:
+        referer = request.headers.get("referer")
+        if referer:
+            parsed = urlparse(referer)
+            if parsed.scheme and parsed.netloc:
+                origin = f"{parsed.scheme}://{parsed.netloc}"
+    return resolve_app_origin(origin, fallback or default_app_url())

@@ -4,7 +4,7 @@ Référentiels de libellés humains pour les codes utilisés en DB.
 Mappings code → libellé pour : protection MH, type de propriétaire, type de
 travaux, état de conservation, région (kebab-case) et département (INSEE).
 Les codes doivent rester alignés avec les valeurs stockées dans les tables
-`aides_*` et `communes` (cf. matching_engine.prefiltrer_aides).
+`aides_v3` et `communes`, et avec les YAML de `data/aides/`.
 """
 
 PROTECTION_LABELS = {
@@ -183,58 +183,4 @@ DEPARTEMENT_LABELS = {
     "973": "Guyane",
     "974": "La Réunion",
     "976": "Mayotte",
-}
-
-
-# Closed set of allowed incertitude categories. MUST match the identifiers
-# listed in prompts/eligibility.j2 — any drift causes the LLM-emitted category
-# to be coerced to "autre", which in turn breaks the QCM ↔ incertitude matching
-# (the frontend marks an incertitude as clarified by exact category equality).
-ALLOWED_INCERTITUDE_CATEGORIES = {
-    # Procédure et antériorité
-    "non_commencement_travaux",
-    "accord_abf_prealable",
-    "convention_drac",
-    "demande_autorisation_urbanisme",
-    "delai_realisation_post_accord",
-    # Intervenants et qualifications
-    "architecte_mh_acmh",
-    "artisan_rge",
-    "qualification_specifique",
-    # Diagnostics et études
-    "diagnostic_prealable",
-    "dpe_audit_energetique",
-    "gain_energetique_minimum",
-    "etude_impact_patrimonial",
-    # Ouverture, usage et destination
-    "ouverture_public",
-    "usage_batiment",
-    "residence_principale",
-    "usage_non_lucratif",
-    "anciennete_batiment",
-    # Engagements et durée
-    "engagement_conservation",
-    "engagement_location",
-    "engagement_ouverture_public",
-    "maintien_activite",
-    # Conditions financières
-    "revenus_plafond",
-    "montant_minimum_projet",
-    "cumul_aides_plafond",
-    "cofinancement_requis",
-    "regime_fiscal",
-    # Garanties et assurances
-    "assurance_garantie",
-    # Critères sociaux et territoriaux
-    "emploi_insertion",
-    "formation_apprentissage",
-    "accessibilite_pmr_erp",
-    "territoire_specifique",
-    "impact_territorial",
-    # Innovation et partenariats
-    "innovation_saut_techno",
-    "partenariat_consortium",
-    # Autres
-    "label_certification_prealable",
-    "autre",
 }

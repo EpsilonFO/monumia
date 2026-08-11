@@ -62,11 +62,7 @@ PROFILE_ROW = {
     "email": "marie@exemple.fr",
     "prenom": "Marie",
     "nom": "Dupont",
-    "segment": "prive",
     "telephone": None,
-    "prive_type_proprietaire": "personne_physique",
-    "prive_regime_fiscal": None,
-    "btp": None,
     "onboarding_complete": False,
     "notification_preferences": {},
     "created_at": "2026-01-01T00:00:00Z",
@@ -80,19 +76,13 @@ class RegisterOauthTest(unittest.TestCase):
     def test_creation_du_profil(self):
         # 1) maybe_single (pas de ligne) 2) insert 3) single de _get_profile
         supabase = _FakeSupabase([None, _Resp(None), _Resp(dict(PROFILE_ROW))])
-        body = RegisterOauthRequest(
-            prenom="Marie",
-            nom="Dupont",
-            segment="prive",
-            prive_type_proprietaire="personne_physique",
-        )
+        body = RegisterOauthRequest(prenom="Marie", nom="Dupont")
         result = register_oauth(body, auth_user=AUTH_USER, supabase=supabase)
 
         self.assertEqual(len(supabase.inserted), 1)
         row = supabase.inserted[0]
         self.assertEqual(row["id"], "user-1")
         self.assertEqual(row["email"], "marie@exemple.fr")  # depuis le token
-        self.assertEqual(row["segment"], "prive")
         self.assertFalse(row["onboarding_complete"])
         self.assertIn("notification_preferences", row)
         self.assertEqual(result["user"]["prenom"], "Marie")
@@ -101,12 +91,7 @@ class RegisterOauthTest(unittest.TestCase):
         # 1) maybe_single renvoie _Resp(None) (.data is None, pas None brut)
         # 2) insert 3) single de _get_profile
         supabase = _FakeSupabase([_Resp(None), _Resp(None), _Resp(dict(PROFILE_ROW))])
-        body = RegisterOauthRequest(
-            prenom="Marie",
-            nom="Dupont",
-            segment="prive",
-            prive_type_proprietaire="personne_physique",
-        )
+        body = RegisterOauthRequest(prenom="Marie", nom="Dupont")
         result = register_oauth(body, auth_user=AUTH_USER, supabase=supabase)
 
         self.assertEqual(len(supabase.inserted), 1)
@@ -115,7 +100,7 @@ class RegisterOauthTest(unittest.TestCase):
     def test_idempotent_si_profil_deja_cree(self):
         # 1) maybe_single trouve la ligne 2) single de _get_profile
         supabase = _FakeSupabase([_Resp({"id": "user-1"}), _Resp(dict(PROFILE_ROW))])
-        body = RegisterOauthRequest(prenom="Marie", nom="Dupont", segment="prive")
+        body = RegisterOauthRequest(prenom="Marie", nom="Dupont")
         result = register_oauth(body, auth_user=AUTH_USER, supabase=supabase)
 
         self.assertEqual(supabase.inserted, [])  # pas de second insert
@@ -126,7 +111,7 @@ class RegisterOauthTest(unittest.TestCase):
         # une violation d'unicité, _get_profile retombe sur la ligne existante.
         # File : 1) maybe_single 2) insert (_RaiseOnExecute) 3) single _get_profile
         supabase = _FakeSupabase([None, _RaiseOnExecute(), _Resp(dict(PROFILE_ROW))])
-        body = RegisterOauthRequest(prenom="Marie", nom="Dupont", segment="prive")
+        body = RegisterOauthRequest(prenom="Marie", nom="Dupont")
         result = register_oauth(body, auth_user=AUTH_USER, supabase=supabase)
 
         self.assertEqual(result["user"]["prenom"], "Marie")
@@ -137,11 +122,7 @@ COLLAB_ROW = {
     "email": "marie@exemple.fr",
     "prenom": "Marie",
     "nom": "Dupont",
-    "segment": "prive",
     "telephone": None,
-    "prive_type_proprietaire": None,
-    "prive_regime_fiscal": None,
-    "btp": None,
     "onboarding_complete": True,
     "notification_preferences": {},
     "created_at": "2026-01-01T00:00:00Z",
@@ -162,7 +143,6 @@ class RegisterCollaboratorOauthTest(unittest.TestCase):
         self.assertEqual(row["account_type"], "collaborateur")
         self.assertEqual(row["metier"], "architecte")
         self.assertTrue(row["onboarding_complete"])
-        self.assertEqual(row["segment"], "prive")  # valeur neutre
         self.assertEqual(row["email"], "marie@exemple.fr")  # email depuis le token
         self.assertIsNone(row["telephone"])
         self.assertEqual(result["user"]["accountType"], "collaborateur")

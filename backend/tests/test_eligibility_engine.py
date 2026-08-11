@@ -134,8 +134,8 @@ class TestDisponibilite(unittest.TestCase):
         self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fixture-aide"])
         self.assertEqual(res["aidesEligibles"][0]["disponibilite"], "bientot")
 
-    def test_montant_potentiel_ignore_les_bientot(self):
-        """Le montant affiché se veut mobilisable en l'état : fenêtre ouverte only."""
+    def test_montant_potentiel_compte_les_bientot(self):
+        """Le montant couvre aussi les aides « disponibles bientôt »."""
         ouverte = self._aide(slug="fx-ouverte", permanent=True).model_copy(
             update={"financement": Financement(montant_max=10_000)}
         )
@@ -146,7 +146,26 @@ class TestDisponibilite(unittest.TestCase):
             {a.slug: a for a in (ouverte, close)}, FACTS, _monument(), 3000, today=self.TODAY
         )
         self.assertEqual(len(res["aidesEligibles"]), 2)
-        self.assertEqual(res["montantPotentielTotal"], 10_000)
+        self.assertEqual(res["montantPotentielTotal"], 100_000)
+
+    def test_montant_potentiel_compte_les_a_confirmer(self):
+        """Les aides « à confirmer » (statut potentiel) entrent dans le total."""
+        certaine = self._aide(slug="fx-certaine", permanent=True).model_copy(
+            update={"financement": Financement(montant_max=10_000)}
+        )
+        a_confirmer = _fixture_aide(
+            [{"id": "mc", "text": "À vérifier auprès du financeur", "kind": "manual_check"}],
+            slug="fx-a-confirmer",
+        ).model_copy(update={"financement": Financement(montant_max=5_000)})
+        res = run_deterministic_diagnostic(
+            {a.slug: a for a in (certaine, a_confirmer)},
+            FACTS,
+            _monument(),
+            3000,
+            today=self.TODAY,
+        )
+        self.assertEqual(len(res["aidesPotentiellementEligibles"]), 1)
+        self.assertEqual(res["montantPotentielTotal"], 15_000)
 
 
 class TestRaisonPrefilter(unittest.TestCase):
@@ -240,6 +259,47 @@ class TestHardFilters(unittest.TestCase):
         v_big = evaluate_aide(AIDES["detr"], m, 200000, build_context(m, 200000), FACTS)
         self.assertNotEqual(v_small.status, "non_eligible")
         self.assertEqual(v_big.status, "non_eligible")
+
+
+class TestEpciGating(unittest.TestCase):
+    """Aides intercommunales : le gate `commune.epci` contre le SIREN de l'EPCI.
+
+    Les hard_filters d'une aide de la CCMSL ne bornent que le département (77) :
+    sans le rattachement intercommunal, toute la Seine-et-Marne restait en
+    « potentiel ». Le SIREN vient de communes.epci_siren, posé sur le monument
+    par routers.monuments._attach_epci.
+    """
+
+    CCMSL = "247700032"
+    AIDE = "ccmsl-renovation-facades"
+
+    def _monument_77(self, **over):
+        return _monument(
+            protection="non_protege",
+            departement_num="77",
+            proprietaire="prive_personne_physique",
+            travaux_envisages=["facade"],
+            **over,
+        )
+
+    def _status(self, monument):
+        return evaluate_aide(
+            AIDES[self.AIDE], monument, 3000, build_context(monument, 3000), FACTS
+        ).status
+
+    def test_epci_absent_reste_incertain(self):
+        """Commune non enrichie : fail-closed, jamais un rejet."""
+        m = self._monument_77()
+        self.assertNotIn("commune.epci", build_context(m, 3000))
+        self.assertNotEqual(self._status(m), "non_eligible")
+
+    def test_autre_epci_du_departement_est_rejete(self):
+        m = self._monument_77(**{"commune.epci": "200072346"})
+        self.assertEqual(self._status(m), "non_eligible")
+
+    def test_epci_porteur_ne_declenche_pas_le_rejet(self):
+        m = self._monument_77(**{"commune.epci": self.CCMSL})
+        self.assertNotEqual(self._status(m), "non_eligible")
 
 
 class TestUserFactGating(unittest.TestCase):

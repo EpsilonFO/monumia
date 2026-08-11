@@ -38,7 +38,9 @@ SUPABASE_SECRET_KEY=
 SUPABASE_SERVICE_KEY=
 RESEND_API_KEY=
 RESEND_FROM="Monumia <invitations@monumia.fr>"
-MISTRAL_API_KEY=
+# Uniquement pour les outils hors ligne (/ingest-aide, veille des aides).
+# Le diagnostic servi au produit est déterministe et n'appelle aucun LLM.
+DEEPSEEK_API_KEY=
 ```
 
 **Emails d'invitation (projets partagés).** Si `RESEND_API_KEY` est vide, les emails d'invitation sont écrits dans la console (mode dev) — pratique pour développer sans compte Resend. Pour envoyer en réel : créer un compte [Resend](https://resend.com), vérifier le domaine `monumia.fr` (enregistrements DNS SPF/DKIM/DMARC), générer une clé API, et renseigner `RESEND_API_KEY` (et éventuellement `RESEND_FROM`).

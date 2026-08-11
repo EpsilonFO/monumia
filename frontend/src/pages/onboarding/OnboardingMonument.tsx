@@ -142,7 +142,7 @@ export function OnboardingMonument() {
         commune: data.commune ?? '',
         codeInsee: data.codeInsee ?? '',
         protection: data.protection ?? 'non_protege',
-        proprietaire: data.proprietaire ?? (user.segment === 'commune' ? 'public_commune' : 'prive_personne_physique'),
+        proprietaire: data.proprietaire ?? 'prive_personne_physique',
         etatConservation: data.etatConservation ?? 'moyen',
         referenceMerimee: data.referenceMerimee,
         dateProtection: data.dateProtection,

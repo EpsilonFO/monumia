@@ -93,16 +93,15 @@ export interface AideEvaluation {
   detail?: string;
   /** Becomes true once the user answers the matching QCM question. */
   clarified?: boolean;
-  /** Nature de la condition (moteur déterministe) : pilote le regroupement de
-   * l'analyse en sections. auto | user_fact | manual_check | discretionary |
-   * modulateur | info. Absent sur l'ancien chemin LLM. */
+  /** Nature de la condition : pilote le regroupement de l'analyse en sections.
+   * auto | user_fact | manual_check | discretionary | modulateur | info. */
   nature?: 'auto' | 'user_fact' | 'manual_check' | 'discretionary' | 'modulateur' | 'info';
   /** Échec sur un critère ACTIONNABLE : à afficher comme démarche à engager,
    *  jamais comme motif de refus. Le plan détaillé est dans `AideMatchResult.leviers`. */
   levier?: boolean;
 }
 
-/** Statut d'éligibilité rendu par le moteur déterministe (absent sur le chemin LLM). */
+/** Statut d'éligibilité rendu par le moteur. */
 export type AideStatut = 'eligible' | 'atteignable' | 'potentiel' | 'non_eligible';
 
 /**
@@ -136,9 +135,8 @@ export interface AideMatchResult {
   aide: Aide;
   /** Statut explicite du moteur déterministe : à préférer à toute dérivation. */
   statut?: AideStatut;
-  /** Fenêtre de candidature du jour. Absent sur l'ancien chemin LLM et sur le
-   *  moteur client (`matching-engine.ts`) : lire via `getDisponibilite`, qui
-   *  retombe sur « maintenant ». */
+  /** Fenêtre de candidature du jour. Lire via `getDisponibilite`, qui retombe
+   *  sur « maintenant » quand le champ est absent. */
   disponibilite?: AideDisponibilite;
   eligible: boolean;
   criteresRemplis: string[];
@@ -146,19 +144,15 @@ export interface AideMatchResult {
   raisonIneligibilite?: string;
   /** Plans d'action des critères à débloquer (statut « atteignable »). */
   leviers?: AideLevier[];
+  /** Nom vestigial : ce sont les verdicts déterministes, condition par
+   *  condition. Rien de LLM ici. */
   llmEvaluation?: {
     explication: string;
-    /** One verdict per bullet of conditions_eligibilite_detail. */
+    /** Un verdict par condition évaluée. */
     evaluations?: AideEvaluation[];
     /** Derived view: the evaluations with verdict === 'incertitude'. Drives the QCM. */
     incertitudes: (string | { categorie: string; detail: string; clarified?: boolean })[];
   };
-}
-
-export interface AideDiagnosticRequest {
-  monumentId: ID;
-  modeProjet: boolean;
-  travauxFiltres?: WorkType[];
 }
 
 export interface QcmOption {
@@ -202,16 +196,13 @@ export interface QcmQuestion {
 }
 
 export interface AideDiagnosticResult {
-  id?: string;
   monumentId: ID;
   timestamp: string;
-  modeProjet?: boolean;
-  travauxFiltres?: string[];
   totalAidesAnalysees: number;
   aidesEligibles: AideMatchResult[];
   aidesPotentiellementEligibles: AideMatchResult[];
   /** « À débloquer » : bloquées sur un seul critère actionnable, triées par enjeu
-   *  décroissant. Absent sur l'ancien chemin LLM. */
+   *  décroissant. */
   aidesAtteignables?: AideMatchResult[];
   aidesNonEligibles: AideMatchResult[];
   montantPotentielTotal?: number;

@@ -18,13 +18,12 @@ import logging
 import os
 import time
 from typing import Any
-from urllib.parse import urlparse
 
 import stripe
 from fastapi import HTTPException, Request
 from supabase import Client
 
-from config import resolve_app_origin
+from config import request_app_origin
 
 logger = logging.getLogger(__name__)
 
@@ -63,20 +62,10 @@ def app_url() -> str:
 def return_origin(request: Request) -> str:
     """Origine où Stripe doit renvoyer l'utilisateur après paiement.
 
-    Déduite de la requête (en-tête `Origin`, puis `Referer`) et validée contre
-    la liste blanche : un paiement lancé depuis localhost revient sur localhost,
-    depuis beta sur beta, sans variable d'environnement à poser par machine.
-    `APP_URL` reste le repli quand l'origine est absente ou inconnue, par
-    exemple si un appel arrive sans en-tête.
+    Même règle que pour les liens d'invitation, d'où le helper partagé dans
+    `config` : `APP_URL` reste le repli quand l'origine est absente ou inconnue.
     """
-    origin = request.headers.get("origin")
-    if not origin:
-        referer = request.headers.get("referer")
-        if referer:
-            parsed = urlparse(referer)
-            if parsed.scheme and parsed.netloc:
-                origin = f"{parsed.scheme}://{parsed.netloc}"
-    return resolve_app_origin(origin, app_url())
+    return request_app_origin(request, app_url())
 
 
 def is_configured() -> bool:
@@ -188,13 +177,16 @@ def active_subscription(supabase: Client, user_id: str) -> dict | None:
 
 
 def unlocked_monument_ids(supabase: Client, user_id: str) -> list[str]:
-    """Projets débloqués à l'unité, vus par cet utilisateur.
+    """Projets couverts, vus par cet utilisateur.
 
     Le déblocage porte sur le PROJET, pas sur l'acheteur : si le propriétaire a
     payé, l'architecte invité travaille sur un projet débloqué sans repayer.
     D'où la lecture par monument_id (tous acheteurs confondus) et non par
     user_id. Aucune fuite possible : la liste est bornée aux projets dont
     l'utilisateur est déjà membre.
+
+    Vaut pour les deux formes de paiement : déblocage à l'unité, et projet dont
+    le propriétaire est au forfait (cf. project_is_covered).
     """
     members = (
         supabase.table("project_members").select("monument_id").eq("user_id", user_id).execute()
@@ -212,7 +204,26 @@ def unlocked_monument_ids(supabase: Client, user_id: str) -> list[str]:
         .in_("monument_id", sorted(accessible))
         .execute()
     )
-    return sorted({row["monument_id"] for row in (unlocks.data or []) if row["monument_id"]})
+    covered = {row["monument_id"] for row in (unlocks.data or []) if row["monument_id"]}
+
+    # Projets restants : couverts si leur propriétaire est au forfait. Les
+    # propriétaires sont dédupliqués, donc c'est deux requêtes par propriétaire
+    # distinct (en pratique une poignée), pas par projet.
+    remaining = accessible - covered
+    if remaining:
+        owners = (
+            supabase.table("monuments").select("id, user_id").in_("id", sorted(remaining)).execute()
+        )
+        rows = [r for r in (owners.data or []) if r.get("user_id") and r.get("id") in remaining]
+        forfait: dict[str, bool] = {}
+        for row in rows:
+            owner_id = row["user_id"]
+            if owner_id not in forfait:
+                forfait[owner_id] = _user_has_all_access(supabase, owner_id)
+            if forfait[owner_id]:
+                covered.add(row["id"])
+
+    return sorted(covered)
 
 
 def monument_is_unlocked(supabase: Client, monument_id: str) -> bool:
@@ -225,6 +236,39 @@ def monument_is_unlocked(supabase: Client, monument_id: str) -> bool:
         .execute()
     )
     return bool(res and res.data)
+
+
+def _project_owner_id(supabase: Client, monument_id: str) -> str | None:
+    """Propriétaire du projet : `monuments.user_id`, celui qui l'a créé."""
+    res = supabase.table("monuments").select("user_id").eq("id", monument_id).limit(1).execute()
+    rows = (res.data if res else None) or []
+    return rows[0].get("user_id") if rows else None
+
+
+def _user_has_all_access(supabase: Client, user_id: str) -> bool:
+    """Ce compte voit-il TOUS ses projets (abonnement ou octroi manuel) ?"""
+    return (
+        _has_manual_grant(supabase, user_id) or active_subscription(supabase, user_id) is not None
+    )
+
+
+def project_is_covered(supabase: Client, monument_id: str) -> bool:
+    """Ce projet est-il couvert, indépendamment de qui le regarde ?
+
+    Deux façons de l'être, et le principe est le même dans les deux cas : c'est
+    le PROJET qui est payé, pas le spectateur.
+
+      • un déblocage « Dossier » à l'unité, par qui que ce soit ;
+      • un propriétaire au forfait (abonnement ou octroi manuel).
+
+    Le second cas manquait : l'abonnement vit sur la ligne de l'abonné, donc un
+    collaborateur invité sur le projet d'un abonné — même promu chef de projet
+    adjoint — voyait les aides caviardées alors que le projet était payé.
+    """
+    if monument_is_unlocked(supabase, monument_id):
+        return True
+    owner_id = _project_owner_id(supabase, monument_id)
+    return bool(owner_id) and _user_has_all_access(supabase, owner_id)  # type: ignore[arg-type]
 
 
 def access_snapshot(supabase: Client, user_id: str) -> dict[str, Any]:
@@ -255,11 +299,9 @@ def access_snapshot(supabase: Client, user_id: str) -> dict[str, Any]:
 
 def has_monument_access(supabase: Client, user_id: str, monument_id: str) -> bool:
     """Autorité unique pour « peut voir le détail des aides de ce projet »."""
-    if _has_manual_grant(supabase, user_id):
+    if _user_has_all_access(supabase, user_id):
         return True
-    if active_subscription(supabase, user_id) is not None:
-        return True
-    return monument_is_unlocked(supabase, monument_id)
+    return project_is_covered(supabase, monument_id)
 
 
 # ---------------------------------------------------------------------------

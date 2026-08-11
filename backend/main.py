@@ -18,7 +18,6 @@ from routers import (
     merimee,
     monuments,
     notifications,
-    prospects,
     sharing,
     suivi,
     templates,
@@ -39,8 +38,9 @@ app = FastAPI(
     openapi_url="/openapi.json" if _DOCS_ENABLED else None,
 )
 
-# Les réponses JSON partaient non compressées : le catalogue d'aides pesait
-# 1,1 Mo sur le fil. Seuil à 1 Ko pour ne rien compresser inutilement.
+# Les réponses JSON partaient non compressées, alors qu'un diagnostic complet
+# (toutes les aides, conditions détaillées) pèse plusieurs centaines de Ko sur
+# le fil. Seuil à 1 Ko pour ne rien compresser inutilement.
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.add_middleware(
@@ -60,7 +60,6 @@ app.include_router(aides.router)
 app.include_router(notifications.router)
 app.include_router(dossiers.router)
 app.include_router(suivi.router)
-app.include_router(prospects.router)
 app.include_router(sharing.router)
 app.include_router(communes.router)
 app.include_router(templates.router)

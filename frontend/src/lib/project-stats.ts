@@ -113,9 +113,10 @@ export function computeProjectStats(
       + diagnostic.aidesPotentiellementEligibles.length
       + (diagnostic.aidesAtteignables?.length ?? 0)
     : 0;
-  // Le montant potentiel reste celui des aides atteignables EN L'ÉTAT : gonfler
-  // le chiffre avec des aides qui supposent encore une démarche serait mentir
-  // au propriétaire. Les secondes sont exposées séparément.
+  // Le montant potentiel agrège les aides à portée sans démarche préalable :
+  // « disponibles maintenant », « à confirmer » et « disponibles bientôt ».
+  // Les aides « à débloquer » en restent exclues — elles supposent une démarche
+  // encore à faire, et sont exposées séparément.
   const montantPotentiel = diagnostic?.montantPotentielTotal ?? 0;
   const montantAtteignable = diagnostic?.montantAtteignableTotal ?? 0;
 

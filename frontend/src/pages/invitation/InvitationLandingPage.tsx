@@ -4,19 +4,22 @@ import { Loader2, ArrowRight, Check, X } from 'lucide-react';
 import { invitationService } from '@/services/invitation.service';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { usePendingOAuthStore } from '@/stores/usePendingOAuthStore';
 import { MetierSelect } from '@/components/sharing/MetierSelect';
 import { AuthLayout } from '@/components/layout/AuthLayout';
+import { GoogleButton } from '@/components/auth/GoogleButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
+import { setPendingInvitation } from '@/lib/pending-invitation';
 import { toast } from 'sonner';
 
 const SUCCESS = 'var(--success)';
 import type { InvitationPreview } from '@/types';
 
-type Mode = 'choice' | 'signup' | 'login';
+type Mode = 'choice' | 'signup' | 'login' | 'oauth';
 
 const MUTED = 'var(--muted-foreground)';
 const LIGHT = 'var(--muted-foreground)';
@@ -28,12 +31,29 @@ export function InvitationLandingPage() {
   const user = useAuthStore((s) => s.user);
   const setAuth = useAuthStore((s) => s.setAuth);
 
+  // Retour de Google : les jetons attendent en mémoire, le compte applicatif
+  // n'existe pas encore. C'est ici qu'on le crée en collaborateur, parce que
+  // c'est ici qu'on connaît le projet à rejoindre et le rôle à demander.
+  const oauthAccessToken = usePendingOAuthStore((s) => s.accessToken);
+  const oauthRefreshToken = usePendingOAuthStore((s) => s.refreshToken);
+  const oauthEmail = usePendingOAuthStore((s) => s.email);
+  const oauthPrenom = usePendingOAuthStore((s) => s.prenom);
+  const oauthNom = usePendingOAuthStore((s) => s.nom);
+  const clearOAuthSession = usePendingOAuthStore((s) => s.clear);
+
   const [preview, setPreview] = useState<InvitationPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<Mode>('choice');
+  const [mode, setMode] = useState<Mode>(oauthAccessToken ? 'oauth' : 'choice');
   const [busy, setBusy] = useState(false);
 
-  const [form, setForm] = useState({ prenom: '', nom: '', email: '', password: '', metier: '', telephone: '' });
+  const [form, setForm] = useState({
+    prenom: oauthPrenom ?? '',
+    nom: oauthNom ?? '',
+    email: '',
+    password: '',
+    metier: '',
+    telephone: '',
+  });
 
   useEffect(() => {
     invitationService
@@ -81,6 +101,41 @@ export function InvitationLandingPage() {
         telephone: form.telephone || undefined,
       });
       setAuth(u, access_token);
+      await acceptAndGo();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Échec de l'inscription");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleOauthSignup = async () => {
+    if (!form.metier) {
+      toast.error('Indiquez votre rôle sur le projet');
+      return;
+    }
+    if (!form.prenom.trim() || !form.nom.trim()) {
+      toast.error('Renseignez votre nom et votre prénom');
+      return;
+    }
+    setBusy(true);
+    try {
+      const { user: u } = await authService.registerCollaboratorOauth(
+        {
+          prenom: form.prenom.trim(),
+          nom: form.nom.trim(),
+          metier: form.metier,
+          telephone: form.telephone.trim() || undefined,
+        },
+        oauthAccessToken!,
+      );
+      // Le refresh token du hash Google part en cookie httpOnly. Échec non
+      // bloquant : la session tient jusqu'à expiration de l'access token.
+      if (oauthRefreshToken) {
+        await authService.oauthSession(oauthAccessToken!, oauthRefreshToken).catch(() => {});
+      }
+      clearOAuthSession();
+      setAuth(u, oauthAccessToken!);
       await acceptAndGo();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Échec de l'inscription");
@@ -171,8 +226,53 @@ export function InvitationLandingPage() {
           <PrimaryButton onClick={() => setMode('signup')}>Je crée mon compte</PrimaryButton>
           <SecondaryButton onClick={() => setMode('login')}>J'ai déjà un compte</SecondaryButton>
         </div>
+      ) : mode === 'oauth' ? (
+        <div className="flex flex-col gap-4">
+          <div
+            className="flex items-start gap-2.5 rounded-xl p-4 text-[14px] leading-[1.55]"
+            style={{ background: 'var(--secondary)', color: C.ink }}
+          >
+            <Check className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: SUCCESS }} />
+            <span>
+              Connecté avec Google
+              {oauthEmail ? (
+                <>
+                  {' '}
+                  (<span className="font-semibold">{oauthEmail}</span>)
+                </>
+              ) : null}
+              . Indiquez votre rôle et vous rejoignez le projet.
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Prénom" htmlFor="inv-oauth-prenom">
+              <Input id="inv-oauth-prenom" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} className={INPUT_CLS} />
+            </FormField>
+            <FormField label="Nom" htmlFor="inv-oauth-nom">
+              <Input id="inv-oauth-nom" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} className={INPUT_CLS} />
+            </FormField>
+          </div>
+          <FormField label="Votre rôle sur le projet" htmlFor="inv-oauth-metier">
+            <MetierSelect value={form.metier} onChange={(v) => setForm({ ...form, metier: v })} />
+          </FormField>
+          <FormField label="Téléphone (optionnel)" htmlFor="inv-oauth-tel">
+            <Input id="inv-oauth-tel" type="tel" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} className={INPUT_CLS} />
+          </FormField>
+          <PrimaryButton onClick={handleOauthSignup} busy={busy}>Rejoindre le projet</PrimaryButton>
+        </div>
       ) : mode === 'signup' ? (
         <div className="flex flex-col gap-4">
+          <GoogleButton
+            label="Continuer avec Google"
+            beforeRedirect={() => setPendingInvitation(token)}
+          />
+          <div className="flex items-center gap-3" aria-hidden="true">
+            <span className="h-px flex-1" style={{ background: C.border }} />
+            <span className="text-[13px] whitespace-nowrap" style={{ color: LIGHT }}>
+              ou avec votre adresse email
+            </span>
+            <span className="h-px flex-1" style={{ background: C.border }} />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Prénom" htmlFor="inv-prenom">
               <Input id="inv-prenom" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} className={INPUT_CLS} />

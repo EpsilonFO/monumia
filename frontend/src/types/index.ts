@@ -9,5 +9,4 @@ export * from './document.types';
 export * from './sharing.types';
 export * from './template.types';
 export * from './notification.types';
-export * from './prospect.types';
 export * from './billing.types';

@@ -57,7 +57,6 @@ import {
   Signpost,
   SquaresFour,
   Stamp,
-  Target,
   TrendUp,
   Trash,
   UploadSimple,
@@ -157,9 +156,8 @@ export const IconCalendrier = icon(CalendarBlank);
 export const IconEcheance = icon(CalendarCheck);
 export const IconTemps = icon(Clock);
 
-/* BTP / artisans */
+/* Chantier et interlocuteurs */
 export const IconChantier = icon(HardHat);
-export const IconProspect = icon(Target);
 export const IconContact = icon(Envelope);
 export const IconTelephone = icon(Phone);
 export const IconEquipe = icon(Users);

@@ -40,11 +40,7 @@ PROFILE_ROW = {
     "email": "marie@exemple.fr",
     "prenom": "Marie",
     "nom": "Dupont",
-    "segment": "prive",
     "telephone": None,
-    "prive_type_proprietaire": "personne_physique",
-    "prive_regime_fiscal": None,
-    "btp": None,
     "onboarding_complete": True,
     "notification_preferences": {},
     "created_at": "2026-01-01T00:00:00Z",
@@ -171,7 +167,6 @@ class RefreshCookieTest(unittest.TestCase):
                 "password": "Motdepasse1",
                 "prenom": "Marie",
                 "nom": "Dupont",
-                "segment": "prive",
             },
         )
         self.assertEqual(res.status_code, 201)
