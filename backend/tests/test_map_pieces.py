@@ -221,5 +221,71 @@ class UnreadableLabelTests(unittest.TestCase):
         self.assertEqual(texte, yaml)  # Inchangé
 
 
+class ListeNonIndenteeTests(unittest.TestCase):
+    """Les deux styles d'indentation de liste YAML coexistent dans le corpus.
+
+    Fixtures reprises de `data/aides/detr-dsil-haute-loire.yaml` et
+    `data/aides/cd43-cap43-communes.yaml`, qui écrivent leurs items au niveau
+    de la clé. Ne traiter que la forme indentée avait laissé 51 pièces de côté,
+    silencieusement.
+    """
+
+    def test_item_au_niveau_de_la_cle(self) -> None:
+        yaml = (
+            "documents_requis:\n"
+            "- nom: Devis descriptif détaillé\n"
+            "- nom: Échéancier de réalisation\n"
+            "\n"
+            "tags: []\n"
+        )
+        texte, n, non_traites = inserer_piece_ids(
+            yaml, {"devis descriptif detaille": "devis_travaux"}
+        )
+        self.assertEqual(n, 1)
+        self.assertEqual(non_traites, [])
+        self.assertIn("- nom: Devis descriptif détaillé\n  piece_id: devis_travaux\n", texte)
+
+    def test_proprietes_voisines_preservees(self) -> None:
+        yaml = (
+            "documents_requis:\n"
+            "- nom: Formulaire unique de demande de subvention\n"
+            "  url: https://exemple.fr/formulaire\n"
+            "- nom: Autre pièce\n"
+            "  obligatoire: false\n"
+            "tags: []\n"
+        )
+        mapping = {"formulaire unique de demande de subvention": "formulaire_demande"}
+        texte, n, _ = inserer_piece_ids(yaml, mapping)
+        self.assertEqual(n, 1)
+        self.assertIn(
+            "  piece_id: formulaire_demande\n  url: https://exemple.fr/formulaire\n", texte
+        )
+        self.assertIn("  obligatoire: false\n", texte)
+
+    def test_block_scalar_non_indente(self) -> None:
+        yaml = (
+            "documents_requis:\n"
+            "- nom: >-\n"
+            "    Délibération du conseil municipal approuvant les travaux et\n"
+            "    sollicitant la subvention\n"
+            "- nom: Autre\n"
+            "tags: []\n"
+        )
+        cle = (
+            "deliberation du conseil municipal approuvant les travaux et sollicitant la subvention"
+        )
+        texte, n, _ = inserer_piece_ids(yaml, {cle: "deliberation_conseil"})
+        self.assertEqual(n, 1)
+        self.assertIn("    sollicitant la subvention\n  piece_id: deliberation_conseil\n", texte)
+
+    def test_idempotent_non_indente(self) -> None:
+        yaml = "documents_requis:\n- nom: Titre de propriété\ntags: []\n"
+        mapping = {"titre de propriete": "titre_propriete"}
+        une_fois, n1, _ = inserer_piece_ids(yaml, mapping)
+        deux_fois, n2, _ = inserer_piece_ids(une_fois, mapping)
+        self.assertEqual((n1, n2), (1, 0))
+        self.assertEqual(une_fois, deux_fois)
+
+
 if __name__ == "__main__":
     unittest.main()

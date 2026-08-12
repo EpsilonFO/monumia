@@ -84,6 +84,16 @@ def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int, li
 
     Gère aussi les block scalars (>-, |, etc.) où le libellé s'étend sur plusieurs lignes.
 
+    Les deux styles d'indentation de liste YAML sont acceptés — le corpus contient
+    les deux, et ne traiter que le premier avait laissé 51 pièces de côté :
+
+        documents_requis:          documents_requis:
+          - nom: Titre             - nom: Titre
+            url: …                   url: …
+
+    L'indentation des propriétés et des lignes de continuation est donc dérivée de
+    celle de l'item (+2 et +4), jamais codée en dur.
+
     Patch TEXTUEL et non re-dump YAML : un `yaml.dump` réordonnerait les clés et
     reformaterait les 142 fiches, produisant un diff illisible.
 
@@ -117,23 +127,29 @@ def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int, li
             i += 1
             continue
 
-        correspondance = re.match(r"^  - nom:\s*(.*)$", ligne)
+        correspondance = re.match(r"^( *)- nom:\s*(.*)$", ligne)
         if not correspondance:
             i += 1
             continue
 
-        valeur_brute = correspondance.group(1)
+        # Indentations dérivées de celle de l'item : les propriétés s'alignent
+        # sous le `nom` (tiret + espace = 2 caractères), et les lignes de
+        # continuation d'un block scalar sont indentées d'un cran de plus.
+        prop_indent = correspondance.group(1) + "  "
+        suite_indent = prop_indent + "  "
+        valeur_brute = correspondance.group(2)
 
         # Cas 1: block scalar (>-, >, |, |-)
         if valeur_brute in (">-", ">", "|-", "|"):
-            # Lire les lignes de continuation (indentation supérieure à 4 espaces)
+            # Lire les lignes de continuation du bloc
             continuation_lines = []
             fin_bloc = i + 1
             while fin_bloc < len(lignes):
                 ligne_suite = lignes[fin_bloc]
-                # Les lignes de continuation sont indentées de 6+ espaces (2 for item, 4 for content)
-                if ligne_suite.startswith("      "):
-                    continuation_lines.append(ligne_suite[6:].rstrip())
+                # Une ligne de continuation est indentée d'un cran de plus que les
+                # propriétés de l'item ; toute autre indentation ferme le bloc.
+                if ligne_suite.startswith(suite_indent):
+                    continuation_lines.append(ligne_suite[len(suite_indent) :].rstrip())
                     fin_bloc += 1
                 else:
                     # Fin du block scalar (y compris lignes vides et propriétés)
@@ -157,9 +173,9 @@ def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int, li
                 # Vérifier si déjà rattaché — regarder les propriétés après le bloc
                 deja = False
                 for k in range(fin_bloc, len(lignes)):
-                    if not lignes[k].startswith("    "):
+                    if not lignes[k].startswith(prop_indent):
                         break
-                    if lignes[k].startswith("    piece_id:"):
+                    if lignes[k].startswith(prop_indent + "piece_id:"):
                         deja = True
                         break
 
@@ -169,7 +185,7 @@ def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int, li
 
                 if not deja:
                     # Insérer le piece_id après la dernière ligne du bloc
-                    sortie.append(f"    piece_id: {piece_id}")
+                    sortie.append(f"{prop_indent}piece_id: {piece_id}")
                     inserees += 1
 
                 i = fin_bloc
@@ -200,16 +216,16 @@ def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int, li
             # Déjà rattaché ? On regarde les lignes de propriétés de cet item.
             deja = False
             for suivante in lignes[i + 1 :]:
-                if not suivante.startswith("    "):
+                if not suivante.startswith(prop_indent):
                     break
-                if suivante.startswith("    piece_id:"):
+                if suivante.startswith(prop_indent + "piece_id:"):
                     deja = True
                     break
             if deja:
                 i += 1
                 continue
 
-            sortie.append(f"    piece_id: {piece_id}")
+            sortie.append(f"{prop_indent}piece_id: {piece_id}")
             inserees += 1
             i += 1
 
