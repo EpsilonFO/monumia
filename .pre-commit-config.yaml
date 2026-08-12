@@ -24,9 +24,11 @@ repos:
         stages: [pre-commit]
 
       # Pre-commit: frontend type check (same as docker build)
+      # Passe par scripts/tsc-check.sh : gère l'absence de node_modules dans les
+      # worktrees et interdit tout téléchargement npx (cf. commentaire du script).
       - id: tsc
         name: typescript type check
-        entry: bash -c 'cd frontend && npx tsc -b'
+        entry: scripts/tsc-check.sh
         language: system
         pass_filenames: false
         stages: [pre-commit]
