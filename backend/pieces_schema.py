@@ -14,8 +14,16 @@ de reconnaître qu'une pièce déjà déposée répond à la demande d'une autre
              sur tous ses dossiers, tous projets confondus
   monument   le bâti (titre de propriété, cadastre, arrêté de protection) :
              réutilisable dans le projet, donc partagée avec les co-propriétaires
-  operation  les travaux en cours (devis, plan de financement, courrier de
-             demande) : propre à un dossier, jamais reproposée ailleurs
+  operation  la campagne de travaux (devis, plan de financement, programme) :
+             réutilisable dans le projet, comme `monument`
+
+La distinction entre `monument` et `operation` ne porte donc PAS sur la
+frontière de réutilisation — les deux sont bornées au projet — mais sur la
+durée de vie. Une opération est financée par plusieurs aides : déposer à la
+Fondation du patrimoine et à la DETR pour les mêmes travaux, c'est joindre deux
+fois le même plan de financement. En revanche ses pièces vieillissent avec la
+campagne, là où un titre de propriété reste valable. Toutes les pièces
+`operation` sont donc `perissable`.
 
 `perissable` — la pièce se démode et doit être revérifiée passé
 `seuil_alerte_mois`. On n'encode PAS de durée de validité juridique : le seuil

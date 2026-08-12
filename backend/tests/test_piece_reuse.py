@@ -133,11 +133,36 @@ class PorteeTests(unittest.TestCase):
         self.assertEqual(n, 1)
         self.assertEqual(items[0]["documentId"], "d1")
 
-    def test_piece_operation_jamais_reprise(self) -> None:
+    def test_piece_operation_reprise_dans_le_projet(self) -> None:
+        """Une opération est financée par PLUSIEURS aides.
+
+        Déposer à la Fondation du patrimoine et à la DETR pour les mêmes travaux,
+        c'est joindre deux fois le même plan de financement et les mêmes devis.
+        La frontière de réutilisation d'une pièce d'opération est la campagne de
+        travaux, pas le dossier.
+        """
         items, n = _reprendre([_item("i1", "devis_travaux")], [_doc("d1", "devis_travaux")])
+        self.assertEqual(n, 1)
+        self.assertEqual(items[0]["statut"], "repris")
+        self.assertEqual(items[0]["documentId"], "d1")
+
+    def test_piece_operation_hors_projet_non_reprise(self) -> None:
+        """Bornée au projet : le devis d'un autre monument n'a rien à faire ici."""
+        doc = _doc("d1", "devis_travaux", monument_ids=["autre_projet"])
+        items, n = _reprendre([_item("i1", "devis_travaux")], [doc])
         self.assertEqual(n, 0)
         self.assertEqual(items[0]["statut"], "manquant")
-        self.assertNotIn("documentId", items[0])
+
+    def test_piece_operation_ancienne_signalee(self) -> None:
+        """Un devis d'une campagne achevée doit s'afficher en avertissement.
+
+        C'est le garde-fou qui remplace l'ancien blocage total : on propose,
+        mais on signale l'âge plutôt que de laisser croire que c'est à jour.
+        """
+        doc = _doc("d1", "devis_travaux", date_document="2024-01-01T00:00:00+00:00")
+        items, n = _reprendre([_item("i1", "devis_travaux")], [doc])
+        self.assertEqual(n, 1)
+        self.assertTrue(items[0]["perime"])
 
     def test_item_sans_piece_id_inchange(self) -> None:
         items, n = _reprendre([_item("i1", None)], [_doc("d1", "rib")])

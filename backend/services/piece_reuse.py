@@ -107,16 +107,22 @@ def _candidat(
     """Document réutilisable pour cette pièce, selon sa portée.
 
     `porteur` est propre au demandeur : même visible (co-membre d'équipe), le
-    document d'un tiers ne doit jamais être rattaché silencieusement à ma
-    place. `monument` est propre au projet, mutualisé entre co-propriétaires.
+    document d'un tiers ne doit jamais être rattaché silencieusement à ma place.
+    Il traverse en revanche tous ses projets — c'est tout l'intérêt d'un RIB.
+
+    `monument` et `operation` sont bornées au projet. Une opération est financée
+    par PLUSIEURS aides : déposer à la Fondation du patrimoine et à la DETR pour
+    les mêmes travaux, c'est joindre deux fois le même plan de financement et les
+    mêmes devis. La frontière de réutilisation d'une pièce d'opération est donc
+    la campagne de travaux, pas le dossier. Le risque résiduel — proposer le
+    devis d'une campagne achevée — est couvert par la péremption : ces pièces
+    sont périssables, et une pièce trop ancienne s'affiche en avertissement.
     """
-    if piece.portee == "operation":
-        return None
     docs = doc_par_piece.get(piece_id, [])
-    if piece.portee == "monument":
-        docs = [d for d in docs if monument_id in (d.get("monument_ids") or [])]
-    elif piece.portee == "porteur":
+    if piece.portee == "porteur":
         docs = [d for d in docs if d.get("user_id") == user_id]
+    else:
+        docs = [d for d in docs if monument_id in (d.get("monument_ids") or [])]
     return choisir_document(docs)
 
 

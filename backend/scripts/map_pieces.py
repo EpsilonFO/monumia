@@ -129,6 +129,14 @@ def inserer_piece_ids(texte: str, mapping: dict[str, str]) -> tuple[str, int, li
 
         correspondance = re.match(r"^( *)- nom:\s*(.*)$", ligne)
         if not correspondance:
+            # Ancien format : `- Libellé` en chaîne nue, sans clé `nom:`. Le
+            # schéma l'accepte (coercion en {nom: …}) mais on ne peut pas y
+            # accrocher de piece_id sans réécrire la forme de l'item. Six fiches
+            # étaient dans ce cas et ont été rattrapées en silence pendant des
+            # heures : on le signale désormais plutôt que de passer outre.
+            legacy = re.match(r"^ *- (?!nom:)(\S.*)$", ligne)
+            if legacy:
+                non_traites.append(f"(ligne {i + 1}) [format ancien] {legacy.group(1)}")
             i += 1
             continue
 
