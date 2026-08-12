@@ -185,17 +185,14 @@ def _document_uploader(supabase: Client, document_id: str) -> str | None:
     return None
 
 
-def _ensure_document_visible(supabase: Client, document_id: str, user_id: str) -> None:
-    """Refuse de rattacher un document que l'appelant n'a pas le droit de voir.
+def _document_visible(supabase: Client, document_id: str, user_id: str) -> bool:
+    """Vrai si l'appelant a le droit de voir ce document.
 
-    `get_supabase()` fournit le client service-role : sans ce contrôle, tout
-    membre pourrait rattacher — et donc, via l'estampillage, faire entrer dans
-    le stock de reprise de la victime — la ligne `documents` de n'importe qui,
-    y compris d'un autre projet. Un document introuvable est laissé passer
-    (rien à protéger : l'écriture qui suit sur un id inexistant ne touche
-    aucune ligne). Même convention que `_require_document_view` dans
-    `routers/documents.py` : 404 et non 403, pour ne pas révéler l'existence
-    d'un document masqué.
+    Un document introuvable renvoie vrai : il n'y a rien à protéger, et
+    l'écriture qui suivrait sur un id inexistant ne toucherait aucune ligne.
+
+    Variante non bloquante de `_ensure_document_visible`, pour les traitements
+    par lot où un document masqué doit être sauté et non faire échouer l'appel.
     """
     res = (
         supabase.table("documents")
@@ -206,7 +203,7 @@ def _ensure_document_visible(supabase: Client, document_id: str, user_id: str) -
     )
     doc = res.data if res else None
     if not doc:
-        return
+        return True
     monument_ids = doc.get("monument_ids") or []
     # Rôle le plus élevé de l'appelant parmi les projets du document, résolu
     # projet par projet (comme `_highest_project_role` dans `routers/documents.py`)
@@ -214,14 +211,62 @@ def _ensure_document_visible(supabase: Client, document_id: str, user_id: str) -
     # l'appelant, coûteux et inutile ici où le document ne porte qu'une poignée
     # de `monument_ids`.
     roles = {mid: r for mid in monument_ids if (r := get_project_role(supabase, mid, user_id))}
-    role = best_role(monument_ids, roles)
-    if not can_view_document(
+    return can_view_document(
         visibility=doc.get("visibility") or "team",
         allowed_user_ids=doc.get("allowed_user_ids") or [],
         uploader_id=doc.get("user_id"),
         viewer_id=user_id,
-        viewer_role=role,
-    ):
+        viewer_role=best_role(monument_ids, roles),
+    )
+
+
+def _estampiller_pieces_fournies(supabase: Client, checklist: list[dict], user_id: str) -> int:
+    """Fait entrer dans le stock de reprise les pièces déjà fournies du dossier.
+
+    L'estampillage normal a lieu au rattachement d'un document. Les documents
+    rattachés AVANT que leur pièce ne rejoigne le référentiel n'ont donc pas de
+    `piece_id` : ils restent invisibles de la reprise, et l'utilisateur ne voit
+    jamais resservir un document qu'il a pourtant déjà fourni. Sans ce
+    rattrapage, « Reprendre mes pièces » ne verrait rien de son propre stock.
+
+    Ne réécrit jamais un `piece_id` existant, et saute les documents que
+    l'appelant n'a pas le droit de voir — la visibilité garde l'estampillage
+    comme elle garde le rattachement.
+    """
+    estampilles = 0
+    for item in checklist:
+        piece_id = item.get("pieceId")
+        document_id = item.get("documentId")
+        if not piece_id or not document_id:
+            continue
+        res = (
+            supabase.table("documents")
+            .select("piece_id")
+            .eq("id", document_id)
+            .maybe_single()
+            .execute()
+        )
+        doc = res.data if res else None
+        if not doc or doc.get("piece_id"):
+            continue
+        if not _document_visible(supabase, document_id, user_id):
+            continue
+        supabase.table("documents").update({"piece_id": piece_id}).eq("id", document_id).execute()
+        estampilles += 1
+    return estampilles
+
+
+def _ensure_document_visible(supabase: Client, document_id: str, user_id: str) -> None:
+    """Refuse de rattacher un document que l'appelant n'a pas le droit de voir.
+
+    `get_supabase()` fournit le client service-role : sans ce contrôle, tout
+    membre pourrait rattacher — et donc, via l'estampillage, faire entrer dans
+    le stock de reprise de la victime — la ligne `documents` de n'importe qui,
+    y compris d'un autre projet. Même convention que `_require_document_view`
+    dans `routers/documents.py` : 404 et non 403, pour ne pas révéler
+    l'existence d'un document masqué.
+    """
+    if not _document_visible(supabase, document_id, user_id):
         raise HTTPException(status_code=404, detail="Document introuvable")
 
 
@@ -490,6 +535,10 @@ def reprendre_pieces(
     dossier = _require_dossier_write(supabase, dossier_id, user_id)
 
     checklist, resolus = _resoudre_piece_ids(supabase, dossier)
+    # Avant de chercher quoi reprendre, on enregistre dans le stock ce que ce
+    # dossier porte déjà : sans cela, les pièces fournies avant le rattachement
+    # du corpus resteraient invisibles de toutes les reprises à venir.
+    _estampiller_pieces_fournies(supabase, checklist, user_id)
     checklist, repris = apply_reuse(supabase, checklist, dossier["monument_id"], user_id)
     # Les `pieceId` re-résolus valent la peine d'être persistés même sans
     # reprise : ils rendent la prochaine tentative immédiate.

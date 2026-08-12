@@ -535,5 +535,79 @@ class EstampillageTests(unittest.TestCase):
         self.assertNotIn("dossiers", db.updates)
 
 
+class EstampillageDesPiecesFourniesTests(unittest.TestCase):
+    """Une pièce rattachée AVANT le rattachement du corpus n'a pas de `piece_id`.
+
+    Elle reste donc invisible du stock de reprise, et l'utilisateur ne voit
+    jamais servir un document qu'il a pourtant déjà fourni. « Reprendre mes
+    pièces » doit donc aussi enregistrer dans le stock les pièces déjà fournies
+    du dossier, une fois leurs `pieceId` re-résolus.
+    """
+
+    def _db(self, *, piece_id_item="rib", piece_id_doc=None, uploader="u1"):
+        return _FakeSupabase(
+            {
+                "dossiers": {
+                    "id": "d1",
+                    "monument_id": "p1",
+                    "user_id": "u1",
+                    "aide_id": "aide-slug",
+                    "checklist": [
+                        {
+                            "id": "i1",
+                            "label": "RIB",
+                            "description": "",
+                            "obligatoire": True,
+                            "categorie": "document",
+                            "ordre": 1,
+                            "statut": "fourni",
+                            "documentId": "doc1",
+                            "pieceId": piece_id_item,
+                        }
+                    ],
+                },
+                "documents": {
+                    "id": "doc1",
+                    "user_id": uploader,
+                    "visibility": "team",
+                    "allowed_user_ids": [],
+                    "monument_ids": ["p1"],
+                    "piece_id": piece_id_doc,
+                },
+                "aides_v3": {"slug": "aide-slug", "documents_requis": []},
+                "project_members": [],
+                "monuments": [],
+            }
+        )
+
+    def _appeler(self, db):
+        from routers.dossiers import reprendre_pieces
+
+        with (
+            patch("routers.dossiers.require_project_access", return_value=None),
+            patch("routers.dossiers.apply_reuse", side_effect=lambda s, c, m, u: (c, 0)),
+        ):
+            reprendre_pieces("d1", user_id="u1", supabase=db)
+        return db.updates.get("documents", [])
+
+    def test_piece_fournie_est_estampillee(self) -> None:
+        db = self._db()
+        self.assertEqual(self._appeler(db), [{"piece_id": "rib"}])
+
+    def test_document_deja_estampille_non_reecrit(self) -> None:
+        db = self._db(piece_id_doc="rib")
+        self.assertEqual(self._appeler(db), [])
+
+    def test_item_sans_piece_id_non_estampille(self) -> None:
+        db = self._db(piece_id_item=None)
+        self.assertEqual(self._appeler(db), [])
+
+    def test_document_invisible_non_estampille(self) -> None:
+        """La visibilité garde l'estampillage comme elle garde le rattachement."""
+        db = self._db(uploader="u2")
+        with patch("routers.dossiers._document_visible", return_value=False):
+            self.assertEqual(self._appeler(db), [])
+
+
 if __name__ == "__main__":
     unittest.main()
