@@ -49,6 +49,9 @@ export interface ChecklistItem {
   origine?: 'repris';
   /** Pièce périssable dont le document dépasse son seuil d'alerte. */
   perime?: boolean;
+  /** Fichiers explicitement retirés de cette pièce : la reprise automatique ne
+   *  les repropose plus (rattacher l'un d'eux à la main annule son refus). */
+  refuses?: string[];
   obligatoire: boolean;
   categorie: 'administratif' | 'technique' | 'financier' | 'photographique' | 'document';
   ordre: number;

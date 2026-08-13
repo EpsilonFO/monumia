@@ -427,6 +427,60 @@ class DetachementTests(unittest.TestCase):
         self.assertNotIn("origine", ecrit)
         self.assertNotIn("perime", ecrit)
         self.assertNotIn("documents", db.updates)  # pas de réécriture de piece_id
+        # Le refus est MÉMORISÉ : sans cela, la reprise automatique reproposerait
+        # le même fichier à la visite suivante, à l'infini.
+        self.assertEqual(ecrit["refuses"], ["docA"])
+
+    def test_detacher_deux_fois_ne_duplique_pas_le_refus(self) -> None:
+        item = {
+            "id": "i1",
+            "statut": "repris",
+            "documentId": "docA",
+            "origine": "repris",
+            "pieceId": "rib",
+            "refuses": ["docA"],
+        }
+        db = _Db(
+            dossier=_dossier(item),
+            documents={"docA": {"user_id": "u1"}},
+            roles={"mon-1": "member"},
+        )
+        body = UpdateChecklistItemRequest(statut="manquant", detacher=True)
+
+        update_checklist_item("d1", "i1", body, user_id="u1", supabase=db)
+
+        ecrit = db.updates["dossiers"][0]["values"]["checklist"][0]
+        self.assertEqual(ecrit["refuses"], ["docA"])
+
+    def test_rattacher_a_la_main_annule_le_refus(self) -> None:
+        """Choisir soi-même un fichier autrefois refusé est un changement d'avis
+        explicite : le refus saute, la reprise peut de nouveau le proposer."""
+        item = {
+            "id": "i1",
+            "statut": "manquant",
+            "documentId": None,
+            "pieceId": "rib",
+            "refuses": ["docA", "docB"],
+        }
+        db = _Db(
+            dossier=_dossier(item),
+            documents={
+                "docA": {
+                    "user_id": "u1",
+                    "visibility": "team",
+                    "allowed_user_ids": [],
+                    "monument_ids": ["mon-1"],
+                }
+            },
+            roles={"mon-1": "member"},
+        )
+        body = UpdateChecklistItemRequest(statut="fourni", document_id="docA")
+
+        update_checklist_item("d1", "i1", body, user_id="u1", supabase=db)
+
+        ecrit = db.updates["dossiers"][0]["values"]["checklist"][0]
+        self.assertEqual(ecrit["documentId"], "docA")
+        self.assertEqual(ecrit["refuses"], ["docB"])
 
 
 class ConfirmationRepriseTests(unittest.TestCase):

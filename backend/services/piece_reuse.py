@@ -102,7 +102,12 @@ def _stock(
 
 
 def _candidat(
-    piece: Piece, doc_par_piece: dict, piece_id: str, monument_id: str, user_id: str
+    piece: Piece,
+    doc_par_piece: dict,
+    piece_id: str,
+    monument_id: str,
+    user_id: str,
+    refuses: set[str],
 ) -> dict | None:
     """Document réutilisable pour cette pièce, selon sa portée.
 
@@ -117,8 +122,13 @@ def _candidat(
     la campagne de travaux, pas le dossier. Le risque résiduel — proposer le
     devis d'une campagne achevée — est couvert par la péremption : ces pièces
     sont périssables, et une pièce trop ancienne s'affiche en avertissement.
+
+    `refuses` : fichiers que l'utilisateur a explicitement retirés de CET item.
+    Sans cette mémoire, la reprise automatique reproposerait à chaque visite le
+    fichier qui vient d'être refusé. Le refus porte sur un fichier précis, pas
+    sur la pièce : un autre fichier de la même étiquette reste proposable.
     """
-    docs = doc_par_piece.get(piece_id, [])
+    docs = [d for d in doc_par_piece.get(piece_id, []) if d.get("id") not in refuses]
     if piece.portee == "porteur":
         docs = [d for d in docs if d.get("user_id") == user_id]
     else:
@@ -164,7 +174,14 @@ def apply_reuse(
             nouvelle.append(copie)
             continue
 
-        doc = _candidat(piece, doc_par_piece, piece_id, monument_id, user_id)
+        doc = _candidat(
+            piece,
+            doc_par_piece,
+            piece_id,
+            monument_id,
+            user_id,
+            set(copie.get("refuses") or []),
+        )
         if doc is None:
             nouvelle.append(copie)
             continue

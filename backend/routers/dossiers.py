@@ -469,10 +469,21 @@ def update_checklist_item(
 
     target["statut"] = body.statut
     if body.detacher:
+        # Le refus est mémorisé sur l'item : sans cela, la reprise automatique
+        # reproposerait le même fichier à la visite suivante, à l'infini. Le
+        # refus porte sur CE fichier pour CETTE pièce — un autre fichier de la
+        # même étiquette reste proposable, et le fichier reste proposable pour
+        # d'autres pièces.
+        if current_doc_id and current_doc_id not in (target.get("refuses") or []):
+            target["refuses"] = [*(target.get("refuses") or []), current_doc_id]
         target["documentId"] = None
         target.pop("origine", None)
         target.pop("perime", None)
     elif body.document_id is not None:
+        # Rattacher soi-même un fichier autrefois refusé est un changement
+        # d'avis explicite : le refus saute.
+        if body.document_id in (target.get("refuses") or []):
+            target["refuses"] = [d for d in target["refuses"] if d != body.document_id]
         piece_id = target.get("pieceId")
         if piece_id:
             # Le client supabase est service-role (RLS inopérante) : sans ce

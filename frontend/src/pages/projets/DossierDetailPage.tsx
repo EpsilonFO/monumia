@@ -168,7 +168,10 @@ export function DossierDetailPage() {
         const isMissing = msg.includes('404') || msg.includes('not found') || msg.includes('introuvable') || msg.includes('non trouvé') || msg.includes('failed to fetch');
         if (!isMissing) throw err;
       }
-      await dossierService.updateChecklistItem(dossier.id, item.id, 'manquant');
+      // `detacher` plutôt qu'un simple passage à « manquant » : le retrait est
+      // mémorisé sur la pièce, la reprise automatique ne reproposera pas le
+      // fichier qu'on vient d'enlever.
+      await dossierService.detacherChecklistItem(dossier.id, item.id);
       toast.success('Document retiré du dossier');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression');

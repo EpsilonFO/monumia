@@ -164,6 +164,36 @@ class PorteeTests(unittest.TestCase):
         self.assertEqual(n, 1)
         self.assertTrue(items[0]["perime"])
 
+    def test_document_refuse_jamais_repropose(self) -> None:
+        """Un fichier explicitement retiré d'une pièce ne doit plus jamais lui
+        être proposé : sans cette mémoire, la reprise automatique re-rattache à
+        chaque visite le fichier que l'utilisateur vient de refuser."""
+        item = _item("i1", "rib")
+        item["refuses"] = ["d1"]
+        items, n = _reprendre([item], [_doc("d1", "rib")])
+        self.assertEqual(n, 0)
+        self.assertEqual(items[0]["statut"], "manquant")
+
+    def test_refus_ne_bloque_qu_un_document_precis(self) -> None:
+        """Le refus porte sur UN fichier, pas sur la pièce : un autre fichier
+        de la même étiquette reste proposable."""
+        item = _item("i1", "rib")
+        item["refuses"] = ["d1"]
+        autre = _doc("d2", "rib", date_upload="2026-07-15T00:00:00+00:00")
+        items, n = _reprendre([item], [_doc("d1", "rib"), autre])
+        self.assertEqual(n, 1)
+        self.assertEqual(items[0]["documentId"], "d2")
+
+    def test_refus_d_un_item_n_affecte_pas_les_autres(self) -> None:
+        """Refusé pour la pièce A, un fichier reste proposable pour la pièce B."""
+        refuse = _item("i1", "rib")
+        refuse["refuses"] = ["d1"]
+        autre_item = _item("i2", "rib")
+        items, n = _reprendre([refuse, autre_item], [_doc("d1", "rib")])
+        self.assertEqual(n, 1)
+        self.assertEqual(items[0]["statut"], "manquant")
+        self.assertEqual(items[1]["documentId"], "d1")
+
     def test_item_sans_piece_id_inchange(self) -> None:
         items, n = _reprendre([_item("i1", None)], [_doc("d1", "rib")])
         self.assertEqual(n, 0)
