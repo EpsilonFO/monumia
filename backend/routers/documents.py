@@ -1,4 +1,5 @@
 import contextlib
+import json
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -393,12 +394,16 @@ def delete_document(
         and ".." not in storage_path.split("/")
     ):
         safe_path = storage_path
-    if safe_path:
-        with contextlib.suppress(Exception):
-            supabase.storage.from_(STORAGE_BUCKET).remove([safe_path])
 
     _detacher_des_checklists(supabase, document_id)
     supabase.table("documents").delete().eq("id", document_id).execute()
+    # Le stockage en DERNIER : un échec à mi-chemin dans l'autre ordre laisse
+    # une ligne vivante dont le fichier n'existe plus — aperçu mort, suppression
+    # qui re-échoue à chaque essai. Un objet orphelin dans le bucket est, lui,
+    # inoffensif.
+    if safe_path:
+        with contextlib.suppress(Exception):
+            supabase.storage.from_(STORAGE_BUCKET).remove([safe_path])
 
 
 @router.post("/{document_id}/link/{dossier_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -514,7 +519,10 @@ def _detacher_des_checklists(supabase: Client, document_id: str) -> None:
     rows = (
         supabase.table("dossiers")
         .select("id, checklist")
-        .contains("checklist", [{"documentId": document_id}])
+        # Chaîne JSON impérativement : postgrest-py sérialise une LISTE avec
+        # ','.join(...), qui lève TypeError sur des dicts — l'endpoint entier
+        # répondait 500 (« failed to fetch » côté client).
+        .contains("checklist", json.dumps([{"documentId": document_id}]))
         .execute()
         .data
         or []

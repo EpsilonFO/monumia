@@ -41,6 +41,7 @@ class _Table:
 
     def contains(self, field, value, *a, **k):
         self._contains = (field, value)
+        self._db.contains_values.append(value)
         return self
 
     def single(self):
@@ -52,6 +53,7 @@ class _Table:
     def execute(self):
         if self._delete:
             self._db.deletes.append((self._name, self._filters.get("id")))
+            self._db.operations.append(f"delete:{self._name}")
             return _Resp(None)
         if self._update is not None:
             self._db.updates.setdefault(self._name, []).append(
@@ -70,13 +72,19 @@ class _Table:
 
 
 class _StorageFile:
+    def __init__(self, db):
+        self._db = db
+
     def remove(self, paths):
-        pass
+        self._db.operations.append("storage.remove")
 
 
 class _Storage:
+    def __init__(self, db):
+        self._db = db
+
     def from_(self, bucket):
-        return _StorageFile()
+        return _StorageFile(self._db)
 
 
 class _Db:
@@ -86,7 +94,11 @@ class _Db:
         self.dossiers_referencants = dossiers_referencants or []
         self.updates: dict[str, list] = {}
         self.deletes: list = []
-        self.storage = _Storage()
+        # Journal ordonné des opérations sensibles : l'ordre stockage/ligne est
+        # un invariant (cf. test_le_stockage_est_efface_en_dernier).
+        self.operations: list[str] = []
+        self.contains_values: list = []
+        self.storage = _Storage(self)
 
     def table(self, name):
         return _Table(self, name)
@@ -174,6 +186,38 @@ class DeleteDetacheChecklistsTests(unittest.TestCase):
         self.assertIsNone(item["documentId"])
         self.assertEqual(item["statut"], "manquant")
         self.assertIn(("documents", "docA"), db.deletes)
+
+    def test_le_filtre_contains_est_une_chaine_json(self) -> None:
+        """postgrest-py sérialise une LISTE avec ','.join(...) — passer une liste
+        de dicts lève TypeError et l'endpoint répond 500 (« failed to fetch »
+        côté client). Le filtre jsonb doit partir en chaîne JSON. Les fakes ne
+        peuvent pas attraper la sérialisation : ce test fige au moins la forme."""
+        import json
+
+        db = _Db(doc=_doc())
+
+        trash_document("docA", user_id="u1", supabase=db)
+
+        self.assertEqual(len(db.contains_values), 1)
+        valeur = db.contains_values[0]
+        self.assertIsInstance(valeur, str)
+        self.assertEqual(json.loads(valeur), [{"documentId": "docA"}])
+
+    def test_le_stockage_est_efface_en_dernier(self) -> None:
+        """Le fichier de stockage ne doit disparaître qu'une fois la ligne
+        supprimée : dans l'autre ordre, un échec à mi-chemin laisse une ligne
+        vivante dont le fichier n'existe plus — aperçu mort, suppression qui
+        re-échoue à chaque essai."""
+        db = _Db(doc=_doc(), dossiers_referencants=[_dossier_referencant()])
+
+        delete_document("docA", user_id="u1", supabase=db)
+
+        self.assertIn("delete:documents", db.operations)
+        self.assertIn("storage.remove", db.operations)
+        self.assertLess(
+            db.operations.index("delete:documents"),
+            db.operations.index("storage.remove"),
+        )
 
 
 if __name__ == "__main__":
