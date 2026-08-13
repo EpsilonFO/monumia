@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { AideDetails } from '@/components/aide/AideDetails';
 import { AideStatutSelect } from '@/components/aide/AideStatutSelect';
 import { DossierChecklist } from '@/components/dossier/DossierChecklist';
+import { ReprisesReviewDialog } from '@/components/dossier/ReprisesReviewDialog';
 import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
@@ -30,7 +31,7 @@ import { suiviService } from '@/services/suivi.service';
 import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
-import type { Aide, ChecklistItem, Document } from '@/types';
+import type { Aide, ChecklistItem, Document, Dossier } from '@/types';
 
 export function DossierDetailPage() {
   const { projetId, dossierId } = useParams();
@@ -73,8 +74,13 @@ export function DossierDetailPage() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [reprise, setReprise] = useState(false);
+  // Pièces en cours de vérification guidée (null = fenêtre fermée). Le tableau
+  // est figé à l'ouverture pour que l'ordre des étapes ne bouge pas pendant
+  // que les confirmations modifient la checklist.
+  const [reviewItems, setReviewItems] = useState<ChecklistItem[] | null>(null);
 
   const monumentFetchedRef = useRef(false);
+  const autoVerifRef = useRef(false);
 
   useEffect(() => {
     if (monument || !projetId || monumentFetchedRef.current) return;
@@ -226,22 +232,23 @@ export function DossierDetailPage() {
     }
   };
 
-  // Rejoue la reprise sur ce dossier. Indispensable aux dossiers antérieurs à la
-  // fonctionnalité — ceux, précisément, dont le porteur a déjà un stock de
-  // documents. Le nombre annoncé est le GAIN de cet appel, pas le total des
-  // pièces reprises du dossier.
+  const ouvrirVerification = useCallback((d: Dossier) => {
+    const repris = d.checklist.filter((i) => i.statut === 'repris');
+    if (repris.length > 0) setReviewItems(repris);
+    return repris.length;
+  }, []);
+
+  // Rejoue la reprise sur ce dossier, puis ouvre la vérification guidée s'il y a
+  // des pièces à examiner. Indispensable aux dossiers antérieurs à la
+  // fonctionnalité — ceux, précisément, dont le porteur a déjà un stock.
   const handleReprendrePieces = async () => {
     if (!dossier) return;
-    const avant = dossier.checklist.filter((i) => i.statut === 'repris').length;
     setReprise(true);
     try {
       const maj = await dossierService.reprendrePieces(dossier.id);
-      const gain = maj.checklist.filter((i) => i.statut === 'repris').length - avant;
-      toast.success(
-        gain > 0
-          ? `${gain} pièce${gain > 1 ? 's' : ''} reprise${gain > 1 ? 's' : ''} de vos documents — à vérifier`
-          : 'Aucune pièce à reprendre pour l’instant',
-      );
+      if (ouvrirVerification(maj) === 0) {
+        toast.success('Aucun document déjà fourni ne correspond aux pièces de ce dossier');
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la reprise des pièces');
     } finally {
@@ -262,6 +269,30 @@ export function DossierDetailPage() {
   );
 
   const canManageDossier = projectPermissions(monument?.myRole ?? null).canEditProject;
+
+  // Reprise automatique à l'arrivée sur le dossier : le public de Monumia ne
+  // doit pas avoir à connaître un bouton pour en bénéficier. L'appel est
+  // silencieux (la reprise est un confort, son échec ne doit rien casser) ;
+  // s'il trouve — ou si le dossier contient déjà — des pièces reprises, la
+  // vérification guidée s'ouvre d'elle-même. Une fois par visite.
+  useEffect(() => {
+    if (!dossier || !monument || autoVerifRef.current) return;
+    autoVerifRef.current = true;
+    // Fermer la fenêtre vaut « plus tard » : on ne la rouvre pas d'office à
+    // chaque retour sur la page pendant la session. La bannière reste le
+    // chemin volontaire pour reprendre la vérification.
+    if (sessionStorage.getItem(`verif-reprises-${dossier.id}`)) return;
+    if (canManageDossier && dossier.statut !== 'soumis') {
+      dossierService
+        .reprendrePieces(dossier.id)
+        .then(ouvrirVerification)
+        .catch(() => ouvrirVerification(dossier));
+    } else {
+      // Membre simple : pas le droit de relancer la reprise, mais il peut
+      // confirmer les pièces déjà reprises — on lui ouvre la vérification.
+      ouvrirVerification(dossier);
+    }
+  }, [dossier, monument, canManageDossier, ouvrirVerification]);
 
   const handleDeleteDossier = async () => {
     if (!dossier || !projetId) return;
@@ -321,16 +352,27 @@ export function DossierDetailPage() {
 
       <div className="space-y-6">
         {dossier.checklist.some((i) => i.statut === 'repris') && (
-          <div className="flex items-start gap-3 p-4 rounded-xl border" style={{ borderColor: C.border, background: C.paleBlue }}>
-            <IconRafraichir className="h-5 w-5 shrink-0 mt-0.5" style={{ color: C.blue }} />
-            <div className="text-[13px]">
+          <div className="flex flex-wrap items-center gap-4 p-4 sm:p-5 rounded-xl border" style={{ borderColor: C.border, background: C.paleBlue }}>
+            <IconRafraichir className="h-5 w-5 shrink-0" style={{ color: C.blue }} />
+            <div className="min-w-0 flex-1 text-[14px]">
               <p className="font-semibold" style={{ color: C.ink }}>
-                {dossier.checklist.filter((i) => i.statut === 'repris').length} pièces reprises de vos documents
+                {(() => {
+                  const n = dossier.checklist.filter((i) => i.statut === 'repris').length;
+                  return n === 1 ? 'Un document déjà fourni vous attend' : `${n} documents déjà fournis vous attendent`;
+                })()}
               </p>
-              <p className="mt-0.5 text-muted-foreground">
-                Elles proviennent d’autres dossiers. Vérifiez chacune avant l’envoi&nbsp;: elles ne comptent pas comme fournies tant qu’elles ne sont pas confirmées.
+              <p className="mt-0.5" style={{ color: C.grayFg }}>
+                Vérifiez que ce sont les bons — sans cela, ils ne comptent pas dans votre dossier.
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => ouvrirVerification(dossier)}
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold text-white transition-opacity hover:opacity-90"
+              style={{ background: C.blue }}
+            >
+              Vérifier ces documents
+            </button>
           </div>
         )}
 
@@ -446,6 +488,19 @@ export function DossierDetailPage() {
         document={previewDoc}
         open={!!previewDoc}
         onOpenChange={(open) => { if (!open) setPreviewDoc(null); }}
+      />
+
+      <ReprisesReviewDialog
+        open={!!reviewItems}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReviewItems(null);
+            if (dossier) sessionStorage.setItem(`verif-reprises-${dossier.id}`, '1');
+          }
+        }}
+        items={reviewItems ?? []}
+        onConfirm={handleConfirmItem}
+        onReject={handleRejectItem}
       />
     </div>
   );
