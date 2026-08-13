@@ -379,10 +379,13 @@ class _Db:
     """dossier : une seule ligne. documents : par id. project_members : par
     monument (une seule ligne « le rôle de l'appelant sur ce monument »)."""
 
-    def __init__(self, *, dossier, documents=None, roles=None):
+    def __init__(self, *, dossier, documents=None, roles=None, autres_dossiers=None):
         self.dossier = dossier
         self.documents = documents or {}
         self.roles = roles or {}
+        # Autres dossiers consultables par id — pour la règle « l'étiquette est
+        # soutenue si un autre dossier utilise le fichier pour la même pièce ».
+        self.autres_dossiers = autres_dossiers or {}
         self.updates: dict[str, list] = {}
 
     def table(self, name):
@@ -390,7 +393,9 @@ class _Db:
 
     def lookup(self, table, filters):
         if table == "dossiers":
-            return self.dossier if filters.get("id") == self.dossier["id"] else None
+            if filters.get("id") == self.dossier["id"]:
+                return self.dossier
+            return self.autres_dossiers.get(filters.get("id"))
         if table == "documents":
             return self.documents.get(filters.get("id"))
         if table == "project_members":
@@ -451,6 +456,110 @@ class DetachementTests(unittest.TestCase):
 
         ecrit = db.updates["dossiers"][0]["values"]["checklist"][0]
         self.assertEqual(ecrit["refuses"], ["docA"])
+
+    def test_refuser_retire_l_etiquette_orpheline(self) -> None:
+        """Un fichier refusé perd son étiquette quand plus rien ne la soutient.
+
+        L'étiquette naît d'un rattachement ; sans ce retrait, un fichier
+        rattaché par erreur (ou pour tester) resterait éternellement dans le
+        stock et serait proposé, refus après refus, sur chaque dossier."""
+        item = {
+            "id": "i1",
+            "statut": "repris",
+            "documentId": "docA",
+            "origine": "repris",
+            "pieceId": "plan_financement",
+        }
+        db = _Db(
+            dossier=_dossier(item),
+            documents={
+                "docA": {
+                    "user_id": "u1",
+                    "piece_id": "plan_financement",
+                    "dossiers_utilises": [],
+                }
+            },
+            roles={"mon-1": "member"},
+        )
+        body = UpdateChecklistItemRequest(statut="manquant", detacher=True)
+
+        update_checklist_item("d1", "i1", body, user_id="u1", supabase=db)
+
+        self.assertIn("documents", db.updates)
+        self.assertEqual(db.updates["documents"][0], {"id": "docA", "values": {"piece_id": None}})
+
+    def test_refuser_garde_l_etiquette_soutenue_par_un_autre_dossier(self) -> None:
+        """Le même fichier, fourni pour la même pièce dans un autre dossier :
+        l'étiquette est confirmée par l'usage, refuser ici ne la retire pas."""
+        item = {
+            "id": "i1",
+            "statut": "repris",
+            "documentId": "docA",
+            "origine": "repris",
+            "pieceId": "rib",
+        }
+        db = _Db(
+            dossier=_dossier(item),
+            documents={"docA": {"user_id": "u1", "piece_id": "rib", "dossiers_utilises": ["d2"]}},
+            autres_dossiers={
+                "d2": {
+                    "id": "d2",
+                    "checklist": [
+                        {"id": "x", "documentId": "docA", "pieceId": "rib", "statut": "fourni"}
+                    ],
+                }
+            },
+            roles={"mon-1": "member"},
+        )
+        body = UpdateChecklistItemRequest(statut="manquant", detacher=True)
+
+        update_checklist_item("d1", "i1", body, user_id="u1", supabase=db)
+
+        self.assertNotIn("documents", db.updates)
+
+    def test_refuser_retire_l_etiquette_si_l_autre_usage_est_une_autre_piece(self) -> None:
+        """Utilisé ailleurs, mais pour une AUTRE pièce : ce n'est pas un soutien.
+
+        Cas réel : un formulaire ADEME rattaché (à tort) à un plan de
+        financement, mais légitimement fourni comme formulaire dans son propre
+        dossier — l'étiquette plan_financement doit sauter."""
+        item = {
+            "id": "i1",
+            "statut": "repris",
+            "documentId": "docA",
+            "origine": "repris",
+            "pieceId": "plan_financement",
+        }
+        db = _Db(
+            dossier=_dossier(item),
+            documents={
+                "docA": {
+                    "user_id": "u1",
+                    "piece_id": "plan_financement",
+                    "dossiers_utilises": ["d2"],
+                }
+            },
+            autres_dossiers={
+                "d2": {
+                    "id": "d2",
+                    "checklist": [
+                        {
+                            "id": "x",
+                            "documentId": "docA",
+                            "pieceId": "formulaire_demande",
+                            "statut": "fourni",
+                        }
+                    ],
+                }
+            },
+            roles={"mon-1": "member"},
+        )
+        body = UpdateChecklistItemRequest(statut="manquant", detacher=True)
+
+        update_checklist_item("d1", "i1", body, user_id="u1", supabase=db)
+
+        self.assertIn("documents", db.updates)
+        self.assertEqual(db.updates["documents"][0]["values"], {"piece_id": None})
 
     def test_rattacher_a_la_main_annule_le_refus(self) -> None:
         """Choisir soi-même un fichier autrefois refusé est un changement d'avis

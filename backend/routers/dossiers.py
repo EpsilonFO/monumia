@@ -256,6 +256,50 @@ def _estampiller_pieces_fournies(supabase: Client, checklist: list[dict], user_i
     return estampilles
 
 
+def _retirer_etiquette_orpheline(
+    supabase: Client, document_id: str, piece_id: str | None, dossier_id_exclu: str
+) -> None:
+    """Un refus retire l'étiquette du fichier quand plus rien ne la soutient.
+
+    L'étiquette (`documents.piece_id`) naît de l'usage : rattacher un fichier à
+    une pièce du référentiel l'estampille. Un refus est l'usage en sens inverse
+    — sans ce retrait, un fichier rattaché par erreur (ou pour tester) reste
+    éternellement dans le stock et la reprise le propose, refus après refus,
+    sur chaque dossier.
+
+    Garde-fou : si un AUTRE dossier utilise encore ce fichier pour la MÊME
+    pièce (item fourni), l'étiquette est confirmée par cet usage et reste —
+    refuser un RIB dans un dossier ne doit pas priver les autres du leur. Un
+    usage pour une autre pièce ne compte pas : un formulaire rattaché à tort à
+    un plan de financement reste un formulaire.
+    """
+    if not piece_id:
+        return
+    res = (
+        supabase.table("documents")
+        .select("piece_id, dossiers_utilises")
+        .eq("id", document_id)
+        .maybe_single()
+        .execute()
+    )
+    doc = res.data if res else None
+    if not doc or doc.get("piece_id") != piece_id:
+        return
+    for did in doc.get("dossiers_utilises") or []:
+        if did == dossier_id_exclu:
+            continue
+        r = supabase.table("dossiers").select("checklist").eq("id", did).maybe_single().execute()
+        autre = r.data if r else None
+        for it in (autre or {}).get("checklist") or []:
+            if (
+                it.get("documentId") == document_id
+                and it.get("pieceId") == piece_id
+                and it.get("statut") == "fourni"
+            ):
+                return  # étiquette soutenue par un usage réel ailleurs
+    supabase.table("documents").update({"piece_id": None}).eq("id", document_id).execute()
+
+
 def _ensure_document_visible(supabase: Client, document_id: str, user_id: str) -> None:
     """Refuse de rattacher un document que l'appelant n'a pas le droit de voir.
 
@@ -476,6 +520,10 @@ def update_checklist_item(
         # d'autres pièces.
         if current_doc_id and current_doc_id not in (target.get("refuses") or []):
             target["refuses"] = [*(target.get("refuses") or []), current_doc_id]
+        if current_doc_id:
+            _retirer_etiquette_orpheline(
+                supabase, current_doc_id, target.get("pieceId"), dossier_id
+            )
         target["documentId"] = None
         target.pop("origine", None)
         target.pop("perime", None)
