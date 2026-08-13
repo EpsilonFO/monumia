@@ -73,7 +73,6 @@ export function DossierDetailPage() {
   const [accessDoc, setAccessDoc] = useState<Document | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [reprise, setReprise] = useState(false);
   // Pièces en cours de vérification guidée (null = fenêtre fermée). Le tableau
   // est figé à l'ouverture pour que l'ordre des étapes ne bouge pas pendant
   // que les confirmations modifient la checklist.
@@ -238,24 +237,6 @@ export function DossierDetailPage() {
     return repris.length;
   }, []);
 
-  // Rejoue la reprise sur ce dossier, puis ouvre la vérification guidée s'il y a
-  // des pièces à examiner. Indispensable aux dossiers antérieurs à la
-  // fonctionnalité — ceux, précisément, dont le porteur a déjà un stock.
-  const handleReprendrePieces = async () => {
-    if (!dossier) return;
-    setReprise(true);
-    try {
-      const maj = await dossierService.reprendrePieces(dossier.id);
-      if (ouvrirVerification(maj) === 0) {
-        toast.success('Aucun document déjà fourni ne correspond aux pièces de ce dossier');
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la reprise des pièces');
-    } finally {
-      setReprise(false);
-    }
-  };
-
   // Remplacer / supprimer une pièce : l'auteur du document, OU un chef de projet /
   // adjoint (tous les droits sur les docs). Un collaborateur ne peut agir que sur
   // les siens. Consultation ouverte à tous.
@@ -270,24 +251,23 @@ export function DossierDetailPage() {
 
   const canManageDossier = projectPermissions(monument?.myRole ?? null).canEditProject;
 
-  // Reprise automatique à l'arrivée sur le dossier : le public de Monumia ne
-  // doit pas avoir à connaître un bouton pour en bénéficier. L'appel est
-  // silencieux (la reprise est un confort, son échec ne doit rien casser) ;
-  // s'il trouve — ou si le dossier contient déjà — des pièces reprises, la
-  // vérification guidée s'ouvre d'elle-même. Une fois par visite.
+  // Reprise automatique à l'arrivée sur le dossier : c'est le SEUL déclencheur,
+  // il n'y a volontairement aucun bouton à connaître. L'appel est silencieux
+  // (la reprise est un confort, son échec ne doit rien casser) et tourne à
+  // chaque visite pour attraper les fichiers déposés entre-temps. La fenêtre de
+  // vérification, elle, ne s'ouvre d'office qu'une fois par session et par
+  // dossier — la fermer vaut « plus tard », et la bannière reste le chemin
+  // volontaire pour y revenir.
   useEffect(() => {
     if (!dossier || !monument || autoVerifRef.current) return;
     autoVerifRef.current = true;
-    // Fermer la fenêtre vaut « plus tard » : on ne la rouvre pas d'office à
-    // chaque retour sur la page pendant la session. La bannière reste le
-    // chemin volontaire pour reprendre la vérification.
-    if (sessionStorage.getItem(`verif-reprises-${dossier.id}`)) return;
+    const dejaVue = !!sessionStorage.getItem(`verif-reprises-${dossier.id}`);
     if (canManageDossier && dossier.statut !== 'soumis') {
       dossierService
         .reprendrePieces(dossier.id)
-        .then(ouvrirVerification)
-        .catch(() => ouvrirVerification(dossier));
-    } else {
+        .then((maj) => { if (!dejaVue) ouvrirVerification(maj); })
+        .catch(() => { if (!dejaVue) ouvrirVerification(dossier); });
+    } else if (!dejaVue) {
       // Membre simple : pas le droit de relancer la reprise, mais il peut
       // confirmer les pièces déjà reprises — on lui ouvre la vérification.
       ouvrirVerification(dossier);
@@ -379,23 +359,8 @@ export function DossierDetailPage() {
         )}
 
         <div className="rounded-2xl border overflow-hidden" style={{ background: C.card, borderColor: C.border }}>
-          <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-b" style={{ borderColor: C.border }}>
+          <div className="px-5 py-3 border-b" style={{ borderColor: C.border }}>
             <h3 className="text-[16px]" style={{ fontFamily: SERIF, color: C.ink }}>Pièces du dossier</h3>
-            {canManageDossier && dossier.statut !== 'soumis' && (
-              <button
-                type="button"
-                onClick={handleReprendrePieces}
-                disabled={reprise}
-                title="Rechercher, parmi vos documents déjà déposés, ceux qui correspondent aux pièces demandées"
-                className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition-colors disabled:opacity-60"
-                style={{ borderColor: C.border, color: C.blue }}
-              >
-                {reprise
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <IconRafraichir className="h-3.5 w-3.5" />}
-                {reprise ? 'Recherche…' : 'Reprendre mes pièces'}
-              </button>
-            )}
           </div>
           <div className="px-5 py-4">
             {dossier.checklist.length === 0 ? (
