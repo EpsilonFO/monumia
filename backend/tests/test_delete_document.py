@@ -37,6 +37,11 @@ class _Query:
     def eq(self, *a, **k):
         return self
 
+    def contains(self, *a, **k):
+        # Le balayage des checklists (détachement à la suppression) interroge les
+        # dossiers par `contains` ; ces fakes n'en fournissent aucun → no-op.
+        return self
+
     def single(self):
         return self
 

@@ -256,6 +256,37 @@ def _estampiller_pieces_fournies(supabase: Client, checklist: list[dict], user_i
     return estampilles
 
 
+def _detacher_references_mortes(supabase: Client, checklist: list[dict]) -> tuple[list[dict], int]:
+    """Détache les pièces dont le fichier n'existe plus ou est en corbeille.
+
+    La suppression d'un document détache désormais ses références à la source
+    (cf. `_detacher_des_checklists` dans routers/documents.py), mais les
+    dossiers cassés AVANT ce correctif portent encore des fichiers fantômes —
+    affichés verrouillés (« Réservé ») sans plus aucune action possible. Comme
+    la reprise tourne à chaque visite, ce filet les répare d'eux-mêmes, et les
+    pièces libérées peuvent être reproposées dans la même passe.
+    """
+    ids = sorted({i["documentId"] for i in checklist if i.get("documentId")})
+    if not ids:
+        return [dict(i) for i in checklist], 0
+    rows = supabase.table("documents").select("id, trashed_at").in_("id", ids).execute().data or []
+    vivants = {r["id"] for r in rows if not r.get("trashed_at")}
+    nouvelle: list[dict] = []
+    detaches = 0
+    for item in checklist:
+        copie = dict(item)
+        document_id = copie.get("documentId")
+        if document_id and document_id not in vivants:
+            copie["documentId"] = None
+            if copie.get("statut") in ("fourni", "repris"):
+                copie["statut"] = "manquant"
+            copie.pop("origine", None)
+            copie.pop("perime", None)
+            detaches += 1
+        nouvelle.append(copie)
+    return nouvelle, detaches
+
+
 def _retirer_etiquette_orpheline(
     supabase: Client, document_id: str, piece_id: str | None, dossier_id_exclu: str
 ) -> None:
@@ -594,6 +625,9 @@ def reprendre_pieces(
     dossier = _require_dossier_write(supabase, dossier_id, user_id)
 
     checklist, resolus = _resoudre_piece_ids(supabase, dossier)
+    # Les fichiers fantômes d'abord : un estampillage depuis une référence
+    # morte n'aurait aucun sens, et une pièce libérée redevient reprenable.
+    checklist, morts = _detacher_references_mortes(supabase, checklist)
     # Avant de chercher quoi reprendre, on enregistre dans le stock ce que ce
     # dossier porte déjà : sans cela, les pièces fournies avant le rattachement
     # du corpus resteraient invisibles de toutes les reprises à venir.
@@ -601,7 +635,7 @@ def reprendre_pieces(
     checklist, repris = apply_reuse(supabase, checklist, dossier["monument_id"], user_id)
     # Les `pieceId` re-résolus valent la peine d'être persistés même sans
     # reprise : ils rendent la prochaine tentative immédiate.
-    if repris or resolus:
+    if repris or resolus or morts:
         supabase.table("dossiers").update(
             {
                 "checklist": checklist,

@@ -24,6 +24,7 @@ class _Query:
         self._table = table
         self._update = None
         self._insert = None
+        self._in = False
 
     def select(self, *a, **k):
         return self
@@ -40,6 +41,7 @@ class _Query:
         return self
 
     def in_(self, *a, **k):
+        self._in = True
         return self
 
     def is_(self, *a, **k):
@@ -61,7 +63,12 @@ class _Query:
         if self._update is not None:
             self._store.updates.setdefault(self._table, []).append(self._update)
             return _Resp([self._store.rows.get(self._table)])
-        return _Resp(self._store.rows.get(self._table))
+        data = self._store.rows.get(self._table)
+        # L'API réelle renvoie une LISTE pour une requête `.in_()` : un fake qui
+        # renvoie le dict brut ferait itérer les clés au lieu des lignes.
+        if self._in and isinstance(data, dict):
+            data = [data]
+        return _Resp(data)
 
 
 class _FakeSupabase:
@@ -696,6 +703,74 @@ class EstampillageTests(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 404)
         self.assertNotIn("documents", db.updates)
         self.assertNotIn("dossiers", db.updates)
+
+
+class ReferencesMortesTests(unittest.TestCase):
+    """Les dossiers déjà cassés (fichier supprimé AVANT le détachement à la
+    source) se réparent d'eux-mêmes à la visite : la reprise détache les pièces
+    dont le fichier n'existe plus ou est en corbeille."""
+
+    def _dossier(self, *, document_id="mort", statut="fourni"):
+        return {
+            "id": "d1",
+            "monument_id": "p1",
+            "aide_id": "detr",
+            "checklist": [
+                {
+                    "id": "i1",
+                    "label": "Pièce au fichier disparu",
+                    "obligatoire": True,
+                    "statut": statut,
+                    "documentId": document_id,
+                }
+            ],
+        }
+
+    def _appeler(self, supabase):
+        from routers.dossiers import reprendre_pieces
+
+        with (
+            patch("routers.dossiers.require_project_access", return_value=None),
+            patch("routers.dossiers.apply_reuse", side_effect=lambda s, c, m, u: (c, 0)),
+        ):
+            reprendre_pieces("d1", user_id="u1", supabase=supabase)
+
+    def test_fichier_disparu_detache_la_piece(self) -> None:
+        supabase = _FakeSupabase({"dossiers": self._dossier(), "documents": []})
+
+        self._appeler(supabase)
+
+        ecrit = supabase.updates["dossiers"][0]["checklist"][0]
+        self.assertIsNone(ecrit["documentId"])
+        self.assertEqual(ecrit["statut"], "manquant")
+        self.assertEqual(supabase.updates["dossiers"][0]["progression_pourcentage"], 0)
+
+    def test_fichier_en_corbeille_detache_la_piece(self) -> None:
+        supabase = _FakeSupabase(
+            {
+                "dossiers": self._dossier(),
+                "documents": [{"id": "mort", "trashed_at": "2026-08-13T10:00:00+00:00"}],
+            }
+        )
+
+        self._appeler(supabase)
+
+        ecrit = supabase.updates["dossiers"][0]["checklist"][0]
+        self.assertIsNone(ecrit["documentId"])
+        self.assertEqual(ecrit["statut"], "manquant")
+
+    def test_fichier_vivant_intact(self) -> None:
+        supabase = _FakeSupabase(
+            {
+                "dossiers": self._dossier(document_id="vivant"),
+                "documents": [{"id": "vivant", "trashed_at": None}],
+            }
+        )
+
+        self._appeler(supabase)
+
+        # Rien de mort, rien de résolu, rien de repris → aucune écriture.
+        self.assertNotIn("dossiers", supabase.updates)
 
 
 class EstampillageDesPiecesFourniesTests(unittest.TestCase):
