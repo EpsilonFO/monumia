@@ -358,11 +358,13 @@ export function DossierDetailPage() {
               <p className="font-semibold" style={{ color: C.ink }}>
                 {(() => {
                   const n = dossier.checklist.filter((i) => i.statut === 'repris').length;
-                  return n === 1 ? 'Un document déjà fourni vous attend' : `${n} documents déjà fournis vous attendent`;
+                  return n === 1
+                    ? 'Une pièce a été remplie avec un fichier déjà envoyé'
+                    : `${n} pièces ont été remplies avec des fichiers déjà envoyés`;
                 })()}
               </p>
               <p className="mt-0.5" style={{ color: C.grayFg }}>
-                Vérifiez que ce sont les bons — sans cela, ils ne comptent pas dans votre dossier.
+                Vérifiez que ce sont les bons — tant qu’ils ne sont pas confirmés, ces pièces ne comptent pas dans votre dossier.
               </p>
             </div>
             <button
@@ -371,7 +373,7 @@ export function DossierDetailPage() {
               className="inline-flex shrink-0 items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold text-white transition-opacity hover:opacity-90"
               style={{ background: C.blue }}
             >
-              Vérifier ces documents
+              Vérifier maintenant
             </button>
           </div>
         )}

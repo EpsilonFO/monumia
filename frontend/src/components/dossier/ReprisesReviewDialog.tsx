@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { IconSucces, IconAttention, IconRafraichir, IconDocument } from '@/components/icons';
 import { DocumentPreviewBody, useSignedUrl } from '@/components/document/DocumentPreviewDialog';
 import { documentService } from '@/services/document.service';
+import { formatDate } from '@/lib/date-utils';
 import { C, SERIF } from '@/lib/brand';
 import type { ChecklistItem, Document } from '@/types';
 
@@ -103,23 +104,16 @@ export function ReprisesReviewDialog({ open, onOpenChange, items, onConfirm, onR
     <Dialog open={open} onOpenChange={(o) => { if (!action) onOpenChange(o); }}>
       <DialogContent className="sm:max-w-2xl max-h-[92vh] flex flex-col gap-0 p-0 overflow-hidden">
 
-        {/* ── Un document à la fois ────────────────────────────────────── */}
+        {/* ── Une pièce à la fois ──────────────────────────────────────── */}
         {item && (
           <div className="flex min-h-0 flex-col overflow-y-auto">
             <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0 text-left">
-              {total > 1 && (
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Document {etape + 1} sur {total}
-                </p>
-              )}
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {total > 1 ? `Pièce ${etape + 1} sur ${total} · demandée par ce dossier` : 'Pièce demandée par ce dossier'}
+              </p>
               <DialogTitle className="text-[19px] leading-snug font-normal" style={{ fontFamily: SERIF, color: C.ink }}>
                 {item.label}
               </DialogTitle>
-              {docCourant && (
-                <p className="text-[13px] text-muted-foreground">
-                  Votre document&nbsp;: «&nbsp;{docCourant.nom}&nbsp;»
-                </p>
-              )}
             </DialogHeader>
 
             {etape === 0 && (
@@ -127,30 +121,52 @@ export function ReprisesReviewDialog({ open, onOpenChange, items, onConfirm, onR
                 <IconRafraichir className="h-5 w-5 shrink-0 mt-0.5" style={{ color: C.blue }} />
                 <p className="text-[13px]" style={{ color: C.ink }}>
                   {total === 1
-                    ? 'Vous aviez déjà fourni ce document lors d’une demande précédente. Nous l’avons ajouté à ce dossier — il ne reste qu’à vérifier que c’est le bon.'
-                    : `Vous aviez déjà fourni ${total} documents lors de demandes précédentes. Nous les avons ajoutés à ce dossier — il ne reste qu’à vérifier, un par un, que ce sont les bons.`}
+                    ? 'Cette pièce du dossier a été remplie automatiquement avec un fichier que vous nous aviez déjà envoyé. Vérifiez que c’est le bon.'
+                    : `${total} pièces de ce dossier ont été remplies automatiquement avec des fichiers que vous nous aviez déjà envoyés. Vérifiez, une par une, que ce sont les bons.`}
                 </p>
               </div>
             )}
 
-            <div className="mx-6 mt-4 h-[38vh] min-h-[220px] shrink-0 overflow-hidden rounded-xl border bg-muted/30" style={{ borderColor: C.border }}>
-              {item.documentId && (
-                <ApercuDocument key={item.id} documentId={item.documentId} onDocument={setDocCourant} />
-              )}
+            {/* Le fichier proposé : son nom directement au-dessus de son contenu,
+                pour que le lien « cette pièce ← ce fichier » soit sans ambiguïté. */}
+            <div className="mx-6 mt-4 shrink-0 overflow-hidden rounded-xl border" style={{ borderColor: C.border }}>
+              <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: C.border, background: C.card }}>
+                <IconDocument className="h-5 w-5 shrink-0" style={{ color: C.blue }} />
+                {docCourant ? (
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Le fichier utilisé pour cette pièce
+                    </p>
+                    <p className="truncate text-[15px] font-semibold" style={{ color: C.ink }}>
+                      {docCourant.nom}
+                    </p>
+                    <p className="truncate text-[12.5px] text-muted-foreground">
+                      {docCourant.nomFichier} · envoyé le {formatDate(docCourant.dateUpload)}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[13px] text-muted-foreground">Recherche de votre fichier…</p>
+                )}
+              </div>
+              <div className="h-[34vh] min-h-[200px] bg-muted/30">
+                {item.documentId && (
+                  <ApercuDocument key={item.id} documentId={item.documentId} onDocument={setDocCourant} />
+                )}
+              </div>
             </div>
 
             {item.perime && (
               <div className="mx-6 mt-4 flex items-start gap-3 p-4 rounded-xl border" style={{ borderColor: C.orangeVif, background: C.paleOrange }}>
                 <IconAttention className="h-5 w-5 shrink-0 mt-0.5" style={{ color: C.orange }} />
                 <p className="text-[13px]" style={{ color: C.ink }}>
-                  Ce document a plus d’un an. Vérifiez qu’il est encore à jour avant de l’utiliser.
+                  Ce fichier a plus d’un an. Vérifiez qu’il est encore à jour avant de l’utiliser.
                 </p>
               </div>
             )}
 
             <div className="px-6 py-5 space-y-2.5">
               <p className="text-center text-[15px] font-medium" style={{ color: C.ink }}>
-                Est-ce bien le document qu’il faut pour ce dossier&nbsp;?
+                Est-ce le bon fichier pour cette pièce&nbsp;?
               </p>
               <Button
                 size="lg"
@@ -159,7 +175,7 @@ export function ReprisesReviewDialog({ open, onOpenChange, items, onConfirm, onR
                 className="w-full h-11 text-[15px]"
               >
                 {action === 'confirm' ? <Loader2 className="animate-spin" /> : <IconSucces />}
-                Oui, c’est le bon document
+                Oui, utiliser ce fichier
               </Button>
               <Button
                 variant="outline"
@@ -169,7 +185,7 @@ export function ReprisesReviewDialog({ open, onOpenChange, items, onConfirm, onR
                 className="w-full h-11 text-[15px]"
               >
                 {action === 'reject' && <Loader2 className="animate-spin" />}
-                Non, ce n’est pas le bon
+                Non, retirer ce fichier
               </Button>
               <Button
                 variant="ghost"
@@ -194,12 +210,12 @@ export function ReprisesReviewDialog({ open, onOpenChange, items, onConfirm, onR
             </DialogTitle>
             <p className="mt-3 max-w-md text-[14.5px] leading-relaxed text-muted-foreground">
               {confirmees === 0
-                ? 'Aucun document n’a été confirmé pour l’instant.'
+                ? 'Aucune pièce n’a été confirmée pour l’instant.'
                 : confirmees === 1
-                  ? 'Un document a été ajouté à votre dossier.'
-                  : `${confirmees} documents ont été ajoutés à votre dossier.`}
+                  ? 'Une pièce du dossier est maintenant remplie avec votre fichier.'
+                  : `${confirmees} pièces du dossier sont maintenant remplies avec vos fichiers.`}
               {confirmees < total && (
-                <> Les autres restent marqués «&nbsp;à vérifier&nbsp;» dans la liste des pièces — vous pourrez y revenir quand vous voudrez.</>
+                <> Les autres restent marquées «&nbsp;à vérifier&nbsp;» dans la liste des pièces — vous pourrez y revenir quand vous voudrez.</>
               )}
             </p>
             <Button size="lg" onClick={() => onOpenChange(false)} className="mt-7 h-11 px-8 text-[15px]">
