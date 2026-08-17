@@ -98,6 +98,11 @@ export interface ProjectStats {
   montantPotentiel: number;
   /** Montant des aides « à débloquer ». Compté à part : il n'est pas acquis. */
   montantAtteignable: number;
+  /** Part maximale du coût des travaux couverte, en % (0 si aucune aide chiffrée
+   *  en taux). Complète le montant : beaucoup d'aides ne plafonnent pas en euros.
+   *  Périmètre plus large que `montantPotentiel` — les aides « à débloquer » y
+   *  comptent, la case annonçant un maximum atteignable et non un acquis. */
+  tauxTravauxMax: number;
   dossiersActifs: number;
   prochaineEcheance: ProjectDeadline | null;
   completion: number;
@@ -119,6 +124,7 @@ export function computeProjectStats(
   // encore à faire, et sont exposées séparément.
   const montantPotentiel = diagnostic?.montantPotentielTotal ?? 0;
   const montantAtteignable = diagnostic?.montantAtteignableTotal ?? 0;
+  const tauxTravauxMax = diagnostic?.tauxTravauxMaxPct ?? 0;
 
   const monumentDossiers = dossiers.filter((d) => d.monumentId === monument.id);
   const dossiersActifs = monumentDossiers.filter((d) => d.statut !== 'soumis').length;
@@ -130,6 +136,7 @@ export function computeProjectStats(
     aidesIdentifiees,
     montantPotentiel,
     montantAtteignable,
+    tauxTravauxMax,
     dossiersActifs,
     prochaineEcheance,
     completion: monument.completionPercentage,

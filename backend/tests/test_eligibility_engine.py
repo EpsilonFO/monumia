@@ -168,6 +168,78 @@ class TestDisponibilite(unittest.TestCase):
         self.assertEqual(res["montantPotentielTotal"], 15_000)
 
 
+class TestTauxTravauxCumule(unittest.TestCase):
+    """Part maximale du coût des travaux : « jusqu'à X € et / ou Y % des travaux ».
+
+    N'agrège que les aides qui allègent la facture de chantier — un dispositif
+    fiscal porte sur l'impôt, un prêt se rembourse, un label n'apporte rien.
+    """
+
+    LEVIER_FACT = "label_fondation_patrimoine_obtenu"
+
+    def _aide(self, slug: str, taux: float | None, type_: str = "subvention") -> Aide:
+        return _fixture_aide([], slug=slug).model_copy(
+            update={"type": type_, "financement": Financement(taux_max=taux)}
+        )
+
+    def _run(self, *aides: Aide, answers: dict | None = None) -> dict:
+        return run_deterministic_diagnostic(
+            {a.slug: a for a in aides}, FACTS, _monument(), 3000, answers
+        )
+
+    def test_somme_des_taux(self):
+        res = self._run(self._aide("fx-a", 30), self._aide("fx-b", 25))
+        self.assertEqual(res["tauxTravauxMaxPct"], 55)
+
+    def test_exclut_la_fiscalite(self):
+        """Une déduction fiscale (Denormandie, Malraux) ne subventionne rien."""
+        res = self._run(self._aide("fx-a", 30), self._aide("fx-fisc", 50, "deduction_fiscale"))
+        self.assertEqual(res["tauxTravauxMaxPct"], 30)
+
+    def test_exclut_prets_et_labels(self):
+        res = self._run(
+            self._aide("fx-a", 30),
+            self._aide("fx-pret", 40, "pret"),
+            self._aide("fx-label", 20, "label"),
+        )
+        self.assertEqual(res["tauxTravauxMaxPct"], 30)
+
+    def test_ecrete_a_quatre_vingts_pour_cent(self):
+        """Le maître d'ouvrage garde 20 % à sa charge : le cumul ne va pas plus loin."""
+        res = self._run(self._aide("fx-a", 60), self._aide("fx-b", 70))
+        self.assertEqual(res["tauxTravauxMaxPct"], 80)
+
+    def test_aucune_aide_chiffree_en_taux(self):
+        res = self._run(self._aide("fx-a", None))
+        self.assertIsNone(res["tauxTravauxMaxPct"])
+
+    def test_compte_les_a_debloquer_et_les_a_confirmer(self):
+        """Les trois seaux affichés comptent, contrairement au montant potentiel."""
+        gate_levier = {
+            "id": "lev",
+            "text": "Être labellisé Fondation du patrimoine",
+            "kind": "user_fact",
+            "fact": self.LEVIER_FACT,
+            "predicate": {"eq": True},
+        }
+        a_debloquer = _fixture_aide([gate_levier], slug="fx-levier").model_copy(
+            update={"financement": Financement(taux_max=25)}
+        )
+        a_confirmer = _fixture_aide(
+            [{"id": "mc", "text": "À vérifier auprès du financeur", "kind": "manual_check"}],
+            slug="fx-a-confirmer",
+        ).model_copy(update={"financement": Financement(taux_max=15)})
+        res = self._run(
+            self._aide("fx-a", 30),
+            a_debloquer,
+            a_confirmer,
+            answers={self.LEVIER_FACT: False},
+        )
+        self.assertEqual(len(res["aidesAtteignables"]), 1)
+        self.assertEqual(len(res["aidesPotentiellementEligibles"]), 1)
+        self.assertEqual(res["tauxTravauxMaxPct"], 70)
+
+
 class TestRaisonPrefilter(unittest.TestCase):
     """Étape « Votre projet » : les intentions cochées (clé réservée `_raisons`)
     écartent les aides dont aucune finalité ne les recoupe."""

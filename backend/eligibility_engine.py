@@ -28,6 +28,7 @@ from typing import Literal
 
 from aides_schema import (
     ENUM_FACT_TYPES,
+    ROLE_BY_TYPE,
     Aide,
     AppliesIf,
     Condition,
@@ -928,6 +929,37 @@ def aide_display_dict(aide: Aide) -> dict:
     }
 
 
+# Rôles de financement qui allègent réellement la facture de chantier. Le taux
+# cumulé n'agrège que ceux-là : une déduction fiscale (Denormandie, Malraux…)
+# porte sur l'impôt et non sur le coût des travaux, un prêt se rembourse, un
+# label n'apporte pas d'argent. Rôle dérivé du `type` via ROLE_BY_TYPE.
+ROLES_SUBVENTIONNANTS = frozenset({"subvention", "mecenat"})
+
+# Plafond d'aides publiques cumulées : le maître d'ouvrage garde au moins 20 %
+# du coût à sa charge, règle que reprennent les dispositifs les uns après les
+# autres. Aucun cumul affiché ne peut donc dépasser 80 % des travaux.
+PLAFOND_TAUX_TRAVAUX_PCT = 80.0
+
+
+def taux_travaux_cumule(verdicts: list[AideVerdict]) -> float | None:
+    """Part maximale du coût des travaux couverte par les aides retenues, en %.
+
+    Somme des `taux_max` des aides qui subventionnent les travaux, écrêtée à
+    PLAFOND_TAUX_TRAVAUX_PCT. Retourne None si aucune aide n'est chiffrée en
+    taux — la case n'affiche alors que le montant.
+    """
+    taux = 0.0
+    for v in verdicts:
+        if ROLE_BY_TYPE.get(v.aide.type) not in ROLES_SUBVENTIONNANTS:
+            continue
+        if v.aide.financement.taux_max is None:
+            continue
+        taux += v.aide.financement.taux_max
+    if taux <= 0:
+        return None
+    return round(min(taux, PLAFOND_TAUX_TRAVAUX_PCT), 1)
+
+
 def _match_result(verdict: AideVerdict, today: date | None = None) -> dict:
     """Forme AideMatchResult attendue par le front."""
     incertitudes = [e for e in verdict.evaluations if e["verdict"] == INCERTITUDE]
@@ -1084,6 +1116,11 @@ def run_deterministic_diagnostic(
     # et sont chiffrés à part dans `montantAtteignableTotal`.
     montant_total = sum(v.aide.financement.montant_max or 0 for v in eligibles + potentiels)
     montant_atteignable = sum(v.aide.financement.montant_max or 0 for v in atteignables)
+    # Part des travaux : beaucoup d'aides ne plafonnent pas en euros et ne se
+    # chiffrent que là. Périmètre plus large que le montant potentiel — les
+    # trois seaux affichés (« disponibles maintenant », « à confirmer », « à
+    # débloquer »), puisque la case annonce un maximum atteignable, pas un acquis.
+    taux_travaux = taux_travaux_cumule(eligibles + potentiels + atteignables)
 
     logger.info(
         "DIAGNOSTIC DÉTERMINISTE %s | ready=%d (hors projet=%d) éligibles=%d "
@@ -1107,5 +1144,6 @@ def run_deterministic_diagnostic(
         "aidesNonEligibles": [_match_result(v, today) for v in non_eligibles],
         "montantPotentielTotal": montant_total if montant_total > 0 else None,
         "montantAtteignableTotal": montant_atteignable if montant_atteignable > 0 else None,
+        "tauxTravauxMaxPct": taux_travaux,
         "qcmQuestions": questions,
     }

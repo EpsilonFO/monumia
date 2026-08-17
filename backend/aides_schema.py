@@ -330,6 +330,11 @@ FIELD_REGISTRY: dict[str, dict] = {
     "commune.population": {"type": "integer"},
     "commune.programmes": {"type": "list"},
     "commune.eligible_detr": {"type": "boolean"},
+    # Commune éligible au dispositif Denormandie (ACV / ORT / besoin de
+    # réhabilitation de l'habitat — arrêté du 26 mars 2019, simulateur
+    # service-public). Enrichissement à câbler : colonne booléenne à ajouter
+    # dans `communes`.
+    "commune.eligible_denormandie": {"type": "boolean"},
     # SIREN de l'EPCI d'appartenance de la commune (référentiel BANATIC), pour
     # les aides intercommunales (ex. CC Moret Seine et Loing = 247700032).
     # Colonne `communes.epci_siren`, alimentée par

@@ -2,6 +2,7 @@ import { IconLocalisation, IconProtection, IconAide, IconSubvention, IconEcheanc
 import { Badge } from '@/components/ui/badge';
 import { C, SERIF } from '@/lib/brand';
 import { formatCurrency } from '@/lib/format-utils';
+import { enjeuLabel } from '@/lib/aides-enjeu';
 import { deadlineLabel } from '@/lib/date-utils';
 import { PROTECTION_LABELS_SHORT, ETAT_LABELS } from '@/constants/monument-options';
 import type { ProjectStats } from '@/lib/project-stats';
@@ -28,6 +29,8 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRefaireQues
       : echeanceLabel?.urgency === 'warning'
         ? C.orange
         : C.blue;
+
+  const enjeu = enjeuLabel(stats);
 
   const location = [monument.commune, monument.departement].filter(Boolean).join(' · ');
 
@@ -89,8 +92,11 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRefaireQues
         />
         <KpiTile
           icon={<IconSubvention className="h-4 w-4" style={{ color: C.orange }} />}
-          label="Montant potentiel"
-          value={stats.montantPotentiel > 0 ? formatCurrency(stats.montantPotentiel) : '—'}
+          label="Financement mobilisable"
+          value={enjeu.value}
+          // « et / ou X % des travaux » : le second registre de chiffrage, dans
+          // la même case — les deux plafonds ne s'additionnent pas.
+          sub={enjeu.sub}
           // Le montant à débloquer reste HORS du chiffre principal : il suppose
           // une démarche encore à faire. Mentionné à côté, jamais additionné.
           note={
@@ -110,7 +116,7 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRefaireQues
   );
 }
 
-function KpiTile({ icon, label, value, valueColor, note }: { icon: React.ReactNode; label: string; value: string; valueColor?: string; note?: string }) {
+function KpiTile({ icon, label, value, valueColor, sub, note }: { icon: React.ReactNode; label: string; value: string; valueColor?: string; sub?: string; note?: string }) {
   return (
     <div className="rounded-xl border px-4 py-3" style={{ borderColor: C.border, background: C.cream }}>
       <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
@@ -120,6 +126,7 @@ function KpiTile({ icon, label, value, valueColor, note }: { icon: React.ReactNo
       <p className="mt-1 text-[18px] font-semibold" style={{ color: valueColor ?? C.ink }}>
         {value}
       </p>
+      {sub && <p className="text-[13px] font-semibold" style={{ color: valueColor ?? C.ink }}>{sub}</p>}
       {note && <p className="text-[12px] font-medium" style={{ color: 'var(--info)' }}>{note}</p>}
     </div>
   );

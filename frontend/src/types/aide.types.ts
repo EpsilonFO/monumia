@@ -207,6 +207,12 @@ export interface AideDiagnosticResult {
   aidesNonEligibles: AideMatchResult[];
   montantPotentielTotal?: number;
   montantAtteignableTotal?: number;
+  /** Part maximale du coût des travaux couverte, en %. Somme des taux des trois
+   *  seaux affichés (maintenant / à confirmer / à débloquer), écrêtée à 80 % :
+   *  le maître d'ouvrage garde au moins 20 % à sa charge. N'agrège que les aides
+   *  qui subventionnent les travaux — dispositifs fiscaux (Denormandie,
+   *  Malraux…), prêts et labels en sont exclus. */
+  tauxTravauxMaxPct?: number;
   qcmQuestions?: QcmQuestion[];
   /** Réponses renvoyées telles quelles par le moteur : un id d'option, ou un
    *  tableau d'ids sur une question à choix multiple. */
@@ -239,4 +245,5 @@ export interface ProjectDigest {
   aidesAtteignables?: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
   montantPotentielTotal?: number;
   montantAtteignableTotal?: number;
+  tauxTravauxMaxPct?: number;
 }

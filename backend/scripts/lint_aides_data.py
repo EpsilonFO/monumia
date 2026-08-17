@@ -9,11 +9,17 @@ Vérifie :
   - pour les faits enum et les champs à référentiel : valeurs du prédicat valides
   - les `auto_source` de l'ontologie pointent vers un champ du registre
   - statistiques de couverture du typage (untyped restants) et dette de quotes
+  - ratchet des `manual_check` : aucune aide ne peut dépasser son compte de
+    `manual_check` gate ni de `manual_check` sans notes enregistré dans
+    data/manual_check_baseline.json — objectif zéro gate à terme
 
 Run (exit 1 si erreur — branchable en CI / pre-commit) :
     cd backend && uv run python scripts/lint_aides_data.py
+Après un batch de résorption relu, abaisser le plafond :
+    uv run python scripts/lint_aides_data.py --update-baseline
 """
 
+import json
 import sys
 from collections import Counter
 from pathlib import Path
@@ -38,6 +44,47 @@ from aides_schema import (
 # Kinds dont la condition est opposable à une source : la quote y est attendue
 # à terme (les conditions issues des seeds legacy n'en ont pas encore).
 EVALUABLE_KINDS = ("auto", "user_fact", "discretionary", "manual_check")
+
+# Ratchet de la dette `manual_check` : {slug: {"gates": n, "sans_notes": m}}.
+# Un manual_check + gate rend l'aide indécidable (toujours « À confirmer »,
+# sans question posée) : chaque compte ne peut que baisser, une aide nouvelle
+# part de zéro. Le fichier ne se réécrit que via --update-baseline, après
+# relecture (le diff git du baseline EST la revue de la dette).
+BASELINE_FILE = Path(__file__).resolve().parent.parent / "data" / "manual_check_baseline.json"
+
+
+def manual_check_counts(aides: list[Aide]) -> dict[str, dict[str, int]]:
+    counts: dict[str, dict[str, int]] = {}
+    for aide in aides:
+        mc = [c for c in aide.conditions if c.kind == "manual_check"]
+        gates = sum(1 for c in mc if c.effect == "gate")
+        sans_notes = sum(1 for c in mc if not (c.notes or "").strip())
+        if gates or sans_notes:
+            counts[aide.slug] = {"gates": gates, "sans_notes": sans_notes}
+    return counts
+
+
+def check_manual_check_ratchet(counts: dict[str, dict[str, int]]) -> list[str]:
+    if not BASELINE_FILE.exists():
+        return [
+            f"{BASELINE_FILE.name} absent — le générer : "
+            "uv run python scripts/lint_aides_data.py --update-baseline"
+        ]
+    baseline: dict[str, dict[str, int]] = json.loads(BASELINE_FILE.read_text(encoding="utf-8"))
+    errors = []
+    for slug, cur in sorted(counts.items()):
+        base = baseline.get(slug, {"gates": 0, "sans_notes": 0})
+        if cur["gates"] > base["gates"]:
+            errors.append(
+                f"{slug}: {cur['gates']} manual_check gate (plafond {base['gates']}) — "
+                "retyper via l'arbre de TYPING.md, pas de nouveau manual_check gate"
+            )
+        if cur["sans_notes"] > base["sans_notes"]:
+            errors.append(
+                f"{slug}: {cur['sans_notes']} manual_check sans notes "
+                f"(plafond {base['sans_notes']}) — notes obligatoires (pourquoi irréductible)"
+            )
+    return errors
 
 
 def _leaf_ops_and_values(predicate: dict) -> list[tuple[str, object]]:
@@ -224,6 +271,26 @@ def main() -> int:
     sans_raison = sum(1 for a in aides if not a.raison)
     if sans_raison:
         print(f"raison : {sans_raison} aide(s) sans finalité — valeur en base préservée au load")
+
+    # Dette manual_check : gates (indécidables, objectif zéro) et absence de notes.
+    mc_counts = manual_check_counts(aides)
+    n_gates = sum(c["gates"] for c in mc_counts.values())
+    n_sans_notes = sum(c["sans_notes"] for c in mc_counts.values())
+    n_aides_gates = sum(1 for c in mc_counts.values() if c["gates"])
+    print(
+        f"manual_check : {n_gates} gate(s) sur {n_aides_gates} aide(s) — objectif zéro ; "
+        f"{n_sans_notes} sans notes (ratchet : {BASELINE_FILE.name})"
+    )
+    if "--update-baseline" in sys.argv:
+        BASELINE_FILE.write_text(
+            json.dumps(mc_counts, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        print(
+            f"baseline réécrit : {BASELINE_FILE.name} ({len(mc_counts)} aide(s)) — à relire au diff"
+        )
+    else:
+        errors.extend(check_manual_check_ratchet(mc_counts))
 
     # Dette de calendrier : sans `permanent` ni aucune date structurée, la
     # disponibilité (« maintenant » / « bientôt ») est indéterminable et l'aide

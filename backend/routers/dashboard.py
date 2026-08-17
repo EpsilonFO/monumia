@@ -35,6 +35,7 @@ def build_digest(result: dict, monument_id: str, *, locked: bool = False) -> dic
         "monumentId": monument_id,
         "montantPotentielTotal": result.get("montantPotentielTotal"),
         "montantAtteignableTotal": result.get("montantAtteignableTotal"),
+        "tauxTravauxMaxPct": result.get("tauxTravauxMaxPct"),
     }
     for bucket in _DIGEST_BUCKETS:
         digest[bucket] = [
