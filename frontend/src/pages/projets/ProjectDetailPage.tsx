@@ -313,7 +313,14 @@ export function ProjectDetailPage() {
   // « À débloquer » : ordre du backend conservé (enjeu décroissant) — c'est le
   // montant en jeu qui décide si la démarche vaut la peine, pas l'échéance.
   const atteignables = (diagnostic?.aidesAtteignables ?? []).filter((m) => !dossierAideIds.has(m.aide.id));
-  const nonEligibles = (diagnostic?.aidesNonEligibles ?? []).filter((m) => !dossierAideIds.has(m.aide.id));
+  // Non éligibles : on ne montre QUE les aides écartées par une réponse au
+  // questionnaire. Celles qu'un filtre automatique élimine (région, protection,
+  // type de propriétaire… déduits de la fiche) n'apprennent rien à personne et
+  // noyaient la liste. Elles restent dans la réponse du backend : la page de
+  // détail d'une aide s'y sert encore par lien direct.
+  const nonEligibles = (diagnostic?.aidesNonEligibles ?? []).filter(
+    (m) => m.elimineParReponse && !dossierAideIds.has(m.aide.id),
+  );
 
   // La fenêtre de candidature prime sur le statut : quelle que soit l'avancée du
   // dossier sur le fond, une aide qu'on ne peut pas déposer aujourd'hui part en
@@ -500,7 +507,9 @@ export function ProjectDetailPage() {
                 </button>
                 {showNonEligibles && (
                   nonEligibles.length === 0 ? (
-                    <p className="text-[13px] text-muted-foreground">Aucune aide non éligible.</p>
+                    <p className="text-[13px] text-muted-foreground">
+                      Aucune aide écartée par vos réponses.
+                    </p>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {nonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} monumentId={monument.id} locked={locked} />))}

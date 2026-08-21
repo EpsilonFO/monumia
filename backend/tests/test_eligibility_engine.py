@@ -21,6 +21,7 @@ from aides_schema import (
     load_pending_facts,
 )
 from eligibility_engine import (
+    _match_result,
     _normalize_boundary,
     _numeric_gap,
     _options_for_fact,
@@ -860,14 +861,20 @@ class TestConditionsNonBloquantes(unittest.TestCase):
 
     def test_corpus_les_conditions_dautofinancement_sont_conservees(self):
         """Retypées, pas supprimées : le critère et sa citation source restent
-        affichables. Ancre nommée plutôt qu'un compte, moins fragile."""
+        affichables. Ancre nommée plutôt qu'un compte, moins fragile.
+
+        L'ancre initiale (region-hauts-de-france) était un doublon du REPP,
+        supprimé du catalogue — l'ancre porte désormais sur le fichier
+        survivant, où l'article du CGCT est cité dans les notes.
+        """
         cond = next(
             c
-            for c in AIDES["region-hauts-de-france"].conditions
-            if c.id == "autofinancement-minimum-20-public"
+            for c in AIDES["hdf-restauration-patrimoine-protege"].conditions
+            if c.id == "participation-minimale-mo-publics"
         )
         self.assertEqual((cond.kind, cond.effect), ("manual_check", "info"))
-        self.assertIn("L1111-10", cond.quote or "")
+        self.assertIn("participation minimale", cond.quote or "")
+        self.assertIn("L1111-10", cond.notes or "")
         # La clause d'applicabilité (maîtres d'ouvrage publics) est préservée.
         self.assertIsNotNone(cond.applies_if)
 
@@ -1226,6 +1233,80 @@ class TestDiagnosticShape(unittest.TestCase):
         ]
         self.assertEqual(len(slugs), len(set(slugs)))
         self.assertEqual(len(slugs), res["totalAidesAnalysees"])
+
+
+class TestElimineParReponse(unittest.TestCase):
+    """`elimineParReponse` sépare les refus issus d'une RÉPONSE de ceux déduits
+    de la fiche du monument. Le front n'affiche que les premiers : se voir
+    refuser une aide sur un critère qu'on n'a jamais eu à trancher n'apprend
+    rien."""
+
+    def _flag(self, aide: Aide, monument: dict, answers: dict | None = None) -> bool:
+        ctx = build_context(monument, 3000, answers=answers)
+        verdict = evaluate_aide(aide, monument, 3000, ctx, FACTS)
+        return _match_result(verdict)["elimineParReponse"]
+
+    def test_gate_user_fact_en_echec_est_impute_a_la_reponse(self):
+        """Travaux déjà commencés : c'est l'utilisateur qui a écarté l'aide."""
+        m = _monument()
+        self.assertTrue(self._flag(AIDES["drac-mh-classes"], m, {"travaux_commences": True}))
+
+    def test_hard_filter_nest_pas_impute_a_la_reponse(self):
+        """Refus déduit de la fiche (mauvaise région) : aucune réponse en cause."""
+        aide = _fixture_aide([], regions=["bretagne"])
+        m = _monument(region="ile-de-france")
+        verdict = evaluate_aide(aide, m, 3000, build_context(m, 3000), FACTS)
+        self.assertEqual(verdict.status, "non_eligible")
+        self.assertFalse(self._flag(aide, m))
+
+    def test_gate_auto_nest_pas_impute_a_la_reponse(self):
+        """Un gate `auto` lit la fiche du monument, pas les réponses."""
+        aide = _fixture_aide(
+            [
+                {
+                    "id": "prot",
+                    "text": "Monument non protégé",
+                    "kind": "auto",
+                    "effect": "gate",
+                    "field": "monument.protection",
+                    "predicate": {"not_in": ["classe"]},
+                }
+            ]
+        )
+        m = _monument(protection="classe")
+        verdict = evaluate_aide(aide, m, 3000, build_context(m, 3000), FACTS)
+        self.assertEqual(verdict.status, "non_eligible")
+        self.assertFalse(self._flag(aide, m))
+
+    def test_refus_automatique_lemporte_sur_la_reponse(self):
+        """Hors région ET travaux commencés : l'aide n'a jamais été candidate,
+        c'est la région que `raisonIneligibilite` affiche. Ne pas l'imputer à
+        l'utilisateur, sinon la liste se remplit d'aides d'autres régions."""
+        aide = _fixture_aide(
+            [
+                {
+                    "id": "tc",
+                    "text": "Travaux non commencés",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": "travaux_commences",
+                    "predicate": {"eq": False},
+                }
+            ],
+            regions=["bretagne"],
+        )
+        m = _monument(region="ile-de-france")
+        self.assertFalse(self._flag(aide, m, {"travaux_commences": True}))
+        # Sans le hard_filter, la même réponse est bien imputée à l'utilisateur.
+        sans_hf = _fixture_aide(aide.conditions and [c.model_dump() for c in aide.conditions])
+        self.assertTrue(self._flag(sans_hf, m, {"travaux_commences": True}))
+
+    def test_faux_hors_non_eligible(self):
+        """Le champ est toujours présent et faux sur les autres statuts."""
+        m = _monument()
+        verdict = evaluate_aide(AIDES["drac-mh-classes"], m, 3000, build_context(m, 3000), FACTS)
+        self.assertNotEqual(verdict.status, "non_eligible")
+        self.assertFalse(_match_result(verdict)["elimineParReponse"])
 
 
 if __name__ == "__main__":

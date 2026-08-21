@@ -142,6 +142,10 @@ export interface AideMatchResult {
   criteresRemplis: string[];
   criteresNonRemplis: string[];
   raisonIneligibilite?: string;
+  /** Le refus vient-il d'une réponse au questionnaire (`true`) ou des seuls
+   *  filtres automatiques déduits de la fiche du monument (`false`) ? Toujours
+   *  `false` hors statut « non éligible ». */
+  elimineParReponse?: boolean;
   /** Plans d'action des critères à débloquer (statut « atteignable »). */
   leviers?: AideLevier[];
   /** Nom vestigial : ce sont les verdicts déterministes, condition par

@@ -123,6 +123,10 @@ class AideVerdict:
     status: str  # "eligible" | "atteignable" | "potentiel" | "non_eligible"
     criteres_remplis: list[str] = field(default_factory=list)
     criteres_non_remplis: list[str] = field(default_factory=list)
+    # Sous-ensemble de criteres_non_remplis venant des hard_filters, gardé à part
+    # parce qu'eux seuls sont absents de `evaluations` : sans ça, impossible de
+    # savoir après coup si un refus est déductible de la seule fiche du monument.
+    hard_fails: list[str] = field(default_factory=list)
     raison_ineligibilite: str | None = None
     evaluations: list[dict] = field(default_factory=list)
     # fact_key → liste de (condition, predicate) des gates user_fact en incertitude
@@ -463,6 +467,7 @@ def evaluate_aide(
     remplis, hard_fails = _evaluate_hard_filters(aide, monument, population)
     verdict.criteres_remplis = remplis
     verdict.criteres_non_remplis = list(hard_fails)
+    verdict.hard_fails = list(hard_fails)
     if hard_fails:
         verdict.raison_ineligibilite = hard_fails[0]
 
@@ -973,6 +978,29 @@ def _match_result(verdict: AideVerdict, today: date | None = None) -> dict:
         explication = f"{len(incertitudes)} information(s) à confirmer."
     else:
         explication = verdict.raison_ineligibilite or f"{n_non} critère(s) non satisfait(s)."
+    # Un gate `user_fact` ne peut échouer que sur une réponse : _resolve_fact_value
+    # ne lit QUE ctx["_answers"]. Les autres refus (hard_filters, gates `auto`)
+    # se déduisent de la fiche du monument, sans que personne n'ait rien répondu.
+    # Les échecs porteurs d'un `levier` sont exclus : ils ne rendent pas l'aide
+    # non éligible (statut « atteignable »), ils la mettent à débloquer.
+    #
+    # Le refus automatique l'emporte : une aide hors région ET refusée sur une
+    # réponse n'est pas « écartée par vos réponses », elle n'a jamais été
+    # candidate — c'est d'ailleurs le hard_filter que `raison_ineligibilite`
+    # affiche. Tout ce qui n'est pas explicitement `user_fact` compte comme
+    # automatique (fail-closed : dans le doute, on n'impute rien à l'utilisateur).
+    refus_automatique = bool(verdict.hard_fails) or any(
+        e["verdict"] == NON and e.get("nature") != "user_fact" and not e.get("levier")
+        for e in verdict.evaluations
+    )
+    elimine_par_reponse = (
+        verdict.status == "non_eligible"
+        and not refus_automatique
+        and any(
+            e["verdict"] == NON and e.get("nature") == "user_fact" and not e.get("levier")
+            for e in verdict.evaluations
+        )
+    )
     return {
         "aide": aide_display_dict(verdict.aide),
         # Statut explicite : le front l'utilise tel quel plutôt que de le
@@ -988,6 +1016,12 @@ def _match_result(verdict: AideVerdict, today: date | None = None) -> dict:
         "criteresRemplis": verdict.criteres_remplis,
         "criteresNonRemplis": verdict.criteres_non_remplis,
         "raisonIneligibilite": verdict.raison_ineligibilite,
+        # Le refus vient-il d'une réponse de l'utilisateur, ou des seuls filtres
+        # automatiques ? Le front n'affiche que les premiers : se voir refuser
+        # une aide sur un critère qu'on n'a jamais eu à trancher n'apprend rien.
+        # Champ porté par TOUS les statuts (false hors non_eligible) pour que le
+        # front n'ait pas à distinguer « absent » de « non ».
+        "elimineParReponse": elimine_par_reponse,
         "leviers": verdict.leviers,
         "llmEvaluation": {
             "explication": explication,
