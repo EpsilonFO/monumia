@@ -2,11 +2,6 @@ export const ROUTES = {
   LANDING: '/',
   RESET_PASSWORD: '/reset-password',
 
-  // /onboarding ne sert plus qu'à compléter un compte Google : l'inscription
-  // par email crée le compte en une étape depuis /login.
-  ONBOARDING: '/onboarding',
-  ONBOARDING_MONUMENT: '/onboarding/monument',
-
   DASHBOARD: '/app',
 
   // Page Tarifs (publique). Le projet passe par l'URL et non par le state de

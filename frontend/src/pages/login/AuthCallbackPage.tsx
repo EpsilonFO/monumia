@@ -18,8 +18,14 @@ const ERROR_MESSAGE =
 /**
  * Atterrissage du flux « Continuer avec Google ». Supabase redirige ici avec
  * les jetons dans le fragment d'URL. On demande au backend si le profil
- * applicatif existe déjà : oui → connexion directe ; non → onboarding
- * (les jetons attendent en mémoire dans usePendingOAuthStore).
+ * applicatif existe déjà : oui → connexion directe ; non → le profil est créé
+ * ici même à partir de ce que Google renvoie, puis connexion directe.
+ *
+ * Aucun écran d'onboarding : l'inscription par email crée le compte d'un seul
+ * coup depuis /login, le parcours Google fait de même. Seule exception, le
+ * parcours invitation, qui garde son écran parce qu'il lui faut le métier du
+ * collaborateur et le rôle sur le projet (les jetons l'attendent alors en
+ * mémoire dans usePendingOAuthStore).
  */
 export function AuthCallbackPage() {
   const navigate = useNavigate();
@@ -66,7 +72,13 @@ export function AuthCallbackPage() {
                 : '/app',
             { replace: true },
           );
-        } else {
+          return;
+        }
+
+        // Profil applicatif absent : c'est une première connexion Google.
+        if (pendingInvitation) {
+          // Le parcours collaborateur crée le compte lui-même, une fois le
+          // métier et le rôle connus. On lui passe la main avec les jetons.
           setPendingSession({
             accessToken: parsed.accessToken,
             refreshToken: parsed.refreshToken,
@@ -74,11 +86,27 @@ export function AuthCallbackPage() {
             prenom: status.prefill?.prenom ?? '',
             nom: status.prefill?.nom ?? '',
           });
-          navigate(
-            pendingInvitation ? `/invitation/${pendingInvitation}` : '/onboarding',
-            { replace: true },
-          );
+          navigate(`/invitation/${pendingInvitation}`, { replace: true });
+          return;
         }
+
+        const prenom = status.prefill?.prenom?.trim() ?? '';
+        const nom = status.prefill?.nom?.trim() ?? '';
+        const { user } = await authService.registerOauth(
+          {
+            // Google ne donne pas de téléphone : il se renseigne en page profil.
+            // Si le provider n'a renvoyé aucun nom, la partie locale de l'email
+            // évite un affichage vide ; l'utilisateur corrige en page profil.
+            prenom: prenom || (status.prefill?.email ?? '').split('@')[0] || 'Utilisateur',
+            nom,
+          },
+          parsed.accessToken,
+        );
+        if (parsed.refreshToken) {
+          await authService.oauthSession(parsed.accessToken, parsed.refreshToken).catch(() => {});
+        }
+        setAuth(user, parsed.accessToken);
+        navigate('/app', { replace: true });
       })
       .catch((err: unknown) => { console.error(err); setError(ERROR_MESSAGE); });
   }, [navigate, setAuth, setPendingSession]);

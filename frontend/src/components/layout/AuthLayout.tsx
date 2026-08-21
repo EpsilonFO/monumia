@@ -26,6 +26,11 @@ const REASSURANCE = [
  * Coquille du parcours d'authentification, calquée sur l'identité du tableau de
  * bord : un panneau bleu profond (couleur de la sidebar) accueille dès le premier
  * écran, et la colonne de droite est l'atelier crème de l'application.
+ *
+ * Le panneau bleu est collant et tenu à la hauteur du viewport (`self-start`
+ * l'empêche d'être étiré par la colonne droite). Sans cela, un formulaire plus
+ * haut que l'écran — l'onglet Inscription — grandit le conteneur, et le
+ * `justify-between` du panneau fait descendre l'accroche d'un onglet à l'autre.
  */
 export function AuthLayout({
   children,
@@ -40,17 +45,13 @@ export function AuthLayout({
     <div className="min-h-screen flex" style={{ background: C.cream }}>
       {/* ═══════ GAUCHE — panneau bleu (esprit sidebar) ═══════ */}
       <div
-        className="relative hidden lg:flex lg:w-[44%] xl:w-[40%] flex-col justify-between overflow-hidden p-12 xl:p-16"
+        className="relative hidden lg:flex lg:sticky lg:top-0 lg:h-screen lg:self-start lg:w-[44%] xl:w-[40%] flex-col justify-between overflow-hidden p-12 xl:p-16"
         style={{ background: C.blue }}
       >
-        {/* Atmosphère : halos diffus + fines règles horizontales (repris du héros du dashboard) */}
+        {/* Atmosphère : halos diffus (repris du héros du dashboard) */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
           <div className="absolute -right-20 -top-24 h-80 w-80 rounded-full blur-[130px]" style={{ background: 'rgba(92,149,255,0.40)' }} />
           <div className="absolute -bottom-28 -left-16 h-72 w-72 rounded-full blur-[130px]" style={{ background: 'rgba(241,113,5,0.18)' }} />
-          <div
-            className="absolute inset-0 opacity-[0.05]"
-            style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 31px, var(--card) 31px, var(--card) 32px)' }}
-          />
         </div>
 
         {/* Logo */}

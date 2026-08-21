@@ -1,9 +1,6 @@
 import { createBrowserRouter, Navigate, useParams } from 'react-router';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { OnboardingPage } from '@/pages/onboarding/OnboardingPage';
-import { OnboardingProfile } from '@/pages/onboarding/OnboardingProfile';
-import { OnboardingMonument } from '@/pages/onboarding/OnboardingMonument';
 import { LoginPage } from '@/pages/login/LoginPage';
 import { ResetPasswordPage } from '@/pages/login/ResetPasswordPage';
 import { AuthCallbackPage } from '@/pages/login/AuthCallbackPage';
@@ -89,18 +86,6 @@ export const router = createBrowserRouter([
   {
     path: '/invitation/:token',
     element: <InvitationLandingPage />,
-  },
-
-  // Onboarding — ne sert plus qu'au parcours Google : l'inscription par email
-  // crée le compte d'un seul coup depuis /login. Session OAuth en mémoire
-  // uniquement (usePendingOAuthStore).
-  {
-    path: '/onboarding',
-    element: <OnboardingPage />,
-    children: [
-      { index: true, element: <OnboardingProfile /> },
-      { path: 'monument', element: <OnboardingMonument /> },
-    ],
   },
 
   // Wizard de création — plein écran immersif, hors du shell AppLayout.
