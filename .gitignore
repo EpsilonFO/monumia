@@ -46,3 +46,7 @@ supabase/snippets/
 
 # Visual companion (brainstorming)
 .superpowers/
+
+# Artefacts d'audit de sécurité (contexte, preuves, PoC) : jamais versionnés
+.sb-pentest-context.json
+.sb-pentest-evidence/

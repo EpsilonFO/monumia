@@ -12,7 +12,6 @@ import {
   StatChipsSkeleton,
   ProjectsInProgressSkeleton,
 } from '@/components/skeletons';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useSuiviStore } from '@/stores/useSuiviStore';
 import { projectStage } from '@/lib/project-stats';
 import type { ProjectStage } from '@/lib/project-stats';
@@ -135,15 +134,6 @@ export function DashboardPage() {
     return out;
   }, [displayMonuments, diagMap, userDossiers, suivis]);
 
-  const semaineCount = useMemo(
-    () => allDeadlines.filter((d) => d.joursRestants >= 0 && d.joursRestants <= 7).length,
-    [allDeadlines],
-  );
-  const summaryLine =
-    semaineCount > 0
-      ? `Vous avez ${semaineCount} action${semaineCount > 1 ? 's' : ''} prioritaire${semaineCount > 1 ? 's' : ''} cette semaine.`
-      : 'Rien d’urgent cette semaine — vous êtes à jour.';
-
   if (!user) return null;
 
   const hour = new Date().getHours();
@@ -165,15 +155,7 @@ export function DashboardPage() {
             <h1 className="text-[clamp(1.8rem,4vw,2.5rem)] leading-[1.1]" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
               {greeting}, <span style={{ color: C.blue }}>{user.prenom}</span>
             </h1>
-            {loading ? (
-              // La phrase de synthèse dépend des échéances : ne rien affirmer
-              // (« vous êtes à jour ») tant qu'elles ne sont pas chargées.
-              <Skeleton className="mt-2 h-4 w-72 max-w-full" />
-            ) : (
-              <p className="mt-1 text-[14px]" style={{ color: C.grayFg }}>
-                {summaryLine}
-              </p>
-            )}
+            
           </div>
           <Link
             to={ROUTES.PROJET_NEW}
