@@ -48,7 +48,7 @@ from aides_schema import Aide, Predicate, load_facts, load_pending_facts
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lint_aides_data import check_fact_predicate, check_field_predicate
-from veille_text import find_quote_in_any, is_cosmetic_change
+from veille_text import find_quote_in_any, is_cosmetic_change, normalize_line
 
 # Largeur de repli des block scalars, alignée sur `line-length = 100` de ruff
 # et sur ce que font les fiches existantes.
@@ -141,7 +141,9 @@ class VeilleLLMOutput(BaseModel):
 # Résultat
 # ---------------------------------------------------------------------------
 
-Issue = Literal["json", "schema", "referentiel", "quote", "majeur", "edition", "deep_diff", "lint"]
+Issue = Literal[
+    "json", "schema", "referentiel", "quote", "ancrage", "majeur", "edition", "deep_diff", "lint"
+]
 
 
 @dataclass
@@ -169,6 +171,10 @@ class ApplyResult:
         Non non plus pour `majeur` : un « ça me dépasse » auto-déclaré est une
         RÉPONSE, pas une erreur. Le redemander coûterait un appel pour, au
         mieux, la même réponse — au pire une contradiction.
+
+        Non pour `ancrage` : le modèle a cité correctement une page qui n'a pas
+        bougé sur ce point. Il n'a rien à corriger, c'est sa lecture de la tâche
+        qui est en cause. Le relancer produirait la même proposition.
         """
         return self.etape in ("json", "schema", "referentiel", "quote")
 
@@ -332,6 +338,105 @@ def check_quotes(out: VeilleLLMOutput, documents: list[tuple[str, str, str]]) ->
             verifier(chg.condition.quote, f"condition « {chg.id} »")
         elif chg.op == "update" and chg.champs and "quote" in chg.champs:
             verifier(str(chg.champs["quote"]), f"condition « {chg.id} »")
+    return erreurs
+
+
+# ---------------------------------------------------------------------------
+# Étape 5 : la citation vient-elle de ce qui a CHANGÉ ?
+# ---------------------------------------------------------------------------
+
+
+def lignes_ajoutees(diff: str) -> str:
+    """Contenu des seules lignes `+` d'un diff, concaténé.
+
+    Sert de document au grep d'ancrage. Les lignes `-` sont exclues : une
+    citation qui ne se trouve que dans le texte SUPPRIMÉ décrit l'ancien
+    règlement, pas le nouveau.
+    """
+    return "\n".join(ligne[2:] for ligne in diff.splitlines() if ligne.startswith("+ "))
+
+
+def check_ancrage(out: VeilleLLMOutput, diff: str) -> list[str]:
+    """Chaque citation justifiant un changement doit venir de ce qui a CHANGÉ.
+
+    `check_quotes` demande « cette citation est-elle dans la page ? ». La page
+    ayant toujours dit ce qu'elle dit, une citation authentique n'y prouve rien :
+    c'est ainsi qu'un faux changement de taux a franchi toute la chaîne sur
+    `pdl-restauration-mh`, cité mot pour mot depuis une page dont le passage en
+    question n'avait pas bougé d'une virgule.
+
+    La question utile est « cette citation est-elle dans ce qui a changé ? ».
+    Le grep porte donc sur les seules lignes ajoutées du diff.
+
+    Le mandat de la veille étant la RETOUCHE de ce qui a bougé, une proposition
+    non ancrée est hors mandat — même quand elle est juste. Si la fiche diverge
+    de la source sans que la source ait changé, c'est une erreur d'ingestion à
+    reprendre par `/ingest-aide`, pas une mise à jour.
+
+    Faux négatifs assumés : diff tronqué par `MAX_CHARS_DIFF`, clause déplacée
+    sans être modifiée, page régénérée sous un autre gabarit. L'appelant traite
+    donc cet échec en ESCALADE et non en rejet sec — la proposition part à la
+    relecture humaine au lieu d'être perdue.
+    """
+    ajoutees = lignes_ajoutees(diff)
+    if not ajoutees.strip():
+        # Aucune ligne ajoutée : rien n'a pu motiver une modification. Le cas
+        # se produit quand le triage a déclenché sur des suppressions seules,
+        # ou sur des citations manquantes.
+        if out.est_vide:
+            return []
+        return ["aucune ligne ajoutée dans le diff : aucun changement à retoucher"]
+
+    documents: list[tuple[str, str, str]] = [("diff", ajoutees, "text")]
+    erreurs: list[str] = []
+
+    def ancrer(quote: str, ou: str) -> None:
+        """Au moins une LIGNE substantielle de la citation doit être ajoutée.
+
+        Pas la citation entière et contiguë : une citation qui couvre une zone
+        de tableau ou de liste enjambe des lignes inchangées, et le diff ne
+        garde que les lignes modifiées. Exiger la contiguïté rejetait alors un
+        vrai changement — mesuré sur `56-valorisation-restauration-patrimoine`,
+        dont trois lignes de la citation étaient bien des ajouts mais séparées
+        par du contexte (préfixe commun 53 %).
+
+        La question utile n'est pas « toute la citation est-elle neuve ? » mais
+        « ce que tu cites contient-il du neuf ? ». Si AUCUNE de ses lignes n'a
+        été ajoutée, la proposition ne décrit pas un changement.
+        """
+        if not quote.strip():
+            return
+        lignes = [ligne for ligne in quote.splitlines() if len(normalize_line(ligne)) >= 25]
+        # Citation trop courte pour être découpée : contrôle global, la
+        # contiguïté n'est alors pas une contrainte supplémentaire.
+        candidates = lignes or [quote]
+        for ligne in candidates:
+            _, match = find_quote_in_any(ligne, documents)  # type: ignore[arg-type]
+            if match.found:
+                return
+        extrait = " ".join(quote.split())[:90]
+        erreurs.append(
+            f"{ou} : aucune ligne de la citation ne figure dans les ajouts du "
+            f"diff — la source n'a pas changé sur ce point « {extrait} »"
+        )
+
+    for nom, section in (
+        ("calendrier", out.calendrier),
+        ("financement", out.financement),
+        ("cumul", out.cumul),
+    ):
+        if section is not None:
+            ancrer(section.quote, nom)
+    for chg in out.conditions:
+        # `signaler_disparue` n'a par nature aucune citation à ancrer : ce qui
+        # la justifie est une ABSENCE. Elle échappe donc à ce contrôle.
+        if chg.op == "signaler_disparue":
+            continue
+        quote = (chg.champs or {}).get("quote") if chg.champs else None
+        if chg.condition is not None:
+            quote = chg.condition.quote
+        if quote:
+            ancrer(quote, f"condition « {chg.id} »")
     return erreurs
 
 
@@ -896,6 +1001,7 @@ def appliquer(
     documents: list[tuple[str, str, str]],
     *,
     aujourd_hui: str,
+    diff: str = "",
 ) -> ApplyResult:
     """Chaîne complète. Ne touche au disque que si TOUT passe.
 
@@ -923,6 +1029,11 @@ def appliquer(
         return res
     if erreurs := check_quotes(out, documents):
         res.erreurs, res.etape = erreurs, "quote"
+        return res
+    # `diff` vide = appelant qui ne le fournit pas (benchmark en mode brut) :
+    # on ne peut pas ancrer, et refuser par défaut casserait ces appelants.
+    if diff and (erreurs := check_ancrage(out, diff)):
+        res.erreurs, res.etape = erreurs, "ancrage"
         return res
 
     ancien_texte = chemin.read_text(encoding="utf-8")

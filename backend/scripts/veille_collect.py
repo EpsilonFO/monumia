@@ -39,7 +39,7 @@ from aides_schema import DATA_DIR, Aide
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from snapshot_source import UA, to_markdown
+from snapshot_source import HEADERS_NAVIGATEUR, UA, resoudre_shield, to_markdown
 from veille_text import flatten_markdown_links, parse_front_matter
 
 SOURCES_DIR = DATA_DIR / "sources"
@@ -270,6 +270,12 @@ class FetchResult:
     # Contenu non textuel (PDF, .docx, tableur) : comparé par sha uniquement.
     is_binary: bool = False
     via_proxy: bool = False
+    # Page obtenue seulement après repli sous identité de navigateur (403 au
+    # premier essai). Le contenu reste diffable : il passe par `to_markdown`
+    # comme la baseline, contrairement au proxy.
+    via_navigateur: bool = False
+    # Page obtenue après résolution d'un défi JavaScript (« shield »).
+    via_shield: bool = False
     elapsed_s: float = 0.0
     retried: bool = False
 
@@ -303,13 +309,27 @@ async def _fetch_one(
     target = f"{JINA_PREFIX}{murl.url}" if proxy == "jina" else murl.url
     result = FetchResult(url=murl.url, via_proxy=proxy == "jina")
     start = time.monotonic()
+    # None = identité par défaut du client (UA Monumia). Renseigné au second
+    # essai si le premier s'est heurté à un WAF.
+    headers: dict[str, str] | None = None
     # Verrou d'hôte AVANT le sémaphore : l'inverse laisserait plusieurs tâches
     # d'un même hôte occuper toutes les places disponibles pour s'attendre.
     async with host_locks[murl.host]:
         for attempt in (1, 2):
             async with semaphore:
                 try:
-                    resp = await client.get(target)
+                    resp = await client.get(target, headers=headers)
+                    if (defi := resoudre_shield(resp.content)) is not None:
+                        # Ce n'est pas la page mais un script qui pose un cookie
+                        # calculé avant de rediriger. Rejouer le calcul coûte une
+                        # multiplication ; sans ça la page revient vide de
+                        # substance et l'aide sort en ERREUR_HTTP. Le cookie est
+                        # posé sur le client partagé : les autres URL du même
+                        # hôte en profitent sans repayer l'aller-retour.
+                        nom, valeur = defi
+                        client.cookies.set(nom, valeur, domain=murl.host)
+                        result.via_shield = True
+                        resp = await client.get(target, headers=headers)
                     result.status = resp.status_code
                     result.error = None
                     if resp.is_success:
@@ -336,9 +356,17 @@ async def _fetch_one(
                     result.error = f"{type(exc).__name__}: {exc}"
             if attempt == 1 and not result.ok and result.reessayable:
                 result.retried = True
-                await asyncio.sleep(RETRY_BACKOFF_S)
+                if result.status == 403:
+                    # Un 403 est un refus déterministe : réémettre la même
+                    # requête après une pause ne change rien. On change
+                    # d'identité, et on n'attend pas.
+                    headers = HEADERS_NAVIGATEUR
+                else:
+                    await asyncio.sleep(RETRY_BACKOFF_S)
                 continue
             break
+    # Après la boucle seulement : le repli n'est constaté que s'il a abouti.
+    result.via_navigateur = headers is not None and result.ok
     result.elapsed_s = time.monotonic() - start
     return result
 

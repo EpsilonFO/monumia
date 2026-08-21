@@ -83,6 +83,12 @@ class ModelSpec:
     # sont dans le registre pour que le harnais soit complet, mais leur id
     # reste à confirmer — d'où la colonne du `--list-models`.
     id_verifie: bool = True
+    # Les modèles à raisonnement d'OpenAI ont renommé `max_tokens` en
+    # `max_completion_tokens` et rejettent l'ancien nom par un 400
+    # `unsupported_parameter`. Mesuré sur gpt-5.6-luna le 2026-08-21. Le nom
+    # est un attribut du modèle, pas du protocole : il vit donc ici, comme
+    # `supports_temperature`.
+    budget_sortie_param: str = "max_tokens"
     note: str = ""
 
     def prix(self, jour: date | None = None) -> tuple[float, float]:
@@ -146,6 +152,9 @@ REGISTRE: dict[str, ModelSpec] = {
         provider="openai_compat",
         model_id="gpt-5.6-luna",
         env_key="OPENAI_API_KEY",
+        budget_sortie_param="max_completion_tokens",
+        # Refuse `temperature=0` : « Only the default (1) value is supported ».
+        supports_temperature=False,
         prix_in=1.25,
         prix_out=10.00,
         id_verifie=False,
@@ -155,6 +164,9 @@ REGISTRE: dict[str, ModelSpec] = {
         provider="openai_compat",
         model_id="gpt-5.6-terra",
         env_key="OPENAI_API_KEY",
+        budget_sortie_param="max_completion_tokens",
+        # Refuse `temperature=0` : « Only the default (1) value is supported ».
+        supports_temperature=False,
         prix_in=0.25,
         prix_out=2.00,
         id_verifie=False,
@@ -182,16 +194,21 @@ REGISTRE: dict[str, ModelSpec] = {
     ),
 }
 
-# Gagnant du benchmark du 2026-08-06 parmi les modèles dont la clé était
-# disponible : 2 faux changements contre 12 pour ds-pro, et trois fois moins
-# cher. À réviser dès que ANTHROPIC_API_KEY / OPENAI_API_KEY / MOONSHOT_API_KEY
-# sont en place — la moitié du registre n'a pas encore été mesurée.
+# Choisi le 2026-08-21 sur décision produit, PAS sur mesure : le benchmark
+# n'a pas encore été rejoué avec OPENAI_API_KEY en place. Le gagnant mesuré du
+# 2026-08-06 restait ds-flash (2 faux changements contre 12 pour ds-pro).
+#
+# Seule observation à ce stade, sur pdl-restauration-mh : gpt-luna coûte 3,16 ¢
+# contre 1,10 ¢ pour ds-flash (sortie facturée 10 $/M contre 0,42) et propose le
+# MÊME faux changement de taux. Il est en revanche quatre fois plus rapide.
+# `veille_benchmark.py --models ds-flash,gpt-luna` tranchera sur `faux chg` ;
+# revenir à ds-flash est un changement d'une ligne ici.
 #
 # AUCUN modèle testé n'atteint le zéro absolu de faux changements visé par le
 # plan : sur une source inchangée, les deux proposent encore des retouches de
 # citation qui franchissent la validation. La relecture humaine du `git diff`
 # reste donc indispensable avant commit, et `--max-llm` garde son sens.
-MODELE_DEFAUT = "ds-flash"
+MODELE_DEFAUT = "gpt-luna"
 
 
 @dataclass
@@ -457,7 +474,7 @@ def _call_openai_compat(
     client = OpenAI(api_key=os.environ[spec.env_key], base_url=spec.base_url, timeout=timeout)
     kwargs: dict[str, Any] = {
         "model": spec.model_id,
-        "max_tokens": max_tokens,
+        spec.budget_sortie_param: max_tokens,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},

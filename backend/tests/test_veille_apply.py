@@ -594,5 +594,172 @@ class TestEmitField(unittest.TestCase):
         )
 
 
+class TestAncrageDansLeDiff(unittest.TestCase):
+    """Une citation authentique ne prouve rien si la page n'a pas bougé dessus.
+
+    Cas réel qui a motivé l'étape : sur `pdl-restauration-mh`, deux modèles de
+    fournisseurs différents ont proposé de réécrire le taux en citant mot pour
+    mot une page qui disait la même chose depuis toujours. `check_quotes`
+    laissait passer — la citation EST dans la page. Le diff, lui, ne contenait
+    que des libellés de menu.
+    """
+
+    # Le diff ne parle QUE du dépôt : toute proposition sur le taux est donc
+    # non ancrée, même parfaitement citée depuis la source fraîche.
+    DIFF = (
+        "  Les édifices antérieurs à 1800, non classés, sont éligibles.\n"
+        "- Le dépôt est ouvert jusqu'au 15 novembre 2026.\n"
+        "+ Le dépôt est ouvert jusqu'au 30 novembre 2026.\n"
+    )
+
+    def test_citation_hors_diff_escalade(self):
+        chemin, aide, tmp = ecrire_fiche()
+        with tmp:
+            res = appliquer(
+                sortie(
+                    financement={
+                        "champs": {"taux_max": 40.0},
+                        "quote": "Le taux d'intervention est porté à 40 % du montant des travaux.",
+                    }
+                ),
+                aide,
+                chemin,
+                DOCS,
+                aujourd_hui=AUJOURD_HUI,
+                diff=self.DIFF,
+            )
+            # La citation passe `check_quotes` (elle est dans SOURCE_FRAICHE)
+            # et bute sur l'ancrage.
+            self.assertFalse(res.ok)
+            self.assertEqual(res.etape, "ancrage")
+            # Ne pas relancer le modèle : il n'a rien à corriger.
+            self.assertFalse(res.rattrapable)
+
+    def test_citation_dans_le_diff_acceptee(self):
+        chemin, aide, tmp = ecrire_fiche()
+        with tmp:
+            res = appliquer(
+                sortie(
+                    calendrier={
+                        "champs": {"date_limite": "2026-11-30"},
+                        "quote": "Le dépôt est ouvert jusqu'au 30 novembre 2026.",
+                    }
+                ),
+                aide,
+                chemin,
+                DOCS,
+                aujourd_hui=AUJOURD_HUI,
+                diff=self.DIFF,
+            )
+            self.assertTrue(res.ok, res.erreurs)
+
+    def test_citation_seulement_supprimee_refusee_des_l_etape_quote(self):
+        """Une citation issue des lignes `-` décrit l'ANCIEN règlement.
+
+        Elle est refusée dès `check_quotes` et n'atteint pas l'ancrage : un
+        texte supprimé de la page n'est, par définition, plus dans le contenu
+        frais. L'ancrage ne sert donc que pour les citations qui SONT dans la
+        page fraîche — c'est précisément le trou qu'il vient boucher.
+        """
+        chemin, aide, tmp = ecrire_fiche()
+        with tmp:
+            res = appliquer(
+                sortie(
+                    calendrier={
+                        "champs": {"date_limite": "2026-11-15"},
+                        "quote": "Le dépôt est ouvert jusqu'au 15 novembre 2026.",
+                    }
+                ),
+                aide,
+                chemin,
+                DOCS,
+                aujourd_hui=AUJOURD_HUI,
+                diff=self.DIFF,
+            )
+            self.assertFalse(res.ok)
+            self.assertEqual(res.etape, "quote")
+
+    def test_sortie_vide_sans_lignes_ajoutees_reste_valide(self):
+        """Le cas nominal : rien à retoucher, et un diff sans ajout."""
+        chemin, aide, tmp = ecrire_fiche()
+        with tmp:
+            res = appliquer(
+                sortie(conditions=[]),
+                aide,
+                chemin,
+                DOCS,
+                aujourd_hui=AUJOURD_HUI,
+                diff="- une ligne retirée seulement\n",
+            )
+            self.assertTrue(res.ok, res.erreurs)
+
+    def test_signaler_disparue_echappe_a_l_ancrage(self):
+        """Ce qui la motive est une absence, pas une citation."""
+        chemin, aide, tmp = ecrire_fiche()
+        with tmp:
+            res = appliquer(
+                sortie(conditions=[{"op": "signaler_disparue", "id": "anteriorite-1800"}]),
+                aide,
+                chemin,
+                DOCS,
+                aujourd_hui=AUJOURD_HUI,
+                diff=self.DIFF,
+            )
+            self.assertNotEqual(res.etape, "ancrage")
+
+    def test_citation_multiligne_entrecoupee_de_contexte_acceptee(self):
+        """Une citation de tableau enjambe des lignes inchangées.
+
+        Régression mesurée sur `56-valorisation-restauration-patrimoine` : trois
+        lignes de la citation étaient bien des ajouts, mais séparées par du
+        contexte. Exiger la citation contiguë dans les seuls ajouts rejetait un
+        vrai changement de barème (préfixe commun 53 %).
+        """
+        diff = (
+            "  Les édifices antérieurs à 1800, non classés, sont éligibles.\n"
+            "+ Le taux d'intervention est porté à 40 % du montant des travaux.\n"
+            "  ligne de contexte inchangée au milieu du tableau\n"
+            "+ Le dépôt est ouvert jusqu'au 30 novembre 2026.\n"
+        )
+        chemin, aide, tmp = ecrire_fiche()
+        with tmp:
+            res = appliquer(
+                sortie(
+                    financement={
+                        "champs": {"taux_max": 40.0},
+                        "quote": (
+                            "Le taux d'intervention est porté à 40 % du montant des travaux.\n"
+                            "ligne de contexte inchangée au milieu du tableau\n"
+                            "Le dépôt est ouvert jusqu'au 30 novembre 2026."
+                        ),
+                    }
+                ),
+                aide,
+                chemin,
+                DOCS,
+                aujourd_hui=AUJOURD_HUI,
+                diff=diff,
+            )
+            self.assertNotEqual(res.etape, "ancrage")
+
+    def test_sans_diff_le_controle_est_inactif(self):
+        """Appelant qui ne fournit pas de diff (benchmark brut) : pas de blocage."""
+        chemin, aide, tmp = ecrire_fiche()
+        with tmp:
+            res = appliquer(
+                sortie(
+                    financement={
+                        "champs": {"taux_max": 40.0},
+                        "quote": "Le taux d'intervention est porté à 40 % du montant des travaux.",
+                    }
+                ),
+                aide,
+                chemin,
+                DOCS,
+                aujourd_hui=AUJOURD_HUI,
+            )
+            self.assertTrue(res.ok, res.erreurs)
+
+
 if __name__ == "__main__":
     unittest.main()
