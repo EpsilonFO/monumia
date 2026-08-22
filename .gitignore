@@ -28,12 +28,19 @@ dist-ssr
 .env
 backend/.env
 backend/.env.*
-backend/scripts/cog_ensemble_2026_csv
-backend/scripts/ensemble
+!backend/.env.example
 frontend/.env
 frontend/.env.*
+!frontend/.env.example
 landing/.env
 landing/.env.*
+!landing/.env.example
+
+# Sources téléchargées par les scripts de peuplement (backend/scripts/seeds/).
+# Volumineuses et régénérables : seed_all.py les supprime en fin de course.
+backend/scripts/seeds/cog_ensemble_2026_csv
+backend/scripts/seeds/ensemble
+backend/scripts/seeds/merimee_csv
 test_rag/.env.rag
 
 # Identifiants Grafana Cloud (voir observability/alloy.env.example)
