@@ -13,7 +13,7 @@ Exemples :
     # avec des réponses déjà connues (lève des incertitudes) ; un fait à choix
     # multiple prend ses options séparées par des virgules :
     uv run python scripts/try_diagnostic.py --region ile-de-france \\
-        --answer travaux_commences=false \\
+        --answer etat_travaux=non_commences \\
         --answer usage_batiment=habitation,activite_culturelle
 """
 

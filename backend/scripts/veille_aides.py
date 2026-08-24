@@ -49,6 +49,7 @@ from veille_analyze import (
     resume_diff,
 )
 from veille_collect import DEFAULT_CONCURRENCY, DEFAULT_TIMEOUT, collect
+from veille_journal import Journal, cellule, milliers, tokens_compacts
 from veille_llm import MODELE_DEFAUT, REGISTRE
 from veille_update import MAX_LLM_DEFAUT, MajResult, mettre_a_jour
 
@@ -126,30 +127,6 @@ def alerter_chrome_affame(analyses: dict[str, AideAnalysis], collects: dict, log
             )
 
 
-def _tokens(n: int) -> str:
-    """Volume de tokens en notation compacte : 950, 12.4k, 103k."""
-    if n < 1000:
-        return str(n)
-    if n < 10_000:
-        return f"{n / 1000:.1f}k"
-    return f"{round(n / 1000)}k"
-
-
-class Journal:
-    """Tee console + fichier, à la manière de `ingest_aides_batch.py`."""
-
-    def __init__(self) -> None:
-        self.lines: list[str] = []
-
-    def __call__(self, message: str = "") -> None:
-        print(message, flush=True)
-        self.lines.append(message)
-
-    def save(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("\n".join(self.lines) + "\n", encoding="utf-8")
-
-
 # ---------------------------------------------------------------------------
 # Manifeste
 # ---------------------------------------------------------------------------
@@ -222,6 +199,12 @@ def update_manifest(
             }
         elif ancienne:
             entree["maj"] = ancienne
+        # L'audit d'exhaustivité (`veille_audit.py`) écrit sa propre clé dans la
+        # MÊME entrée. La veille reconstruit la sienne de zéro à chaque passage :
+        # sans ce report explicite, un run de veille effacerait l'historique
+        # d'audit et le ferait tout re-payer au passage suivant.
+        if audit := (manifest.get(slug) or {}).get("audit"):
+            entree["audit"] = audit
         merged[slug] = entree
     return merged
 
@@ -249,16 +232,6 @@ def write_manifest(manifest: dict, path: Path = MANIFEST_PATH) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _cellule(texte: str, largeur: int = 140) -> str:
-    """Texte du modèle rendu inoffensif dans une cellule de tableau markdown.
-
-    Le `resume` est du texte libre : un `|` ou un saut de ligne y casserait le
-    tableau, donc le rapport, donc la revue.
-    """
-    plat = " ".join(texte.split()).replace("|", "\\|")
-    return (plat[: largeur - 1] + "…") if len(plat) > largeur else (plat or "—")
-
-
 def _section_majs(majs: dict[str, MajResult], mode: str) -> list[str]:
     """Ce que l'étage C a produit : les diffs à relire, puis ce qui a échoué."""
     if not majs:
@@ -274,7 +247,7 @@ def _section_majs(majs: dict[str, MajResult], mode: str) -> list[str]:
         "## Étage C",
         "",
         f"{len(majs)} aide(s) soumise(s) au modèle pour {cout:.3f} $ "
-        f"({tok_in:,} tokens en entrée, {tok_out:,} en sortie) : ".replace(",", " ")
+        f"({milliers(tok_in)} tokens en entrée, {milliers(tok_out)} en sortie) : "
         + f"{len(appliquees)} mise(s) à jour, {len(inchangees)} sans changement dans le "
         f"mandat, {len(echecs)} en échec.",
         "",
@@ -299,7 +272,7 @@ def _section_majs(majs: dict[str, MajResult], mode: str) -> list[str]:
         for m in sorted(appliquees, key=lambda m: m.slug):
             champs = ", ".join(f"`{c}`" for c in m.champs) or "—"
             snaps = ", ".join(m.snapshots) or "—"
-            out.append(f"| {m.slug} | {champs} | {_cellule(m.resume)} | {snaps} |")
+            out.append(f"| {m.slug} | {champs} | {cellule(m.resume)} | {snaps} |")
         out += [
             "",
             "```",
@@ -584,8 +557,8 @@ def run_stage_c(
         log(
             f"  [{i}/{len(retenus)}] {maj.symbole} {slug:<46} "
             f"{maj.cout_usd * 100:>5.2f}¢ {maj.latence_s:>5.1f}s "
-            f"{_tokens(maj.tokens_in):>6}↑{_tokens(maj.tokens_out):>6}↓  "
-            f"{_cellule(maj.raison, 52)}"
+            f"{tokens_compacts(maj.tokens_in):>6}↑{tokens_compacts(maj.tokens_out):>6}↓  "
+            f"{cellule(maj.raison, 52)}"
         )
         if maj.reponse_rejetee:
             # Dans le log, pas dans le rapport : c'est de la matière de
@@ -606,7 +579,7 @@ def run_stage_c(
     tok_out = sum(m.tokens_out for m in majs.values())
     log(
         f"  coût de l'étage C : {sum(m.cout_usd for m in majs.values()):.3f} $"
-        f"  —  {tok_in:,} tokens en entrée, {tok_out:,} en sortie".replace(",", " ")
+        f"  —  {milliers(tok_in)} tokens en entrée, {milliers(tok_out)} en sortie"
     )
     return majs
 

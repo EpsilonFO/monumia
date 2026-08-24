@@ -288,16 +288,16 @@ class TestRaisonPrefilter(unittest.TestCase):
     def test_cles_reservees_ne_sont_pas_des_faits(self):
         """Une clé « _* » ne doit jamais atteindre le contexte d'évaluation."""
         facts_answers, reserved = split_reserved_answers(
-            {"_raisons": ["fiscalite"], "travaux_commences": False}
+            {"_raisons": ["fiscalite"], "etat_travaux": "non_commences"}
         )
-        self.assertEqual(facts_answers, {"travaux_commences": False})
+        self.assertEqual(facts_answers, {"etat_travaux": "non_commences"})
         self.assertEqual(reserved, {"_raisons": ["fiscalite"]})
         ctx = build_context(_monument(), 3000, facts_answers)
         self.assertNotIn("_raisons", ctx["_answers"])
 
     def test_answers_du_caller_non_mutees(self):
         """Le dict d'entrée est partagé (store front, cache) : on ne le vide pas."""
-        answers = {"_raisons": ["restauration_travaux"], "travaux_commences": False}
+        answers = {"_raisons": ["restauration_travaux"], "etat_travaux": "non_commences"}
         self._run([self.TRAVAUX], answers)
         self.assertIn("_raisons", answers)
 
@@ -381,12 +381,12 @@ class TestUserFactGating(unittest.TestCase):
         m = _monument()
         v = evaluate_aide(AIDES["drac-mh-classes"], m, 3000, build_context(m, 3000), FACTS)
         self.assertEqual(v.status, "potentiel")
-        self.assertIn("travaux_commences", v.missing_facts)
+        self.assertIn("etat_travaux", v.missing_facts)
 
     def test_answer_can_make_ineligible(self):
         """Travaux déjà commencés → DRAC classés devient non éligible."""
         m = _monument()
-        ctx = build_context(m, 3000, answers={"travaux_commences": True})
+        ctx = build_context(m, 3000, answers={"etat_travaux": "en_cours"})
         v = evaluate_aide(AIDES["drac-mh-classes"], m, 3000, ctx, FACTS)
         self.assertEqual(v.status, "non_eligible")
 
@@ -399,17 +399,17 @@ class TestUserFactGating(unittest.TestCase):
                     "id": "tc",
                     "text": "Travaux non commencés",
                     "kind": "user_fact",
-                    "fact": "travaux_commences",
-                    "predicate": {"eq": False},
+                    "fact": "etat_travaux",
+                    "predicate": {"eq": "non_commences"},
                 },
                 {"id": "mc", "text": "À vérifier auprès du financeur", "kind": "manual_check"},
             ]
         )
         m = _monument()
-        ctx = build_context(m, 3000, answers={"travaux_commences": False})
+        ctx = build_context(m, 3000, answers={"etat_travaux": "non_commences"})
         v = evaluate_aide(aide, m, 3000, ctx, FACTS)
         self.assertEqual(v.status, "potentiel")
-        self.assertNotIn("travaux_commences", v.missing_facts)
+        self.assertNotIn("etat_travaux", v.missing_facts)
         # Seul reste le manual_check : incertitude sans categorie (donc sans question).
         incertitudes = [e for e in v.evaluations if e["verdict"] == "incertitude"]
         self.assertEqual(len(incertitudes), 1)
@@ -424,8 +424,8 @@ class TestUserFactGating(unittest.TestCase):
                     "id": "tc",
                     "text": "Travaux non commencés (sauf dérogation)",
                     "kind": "user_fact",
-                    "fact": "travaux_commences",
-                    "predicate": {"eq": False},
+                    "fact": "etat_travaux",
+                    "predicate": {"eq": "non_commences"},
                     "derogation_possible": True,
                 }
             ]
@@ -433,19 +433,19 @@ class TestUserFactGating(unittest.TestCase):
         m = _monument()
         # Non commencés → satisfait → éligible.
         v_ok = evaluate_aide(
-            soft, m, 3000, build_context(m, 3000, answers={"travaux_commences": False}), FACTS
+            soft, m, 3000, build_context(m, 3000, answers={"etat_travaux": "non_commences"}), FACTS
         )
         self.assertEqual(v_ok.status, "eligible")
         # Commencés → PAS refusé (dérogation possible) → potentiel, sans re-question.
         v_started = evaluate_aide(
-            soft, m, 3000, build_context(m, 3000, answers={"travaux_commences": True}), FACTS
+            soft, m, 3000, build_context(m, 3000, answers={"etat_travaux": "en_cours"}), FACTS
         )
         self.assertEqual(v_started.status, "potentiel")
-        self.assertNotIn("travaux_commences", v_started.missing_facts)
+        self.assertNotIn("etat_travaux", v_started.missing_facts)
         # Inconnu → incertitude → question posée.
         v_unknown = evaluate_aide(soft, m, 3000, build_context(m, 3000), FACTS)
         self.assertEqual(v_unknown.status, "potentiel")
-        self.assertIn("travaux_commences", v_unknown.missing_facts)
+        self.assertIn("etat_travaux", v_unknown.missing_facts)
 
     def test_strict_gate_refuses_when_false(self):
         """Sans derogation_possible, le même prédicat faux refuse l'aide (contraste)."""
@@ -455,14 +455,14 @@ class TestUserFactGating(unittest.TestCase):
                     "id": "tc",
                     "text": "Travaux non commencés",
                     "kind": "user_fact",
-                    "fact": "travaux_commences",
-                    "predicate": {"eq": False},
+                    "fact": "etat_travaux",
+                    "predicate": {"eq": "non_commences"},
                 }
             ]
         )
         m = _monument()
         v = evaluate_aide(
-            strict, m, 3000, build_context(m, 3000, answers={"travaux_commences": True}), FACTS
+            strict, m, 3000, build_context(m, 3000, answers={"etat_travaux": "en_cours"}), FACTS
         )
         self.assertEqual(v.status, "non_eligible")
 
@@ -471,7 +471,7 @@ class TestUserFactGating(unittest.TestCase):
         satisfaits, devient éligible (Loto : protection + non-commencement +
         trésorerie insuffisante)."""
         m = _monument(protection="classe")
-        answers = {"travaux_commences": False, "tresorerie_insuffisante_autofinancement": True}
+        answers = {"etat_travaux": "non_commences", "tresorerie_insuffisante_autofinancement": True}
         ctx = build_context(m, 3000, answers=answers)
         v = evaluate_aide(AIDES["loto-patrimoine"], m, 3000, ctx, FACTS)
         self.assertEqual(v.status, "eligible")
@@ -490,10 +490,15 @@ class TestQuestionGeneration(unittest.TestCase):
     def test_elimination_is_computed_correctly(self):
         m = _monument()
         res = run_deterministic_diagnostic(AIDES, FACTS, m, 3000)
-        q_travaux = next(q for q in res["qcmQuestions"] if q["categorie"] == "travaux_commences")
-        # « Oui » élimine DRAC classés ; « Non » n'élimine personne.
-        self.assertIn("drac-mh-classes", q_travaux["eliminationsParOption"].get("oui", []))
-        self.assertNotIn("non", q_travaux["eliminationsParOption"])
+        q_travaux = next(q for q in res["qcmQuestions"] if q["categorie"] == "etat_travaux")
+        # « En cours » et « Achevés » éliminent DRAC classés ; « Pas encore
+        # commencés » ne l'élimine pas (mais élimine les concours qui exigent
+        # des travaux achevés — la question unifiée porte les deux familles).
+        self.assertIn("drac-mh-classes", q_travaux["eliminationsParOption"].get("en_cours", []))
+        self.assertIn("drac-mh-classes", q_travaux["eliminationsParOption"].get("acheves", []))
+        self.assertNotIn(
+            "drac-mh-classes", q_travaux["eliminationsParOption"].get("non_commences", [])
+        )
 
     def test_skip_never_eliminates(self):
         m = _monument()
@@ -524,7 +529,7 @@ class TestQuestionGeneration(unittest.TestCase):
         d'aides passe en premier."""
         aides = [
             _fixture_aide(
-                [self._gate("travaux_commences", {"eq": False})]
+                [self._gate("etat_travaux", {"eq": "non_commences"})]
                 + ([self._gate("erp", {"eq": True})] if i < 2 else [])
                 + ([self._gate("residence_principale", {"eq": True})] if i < 1 else []),
                 slug=f"fx-{i}",
@@ -630,10 +635,10 @@ class TestQuestionGeneration(unittest.TestCase):
             seen.add(q["id"])
 
     def test_help_du_fait_est_transmis(self):
-        aide = _fixture_aide([self._gate("travaux_commences", {"eq": False})])
+        aide = _fixture_aide([self._gate("etat_travaux", {"eq": "non_commences"})])
         question = self._questions([aide])[0]
         self.assertTrue(question["help"])
-        self.assertEqual(question["help"], FACTS["travaux_commences"].help)
+        self.assertEqual(question["help"], FACTS["etat_travaux"].help)
 
 
 class TestPerimetreAide(unittest.TestCase):
@@ -922,7 +927,7 @@ class TestLeviers(unittest.TestCase):
 
     def test_fait_sans_levier_refuse_toujours(self):
         v = self._verdict(
-            [self._gate("travaux_commences", {"eq": False})], {"travaux_commences": True}
+            [self._gate("etat_travaux", {"eq": "non_commences"})], {"etat_travaux": "en_cours"}
         )
         self.assertEqual(v.status, "non_eligible")
         self.assertEqual(v.leviers, [])
@@ -932,9 +937,9 @@ class TestLeviers(unittest.TestCase):
         v = self._verdict(
             [
                 self._gate(self.LEVIER_FACT, {"eq": True}),
-                self._gate("travaux_commences", {"eq": False}),
+                self._gate("etat_travaux", {"eq": "non_commences"}),
             ],
-            {self.LEVIER_FACT: False, "travaux_commences": True},
+            {self.LEVIER_FACT: False, "etat_travaux": "en_cours"},
         )
         self.assertEqual(v.status, "non_eligible")
 
@@ -987,14 +992,14 @@ class TestLeviers(unittest.TestCase):
         aide = _fixture_aide(
             [
                 self._gate(self.LEVIER_FACT, {"eq": True}),
-                self._gate("travaux_commences", {"eq": False}),
+                self._gate("etat_travaux", {"eq": "non_commences"}),
             ]
         )
         res = run_deterministic_diagnostic(
             {aide.slug: aide}, FACTS, _monument(), 3000, {self.LEVIER_FACT: False}
         )
         self.assertEqual(len(res["aidesAtteignables"]), 1)
-        self.assertIn("travaux_commences", [q["id"] for q in res["qcmQuestions"]])
+        self.assertIn("etat_travaux", [q["id"] for q in res["qcmQuestions"]])
 
     def test_bucket_trie_par_enjeu_et_total(self):
         def _aide(slug, montant):
@@ -1012,11 +1017,11 @@ class TestLeviers(unittest.TestCase):
         self.assertIsNone(res["montantPotentielTotal"])
 
     def test_enjeu_max_par_question(self):
-        aide = _fixture_aide([self._gate("travaux_commences", {"eq": False})]).model_copy(
+        aide = _fixture_aide([self._gate("etat_travaux", {"eq": "non_commences"})]).model_copy(
             update={"financement": Financement(montant_max=40000)}
         )
         res = run_deterministic_diagnostic({aide.slug: aide}, FACTS, _monument(), 3000)
-        question = next(q for q in res["qcmQuestions"] if q["id"] == "travaux_commences")
+        question = next(q for q in res["qcmQuestions"] if q["id"] == "etat_travaux")
         self.assertEqual(question["enjeuMax"], 40000)
 
     def test_statut_expose_dans_le_match_result(self):
@@ -1174,7 +1179,7 @@ class TestMultiEnum(unittest.TestCase):
         self.assertNotIn("skip", [o["id"] for o in q["options"]])
 
     def test_question_simple_garde_le_pseudo_choix_passer(self):
-        q = self._questions("travaux_commences", {"eq": False})["travaux_commences"]
+        q = self._questions("etat_travaux", {"eq": "non_commences"})["etat_travaux"]
         self.assertFalse(q["multiple"])
         self.assertEqual(q["options"][-1], {"id": "skip", "label": "Passer cette question"})
 
@@ -1249,7 +1254,7 @@ class TestElimineParReponse(unittest.TestCase):
     def test_gate_user_fact_en_echec_est_impute_a_la_reponse(self):
         """Travaux déjà commencés : c'est l'utilisateur qui a écarté l'aide."""
         m = _monument()
-        self.assertTrue(self._flag(AIDES["drac-mh-classes"], m, {"travaux_commences": True}))
+        self.assertTrue(self._flag(AIDES["drac-mh-classes"], m, {"etat_travaux": "en_cours"}))
 
     def test_hard_filter_nest_pas_impute_a_la_reponse(self):
         """Refus déduit de la fiche (mauvaise région) : aucune réponse en cause."""
@@ -1289,17 +1294,17 @@ class TestElimineParReponse(unittest.TestCase):
                     "text": "Travaux non commencés",
                     "kind": "user_fact",
                     "effect": "gate",
-                    "fact": "travaux_commences",
-                    "predicate": {"eq": False},
+                    "fact": "etat_travaux",
+                    "predicate": {"eq": "non_commences"},
                 }
             ],
             regions=["bretagne"],
         )
         m = _monument(region="ile-de-france")
-        self.assertFalse(self._flag(aide, m, {"travaux_commences": True}))
+        self.assertFalse(self._flag(aide, m, {"etat_travaux": "en_cours"}))
         # Sans le hard_filter, la même réponse est bien imputée à l'utilisateur.
         sans_hf = _fixture_aide(aide.conditions and [c.model_dump() for c in aide.conditions])
-        self.assertTrue(self._flag(sans_hf, m, {"travaux_commences": True}))
+        self.assertTrue(self._flag(sans_hf, m, {"etat_travaux": "en_cours"}))
 
     def test_faux_hors_non_eligible(self):
         """Le champ est toujours présent et faux sur les autres statuts."""

@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -43,7 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from veille_apply import VeilleLLMOutput
 
 # Les clés vivent dans backend/.env, comme pour `ingest_aide_agent.py`.
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent / ".env.local")
 
 Provider = Literal["anthropic", "openai_compat"]
 
@@ -238,13 +239,17 @@ class LLMCall:
 # ---------------------------------------------------------------------------
 
 
-def json_schema() -> dict[str, Any]:
-    """Schéma JSON de `VeilleLLMOutput`, pour les sorties structurées.
+def json_schema(modele: type[BaseModel] = VeilleLLMOutput) -> dict[str, Any]:
+    """Schéma JSON du modèle de sortie, pour les sorties structurées.
 
     Dérivé du modèle Pydantic lui-même : le schéma envoyé au fournisseur et
     celui qui valide la réponse ne peuvent pas diverger.
+
+    Paramétré par le modèle depuis que `veille_audit.py` passe sa propre sortie
+    par les mêmes adaptateurs — sans quoi un appel d'audit se verrait contraint
+    au schéma de la veille, et sa réponse rejetée avant même d'être lue.
     """
-    schema = VeilleLLMOutput.model_json_schema()
+    schema = modele.model_json_schema()
     _durcir(schema)
     return schema
 
@@ -369,7 +374,11 @@ def build_prompt(
 # ---------------------------------------------------------------------------
 
 
-def system_pour(spec: ModelSpec) -> str:
+def system_pour(
+    spec: ModelSpec,
+    system: str = SYSTEM,
+    modele: type[BaseModel] = VeilleLLMOutput,
+) -> str:
     """Prompt système, complété du schéma quand le fournisseur ne le contraint pas.
 
     `response_format: json_object` (DeepSeek, Moonshot) garantit du JSON valide,
@@ -379,11 +388,11 @@ def system_pour(spec: ModelSpec) -> str:
     dans la requête.
     """
     if spec.provider == "anthropic" and spec.structured:
-        return SYSTEM
+        return system
     return (
-        SYSTEM
+        system
         + "\n\nTa réponse doit valider ce schéma JSON, sans clé supplémentaire :\n"
-        + json.dumps(json_schema(), ensure_ascii=False, indent=1)
+        + json.dumps(json_schema(modele), ensure_ascii=False, indent=1)
     )
 
 
@@ -394,6 +403,7 @@ def call(
     *,
     max_tokens: int | None = None,
     timeout: float = 300.0,
+    schema: dict[str, Any] | None = None,
 ) -> LLMCall:
     """Un appel, un retour uniforme. Les erreurs sont rendues, jamais levées.
 
@@ -406,7 +416,9 @@ def call(
     debut = time.monotonic()
     try:
         if spec.provider == "anthropic":
-            appel = _call_anthropic(spec, system, user, max_tokens=budget, timeout=timeout)
+            appel = _call_anthropic(
+                spec, system, user, max_tokens=budget, timeout=timeout, schema=schema
+            )
         else:
             appel = _call_openai_compat(spec, system, user, max_tokens=budget, timeout=timeout)
     except Exception as exc:  # noqa: BLE001 — toute panne fournisseur est une donnée
@@ -423,7 +435,13 @@ def call(
 
 
 def _call_anthropic(
-    spec: ModelSpec, system: str, user: str, *, max_tokens: int, timeout: float
+    spec: ModelSpec,
+    system: str,
+    user: str,
+    *,
+    max_tokens: int,
+    timeout: float,
+    schema: dict[str, Any] | None = None,
 ) -> LLMCall:
     import anthropic
 
@@ -439,7 +457,7 @@ def _call_anthropic(
     # spec plutôt qu'une valeur globale.
     output_config: dict[str, Any] = {}
     if spec.structured:
-        output_config["format"] = {"type": "json_schema", "schema": json_schema()}
+        output_config["format"] = {"type": "json_schema", "schema": schema or json_schema()}
     if spec.effort:
         output_config["effort"] = spec.effort
     if output_config:

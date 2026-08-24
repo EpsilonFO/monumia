@@ -110,7 +110,12 @@ def pdf_to_text(path: Path) -> str | None:
         out = subprocess.run(
             ["pdftotext", str(path), "-"], capture_output=True, timeout=60, check=False
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired):
+        # `OSError` et pas seulement `FileNotFoundError` : sous WSL, un PATH qui
+        # traverse les dossiers Windows rend un `pdftotext` non exécutable, et le
+        # `PermissionError` qui en sort faisait planter le run entier au lieu de
+        # dégrader le PDF en « illisible ». L'outil absent est un cas prévu, pas
+        # une panne.
         return None
     return out.stdout.decode("utf-8", errors="replace") if out.returncode == 0 else None
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import {
@@ -18,9 +18,14 @@ import {
   IconParchemin,
   IconFiche,
   IconContact,
+  IconAttention,
+  IconTendance,
+  IconLivre,
+  IconRecherche,
 } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Input } from '@/components/ui/input';
 import { AIDE_CATEGORIES, AIDE_TYPES } from '@/constants/aide-categories';
 import { formatCurrency } from '@/lib/format-utils';
 import { deadlineLabel } from '@/lib/date-utils';
@@ -219,17 +224,22 @@ function LevierPlan({ levier }: { levier: AideLevier }) {
   );
 }
 
+/**
+ * Ligne de verdict. Le critère porte la couleur d'encre pleine (14,21:1) et
+ * l'explication le gris lisible `--gray-fg` (7,9:1) : la hiérarchie se lit
+ * sans que le texte secondaire tombe sous le seuil de confort. Ne jamais
+ * remettre `text-muted-foreground` (4,86:1) sur le critère lui-même.
+ */
 function EvalLine({ critere, explication, tone }: { critere: string; explication?: string; tone: EvalTone }) {
   const Icon = tone === 'green' ? IconSucces : tone === 'red' ? IconErreur : tone === 'amber' ? IconHelp : tone === 'info' ? IconCle : IconInfo;
   const iconClass = tone === 'green' ? 'text-success' : tone === 'red' ? 'text-destructive' : tone === 'amber' ? 'text-warning' : tone === 'info' ? 'text-info' : 'text-muted-foreground';
-  const textClass = tone === 'red' ? 'text-destructive' : tone === 'muted' ? 'text-muted-foreground' : '';
   return (
     <div className="space-y-0.5">
-      <div className="flex items-start gap-2 text-sm">
+      <div className="flex items-start gap-2 text-sm leading-snug">
         <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${iconClass}`} />
-        <span className={textClass}>{critere}</span>
+        <span style={{ color: tone === 'red' ? 'var(--destructive)' : C.ink }}>{critere}</span>
       </div>
-      {explication && <p className="pl-6 text-xs text-muted-foreground">{explication}</p>}
+      {explication && <p className="pl-6 text-xs leading-relaxed" style={{ color: 'var(--gray-fg)' }}>{explication}</p>}
     </div>
   );
 }
@@ -307,10 +317,11 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
   // Les critères à débloquer ont leur propre groupe, alimenté par `leviers` :
   // ils ne doivent apparaître ni en rouge, ni parmi les critères validés.
   const aVerifier = evals.filter((e) => e.verdict === 'incertitude' && e.nature === 'user_fact' && !e.clarified);
-  const financeur = evals.filter((e) => e.nature === 'discretionary' || e.nature === 'manual_check' || (e.nature === 'auto' && e.verdict === 'incertitude'));
+  // Gate `auto` qu'on n'a pas pu trancher : vraie incertitude sur l'éligibilité,
+  // mais aucune question à poser (ce n'est pas un fait du propriétaire).
+  const aConfirmer = evals.filter((e) => e.nature === 'auto' && e.verdict === 'incertitude');
   const valides = evals.filter((e) => e.nature === 'user_fact' && (e.verdict === 'oui' || isClarified(e)));
   const autos = evals.filter((e) => e.nature === 'auto' && e.verdict === 'oui');
-  const infos = evals.filter((e) => e.nature === 'info' || e.nature === 'modulateur');
 
   return (
     <div className="space-y-2.5">
@@ -329,11 +340,9 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
           {aVerifier.map((e, i) => <EvalLine key={i} critere={e.critere} tone="amber" />)}
         </EvalGroup>
       )}
-      {financeur.length > 0 && (
-        <EvalGroup icon={IconInstitution} tone="muted" title="À confirmer avec l'organisme" count={financeur.length}>
-          {financeur.map((e, i) => (
-            <EvalLine key={i} critere={e.critere} explication={e.explication} tone={e.verdict === 'incertitude' ? 'amber' : 'muted'} />
-          ))}
+      {aConfirmer.length > 0 && (
+        <EvalGroup icon={IconInstitution} tone="amber" title="À confirmer auprès de l'organisme" count={aConfirmer.length} defaultOpen>
+          {aConfirmer.map((e, i) => <EvalLine key={i} critere={e.critere} tone="amber" />)}
         </EvalGroup>
       )}
       {valides.length > 0 && (
@@ -346,12 +355,216 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
           {autos.map((e, i) => <EvalLine key={i} critere={e.critere} tone="green" />)}
         </EvalGroup>
       )}
-      {infos.length > 0 && (
-        <EvalGroup icon={IconInfo} tone="muted" title="Bon à savoir" count={infos.length}>
-          {infos.map((e, i) => <EvalLine key={i} critere={e.critere} tone="muted" />)}
-        </EvalGroup>
-      )}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* « Le règlement de cette aide » — document de référence              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Les conditions non dirimantes (`discretionary`, `manual_check`,
+ * `modulateur`, `info`) ne sont pas des verdicts : les enfermer dans le cadre
+ * vert du diagnostic les condamnait à rester discrètes pour ne pas concurrencer
+ * les vrais verdicts — d'où la liste de quinze lignes grises que personne ne
+ * lisait. Sorties dans leur propre carte, elles récupèrent la pleine puissance
+ * typographique et un registre de « document de référence » : sous-titres réels,
+ * recherche, tout déplier.
+ */
+
+const RULE_GROUPS: { nature: string; icon: IconType; tone: EvalTone; title: string; hint: string }[] = [
+  {
+    nature: 'discretionary',
+    icon: IconAttention,
+    tone: 'amber',
+    title: 'Ce que le financeur va apprécier',
+    hint: "Rien d'automatique ici : ces points se jouent dans la qualité du dossier.",
+  },
+  {
+    nature: 'manual_check',
+    icon: IconInstitution,
+    tone: 'info',
+    title: 'À confirmer au montage du dossier',
+    hint: 'Sans incidence sur votre éligibilité — à vérifier avec l’organisme le moment venu.',
+  },
+  {
+    nature: 'modulateur',
+    icon: IconTendance,
+    tone: 'info',
+    title: 'Ce qui peut moduler le montant',
+    hint: "N'affecte pas l'éligibilité, mais joue sur le taux ou le plafond accordé.",
+  },
+  {
+    nature: 'info',
+    icon: IconLivre,
+    tone: 'muted',
+    title: 'Les autres règles à connaître',
+    hint: 'Bénéficiaires, plafonds, exclusions, calendrier, obligations après octroi.',
+  },
+];
+
+/** Aplatit un texte pour une recherche insensible à la casse et aux accents. */
+const flatten = (text: string): string =>
+  text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/**
+ * Surligne les occurrences de la requête. Le texte source n'est jamais modifié,
+ * seulement découpé ; si la normalisation décale les index (ligature, caractère
+ * exotique), on rend le texte brut plutôt qu'un surlignage faux.
+ */
+function Highlight({ text, query }: { text: string; query: string }) {
+  const flat = flatten(text);
+  const q = flatten(query);
+  if (!q || flat.length !== text.length) return <>{text}</>;
+  const parts: ReactNode[] = [];
+  let from = 0;
+  for (let i = flat.indexOf(q); i !== -1; i = flat.indexOf(q, from)) {
+    if (i > from) parts.push(text.slice(from, i));
+    parts.push(
+      <mark key={i} className="rounded bg-warning-muted px-0.5" style={{ color: 'inherit' }}>
+        {text.slice(i, i + q.length)}
+      </mark>,
+    );
+    from = i + q.length;
+  }
+  if (!parts.length) return <>{text}</>;
+  parts.push(text.slice(from));
+  return <>{parts}</>;
+}
+
+/**
+ * Une rubrique du règlement. Pas d'icône répétée en tête de chaque ligne (la
+ * même vingt fois n'informe personne) : un filet de séparation suffit à donner
+ * le rythme, et la marge récupérée va au texte. L'explication n'est rendue par
+ * ligne que si elle varie dans la rubrique — sinon elle est hissée en tête,
+ * une fois, au lieu d'être répétée à l'identique sous chaque item.
+ */
+function RuleGroup({ group, items, open, onOpenChange, query }: {
+  group: (typeof RULE_GROUPS)[number];
+  items: Evaluation[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  query: string;
+}) {
+  const t = GROUP_TONES[group.tone];
+  const Icon = group.icon;
+  const distinctExpl = new Set(items.map((e) => e.explication).filter(Boolean));
+  const perLineExpl = distinctExpl.size > 1;
+
+  return (
+    <Collapsible open={open} onOpenChange={onOpenChange} className="border-t first:border-t-0" style={{ borderColor: C.border }}>
+      <CollapsibleTrigger className="group flex w-full items-start gap-3 py-3.5 text-left">
+        <span className="mt-px inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: t.bg, color: t.fg }}>
+          <Icon className="h-4 w-4" strokeWidth={2} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="text-[15px] font-semibold leading-snug" style={{ color: C.ink }}>{group.title}</span>
+            <span className="rounded-full px-2 py-0.5 text-[11.5px] font-bold tabular-nums" style={{ background: t.bg, color: t.fg }}>
+              {items.length}
+            </span>
+          </span>
+          <span className="mt-0.5 block text-[12.5px] leading-snug" style={{ color: 'var(--gray-fg)' }}>{group.hint}</span>
+        </span>
+        <ChevronDown className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <ul className="mb-1 divide-y pl-10" style={{ borderColor: C.border }}>
+          {items.map((e, i) => (
+            <li key={i} className="py-2.5 first:border-t first:pt-3" style={{ borderColor: C.border }}>
+              <p className="text-[14px] leading-relaxed" style={{ color: C.ink }}>
+                <Highlight text={e.critere} query={query} />
+              </p>
+              {perLineExpl && e.explication && (
+                <p className="mt-0.5 text-[12.5px] leading-relaxed" style={{ color: 'var(--gray-fg)' }}>{e.explication}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+/** Seuil au-delà duquel une rubrique s'ouvre repliée, et la recherche apparaît. */
+const RULES_SEARCH_THRESHOLD = 12;
+const GROUP_AUTO_OPEN_MAX = 6;
+
+function RulesReference({ matchResult }: { matchResult: AideMatchResult }) {
+  const [query, setQuery] = useState('');
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+
+  const groups = useMemo(() => {
+    const evals: Evaluation[] = matchResult.llmEvaluation?.evaluations ?? [];
+    const q = flatten(query.trim());
+    return RULE_GROUPS.map((group) => {
+      const all = evals.filter((e) => e.nature === group.nature);
+      const items = q ? all.filter((e) => flatten(e.critere).includes(q)) : all;
+      return { group, items, total: all.length };
+    }).filter((g) => g.total > 0);
+  }, [matchResult, query]);
+
+  const total = groups.reduce((n, g) => n + g.total, 0);
+  const matching = groups.reduce((n, g) => n + g.items.length, 0);
+  if (total === 0) return null;
+
+  const searching = query.trim().length > 0;
+  const isOpen = (nature: string, count: number) =>
+    searching ? true : (overrides[nature] ?? count <= GROUP_AUTO_OPEN_MAX);
+  const allOpen = groups.every((g) => isOpen(g.group.nature, g.total));
+
+  return (
+    <SectionCard icon={IconRegle} title="Le règlement de cette aide">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[13.5px] leading-snug" style={{ color: 'var(--gray-fg)' }}>
+            {total} point{total > 1 ? 's' : ''} issu{total > 1 ? 's' : ''} du règlement officiel. Aucun ne décide de votre
+            éligibilité&nbsp;: ils servent à préparer le dossier.
+          </p>
+          <button
+            onClick={() => setOverrides(Object.fromEntries(groups.map((g) => [g.group.nature, !allOpen])))}
+            className="shrink-0 text-[13px] font-semibold text-primary hover:underline"
+          >
+            {allOpen ? 'Tout replier' : 'Tout déplier'}
+          </button>
+        </div>
+
+        {total > RULES_SEARCH_THRESHOLD && (
+          <div className="relative">
+            <IconRecherche className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Rechercher dans le règlement (taux, délai, cumul…)"
+              aria-label="Rechercher dans le règlement de l'aide"
+              className="h-9 bg-card pl-9 text-[13.5px]"
+            />
+          </div>
+        )}
+
+        {searching && (
+          <p className="text-[12.5px]" style={{ color: 'var(--gray-fg)' }}>
+            {matching === 0 ? 'Aucun point ne correspond.' : `${matching} point${matching > 1 ? 's' : ''} sur ${total}.`}
+          </p>
+        )}
+
+        <div>
+          {groups
+            .filter((g) => !searching || g.items.length > 0)
+            .map(({ group, items, total: count }) => (
+              <RuleGroup
+                key={group.nature}
+                group={group}
+                items={items}
+                query={query.trim()}
+                open={isOpen(group.nature, count)}
+                onOpenChange={(open) => setOverrides((o) => ({ ...o, [group.nature]: open }))}
+              />
+            ))}
+        </div>
+      </div>
+    </SectionCard>
   );
 }
 
@@ -581,6 +794,8 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
               <EligibilityAnalysis matchResult={matchResult} />
             </SectionCard>
           )}
+
+          {matchResult && <RulesReference matchResult={matchResult} />}
 
           {showDocumentsRequis && <DocumentsCollapsible docs={aide.documentsRequis} />}
 
