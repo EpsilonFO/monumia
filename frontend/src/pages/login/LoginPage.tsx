@@ -4,6 +4,7 @@ import { EyeOff, Loader2, ArrowRight, Check, X } from 'lucide-react';
 import { IconVoir } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { authService } from '@/services/auth.service';
 import { AuthLayout } from '@/components/layout/AuthLayout';
@@ -19,7 +20,25 @@ const LIGHT = 'var(--muted-foreground)';
 const SUCCESS = 'var(--success)';
 
 const inputCls =
-  'h-12 text-[15px] bg-card border-border focus:border-primary focus:ring-primary/10';
+  'h-11 text-[14px] bg-card border-border focus:border-primary focus:ring-primary/10';
+
+// Pages légales, servies par la landing (monumia.fr).
+const CGU_URL = 'https://monumia.fr/cgu';
+const PRIVACY_URL = 'https://monumia.fr/confidentialite';
+
+function LegalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-medium underline underline-offset-2"
+      style={{ color: C.blue }}
+    >
+      {children}
+    </a>
+  );
+}
 
 export function LoginPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -74,6 +93,7 @@ export function LoginPage() {
   const [showRegisterPwd, setShowRegisterPwd] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [acceptCgu, setAcceptCgu] = useState(false);
   const pwdChecks = passwordChecks(registerForm.password);
   const pwdValid = isPasswordValid(registerForm.password);
 
@@ -92,7 +112,8 @@ export function LoginPage() {
     !!registerForm.nom.trim() &&
     !!registerForm.prenom.trim() &&
     pwdValid &&
-    !phoneError;
+    !phoneError &&
+    acceptCgu;
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,6 +127,10 @@ export function LoginPage() {
     }
     if (!isValidPhone(registerForm.telephone)) {
       setPhoneError(PHONE_ERROR);
+      return;
+    }
+    if (!acceptCgu) {
+      toast.error("Merci d'accepter les conditions générales d'utilisation");
       return;
     }
     setRegisterLoading(true);
@@ -130,17 +155,17 @@ export function LoginPage() {
     // L'inscription tient six champs sur deux colonnes : la colonne crème
     // s'élargit pour que les placeholders respirent, au lieu de couper des
     // champs de moitié dans la largeur de la connexion.
-    <AuthLayout contentClassName={tab === 'register' ? 'max-w-3xl' : 'max-w-md'}>
+    <AuthLayout contentClassName={tab === 'register' ? 'max-w-3xl space-y-5' : 'max-w-md space-y-6'}>
       {/* heading */}
-      <div className="space-y-2.5">
-        <h1 className="text-[clamp(1.9rem,4vw,2.5rem)] leading-[1.1]" style={{ fontFamily: SERIF, color: C.ink }}>
+      <div className="space-y-1.5">
+        <h1 className="text-[clamp(1.6rem,3vw,2rem)] leading-[1.1]" style={{ fontFamily: SERIF, color: C.ink }}>
           {tab === 'login' ? (
             <>Bon <span style={{ color: C.blue }}>retour</span>.</>
           ) : (
             <>Créer un <span style={{ color: C.blue }}>compte</span></>
           )}
         </h1>
-        <p className="text-[15px]" style={{ color: MUTED }}>
+        <p className="text-[14px]" style={{ color: MUTED }}>
           {tab === 'login'
             ? 'Connectez-vous pour accéder à votre espace.'
             : 'Tout se passe ici : votre compte est créé en une étape.'}
@@ -153,7 +178,7 @@ export function LoginPage() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className="flex-1 rounded-lg py-2.5 text-[14px] font-semibold transition-all duration-200"
+            className="flex-1 rounded-lg py-2 text-[13.5px] font-semibold transition-all duration-200"
             style={{
               background: tab === t ? C.blue : 'transparent',
               color: tab === t ? 'white' : C.blue,
@@ -166,12 +191,21 @@ export function LoginPage() {
 
       {/* ── Connexion Google (login + inscription) ── */}
       {tab !== 'forgot' && (
-        <div className="space-y-5">
+        <div className="space-y-4">
           {/* Le bouton garde sa largeur de bouton, centré : sur l'inscription
               élargie, l'étirer sur 768 px en ferait une banderole. Le filet, lui,
               sépare bien les deux sections et court sur toute la largeur. */}
           <div className="md:mx-auto md:max-w-md">
             <GoogleButton />
+            {/* L'inscription Google contourne le formulaire (et sa case CGU) :
+                l'acceptation passe alors par cette mention. */}
+            {/* {tab === 'register' && (
+              <p className="mt-2 text-center text-[12px] leading-[1.5]" style={{ color: LIGHT }}>
+                En continuant avec Google, vous acceptez les{' '}
+                <LegalLink href={CGU_URL}>CGU</LegalLink> et la{' '}
+                <LegalLink href={PRIVACY_URL}>politique de confidentialité</LegalLink>.
+              </p>
+            )} */}
           </div>
           <div className="flex items-center gap-3" aria-hidden="true">
             <span className="h-px flex-1" style={{ background: 'var(--border)' }} />
@@ -185,9 +219,9 @@ export function LoginPage() {
 
       {/* ── Connexion ── */}
       {tab === 'login' && (
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="login-email" className="text-[14px] font-medium" style={{ color: C.ink }}>Email</Label>
+            <Label htmlFor="login-email" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Email</Label>
             <Input
               id="login-email"
               type="email"
@@ -200,7 +234,7 @@ export function LoginPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="login-password" className="text-[14px] font-medium" style={{ color: C.ink }}>Mot de passe</Label>
+            <Label htmlFor="login-password" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Mot de passe</Label>
             <div className="relative">
               <Input
                 id="login-password"
@@ -235,7 +269,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={loginLoading}
-            className="group flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
+            className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
             style={{ background: C.orange }}
           >
             {loginLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
@@ -250,12 +284,12 @@ export function LoginPage() {
 
       {/* ── Inscription ── */}
       {tab === 'register' && (
-        <form onSubmit={handleRegister} className="space-y-7">
-          <div className="grid gap-x-8 gap-y-5 md:grid-cols-2">
+        <form onSubmit={handleRegister} className="space-y-4">
+          <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
             {/* ── Colonne gauche : identifiants de connexion ── */}
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="reg-email" className="text-[14px] font-medium" style={{ color: C.ink }}>Email</Label>
+                <Label htmlFor="reg-email" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Email</Label>
                 <Input
                   id="reg-email"
                   type="email"
@@ -268,7 +302,7 @@ export function LoginPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="reg-password" className="text-[14px] font-medium" style={{ color: C.ink }}>Mot de passe</Label>
+                <Label htmlFor="reg-password" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Mot de passe</Label>
                 <div className="relative">
                   <Input
                     id="reg-password"
@@ -301,7 +335,7 @@ export function LoginPage() {
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="reg-confirm" className="text-[14px] font-medium" style={{ color: C.ink }}>Confirmer le mot de passe</Label>
+                <Label htmlFor="reg-confirm" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Confirmer le mot de passe</Label>
                 <Input
                   id="reg-confirm"
                   type="password"
@@ -316,9 +350,9 @@ export function LoginPage() {
             </div>
 
             {/* ── Colonne droite : votre identité ── */}
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="reg-nom" className="text-[14px] font-medium" style={{ color: C.ink }}>Nom</Label>
+                <Label htmlFor="reg-nom" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Nom</Label>
                 <Input
                   id="reg-nom"
                   autoComplete="family-name"
@@ -330,7 +364,7 @@ export function LoginPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="reg-prenom" className="text-[14px] font-medium" style={{ color: C.ink }}>Prénom</Label>
+                <Label htmlFor="reg-prenom" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Prénom</Label>
                 <Input
                   id="reg-prenom"
                   autoComplete="given-name"
@@ -342,7 +376,7 @@ export function LoginPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="reg-tel" className="text-[14px] font-medium" style={{ color: C.ink }}>
+                <Label htmlFor="reg-tel" className="text-[13.5px] font-medium" style={{ color: C.ink }}>
                   Téléphone <span className="font-normal" style={{ color: LIGHT }}>(optionnel)</span>
                 </Label>
                 <Input
@@ -359,10 +393,24 @@ export function LoginPage() {
             </div>
           </div>
 
+          {/* Acceptation des CGU : requise, elle verrouille le bouton de création */}
+          <label htmlFor="reg-cgu" className="flex cursor-pointer items-start gap-2.5">
+            <Checkbox
+              id="reg-cgu"
+              checked={acceptCgu}
+              onCheckedChange={(v) => setAcceptCgu(v === true)}
+              className="mt-[3px]"
+            />
+            <span className="text-[13px] leading-[1.55]" style={{ color: MUTED }}>
+              J'ai lu et j'accepte les <LegalLink href={CGU_URL}>conditions générales d'utilisation</LegalLink>{' '}
+              et la <LegalLink href={PRIVACY_URL}>politique de confidentialité</LegalLink>.
+            </span>
+          </label>
+
           <button
             type="submit"
             disabled={!registerReady || registerLoading}
-            className="group flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
+            className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
             style={{ background: C.orange }}
           >
             {registerLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
@@ -384,19 +432,19 @@ export function LoginPage() {
             </div>
             <button
               onClick={() => setTab('login')}
-              className="flex h-12 w-full items-center justify-center rounded-lg text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
+              className="flex h-11 w-full items-center justify-center rounded-lg text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
               style={{ background: C.orange }}
             >
               Retour à la connexion
             </button>
           </div>
         ) : (
-          <form onSubmit={handleForgot} className="space-y-5">
+          <form onSubmit={handleForgot} className="space-y-4">
             <p className="text-[14px]" style={{ color: MUTED }}>
               Indiquez votre email : nous vous enverrons un lien pour choisir un nouveau mot de passe. Rien à retenir.
             </p>
             <div className="space-y-1.5">
-              <Label htmlFor="forgot-email" className="text-[14px] font-medium" style={{ color: C.ink }}>Email</Label>
+              <Label htmlFor="forgot-email" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Email</Label>
               <Input
                 id="forgot-email"
                 type="email"
@@ -411,7 +459,7 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={forgotState === 'sending' || !forgotEmail}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               style={{ background: C.orange }}
             >
               {forgotState === 'sending' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Recevoir le lien'}

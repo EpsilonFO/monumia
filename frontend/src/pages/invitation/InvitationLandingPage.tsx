@@ -10,6 +10,7 @@ import { AuthLayout } from '@/components/layout/AuthLayout';
 import { GoogleButton } from '@/components/auth/GoogleButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
@@ -24,6 +25,32 @@ type Mode = 'choice' | 'signup' | 'login' | 'oauth';
 const MUTED = 'var(--muted-foreground)';
 const LIGHT = 'var(--muted-foreground)';
 const INPUT_CLS = 'h-12 text-[15px] bg-card border-border focus:border-primary focus:ring-primary/10';
+
+// Pages légales, servies par la landing (monumia.fr).
+const CGU_URL = 'https://monumia.fr/cgu';
+const PRIVACY_URL = 'https://monumia.fr/confidentialite';
+
+/* Acceptation des CGU : requise pour toute création de compte,
+   formulaire email comme retour de Google. */
+function CguConsent({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  const linkCls = 'font-medium underline underline-offset-2';
+  return (
+    <label className="flex cursor-pointer items-start gap-2.5">
+      <Checkbox checked={checked} onCheckedChange={(v) => onChange(v === true)} className="mt-[3px]" />
+      <span className="text-[13px] leading-[1.55]" style={{ color: MUTED }}>
+        J'ai lu et j'accepte les{' '}
+        <a href={CGU_URL} target="_blank" rel="noopener noreferrer" className={linkCls} style={{ color: C.blue }}>
+          conditions générales d'utilisation
+        </a>{' '}
+        et la{' '}
+        <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className={linkCls} style={{ color: C.blue }}>
+          politique de confidentialité
+        </a>
+        .
+      </span>
+    </label>
+  );
+}
 
 export function InvitationLandingPage() {
   const { token = '' } = useParams();
@@ -45,6 +72,7 @@ export function InvitationLandingPage() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>(oauthAccessToken ? 'oauth' : 'choice');
   const [busy, setBusy] = useState(false);
+  const [acceptCgu, setAcceptCgu] = useState(false);
 
   const [form, setForm] = useState({
     prenom: oauthPrenom ?? '',
@@ -90,6 +118,10 @@ export function InvitationLandingPage() {
       toast.error('Indiquez votre rôle sur le projet');
       return;
     }
+    if (!acceptCgu) {
+      toast.error("Merci d'accepter les conditions générales d'utilisation");
+      return;
+    }
     setBusy(true);
     try {
       const { user: u, access_token } = await authService.registerCollaborator({
@@ -116,6 +148,10 @@ export function InvitationLandingPage() {
     }
     if (!form.prenom.trim() || !form.nom.trim()) {
       toast.error('Renseignez votre nom et votre prénom');
+      return;
+    }
+    if (!acceptCgu) {
+      toast.error("Merci d'accepter les conditions générales d'utilisation");
       return;
     }
     setBusy(true);
@@ -258,6 +294,7 @@ export function InvitationLandingPage() {
           <FormField label="Téléphone (optionnel)" htmlFor="inv-oauth-tel">
             <Input id="inv-oauth-tel" type="tel" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} className={INPUT_CLS} />
           </FormField>
+          <CguConsent checked={acceptCgu} onChange={setAcceptCgu} />
           <PrimaryButton onClick={handleOauthSignup} busy={busy}>Rejoindre le projet</PrimaryButton>
         </div>
       ) : mode === 'signup' ? (
@@ -306,6 +343,7 @@ export function InvitationLandingPage() {
           <FormField label="Téléphone (optionnel)" htmlFor="inv-tel">
             <Input id="inv-tel" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} className={INPUT_CLS} />
           </FormField>
+          <CguConsent checked={acceptCgu} onChange={setAcceptCgu} />
           <PrimaryButton onClick={handleSignup} busy={busy}>Créer mon compte et rejoindre</PrimaryButton>
           <BackLink onClick={() => setMode('choice')} />
         </div>

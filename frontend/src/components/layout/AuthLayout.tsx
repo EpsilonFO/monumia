@@ -12,7 +12,8 @@ interface AuthLayoutProps {
   panelDescription?: ReactNode;
   /** Libellé orange en petites capitales, au-dessus du titre du panneau. */
   panelEyebrow?: string;
-  /** Largeur max de la colonne droite (défaut : max-w-md). */
+  /** Largeur max et espacement vertical de la colonne droite
+   *  (défaut : max-w-md space-y-8). */
   contentClassName?: string;
 }
 
@@ -37,7 +38,7 @@ export function AuthLayout({
   panelHeadline,
   panelDescription,
   panelEyebrow = 'Votre espace patrimoine',
-  contentClassName = 'max-w-md',
+  contentClassName = 'max-w-md space-y-8',
 }: AuthLayoutProps) {
   const navigate = useNavigate();
 
@@ -115,8 +116,8 @@ export function AuthLayout({
           </button>
         </div>
 
-        <div className="flex flex-1 items-center justify-center px-6 py-12">
-          <div className={`w-full ${contentClassName} space-y-8`}>{children}</div>
+        <div className="flex flex-1 items-center justify-center px-6 py-8">
+          <div className={`w-full ${contentClassName}`}>{children}</div>
         </div>
       </div>
     </div>
