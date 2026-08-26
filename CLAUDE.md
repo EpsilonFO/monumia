@@ -41,7 +41,7 @@ npm run lint
 
 Base locale : `supabase start` / `supabase stop` (jamais `db reset`, cf. « Interdits absolus »). Les `.env.local` (backend et frontend) sont chargés en priorité sur `.env`.
 
-CI (GitHub Actions) : ruff check + format check, pyright, pytest côté backend ; `npx tsc -b` + vitest côté frontend. Les hooks pre-commit lancent `ruff format`/`ruff check --fix` suivis de `git add -u`, plus `tsc -b` ; les hooks pre-push relancent tout en mode vérification seule.
+CI (GitHub Actions) : ruff check + format check, pyright, pytest côté backend ; `npx tsc -b` + vitest côté frontend ; `npx tsc -b` côté landing. Les hooks pre-commit lancent `ruff format`/`ruff check --fix` suivis de `git add -u`, plus `scripts/tsc-check.sh` (qui type-check frontend **et** landing) ; les hooks pre-push relancent tout en mode vérification seule.
 
 Détails d'installation, variables d'environnement et déploiement : [README.md](README.md), [docs/PROJET.md](docs/PROJET.md), [deploy.sh](deploy.sh).
 

@@ -12,16 +12,6 @@ export const PRIVACY_PATH = `${BASE}confidentialite`;
 const DERNIERE_MAJ = '26 août 2026';
 const CONTACT_EMAIL = 'contact@monumia.fr';
 
-/* Champ à renseigner avant mise en ligne : rendu en orange pour être
-   impossible à manquer en relecture. */
-function AComplete({ children }: { children: ReactNode }) {
-  return (
-    <strong className="font-semibold" style={{ color: C.orange }}>
-      [À compléter : {children}]
-    </strong>
-  );
-}
-
 function Section({ id, title, children }: { id?: string; title: string; children: ReactNode }) {
   return (
     <section id={id} className="mt-10 scroll-mt-24">
@@ -344,10 +334,8 @@ export function CguPage() {
           le litige directement auprès de{' '}
           <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>.
         </p>
-        {/* <p>
-          Médiateur désigné : <AComplete>nom et coordonnées du médiateur de la consommation
-          (à désigner, par exemple CM2C ou Médicys)</AComplete>.
-        </p> */}
+        {/* À rétablir dès qu'un médiateur de la consommation est désigné (CM2C,
+            Médicys…) : « Médiateur désigné : <nom et coordonnées> ». */}
       </Section>
 
       <Section title="13. Modification des CGU">
