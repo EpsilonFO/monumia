@@ -197,7 +197,7 @@ export function MonumentWizardPage() {
               className="text-[clamp(1.5rem,3.2vw,2rem)] leading-tight"
               style={{ fontFamily: SERIF, color: C.ink }}
             >
-              Sélectionnez votre monument
+              Trouvez votre monument
             </h1>
           </div>
 
