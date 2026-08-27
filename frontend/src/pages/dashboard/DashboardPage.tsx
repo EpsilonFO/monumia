@@ -5,11 +5,12 @@ import { IconAjouter } from '@/components/icons';
 import { C } from '@/lib/brand';
 import { NextActionCard } from '@/components/dashboard/NextActionCard';
 import { buildUpcomingRows } from '@/components/dashboard/echeances-alertes-utils';
-import { ProjectsInProgress } from '@/components/dashboard/ProjectsInProgress';
+import { MonumentsInProgress } from '@/components/dashboard/MonumentsInProgress';
 import { NextActionCardSkeleton, ProjectsInProgressSkeleton } from '@/components/skeletons';
 import { useSuiviStore } from '@/stores/useSuiviStore';
 import { projectStage } from '@/lib/project-stats';
 import type { ProjectStage } from '@/lib/project-stats';
+import { useProjetStore } from '@/stores/useProjetStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
@@ -17,15 +18,16 @@ import { useAideStore } from '@/stores/useAideStore';
 import { useNotificationStore } from '@/stores/useNotificationStore';
 import { useProjectsData } from '@/hooks/useProjectsData';
 import { ROUTES } from '@/constants/routes';
-import { mergeProjectDeadlines, computeProjectStats } from '@/lib/project-stats';
-import type { ProjectStats } from '@/lib/project-stats';
+import { mergeProjectDeadlines, computeMonumentStats } from '@/lib/project-stats';
+import type { MonumentStats } from '@/lib/project-stats';
 import type { ProjectDigest } from '@/types';
 
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const dossiers = useDossierStore((s) => s.dossiers);
-  const digestsByMonument = useAideStore((s) => s.digestsByMonument);
+  const projets = useProjetStore((s) => s.projets);
+  const digestsByProjet = useAideStore((s) => s.digestsByProjet);
   const notifications = useNotificationStore((s) => s.notifications);
 
   // Charge monuments, dossiers, digests d'aides et suivis en un seul appel :
@@ -38,18 +40,19 @@ export function DashboardPage() {
     [monuments, user],
   );
 
-  // Grille « Projets en cours » : vos projets + ceux partagés avec vous.
+  // Grille « Vos monuments » : les vôtres + ceux partagés avec vous.
   // (Le store ne contient que des monuments accessibles à l'utilisateur.)
   // Le bandeau d'échéance et l'échéancier restent basés sur `userMonuments`.
   const displayMonuments = monuments;
 
+  // Digests par PROJET, restreints à ceux dont le monument est affiché.
   const diagMap = useMemo<Record<string, ProjectDigest | null>>(() => {
     const out: Record<string, ProjectDigest | null> = {};
-    for (const m of displayMonuments) {
-      out[m.id] = digestsByMonument[m.id] ?? null;
+    for (const p of projets) {
+      out[p.id] = digestsByProjet[p.id] ?? null;
     }
     return out;
-  }, [displayMonuments, digestsByMonument]);
+  }, [projets, digestsByProjet]);
 
   const userDossiers = useMemo(
     () => (user ? dossiers.filter((d) => d.userId === user.id) : []),
@@ -68,15 +71,15 @@ export function DashboardPage() {
 
   // Toutes les échéances, triées de la plus proche à la plus lointaine.
   // L'échéancier vertical les reprend toutes, même très éloignées.
-  const allDeadlines = useMemo(
-    () =>
-      userMonuments
-        .flatMap((m) =>
-          mergeProjectDeadlines(diagMap[m.id] ?? null, userDossiers.filter((d) => d.monumentId === m.id)),
-        )
-        .sort((a, b) => a.joursRestants - b.joursRestants),
-    [userMonuments, diagMap, userDossiers],
-  );
+  const allDeadlines = useMemo(() => {
+    const monumentIds = new Set(userMonuments.map((m) => m.id));
+    return projets
+      .filter((p) => monumentIds.has(p.monumentId))
+      .flatMap((p) =>
+        mergeProjectDeadlines(diagMap[p.id] ?? null, userDossiers.filter((d) => d.projetId === p.id)),
+      )
+      .sort((a, b) => a.joursRestants - b.joursRestants);
+  }, [userMonuments, projets, diagMap, userDossiers]);
 
   // Bandeau « prochaine échéance » : la plus proche à venir, et toutes celles
   // qui tombent exactement à la même date (ex. deux dossiers le même jour).
@@ -94,31 +97,36 @@ export function DashboardPage() {
     [allDeadlines, nextDeadlines, userNotifications],
   );
 
-  const statsByMonument = useMemo<Record<string, ProjectStats>>(() => {
-    const out: Record<string, ProjectStats> = {};
+  const statsByMonument = useMemo<Record<string, MonumentStats>>(() => {
+    const out: Record<string, MonumentStats> = {};
     for (const m of displayMonuments) {
-      out[m.id] = computeProjectStats(
-        m,
-        diagMap[m.id] ?? null,
-        userDossiers.filter((d) => d.monumentId === m.id),
-      );
+      out[m.id] = computeMonumentStats(m, projets, diagMap, dossiers);
     }
     return out;
-  }, [displayMonuments, diagMap, userDossiers]);
+  }, [displayMonuments, projets, diagMap, dossiers]);
 
   const suivis = useSuiviStore((s) => s.suivis);
 
+  // Avancement affiché par monument : celui de son projet le PLUS avancé — la
+  // vignette dit où en est le monument, pas la moyenne de ses chantiers.
   const stageByMonument = useMemo<Record<string, ProjectStage>>(() => {
     const out: Record<string, ProjectStage> = {};
     for (const m of displayMonuments) {
-      out[m.id] = projectStage(
-        diagMap[m.id] ?? null,
-        userDossiers.filter((d) => d.monumentId === m.id),
-        suivis.filter((s) => s.monumentId === m.id),
-      );
+      const stages = projets
+        .filter((p) => p.monumentId === m.id)
+        .map((p) =>
+          projectStage(
+            diagMap[p.id] ?? null,
+            dossiers.filter((d) => d.projetId === p.id),
+            suivis.filter((s) => s.projetId === p.id),
+          ),
+        );
+      out[m.id] =
+        stages.sort((a, b) => b.reachedIndex - a.reachedIndex)[0] ??
+        projectStage(null, [], []);
     }
     return out;
-  }, [displayMonuments, diagMap, userDossiers, suivis]);
+  }, [displayMonuments, projets, diagMap, dossiers, suivis]);
 
   if (!user) return null;
 
@@ -144,12 +152,12 @@ export function DashboardPage() {
             
           </div>
           <Link
-            to={ROUTES.PROJET_NEW}
+            to={ROUTES.MONUMENT_NEW}
             className="group inline-flex shrink-0 items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: C.orange }}
           >
             <IconAjouter className="h-4 w-4" />
-            {userMonuments.length === 0 ? 'Créer un projet' : 'Nouveau projet'}
+            {userMonuments.length === 0 ? 'Créer un monument' : 'Nouveau monument'}
             <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </Link>
         </div>
@@ -162,13 +170,13 @@ export function DashboardPage() {
         <NextActionCard deadlines={nextDeadlines} upcoming={upcomingRows} />
       )}
 
-      {/* ─── VOS PROJETS (parcours) ─── */}
+      {/* ─── VOS MONUMENTS (parcours) ─── */}
       <section>
-        <SectionHeading eyebrow="Vos monuments" title="Vos projets" />
+        <SectionHeading eyebrow="Votre patrimoine" title="Vos monuments" />
         {loading ? (
           <ProjectsInProgressSkeleton />
         ) : (
-          <ProjectsInProgress monuments={displayMonuments} statsByMonument={statsByMonument} stageByMonument={stageByMonument} />
+          <MonumentsInProgress monuments={displayMonuments} statsByMonument={statsByMonument} stageByMonument={stageByMonument} />
         )}
       </section>
 

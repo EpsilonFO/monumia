@@ -37,7 +37,7 @@ export function DocumentTile({
 
   const menuActions: DocMenuAction[] = variant === 'normal'
     ? [
-        { label: 'Ajouter à un projet', icon: IconAjouterDossier, onClick: () => onAddToProject(document) },
+        { label: 'Ajouter à un monument', icon: IconAjouterDossier, onClick: () => onAddToProject(document) },
         ...(onRename && canModify
           ? [{ label: 'Renommer', icon: IconModifier, onClick: () => onRename(document) }]
           : []),
@@ -45,7 +45,7 @@ export function DocumentTile({
           ? [{ label: 'Supprimer', icon: IconSupprimer, onClick: () => onTrash(document), destructive: true }]
           : canModify && sectionMonumentId
             ? [{
-                label: `Retirer de ${monumentNames[sectionMonumentId] ?? 'ce projet'}`,
+                label: `Retirer de ${monumentNames[sectionMonumentId] ?? 'ce monument'}`,
                 icon: IconRetirerDossier,
                 onClick: () => onRemoveFromProject(document, sectionMonumentId),
                 destructive: true,

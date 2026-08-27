@@ -97,14 +97,14 @@ def create_checkout(
     monument_id: str | None = None
     if plan == billing.PLAN_DOSSIER:
         if not body.monumentId:
-            raise HTTPException(status_code=400, detail="Projet manquant")
+            raise HTTPException(status_code=400, detail="Monument manquant")
         # Le projet doit être le sien : sans ce contrôle, un paiement pourrait
         # débloquer le projet d'un tiers (dont l'id se devine mal, mais se fuite).
         require_project_access(supabase, body.monumentId, user_id, "co_owner")
         monument_id = body.monumentId
 
         if billing.monument_is_unlocked(supabase, monument_id):
-            raise HTTPException(status_code=409, detail="Ce projet est déjà débloqué.")
+            raise HTTPException(status_code=409, detail="Ce monument est déjà débloqué.")
         if billing.active_subscription(supabase, user_id) is not None:
             raise HTTPException(
                 status_code=409,

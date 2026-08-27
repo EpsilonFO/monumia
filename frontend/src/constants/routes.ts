@@ -4,14 +4,23 @@ export const ROUTES = {
 
   DASHBOARD: '/app',
 
-  // Page Tarifs (publique). Le projet passe par l'URL et non par le state de
+  // Page Tarifs (publique). Le monument passe par l'URL et non par le state de
   // navigation : l'aller-retour vers Stripe quitte le site et perd tout state.
+  // Le nom du paramètre (`projet`) est figé : d'anciens liens de retour Stripe
+  // circulent encore. Sa valeur est et reste un id de MONUMENT — c'est lui
+  // qu'on débloque.
   TARIFS: (monumentId?: string) => (monumentId ? `/tarifs?projet=${monumentId}` : '/tarifs'),
 
-  // Onglet unifié « Projet » (projet = monument)
-  PROJETS: '/app/projets',
-  PROJET_NEW: '/app/projets/nouveau',
-  PROJET_DETAIL: (id: string) => `/app/projets/${id}`,
+  // ── Monuments : le bien, sa fiche sanitaire, ses documents, son équipe ──
+  MONUMENTS: '/app/monuments',
+  MONUMENT_NEW: '/app/monuments/nouveau',
+  /** Onglets : ?tab=sanitaire|projets|documents|equipe */
+  MONUMENT_DETAIL: (id: string) => `/app/monuments/${id}`,
+
+  // ── Projets de travaux : un chantier, son questionnaire, ses aides ──
+  PROJET_NEW: (monumentId: string) => `/app/monuments/${monumentId}/projets/nouveau`,
+  /** Onglets : ?tab=aides|dossiers */
+  PROJET_DETAIL: (projetId: string) => `/app/projets/${projetId}`,
   PROJET_AIDE: (projetId: string, aideId: string) => `/app/projets/${projetId}/aides/${aideId}`,
   PROJET_DOSSIER: (projetId: string, dossierId: string) => `/app/projets/${projetId}/dossiers/${dossierId}`,
 
@@ -19,16 +28,4 @@ export const ROUTES = {
   PROFIL: '/app/profil',
 
   INVITATION: (token: string) => `/invitation/${token}`,
-
-  // Alias de compatibilité — résolvent sur l'onglet Projet unifié pour que tous les
-  // appelants compilent pendant la migration. Les liens profonds corrects sont posés
-  // par les pages Projet (AideCard/DossierCard → PROJET_AIDE).
-  MONUMENTS: '/app/projets',
-  MONUMENT_DETAIL: (id: string) => `/app/projets/${id}`,
-  MONUMENT_NEW: '/app/projets/nouveau',
-  AIDES: '/app/projets',
-  DOSSIERS: '/app/projets',
-  AIDE_DETAIL: (aideId: string, monumentId?: string) =>
-    monumentId ? `/app/projets/${monumentId}/aides/${aideId}` : '/app/projets',
-  DOSSIER_DETAIL: (id: string) => `/app/projets?dossier=${id}`,
 } as const;

@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   mergeProjectDeadlines,
   computeProjectStats,
-  aggregateDashboardStats,
+  computeMonumentStats,
   projectStage,
   PROJECT_STAGES,
 } from '@/lib/project-stats';
-import type { Monument } from '@/types';
+import type { Monument, Projet } from '@/types';
 import type { Aide, AideDiagnosticResult, AideMatchResult } from '@/types';
 import type { Dossier, DossierEcheance } from '@/types';
 import type { AideSuivi } from '@/types';
@@ -53,13 +53,14 @@ function makeMatch(aide: Aide): AideMatchResult {
 }
 
 function makeDiagnostic(
-  monumentId: string,
+  projetId: string,
   eligibles: AideMatchResult[],
   potentiels: AideMatchResult[],
   montant: number
 ): AideDiagnosticResult {
   return {
-    monumentId,
+    projetId,
+    monumentId: 'm1',
     timestamp: new Date().toISOString(),
     totalAidesAnalysees: eligibles.length + potentiels.length,
     aidesEligibles: eligibles,
@@ -82,6 +83,7 @@ function makeEcheance(partial: Partial<DossierEcheance> & { id: string; date: st
 function makeDossier(partial: Partial<Dossier> & { id: string; monumentId: string }): Dossier {
   return {
     id: partial.id,
+    projetId: partial.projetId ?? 'p1',
     monumentId: partial.monumentId,
     aideId: partial.aideId ?? 'a1',
     userId: 'u1',
@@ -97,6 +99,19 @@ function makeDossier(partial: Partial<Dossier> & { id: string; monumentId: strin
     dateCreation: new Date().toISOString(),
     dateDerniereModification: new Date().toISOString(),
   } as Dossier;
+}
+
+function makeProjet(partial: Partial<Projet> & { id: string }): Projet {
+  return {
+    id: partial.id,
+    monumentId: partial.monumentId ?? 'm1',
+    userId: 'u1',
+    travauxEnvisages: partial.travauxEnvisages ?? null,
+    questionnaire: partial.questionnaire ?? {},
+    clotureAt: partial.clotureAt,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 function makeMonument(partial: Partial<Monument> & { id: string }): Monument {
@@ -119,7 +134,7 @@ describe('mergeProjectDeadlines', () => {
   it('merges non-permanent aide dateLimite + non-accomplished dossier echeances, sorted ascending', () => {
     const aideFar = makeAide({ id: 'aFar', dateLimite: FAR_FUTURE, permanent: false });
     const aideNear = makeAide({ id: 'aNear', dateLimite: NEAR_FUTURE, permanent: false });
-    const diagnostic = makeDiagnostic('m1', [makeMatch(aideFar)], [makeMatch(aideNear)], 0);
+    const diagnostic = makeDiagnostic('p1', [makeMatch(aideFar)], [makeMatch(aideNear)], 0);
     const dossier = makeDossier({
       id: 'd1',
       monumentId: 'm1',
@@ -139,7 +154,7 @@ describe('mergeProjectDeadlines', () => {
   it('drops permanent aides and accomplished echeances', () => {
     const permanentAide = makeAide({ id: 'aPerm', dateLimite: NEAR_FUTURE, permanent: true });
     const datedAide = makeAide({ id: 'aDated', dateLimite: FAR_FUTURE, permanent: false });
-    const diagnostic = makeDiagnostic('m1', [makeMatch(permanentAide), makeMatch(datedAide)], [], 0);
+    const diagnostic = makeDiagnostic('p1', [makeMatch(permanentAide), makeMatch(datedAide)], [], 0);
     const dossier = makeDossier({
       id: 'd1',
       monumentId: 'm1',
@@ -159,7 +174,7 @@ describe('mergeProjectDeadlines', () => {
 
   it('drops past aides but keeps past dossier echeances as urgency "past"', () => {
     const pastAide = makeAide({ id: 'aPast', dateLimite: PAST, permanent: false });
-    const diagnostic = makeDiagnostic('m1', [makeMatch(pastAide)], [], 0);
+    const diagnostic = makeDiagnostic('p1', [makeMatch(pastAide)], [], 0);
     const dossier = makeDossier({
       id: 'd1',
       monumentId: 'm1',
@@ -181,86 +196,81 @@ describe('mergeProjectDeadlines', () => {
 });
 
 describe('computeProjectStats', () => {
-  it('counts aides, sums montant, counts active dossiers, picks next future deadline, uses completion', () => {
-    const monument = makeMonument({ id: 'm1', completionPercentage: 72 });
+  it('compte les aides, somme le montant, compte les dossiers actifs DU PROJET et prend la prochaine échéance', () => {
+    const projet = makeProjet({ id: 'p1', monumentId: 'm1' });
     const aideElig = makeAide({ id: 'a1', dateLimite: NEAR_FUTURE, permanent: false });
     const aidePot = makeAide({ id: 'a2', dateLimite: FAR_FUTURE, permanent: false });
-    const diagnostic = makeDiagnostic('m1', [makeMatch(aideElig)], [makeMatch(aidePot)], 125000);
+    const diagnostic = makeDiagnostic('p1', [makeMatch(aideElig)], [makeMatch(aidePot)], 125000);
     const dossiers = [
-      makeDossier({ id: 'd1', monumentId: 'm1', statut: 'en_cours' }),
-      makeDossier({ id: 'd2', monumentId: 'm1', statut: 'soumis' }), // not active
-      makeDossier({ id: 'd3', monumentId: 'mX', statut: 'en_cours' }), // other monument
+      makeDossier({ id: 'd1', projetId: 'p1', monumentId: 'm1', statut: 'en_cours' }),
+      makeDossier({ id: 'd2', projetId: 'p1', monumentId: 'm1', statut: 'soumis' }), // pas actif
+      makeDossier({ id: 'd3', projetId: 'p2', monumentId: 'm1', statut: 'en_cours' }), // autre PROJET du même monument
     ];
 
-    const stats = computeProjectStats(monument, diagnostic, dossiers);
+    const stats = computeProjectStats(projet, diagnostic, dossiers);
 
     expect(stats.aidesIdentifiees).toBe(2);
     expect(stats.montantPotentiel).toBe(125000);
+    // Le dossier de l'autre projet du même monument ne compte pas ici.
     expect(stats.dossiersActifs).toBe(1);
-    expect(stats.completion).toBe(72);
     expect(stats.prochaineEcheance?.aideId).toBe('a1');
+    expect(stats.prochaineEcheance?.projetId).toBe('p1');
     expect(stats.prochaineEcheance?.joursRestants).toBeGreaterThanOrEqual(0);
   });
 
   it('handles null diagnostic gracefully', () => {
-    const monument = makeMonument({ id: 'm1', completionPercentage: 10 });
-    const stats = computeProjectStats(monument, null, []);
+    const stats = computeProjectStats(makeProjet({ id: 'p1' }), null, []);
     expect(stats.aidesIdentifiees).toBe(0);
     expect(stats.montantPotentiel).toBe(0);
     expect(stats.dossiersActifs).toBe(0);
     expect(stats.prochaineEcheance).toBeNull();
-    expect(stats.completion).toBe(10);
   });
 });
 
-describe('aggregateDashboardStats', () => {
-  it('aggregates across two monuments', () => {
-    const m1 = makeMonument({ id: 'm1', nom: 'Église', completionPercentage: 80 });
-    const m2 = makeMonument({ id: 'm2', nom: 'Château', completionPercentage: 40 });
-
-    const d1 = makeDiagnostic(
-      'm1',
-      [makeMatch(makeAide({ id: 'a1', categorie: 'etat_drac', dateLimite: NEAR_FUTURE, permanent: false }))],
-      [],
-      100000
-    );
-    const d2 = makeDiagnostic(
-      'm2',
-      [makeMatch(makeAide({ id: 'a2', categorie: 'region', dateLimite: FAR_FUTURE, permanent: false }))],
-      [makeMatch(makeAide({ id: 'a3', categorie: 'etat_drac', permanent: true }))],
-      50000
-    );
-
+describe('computeMonumentStats', () => {
+  it('agrège les projets d’un monument, et ignore ceux des autres', () => {
+    const monument = makeMonument({ id: 'm1', completionPercentage: 72 });
+    const projets = [
+      makeProjet({ id: 'p1', monumentId: 'm1' }),
+      makeProjet({ id: 'p2', monumentId: 'm1' }),
+      makeProjet({ id: 'pX', monumentId: 'm2' }), // autre monument
+    ];
+    const digests = {
+      p1: makeDiagnostic('p1', [makeMatch(makeAide({ id: 'a1', dateLimite: NEAR_FUTURE, permanent: false }))], [], 100000),
+      p2: makeDiagnostic('p2', [makeMatch(makeAide({ id: 'a2', dateLimite: FAR_FUTURE, permanent: false }))], [], 50000),
+      pX: makeDiagnostic('pX', [makeMatch(makeAide({ id: 'a3', permanent: true }))], [], 999999),
+    };
     const dossiers = [
-      makeDossier({ id: 'do1', monumentId: 'm1', statut: 'en_cours' }),
-      makeDossier({ id: 'do2', monumentId: 'm2', statut: 'soumis' }),
+      makeDossier({ id: 'd1', projetId: 'p1', monumentId: 'm1', statut: 'en_cours' }),
+      makeDossier({ id: 'd2', projetId: 'p2', monumentId: 'm1', statut: 'soumis' }),
+      makeDossier({ id: 'd3', projetId: 'pX', monumentId: 'm2', statut: 'en_cours' }),
     ];
 
-    const stats = aggregateDashboardStats(
-      [m1, m2],
-      { m1: d1, m2: d2 },
-      dossiers
-    );
+    const stats = computeMonumentStats(monument, projets, digests, dossiers);
 
-    expect(stats.projetsActifs).toBe(2);
-    expect(stats.aidesIdentifiees).toBe(3); // 1 + (1 + 1)
-    expect(stats.montantPotentielTotal).toBe(150000);
-    expect(stats.dossiersEnCours).toBe(1); // only non-soumis
-    expect(stats.prochaineEcheance?.aideId).toBe('a1'); // NEAR_FUTURE wins
-    const etat = stats.aidesParCategorie.find((c) => c.categorie === 'etat_drac');
-    expect(etat?.count).toBe(2); // a1 + a3
-    expect(stats.montantParProjet).toEqual(
-      expect.arrayContaining([
-        { nom: 'Église', montant: 100000 },
-        { nom: 'Château', montant: 50000 },
-      ])
-    );
+    expect(stats.projets).toBe(2);
+    expect(stats.aidesIdentifiees).toBe(2);
+    expect(stats.montantPotentiel).toBe(150000);
+    expect(stats.dossiersActifs).toBe(1);
+    expect(stats.completion).toBe(72);
+    // La plus proche des échéances de ses projets.
+    expect(stats.prochaineEcheance?.aideId).toBe('a1');
+  });
+
+  it('un monument sans projet rend des zéros et aucune échéance', () => {
+    const stats = computeMonumentStats(makeMonument({ id: 'm1', completionPercentage: 40 }), [], {}, []);
+    expect(stats.projets).toBe(0);
+    expect(stats.aidesIdentifiees).toBe(0);
+    expect(stats.montantPotentiel).toBe(0);
+    expect(stats.prochaineEcheance).toBeNull();
+    expect(stats.completion).toBe(40);
   });
 });
 
 function makeSuivi(partial: Partial<AideSuivi> & { id: string }): AideSuivi {
   return {
     id: partial.id,
+    projetId: partial.projetId ?? 'p1',
     monumentId: partial.monumentId ?? 'm1',
     aideId: partial.aideId ?? 'a1',
     userId: 'u1',
@@ -284,27 +294,27 @@ describe('projectStage', () => {
   });
 
   it('diagnostic présent → étape estimation atteinte', () => {
-    const diag = makeDiagnostic('m1', [], [], 0);
+    const diag = makeDiagnostic('p1', [], [], 0);
     const s = projectStage(diag, [], []);
     expect(s.reachedIndex).toBe(0);
     expect(s.reached).toEqual(['estimation']);
   });
 
   it('dossier en cours → étape dossier atteinte', () => {
-    const diag = makeDiagnostic('m1', [], [], 0);
+    const diag = makeDiagnostic('p1', [], [], 0);
     const s = projectStage(diag, [makeDossier({ id: 'd1', monumentId: 'm1', statut: 'en_cours' })], []);
     expect(s.reachedIndex).toBe(1);
     expect(s.current).toBe('dossier');
   });
 
   it('dossier prêt/soumis → étape dépôt atteinte (étapes monotones)', () => {
-    const s = projectStage(makeDiagnostic('m1', [], [], 0), [makeDossier({ id: 'd1', monumentId: 'm1', statut: 'soumis' })], []);
+    const s = projectStage(makeDiagnostic('p1', [], [], 0), [makeDossier({ id: 'd1', monumentId: 'm1', statut: 'soumis' })], []);
     expect(s.reachedIndex).toBe(2);
     expect(s.reached).toEqual(['estimation', 'dossier', 'depot']);
   });
 
   it('suivi déposé/accordé/refusé → étape suivi atteinte', () => {
-    const s = projectStage(makeDiagnostic('m1', [], [], 0), [], [makeSuivi({ id: 's1', statut: 'accorde' })]);
+    const s = projectStage(makeDiagnostic('p1', [], [], 0), [], [makeSuivi({ id: 's1', statut: 'accorde' })]);
     expect(s.reachedIndex).toBe(3);
     expect(s.current).toBe('suivi');
   });

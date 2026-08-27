@@ -222,7 +222,7 @@ export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToPro
                 {onAddToProject && (
                   <Button variant="outline" size="sm" onClick={() => onAddToProject(document)}>
                     <IconAjouterDossier className="h-4 w-4 mr-1.5" />
-                    Ajouter à un projet
+                    Ajouter à un monument
                   </Button>
                 )}
                 {signedUrl && (

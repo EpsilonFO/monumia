@@ -1,111 +1,221 @@
-import { Link, useNavigate } from 'react-router';
-import { ChevronRight } from 'lucide-react';
-import { IconLocalisation, IconProtection, IconDiagnostic, IconDossierOuvert } from '@/components/icons';
+import { Link } from 'react-router';
+import { ArrowRight } from 'lucide-react';
+import { IconLocalisation, IconProjet, IconEcheance, IconDossier } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { useAideStore } from '@/stores/useAideStore';
+import { Clover } from '@/components/illustrations';
+import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
 import { ROUTES } from '@/constants/routes';
-import { isEnPeril, perilLabel } from '@/constants/monument-options';
+import { C, DEADLINE_TONE, SERIF } from '@/lib/brand';
+import { deadlineLabel } from '@/lib/date-utils';
+import { formatCurrency } from '@/lib/format-utils';
+import { isProjectShared } from '@/lib/project-permissions';
+import { PROTECTION_LABELS_SHORT, isEnPeril, perilLabel } from '@/constants/monument-options';
+import type { MonumentStats } from '@/lib/project-stats';
 import type { Monument } from '@/types';
 
 interface MonumentCardProps {
   monument: Monument;
+  stats?: MonumentStats;
 }
 
-const protectionLabels: Record<string, string> = {
-  classe: 'Classé MH', inscrit: 'Inscrit MH', abords: 'Abords MH', spr: 'SPR', non_protege: 'Non protégé',
-};
+/** Photo héros : on privilégie la façade, sinon le premier cliché disponible. */
+function heroPhoto(m: Monument): string | null {
+  if (!m.photos?.length) return null;
+  const facade = m.photos.find((p) => p.type === 'facade');
+  return (facade ?? m.photos[0])?.url || null;
+}
 
-// La fiche ne porte plus qu'un signal binaire : en péril ou non (cf. isEnPeril).
-const PERIL_COLORS = {
-  oui: { bg: 'var(--destructive-muted)', text: 'var(--destructive)' },
-  non: { bg: 'var(--success-muted)', text: 'var(--success)' },
-};
-
-export function MonumentCard({ monument }: MonumentCardProps) {
-  const navigate = useNavigate();
-  // Un digest suffit à savoir qu'un diagnostic existe : le dashboard n'en charge
-  // plus la version complète, réservée à la page du projet.
-  const hasDiagnostic = useAideStore(
-    (s) => !!s.diagnosticsByMonument[monument.id] || !!s.digestsByMonument[monument.id],
+/**
+ * Vignette du monument : photo carrée arrondie ; sans photo, quadrilobe blanc
+ * sur bleu profond — le bleu institutionnel ancre la marque dans l'en-tête.
+ */
+function PhotoThumb({ photo }: { photo: string | null }) {
+  return (
+    <div
+      className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl"
+      style={{
+        background: photo ? undefined : `linear-gradient(150deg, ${C.blue}, ${C.blueDark})`,
+        boxShadow: 'inset 0 0 0 1px rgba(7,42,114,0.08)',
+      }}
+      aria-hidden
+    >
+      {photo ? (
+        <div
+          className="h-full w-full bg-cover bg-center transition-transform duration-500 ease-out group-hover:scale-[1.06]"
+          style={{ backgroundImage: `url(${photo})` }}
+        />
+      ) : (
+        <Clover size={30} className="text-white" style={{ opacity: 0.9 }} />
+      )}
+    </div>
   );
+}
+
+/**
+ * Carte d'un monument dans « Mes monuments ». Elle répond à trois questions,
+ * dans cet ordre : quel bien, combien de chantiers en cours, et que faire
+ * maintenant. Le détail par chantier est un cran plus bas, sur la page du
+ * monument, onglet « Projets ».
+ */
+export function MonumentCard({ monument, stats }: MonumentCardProps) {
+  const shared = isProjectShared(monument);
+  const members = monument.members ?? [];
+  const photo = heroPhoto(monument);
   const enPeril = isEnPeril(monument.etatConservation);
-  const peril = enPeril === null ? null : enPeril ? PERIL_COLORS.oui : PERIL_COLORS.non;
 
-  const handleDossierClick = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    navigate(`${ROUTES.DOSSIERS}?monument=${monument.id}`);
-  };
+  const nbProjets = stats?.projets ?? 0;
+  const dossiersActifs = stats?.dossiersActifs ?? 0;
+  const montant = stats?.montantPotentiel ?? 0;
 
-  const handleDiagnosticClick = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    navigate(`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=aides`);
-  };
+  // Échéance affichée UNIQUEMENT si elle presse (dépassée, urgente, ou proche).
+  const next = stats?.prochaineEcheance ?? null;
+  const nextLabel = next ? deadlineLabel(next.date) : null;
+  const pressing = nextLabel && nextLabel.urgency !== 'normal';
+  const tone = nextLabel ? DEADLINE_TONE[nextLabel.urgency] : null;
+
+  // Le bouton dit la prochaine chose à faire, jamais un « Voir » ambigu.
+  const cta = nbProjets === 0 ? 'Lancer un projet de travaux' : 'Ouvrir le monument';
 
   return (
-    <Link to={ROUTES.MONUMENT_DETAIL(monument.id)}>
-      <div className="group bg-card rounded-xl border border-border overflow-hidden transition-all duration-200 hover:shadow-md hover:shadow-black/[0.03] hover:border-border">
-        {/* Header */}
-        <div className="px-5 pt-5 pb-3">
-          <div className="flex items-start justify-between gap-2 mb-2">
+    <Link to={ROUTES.MONUMENT_DETAIL(monument.id)} className="block">
+      <article
+        className="group overflow-hidden rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_45px_-24px_rgba(7,42,114,0.45)] sm:p-6"
+        style={{ background: C.card, borderColor: C.border }}
+      >
+        {/* ── En-tête : vignette + nom + lieu, avatars si le monument est partagé ── */}
+        <div className="flex items-center gap-4">
+          <PhotoThumb photo={photo} />
+          <div className="min-w-0 flex-1">
             <h3
-              className="text-[16px] font-normal text-foreground leading-tight line-clamp-2 h-[2.5em]"
-              style={{ fontFamily: "'Cormorant Garamond', serif" }}
+              className="line-clamp-2 text-[20px] font-bold leading-snug"
+              style={{ fontFamily: SERIF, color: C.ink }}
             >
               {monument.nom}
             </h3>
-            <ChevronRight className="h-4 w-4 text-border group-hover:text-destructive transition-colors shrink-0 mt-0.5" />
+            {(monument.commune || monument.departement) && (
+              <p
+                className="mt-0.5 flex items-center gap-1.5 text-[13.5px]"
+                style={{ color: C.grayFg }}
+              >
+                <IconLocalisation className="h-4 w-4 shrink-0" strokeWidth={1.8} aria-hidden />
+                <span className="truncate">
+                  {monument.commune ?? '—'}
+                  {monument.departement ? ` · ${monument.departement}` : ''}
+                </span>
+              </p>
+            )}
           </div>
-          <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <IconLocalisation className="h-3 w-3 shrink-0" strokeWidth={1.8} />
-            <span>{monument.commune}{monument.departement ? ` (${monument.departement})` : ''}</span>
-          </div>
+          {shared && members.length > 0 && (
+            <div className="shrink-0 self-start">
+              <MemberAvatarStack people={members} size="sm" />
+            </div>
+          )}
         </div>
 
-        {/* Badges */}
-        <div className="px-5 pb-3 flex items-center gap-2 flex-wrap">
-          <Badge className="text-[10px] font-semibold border-0 gap-1 bg-secondary text-primary">
-            <IconProtection className="h-3 w-3" strokeWidth={1.8} />
-            {protectionLabels[monument.protection] ?? monument.protection}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Badge variant="outline" style={{ borderColor: C.border, color: C.blue, background: C.paleBlue }}>
+            {PROTECTION_LABELS_SHORT[monument.protection] ?? monument.protection}
           </Badge>
-          {peril && (
-            <Badge className="text-[10px] font-semibold border-0" style={{ background: peril.bg, color: peril.text }}>
+          {enPeril !== null && (
+            <Badge
+              variant="outline"
+              style={{
+                borderColor: C.border,
+                color: enPeril ? 'var(--destructive)' : 'var(--success)',
+                background: enPeril ? 'var(--destructive-muted)' : 'var(--success-muted)',
+              }}
+            >
               {perilLabel(monument.etatConservation)}
             </Badge>
           )}
         </div>
 
-        {/* Progress */}
-        <div className="px-5 pb-3">
-          <div className="flex items-center justify-between text-[11px] mb-1">
-            <span className="text-muted-foreground">Fiche complétée</span>
-            <span className="font-semibold text-foreground">{monument.completionPercentage}%</span>
-          </div>
-          <Progress value={monument.completionPercentage} className="h-1" />
+        {/* ── La tuile dit où en est le monument : ses chantiers, ou l'invitation
+            à en lancer un. ── */}
+        <div
+          className="relative mt-4 overflow-hidden rounded-xl border px-5 py-4"
+          style={{
+            background: `linear-gradient(135deg, ${C.paleOrange}, color-mix(in srgb, ${C.paleOrange} 45%, ${C.card}))`,
+            borderColor: `color-mix(in srgb, ${C.orange} 18%, transparent)`,
+          }}
+        >
+          <Clover
+            size={86}
+            className="pointer-events-none absolute -bottom-6 -right-5"
+            style={{ color: C.orange, opacity: 0.08 }}
+            aria-hidden
+          />
+          {nbProjets === 0 ? (
+            <>
+              <p
+                className="text-[19px] font-bold leading-tight"
+                style={{
+                  fontFamily: SERIF,
+                  // Orange légèrement foncé à l'encre : contraste AA sur la tuile chaude.
+                  color: `color-mix(in srgb, ${C.orange} 82%, ${C.ink})`,
+                }}
+              >
+                Aucun projet de travaux
+              </p>
+              <p className="mt-1.5 text-[13px] font-medium" style={{ color: C.ink }}>
+                Décrivez votre chantier, nous cherchons les aides.
+              </p>
+            </>
+          ) : (
+            <>
+              <p
+                className="text-[26px] font-bold leading-none tabular-nums"
+                style={{
+                  fontFamily: SERIF,
+                  color: `color-mix(in srgb, ${C.orange} 82%, ${C.ink})`,
+                }}
+              >
+                {montant > 0 ? formatCurrency(montant) : `${stats?.aidesIdentifiees ?? 0} aide${(stats?.aidesIdentifiees ?? 0) > 1 ? 's' : ''}`}
+              </p>
+              <p className="mt-1.5 flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.ink }}>
+                <IconProjet className="h-4 w-4 shrink-0" aria-hidden />
+                {nbProjets} projet{nbProjets > 1 ? 's' : ''} de travaux
+              </p>
+            </>
+          )}
         </div>
 
-        {/* Actions */}
-        <div className="px-5 pb-4 flex gap-2">
-          <button
-            onClick={handleDossierClick}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[12px] font-medium border border-border rounded-lg text-gray-fg hover:bg-muted transition-colors"
+        {/* ── Pied : faits en toutes lettres + bouton d'action évident ── */}
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+            {dossiersActifs > 0 && (
+              <span
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium"
+                style={{ color: C.grayFg }}
+              >
+                <IconDossier className="h-4 w-4 shrink-0" aria-hidden />
+                {dossiersActifs} dossier{dossiersActifs > 1 ? 's' : ''} en cours
+              </span>
+            )}
+            {pressing && nextLabel && tone && (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold"
+                style={{ color: tone.fg, background: tone.tint }}
+              >
+                <IconEcheance className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                {nextLabel.urgency === 'past'
+                  ? 'Échéance dépassée'
+                  : `Échéance : ${nextLabel.text.toLowerCase()}`}
+              </span>
+            )}
+          </div>
+          <span
+            className="inline-flex shrink-0 items-center justify-center gap-2 self-stretch rounded-lg px-5 py-2.5 text-[14px] font-semibold text-white transition-all group-hover:shadow-md sm:self-auto"
+            style={{ background: C.orange }}
           >
-            <IconDossierOuvert className="h-3.5 w-3.5" strokeWidth={1.8} />
-            Dossiers
-          </button>
-          <button
-            onClick={handleDiagnosticClick}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[12px] font-semibold rounded-lg transition-all duration-200 ${
-              hasDiagnostic
-                ? 'border border-border text-gray-fg bg-transparent hover:bg-muted'
-                : 'bg-primary text-white hover:opacity-90'
-            }`}
-          >
-            <IconDiagnostic className="h-3.5 w-3.5" strokeWidth={1.8} />
-            {hasDiagnostic ? 'Diagnostic' : 'Diagnostiquer'}
-          </button>
+            {cta}
+            <ArrowRight
+              className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </span>
         </div>
-      </div>
+      </article>
     </Link>
   );
 }

@@ -10,21 +10,23 @@ interface ProjectTravauxStepProps {
   value: WorkType[] | null;
   onChange: (travaux: WorkType[] | null) => void;
   onNext: () => void;
-  onBack: () => void;
+  onBack?: () => void;
   /** Surtitre : « Nouveau projet » ou « Questionnaire » selon le parcours. */
   eyebrow: string;
   saving?: boolean;
 }
 
 /**
- * Écran « Sur quoi portent les travaux ? » de l'étape « Votre projet ».
+ * Écran « Sur quoi portent les travaux ? » du wizard projet.
  *
- * Alimente `monument.travaux_envisages`, que consomment les
+ * Alimente `projet.travaux_envisages`, que consomment les
  * `hard_filters.travaux` d'une trentaine d'aides : c'est ce qui écarte les
  * aides d'objet (orgues, mobilier, archives, parcs et jardins) d'un chantier de
  * toiture. La grille vivait auparavant en fin de formulaire monument, où elle
  * était systématiquement sautée — et le filtre étant fail-open, ces aides
- * ressortaient éligibles pour tout le monde.
+ * ressortaient éligibles pour tout le monde. Le cadrage vit désormais sur le
+ * PROJET : deux chantiers d'un même monument peuvent viser des ouvrages
+ * différents, et n'ont donc pas les mêmes aides.
  *
  * « Pas encore déterminé » persiste une liste vide : le filtre redevient
  * fail-open et aucune aide n'est masquée faute de donnée.

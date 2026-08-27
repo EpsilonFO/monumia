@@ -7,7 +7,12 @@ from pydantic import BaseModel
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
-from services.project_access import require_project_access
+from services.project_access import (
+    monument_ids_via_projets,
+    projet_ids_membre,
+    require_monument_read,
+    require_project_access,
+)
 
 router = APIRouter(prefix="/monuments", tags=["monuments"])
 
@@ -128,7 +133,9 @@ class CreateMonumentRequest(BaseModel):
     # per-attribute columns (affectataire, periode_construction, superficie,
     # materiaux, type_couverture, nombre_niveaux, urgence_travaux,
     # diagnostic_realise, derniers_travaux, description_etat) were dropped by
-    # migration 20260516174303 and now live inside the `questionnaire` JSONB.
+    # migration 20260516174303. `questionnaire`, `travaux_envisages` et
+    # `cloture_at` l'ont été à leur tour par la dépréciation qui suit la
+    # création de `projets` : le cadrage d'un chantier vit sur le projet.
     # Pydantic ignores any such extra keys the client still sends, so they never
     # reach the insert (which PostgREST would otherwise reject with PGRST204).
     nom: str
@@ -145,13 +152,11 @@ class CreateMonumentRequest(BaseModel):
     descriptionGenerale: str | None = None
 
     # Absent à la création : la question « le monument est-il en péril ? » est
-    # posée à l'étape « Votre projet » du wizard, donc APRÈS la création de la
-    # fiche (cf. migration 20260827094119, qui rend la colonne nullable). Y
-    # écrire un repli produirait une fausse donnée.
+    # posée à l'étape 2 du wizard monument, donc APRÈS la création de la fiche
+    # (cf. migration 20260827094119, qui rend la colonne nullable). Y écrire un
+    # repli produirait une fausse donnée. La colonne RESTE sur le monument : elle
+    # décrit le bien, pas un chantier, et tous ses projets la partagent.
     etatConservation: str | None = None
-    travauxEnvisages: list[str] | None = None
-
-    questionnaire: dict | None = None
 
 
 class UpdateMonumentRequest(BaseModel):
@@ -172,10 +177,7 @@ class UpdateMonumentRequest(BaseModel):
     descriptionGenerale: str | None = None
 
     etatConservation: str | None = None
-    travauxEnvisages: list[str] | None = None
     completionPercentage: int | None = None
-
-    questionnaire: dict | None = None
 
 
 class AddPhotoRequest(BaseModel):
@@ -332,7 +334,7 @@ def fetch_user_monuments(
     `communes` : le dashboard en a besoin pour le moteur déterministe, et la
     rechercher séparément coûtait un aller-retour par monument.
     """
-    # Tous les projets où l'utilisateur est membre (owner inclus via backfill)
+    # Tous les monuments où l'utilisateur est membre de l'ÉQUIPE DU MONUMENT.
     memberships = (
         supabase.table("project_members")
         .select("monument_id, role")
@@ -342,14 +344,25 @@ def fetch_user_monuments(
     )
     role_by_id = {m["monument_id"]: m["role"] for m in memberships}
 
-    # Défense en profondeur : un propriétaire voit toujours SES projets, même si la
-    # ligne d'appartenance 'owner' manque (cf. get_project_role). user_id = propriétaire
-    # authoritatif et immuable du monument.
+    # Défense en profondeur : un propriétaire voit toujours SES monuments, même si
+    # la ligne d'appartenance 'owner' manque (cf. get_project_role). user_id =
+    # propriétaire authoritatif et immuable du monument.
     owned = (supabase.table("monuments").select("id").eq("user_id", user_id).execute().data) or []
     for o in owned:
         role_by_id.setdefault(o["id"], "owner")
 
-    monument_ids = list(role_by_id.keys())
+    # Monuments atteints par un PROJET seulement : l'utilisateur y a besoin d'une
+    # porte d'entrée pour rejoindre son chantier, mais n'a aucun rôle sur le bien.
+    # `my_role` restera None — le front y lit « fiche sanitaire en lecture, et
+    # rien d'autre » (cf. require_monument_read).
+    acces_restreint: set[str] = set()
+    mes_projets = projet_ids_membre(supabase, user_id)
+    if mes_projets:
+        for monument_id in monument_ids_via_projets(supabase, mes_projets).values():
+            if monument_id not in role_by_id:
+                acces_restreint.add(monument_id)
+
+    monument_ids = [*role_by_id.keys(), *acces_restreint]
     if not monument_ids:
         return [], {}
 
@@ -391,14 +404,22 @@ def fetch_user_monuments(
                 m["region_label"] = commune_data.get("region")
                 _attach_epci(m, commune_data)
 
-    # Aperçu des membres par projet (avatars + compteur côté liste, sans 1 requête/carte).
+    # Aperçu des membres par monument (avatars + compteur côté liste, sans une
+    # requête par carte). Restreint aux monuments dont l'utilisateur est membre :
+    # un accès par projet ne donne pas droit à la composition de l'équipe du bien.
+    equipe_visible = list(role_by_id.keys())
     all_members = (
-        supabase.table("project_members")
-        .select("monument_id, user_id, role")
-        .in_("monument_id", monument_ids)
-        .execute()
-        .data
-    ) or []
+        (
+            supabase.table("project_members")
+            .select("monument_id, user_id, role")
+            .in_("monument_id", equipe_visible)
+            .execute()
+            .data
+        )
+        or []
+        if equipe_visible
+        else []
+    )
     member_user_ids = list({m["user_id"] for m in all_members})
     profiles: dict[str, dict] = {}
     if member_user_ids:
@@ -482,7 +503,10 @@ def get_monument(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    role = require_project_access(supabase, monument_id, user_id, "member")
+    # Lecture élargie : l'équipe du monument, et les membres d'un de ses projets
+    # (fiche sanitaire seule). `my_role` vaut None pour ces derniers — le front
+    # en déduit qu'aucun onglet du monument ne leur est ouvert.
+    role = require_monument_read(supabase, monument_id, user_id)
     result = supabase.table("monuments").select(COLUMNS).eq("id", monument_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")

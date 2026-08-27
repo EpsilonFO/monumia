@@ -101,7 +101,7 @@ export function DocumentsPage() {
     [documents],
   );
 
-  // ---- Sections projet, triées par nom ; légende ----
+  // ---- Sections monument, triées par nom ; légende ----
   // Fix I1: exclude projects whose name is not known (foreign projects the caller
   // is not a member of — they may appear in monument_ids but are not in my store).
   const projectSections = useMemo(() => {
@@ -127,7 +127,7 @@ export function DocumentsPage() {
     : projectSections;
 
   // Filet de sécurité : un document que le backend nous a renvoyé (donc visible)
-  // mais dont AUCUN projet n'est connu de notre store (projet partagé pas encore
+  // mais dont AUCUN monument n'est connu de notre store (monument partagé pas encore
   // chargé, etc.) ne doit jamais disparaître — on l'affiche dans une section à part.
   const orphanDocs = useMemo(
     () =>
@@ -146,7 +146,7 @@ export function DocumentsPage() {
     catch (e) { toast.error(e instanceof Error ? e.message : 'Erreur'); }
   };
   const handleRemoveFromProject = async (d: Document, monumentId: string) => {
-    try { await removeFromProject(d.id, monumentId); toast.success('Document retiré du projet'); }
+    try { await removeFromProject(d.id, monumentId); toast.success('Document retiré du monument'); }
     catch (e) { toast.error(e instanceof Error ? e.message : 'Erreur'); }
   };
   const handleRestore = async (d: Document) => {
@@ -206,7 +206,7 @@ export function DocumentsPage() {
               Mes documents
             </h1>
             <p className="text-[13px] text-muted-foreground">
-              Tous vos fichiers, classés par projet
+              Tous vos fichiers, classés par monument
             </p>
           </div>
         </div>
@@ -252,7 +252,7 @@ export function DocumentsPage() {
         <EmptyState
           icon={IconDossierOuvert}
           title="Aucun document"
-          description="Ajoutez vos premiers documents pour les utiliser dans vos projets et dossiers."
+          description="Ajoutez vos premiers documents pour les utiliser dans vos projets de travaux et vos dossiers."
           action={
             <button
               onClick={() => setUploadOpen(true)}
@@ -271,7 +271,7 @@ export function DocumentsPage() {
             </p>
           )}
 
-          {/* Sections par projet */}
+          {/* Sections par monument */}
           {shownSections.map((section) => (
             <section key={section.mid} className="space-y-3">
               <div className="flex items-center gap-2.5 border-b pb-2" style={{ borderColor: C.border }}>
@@ -282,12 +282,12 @@ export function DocumentsPage() {
                   {section.docs.length} document{section.docs.length > 1 ? 's' : ''}
                 </span>
                 <Link
-                  to={ROUTES.PROJET_DETAIL(section.mid)}
+                  to={ROUTES.MONUMENT_DETAIL(section.mid)}
                   className="ml-auto text-[12px] hover:underline"
                   style={{ color: C.blue }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  Voir le projet
+                  Voir le monument
                 </Link>
               </div>
               <DocumentGrid
@@ -309,12 +309,12 @@ export function DocumentsPage() {
             </section>
           ))}
 
-          {/* Sans projet */}
+          {/* Sans monument */}
           {!activeProject && sansProjet.length > 0 && (
             <section className="space-y-3">
               <div className="flex items-center gap-2.5 border-b pb-2" style={{ borderColor: C.border }}>
                 <span className="h-3 w-3 rounded-full" style={{ background: 'var(--muted-foreground)' }} />
-                <h2 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>Sans projet (personnels)</h2>
+                <h2 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>Sans monument (personnels)</h2>
                 <span className="text-[12px] tabular-nums text-muted-foreground">
                   {sansProjet.length} document{sansProjet.length > 1 ? 's' : ''}
                 </span>
@@ -338,7 +338,7 @@ export function DocumentsPage() {
             </section>
           )}
 
-          {/* Autres documents partagés (projet non chargé / non membre) */}
+          {/* Autres documents partagés (monument non chargé / non membre) */}
           {!activeProject && orphanDocs.length > 0 && (
             <section className="space-y-3">
               <div className="flex items-center gap-2.5 border-b pb-2" style={{ borderColor: C.border }}>

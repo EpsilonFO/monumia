@@ -6,7 +6,7 @@ import zipfile
 from datetime import UTC
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from supabase import Client
 
@@ -14,11 +14,11 @@ from db import get_current_user_id, get_supabase
 from routers.monuments import _enrich_monument
 from services.dossier_service import create_dossier_from_aide
 from services.project_access import (
+    best_document_role,
     can_delete_document,
     can_view_document,
-    get_project_role,
-    require_project_access,
-    role_at_least,
+    my_scope_roles,
+    require_projet_access,
 )
 
 router = APIRouter(prefix="/dossiers", tags=["dossiers"])
@@ -42,7 +42,11 @@ def _is_uuid(value: str) -> bool:
 
 
 class CreateDossierRequest(BaseModel):
-    monument_id: str
+    # Un dossier appartient à un PROJET de travaux. `monument_id` reste stocké
+    # sur la ligne (dénormalisé) parce que les gardes, le paywall et les
+    # requêtes batch du dashboard sont clés monument — mais il est dérivé du
+    # projet, jamais fourni par le client.
+    projet_id: str
     aide_id: str
     travaux_prevus: list[str]
 
@@ -85,20 +89,24 @@ class AddEcheanceRequest(BaseModel):
 
 
 def _get_dossier_or_404(supabase: Client, dossier_id: str, user_id: str) -> dict:
-    """Lecture : tout membre du projet du dossier y a accès."""
+    """Lecture : tout membre du PROJET du dossier y a accès.
+
+    Le droit se lit sur le projet, pas sur le monument : un collaborateur invité
+    sur le seul chantier doit ouvrir ses dossiers, et il n'a aucun rôle sur le bien.
+    """
     result = supabase.table("dossiers").select(COLUMNS).eq("id", dossier_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
-    require_project_access(supabase, result.data["monument_id"], user_id, "member")
+    require_projet_access(supabase, result.data["projet_id"], user_id, "member")
     return result.data
 
 
 def _require_dossier_write(supabase: Client, dossier_id: str, user_id: str) -> dict:
-    """Écriture : réservé aux owner/co_owner du projet du dossier."""
+    """Écriture : réservé aux co_owner/owner du PROJET du dossier."""
     result = supabase.table("dossiers").select(COLUMNS).eq("id", dossier_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
-    require_project_access(supabase, result.data["monument_id"], user_id, "co_owner")
+    require_projet_access(supabase, result.data["projet_id"], user_id, "co_owner")
     return result.data
 
 
@@ -135,20 +143,6 @@ def _ascii_filename(value: str, fallback: str) -> str:
     return cleaned[:80] or fallback
 
 
-def _highest_project_role(supabase: Client, monument_ids: list | None, user_id: str) -> str | None:
-    """Rôle le plus élevé de l'utilisateur parmi les projets d'un document.
-
-    Un document peut être rattaché à plusieurs projets : la visibilité s'évalue
-    avec le rôle le plus fort, comme dans le router documents.
-    """
-    best = None
-    for mid in monument_ids or []:
-        role = get_project_role(supabase, mid, user_id)
-        if role is not None and (best is None or role_at_least(role, best)):
-            best = role
-    return best
-
-
 STEP_TO_STATUS = {
     1: "brouillon",
     2: "en_cours",
@@ -165,26 +159,31 @@ STEP_TO_STATUS = {
 
 @router.get("")
 def list_dossiers(
+    projet_id: str | None = Query(default=None),
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    memberships = (
-        supabase.table("project_members")
-        .select("monument_id")
-        .eq("user_id", user_id)
-        .execute()
-        .data
-    )
-    monument_ids = [m["monument_id"] for m in memberships]
-    if not monument_ids:
+    """Tous les dossiers accessibles à l'appelant, ou ceux d'un seul projet.
+
+    Le périmètre couvre les deux appartenances : les monuments dont l'appelant
+    est membre (tous leurs dossiers) et les projets où il l'est directement. Le
+    filtre `?projet_id=` est posé APRÈS — il ne doit jamais élargir ce qu'on
+    voit, seulement le restreindre.
+    """
+    monument_roles, projet_roles = my_scope_roles(supabase, user_id)
+    if not monument_roles and not projet_roles:
         return []
-    result = (
-        supabase.table("dossiers")
-        .select(COLUMNS)
-        .in_("monument_id", monument_ids)
-        .order("date_derniere_modification", desc=True)
-        .execute()
-    )
+
+    clauses = []
+    if monument_roles:
+        clauses.append(f"monument_id.in.({','.join(monument_roles)})")
+    if projet_roles:
+        clauses.append(f"projet_id.in.({','.join(projet_roles)})")
+
+    query = supabase.table("dossiers").select(COLUMNS).or_(",".join(clauses))
+    if projet_id:
+        query = query.eq("projet_id", projet_id)
+    result = query.order("date_derniere_modification", desc=True).execute()
     return result.data
 
 
@@ -194,10 +193,11 @@ def create_dossier(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    # Validate monument ownership
-    require_project_access(supabase, body.monument_id, user_id, "co_owner")
+    # Le dossier naît dans un projet ; les droits sont ceux de son monument.
+    projet, _ = require_projet_access(supabase, body.projet_id, user_id, "co_owner")
+    monument_id = projet["monument_id"]
     monument_result = (
-        supabase.table("monuments").select("*").eq("id", body.monument_id).single().execute()
+        supabase.table("monuments").select("*").eq("id", monument_id).single().execute()
     )
     if not monument_result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
@@ -240,6 +240,9 @@ def create_dossier(
         travaux_prevus=travaux_labels,
     )
     dossier["user_id"] = user_id
+    # `monument_id` vient déjà de create_dossier_from_aide ; on y ajoute le
+    # rattachement au projet (les deux cohabitent, cf. CreateDossierRequest).
+    dossier["projet_id"] = body.projet_id
     # Identité cohérente avec le front : on stocke l'identifiant tel qu'envoyé
     # (slug pour les aides du moteur déterministe), pas l'UUID interne aides_v3,
     # pour que le rattachement dossier↔aide (masquage de l'aide, suivi) matche.
@@ -280,6 +283,10 @@ def download_dossier_archive(
         if item.get("documentId")
     ]
 
+    # Périmètre du demandeur, lu UNE fois : la visibilité de chaque pièce
+    # s'évalue contre lui, et le faire par document ferait N lectures.
+    monument_roles, projet_roles = my_scope_roles(supabase, user_id)
+
     buffer = io.BytesIO()
     added = 0
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -295,7 +302,9 @@ def download_dossier_archive(
             if not doc:
                 continue
 
-            role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
+            role = best_document_role(
+                doc.get("monument_ids"), doc.get("projet_ids"), monument_roles, projet_roles
+            )
             if not can_view_document(
                 visibility=doc.get("visibility") or "team",
                 allowed_user_ids=doc.get("allowed_user_ids") or [],
@@ -382,7 +391,9 @@ def update_checklist_item(
     # retirer une pièce déjà fournie suit la règle des documents : seul l'auteur de
     # la pièce existante, ou un chef de projet / adjoint, peut le faire.
     dossier = _get_dossier_or_404(supabase, dossier_id, user_id)
-    role = get_project_role(supabase, dossier["monument_id"], user_id)
+    # Le rôle se lit sur le PROJET : un collaborateur invité sur le seul chantier
+    # doit pouvoir y déposer ses pièces.
+    _, role = require_projet_access(supabase, dossier["projet_id"], user_id, "member")
 
     checklist: list = dossier.get("checklist") or []
     target = next((c for c in checklist if c.get("id") == item_id), None)

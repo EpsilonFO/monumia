@@ -9,28 +9,18 @@ import {
   IconProtection,
   IconSucces,
   IconDeconnexion,
-  IconClocheMonumia,
 } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { C, SERIF } from '@/lib/brand';
 import { computeProfileCompletion } from '@/lib/profile-completion';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { isValidPhone } from '@/lib/phone';
 
-const DEFAULT_NOTIF_PREFS = {
-  urgentDeadlines: true,
-  newAidesMatched: true,
-  dossierUpdates: true,
-  emailNotifications: false,
-};
-
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user);
   const updateProfile = useAuthStore((s) => s.updateProfile);
-  const _updateNotifPrefs = useAuthStore((s) => s.updateNotificationPreferences);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
 
@@ -45,11 +35,7 @@ export function ProfilePage() {
 
   if (!user) return null;
   const currentUser = user;
-  const notifPrefs = currentUser.notificationPreferences ?? DEFAULT_NOTIF_PREFS;
   const completion = computeProfileCompletion(currentUser);
-
-  const updateNotifPref = (prefs: Parameters<typeof _updateNotifPrefs>[0]) =>
-    _updateNotifPrefs(prefs).catch((e: any) => toast.error(e.message || 'Erreur de mise à jour'));
 
   const handlePhoneChange = (value: string) => {
     setForm({ ...form, telephone: value });
@@ -189,84 +175,44 @@ export function ProfilePage() {
         </div>
       </section>
 
-      {/* ═════════ GRILLE — remplit la largeur ═════════ */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        {/* Colonne gauche : sécurité */}
-        <div className="flex flex-col gap-5">
-          <Panel>
-            <PanelHeader
-              icon={<IconProtection className="h-4 w-4 text-primary" strokeWidth={1.8} />}
-              title="Sécurité & connexion"
-            />
-            <div className="px-6 py-5">
-              {resetState === 'sent' ? (
-                <div className="flex items-start gap-3 rounded-xl p-4" style={{ background: C.paleBlue }}>
-                  <IconSucces className="mt-0.5 h-5 w-5 shrink-0" style={{ color: C.blue }} />
-                  <div className="text-[14px]" style={{ color: C.ink }}>
-                    <p className="font-medium">Un email vient d'être envoyé à {currentUser.email}.</p>
-                    <p className="mt-1" style={{ color: C.grayFg }}>
-                      Ouvrez-le et cliquez sur le lien pour choisir un nouveau mot de passe. Pensez à vérifier vos courriers indésirables.
-                    </p>
-                    <button onClick={handleReset} className="mt-2 text-[13px] font-medium underline" style={{ color: C.blue }}>
-                      Renvoyer l'email
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <p className="text-[14px]" style={{ color: C.grayFg }}>
-                    Votre compte est protégé. Pour changer votre mot de passe, nous vous envoyons un lien
-                    sécurisé par email — rien à retenir.
-                  </p>
-                  <button
-                    onClick={handleReset}
-                    disabled={resetState === 'sending'}
-                    className="mt-3 inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-[14px] font-semibold transition-colors hover:bg-[var(--secondary)] disabled:opacity-50"
-                    style={{ borderColor: C.border, color: C.blue }}
-                  >
-                    <IconContact className="h-4 w-4" />
-                    {resetState === 'sending' ? 'Envoi en cours…' : 'Recevoir un lien par email'}
-                  </button>
-                </>
-              )}
+      <Panel>
+        <PanelHeader
+          icon={<IconProtection className="h-4 w-4 text-primary" strokeWidth={1.8} />}
+          title="Sécurité & connexion"
+        />
+        <div className="px-6 py-5">
+          {resetState === 'sent' ? (
+            <div className="flex items-start gap-3 rounded-xl p-4" style={{ background: C.paleBlue }}>
+              <IconSucces className="mt-0.5 h-5 w-5 shrink-0" style={{ color: C.blue }} />
+              <div className="text-[14px]" style={{ color: C.ink }}>
+                <p className="font-medium">Un email vient d'être envoyé à {currentUser.email}.</p>
+                <p className="mt-1" style={{ color: C.grayFg }}>
+                  Ouvrez-le et cliquez sur le lien pour choisir un nouveau mot de passe. Pensez à vérifier vos courriers indésirables.
+                </p>
+                <button onClick={handleReset} className="mt-2 text-[13px] font-medium underline" style={{ color: C.blue }}>
+                  Renvoyer l'email
+                </button>
+              </div>
             </div>
-          </Panel>
+          ) : (
+            <>
+              <p className="text-[14px]" style={{ color: C.grayFg }}>
+                Votre compte est protégé. Pour changer votre mot de passe, nous vous envoyons un lien
+                sécurisé par email — rien à retenir.
+              </p>
+              <button
+                onClick={handleReset}
+                disabled={resetState === 'sending'}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-[14px] font-semibold transition-colors hover:bg-[var(--secondary)] disabled:opacity-50"
+                style={{ borderColor: C.border, color: C.blue }}
+              >
+                <IconContact className="h-4 w-4" />
+                {resetState === 'sending' ? 'Envoi en cours…' : 'Recevoir un lien par email'}
+              </button>
+            </>
+          )}
         </div>
-
-        {/* Colonne droite : notifications */}
-        <Panel>
-          <PanelHeader
-            icon={<IconClocheMonumia className="h-5 w-5 text-primary" />}
-            title="Vous prévenir"
-          />
-          <div className="divide-y divide-border px-6">
-            <NotifToggle
-              label="Échéances urgentes"
-              description="Nous vous alertons quand une date limite approche."
-              checked={notifPrefs.urgentDeadlines}
-              onChange={(v) => updateNotifPref({ urgentDeadlines: v })}
-            />
-            <NotifToggle
-              label="Nouvelles aides pour vous"
-              description="Quand une aide correspond à votre monument."
-              checked={notifPrefs.newAidesMatched}
-              onChange={(v) => updateNotifPref({ newAidesMatched: v })}
-            />
-            <NotifToggle
-              label="Suivi de vos dossiers"
-              description="Progression et actions de vos collaborateurs."
-              checked={notifPrefs.dossierUpdates}
-              onChange={(v) => updateNotifPref({ dossierUpdates: v })}
-            />
-            <NotifToggle
-              label="Recevoir aussi par email"
-              description="En plus des notifications dans l'application."
-              checked={notifPrefs.emailNotifications}
-              onChange={(v) => updateNotifPref({ emailNotifications: v })}
-            />
-          </div>
-        </Panel>
-      </div>
+      </Panel>
 
       {/* ═════════ DÉCONNEXION ═════════ */}
       <div className="pb-2">
@@ -319,16 +265,3 @@ function PanelHeader({ icon, title, tint = 'blue' }: { icon: React.ReactNode; ti
   );
 }
 
-function NotifToggle({ label, description, checked, onChange }: {
-  label: string; description: string; checked: boolean; onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-4">
-      <div>
-        <p className="text-[14px] font-medium text-foreground">{label}</p>
-        <p className="text-[13px] text-muted-foreground">{description}</p>
-      </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
-    </div>
-  );
-}

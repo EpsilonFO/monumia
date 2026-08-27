@@ -47,7 +47,7 @@ function ProjectHeroCardSkeleton({ featured = false }: { featured?: boolean }) {
   );
 }
 
-/** Grille « Vos projets » (miroir de ProjectsInProgress : 1 héros ou grille 2-3). */
+/** Grille « Vos monuments » (miroir de MonumentsInProgress : 1 héros ou grille 2-3). */
 export function ProjectsInProgressSkeleton({ count = 2 }: { count?: number }) {
   if (count <= 1) return <ProjectHeroCardSkeleton featured />;
   return (

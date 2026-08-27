@@ -46,8 +46,13 @@ const TYPE_LABELS: Record<DocumentType, string> = {
 interface AttachDocumentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Optional monument to pre-filter the "my documents" list and tag uploads. */
+  /** Monument de rattachement (fiche du bien) : pré-filtre la liste et marque
+   *  les dépôts. Ignoré si `projetId` est fourni. */
   monumentId?: string;
+  /** Projet de travaux de rattachement. Quand il est là, il PRIME : la pièce
+   *  déposée appartient au chantier, pas au monument — c'est ce qui la garde
+   *  hors de vue de qui n'est pas sur ce chantier. */
+  projetId?: string;
   /** Default name suggested when uploading (the checklist item label). */
   defaultName?: string;
   /** Called with the chosen document (either existing or freshly uploaded). */
@@ -61,6 +66,7 @@ export function AttachDocumentDialog({
   open,
   onOpenChange,
   monumentId,
+  projetId,
   defaultName,
   onAttach,
   onUploaded,
@@ -70,7 +76,7 @@ export function AttachDocumentDialog({
 
   const [search, setSearch] = useState('');
   // Par défaut on montre TOUS les documents de l'utilisateur (pas seulement ceux
-  // déjà dans ce projet) : on peut ainsi rattacher un doc de « Mes documents ».
+  // déjà sur ce monument) : on peut ainsi rattacher un doc de « Mes documents ».
   const [scope, setScope] = useState<'monument' | 'all'>('all');
   const [attachingId, setAttachingId] = useState<string | null>(null);
 
@@ -97,8 +103,10 @@ export function AttachDocumentDialog({
 
   const filtered = useMemo(() => {
     let docs = documents;
-    if (scope === 'monument' && monumentId) {
-      docs = docs.filter((d) => d.monumentIds.includes(monumentId));
+    if (scope === 'monument') {
+      // « Ce périmètre uniquement » : le chantier s'il y en a un, sinon le bien.
+      if (projetId) docs = docs.filter((d) => d.projetIds.includes(projetId));
+      else if (monumentId) docs = docs.filter((d) => d.monumentIds.includes(monumentId));
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -110,7 +118,7 @@ export function AttachDocumentDialog({
       );
     }
     return docs;
-  }, [documents, scope, monumentId, search]);
+  }, [documents, scope, monumentId, projetId, search]);
 
   const handleSelectExisting = async (doc: Document) => {
     setAttachingId(doc.id);
@@ -159,7 +167,10 @@ export function AttachDocumentDialog({
           file,
           nom: nom.trim(),
           type: type as DocumentType,
-          monumentIds: monumentId ? [monumentId] : undefined,
+          // Le projet prime : déposer une pièce depuis un chantier ne doit pas
+          // la rattacher au monument, où toute son équipe la verrait.
+          monumentIds: projetId ? undefined : monumentId ? [monumentId] : undefined,
+          projetIds: projetId ? [projetId] : undefined,
           description: description.trim() || undefined,
           tags: [],
         },
@@ -310,14 +321,16 @@ export function AttachDocumentDialog({
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              {monumentId && (
+              {(projetId || monumentId) && (
                 <Select value={scope} onValueChange={(v) => setScope(v as 'monument' | 'all')}>
                   <SelectTrigger className="w-48">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tous mes documents</SelectItem>
-                    <SelectItem value="monument">Ce projet uniquement</SelectItem>
+                    <SelectItem value="monument">
+                      {projetId ? 'Ce projet uniquement' : 'Ce monument uniquement'}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               )}

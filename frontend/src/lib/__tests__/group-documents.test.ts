@@ -4,7 +4,7 @@ import type { Document } from '@/types';
 
 const doc = (id: string, monumentIds: string[]): Document =>
   ({
-    id, monumentIds, userId: 'u1', nom: id, nomFichier: `${id}.pdf`, type: 'autre',
+    id, monumentIds, projetIds: [], userId: 'u1', nom: id, nomFichier: `${id}.pdf`, type: 'autre',
     tags: [], tailleFichier: 1, mimeType: 'application/pdf', url: 'u1/x.pdf',
     dossiersUtilises: [], dateUpload: '2026-01-01', visibility: 'team', allowedUserIds: [],
   }) as Document;

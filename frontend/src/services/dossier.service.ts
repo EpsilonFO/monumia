@@ -12,6 +12,7 @@ const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 export function toDossier(row: Record<string, unknown>): Dossier {
   return {
     id: row.id as string,
+    projetId: (row.projet_id ?? row.projetId) as string,
     monumentId: (row.monument_id ?? row.monumentId) as string,
     aideId: (row.aide_id ?? row.aideId) as string,
     userId: (row.user_id ?? row.userId) as string,
@@ -33,8 +34,9 @@ export function toDossier(row: Record<string, unknown>): Dossier {
 }
 
 export const dossierService = {
-  async fetchAll(): Promise<Dossier[]> {
-    const res = await authFetch(`${BASE}/dossiers`);
+  async fetchAll(projetId?: string): Promise<Dossier[]> {
+    const query = projetId ? `?projet_id=${encodeURIComponent(projetId)}` : '';
+    const res = await authFetch(`${BASE}/dossiers${query}`);
     const rows = await handleResponse<Record<string, unknown>[]>(res);
     const dossiers = rows.map(toDossier);
     useDossierStore.getState().setDossiers(dossiers);
@@ -47,11 +49,11 @@ export const dossierService = {
     return toDossier(row);
   },
 
-  async create(monumentId: string, aideId: string, travauxPrevus: string[]): Promise<Dossier> {
+  async create(projetId: string, aideId: string, travauxPrevus: string[]): Promise<Dossier> {
     const res = await authFetch(`${BASE}/dossiers`, {
       method: 'POST',
       body: JSON.stringify({
-        monument_id: monumentId,
+        projet_id: projetId,
         aide_id: aideId,
         travaux_prevus: travauxPrevus,
       }),

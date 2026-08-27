@@ -1,17 +1,15 @@
 import type { ComponentType, ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
-  IconMonument, IconProtection, IconDiagnostic, IconChantier, IconLocalisation,
-  IconCalendrier, IconParchemin, IconRegle, IconCle, IconCompte, IconPublic,
-  IconListe, IconMaison, IconLivre, IconImage, IconModifier, IconSupprimer,
-  IconSucces,
+  IconMonument, IconProtection, IconDiagnostic, IconLocalisation,
+  IconCalendrier, IconParchemin, IconCle, IconPublic,
+  IconLivre, IconImage, IconModifier, IconSupprimer,
 } from '@/components/icons';
-import { Clover, AllClear } from '@/components/illustrations';
+import { Clover } from '@/components/illustrations';
 import { C, SERIF } from '@/lib/brand';
 import { formatDate } from '@/lib/date-utils';
 import {
   PROTECTION_LABELS, isEnPeril, perilLabel, OWNERSHIP_TYPES,
-  WORK_TYPES, MATERIAUX, TYPES_COUVERTURE, URGENCE_TRAVAUX,
 } from '@/constants/monument-options';
 import type { Monument } from '@/types';
 
@@ -49,11 +47,24 @@ const PROTECTION_TONE: Record<string, { bg: string; fg: string; sub: string }> =
 // Pastille de couleur associée au signal péril (simple repère visuel).
 const PERIL_DOT = { oui: 'var(--destructive)', non: 'var(--success)' };
 
-const URGENCE_TONE: Record<string, { fg: string; bg: string }> = {
-  faible:   { fg: 'var(--info)',        bg: 'var(--info-muted)' },
-  moyenne:  { fg: 'var(--warning)',     bg: 'var(--warning-muted)' },
-  haute:    { fg: 'var(--destructive)', bg: 'var(--destructive-muted)' },
-  critique: { fg: '#fff',               bg: 'var(--destructive)' },
+// L'état sanitaire se lit en deux registres : la pastille de la fiche info, et
+// l'encadré qui dit ce que ce statut change concrètement pour le propriétaire.
+const PERIL_TONE = {
+  oui: {
+    bg: 'var(--destructive-muted)',
+    fg: 'var(--destructive)',
+    sub: "Plusieurs dispositifs d'urgence — loto du patrimoine, missions et fonds régionaux de sauvegarde — ne s'adressent qu'aux monuments dans cette situation.",
+  },
+  non: {
+    bg: 'var(--success-muted)',
+    fg: 'var(--success)',
+    sub: 'Le monument est globalement sain. Les aides d’urgence ne vous concernent pas, les dispositifs de restauration courante restent ouverts.',
+  },
+  inconnu: {
+    bg: 'var(--muted)',
+    fg: 'var(--gray-fg)',
+    sub: "La question n'a pas encore été posée pour ce monument. Y répondre débloque ou écarte les dispositifs d'urgence.",
+  },
 };
 
 const PHOTO_TYPE_LABELS: Record<string, string> = {
@@ -63,11 +74,6 @@ const PHOTO_TYPE_LABELS: Record<string, string> = {
   aerien: 'Vue aérienne',
   degradation: 'Dégradation',
 };
-
-const WORK_LABELS = Object.fromEntries(WORK_TYPES.map((w) => [w.value, w.label]));
-const MATERIAU_LABELS = Object.fromEntries(MATERIAUX.map((m) => [m.value, m.label]));
-const COUVERTURE_LABELS = Object.fromEntries(TYPES_COUVERTURE.map((t) => [t.value, t.label]));
-const URGENCE_LABELS = Object.fromEntries(URGENCE_TRAVAUX.map((u) => [u.value, u.label]));
 
 /* ------------------------------------------------------------------ */
 /* Briques d'affichage                                                 */
@@ -153,11 +159,15 @@ interface MonumentFicheProps {
   onDelete: () => void;
 }
 
+/**
+ * Fiche sanitaire du monument : ce qui décrit le BIEN et ne bouge pas d'un
+ * chantier à l'autre. Les travaux envisagés n'y figurent plus — ils cadrent un
+ * projet, et vivent sur sa propre page.
+ */
 export function MonumentFiche({ monument, canDelete, deleting, onDelete }: MonumentFicheProps) {
   const protection = PROTECTION_TONE[monument.protection] ?? PROTECTION_TONE.non_protege;
-  const urgence = monument.urgenceTravaux ? URGENCE_TONE[monument.urgenceTravaux] : null;
-  const travaux = monument.travauxEnvisages ?? [];
   const enPeril = isEnPeril(monument.etatConservation);
+  const peril = enPeril === null ? PERIL_TONE.inconnu : enPeril ? PERIL_TONE.oui : PERIL_TONE.non;
 
   // Fiche info : seuls les champs renseignés apparaissent.
   const fields = [
@@ -169,18 +179,13 @@ export function MonumentFiche({ monument, canDelete, deleting, onDelete }: Monum
       // Les données Mérimée arrivent parfois sous la forme « 12e s.;13e s. ».
       value: monument.siecleConstruction.split(';').map((s) => s.trim()).filter(Boolean).join(' · '),
     },
-    monument.periodeConstruction?.length && { icon: IconCalendrier, label: 'Période', value: monument.periodeConstruction.join(' · ') },
     monument.proprietaire && {
       icon: IconCle, label: 'Propriétaire',
       value: OWNERSHIP_TYPES.find((o) => o.value === monument.proprietaire)?.label ?? monument.proprietaire,
     },
-    monument.affectataire && { icon: IconCompte, label: 'Affectation', value: monument.affectataire },
-    monument.superficie && { icon: IconRegle, label: 'Superficie', value: `${monument.superficie.toLocaleString('fr-FR')} m²` },
-    monument.nombreNiveaux && { icon: IconListe, label: 'Niveaux', value: `${monument.nombreNiveaux} ${monument.nombreNiveaux > 1 ? 'niveaux' : 'niveau'}` },
-    monument.typeCouverture && { icon: IconMaison, label: 'Couverture', value: COUVERTURE_LABELS[monument.typeCouverture] ?? monument.typeCouverture },
-    monument.materiaux?.length && { icon: IconChantier, label: 'Matériaux', value: monument.materiaux.map((m) => MATERIAU_LABELS[m] ?? m).join(', ') },
-    // Tant que la question péril n'a pas été posée (fiche créée avant l'étape
-    // « Votre projet »), la ligne n'apparaît pas plutôt que d'afficher un vide.
+    // Tant que la question péril n'a pas été posée (fiche créée avant que
+    // l'étape n'existe), la ligne n'apparaît pas plutôt que d'afficher un vide :
+    // la section « État sanitaire » plus bas dit, elle, qu'il reste à répondre.
     enPeril !== null && {
       icon: IconDiagnostic, label: 'État du monument',
       value: perilLabel(monument.etatConservation) ?? '',
@@ -240,56 +245,16 @@ export function MonumentFiche({ monument, canDelete, deleting, onDelete }: Monum
           </div>
         </Section>
 
-        <Section icon={IconChantier} title="Travaux envisagés" iconBg={C.paleOrange} iconFg={C.orange} accent={C.orange}>
-          {travaux.length === 0 && !urgence && !monument.descriptionEtat && !monument.derniersTravaux && !monument.diagnosticRealise ? (
-            /* Rien à afficher du tout : état vide centré dans la carte. */
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-2 text-center">
-              <AllClear />
-              <p className="text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
-                Aucun travail prévu pour le moment.
-              </p>
-            </div>
-          ) : (
-          <div className="space-y-3.5">
-            {travaux.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {travaux.map((t) => (
-                  <span key={t} className="inline-flex items-center rounded-full px-3 py-1.5 text-[13px] font-semibold" style={{ background: C.paleOrange, color: C.orange }}>
-                    {WORK_LABELS[t] ?? t}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-[14px]" style={{ color: C.grayMuted }}>Aucun travail prévu pour le moment.</p>
-            )}
-            {urgence && monument.urgenceTravaux && (
-              <div className="flex items-center gap-2 text-[13.5px]" style={{ color: C.grayFg }}>
-                <span>Urgence :</span>
-                <span className="inline-flex items-center rounded-full px-3 py-1 text-[12.5px] font-semibold" style={{ background: urgence.bg, color: urgence.fg }}>
-                  {URGENCE_LABELS[monument.urgenceTravaux] ?? monument.urgenceTravaux}
-                </span>
-              </div>
-            )}
-            {monument.descriptionEtat && (
-              <p className="text-[13.5px] leading-relaxed" style={{ color: C.grayFg }}>
-                <span className="font-semibold" style={{ color: C.ink }}>État constaté : </span>
-                {monument.descriptionEtat}
-              </p>
-            )}
-            {monument.derniersTravaux && (
-              <p className="text-[13.5px] leading-relaxed" style={{ color: C.grayFg }}>
-                <span className="font-semibold" style={{ color: C.ink }}>Derniers travaux : </span>
-                {monument.derniersTravaux}
-              </p>
-            )}
-            {monument.diagnosticRealise && (
-              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-semibold" style={{ background: C.successMuted, color: C.success }}>
-                <IconSucces className="h-3.5 w-3.5" />
-                Diagnostic déjà réalisé
-              </span>
-            )}
+        {/* État sanitaire — le second pilier de la fiche, à côté de la
+            protection : c'est lui qui ouvre ou ferme les dispositifs d'urgence,
+            et il vaut pour TOUS les projets du monument. */}
+        <Section icon={IconDiagnostic} title="État sanitaire" iconBg={peril.bg} iconFg={peril.fg} accent={peril.fg}>
+          <div className="rounded-xl p-4" style={{ background: peril.bg }}>
+            <p className="text-[16px] font-bold leading-snug" style={{ color: peril.fg }}>
+              {enPeril === null ? 'Non renseigné' : (perilLabel(monument.etatConservation) ?? '')}
+            </p>
+            <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: C.grayFg }}>{peril.sub}</p>
           </div>
-          )}
         </Section>
       </div>
 
@@ -347,7 +312,7 @@ export function MonumentFiche({ monument, canDelete, deleting, onDelete }: Monum
             style={{ borderColor: C.border, color: C.danger }}
           >
             {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconSupprimer className="h-4 w-4" strokeWidth={1.8} />}
-            Supprimer le projet
+            Supprimer le monument
           </button>
         )}
       </div>

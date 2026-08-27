@@ -5,7 +5,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { CommuneAutocomplete } from '@/components/monument/CommuneAutocomplete';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
@@ -14,9 +13,8 @@ import {
   PROTECTION_LEVELS,
   OWNERSHIP_TYPES,
   ETATS_CONSERVATION,
-  WORK_TYPES,
 } from '@/constants/monument-options';
-import type { Monument, WorkType } from '@/types';
+import type { Monument } from '@/types';
 
 interface MonumentFormProps {
   initialData?: Partial<Monument>;
@@ -32,17 +30,19 @@ const CREATION_STEPS = [
 ];
 
 /**
- * L'état actuel n'est plus demandé à la CRÉATION : la question « le monument
- * est-il en péril ? » et les travaux envisagés sont posés à l'étape « Votre
- * projet » du wizard, où l'utilisateur ne peut pas les sauter — enfouis ici en
- * fin de formulaire, ils restaient vides et le filtre `hard_filters.travaux`
- * des aides ne discriminait donc rien. L'édition de fiche garde l'étape pour
- * qu'ils restent modifiables après coup.
+ * L'état sanitaire n'est pas demandé à la CRÉATION : la question « le monument
+ * est-il en péril ? » est posée à l'étape 2 du wizard monument, où l'utilisateur
+ * ne peut pas la sauter — enfouie ici en fin de formulaire, elle restait vide et
+ * les gates des dispositifs d'urgence ne discriminaient donc rien. L'édition de
+ * fiche garde l'étape pour qu'elle reste modifiable après coup.
+ *
+ * Les travaux envisagés n'y sont plus du tout : ils cadrent un PROJET, se
+ * saisissent dans son wizard et se modifient sur sa page.
  */
-const STEP_ETAT_ACTUEL = {
+const STEP_ETAT_SANITAIRE = {
   number: 4,
-  title: 'État actuel',
-  description: 'Conservation et travaux',
+  title: 'État sanitaire',
+  description: 'Conservation du monument',
 };
 
 function isStepValid(step: number, data: Partial<Monument>): boolean {
@@ -64,7 +64,7 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
     setFormData((prev) => ({ ...prev, ...updates }));
   };
 
-  const steps = isEditing ? [...CREATION_STEPS, STEP_ETAT_ACTUEL] : CREATION_STEPS;
+  const steps = isEditing ? [...CREATION_STEPS, STEP_ETAT_SANITAIRE] : CREATION_STEPS;
   const canProceed = isStepValid(currentStep, formData);
   const lastStep = steps.length;
 
@@ -102,7 +102,7 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
             {currentStep === 1 && <Step1Identification data={formData} onChange={update} />}
             {currentStep === 2 && <Step2StatutJuridique data={formData} onChange={update} />}
             {currentStep === 3 && <Step3DescriptionPhysique data={formData} onChange={update} />}
-            {currentStep === 4 && <Step4EtatActuel data={formData} onChange={update} />}
+            {currentStep === 4 && <Step4EtatSanitaire data={formData} onChange={update} />}
           </CardContent>
         </Card>
 
@@ -296,11 +296,9 @@ function Step3DescriptionPhysique({ data, onChange }: StepProps) {
   );
 }
 
-function Step4EtatActuel({ data, onChange }: StepProps) {
-  const selectedTravaux = (data.travauxEnvisages ?? []) as WorkType[];
-
+function Step4EtatSanitaire({ data, onChange }: StepProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <div className={FIELD}>
         <Label htmlFor="etatConservation">État de conservation</Label>
         <Select
@@ -318,43 +316,11 @@ function Step4EtatActuel({ data, onChange }: StepProps) {
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="md:col-span-2">
-        <div className="flex items-baseline justify-between">
-          <Label>Travaux envisagés</Label>
-          {selectedTravaux.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {selectedTravaux.length} sélectionné{selectedTravaux.length > 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {WORK_TYPES.map((w) => {
-            const selected = selectedTravaux.includes(w.value as WorkType);
-            const toggle = () => {
-              const next = selected
-                ? selectedTravaux.filter((v) => v !== w.value)
-                : [...selectedTravaux, w.value as WorkType];
-              onChange({ travauxEnvisages: next });
-            };
-            return (
-              <label
-                key={w.value}
-                className={cn(
-                  'flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors select-none',
-                  selected
-                    ? 'border-primary bg-primary/5 text-foreground'
-                    : 'border-input hover:border-primary/40 hover:bg-accent/50'
-                )}
-              >
-                <Checkbox checked={selected} onCheckedChange={toggle} />
-                <span className="leading-tight">{w.label}</span>
-              </label>
-            );
-          })}
-        </div>
+        <p className="text-xs text-muted-foreground">
+          Un monument en péril ou en mauvais état ouvre les dispositifs d&rsquo;urgence.
+          Cette réponse vaut pour tous vos projets de travaux sur ce monument.
+        </p>
       </div>
     </div>
   );
 }
-

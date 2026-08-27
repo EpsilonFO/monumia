@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react';
 import {
   IconAide,
+  IconChantier,
   IconDiagnostic,
   IconListe,
   IconLocalisation,
@@ -14,10 +15,17 @@ import { C, SERIF } from '@/lib/brand';
 import { PROTECTION_LABELS_SHORT } from '@/constants/monument-options';
 import type { Monument } from '@/types';
 
-export type WizardStepKey = 1 | 2 | 3 | 4;
+/** Clé d'étape — une chaîne, pas un rang : les deux wizards n'ont ni le même
+ *  nombre d'étapes ni le même ordre, et le wizard projet en insère une de plus
+ *  quand le monument n'a jamais répondu à la question du péril. */
+export type WizardStepKey = string;
 
-/** Étape du questionnaire : c'est elle qui porte la barre de progression. */
-export const WIZARD_STEP_QUESTIONNAIRE: WizardStepKey = 3;
+export interface WizardStep {
+  key: WizardStepKey;
+  label: string;
+  hint: string;
+  icon: IconComponent;
+}
 
 /** Progression du questionnaire : index 0-based, index === total sur l'écran de fin. */
 export interface WizardProgress {
@@ -25,32 +33,54 @@ export interface WizardProgress {
   total: number;
 }
 
-export const WIZARD_STEPS: Array<{
-  key: WizardStepKey;
-  label: string;
-  hint: string;
-  icon: IconComponent;
-}> = [
+/** Création d'un monument : la fiche du bien, puis son état sanitaire. */
+export const MONUMENT_WIZARD_STEPS: WizardStep[] = [
   {
-    key: 1,
+    key: 'fiche',
     label: 'Votre monument',
     hint: 'Retrouvez-le dans la base Mérimée ou décrivez-le vous-même.',
     icon: IconMonument,
   },
   {
-    key: 2,
+    key: 'sanitaire',
+    label: 'État du monument',
+    hint: 'Une seule question, qui ouvre les dispositifs d’urgence.',
+    icon: IconDiagnostic,
+  },
+];
+
+/** Étape optionnelle en tête du wizard projet : le monument a été créé avant
+ *  que la question du péril n'existe, elle n'a donc jamais été posée. Sans ce
+ *  rattrapage, elle ne le serait plus jamais. */
+export const PERIL_RATTRAPAGE_STEP: WizardStep = {
+  key: 'peril',
+  label: 'État du monument',
+  hint: 'Une question restée sans réponse sur votre fiche.',
+  icon: IconDiagnostic,
+};
+
+/** Création d'un projet de travaux sur un monument déjà décrit. */
+export const PROJET_WIZARD_STEPS: WizardStep[] = [
+  {
+    key: 'intention',
     label: 'Votre projet',
     hint: 'Ce que vous voulez faire : les aides suivent votre intention.',
     icon: IconProjet,
   },
   {
-    key: 3,
+    key: 'travaux',
+    label: 'Les travaux',
+    hint: 'Sur quoi porte le chantier — certaines aides ne financent qu’un ouvrage.',
+    icon: IconChantier,
+  },
+  {
+    key: 'questionnaire',
     label: 'Questionnaire',
     hint: 'Des questions simples, sans aucun document.',
     icon: IconListe,
   },
   {
-    key: 4,
+    key: 'diagnostic',
     label: 'Diagnostic',
     hint: 'Les aides mobilisables pour votre projet.',
     icon: IconDiagnostic,
@@ -69,6 +99,7 @@ const PROTECTION_TONE: Record<string, { bg: string; fg: string }> = {
 const STATE_TEXT = { done: 'étape faite', current: 'étape en cours', upcoming: 'étape à venir' };
 
 interface WizardRailProps {
+  steps: WizardStep[];
   step: WizardStepKey;
   monument: Monument | null;
   /** Accepté pour stabilité d'interface (header mobile du shell l'utilise). */
@@ -82,7 +113,10 @@ interface WizardRailProps {
  * verte + coche (fait), orange + halo (en cours), cercle clair cerclé (à
  * venir). Aucun état propre : tout vient des props.
  */
-export function WizardRail({ step, monument, onQuit }: WizardRailProps) {
+export function WizardRail({ steps, step, monument, onQuit }: WizardRailProps) {
+  // Les clés étant des chaînes, c'est le RANG dans la liste qui dit ce qui est
+  // fait et ce qui reste : une comparaison de clés n'aurait aucun sens.
+  const currentIndex = steps.findIndex((s) => s.key === step);
   const tone = monument
     ? (PROTECTION_TONE[monument.protection] ?? PROTECTION_TONE.non_protege)
     : PROTECTION_TONE.non_protege;
@@ -97,7 +131,7 @@ export function WizardRail({ step, monument, onQuit }: WizardRailProps) {
           type="button"
           onClick={onQuit}
           className="flex items-center gap-2.5"
-          aria-label="Quitter la création de projet"
+          aria-label="Quitter"
         >
           <LogoMonumia className="h-8 w-8" />
           <span
@@ -108,9 +142,9 @@ export function WizardRail({ step, monument, onQuit }: WizardRailProps) {
           </span>
         </button>
 
-        <ol className="space-y-0" aria-label="Étapes de la création">
-          {WIZARD_STEPS.map((s, i) => {
-            const state = s.key < step ? 'done' : s.key === step ? 'current' : 'upcoming';
+        <ol className="space-y-0" aria-label="Étapes">
+          {steps.map((s, i) => {
+            const state = i < currentIndex ? 'done' : i === currentIndex ? 'current' : 'upcoming';
             const done = state === 'done';
             const current = state === 'current';
             const Icon = s.icon;
@@ -160,7 +194,7 @@ export function WizardRail({ step, monument, onQuit }: WizardRailProps) {
                     </span>
                   </span>
                 </div>
-                {i < WIZARD_STEPS.length - 1 && (
+                {i < steps.length - 1 && (
                   <span
                     aria-hidden
                     className="ml-[17px] block h-4 w-[2px] rounded-full"

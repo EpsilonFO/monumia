@@ -2,6 +2,7 @@ export * from './common.types';
 export * from './user.types';
 export * from './monument.types';
 export * from './project.types';
+export * from './projet.types';
 export * from './aide.types';
 export * from './dossier.types';
 export * from './suivi.types';

@@ -1,46 +1,48 @@
 import { create } from 'zustand';
 import type { AideSuivi } from '@/types';
 
+/** Suivis d'aide, indexés par PROJET de travaux : le couple unique est
+ *  (projet, aide) depuis l'inversion de hiérarchie. */
 interface SuiviState {
   suivis: AideSuivi[];
-  loadedMonuments: Record<string, boolean>;
+  loadedProjets: Record<string, boolean>;
 
-  setForMonument: (monumentId: string, suivis: AideSuivi[]) => void;
-  getByMonument: (monumentId: string) => AideSuivi[];
+  setForProjet: (projetId: string, suivis: AideSuivi[]) => void;
+  getByProjet: (projetId: string) => AideSuivi[];
   upsert: (suivi: AideSuivi) => void;
-  remove: (monumentId: string, aideId: string) => void;
+  remove: (projetId: string, aideId: string) => void;
 }
 
 export const useSuiviStore = create<SuiviState>()((set, get) => ({
   suivis: [],
-  loadedMonuments: {},
+  loadedProjets: {},
 
-  setForMonument: (monumentId, suivis) =>
+  setForProjet: (projetId, suivis) =>
     set((state) => ({
       suivis: [
-        ...state.suivis.filter((s) => s.monumentId !== monumentId),
+        ...state.suivis.filter((s) => s.projetId !== projetId),
         ...suivis,
       ],
-      loadedMonuments: { ...state.loadedMonuments, [monumentId]: true },
+      loadedProjets: { ...state.loadedProjets, [projetId]: true },
     })),
 
-  getByMonument: (monumentId) =>
-    get().suivis.filter((s) => s.monumentId === monumentId),
+  getByProjet: (projetId) =>
+    get().suivis.filter((s) => s.projetId === projetId),
 
   upsert: (suivi) =>
     set((state) => ({
       suivis: [
         ...state.suivis.filter(
-          (s) => !(s.monumentId === suivi.monumentId && s.aideId === suivi.aideId)
+          (s) => !(s.projetId === suivi.projetId && s.aideId === suivi.aideId)
         ),
         suivi,
       ],
     })),
 
-  remove: (monumentId, aideId) =>
+  remove: (projetId, aideId) =>
     set((state) => ({
       suivis: state.suivis.filter(
-        (s) => !(s.monumentId === monumentId && s.aideId === aideId)
+        (s) => !(s.projetId === projetId && s.aideId === aideId)
       ),
     })),
 }));

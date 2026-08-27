@@ -60,7 +60,7 @@ export function InvitationLandingPage() {
 
   // Retour de Google : les jetons attendent en mémoire, le compte applicatif
   // n'existe pas encore. C'est ici qu'on le crée en collaborateur, parce que
-  // c'est ici qu'on connaît le projet à rejoindre et le rôle à demander.
+  // c'est ici qu'on connaît le monument à rejoindre et le rôle à demander.
   const oauthAccessToken = usePendingOAuthStore((s) => s.accessToken);
   const oauthRefreshToken = usePendingOAuthStore((s) => s.refreshToken);
   const oauthEmail = usePendingOAuthStore((s) => s.email);
@@ -94,8 +94,10 @@ export function InvitationLandingPage() {
   }, [token]);
 
   const acceptAndGo = async () => {
-    const { monumentId } = await invitationService.accept(token);
-    navigate(ROUTES.PROJET_DETAIL(monumentId));
+    // On atterrit là où l'invitation donne accès : le chantier si elle ne
+    // portait que sur lui, le monument sinon.
+    const { monumentId, projetId } = await invitationService.accept(token);
+    navigate(projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.MONUMENT_DETAIL(monumentId));
   };
 
   const handleJoinLoggedIn = async () => {
@@ -115,7 +117,7 @@ export function InvitationLandingPage() {
       return;
     }
     if (!form.metier) {
-      toast.error('Indiquez votre rôle sur le projet');
+      toast.error('Indiquez votre rôle sur le monument');
       return;
     }
     if (!acceptCgu) {
@@ -143,7 +145,7 @@ export function InvitationLandingPage() {
 
   const handleOauthSignup = async () => {
     if (!form.metier) {
-      toast.error('Indiquez votre rôle sur le projet');
+      toast.error('Indiquez votre rôle sur le monument');
       return;
     }
     if (!form.prenom.trim() || !form.nom.trim()) {
@@ -238,7 +240,11 @@ export function InvitationLandingPage() {
       <span style={{ color: C.orange }}>«&nbsp;{preview.monumentNom}&nbsp;»</span>
     </>
   );
-  const panelDescription = 'Vous pourrez consulter le projet, suivre les aides et y déposer vos documents, aux côtés des autres intervenants.';
+  // Dire la portée AVANT d'accepter : découvrir après coup qu'on ne voit qu'un
+  // seul chantier passerait pour une panne.
+  const panelDescription = preview?.projetId
+    ? 'Vous rejoignez un projet de travaux précis : ses aides, ses dossiers et ses documents, ainsi que la fiche du monument en lecture. Les autres chantiers de ce monument ne vous seront pas accessibles.'
+    : 'Vous pourrez consulter le monument et ses projets de travaux, suivre les aides et y déposer vos documents, aux côtés des autres intervenants.';
 
   return (
     <AuthLayout panelEyebrow="Invitation à collaborer" panelHeadline={panelHeadline} panelDescription={panelDescription}>
@@ -250,13 +256,19 @@ export function InvitationLandingPage() {
         <h1 className="text-[26px] leading-[1.15]" style={{ fontFamily: SERIF, color: C.ink }}>
           «&nbsp;{preview.monumentNom}&nbsp;»
         </h1>
+        {preview.projetTitre && (
+          <p className="text-[14px]" style={{ color: MUTED }}>
+            Sur le projet de travaux{' '}
+            <strong style={{ color: C.orange }}>{preview.projetTitre}</strong>, et lui seul.
+          </p>
+        )}
         <p className="text-[14px]" style={{ color: LIGHT }}>
           Vous rejoignez en tant que <strong style={{ color: C.blue }}>collaborateur</strong>.
         </p>
       </div>
 
       {user ? (
-        <PrimaryButton onClick={handleJoinLoggedIn} busy={busy}>Rejoindre le projet</PrimaryButton>
+        <PrimaryButton onClick={handleJoinLoggedIn} busy={busy}>Rejoindre le monument</PrimaryButton>
       ) : mode === 'choice' ? (
         <div className="flex flex-col gap-2.5">
           <PrimaryButton onClick={() => setMode('signup')}>Je crée mon compte</PrimaryButton>
@@ -277,7 +289,7 @@ export function InvitationLandingPage() {
                   (<span className="font-semibold">{oauthEmail}</span>)
                 </>
               ) : null}
-              . Indiquez votre rôle et vous rejoignez le projet.
+              . Indiquez votre rôle et vous rejoignez le monument.
             </span>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -288,14 +300,14 @@ export function InvitationLandingPage() {
               <Input id="inv-oauth-nom" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} className={INPUT_CLS} />
             </FormField>
           </div>
-          <FormField label="Votre rôle sur le projet" htmlFor="inv-oauth-metier">
+          <FormField label="Votre rôle sur le monument" htmlFor="inv-oauth-metier">
             <MetierSelect value={form.metier} onChange={(v) => setForm({ ...form, metier: v })} />
           </FormField>
           <FormField label="Téléphone (optionnel)" htmlFor="inv-oauth-tel">
             <Input id="inv-oauth-tel" type="tel" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} className={INPUT_CLS} />
           </FormField>
           <CguConsent checked={acceptCgu} onChange={setAcceptCgu} />
-          <PrimaryButton onClick={handleOauthSignup} busy={busy}>Rejoindre le projet</PrimaryButton>
+          <PrimaryButton onClick={handleOauthSignup} busy={busy}>Rejoindre le monument</PrimaryButton>
         </div>
       ) : mode === 'signup' ? (
         <div className="flex flex-col gap-4">
@@ -337,7 +349,7 @@ export function InvitationLandingPage() {
               </div>
             )}
           </FormField>
-          <FormField label="Votre rôle sur le projet" htmlFor="inv-metier">
+          <FormField label="Votre rôle sur le monument" htmlFor="inv-metier">
             <MetierSelect value={form.metier} onChange={(v) => setForm({ ...form, metier: v })} />
           </FormField>
           <FormField label="Téléphone (optionnel)" htmlFor="inv-tel">

@@ -1,18 +1,24 @@
 import { CadrageStep, CadrageTile } from './CadrageStep';
 
-interface ProjectPerilStepProps {
+interface PerilStepProps {
   /** `null` tant que la question n'a pas de réponse. */
   value: boolean | null;
   onChange: (peril: boolean) => void;
   onNext: () => void;
-  onBack: () => void;
-  /** Surtitre : « Nouveau projet » ou « Questionnaire » selon le parcours. */
+  /** Absent quand l'écran ouvre le parcours : il n'y a rien derrière. */
+  onBack?: () => void;
+  /** Surtitre : « Nouveau monument », « Nouveau projet »… selon le parcours. */
   eyebrow: string;
   saving?: boolean;
 }
 
 /**
- * Écran « Le monument est-il en péril ? » de l'étape « Votre projet ».
+ * Écran « Le monument est-il en péril ? ».
+ *
+ * Il décrit le BIEN, pas un chantier : il vit donc à l'étape 2 du wizard
+ * MONUMENT, et tous les projets du monument partagent sa réponse. Le wizard
+ * projet le réaffiche en préambule pour les fiches créées avant que la
+ * question n'existe — sans ce rattrapage, elle ne serait plus jamais posée.
  *
  * Alimente `monument.etat_conservation`, réduit à ce seul signal : les quatre
  * aides qui le lisent (loto-patrimoine, mission-patrimoine,
@@ -21,14 +27,14 @@ interface ProjectPerilStepProps {
  * répondre non persiste `bon` et les écarte : la discrimination des quatre
  * niveaux d'état est donc intégralement préservée par une question binaire.
  */
-export function ProjectPerilStep({
+export function PerilStep({
   value,
   onChange,
   onNext,
   onBack,
   eyebrow,
   saving,
-}: ProjectPerilStepProps) {
+}: PerilStepProps) {
   return (
     <CadrageStep
       eyebrow={eyebrow}

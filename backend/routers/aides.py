@@ -3,7 +3,7 @@ import traceback
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from supabase import Client
 
 from aides_schema import load_all_aides, load_facts, load_pending_facts
@@ -11,7 +11,7 @@ from db import get_current_user_id, get_supabase
 from eligibility_engine import aide_display_dict, run_deterministic_diagnostic
 from routers.monuments import enrich_monument_with_population
 from services import stripe_billing as billing
-from services.project_access import require_project_access
+from services.project_access import require_project_access, require_projet_access
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +24,26 @@ router = APIRouter(prefix="/aides", tags=["aides"])
 
 
 class DeterministicDiagnosticRequest(BaseModel):
-    monument_id: str
+    """Cible du diagnostic : un PROJET de travaux, ou (déprécié) un monument.
+
+    Le cadrage (travaux, questionnaire) vit sur le projet depuis l'inversion de
+    hiérarchie ; `monument_id` reste accepté pour qu'un onglet SPA non rechargé
+    continue d'obtenir un diagnostic (il est alors résolu vers le projet ouvert
+    le plus récent du monument).
+    """
+
+    projet_id: str | None = None
+    monument_id: str | None = None
     # Réponses déjà connues (fact_key → valeur). Optionnel : le front résout
-    # aussi les éliminations côté client via eliminationsParOption.
+    # aussi les éliminations côté client via eliminationsParOption. Absent
+    # (None) = on reprend le questionnaire enregistré du projet.
     answers: dict[str, object] | None = None
+
+    @model_validator(mode="after")
+    def _exige_une_cible(self) -> "DeterministicDiagnosticRequest":
+        if not self.projet_id and not self.monument_id:
+            raise ValueError("projet_id ou monument_id est requis")
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +219,36 @@ def deterministic_diagnostic_for(
     return _camelise_diagnostic(result)
 
 
+def merge_projet_into_monument(monument: dict, projet: dict | None) -> dict:
+    """Contexte du moteur : la fiche du monument + le cadrage de SON projet.
+
+    Le moteur ne connaît pas les projets — `FIELD_REGISTRY` et `build_context`
+    lisent `travaux_envisages` sur le monument, comme avant l'inversion de
+    hiérarchie. La fusion se fait donc ici, à la frontière : le monument reste
+    la source des champs du bien, le projet celle du chantier. Copie, jamais de
+    mutation en place : le même monument sert plusieurs projets du dashboard.
+    """
+    if projet is None:
+        return monument
+    return {**monument, "travaux_envisages": projet.get("travaux_envisages") or []}
+
+
+def _latest_open_projet(supabase: Client, monument_id: str) -> dict | None:
+    """Projet ouvert le plus récent d'un monument, pour le chemin de compat
+    `monument_id` (onglet SPA non rechargé). None si le monument n'en a aucun."""
+    result = (
+        supabase.table("projets")
+        .select("*")
+        .eq("monument_id", monument_id)
+        .is_("cloture_at", "null")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    return rows[0] if rows else None
+
+
 @router.post("/diagnostic-deterministe")
 def diagnostic_deterministe(
     body: DeterministicDiagnosticRequest,
@@ -214,21 +260,41 @@ def diagnostic_deterministe(
 
     Non persisté (les aideIds sont des slugs, pas des UUID) : le résultat est
     rendu directement, le QCM se résout côté client via eliminationsParOption.
+
+    Deux entrées : `projet_id` (le chemin normal, le cadrage vient du projet) et
+    `monument_id` seul (compat SPA non rechargée, on retombe sur le projet
+    ouvert le plus récent). Le paywall reste clé MONUMENT dans les deux cas.
     """
-    # Accès projet partagé : un collaborateur (membre) doit pouvoir lancer le
-    # diagnostic, pas seulement le propriétaire — d'où require_project_access
-    # plutôt qu'un filtre user_id (qui renverrait 404 aux collaborateurs).
-    require_project_access(supabase, body.monument_id, user_id, "member")
+    if body.projet_id:
+        # Accès projet partagé : un collaborateur (membre) doit pouvoir lancer le
+        # diagnostic, pas seulement le propriétaire — d'où require_projet_access
+        # plutôt qu'un filtre user_id (qui renverrait 404 aux collaborateurs).
+        projet, _ = require_projet_access(supabase, body.projet_id, user_id, "member")
+        monument_id = projet["monument_id"]
+    else:
+        monument_id = body.monument_id or ""
+        require_project_access(supabase, monument_id, user_id, "member")
+        projet = _latest_open_projet(supabase, monument_id)
+
     monument_result = (
-        supabase.table("monuments").select("*").eq("id", body.monument_id).single().execute()
+        supabase.table("monuments").select("*").eq("id", monument_id).single().execute()
     )
     if not monument_result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
     monument, population = enrich_monument_with_population(supabase, monument_result.data)
 
-    return redact_diagnostic_if_locked(
-        deterministic_diagnostic_for(monument, population, body.answers),
-        supabase,
-        user_id,
-        body.monument_id,
+    # Remplacement entier, jamais de fusion profonde : le front envoie le
+    # questionnaire complet (réponses + clés réservées). `answers` absent =
+    # on reprend celui enregistré sur le projet.
+    answers = (
+        body.answers if body.answers is not None else (projet or {}).get("questionnaire") or {}
     )
+
+    result = deterministic_diagnostic_for(
+        merge_projet_into_monument(monument, projet), population, answers
+    )
+    # Le moteur ne connaît que le monument : on stampe le projet à la frontière,
+    # c'est lui qui clé le store de diagnostics et les liens d'échéance du front.
+    result["projetId"] = projet["id"] if projet else None
+
+    return redact_diagnostic_if_locked(result, supabase, user_id, monument_id)

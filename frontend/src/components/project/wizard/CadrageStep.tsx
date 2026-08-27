@@ -9,7 +9,9 @@ interface CadrageStepProps {
   intro: string;
   children: React.ReactNode;
   onNext: () => void;
-  onBack: () => void;
+  /** Absent quand l'écran ouvre le parcours : la place du bouton reste tenue
+   *  par un vide, pour que « Continuer » ne saute pas d'un écran à l'autre. */
+  onBack?: () => void;
   /** Tant qu'aucune réponse n'est donnée, « Continuer » reste inerte. */
   nextDisabled?: boolean;
   /** Explique pourquoi « Continuer » est inerte (affiché à côté du bouton). */
@@ -19,10 +21,9 @@ interface CadrageStepProps {
 }
 
 /**
- * Écran de cadrage du projet (étape « Votre projet »), calqué sur
- * ProjectIntentStep : surtitre, titre sérif, intro, les réponses, puis la
- * navigation. Les trois écrans de l'étape partagent cette carrosserie pour se
- * lire comme une seule séquence.
+ * Écran de cadrage à choix, calqué sur ProjectIntentStep : surtitre, titre
+ * sérif, intro, les réponses, puis la navigation. Les écrans des deux wizards
+ * partagent cette carrosserie pour se lire comme une seule séquence.
  */
 export function CadrageStep({
   eyebrow,
@@ -63,16 +64,20 @@ export function CadrageStep({
         className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t py-3"
         style={{ borderColor: C.border }}
       >
-        <button
-          type="button"
-          onClick={onBack}
-          disabled={saving}
-          className="inline-flex min-h-11 items-center gap-1.5 text-[14px] font-medium transition-opacity hover:underline disabled:opacity-40"
-          style={{ color: C.grayFg }}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Précédent
-        </button>
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={saving}
+            className="inline-flex min-h-11 items-center gap-1.5 text-[14px] font-medium transition-opacity hover:underline disabled:opacity-40"
+            style={{ color: C.grayFg }}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Précédent
+          </button>
+        ) : (
+          <span aria-hidden />
+        )}
         <div className="flex flex-wrap items-center justify-end gap-3">
           {nextDisabled && nextHint && (
             <span className="text-[13px]" style={{ color: C.grayMuted }}>

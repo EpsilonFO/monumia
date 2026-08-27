@@ -1,5 +1,4 @@
-import type { ID, ProtectionLevel, OwnershipType, Region, WorkType } from './common.types';
-import type { ProjectQuestionnaireAnswers } from './project.types';
+import type { ID, ProtectionLevel, OwnershipType, Region } from './common.types';
 
 export interface Monument {
   id: ID;
@@ -22,33 +21,20 @@ export interface Monument {
   dateProtection?: string;
   typeProtection?: string;
   proprietaire: OwnershipType;
-  affectataire?: string;
 
   // Step 3: Physical Description
   siecleConstruction?: string;
-  periodeConstruction?: string[];
-  superficie?: number;
-  materiaux?: string[];
-  typeCouverture?: string;
-  nombreNiveaux?: number;
   descriptionGenerale?: string;
 
-  // Cadrage du projet (étape « Votre projet » du wizard)
-  // Absent tant que la question « le monument est-il en péril ? » n'a pas été
-  // posée : la fiche est créée avant. Le wizard n'écrit plus que 'peril' ou
-  // 'bon' — 'moyen'/'mauvais' subsistent sur les fiches antérieures.
+  // État sanitaire — décrit le BIEN, pas un chantier : tous les projets du
+  // monument le partagent. Absent tant que la question « le monument est-il en
+  // péril ? » n'a pas été posée (la fiche est créée avant l'étape 2 du wizard).
+  // On n'écrit plus que 'peril' ou 'bon' — 'moyen'/'mauvais' subsistent sur les
+  // fiches antérieures, et `isEnPeril` les range du côté péril dès 'mauvais'.
   etatConservation?: 'bon' | 'moyen' | 'mauvais' | 'peril';
-  travauxEnvisages?: WorkType[];
-  urgenceTravaux?: 'faible' | 'moyenne' | 'haute' | 'critique';
-  diagnosticRealise?: boolean;
-  derniersTravaux?: string;
-  descriptionEtat?: string;
 
   // Step 5: Photos
   photos: MonumentPhoto[];
-
-  // Project questionnaire (Phase B) — optional, degrades gracefully if DB column absent
-  questionnaire?: ProjectQuestionnaireAnswers;
 
   // Metadata
   completionPercentage: number;
@@ -82,10 +68,4 @@ export interface MerimeeRecord {
   statut_juridique_de_l_edifice?: string;
   cog_insee_lors_de_la_protection?: string;
   commune_actuelle?: string | null;
-}
-
-export interface MonumentFormState {
-  currentStep: 1 | 2 | 3 | 4 | 5;
-  isComplete: boolean;
-  stepsCompleted: boolean[];
 }

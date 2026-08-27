@@ -23,6 +23,9 @@ class _Query:
         self._inserted = inserted
         self._updated = updated
         self._mode = None  # 'insert' | 'update' | None
+        # Le vrai client rend un DICT après maybe_single()/single(), une LISTE
+        # sinon : plusieurs gardes lisent la même table dans les deux modes.
+        self._single = False
 
     def select(self, *a, **k):
         return self
@@ -40,10 +43,15 @@ class _Query:
     def eq(self, *a, **k):
         return self
 
+    def in_(self, *a, **k):
+        return self
+
     def single(self):
+        self._single = True
         return self
 
     def maybe_single(self):
+        self._single = True
         return self
 
     def execute(self):
@@ -52,7 +60,12 @@ class _Query:
             return _Resp([{**self._inserted[-1], "id": "d1"}])
         if self._mode == "update":
             return _Resp([{**self._updated[-1], "id": "d1"}])
-        return self._response
+        data = self._response.data
+        if self._single:
+            return _Resp(data)
+        if data is None:
+            return _Resp([])
+        return _Resp(data if isinstance(data, list) else [data])
 
 
 class _FakeSupabase:
@@ -68,7 +81,9 @@ class _FakeSupabase:
 def _supabase(*, caller_role, doc=None):
     return _FakeSupabase(
         {
-            "project_members": _Resp({"role": caller_role} if caller_role else None),
+            "project_members": _Resp(
+                {"monument_id": "m1", "role": caller_role} if caller_role else None
+            ),
             "monuments": _Resp(None),
             "documents": _Resp(doc) if doc is not None else _Resp(None),
         }

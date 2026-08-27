@@ -70,7 +70,7 @@ export function LoginPage() {
     try {
       const { user, access_token } = await authService.login(loginForm);
       setAuth(user, access_token);
-      navigate(user.accountType === 'collaborateur' ? ROUTES.PROJETS : '/app');
+      navigate(user.accountType === 'collaborateur' ? ROUTES.MONUMENTS : '/app');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Email ou mot de passe incorrect');
     } finally {

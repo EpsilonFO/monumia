@@ -59,7 +59,7 @@ export function DocumentCard({
 
   const menuActions: DocMenuAction[] = [
     ...(onAddToProject
-      ? [{ label: 'Ajouter à un projet', icon: IconAjouterDossier, onClick: () => onAddToProject(document) }]
+      ? [{ label: 'Ajouter à un monument', icon: IconAjouterDossier, onClick: () => onAddToProject(document) }]
       : []),
     ...(canManageAccess
       ? [{ label: "Gérer l'accès", icon: IconProtection, onClick: () => setAccessOpen(true) }]

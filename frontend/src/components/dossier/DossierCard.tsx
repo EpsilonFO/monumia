@@ -111,7 +111,7 @@ export function DossierCard({ dossier }: DossierCardProps) {
   const [aideName] = dossier.titre.split(' — ');
 
   return (
-    <Link to={ROUTES.PROJET_DOSSIER(dossier.monumentId, dossier.id)} className="group block h-full">
+    <Link to={ROUTES.PROJET_DOSSIER(dossier.projetId, dossier.id)} className="group block h-full">
       <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
         <div className="flex flex-col gap-4 p-5">
           {/* En-tête : anneau + identité */}

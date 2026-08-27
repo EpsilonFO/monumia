@@ -1,6 +1,6 @@
 import { daysUntil, deadlineLabel } from '@/lib/date-utils';
 import { ROUTES } from '@/constants/routes';
-import type { Monument } from '@/types';
+import type { Monument, Projet } from '@/types';
 import type { AideDigest, ProjectDigest } from '@/types';
 import type { Dossier } from '@/types';
 import type { AideSuivi } from '@/types';
@@ -12,6 +12,10 @@ export interface ProjectDeadline {
   source: 'aide' | 'dossier';
   joursRestants: number;
   urgency: 'normal' | 'warning' | 'urgent' | 'past';
+  /** Le PROJET concerné : une échéance porte sur un chantier, pas sur le bien. */
+  projetId?: string;
+  /** Monument parent — repli quand le projet est inconnu (vieux lien, digest
+   *  d'un chemin de compatibilité). */
   monumentId?: string;
   aideId?: string;
   dossierId?: string;
@@ -21,16 +25,17 @@ export interface ProjectDeadline {
  * Destination d'un clic sur une échéance — la page de l'aide concernée :
  *  - échéance d'aide   → page de l'aide (onglet Description par défaut) ;
  *  - échéance de dossier → le dossier correspondant.
- * Repli sur le projet, puis la liste des projets, si l'on manque d'identifiants.
+ * Repli sur le projet, puis son monument, puis la liste, si l'on manque
+ * d'identifiants.
  */
 export function deadlineLink(d: ProjectDeadline): string {
-  if (d.source === 'aide' && d.monumentId && d.aideId) {
-    return ROUTES.PROJET_AIDE(d.monumentId, d.aideId);
+  if (d.source === 'aide' && d.projetId && d.aideId) {
+    return ROUTES.PROJET_AIDE(d.projetId, d.aideId);
   }
-  if (d.monumentId && d.dossierId) return ROUTES.PROJET_DOSSIER(d.monumentId, d.dossierId);
-  if (d.dossierId) return ROUTES.DOSSIER_DETAIL(d.dossierId);
-  if (d.monumentId) return ROUTES.PROJET_DETAIL(d.monumentId);
-  return ROUTES.PROJETS;
+  if (d.projetId && d.dossierId) return ROUTES.PROJET_DOSSIER(d.projetId, d.dossierId);
+  if (d.projetId) return ROUTES.PROJET_DETAIL(d.projetId);
+  if (d.monumentId) return ROUTES.MONUMENT_DETAIL(d.monumentId);
+  return ROUTES.MONUMENTS;
 }
 
 /**
@@ -67,6 +72,7 @@ export function mergeProjectDeadlines(
         source: 'aide',
         joursRestants,
         urgency: deadlineLabel(aide.dateLimite).urgency,
+        projetId: diagnostic.projetId,
         monumentId: diagnostic.monumentId,
         aideId: aide.id,
       });
@@ -84,6 +90,7 @@ export function mergeProjectDeadlines(
         source: 'dossier',
         joursRestants,
         urgency: deadlineLabel(echeance.date).urgency,
+        projetId: dossier.projetId,
         monumentId: dossier.monumentId,
         dossierId: dossier.id,
       });
@@ -105,11 +112,11 @@ export interface ProjectStats {
   tauxTravauxMax: number;
   dossiersActifs: number;
   prochaineEcheance: ProjectDeadline | null;
-  completion: number;
 }
 
+/** Chiffres d'UN projet de travaux : ce que son en-tête et sa carte affichent. */
 export function computeProjectStats(
-  monument: Monument,
+  projet: Projet,
   diagnostic: ProjectDigest | null,
   dossiers: Dossier[]
 ): ProjectStats {
@@ -126,11 +133,11 @@ export function computeProjectStats(
   const montantAtteignable = diagnostic?.montantAtteignableTotal ?? 0;
   const tauxTravauxMax = diagnostic?.tauxTravauxMaxPct ?? 0;
 
-  const monumentDossiers = dossiers.filter((d) => d.monumentId === monument.id);
-  const dossiersActifs = monumentDossiers.filter((d) => d.statut !== 'soumis').length;
+  const projetDossiers = dossiers.filter((d) => d.projetId === projet.id);
+  const dossiersActifs = projetDossiers.filter((d) => d.statut !== 'soumis').length;
 
   const prochaineEcheance =
-    mergeProjectDeadlines(diagnostic, monumentDossiers).find((d) => d.joursRestants >= 0) ?? null;
+    mergeProjectDeadlines(diagnostic, projetDossiers).find((d) => d.joursRestants >= 0) ?? null;
 
   return {
     aidesIdentifiees,
@@ -139,78 +146,59 @@ export function computeProjectStats(
     tauxTravauxMax,
     dossiersActifs,
     prochaineEcheance,
-    completion: monument.completionPercentage,
   };
 }
 
-export interface DashboardStats {
-  projetsActifs: number;
+export interface MonumentStats {
+  /** Nombre de projets de travaux ouverts sur ce monument. */
+  projets: number;
+  /** Aides repérées, tous projets confondus. */
   aidesIdentifiees: number;
-  montantPotentielTotal: number;
-  dossiersEnCours: number;
+  /** Somme des montants potentiels des projets. Deux projets peuvent viser la
+   *  même aide : le total est donc un ordre de grandeur, pas un cumul exigible.
+   *  Les aides « à débloquer » en restent exclues (démarche encore à faire). */
+  montantPotentiel: number;
+  dossiersActifs: number;
   prochaineEcheance: ProjectDeadline | null;
-  aidesParCategorie: { categorie: string; count: number }[];
-  montantParProjet: { nom: string; montant: number }[];
+  /** Complétude de la FICHE du monument (pas des projets). */
+  completion: number;
 }
 
-export function aggregateDashboardStats(
-  monuments: Monument[],
-  diagnosticsByMonument: Record<string, ProjectDigest | null>,
+/**
+ * Chiffres d'un MONUMENT : l'agrégat de ses projets. Fonction pure.
+ *
+ * Un monument sans projet rend des zéros et une échéance nulle — c'est ce qui
+ * fait basculer sa carte sur le CTA « Lancer un projet de travaux » plutôt que
+ * sur des montants.
+ */
+export function computeMonumentStats(
+  monument: Monument,
+  projets: Projet[],
+  digestsByProjet: Record<string, ProjectDigest | null>,
   dossiers: Dossier[]
-): DashboardStats {
+): MonumentStats {
+  const mesProjets = projets.filter((p) => p.monumentId === monument.id);
+  const mesDossiers = dossiers.filter((d) => d.monumentId === monument.id);
+
   let aidesIdentifiees = 0;
-  let montantPotentielTotal = 0;
-  const categorieCounts = new Map<string, number>();
-  const montantParProjet: { nom: string; montant: number }[] = [];
-  const allDeadlines: ProjectDeadline[] = [];
+  let montantPotentiel = 0;
+  const echeances: ProjectDeadline[] = [];
 
-  for (const monument of monuments) {
-    const diagnostic = diagnosticsByMonument[monument.id] ?? null;
-    const monumentDossiers = dossiers.filter((d) => d.monumentId === monument.id);
-
-    if (diagnostic) {
-      const matches: { aide: AideDigest }[] = [
-        ...diagnostic.aidesEligibles,
-        ...diagnostic.aidesPotentiellementEligibles,
-        ...(diagnostic.aidesAtteignables ?? []),
-      ];
-      aidesIdentifiees += matches.length;
-      // Volontairement sans `montantAtteignableTotal` : ce montant suppose une
-      // démarche encore à faire, il n'a pas sa place dans un total « potentiel ».
-      montantPotentielTotal += diagnostic.montantPotentielTotal ?? 0;
-      for (const match of matches) {
-        const categorie = match.aide.categorie;
-        categorieCounts.set(categorie, (categorieCounts.get(categorie) ?? 0) + 1);
-      }
-    }
-
-    montantParProjet.push({
-      nom: monument.nom,
-      montant: diagnostic?.montantPotentielTotal ?? 0,
-    });
-
-    allDeadlines.push(...mergeProjectDeadlines(diagnostic, monumentDossiers));
+  for (const projet of mesProjets) {
+    const stats = computeProjectStats(projet, digestsByProjet[projet.id] ?? null, mesDossiers);
+    aidesIdentifiees += stats.aidesIdentifiees;
+    montantPotentiel += stats.montantPotentiel;
+    if (stats.prochaineEcheance) echeances.push(stats.prochaineEcheance);
   }
 
-  const dossiersEnCours = dossiers.filter((d) => d.statut !== 'soumis').length;
-
-  const prochaineEcheance =
-    allDeadlines
-      .filter((d) => d.joursRestants >= 0)
-      .sort((a, b) => a.joursRestants - b.joursRestants)[0] ?? null;
-
-  const aidesParCategorie = Array.from(categorieCounts.entries())
-    .map(([categorie, count]) => ({ categorie, count }))
-    .sort((a, b) => b.count - a.count);
-
   return {
-    projetsActifs: monuments.length,
+    projets: mesProjets.length,
     aidesIdentifiees,
-    montantPotentielTotal,
-    dossiersEnCours,
-    prochaineEcheance,
-    aidesParCategorie,
-    montantParProjet,
+    montantPotentiel,
+    dossiersActifs: mesDossiers.filter((d) => d.statut !== 'soumis').length,
+    prochaineEcheance:
+      echeances.sort((a, b) => a.joursRestants - b.joursRestants)[0] ?? null,
+    completion: monument.completionPercentage,
   };
 }
 

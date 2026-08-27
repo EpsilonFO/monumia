@@ -1,17 +1,31 @@
 import type { ID, ProtectionLevel, OwnershipType, Region, WorkType } from './common.types';
 
+/**
+ * Financeur de l'aide. Miroir EXACT du tuple `CATEGORIES` de
+ * [aides_schema.py](backend/aides_schema.py) : la valeur vient des YAML et
+ * traverse le moteur telle quelle. Toute divergence se voit à l'écran — un
+ * libellé introuvable retombe sur le slug brut dans le badge de l'aide.
+ */
 export type AideCategory =
   | 'etat_drac'
   | 'region'
   | 'departement'
-  | 'fondation_patrimoine'
+  | 'fondation'
   | 'europe'
   | 'mecenat'
   | 'fiscalite'
   | 'autre';
 
-export type AideType = 'subvention' | 'avance' | 'pret' | 'deduction_fiscale'
-  | 'label' | 'mecenat' | 'souscription' | 'autre';
+/** Nature du concours. Miroir du tuple `TYPES` de aides_schema.py. */
+export type AideType =
+  | 'subvention'
+  | 'appel_a_projets'
+  | 'pret'
+  | 'deduction_fiscale'
+  | 'exoneration'
+  | 'label'
+  | 'mecenat'
+  | 'souscription';
 
 /** Pièce du dossier à constituer pour une aide. */
 export interface AideDocument {
@@ -200,6 +214,11 @@ export interface QcmQuestion {
 }
 
 export interface AideDiagnosticResult {
+  /** Le PROJET de travaux diagnostiqué — clé du store de diagnostics et des
+   *  liens d'échéance. Absent sur le chemin de compatibilité `monument_id`
+   *  (onglet SPA non rechargé) quand le monument n'a encore aucun projet. */
+  projetId?: ID;
+  /** Le monument parent, tel que rendu par le moteur. Reste la clé du paywall. */
   monumentId: ID;
   timestamp: string;
   totalAidesAnalysees: number;
@@ -243,6 +262,11 @@ export interface AideDigest {
  * `project-stats` acceptent les deux indifféremment.
  */
 export interface ProjectDigest {
+  /** Un digest décrit un PROJET : c'est par lui que le front l'indexe.
+   *  Optionnel comme sur `AideDiagnosticResult`, qui doit en rester un
+   *  sur-ensemble structurel (project-stats consomme les deux). */
+  projetId?: ID;
+  /** Monument parent — clé du paywall et de l'agrégation par monument. */
   monumentId: ID;
   aidesEligibles: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
   aidesPotentiellementEligibles: { aide: AideDigest; disponibilite?: AideDisponibilite }[];

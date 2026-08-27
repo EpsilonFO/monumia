@@ -22,12 +22,18 @@ const typeColors = {
   info: 'text-info',
 };
 
+/**
+ * Destination d'une notification. Une aide et un dossier ne se consultent plus
+ * qu'à l'intérieur d'un projet, et la notification ne porte que leur propre id :
+ * on renvoie donc sur la liste des monuments, d'où l'utilisateur retrouve le
+ * bon chantier. Seul le lien monument est direct.
+ */
 function getLink(n: Notification): string | undefined {
   if (!n.lienVers) return undefined;
   switch (n.lienVers.type) {
-    case 'aide': return ROUTES.AIDE_DETAIL(n.lienVers.id);
-    case 'dossier': return ROUTES.DOSSIER_DETAIL(n.lienVers.id);
     case 'monument': return ROUTES.MONUMENT_DETAIL(n.lienVers.id);
+    case 'aide':
+    case 'dossier': return ROUTES.MONUMENTS;
     default: return undefined;
   }
 }

@@ -60,13 +60,18 @@ def _make(*, caller_role, item):
     """Fabrique un faux supabase pour un dossier à une seule pièce `item`."""
     dossier = {
         "id": "dos-1",
+        "projet_id": "pro-1",
         "monument_id": "mon-1",
         "checklist": [item],
     }
     return _FakeSupabase(
         {
             "dossiers": _Resp(dossier),
-            "project_members": _Resp({"role": caller_role} if caller_role else None),
+            "projets": _Resp({"id": "pro-1", "monument_id": "mon-1", "user_id": "owner"}),
+            "projet_members": _Resp(None),
+            "project_members": _Resp(
+                {"monument_id": "mon-1", "role": caller_role} if caller_role else None
+            ),
             "monuments": _Resp(None),
         }
     )
@@ -75,13 +80,18 @@ def _make(*, caller_role, item):
 def _make_with_uploader(*, caller_role, current_doc_id, uploader_id):
     dossier = {
         "id": "dos-1",
+        "projet_id": "pro-1",
         "monument_id": "mon-1",
         "checklist": [{"id": "it-1", "statut": "fourni", "documentId": current_doc_id}],
     }
     return _FakeSupabase(
         {
             "dossiers": _Resp(dossier),
-            "project_members": _Resp({"role": caller_role} if caller_role else None),
+            "projets": _Resp({"id": "pro-1", "monument_id": "mon-1", "user_id": "owner"}),
+            "projet_members": _Resp(None),
+            "project_members": _Resp(
+                {"monument_id": "mon-1", "role": caller_role} if caller_role else None
+            ),
             "monuments": _Resp(None),
             "documents": _Resp({"user_id": uploader_id}),
         }

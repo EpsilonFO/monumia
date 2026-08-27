@@ -3,8 +3,15 @@ import { authFetch, handleResponse } from '@/lib/auth-fetch';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
-// The backend returns snake_case keys directly as stored in DB.
-// The Monument type uses camelCase. We need a mapping layer.
+/**
+ * Ligne `monuments` (snake_case) → `Monument`.
+ *
+ * Ne mappe QUE des colonnes réelles. Dix attributs (affectataire, superficie,
+ * matériaux, couverture, urgence, diagnostic réalisé…) ont été droppés par la
+ * migration 20260516174303, et le cadrage de chantier (questionnaire,
+ * travaux_envisages, cloture_at) est parti sur la table `projets` : les
+ * chercher ici ne rendrait jamais rien.
+ */
 export function toMonument(row: Record<string, unknown>): Monument {
   return {
     id: row.id as string,
@@ -32,9 +39,7 @@ export function toMonument(row: Record<string, unknown>): Monument {
     siecleConstruction: row.siecle_construction as string ?? row.siecleConstruction as string,
     descriptionGenerale: row.description_generale as string ?? row.descriptionGenerale as string,
     etatConservation: (row.etat_conservation ?? row.etatConservation ?? undefined) as Monument['etatConservation'],
-    travauxEnvisages: row.travaux_envisages as Monument['travauxEnvisages'] ?? row.travauxEnvisages as Monument['travauxEnvisages'],
     photos: (row.photos as MonumentPhoto[]) ?? [],
-    questionnaire: (row.questionnaire as Monument['questionnaire']) ?? undefined,
     completionPercentage: row.completion_percentage as number ?? row.completionPercentage as number ?? 0,
     createdAt: row.created_at as string ?? row.createdAt as string ?? new Date().toISOString(),
     updatedAt: row.updated_at as string ?? row.updatedAt as string ?? new Date().toISOString(),

@@ -72,6 +72,7 @@ export interface UploadDocumentPayload {
   type: DocumentType | 'autre';
   monumentId?: string;
   monumentIds?: string[];
+  projetIds?: string[];
   description?: string;
   tags?: string[];
   visibility?: DocumentVisibility;
@@ -91,6 +92,7 @@ function toDocument(row: Record<string, unknown>): Document {
     dossiersUtilises: (row.dossiers_utilises as string[]) ?? [],
     userId: row.user_id as string,
     monumentIds: (row.monument_ids as string[]) ?? [],
+    projetIds: (row.projet_ids as string[]) ?? [],
     dateUpload: row.date_upload as string,
     dateDocument: row.date_document as string | undefined,
     description: row.description as string | undefined,
@@ -112,9 +114,17 @@ async function getSignedUrl(documentId: string): Promise<string> {
 }
 
 export const documentService = {
-  async getAll(params?: { monumentId?: string; type?: string; trashed?: boolean }): Promise<Document[]> {
+  /**
+   * Documents d'un monument, d'un projet, ou tout ce que je peux voir.
+   *
+   * `monumentId` et `projetId` sont des périmètres DISJOINTS côté serveur : les
+   * pièces du bien d'un côté, celles du chantier de l'autre. Ne pas les passer
+   * ensemble en espérant l'union — le backend privilégie `projetId`.
+   */
+  async getAll(params?: { monumentId?: string; projetId?: string; type?: string; trashed?: boolean }): Promise<Document[]> {
     const url = new URL(`${BASE}/documents`);
     if (params?.monumentId) url.searchParams.set('monument_id', params.monumentId);
+    if (params?.projetId) url.searchParams.set('projet_id', params.projetId);
     if (params?.type) url.searchParams.set('type', params.type);
     if (params?.trashed) url.searchParams.set('trashed', 'true');
 
@@ -134,6 +144,7 @@ export const documentService = {
 
     // Build monument_ids from either monumentIds array or single monumentId
     const monumentIds = payload.monumentIds ?? (payload.monumentId ? [payload.monumentId] : []);
+    const projetIds = payload.projetIds ?? [];
 
     const body = {
       nom: payload.nom,
@@ -144,6 +155,7 @@ export const documentService = {
       mime_type: payload.file.type,
       url,
       monument_ids: monumentIds,
+      projet_ids: projetIds,
       description: payload.description ?? null,
       visibility: payload.visibility ?? null,
       allowed_user_ids: payload.allowedUserIds ?? [],
@@ -191,10 +203,15 @@ export const documentService = {
     }
   },
 
-  async addToProjects(documentId: string, monumentIds: string[]): Promise<Document> {
+  /** Rattache un document existant à d'autres monuments et / ou projets (aucune copie). */
+  async addToProjects(
+    documentId: string,
+    monumentIds: string[],
+    projetIds: string[] = [],
+  ): Promise<Document> {
     const res = await authFetch(`${BASE}/documents/${documentId}/projects`, {
       method: 'POST',
-      body: JSON.stringify({ monument_ids: monumentIds }),
+      body: JSON.stringify({ monument_ids: monumentIds, projet_ids: projetIds }),
     });
     const row = await handleResponse<Record<string, unknown>>(res);
     return toDocument(row);
@@ -234,6 +251,15 @@ export const documentService = {
 
   async removeFromProject(id: string, monumentId: string): Promise<Document> {
     const res = await authFetch(`${BASE}/documents/${id}/projects/${monumentId}`, {
+      method: 'DELETE',
+    });
+    const row = await handleResponse<Record<string, unknown>>(res);
+    return toDocument(row);
+  },
+
+  /** Détache un document d'un PROJET de travaux (le monument, lui, n'est pas touché). */
+  async removeFromProjet(id: string, projetId: string): Promise<Document> {
+    const res = await authFetch(`${BASE}/documents/${id}/projets/${projetId}`, {
       method: 'DELETE',
     });
     const row = await handleResponse<Record<string, unknown>>(res);

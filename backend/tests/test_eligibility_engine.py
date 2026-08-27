@@ -32,6 +32,7 @@ from eligibility_engine import (
     run_deterministic_diagnostic,
     split_reserved_answers,
 )
+from routers.aides import merge_projet_into_monument
 
 AIDES = load_all_aides()
 FACTS = {**load_facts(), **load_pending_facts()}
@@ -1329,6 +1330,48 @@ class TestElimineParReponse(unittest.TestCase):
         verdict = evaluate_aide(AIDES["drac-mh-classes"], m, 3000, build_context(m, 3000), FACTS)
         self.assertNotEqual(verdict.status, "non_eligible")
         self.assertFalse(_match_result(verdict)["elimineParReponse"])
+
+
+class TestFusionMonumentProjet(unittest.TestCase):
+    """Contrat de non-régression de l'inversion de hiérarchie.
+
+    Le moteur n'a PAS changé : `FIELD_REGISTRY` et `build_context` lisent
+    toujours `travaux_envisages` sur le monument. Depuis que le cadrage vit sur
+    le projet, c'est `merge_projet_into_monument` qui recompose ce monument à la
+    frontière (routers). Ces tests prouvent que le contexte obtenu est identique
+    à celui d'avant l'inversion — un chantier décrit sur un projet doit produire
+    exactement le même diagnostic qu'un monument qui portait ces travaux.
+    """
+
+    def test_contexte_identique_a_l_avant_inversion(self):
+        avant = _monument(travaux_envisages=["toiture", "facade"])
+        # Après : la fiche ne porte plus les travaux, le projet les porte.
+        fiche = _monument()
+        fiche.pop("travaux_envisages")
+        projet = {"id": "p1", "travaux_envisages": ["toiture", "facade"]}
+        apres = merge_projet_into_monument(fiche, projet)
+
+        self.assertEqual(build_context(avant, 3000), build_context(apres, 3000))
+
+    def test_le_projet_ecrase_les_travaux_de_la_fiche(self):
+        """Deux projets d'un même monument doivent pouvoir diverger."""
+        fiche = _monument(travaux_envisages=["toiture"])
+        fusion = merge_projet_into_monument(fiche, {"travaux_envisages": ["orgues"]})
+        self.assertEqual(fusion["travaux_envisages"], ["orgues"])
+        # Sans mutation de la fiche : le même monument sert les autres projets.
+        self.assertEqual(fiche["travaux_envisages"], ["toiture"])
+
+    def test_projet_sans_travaux_donne_une_liste_vide(self):
+        """« Pas encore déterminé » : le hard_filter travaux redevient fail-open."""
+        fusion = merge_projet_into_monument(_monument(), {"travaux_envisages": []})
+        self.assertEqual(fusion["travaux_envisages"], [])
+        aide = _fixture_aide([], travaux=["orgues"])
+        verdict = evaluate_aide(aide, fusion, 3000, build_context(fusion, 3000), FACTS)
+        self.assertNotEqual(verdict.status, "non_eligible")
+
+    def test_monument_sans_projet_reste_inchange(self):
+        fiche = _monument()
+        self.assertIs(merge_projet_into_monument(fiche, None), fiche)
 
 
 if __name__ == "__main__":

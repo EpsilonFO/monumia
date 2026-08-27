@@ -12,6 +12,7 @@ interface DossierState {
   getDossier: (id: string) => Dossier | undefined;
   getDossiersByUser: (userId: string) => Dossier[];
   getDossiersByMonument: (monumentId: string) => Dossier[];
+  getDossiersByProjet: (projetId: string) => Dossier[];
   getDossiersByStatus: (status: DossierStatus) => Dossier[];
   addDossier: (dossier: Dossier) => void;
   updateDossier: (id: string, updates: Partial<Dossier>) => void;
@@ -43,6 +44,9 @@ export const useDossierStore = create<DossierState>()((set, get) => ({
 
   getDossiersByMonument: (monumentId) =>
     get().dossiers.filter((d) => d.monumentId === monumentId),
+
+  getDossiersByProjet: (projetId) =>
+    get().dossiers.filter((d) => d.projetId === projetId),
 
   getDossiersByStatus: (status) =>
     get().dossiers.filter((d) => d.statut === status),

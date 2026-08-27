@@ -1,6 +1,9 @@
+import { Link } from 'react-router';
+import { ChevronRight } from 'lucide-react';
 import { IconEcheance, IconDocument, IconAide } from '@/components/icons';
 import { C, SERIF } from '@/lib/brand';
 import { formatDate } from '@/lib/date-utils';
+import { deadlineLink } from '@/lib/project-stats';
 import type { ProjectDeadline } from '@/lib/project-stats';
 
 interface ProjectEcheancierProps {
@@ -22,6 +25,15 @@ function joursLabel(d: ProjectDeadline): string {
   return `J-${d.joursRestants}`;
 }
 
+/**
+ * Échéancier du projet : les dates limites d'aides et les échéances de dossier,
+ * de la plus proche à la plus lointaine.
+ *
+ * Chaque ligne mène là où l'échéance se traite — la fiche de l'aide, ou le
+ * dossier (cf. `deadlineLink`). Sur un projet non débloqué, le nom de l'aide est
+ * déjà masqué côté serveur et la fiche renvoie d'elle-même vers les tarifs : le
+ * lien n'ouvre donc rien qui ne soit payé.
+ */
 export function ProjectEcheancier({ deadlines }: ProjectEcheancierProps) {
   if (deadlines.length === 0) {
     return (
@@ -56,27 +68,36 @@ export function ProjectEcheancier({ deadlines }: ProjectEcheancierProps) {
           const style = URGENCY_STYLE[d.urgency];
           const SourceIcon = d.source === 'aide' ? IconAide : IconDocument;
           return (
-            <div
+            <Link
               key={d.id}
-              className="flex items-start gap-3 rounded-xl border px-3 py-2.5"
+              to={deadlineLink(d)}
+              aria-label={`${d.label} — ${d.source === 'aide' ? "ouvrir la fiche de l'aide" : 'ouvrir le dossier'}`}
+              className="group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               style={{ background: C.cream, borderColor: C.border }}
             >
               <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: style.bg }}>
                 <SourceIcon className="h-4 w-4" style={{ color: style.fg }} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-medium leading-snug line-clamp-2" style={{ color: C.ink }}>{d.label}</p>
+                <p className="text-[13px] font-medium leading-snug line-clamp-2 group-hover:underline" style={{ color: C.ink }}>{d.label}</p>
                 <p className="text-[11px] mt-0.5 text-muted-foreground">
                   {d.source === 'aide' ? 'Aide' : 'Dossier'} · {formatDate(d.date)}
                 </p>
               </div>
-              <span
-                className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border"
-                style={{ background: style.bg, color: style.fg, borderColor: style.border }}
-              >
-                {joursLabel(d)}
+              <span className="flex shrink-0 items-center gap-1">
+                <span
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border"
+                  style={{ background: style.bg, color: style.fg, borderColor: style.border }}
+                >
+                  {joursLabel(d)}
+                </span>
+                <ChevronRight
+                  className="h-3.5 w-3.5 shrink-0 opacity-40 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:opacity-100"
+                  style={{ color: C.blue }}
+                  aria-hidden
+                />
               </span>
-            </div>
+            </Link>
           );
         })}
       </div>

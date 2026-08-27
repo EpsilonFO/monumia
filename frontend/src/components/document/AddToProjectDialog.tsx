@@ -67,7 +67,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
     setSubmitting(true);
     try {
       await addToProjects(document.id, [...selected]);
-      toast.success(`Document rattaché à ${count} projet${count > 1 ? 's' : ''}`);
+      toast.success(`Document rattaché à ${count} monument${count > 1 ? 's' : ''}`);
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors du rattachement');
@@ -80,7 +80,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Ajouter à un autre projet</DialogTitle>
+          <DialogTitle>Ajouter à un autre monument</DialogTitle>
           {document && (
             <p className="text-[13px] truncate text-muted-foreground">{document.nom}</p>
           )}
@@ -89,9 +89,9 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
         {projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
             <IconProjet className="h-8 w-8 text-muted-foreground opacity-50" />
-            <p className="text-sm text-muted-foreground">Aucun autre projet disponible.</p>
+            <p className="text-sm text-muted-foreground">Aucun autre monument disponible.</p>
             <p className="text-xs text-muted-foreground">
-              Ce document est déjà rattaché à tous vos projets.
+              Ce document est déjà rattaché à tous vos monuments.
             </p>
           </div>
         ) : (
@@ -102,8 +102,8 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
                 <Input
                   className="pl-9 h-10 text-[14px]"
                   style={{ background: C.card, borderColor: C.border }}
-                  aria-label="Rechercher un projet"
-                  placeholder="Rechercher un projet..."
+                  aria-label="Rechercher un monument"
+                  placeholder="Rechercher un monument..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -144,12 +144,12 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
                 );
               })}
               {filtered.length === 0 && (
-                <p className="text-sm text-center py-8 text-muted-foreground">Aucun projet trouvé.</p>
+                <p className="text-sm text-center py-8 text-muted-foreground">Aucun monument trouvé.</p>
               )}
             </div>
 
             <p className="text-[11px] text-muted-foreground">
-              Le même document sera rattaché à chaque projet sélectionné, sans créer de copie.
+              Le même document sera rattaché à chaque monument sélectionné, sans créer de copie.
             </p>
           </>
         )}
@@ -173,7 +173,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
               style={{ background: C.orange }}
             >
               {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Rattacher à {selected.size} projet{selected.size > 1 ? 's' : ''}
+              Rattacher à {selected.size} monument{selected.size > 1 ? 's' : ''}
             </button>
           )}
         </DialogFooter>

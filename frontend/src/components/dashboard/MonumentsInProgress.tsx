@@ -17,11 +17,12 @@ import { formatCurrency } from '@/lib/format-utils';
 import { montantTileMode } from '@/lib/project-card-view';
 import { ParcoursStepper } from './ParcoursStepper';
 import type { Monument } from '@/types';
-import type { ProjectStats, ProjectStage } from '@/lib/project-stats';
+import type { MonumentStats, ProjectStage } from '@/lib/project-stats';
 
-interface ProjectsInProgressProps {
+interface MonumentsInProgressProps {
   monuments: Monument[];
-  statsByMonument: Record<string, ProjectStats>;
+  statsByMonument: Record<string, MonumentStats>;
+  /** Avancement du projet le plus avancé du monument, quand il en a un. */
   stageByMonument?: Record<string, ProjectStage>;
 }
 
@@ -67,14 +68,14 @@ function GlassBadge({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ProjectCard({
+function MonumentTile({
   monument,
   stats,
   stage,
   featured = false,
 }: {
   monument: Monument;
-  stats?: ProjectStats;
+  stats?: MonumentStats;
   stage?: ProjectStage;
   featured?: boolean;
 }) {
@@ -83,9 +84,9 @@ function ProjectCard({
   const photo = heroPhoto(monument);
   const role = sharedRole(monument.myRole);
 
-  // Kicker du héros : l'accroche aides du projet (montant si estimé, sinon le
-  // nombre d'aides repérées, sinon l'invitation à estimer) — plutôt qu'un
-  // « En cours » identique sur toutes les cartes.
+  // Kicker du héros : l'accroche aides du monument, tous projets confondus
+  // (montant si estimé, sinon le nombre d'aides repérées, sinon l'invitation à
+  // lancer un chantier) — plutôt qu'un « En cours » identique partout.
   const aidesMode = montantTileMode(stats);
   const kicker =
     aidesMode === 'money' && stats
@@ -93,10 +94,11 @@ function ProjectCard({
       : aidesMode === 'count' && stats
         ? `${stats.aidesIdentifiees} aide${stats.aidesIdentifiees > 1 ? 's' : ''} repérée${stats.aidesIdentifiees > 1 ? 's' : ''}`
         : 'Aides à estimer';
+  const nbProjets = stats?.projets ?? 0;
 
   return (
     <Link
-      to={ROUTES.PROJET_DETAIL(monument.id)}
+      to={ROUTES.MONUMENT_DETAIL(monument.id)}
       className="group relative flex h-full flex-col overflow-hidden rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_-28px_rgba(7,42,114,0.6)]"
       style={{ borderColor: C.border, background: C.card }}
     >
@@ -169,6 +171,10 @@ function ProjectCard({
             className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-foreground/70"
           >
             <span className="inline-flex items-center gap-1.5">
+              <IconProjet className="h-3.5 w-3.5" aria-hidden />
+              {nbProjets} projet{nbProjets > 1 ? 's' : ''}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
               <IconDossier className="h-3.5 w-3.5" aria-hidden />
               {dossiersActifs} dossier{dossiersActifs > 1 ? 's' : ''}
             </span>
@@ -190,7 +196,7 @@ function ProjectCard({
             className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold"
             style={{ color: C.orange }}
           >
-            Voir le projet
+            Voir le monument
             <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </span>
         </div>
@@ -199,7 +205,7 @@ function ProjectCard({
   );
 }
 
-export function ProjectsInProgress({ monuments, statsByMonument, stageByMonument }: ProjectsInProgressProps) {
+export function MonumentsInProgress({ monuments, statsByMonument, stageByMonument }: MonumentsInProgressProps) {
   if (monuments.length === 0) {
     return (
       <div
@@ -214,17 +220,18 @@ export function ProjectsInProgress({ monuments, statsByMonument, stageByMonument
           <IconProjet className="relative h-6 w-6 text-white" aria-hidden />
         </div>
         <p className="text-[15px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
-          Aucun projet en cours
+          Aucun monument enregistré
         </p>
         <p className="max-w-xs text-[12px]" style={{ color: C.ink, opacity: 0.55 }}>
-          Créez un projet pour estimer vos aides et suivre vos dossiers au même endroit.
+          Décrivez votre monument, puis lancez un projet de travaux pour estimer vos
+          aides et suivre vos dossiers au même endroit.
         </p>
         <Link
-          to={ROUTES.PROJET_NEW}
+          to={ROUTES.MONUMENT_NEW}
           className="mt-1 inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
           style={{ background: C.orange }}
         >
-          Nouveau projet
+          Nouveau monument
           <ChevronRight className="h-3.5 w-3.5" />
         </Link>
       </div>
@@ -233,13 +240,13 @@ export function ProjectsInProgress({ monuments, statsByMonument, stageByMonument
 
   if (monuments.length === 1) {
     const m = monuments[0];
-    return <ProjectCard monument={m} stats={statsByMonument[m.id]} stage={stageByMonument?.[m.id]} featured />;
+    return <MonumentTile monument={m} stats={statsByMonument[m.id]} stage={stageByMonument?.[m.id]} featured />;
   }
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-3">
       {monuments.map((m) => (
-        <ProjectCard key={m.id} monument={m} stats={statsByMonument[m.id]} stage={stageByMonument?.[m.id]} />
+        <MonumentTile key={m.id} monument={m} stats={statsByMonument[m.id]} stage={stageByMonument?.[m.id]} />
       ))}
     </div>
   );

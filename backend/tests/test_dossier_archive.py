@@ -24,6 +24,7 @@ class _Query:
         self._rows = rows_by_id
         self._table = table
         self._id = None
+        self._single = False
 
     def select(self, *a, **k):
         return self
@@ -33,14 +34,24 @@ class _Query:
             self._id = value
         return self
 
+    def in_(self, *a, **k):
+        return self
+
     def single(self):
+        self._single = True
         return self
 
     def maybe_single(self):
+        self._single = True
         return self
 
     def execute(self):
-        return _Resp(self._rows.get(self._id))
+        data = self._rows.get(self._id)
+        # Le vrai client rend un dict après single()/maybe_single(), une liste
+        # sinon : my_scope_roles lit project_members en mode liste.
+        if self._single:
+            return _Resp(data)
+        return _Resp([] if data is None else [data])
 
 
 class _FakeStorageFile:
@@ -62,8 +73,16 @@ class _FakeStorage:
 
 
 class _FakeSupabase:
-    def __init__(self, dossiers, documents, blobs):
-        self._tables = {"dossiers": dossiers, "documents": documents}
+    def __init__(self, dossiers, documents, blobs, *, caller_role="owner"):
+        self._tables = {
+            "dossiers": dossiers,
+            "documents": documents,
+            # Le demandeur est chef de projet du monument « m1 » : c'est ce qui
+            # lui donne le droit de lire le dossier ET ses pièces.
+            "projets": {"p1": {"id": "p1", "monument_id": "m1", "user_id": "u1"}},
+            "project_members": {None: {"monument_id": "m1", "role": caller_role}},
+            "monuments": {},
+        }
         self.storage = _FakeStorage(blobs)
 
     def table(self, name):
@@ -72,6 +91,7 @@ class _FakeSupabase:
 
 DOSSIER = {
     "id": "d1",
+    "projet_id": "p1",
     "monument_id": "m1",
     "titre": "DRAC — Église Saint-Pierre",
     "checklist": [
@@ -108,13 +128,18 @@ BLOBS = {"u1/plan.pdf": b"%PDF-1.4 plan", "u1/devis.xlsx": b"PK devis"}
 
 
 def _patch_access(testcase, role):
-    """Neutralise les appels base de require_project_access / get_project_role."""
+    """Neutralise les lectures base des gardes : le sujet du test est le ZIP.
+
+    `my_scope_roles` rend le périmètre du demandeur — ici, le rôle voulu sur le
+    monument « m1 » du dossier, et rien sur les projets : la visibilité des
+    pièces s'évalue donc contre ce seul rôle.
+    """
     import routers.dossiers as mod
 
-    testcase.addCleanup(setattr, mod, "require_project_access", mod.require_project_access)
-    testcase.addCleanup(setattr, mod, "get_project_role", mod.get_project_role)
-    mod.require_project_access = lambda *a, **k: None
-    mod.get_project_role = lambda *a, **k: role
+    testcase.addCleanup(setattr, mod, "require_projet_access", mod.require_projet_access)
+    testcase.addCleanup(setattr, mod, "my_scope_roles", mod.my_scope_roles)
+    mod.require_projet_access = lambda *a, **k: ({"id": "p1", "monument_id": "m1"}, role)
+    mod.my_scope_roles = lambda *a, **k: ({"m1": role} if role else {}, {})
 
 
 class TestDossierArchive(unittest.TestCase):

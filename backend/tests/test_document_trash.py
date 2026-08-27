@@ -5,7 +5,6 @@ import unittest
 from fastapi import HTTPException
 
 from routers.documents import (
-    _best_role,
     _filter_visible,
     _should_auto_trash,
     delete_document,
@@ -15,29 +14,49 @@ from routers.documents import (
     trash_document,
     unlink_from_dossier,
 )
+from services.project_access import best_document_role
 
 
 class ShouldAutoTrashTests(unittest.TestCase):
-    def test_both_empty_trashes(self):
-        self.assertTrue(_should_auto_trash([], []))
-        self.assertTrue(_should_auto_trash(None, None))
+    def test_all_empty_trashes(self):
+        self.assertTrue(_should_auto_trash([], [], []))
+        self.assertTrue(_should_auto_trash(None, None, None))
 
     def test_any_link_keeps(self):
-        self.assertFalse(_should_auto_trash(["m1"], []))
-        self.assertFalse(_should_auto_trash([], ["d1"]))
-        self.assertFalse(_should_auto_trash(["m1"], ["d1"]))
+        self.assertFalse(_should_auto_trash(["m1"], [], []))
+        self.assertFalse(_should_auto_trash([], ["p1"], []))
+        self.assertFalse(_should_auto_trash([], [], ["d1"]))
+        self.assertFalse(_should_auto_trash(["m1"], ["p1"], ["d1"]))
 
 
-class BestRoleTests(unittest.TestCase):
-    ROLES = {"m1": "member", "m2": "owner", "m3": "co_owner"}
+class BestDocumentRoleTests(unittest.TestCase):
+    """Le rôle d'un viewer sur un document couvre ses deux rattachements."""
 
-    def test_picks_highest_among_linked(self):
-        self.assertEqual(_best_role(["m1", "m3"], self.ROLES), "co_owner")
-        self.assertEqual(_best_role(["m1", "m2"], self.ROLES), "owner")
+    MONUMENTS = {"m1": "member", "m2": "owner", "m3": "co_owner"}
+    PROJETS = {"p1": "member", "p2": "co_owner"}
+
+    def test_picks_highest_among_monuments(self):
+        self.assertEqual(
+            best_document_role(["m1", "m3"], [], self.MONUMENTS, self.PROJETS), "co_owner"
+        )
+        self.assertEqual(
+            best_document_role(["m1", "m2"], [], self.MONUMENTS, self.PROJETS), "owner"
+        )
+
+    def test_un_projet_suffit_sans_acces_au_monument(self):
+        # Le cas du collaborateur invité sur le seul chantier : il ne connaît
+        # pas le monument, mais la pièce déposée sur son projet lui est visible.
+        self.assertEqual(best_document_role([], ["p2"], {}, self.PROJETS), "co_owner")
+
+    def test_retient_le_plus_eleve_des_deux_portees(self):
+        self.assertEqual(
+            best_document_role(["m1"], ["p2"], self.MONUMENTS, self.PROJETS), "co_owner"
+        )
+        self.assertEqual(best_document_role(["m2"], ["p1"], self.MONUMENTS, self.PROJETS), "owner")
 
     def test_none_when_no_membership(self):
-        self.assertIsNone(_best_role(["mX"], self.ROLES))
-        self.assertIsNone(_best_role([], self.ROLES))
+        self.assertIsNone(best_document_role(["mX"], ["pX"], self.MONUMENTS, self.PROJETS))
+        self.assertIsNone(best_document_role([], [], self.MONUMENTS, self.PROJETS))
 
 
 class FilterVisibleTests(unittest.TestCase):
@@ -54,18 +73,22 @@ class FilterVisibleTests(unittest.TestCase):
 
     def test_uploader_sees_own_even_without_role(self):
         rows = [self._row(user_id="u1", monument_ids=[])]
-        self.assertEqual(len(_filter_visible(rows, "u1", {})), 1)
+        self.assertEqual(len(_filter_visible(rows, "u1", {}, {})), 1)
 
     def test_member_sees_team_not_responsables(self):
         roles = {"m1": "member"}
         team = self._row(visibility="team")
         resp = self._row(visibility="responsables")
-        out = _filter_visible([team, resp], "u1", roles)
+        out = _filter_visible([team, resp], "u1", roles, {})
         self.assertEqual([r["visibility"] for r in out], ["team"])
 
     def test_non_member_excluded(self):
         rows = [self._row(visibility="team", monument_ids=["mX"])]
-        self.assertEqual(_filter_visible(rows, "u1", {}), [])
+        self.assertEqual(_filter_visible(rows, "u1", {}, {}), [])
+
+    def test_membre_du_projet_voit_une_piece_du_chantier(self):
+        rows = [self._row(monument_ids=[], projet_ids=["p1"])]
+        self.assertEqual(len(_filter_visible(rows, "u1", {}, {"p1": "member"})), 1)
 
 
 # ---------------------------------------------------------------------------
@@ -79,10 +102,27 @@ class _Resp:
 
 
 class _Query:
+    """Chaînage fluent bouchonné.
+
+    Le vrai client renvoie un DICT (ou None) après `maybe_single()` / `single()`,
+    et une LISTE sinon. Le faux doit faire la même différence : plusieurs gardes
+    lisent la même table dans les deux modes (rôle unitaire vs périmètre complet
+    de l'utilisateur), et un faux qui rendrait toujours un dict les casserait.
+    """
+
+    @staticmethod
+    def _coerce(data, single: bool):
+        if single:
+            return data
+        if data is None:
+            return []
+        return data if isinstance(data, list) else [data]
+
     def __init__(self, response, updated):
         self._response = response
         self._updated = updated
         self._mode = None
+        self._single = False
 
     def select(self, *a, **k):
         return self
@@ -95,16 +135,21 @@ class _Query:
     def eq(self, *a, **k):
         return self
 
+    def in_(self, *a, **k):
+        return self
+
     def single(self):
+        self._single = True
         return self
 
     def maybe_single(self):
+        self._single = True
         return self
 
     def execute(self):
         if self._mode == "update":
             return _Resp([{**self._updated[-1], "id": "d1"}])
-        return self._response
+        return _Resp(self._coerce(self._response.data, self._single))
 
 
 class _FakeSupabase:
@@ -120,9 +165,13 @@ def _fake(*, doc, caller_role="owner", dossier=None):
     return _FakeSupabase(
         {
             "documents": _Resp(doc),
-            "project_members": _Resp({"role": caller_role} if caller_role else None),
+            "project_members": _Resp(
+                {"monument_id": "m1", "role": caller_role} if caller_role else None
+            ),
             "monuments": _Resp(None),
             "dossiers": _Resp(dossier),
+            "projets": _Resp({"id": "p1", "monument_id": "m1", "user_id": "u9"}),
+            "projet_members": _Resp(None),
         }
     )
 
@@ -162,7 +211,11 @@ class TrashEndpointTests(unittest.TestCase):
 class UnlinkAutoTrashTests(unittest.TestCase):
     def test_unlink_last_dossier_no_project_trashes(self):
         doc = {"id": "d1", "user_id": "u1", "monument_ids": [], "dossiers_utilises": ["dz"]}
-        fake = _fake(doc=doc, caller_role="member", dossier={"id": "dz", "monument_id": "m1"})
+        fake = _fake(
+            doc=doc,
+            caller_role="member",
+            dossier={"id": "dz", "projet_id": "p1", "monument_id": "m1"},
+        )
         unlink_from_dossier("d1", "dz", user_id="u1", supabase=fake)
         patch = fake.updated[0]
         self.assertEqual(patch["dossiers_utilises"], [])
@@ -170,7 +223,11 @@ class UnlinkAutoTrashTests(unittest.TestCase):
 
     def test_unlink_with_remaining_project_keeps(self):
         doc = {"id": "d1", "user_id": "u1", "monument_ids": ["m1"], "dossiers_utilises": ["dz"]}
-        fake = _fake(doc=doc, caller_role="member", dossier={"id": "dz", "monument_id": "m1"})
+        fake = _fake(
+            doc=doc,
+            caller_role="member",
+            dossier={"id": "dz", "projet_id": "p1", "monument_id": "m1"},
+        )
         unlink_from_dossier("d1", "dz", user_id="u1", supabase=fake)
         self.assertNotIn("trashed_at", fake.updated[0])
 
@@ -235,7 +292,9 @@ class ModifyHiddenDocViewGateTests(unittest.TestCase):
 
     def test_unlink_forbidden_for_co_owner_without_view(self):
         fake = _fake(
-            doc=self.HIDDEN, caller_role="co_owner", dossier={"id": "dz", "monument_id": "m1"}
+            doc=self.HIDDEN,
+            caller_role="co_owner",
+            dossier={"id": "dz", "projet_id": "p1", "monument_id": "m1"},
         )
         with self.assertRaises(HTTPException) as ctx:
             unlink_from_dossier("d1", "dz", user_id="u1", supabase=fake)
@@ -282,10 +341,16 @@ class _ListQuery:
     def is_(self, *a, **k):
         return self
 
+    def in_(self, *a, **k):
+        return self
+
     def or_(self, *a, **k):
         return self
 
     def contains(self, *a, **k):
+        return self
+
+    def maybe_single(self, *a, **k):
         return self
 
     @property
@@ -351,21 +416,21 @@ class ListDocumentsTests(unittest.TestCase):
             pm_data=[{"monument_id": "m1", "role": "member"}],
         )
         result = list_documents(
-            monument_id=None, type=None, trashed=True, user_id="u1", supabase=fake
+            monument_id=None, projet_id=None, type=None, trashed=True, user_id="u1", supabase=fake
         )
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["id"], "doc-trash")
 
     def test_non_trashed_member_sees_team_not_responsables(self):
         """trashed=False + rôle member → doc team inclus, doc responsables exclu."""
-        # project_members renvoie une liste (itérée par _my_project_roles)
+        # project_members renvoie une liste (itérée par my_scope_roles)
         fake = self._make_fake(
             docs=[self.TEAM_DOC, self.RESP_DOC],
             pm_data=[{"monument_id": "m1", "role": "member"}],
             monuments_data=[],  # pas owner de monument
         )
         result = list_documents(
-            monument_id=None, type=None, trashed=False, user_id="u1", supabase=fake
+            monument_id=None, projet_id=None, type=None, trashed=False, user_id="u1", supabase=fake
         )
         ids = [r["id"] for r in result]
         self.assertIn("doc-team", ids)
