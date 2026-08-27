@@ -1,7 +1,12 @@
+import io
+import re
+import unicodedata
 import uuid
+import zipfile
 from datetime import UTC
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from supabase import Client
 
@@ -10,13 +15,17 @@ from routers.monuments import _enrich_monument
 from services.dossier_service import create_dossier_from_aide
 from services.project_access import (
     can_delete_document,
+    can_view_document,
     get_project_role,
     require_project_access,
+    role_at_least,
 )
 
 router = APIRouter(prefix="/dossiers", tags=["dossiers"])
 
 COLUMNS = "*"
+
+STORAGE_BUCKET = "documents"
 
 
 def _is_uuid(value: str) -> bool:
@@ -110,6 +119,34 @@ def _recalculate_progression(dossier: dict) -> int:
         return 0
     fournis = [c for c in obligatoires if c.get("statut") == "fourni"]
     return round(len(fournis) / len(obligatoires) * 100)
+
+
+def _ascii_filename(value: str, fallback: str) -> str:
+    """Nom de fichier sûr : ASCII, sans séparateur de chemin, longueur bornée.
+
+    Les libellés de pièces viennent des YAML d'aides (accents, apostrophes,
+    slashs) : tel quel, un libellé créerait des dossiers dans le zip ou casserait
+    l'en-tête Content-Disposition.
+    """
+    normalized = unicodedata.normalize("NFKD", value or "")
+    ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
+    cleaned = re.sub(r"[^A-Za-z0-9._ -]+", " ", ascii_only)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" .-")
+    return cleaned[:80] or fallback
+
+
+def _highest_project_role(supabase: Client, monument_ids: list | None, user_id: str) -> str | None:
+    """Rôle le plus élevé de l'utilisateur parmi les projets d'un document.
+
+    Un document peut être rattaché à plusieurs projets : la visibilité s'évalue
+    avec le rôle le plus fort, comme dans le router documents.
+    """
+    best = None
+    for mid in monument_ids or []:
+        role = get_project_role(supabase, mid, user_id)
+        if role is not None and (best is None or role_at_least(role, best)):
+            best = role
+    return best
 
 
 STEP_TO_STATUS = {
@@ -219,6 +256,90 @@ def get_dossier(
     supabase: Client = Depends(get_supabase),
 ):
     return _get_dossier_or_404(supabase, dossier_id, user_id)
+
+
+@router.get("/{dossier_id}/archive")
+def download_dossier_archive(
+    dossier_id: str,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Zip de toutes les pièces téléversées du dossier, dans l'ordre de la checklist.
+
+    Les pièces que l'appelant n'a pas le droit de consulter (visibilité du
+    document) sont silencieusement omises — même sémantique que le cadenas
+    « Réservé » de la checklist côté front. Un fichier illisible en storage est
+    omis lui aussi plutôt que de faire échouer tout le téléchargement.
+    """
+    dossier = _get_dossier_or_404(supabase, dossier_id, user_id)
+
+    checklist: list = dossier.get("checklist") or []
+    fournies = [
+        item
+        for item in sorted(checklist, key=lambda c: c.get("ordre") or 0)
+        if item.get("documentId")
+    ]
+
+    buffer = io.BytesIO()
+    added = 0
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for index, item in enumerate(fournies, start=1):
+            doc_res = (
+                supabase.table("documents")
+                .select("*")
+                .eq("id", item["documentId"])
+                .maybe_single()
+                .execute()
+            )
+            doc = doc_res.data if doc_res else None
+            if not doc:
+                continue
+
+            role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
+            if not can_view_document(
+                visibility=doc.get("visibility") or "team",
+                allowed_user_ids=doc.get("allowed_user_ids") or [],
+                uploader_id=doc.get("user_id"),
+                viewer_id=user_id,
+                viewer_role=role,
+            ):
+                continue
+
+            storage_path = doc.get("url") or ""
+            if not storage_path or "://" in storage_path:
+                continue
+            try:
+                content = supabase.storage.from_(STORAGE_BUCKET).download(storage_path)
+            except Exception:  # storage3 lève sur erreur HTTP
+                continue
+            if not content:
+                continue
+
+            label = item.get("label")
+            if isinstance(label, dict):
+                label = label.get("nom")
+            base = _ascii_filename(str(label or doc.get("nom") or ""), f"piece-{index}")
+            suffix = ""
+            source_name = str(doc.get("nom_fichier") or storage_path)
+            if "." in source_name.rsplit("/", 1)[-1]:
+                suffix = "." + _ascii_filename(source_name.rsplit(".", 1)[-1], "bin")
+            archive.writestr(f"{index:02d} - {base}{suffix}", content)
+            added += 1
+
+    if added == 0:
+        raise HTTPException(status_code=404, detail="Aucune pièce téléversée à télécharger")
+
+    name = _ascii_filename(str(dossier.get("titre") or ""), "dossier") + ".zip"
+    utf8_name = quote(f"{dossier.get('titre') or 'dossier'}.zip")
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=\"{name}\"; filename*=UTF-8''{utf8_name}"
+            ),
+        },
+    )
 
 
 @router.patch("/{dossier_id}")

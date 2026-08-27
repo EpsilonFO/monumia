@@ -167,6 +167,31 @@ export const dossierService = {
     useDossierStore.getState().updateDossier(id, dossier);
   },
 
+  /**
+   * Télécharge en zip toutes les pièces téléversées du dossier.
+   *
+   * Le backend construit l'archive (il seul peut lire le bucket privé pour le
+   * compte d'un membre) ; on récupère le blob puis on déclenche l'enregistrement
+   * via un lien éphémère. `authFetch` est obligatoire : la route est protégée.
+   */
+  async downloadArchive(id: string, fallbackName = 'dossier'): Promise<void> {
+    const res = await authFetch(`${BASE}/dossiers/${id}/archive`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail ?? `HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    // Un séparateur de chemin dans le nom proposé casse l'enregistrement.
+    a.download = `${fallbackName.replace(/[/\\]+/g, '-').trim() || 'dossier'}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
+
   async delete(id: string): Promise<void> {
     const res = await authFetch(`${BASE}/dossiers/${id}`, {
       method: 'DELETE',

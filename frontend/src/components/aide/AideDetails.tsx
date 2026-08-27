@@ -17,7 +17,6 @@ import {
   IconRegle,
   IconParchemin,
   IconFiche,
-  IconContact,
   IconAttention,
   IconTendance,
   IconLivre,
@@ -655,7 +654,7 @@ function EssentialCard({ aide }: { aide: Aide }) {
 
   return (
     <div className="overflow-hidden rounded-2xl border" style={{ borderColor: C.border, background: C.card, boxShadow: 'var(--shadow-card)' }}>
-      <div className="flex items-center gap-2.5 px-5 py-3.5" style={{ background: 'var(--blue-dark)' }}>
+      <div className="flex items-center gap-2.5 px-5 py-3.5" style={{ background: C.blue }}>
         <IconFiche className="h-[18px] w-[18px]" style={{ color: 'var(--background)' }} strokeWidth={2} />
         <span className="text-[15px] tracking-wide" style={{ fontFamily: SERIF, color: 'var(--background)' }}>L'essentiel de l'aide</span>
       </div>
@@ -823,13 +822,6 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
                 Consulter la page officielle
               </a>
             )}
-
-            <div className="flex items-start gap-2.5 rounded-xl px-4 py-3" style={{ background: 'var(--secondary)' }}>
-              <IconContact className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.blue }} strokeWidth={1.9} />
-              <p className="text-[12.5px] leading-snug text-muted-foreground">
-                Un doute&nbsp;? On vous accompagne pour monter ce dossier, étape par étape.
-              </p>
-            </div>
 
             {aside}
           </div>

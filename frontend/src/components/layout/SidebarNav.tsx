@@ -1,5 +1,6 @@
 import type { ComponentType, ReactNode } from 'react';
 import { NavLink } from 'react-router';
+import { LogoMonumia } from '@/components/icons';
 import { C, SERIF } from '@/lib/brand';
 
 export interface SidebarNavItem {
@@ -29,7 +30,9 @@ export function SidebarNav({ brand, sections, account, onNavigate }: SidebarNavP
     >
       {/* En-tête de marque */}
       <a href={brand.href} className="flex items-center gap-2.5 px-5 pb-4 pt-5">
-        <img src={brand.logoSrc ?? '/monumia.png'} alt="" className="h-8 w-8" aria-hidden />
+        {brand.logoSrc
+          ? <img src={brand.logoSrc} alt="" className="h-8 w-8" aria-hidden />
+          : <LogoMonumia className="h-8 w-8" />}
         <div className="leading-tight">
           <span className="block text-[18px] font-bold tracking-[-0.01em]" style={{ fontFamily: SERIF, color: C.ink }}>
             {brand.name}

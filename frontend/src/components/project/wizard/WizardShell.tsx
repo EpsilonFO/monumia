@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Clover } from '@/components/illustrations';
+import { LogoMonumia } from '@/components/icons';
 import { C } from '@/lib/brand';
 import type { Monument } from '@/types';
 import {
@@ -87,7 +88,7 @@ export function WizardShell({
         >
           <div className="flex items-center justify-between gap-3">
             <button type="button" onClick={quit} aria-label="Quitter la création de projet">
-              <img src="/monumia.png" alt="" className="h-7 w-7" aria-hidden />
+              <LogoMonumia className="h-7 w-7" />
             </button>
             <div className="min-w-0 text-center">
               <p className="text-[13px] font-semibold" style={{ color: C.ink }}>

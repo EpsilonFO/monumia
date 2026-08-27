@@ -18,7 +18,6 @@ import { ProjectDetailPage } from '@/pages/projets/ProjectDetailPage';
 import { AideProjectPage } from '@/pages/projets/AideProjectPage';
 import { DossierDetailPage } from '@/pages/projets/DossierDetailPage';
 import { DocumentsPage } from '@/pages/documents/DocumentsPage';
-import { TemplateLibraryPage } from '@/pages/templates/TemplateLibraryPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { InvitationLandingPage } from '@/pages/invitation/InvitationLandingPage';
 
@@ -116,7 +115,6 @@ export const router = createBrowserRouter([
       { path: 'projets/:projetId/aides/:aideId', element: <AideProjectPage /> },
       { path: 'projets/:projetId/dossiers/:dossierId', element: <DossierDetailPage /> },
       { path: 'documents', element: <DocumentsPage /> },
-      { path: 'modeles', element: <TemplateLibraryPage /> },
       { path: 'profil', element: <ProfilePage /> },
       // Legacy redirects → unified Projet tab
       { path: 'monuments', element: <Navigate to="/app/projets" replace /> },

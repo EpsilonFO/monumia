@@ -4,9 +4,5 @@ export {
   ProjectDetailSkeleton,
   DossierDetailSkeleton,
 } from './ProjectSkeletons';
-export {
-  NextActionCardSkeleton,
-  StatChipsSkeleton,
-  ProjectsInProgressSkeleton,
-} from './DashboardSkeletons';
-export { DocumentsListSkeleton, TemplateGridSkeleton } from './DocumentSkeletons';
+export { NextActionCardSkeleton, ProjectsInProgressSkeleton } from './DashboardSkeletons';
+export { DocumentsListSkeleton } from './DocumentSkeletons';

@@ -10,8 +10,8 @@ import type { Dossier, AideSuiviStatut } from '@/types';
 import { C, SERIF } from '@/lib/brand';
 
 // Couleur pilote de la carte = statut d'avancement. Reprend le code couleur des
-// tokens de thème (voir AIDE_STATUT_STYLES) : anneau, pastille et liseré partagent
-// la même teinte pour un repérage immédiat.
+// tokens de thème (voir AIDE_STATUT_STYLES) : anneau et pastille partagent la
+// même teinte pour un repérage immédiat.
 const STATUT_ACCENT: Record<AideSuiviStatut, string> = {
   a_faire:        'var(--muted-foreground)',
   en_preparation: 'var(--info)',
@@ -39,8 +39,17 @@ const MONUMENT_COLORS = [
   'var(--color-blue-light)',
 ];
 
+// Couleur de l'anneau = avancement du dossier, pas statut : gris tant que le
+// remplissage démarre à peine, orange dès qu'il progresse, vert une fois complet.
+// Pas de rouge — un dossier peu rempli n'est pas une erreur, juste un début.
+function progressColor(value: number): string {
+  if (value >= 100) return C.success;
+  if (value >= 34) return C.orange;
+  return C.grayMuted;
+}
+
 // Anneau de progression — repère visuel principal, grand et lisible. Arc coloré
-// selon le statut sur une piste gris clair, pourcentage en gras au centre.
+// selon l'avancement sur une piste gris clair, pourcentage en gras au centre.
 function ProgressRing({ value, color }: { value: number; color: string }) {
   const size = 76;
   const stroke = 8;
@@ -103,14 +112,11 @@ export function DossierCard({ dossier }: DossierCardProps) {
 
   return (
     <Link to={ROUTES.PROJET_DOSSIER(dossier.monumentId, dossier.id)} className="group block h-full">
-      <div
-        className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-        style={{ borderLeft: `6px solid ${accent}` }}
-      >
+      <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
         <div className="flex flex-col gap-4 p-5">
           {/* En-tête : anneau + identité */}
           <div className="flex items-start gap-4">
-            <ProgressRing value={dossier.progressionPourcentage} color={accent} />
+            <ProgressRing value={dossier.progressionPourcentage} color={progressColor(dossier.progressionPourcentage)} />
             <div className="min-w-0 flex-1 space-y-1.5">
               {monument && (
                 <span

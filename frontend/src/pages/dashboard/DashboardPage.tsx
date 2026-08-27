@@ -4,14 +4,9 @@ import { ArrowUpRight } from 'lucide-react';
 import { IconAjouter } from '@/components/icons';
 import { C } from '@/lib/brand';
 import { NextActionCard } from '@/components/dashboard/NextActionCard';
-import { StatChips } from '@/components/dashboard/StatChips';
 import { buildUpcomingRows } from '@/components/dashboard/echeances-alertes-utils';
 import { ProjectsInProgress } from '@/components/dashboard/ProjectsInProgress';
-import {
-  NextActionCardSkeleton,
-  StatChipsSkeleton,
-  ProjectsInProgressSkeleton,
-} from '@/components/skeletons';
+import { NextActionCardSkeleton, ProjectsInProgressSkeleton } from '@/components/skeletons';
 import { useSuiviStore } from '@/stores/useSuiviStore';
 import { projectStage } from '@/lib/project-stats';
 import type { ProjectStage } from '@/lib/project-stats';
@@ -22,11 +17,7 @@ import { useAideStore } from '@/stores/useAideStore';
 import { useNotificationStore } from '@/stores/useNotificationStore';
 import { useProjectsData } from '@/hooks/useProjectsData';
 import { ROUTES } from '@/constants/routes';
-import {
-  aggregateDashboardStats,
-  mergeProjectDeadlines,
-  computeProjectStats,
-} from '@/lib/project-stats';
+import { mergeProjectDeadlines, computeProjectStats } from '@/lib/project-stats';
 import type { ProjectStats } from '@/lib/project-stats';
 import type { ProjectDigest } from '@/types';
 
@@ -49,7 +40,7 @@ export function DashboardPage() {
 
   // Grille « Projets en cours » : vos projets + ceux partagés avec vous.
   // (Le store ne contient que des monuments accessibles à l'utilisateur.)
-  // Les KPI, le bandeau d'échéance et l'échéancier restent basés sur `userMonuments`.
+  // Le bandeau d'échéance et l'échéancier restent basés sur `userMonuments`.
   const displayMonuments = monuments;
 
   const diagMap = useMemo<Record<string, ProjectDigest | null>>(() => {
@@ -73,11 +64,6 @@ export function DashboardPage() {
             .sort((a, b) => new Date(b.dateCreation).getTime() - new Date(a.dateCreation).getTime())
         : [],
     [notifications, user],
-  );
-
-  const dashboardStats = useMemo(
-    () => aggregateDashboardStats(userMonuments, diagMap, userDossiers),
-    [userMonuments, diagMap, userDossiers],
   );
 
   // Toutes les échéances, triées de la plus proche à la plus lointaine.
@@ -175,9 +161,6 @@ export function DashboardPage() {
       ) : (
         <NextActionCard deadlines={nextDeadlines} upcoming={upcomingRows} />
       )}
-
-      {/* ─── KPI ─── */}
-      {loading ? <StatChipsSkeleton /> : <StatChips stats={dashboardStats} />}
 
       {/* ─── VOS PROJETS (parcours) ─── */}
       <section>

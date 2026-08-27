@@ -2,19 +2,18 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { C } from '@/lib/brand';
 
 /**
- * Squelettes du tableau de bord : carte agenda, chips KPI et grille de
- * projets reprennent exactement les gabarits de leurs homologues réels.
+ * Squelettes du tableau de bord : carte agenda et grille de projets
+ * reprennent exactement les gabarits de leurs homologues réels.
  */
 
 /** Carte agenda unifiée (miroir de NextActionCard : éphéméride + action + CTA). */
 export function NextActionCardSkeleton() {
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border"
+      className="overflow-hidden rounded-2xl border"
       style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
     >
-      <Skeleton className="absolute inset-y-0 left-0 w-1.5 rounded-none" />
-      <div className="flex flex-col gap-4 px-6 py-5 pl-7 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center">
         <Skeleton className="h-16 w-14 shrink-0 rounded-2xl" />
         <div className="min-w-0 flex-1 space-y-2">
           <Skeleton className="h-3 w-44" />
@@ -23,27 +22,6 @@ export function NextActionCardSkeleton() {
         </div>
         <Skeleton className="h-10 w-40 shrink-0 self-start rounded-xl sm:self-center" />
       </div>
-    </div>
-  );
-}
-
-/** Chips KPI (miroir de StatChips : icône + valeur + libellé). */
-export function StatChipsSkeleton() {
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {Array.from({ length: 2 }, (_, i) => (
-        <div
-          key={i}
-          className="flex items-center gap-3 rounded-2xl border px-4 py-3.5"
-          style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
-        >
-          <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <Skeleton className="h-5 w-12" />
-            <Skeleton className="h-3 w-28" />
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

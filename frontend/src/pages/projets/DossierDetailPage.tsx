@@ -258,6 +258,7 @@ export function DossierDetailPage() {
                 onPreview={handlePreview}
                 onRequestDelete={handleDeleteItem}
                 canModifyItem={canModifyItem}
+                archiveName={dossier.titre}
                 busyItemId={busyItemId}
                 readOnly={dossier.statut === 'soumis'}
               />

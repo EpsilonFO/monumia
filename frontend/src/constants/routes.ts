@@ -16,7 +16,6 @@ export const ROUTES = {
   PROJET_DOSSIER: (projetId: string, dossierId: string) => `/app/projets/${projetId}/dossiers/${dossierId}`,
 
   DOCUMENTS: '/app/documents',
-  MODELES: '/app/modeles',
   PROFIL: '/app/profil',
 
   INVITATION: (token: string) => `/invitation/${token}`,

@@ -6,6 +6,7 @@ import {
   IconLocalisation,
   IconMonument,
   IconProjet,
+  LogoMonumia,
   type IconComponent,
 } from '@/components/icons';
 import { Clover } from '@/components/illustrations';
@@ -98,7 +99,7 @@ export function WizardRail({ step, monument, onQuit }: WizardRailProps) {
           className="flex items-center gap-2.5"
           aria-label="Quitter la création de projet"
         >
-          <img src="/monumia.png" alt="" className="h-8 w-8" aria-hidden />
+          <LogoMonumia className="h-8 w-8" />
           <span
             className="text-[18px] font-bold tracking-[-0.01em]"
             style={{ fontFamily: SERIF, color: C.ink }}
