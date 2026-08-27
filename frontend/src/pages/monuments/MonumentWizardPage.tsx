@@ -1,14 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, X } from 'lucide-react';
 import { MerimeeSearch } from '@/components/monument/MerimeeSearch';
 import { MonumentForm } from '@/components/monument/MonumentForm';
-import { PerilStep } from '@/components/project/wizard/PerilStep';
-import { WizardShell } from '@/components/project/wizard/WizardShell';
-import {
-  MONUMENT_WIZARD_STEPS,
-  type WizardStepKey,
-} from '@/components/project/wizard/WizardRail';
+import { LogoMonumia } from '@/components/icons';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { monumentService } from '@/services/monument.service';
@@ -26,9 +21,10 @@ const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
 const EYEBROW = 'Nouveau monument';
 
 /**
- * Création d'un MONUMENT : sa fiche, puis son état sanitaire. Rien du chantier
- * ici — les travaux, les intentions et le questionnaire appartiennent au projet
- * et se saisissent dans le wizard projet, une fois le monument décrit.
+ * Création d'un MONUMENT : sa fiche, état sanitaire inclus (étape 3 du
+ * formulaire). Rien du chantier ici — les travaux, les intentions et le
+ * questionnaire appartiennent au projet et se saisissent dans le wizard
+ * projet, une fois le monument décrit.
  *
  * Sortie : la page du monument, onglet « Projets », dont l'état vide porte le
  * CTA « Lancer un projet de travaux ».
@@ -37,15 +33,11 @@ export function MonumentWizardPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const addMonument = useMonumentStore((s) => s.addMonument);
-  const updateMonument = useMonumentStore((s) => s.updateMonument);
   const setActiveMonument = useMonumentStore((s) => s.setActiveMonument);
 
-  const [step, setStep] = useState<WizardStepKey>('fiche');
   const [mode, setMode] = useState<'search' | 'manual'>('search');
   const [prefillData, setPrefillData] = useState<Partial<Monument> | null>(null);
   const [saving, setSaving] = useState(false);
-  const [monument, setMonument] = useState<Monument | null>(null);
-  const [peril, setPeril] = useState<boolean | null>(null);
 
   const handleMerimeeSelect = async (searchRecord: MerimeeRecord) => {
     try {
@@ -147,15 +139,12 @@ export function MonumentWizardPage() {
         typeProtection: data.typeProtection,
         siecleConstruction: data.siecleConstruction,
         descriptionGenerale: data.descriptionGenerale,
-        // L'état sanitaire est posé à l'étape suivante, après la création (cf.
-        // migration 20260827094119, qui rend etat_conservation nullable) : y
-        // écrire un repli produirait une fausse donnée.
+        etatConservation: data.etatConservation,
       });
 
       addMonument(created);
       setActiveMonument(created.id);
-      setMonument(created);
-      setStep('sanitaire');
+      navigate(`${ROUTES.MONUMENT_DETAIL(created.id)}?tab=projets`);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : 'Erreur lors de la création du monument'
@@ -165,43 +154,39 @@ export function MonumentWizardPage() {
     }
   };
 
-  // Fin du parcours : on enregistre l'état sanitaire sur la fiche puis on part
-  // sur l'onglet « Projets », vide, dont le CTA invite à lancer un chantier.
-  // Échec = on reste sur l'écran : partir sans la réponse priverait
-  // silencieusement le monument des dispositifs d'urgence.
-  const handlePerilNext = async () => {
-    if (!monument || peril === null) return;
-    setSaving(true);
-    try {
-      const updated = await monumentService.update(monument.id, {
-        etatConservation: peril ? 'peril' : 'bon',
-      });
-      updateMonument(monument.id, updated);
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Erreur lors de l’enregistrement de l’état du monument"
-      );
-      return;
-    } finally {
-      setSaving(false);
-    }
-    navigate(`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`);
-  };
-
   return (
-    <WizardShell
-      steps={MONUMENT_WIZARD_STEPS}
-      step={step}
-      monument={monument}
-      progress={null}
-      // La fiche est déjà enregistrée à l'étape 2 : quitter ne perd que la
-      // réponse sur le péril, modifiable ensuite depuis la fiche sanitaire.
-      confirmQuit={false}
-      exitTo={monument ? ROUTES.MONUMENT_DETAIL(monument.id) : ROUTES.MONUMENTS}
-    >
-      {step === 'fiche' && (
-        <div className="space-y-4">
-          <div className="space-y-1.5">
+    <div className="flex h-dvh flex-col overflow-hidden" style={{ background: 'var(--app-bg)' }}>
+      <header className="flex shrink-0 items-center justify-between px-5 py-4">
+        <button
+          type="button"
+          onClick={() => navigate(ROUTES.MONUMENTS)}
+          className="flex items-center gap-2.5"
+          aria-label="Quitter"
+        >
+          <LogoMonumia className="h-8 w-8" />
+          <span
+            className="text-[18px] font-bold tracking-[-0.01em]"
+            style={{ fontFamily: SERIF, color: C.ink }}
+          >
+            Monumia
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate(ROUTES.MONUMENTS)}
+          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors hover:bg-black/5"
+          style={{ color: C.grayFg }}
+        >
+          <X className="h-4 w-4" />
+          Quitter
+        </button>
+      </header>
+
+      {/* Écran unique, sans rail : la colonne est centrée dans toute la page,
+          et se recentre verticalement tant que le contenu tient à l'écran. */}
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="mx-auto my-auto w-full max-w-[760px] space-y-4 px-5 py-6 sm:py-10">
+          <div className="space-y-1.5 text-center">
             <div
               className="text-[12px] font-semibold uppercase tracking-[0.2em]"
               style={{ color: C.orange }}
@@ -212,12 +197,8 @@ export function MonumentWizardPage() {
               className="text-[clamp(1.5rem,3.2vw,2rem)] leading-tight"
               style={{ fontFamily: SERIF, color: C.ink }}
             >
-              Commençons par votre monument
+              Sélectionnez votre monument
             </h1>
-            <p className="max-w-lg text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
-              Quelques informations suffisent. Vous lancerez ensuite autant de projets de
-              travaux que vous le souhaitez sur cette fiche.
-            </p>
           </div>
 
           {mode === 'search' ? (
@@ -230,9 +211,6 @@ export function MonumentWizardPage() {
                   boxShadow: 'var(--shadow-card)',
                 }}
               >
-                <h2 className="mb-1 text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                  Où se trouve votre monument&nbsp;?
-                </h2>
                 <p className="mb-4 text-[14px]" style={{ color: C.grayFg }}>
                   Cherchez-le dans la base Mérimée&nbsp;: sa fiche sera pré-remplie
                   automatiquement.
@@ -281,17 +259,7 @@ export function MonumentWizardPage() {
             </div>
           )}
         </div>
-      )}
-
-      {step === 'sanitaire' && (
-        <PerilStep
-          eyebrow={EYEBROW}
-          value={peril}
-          onChange={setPeril}
-          onNext={handlePerilNext}
-          saving={saving}
-        />
-      )}
-    </WizardShell>
+      </main>
+    </div>
   );
 }

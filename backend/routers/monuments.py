@@ -151,11 +151,10 @@ class CreateMonumentRequest(BaseModel):
     siecleConstruction: str | None = None
     descriptionGenerale: str | None = None
 
-    # Absent à la création : la question « le monument est-il en péril ? » est
-    # posée à l'étape 2 du wizard monument, donc APRÈS la création de la fiche
-    # (cf. migration 20260827094119, qui rend la colonne nullable). Y écrire un
-    # repli produirait une fausse donnée. La colonne RESTE sur le monument : elle
-    # décrit le bien, pas un chantier, et tous ses projets la partagent.
+    # Nullable (migration 20260827094119) : les fiches créées avant que la
+    # question n'existe n'ont pas d'état, et le wizard projet les rattrape. La
+    # colonne RESTE sur le monument : elle décrit le bien, pas un chantier, et
+    # tous ses projets la partagent.
     etatConservation: str | None = None
 
 

@@ -26,6 +26,8 @@ export const ETATS_CONSERVATION = [
   { value: 'peril', label: 'En péril' },
 ] as const;
 
+export type EtatConservation = (typeof ETATS_CONSERVATION)[number]['value'];
+
 export const URGENCE_TRAVAUX = [
   { value: 'faible', label: 'Faible' },
   { value: 'moyenne', label: 'Moyenne' },
@@ -132,10 +134,8 @@ export const PROTECTION_LABELS_SHORT: Record<string, string> = {
 };
 
 /**
- * Les quatre niveaux d'état ne sont plus affichés nulle part : le wizard ne
- * pose que la question « en péril ? » et les surfaces lisent perilLabel(). La
- * table reste le miroir de `ETAT_LABELS` côté backend (labels.py), qui borne
- * les valeurs admises en base et dans `hard_filters.etats_conservation`.
+ * Miroir de `ETAT_LABELS` côté backend (labels.py), qui borne les valeurs
+ * admises en base et dans `hard_filters.etats_conservation`.
  */
 export const ETAT_LABELS: Record<string, string> = {
   bon: 'Bon état',
@@ -145,11 +145,10 @@ export const ETAT_LABELS: Record<string, string> = {
 };
 
 /**
- * Le cadrage du wizard ne demande plus l'état de conservation sur quatre
- * niveaux mais un seul signal : « le monument est-il en péril ? ». Oui écrit
- * `peril`, non écrit `bon`. Les fiches antérieures peuvent encore porter
- * `moyen` ou `mauvais` : on les range du côté péril dès `mauvais`, exactement
- * comme les gates des aides concernées (`{in: [mauvais, peril]}`).
+ * Les vignettes et fiches ne montrent qu'un signal binaire dérivé des quatre
+ * niveaux : `mauvais` et `peril` sont regroupés côté péril, exactement comme
+ * les gates des aides concernées (`{in: [mauvais, peril]}`). Le wizard, lui,
+ * pose bien la question sur les quatre niveaux (cf. `PerilStep`).
  *
  * Renvoie `null` tant que la question n'a pas été posée — la colonne est
  * nullable depuis la migration 20260827094119.

@@ -33,6 +33,9 @@ interface WizardShellProps {
   progress: WizardProgress | null;
   /** Vrai quand quitter perdrait des réponses en cours → confirmation. */
   confirmQuit: boolean;
+  /** Vrai sur un écran qui navigue de lui-même (le calcul du diagnostic) :
+   *  une navigation concurrente arracherait l'utilisateur en plein vol. */
+  quitDisabled?: boolean;
   /** Destination du bouton Quitter (le monument, sa liste, le projet…). */
   exitTo: string;
   /** Texte de la confirmation de sortie, selon ce qui serait perdu. */
@@ -51,6 +54,7 @@ export function WizardShell({
   monument,
   progress,
   confirmQuit,
+  quitDisabled = false,
   exitTo,
   quitMessage,
   children,
@@ -65,12 +69,8 @@ export function WizardShell({
     sceneRef.current?.scrollTo(0, 0);
   }, [step]);
 
-  // Dernière étape : l'écran de calcul navigue de lui-même vers sa destination,
-  // une navigation concurrente arracherait l'utilisateur en plein vol.
-  const isLastStep = step === steps[steps.length - 1]?.key;
-
   const quit = () => {
-    if (isLastStep) return;
+    if (quitDisabled) return;
     if (confirmQuit) setQuitOpen(true);
     else navigate(exitTo);
   };
@@ -136,7 +136,7 @@ export function WizardShell({
           )}
         </header>
 
-        {!isLastStep && (
+        {!quitDisabled && (
           <button
             type="button"
             onClick={quit}

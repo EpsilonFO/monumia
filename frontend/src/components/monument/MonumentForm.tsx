@@ -26,24 +26,8 @@ interface MonumentFormProps {
 const CREATION_STEPS = [
   { number: 1, title: 'Identification', description: 'Nom et localisation' },
   { number: 2, title: 'Statut juridique', description: 'Protection et propriété' },
-  { number: 3, title: 'Description physique', description: 'Architecture et matériaux' },
+  { number: 3, title: 'Description physique', description: 'Architecture et état du monument' },
 ];
-
-/**
- * L'état sanitaire n'est pas demandé à la CRÉATION : la question « le monument
- * est-il en péril ? » est posée à l'étape 2 du wizard monument, où l'utilisateur
- * ne peut pas la sauter — enfouie ici en fin de formulaire, elle restait vide et
- * les gates des dispositifs d'urgence ne discriminaient donc rien. L'édition de
- * fiche garde l'étape pour qu'elle reste modifiable après coup.
- *
- * Les travaux envisagés n'y sont plus du tout : ils cadrent un PROJET, se
- * saisissent dans son wizard et se modifient sur sa page.
- */
-const STEP_ETAT_SANITAIRE = {
-  number: 4,
-  title: 'État sanitaire',
-  description: 'Conservation du monument',
-};
 
 function isStepValid(step: number, data: Partial<Monument>): boolean {
   switch (step) {
@@ -51,11 +35,20 @@ function isStepValid(step: number, data: Partial<Monument>): boolean {
       return !!(data.nom?.trim() && data.commune?.trim());
     case 2:
       return !!(data.protection && data.proprietaire);
+    case 3:
+      // Dernière étape avant « Terminer » : c'est la seule garantie que l'état
+      // sanitaire soit renseigné, faute de quoi les gates des dispositifs
+      // d'urgence ({in: [mauvais, peril]}) ne discrimineraient jamais rien.
+      return !!data.etatConservation;
     default:
       return true;
   }
 }
 
+/**
+ * Les travaux envisagés ne sont pas dans ce formulaire : ils cadrent un PROJET,
+ * se saisissent dans son wizard et se modifient sur sa page.
+ */
 export function MonumentForm({ initialData, onSubmit, isEditing, saving }: MonumentFormProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<Partial<Monument>>(initialData ?? {});
@@ -64,9 +57,8 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
     setFormData((prev) => ({ ...prev, ...updates }));
   };
 
-  const steps = isEditing ? [...CREATION_STEPS, STEP_ETAT_SANITAIRE] : CREATION_STEPS;
   const canProceed = isStepValid(currentStep, formData);
-  const lastStep = steps.length;
+  const lastStep = CREATION_STEPS.length;
 
   const handleNext = () => {
     if (!canProceed) return;
@@ -78,8 +70,8 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
-  const progressPercent = ((currentStep - 1) / (steps.length - 1)) * 100;
-  const currentStepInfo = steps[currentStep - 1];
+  const progressPercent = ((currentStep - 1) / (lastStep - 1)) * 100;
+  const currentStepInfo = CREATION_STEPS[currentStep - 1];
 
   return (
     <div className="space-y-6">
@@ -87,7 +79,7 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
           <span className="font-medium">{currentStepInfo.title}</span>
-          <span className="text-muted-foreground">Étape {currentStep} / {steps.length}</span>
+          <span className="text-muted-foreground">Étape {currentStep} / {lastStep}</span>
         </div>
         <Progress value={progressPercent} className="h-1.5" />
         <p className="text-xs text-muted-foreground">{currentStepInfo.description}</p>
@@ -98,11 +90,10 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
           En mobile, la colonne repasse sous le carré. */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <Card className="min-w-0 flex-1">
-          <CardContent className="pt-6">
+          <CardContent>
             {currentStep === 1 && <Step1Identification data={formData} onChange={update} />}
             {currentStep === 2 && <Step2StatutJuridique data={formData} onChange={update} />}
             {currentStep === 3 && <Step3DescriptionPhysique data={formData} onChange={update} />}
-            {currentStep === 4 && <Step4EtatSanitaire data={formData} onChange={update} />}
           </CardContent>
         </Card>
 
@@ -292,15 +283,8 @@ function Step3DescriptionPhysique({ data, onChange }: StepProps) {
           rows={4}
         />
       </div>
-    </div>
-  );
-}
-
-function Step4EtatSanitaire({ data, onChange }: StepProps) {
-  return (
-    <div className="grid grid-cols-1 gap-4">
-      <div className={FIELD}>
-        <Label htmlFor="etatConservation">État de conservation</Label>
+      <div className={cn(FIELD, 'md:col-span-2')}>
+        <Label htmlFor="etatConservation">État de conservation *</Label>
         <Select
           value={data.etatConservation ?? ''}
           onValueChange={(v) => onChange({ etatConservation: v as Monument['etatConservation'] })}

@@ -23,7 +23,7 @@ import { projetService } from '@/services/projet.service';
 import { aideService } from '@/services/aide.service';
 import { sanitizeQcmQuestions } from '@/lib/qcm';
 import { RAISONS_KEY, readRaisons } from '@/constants/raisons';
-import { isEnPeril } from '@/constants/monument-options';
+import type { EtatConservation } from '@/constants/monument-options';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { toast } from 'sonner';
@@ -70,8 +70,8 @@ export function ProjetWizardPage() {
   // `travaux === null` : pas de réponse ; `[]` : « Pas encore déterminé ».
   const [travaux, setTravaux] = useState<WorkType[] | null>(null);
   // Rattrapage du péril : `null` tant qu'on ne sait pas si la question a déjà
-  // été posée (fiche en cours de chargement), puis true/false.
-  const [peril, setPeril] = useState<boolean | null>(null);
+  // été posée (fiche en cours de chargement) ou qu'elle ne l'a jamais été.
+  const [etatConservation, setEtatConservation] = useState<EtatConservation | null>(null);
   const [besoinPeril, setBesoinPeril] = useState(false);
   const [step, setStep] = useState<WizardStepKey>('intention');
   const [progress, setProgress] = useState<WizardProgress | null>(null);
@@ -108,9 +108,7 @@ export function ProjetWizardPage() {
       .then((m) => {
         setMonument(m);
         if (m.etatConservation) {
-          // Les fiches antérieures portent encore quatre niveaux d'état : on
-          // les range du côté péril dès `mauvais`, comme les gates des aides.
-          setPeril(isEnPeril(m.etatConservation) ?? false);
+          setEtatConservation(m.etatConservation);
         } else {
           setBesoinPeril(true);
           setStep('peril');
@@ -173,11 +171,11 @@ export function ProjetWizardPage() {
 
   // Rattrapage du péril : la réponse va sur le MONUMENT (elle décrit le bien).
   const handlePerilNext = async () => {
-    if (!monumentId || peril === null) return;
+    if (!monumentId || etatConservation === null) return;
     setSaving(true);
     try {
       const updated = await monumentService.update(monumentId, {
-        etatConservation: peril ? 'peril' : 'bon',
+        etatConservation,
       });
       setMonument(updated);
       updateMonument(monumentId, updated);
@@ -260,13 +258,14 @@ export function ProjetWizardPage() {
       monument={monument}
       progress={step === 'questionnaire' ? progress : null}
       confirmQuit={step === 'questionnaire' && Object.keys(answers).length > 0}
+      quitDisabled={step === 'diagnostic'}
       exitTo={exitTo}
     >
       {step === 'peril' && (
         <PerilStep
           eyebrow={eyebrow}
-          value={peril}
-          onChange={setPeril}
+          value={etatConservation}
+          onChange={setEtatConservation}
           onNext={handlePerilNext}
           saving={saving}
         />

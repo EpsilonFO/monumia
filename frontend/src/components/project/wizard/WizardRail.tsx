@@ -1,11 +1,9 @@
 import { Check } from 'lucide-react';
 import {
-  IconAide,
   IconChantier,
   IconDiagnostic,
   IconListe,
   IconLocalisation,
-  IconMonument,
   IconProjet,
   LogoMonumia,
   type IconComponent,
@@ -15,9 +13,8 @@ import { C, SERIF } from '@/lib/brand';
 import { PROTECTION_LABELS_SHORT } from '@/constants/monument-options';
 import type { Monument } from '@/types';
 
-/** Clé d'étape — une chaîne, pas un rang : les deux wizards n'ont ni le même
- *  nombre d'étapes ni le même ordre, et le wizard projet en insère une de plus
- *  quand le monument n'a jamais répondu à la question du péril. */
+/** Clé d'étape — une chaîne, pas un rang : le wizard projet en insère une de
+ *  plus quand le monument n'a jamais répondu à la question du péril. */
 export type WizardStepKey = string;
 
 export interface WizardStep {
@@ -32,22 +29,6 @@ export interface WizardProgress {
   index: number;
   total: number;
 }
-
-/** Création d'un monument : la fiche du bien, puis son état sanitaire. */
-export const MONUMENT_WIZARD_STEPS: WizardStep[] = [
-  {
-    key: 'fiche',
-    label: 'Votre monument',
-    hint: 'Retrouvez-le dans la base Mérimée ou décrivez-le vous-même.',
-    icon: IconMonument,
-  },
-  {
-    key: 'sanitaire',
-    label: 'État du monument',
-    hint: 'Une seule question, qui ouvre les dispositifs d’urgence.',
-    icon: IconDiagnostic,
-  },
-];
 
 /** Étape optionnelle en tête du wizard projet : le monument a été créé avant
  *  que la question du péril n'existe, elle n'a donc jamais été posée. Sans ce
@@ -210,7 +191,7 @@ export function WizardRail({ steps, step, monument, onQuit }: WizardRailProps) {
           })}
         </ol>
 
-        {monument ? (
+        {monument && (
           <div
             className="rounded-2xl border p-4"
             style={{
@@ -243,55 +224,11 @@ export function WizardRail({ steps, step, monument, onQuit }: WizardRailProps) {
               {PROTECTION_LABELS_SHORT[monument.protection] ?? monument.protection}
             </span>
           </div>
-        ) : (
-          // La place du monument est réservée dès le départ : l'utilisateur
-          // voit où son choix va s'inscrire.
-          <div
-            className="flex items-center gap-3 rounded-2xl border border-dashed p-4"
-            style={{ borderColor: `color-mix(in srgb, ${C.blue} 25%, transparent)` }}
-          >
-            <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-              style={{ background: 'var(--secondary)', color: C.blue }}
-            >
-              <IconMonument className="h-5 w-5" />
-            </span>
-            <p className="text-[13px] leading-snug" style={{ color: C.grayMuted }}>
-              Votre monument apparaîtra ici dès que vous l&rsquo;aurez choisi.
-            </p>
-          </div>
         )}
       </div>
 
-      <div className="mt-8 space-y-3">
-        {/* Ce que le parcours rapporte, toujours visible : on avance pour
-            quelque chose de concret. */}
-        <div
-          className="flex items-start gap-3 rounded-2xl p-4"
-          style={{ background: 'var(--warning-muted)' }}
-        >
-          <span
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-            style={{ background: C.orange, color: '#fff' }}
-          >
-            <IconAide className="h-5 w-5" />
-          </span>
-          <div className="min-w-0">
-            <p
-              className="text-[11px] font-semibold uppercase tracking-[0.14em]"
-              style={{ color: C.orange }}
-            >
-              À la clé
-            </p>
-            <p className="mt-1 text-[13px] leading-snug" style={{ color: C.ink }}>
-              La liste des aides publiques mobilisables pour votre projet, prête à consulter.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex justify-end pr-1">
-          <Clover size={34} className="shrink-0" style={{ color: C.orange, opacity: 0.22 }} />
-        </div>
+      <div className="mt-8 flex justify-end pr-1">
+        <Clover size={34} className="shrink-0" style={{ color: C.orange, opacity: 0.22 }} />
       </div>
     </aside>
   );
