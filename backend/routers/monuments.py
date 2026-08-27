@@ -144,7 +144,11 @@ class CreateMonumentRequest(BaseModel):
     siecleConstruction: str | None = None
     descriptionGenerale: str | None = None
 
-    etatConservation: str
+    # Absent à la création : la question « le monument est-il en péril ? » est
+    # posée à l'étape « Votre projet » du wizard, donc APRÈS la création de la
+    # fiche (cf. migration 20260827094119, qui rend la colonne nullable). Y
+    # écrire un repli produirait une fausse donnée.
+    etatConservation: str | None = None
     travauxEnvisages: list[str] | None = None
 
     questionnaire: dict | None = None

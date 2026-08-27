@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useAideStore } from '@/stores/useAideStore';
 import { ROUTES } from '@/constants/routes';
+import { isEnPeril, perilLabel } from '@/constants/monument-options';
 import type { Monument } from '@/types';
 
 interface MonumentCardProps {
@@ -15,15 +16,10 @@ const protectionLabels: Record<string, string> = {
   classe: 'Classé MH', inscrit: 'Inscrit MH', abords: 'Abords MH', spr: 'SPR', non_protege: 'Non protégé',
 };
 
-const etatColors: Record<string, { bg: string; text: string }> = {
-  bon: { bg: 'var(--success-muted)', text: 'var(--success)' },
-  moyen: { bg: 'var(--warning-muted)', text: 'var(--warning)' },
-  mauvais: { bg: 'var(--cat-2-soft)', text: 'var(--cat-2)' },
-  peril: { bg: 'var(--destructive-muted)', text: 'var(--destructive)' },
-};
-
-const etatLabels: Record<string, string> = {
-  bon: 'Bon état', moyen: 'État moyen', mauvais: 'Mauvais état', peril: 'En péril',
+// La fiche ne porte plus qu'un signal binaire : en péril ou non (cf. isEnPeril).
+const PERIL_COLORS = {
+  oui: { bg: 'var(--destructive-muted)', text: 'var(--destructive)' },
+  non: { bg: 'var(--success-muted)', text: 'var(--success)' },
 };
 
 export function MonumentCard({ monument }: MonumentCardProps) {
@@ -33,7 +29,8 @@ export function MonumentCard({ monument }: MonumentCardProps) {
   const hasDiagnostic = useAideStore(
     (s) => !!s.diagnosticsByMonument[monument.id] || !!s.digestsByMonument[monument.id],
   );
-  const etat = etatColors[monument.etatConservation] ?? etatColors.moyen;
+  const enPeril = isEnPeril(monument.etatConservation);
+  const peril = enPeril === null ? null : enPeril ? PERIL_COLORS.oui : PERIL_COLORS.non;
 
   const handleDossierClick = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -71,9 +68,11 @@ export function MonumentCard({ monument }: MonumentCardProps) {
             <IconProtection className="h-3 w-3" strokeWidth={1.8} />
             {protectionLabels[monument.protection] ?? monument.protection}
           </Badge>
-          <Badge className="text-[10px] font-semibold border-0" style={{ background: etat.bg, color: etat.text }}>
-            {etatLabels[monument.etatConservation] ?? monument.etatConservation}
-          </Badge>
+          {peril && (
+            <Badge className="text-[10px] font-semibold border-0" style={{ background: peril.bg, color: peril.text }}>
+              {perilLabel(monument.etatConservation)}
+            </Badge>
+          )}
         </div>
 
         {/* Progress */}

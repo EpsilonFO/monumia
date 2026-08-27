@@ -33,8 +33,11 @@ export interface Monument {
   nombreNiveaux?: number;
   descriptionGenerale?: string;
 
-  // Step 4: Current State
-  etatConservation: 'bon' | 'moyen' | 'mauvais' | 'peril';
+  // Cadrage du projet (étape « Votre projet » du wizard)
+  // Absent tant que la question « le monument est-il en péril ? » n'a pas été
+  // posée : la fiche est créée avant. Le wizard n'écrit plus que 'peril' ou
+  // 'bon' — 'moyen'/'mauvais' subsistent sur les fiches antérieures.
+  etatConservation?: 'bon' | 'moyen' | 'mauvais' | 'peril';
   travauxEnvisages?: WorkType[];
   urgenceTravaux?: 'faible' | 'moyenne' | 'haute' | 'critique';
   diagnosticRealise?: boolean;

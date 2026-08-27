@@ -94,7 +94,18 @@ export function ProjectIntentStep({ value, onChange, onNext, retake }: ProjectIn
         })}
       </div>
 
-      <div className="flex items-center gap-3">
+      {/* Même barre de navigation que les écrans suivants et le questionnaire :
+          l'action qui fait avancer est à droite. Pas de « Précédent » ici —
+          c'est le premier écran de l'étape. */}
+      <div
+        className="mt-3 flex flex-wrap items-center justify-end gap-3 border-t py-3"
+        style={{ borderColor: C.border }}
+      >
+        {value.length === 0 && (
+          <span className="text-[13px]" style={{ color: C.grayMuted }}>
+            Cochez au moins une intention.
+          </span>
+        )}
         <button
           type="button"
           onClick={onNext}
@@ -105,11 +116,6 @@ export function ProjectIntentStep({ value, onChange, onNext, retake }: ProjectIn
           Continuer
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
         </button>
-        {value.length === 0 && (
-          <span className="text-[13px]" style={{ color: C.grayMuted }}>
-            Cochez au moins une intention.
-          </span>
-        )}
       </div>
     </div>
   );

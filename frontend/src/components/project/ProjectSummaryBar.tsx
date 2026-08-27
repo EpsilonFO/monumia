@@ -4,7 +4,7 @@ import { C, SERIF } from '@/lib/brand';
 import { formatCurrency } from '@/lib/format-utils';
 import { enjeuLabel } from '@/lib/aides-enjeu';
 import { deadlineLabel } from '@/lib/date-utils';
-import { PROTECTION_LABELS_SHORT, ETAT_LABELS } from '@/constants/monument-options';
+import { PROTECTION_LABELS_SHORT, perilLabel } from '@/constants/monument-options';
 import type { ProjectStats } from '@/lib/project-stats';
 import type { Monument, ProjectMember } from '@/types';
 import { isProjectShared, projectPermissions } from '@/lib/project-permissions';
@@ -59,9 +59,11 @@ export function ProjectSummaryBar({ monument, stats, members = [], onRefaireQues
               <IconProtection className="h-3 w-3" />
               {PROTECTION_LABELS_SHORT[monument.protection] ?? monument.protection}
             </Badge>
-            <Badge variant="outline" style={{ borderColor: C.border, color: C.ink }}>
-              {ETAT_LABELS[monument.etatConservation] ?? monument.etatConservation}
-            </Badge>
+            {perilLabel(monument.etatConservation) && (
+              <Badge variant="outline" style={{ borderColor: C.border, color: C.ink }}>
+                {perilLabel(monument.etatConservation)}
+              </Badge>
+            )}
             {shared && <SharedBadge count={members.length || monument.memberCount} />}
             {showRole && monument.myRole && <RoleBadge role={monument.myRole} />}
           </div>

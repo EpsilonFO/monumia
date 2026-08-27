@@ -5,6 +5,8 @@ import { MerimeeSearch } from '@/components/monument/MerimeeSearch';
 import { MonumentForm } from '@/components/monument/MonumentForm';
 import { ProjectQuestionnaire } from '@/components/project/ProjectQuestionnaire';
 import { ProjectIntentStep } from '@/components/project/wizard/ProjectIntentStep';
+import { ProjectTravauxStep } from '@/components/project/wizard/ProjectTravauxStep';
+import { ProjectPerilStep } from '@/components/project/wizard/ProjectPerilStep';
 import { WizardShell } from '@/components/project/wizard/WizardShell';
 import { DiagnosticLoader } from '@/components/project/wizard/DiagnosticLoader';
 import type { WizardProgress, WizardStepKey } from '@/components/project/wizard/WizardRail';
@@ -19,7 +21,7 @@ import { aideService } from '@/services/aide.service';
 import { sanitizeQcmQuestions } from '@/lib/qcm';
 import { RAISONS_KEY, readRaisons } from '@/constants/raisons';
 import { REGIONS } from '@/constants/regions';
-import { MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
+import { isEnPeril, MATERIAUX, TYPES_COUVERTURE } from '@/constants/monument-options';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { toast } from 'sonner';
@@ -30,11 +32,15 @@ import type {
   ProtectionLevel,
   QcmQuestion,
   Region,
+  WorkType,
 } from '@/types';
 
 const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
   REGIONS.map((r) => [r.label.toLowerCase(), r.value])
 );
+
+/** Les trois écrans successifs de l'étape 2, « Votre projet ». */
+type CadragePhase = 'raisons' | 'travaux' | 'peril';
 
 export function ProjectWizardPage() {
   const navigate = useNavigate();
@@ -58,6 +64,14 @@ export function ProjectWizardPage() {
   // Intentions de l'étape « Votre projet » (finalités du catalogue). Elles
   // préfiltrent les aides candidates AVANT la génération du questionnaire.
   const [raisons, setRaisons] = useState<string[]>([]);
+  // Les deux autres écrans de l'étape « Votre projet ». Ils ne vivent pas dans
+  // `answers` : ce sont des champs du monument (`travaux_envisages`,
+  // `etat_conservation`) que le moteur relit côté serveur pour ses
+  // `hard_filters` — donc à persister AVANT de générer le questionnaire.
+  // `travaux === null` : pas de réponse ; `[]` : « Pas encore déterminé ».
+  const [travaux, setTravaux] = useState<WorkType[] | null>(null);
+  const [peril, setPeril] = useState<boolean | null>(null);
+  const [cadragePhase, setCadragePhase] = useState<CadragePhase>('raisons');
   const [progress, setProgress] = useState<WizardProgress | null>(null);
   // Questionnaire du moteur d'aides : on lance un premier diagnostic déterministe
   // (intentions seules, sans réponses) dès l'étape 3 pour obtenir les questions à
@@ -68,12 +82,20 @@ export function ProjectWizardPage() {
   const [loadError, setLoadError] = useState(false);
   // Intentions pour lesquelles le questionnaire courant a été calculé : revenir
   // en arrière et cocher autre chose doit le régénérer.
-  const [loadedRaisonsKey, setLoadedRaisonsKey] = useState<string | null>(null);
-  const raisonsKey = raisons.join('|');
+  const [loadedCadrageKey, setLoadedCadrageKey] = useState<string | null>(null);
+  // Le questionnaire dépend des trois écrans de cadrage : les intentions
+  // filtrent les aides candidates, travaux et péril font tomber des aides
+  // entières par hard_filter ou par gate. Revenir en arrière et changer l'un
+  // des trois doit le régénérer.
+  const cadrageKey = [
+    raisons.join('|'),
+    travaux === null ? '?' : travaux.join('|'),
+    String(peril),
+  ].join('#');
 
   // Hors AppLayout, le store peut être vide (arrivée directe ?monument=id) :
   // on charge la fiche pour la mini-fiche du rail.
-  const raisonsPrefilled = useRef(false);
+  const cadragePrefilled = useRef(false);
   useEffect(() => {
     if (!existingMonumentId) return;
     monumentService
@@ -82,10 +104,14 @@ export function ProjectWizardPage() {
         setMonument(m);
         // Préremplissage unique : ne jamais écraser ce que l'utilisateur vient
         // de cocher si la fiche arrive en retard.
-        if (raisonsPrefilled.current) return;
-        raisonsPrefilled.current = true;
+        if (cadragePrefilled.current) return;
+        cadragePrefilled.current = true;
         const previous = readRaisons(m.questionnaire);
         if (previous.length > 0) setRaisons(previous);
+        if (m.travauxEnvisages) setTravaux(m.travauxEnvisages);
+        // Les fiches antérieures portent encore quatre niveaux d'état : on les
+        // range du côté péril dès `mauvais`, comme les gates des aides.
+        if (m.etatConservation) setPeril(isEnPeril(m.etatConservation) ?? false);
       })
       .catch(() => {
         // Non bloquant : le rail affiche simplement moins de contexte.
@@ -197,7 +223,6 @@ export function ProjectWizardPage() {
         // Le formulaire impose le type de propriétaire (champ requis) : ce
         // repli ne sert qu'à satisfaire le type.
         proprietaire: data.proprietaire ?? 'prive_personne_physique',
-        etatConservation: data.etatConservation ?? 'moyen',
         referenceMerimee: data.referenceMerimee,
         dateProtection: data.dateProtection,
         typeProtection: data.typeProtection,
@@ -209,11 +234,10 @@ export function ProjectWizardPage() {
         typeCouverture: data.typeCouverture,
         nombreNiveaux: data.nombreNiveaux,
         descriptionGenerale: data.descriptionGenerale,
-        travauxEnvisages: data.travauxEnvisages,
-        urgenceTravaux: data.urgenceTravaux,
-        diagnosticRealise: data.diagnosticRealise,
-        derniersTravaux: data.derniersTravaux,
-        descriptionEtat: data.descriptionEtat,
+        // État de conservation et travaux envisagés ne sont plus demandés ici :
+        // ils sont posés à l'étape « Votre projet », après la création (cf.
+        // migration 20260827094119, qui rend etat_conservation nullable). Y
+        // écrire un repli produirait une fausse donnée.
       });
 
       addMonument(monument);
@@ -235,7 +259,7 @@ export function ProjectWizardPage() {
   // les faits manquants qui bloquent le plus d'aides, restreints aux aides qui
   // servent le projet déclaré. Le moteur étant pur et rapide, c'est immédiat.
   useEffect(() => {
-    if (step !== 3 || !monumentId || loadedRaisonsKey === raisonsKey || loadError) return;
+    if (step !== 3 || !monumentId || loadedCadrageKey === cadrageKey || loadError) return;
     let cancelled = false;
     setLoadingQuestions(true);
     aideService
@@ -243,7 +267,7 @@ export function ProjectWizardPage() {
       .then((result) => {
         if (cancelled) return;
         setQuestions(sanitizeQcmQuestions(result.qcmQuestions));
-        setLoadedRaisonsKey(raisonsKey);
+        setLoadedCadrageKey(cadrageKey);
       })
       .catch((err) => {
         console.error('Erreur diagnostic déterministe:', err);
@@ -255,12 +279,33 @@ export function ProjectWizardPage() {
     return () => {
       cancelled = true;
     };
-  }, [step, monumentId, raisons, raisonsKey, loadedRaisonsKey, loadError]);
+  }, [step, monumentId, raisons, cadrageKey, loadedCadrageKey, loadError]);
 
-  // Étape 2 → 3 : changer d'intentions périme les réponses déjà données (leurs
-  // questions peuvent disparaître) — on repart d'un questionnaire propre.
-  const handleIntentNext = () => {
-    if (loadedRaisonsKey !== null && loadedRaisonsKey !== raisonsKey) {
+  // Fin de l'étape 2 : le cadrage vit sur le MONUMENT (le moteur le relit côté
+  // serveur pour ses hard_filters), donc on le persiste AVANT de générer le
+  // questionnaire. En cas d'échec on reste sur l'écran : partir avec des
+  // travaux non enregistrés donnerait un diagnostic calculé sur l'ancienne
+  // fiche, sans que rien ne le signale.
+  const handleCadrageNext = async () => {
+    if (!monumentId || peril === null) return;
+    setSaving(true);
+    try {
+      const updated = await monumentService.update(monumentId, {
+        travauxEnvisages: travaux ?? [],
+        etatConservation: peril ? 'peril' : 'bon',
+      });
+      setMonument(updated);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Erreur lors de l’enregistrement de votre projet"
+      );
+      return;
+    } finally {
+      setSaving(false);
+    }
+    // Changer le cadrage périme les réponses déjà données (leurs questions
+    // peuvent disparaître) — on repart d'un questionnaire propre.
+    if (loadedCadrageKey !== null && loadedCadrageKey !== cadrageKey) {
       setAnswers({});
       setQuestions([]);
     }
@@ -295,6 +340,7 @@ export function ProjectWizardPage() {
     ? ROUTES.PROJET_DETAIL(existingMonumentId)
     : ROUTES.PROJETS;
   const confirmQuit = step === 3 && Object.keys(answers).length > 0;
+  const eyebrow = existingMonumentId ? 'Questionnaire' : 'Nouveau projet';
 
   return (
     <WizardShell
@@ -388,12 +434,33 @@ export function ProjectWizardPage() {
         </div>
       )}
 
-      {step === 2 && (
+      {step === 2 && cadragePhase === 'raisons' && (
         <ProjectIntentStep
           value={raisons}
           onChange={setRaisons}
-          onNext={handleIntentNext}
+          onNext={() => setCadragePhase('travaux')}
           retake={!!existingMonumentId}
+        />
+      )}
+
+      {step === 2 && cadragePhase === 'travaux' && (
+        <ProjectTravauxStep
+          eyebrow={eyebrow}
+          value={travaux}
+          onChange={setTravaux}
+          onNext={() => setCadragePhase('peril')}
+          onBack={() => setCadragePhase('raisons')}
+        />
+      )}
+
+      {step === 2 && cadragePhase === 'peril' && (
+        <ProjectPerilStep
+          eyebrow={eyebrow}
+          value={peril}
+          onChange={setPeril}
+          onNext={handleCadrageNext}
+          onBack={() => setCadragePhase('travaux')}
+          saving={saving}
         />
       )}
 

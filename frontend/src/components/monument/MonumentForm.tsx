@@ -25,12 +25,25 @@ interface MonumentFormProps {
   saving?: boolean;
 }
 
-const STEPS = [
+const CREATION_STEPS = [
   { number: 1, title: 'Identification', description: 'Nom et localisation' },
   { number: 2, title: 'Statut juridique', description: 'Protection et propriété' },
   { number: 3, title: 'Description physique', description: 'Architecture et matériaux' },
-  { number: 4, title: 'État actuel', description: 'Conservation et travaux' },
 ];
+
+/**
+ * L'état actuel n'est plus demandé à la CRÉATION : la question « le monument
+ * est-il en péril ? » et les travaux envisagés sont posés à l'étape « Votre
+ * projet » du wizard, où l'utilisateur ne peut pas les sauter — enfouis ici en
+ * fin de formulaire, ils restaient vides et le filtre `hard_filters.travaux`
+ * des aides ne discriminait donc rien. L'édition de fiche garde l'étape pour
+ * qu'ils restent modifiables après coup.
+ */
+const STEP_ETAT_ACTUEL = {
+  number: 4,
+  title: 'État actuel',
+  description: 'Conservation et travaux',
+};
 
 function isStepValid(step: number, data: Partial<Monument>): boolean {
   switch (step) {
@@ -38,8 +51,6 @@ function isStepValid(step: number, data: Partial<Monument>): boolean {
       return !!(data.nom?.trim() && data.commune?.trim());
     case 2:
       return !!(data.protection && data.proprietaire);
-    case 4:
-      return !!(data.etatConservation);
     default:
       return true;
   }
@@ -53,8 +64,9 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
     setFormData((prev) => ({ ...prev, ...updates }));
   };
 
+  const steps = isEditing ? [...CREATION_STEPS, STEP_ETAT_ACTUEL] : CREATION_STEPS;
   const canProceed = isStepValid(currentStep, formData);
-  const lastStep = STEPS.length;
+  const lastStep = steps.length;
 
   const handleNext = () => {
     if (!canProceed) return;
@@ -66,8 +78,8 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
-  const progressPercent = ((currentStep - 1) / (STEPS.length - 1)) * 100;
-  const currentStepInfo = STEPS[currentStep - 1];
+  const progressPercent = ((currentStep - 1) / (steps.length - 1)) * 100;
+  const currentStepInfo = steps[currentStep - 1];
 
   return (
     <div className="space-y-6">
@@ -75,7 +87,7 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
           <span className="font-medium">{currentStepInfo.title}</span>
-          <span className="text-muted-foreground">Étape {currentStep} / {STEPS.length}</span>
+          <span className="text-muted-foreground">Étape {currentStep} / {steps.length}</span>
         </div>
         <Progress value={progressPercent} className="h-1.5" />
         <p className="text-xs text-muted-foreground">{currentStepInfo.description}</p>
@@ -290,7 +302,7 @@ function Step4EtatActuel({ data, onChange }: StepProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className={FIELD}>
-        <Label htmlFor="etatConservation">État de conservation *</Label>
+        <Label htmlFor="etatConservation">État de conservation</Label>
         <Select
           value={data.etatConservation ?? ''}
           onValueChange={(v) => onChange({ etatConservation: v as Monument['etatConservation'] })}

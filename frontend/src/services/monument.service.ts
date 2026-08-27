@@ -31,7 +31,7 @@ export function toMonument(row: Record<string, unknown>): Monument {
     proprietaire: row.proprietaire as Monument['proprietaire'],
     siecleConstruction: row.siecle_construction as string ?? row.siecleConstruction as string,
     descriptionGenerale: row.description_generale as string ?? row.descriptionGenerale as string,
-    etatConservation: row.etat_conservation as Monument['etatConservation'] ?? row.etatConservation as Monument['etatConservation'],
+    etatConservation: (row.etat_conservation ?? row.etatConservation ?? undefined) as Monument['etatConservation'],
     travauxEnvisages: row.travaux_envisages as Monument['travauxEnvisages'] ?? row.travauxEnvisages as Monument['travauxEnvisages'],
     photos: (row.photos as MonumentPhoto[]) ?? [],
     questionnaire: (row.questionnaire as Monument['questionnaire']) ?? undefined,

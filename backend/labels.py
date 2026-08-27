@@ -44,6 +44,7 @@ TRAVAUX_LABELS = {
     "mise_en_securite": "Mise en sécurité",
     "etude_prealable": "Étude préalable",
     "mobilier": "Mobilier",
+    "archives": "Archives et documents (photographies, fonds papier, audiovisuel)",
     "orgues": "Orgues",
     "parcs_jardins": "Parcs et jardins",
     "protection_solaire": "Protection solaire",

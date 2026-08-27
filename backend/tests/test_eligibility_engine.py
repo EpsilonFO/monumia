@@ -333,6 +333,23 @@ class TestHardFilters(unittest.TestCase):
         self.assertNotEqual(v_small.status, "non_eligible")
         self.assertEqual(v_big.status, "non_eligible")
 
+    def test_travaux_ecarte_une_aide_dobjet(self):
+        """L'aide IDF sur les fonds d'archives ne suit pas un chantier de toiture.
+
+        Elle n'a que des conditions `effect: info` : sans hard_filter travaux,
+        elle ressortait éligible pour tout monument d'Île-de-France.
+        """
+        m = _monument(travaux_envisages=["toiture"])
+        v = evaluate_aide(AIDES["idf-restauration-oeuvre"], m, 3000, build_context(m, 3000), FACTS)
+        self.assertEqual(v.status, "non_eligible")
+        self.assertIn("Travaux éligibles", v.raison_ineligibilite)
+
+    def test_travaux_vides_laissent_passer_laide_dobjet(self):
+        """« Pas encore déterminé » (liste vide) : fail-open, on ne masque rien."""
+        m = _monument(travaux_envisages=[])
+        v = evaluate_aide(AIDES["idf-restauration-oeuvre"], m, 3000, build_context(m, 3000), FACTS)
+        self.assertNotEqual(v.status, "non_eligible")
+
 
 class TestEpciGating(unittest.TestCase):
     """Aides intercommunales : le gate `commune.epci` contre le SIREN de l'EPCI.

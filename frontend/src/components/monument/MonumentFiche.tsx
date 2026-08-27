@@ -10,7 +10,7 @@ import { Clover, AllClear } from '@/components/illustrations';
 import { C, SERIF } from '@/lib/brand';
 import { formatDate } from '@/lib/date-utils';
 import {
-  PROTECTION_LABELS, ETAT_LABELS, OWNERSHIP_TYPES,
+  PROTECTION_LABELS, isEnPeril, perilLabel, OWNERSHIP_TYPES,
   WORK_TYPES, MATERIAUX, TYPES_COUVERTURE, URGENCE_TRAVAUX,
 } from '@/constants/monument-options';
 import type { Monument } from '@/types';
@@ -46,13 +46,8 @@ const PROTECTION_TONE: Record<string, { bg: string; fg: string; sub: string }> =
   },
 };
 
-// Pastille de couleur associée à l'état de conservation (simple repère visuel).
-const ETAT_DOT: Record<Monument['etatConservation'], string> = {
-  bon: 'var(--success)',
-  moyen: 'var(--accent)',
-  mauvais: 'var(--warning)',
-  peril: 'var(--destructive)',
-};
+// Pastille de couleur associée au signal péril (simple repère visuel).
+const PERIL_DOT = { oui: 'var(--destructive)', non: 'var(--success)' };
 
 const URGENCE_TONE: Record<string, { fg: string; bg: string }> = {
   faible:   { fg: 'var(--info)',        bg: 'var(--info-muted)' },
@@ -162,6 +157,7 @@ export function MonumentFiche({ monument, canDelete, deleting, onDelete }: Monum
   const protection = PROTECTION_TONE[monument.protection] ?? PROTECTION_TONE.non_protege;
   const urgence = monument.urgenceTravaux ? URGENCE_TONE[monument.urgenceTravaux] : null;
   const travaux = monument.travauxEnvisages ?? [];
+  const enPeril = isEnPeril(monument.etatConservation);
 
   // Fiche info : seuls les champs renseignés apparaissent.
   const fields = [
@@ -183,10 +179,12 @@ export function MonumentFiche({ monument, canDelete, deleting, onDelete }: Monum
     monument.nombreNiveaux && { icon: IconListe, label: 'Niveaux', value: `${monument.nombreNiveaux} ${monument.nombreNiveaux > 1 ? 'niveaux' : 'niveau'}` },
     monument.typeCouverture && { icon: IconMaison, label: 'Couverture', value: COUVERTURE_LABELS[monument.typeCouverture] ?? monument.typeCouverture },
     monument.materiaux?.length && { icon: IconChantier, label: 'Matériaux', value: monument.materiaux.map((m) => MATERIAU_LABELS[m] ?? m).join(', ') },
-    {
-      icon: IconDiagnostic, label: 'État de conservation',
-      value: ETAT_LABELS[monument.etatConservation] ?? monument.etatConservation,
-      dot: ETAT_DOT[monument.etatConservation],
+    // Tant que la question péril n'a pas été posée (fiche créée avant l'étape
+    // « Votre projet »), la ligne n'apparaît pas plutôt que d'afficher un vide.
+    enPeril !== null && {
+      icon: IconDiagnostic, label: 'État du monument',
+      value: perilLabel(monument.etatConservation) ?? '',
+      dot: enPeril ? PERIL_DOT.oui : PERIL_DOT.non,
     },
   ].filter((f): f is { icon: IconType; label: string; value: string; dot?: string } => Boolean(f));
 

@@ -12,7 +12,7 @@ export type WorkType =
   | 'plomberie' | 'chauffage' | 'accessibilite'
   | 'mise_en_securite' | 'etude_prealable'
   | 'facade' | 'couverture'
-  | 'mobilier' | 'orgues' | 'parcs_jardins'
+  | 'mobilier' | 'archives' | 'orgues' | 'parcs_jardins'
   | 'protection_solaire' | 'ventilation';
 
 export type OwnershipType = 'public_commune' | 'public_epci' | 'public_departement'
