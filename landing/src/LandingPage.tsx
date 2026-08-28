@@ -17,7 +17,6 @@ import {
   Radar,
   Search,
   Sparkles,
-  TrendingUp,
 } from 'lucide-react';
 
 const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.monumia.fr';
