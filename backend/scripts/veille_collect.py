@@ -120,26 +120,40 @@ def pdf_to_text(path: Path) -> str | None:
     return out.stdout.decode("utf-8", errors="replace") if out.returncode == 0 else None
 
 
-def load_baselines(slug: str) -> tuple[list[tuple[str, str, str]], list[str]]:
-    """Documents archivés d'une aide, et la liste de ses PDF illisibles.
+def load_baselines(slug: str) -> tuple[list[tuple[str, str, str]], list[str], dict[str, str]]:
+    """Documents archivés d'une aide, ses PDF illisibles, et leur provenance.
 
     Retourne [(nom, contenu, type)] consommable par `find_quote_in_any`. TOUS
     les snapshots du dossier sont chargés, pas seulement `source.snapshot` : une
     aide a souvent une page d'appel à projets, un règlement PDF et un
     formulaire, et une quote n'est justifiée que par l'un d'eux.
+
+    Le troisième terme associe chaque nom de fichier à l'URL qu'il archive, lue
+    dans l'en-tête du `.md` ou le sidecar `.pdf.meta.yaml`. Sans lui, l'étage B
+    ne peut pas dire si le document qui justifie une quote a été re-téléchargé :
+    `_snapshot_baselines` ne garde que le snapshot le PLUS RÉCENT par URL, alors
+    que la recherche de quote balaye TOUS les snapshots et tombe volontiers sur
+    un plus ancien. Les 9 aides dont une même page est archivée deux fois
+    sortaient ainsi en « 0/n citation contrôlée » alors que leur page avait bien
+    été revisitée — et leur nombre ne peut que croître, puisque chaque mise à
+    jour ré-archive. Une alarme fausse dans un garde-fou n'est pas neutre :
+    elle apprend à ne plus le lire.
     """
     directory = SOURCES_DIR / slug
     if not directory.is_dir():
-        return [], []
+        return [], [], {}
     docs: list[tuple[str, str, str]] = []
     illisibles: list[str] = []
+    provenance: dict[str, str] = {}
     for path in sorted(directory.iterdir()):
         suffix = path.suffix.lower()
         if suffix == ".md":
             # Liens aplatis : les quotes ont été saisies depuis le rendu visuel
             # de la page, où l'URL d'une ancre en milieu de phrase n'apparaît pas.
-            body = parse_front_matter(path.read_text(encoding="utf-8"))[1]
+            meta, body = parse_front_matter(path.read_text(encoding="utf-8"))
             docs.append((path.name, flatten_markdown_links(body), "text"))
+            if (url := meta.get("url")) and url.startswith(("http://", "https://")):
+                provenance[path.name] = url
         elif suffix == ".pdf":
             text = pdf_to_text(path)
             if text is None:
@@ -148,7 +162,15 @@ def load_baselines(slug: str) -> tuple[list[tuple[str, str, str]], list[str]]:
                 illisibles.append(f"{path.name} ({len(text.strip())} car. extraits)")
             else:
                 docs.append((path.name, text, "pdf"))
-    return docs, illisibles
+            # Les 109 PDF antérieurs au sidecar n'ont pas de provenance : ils
+            # restent des baselines de quotes, mais rien ne dira jamais que leur
+            # source a été revisitée, faute de savoir laquelle c'est.
+            sidecar = path.with_name(path.name + ".meta.yaml")
+            if sidecar.is_file():
+                meta = yaml.safe_load(sidecar.read_text(encoding="utf-8")) or {}
+                if (url := meta.get("url")) and url.startswith(("http://", "https://")):
+                    provenance[path.name] = url
+    return docs, illisibles, provenance
 
 
 @dataclass(frozen=True)
@@ -402,6 +424,9 @@ class AideCollect:
     fetched: dict[str, FetchResult] = field(default_factory=dict)
     baseline_docs: list[tuple[str, str, str]] = field(default_factory=list)
     pdf_illisibles: list[str] = field(default_factory=list)
+    # Nom de fichier archivé → URL qu'il archive. Ce qui permet à l'étage B de
+    # relier une quote trouvée dans un snapshot à l'URL re-téléchargée.
+    baseline_urls: dict[str, str] = field(default_factory=dict)
 
     @property
     def page_principale(self) -> MonitoredUrl | None:
@@ -438,12 +463,13 @@ def collect(
     """
     collects: dict[str, AideCollect] = {}
     for aide in aides:
-        docs, illisibles = load_baselines(aide.slug)
+        docs, illisibles, provenance = load_baselines(aide.slug)
         collects[aide.slug] = AideCollect(
             slug=aide.slug,
             urls=monitored_urls(aide),
             baseline_docs=docs,
             pdf_illisibles=illisibles,
+            baseline_urls=provenance,
         )
 
     if offline:

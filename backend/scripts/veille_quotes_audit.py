@@ -53,7 +53,7 @@ PREFIX_DIVERGENCE = 0.30
 def audit_aide(aide: Aide) -> tuple[list[tuple[str, QuoteMatch, str | None]], list[str], bool]:
     """Retourne [(id de condition, correspondance, document)], les PDF illisibles
     et la présence d'au moins une baseline exploitable."""
-    baselines, illisibles = load_baselines(aide.slug)
+    baselines, illisibles, _provenance = load_baselines(aide.slug)
     results = []
     for cond in aide.conditions:
         if not cond.quote:

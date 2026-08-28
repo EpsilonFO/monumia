@@ -217,11 +217,29 @@ def _quote_verdicts(
         return []
     # Quel document archivé correspond à quelle URL re-téléchargée : c'est ce
     # qui rend une absence interprétable (garde-fou n°2 du module).
+    #
+    # La provenance lue dans les snapshots prime sur la correspondance par nom
+    # de fichier. `MonitoredUrl.baseline_path` ne désigne que le snapshot le
+    # PLUS RÉCENT de chaque URL, alors que `find_quote_in_any` balaye tout le
+    # dossier : dès qu'une aide gardait deux snapshots de la même page, la quote
+    # était rattachée à l'ancien, absent de cette table, et l'aide sortait en
+    # « 0/n citation contrôlée » — un faux négatif, sur la page même qu'on
+    # venait de re-télécharger.
     doc_recontrolable = {
         m.baseline_path.name: m.url in urls_rafraichies
         for m in collect.urls
         if m.baseline_path is not None
     }
+
+    def recontrolable(nom: str | None) -> bool:
+        if not nom:
+            return False
+        if url := collect.baseline_urls.get(nom):
+            return url in urls_rafraichies
+        # Sans provenance — les PDF antérieurs au sidecar — on ne sait pas quelle
+        # page ce document archive : le nom de fichier est tout ce qui reste.
+        return doc_recontrolable.get(nom, False)
+
     verdicts = []
     for cond in aide.conditions:
         if not cond.quote:
@@ -235,7 +253,7 @@ def _quote_verdicts(
                 baseline=base_match,
                 fresh=fresh_match,
                 baseline_doc=base_doc,
-                recontrolable=bool(base_doc) and doc_recontrolable.get(base_doc or "", False),
+                recontrolable=recontrolable(base_doc),
             )
         )
     return verdicts
