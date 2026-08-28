@@ -6,7 +6,6 @@ import { ParcoursTrail } from '@/components/project/ParcoursTrail';
 import { ROUTES } from '@/constants/routes';
 import { C, DEADLINE_TONE, SERIF } from '@/lib/brand';
 import { deadlineLabel } from '@/lib/date-utils';
-import { formatCurrency } from '@/lib/format-utils';
 import { montantTileMode } from '@/lib/project-card-view';
 import { projetTitre } from '@/lib/projet-titre';
 import type { ProjectStats, ProjectStage } from '@/lib/project-stats';
@@ -40,8 +39,8 @@ function ctaLabel(reachedIndex: number): string {
 
 /**
  * Vignette d'un projet de travaux, dans l'onglet « Projets » d'un monument.
- * Reprend la mécanique de l'ancienne carte projet — montant du digest, frise
- * d'avancement, échéance qui presse — sans répéter l'identité du monument :
+ * Reprend la mécanique de l'ancienne carte projet — nombre d'aides repérées,
+ * frise d'avancement, échéance qui presse — sans répéter l'identité du monument :
  * elle est déjà dans l'en-tête de la page.
  */
 export function ProjetCard({ projet, stats, stage }: ProjetCardProps) {
@@ -95,29 +94,13 @@ export function ProjetCard({ projet, stats, stage }: ProjetCardProps) {
               style={{ color: C.orange, opacity: 0.08 }}
               aria-hidden
             />
-            {tileMode === 'money' && stats ? (
+            {tileMode !== 'nudge' && stats ? (
               <>
                 <p
                   className="text-[26px] font-bold leading-none tabular-nums"
                   style={{
                     fontFamily: SERIF,
                     // Orange légèrement foncé à l'encre : contraste AA sur la tuile chaude.
-                    color: `color-mix(in srgb, ${C.orange} 82%, ${C.ink})`,
-                  }}
-                >
-                  {formatCurrency(stats.montantPotentiel)}
-                </p>
-                <p className="mt-1.5 text-[13px] font-medium" style={{ color: C.ink }}>
-                  {stats.aidesIdentifiees} aide{stats.aidesIdentifiees > 1 ? 's' : ''} repérée
-                  {stats.aidesIdentifiees > 1 ? 's' : ''}
-                </p>
-              </>
-            ) : tileMode === 'count' && stats ? (
-              <>
-                <p
-                  className="text-[26px] font-bold leading-none tabular-nums"
-                  style={{
-                    fontFamily: SERIF,
                     color: `color-mix(in srgb, ${C.orange} 82%, ${C.ink})`,
                   }}
                 >

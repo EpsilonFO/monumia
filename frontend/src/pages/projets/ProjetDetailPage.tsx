@@ -272,6 +272,21 @@ export function ProjetDetailPage() {
     navigate(`${ROUTES.PROJET_NEW(monumentId)}?projet=${projetId}`);
   }, [projetId, monumentId, navigate]);
 
+  /** Renommage en place depuis l'en-tête. On relaie l'erreur : l'en-tête garde
+   *  alors la saisie et reste en édition. */
+  const handleRenommerProjet = useCallback(
+    async (titre: string) => {
+      if (!projetId) return;
+      try {
+        upsertProjet(await projetService.update(projetId, { titre }));
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Erreur lors du renommage');
+        throw err;
+      }
+    },
+    [projetId, upsertProjet],
+  );
+
   const handleDeleteProjet = useCallback(async () => {
     if (!projetId || !monumentId) return;
     setConfirmDeleteOpen(false);
@@ -428,6 +443,7 @@ export function ProjetDetailPage() {
         projet={projet}
         monument={monument}
         onRefaireQuestionnaire={() => setConfirmRefaireOpen(true)}
+        onRenommer={handleRenommerProjet}
       />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
