@@ -2,8 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { C } from '@/lib/brand';
 
 /**
- * Squelettes des écrans « Documents » et « Modèles » : rangées et cartes
- * aux mêmes gabarits que DocumentTile et TemplateCard.
+ * Squelettes de l'écran « Documents » : rangées au même gabarit que DocumentTile.
  */
 
 /** Rangée document pleine largeur (miroir de DocumentTile : icône, titre, pied d'actions). */
@@ -55,43 +54,6 @@ export function DocumentsListSkeleton() {
             ))}
           </div>
         </section>
-      ))}
-    </div>
-  );
-}
-
-/** Carte modèle (miroir de TemplateCard : icône + badge, titre, description, pied). */
-function TemplateCardSkeleton() {
-  return (
-    <div
-      className="flex h-44 flex-col overflow-hidden rounded-xl border"
-      style={{ background: C.card, borderColor: C.border }}
-    >
-      <div className="flex flex-1 flex-col px-5 pb-3 pt-5">
-        <div className="flex items-start justify-between gap-3">
-          <Skeleton className="h-10 w-10 rounded-lg" />
-          <Skeleton className="h-5 w-14 rounded-md" />
-        </div>
-        <Skeleton className="mt-3 h-4 w-3/4" />
-        <Skeleton className="mt-2 h-3 w-full max-w-[280px]" />
-      </div>
-      <div
-        className="flex items-center justify-between gap-2 border-t px-5 py-3"
-        style={{ borderColor: C.border }}
-      >
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-7 w-28 rounded-lg" />
-      </div>
-    </div>
-  );
-}
-
-/** Bibliothèque de modèles : grille 1-2-3 colonnes. */
-export function TemplateGridSkeleton({ count = 6 }: { count?: number }) {
-  return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: count }, (_, i) => (
-        <TemplateCardSkeleton key={i} />
       ))}
     </div>
   );

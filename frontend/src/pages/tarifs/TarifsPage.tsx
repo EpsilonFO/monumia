@@ -179,7 +179,7 @@ export function TarifsPage() {
     }
   }, []);
 
-  const backTo = monumentId ? ROUTES.PROJET_DETAIL(monumentId) : token ? '/app' : '/login';
+  const backTo = monumentId ? ROUTES.MONUMENT_DETAIL(monumentId) : token ? '/app' : '/login';
 
   return (
     <div className="min-h-screen bg-app-bg">
@@ -197,7 +197,7 @@ export function TarifsPage() {
           <PaymentSuccess
             state={confirmState}
             monumentName={monument?.nom}
-            onGoToProject={monumentId ? () => navigate(ROUTES.PROJET_DETAIL(monumentId)) : undefined}
+            onGoToProject={monumentId ? () => navigate(ROUTES.MONUMENT_DETAIL(monumentId)) : undefined}
           />
         )}
 
@@ -299,10 +299,10 @@ export function TarifsPage() {
             cta={{
               label: monument ? `Débloquer ${monument.nom}` : 'Débloquer un projet',
               onClick: () => startCheckout('dossier'),
-              // Sans projet en contexte, on ne saurait pas quoi débloquer :
-              // l'utilisateur est renvoyé vers la liste de ses projets.
-              redirectTo: monumentId ? undefined : ROUTES.PROJETS,
-              redirectLabel: 'Choisir un projet',
+              // Sans monument en contexte, on ne saurait pas quoi débloquer :
+              // l'utilisateur est renvoyé vers la liste de ses monuments.
+              redirectTo: monumentId ? undefined : ROUTES.MONUMENTS,
+              redirectLabel: 'Choisir un monument',
             }}
             loading={pending === 'dossier'}
             waiting={configured === null}

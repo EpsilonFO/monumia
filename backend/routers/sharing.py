@@ -1,4 +1,8 @@
-"""Partage de projet : membres et invitations (niveau monument)."""
+"""Partage d'un monument : membres et invitations.
+
+L'équipe se constitue au niveau du MONUMENT et vaut pour tous ses projets de
+travaux — un projet n'a pas de partage propre.
+"""
 
 from datetime import UTC, datetime
 
@@ -43,7 +47,7 @@ def _monument_or_404(supabase: Client, monument_id: str) -> dict:
         .execute()
     )
     if not res or not res.data:
-        raise HTTPException(status_code=404, detail="Projet introuvable")
+        raise HTTPException(status_code=404, detail="Monument introuvable")
     return res.data
 
 
@@ -106,7 +110,9 @@ def create_invitation(
             .execute()
         )
         if already.data:
-            raise HTTPException(status_code=409, detail="Cette personne est déjà membre du projet")
+            raise HTTPException(
+                status_code=409, detail="Cette personne est déjà membre de ce monument"
+            )
 
     token = generate_invite_token()
     expires_at = invitation_expiry_iso(datetime.now(UTC))
@@ -223,7 +229,7 @@ def leave_project(
     if role == "owner":
         raise HTTPException(
             status_code=403,
-            detail="Le chef de projet ne peut pas quitter le projet ; supprimez-le.",
+            detail="Le chef de projet ne peut pas quitter le monument ; supprimez-le.",
         )
     supabase.table("project_members").delete().eq("monument_id", monument_id).eq(
         "user_id", user_id

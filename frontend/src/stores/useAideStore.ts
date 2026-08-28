@@ -1,44 +1,48 @@
 import { create } from 'zustand';
 import type { AideDiagnosticResult, ProjectDigest } from '@/types';
 
+/**
+ * Diagnostics indexés par PROJET de travaux : deux chantiers d'un même monument
+ * ont chacun leur cadrage, donc chacun leur liste d'aides.
+ */
 interface AideState {
-  diagnosticsByMonument: Record<string, AideDiagnosticResult>;
+  diagnosticsByProjet: Record<string, AideDiagnosticResult>;
   /**
    * Digests par projet, servis en bloc par `GET /dashboard`. Volontairement
-   * distincts de `diagnosticsByMonument` : un digest ne porte pas les aides non
+   * distincts de `diagnosticsByProjet` : un digest ne porte pas les aides non
    * éligibles ni le détail des conditions, et écraserait un diagnostic complet
    * dont la page projet a besoin.
    */
-  digestsByMonument: Record<string, ProjectDigest>;
+  digestsByProjet: Record<string, ProjectDigest>;
 
   setDigests: (digests: Record<string, ProjectDigest>) => void;
-  setDiagnostic: (monumentId: string, result: AideDiagnosticResult) => void;
-  getDiagnostic: (monumentId: string) => AideDiagnosticResult | undefined;
-  clearDiagnostic: (monumentId?: string) => void;
+  setDiagnostic: (projetId: string, result: AideDiagnosticResult) => void;
+  getDiagnostic: (projetId: string) => AideDiagnosticResult | undefined;
+  clearDiagnostic: (projetId?: string) => void;
 }
 
 export const useAideStore = create<AideState>()((set, get) => ({
-  diagnosticsByMonument: {},
-  digestsByMonument: {},
+  diagnosticsByProjet: {},
+  digestsByProjet: {},
 
-  setDigests: (digests) => set({ digestsByMonument: digests }),
+  setDigests: (digests) => set({ digestsByProjet: digests }),
 
-  setDiagnostic: (monumentId, result) =>
+  setDiagnostic: (projetId, result) =>
     set((state) => ({
-      diagnosticsByMonument: {
-        ...state.diagnosticsByMonument,
-        [monumentId]: result,
+      diagnosticsByProjet: {
+        ...state.diagnosticsByProjet,
+        [projetId]: result,
       },
     })),
 
-  getDiagnostic: (monumentId) => get().diagnosticsByMonument[monumentId],
+  getDiagnostic: (projetId) => get().diagnosticsByProjet[projetId],
 
-  clearDiagnostic: (monumentId) =>
+  clearDiagnostic: (projetId) =>
     set((state) => {
-      if (monumentId) {
-        const { [monumentId]: _, ...rest } = state.diagnosticsByMonument;
-        return { diagnosticsByMonument: rest };
+      if (projetId) {
+        const { [projetId]: _, ...rest } = state.diagnosticsByProjet;
+        return { diagnosticsByProjet: rest };
       }
-      return { diagnosticsByMonument: {} };
+      return { diagnosticsByProjet: {} };
     }),
 }));

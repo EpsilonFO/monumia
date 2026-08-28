@@ -1,7 +1,14 @@
 import type { CSSProperties } from 'react';
 import { C } from '@/lib/brand';
+import { LogoMonumia } from '@/components/icons/monumia';
 
-/** Quadrilobe Monumia (4 cercles r23 centrés à 21 du centre) — emblème décoratif. */
+/**
+ * La fleur Monumia en ornement décoratif : le VRAI logo (`public/logo.svg`,
+ * servi en masque CSS comme sur la landing), et non un quadrilobe approché.
+ *
+ * La couleur vient de `currentColor` : les appelants continuent de la piloter
+ * par `className="text-white"` ou `style={{ color: … }}`, opacité comprise.
+ */
 export function Clover({
   size = 88,
   className,
@@ -11,22 +18,16 @@ export function Clover({
   className?: string;
   style?: CSSProperties;
 }) {
-  const c = 44;
-  const d = 21;
-  const r = 23;
   return (
-    <svg viewBox="0 0 88 88" width={size} height={size} aria-hidden className={className} style={style}>
-      <g fill="currentColor">
-        <circle cx={c} cy={c - d} r={r} />
-        <circle cx={c} cy={c + d} r={r} />
-        <circle cx={c - d} cy={c} r={r} />
-        <circle cx={c + d} cy={c} r={r} />
-      </g>
-    </svg>
+    <LogoMonumia
+      className={className}
+      color="currentColor"
+      style={{ width: size, height: size, ...style }}
+    />
   );
 }
 
-/** Scène rassurante « tout est à jour » : disque pâle + quadrilobe fantôme + coche. */
+/** Scène rassurante « tout est à jour » : disque pâle + fleur fantôme + coche. */
 export function AllClear({ className }: { className?: string }) {
   return (
     <span

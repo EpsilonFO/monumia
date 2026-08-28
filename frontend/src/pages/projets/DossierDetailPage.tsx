@@ -15,6 +15,7 @@ import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDial
 import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
 import { DossierDetailSkeleton } from '@/components/skeletons';
 import { useMonumentStore } from '@/stores/useMonumentStore';
+import { useProjetStore } from '@/stores/useProjetStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useTemplateStore } from '@/stores/useTemplateStore';
@@ -23,10 +24,12 @@ import { useSuiviStore } from '@/stores/useSuiviStore';
 import { matchTemplates } from '@/lib/template-matching';
 import { projectPermissions } from '@/lib/project-permissions';
 import { monumentService } from '@/services/monument.service';
+import { projetService } from '@/services/projet.service';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
 import { documentService } from '@/services/document.service';
 import { suiviService } from '@/services/suivi.service';
+import { projetTitre } from '@/lib/projet-titre';
 import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
@@ -36,8 +39,11 @@ export function DossierDetailPage() {
   const { projetId, dossierId } = useParams();
   const navigate = useNavigate();
 
-  const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === projetId));
-  const addMonument = useMonumentStore((s) => s.addMonument);
+  const projet = useProjetStore((s) => s.projets.find((p) => p.id === projetId));
+  const upsertProjet = useProjetStore((s) => s.upsertProjet);
+  const monumentId = projet?.monumentId;
+  const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId));
+  const upsertMonument = useMonumentStore((s) => s.upsertMonument);
 
   const dossier = useDossierStore((s) => s.dossiers.find((d) => d.id === dossierId));
   const dossierLoaded = useDossierStore((s) => s.loaded);
@@ -56,11 +62,11 @@ export function DossierDetailPage() {
   const currentUserId = useAuthStore((s) => s.user?.id);
 
   // Avancement (statut / montant obtenu / motif de refus) du dossier. Le suivi est
-  // indexé par (monument, aide) ; il vit là où un dossier existe — donc ici.
+  // indexé par (projet, aide) ; il vit là où un dossier existe — donc ici.
   const allSuivis = useSuiviStore((s) => s.suivis);
-  const suiviLoaded = useSuiviStore((s) => (projetId ? s.loadedMonuments[projetId] : false));
+  const suiviLoaded = useSuiviStore((s) => (projetId ? s.loadedProjets[projetId] : false));
   const suivi = useMemo(
-    () => allSuivis.find((s) => s.monumentId === projetId && s.aideId === dossier?.aideId),
+    () => allSuivis.find((s) => s.projetId === projetId && s.aideId === dossier?.aideId),
     [allSuivis, projetId, dossier?.aideId],
   );
 
@@ -73,13 +79,19 @@ export function DossierDetailPage() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const monumentFetchedRef = useRef(false);
+  const projetFetchedRef = useRef(false);
 
   useEffect(() => {
-    if (monument || !projetId || monumentFetchedRef.current) return;
-    monumentFetchedRef.current = true;
-    monumentService.getById(projetId).then(addMonument).catch(() => setNotFound(true));
-  }, [monument, projetId, addMonument]);
+    if (projet || !projetId || projetFetchedRef.current) return;
+    projetFetchedRef.current = true;
+    projetService.getById(projetId).then(upsertProjet).catch(() => setNotFound(true));
+  }, [projet, projetId, upsertProjet]);
+
+  // Monument parent : nom du fil d'Ariane, rôle, rattachement des documents.
+  useEffect(() => {
+    if (!monumentId || monument) return;
+    monumentService.getById(monumentId).then(upsertMonument).catch(() => setNotFound(true));
+  }, [monumentId, monument, upsertMonument]);
 
   // Rafraîchir les dossiers au montage (deep link + freshness inter-comptes).
   useEffect(() => {
@@ -92,7 +104,7 @@ export function DossierDetailPage() {
 
   useEffect(() => { fetchDocuments().catch(() => {}); }, [fetchDocuments]);
   useEffect(() => { if (!templatesLoaded) fetchTemplates().catch(() => {}); }, [templatesLoaded, fetchTemplates]);
-  useEffect(() => { if (projetId && !suiviLoaded) suiviService.fetchByMonument(projetId).catch(console.error); }, [projetId, suiviLoaded]);
+  useEffect(() => { if (projetId && !suiviLoaded) suiviService.fetchByProjet(projetId).catch(console.error); }, [projetId, suiviLoaded]);
 
   // Charge l'aide (pour rapprocher les modèles de la bibliothèque des pièces).
   useEffect(() => {
@@ -129,14 +141,14 @@ export function DossierDetailPage() {
   }, [dossier, aide]);
 
   const handleAttach = async (document: Document) => {
-    if (!attachingItem || !dossier || !monument) return;
+    if (!attachingItem || !dossier || !projet) return;
     const itemId = attachingItem.id;
     setBusyItemId(itemId);
     try {
-      // Rattacher une pièce au dossier l'associe aussi au projet : le document
-      // apparaît dans l'onglet « Documents » du projet pour toute l'équipe.
-      if (!document.monumentIds.includes(monument.id)) {
-        await addToProjectsStore(document.id, [monument.id]);
+      // Rattacher une pièce au dossier l'associe aussi au PROJET : elle apparaît
+      // dans l'onglet « Documents » du chantier, pour son équipe — et pas au-delà.
+      if (!document.projetIds.includes(projet.id)) {
+        await addToProjectsStore(document.id, [], [projet.id]);
       }
       if (!document.dossiersUtilises.includes(dossier.id)) {
         await linkToDossierStore(document.id, dossier.id);
@@ -174,7 +186,7 @@ export function DossierDetailPage() {
   // Remplacer / supprimer une pièce : l'auteur du document, OU un chef de projet /
   // adjoint (tous les droits sur les docs). Un collaborateur ne peut agir que sur
   // les siens. Consultation ouverte à tous.
-  const canManageAnyDoc = projectPermissions(monument?.myRole ?? null).canDeleteAnyDoc;
+  const canManageAnyDoc = projectPermissions(projet?.myRole ?? null).canDeleteAnyDoc;
   const canModifyItem = useCallback(
     (item: ChecklistItem) =>
       !!item.documentId &&
@@ -183,7 +195,7 @@ export function DossierDetailPage() {
     [documents, currentUserId, canManageAnyDoc],
   );
 
-  const canManageDossier = projectPermissions(monument?.myRole ?? null).canEditProject;
+  const canManageDossier = projectPermissions(projet?.myRole ?? null).canEditProject;
 
   const handleDeleteDossier = async () => {
     if (!dossier || !projetId) return;
@@ -214,23 +226,25 @@ export function DossierDetailPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-[20px]" style={{ fontFamily: SERIF, color: C.ink }}>Dossier introuvable</h1>
-        <Link to={projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.PROJETS} className="inline-flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.blue }}>
+        <Link to={projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.blue }}>
           <ChevronLeft className="h-3.5 w-3.5" /> Retour au projet
         </Link>
       </div>
     );
   }
 
-  if (!dossier || !monument) return <DossierDetailSkeleton />;
+  if (!dossier || !projet || !monument) return <DossierDetailSkeleton />;
 
   const [aideName] = dossier.titre.split(' — ');
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-        <Link to={ROUTES.PROJETS} className="hover:opacity-70 transition-opacity">Projets</Link>
+      <div className="flex items-center gap-2 overflow-hidden text-[13px] text-muted-foreground">
+        <Link to={ROUTES.MONUMENTS} className="shrink-0 hover:opacity-70 transition-opacity">Mes monuments</Link>
         <span>/</span>
-        <Link to={`${ROUTES.PROJET_DETAIL(monument.id)}?tab=dossiers`} className="hover:opacity-70 transition-opacity">{monument.nom}</Link>
+        <Link to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`} className="truncate hover:opacity-70 transition-opacity">{monument.nom}</Link>
+        <span>/</span>
+        <Link to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`} className="truncate hover:opacity-70 transition-opacity">{projetTitre(projet)}</Link>
         <span>/</span>
         <span className="truncate" style={{ color: C.ink }}>{aideName}</span>
       </div>
@@ -238,7 +252,7 @@ export function DossierDetailPage() {
       <h1 className="text-[clamp(1.4rem,3vw,1.9rem)] leading-tight" style={{ fontFamily: SERIF, color: C.ink }}>{dossier.titre}</h1>
 
       {projetId && dossier.aideId && (
-        <AideStatutSelect monumentId={projetId} aideId={dossier.aideId} suivi={suivi} />
+        <AideStatutSelect projetId={projetId} aideId={dossier.aideId} suivi={suivi} />
       )}
 
       <div className="space-y-6">
@@ -258,6 +272,7 @@ export function DossierDetailPage() {
                 onPreview={handlePreview}
                 onRequestDelete={handleDeleteItem}
                 canModifyItem={canModifyItem}
+                archiveName={dossier.titre}
                 busyItemId={busyItemId}
                 readOnly={dossier.statut === 'soumis'}
               />
@@ -318,7 +333,7 @@ export function DossierDetailPage() {
       <AttachDocumentDialog
         open={!!attachingItem}
         onOpenChange={(open) => { if (!open) setAttachingItem(null); }}
-        monumentId={monument.id}
+        projetId={projet.id}
         defaultName={attachingItem?.label}
         onAttach={handleAttach}
         onUploaded={(doc) => setAccessDoc(doc)}
@@ -326,7 +341,7 @@ export function DossierDetailPage() {
       {accessDoc && (
         <ManageDocumentAccessDialog
           document={accessDoc}
-          myRole={monument.myRole ?? null}
+          myRole={projet.myRole ?? null}
           open={!!accessDoc}
           onOpenChange={(open) => { if (!open) setAccessDoc(null); }}
           onSaved={() => { fetchDocuments().catch(() => {}); }}

@@ -52,17 +52,12 @@ export function NextActionCard({ deadlines, upcoming }: NextActionCardProps) {
   }
 
   const first = deadlines[0];
-  // Sans action principale, la barre d'accent reflète la ligne la plus urgente.
-  const tone = first
-    ? DEADLINE_TONE[deadlineLabel(first.date).urgency]
-    : DEADLINE_TONE[upcoming[0].kind === 'urgent' ? 'urgent' : upcoming[0].kind === 'warning' ? 'warning' : 'normal'];
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border"
+      className="overflow-hidden rounded-2xl border"
       style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
     >
-      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: tone.node }} aria-hidden />
       {first ? <MainAction deadlines={deadlines} /> : null}
       {upcoming.length > 0 && (
         <UpcomingList rows={upcoming} standalone={!first} />
@@ -82,7 +77,7 @@ function MainAction({ deadlines }: { deadlines: ProjectDeadline[] }) {
   return (
     <Link
       to={deadlineLink(first)}
-      className="group flex flex-col gap-4 px-6 py-5 pl-7 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center"
+      className="group flex flex-col gap-4 px-6 py-5 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center"
     >
       <span
         className="flex h-16 w-14 shrink-0 flex-col items-center justify-center rounded-2xl"
@@ -126,7 +121,7 @@ function UpcomingList({ rows, standalone }: { rows: FeedRow[]; standalone: boole
 
   return (
     <div
-      className="px-6 pb-4 pl-7 pt-4"
+      className="px-6 pb-4 pt-4"
       style={standalone ? undefined : { borderTop: `1px dashed ${C.border}` }}
     >
       <h3 className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.grayMuted }}>

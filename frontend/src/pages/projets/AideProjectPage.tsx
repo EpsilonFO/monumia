@@ -5,25 +5,37 @@ import { IconDossierOuvert, IconAjouterDossier } from '@/components/icons';
 import { AideDetails } from '@/components/aide/AideDetails';
 import { AideHero } from '@/components/aide/AideHero';
 import { useMonumentStore } from '@/stores/useMonumentStore';
+import { useProjetStore } from '@/stores/useProjetStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { projectPermissions } from '@/lib/project-permissions';
 import { useAidesAccess } from '@/hooks/useAidesAccess';
 import { monumentService } from '@/services/monument.service';
+import { projetService } from '@/services/projet.service';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
+import { projetTitre } from '@/lib/projet-titre';
 import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
 import type { Aide, AideMatchResult } from '@/types';
 
+/**
+ * Fiche d'une aide, vue depuis un PROJET de travaux : c'est le projet qui donne
+ * le contexte d'éligibilité (ses travaux, ses réponses) et qui recevra le
+ * dossier. Le monument parent n'intervient que pour les droits et le paywall.
+ */
 export function AideProjectPage() {
   const { projetId, aideId } = useParams();
   const navigate = useNavigate();
 
-  const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === projetId));
-  const addMonument = useMonumentStore((s) => s.addMonument);
-  const diagnosticsByMonument = useAideStore((s) => s.diagnosticsByMonument);
+  const projet = useProjetStore((s) => s.projets.find((p) => p.id === projetId));
+  const upsertProjet = useProjetStore((s) => s.upsertProjet);
+  const monumentId = projet?.monumentId;
+  const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId));
+  const upsertMonument = useMonumentStore((s) => s.upsertMonument);
+
+  const diagnosticsByProjet = useAideStore((s) => s.diagnosticsByProjet);
   const setDiagnostic = useAideStore((s) => s.setDiagnostic);
 
   const dossiers = useDossierStore((s) => s.dossiers);
@@ -34,9 +46,9 @@ export function AideProjectPage() {
   const [notFound, setNotFound] = useState(false);
   const [opening, setOpening] = useState(false);
 
-  const monumentFetchedRef = useRef(false);
+  const projetFetchedRef = useRef(false);
 
-  const diagnostic = projetId ? diagnosticsByMonument[projetId] ?? null : null;
+  const diagnostic = projetId ? diagnosticsByProjet[projetId] ?? null : null;
   const matchResult: AideMatchResult | null = useMemo(() => {
     if (!diagnostic || !aideId) return null;
     return diagnostic.aidesEligibles.find((m) => m.aide.id === aideId)
@@ -47,42 +59,48 @@ export function AideProjectPage() {
   }, [diagnostic, aideId]);
 
   // L'onglet « Aides » et l'ouverture d'un dossier sont réservés au chef de projet
-  // et à son adjoint. Un collaborateur qui atteindrait cette page (lien direct) est
-  // renvoyé vers le projet.
-  const canAccessAides = monument ? projectPermissions(monument.myRole ?? null).canAccessAides : true;
+  // et à son adjoint. Le rôle se lit sur le PROJET : un collaborateur invité sur
+  // le seul chantier n'en a aucun sur le monument. Un collaborateur qui
+  // atteindrait cette page (lien direct) est renvoyé vers le projet.
+  const canAccessAides = projet ? projectPermissions(projet.myRole ?? null).canAccessAides : true;
 
   // Paywall : la fiche complète d'une aide est précisément ce que l'offre
-  // « Dossier » vend. Sur un projet non débloqué, l'URL directe mène aux tarifs.
-  const { locked, loading: accessLoading } = useAidesAccess(projetId);
+  // « Dossier » vend. Elle se débloque PAR MONUMENT, pas par projet.
+  const { locked, loading: accessLoading } = useAidesAccess(monumentId);
 
   useEffect(() => {
-    if (monument || !projetId || monumentFetchedRef.current) return;
-    monumentFetchedRef.current = true;
-    monumentService.getById(projetId).then(addMonument).catch(() => setNotFound(true));
-  }, [monument, projetId, addMonument]);
+    if (projet || !projetId || projetFetchedRef.current) return;
+    projetFetchedRef.current = true;
+    projetService.getById(projetId).then(upsertProjet).catch(() => setNotFound(true));
+  }, [projet, projetId, upsertProjet]);
 
   useEffect(() => {
-    if (monument && !canAccessAides && projetId) {
+    if (!monumentId || monument) return;
+    monumentService.getById(monumentId).then(upsertMonument).catch(() => setNotFound(true));
+  }, [monumentId, monument, upsertMonument]);
+
+  useEffect(() => {
+    if (projet && !canAccessAides && projetId) {
       navigate(ROUTES.PROJET_DETAIL(projetId), { replace: true });
     }
-  }, [monument, canAccessAides, projetId, navigate]);
+  }, [projet, canAccessAides, projetId, navigate]);
 
   useEffect(() => {
     // On attend la réponse du serveur : rediriger sur l'état initial
     // (verrouillé par défaut) éjecterait un abonné à chaque rechargement.
-    if (accessLoading || !locked || !projetId) return;
-    navigate(ROUTES.TARIFS(projetId), { replace: true });
-  }, [accessLoading, locked, projetId, navigate]);
+    if (accessLoading || !locked || !monumentId) return;
+    navigate(ROUTES.TARIFS(monumentId), { replace: true });
+  }, [accessLoading, locked, monumentId, navigate]);
 
   // Le diagnostic complet porte les critères remplis / à débloquer affichés ici.
   // On l'obtient sur place quand il manque : le dashboard ne charge plus qu'un
   // digest par projet, donc arriver par une échéance ne le fournit plus.
-  const questionnaireKey = monument?.questionnaire ? JSON.stringify(monument.questionnaire) : '';
+  const questionnaireKey = projet ? JSON.stringify(projet.questionnaire ?? {}) : '';
   useEffect(() => {
-    if (!projetId || diagnostic) return;
+    if (!projetId || diagnostic || !questionnaireKey) return;
     let cancelled = false;
     aideService
-      .runProjectDiagnostic(projetId, questionnaireKey ? JSON.parse(questionnaireKey) : {})
+      .runProjectDiagnostic(projetId, JSON.parse(questionnaireKey))
       .then((result) => { if (!cancelled) setDiagnostic(projetId, result); })
       .catch(console.error);
     return () => { cancelled = true; };
@@ -100,26 +118,28 @@ export function AideProjectPage() {
   }, [setDossiers]);
 
   const existingDossier = useMemo(
-    () => dossiers.find((d) => d.monumentId === projetId && d.aideId === aideId) ?? null,
+    () => dossiers.find((d) => d.projetId === projetId && d.aideId === aideId) ?? null,
     [dossiers, projetId, aideId],
   );
 
   const handleOpenOrView = async () => {
-    if (!projetId || !aideId || !monument) return;
+    if (!projetId || !aideId || !projet) return;
     setOpening(true);
     try {
-      // Garde anti-doublon : le backend ne dédoublonne pas sur (monument, aide).
+      // Garde anti-doublon : le backend ne dédoublonne pas sur (projet, aide).
       // Si le store n'est pas encore hydraté, on rafraîchit avant de décider.
       let target = existingDossier;
       if (!target && !dossierLoaded) {
         const all = await dossierService.fetchAll().catch(() => []);
-        target = all.find((d) => d.monumentId === projetId && d.aideId === aideId) ?? null;
+        target = all.find((d) => d.projetId === projetId && d.aideId === aideId) ?? null;
       }
       if (target) {
         navigate(ROUTES.PROJET_DOSSIER(projetId, target.id));
         return;
       }
-      const created = await dossierService.create(projetId, aideId, monument.travauxEnvisages ?? []);
+      // Les travaux du dossier sont ceux du PROJET : c'est son cadrage qui dit
+      // sur quoi porte la candidature.
+      const created = await dossierService.create(projetId, aideId, projet.travauxEnvisages ?? []);
       navigate(ROUTES.PROJET_DOSSIER(projetId, created.id));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la création du dossier');
@@ -132,7 +152,7 @@ export function AideProjectPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-[20px]" style={{ fontFamily: SERIF, color: C.ink }}>Aide introuvable</h1>
-        <Link to={projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.PROJETS} className="inline-flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.blue }}>
+        <Link to={projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.blue }}>
           <ChevronLeft className="h-3.5 w-3.5" /> Retour au projet
         </Link>
       </div>
@@ -141,7 +161,9 @@ export function AideProjectPage() {
 
   // `locked` fait partie du garde : sans lui, la fiche complète s'afficherait le
   // temps d'un rendu avant que la redirection de l'effet ne prenne effet.
-  if (!aide || !monument || !canAccessAides || locked) return <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blueLight }} /></div>;
+  if (!aide || !projet || !monument || !canAccessAides || locked) {
+    return <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blueLight }} /></div>;
+  }
 
   const cta = (
     <button
@@ -157,10 +179,12 @@ export function AideProjectPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-        <Link to={ROUTES.PROJETS} className="hover:opacity-70 transition-opacity">Projets</Link>
+      <div className="flex items-center gap-2 overflow-hidden text-[13px] text-muted-foreground">
+        <Link to={ROUTES.MONUMENTS} className="shrink-0 hover:opacity-70 transition-opacity">Mes monuments</Link>
         <span>/</span>
-        <Link to={ROUTES.PROJET_DETAIL(monument.id)} className="hover:opacity-70 transition-opacity">{monument.nom}</Link>
+        <Link to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`} className="truncate hover:opacity-70 transition-opacity">{monument.nom}</Link>
+        <span>/</span>
+        <Link to={ROUTES.PROJET_DETAIL(projet.id)} className="truncate hover:opacity-70 transition-opacity">{projetTitre(projet)}</Link>
         <span>/</span>
         <span className="truncate" style={{ color: C.ink }}>{aide.nomCourt}</span>
       </div>

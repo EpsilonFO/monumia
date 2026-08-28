@@ -18,6 +18,8 @@ from routers import (
     merimee,
     monuments,
     notifications,
+    projet_sharing,
+    projets,
     sharing,
     suivi,
     templates,
@@ -55,6 +57,8 @@ app.add_middleware(
 app.include_router(merimee.router)
 app.include_router(auth.router)
 app.include_router(monuments.router)
+app.include_router(projets.router)
+app.include_router(projet_sharing.router)
 app.include_router(documents.router)
 app.include_router(aides.router)
 app.include_router(notifications.router)

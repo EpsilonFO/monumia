@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeEliminatedAideIds } from '../qcm';
+import { computeEliminatedAideIds, isQuestionServingLiveAide } from '../qcm';
 import type { QcmQuestion } from '@/types';
 
 /** Question du moteur, réduite à ce que la fonction lit. */
@@ -75,5 +75,35 @@ describe('computeEliminatedAideIds', () => {
       'aide-commune',
       'aide-tous',
     ]);
+  });
+});
+
+describe('isQuestionServingLiveAide', () => {
+  const q = question({ id: 'duree_location', aideIds: ['denormandie', 'malraux'] });
+
+  it('toutes ses aides écartées : la question ne sert plus à rien', () => {
+    expect(isQuestionServingLiveAide(q, ['denormandie', 'malraux'])).toBe(false);
+  });
+
+  it('une seule aide encore en lice : la question reste posée', () => {
+    expect(isQuestionServingLiveAide(q, ['denormandie'])).toBe(true);
+    expect(isQuestionServingLiveAide(q, [])).toBe(true);
+  });
+
+  it('sans aideIds exploitable : fail-open, la question reste posée', () => {
+    expect(isQuestionServingLiveAide(question({ aideIds: [] }), ['denormandie'])).toBe(true);
+    expect(
+      isQuestionServingLiveAide(question({ aideIds: undefined as unknown as string[] }), [
+        'denormandie',
+      ]),
+    ).toBe(true);
+  });
+
+  it('une réponse « je ne sais pas » n’écarte rien, donc ne masque rien', () => {
+    const porteuse = question();
+    const eliminated = computeEliminatedAideIds({ [porteuse.id]: ['pas_encore_decide'] }, [
+      porteuse,
+    ]);
+    expect(isQuestionServingLiveAide(question({ aideIds: ['aide-asso'] }), eliminated)).toBe(true);
   });
 });

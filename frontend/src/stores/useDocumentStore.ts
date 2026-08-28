@@ -15,7 +15,7 @@ interface DocumentState {
     updates: { nom?: string; type?: string; description?: string; visibility?: Document['visibility']; allowedUserIds?: string[] },
   ) => Promise<void>;
   deleteDocument: (id: string) => Promise<void>;
-  addToProjects: (documentId: string, monumentIds: string[]) => Promise<Document>;
+  addToProjects: (documentId: string, monumentIds: string[], projetIds?: string[]) => Promise<Document>;
   linkToDossier: (documentId: string, dossierId: string) => Promise<void>;
   unlinkFromDossier: (documentId: string, dossierId: string) => Promise<void>;
   fetchTrashed: () => Promise<void>;
@@ -67,8 +67,8 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
     }));
   },
 
-  addToProjects: async (documentId, monumentIds) => {
-    const updated = await documentService.addToProjects(documentId, monumentIds);
+  addToProjects: async (documentId, monumentIds, projetIds = []) => {
+    const updated = await documentService.addToProjects(documentId, monumentIds, projetIds);
     set((state) => ({
       documents: state.documents.map((d) => (d.id === updated.id ? updated : d)),
     }));

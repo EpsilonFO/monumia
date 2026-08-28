@@ -2,7 +2,7 @@ import { NavLink } from 'react-router';
 import { landingUrl } from '@/lib/session';
 import { cn } from '@/lib/utils';
 import { C, SERIF } from '@/lib/brand';
-import { IconLivre } from '@/components/icons';
+import { IconLivre, LogoMonumia } from '@/components/icons';
 import { ownerNavItems, OwnerAccountMenu, type NavItem } from './ownerNav';
 
 /** Onglets de la barre haute = nav privée + le Blog public (ressources). */
@@ -23,7 +23,7 @@ export function TopBar() {
       <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-2 px-4 md:gap-4 md:px-6">
         {/* Marque */}
         <a href={landingUrl()} className="flex shrink-0 items-center gap-2.5">
-          <img src="/monumia.png" alt="" className="h-8 w-8" aria-hidden />
+          <LogoMonumia className="h-8 w-8" />
           <span
             className="hidden text-[18px] font-bold leading-tight tracking-[-0.01em] sm:block"
             style={{ fontFamily: SERIF, color: C.ink }}

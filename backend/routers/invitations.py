@@ -1,4 +1,10 @@
-"""Aperçu et acceptation d'une invitation par token."""
+"""Aperçu et acceptation d'une invitation par token.
+
+Une invitation vise soit le MONUMENT (`projet_id` nul → `project_members`, accès
+à tout le bien), soit UN PROJET de travaux (`projet_id` renseigné →
+`projet_members`, accès au seul chantier). Le token ne dit pas laquelle : c'est
+la colonne qui tranche, à l'acceptation comme à l'aperçu.
+"""
 
 import contextlib
 from datetime import UTC, datetime
@@ -27,7 +33,7 @@ def _invitation_by_token(supabase: Client, token: str) -> dict:
 
 @router.get("/{token}")
 def preview_invitation(token: str, supabase: Client = Depends(get_supabase)):
-    """Aperçu non authentifié : nom du projet, invitant, statut."""
+    """Aperçu non authentifié : nom du monument, invitant, statut."""
     inv = _invitation_by_token(supabase, token)
 
     monument = (
@@ -49,10 +55,26 @@ def preview_invitation(token: str, supabase: Client = Depends(get_supabase)):
         if inviter and inviter.data
         else "Un membre"
     )
+    # Portée : le destinataire doit savoir avant d'accepter s'il rejoint le
+    # monument entier ou un seul chantier.
+    projet_titre = None
+    if inv.get("projet_id"):
+        projet = (
+            supabase.table("projets")
+            .select("titre, travaux_envisages")
+            .eq("id", inv["projet_id"])
+            .maybe_single()
+            .execute()
+        )
+        row = (projet.data if projet else None) or {}
+        projet_titre = row.get("titre") or "Projet de travaux"
+
     return {
         "monument_id": inv["monument_id"],
+        "projet_id": inv.get("projet_id"),
+        "projet_titre": projet_titre,
         "email": inv["email"],
-        "monument_nom": monument.data["nom"] if monument and monument.data else "Projet",
+        "monument_nom": monument.data["nom"] if monument and monument.data else "Monument",
         "inviter_nom": inviter_nom,
         "expires_at": inv["expires_at"],
         "status": inv["status"],
@@ -66,30 +88,52 @@ def accept_invitation(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    """Rattache l'utilisateur connecté au projet comme membre."""
+    """Rattache l'utilisateur connecté, au monument ou au seul projet visé."""
     inv = _invitation_by_token(supabase, token)
+    projet_id = inv.get("projet_id")
 
-    already = (
-        supabase.table("project_members")
-        .select("id")
-        .eq("monument_id", inv["monument_id"])
-        .eq("user_id", user_id)
-        .execute()
-    )
+    # Déjà membre : on ne rejoue pas l'invitation, on renvoie la destination.
+    if projet_id:
+        already = (
+            supabase.table("projet_members")
+            .select("id")
+            .eq("projet_id", projet_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+    else:
+        already = (
+            supabase.table("project_members")
+            .select("id")
+            .eq("monument_id", inv["monument_id"])
+            .eq("user_id", user_id)
+            .execute()
+        )
     if already.data:
-        return {"monument_id": inv["monument_id"]}
+        return {"monument_id": inv["monument_id"], "projet_id": projet_id}
 
     if not is_invitation_acceptable(inv["status"], inv["expires_at"]):
         raise HTTPException(status_code=410, detail="Cette invitation n'est plus valide")
 
-    supabase.table("project_members").insert(
-        {
-            "monument_id": inv["monument_id"],
-            "user_id": user_id,
-            "role": "member",
-            "invited_by": inv["invited_by"],
-        }
-    ).execute()
+    if projet_id:
+        supabase.table("projet_members").insert(
+            {
+                "projet_id": projet_id,
+                "user_id": user_id,
+                "role": "member",
+                "invited_by": inv["invited_by"],
+            }
+        ).execute()
+    else:
+        supabase.table("project_members").insert(
+            {
+                "monument_id": inv["monument_id"],
+                "user_id": user_id,
+                "role": "member",
+                "invited_by": inv["invited_by"],
+            }
+        ).execute()
+
     supabase.table("project_invitations").update(
         {
             "status": "accepted",
@@ -113,8 +157,12 @@ def accept_invitation(
                 "type": "info",
                 "categorie": "collaborateur",
                 "titre": "Nouveau membre",
-                "message": f"{nom} a rejoint votre projet.",
+                "message": (
+                    f"{nom} a rejoint votre projet de travaux."
+                    if projet_id
+                    else f"{nom} a rejoint votre monument."
+                ),
             }
         ).execute()
 
-    return {"monument_id": inv["monument_id"]}
+    return {"monument_id": inv["monument_id"], "projet_id": projet_id}

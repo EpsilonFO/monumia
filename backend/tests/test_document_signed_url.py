@@ -19,8 +19,11 @@ class _Resp:
 
 
 class _Table:
+    """Le vrai client rend un dict après single(), une liste sinon."""
+
     def __init__(self, row):
         self._row = row
+        self._single = False
 
     def select(self, *a, **k):
         return self
@@ -28,11 +31,21 @@ class _Table:
     def eq(self, *a, **k):
         return self
 
+    def in_(self, *a, **k):
+        return self
+
     def single(self):
+        self._single = True
+        return self
+
+    def maybe_single(self):
+        self._single = True
         return self
 
     def execute(self):
-        return _Resp(self._row)
+        if self._single:
+            return _Resp(self._row)
+        return _Resp([] if self._row is None else [self._row])
 
 
 class _SignedFile:
@@ -59,7 +72,9 @@ class _FakeSupabase:
         self.storage = _Storage(raises)
 
     def table(self, name):
-        return _Table(self._row)
+        # Seule la table `documents` est modélisée : les tables d'appartenance
+        # répondent « rien », l'auteur du document suffisant à ces tests.
+        return _Table(self._row if name == "documents" else None)
 
 
 class GetDocumentSignedUrlTests(unittest.TestCase):

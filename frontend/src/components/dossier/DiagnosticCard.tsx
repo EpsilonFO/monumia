@@ -47,7 +47,7 @@ export function DiagnosticCard({ diagnostic, monument }: DiagnosticCardProps) {
             {formatDate(diagnostic.timestamp)}
           </span>
           <Button asChild size="sm" variant="outline">
-            <Link to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=dossiers`}>
+            <Link to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`}>
               Voir les aides
               <ChevronRight className="h-4 w-4 ml-1" />
             </Link>

@@ -10,7 +10,6 @@ function stats(partial: Partial<ProjectStats>): ProjectStats {
     tauxTravauxMax: 0,
     dossiersActifs: 0,
     prochaineEcheance: null,
-    completion: 0,
     ...partial,
   };
 }

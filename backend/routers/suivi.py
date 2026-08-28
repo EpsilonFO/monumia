@@ -1,13 +1,23 @@
-from datetime import UTC, datetime
+"""Suivi du statut des aides d'un PROJET de travaux.
+
+Le suivi vit au grain projet depuis l'inversion de hiérarchie : deux chantiers
+d'un même monument peuvent candidater à la même aide et avoir chacun leur
+avancement. `monument_id` reste écrit sur la ligne (dénormalisé) pour les
+gardes et les requêtes batch du dashboard.
+
+La clôture du projet a déménagé dans `routers/projets.py`, avec le reste du
+cycle de vie d'un projet.
+"""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
+from services.project_access import require_projet_access
 from services.suivi_service import SuiviValidationError, apply_statut_change
 
-router = APIRouter(prefix="/monuments", tags=["suivi"])
+router = APIRouter(prefix="/projets", tags=["suivi"])
 
 
 class UpsertSuiviRequest(BaseModel):
@@ -18,27 +28,19 @@ class UpsertSuiviRequest(BaseModel):
     note: str | None = None
 
 
-def _assert_monument_owner(supabase: Client, monument_id: str, user_id: str) -> None:
-    result = (
-        supabase.table("monuments")
-        .select("id")
-        .eq("id", monument_id)
-        .eq("user_id", user_id)
-        .execute()
-    )
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Projet introuvable")
-
-
-def _assert_dossier_exists(supabase: Client, monument_id: str, aide_id: str, user_id: str) -> None:
+def _assert_dossier_exists(supabase: Client, projet_id: str, aide_id: str) -> None:
     """Le suivi ne vit que là où un dossier existe pour l'aide dans ce projet —
-    on refuse de créer/modifier un suivi orphelin (données propres pour analyse)."""
+    on refuse de créer/modifier un suivi orphelin (données propres pour analyse).
+
+    Pas de filtre `user_id` : le dossier appartient au projet, pas à celui qui
+    l'a créé. Un adjoint doit pouvoir suivre l'aide dont le chef a ouvert le
+    dossier — l'accès est déjà tranché par `require_projet_access`.
+    """
     result = (
         supabase.table("dossiers")
         .select("id")
-        .eq("monument_id", monument_id)
+        .eq("projet_id", projet_id)
         .eq("aide_id", aide_id)
-        .eq("user_id", user_id)
         .execute()
     )
     if not result.data:
@@ -48,40 +50,33 @@ def _assert_dossier_exists(supabase: Client, monument_id: str, aide_id: str, use
         )
 
 
-@router.get("/{monument_id}/aide-suivis")
+@router.get("/{projet_id}/aide-suivis")
 def list_aide_suivis(
-    monument_id: str,
+    projet_id: str,
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    _assert_monument_owner(supabase, monument_id, user_id)
-    result = (
-        supabase.table("aide_suivis")
-        .select("*")
-        .eq("monument_id", monument_id)
-        .eq("user_id", user_id)
-        .execute()
-    )
+    require_projet_access(supabase, projet_id, user_id, "member")
+    result = supabase.table("aide_suivis").select("*").eq("projet_id", projet_id).execute()
     return result.data
 
 
-@router.put("/{monument_id}/aides/{aide_id}/suivi")
+@router.put("/{projet_id}/aides/{aide_id}/suivi")
 def upsert_aide_suivi(
-    monument_id: str,
+    projet_id: str,
     aide_id: str,
     body: UpsertSuiviRequest,
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    _assert_monument_owner(supabase, monument_id, user_id)
-    _assert_dossier_exists(supabase, monument_id, aide_id, user_id)
+    projet, _ = require_projet_access(supabase, projet_id, user_id, "co_owner")
+    _assert_dossier_exists(supabase, projet_id, aide_id)
 
     existing_result = (
         supabase.table("aide_suivis")
         .select("*")
-        .eq("monument_id", monument_id)
+        .eq("projet_id", projet_id)
         .eq("aide_id", aide_id)
-        .eq("user_id", user_id)
         .execute()
     )
     existing = existing_result.data[0] if existing_result.data else None
@@ -97,7 +92,14 @@ def upsert_aide_suivi(
             raise HTTPException(status_code=404, detail="Suivi introuvable")
         return result.data[0]
 
-    row = {**fields, "monument_id": monument_id, "aide_id": aide_id, "user_id": user_id}
+    row = {
+        **fields,
+        "projet_id": projet_id,
+        # Dénormalisé : le dashboard charge les suivis par lot de monuments.
+        "monument_id": projet["monument_id"],
+        "aide_id": aide_id,
+        "user_id": user_id,
+    }
     result = supabase.table("aide_suivis").insert(row).execute()
     if not result.data:
         raise HTTPException(status_code=500, detail="Échec de l'enregistrement du suivi")
@@ -105,54 +107,16 @@ def upsert_aide_suivi(
 
 
 @router.delete(
-    "/{monument_id}/aides/{aide_id}/suivi",
+    "/{projet_id}/aides/{aide_id}/suivi",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_aide_suivi(
-    monument_id: str,
+    projet_id: str,
     aide_id: str,
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    _assert_monument_owner(supabase, monument_id, user_id)
-    supabase.table("aide_suivis").delete().eq("monument_id", monument_id).eq("aide_id", aide_id).eq(
-        "user_id", user_id
+    require_projet_access(supabase, projet_id, user_id, "co_owner")
+    supabase.table("aide_suivis").delete().eq("projet_id", projet_id).eq(
+        "aide_id", aide_id
     ).execute()
-
-
-@router.post("/{monument_id}/cloture")
-def cloturer_projet(
-    monument_id: str,
-    user_id: str = Depends(get_current_user_id),
-    supabase: Client = Depends(get_supabase),
-):
-    _assert_monument_owner(supabase, monument_id, user_id)
-    result = (
-        supabase.table("monuments")
-        .update({"cloture_at": datetime.now(UTC).isoformat()})
-        .eq("id", monument_id)
-        .eq("user_id", user_id)
-        .execute()
-    )
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Projet introuvable")
-    return result.data[0]
-
-
-@router.post("/{monument_id}/reouverture")
-def rouvrir_projet(
-    monument_id: str,
-    user_id: str = Depends(get_current_user_id),
-    supabase: Client = Depends(get_supabase),
-):
-    _assert_monument_owner(supabase, monument_id, user_id)
-    result = (
-        supabase.table("monuments")
-        .update({"cloture_at": None})
-        .eq("id", monument_id)
-        .eq("user_id", user_id)
-        .execute()
-    )
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Projet introuvable")
-    return result.data[0]

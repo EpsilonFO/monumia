@@ -12,41 +12,51 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Clover } from '@/components/illustrations';
+import { LogoMonumia } from '@/components/icons';
 import { C } from '@/lib/brand';
 import type { Monument } from '@/types';
 import {
-  WIZARD_STEPS,
-  WIZARD_STEP_QUESTIONNAIRE,
   WizardRail,
   type WizardProgress,
+  type WizardStep,
   type WizardStepKey,
 } from './WizardRail';
 
-/** Dernière étape : le diagnostic tourne et navigue seul vers le projet. */
-const STEP_DIAGNOSTIC = WIZARD_STEPS[WIZARD_STEPS.length - 1].key;
-
 interface WizardShellProps {
+  /** Les étapes de CE wizard (monument ou projet) : le shell n'en connaît
+   *  aucune en propre, il en dérive le libellé courant et la dernière. */
+  steps: WizardStep[];
   step: WizardStepKey;
   monument: Monument | null;
+  /** Progression du questionnaire, ou null hors de cette étape : c'est sa
+   *  présence qui fait apparaître la barre fine du header mobile. */
   progress: WizardProgress | null;
   /** Vrai quand quitter perdrait des réponses en cours → confirmation. */
   confirmQuit: boolean;
-  /** Destination du bouton Quitter (liste projets, ou projet pour un retake). */
+  /** Vrai sur un écran qui navigue de lui-même (le calcul du diagnostic) :
+   *  une navigation concurrente arracherait l'utilisateur en plein vol. */
+  quitDisabled?: boolean;
+  /** Destination du bouton Quitter (le monument, sa liste, le projet…). */
   exitTo: string;
+  /** Texte de la confirmation de sortie, selon ce qui serait perdu. */
+  quitMessage?: string;
   children: ReactNode;
 }
 
 /**
- * Coquille immersive du wizard : rail desktop + header mobile compact,
+ * Coquille immersive des wizards : rail desktop + header mobile compact,
  * scène centrée max-760px, bouton Quitter avec confirmation si des réponses
  * sont en cours (elles ne sont persistées qu'à la toute fin du questionnaire).
  */
 export function WizardShell({
+  steps,
   step,
   monument,
   progress,
   confirmQuit,
+  quitDisabled = false,
   exitTo,
+  quitMessage,
   children,
 }: WizardShellProps) {
   const navigate = useNavigate();
@@ -60,24 +70,22 @@ export function WizardShell({
   }, [step]);
 
   const quit = () => {
-    // Le diagnostic (dernière étape) navigue de lui-même vers le projet : une
-    // navigation concurrente arracherait l'utilisateur en plein vol.
-    if (step === STEP_DIAGNOSTIC) return;
+    if (quitDisabled) return;
     if (confirmQuit) setQuitOpen(true);
     else navigate(exitTo);
   };
 
-  const stepLabel = WIZARD_STEPS.find((s) => s.key === step)?.label ?? '';
+  const stepLabel = steps.find((s) => s.key === step)?.label ?? '';
   // Valeurs pré-calculées : TypeScript ne peut pas re-narrower `progress` à
   // travers le booléen `showBar` dans le JSX.
   const qTotal = progress?.total ?? 0;
   const qNum = progress ? Math.min(progress.index + 1, progress.total) : 0;
-  const showBar = step === WIZARD_STEP_QUESTIONNAIRE && qTotal > 0;
+  const showBar = qTotal > 0;
   const pct = qTotal > 0 ? Math.round((qNum / qTotal) * 100) : 0;
 
   return (
     <div className="flex h-dvh overflow-hidden" style={{ background: 'var(--app-bg)' }}>
-      <WizardRail step={step} monument={monument} progress={progress} onQuit={quit} />
+      <WizardRail steps={steps} step={step} monument={monument} progress={progress} onQuit={quit} />
 
       <div className="relative flex min-w-0 flex-1 flex-col">
         {/* Header mobile : logo, étape, progression fine, monument en chip. */}
@@ -86,8 +94,8 @@ export function WizardShell({
           style={{ background: C.card, borderColor: C.border }}
         >
           <div className="flex items-center justify-between gap-3">
-            <button type="button" onClick={quit} aria-label="Quitter la création de projet">
-              <img src="/monumia.png" alt="" className="h-7 w-7" aria-hidden />
+            <button type="button" onClick={quit} aria-label="Quitter">
+              <LogoMonumia className="h-7 w-7" />
             </button>
             <div className="min-w-0 text-center">
               <p className="text-[13px] font-semibold" style={{ color: C.ink }}>
@@ -128,7 +136,7 @@ export function WizardShell({
           )}
         </header>
 
-        {step !== STEP_DIAGNOSTIC && (
+        {!quitDisabled && (
           <button
             type="button"
             onClick={quit}
@@ -159,14 +167,14 @@ export function WizardShell({
       <AlertDialog open={quitOpen} onOpenChange={setQuitOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Quitter la création&nbsp;?</AlertDialogTitle>
+            <AlertDialogTitle>Quitter&nbsp;?</AlertDialogTitle>
             <AlertDialogDescription>
-              Vos réponses ne sont pas encore enregistrées&nbsp;: si vous quittez maintenant,
-              vous devrez recommencer le questionnaire.
+              {quitMessage ??
+                'Vos réponses ne sont pas encore enregistrées : si vous quittez maintenant, vous devrez recommencer le questionnaire.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continuer le questionnaire</AlertDialogCancel>
+            <AlertDialogCancel>Continuer</AlertDialogCancel>
             <AlertDialogAction onClick={() => navigate(exitTo)}>Quitter</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

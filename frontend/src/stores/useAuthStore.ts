@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { User, NotificationPreferences } from '@/types';
 import { authService } from '@/services/auth.service';
 import { useMonumentStore } from './useMonumentStore';
+import { useProjetStore } from './useProjetStore';
 import { useDossierStore } from './useDossierStore';
 import { useDocumentStore } from './useDocumentStore';
 import { useAideStore } from './useAideStore';
@@ -71,11 +72,12 @@ export const useAuthStore = create<AuthState>()(
         clearSessionCookie();
         // Reset all data stores to prevent data leaking between accounts
         useMonumentStore.setState({ monuments: [], activeMonumentId: null });
+        useProjetStore.setState({ projets: [], loaded: false });
         useDossierStore.setState({ dossiers: [], loaded: false });
         useDocumentStore.setState({ documents: [], loading: false, error: null });
-        useAideStore.setState({ diagnosticsByMonument: {}, digestsByMonument: {} });
-        useSuiviStore.setState({ suivis: [], loadedMonuments: {} });
-        // Sinon les projets débloqués du compte précédent resteraient ouverts
+        useAideStore.setState({ diagnosticsByProjet: {}, digestsByProjet: {} });
+        useSuiviStore.setState({ suivis: [], loadedProjets: {} });
+        // Sinon les monuments débloqués du compte précédent resteraient ouverts
         // pour le suivant, le temps que /billing/access réponde.
         useBillingStore.getState().reset();
       },

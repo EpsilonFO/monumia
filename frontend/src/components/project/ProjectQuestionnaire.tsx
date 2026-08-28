@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
 import { AllClear } from '@/components/illustrations';
 import { AnswerCard } from '@/components/project/wizard/AnswerCard';
+import { SkipCard } from '@/components/project/wizard/SkipCard';
 import { isUnknownAnswer } from '@/components/project/wizard/unknownAnswer';
 import { IconInfo, IconSubvention } from '@/components/icons';
 import { formatCurrency } from '@/lib/format-utils';
+import { computeEliminatedAideIds, isQuestionServingLiveAide } from '@/lib/qcm';
 import { C, SERIF } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 import type { ProjectQuestionnaireAnswers, QcmOption, QcmQuestion } from '@/types';
@@ -72,6 +74,18 @@ function QuestionHelp({ text }: { text: string }) {
 }
 
 /**
+ * Ordre d'affichage des options : les vraies réponses d'abord, les
+ * échappatoires (« je ne sais pas ») en bas, sous forme de carte pointillée.
+ * Sert aussi de parcours au clavier, pour que les flèches suivent ce qu'on voit.
+ */
+function displayOrder(question: QcmQuestion): QcmOption[] {
+  return [
+    ...question.options.filter((o) => !isUnknownAnswer(o)),
+    ...question.options.filter(isUnknownAnswer),
+  ];
+}
+
+/**
  * Réponse à une question, toujours vue comme une liste d'ids : une seule case
  * pour une question simple, plusieurs pour une question à choix multiple.
  */
@@ -125,14 +139,41 @@ export function ProjectQuestionnaire({
   completeLabel = 'Lancer le diagnostic',
   onProgress,
 }: ProjectQuestionnaireProps) {
+  // Questions déjà affichées, par id. Une question que le curseur a dépassée ne
+  // doit plus jamais disparaître, même passée : le parcours se repère à un
+  // index positionnel, et retirer une question SITUÉE AVANT le décalerait — on
+  // sauterait alors silencieusement la suivante. Remis à zéro quand le moteur
+  // renvoie un autre jeu de questions.
+  const seenRef = useRef<{ source: QcmQuestion[]; ids: Set<string> }>({
+    source: allQuestions,
+    ids: new Set(),
+  });
+  if (seenRef.current.source !== allQuestions) {
+    seenRef.current = { source: allQuestions, ids: new Set() };
+  }
+
   // Le parcours ne connaît que les questions PERTINENTES pour les réponses déjà
   // données : la progression, la navigation et l'écran de fin se calculent
   // dessus. Une question porteuse répondue peut en faire disparaître d'autres —
   // toujours situées après elle, donc l'index courant reste valide.
-  const questions = useMemo(
-    () => allQuestions.filter((q) => isVisible(q, value)),
-    [allQuestions, value],
-  );
+  const questions = useMemo(() => {
+    // Une réponse peut écarter d'un coup toutes les aides que d'autres questions
+    // servaient : les poser quand même ferait perdre du temps sans rien changer
+    // au résultat. Une seule passe sur l'ensemble des réponses — répondue ou
+    // déjà vue, la question reste affichée, si bien que le couple
+    // visibilité/élimination a un point fixe et que seules des questions encore
+    // à venir peuvent tomber. Les réponses des questions masquées restent dans
+    // le payload (même comportement que `dependsOn`) : le moteur ré-évalue tout
+    // côté serveur.
+    const eliminated = new Set(computeEliminatedAideIds(value, allQuestions));
+    return allQuestions.filter(
+      (q) =>
+        isVisible(q, value) &&
+        (value[q.id] !== undefined ||
+          seenRef.current.ids.has(q.id) ||
+          isQuestionServingLiveAide(q, eliminated)),
+    );
+  }, [allQuestions, value]);
   const total = questions.length;
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
@@ -161,6 +202,7 @@ export function ProjectQuestionnaire({
     }
     const current = questions[index];
     if (!current) return;
+    seenRef.current.ids.add(current.id);
     const targetId = selectedIds(current, value)[0] ?? current.options[0]?.id;
     if (targetId) optionRefs.current[`${current.id}:${targetId}`]?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -242,10 +284,11 @@ export function ProjectQuestionnaire({
     const isPrev = e.key === 'ArrowUp' || e.key === 'ArrowLeft';
     if (!isNext && !isPrev) return;
     e.preventDefault();
+    const order = displayOrder(q);
     const n = isNext
-      ? (optionIndex + 1) % q.options.length
-      : (optionIndex - 1 + q.options.length) % q.options.length;
-    optionRefs.current[`${q.id}:${q.options[n].id}`]?.focus();
+      ? (optionIndex + 1) % order.length
+      : (optionIndex - 1 + order.length) % order.length;
+    optionRefs.current[`${q.id}:${order[n].id}`]?.focus();
   };
 
   const slideClass = dir === 'fwd' ? 'q-in-fwd' : 'q-in-back';
@@ -307,9 +350,12 @@ export function ProjectQuestionnaire({
   // ─── Une question à la fois ───
   // La barre reflète la position courante (jamais 0 % sur la 1re question).
   const pct = Math.round(((index + 1) / total) * 100);
-  // Le moteur fournit souvent une option « je ne sais pas » native : on évite
-  // alors de la dupliquer en bas.
-  const showSkipCard = !q!.options.some(isUnknownAnswer);
+  // Les options « je ne sais pas » du moteur descendent en bas de la liste,
+  // rendues comme le bouton « Passer cette question » : même forme pour la même
+  // intention. Quand le moteur n'en fournit aucune, on ajoute notre « passer ».
+  const answerOptions = q!.options.filter((o) => !isUnknownAnswer(o));
+  const unknownOptions = q!.options.filter(isUnknownAnswer);
+  const showSkipCard = unknownOptions.length === 0;
   // Choix multiple : pas d'auto-avance possible (l'utilisateur n'a pas fini de
   // cocher), donc un bouton « Continuer » explicite dans la barre du bas.
   const multiple = !!q!.multiple;
@@ -389,10 +435,10 @@ export function ProjectQuestionnaire({
           <div
             className={cn(
               'grid gap-2.5',
-              q!.options.length > 3 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1',
+              answerOptions.length > 3 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1',
             )}
           >
-            {q!.options.map((option, optionIndex) => {
+            {answerOptions.map((option, optionIndex) => {
               const selected = chosen.includes(option.id);
               const refKey = `${q!.id}:${option.id}`;
               const roving = selected || (chosen.length === 0 && optionIndex === 0);
@@ -414,19 +460,38 @@ export function ProjectQuestionnaire({
             })}
           </div>
 
+          {/* Les « je ne sais pas » du moteur : mêmes cartes pointillées que le
+              « passer », mais ce sont de vraies réponses — elles restent dans le
+              groupe radio et se cochent. */}
+          {unknownOptions.map((option, unknownIndex) => {
+            const selected = chosen.includes(option.id);
+            const refKey = `${q!.id}:${option.id}`;
+            return (
+              <SkipCard
+                key={option.id}
+                label={option.label}
+                asOption
+                selected={selected}
+                roving={
+                  selected ||
+                  (chosen.length === 0 && answerOptions.length === 0 && unknownIndex === 0)
+                }
+                multiple={multiple}
+                onSelect={() => (multiple ? toggle(option) : commit(option.id))}
+                onKeyDown={(e) => onOptionKeyDown(e, answerOptions.length + unknownIndex)}
+                buttonRef={(el) => {
+                  optionRefs.current[refKey] = el;
+                }}
+              />
+            );
+          })}
+
           {/* En choix multiple, « passer » effacerait des cases cochées : on ne
               le propose plus dès qu'il y en a (« Continuer » prend le relais).
               En choix simple il reste offert, y compris sur une question déjà
               répondue où l'on revient — c'est le seul moyen de se dédire. */}
           {showSkipCard && (!multiple || chosen.length === 0) && (
-            <button
-              type="button"
-              onClick={skip}
-              className="w-full rounded-2xl border border-dashed px-5 py-3 text-[14px] font-medium transition-colors hover:border-warning hover:bg-warning-muted"
-              style={{ borderColor: C.border, color: C.grayFg }}
-            >
-              Passer cette question
-            </button>
+            <SkipCard label="Passer cette question" onSelect={skip} />
           )}
         </fieldset>
       </div>

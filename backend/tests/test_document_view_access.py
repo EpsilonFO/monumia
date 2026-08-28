@@ -18,8 +18,33 @@ class _Resp:
 
 
 class _Query:
+    """Chaînage fluent bouchonné.
+
+    Le vrai client renvoie un DICT (ou None) après `maybe_single()` / `single()`,
+    et une LISTE sinon. Le faux doit faire la même différence : plusieurs gardes
+    lisent la même table dans les deux modes (rôle unitaire vs périmètre complet
+    de l'utilisateur), et un faux qui rendrait toujours un dict les casserait.
+    """
+
+    @staticmethod
+    def _coerce(data, single: bool):
+        if single:
+            return data
+        if data is None:
+            return []
+        return data if isinstance(data, list) else [data]
+
     def __init__(self, response):
         self._response = response
+        self._single = False
+
+    def single(self):
+        self._single = True
+        return self
+
+    def maybe_single(self):
+        self._single = True
+        return self
 
     def __getattr__(self, _name):
         def _chain(*a, **k):
@@ -28,7 +53,7 @@ class _Query:
         return _chain
 
     def execute(self):
-        return self._response
+        return _Resp(self._coerce(self._response.data, self._single))
 
 
 class _FakeSupabase:
@@ -43,7 +68,9 @@ def _supabase(*, doc=None, docs=None, caller_role=None):
     return _FakeSupabase(
         {
             "documents": _Resp(doc if doc is not None else docs),
-            "project_members": _Resp({"role": caller_role} if caller_role else None),
+            "project_members": _Resp(
+                {"monument_id": "m1", "role": caller_role} if caller_role else None
+            ),
             "monuments": _Resp(None),
         }
     )
@@ -104,7 +131,9 @@ class ListDocumentsFilterTests(unittest.TestCase):
             },
         ]
         fake = _supabase(docs=rows, caller_role="member")
-        result = list_documents(monument_id="m1", type=None, user_id="u1", supabase=fake)
+        result = list_documents(
+            monument_id="m1", projet_id=None, type=None, user_id="u1", supabase=fake
+        )
         self.assertEqual([d["id"] for d in result], ["d1"])
 
 

@@ -1,8 +1,20 @@
-"""Contrôle d'accès aux projets partagés (monuments).
+"""Contrôle d'accès : monuments et projets de travaux.
 
-Les fonctions `role_at_least` et `can_delete_document` sont PURES (testées
-unitairement). `get_project_role` et `require_project_access` font la requête
-Supabase et s'appuient dessus.
+Deux appartenances cohabitent, et leur articulation est la règle centrale du
+produit :
+
+  * `project_members` — l'équipe du MONUMENT. Elle voit tout : la fiche, tous
+    les projets, les documents du monument et ceux de ses projets.
+  * `projet_members` — l'équipe d'un PROJET. Elle ne voit que son chantier, plus
+    la fiche sanitaire du monument en lecture seule.
+
+Le rôle effectif sur un projet est le **maximum** des deux (`max_role`) : un
+co_owner du monument reste co_owner de chacun de ses projets sans ligne dans
+`projet_members`. L'échelle des projets n'a pas de `owner` — la propriété
+appartient au monument.
+
+Les fonctions `role_at_least`, `max_role` et `can_delete_document` sont PURES
+(testées unitairement) ; celles qui interrogent Supabase s'appuient dessus.
 """
 
 from fastapi import HTTPException
@@ -18,6 +30,21 @@ def role_at_least(role: Role | None, minimum: Role) -> bool:
     if role is None:
         return False
     return _ROLE_RANK.get(role, 0) >= _ROLE_RANK[minimum]
+
+
+def max_role(a: Role | None, b: Role | None) -> Role | None:
+    """Le plus élevé des deux rôles, `None` n'étant aucun rôle.
+
+    Sert à combiner l'appartenance au monument et celle au projet : on ne
+    RESTREINT jamais un droit déjà acquis plus haut. Un chef de projet du
+    monument qu'on ajouterait en simple membre d'un de ses chantiers doit rester
+    chef de projet dessus.
+    """
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return a if _ROLE_RANK.get(a, 0) >= _ROLE_RANK.get(b, 0) else b
 
 
 def can_delete_document(role: Role | None, *, is_uploader: bool) -> bool:
@@ -135,7 +162,198 @@ def require_project_access(
     """Vérifie l'accès et renvoie le rôle, sinon lève 403/404."""
     role = get_project_role(supabase, monument_id, user_id)
     if role is None:
-        raise HTTPException(status_code=404, detail="Projet introuvable ou accès refusé")
+        raise HTTPException(status_code=404, detail="Monument introuvable ou accès refusé")
     if not role_at_least(role, minimum):
         raise HTTPException(status_code=403, detail="Action non autorisée pour votre rôle")
     return role
+
+
+def get_projet_role(supabase: Client, projet: dict, user_id: str) -> Role | None:
+    """Rôle effectif sur un projet : le maximum de ses deux appartenances.
+
+    `projet` est la ligne déjà chargée — l'appelant en a de toute façon besoin
+    (travaux, questionnaire), autant ne pas la relire.
+    """
+    monument_role = get_project_role(supabase, projet["monument_id"], user_id)
+
+    result = (
+        supabase.table("projet_members")
+        .select("role")
+        .eq("projet_id", projet["id"])
+        .eq("user_id", user_id)
+        .maybe_single()
+        .execute()
+    )
+    # Les lignes PostgREST ne sont pas typées : on resserre explicitement.
+    projet_role: Role | None = str(result.data["role"]) if result and result.data else None
+
+    # Défense en profondeur : celui qui a créé le projet ne peut pas en perdre
+    # l'accès, même si sa ligne d'appartenance manque (création hors flux
+    # normal, donnée non rétro-remplie). Même logique que get_project_role.
+    if projet.get("user_id") == user_id:
+        projet_role = max_role(projet_role, "co_owner")
+
+    return max_role(monument_role, projet_role)
+
+
+def require_projet_access(
+    supabase: Client, projet_id: str, user_id: str, minimum: Role = "member"
+) -> tuple[dict, Role]:
+    """Accès à un PROJET de travaux. Renvoie `(ligne projet, rôle effectif)`.
+
+    Lève 404 si le projet n'existe pas ou si l'utilisateur n'a de rôle ni sur
+    lui ni sur son monument, 403 si son rôle est insuffisant.
+    """
+    result = supabase.table("projets").select("*").eq("id", projet_id).maybe_single().execute()
+    # maybe_single() peut renvoyer None (et pas seulement un `.data` vide).
+    if not result or not result.data:
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+    projet = result.data
+
+    role = get_projet_role(supabase, projet, user_id)
+    if role is None:
+        raise HTTPException(status_code=404, detail="Projet introuvable ou accès refusé")
+    if not role_at_least(role, minimum):
+        raise HTTPException(status_code=403, detail="Action non autorisée pour votre rôle")
+    return projet, role
+
+
+def projet_roles_propres(supabase: Client, user_id: str) -> dict[str, Role]:
+    """{projet_id: rôle} des appartenances PROPRES de l'utilisateur (projet_members).
+
+    Une seule requête, pour les appelants qui traitent plusieurs projets d'un
+    coup (liste d'un monument, dashboard) — `get_projet_role` en interrogerait
+    une par projet.
+    """
+    rows = (
+        supabase.table("projet_members")
+        .select("projet_id, role")
+        .eq("user_id", user_id)
+        .execute()
+        .data
+    ) or []
+    return {str(r["projet_id"]): str(r["role"]) for r in rows}
+
+
+def projet_role_depuis(
+    projet: dict, monument_role: Role | None, roles_propres: dict[str, Role], user_id: str
+) -> Role | None:
+    """Version PURE de `get_projet_role`, sur des données déjà chargées.
+
+    Même règle : maximum des deux appartenances, et le créateur du projet garde
+    au moins co_owner.
+    """
+    projet_role = roles_propres.get(projet["id"])
+    if projet.get("user_id") == user_id:
+        projet_role = max_role(projet_role, "co_owner")
+    return max_role(monument_role, projet_role)
+
+
+def projet_ids_membre(supabase: Client, user_id: str) -> list[str]:
+    """Les projets où l'utilisateur a une appartenance PROPRE (`projet_members`).
+
+    Volontairement sans les projets hérités du monument : cette liste sert à
+    répondre « à quoi cette personne accède-t-elle SANS être dans l'équipe du
+    monument ? » — le périmètre restreint, celui qu'on ne doit pas élargir.
+    """
+    rows = (
+        supabase.table("projet_members").select("projet_id").eq("user_id", user_id).execute().data
+    ) or []
+    return [r["projet_id"] for r in rows]
+
+
+def monument_ids_via_projets(supabase: Client, projet_ids: list[str]) -> dict[str, str]:
+    """{projet_id: monument_id} pour les projets donnés. `{}` si la liste est vide."""
+    if not projet_ids:
+        return {}
+    rows = (
+        supabase.table("projets").select("id, monument_id").in_("id", projet_ids).execute().data
+    ) or []
+    return {r["id"]: r["monument_id"] for r in rows}
+
+
+def my_scope_roles(supabase: Client, user_id: str) -> tuple[dict[str, Role], dict[str, Role]]:
+    """Tout le périmètre de l'utilisateur : `({monument_id: rôle}, {projet_id: rôle})`.
+
+    Les rôles de projets sont EFFECTIFS : ceux hérités des monuments dont
+    l'utilisateur est membre, écrasés au besoin par une appartenance propre plus
+    élevée. Quatre requêtes, quel que soit le nombre d'objets — les appelants
+    qui filtrent une liste de documents ne peuvent pas se permettre une lecture
+    par ligne.
+    """
+    monument_roles: dict[str, Role] = {}
+    members = (
+        supabase.table("project_members")
+        .select("monument_id, role")
+        .eq("user_id", user_id)
+        .execute()
+        .data
+    ) or []
+    for m in members:
+        monument_roles[str(m["monument_id"])] = str(m["role"])
+    owned = supabase.table("monuments").select("id").eq("user_id", user_id).execute().data or []
+    for o in owned:
+        monument_roles[str(o["id"])] = "owner"
+
+    projet_roles: dict[str, Role] = {}
+    if monument_roles:
+        herites = (
+            supabase.table("projets")
+            .select("id, monument_id")
+            .in_("monument_id", list(monument_roles))
+            .execute()
+            .data
+        ) or []
+        for p in herites:
+            projet_roles[str(p["id"])] = monument_roles[str(p["monument_id"])]
+
+    for projet_id, role in projet_roles_propres(supabase, user_id).items():
+        projet_roles[projet_id] = max_role(projet_roles.get(projet_id), role) or role
+
+    return monument_roles, projet_roles
+
+
+def best_document_role(
+    monument_ids: list | None,
+    projet_ids: list | None,
+    monument_roles: dict[str, Role],
+    projet_roles: dict[str, Role],
+) -> Role | None:
+    """Rôle du viewer sur un document, au vu de tout ce à quoi il est rattaché.
+
+    Un document peut pendre à un monument ET à des projets ; on retient le rôle
+    le plus élevé parmi ceux qui donnent accès. Fonction PURE — c'est elle qui
+    décide de la visibilité d'une pièce, elle se teste sans base.
+    """
+    best: Role | None = None
+    for mid in monument_ids or []:
+        best = max_role(best, monument_roles.get(str(mid)))
+    for pid in projet_ids or []:
+        best = max_role(best, projet_roles.get(str(pid)))
+    return best
+
+
+def require_monument_read(supabase: Client, monument_id: str, user_id: str) -> Role | None:
+    """Droit de LIRE la fiche d'un monument, et rôle sur son équipe.
+
+    Deux populations y accèdent, et la valeur de retour les distingue :
+      * l'équipe du monument → son rôle (`owner` / `co_owner` / `member`) ;
+      * un membre d'un seul de ses projets → `None`, qui vaut « je peux lire la
+        fiche sanitaire, et rien d'autre ». Le `None` n'est donc PAS un refus
+        ici — c'est un accès restreint, et tout appelant qui le confond avec un
+        droit d'écriture ouvre une faille. Les écritures continuent de passer par
+        `require_project_access`, qui, lui, refuse ces gens-là.
+
+    Lève 404 si l'utilisateur n'a aucun des deux accès.
+    """
+    role = get_project_role(supabase, monument_id, user_id)
+    if role is not None:
+        return role
+
+    mes_projets = projet_ids_membre(supabase, user_id)
+    if mes_projets:
+        appartenances = monument_ids_via_projets(supabase, mes_projets)
+        if monument_id in appartenances.values():
+            return None
+
+    raise HTTPException(status_code=404, detail="Monument introuvable ou accès refusé")

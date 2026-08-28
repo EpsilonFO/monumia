@@ -83,6 +83,7 @@ import type { IconComponent, IconProps } from './types';
 
 export type { IconComponent, IconProps } from './types';
 export {
+  LogoMonumia,
   IconMonument,
   IconProjet,
   IconClocheMonumia,

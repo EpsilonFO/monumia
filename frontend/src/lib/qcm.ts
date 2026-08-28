@@ -52,3 +52,21 @@ export function computeEliminatedAideIds(
   }
   return [...eliminated];
 }
+
+/** Une question ne sert plus à rien quand TOUTES les aides qu'elle débloque sont
+ *  déjà écartées par les réponses précédentes : la poser ferait perdre du temps
+ *  sans rien changer au résultat (« durée d'engagement de location » alors que
+ *  le bâtiment n'est pas mis en location).
+ *
+ *  Fail-open : sans `aideIds` exploitable, on garde la question — mieux vaut une
+ *  question de trop qu'une aide écartée sans que l'utilisateur l'ait su.
+ */
+export function isQuestionServingLiveAide(
+  question: QcmQuestion,
+  eliminatedAideIds: Iterable<string>,
+): boolean {
+  const ids = question.aideIds;
+  if (!Array.isArray(ids) || ids.length === 0) return true;
+  const eliminated = eliminatedAideIds instanceof Set ? eliminatedAideIds : new Set(eliminatedAideIds);
+  return ids.some((id) => !eliminated.has(id));
+}

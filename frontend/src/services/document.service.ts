@@ -1,11 +1,8 @@
-import { getSupabase } from '@/lib/supabase';
-import { useAuthStore } from '@/stores/useAuthStore';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
-import { ensureFreshAccessToken } from '@/lib/token-refresh';
+import { STORAGE_BUCKET, uploadToStorage } from '@/lib/storage-upload';
 import type { Document, DocumentType, DocumentVisibility } from '@/types';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
-const STORAGE_BUCKET = 'documents';
 
 /**
  * Extract the storage path from a value that may be a full Supabase public URL
@@ -20,58 +17,13 @@ function toStoragePath(urlOrPath: string): string {
   return urlOrPath;
 }
 
-let sessionSyncPromise: Promise<void> | null = null;
-
-/**
- * Inject the current access_token into the Supabase JS client so storage
- * operations carry an Authorization header. Refreshes the token via the
- * backend first if it's expired. Deduplicated to prevent racing setSession
- * calls (e.g. an upload + signed-URL fetch happening concurrently).
- *
- * The Supabase client itself has autoRefreshToken/persistSession disabled
- * (see lib/supabase.ts), so setSession is now a pure local-state write.
- */
-async function syncSupabaseSession(): Promise<void> {
-  if (sessionSyncPromise) return sessionSyncPromise;
-  sessionSyncPromise = (async () => {
-    const fresh = await ensureFreshAccessToken();
-    if (!fresh) return;
-    const { token } = useAuthStore.getState();
-    if (!token) return;
-    await getSupabase().auth.setSession({
-      access_token: token,
-      // Jamais utilisé (autoRefreshToken désactivé, token frais garanti par
-      // ensureFreshAccessToken) mais setSession exige une valeur non vide.
-      refresh_token: 'cookie-managed',
-    });
-  })().finally(() => {
-    sessionSyncPromise = null;
-  });
-  return sessionSyncPromise;
-}
-
-async function uploadToStorage(file: File, userId: string): Promise<string> {
-  const ext = file.name.split('.').pop() ?? 'bin';
-  const path = `${userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-
-  await syncSupabaseSession();
-
-  const { error } = await getSupabase().storage
-    .from(STORAGE_BUCKET)
-    .upload(path, file, { upsert: false });
-
-  if (error) throw new Error(`Erreur upload fichier : ${error.message}`);
-
-  // Store the storage path, not a public URL — the bucket is private
-  return path;
-}
-
 export interface UploadDocumentPayload {
   file: File;
   nom: string;
   type: DocumentType | 'autre';
   monumentId?: string;
   monumentIds?: string[];
+  projetIds?: string[];
   description?: string;
   tags?: string[];
   visibility?: DocumentVisibility;
@@ -91,6 +43,7 @@ function toDocument(row: Record<string, unknown>): Document {
     dossiersUtilises: (row.dossiers_utilises as string[]) ?? [],
     userId: row.user_id as string,
     monumentIds: (row.monument_ids as string[]) ?? [],
+    projetIds: (row.projet_ids as string[]) ?? [],
     dateUpload: row.date_upload as string,
     dateDocument: row.date_document as string | undefined,
     description: row.description as string | undefined,
@@ -112,9 +65,17 @@ async function getSignedUrl(documentId: string): Promise<string> {
 }
 
 export const documentService = {
-  async getAll(params?: { monumentId?: string; type?: string; trashed?: boolean }): Promise<Document[]> {
+  /**
+   * Documents d'un monument, d'un projet, ou tout ce que je peux voir.
+   *
+   * `monumentId` et `projetId` sont des périmètres DISJOINTS côté serveur : les
+   * pièces du bien d'un côté, celles du chantier de l'autre. Ne pas les passer
+   * ensemble en espérant l'union — le backend privilégie `projetId`.
+   */
+  async getAll(params?: { monumentId?: string; projetId?: string; type?: string; trashed?: boolean }): Promise<Document[]> {
     const url = new URL(`${BASE}/documents`);
     if (params?.monumentId) url.searchParams.set('monument_id', params.monumentId);
+    if (params?.projetId) url.searchParams.set('projet_id', params.projetId);
     if (params?.type) url.searchParams.set('type', params.type);
     if (params?.trashed) url.searchParams.set('trashed', 'true');
 
@@ -134,6 +95,7 @@ export const documentService = {
 
     // Build monument_ids from either monumentIds array or single monumentId
     const monumentIds = payload.monumentIds ?? (payload.monumentId ? [payload.monumentId] : []);
+    const projetIds = payload.projetIds ?? [];
 
     const body = {
       nom: payload.nom,
@@ -144,6 +106,7 @@ export const documentService = {
       mime_type: payload.file.type,
       url,
       monument_ids: monumentIds,
+      projet_ids: projetIds,
       description: payload.description ?? null,
       visibility: payload.visibility ?? null,
       allowed_user_ids: payload.allowedUserIds ?? [],
@@ -191,10 +154,15 @@ export const documentService = {
     }
   },
 
-  async addToProjects(documentId: string, monumentIds: string[]): Promise<Document> {
+  /** Rattache un document existant à d'autres monuments et / ou projets (aucune copie). */
+  async addToProjects(
+    documentId: string,
+    monumentIds: string[],
+    projetIds: string[] = [],
+  ): Promise<Document> {
     const res = await authFetch(`${BASE}/documents/${documentId}/projects`, {
       method: 'POST',
-      body: JSON.stringify({ monument_ids: monumentIds }),
+      body: JSON.stringify({ monument_ids: monumentIds, projet_ids: projetIds }),
     });
     const row = await handleResponse<Record<string, unknown>>(res);
     return toDocument(row);
@@ -234,6 +202,15 @@ export const documentService = {
 
   async removeFromProject(id: string, monumentId: string): Promise<Document> {
     const res = await authFetch(`${BASE}/documents/${id}/projects/${monumentId}`, {
+      method: 'DELETE',
+    });
+    const row = await handleResponse<Record<string, unknown>>(res);
+    return toDocument(row);
+  },
+
+  /** Détache un document d'un PROJET de travaux (le monument, lui, n'est pas touché). */
+  async removeFromProjet(id: string, projetId: string): Promise<Document> {
+    const res = await authFetch(`${BASE}/documents/${id}/projets/${projetId}`, {
       method: 'DELETE',
     });
     const row = await handleResponse<Record<string, unknown>>(res);

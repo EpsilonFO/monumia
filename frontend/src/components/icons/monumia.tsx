@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { IconProps } from './types';
 import { CLOCHE_D, ECROU_D, TELECHARGEMENT_D } from './founder-paths';
 
@@ -147,3 +148,43 @@ function founderIcon(d: string) {
 export const IconClocheMonumia = founderIcon(CLOCHE_D);
 export const IconEcrouMonumia = founderIcon(ECROU_D);
 export const IconTelechargementMonumia = founderIcon(TELECHARGEMENT_D);
+
+/* ------------------------------------------------------------------- logo */
+
+/**
+ * La fleur Monumia (`public/logo.svg`) servie en masque CSS, exactement comme
+ * sur la landing : la couleur vient du token de thème et non d'un aplat cuit
+ * dans un PNG. Un seul orange sur toute la plateforme, mode sombre compris.
+ *
+ * `label` rend le logo annonçable (marque cliquable) ; sans lui il est décoratif.
+ */
+const LOGO_URL = 'url(/logo.svg)';
+
+export function LogoMonumia({ className = '', label, color = 'var(--accent)', style }: {
+  className?: string;
+  /** Texte alternatif. Omis = purement décoratif (le nom est écrit à côté). */
+  label?: string;
+  /** Couleur de la fleur. Par défaut l'orange de la charte. */
+  color?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <span
+      className={className}
+      {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true })}
+      style={{
+        display: 'inline-block',
+        backgroundColor: color,
+        WebkitMaskImage: LOGO_URL,
+        maskImage: LOGO_URL,
+        WebkitMaskRepeat: 'no-repeat',
+        maskRepeat: 'no-repeat',
+        WebkitMaskPosition: 'center',
+        maskPosition: 'center',
+        WebkitMaskSize: 'contain',
+        maskSize: 'contain',
+        ...style,
+      }}
+    />
+  );
+}

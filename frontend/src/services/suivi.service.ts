@@ -8,6 +8,7 @@ const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 export function toSuivi(row: Record<string, unknown>): AideSuivi {
   return {
     id: row.id as string,
+    projetId: (row.projet_id ?? row.projetId) as string,
     monumentId: (row.monument_id ?? row.monumentId) as string,
     aideId: (row.aide_id ?? row.aideId) as string,
     userId: (row.user_id ?? row.userId) as string,
@@ -35,21 +36,21 @@ export interface UpsertSuiviInput {
 }
 
 export const suiviService = {
-  async fetchByMonument(monumentId: string): Promise<AideSuivi[]> {
-    const res = await authFetch(`${BASE}/monuments/${monumentId}/aide-suivis`);
+  async fetchByProjet(projetId: string): Promise<AideSuivi[]> {
+    const res = await authFetch(`${BASE}/projets/${projetId}/aide-suivis`);
     const rows = await handleResponse<Record<string, unknown>[]>(res);
     const suivis = rows.map(toSuivi);
-    useSuiviStore.getState().setForMonument(monumentId, suivis);
+    useSuiviStore.getState().setForProjet(projetId, suivis);
     return suivis;
   },
 
   async upsert(
-    monumentId: string,
+    projetId: string,
     aideId: string,
     input: UpsertSuiviInput
   ): Promise<AideSuivi> {
     const res = await authFetch(
-      `${BASE}/monuments/${monumentId}/aides/${aideId}/suivi`,
+      `${BASE}/projets/${projetId}/aides/${aideId}/suivi`,
       {
         method: 'PUT',
         body: JSON.stringify({
@@ -67,15 +68,15 @@ export const suiviService = {
     return suivi;
   },
 
-  async remove(monumentId: string, aideId: string): Promise<void> {
+  async remove(projetId: string, aideId: string): Promise<void> {
     const res = await authFetch(
-      `${BASE}/monuments/${monumentId}/aides/${aideId}/suivi`,
+      `${BASE}/projets/${projetId}/aides/${aideId}/suivi`,
       { method: 'DELETE' }
     );
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.detail ?? `HTTP ${res.status}`);
     }
-    useSuiviStore.getState().remove(monumentId, aideId);
+    useSuiviStore.getState().remove(projetId, aideId);
   },
 };

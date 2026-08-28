@@ -21,7 +21,7 @@ export function ProjectLegend({ items, activeId, onSelect }: Props) {
       style={{ background: C.card, borderColor: C.border }}
     >
       <span className="text-[11px] uppercase tracking-[0.08em] font-semibold text-muted-foreground">
-        Projets
+        Monuments
       </span>
       {items.map((it) => {
         const active = activeId === it.id;

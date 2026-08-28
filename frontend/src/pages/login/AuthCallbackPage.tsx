@@ -68,7 +68,7 @@ export function AuthCallbackPage() {
             pendingInvitation
               ? `/invitation/${pendingInvitation}`
               : status.user.accountType === 'collaborateur'
-                ? ROUTES.PROJETS
+                ? ROUTES.MONUMENTS
                 : '/app',
             { replace: true },
           );

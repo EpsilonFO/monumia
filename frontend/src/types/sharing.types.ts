@@ -19,6 +19,12 @@ export interface ProjectMember {
   metier: string | null;
   telephone: string | null;
   joinedAt: string;
+  /**
+   * D'où vient le droit, dans l'équipe d'un PROJET : « monument » = hérité de
+   * l'équipe du bien, non modifiable depuis le chantier ; « projet » = invité
+   * ici. Absent sur l'équipe d'un monument, où la question ne se pose pas.
+   */
+  source?: 'monument' | 'projet';
 }
 
 export interface ProjectInvitation {
@@ -37,6 +43,9 @@ export interface ProjectMembersResponse {
 export interface InvitationPreview {
   monumentId: ID;
   monumentNom: string;
+  /** Renseigné = l'invitation ne porte que sur CE chantier, pas sur le monument. */
+  projetId?: ID | null;
+  projetTitre?: string | null;
   inviterNom: string;
   email: string;
   expiresAt: string;

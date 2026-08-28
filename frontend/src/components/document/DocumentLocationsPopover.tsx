@@ -13,7 +13,7 @@ interface Props {
 }
 
 export function DocumentLocationsPopover({ document, monumentNames, dossiersById, labelled = false }: Props) {
-  // Dossiers regroupés sous leur projet (un dossier appartient à un seul projet).
+  // Dossiers regroupés sous leur monument (un dossier n'en a qu'un).
   const dossiersByProject = new Map<string, string[]>();
   for (const did of document.dossiersUtilises) {
     const d = dossiersById[did];
@@ -41,12 +41,12 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
   // Résumé factuel pour le déclencheur libellé (« Rangé dans … »), sans question.
   const projectCount = renderedProjectIds.length;
   const summary = projectCount >= 2
-    ? `${projectCount} projets`
+    ? `${projectCount} monuments`
     : projectCount === 1
       ? monumentNames[renderedProjectIds[0]]
       : orphanDossiers.length > 0
         ? 'un dossier'
-        : 'aucun projet';
+        : 'aucun monument';
 
   return (
     <Popover>
@@ -82,7 +82,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
         <div className="p-2 space-y-1">
           {hasNothing && (
             <p className="px-2 py-3 text-[12px] text-muted-foreground">
-              Ce document n'est rattaché à aucun projet ni dossier.
+              Ce document n'est rattaché à aucun monument ni dossier.
             </p>
           )}
           {renderedProjectIds.map((mid) => {

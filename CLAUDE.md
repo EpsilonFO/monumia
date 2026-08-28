@@ -47,9 +47,29 @@ Détails d'installation, variables d'environnement et déploiement : [README.md]
 
 ## Ce que fait le produit
 
-Monumia (ex-Patrys) identifie les aides au financement de la restauration du patrimoine (DRAC, Fondation du Patrimoine, régions, dispositifs fiscaux…) auxquelles un monument est éligible, puis accompagne le montage des dossiers. **Aucune notion de segment utilisateur.** Un compte est un compte : ni `commune`, ni `prive`, ni `btp`. Ce qui pilote l'éligibilité est `monuments.proprietaire` (10 valeurs, par projet), et les critères propres au propriétaire vivent dans les faits `scope: proprietaire` de `data/facts.yaml`. Ne pas réintroduire d'attribut de segment sur `users` : il avait été branché sur le filtrage des aides, retiré une fois (migration `20260516180000`), puis supprimé entièrement.
+Monumia (ex-Patrys) identifie les aides au financement de la restauration du patrimoine (DRAC, Fondation du Patrimoine, régions, dispositifs fiscaux…) auxquelles un monument est éligible, puis accompagne le montage des dossiers. **Aucune notion de segment utilisateur.** Un compte est un compte : ni `commune`, ni `prive`, ni `btp`. Ce qui pilote l'éligibilité est `monuments.proprietaire` (10 valeurs, par monument), et les critères propres au propriétaire vivent dans les faits `scope: proprietaire` de `data/facts.yaml`. Ne pas réintroduire d'attribut de segment sur `users` : il avait été branché sur le filtrage des aides, retiré une fois (migration `20260516180000`), puis supprimé entièrement.
 
-Vocabulaire : côté produit un **projet** est un **monument** (table `monuments`, routes `/app/projets/...`). Les alias `MONUMENTS`/`AIDES`/`DOSSIERS` dans [frontend/src/constants/routes.ts](frontend/src/constants/routes.ts) résolvent tous sur l'onglet Projet unifié — vestiges de migration.
+Vocabulaire — **un monument n'est pas un projet**, et la distinction porte tout le modèle :
+
+- Un **monument** (table `monuments`, routes `/app/monuments/...`) est le BIEN : identification, protection, propriétaire, état sanitaire (« en péril ? »). Il porte le **paywall** (`monument_unlocks`, `has_monument_access`), son **équipe** (`project_members`) et ses **documents** (`documents.monument_ids` — arrêté de protection, cadastre, photos).
+- Un **projet** (table `projets`, routes `/app/projets/...`) est un CHANTIER sur ce monument. N projets par monument, chacun avec son cadrage (`travaux_envisages`), son `questionnaire`, son diagnostic, ses **dossiers**, ses **suivis d'aide**, sa propre **équipe** (`projet_members`) et ses propres **documents** (`documents.projet_ids`).
+
+Les deux ont vécu confondus jusqu'à l'inversion de hiérarchie (migrations `20260827105636` / `20260827105649`) : le « projet » était alors une ligne de `monuments`. `dossiers` et `aide_suivis` portent depuis un `projet_id` **et** un `monument_id` — ce dernier volontairement dénormalisé, parce que le paywall et les requêtes batch du dashboard restent clés monument.
+
+### Les deux niveaux de partage
+
+Migration `20260827132033`. C'est la règle d'accès la plus délicate du produit :
+
+- **Équipe du monument** (`project_members`) : voit tout — la fiche, TOUS les projets, les documents du monument et ceux de ses projets.
+- **Équipe d'un projet** (`projet_members`, rôles `co_owner` / `member` seulement) : ne voit QUE ce chantier — ses aides, ses dossiers, ses documents, plus la fiche sanitaire du monument **en lecture**. Ni les autres projets, ni les documents du monument, ni son équipe.
+
+Le rôle **effectif** sur un projet est le `max_role` des deux : un co_owner du monument reste co_owner de chacun de ses chantiers sans ligne dans `projet_members`. On ne restreint jamais un droit acquis un cran plus haut.
+
+Trois conséquences à ne pas oublier en touchant à l'accès :
+
+- `Monument.myRole` est **nul** pour un membre projet-seulement — c'est un accès restreint, pas un refus. `require_monument_read` rend ce `None` ; le confondre avec un droit d'écriture ouvre une faille. Les écritures passent toujours par `require_project_access`, qui refuse ces gens-là.
+- Le front lit les droits d'une page projet sur **`Projet.myRole`**, jamais sur `Monument.myRole`.
+- Les listes sont filtrées **côté serveur** (`list_projets`, `/dashboard`, `list_documents`) : masquer à l'affichage laisserait fuiter dans la réponse l'existence des autres chantiers.
 
 ## Architecture
 
@@ -61,7 +81,7 @@ supabase/   migrations PostgreSQL (Auth JWT, Storage bucket `documents`)
 nginx/      reverse proxy + Certbot ; docker-compose gère prod + beta
 ```
 
-Backend : [main.py](backend/main.py) monte 15 routers ([backend/routers/](backend/routers/)), [db.py](backend/db.py) expose les clients Supabase (service-role en singleton, anon par requête pour l'auth) et vérifie les JWT localement via JWKS, [config.py](backend/config.py) tient `ALLOWED_ORIGINS` — une seule liste sert à la fois au CORS et aux redirections de retour Stripe.
+Backend : [main.py](backend/main.py) monte 17 routers ([backend/routers/](backend/routers/)), [db.py](backend/db.py) expose les clients Supabase (service-role en singleton, anon par requête pour l'auth) et vérifie les JWT localement via JWKS, [config.py](backend/config.py) tient `ALLOWED_ORIGINS` — une seule liste sert à la fois au CORS et aux redirections de retour Stripe.
 
 Frontend : un store Zustand et un service par domaine (`src/stores/`, `src/services/`), types dans `src/types/`, logique métier pure testable dans `src/lib/`.
 
@@ -69,7 +89,9 @@ Frontend : un store Zustand et un service par domaine (`src/stores/`, `src/servi
 
 C'est le point le plus important à comprendre avant de toucher au matching.
 
-Un seul moteur, déterministe : `POST /aides/diagnostic-deterministe` → [eligibility_engine.py](backend/eligibility_engine.py). Il lit les YAML `backend/data/aides/*.yaml` (id = **slug**), ne fait **aucun appel réseau** (~2 ms/monument, YAML en cache) et ne persiste **rien** : le QCM se résout côté client via `eliminationsParOption`. Le front passe partout par `runProjectDiagnostic()` (wizard, page projet, liste, dashboard).
+Un seul moteur, déterministe : `POST /aides/diagnostic-deterministe` → [eligibility_engine.py](backend/eligibility_engine.py). Il lit les YAML `backend/data/aides/*.yaml` (id = **slug**), ne fait **aucun appel réseau** (~2 ms/diagnostic, YAML en cache) et ne persiste **rien** : le QCM se résout côté client via `eliminationsParOption`. Le front passe partout par `runProjectDiagnostic(projetId, answers)` (wizard, page projet, liste, dashboard).
+
+Le moteur ne connaît **pas** les projets : `FIELD_REGISTRY` et `build_context` lisent toujours `travaux_envisages` sur le monument. La fusion se fait à la frontière, dans `merge_projet_into_monument` ([aides.py](backend/routers/aides.py)) : fiche du monument + cadrage du projet. Ne pas la déplacer dans le moteur. La requête accepte `projet_id` (chemin normal) ou `monument_id` seul (compat d'un onglet SPA non rechargé, résolu vers le projet ouvert le plus récent) ; le paywall reste clé monument dans les deux cas.
 
 Le moteur ne traite que les aides **engine-ready** (zéro condition `kind: untyped`) ; les autres sont simplement ignorées.
 
@@ -109,5 +131,5 @@ Trois skills couvrent ces tâches : `/ingest-aide` (ingestion/ré-extraction dep
 - **Deux espaces d'identifiants d'aides** cohabitent : slug (YAML, moteur déterministe) et UUID (`aides_v3`). `GET /aides/{id}` résout dans cet ordre UUID puis slug. La création de dossier passe par `aides_v3`, d'où l'étape de sync YAML → base à la fin de `deploy.sh` : une aide en YAML mais absente de `aides_v3` renvoie « Aide introuvable » à la création de dossier.
 - **`vitest.config.ts` utilise `environment: 'node'`** : un test de composant React a besoin d'un environnement DOM explicite.
 - L'accès aux aides est payant (Stripe) : `redact_diagnostic_if_locked` caviarde les résultats côté backend et `has_aides_access` / `src/lib/aides-access.ts` gouvernent l'affichage. Toute nouvelle route exposant des aides doit passer par ce filtre.
-- Les accès aux monuments partagés passent par `require_project_access(supabase, monument_id, user_id, role)` — un filtre `user_id` renverrait 404 aux collaborateurs.
+- Les accès aux monuments partagés passent par `require_project_access(supabase, monument_id, user_id, role)` — un filtre `user_id` renverrait 404 aux collaborateurs. Pour un projet, c'est `require_projet_access(supabase, projet_id, user_id, role) -> (ligne, rôle)`, qui combine les deux appartenances. Pour la seule LECTURE d'une fiche monument, `require_monument_read` (cf. « les deux niveaux de partage »). La visibilité d'un document se tranche avec `best_document_role(monument_ids, projet_ids, …)`, jamais sur les seuls `monument_ids`.
 - Sans `RESEND_API_KEY`, les emails d'invitation sont écrits en console (mode dev).

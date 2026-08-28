@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router';
-import { IconMonument, IconProtection, IconTemps } from '@/components/icons';
+import { IconMonument, IconProtection, IconTemps, LogoMonumia } from '@/components/icons';
 import { C, SERIF } from '@/lib/brand';
 
 interface AuthLayoutProps {
@@ -58,7 +58,7 @@ export function AuthLayout({
         {/* Logo */}
         <div className="relative z-10">
           <button onClick={() => navigate('/')} className="group flex items-center gap-2.5">
-            <img src="/monumia.png" alt="Monumia" className="h-8 w-8" />
+            <LogoMonumia className="h-8 w-8" label="Monumia" />
             <div className="text-left">
               <span className="block text-[19px] font-bold leading-none tracking-[-0.01em]" style={{ fontFamily: SERIF, color: C.cream }}>
                 Monumia
@@ -111,7 +111,7 @@ export function AuthLayout({
         {/* Barre mobile */}
         <div className="flex items-center justify-between px-6 py-5 lg:hidden" style={{ borderBottom: `1px solid ${C.border}` }}>
           <button onClick={() => navigate('/')} className="flex items-center gap-2">
-            <img src="/monumia.png" alt="Monumia" className="h-7 w-7" />
+            <LogoMonumia className="h-7 w-7" label="Monumia" />
             <span className="text-[16px] font-bold" style={{ fontFamily: SERIF, color: C.ink }}>Monumia</span>
           </button>
         </div>

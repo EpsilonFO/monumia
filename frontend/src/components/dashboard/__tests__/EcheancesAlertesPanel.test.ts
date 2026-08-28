@@ -24,6 +24,7 @@ function makeDeadline(
     source: partial.source ?? 'aide',
     joursRestants: partial.joursRestants,
     urgency: partial.urgency ?? 'normal',
+    projetId: partial.projetId,
     monumentId: partial.monumentId,
     aideId: partial.aideId,
     dossierId: partial.dossierId,
@@ -50,16 +51,16 @@ describe('buildFeedRows — empty state', () => {
 });
 
 describe('buildFeedRows — deadline routing', () => {
-  it('routes a dossier deadline (with monument) to its dossier page (PROJET_DOSSIER)', () => {
-    const d = makeDeadline({ id: 'd1', joursRestants: 5, monumentId: 'mon-1', dossierId: 'dossier-abc', source: 'dossier' });
+  it('routes a dossier deadline (with projet) to its dossier page (PROJET_DOSSIER)', () => {
+    const d = makeDeadline({ id: 'd1', joursRestants: 5, projetId: 'pro-1', dossierId: 'dossier-abc', source: 'dossier' });
     const row = buildFeedRows([d], []).find((r) => r.id === 'deadline-d1');
-    expect(row?.to).toBe(ROUTES.PROJET_DOSSIER('mon-1', 'dossier-abc'));
+    expect(row?.to).toBe(ROUTES.PROJET_DOSSIER('pro-1', 'dossier-abc'));
   });
 
-  it('falls back to DOSSIER_DETAIL for a dossier deadline without a known monument', () => {
-    const d = makeDeadline({ id: 'd1b', joursRestants: 5, dossierId: 'dossier-abc', source: 'dossier' });
+  it('falls back to the monument page for a dossier deadline without a known projet', () => {
+    const d = makeDeadline({ id: 'd1b', joursRestants: 5, monumentId: 'mon-1', dossierId: 'dossier-abc', source: 'dossier' });
     const row = buildFeedRows([d], []).find((r) => r.id === 'deadline-d1b');
-    expect(row?.to).toBe(ROUTES.DOSSIER_DETAIL('dossier-abc'));
+    expect(row?.to).toBe(ROUTES.MONUMENT_DETAIL('mon-1'));
   });
 
   it('routes an aide deadline to its aide page (PROJET_AIDE)', () => {
@@ -67,17 +68,17 @@ describe('buildFeedRows — deadline routing', () => {
       id: 'd2',
       joursRestants: 10,
       aideId: 'aide-xyz',
-      monumentId: 'mon-1',
+      projetId: 'pro-1',
       source: 'aide',
     });
     const row = buildFeedRows([d], []).find((r) => r.id === 'deadline-d2');
-    expect(row?.to).toBe(ROUTES.PROJET_AIDE('mon-1', 'aide-xyz'));
+    expect(row?.to).toBe(ROUTES.PROJET_AIDE('pro-1', 'aide-xyz'));
   });
 
-  it('falls back to the projects list for an aide deadline without a known monument', () => {
+  it('falls back to the monuments list for an aide deadline without projet ni monument', () => {
     const d = makeDeadline({ id: 'd3', joursRestants: 10, aideId: 'aide-xyz', source: 'aide' });
     const row = buildFeedRows([d], []).find((r) => r.id === 'deadline-d3');
-    expect(row?.to).toBe(ROUTES.PROJETS);
+    expect(row?.to).toBe(ROUTES.MONUMENTS);
   });
 
   it('filters out past deadlines (joursRestants < 0)', () => {

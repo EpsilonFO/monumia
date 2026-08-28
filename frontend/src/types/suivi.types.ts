@@ -24,6 +24,9 @@ export interface AideSuiviHistoriqueEntry {
 
 export interface AideSuivi {
   id: ID;
+  /** Le PROJET suivi. Le couple unique en base est (projet, aide). */
+  projetId: ID;
+  /** Monument parent, dénormalisé côté base pour les requêtes batch. */
   monumentId: ID;
   aideId: ID;
   userId: ID;

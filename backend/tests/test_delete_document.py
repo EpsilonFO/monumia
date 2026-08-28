@@ -21,11 +21,16 @@ class _Resp:
 
 
 class _Query:
-    """Mime le chaînage fluent supabase-py ; renvoie une réponse fixe."""
+    """Mime le chaînage fluent supabase-py ; renvoie une réponse fixe.
+
+    Le vrai client rend un DICT après single()/maybe_single(), une LISTE sinon :
+    la même table est lue dans les deux modes (rôle unitaire vs périmètre complet).
+    """
 
     def __init__(self, response, deleted):
         self._response = response
         self._deleted = deleted
+        self._single = False
 
     def select(self, *a, **k):
         return self
@@ -37,14 +42,24 @@ class _Query:
     def eq(self, *a, **k):
         return self
 
+    def in_(self, *a, **k):
+        return self
+
     def single(self):
+        self._single = True
         return self
 
     def maybe_single(self):
+        self._single = True
         return self
 
     def execute(self):
-        return self._response
+        data = self._response.data
+        if self._single:
+            return _Resp(data)
+        if data is None:
+            return _Resp([])
+        return _Resp(data if isinstance(data, list) else [data])
 
 
 class _StorageFile:
@@ -78,7 +93,9 @@ def _supabase(doc, *, caller_role):
     return _FakeSupabase(
         {
             "documents": _Resp(doc),
-            "project_members": _Resp({"role": caller_role} if caller_role else None),
+            "project_members": _Resp(
+                {"monument_id": "m1", "role": caller_role} if caller_role else None
+            ),
             "monuments": _Resp(None),
         }
     )

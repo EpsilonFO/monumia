@@ -1,29 +1,21 @@
 import { Link } from 'react-router';
 import { ArrowRight } from 'lucide-react';
-import { IconLocalisation, IconEcheance, IconDossier } from '@/components/icons';
+import { IconEcheance, IconDossier } from '@/components/icons';
 import { Clover } from '@/components/illustrations';
 import { ParcoursTrail } from '@/components/project/ParcoursTrail';
-import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
 import { ROUTES } from '@/constants/routes';
 import { C, DEADLINE_TONE, SERIF } from '@/lib/brand';
 import { deadlineLabel } from '@/lib/date-utils';
 import { formatCurrency } from '@/lib/format-utils';
 import { montantTileMode } from '@/lib/project-card-view';
-import { isProjectShared } from '@/lib/project-permissions';
+import { projetTitre } from '@/lib/projet-titre';
 import type { ProjectStats, ProjectStage } from '@/lib/project-stats';
-import type { Monument } from '@/types';
+import type { Projet } from '@/types';
 
-interface ProjectCardProps {
-  monument: Monument;
+interface ProjetCardProps {
+  projet: Projet;
   stats?: ProjectStats;
   stage?: ProjectStage;
-}
-
-/** Photo héros : on privilégie la façade, sinon le premier cliché disponible. */
-function heroPhoto(m: Monument): string | null {
-  if (!m.photos?.length) return null;
-  const facade = m.photos.find((p) => p.type === 'facade');
-  return (facade ?? m.photos[0])?.url || null;
 }
 
 /**
@@ -47,38 +39,15 @@ function ctaLabel(reachedIndex: number): string {
 }
 
 /**
- * Vignette du monument : photo carrée arrondie ; sans photo, quadrilobe blanc
- * sur bleu profond — le bleu institutionnel ancre la marque dans l'en-tête.
+ * Vignette d'un projet de travaux, dans l'onglet « Projets » d'un monument.
+ * Reprend la mécanique de l'ancienne carte projet — montant du digest, frise
+ * d'avancement, échéance qui presse — sans répéter l'identité du monument :
+ * elle est déjà dans l'en-tête de la page.
  */
-function PhotoThumb({ photo }: { photo: string | null }) {
-  return (
-    <div
-      className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl"
-      style={{
-        background: photo ? undefined : `linear-gradient(150deg, ${C.blue}, ${C.blueDark})`,
-        boxShadow: 'inset 0 0 0 1px rgba(7,42,114,0.08)',
-      }}
-      aria-hidden
-    >
-      {photo ? (
-        <div
-          className="h-full w-full bg-cover bg-center transition-transform duration-500 ease-out group-hover:scale-[1.06]"
-          style={{ backgroundImage: `url(${photo})` }}
-        />
-      ) : (
-        <Clover size={30} className="text-white" style={{ opacity: 0.9 }} />
-      )}
-    </div>
-  );
-}
-
-export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
-  const shared = isProjectShared(monument);
-  const members = monument.members ?? [];
-  const photo = heroPhoto(monument);
-
+export function ProjetCard({ projet, stats, stage }: ProjetCardProps) {
   const tileMode = montantTileMode(stats);
   const reached = stage?.reachedIndex ?? -1;
+  const cloture = !!projet.clotureAt;
 
   // Échéance affichée UNIQUEMENT si elle presse (dépassée, urgente, ou proche).
   const next = stats?.prochaineEcheance ?? null;
@@ -89,45 +58,30 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
   const dossiersActifs = stats?.dossiersActifs ?? 0;
 
   return (
-    <Link to={ROUTES.PROJET_DETAIL(monument.id)} className="block">
+    <Link to={ROUTES.PROJET_DETAIL(projet.id)} className="block">
       <article
         className="group overflow-hidden rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_45px_-24px_rgba(7,42,114,0.45)] sm:p-6"
-        style={{ background: C.card, borderColor: C.border }}
+        style={{ background: C.card, borderColor: C.border, opacity: cloture ? 0.75 : 1 }}
       >
-        {/* ── En-tête : vignette + nom + lieu, avatars si le projet est partagé ── */}
-        <div className="flex items-center gap-4">
-          <PhotoThumb photo={photo} />
-          <div className="min-w-0 flex-1">
-            <h3
-              className="line-clamp-2 text-[20px] font-bold leading-snug"
-              style={{ fontFamily: SERIF, color: C.ink }}
+        <div className="flex items-start justify-between gap-3">
+          <h3
+            className="min-w-0 text-[19px] font-bold leading-snug"
+            style={{ fontFamily: SERIF, color: C.ink }}
+          >
+            {projetTitre(projet)}
+          </h3>
+          {cloture && (
+            <span
+              className="shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold"
+              style={{ background: C.cream, color: C.grayFg }}
             >
-              {monument.nom}
-            </h3>
-            {(monument.commune || monument.departement) && (
-              <p
-                className="mt-0.5 flex items-center gap-1.5 text-[13.5px]"
-                style={{ color: C.grayFg }}
-              >
-                <IconLocalisation className="h-4 w-4 shrink-0" strokeWidth={1.8} aria-hidden />
-                <span className="truncate">
-                  {monument.commune ?? '—'}
-                  {monument.departement ? ` · ${monument.departement}` : ''}
-                </span>
-              </p>
-            )}
-          </div>
-          {shared && members.length > 0 && (
-            <div className="shrink-0 self-start">
-              <MemberAvatarStack people={members} size="sm" />
-            </div>
+              Clôturé
+            </span>
           )}
         </div>
 
-        {/* ── Deux tuiles teintées qui remplissent la carte : aides + avancement ── */}
+        {/* ── Deux tuiles teintées : aides repérées + avancement ── */}
         <div className="mt-4 flex flex-col gap-3 lg:flex-row">
-          {/* Tuile aides — chaleur orange : dégradé doux, bord teinté, montant
-              en point focal et quadrilobe en filigrane (clin d'œil de marque). */}
           <div
             className="relative flex flex-col justify-center overflow-hidden rounded-xl border px-5 py-4 lg:w-64 lg:shrink-0"
             style={{
@@ -164,14 +118,13 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
                   className="text-[26px] font-bold leading-none tabular-nums"
                   style={{
                     fontFamily: SERIF,
-                    // Orange légèrement foncé à l'encre : contraste AA sur la tuile chaude.
                     color: `color-mix(in srgb, ${C.orange} 82%, ${C.ink})`,
                   }}
                 >
                   {stats.aidesIdentifiees} aide{stats.aidesIdentifiees > 1 ? 's' : ''}
                 </p>
                 <p className="mt-1.5 text-[13px] font-medium" style={{ color: C.ink }}>
-                  repérée{stats.aidesIdentifiees > 1 ? 's' : ''} pour votre monument
+                  repérée{stats.aidesIdentifiees > 1 ? 's' : ''} pour ce projet
                 </p>
               </>
             ) : (
@@ -180,7 +133,6 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
                   className="text-[19px] font-bold leading-tight"
                   style={{
                     fontFamily: SERIF,
-                    // Orange légèrement foncé à l'encre : contraste AA sur la tuile chaude.
                     color: `color-mix(in srgb, ${C.orange} 82%, ${C.ink})`,
                   }}
                 >
@@ -193,8 +145,6 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
             )}
           </div>
 
-          {/* Tuile avancement — fraîcheur bleue : dégradé doux, bord teinté,
-              libellé au bleu institutionnel, frise à étapes nommées. */}
           <div
             className="flex flex-1 flex-col justify-center rounded-xl border px-5 py-4"
             style={{
@@ -206,9 +156,7 @@ export function ProjectCard({ monument, stats, stage }: ProjectCardProps) {
               Votre avancement
               {reached >= 0 ? ` — étape ${reached + 1} sur 4` : ' — à commencer'}
             </p>
-            <div className="mt-3">
-              {stage && <ParcoursTrail stage={stage} />}
-            </div>
+            <div className="mt-3">{stage && <ParcoursTrail stage={stage} />}</div>
           </div>
         </div>
 
