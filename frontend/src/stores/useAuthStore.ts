@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, UserSegment, NotificationPreferences } from '@/types';
+import type { User, NotificationPreferences } from '@/types';
 import { authService } from '@/services/auth.service';
 import { useMonumentStore } from './useMonumentStore';
+import { useProjetStore } from './useProjetStore';
 import { useDossierStore } from './useDossierStore';
 import { useDocumentStore } from './useDocumentStore';
 import { useAideStore } from './useAideStore';
@@ -20,7 +21,6 @@ interface AuthState {
   setUser: (user: User) => void;
   updateProfile: (updates: Partial<User>) => Promise<void>;
   completeOnboarding: () => void;
-  setSegment: (segment: UserSegment) => void;
   updateNotificationPreferences: (prefs: Partial<NotificationPreferences>) => Promise<void>;
   logout: () => void;
 }
@@ -61,11 +61,6 @@ export const useAuthStore = create<AuthState>()(
             : null,
         })),
 
-      setSegment: (segment) =>
-        set((state) => ({
-          user: state.user ? { ...state.user, segment } : null,
-        })),
-
       updateNotificationPreferences: async (prefs) => {
         if (!get().token) return;
         const updated = await authService.updateNotificationPreferences(prefs);
@@ -77,17 +72,12 @@ export const useAuthStore = create<AuthState>()(
         clearSessionCookie();
         // Reset all data stores to prevent data leaking between accounts
         useMonumentStore.setState({ monuments: [], activeMonumentId: null });
+        useProjetStore.setState({ projets: [], loaded: false });
         useDossierStore.setState({ dossiers: [], loaded: false });
         useDocumentStore.setState({ documents: [], loading: false, error: null });
-        useAideStore.setState({
-          aides: [],
-          diagnosticsByMonument: {},
-          digestsByMonument: {},
-          loading: false,
-          error: null,
-        });
-        useSuiviStore.setState({ suivis: [], loadedMonuments: {} });
-        // Sinon les projets débloqués du compte précédent resteraient ouverts
+        useAideStore.setState({ diagnosticsByProjet: {}, digestsByProjet: {} });
+        useSuiviStore.setState({ suivis: [], loadedProjets: {} });
+        // Sinon les monuments débloqués du compte précédent resteraient ouverts
         // pour le suivant, le temps que /billing/access réponde.
         useBillingStore.getState().reset();
       },

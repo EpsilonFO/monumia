@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router';
-import { IconMonument, IconProtection, IconTemps } from '@/components/icons';
+import { IconMonument, IconProtection, IconTemps, LogoMonumia } from '@/components/icons';
 import { C, SERIF } from '@/lib/brand';
 
 interface AuthLayoutProps {
@@ -12,7 +12,8 @@ interface AuthLayoutProps {
   panelDescription?: ReactNode;
   /** Libellé orange en petites capitales, au-dessus du titre du panneau. */
   panelEyebrow?: string;
-  /** Largeur max de la colonne droite (défaut : max-w-md). */
+  /** Largeur max et espacement vertical de la colonne droite
+   *  (défaut : max-w-md space-y-8). */
   contentClassName?: string;
 }
 
@@ -26,13 +27,18 @@ const REASSURANCE = [
  * Coquille du parcours d'authentification, calquée sur l'identité du tableau de
  * bord : un panneau bleu profond (couleur de la sidebar) accueille dès le premier
  * écran, et la colonne de droite est l'atelier crème de l'application.
+ *
+ * Le panneau bleu est collant et tenu à la hauteur du viewport (`self-start`
+ * l'empêche d'être étiré par la colonne droite). Sans cela, un formulaire plus
+ * haut que l'écran — l'onglet Inscription — grandit le conteneur, et le
+ * `justify-between` du panneau fait descendre l'accroche d'un onglet à l'autre.
  */
 export function AuthLayout({
   children,
   panelHeadline,
   panelDescription,
   panelEyebrow = 'Votre espace patrimoine',
-  contentClassName = 'max-w-md',
+  contentClassName = 'max-w-md space-y-8',
 }: AuthLayoutProps) {
   const navigate = useNavigate();
 
@@ -40,23 +46,19 @@ export function AuthLayout({
     <div className="min-h-screen flex" style={{ background: C.cream }}>
       {/* ═══════ GAUCHE — panneau bleu (esprit sidebar) ═══════ */}
       <div
-        className="relative hidden lg:flex lg:w-[44%] xl:w-[40%] flex-col justify-between overflow-hidden p-12 xl:p-16"
+        className="relative hidden lg:flex lg:sticky lg:top-0 lg:h-screen lg:self-start lg:w-[44%] xl:w-[40%] flex-col justify-between overflow-hidden p-12 xl:p-16"
         style={{ background: C.blue }}
       >
-        {/* Atmosphère : halos diffus + fines règles horizontales (repris du héros du dashboard) */}
+        {/* Atmosphère : halos diffus (repris du héros du dashboard) */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
           <div className="absolute -right-20 -top-24 h-80 w-80 rounded-full blur-[130px]" style={{ background: 'rgba(92,149,255,0.40)' }} />
           <div className="absolute -bottom-28 -left-16 h-72 w-72 rounded-full blur-[130px]" style={{ background: 'rgba(241,113,5,0.18)' }} />
-          <div
-            className="absolute inset-0 opacity-[0.05]"
-            style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 31px, var(--card) 31px, var(--card) 32px)' }}
-          />
         </div>
 
         {/* Logo */}
         <div className="relative z-10">
           <button onClick={() => navigate('/')} className="group flex items-center gap-2.5">
-            <img src="/monumia.png" alt="Monumia" className="h-8 w-8" />
+            <LogoMonumia className="h-8 w-8" label="Monumia" />
             <div className="text-left">
               <span className="block text-[19px] font-bold leading-none tracking-[-0.01em]" style={{ fontFamily: SERIF, color: C.cream }}>
                 Monumia
@@ -109,13 +111,13 @@ export function AuthLayout({
         {/* Barre mobile */}
         <div className="flex items-center justify-between px-6 py-5 lg:hidden" style={{ borderBottom: `1px solid ${C.border}` }}>
           <button onClick={() => navigate('/')} className="flex items-center gap-2">
-            <img src="/monumia.png" alt="Monumia" className="h-7 w-7" />
+            <LogoMonumia className="h-7 w-7" label="Monumia" />
             <span className="text-[16px] font-bold" style={{ fontFamily: SERIF, color: C.ink }}>Monumia</span>
           </button>
         </div>
 
-        <div className="flex flex-1 items-center justify-center px-6 py-12">
-          <div className={`w-full ${contentClassName} space-y-8`}>{children}</div>
+        <div className="flex flex-1 items-center justify-center px-6 py-8">
+          <div className={`w-full ${contentClassName}`}>{children}</div>
         </div>
       </div>
     </div>

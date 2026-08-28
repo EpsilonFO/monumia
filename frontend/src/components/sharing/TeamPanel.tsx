@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { sharingService } from '@/services/sharing.service';
+import { projetSharingService, sharingService } from '@/services/sharing.service';
 import { projectPermissions } from '@/lib/project-permissions';
 import { RoleBadge } from './RoleBadge';
 import { MemberAvatar } from './MemberAvatar';
@@ -22,7 +22,10 @@ import { C, SERIF } from '@/lib/brand';
 import type { ProjectMember, ProjectInvitation, ProjectRole } from '@/types';
 
 interface TeamPanelProps {
-  monumentId: string;
+  /** Portée du partage : le bien, ou l'un de ses chantiers. */
+  scope: 'monument' | 'projet';
+  /** Id du monument ou du projet, selon `scope`. */
+  scopeId: string;
   myRole: ProjectRole | null;
   members: ProjectMember[];
   invitations: ProjectInvitation[];
@@ -30,9 +33,51 @@ interface TeamPanelProps {
   onLeft?: () => void;
 }
 
-export function TeamPanel({ monumentId, myRole, members, invitations, onChanged, onLeft }: TeamPanelProps) {
+const TEXTES = {
+  monument: {
+    titre: 'Équipe du monument',
+    intro:
+      'Les personnes ci-dessous peuvent consulter et travailler sur ce monument et sur tous ses projets de travaux.',
+    solo: 'Vous êtes seul sur ce monument pour l’instant.',
+    retirer: 'Retirer du monument',
+    quitter: 'Quitter ce monument',
+    quitterTitre: 'Quitter ce monument ?',
+    quitterTexte:
+      'Vous perdrez l’accès à ce monument et à ses projets. Il faudra une nouvelle invitation pour y revenir.',
+    quitterOk: 'Vous avez quitté le monument',
+    retirerTexte:
+      'Cette personne perdra immédiatement l’accès au monument et à ses projets. Vous pourrez l’inviter à nouveau plus tard.',
+  },
+  projet: {
+    titre: 'Équipe du projet',
+    intro:
+      'Les personnes invitées ici ne voient QUE ce projet de travaux : ses aides, ses dossiers, ses documents, et la fiche du monument en lecture. Ni les autres chantiers, ni les documents du monument.',
+    solo: 'Personne n’est encore invité sur ce chantier.',
+    retirer: 'Retirer du projet',
+    quitter: 'Quitter ce projet',
+    quitterTitre: 'Quitter ce projet ?',
+    quitterTexte:
+      'Vous perdrez l’accès à ce projet de travaux. Il faudra une nouvelle invitation pour y revenir.',
+    quitterOk: 'Vous avez quitté le projet',
+    retirerTexte:
+      'Cette personne perdra immédiatement l’accès à ce projet. Vous pourrez l’inviter à nouveau plus tard.',
+  },
+} as const;
+
+/**
+ * Panneau d'équipe, pour un MONUMENT ou pour un PROJET de travaux.
+ *
+ * Un seul composant, paramétré par la portée : les deux écrans font exactement
+ * les mêmes gestes (inviter, promouvoir, retirer, quitter) et les dupliquer les
+ * ferait dériver. Ce qui change, ce sont les mots — parce que l'enjeu, lui,
+ * n'est pas le même : sur un projet, ce panneau ouvre un accès CLOISONNÉ, et le
+ * dire est la moitié du travail.
+ */
+export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChanged, onLeft }: TeamPanelProps) {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const perms = projectPermissions(myRole);
+  const api = scope === 'projet' ? projetSharingService : sharingService;
+  const t = TEXTES[scope];
   const [email, setEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<ProjectMember | null>(null);
@@ -44,7 +89,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
     if (!target) return;
     setInviting(true);
     try {
-      await sharingService.invite(monumentId, target);
+      await api.invite(scopeId, target);
       toast.success(`Invitation envoyée à ${target}`);
       setEmail('');
       onChanged();
@@ -69,11 +114,9 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
     <div className="space-y-6">
       <div className="space-y-1">
         <h2 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
-          Équipe du projet
+          {t.titre}
         </h2>
-        <p className="text-[13px] text-muted-foreground">
-          Les personnes ci-dessous peuvent consulter et travailler sur ce projet.
-        </p>
+        <p className="text-[13px] text-muted-foreground">{t.intro}</p>
       </div>
 
       {perms.canInvite && (
@@ -114,7 +157,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
 
       {isSolo && (
         <p className="text-[13px] text-muted-foreground">
-          Vous êtes seul sur ce projet pour l'instant.
+          {t.solo}
           {perms.canInvite ? ' Invitez vos collaborateurs ci-dessus.' : ''}
         </p>
       )}
@@ -125,7 +168,12 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
         </p>
         {members.map((m, mi) => {
           const isMe = m.userId === currentUserId;
-          const canManageThis = perms.canManageMembers && m.role !== 'owner' && !isMe;
+          // Sur un projet, un membre HÉRITÉ de l'équipe du monument n'est pas
+          // gérable ici : son droit vient d'un cran au-dessus, le retirer du
+          // chantier ne le lui ôterait pas.
+          const herite = scope === 'projet' && m.source === 'monument';
+          const canManageThis =
+            perms.canManageMembers && m.role !== 'owner' && !isMe && !herite;
           return (
             <div
               key={m.userId}
@@ -139,6 +187,15 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
                     {m.prenom} {m.nom} {isMe && <span className="text-muted-foreground">(vous)</span>}
                   </p>
                   <RoleBadge role={m.role} />
+                  {herite && (
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                      style={{ background: C.paleBlue, color: C.blue }}
+                      title="Accès hérité de l’équipe du monument"
+                    >
+                      Équipe du monument
+                    </span>
+                  )}
                 </div>
                 <p className="text-[12px] truncate text-muted-foreground">
                   {[m.metier, m.email].filter(Boolean).join(' · ')}
@@ -156,19 +213,19 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
                   <DropdownMenuContent align="end">
                     {m.role === 'member' ? (
                       <DropdownMenuItem
-                        onClick={() => act(() => sharingService.promote(monumentId, m.userId), 'Promu chef de projet adjoint')}
+                        onClick={() => act(() => api.promote(scopeId, m.userId), 'Promu chef de projet adjoint')}
                       >
                         Promouvoir chef de projet adjoint
                       </DropdownMenuItem>
                     ) : (
                       <DropdownMenuItem
-                        onClick={() => act(() => sharingService.demote(monumentId, m.userId), 'Rétrogradé collaborateur')}
+                        onClick={() => act(() => api.demote(scopeId, m.userId), 'Rétrogradé collaborateur')}
                       >
                         Rétrograder collaborateur
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem className="text-destructive" onClick={() => setConfirmRemove(m)}>
-                      Retirer du projet
+                      {t.retirer}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -196,7 +253,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
                 <button
                   type="button"
                   className="text-[12px] hover:underline text-destructive"
-                  onClick={() => act(() => sharingService.revokeInvitation(monumentId, inv.id), 'Invitation annulée')}
+                  onClick={() => act(() => api.revokeInvitation(scopeId, inv.id), 'Invitation annulée')}
                 >
                   Annuler
                 </button>
@@ -214,7 +271,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
             className="inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition-colors hover:bg-destructive-muted text-destructive border-destructive-muted"
           >
             <IconDeconnexion className="h-4 w-4" strokeWidth={1.8} />
-            Quitter ce projet
+            {t.quitter}
           </button>
         </div>
       )}
@@ -223,11 +280,9 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Retirer {confirmRemove?.prenom} {confirmRemove?.nom} du projet ?
+              Retirer {confirmRemove?.prenom} {confirmRemove?.nom}&nbsp;?
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette personne perdra immédiatement l'accès au projet. Vous pourrez l'inviter à nouveau plus tard.
-            </AlertDialogDescription>
+            <AlertDialogDescription>{t.retirerTexte}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
@@ -236,7 +291,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
               onClick={() => {
                 const target = confirmRemove;
                 setConfirmRemove(null);
-                if (target) act(() => sharingService.removeMember(monumentId, target.userId), 'Membre retiré');
+                if (target) act(() => api.removeMember(scopeId, target.userId), 'Membre retiré');
               }}
             >
               Retirer
@@ -248,10 +303,8 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
       <AlertDialog open={confirmLeave} onOpenChange={setConfirmLeave}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Quitter ce projet ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Vous perdrez l'accès à ce projet. Il faudra une nouvelle invitation pour y revenir.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t.quitterTitre}</AlertDialogTitle>
+            <AlertDialogDescription>{t.quitterTexte}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
@@ -259,7 +312,7 @@ export function TeamPanel({ monumentId, myRole, members, invitations, onChanged,
               variant="destructive"
               onClick={() => {
                 setConfirmLeave(false);
-                void act(() => sharingService.leave(monumentId), 'Vous avez quitté le projet').then(() => onLeft?.());
+                void act(() => api.leave(scopeId), t.quitterOk).then(() => onLeft?.());
               }}
             >
               Quitter

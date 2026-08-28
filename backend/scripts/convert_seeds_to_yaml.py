@@ -141,9 +141,8 @@ def _is_dash_line(line: str) -> bool:
 
 
 def parse_bullets(text: str) -> list[str]:
-    """Découpe en puces. Contrairement à matching_engine._parse_bullets, les
-    lignes de continuation (sous-puces «•», en-têtes) sont rattachées à la
-    puce courante au lieu d'être perdues — la conversion doit être sans perte.
+    """Découpe en puces, sans perte : les lignes de continuation (sous-puces
+    «•», en-têtes) sont rattachées à la puce courante au lieu d'être perdues.
     """
     if not text or not text.strip():
         return []

@@ -7,32 +7,32 @@ These tests prove the merge stays deduplicated and order-preserving.
 
 import unittest
 
-from routers.documents import AddToProjectsRequest, _merge_monument_ids
+from routers.documents import AddToProjectsRequest, _merge_ids
 
 
 class MergeMonumentIdsTests(unittest.TestCase):
     def test_appends_new_projects(self) -> None:
-        self.assertEqual(_merge_monument_ids(["mon-A"], ["mon-B"]), ["mon-A", "mon-B"])
+        self.assertEqual(_merge_ids(["mon-A"], ["mon-B"]), ["mon-A", "mon-B"])
 
     def test_preserves_existing_order_and_appends(self) -> None:
         self.assertEqual(
-            _merge_monument_ids(["mon-A", "mon-B"], ["mon-C", "mon-D"]),
+            _merge_ids(["mon-A", "mon-B"], ["mon-C", "mon-D"]),
             ["mon-A", "mon-B", "mon-C", "mon-D"],
         )
 
     def test_skips_duplicates(self) -> None:
-        self.assertEqual(_merge_monument_ids(["mon-A"], ["mon-A", "mon-B"]), ["mon-A", "mon-B"])
+        self.assertEqual(_merge_ids(["mon-A"], ["mon-A", "mon-B"]), ["mon-A", "mon-B"])
 
     def test_dedupes_within_new_list(self) -> None:
-        self.assertEqual(_merge_monument_ids([], ["mon-A", "mon-A"]), ["mon-A"])
+        self.assertEqual(_merge_ids([], ["mon-A", "mon-A"]), ["mon-A"])
 
     def test_empty_existing(self) -> None:
-        self.assertEqual(_merge_monument_ids([], ["mon-A", "mon-B"]), ["mon-A", "mon-B"])
+        self.assertEqual(_merge_ids([], ["mon-A", "mon-B"]), ["mon-A", "mon-B"])
 
     def test_does_not_mutate_inputs(self) -> None:
         existing = ["mon-A"]
         new = ["mon-B"]
-        _merge_monument_ids(existing, new)
+        _merge_ids(existing, new)
         self.assertEqual(existing, ["mon-A"])
         self.assertEqual(new, ["mon-B"])
 

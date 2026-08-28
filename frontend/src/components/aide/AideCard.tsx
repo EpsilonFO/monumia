@@ -39,6 +39,9 @@ interface AideCardProps {
   match: AideMatchResult;
   showEligibility?: boolean;
   locked?: boolean;
+  /** Le PROJET dans lequel l'aide est vue : c'est lui qui clé la fiche d'aide. */
+  projetId?: string;
+  /** Son monument : c'est LUI qu'on débloque, jamais le projet. */
   monumentId?: string;
   /**
    * `tile` = vignette compacte (non éligibles) · `grid` = carte « opportunité »
@@ -85,14 +88,14 @@ const CATEGORY_ICON: Record<string, typeof IconInstitution> = {
   etat_drac: IconInstitution,
   region: IconInstitution,
   departement: IconInstitution,
-  fondation_patrimoine: IconInstitution,
+  fondation: IconInstitution,
   europe: IconPublic,
   mecenat: IconSubvention,
   fiscalite: IconDevis,
   autre: IconAide,
 };
 
-export function AideCard({ match, showEligibility = true, locked = false, monumentId, layout = 'tile' }: AideCardProps) {
+export function AideCard({ match, showEligibility = true, locked = false, projetId, monumentId, layout = 'tile' }: AideCardProps) {
   const { aide, criteresRemplis, criteresNonRemplis } = match;
   const navigate = useNavigate();
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
@@ -108,9 +111,9 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
   const statusTone = STATUS_TONE[status];
   const statusBadge = STATUS_BADGE[status];
   const StatusIcon = statusBadge.icon;
-  const aideDetailUrl = monumentId
-    ? ROUTES.PROJET_AIDE(monumentId, aide.id)
-    : ROUTES.PROJETS;
+  const aideDetailUrl = projetId
+    ? ROUTES.PROJET_AIDE(projetId, aide.id)
+    : ROUTES.MONUMENTS;
 
   const hoverClass = locked
     ? 'hover:border-warning'
@@ -124,8 +127,8 @@ export function AideCard({ match, showEligibility = true, locked = false, monume
 
   const handleCardClick = () => {
     if (locked) {
-      // Le projet part dans l'URL : la page Tarifs a besoin de savoir quoi
-      // débloquer, et l'aller-retour vers Stripe efface tout state React.
+      // Le MONUMENT part dans l'URL : c'est l'unité que vend l'offre « Dossier »,
+      // et l'aller-retour vers Stripe efface tout state React.
       navigate(ROUTES.TARIFS(monumentId));
     } else {
       navigate(aideDetailUrl);

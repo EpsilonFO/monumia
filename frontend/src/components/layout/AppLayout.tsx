@@ -17,15 +17,10 @@ export function AppLayout() {
   useEffect(() => {
     if (!user) {
       navigate('/login');
-    } else if (user.segment === 'btp') {
-      navigate('/btp');
     }
   }, [user, navigate]);
 
-  // Le catalogue complet des aides (1,1 Mo de JSON) était chargé ici à chaque
-  // montage alors que seule la page BTP « Catalogue des aides » le lit — elle le
-  // charge désormais elle-même. Reste la liste des projets, dont toutes les
-  // pages de cet espace ont besoin.
+  // La liste des projets, dont toutes les pages de cet espace ont besoin.
   useEffect(() => {
     if (!token) return;
     monumentService.getAll().then(setMonuments).catch(console.error);

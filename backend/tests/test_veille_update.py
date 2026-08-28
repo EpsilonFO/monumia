@@ -27,7 +27,14 @@ import veille_update  # noqa: E402
 from veille_aides import build_report, run_stage_c, update_manifest  # noqa: E402
 from veille_analyze import AideAnalysis, UrlVerdict  # noqa: E402
 from veille_collect import AideCollect, FetchResult, MonitoredUrl  # noqa: E402
-from veille_llm import LLMCall, ModelSpec  # noqa: E402
+from veille_llm import (  # noqa: E402
+    FOURNISSEURS,
+    MODELE_DEFAUT,
+    REGISTRE,
+    LLMCall,
+    ModelSpec,
+    resoudre_modele,
+)
 from veille_text import normalized_diff  # noqa: E402
 from veille_update import MajResult, mettre_a_jour, prompt_correction  # noqa: E402
 
@@ -493,7 +500,7 @@ class TestRunStageC(unittest.TestCase):
         self.assertIn("dispositif fusionné", analyses["aide-0"].raisons)
 
     def test_cle_absente_saute_l_etage_sans_echouer(self):
-        spec = self.module.REGISTRE["gpt-luna"]
+        spec = self.module.resoudre_modele("gpt-luna")
         os.environ.pop(spec.env_key, None)
         self.assertFalse(ModelSpec.cle_presente.fget(spec))  # type: ignore[attr-defined]
         analyses = analyses_factices("MAJ_LLM")
@@ -543,6 +550,46 @@ class TestManifesteEtRapport(unittest.TestCase):
         texte = build_report(analyses_factices("MAJ_LLM"), AUJOURD_HUI, 60.0)
         self.assertIn("aucun YAML d'aide n'a été modifié", texte)
         self.assertNotIn("## Étage C", texte)
+
+
+class TestResolutionModele(unittest.TestCase):
+    """Le point unique de réglage du modèle, et la porte de sortie hors registre.
+
+    Le pipeline change de modèle plus souvent qu'il ne change de code : ces
+    tests gardent l'invariant qui rend ça possible — un alias suffit, et un
+    modèle sorti hier s'essaie sans écrire une ligne de Python.
+    """
+
+    def test_le_defaut_est_resolvable(self):
+        # Sans ça, tout étage LLM planterait au premier appel avec le défaut du
+        # dépôt (ou un VEILLE_MODEL mal saisi).
+        spec = resoudre_modele(MODELE_DEFAUT)
+        self.assertEqual(spec.alias, MODELE_DEFAUT)
+
+    def test_tous_les_alias_du_registre_se_resolvent(self):
+        for alias, attendu in REGISTRE.items():
+            self.assertIs(resoudre_modele(alias), attendu)
+
+    def test_chaque_fournisseur_a_au_moins_un_modele(self):
+        couverts = {s.fournisseur for s in REGISTRE.values()}
+        self.assertEqual(couverts, set(FOURNISSEURS))
+
+    def test_modele_hors_registre_herite_du_fournisseur(self):
+        spec = resoudre_modele("glm:glm-9-turbo")
+        f = FOURNISSEURS["glm"]
+        self.assertEqual(spec.model_id, "glm-9-turbo")
+        self.assertEqual(spec.env_key, f.env_key)
+        self.assertEqual(spec.base_url, f.base_url)
+        self.assertEqual(spec.provider, f.protocole)
+        # Un identifiant recopié à la main n'est jamais réputé vérifié, et son
+        # tarif est inconnu : mieux vaut aucun coût rapporté qu'un coût faux.
+        self.assertFalse(spec.id_verifie)
+        self.assertFalse(spec.tarif_connu)
+
+    def test_fournisseur_ou_modele_inconnu_est_une_erreur_parlante(self):
+        for nom in ("openia:gpt-5", "modele-invente", "glm:"):
+            with self.assertRaises(KeyError):
+                resoudre_modele(nom)
 
 
 if __name__ == "__main__":

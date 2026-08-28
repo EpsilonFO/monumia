@@ -169,6 +169,19 @@ class AideAnalysis:
         return [q for q in self.quotes if q.baseline.found and not q.recontrolable]
 
     @property
+    def couverture_quotes(self) -> tuple[int, int]:
+        """(citations recontrôlées ce run, citations au total).
+
+        Le chiffre qui manquait au RÉCAP. Un `OK` adossé à 0 citation contrôlée
+        ne dit RIEN du règlement : il ne prouve que l'immobilité des pages qui
+        ont pu être re-téléchargées. Cas typique, et fréquent : toutes les
+        conditions sont justifiées par un règlement PDF dépourvu de sidecar de
+        provenance, donc hors du périmètre de surveillance, tandis que la page
+        d'atterrissage HTML — elle, surveillée — n'a pas bougé.
+        """
+        return sum(1 for q in self.quotes if q.recontrolable), len(self.quotes)
+
+    @property
     def a_change(self) -> bool:
         return any(u.a_change for u in self.urls)
 
@@ -417,6 +430,30 @@ def lignes_de_chrome(collects: dict[str, AideCollect]) -> frozenset[str]:
                 if ligne[:2] in ("+ ", "- ") and (norm := normalize_line(ligne[2:])):
                     par_ligne[norm].add(murl.url)
     return frozenset(ligne for ligne, urls in par_ligne.items() if len(urls) >= CHROME_MIN_URLS)
+
+
+def hotes_affames(collects: dict[str, AideCollect]) -> dict[str, int]:
+    """Hôtes dont ce run voit trop peu d'URL pour reconnaître leur gabarit.
+
+    `lignes_de_chrome` ne distingue le gabarit du contenu qu'à sa RÉCURRENCE
+    sur au moins `CHROME_MIN_URLS` URL distinctes. Un run étroit — une seule
+    aide, le cas courant quand on teste — ne lui donne rien à comparer : le
+    menu du site passe alors pour du règlement et classe l'aide `MAJ_LLM`.
+
+    Mesuré sur `pdl-restauration-mh` : `MAJ_LLM` lancée seule, `OK` lancée avec
+    ses sept aides sœurs de paysdelaloire.fr. C'est un défaut de PÉRIMÈTRE du
+    run, pas de la fiche ni du modèle — et il est invisible sans cet
+    avertissement, puisque le verdict a l'air normal.
+
+    Retourne {hôte: nombre d'URL diffables vues}, pour les hôtes sous le seuil.
+    """
+    par_hote: dict[str, set[str]] = defaultdict(set)
+    for col in collects.values():
+        for murl in col.urls:
+            res = col.fetched.get(murl.url)
+            if res and res.ok and res.body_md and murl.baseline_body is not None:
+                par_hote[murl.host].add(murl.url)
+    return {h: len(urls) for h, urls in par_hote.items() if len(urls) < CHROME_MIN_URLS}
 
 
 def analyze_all(

@@ -22,7 +22,7 @@ interface Props {
 
 export function ManageDocumentAccessDialog({ document, myRole, open, onOpenChange, onSaved }: Props) {
   const updateDocument = useDocumentStore((s) => s.updateDocument);
-  // Visibilité scoptée au projet principal du document (v1 : monumentIds[0]).
+  // Visibilité scopée au monument principal du document (v1 : monumentIds[0]).
   const monumentId = document.monumentIds[0];
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [value, setValue] = useState<DocumentVisibilityValue>({

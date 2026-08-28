@@ -141,6 +141,29 @@ class MultiValue(tuple):
     __slots__ = ()
 
 
+class RangeValue(tuple):
+    """Valeur numérique connue à un INTERVALLE près : (borne basse, borne haute).
+
+    Sert aux faits déduits de la fiche plutôt que demandés : « 15e siècle » ne
+    donne pas une année mais l'intervalle 1401-1500. Un prédicat n'est tranché
+    que si les DEUX bornes s'accordent (`lt: 1800` est vrai sur tout le 15e
+    siècle) ; sinon la valeur reste indéterminée et la question est posée.
+    Sémantique universelle, à l'inverse du MultiValue existentiel.
+
+    Seuls les opérateurs de seuil (gt/gte/lt/lte) sont conclus aux bornes : ils
+    sont monotones, donc l'accord des bornes vaut pour tout l'intervalle. Un
+    `eq` dont les deux bornes sont fausses pourrait, lui, être vrai au milieu —
+    il rend None plutôt qu'un faux « non » qui éliminerait l'aide à tort.
+    """
+
+    __slots__ = ()
+
+
+# Opérateurs monotones : leur valeur de vérité ne change au plus qu'une fois sur
+# un intervalle croissant, d'où la conclusion aux bornes (cf. RangeValue).
+MONOTONE_OPS = frozenset({"gt", "gte", "lt", "lte"})
+
+
 class Predicate(RootModel[dict[str, Any]]):
     @model_validator(mode="after")
     def _check(self) -> Predicate:
@@ -157,6 +180,20 @@ class Predicate(RootModel[dict[str, Any]]):
         else:
             raise ValueError(f"opérateur de prédicat inconnu : « {op} »")
         return self
+
+
+def _evaluate_over_range(op: str, ref: Any, value: RangeValue) -> bool | None:
+    """Évalue un opérateur de comparaison sur un intervalle (cf. RangeValue)."""
+    if not value:
+        return None
+    basse, haute = value[0], value[-1]
+    if basse == haute:
+        return evaluate_predicate({op: ref}, basse)
+    if op not in MONOTONE_OPS:
+        return None
+    bas = evaluate_predicate({op: ref}, basse)
+    haut = evaluate_predicate({op: ref}, haute)
+    return bas if bas is haut else None
 
 
 def evaluate_predicate(predicate: dict[str, Any], value: Any) -> bool | None:
@@ -193,6 +230,8 @@ def evaluate_predicate(predicate: dict[str, Any], value: Any) -> bool | None:
         return True if all(r is True for r in results) else None
     if value is None:
         return None
+    if isinstance(value, RangeValue):
+        return _evaluate_over_range(op, ref, value)
     match op:
         case "eq":
             return value == ref
@@ -319,21 +358,33 @@ OPS_BY_FACT_TYPE: dict[str, frozenset[str]] = {
 # dans `communes` : ce sont des données d'enrichissement à câbler avant
 # d'activer le moteur sur les aides qui les référencent (Denormandie, DETR).
 FIELD_REGISTRY: dict[str, dict] = {
+    # Le nom du bien ne sert QU'À déduire des faits (auto_source) : « Église
+    # Saint-Martin » répond d'avance à « est-ce une église ? ». Ne jamais typer
+    # une condition d'aide dessus — un nom est saisi à la main, il ne prouve
+    # rien à lui seul.
+    "monument.nom": {"type": "string"},
     "monument.protection": {"type": "enum", "values": frozenset(PROTECTION_LABELS)},
     "monument.proprietaire": {"type": "enum", "values": frozenset(OWNERSHIP_LABELS)},
     "monument.etat_conservation": {"type": "enum", "values": frozenset(ETAT_LABELS)},
     "monument.region": {"type": "enum", "values": frozenset(REGION_LABELS)},
     "monument.departement_num": {"type": "enum", "values": frozenset(DEPARTEMENT_LABELS)},
     "monument.travaux_envisages": {"type": "list", "values": frozenset(TRAVAUX_LABELS)},
-    # Texte brut Mérimée (ex. « 15e siècle ») — sert d'auto_source, la
-    # conversion vers un entier reste à écrire côté moteur.
+    # Texte brut Mérimée (ex. « 15e siècle ») — sert d'auto_source à
+    # `annee_construction`, converti en intervalle d'années par le moteur
+    # (cf. eligibility_engine._annee_depuis_siecle).
     "monument.siecle_construction": {"type": "string"},
     "commune.population": {"type": "integer"},
     "commune.programmes": {"type": "list"},
     "commune.eligible_detr": {"type": "boolean"},
-    # SIREN de l'EPCI d'appartenance de la commune (référentiel BANATIC) —
-    # enrichissement à câbler : pas encore de colonne dans `communes`. Permet
+    # Commune éligible au dispositif Denormandie (ACV / ORT / besoin de
+    # réhabilitation de l'habitat — arrêté du 26 mars 2019, simulateur
+    # service-public). Enrichissement à câbler : colonne booléenne à ajouter
+    # dans `communes`.
+    "commune.eligible_denormandie": {"type": "boolean"},
+    # SIREN de l'EPCI d'appartenance de la commune (référentiel BANATIC), pour
     # les aides intercommunales (ex. CC Moret Seine et Loing = 247700032).
+    # Colonne `communes.epci_siren`, alimentée par
+    # scripts/seeds/seed_communes_epci.py.
     "commune.epci": {"type": "string"},
 }
 

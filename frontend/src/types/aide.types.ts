@@ -1,17 +1,31 @@
 import type { ID, ProtectionLevel, OwnershipType, Region, WorkType } from './common.types';
 
+/**
+ * Financeur de l'aide. Miroir EXACT du tuple `CATEGORIES` de
+ * [aides_schema.py](backend/aides_schema.py) : la valeur vient des YAML et
+ * traverse le moteur telle quelle. Toute divergence se voit à l'écran — un
+ * libellé introuvable retombe sur le slug brut dans le badge de l'aide.
+ */
 export type AideCategory =
   | 'etat_drac'
   | 'region'
   | 'departement'
-  | 'fondation_patrimoine'
+  | 'fondation'
   | 'europe'
   | 'mecenat'
   | 'fiscalite'
   | 'autre';
 
-export type AideType = 'subvention' | 'avance' | 'pret' | 'deduction_fiscale'
-  | 'label' | 'mecenat' | 'souscription' | 'autre';
+/** Nature du concours. Miroir du tuple `TYPES` de aides_schema.py. */
+export type AideType =
+  | 'subvention'
+  | 'appel_a_projets'
+  | 'pret'
+  | 'deduction_fiscale'
+  | 'exoneration'
+  | 'label'
+  | 'mecenat'
+  | 'souscription';
 
 /** Pièce du dossier à constituer pour une aide. */
 export interface AideDocument {
@@ -93,16 +107,15 @@ export interface AideEvaluation {
   detail?: string;
   /** Becomes true once the user answers the matching QCM question. */
   clarified?: boolean;
-  /** Nature de la condition (moteur déterministe) : pilote le regroupement de
-   * l'analyse en sections. auto | user_fact | manual_check | discretionary |
-   * modulateur | info. Absent sur l'ancien chemin LLM. */
+  /** Nature de la condition : pilote le regroupement de l'analyse en sections.
+   * auto | user_fact | manual_check | discretionary | modulateur | info. */
   nature?: 'auto' | 'user_fact' | 'manual_check' | 'discretionary' | 'modulateur' | 'info';
   /** Échec sur un critère ACTIONNABLE : à afficher comme démarche à engager,
    *  jamais comme motif de refus. Le plan détaillé est dans `AideMatchResult.leviers`. */
   levier?: boolean;
 }
 
-/** Statut d'éligibilité rendu par le moteur déterministe (absent sur le chemin LLM). */
+/** Statut d'éligibilité rendu par le moteur. */
 export type AideStatut = 'eligible' | 'atteignable' | 'potentiel' | 'non_eligible';
 
 /**
@@ -136,29 +149,28 @@ export interface AideMatchResult {
   aide: Aide;
   /** Statut explicite du moteur déterministe : à préférer à toute dérivation. */
   statut?: AideStatut;
-  /** Fenêtre de candidature du jour. Absent sur l'ancien chemin LLM et sur le
-   *  moteur client (`matching-engine.ts`) : lire via `getDisponibilite`, qui
-   *  retombe sur « maintenant ». */
+  /** Fenêtre de candidature du jour. Lire via `getDisponibilite`, qui retombe
+   *  sur « maintenant » quand le champ est absent. */
   disponibilite?: AideDisponibilite;
   eligible: boolean;
   criteresRemplis: string[];
   criteresNonRemplis: string[];
   raisonIneligibilite?: string;
+  /** Le refus vient-il d'une réponse au questionnaire (`true`) ou des seuls
+   *  filtres automatiques déduits de la fiche du monument (`false`) ? Toujours
+   *  `false` hors statut « non éligible ». */
+  elimineParReponse?: boolean;
   /** Plans d'action des critères à débloquer (statut « atteignable »). */
   leviers?: AideLevier[];
+  /** Nom vestigial : ce sont les verdicts déterministes, condition par
+   *  condition. Rien de LLM ici. */
   llmEvaluation?: {
     explication: string;
-    /** One verdict per bullet of conditions_eligibilite_detail. */
+    /** Un verdict par condition évaluée. */
     evaluations?: AideEvaluation[];
     /** Derived view: the evaluations with verdict === 'incertitude'. Drives the QCM. */
     incertitudes: (string | { categorie: string; detail: string; clarified?: boolean })[];
   };
-}
-
-export interface AideDiagnosticRequest {
-  monumentId: ID;
-  modeProjet: boolean;
-  travauxFiltres?: WorkType[];
 }
 
 export interface QcmOption {
@@ -202,20 +214,28 @@ export interface QcmQuestion {
 }
 
 export interface AideDiagnosticResult {
-  id?: string;
+  /** Le PROJET de travaux diagnostiqué — clé du store de diagnostics et des
+   *  liens d'échéance. Absent sur le chemin de compatibilité `monument_id`
+   *  (onglet SPA non rechargé) quand le monument n'a encore aucun projet. */
+  projetId?: ID;
+  /** Le monument parent, tel que rendu par le moteur. Reste la clé du paywall. */
   monumentId: ID;
   timestamp: string;
-  modeProjet?: boolean;
-  travauxFiltres?: string[];
   totalAidesAnalysees: number;
   aidesEligibles: AideMatchResult[];
   aidesPotentiellementEligibles: AideMatchResult[];
   /** « À débloquer » : bloquées sur un seul critère actionnable, triées par enjeu
-   *  décroissant. Absent sur l'ancien chemin LLM. */
+   *  décroissant. */
   aidesAtteignables?: AideMatchResult[];
   aidesNonEligibles: AideMatchResult[];
   montantPotentielTotal?: number;
   montantAtteignableTotal?: number;
+  /** Part maximale du coût des travaux couverte, en %. Somme des taux des trois
+   *  seaux affichés (maintenant / à confirmer / à débloquer), écrêtée à 80 % :
+   *  le maître d'ouvrage garde au moins 20 % à sa charge. N'agrège que les aides
+   *  qui subventionnent les travaux — dispositifs fiscaux (Denormandie,
+   *  Malraux…), prêts et labels en sont exclus. */
+  tauxTravauxMaxPct?: number;
   qcmQuestions?: QcmQuestion[];
   /** Réponses renvoyées telles quelles par le moteur : un id d'option, ou un
    *  tableau d'ids sur une question à choix multiple. */
@@ -242,10 +262,16 @@ export interface AideDigest {
  * `project-stats` acceptent les deux indifféremment.
  */
 export interface ProjectDigest {
+  /** Un digest décrit un PROJET : c'est par lui que le front l'indexe.
+   *  Optionnel comme sur `AideDiagnosticResult`, qui doit en rester un
+   *  sur-ensemble structurel (project-stats consomme les deux). */
+  projetId?: ID;
+  /** Monument parent — clé du paywall et de l'agrégation par monument. */
   monumentId: ID;
   aidesEligibles: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
   aidesPotentiellementEligibles: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
   aidesAtteignables?: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
   montantPotentielTotal?: number;
   montantAtteignableTotal?: number;
+  tauxTravauxMaxPct?: number;
 }

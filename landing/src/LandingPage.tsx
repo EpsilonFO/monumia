@@ -456,10 +456,10 @@ function EstimationCard() {
       </div>
 
       <h3 className="mt-2.5 font-serif text-[1.15rem] font-bold leading-snug" style={{ color: C.ink }}>
-        Château de Trévarez
+        Château de Paley
       </h3>
       <p className="text-[12.5px]" style={{ color: C.inkFaint }}>
-        Restauration des toitures · Finistère
+        Restauration de la façade · Seine-et-Marne
       </p>
 
       <p className="mt-4 text-[11.5px] font-medium uppercase tracking-[0.1em]" style={{ color: C.inkFaint }}>
@@ -580,7 +580,7 @@ function Hero() {
             style={{ borderColor: C.border }}
           >
             <img
-              src={`${BASE}img/trevarez-hero.jpg`}
+              src={`${BASE}img/paley.jpg`}
               alt="Le château de Trévarez, en Finistère, monument historique en cours de rénovation, au bout de son allée d’arbres"
               className="aspect-[4/5] w-full object-cover"
               style={{ objectPosition: '50% 0%' }}
@@ -1878,7 +1878,7 @@ function Pricing() {
                 Dossier
               </h3>
               <p className="mt-1 text-[14px]" style={{ color: C.inkFaint }}>
-                Pour monter un dossier solide, du premier coup.
+                Pour monter un projet solide, facilement.
               </p>
               <p className="mt-6 font-serif text-[1.6rem] font-bold leading-none" style={{ color: C.blue }}>
                 Paiement unique
@@ -1935,7 +1935,6 @@ function Pricing() {
                 <ul className="mt-3 space-y-3">
                   {[
                     'La veille et les alertes : nouvelles aides, ouvertures de fondations',
-                    'Le tableau de bord de tous vos projets',
                     'Les suggestions de projets que votre lieu pourrait financer',
                     'Le suivi d’avancement de chaque demande',
                     'La recherche libre des mécènes et fondations',
@@ -2173,7 +2172,7 @@ function Footer() {
               </li>
               <li>
                 <a
-                  href="#"
+                  href={`${BASE}cgu#mentions-legales`}
                   className="text-[14px] transition-colors duration-200 hover:text-[#0a369d]"
                   style={{ color: C.inkSoft }}
                 >
@@ -2182,7 +2181,16 @@ function Footer() {
               </li>
               <li>
                 <a
-                  href="#"
+                  href={`${BASE}cgu`}
+                  className="text-[14px] transition-colors duration-200 hover:text-[#0a369d]"
+                  style={{ color: C.inkSoft }}
+                >
+                  Conditions générales d'utilisation
+                </a>
+              </li>
+              <li>
+                <a
+                  href={`${BASE}confidentialite`}
                   className="text-[14px] transition-colors duration-200 hover:text-[#0a369d]"
                   style={{ color: C.inkSoft }}
                 >

@@ -8,25 +8,33 @@ repos:
 
   - repo: local
     hooks:
-      # Pre-commit: format and auto-fix before committing
+      # Pre-commit: format and auto-fix before committing.
+      # PAS de `git add -u` ici : un hook qui met l'index en scène sous
+      # pre-commit casse sa mécanique de remise (stash puis restauration), et
+      # depuis un worktree secondaire l'index en ressort VIDE — le commit
+      # enregistre alors la suppression de tout le dépôt (arbre racine vide).
+      # Si ruff reformate, pre-commit signale « files were modified by this
+      # hook » : il suffit de re-stager et de recommitter.
       - id: ruff-format
         name: ruff format
-        entry: bash -c 'cd backend && uv run ruff format . && git add -u'
+        entry: bash -c 'cd backend && uv run ruff format .'
         language: system
         pass_filenames: false
         stages: [pre-commit]
 
       - id: ruff-fix
         name: ruff lint fix
-        entry: bash -c 'cd backend && uv run ruff check --fix . && git add -u'
+        entry: bash -c 'cd backend && uv run ruff check --fix .'
         language: system
         pass_filenames: false
         stages: [pre-commit]
 
       # Pre-commit: frontend type check (same as docker build)
+      # Passe par scripts/tsc-check.sh : gère l'absence de node_modules dans les
+      # worktrees et interdit tout téléchargement npx (cf. commentaire du script).
       - id: tsc
         name: typescript type check
-        entry: bash -c 'cd frontend && npx tsc -b'
+        entry: scripts/tsc-check.sh
         language: system
         pass_filenames: false
         stages: [pre-commit]

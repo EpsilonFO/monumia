@@ -94,6 +94,10 @@ class MajResult:
     cosmetiques: int = 0
     tentatives: int = 0
     cout_usd: float = 0.0
+    # Cumulés sur TOUS les appels de l'aide, relance de correction comprise :
+    # c'est la consommation réelle du passage, pas celle du dernier appel.
+    tokens_in: int = 0
+    tokens_out: int = 0
     latence_s: float = 0.0
     etape_echec: str | None = None
     # Dernière réponse du modèle, conservée UNIQUEMENT en cas d'échec. Sans
@@ -154,9 +158,12 @@ def mettre_a_jour(
         res.etape_echec = "collecte"
         return res
 
-    prompt = build_prompt(
-        aide, documents, resume_diff(an, max_lignes=MAX_LIGNES_DIFF), aujourd_hui=aujourd_hui
-    )
+    # Calculé UNE fois : l'ancrage des citations doit juger sur le diff
+    # exactement tel que le modèle l'a vu. Le recalculer risquerait de refuser
+    # une citation issue d'une ligne écartée par la troncature, ou d'en accepter
+    # une que le modèle n'avait pas sous les yeux.
+    diff = resume_diff(an, max_lignes=MAX_LIGNES_DIFF)
+    prompt = build_prompt(aide, documents, diff, aujourd_hui=aujourd_hui)
     system = system_pour(spec)
 
     applied = None
@@ -166,6 +173,8 @@ def mettre_a_jour(
         appel = call(spec, system, prompt)
         res.tentatives += 1
         res.cout_usd += appel.cost_usd or 0.0
+        res.tokens_in += appel.input_tokens
+        res.tokens_out += appel.output_tokens
         res.latence_s += appel.latency_s
         if not appel.ok:
             if appel.reponse_vide and not relance_vide:
@@ -181,7 +190,14 @@ def mettre_a_jour(
             res.etape_echec = "appel"
             return res
         reponse = appel.text
-        applied = appliquer(reponse, aide, chemin, documents, aujourd_hui=aujourd_hui.isoformat())
+        applied = appliquer(
+            reponse,
+            aide,
+            chemin,
+            documents,
+            aujourd_hui=aujourd_hui.isoformat(),
+            diff=diff,
+        )
         if applied.ok or not applied.rattrapable or corrections:
             break
         corrections += 1
@@ -200,6 +216,17 @@ def mettre_a_jour(
             res.etat = "escalade"
             res.raison = "changement majeur déclaré par le modèle : " + (
                 applied.output.raison_changement_majeur or "sans raison fournie"
+            )
+        elif applied.etape == "ancrage":
+            # Pas un rejet sec : la proposition peut être juste et refléter une
+            # divergence réelle entre la fiche et la source — simplement pas un
+            # CHANGEMENT de la source, donc hors mandat de la veille. Elle part
+            # à la relecture humaine plutôt qu'à la poubelle.
+            res.etat = "escalade"
+            res.raison = (
+                f"{len(applied.erreurs)} citation(s) non ancrée(s) dans le diff : "
+                "la fiche diverge peut-être de la source, mais la source n'a pas "
+                "changé sur ces points — relecture humaine ou /ingest-aide"
             )
         else:
             premiere = applied.erreurs[0] if applied.erreurs else "sans détail"

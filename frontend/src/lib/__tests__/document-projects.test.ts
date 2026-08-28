@@ -23,6 +23,7 @@ function makeDoc(monumentIds: string[]): Document {
   return {
     id: 'doc-1',
     monumentIds,
+    projetIds: [],
     userId: 'u1',
     nom: 'Doc',
     nomFichier: 'doc.pdf',

@@ -1,9 +1,8 @@
 import { create } from 'zustand';
 
-// In-memory only, comme usePendingRegistrationStore : jamais persisté en
-// localStorage / sessionStorage. Contient les jetons Supabase issus du flux
-// Google le temps que l'utilisateur termine l'onboarding (segment + profil).
-// Un rechargement de page vide le store → retour au /login, comme le flux email.
+// In-memory only : jamais persisté en localStorage / sessionStorage. Contient
+// les jetons Supabase issus du flux Google le temps que l'utilisateur complète
+// son profil. Un rechargement de page vide le store → retour au /login.
 interface PendingOAuthSession {
   accessToken: string;
   refreshToken: string;

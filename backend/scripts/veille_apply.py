@@ -48,7 +48,7 @@ from aides_schema import Aide, Predicate, load_facts, load_pending_facts
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lint_aides_data import check_fact_predicate, check_field_predicate
-from veille_text import find_quote_in_any, is_cosmetic_change
+from veille_text import find_quote_in_any, is_cosmetic_change, normalize_line
 
 # Largeur de repli des block scalars, alignée sur `line-length = 100` de ruff
 # et sur ce que font les fiches existantes.
@@ -69,11 +69,53 @@ CHAMPS_PAR_SECTION = {
     "cumul": CHAMPS_CUMUL,
 }
 
-# Champs modifiables sur une condition existante. `kind`, `effect`, `fact` et
-# `field` en sont ABSENTS volontairement : les changer, c'est re-typer la
-# condition — un changement majeur qui relève de `/typer-aides` et d'une
-# ré-ingestion, pas d'une retouche automatique.
+# Origine par défaut du libellé de note d'une condition ajoutée. Paramétrée
+# parce que `veille_audit.py` réutilise cet éditeur : une condition ajoutée par
+# l'audit d'exhaustivité ne vient PAS d'un changement de source, et la note doit
+# le dire — c'est elle qui, dans six mois, expliquera d'où sort la condition.
+ORIGINE_DEFAUT = "veille"
+
+
+def note_ajout(origine: str, aujourd_hui: str) -> str:
+    """Libellé de traçabilité d'une condition ajoutée, à typer plus tard.
+
+    Un seul endroit pour le produire : l'éditeur et le témoin de différence
+    profonde DOIVENT écrire exactement la même chaîne, sinon le deep-diff casse
+    et l'aide part en échec d'édition alors que tout est correct.
+    """
+    return f"ajoutée par {origine} du {aujourd_hui}, à typer"
+
+
+# Champs modifiables sur une condition existante par la VEILLE. `kind`,
+# `effect`, `fact` et `field` en sont ABSENTS volontairement : les changer,
+# c'est re-typer la condition, ce qui ne relève pas d'une retouche de source.
 CHAMPS_CONDITION = frozenset({"text", "quote", "notes", "predicate"})
+
+# Liste blanche du TYPAGE (`veille_typage.py`), qui a précisément pour mandat de
+# poser kind/effect/fact/field/predicate sur une condition `untyped`. Elle est
+# passée explicitement à `appliquer` : la valeur par défaut reste celle de la
+# veille, pour qu'aucun appelant existant ne gagne ce pouvoir par accident.
+# `text` et `quote` en sont exclus — le typage ne touche jamais au fond, et
+# reformuler le texte d'une condition reste interdit quel que soit l'outil.
+CHAMPS_TYPAGE = frozenset({"kind", "effect", "fact", "field", "predicate", "notes"})
+
+# Ordre des champs d'une condition dans les fiches écrites à la main. Sert à
+# INSÉRER un champ absent à sa place plutôt qu'en fin d'item : le `git diff` est
+# la revue, et un `effect` atterrissant après `notes` fait buter le relecteur
+# sur la forme au lieu du fond. Un champ hors de cette liste va en fin d'item.
+ORDRE_CHAMPS_CONDITION = (
+    "id",
+    "text",
+    "kind",
+    "effect",
+    "fact",
+    "field",
+    "predicate",
+    "applies_if",
+    "derogation_possible",
+    "quote",
+    "notes",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +183,9 @@ class VeilleLLMOutput(BaseModel):
 # Résultat
 # ---------------------------------------------------------------------------
 
-Issue = Literal["json", "schema", "referentiel", "quote", "majeur", "edition", "deep_diff", "lint"]
+Issue = Literal[
+    "json", "schema", "referentiel", "quote", "ancrage", "majeur", "edition", "deep_diff", "lint"
+]
 
 
 @dataclass
@@ -169,6 +213,10 @@ class ApplyResult:
         Non non plus pour `majeur` : un « ça me dépasse » auto-déclaré est une
         RÉPONSE, pas une erreur. Le redemander coûterait un appel pour, au
         mieux, la même réponse — au pire une contradiction.
+
+        Non pour `ancrage` : le modèle a cité correctement une page qui n'a pas
+        bougé sur ce point. Il n'a rien à corriger, c'est sa lecture de la tâche
+        qui est en cause. Le relancer produirait la même proposition.
         """
         return self.etape in ("json", "schema", "referentiel", "quote")
 
@@ -180,8 +228,16 @@ class ApplyResult:
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*\n(.*?)\n?\s*```\s*$", re.DOTALL)
 
 
-def parse_output(texte: str, slug: str) -> tuple[VeilleLLMOutput | None, list[str], Issue | None]:
-    """Étapes 1-2. Retourne (sortie, erreurs, étape en échec)."""
+def parse_json_output[M: BaseModel](
+    texte: str, modele: type[M]
+) -> tuple[M | None, list[str], Issue | None]:
+    """Étapes 1-2, génériques sur le modèle de sortie attendu.
+
+    Générique depuis que `veille_audit.py` valide sa propre sortie : la
+    tolérance aux fences et la mise en forme des erreurs de schéma doivent être
+    IDENTIQUES d'un outil à l'autre, sinon un modèle acceptable pour la veille
+    serait rejeté par l'audit pour une raison de forme.
+    """
     brut = texte.strip()
     if m := _FENCE_RE.match(brut):
         brut = m.group(1)
@@ -192,10 +248,15 @@ def parse_output(texte: str, slug: str) -> tuple[VeilleLLMOutput | None, list[st
     if not isinstance(data, dict):
         return None, [f"objet JSON attendu, reçu {type(data).__name__}"], "json"
     try:
-        return VeilleLLMOutput.model_validate(data), [], None
+        return modele.model_validate(data), [], None
     except ValidationError as exc:
         erreurs = [f"{'.'.join(str(p) for p in e['loc'])} : {e['msg']}" for e in exc.errors()[:12]]
         return None, erreurs, "schema"
+
+
+def parse_output(texte: str, slug: str) -> tuple[VeilleLLMOutput | None, list[str], Issue | None]:
+    """Étapes 1-2 pour la sortie de veille. `slug` reste pour la compatibilité."""
+    return parse_json_output(texte, VeilleLLMOutput)
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +264,12 @@ def parse_output(texte: str, slug: str) -> tuple[VeilleLLMOutput | None, list[st
 # ---------------------------------------------------------------------------
 
 
-def check_referentiel(out: VeilleLLMOutput, aide: Aide) -> list[str]:
+def check_referentiel(
+    out: VeilleLLMOutput,
+    aide: Aide,
+    champs_autorises: frozenset[str] = CHAMPS_CONDITION,
+    facts_extra: dict[str, Any] | None = None,
+) -> list[str]:
     """Le modèle parle-t-il bien de CETTE aide, et de conditions qui existent ?"""
     erreurs: list[str] = []
     if out.slug is not None and out.slug != aide.slug:
@@ -230,7 +296,7 @@ def check_referentiel(out: VeilleLLMOutput, aide: Aide) -> list[str]:
             if chg.id not in existants:
                 erreurs.append(f"condition « {chg.id} » : inconnue dans l'aide")
             if chg.op == "update":
-                erreurs.extend(_check_update(chg, aide))
+                erreurs.extend(_check_update(chg, aide, champs_autorises, facts_extra))
 
     for nom, section in (
         ("calendrier", out.calendrier),
@@ -250,12 +316,17 @@ def check_referentiel(out: VeilleLLMOutput, aide: Aide) -> list[str]:
     return erreurs
 
 
-def _check_update(chg: ChangementCondition, aide: Aide) -> list[str]:
+def _check_update(
+    chg: ChangementCondition,
+    aide: Aide,
+    champs_autorises: frozenset[str] = CHAMPS_CONDITION,
+    facts_extra: dict[str, Any] | None = None,
+) -> list[str]:
     erreurs: list[str] = []
     if not chg.champs:
         erreurs.append(f"condition « {chg.id} » : op=update exige `champs`")
         return erreurs
-    hors = sorted(set(chg.champs) - CHAMPS_CONDITION)
+    hors = sorted(set(chg.champs) - champs_autorises)
     if hors:
         erreurs.append(
             f"condition « {chg.id} » : champ(s) {hors} non modifiables par la veille. "
@@ -263,15 +334,22 @@ def _check_update(chg: ChangementCondition, aide: Aide) -> list[str]:
             "répondre changement_majeur=true."
         )
     if "predicate" in chg.champs:
-        erreurs.extend(_check_predicate(chg, aide))
+        erreurs.extend(_check_predicate(chg, aide, facts_extra))
     return erreurs
 
 
-def _check_predicate(chg: ChangementCondition, aide: Aide) -> list[str]:
+def _check_predicate(
+    chg: ChangementCondition, aide: Aide, facts_extra: dict[str, Any] | None = None
+) -> list[str]:
     """Valide un prédicat avec les MÊMES contrôles que le linter du dépôt.
 
     Réutilisés tels quels plutôt que réécrits : un prédicat que la veille
     accepterait et que le lint refuse laisserait le dépôt cassé après coup.
+
+    `facts_extra` porte les faits qui n'existent pas ENCORE sur disque : le
+    typage (`veille_typage.py`) propose un fait et pose un prédicat dessus dans
+    le même mouvement, et `facts_pending.yaml` n'est écrit qu'une fois l'édition
+    validée — pour ne pas y laisser un fait orphelin si l'écriture échoue.
     """
     cond = next((c for c in aide.conditions if c.id == chg.id), None)
     if cond is None:
@@ -282,12 +360,18 @@ def _check_predicate(chg: ChangementCondition, aide: Aide) -> list[str]:
     except ValidationError as exc:
         return [f"condition « {chg.id} » : prédicat invalide — {exc.errors()[0]['msg']}"]
     where = f"condition « {chg.id} »"
-    if cond.kind == "user_fact":
-        facts = {**load_facts(), **load_pending_facts()}
-        return check_fact_predicate(where, cond.fact, predicate, facts)
-    if cond.kind == "auto":
-        return check_field_predicate(where, cond.field, predicate)
-    return [f"{where} : kind={cond.kind} n'admet pas de prédicat"]
+    # Le prédicat se valide contre le kind, le fait et le champ que la condition
+    # AURA une fois le changement appliqué, pas contre ceux qu'elle a encore.
+    # Sans ça, un re-typage `untyped` → `user_fact` posé dans le même update se
+    # ferait refuser au motif que `untyped` n'admet pas de prédicat.
+    champs = chg.champs
+    kind = champs.get("kind", cond.kind)
+    if kind == "user_fact":
+        facts = {**load_facts(), **load_pending_facts(), **(facts_extra or {})}
+        return check_fact_predicate(where, champs.get("fact", cond.fact), predicate, facts)
+    if kind == "auto":
+        return check_field_predicate(where, champs.get("field", cond.field), predicate)
+    return [f"{where} : kind={kind} n'admet pas de prédicat"]
 
 
 # ---------------------------------------------------------------------------
@@ -332,6 +416,105 @@ def check_quotes(out: VeilleLLMOutput, documents: list[tuple[str, str, str]]) ->
             verifier(chg.condition.quote, f"condition « {chg.id} »")
         elif chg.op == "update" and chg.champs and "quote" in chg.champs:
             verifier(str(chg.champs["quote"]), f"condition « {chg.id} »")
+    return erreurs
+
+
+# ---------------------------------------------------------------------------
+# Étape 5 : la citation vient-elle de ce qui a CHANGÉ ?
+# ---------------------------------------------------------------------------
+
+
+def lignes_ajoutees(diff: str) -> str:
+    """Contenu des seules lignes `+` d'un diff, concaténé.
+
+    Sert de document au grep d'ancrage. Les lignes `-` sont exclues : une
+    citation qui ne se trouve que dans le texte SUPPRIMÉ décrit l'ancien
+    règlement, pas le nouveau.
+    """
+    return "\n".join(ligne[2:] for ligne in diff.splitlines() if ligne.startswith("+ "))
+
+
+def check_ancrage(out: VeilleLLMOutput, diff: str) -> list[str]:
+    """Chaque citation justifiant un changement doit venir de ce qui a CHANGÉ.
+
+    `check_quotes` demande « cette citation est-elle dans la page ? ». La page
+    ayant toujours dit ce qu'elle dit, une citation authentique n'y prouve rien :
+    c'est ainsi qu'un faux changement de taux a franchi toute la chaîne sur
+    `pdl-restauration-mh`, cité mot pour mot depuis une page dont le passage en
+    question n'avait pas bougé d'une virgule.
+
+    La question utile est « cette citation est-elle dans ce qui a changé ? ».
+    Le grep porte donc sur les seules lignes ajoutées du diff.
+
+    Le mandat de la veille étant la RETOUCHE de ce qui a bougé, une proposition
+    non ancrée est hors mandat — même quand elle est juste. Si la fiche diverge
+    de la source sans que la source ait changé, c'est une erreur d'ingestion à
+    reprendre par `/ingest-aide`, pas une mise à jour.
+
+    Faux négatifs assumés : diff tronqué par `MAX_CHARS_DIFF`, clause déplacée
+    sans être modifiée, page régénérée sous un autre gabarit. L'appelant traite
+    donc cet échec en ESCALADE et non en rejet sec — la proposition part à la
+    relecture humaine au lieu d'être perdue.
+    """
+    ajoutees = lignes_ajoutees(diff)
+    if not ajoutees.strip():
+        # Aucune ligne ajoutée : rien n'a pu motiver une modification. Le cas
+        # se produit quand le triage a déclenché sur des suppressions seules,
+        # ou sur des citations manquantes.
+        if out.est_vide:
+            return []
+        return ["aucune ligne ajoutée dans le diff : aucun changement à retoucher"]
+
+    documents: list[tuple[str, str, str]] = [("diff", ajoutees, "text")]
+    erreurs: list[str] = []
+
+    def ancrer(quote: str, ou: str) -> None:
+        """Au moins une LIGNE substantielle de la citation doit être ajoutée.
+
+        Pas la citation entière et contiguë : une citation qui couvre une zone
+        de tableau ou de liste enjambe des lignes inchangées, et le diff ne
+        garde que les lignes modifiées. Exiger la contiguïté rejetait alors un
+        vrai changement — mesuré sur `56-valorisation-restauration-patrimoine`,
+        dont trois lignes de la citation étaient bien des ajouts mais séparées
+        par du contexte (préfixe commun 53 %).
+
+        La question utile n'est pas « toute la citation est-elle neuve ? » mais
+        « ce que tu cites contient-il du neuf ? ». Si AUCUNE de ses lignes n'a
+        été ajoutée, la proposition ne décrit pas un changement.
+        """
+        if not quote.strip():
+            return
+        lignes = [ligne for ligne in quote.splitlines() if len(normalize_line(ligne)) >= 25]
+        # Citation trop courte pour être découpée : contrôle global, la
+        # contiguïté n'est alors pas une contrainte supplémentaire.
+        candidates = lignes or [quote]
+        for ligne in candidates:
+            _, match = find_quote_in_any(ligne, documents)  # type: ignore[arg-type]
+            if match.found:
+                return
+        extrait = " ".join(quote.split())[:90]
+        erreurs.append(
+            f"{ou} : aucune ligne de la citation ne figure dans les ajouts du "
+            f"diff — la source n'a pas changé sur ce point « {extrait} »"
+        )
+
+    for nom, section in (
+        ("calendrier", out.calendrier),
+        ("financement", out.financement),
+        ("cumul", out.cumul),
+    ):
+        if section is not None:
+            ancrer(section.quote, nom)
+    for chg in out.conditions:
+        # `signaler_disparue` n'a par nature aucune citation à ancrer : ce qui
+        # la justifie est une ABSENCE. Elle échappe donc à ce contrôle.
+        if chg.op == "signaler_disparue":
+            continue
+        quote = (chg.champs or {}).get("quote") if chg.champs else None
+        if chg.condition is not None:
+            quote = chg.condition.quote
+        if quote:
+            ancrer(quote, f"condition « {chg.id} »")
     return erreurs
 
 
@@ -620,7 +803,10 @@ def _editions_section(
 
 
 def _editions_conditions(
-    lignes: list[str], changements: list[ChangementCondition], aujourd_hui: str
+    lignes: list[str],
+    changements: list[ChangementCondition],
+    aujourd_hui: str,
+    origine: str = ORIGINE_DEFAUT,
 ) -> tuple[list[_Edition], list[str], int]:
     editions: list[_Edition] = []
     erreurs: list[str] = []
@@ -629,7 +815,7 @@ def _editions_conditions(
     for chg in changements:
         if chg.op == "add":
             assert chg.condition is not None
-            editions.append(_edition_ajout(lignes, chg, aujourd_hui))
+            editions.append(_edition_ajout(lignes, chg, aujourd_hui, origine))
             continue
 
         span = _localiser_condition(lignes, chg.id)
@@ -651,10 +837,11 @@ def _editions_conditions(
             ligne_cle = _localiser_dans(lignes, debut_item, fin_item, cle)
             if ligne_cle is None:
                 indent = _indent_de(lignes[debut_item]) + 2
+                point = _point_insertion(lignes, debut_item, fin_item, cle)
                 editions.append(
                     _Edition(
-                        fin_item,
-                        fin_item,
+                        point,
+                        point,
                         emit_field(cle, valeur, indent),
                         f"{chg.id}.{cle} (ajout)",
                     )
@@ -676,6 +863,24 @@ def _editions_conditions(
                 )
             )
     return editions, erreurs, cosmetiques
+
+
+def _point_insertion(lignes: list[str], debut: int, fin: int, cle: str) -> int:
+    """Ligne où insérer un champ absent d'un item de condition.
+
+    Juste avant le premier champ qui le suit dans l'ordre canonique, et à défaut
+    en fin d'item. Un champ inconnu de l'ordre va en fin d'item — le
+    comportement historique, conservé pour ne rien changer aux appelants.
+    """
+    if cle not in ORDRE_CHAMPS_CONDITION:
+        return fin
+    rang = ORDRE_CHAMPS_CONDITION.index(cle)
+    point = fin
+    for suivant in ORDRE_CHAMPS_CONDITION[rang + 1 :]:
+        ligne = _localiser_dans(lignes, debut, fin, suivant)
+        if ligne is not None:
+            point = min(point, _span_champ(lignes, ligne)[0])
+    return point
 
 
 def _valeur_brute(bloc: str, cle: str) -> str:
@@ -709,7 +914,12 @@ def _edition_note(
     ), None
 
 
-def _edition_ajout(lignes: list[str], chg: ChangementCondition, aujourd_hui: str) -> _Edition:
+def _edition_ajout(
+    lignes: list[str],
+    chg: ChangementCondition,
+    aujourd_hui: str,
+    origine: str = ORIGINE_DEFAUT,
+) -> _Edition:
     """Insère une condition, dans le style de liste local au fichier."""
     assert chg.condition is not None
     debut_conditions = _localiser(lignes, ["conditions"])
@@ -730,9 +940,9 @@ def _edition_ajout(lignes: list[str], chg: ChangementCondition, aujourd_hui: str
     if chg.condition.kind == "info":
         item["effect"] = "info"
     item["quote"] = chg.condition.quote
-    # Trace explicite : une condition ajoutée par la veille n'est pas typée, et
-    # le workflow /typer-aides doit pouvoir la retrouver.
-    ajout = f"ajoutée par veille du {aujourd_hui}, à typer"
+    # Trace explicite : une condition ajoutée automatiquement n'est pas typée,
+    # et le workflow /typer-aides doit pouvoir la retrouver.
+    ajout = note_ajout(origine, aujourd_hui)
     item["notes"] = f"{chg.condition.notes} — {ajout}" if chg.condition.notes else ajout
 
     rendu = emit_item(item, indent_item)
@@ -785,7 +995,9 @@ def appliquer_editions(texte: str, editions: list[_Edition]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def attendu_apres(ancien: dict, out: VeilleLLMOutput, aujourd_hui: str) -> dict:
+def attendu_apres(
+    ancien: dict, out: VeilleLLMOutput, aujourd_hui: str, origine: str = ORIGINE_DEFAUT
+) -> dict:
     """Ce que le dictionnaire DOIT devenir, calculé indépendamment de l'éditeur.
 
     Volontairement écrit sans regarder le texte : c'est le témoin. Si le
@@ -830,7 +1042,7 @@ def attendu_apres(ancien: dict, out: VeilleLLMOutput, aujourd_hui: str) -> dict:
             if chg.condition.kind == "info":
                 item["effect"] = "info"
             item["quote"] = chg.condition.quote
-            ajout = f"ajoutée par veille du {aujourd_hui}, à typer"
+            ajout = note_ajout(origine, aujourd_hui)
             item["notes"] = f"{chg.condition.notes} — {ajout}" if chg.condition.notes else ajout
             index = len(conditions)
             if chg.apres_id:
@@ -896,6 +1108,10 @@ def appliquer(
     documents: list[tuple[str, str, str]],
     *,
     aujourd_hui: str,
+    diff: str = "",
+    origine: str = ORIGINE_DEFAUT,
+    champs_condition: frozenset[str] = CHAMPS_CONDITION,
+    facts_extra: dict[str, Any] | None = None,
 ) -> ApplyResult:
     """Chaîne complète. Ne touche au disque que si TOUT passe.
 
@@ -918,11 +1134,16 @@ def appliquer(
         ]
         return res
 
-    if erreurs := check_referentiel(out, aide):
+    if erreurs := check_referentiel(out, aide, champs_condition, facts_extra):
         res.erreurs, res.etape = erreurs, "referentiel"
         return res
     if erreurs := check_quotes(out, documents):
         res.erreurs, res.etape = erreurs, "quote"
+        return res
+    # `diff` vide = appelant qui ne le fournit pas (benchmark en mode brut) :
+    # on ne peut pas ancrer, et refuser par défaut casserait ces appelants.
+    if diff and (erreurs := check_ancrage(out, diff)):
+        res.erreurs, res.etape = erreurs, "ancrage"
         return res
 
     ancien_texte = chemin.read_text(encoding="utf-8")
@@ -943,7 +1164,7 @@ def appliquer(
             eds, errs = _editions_section(lignes, nom, section.champs)
             editions.extend(eds)
             erreurs.extend(errs)
-    eds, errs, cosmetiques = _editions_conditions(lignes, out.conditions, aujourd_hui)
+    eds, errs, cosmetiques = _editions_conditions(lignes, out.conditions, aujourd_hui, origine)
     editions.extend(eds)
     erreurs.extend(errs)
     res.cosmetiques = cosmetiques
@@ -969,7 +1190,7 @@ def appliquer(
         res.erreurs, res.etape = [f"YAML invalide après édition : {exc}"], "edition"
         return res
     ancien_dict = yaml.safe_load(ancien_texte)
-    if ecarts := deep_diff(attendu_apres(ancien_dict, out, aujourd_hui), obtenu):
+    if ecarts := deep_diff(attendu_apres(ancien_dict, out, aujourd_hui, origine), obtenu):
         res.erreurs, res.etape = ecarts, "deep_diff"
         return res
 

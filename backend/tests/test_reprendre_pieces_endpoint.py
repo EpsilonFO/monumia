@@ -83,7 +83,8 @@ class _FakeSupabase:
 
 _DOSSIER = {
     "id": "d1",
-    "monument_id": "p1",
+    "monument_id": "m1",
+    "projet_id": "p1",
     "user_id": "u1",
     "checklist": [
         {
@@ -108,7 +109,10 @@ class ReprendrePiecesTests(unittest.TestCase):
 
         reprise = [{**_DOSSIER["checklist"][0], "statut": "repris", "documentId": "doc1"}]
         with (
-            patch("routers.dossiers.require_project_access", return_value=None),
+            patch(
+                "routers.dossiers.require_projet_access",
+                return_value=({"id": "p1", "monument_id": "m1"}, "owner"),
+            ),
             patch("routers.dossiers.apply_reuse", return_value=(reprise, 1)) as faux,
         ):
             reprendre_pieces("d1", user_id="u1", supabase=supabase)
@@ -135,7 +139,8 @@ class ResolutionPieceIdsTests(unittest.TestCase):
     def _dossier(self) -> dict:
         return {
             "id": "d1",
-            "monument_id": "p1",
+            "monument_id": "m1",
+            "projet_id": "p1",
             "aide_id": "drac-restauration",
             "checklist": [
                 {"id": "i1", "label": "RIB", "ordre": 1, "statut": "manquant", "obligatoire": True},
@@ -159,7 +164,10 @@ class ResolutionPieceIdsTests(unittest.TestCase):
             return (retour_reprise[0] or checklist), retour_reprise[1]
 
         with (
-            patch("routers.dossiers.require_project_access", return_value=None),
+            patch(
+                "routers.dossiers.require_projet_access",
+                return_value=({"id": "p1", "monument_id": "m1"}, "owner"),
+            ),
             patch("routers.dossiers.apply_reuse", side_effect=_capture),
         ):
             reprendre_pieces("d1", user_id="u1", supabase=supabase)
@@ -274,10 +282,13 @@ class CreationRobusteTests(unittest.TestCase):
         from routers.dossiers import CreateDossierRequest, create_dossier
 
         supabase = self._supabase()
-        body = CreateDossierRequest(monument_id="p1", aide_id="a1", travaux_prevus=[])
+        body = CreateDossierRequest(projet_id="p1", aide_id="a1", travaux_prevus=[])
 
         with (
-            patch("routers.dossiers.require_project_access", return_value=None),
+            patch(
+                "routers.dossiers.require_projet_access",
+                return_value=({"id": "p1", "monument_id": "m1"}, "owner"),
+            ),
             patch("routers.dossiers._enrich_monument", side_effect=lambda _sb, m: m),
             patch("routers.dossiers.apply_reuse", side_effect=RuntimeError("PostgREST HS")),
         ):
@@ -368,9 +379,11 @@ class _Table:
         return self
 
     def single(self):
+        self._single = True
         return self
 
     def maybe_single(self):
+        self._single = True
         return self
 
     def execute(self):
@@ -379,12 +392,21 @@ class _Table:
                 {"id": self._filters.get("id"), "values": self._update_values}
             )
             return _Resp(None)
-        return _Resp(self._db.lookup(self._name, self._filters))
+        data = self._db.lookup(self._name, self._filters)
+        # Sans single/maybe_single, l'API réelle renvoie une LISTE de lignes.
+        if not getattr(self, "_single", False):
+            if data is None:
+                data = []
+            elif isinstance(data, dict):
+                data = [data]
+        return _Resp(data)
 
 
 class _Db:
-    """dossier : une seule ligne. documents : par id. project_members : par
-    monument (une seule ligne « le rôle de l'appelant sur ce monument »)."""
+    """dossier : une seule ligne. documents : par id. Le monument de test est
+    « mon-1 » et son chantier « p1 » : `projets` relie l'un à l'autre, et
+    `roles` donne le rôle de l'appelant sur le monument — dont hérite le projet,
+    comme en vrai (require_projet_access / my_scope_roles)."""
 
     def __init__(self, *, dossier, documents=None, roles=None, autres_dossiers=None):
         self.dossier = dossier
@@ -406,13 +428,19 @@ class _Db:
         if table == "documents":
             return self.documents.get(filters.get("id"))
         if table == "project_members":
-            role = self.roles.get(filters.get("monument_id"))
-            return {"role": role} if role else None
-        return None  # "monuments" (repli de get_project_role) : jamais utilisé ici
+            monument_id = filters.get("monument_id")
+            if monument_id is not None:
+                role = self.roles.get(monument_id)
+                return {"role": role} if role else None
+            # my_scope_roles interroge par user_id : toutes les appartenances.
+            return [{"monument_id": m, "role": r} for m, r in self.roles.items()]
+        if table == "projets":
+            return {"id": "p1", "monument_id": "mon-1", "user_id": "createur"}
+        return None  # "monuments", "projet_members" : repli sans rôle
 
 
 def _dossier(item: dict) -> dict:
-    return {"id": "d1", "monument_id": "mon-1", "checklist": [item]}
+    return {"id": "d1", "monument_id": "mon-1", "projet_id": "p1", "checklist": [item]}
 
 
 class DetachementTests(unittest.TestCase):
@@ -713,7 +741,8 @@ class ReferencesMortesTests(unittest.TestCase):
     def _dossier(self, *, document_id="mort", statut="fourni"):
         return {
             "id": "d1",
-            "monument_id": "p1",
+            "monument_id": "m1",
+            "projet_id": "p1",
             "aide_id": "detr",
             "checklist": [
                 {
@@ -730,8 +759,11 @@ class ReferencesMortesTests(unittest.TestCase):
         from routers.dossiers import reprendre_pieces
 
         with (
-            patch("routers.dossiers.require_project_access", return_value=None),
-            patch("routers.dossiers.apply_reuse", side_effect=lambda s, c, m, u: (c, 0)),
+            patch(
+                "routers.dossiers.require_projet_access",
+                return_value=({"id": "p1", "monument_id": "m1"}, "owner"),
+            ),
+            patch("routers.dossiers.apply_reuse", side_effect=lambda s, c, m, pj, u: (c, 0)),
         ):
             reprendre_pieces("d1", user_id="u1", supabase=supabase)
 
@@ -787,7 +819,8 @@ class EstampillageDesPiecesFourniesTests(unittest.TestCase):
             {
                 "dossiers": {
                     "id": "d1",
-                    "monument_id": "p1",
+                    "monument_id": "m1",
+                    "projet_id": "p1",
                     "user_id": "u1",
                     "aide_id": "aide-slug",
                     "checklist": [
@@ -822,8 +855,11 @@ class EstampillageDesPiecesFourniesTests(unittest.TestCase):
         from routers.dossiers import reprendre_pieces
 
         with (
-            patch("routers.dossiers.require_project_access", return_value=None),
-            patch("routers.dossiers.apply_reuse", side_effect=lambda s, c, m, u: (c, 0)),
+            patch(
+                "routers.dossiers.require_projet_access",
+                return_value=({"id": "p1", "monument_id": "m1"}, "owner"),
+            ),
+            patch("routers.dossiers.apply_reuse", side_effect=lambda s, c, m, pj, u: (c, 0)),
         ):
             reprendre_pieces("d1", user_id="u1", supabase=db)
         return db.updates.get("documents", [])

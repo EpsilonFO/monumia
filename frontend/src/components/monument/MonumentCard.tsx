@@ -1,112 +1,143 @@
-import { Link, useNavigate } from 'react-router';
-import { ChevronRight } from 'lucide-react';
-import { IconLocalisation, IconProtection, IconDiagnostic, IconDossierOuvert } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { useAideStore } from '@/stores/useAideStore';
+import { Link } from 'react-router';
+import { ArrowRight } from 'lucide-react';
+import { IconLocalisation, IconEcheance, IconDossier } from '@/components/icons';
+import { Clover } from '@/components/illustrations';
+import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
 import { ROUTES } from '@/constants/routes';
+import { C, DEADLINE_TONE, SERIF } from '@/lib/brand';
+import { deadlineLabel } from '@/lib/date-utils';
+import { monumentPhotoUrl } from '@/lib/monument-photo';
+import { isProjectShared } from '@/lib/project-permissions';
+import type { MonumentStats } from '@/lib/project-stats';
 import type { Monument } from '@/types';
 
 interface MonumentCardProps {
   monument: Monument;
+  stats?: MonumentStats;
 }
 
-const protectionLabels: Record<string, string> = {
-  classe: 'Classé MH', inscrit: 'Inscrit MH', abords: 'Abords MH', spr: 'SPR', non_protege: 'Non protégé',
-};
-
-const etatColors: Record<string, { bg: string; text: string }> = {
-  bon: { bg: 'var(--success-muted)', text: 'var(--success)' },
-  moyen: { bg: 'var(--warning-muted)', text: 'var(--warning)' },
-  mauvais: { bg: 'var(--cat-2-soft)', text: 'var(--cat-2)' },
-  peril: { bg: 'var(--destructive-muted)', text: 'var(--destructive)' },
-};
-
-const etatLabels: Record<string, string> = {
-  bon: 'Bon état', moyen: 'État moyen', mauvais: 'Mauvais état', peril: 'En péril',
-};
-
-export function MonumentCard({ monument }: MonumentCardProps) {
-  const navigate = useNavigate();
-  // Un digest suffit à savoir qu'un diagnostic existe : le dashboard n'en charge
-  // plus la version complète, réservée à la page du projet.
-  const hasDiagnostic = useAideStore(
-    (s) => !!s.diagnosticsByMonument[monument.id] || !!s.digestsByMonument[monument.id],
+/**
+ * Vignette du monument : photo 16:9 arrondie — le format du héros du tableau de
+ * bord, pour qu'une photo recadrée une fois serve partout sans être retaillée.
+ * Sans photo, la fleur Monumia en blanc sur bleu profond ancre la marque.
+ */
+function PhotoThumb({ photo }: { photo: string | null }) {
+  return (
+    <div
+      className="flex aspect-video w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl"
+      style={{
+        background: photo ? undefined : `linear-gradient(150deg, ${C.blue}, ${C.blueDark})`,
+        boxShadow: 'inset 0 0 0 1px rgba(7,42,114,0.08)',
+      }}
+      aria-hidden
+    >
+      {photo ? (
+        <div
+          className="h-full w-full bg-cover bg-center transition-transform duration-500 ease-out group-hover:scale-[1.06]"
+          style={{ backgroundImage: `url(${photo})` }}
+        />
+      ) : (
+        <Clover size={28} className="text-white" style={{ opacity: 0.9 }} />
+      )}
+    </div>
   );
-  const etat = etatColors[monument.etatConservation] ?? etatColors.moyen;
+}
 
-  const handleDossierClick = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    navigate(`${ROUTES.DOSSIERS}?monument=${monument.id}`);
-  };
+/**
+ * Carte d'un monument dans « Mes monuments ». Elle répond à deux questions,
+ * dans cet ordre : quel bien, et que faire maintenant. Le détail par chantier
+ * est un cran plus bas, sur la page du monument, onglet « Projets ».
+ */
+export function MonumentCard({ monument, stats }: MonumentCardProps) {
+  const shared = isProjectShared(monument);
+  const members = monument.members ?? [];
+  const photo = monumentPhotoUrl(monument);
 
-  const handleDiagnosticClick = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    navigate(`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=aides`);
-  };
+  const nbProjets = stats?.projets ?? 0;
+  const dossiersActifs = stats?.dossiersActifs ?? 0;
+
+  // Échéance affichée UNIQUEMENT si elle presse (dépassée, urgente, ou proche).
+  const next = stats?.prochaineEcheance ?? null;
+  const nextLabel = next ? deadlineLabel(next.date) : null;
+  const pressing = nextLabel && nextLabel.urgency !== 'normal';
+  const tone = nextLabel ? DEADLINE_TONE[nextLabel.urgency] : null;
+
+  // Le bouton dit la prochaine chose à faire, jamais un « Voir » ambigu.
+  const cta = nbProjets === 0 ? 'Lancer un projet de travaux' : 'Ouvrir le monument';
 
   return (
-    <Link to={ROUTES.MONUMENT_DETAIL(monument.id)}>
-      <div className="group bg-card rounded-xl border border-border overflow-hidden transition-all duration-200 hover:shadow-md hover:shadow-black/[0.03] hover:border-border">
-        {/* Header */}
-        <div className="px-5 pt-5 pb-3">
-          <div className="flex items-start justify-between gap-2 mb-2">
+    <Link to={ROUTES.MONUMENT_DETAIL(monument.id)} className="block">
+      <article
+        className="group overflow-hidden rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_45px_-24px_rgba(7,42,114,0.45)] sm:p-6"
+        style={{ background: C.card, borderColor: C.border }}
+      >
+        {/* ── En-tête : vignette + nom + lieu, avatars si partagé, et le bouton
+            d'action aligné sur le titre. Sur mobile, il passe à la ligne. ── */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+          <PhotoThumb photo={photo} />
+          <div className="min-w-0 flex-1 basis-[11rem]">
             <h3
-              className="text-[16px] font-normal text-foreground leading-tight line-clamp-2 h-[2.5em]"
-              style={{ fontFamily: "'Cormorant Garamond', serif" }}
+              className="line-clamp-2 text-[20px] font-bold leading-snug"
+              style={{ fontFamily: SERIF, color: C.ink }}
             >
               {monument.nom}
             </h3>
-            <ChevronRight className="h-4 w-4 text-border group-hover:text-destructive transition-colors shrink-0 mt-0.5" />
+            {(monument.commune || monument.departement) && (
+              <p
+                className="mt-0.5 flex items-center gap-1.5 text-[13.5px]"
+                style={{ color: C.grayFg }}
+              >
+                <IconLocalisation className="h-4 w-4 shrink-0" strokeWidth={1.8} aria-hidden />
+                <span className="truncate">
+                  {monument.commune ?? '—'}
+                  {monument.departement ? ` · ${monument.departement}` : ''}
+                </span>
+              </p>
+            )}
           </div>
-          <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <IconLocalisation className="h-3 w-3 shrink-0" strokeWidth={1.8} />
-            <span>{monument.commune}{monument.departement ? ` (${monument.departement})` : ''}</span>
-          </div>
-        </div>
-
-        {/* Badges */}
-        <div className="px-5 pb-3 flex items-center gap-2 flex-wrap">
-          <Badge className="text-[10px] font-semibold border-0 gap-1 bg-secondary text-primary">
-            <IconProtection className="h-3 w-3" strokeWidth={1.8} />
-            {protectionLabels[monument.protection] ?? monument.protection}
-          </Badge>
-          <Badge className="text-[10px] font-semibold border-0" style={{ background: etat.bg, color: etat.text }}>
-            {etatLabels[monument.etatConservation] ?? monument.etatConservation}
-          </Badge>
-        </div>
-
-        {/* Progress */}
-        <div className="px-5 pb-3">
-          <div className="flex items-center justify-between text-[11px] mb-1">
-            <span className="text-muted-foreground">Fiche complétée</span>
-            <span className="font-semibold text-foreground">{monument.completionPercentage}%</span>
-          </div>
-          <Progress value={monument.completionPercentage} className="h-1" />
-        </div>
-
-        {/* Actions */}
-        <div className="px-5 pb-4 flex gap-2">
-          <button
-            onClick={handleDossierClick}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[12px] font-medium border border-border rounded-lg text-gray-fg hover:bg-muted transition-colors"
+          {shared && members.length > 0 && (
+            <div className="shrink-0">
+              <MemberAvatarStack people={members} size="sm" />
+            </div>
+          )}
+          <span
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-[14px] font-semibold text-white transition-all group-hover:shadow-md max-sm:w-full"
+            style={{ background: C.orange }}
           >
-            <IconDossierOuvert className="h-3.5 w-3.5" strokeWidth={1.8} />
-            Dossiers
-          </button>
-          <button
-            onClick={handleDiagnosticClick}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[12px] font-semibold rounded-lg transition-all duration-200 ${
-              hasDiagnostic
-                ? 'border border-border text-gray-fg bg-transparent hover:bg-muted'
-                : 'bg-primary text-white hover:opacity-90'
-            }`}
-          >
-            <IconDiagnostic className="h-3.5 w-3.5" strokeWidth={1.8} />
-            {hasDiagnostic ? 'Diagnostic' : 'Diagnostiquer'}
-          </button>
+            {cta}
+            <ArrowRight
+              className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </span>
         </div>
-      </div>
+
+        {/* ── Pied : les faits qui pressent, quand il y en a. ── */}
+        {(dossiersActifs > 0 || (pressing && nextLabel && tone)) && (
+          <div className="mt-4 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+            {dossiersActifs > 0 && (
+              <span
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium"
+                style={{ color: C.grayFg }}
+              >
+                <IconDossier className="h-4 w-4 shrink-0" aria-hidden />
+                {dossiersActifs} dossier{dossiersActifs > 1 ? 's' : ''} en cours
+              </span>
+            )}
+            {pressing && nextLabel && tone && (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold"
+                style={{ color: tone.fg, background: tone.tint }}
+              >
+                <IconEcheance className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                {nextLabel.urgency === 'past'
+                  ? 'Échéance dépassée'
+                  : `Échéance : ${nextLabel.text.toLowerCase()}`}
+              </span>
+            )}
+          </div>
+        )}
+      </article>
     </Link>
   );
 }

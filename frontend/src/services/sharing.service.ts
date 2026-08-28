@@ -12,6 +12,7 @@ interface RawMember {
   metier: string | null;
   telephone: string | null;
   joined_at: string;
+  source?: ProjectMember['source'];
 }
 
 interface RawInvitation {
@@ -32,57 +33,77 @@ function toMember(r: RawMember): ProjectMember {
     metier: r.metier,
     telephone: r.telephone,
     joinedAt: r.joined_at,
+    source: r.source,
   };
 }
 
-export const sharingService = {
-  async getMembers(monumentId: string): Promise<ProjectMembersResponse> {
-    const res = await authFetch(`${BASE}/projects/${monumentId}/members`);
-    const data = await handleResponse<{ members: RawMember[]; invitations: RawInvitation[] }>(res);
-    return {
-      members: data.members.map(toMember),
-      invitations: (data.invitations ?? []).map((i) => ({
-        id: i.id,
-        email: i.email,
-        status: i.status,
-        createdAt: i.created_at,
-        expiresAt: i.expires_at,
-      })),
-    };
-  },
+/**
+ * Les deux portées de partage partagent la même API, à la racine près :
+ *   * `/projects/{monumentId}/...` — l'équipe du MONUMENT, qui voit tout ;
+ *   * `/projets/{projetId}/...`    — l'équipe d'un CHANTIER, qui ne voit que lui.
+ *
+ * Un seul jeu de fonctions, paramétré par la racine : les écrans sont les mêmes
+ * et les faire diverger ferait dériver l'un des deux.
+ */
+function scopedSharing(root: 'projects' | 'projets') {
+  return {
+    async getMembers(scopeId: string): Promise<ProjectMembersResponse> {
+      const res = await authFetch(`${BASE}/${root}/${scopeId}/members`);
+      const data = await handleResponse<{ members: RawMember[]; invitations: RawInvitation[] }>(res);
+      return {
+        members: data.members.map(toMember),
+        invitations: (data.invitations ?? []).map((i) => ({
+          id: i.id,
+          email: i.email,
+          status: i.status,
+          createdAt: i.created_at,
+          expiresAt: i.expires_at,
+        })),
+      };
+    },
 
-  async invite(monumentId: string, email: string, message?: string): Promise<void> {
-    const res = await authFetch(`${BASE}/projects/${monumentId}/invitations`, {
-      method: 'POST',
-      body: JSON.stringify({ email, message }),
-    });
-    await handleResponse(res);
-  },
+    async invite(scopeId: string, email: string, message?: string): Promise<void> {
+      const res = await authFetch(`${BASE}/${root}/${scopeId}/invitations`, {
+        method: 'POST',
+        body: JSON.stringify({ email, message }),
+      });
+      await handleResponse(res);
+    },
 
-  async revokeInvitation(monumentId: string, invitationId: string): Promise<void> {
-    const res = await authFetch(`${BASE}/projects/${monumentId}/invitations/${invitationId}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  },
+    async revokeInvitation(scopeId: string, invitationId: string): Promise<void> {
+      const res = await authFetch(`${BASE}/${root}/${scopeId}/invitations/${invitationId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    },
 
-  async promote(monumentId: string, userId: string): Promise<void> {
-    const res = await authFetch(`${BASE}/projects/${monumentId}/members/${userId}/promote`, { method: 'POST' });
-    await handleResponse(res);
-  },
+    async promote(scopeId: string, userId: string): Promise<void> {
+      const res = await authFetch(`${BASE}/${root}/${scopeId}/members/${userId}/promote`, { method: 'POST' });
+      await handleResponse(res);
+    },
 
-  async demote(monumentId: string, userId: string): Promise<void> {
-    const res = await authFetch(`${BASE}/projects/${monumentId}/members/${userId}/demote`, { method: 'POST' });
-    await handleResponse(res);
-  },
+    async demote(scopeId: string, userId: string): Promise<void> {
+      const res = await authFetch(`${BASE}/${root}/${scopeId}/members/${userId}/demote`, { method: 'POST' });
+      await handleResponse(res);
+    },
 
-  async removeMember(monumentId: string, userId: string): Promise<void> {
-    const res = await authFetch(`${BASE}/projects/${monumentId}/members/${userId}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  },
+    async removeMember(scopeId: string, userId: string): Promise<void> {
+      const res = await authFetch(`${BASE}/${root}/${scopeId}/members/${userId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    },
 
-  async leave(monumentId: string): Promise<void> {
-    const res = await authFetch(`${BASE}/projects/${monumentId}/leave`, { method: 'POST' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  },
-};
+    async leave(scopeId: string): Promise<void> {
+      const res = await authFetch(`${BASE}/${root}/${scopeId}/leave`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    },
+  };
+}
+
+export type SharingApi = ReturnType<typeof scopedSharing>;
+
+/** Équipe d'un MONUMENT : accès à la fiche, à tous ses projets, à ses documents. */
+export const sharingService = scopedSharing('projects');
+
+/** Équipe d'UN PROJET de travaux : accès au seul chantier. */
+export const projetSharingService = scopedSharing('projets');
+

@@ -21,13 +21,7 @@ class RegisterRequest(BaseModel):
     password: str
     prenom: str
     nom: str
-    segment: str  # 'commune' | 'prive' | 'btp'
     telephone: str | None = None
-    commune_code_insee: str | None = None
-    commune_fonction: str | None = None
-    prive_type_proprietaire: str | None = None
-    prive_regime_fiscal: str | None = None
-    btp: dict | None = None
 
 
 class RegisterCollaboratorRequest(BaseModel):
@@ -45,13 +39,7 @@ class RegisterOauthRequest(BaseModel):
 
     prenom: str
     nom: str
-    segment: str  # 'commune' | 'prive' | 'btp'
     telephone: str | None = None
-    commune_code_insee: str | None = None
-    commune_fonction: str | None = None
-    prive_type_proprietaire: str | None = None
-    prive_regime_fiscal: str | None = None
-    btp: dict | None = None
 
 
 class RegisterCollaboratorOauthRequest(BaseModel):
@@ -137,40 +125,6 @@ def _get_profile(supabase: Client, user_id: str) -> dict:
     if not result.data:
         raise HTTPException(status_code=404, detail="Profil introuvable")
     profile = result.data
-
-    # Build the commune object from the FK + communes reference table
-    code_insee = profile.pop("commune_code_insee", None)
-    fonction = profile.pop("commune_fonction", None)
-    if code_insee:
-        commune_result = (
-            supabase.table("communes")
-            .select("nom_commune, departement, region, population")
-            .eq("code_insee", code_insee)
-            .maybe_single()
-            .execute()
-        )
-        commune_row = commune_result.data
-        profile["commune"] = {
-            "codeInsee": code_insee,
-            "nom": commune_row["nom_commune"] if commune_row else code_insee,
-            "departement": commune_row["departement"] if commune_row else "",
-            "region": commune_row["region"] if commune_row else "",
-            "population": commune_row["population"] if commune_row else 0,
-            "fonction": fonction or "autre",
-        }
-    else:
-        profile["commune"] = None
-
-    # Build the prive object from scalar columns
-    type_proprietaire = profile.pop("prive_type_proprietaire", None)
-    regime_fiscal = profile.pop("prive_regime_fiscal", None)
-    if type_proprietaire:
-        profile["prive"] = {
-            "typeProprietaire": type_proprietaire,
-            "regimeFiscal": regime_fiscal,
-        }
-    else:
-        profile["prive"] = None
 
     # Normalize snake_case DB keys to camelCase for the frontend
     if "notification_preferences" in profile:
@@ -263,13 +217,7 @@ def register(
         "email": body.email,
         "prenom": body.prenom,
         "nom": body.nom,
-        "segment": body.segment,
         "telephone": body.telephone,
-        "commune_code_insee": body.commune_code_insee,
-        "commune_fonction": body.commune_fonction,
-        "prive_type_proprietaire": body.prive_type_proprietaire,
-        "prive_regime_fiscal": body.prive_regime_fiscal,
-        "btp": body.btp,
         "onboarding_complete": False,
         "has_aides_access": False,
         "notification_preferences": _default_notification_preferences(),
@@ -294,7 +242,7 @@ def register_collaborator(
     anon: Client = Depends(get_anon_supabase),
     supabase: Client = Depends(get_supabase),
 ):
-    """Inscription allégée pour un invité : pas de segment/QCM, onboarding terminé."""
+    """Inscription allégée pour un invité : onboarding déjà terminé."""
     _validate_password(body.password)
     try:
         auth_response = anon.auth.sign_up({"email": body.email, "password": body.password})
@@ -311,7 +259,6 @@ def register_collaborator(
         "email": body.email,
         "prenom": body.prenom,
         "nom": body.nom,
-        "segment": "prive",  # valeur neutre : non utilisée pour un collaborateur
         "telephone": body.telephone,
         "account_type": "collaborateur",
         "metier": body.metier,
@@ -397,13 +344,7 @@ def register_oauth(
         "email": auth_user.email,
         "prenom": body.prenom,
         "nom": body.nom,
-        "segment": body.segment,
         "telephone": body.telephone,
-        "commune_code_insee": body.commune_code_insee,
-        "commune_fonction": body.commune_fonction,
-        "prive_type_proprietaire": body.prive_type_proprietaire,
-        "prive_regime_fiscal": body.prive_regime_fiscal,
-        "btp": body.btp,
         "onboarding_complete": False,
         "has_aides_access": False,
         "notification_preferences": _default_notification_preferences(),
@@ -422,7 +363,7 @@ def register_collaborator_oauth(
     auth_user=Depends(get_current_auth_user),
     supabase: Client = Depends(get_supabase),
 ):
-    """Miroir OAuth de /register-collaborator : pas de segment/QCM, onboarding terminé."""
+    """Miroir OAuth de /register-collaborator : onboarding déjà terminé."""
     existing = supabase.table("users").select("id").eq("id", auth_user.id).maybe_single().execute()
     if existing is not None and existing.data:
         return {"user": _get_profile(supabase, auth_user.id)}
@@ -432,7 +373,6 @@ def register_collaborator_oauth(
         "email": auth_user.email,
         "prenom": body.prenom,
         "nom": body.nom,
-        "segment": "prive",  # valeur neutre : non utilisée pour un collaborateur
         "telephone": body.telephone,
         "account_type": "collaborateur",
         "metier": body.metier,

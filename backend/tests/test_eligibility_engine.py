@@ -15,12 +15,14 @@ from aides_schema import (
     FactDef,
     Financement,
     MultiValue,
+    RangeValue,
     evaluate_predicate,
     load_all_aides,
     load_facts,
     load_pending_facts,
 )
 from eligibility_engine import (
+    _match_result,
     _normalize_boundary,
     _numeric_gap,
     _options_for_fact,
@@ -31,6 +33,7 @@ from eligibility_engine import (
     run_deterministic_diagnostic,
     split_reserved_answers,
 )
+from routers.aides import merge_projet_into_monument
 
 AIDES = load_all_aides()
 FACTS = {**load_facts(), **load_pending_facts()}
@@ -134,8 +137,8 @@ class TestDisponibilite(unittest.TestCase):
         self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fixture-aide"])
         self.assertEqual(res["aidesEligibles"][0]["disponibilite"], "bientot")
 
-    def test_montant_potentiel_ignore_les_bientot(self):
-        """Le montant affiché se veut mobilisable en l'état : fenêtre ouverte only."""
+    def test_montant_potentiel_compte_les_bientot(self):
+        """Le montant couvre aussi les aides « disponibles bientôt »."""
         ouverte = self._aide(slug="fx-ouverte", permanent=True).model_copy(
             update={"financement": Financement(montant_max=10_000)}
         )
@@ -146,7 +149,98 @@ class TestDisponibilite(unittest.TestCase):
             {a.slug: a for a in (ouverte, close)}, FACTS, _monument(), 3000, today=self.TODAY
         )
         self.assertEqual(len(res["aidesEligibles"]), 2)
-        self.assertEqual(res["montantPotentielTotal"], 10_000)
+        self.assertEqual(res["montantPotentielTotal"], 100_000)
+
+    def test_montant_potentiel_compte_les_a_confirmer(self):
+        """Les aides « à confirmer » (statut potentiel) entrent dans le total."""
+        certaine = self._aide(slug="fx-certaine", permanent=True).model_copy(
+            update={"financement": Financement(montant_max=10_000)}
+        )
+        a_confirmer = _fixture_aide(
+            [{"id": "mc", "text": "À vérifier auprès du financeur", "kind": "manual_check"}],
+            slug="fx-a-confirmer",
+        ).model_copy(update={"financement": Financement(montant_max=5_000)})
+        res = run_deterministic_diagnostic(
+            {a.slug: a for a in (certaine, a_confirmer)},
+            FACTS,
+            _monument(),
+            3000,
+            today=self.TODAY,
+        )
+        self.assertEqual(len(res["aidesPotentiellementEligibles"]), 1)
+        self.assertEqual(res["montantPotentielTotal"], 15_000)
+
+
+class TestTauxTravauxCumule(unittest.TestCase):
+    """Part maximale du coût des travaux : « jusqu'à X € et / ou Y % des travaux ».
+
+    N'agrège que les aides qui allègent la facture de chantier — un dispositif
+    fiscal porte sur l'impôt, un prêt se rembourse, un label n'apporte rien.
+    """
+
+    LEVIER_FACT = "label_fondation_patrimoine_obtenu"
+
+    def _aide(self, slug: str, taux: float | None, type_: str = "subvention") -> Aide:
+        return _fixture_aide([], slug=slug).model_copy(
+            update={"type": type_, "financement": Financement(taux_max=taux)}
+        )
+
+    def _run(self, *aides: Aide, answers: dict | None = None) -> dict:
+        return run_deterministic_diagnostic(
+            {a.slug: a for a in aides}, FACTS, _monument(), 3000, answers
+        )
+
+    def test_somme_des_taux(self):
+        res = self._run(self._aide("fx-a", 30), self._aide("fx-b", 25))
+        self.assertEqual(res["tauxTravauxMaxPct"], 55)
+
+    def test_exclut_la_fiscalite(self):
+        """Une déduction fiscale (Denormandie, Malraux) ne subventionne rien."""
+        res = self._run(self._aide("fx-a", 30), self._aide("fx-fisc", 50, "deduction_fiscale"))
+        self.assertEqual(res["tauxTravauxMaxPct"], 30)
+
+    def test_exclut_prets_et_labels(self):
+        res = self._run(
+            self._aide("fx-a", 30),
+            self._aide("fx-pret", 40, "pret"),
+            self._aide("fx-label", 20, "label"),
+        )
+        self.assertEqual(res["tauxTravauxMaxPct"], 30)
+
+    def test_ecrete_a_quatre_vingts_pour_cent(self):
+        """Le maître d'ouvrage garde 20 % à sa charge : le cumul ne va pas plus loin."""
+        res = self._run(self._aide("fx-a", 60), self._aide("fx-b", 70))
+        self.assertEqual(res["tauxTravauxMaxPct"], 80)
+
+    def test_aucune_aide_chiffree_en_taux(self):
+        res = self._run(self._aide("fx-a", None))
+        self.assertIsNone(res["tauxTravauxMaxPct"])
+
+    def test_compte_les_a_debloquer_et_les_a_confirmer(self):
+        """Les trois seaux affichés comptent, contrairement au montant potentiel."""
+        gate_levier = {
+            "id": "lev",
+            "text": "Être labellisé Fondation du patrimoine",
+            "kind": "user_fact",
+            "fact": self.LEVIER_FACT,
+            "predicate": {"eq": True},
+        }
+        a_debloquer = _fixture_aide([gate_levier], slug="fx-levier").model_copy(
+            update={"financement": Financement(taux_max=25)}
+        )
+        a_confirmer = _fixture_aide(
+            [{"id": "mc", "text": "À vérifier auprès du financeur", "kind": "manual_check"}],
+            slug="fx-a-confirmer",
+        ).model_copy(update={"financement": Financement(taux_max=15)})
+        res = self._run(
+            self._aide("fx-a", 30),
+            a_debloquer,
+            a_confirmer,
+            answers={self.LEVIER_FACT: False},
+        )
+        self.assertEqual(len(res["aidesAtteignables"]), 1)
+        self.assertEqual(len(res["aidesPotentiellementEligibles"]), 1)
+        self.assertEqual(res["tauxTravauxMaxPct"], 70)
 
 
 class TestRaisonPrefilter(unittest.TestCase):
@@ -196,16 +290,16 @@ class TestRaisonPrefilter(unittest.TestCase):
     def test_cles_reservees_ne_sont_pas_des_faits(self):
         """Une clé « _* » ne doit jamais atteindre le contexte d'évaluation."""
         facts_answers, reserved = split_reserved_answers(
-            {"_raisons": ["fiscalite"], "travaux_commences": False}
+            {"_raisons": ["fiscalite"], "etat_travaux": "non_commences"}
         )
-        self.assertEqual(facts_answers, {"travaux_commences": False})
+        self.assertEqual(facts_answers, {"etat_travaux": "non_commences"})
         self.assertEqual(reserved, {"_raisons": ["fiscalite"]})
         ctx = build_context(_monument(), 3000, facts_answers)
         self.assertNotIn("_raisons", ctx["_answers"])
 
     def test_answers_du_caller_non_mutees(self):
         """Le dict d'entrée est partagé (store front, cache) : on ne le vide pas."""
-        answers = {"_raisons": ["restauration_travaux"], "travaux_commences": False}
+        answers = {"_raisons": ["restauration_travaux"], "etat_travaux": "non_commences"}
         self._run([self.TRAVAUX], answers)
         self.assertIn("_raisons", answers)
 
@@ -241,6 +335,64 @@ class TestHardFilters(unittest.TestCase):
         self.assertNotEqual(v_small.status, "non_eligible")
         self.assertEqual(v_big.status, "non_eligible")
 
+    def test_travaux_ecarte_une_aide_dobjet(self):
+        """L'aide IDF sur les fonds d'archives ne suit pas un chantier de toiture.
+
+        Elle n'a que des conditions `effect: info` : sans hard_filter travaux,
+        elle ressortait éligible pour tout monument d'Île-de-France.
+        """
+        m = _monument(travaux_envisages=["toiture"])
+        v = evaluate_aide(AIDES["idf-restauration-oeuvre"], m, 3000, build_context(m, 3000), FACTS)
+        self.assertEqual(v.status, "non_eligible")
+        self.assertIn("Travaux éligibles", v.raison_ineligibilite)
+
+    def test_travaux_vides_laissent_passer_laide_dobjet(self):
+        """« Pas encore déterminé » (liste vide) : fail-open, on ne masque rien."""
+        m = _monument(travaux_envisages=[])
+        v = evaluate_aide(AIDES["idf-restauration-oeuvre"], m, 3000, build_context(m, 3000), FACTS)
+        self.assertNotEqual(v.status, "non_eligible")
+
+
+class TestEpciGating(unittest.TestCase):
+    """Aides intercommunales : le gate `commune.epci` contre le SIREN de l'EPCI.
+
+    Les hard_filters d'une aide de la CCMSL ne bornent que le département (77) :
+    sans le rattachement intercommunal, toute la Seine-et-Marne restait en
+    « potentiel ». Le SIREN vient de communes.epci_siren, posé sur le monument
+    par routers.monuments._attach_epci.
+    """
+
+    CCMSL = "247700032"
+    AIDE = "ccmsl-renovation-facades"
+
+    def _monument_77(self, **over):
+        return _monument(
+            protection="non_protege",
+            departement_num="77",
+            proprietaire="prive_personne_physique",
+            travaux_envisages=["facade"],
+            **over,
+        )
+
+    def _status(self, monument):
+        return evaluate_aide(
+            AIDES[self.AIDE], monument, 3000, build_context(monument, 3000), FACTS
+        ).status
+
+    def test_epci_absent_reste_incertain(self):
+        """Commune non enrichie : fail-closed, jamais un rejet."""
+        m = self._monument_77()
+        self.assertNotIn("commune.epci", build_context(m, 3000))
+        self.assertNotEqual(self._status(m), "non_eligible")
+
+    def test_autre_epci_du_departement_est_rejete(self):
+        m = self._monument_77(**{"commune.epci": "200072346"})
+        self.assertEqual(self._status(m), "non_eligible")
+
+    def test_epci_porteur_ne_declenche_pas_le_rejet(self):
+        m = self._monument_77(**{"commune.epci": self.CCMSL})
+        self.assertNotEqual(self._status(m), "non_eligible")
+
 
 class TestUserFactGating(unittest.TestCase):
     def test_unanswered_fact_is_potentiel_not_eligible(self):
@@ -248,12 +400,12 @@ class TestUserFactGating(unittest.TestCase):
         m = _monument()
         v = evaluate_aide(AIDES["drac-mh-classes"], m, 3000, build_context(m, 3000), FACTS)
         self.assertEqual(v.status, "potentiel")
-        self.assertIn("travaux_commences", v.missing_facts)
+        self.assertIn("etat_travaux", v.missing_facts)
 
     def test_answer_can_make_ineligible(self):
         """Travaux déjà commencés → DRAC classés devient non éligible."""
         m = _monument()
-        ctx = build_context(m, 3000, answers={"travaux_commences": True})
+        ctx = build_context(m, 3000, answers={"etat_travaux": "en_cours"})
         v = evaluate_aide(AIDES["drac-mh-classes"], m, 3000, ctx, FACTS)
         self.assertEqual(v.status, "non_eligible")
 
@@ -266,17 +418,17 @@ class TestUserFactGating(unittest.TestCase):
                     "id": "tc",
                     "text": "Travaux non commencés",
                     "kind": "user_fact",
-                    "fact": "travaux_commences",
-                    "predicate": {"eq": False},
+                    "fact": "etat_travaux",
+                    "predicate": {"eq": "non_commences"},
                 },
                 {"id": "mc", "text": "À vérifier auprès du financeur", "kind": "manual_check"},
             ]
         )
         m = _monument()
-        ctx = build_context(m, 3000, answers={"travaux_commences": False})
+        ctx = build_context(m, 3000, answers={"etat_travaux": "non_commences"})
         v = evaluate_aide(aide, m, 3000, ctx, FACTS)
         self.assertEqual(v.status, "potentiel")
-        self.assertNotIn("travaux_commences", v.missing_facts)
+        self.assertNotIn("etat_travaux", v.missing_facts)
         # Seul reste le manual_check : incertitude sans categorie (donc sans question).
         incertitudes = [e for e in v.evaluations if e["verdict"] == "incertitude"]
         self.assertEqual(len(incertitudes), 1)
@@ -291,8 +443,8 @@ class TestUserFactGating(unittest.TestCase):
                     "id": "tc",
                     "text": "Travaux non commencés (sauf dérogation)",
                     "kind": "user_fact",
-                    "fact": "travaux_commences",
-                    "predicate": {"eq": False},
+                    "fact": "etat_travaux",
+                    "predicate": {"eq": "non_commences"},
                     "derogation_possible": True,
                 }
             ]
@@ -300,19 +452,19 @@ class TestUserFactGating(unittest.TestCase):
         m = _monument()
         # Non commencés → satisfait → éligible.
         v_ok = evaluate_aide(
-            soft, m, 3000, build_context(m, 3000, answers={"travaux_commences": False}), FACTS
+            soft, m, 3000, build_context(m, 3000, answers={"etat_travaux": "non_commences"}), FACTS
         )
         self.assertEqual(v_ok.status, "eligible")
         # Commencés → PAS refusé (dérogation possible) → potentiel, sans re-question.
         v_started = evaluate_aide(
-            soft, m, 3000, build_context(m, 3000, answers={"travaux_commences": True}), FACTS
+            soft, m, 3000, build_context(m, 3000, answers={"etat_travaux": "en_cours"}), FACTS
         )
         self.assertEqual(v_started.status, "potentiel")
-        self.assertNotIn("travaux_commences", v_started.missing_facts)
+        self.assertNotIn("etat_travaux", v_started.missing_facts)
         # Inconnu → incertitude → question posée.
         v_unknown = evaluate_aide(soft, m, 3000, build_context(m, 3000), FACTS)
         self.assertEqual(v_unknown.status, "potentiel")
-        self.assertIn("travaux_commences", v_unknown.missing_facts)
+        self.assertIn("etat_travaux", v_unknown.missing_facts)
 
     def test_strict_gate_refuses_when_false(self):
         """Sans derogation_possible, le même prédicat faux refuse l'aide (contraste)."""
@@ -322,14 +474,14 @@ class TestUserFactGating(unittest.TestCase):
                     "id": "tc",
                     "text": "Travaux non commencés",
                     "kind": "user_fact",
-                    "fact": "travaux_commences",
-                    "predicate": {"eq": False},
+                    "fact": "etat_travaux",
+                    "predicate": {"eq": "non_commences"},
                 }
             ]
         )
         m = _monument()
         v = evaluate_aide(
-            strict, m, 3000, build_context(m, 3000, answers={"travaux_commences": True}), FACTS
+            strict, m, 3000, build_context(m, 3000, answers={"etat_travaux": "en_cours"}), FACTS
         )
         self.assertEqual(v.status, "non_eligible")
 
@@ -338,7 +490,7 @@ class TestUserFactGating(unittest.TestCase):
         satisfaits, devient éligible (Loto : protection + non-commencement +
         trésorerie insuffisante)."""
         m = _monument(protection="classe")
-        answers = {"travaux_commences": False, "tresorerie_insuffisante_autofinancement": True}
+        answers = {"etat_travaux": "non_commences", "tresorerie_insuffisante_autofinancement": True}
         ctx = build_context(m, 3000, answers=answers)
         v = evaluate_aide(AIDES["loto-patrimoine"], m, 3000, ctx, FACTS)
         self.assertEqual(v.status, "eligible")
@@ -357,10 +509,15 @@ class TestQuestionGeneration(unittest.TestCase):
     def test_elimination_is_computed_correctly(self):
         m = _monument()
         res = run_deterministic_diagnostic(AIDES, FACTS, m, 3000)
-        q_travaux = next(q for q in res["qcmQuestions"] if q["categorie"] == "travaux_commences")
-        # « Oui » élimine DRAC classés ; « Non » n'élimine personne.
-        self.assertIn("drac-mh-classes", q_travaux["eliminationsParOption"].get("oui", []))
-        self.assertNotIn("non", q_travaux["eliminationsParOption"])
+        q_travaux = next(q for q in res["qcmQuestions"] if q["categorie"] == "etat_travaux")
+        # « En cours » et « Achevés » éliminent DRAC classés ; « Pas encore
+        # commencés » ne l'élimine pas (mais élimine les concours qui exigent
+        # des travaux achevés — la question unifiée porte les deux familles).
+        self.assertIn("drac-mh-classes", q_travaux["eliminationsParOption"].get("en_cours", []))
+        self.assertIn("drac-mh-classes", q_travaux["eliminationsParOption"].get("acheves", []))
+        self.assertNotIn(
+            "drac-mh-classes", q_travaux["eliminationsParOption"].get("non_commences", [])
+        )
 
     def test_skip_never_eliminates(self):
         m = _monument()
@@ -391,7 +548,7 @@ class TestQuestionGeneration(unittest.TestCase):
         d'aides passe en premier."""
         aides = [
             _fixture_aide(
-                [self._gate("travaux_commences", {"eq": False})]
+                [self._gate("etat_travaux", {"eq": "non_commences"})]
                 + ([self._gate("erp", {"eq": True})] if i < 2 else [])
                 + ([self._gate("residence_principale", {"eq": True})] if i < 1 else []),
                 slug=f"fx-{i}",
@@ -497,10 +654,10 @@ class TestQuestionGeneration(unittest.TestCase):
             seen.add(q["id"])
 
     def test_help_du_fait_est_transmis(self):
-        aide = _fixture_aide([self._gate("travaux_commences", {"eq": False})])
+        aide = _fixture_aide([self._gate("etat_travaux", {"eq": "non_commences"})])
         question = self._questions([aide])[0]
         self.assertTrue(question["help"])
-        self.assertEqual(question["help"], FACTS["travaux_commences"].help)
+        self.assertEqual(question["help"], FACTS["etat_travaux"].help)
 
 
 class TestPerimetreAide(unittest.TestCase):
@@ -728,14 +885,20 @@ class TestConditionsNonBloquantes(unittest.TestCase):
 
     def test_corpus_les_conditions_dautofinancement_sont_conservees(self):
         """Retypées, pas supprimées : le critère et sa citation source restent
-        affichables. Ancre nommée plutôt qu'un compte, moins fragile."""
+        affichables. Ancre nommée plutôt qu'un compte, moins fragile.
+
+        L'ancre initiale (region-hauts-de-france) était un doublon du REPP,
+        supprimé du catalogue — l'ancre porte désormais sur le fichier
+        survivant, où l'article du CGCT est cité dans les notes.
+        """
         cond = next(
             c
-            for c in AIDES["region-hauts-de-france"].conditions
-            if c.id == "autofinancement-minimum-20-public"
+            for c in AIDES["hdf-restauration-patrimoine-protege"].conditions
+            if c.id == "participation-minimale-mo-publics"
         )
         self.assertEqual((cond.kind, cond.effect), ("manual_check", "info"))
-        self.assertIn("L1111-10", cond.quote or "")
+        self.assertIn("participation minimale", cond.quote or "")
+        self.assertIn("L1111-10", cond.notes or "")
         # La clause d'applicabilité (maîtres d'ouvrage publics) est préservée.
         self.assertIsNotNone(cond.applies_if)
 
@@ -783,7 +946,7 @@ class TestLeviers(unittest.TestCase):
 
     def test_fait_sans_levier_refuse_toujours(self):
         v = self._verdict(
-            [self._gate("travaux_commences", {"eq": False})], {"travaux_commences": True}
+            [self._gate("etat_travaux", {"eq": "non_commences"})], {"etat_travaux": "en_cours"}
         )
         self.assertEqual(v.status, "non_eligible")
         self.assertEqual(v.leviers, [])
@@ -793,9 +956,9 @@ class TestLeviers(unittest.TestCase):
         v = self._verdict(
             [
                 self._gate(self.LEVIER_FACT, {"eq": True}),
-                self._gate("travaux_commences", {"eq": False}),
+                self._gate("etat_travaux", {"eq": "non_commences"}),
             ],
-            {self.LEVIER_FACT: False, "travaux_commences": True},
+            {self.LEVIER_FACT: False, "etat_travaux": "en_cours"},
         )
         self.assertEqual(v.status, "non_eligible")
 
@@ -848,14 +1011,14 @@ class TestLeviers(unittest.TestCase):
         aide = _fixture_aide(
             [
                 self._gate(self.LEVIER_FACT, {"eq": True}),
-                self._gate("travaux_commences", {"eq": False}),
+                self._gate("etat_travaux", {"eq": "non_commences"}),
             ]
         )
         res = run_deterministic_diagnostic(
             {aide.slug: aide}, FACTS, _monument(), 3000, {self.LEVIER_FACT: False}
         )
         self.assertEqual(len(res["aidesAtteignables"]), 1)
-        self.assertIn("travaux_commences", [q["id"] for q in res["qcmQuestions"]])
+        self.assertIn("etat_travaux", [q["id"] for q in res["qcmQuestions"]])
 
     def test_bucket_trie_par_enjeu_et_total(self):
         def _aide(slug, montant):
@@ -873,11 +1036,11 @@ class TestLeviers(unittest.TestCase):
         self.assertIsNone(res["montantPotentielTotal"])
 
     def test_enjeu_max_par_question(self):
-        aide = _fixture_aide([self._gate("travaux_commences", {"eq": False})]).model_copy(
+        aide = _fixture_aide([self._gate("etat_travaux", {"eq": "non_commences"})]).model_copy(
             update={"financement": Financement(montant_max=40000)}
         )
         res = run_deterministic_diagnostic({aide.slug: aide}, FACTS, _monument(), 3000)
-        question = next(q for q in res["qcmQuestions"] if q["id"] == "travaux_commences")
+        question = next(q for q in res["qcmQuestions"] if q["id"] == "etat_travaux")
         self.assertEqual(question["enjeuMax"], 40000)
 
     def test_statut_expose_dans_le_match_result(self):
@@ -1035,7 +1198,7 @@ class TestMultiEnum(unittest.TestCase):
         self.assertNotIn("skip", [o["id"] for o in q["options"]])
 
     def test_question_simple_garde_le_pseudo_choix_passer(self):
-        q = self._questions("travaux_commences", {"eq": False})["travaux_commences"]
+        q = self._questions("etat_travaux", {"eq": "non_commences"})["etat_travaux"]
         self.assertFalse(q["multiple"])
         self.assertEqual(q["options"][-1], {"id": "skip", "label": "Passer cette question"})
 
@@ -1096,5 +1259,322 @@ class TestDiagnosticShape(unittest.TestCase):
         self.assertEqual(len(slugs), res["totalAidesAnalysees"])
 
 
+class TestElimineParReponse(unittest.TestCase):
+    """`elimineParReponse` sépare les refus issus d'une RÉPONSE de ceux déduits
+    de la fiche du monument. Le front n'affiche que les premiers : se voir
+    refuser une aide sur un critère qu'on n'a jamais eu à trancher n'apprend
+    rien."""
+
+    def _flag(self, aide: Aide, monument: dict, answers: dict | None = None) -> bool:
+        ctx = build_context(monument, 3000, answers=answers)
+        verdict = evaluate_aide(aide, monument, 3000, ctx, FACTS)
+        return _match_result(verdict)["elimineParReponse"]
+
+    def test_gate_user_fact_en_echec_est_impute_a_la_reponse(self):
+        """Travaux déjà commencés : c'est l'utilisateur qui a écarté l'aide."""
+        m = _monument()
+        self.assertTrue(self._flag(AIDES["drac-mh-classes"], m, {"etat_travaux": "en_cours"}))
+
+    def test_hard_filter_nest_pas_impute_a_la_reponse(self):
+        """Refus déduit de la fiche (mauvaise région) : aucune réponse en cause."""
+        aide = _fixture_aide([], regions=["bretagne"])
+        m = _monument(region="ile-de-france")
+        verdict = evaluate_aide(aide, m, 3000, build_context(m, 3000), FACTS)
+        self.assertEqual(verdict.status, "non_eligible")
+        self.assertFalse(self._flag(aide, m))
+
+    def test_gate_auto_nest_pas_impute_a_la_reponse(self):
+        """Un gate `auto` lit la fiche du monument, pas les réponses."""
+        aide = _fixture_aide(
+            [
+                {
+                    "id": "prot",
+                    "text": "Monument non protégé",
+                    "kind": "auto",
+                    "effect": "gate",
+                    "field": "monument.protection",
+                    "predicate": {"not_in": ["classe"]},
+                }
+            ]
+        )
+        m = _monument(protection="classe")
+        verdict = evaluate_aide(aide, m, 3000, build_context(m, 3000), FACTS)
+        self.assertEqual(verdict.status, "non_eligible")
+        self.assertFalse(self._flag(aide, m))
+
+    def test_refus_automatique_lemporte_sur_la_reponse(self):
+        """Hors région ET travaux commencés : l'aide n'a jamais été candidate,
+        c'est la région que `raisonIneligibilite` affiche. Ne pas l'imputer à
+        l'utilisateur, sinon la liste se remplit d'aides d'autres régions."""
+        aide = _fixture_aide(
+            [
+                {
+                    "id": "tc",
+                    "text": "Travaux non commencés",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": "etat_travaux",
+                    "predicate": {"eq": "non_commences"},
+                }
+            ],
+            regions=["bretagne"],
+        )
+        m = _monument(region="ile-de-france")
+        self.assertFalse(self._flag(aide, m, {"etat_travaux": "en_cours"}))
+        # Sans le hard_filter, la même réponse est bien imputée à l'utilisateur.
+        sans_hf = _fixture_aide(aide.conditions and [c.model_dump() for c in aide.conditions])
+        self.assertTrue(self._flag(sans_hf, m, {"etat_travaux": "en_cours"}))
+
+    def test_faux_hors_non_eligible(self):
+        """Le champ est toujours présent et faux sur les autres statuts."""
+        m = _monument()
+        verdict = evaluate_aide(AIDES["drac-mh-classes"], m, 3000, build_context(m, 3000), FACTS)
+        self.assertNotEqual(verdict.status, "non_eligible")
+        self.assertFalse(_match_result(verdict)["elimineParReponse"])
+
+
+class TestFusionMonumentProjet(unittest.TestCase):
+    """Contrat de non-régression de l'inversion de hiérarchie.
+
+    Le moteur n'a PAS changé : `FIELD_REGISTRY` et `build_context` lisent
+    toujours `travaux_envisages` sur le monument. Depuis que le cadrage vit sur
+    le projet, c'est `merge_projet_into_monument` qui recompose ce monument à la
+    frontière (routers). Ces tests prouvent que le contexte obtenu est identique
+    à celui d'avant l'inversion — un chantier décrit sur un projet doit produire
+    exactement le même diagnostic qu'un monument qui portait ces travaux.
+    """
+
+    def test_contexte_identique_a_l_avant_inversion(self):
+        avant = _monument(travaux_envisages=["toiture", "facade"])
+        # Après : la fiche ne porte plus les travaux, le projet les porte.
+        fiche = _monument()
+        fiche.pop("travaux_envisages")
+        projet = {"id": "p1", "travaux_envisages": ["toiture", "facade"]}
+        apres = merge_projet_into_monument(fiche, projet)
+
+        self.assertEqual(build_context(avant, 3000), build_context(apres, 3000))
+
+    def test_le_projet_ecrase_les_travaux_de_la_fiche(self):
+        """Deux projets d'un même monument doivent pouvoir diverger."""
+        fiche = _monument(travaux_envisages=["toiture"])
+        fusion = merge_projet_into_monument(fiche, {"travaux_envisages": ["orgues"]})
+        self.assertEqual(fusion["travaux_envisages"], ["orgues"])
+        # Sans mutation de la fiche : le même monument sert les autres projets.
+        self.assertEqual(fiche["travaux_envisages"], ["toiture"])
+
+    def test_projet_sans_travaux_donne_une_liste_vide(self):
+        """« Pas encore déterminé » : le hard_filter travaux redevient fail-open."""
+        fusion = merge_projet_into_monument(_monument(), {"travaux_envisages": []})
+        self.assertEqual(fusion["travaux_envisages"], [])
+        aide = _fixture_aide([], travaux=["orgues"])
+        verdict = evaluate_aide(aide, fusion, 3000, build_context(fusion, 3000), FACTS)
+        self.assertNotEqual(verdict.status, "non_eligible")
+
+    def test_monument_sans_projet_reste_inchange(self):
+        fiche = _monument()
+        self.assertIs(merge_projet_into_monument(fiche, None), fiche)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAnneeConstructionDeduiteDuSiecle(unittest.TestCase):
+    """Le siècle de la fiche répond à la place de l'utilisateur.
+
+    `annee_construction` porte un `auto_source` sur `monument.siecle_construction` :
+    inutile de demander l'année d'un monument dont la notice donne déjà le
+    siècle. Un siècle n'étant pas une année, la déduction est un INTERVALLE :
+    elle ne tranche que les seuils qu'elle tranche vraiment, et laisse la
+    question posée sinon (fail-closed).
+    """
+
+    def _aide(self, predicate: dict):
+        return _fixture_aide(
+            [
+                {
+                    "id": "anciennete",
+                    "text": "L'édifice doit être ancien.",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": "annee_construction",
+                    "predicate": predicate,
+                }
+            ]
+        )
+
+    def _run(self, predicate: dict, siecle: str | None, answers: dict | None = None):
+        monument = _monument(siecle_construction=siecle)
+        ctx = build_context(monument, None, answers or {})
+        return evaluate_aide(self._aide(predicate), monument, None, ctx, FACTS)
+
+    def test_siecle_connu_tranche_le_gate_sans_question(self):
+        verdict = self._run({"lt": 1800}, "XVIIe siècle")
+        self.assertEqual(verdict.status, "eligible")
+        self.assertEqual(verdict.missing_facts, {})
+
+    def test_siecle_connu_elimine_quand_le_seuil_est_franchi(self):
+        verdict = self._run({"lt": 1800}, "20e siècle")
+        self.assertEqual(verdict.status, "non_eligible")
+        self.assertEqual(verdict.missing_facts, {})
+
+    def test_seuil_a_cheval_sur_le_siecle_pose_la_question(self):
+        # Le 18e siècle court de 1701 à 1800 : « antérieur à 1800 » est vrai au
+        # début, faux à la fin. On ne tranche pas, on demande.
+        verdict = self._run({"lt": 1800}, "18e siècle")
+        self.assertEqual(verdict.status, "potentiel")
+        self.assertIn("annee_construction", verdict.missing_facts)
+
+    def test_siecle_illisible_pose_la_question(self):
+        verdict = self._run({"lt": 1800}, "Moyen Age")
+        self.assertIn("annee_construction", verdict.missing_facts)
+
+    def test_siecle_absent_pose_la_question(self):
+        verdict = self._run({"lt": 1800}, None)
+        self.assertIn("annee_construction", verdict.missing_facts)
+
+    def test_la_reponse_prime_sur_le_siecle(self):
+        # L'utilisateur répond 1850 : plus précis que « 17e siècle » de la fiche.
+        verdict = self._run({"lt": 1800}, "XVIIe siècle", {"annee_construction": 1850})
+        self.assertEqual(verdict.status, "non_eligible")
+
+    def test_fourchette_de_siecles_lue_en_entier(self):
+        # « 14e - 18e siècle » : les deux bornes partagent le mot « siècle ».
+        # Ne lire que la dernière donnerait le 18e — le bâtiment est construit
+        # au 14e et remanié jusqu'au 18e, c'est la PREMIÈRE campagne qui date
+        # sa construction.
+        from eligibility_engine import _annee_depuis_siecle
+
+        self.assertEqual(tuple(_annee_depuis_siecle("14e - 18e siècle")), (1301, 1400))
+        self.assertEqual(tuple(_annee_depuis_siecle("14e, 15e et 16e siècles")), (1301, 1400))
+        self.assertEqual(tuple(_annee_depuis_siecle("12e au 14e siècle")), (1101, 1200))
+        self.assertEqual(tuple(_annee_depuis_siecle("12e s.;13e s.")), (1101, 1200))
+        self.assertEqual(tuple(_annee_depuis_siecle("xviie-xviiie siècles")), (1601, 1700))
+        # Les quantièmes (« 2e moitié », « 4e quart ») ne sont pas des siècles.
+        self.assertEqual(tuple(_annee_depuis_siecle("2e moitié 19e siècle")), (1801, 1900))
+        self.assertEqual(tuple(_annee_depuis_siecle("4e quart 18e siècle")), (1701, 1800))
+        self.assertIsNone(_annee_depuis_siecle("Moyen Age"))
+        self.assertIsNone(_annee_depuis_siecle("Vieux siècle"))
+
+    def test_edifice_remanie_reste_date_de_sa_construction(self):
+        # Cas réel (château de Paley, « 14e - 18e siècle ») : « antérieur à
+        # 1800 » est acquis, la question ne doit plus être posée.
+        verdict = self._run({"lt": 1800}, "14e - 18e siècle")
+        self.assertEqual(verdict.status, "eligible")
+        self.assertEqual(verdict.missing_facts, {})
+
+    def test_fourchette_encadrante_satisfaite(self):
+        verdict = self._run({"all_of": [{"gte": 401}, {"lte": 1996}]}, "12e s.;13e s.")
+        self.assertEqual(verdict.status, "eligible")
+
+    def test_refus_deduit_de_la_fiche_nest_pas_impute_a_lutilisateur(self):
+        verdict = self._run({"lt": 1800}, "20e siècle")
+        self.assertFalse(_match_result(verdict)["elimineParReponse"])
+
+    def test_refus_sur_reponse_reste_impute_a_lutilisateur(self):
+        verdict = self._run({"lt": 1800}, None, {"annee_construction": 1850})
+        self.assertTrue(_match_result(verdict)["elimineParReponse"])
+
+    def test_fait_tranche_par_la_fiche_nest_pas_redemande_sous_un_applies_if(self):
+        # Applicabilité inconnue : l'aide reste en incertitude (fail-closed),
+        # mais l'inconnue est le fait PASSERELLE, pas l'année — que la fiche
+        # donne déjà. Seule la passerelle est posée.
+        aide = _fixture_aide(
+            [
+                {
+                    "id": "anciennete",
+                    "text": "L'édifice doit être ancien.",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": "annee_construction",
+                    "predicate": {"lt": 1800},
+                    "applies_if": {"fact": "erp", "predicate": {"eq": True}},
+                }
+            ]
+        )
+        monument = _monument(siecle_construction="XVIIe siècle")
+        ctx = build_context(monument, None, {})
+        verdict = evaluate_aide(aide, monument, None, ctx, FACTS)
+        self.assertEqual(verdict.status, "potentiel")
+        self.assertNotIn("annee_construction", verdict.missing_facts)
+        self.assertIn("erp", verdict.gateway_facts)
+
+
+class TestEgliseDeduiteDuNom(unittest.TestCase):
+    """« Église Saint-Martin » répond d'avance à « est-ce une église ? ».
+
+    Déduction POSITIVE seulement : un nom sans le mot ne prouve pas le
+    contraire (« Notre-Dame de X », « Collégiale »), la question reste posée.
+    """
+
+    def _aide(self, fact: str = "edifice_eglise_ou_chapelle"):
+        return _fixture_aide(
+            [
+                {
+                    "id": "cultuel",
+                    "text": "L'édifice doit être une église ou une chapelle.",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": fact,
+                    "predicate": {"eq": True},
+                }
+            ]
+        )
+
+    def _run(self, nom: str, fact: str = "edifice_eglise_ou_chapelle", answers=None):
+        monument = _monument(nom=nom)
+        ctx = build_context(monument, None, answers or {})
+        return evaluate_aide(self._aide(fact), monument, None, ctx, FACTS)
+
+    def test_nom_qui_commence_par_eglise_repond_oui(self):
+        verdict = self._run("Église Saint-Martin")
+        self.assertEqual(verdict.status, "eligible")
+        self.assertEqual(verdict.missing_facts, {})
+
+    def test_accents_et_majuscules_indifferents(self):
+        for nom in ("EGLISE SAINT-PIERRE", "église saint-pierre", "L'Église Notre-Dame"):
+            self.assertEqual(self._run(nom).status, "eligible")
+
+    def test_chapelle_et_qualificatifs(self):
+        for nom in ("Chapelle des Pénitents", "Ancienne chapelle Saint-Roch"):
+            self.assertEqual(self._run(nom).status, "eligible")
+
+    def test_le_meme_nom_vaut_pour_ledifice_cultuel(self):
+        verdict = self._run("Chapelle des Pénitents", fact="edifice_cultuel")
+        self.assertEqual(verdict.status, "eligible")
+
+    def test_toponyme_nest_pas_une_chapelle(self):
+        # Le mot doit être la TÊTE du nom, sinon « Château de la Chapelle-… »
+        # deviendrait une chapelle.
+        for nom in ("Château de la Chapelle-Rainsouin", "Manoir de l'Église"):
+            verdict = self._run(nom)
+            self.assertIn("edifice_eglise_ou_chapelle", verdict.missing_facts)
+
+    def test_nom_muet_laisse_la_question_posee(self):
+        for nom in ("Notre-Dame de Paris", "Château de Paley", "Basilique Saint-Denis"):
+            verdict = self._run(nom)
+            self.assertIn("edifice_eglise_ou_chapelle", verdict.missing_facts)
+
+    def test_la_reponse_negative_prime_sur_le_nom(self):
+        # Un propriétaire qui a nommé « Chapelle » une grange peut le dire.
+        verdict = self._run("Chapelle des Pénitents", answers={"edifice_eglise_ou_chapelle": "non"})
+        self.assertEqual(verdict.status, "non_eligible")
+
+
+class TestRangeValue(unittest.TestCase):
+    """Sémantique universelle d'un intervalle : les deux bornes doivent
+    s'accorder, et seuls les opérateurs de seuil concluent aux bornes."""
+
+    def test_bornes_accordees_concluent(self):
+        self.assertIs(evaluate_predicate({"lt": 1800}, RangeValue((1401, 1500))), True)
+        self.assertIs(evaluate_predicate({"gte": 1800}, RangeValue((1401, 1500))), False)
+
+    def test_bornes_en_desaccord_restent_indeterminees(self):
+        self.assertIsNone(evaluate_predicate({"lt": 1800}, RangeValue((1701, 1800))))
+
+    def test_operateur_non_monotone_reste_indetermine(self):
+        # 1450 est dans l'intervalle : conclure « non » éliminerait à tort.
+        self.assertIsNone(evaluate_predicate({"eq": 1450}, RangeValue((1401, 1500))))
+
+    def test_intervalle_degenere_vaut_une_valeur(self):
+        self.assertIs(evaluate_predicate({"eq": 1500}, RangeValue((1500, 1500))), True)

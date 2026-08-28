@@ -39,6 +39,9 @@ class _Table:
         self._filters[field] = value
         return self
 
+    def in_(self, *a, **k):
+        return self
+
     def contains(self, field, value, *a, **k):
         self._contains = (field, value)
         self._db.contains_values.append(value)
@@ -67,8 +70,12 @@ class _Table:
         if self._name == "documents":
             return _Resp(self._db.doc)
         if self._name == "project_members":
-            return _Resp({"role": self._db.role} if self._db.role else None)
-        return _Resp(None)
+            # my_scope_roles interroge par user_id : liste d'appartenances.
+            rows = [{"monument_id": "m1", "role": self._db.role}] if self._db.role else []
+            return _Resp(rows)
+        if self._name == "projets":
+            return _Resp([{"id": "p1", "monument_id": "m1"}])
+        return _Resp([])
 
 
 class _StorageFile:

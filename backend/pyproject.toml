@@ -19,6 +19,7 @@ dependencies = [
     "pyjwt>=2.10.0",
     "stripe>=12.0.0",
     "anthropic>=0.69.0",
+    "brotli>=1.2.0",
 ]
 
 [dependency-groups]

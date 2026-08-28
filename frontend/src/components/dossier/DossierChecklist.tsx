@@ -1,12 +1,13 @@
 import { Loader2 } from 'lucide-react';
 import {
-  IconLivre, IconSucces, IconTelecharger, IconVoir, IconVerrou, IconAjouter, IconRafraichir, IconSupprimer, IconLienExterne, IconAttention,
+  IconSucces, IconTelecharger, IconVoir, IconVerrou, IconAjouter, IconRafraichir, IconSupprimer, IconLienExterne, IconAttention,
 } from '@/components/icons';
-import { Link, useParams } from 'react-router';
-import { ROUTES } from '@/constants/routes';
+import { useParams } from 'react-router';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { dossierService } from '@/services/dossier.service';
 import { templateService } from '@/services/template.service';
 import { formatBadge } from '@/lib/template-format';
 import type { ChecklistItem, Template } from '@/types';
@@ -45,6 +46,8 @@ interface DossierChecklistProps {
   onReject?: (item: ChecklistItem) => void;
   /** Vrai si l'utilisateur peut remplacer/supprimer la pièce (= il en est l'auteur). */
   canModifyItem?: (item: ChecklistItem) => boolean;
+  /** Nom du fichier zip proposé au téléchargement de l'ensemble des pièces. */
+  archiveName?: string;
   busyItemId?: string | null;
   readOnly?: boolean;
 }
@@ -59,6 +62,7 @@ export function DossierChecklist({
   onConfirm,
   onReject,
   canModifyItem,
+  archiveName,
   busyItemId,
   readOnly,
 }: DossierChecklistProps) {
@@ -69,7 +73,7 @@ export function DossierChecklist({
   // la visibilité). Une pièce dont le documentId n'y est pas est masquée pour lui
   // → cadenas au lieu de « Voir ». La page dossier expose l'id projet via la
   // route (/projets/:projetId/...), pas besoin d'y toucher.
-  const { projetId } = useParams();
+  const { projetId, dossierId } = useParams();
   const [viewableDocIds, setViewableDocIds] = useState<Set<string> | null>(null);
 
   // Re-fetch quand l'ensemble des pièces fournies change (dépôt/remplacement) :
@@ -110,6 +114,24 @@ export function DossierChecklist({
     return () => { cancelled = true; };
   }, [projetId, fourniKey]);
 
+  // Téléchargement de l'ensemble des pièces en un zip. Le backend n'y met que
+  // les documents que l'appelant a le droit de consulter : une pièce « Réservé »
+  // est absente de l'archive, sans erreur.
+  const [downloading, setDownloading] = useState(false);
+  const hasUploaded = items.some((i) => i.documentId);
+
+  const handleDownloadAll = async () => {
+    if (!dossierId) return;
+    setDownloading(true);
+    try {
+      await dossierService.downloadArchive(dossierId, archiveName ?? 'dossier');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Téléchargement impossible');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
@@ -117,14 +139,23 @@ export function DossierChecklist({
           <span className="font-medium" style={{ color: 'var(--color-foreground)' }}>{confirmees}/{total}</span> documents confirmés
           {aVerifier > 0 && <span> · {aVerifier} à vérifier</span>}
         </p>
-        <Link
-          to={ROUTES.MODELES}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          <IconLivre className="h-3.5 w-3.5" />
-          Bibliothèque de modèles
-        </Link>
+        {hasUploaded && dossierId && (
+          <button
+            type="button"
+            onClick={handleDownloadAll}
+            disabled={downloading}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-secondary/50 disabled:opacity-60 disabled:cursor-not-allowed"
+            style={{ color: 'var(--color-primary)' }}
+            title="Télécharger toutes les pièces téléversées dans une archive zip"
+          >
+            {downloading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <IconTelecharger className="h-3.5 w-3.5" />
+            )}
+            {downloading ? 'Préparation…' : 'Télécharger le dossier'}
+          </button>
+        )}
       </div>
 
       <div className="space-y-1.5">

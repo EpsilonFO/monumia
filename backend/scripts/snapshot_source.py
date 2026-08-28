@@ -24,8 +24,10 @@ Imprime le chemin du snapshot créé (relatif à backend/).
 import hashlib
 import re
 import sys
+import time
 from datetime import UTC, date, datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import html2text
 import httpx
@@ -35,6 +37,70 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 SOURCES_DIR = BACKEND_DIR / "data" / "sources"
 
 UA = "Mozilla/5.0 (compatible; MonumiaIngest/1.0; +https://monumia.fr)"
+
+# Identité de repli pour les sources derrière un WAF qui refuse tout client ne
+# ressemblant pas à un navigateur. Mesuré sur www.normandie.fr le 2026-08-19 :
+# ni l'UA de navigateur seul, ni les `Sec-Fetch-*` seuls, ni `Accept-Language`
+# seul ne passent — c'est leur COMBINAISON qui obtient un 200. L'UA `UA`
+# ci-dessus, honnête, reste l'identité par défaut : on ne bascule ici qu'après
+# un 403, source par source, jamais d'emblée.
+UA_NAVIGATEUR = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+)
+HEADERS_NAVIGATEUR = {
+    "User-Agent": UA_NAVIGATEUR,
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+    ),
+    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+    # Décisif, et pas seulement décoratif : le WAF de normandie.fr rend 403 sur
+    # le défaut de httpx (`gzip, deflate, zstd`) comme sur `gzip, deflate`, et
+    # 200 dès que `br` figure dans la liste. D'où la dépendance `brotli` : sans
+    # elle, httpx annoncerait un encodage qu'il ne sait pas décoder et lèverait
+    # une ImportError si le serveur choisissait brotli.
+    "Accept-Encoding": "gzip, deflate, br",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Upgrade-Insecure-Requests": "1",
+}
+
+# « Shield » à défi JavaScript : au lieu de la page, le serveur rend un script
+# d'une trentaine de lignes qui pose un cookie calculé puis redirige. La réponse
+# fait 200 et moins d'un kilo-octet — donc ni 403 ni erreur, juste une page vide
+# de substance, ce qui sortait en ERREUR_HTTP sur les 10 aides d'AURA.
+#
+# Les constantes sont LUES dans le script au lieu d'être codées en dur : le
+# multiplicateur est un paramètre du dispositif, pas une propriété du protocole,
+# et le jour où il change on veut continuer à passer sans nouvelle release.
+_SHIELD_CALCUL = re.compile(r"\(\s*challenge\s*\*\s*(\d+)\s*\)\s*%\s*(\d+)")
+_SHIELD_COOKIE = re.compile(r"""setCookie\(\s*["']([^"']+)["']\s*,\s*challenge""")
+# Au-delà, ce n'est pas une page de défi mais un document : on ne va pas
+# chercher un script dans 80 Ko de HTML légitime.
+_SHIELD_TAILLE_MAX = 8192
+
+
+def resoudre_shield(contenu: bytes) -> tuple[str, str] | None:
+    """(nom, valeur) du cookie à poser, ou None si ce n'est pas une page de défi.
+
+    Le défi est un simple `(Date.now() * k) % m`. On le rejoue en Python ; rien
+    n'est deviné, tout est lu dans la page.
+    """
+    if len(contenu) > _SHIELD_TAILLE_MAX:
+        return None
+    texte = contenu.decode("utf-8", errors="replace")
+    calcul = _SHIELD_CALCUL.search(texte)
+    cookie = _SHIELD_COOKIE.search(texte)
+    if not calcul or not cookie:
+        return None
+    multiplicateur, modulo = int(calcul.group(1)), int(calcul.group(2))
+    if modulo == 0:
+        return None
+    # `Date.now()` : millisecondes depuis l'epoch.
+    challenge = int(time.time() * 1000)
+    return cookie.group(1), f"{challenge}:{(challenge * multiplicateur) % modulo}"
+
 
 # Slug ET label composent un nom de fichier : sans validation, un label du type
 # « ../../secrets » ferait écrire hors du dossier des sources.
@@ -187,8 +253,19 @@ def snapshot(slug: str, source: str, label: str | None = None) -> Path:
     # aller-retour réseau, ni sortir sur une erreur httpx qui masque la cause.
     _validate_names(slug, label)
     if source.startswith(("http://", "https://")):
-        resp = httpx.get(source, headers={"User-Agent": UA}, follow_redirects=True, timeout=30)
-        resp.raise_for_status()
+        # Client plutôt que `httpx.get` : franchir le shield exige de conserver
+        # un cookie entre deux requêtes.
+        with httpx.Client(headers={"User-Agent": UA}, follow_redirects=True, timeout=30) as client:
+            resp = client.get(source)
+            if resp.status_code == 403:
+                # WAF anti-bot : un 403 est déterministe, seul un changement
+                # d'identité a une chance de passer (cf. HEADERS_NAVIGATEUR).
+                resp = client.get(source, headers=HEADERS_NAVIGATEUR)
+            if (defi := resoudre_shield(resp.content)) is not None:
+                nom, valeur = defi
+                client.cookies.set(nom, valeur, domain=urlsplit(str(resp.url)).netloc)
+                resp = client.get(source, headers=HEADERS_NAVIGATEUR)
+            resp.raise_for_status()
         content_type = resp.headers.get("content-type", "")
         if "pdf" in content_type or source.lower().endswith(".pdf"):
             return write_pdf_snapshot(slug, resp.content, url=str(resp.url), label=label)

@@ -179,7 +179,7 @@ export function TarifsPage() {
     }
   }, []);
 
-  const backTo = monumentId ? ROUTES.PROJET_DETAIL(monumentId) : token ? '/app' : '/login';
+  const backTo = monumentId ? ROUTES.MONUMENT_DETAIL(monumentId) : token ? '/app' : '/login';
 
   return (
     <div className="min-h-screen bg-app-bg">
@@ -197,7 +197,7 @@ export function TarifsPage() {
           <PaymentSuccess
             state={confirmState}
             monumentName={monument?.nom}
-            onGoToProject={monumentId ? () => navigate(ROUTES.PROJET_DETAIL(monumentId)) : undefined}
+            onGoToProject={monumentId ? () => navigate(ROUTES.MONUMENT_DETAIL(monumentId)) : undefined}
           />
         )}
 
@@ -243,7 +243,7 @@ export function TarifsPage() {
             className="mx-auto mt-5 max-w-2xl text-[16.5px] font-medium leading-[1.65]"
             style={{ color: C.grayFg }}
           >
-            L’estimation de vos aides est gratuite et le reste. Ce qui se paie, c’est le passage à
+            L’estimation de vos aides est gratuite. Ce qui se paie, c’est le passage à
             l’action : savoir de quelles aides il s’agit, auprès de qui les demander, et avec quelles
             pièces.
           </p>
@@ -299,10 +299,10 @@ export function TarifsPage() {
             cta={{
               label: monument ? `Débloquer ${monument.nom}` : 'Débloquer un projet',
               onClick: () => startCheckout('dossier'),
-              // Sans projet en contexte, on ne saurait pas quoi débloquer :
-              // l'utilisateur est renvoyé vers la liste de ses projets.
-              redirectTo: monumentId ? undefined : ROUTES.PROJETS,
-              redirectLabel: 'Choisir un projet',
+              // Sans monument en contexte, on ne saurait pas quoi débloquer :
+              // l'utilisateur est renvoyé vers la liste de ses monuments.
+              redirectTo: monumentId ? undefined : ROUTES.MONUMENTS,
+              redirectLabel: 'Choisir un monument',
             }}
             loading={pending === 'dossier'}
             waiting={configured === null}
@@ -339,7 +339,6 @@ export function TarifsPage() {
             payé : sans Customer côté Stripe, l'ouverture échouerait. */}
         <Reassurance
           subscription={access?.subscription ?? null}
-          testMode={!!access?.testMode}
           onOpenPortal={hasPaid ? openPortal : undefined}
         />
       </div>
@@ -623,11 +622,9 @@ function PaymentSuccess({
 
 function Reassurance({
   subscription,
-  testMode,
   onOpenPortal,
 }: {
   subscription: { status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null;
-  testMode: boolean;
   onOpenPortal?: () => void;
 }) {
   const periodEnd = subscription?.currentPeriodEnd
@@ -678,15 +675,6 @@ function Reassurance({
               </button>
             </>
           )}
-        </p>
-      )}
-
-      {testMode && (
-        <p
-          className="mx-auto max-w-md rounded-lg border px-3 py-2 text-center text-[12.5px] font-semibold"
-          style={{ background: C.paleOrange, borderColor: C.orange, color: C.ink }}
-        >
-          Stripe est en mode test : aucun paiement réel n’est encaissé.
         </p>
       )}
     </div>

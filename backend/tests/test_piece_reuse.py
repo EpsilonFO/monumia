@@ -41,13 +41,19 @@ class _Query:
 
 
 class _FakeSupabase:
-    """documents → le stock ; project_members / monuments → les rôles."""
+    """documents → le stock ; les autres tables → les rôles (my_scope_roles).
 
-    def __init__(self, documents, members=(), owned=()):
+    Le monument de test est "m1" et son chantier "p1" : `projets` relie l'un à
+    l'autre pour que les rôles monument se propagent au projet, comme en vrai.
+    """
+
+    def __init__(self, documents, members=(), owned=(), projet_members=()):
         self._tables = {
             "documents": list(documents),
             "project_members": list(members),
             "monuments": list(owned),
+            "projets": [{"id": "p1", "monument_id": "m1"}],
+            "projet_members": list(projet_members),
         }
 
     def table(self, name):
@@ -59,7 +65,8 @@ def _doc(doc_id, piece_id, **kw):
         "id": doc_id,
         "piece_id": piece_id,
         "user_id": "u1",
-        "monument_ids": ["p1"],
+        "monument_ids": ["m1"],
+        "projet_ids": [],
         "visibility": "team",
         "allowed_user_ids": [],
         "date_upload": "2026-08-01T00:00:00+00:00",
@@ -82,13 +89,13 @@ def _item(item_id, piece_id, statut="manquant"):
     }
 
 
-def _reprendre(checklist, documents, *, user_id="u1", members=(), owned=("p1",)):
+def _reprendre(checklist, documents, *, user_id="u1", members=(), owned=("m1",)):
     supabase = _FakeSupabase(
         documents,
         members=members,
         owned=[{"id": m} for m in owned],
     )
-    return apply_reuse(supabase, checklist, "p1", user_id, now=_NOW)
+    return apply_reuse(supabase, checklist, "m1", "p1", user_id, now=_NOW)
 
 
 class PorteeTests(unittest.TestCase):
@@ -114,12 +121,12 @@ class PorteeTests(unittest.TestCase):
     def test_piece_porteur_dun_autre_non_reprise(self) -> None:
         """Une pièce `porteur` visible (équipe) mais déposée par un tiers ne doit
         jamais être rattachée à ma place : `porteur` est propre au demandeur."""
-        doc = _doc("d1", "rib", user_id="u2", monument_ids=["p1"], visibility="team")
+        doc = _doc("d1", "rib", user_id="u2", monument_ids=["m1"], visibility="team")
         items, n = _reprendre(
             [_item("i1", "rib")],
             [doc],
             user_id="u1",
-            members=[{"monument_id": "p1", "role": "member"}],
+            members=[{"monument_id": "m1", "role": "member"}],
             owned=(),
         )
         self.assertEqual(n, 0)
@@ -212,7 +219,7 @@ class VisibiliteTests(unittest.TestCase):
             [_item("i1", "titre_propriete")],
             [doc],
             user_id="u1",
-            members=[{"monument_id": "p1", "role": "member"}],
+            members=[{"monument_id": "m1", "role": "member"}],
             owned=(),
         )
         self.assertEqual(n, 0)
@@ -224,7 +231,7 @@ class VisibiliteTests(unittest.TestCase):
             [_item("i1", "titre_propriete")],
             [doc],
             user_id="u1",
-            members=[{"monument_id": "p1", "role": "co_owner"}],
+            members=[{"monument_id": "m1", "role": "co_owner"}],
             owned=(),
         )
         self.assertEqual(n, 1)

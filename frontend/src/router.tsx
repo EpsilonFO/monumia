@@ -1,11 +1,6 @@
-import { createBrowserRouter, Navigate, useParams } from 'react-router';
+import { createBrowserRouter, Navigate, useSearchParams } from 'react-router';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { BtpLayout } from '@/components/layout/BtpLayout';
-import { OnboardingPage } from '@/pages/onboarding/OnboardingPage';
-import { SegmentChoice } from '@/pages/onboarding/SegmentChoice';
-import { OnboardingProfile } from '@/pages/onboarding/OnboardingProfile';
-import { OnboardingMonument } from '@/pages/onboarding/OnboardingMonument';
 import { LoginPage } from '@/pages/login/LoginPage';
 import { ResetPasswordPage } from '@/pages/login/ResetPasswordPage';
 import { AuthCallbackPage } from '@/pages/login/AuthCallbackPage';
@@ -17,44 +12,49 @@ import { BlogArticlePage } from '@/pages/blog/BlogArticlePage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 // Owner / Commune pages
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
-import { ProjectsListPage } from '@/pages/projets/ProjectsListPage';
-import { ProjectWizardPage } from '@/pages/projets/ProjectWizardPage';
-import { ProjectDetailPage } from '@/pages/projets/ProjectDetailPage';
+import { MonumentsListPage } from '@/pages/monuments/MonumentsListPage';
+import { MonumentWizardPage } from '@/pages/monuments/MonumentWizardPage';
+import { MonumentDetailPage } from '@/pages/monuments/MonumentDetailPage';
+import { ProjetWizardPage } from '@/pages/projets/ProjetWizardPage';
+import { ProjetDetailPage } from '@/pages/projets/ProjetDetailPage';
 import { AideProjectPage } from '@/pages/projets/AideProjectPage';
 import { DossierDetailPage } from '@/pages/projets/DossierDetailPage';
 import { DocumentsPage } from '@/pages/documents/DocumentsPage';
-import { TemplateLibraryPage } from '@/pages/templates/TemplateLibraryPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
-// BTP pages
-import { BtpDashboardPage } from '@/pages/btp/BtpDashboardPage';
-import { BtpProspectsPage } from '@/pages/btp/BtpProspectsPage';
-import { BtpProspectDetailPage } from '@/pages/btp/BtpProspectDetailPage';
-import { BtpAidesPage } from '@/pages/btp/BtpAidesPage';
-import { BtpDocumentsPage } from '@/pages/btp/BtpDocumentsPage';
-import { BtpProfilePage } from '@/pages/btp/BtpProfilePage';
 import { InvitationLandingPage } from '@/pages/invitation/InvitationLandingPage';
+import { ROUTES } from '@/constants/routes';
 
-// Legacy redirect: /app/monuments/:monumentId → /app/projets/:monumentId (id preserved)
+/**
+ * Ancien wizard unifié : `/app/projets/nouveau`, avec `?monument=<id>` pour
+ * « Refaire le questionnaire ». Sans monument c'est une création de fiche, donc
+ * le wizard monument ; avec, on renvoie sur la page du monument, d'où
+ * l'utilisateur choisit le projet à refaire (l'ancien lien ne dit pas lequel).
+ */
 // eslint-disable-next-line react-refresh/only-export-components
-function LegacyMonumentRedirect() {
-  const { monumentId } = useParams();
-  return <Navigate to={`/app/projets/${monumentId ?? ''}`} replace />;
+function LegacyWizardRedirect() {
+  const [searchParams] = useSearchParams();
+  const monumentId = searchParams.get('monument');
+  return (
+    <Navigate
+      to={monumentId ? `${ROUTES.MONUMENT_DETAIL(monumentId)}?tab=projets` : ROUTES.MONUMENT_NEW}
+      replace
+    />
+  );
 }
 
-// Root: send logged-in users to their dashboard (segment-aware), others to login.
+// Root: send logged-in users to their dashboard, others to login.
 // The landing page (separate origin) links here so the app picks the right space.
 // eslint-disable-next-line react-refresh/only-export-components
 function RootRedirect() {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
   if (!user || !token) return <Navigate to="/login" replace />;
-  if (user.segment === 'btp') return <Navigate to="/btp" replace />;
-  if (user.accountType === 'collaborateur') return <Navigate to="/app/projets" replace />;
+  if (user.accountType === 'collaborateur') return <Navigate to={ROUTES.MONUMENTS} replace />;
   return <Navigate to="/app" replace />;
 }
 
 export const router = createBrowserRouter([
-  // Root redirects by auth/segment (landing page is now on monumia.fr)
+  // Root redirects by auth state (landing page is now on monumia.fr)
   {
     path: '/',
     element: <RootRedirect />,
@@ -101,25 +101,30 @@ export const router = createBrowserRouter([
     element: <InvitationLandingPage />,
   },
 
-  // Onboarding — credentials kept in memory only (usePendingRegistrationStore)
+  // Les deux wizards — plein écran immersif, hors du shell AppLayout.
   {
-    path: '/onboarding',
-    element: <OnboardingPage />,
-    children: [
-      { index: true, element: <SegmentChoice /> },
-      { path: 'profil', element: <OnboardingProfile /> },
-      { path: 'monument', element: <OnboardingMonument /> },
-    ],
+    path: '/app/monuments/nouveau',
+    element: (
+      <ProtectedRoute>
+        <MonumentWizardPage />
+      </ProtectedRoute>
+    ),
   },
-
-  // Wizard de création — plein écran immersif, hors du shell AppLayout.
-  // Le chemin est inchangé : « Refaire le questionnaire » (?monument=id) et
-  // tous les ROUTES.PROJET_NEW continuent de fonctionner.
+  {
+    // `?projet=<id>` : « Refaire le questionnaire » d'un projet existant.
+    path: '/app/monuments/:monumentId/projets/nouveau',
+    element: (
+      <ProtectedRoute>
+        <ProjetWizardPage />
+      </ProtectedRoute>
+    ),
+  },
+  // Legacy : l'ancien wizard unifié vivait ici, hors AppLayout lui aussi.
   {
     path: '/app/projets/nouveau',
     element: (
       <ProtectedRoute>
-        <ProjectWizardPage />
+        <LegacyWizardRedirect />
       </ProtectedRoute>
     ),
   },
@@ -134,39 +139,23 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <DashboardPage /> },
-      // Unified Projet tab
-      { path: 'projets', element: <ProjectsListPage /> },
-      { path: 'projets/:projetId', element: <ProjectDetailPage /> },
+      // Monuments : la liste et la fiche du bien
+      { path: 'monuments', element: <MonumentsListPage /> },
+      { path: 'monuments/:monumentId', element: <MonumentDetailPage /> },
+      // Projets de travaux
+      // `:projetId` peut être un id de MONUMENT sur les vieux liens (emails,
+      // notifications) : ProjetDetailPage le résout à l'exécution et redirige.
+      { path: 'projets/:projetId', element: <ProjetDetailPage /> },
       { path: 'projets/:projetId/aides/:aideId', element: <AideProjectPage /> },
       { path: 'projets/:projetId/dossiers/:dossierId', element: <DossierDetailPage /> },
       { path: 'documents', element: <DocumentsPage /> },
-      { path: 'modeles', element: <TemplateLibraryPage /> },
       { path: 'profil', element: <ProfilePage /> },
-      // Legacy redirects → unified Projet tab
-      { path: 'monuments', element: <Navigate to="/app/projets" replace /> },
-      { path: 'monuments/:monumentId', element: <LegacyMonumentRedirect /> },
-      { path: 'dossiers', element: <Navigate to="/app/projets" replace /> },
-      { path: 'dossiers/:dossierId', element: <Navigate to="/app/projets" replace /> },
-      { path: 'aides', element: <Navigate to="/app/projets" replace /> },
-      { path: 'aides/:aideId', element: <Navigate to="/app/projets" replace /> },
-    ],
-  },
-
-  // BTP app (protégé)
-  {
-    path: '/btp',
-    element: (
-      <ProtectedRoute>
-        <BtpLayout />
-      </ProtectedRoute>
-    ),
-    children: [
-      { index: true, element: <BtpDashboardPage /> },
-      { path: 'prospects', element: <BtpProspectsPage /> },
-      { path: 'prospects/:prospectId', element: <BtpProspectDetailPage /> },
-      { path: 'aides', element: <BtpAidesPage /> },
-      { path: 'documents', element: <BtpDocumentsPage /> },
-      { path: 'profil', element: <BtpProfilePage /> },
+      // Redirections legacy → liste des monuments
+      { path: 'projets', element: <Navigate to={ROUTES.MONUMENTS} replace /> },
+      { path: 'dossiers', element: <Navigate to={ROUTES.MONUMENTS} replace /> },
+      { path: 'dossiers/:dossierId', element: <Navigate to={ROUTES.MONUMENTS} replace /> },
+      { path: 'aides', element: <Navigate to={ROUTES.MONUMENTS} replace /> },
+      { path: 'aides/:aideId', element: <Navigate to={ROUTES.MONUMENTS} replace /> },
     ],
   },
 

@@ -13,13 +13,7 @@ export interface RegisterPayload {
   password: string;
   prenom: string;
   nom: string;
-  segment: 'commune' | 'prive' | 'btp';
   telephone?: string;
-  commune_code_insee?: string;
-  commune_fonction?: string;
-  prive_type_proprietaire?: string;
-  prive_regime_fiscal?: string;
-  btp?: object;
 }
 
 export interface RegisterCollaboratorPayload {

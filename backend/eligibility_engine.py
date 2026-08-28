@@ -1,6 +1,6 @@
 """
-Moteur de diagnostic déterministe — remplace les deux phases LLM de
-matching_engine.py par l'évaluation des conditions typées (aide_conditions).
+Moteur de diagnostic déterministe : évaluation des conditions typées
+(aide_conditions). Seul moteur de matching du produit.
 
 Aucun appel réseau, aucun LLM. Source de vérité : les YAML typés
 (backend/data/aides/*.yaml) chargés via aides_schema. Ne traite QUE les aides
@@ -8,31 +8,35 @@ Aucun appel réseau, aucun LLM. Source de vérité : les YAML typés
 produit n'affichera que les aides dont la donnée est compilée).
 
 Pipeline :
-  1. hard_filters (déterministe, sémantique identique à prefiltrer_aides)
+  1. hard_filters (périmètre géographique, protection, propriétaire, population)
   2. évaluation des conditions `gate` contre le contexte (monument + commune +
      réponses aux faits) → éligible / potentiel / non éligible
   3. génération des questions depuis les faits manquants (dédup par fait, tri
      par nombre d'aides débloquées), avec eliminationsParOption CALCULÉ.
 
-La sortie a la forme AideDiagnosticResult attendue par le frontend (le champ
-historique `llmEvaluation` est conservé pour compat d'affichage — il ne
-contient plus rien de LLM, juste les verdicts déterministes par condition).
+La sortie a la forme AideDiagnosticResult attendue par le frontend. Attention au
+champ `llmEvaluation` : le nom est un vestige, il ne contient rien de LLM, juste
+les verdicts déterministes par condition. Le frontend le lit sous ce nom.
 """
 
 from __future__ import annotations
 
 import logging
+import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Literal
 
 from aides_schema import (
     ENUM_FACT_TYPES,
+    ROLE_BY_TYPE,
     Aide,
     AppliesIf,
     Condition,
     FactDef,
     MultiValue,
+    RangeValue,
     evaluate_predicate,
 )
 from labels import (
@@ -81,8 +85,14 @@ def build_context(
     Un chemin absent du dict (commune.programmes, commune.eligible_detr tant que
     l'enrichissement n'existe pas) ⇒ valeur None à l'évaluation ⇒ incertitude
     (fail-closed). `answers` mappe fact_key → réponse de l'utilisateur.
+
+    `commune.epci` est posé par l'enrichissement commune (cf.
+    routers.monuments.enrich_monument_with_population) quand la commune a un
+    SIREN d'EPCI : absent pour une commune isolée, ce qui laisse les aides
+    intercommunales en incertitude plutôt que de les déclarer non éligibles.
     """
     ctx: dict[str, object] = {
+        "monument.nom": monument.get("nom"),
         "monument.protection": monument.get("protection"),
         "monument.proprietaire": monument.get("proprietaire"),
         "monument.etat_conservation": monument.get("etat_conservation"),
@@ -93,7 +103,7 @@ def build_context(
         "commune.population": population,
     }
     # Champs d'enrichissement commune : présents seulement si la donnée existe.
-    for path in ("commune.programmes", "commune.eligible_detr"):
+    for path in ("commune.programmes", "commune.eligible_detr", "commune.epci"):
         if path in monument:
             ctx[path] = monument[path]
     ctx["_answers"] = dict(answers or {})
@@ -117,6 +127,10 @@ class AideVerdict:
     status: str  # "eligible" | "atteignable" | "potentiel" | "non_eligible"
     criteres_remplis: list[str] = field(default_factory=list)
     criteres_non_remplis: list[str] = field(default_factory=list)
+    # Sous-ensemble de criteres_non_remplis venant des hard_filters, gardé à part
+    # parce qu'eux seuls sont absents de `evaluations` : sans ça, impossible de
+    # savoir après coup si un refus est déductible de la seule fiche du monument.
+    hard_fails: list[str] = field(default_factory=list)
     raison_ineligibilite: str | None = None
     evaluations: list[dict] = field(default_factory=list)
     # fact_key → liste de (condition, predicate) des gates user_fact en incertitude
@@ -195,9 +209,144 @@ def _normalize_answer(fact: FactDef | None, raw):
     return raw
 
 
-def _resolve_fact_value(ctx: dict, fact_key: str, facts: dict[str, FactDef]):
-    """Valeur typée d'un fait depuis les réponses utilisateur (None si inconnu)."""
+# Siècles tels qu'ils s'écrivent dans les notices Mérimée et dans le champ libre
+# de la fiche : « 15e siècle », « XVIIe siècle », « 12e s.;13e s. », « 14e - 18e
+# siècle », « 2e moitié 19e siècle ». Le mot « siècle » (ou « s. ») est exigé
+# APRÈS l'ordinal, sinon « 1ère moitié 19e siècle » se lirait comme le 1er
+# siècle ; la frontière de mot en tête écarte les fins de mots (« Vieux siècle »
+# n'est pas un 10e siècle).
+#
+# Le premier groupe capture la CHAÎNE d'ordinaux qui partagent le mot « siècle »
+# final (« 14e - 18e siècle », « 14e, 15e et 16e siècles ») : sans lui, seul le
+# dernier serait lu, et une fourchette de cinq siècles se réduirait au dernier —
+# un intervalle trop étroit tranche des critères qu'il ne devrait pas trancher.
+_ORDINAL = r"(?:\d{1,2}|[ivx]{1,5})\s*(?:er|ère|ere|ème|eme|e)?"
+_SEPARATEUR = r"(?:[-–—/,;]|à|au|et)"
+_SIECLE_RE = re.compile(
+    rf"\b((?:{_ORDINAL}\s*{_SEPARATEUR}\s*)*)({_ORDINAL})\s*(?:s\.|siècles?|siecles?)",
+    re.IGNORECASE,
+)
+_ORDINAL_RE = re.compile(r"\b(\d{1,2}|[ivx]{1,5})", re.IGNORECASE)
+
+_ROMAINS = {"i": 1, "v": 5, "x": 10}
+
+
+def _siecle_romain(brut: str) -> int | None:
+    """« XVII » → 17. None si ce n'est pas un nombre romain bien formé."""
+    total, precedent = 0, 0
+    for lettre in reversed(brut.lower()):
+        valeur = _ROMAINS.get(lettre)
+        if valeur is None:
+            return None
+        total += -valeur if valeur < precedent else valeur
+        precedent = max(precedent, valeur)
+    return total or None
+
+
+def _annee_depuis_siecle(brut: object) -> RangeValue | None:
+    """« 14e - 18e siècle » → intervalle d'années 1301-1400, ou None si illisible.
+
+    Deux principes, l'un sémantique et l'autre prudentiel :
+
+    - Quand la notice cite PLUSIEURS siècles, ce sont les campagnes successives
+      du bâtiment. Sa construction, elle, est la PREMIÈRE : un édifice « 14e -
+      18e siècle » est bâti au 14e puis remanié jusqu'au 18e. C'est le sens de
+      la question posée à l'utilisateur (« en quelle année le bâtiment a-t-il
+      été construit ? »), et c'est ce que vérifient les financeurs qui exigent
+      un édifice « antérieur à 1800 ».
+    - Un siècle ne donne pas une année : il donne une fourchette, rendue telle
+      quelle plutôt que réduite à une médiane inventée. Le moteur ne tranche
+      alors que les seuils réellement tranchés — « antérieur à 1800 » est acquis
+      pour tout le 14e siècle — et pose la question pour les autres. Aucune
+      élimination sur une approximation.
+
+    Les mentions non chiffrées des notices (« Moyen Age », « Antiquité ») ne
+    donnent rien : la question reste posée, comme avant.
+    """
+    if not isinstance(brut, str):
+        return None
+    siecles = []
+    for chaine, dernier in _SIECLE_RE.findall(brut):
+        for token in _ORDINAL_RE.findall(chaine) + _ORDINAL_RE.findall(dernier):
+            siecle = int(token) if token.isdigit() else _siecle_romain(token)
+            if siecle is not None and 1 <= siecle <= 21:
+                siecles.append(siecle)
+    if not siecles:
+        return None
+    premier = min(siecles)
+    return RangeValue(((premier - 1) * 100 + 1, premier * 100))
+
+
+# Noms d'édifices religieux, tels qu'ils s'écrivent en tête d'une notice
+# Mérimée ou d'une fiche saisie à la main : « Église Saint-Martin », « Ancienne
+# chapelle des Pénitents », « L\'église paroissiale ».
+_TETE_RELIGIEUSE_RE = re.compile(
+    r"^(?:(?:l|la|le|les|ancien|ancienne|vieux|vieille|petit|petite|grand|grande)\s+)*"
+    r"(?:eglises?|chapelles?)\b"
+)
+
+
+def _sans_accents(texte: str) -> str:
+    """Minuscules, sans accents, ponctuation ramenée à des espaces."""
+    nfkd = unicodedata.normalize("NFKD", texte.lower())
+    sans = "".join(c for c in nfkd if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]+", " ", sans).strip()
+
+
+def _eglise_ou_chapelle_depuis_nom(brut: object) -> bool | None:
+    """« Église Saint-Martin » → True. None quand le nom ne dit rien.
+
+    Jamais False : un nom qui ne porte pas le mot ne prouve pas que l'édifice
+    n'est pas une église (« Notre-Dame de X », « Collégiale », un nom donné par
+    le propriétaire). L'absence laisse donc la question posée — fail-closed.
+
+    Le mot doit être la TÊTE du nom : « Château de la Chapelle-Rainsouin » est
+    un toponyme, pas une chapelle. C'est aussi la forme des notices Mérimée,
+    qui commencent toujours par le type d'édifice.
+    """
+    if not isinstance(brut, str):
+        return None
+    return True if _TETE_RELIGIEUSE_RE.match(_sans_accents(brut)) else None
+
+
+# Comment un fait lit son `auto_source` quand la valeur brute de la fiche n'a
+# pas son type (un siècle n'est pas une année, un nom n'est pas un booléen).
+# Sans entrée ici, la valeur du contexte est reprise telle quelle.
+AUTO_SOURCE_DERIVERS = {
+    "annee_construction": _annee_depuis_siecle,
+    "edifice_eglise_ou_chapelle": _eglise_ou_chapelle_depuis_nom,
+    # Une église ou une chapelle est, par construction, un édifice cultuel.
+    "edifice_cultuel": _eglise_ou_chapelle_depuis_nom,
+}
+
+
+def _answered_value(ctx: dict, fact_key: str, facts: dict[str, FactDef]):
+    """Valeur RÉPONDUE par l'utilisateur pour ce fait (None si non renseignée)."""
     return _normalize_answer(facts.get(fact_key), ctx.get("_answers", {}).get(fact_key))
+
+
+def _auto_fact_value(fact_key: str, fact: FactDef | None, ctx: dict):
+    """Valeur d'un fait DÉDUITE de la fiche, via son `auto_source` (None sinon).
+
+    C'est ce qui évite de demander l'année de construction d'un monument dont la
+    notice donne déjà le siècle. La réponse de l'utilisateur, elle, prime
+    toujours : elle est plus précise que la déduction.
+    """
+    if fact is None or not fact.auto_source:
+        return None
+    brut = ctx.get(fact.auto_source)
+    if brut is None:
+        return None
+    deriver = AUTO_SOURCE_DERIVERS.get(fact_key)
+    return deriver(brut) if deriver else brut
+
+
+def _resolve_fact_value(ctx: dict, fact_key: str, facts: dict[str, FactDef]):
+    """Valeur typée d'un fait : la réponse de l'utilisateur, sinon la fiche."""
+    valeur = _answered_value(ctx, fact_key, facts)
+    if valeur is not None:
+        return valeur
+    return _auto_fact_value(fact_key, facts.get(fact_key), ctx)
 
 
 def _evaluate_clause(clause: AppliesIf | None, ctx: dict, facts: dict[str, FactDef]) -> bool | None:
@@ -356,7 +505,7 @@ def _gateway_condition(cond: Condition) -> Condition:
 def _evaluate_hard_filters(
     aide: Aide, monument: dict, population: int | None
 ) -> tuple[list[str], list[str]]:
-    """Évalue les hard_filters (sémantique prefiltrer_aides), SANS court-circuit.
+    """Évalue les hard_filters, SANS court-circuit.
 
     Retourne (critères structurels satisfaits, critères éliminatoires). Tout
     critère éliminatoire rend l'aide non éligible — mais on continue d'évaluer
@@ -457,6 +606,7 @@ def evaluate_aide(
     remplis, hard_fails = _evaluate_hard_filters(aide, monument, population)
     verdict.criteres_remplis = remplis
     verdict.criteres_non_remplis = list(hard_fails)
+    verdict.hard_fails = list(hard_fails)
     if hard_fails:
         verdict.raison_ineligibilite = hard_fails[0]
 
@@ -533,17 +683,26 @@ def evaluate_aide(
 
         fact: FactDef | None = None
         value = None
+        # Gate tranché sur la FICHE (auto_source) et non sur une réponse : son
+        # refus n'est pas imputable à l'utilisateur (cf. _match_result).
+        issu_fiche = False
         if cond.kind == "auto":
             result = evaluate_predicate(cond.predicate.root, ctx.get(cond.field))
             cat = None
         elif cond.kind == "user_fact":
             fact = facts.get(cond.fact or "")
             value = _resolve_fact_value(ctx, cond.fact, facts)
+            issu_fiche = value is not None and _answered_value(ctx, cond.fact, facts) is None
             result = evaluate_predicate(cond.predicate.root, value)
             cat = cond.fact
         else:  # manual_check (ou untyped résiduel) : non évaluable → incertitude
             result = None
             cat = None
+
+        # Le FAIT tranche-t-il, indépendamment de l'applicabilité ? Un fait déjà
+        # connu (réponse ou fiche) ne se redemande pas : l'inconnue restante est
+        # alors le fait passerelle, posé de son côté.
+        fait_tranche = result is not None
 
         # applies_if indéterminé : la condition s'applique peut-être (fail-closed)
         # → si on n'a pas pu trancher le gate, on reste en incertitude.
@@ -602,6 +761,7 @@ def evaluate_aide(
                     "verdict": NON,
                     "explication": "Critère non satisfait.",
                     "nature": nature,
+                    **({"fiche": True} if issu_fiche else {}),
                 }
             )
         else:  # None → incertitude
@@ -618,7 +778,7 @@ def evaluate_aide(
                 "clarified": False,
                 "nature": nature,
             }
-            if cat:
+            if cat and not fait_tranche:
                 ev["categorie"] = cat
                 verdict.missing_facts.setdefault(cat, []).append(cond)
             verdict.evaluations.append(ev)
@@ -923,6 +1083,37 @@ def aide_display_dict(aide: Aide) -> dict:
     }
 
 
+# Rôles de financement qui allègent réellement la facture de chantier. Le taux
+# cumulé n'agrège que ceux-là : une déduction fiscale (Denormandie, Malraux…)
+# porte sur l'impôt et non sur le coût des travaux, un prêt se rembourse, un
+# label n'apporte pas d'argent. Rôle dérivé du `type` via ROLE_BY_TYPE.
+ROLES_SUBVENTIONNANTS = frozenset({"subvention", "mecenat"})
+
+# Plafond d'aides publiques cumulées : le maître d'ouvrage garde au moins 20 %
+# du coût à sa charge, règle que reprennent les dispositifs les uns après les
+# autres. Aucun cumul affiché ne peut donc dépasser 80 % des travaux.
+PLAFOND_TAUX_TRAVAUX_PCT = 80.0
+
+
+def taux_travaux_cumule(verdicts: list[AideVerdict]) -> float | None:
+    """Part maximale du coût des travaux couverte par les aides retenues, en %.
+
+    Somme des `taux_max` des aides qui subventionnent les travaux, écrêtée à
+    PLAFOND_TAUX_TRAVAUX_PCT. Retourne None si aucune aide n'est chiffrée en
+    taux — la case n'affiche alors que le montant.
+    """
+    taux = 0.0
+    for v in verdicts:
+        if ROLE_BY_TYPE.get(v.aide.type) not in ROLES_SUBVENTIONNANTS:
+            continue
+        if v.aide.financement.taux_max is None:
+            continue
+        taux += v.aide.financement.taux_max
+    if taux <= 0:
+        return None
+    return round(min(taux, PLAFOND_TAUX_TRAVAUX_PCT), 1)
+
+
 def _match_result(verdict: AideVerdict, today: date | None = None) -> dict:
     """Forme AideMatchResult attendue par le front."""
     incertitudes = [e for e in verdict.evaluations if e["verdict"] == INCERTITUDE]
@@ -936,6 +1127,32 @@ def _match_result(verdict: AideVerdict, today: date | None = None) -> dict:
         explication = f"{len(incertitudes)} information(s) à confirmer."
     else:
         explication = verdict.raison_ineligibilite or f"{n_non} critère(s) non satisfait(s)."
+    # Un gate `user_fact` n'échoue sur une RÉPONSE que si sa valeur en vient :
+    # _resolve_fact_value se rabat sinon sur la fiche (`auto_source`), d'où le
+    # marqueur `fiche`. Les autres refus (hard_filters, gates `auto`) se
+    # déduisent eux aussi de la fiche, sans que personne n'ait rien répondu.
+    # Les échecs porteurs d'un `levier` sont exclus : ils ne rendent pas l'aide
+    # non éligible (statut « atteignable »), ils la mettent à débloquer.
+    #
+    # Le refus automatique l'emporte : une aide hors région ET refusée sur une
+    # réponse n'est pas « écartée par vos réponses », elle n'a jamais été
+    # candidate — c'est d'ailleurs le hard_filter que `raison_ineligibilite`
+    # affiche. Tout ce qui n'est pas explicitement `user_fact` compte comme
+    # automatique (fail-closed : dans le doute, on n'impute rien à l'utilisateur).
+    refus_automatique = bool(verdict.hard_fails) or any(
+        e["verdict"] == NON
+        and (e.get("nature") != "user_fact" or e.get("fiche"))
+        and not e.get("levier")
+        for e in verdict.evaluations
+    )
+    elimine_par_reponse = (
+        verdict.status == "non_eligible"
+        and not refus_automatique
+        and any(
+            e["verdict"] == NON and e.get("nature") == "user_fact" and not e.get("levier")
+            for e in verdict.evaluations
+        )
+    )
     return {
         "aide": aide_display_dict(verdict.aide),
         # Statut explicite : le front l'utilise tel quel plutôt que de le
@@ -951,6 +1168,12 @@ def _match_result(verdict: AideVerdict, today: date | None = None) -> dict:
         "criteresRemplis": verdict.criteres_remplis,
         "criteresNonRemplis": verdict.criteres_non_remplis,
         "raisonIneligibilite": verdict.raison_ineligibilite,
+        # Le refus vient-il d'une réponse de l'utilisateur, ou des seuls filtres
+        # automatiques ? Le front n'affiche que les premiers : se voir refuser
+        # une aide sur un critère qu'on n'a jamais eu à trancher n'apprend rien.
+        # Champ porté par TOUS les statuts (false hors non_eligible) pour que le
+        # front n'ait pas à distinguer « absent » de « non ».
+        "elimineParReponse": elimine_par_reponse,
         "leviers": verdict.leviers,
         "llmEvaluation": {
             "explication": explication,
@@ -1071,14 +1294,19 @@ def run_deterministic_diagnostic(
 
     questions = build_questions(verdicts, facts)
 
-    # Le montant potentiel est présenté comme mobilisable en l'état : on n'y
-    # compte donc que les éligibles dont la fenêtre est ouverte aujourd'hui.
-    montant_total = sum(
-        v.aide.financement.montant_max or 0
-        for v in eligibles
-        if v.aide.financement.montant_max and disponibilite(v.aide, today) == "maintenant"
-    )
+    # Le montant potentiel couvre tout ce qui est à portée sans démarche
+    # préalable : les éligibles (« disponibles maintenant »), les potentiels
+    # (« à confirmer ») et, pour ces deux statuts, ceux dont la fenêtre est
+    # fermée ou pas encore ouverte (« disponibles bientôt »). Les atteignables
+    # en sont exclus, quelle que soit leur fenêtre : ils supposent une démarche
+    # et sont chiffrés à part dans `montantAtteignableTotal`.
+    montant_total = sum(v.aide.financement.montant_max or 0 for v in eligibles + potentiels)
     montant_atteignable = sum(v.aide.financement.montant_max or 0 for v in atteignables)
+    # Part des travaux : beaucoup d'aides ne plafonnent pas en euros et ne se
+    # chiffrent que là. Périmètre plus large que le montant potentiel — les
+    # trois seaux affichés (« disponibles maintenant », « à confirmer », « à
+    # débloquer »), puisque la case annonce un maximum atteignable, pas un acquis.
+    taux_travaux = taux_travaux_cumule(eligibles + potentiels + atteignables)
 
     logger.info(
         "DIAGNOSTIC DÉTERMINISTE %s | ready=%d (hors projet=%d) éligibles=%d "
@@ -1102,5 +1330,6 @@ def run_deterministic_diagnostic(
         "aidesNonEligibles": [_match_result(v, today) for v in non_eligibles],
         "montantPotentielTotal": montant_total if montant_total > 0 else None,
         "montantAtteignableTotal": montant_atteignable if montant_atteignable > 0 else None,
+        "tauxTravauxMaxPct": taux_travaux,
         "qcmQuestions": questions,
     }

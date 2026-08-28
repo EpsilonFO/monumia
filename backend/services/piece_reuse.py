@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from supabase import Client
 
 from pieces_schema import Piece, load_pieces
-from services.project_access import filter_visible_documents, my_project_roles
+from services.project_access import filter_visible_documents, my_scope_roles
 
 # Statuts d'items qu'on ne touche jamais : l'utilisateur s'en est déjà occupé.
 STATUTS_INTOUCHABLES = ("fourni", "en_attente", "repris")
@@ -65,13 +65,13 @@ def _est_perime(piece: Piece, doc: dict, now: datetime) -> bool:
 
 
 def _stock(
-    supabase: Client, piece_ids: set[str], monument_id: str, user_id: str
+    supabase: Client, piece_ids: set[str], monument_id: str, projet_id: str, user_id: str
 ) -> dict[str, list[dict]]:
     """Documents visibles par `user_id` incarnant l'une des pièces demandées.
 
-    Le filtre SQL est large (mes documents OU ceux du projet) ; c'est
-    `filter_visible_documents` qui applique la règle de visibilité, comme pour
-    la liste des documents. Aucun chemin d'accès parallèle.
+    Le filtre SQL est large (mes documents, ceux du bien, ceux du chantier) ;
+    c'est `filter_visible_documents` qui applique la règle de visibilité, comme
+    pour la liste des documents. Aucun chemin d'accès parallèle.
     """
     if not piece_ids:
         return {}
@@ -81,7 +81,9 @@ def _stock(
         .select("*")
         .in_("piece_id", sorted(piece_ids))
         .is_("trashed_at", "null")
-        .or_(f"user_id.eq.{user_id},monument_ids.cs.{{{monument_id}}}")
+        .or_(
+            f"user_id.eq.{user_id},monument_ids.cs.{{{monument_id}}},projet_ids.cs.{{{projet_id}}}"
+        )
         .execute()
         .data
         or []
@@ -91,7 +93,8 @@ def _stock(
     # reprise serait une régression silencieuse. Le coût est nul (liste courte).
     rows = [r for r in rows if not r.get("trashed_at")]
 
-    visibles = filter_visible_documents(rows, user_id, my_project_roles(supabase, user_id))
+    monument_roles, projet_roles = my_scope_roles(supabase, user_id)
+    visibles = filter_visible_documents(rows, user_id, monument_roles, projet_roles)
 
     par_piece: dict[str, list[dict]] = {}
     for row in visibles:
@@ -106,6 +109,7 @@ def _candidat(
     doc_par_piece: dict,
     piece_id: str,
     monument_id: str,
+    projet_id: str,
     user_id: str,
     refuses: set[str],
 ) -> dict | None:
@@ -127,12 +131,23 @@ def _candidat(
     Sans cette mémoire, la reprise automatique reproposerait à chaque visite le
     fichier qui vient d'être refusé. Le refus porte sur un fichier précis, pas
     sur la pièce : un autre fichier de la même étiquette reste proposable.
+
+    Depuis la création des projets de travaux, un document peut pendre au bien
+    (`monument_ids`) ou au chantier (`projet_ids`) — et le stock historique n'a
+    que le premier. Les portées `monument` et `operation` acceptent donc l'un
+    OU l'autre rattachement ; leur distinction reste portée par la péremption
+    (les pièces d'opération vieillissent, celles du bien non).
     """
     docs = [d for d in doc_par_piece.get(piece_id, []) if d.get("id") not in refuses]
     if piece.portee == "porteur":
         docs = [d for d in docs if d.get("user_id") == user_id]
     else:
-        docs = [d for d in docs if monument_id in (d.get("monument_ids") or [])]
+        docs = [
+            d
+            for d in docs
+            if monument_id in (d.get("monument_ids") or [])
+            or projet_id in (d.get("projet_ids") or [])
+        ]
     return choisir_document(docs)
 
 
@@ -140,6 +155,7 @@ def apply_reuse(
     supabase: Client,
     checklist: list[dict],
     monument_id: str,
+    projet_id: str,
     user_id: str,
     *,
     now: datetime | None = None,
@@ -161,7 +177,7 @@ def apply_reuse(
     if not demandes:
         return [dict(item) for item in checklist], 0
 
-    doc_par_piece = _stock(supabase, demandes, monument_id, user_id)
+    doc_par_piece = _stock(supabase, demandes, monument_id, projet_id, user_id)
 
     nouvelle: list[dict] = []
     repris = 0
@@ -179,6 +195,7 @@ def apply_reuse(
             doc_par_piece,
             piece_id,
             monument_id,
+            projet_id,
             user_id,
             set(copie.get("refuses") or []),
         )

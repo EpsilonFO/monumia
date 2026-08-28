@@ -5,7 +5,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { CommuneAutocomplete } from '@/components/monument/CommuneAutocomplete';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
@@ -14,9 +13,8 @@ import {
   PROTECTION_LEVELS,
   OWNERSHIP_TYPES,
   ETATS_CONSERVATION,
-  WORK_TYPES,
 } from '@/constants/monument-options';
-import type { Monument, WorkType } from '@/types';
+import type { Monument } from '@/types';
 
 interface MonumentFormProps {
   initialData?: Partial<Monument>;
@@ -25,12 +23,14 @@ interface MonumentFormProps {
   saving?: boolean;
 }
 
-const STEPS = [
+const CREATION_STEPS = [
   { number: 1, title: 'Identification', description: 'Nom et localisation' },
   { number: 2, title: 'Statut juridique', description: 'Protection et propriété' },
-  { number: 3, title: 'Description physique', description: 'Architecture et matériaux' },
-  { number: 4, title: 'État actuel', description: 'Conservation et travaux' },
+  { number: 3, title: 'Description physique', description: 'Architecture et état du monument' },
 ];
+
+/** Dans l'ordre des étapes : `STEP_COMPONENTS[i]` sert l'étape `i + 1`. */
+const STEP_COMPONENTS = [Step1Identification, Step2StatutJuridique, Step3DescriptionPhysique];
 
 function isStepValid(step: number, data: Partial<Monument>): boolean {
   switch (step) {
@@ -38,13 +38,20 @@ function isStepValid(step: number, data: Partial<Monument>): boolean {
       return !!(data.nom?.trim() && data.commune?.trim());
     case 2:
       return !!(data.protection && data.proprietaire);
-    case 4:
-      return !!(data.etatConservation);
+    case 3:
+      // Dernière étape avant « Terminer » : c'est la seule garantie que l'état
+      // sanitaire soit renseigné, faute de quoi les gates des dispositifs
+      // d'urgence ({in: [mauvais, peril]}) ne discrimineraient jamais rien.
+      return !!data.etatConservation;
     default:
       return true;
   }
 }
 
+/**
+ * Les travaux envisagés ne sont pas dans ce formulaire : ils cadrent un PROJET,
+ * se saisissent dans son wizard et se modifient sur sa page.
+ */
 export function MonumentForm({ initialData, onSubmit, isEditing, saving }: MonumentFormProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<Partial<Monument>>(initialData ?? {});
@@ -54,7 +61,7 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
   };
 
   const canProceed = isStepValid(currentStep, formData);
-  const lastStep = STEPS.length;
+  const lastStep = CREATION_STEPS.length;
 
   const handleNext = () => {
     if (!canProceed) return;
@@ -66,8 +73,8 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
-  const progressPercent = ((currentStep - 1) / (STEPS.length - 1)) * 100;
-  const currentStepInfo = STEPS[currentStep - 1];
+  const progressPercent = ((currentStep - 1) / (lastStep - 1)) * 100;
+  const currentStepInfo = CREATION_STEPS[currentStep - 1];
 
   return (
     <div className="space-y-6">
@@ -75,22 +82,40 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
           <span className="font-medium">{currentStepInfo.title}</span>
-          <span className="text-muted-foreground">Étape {currentStep} / {STEPS.length}</span>
+          <span className="text-muted-foreground">Étape {currentStep} / {lastStep}</span>
         </div>
         <Progress value={progressPercent} className="h-1.5" />
         <p className="text-xs text-muted-foreground">{currentStepInfo.description}</p>
       </div>
 
-      {/* Carré blanc (ajusté au contenu) + navigation en colonne à sa droite,
-          calée en haut : elle ne bouge pas quand le carré grandit.
-          En mobile, la colonne repasse sous le carré. */}
+      {/* Carré blanc + navigation en colonne à sa droite. En mobile, la colonne
+          repasse sous le carré. */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <Card className="min-w-0 flex-1">
-          <CardContent className="pt-6">
-            {currentStep === 1 && <Step1Identification data={formData} onChange={update} />}
-            {currentStep === 2 && <Step2StatutJuridique data={formData} onChange={update} />}
-            {currentStep === 3 && <Step3DescriptionPhysique data={formData} onChange={update} />}
-            {currentStep === 4 && <Step4EtatActuel data={formData} onChange={update} />}
+          <CardContent>
+            {/* Les trois étapes occupent la MÊME cellule de grille : le carré
+                prend une bonne fois la hauteur de la plus grande (l'étape 3) et
+                ne bouge plus d'une étape à l'autre — donc les boutons non plus.
+                Une hauteur en dur se serait décalée au premier champ ajouté.
+                Les étapes inactives sont `invisible` (donc hors du parcours de
+                tabulation) et `inert` (hors de l'arbre d'accessibilité). */}
+            <div className="grid">
+              {STEP_COMPONENTS.map((Step, i) => {
+                const actif = currentStep === i + 1;
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      'col-start-1 row-start-1 min-w-0',
+                      !actif && 'invisible pointer-events-none'
+                    )}
+                    inert={!actif}
+                  >
+                    <Step data={formData} onChange={update} />
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
 
@@ -280,16 +305,7 @@ function Step3DescriptionPhysique({ data, onChange }: StepProps) {
           rows={4}
         />
       </div>
-    </div>
-  );
-}
-
-function Step4EtatActuel({ data, onChange }: StepProps) {
-  const selectedTravaux = (data.travauxEnvisages ?? []) as WorkType[];
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className={FIELD}>
+      <div className={cn(FIELD, 'md:col-span-2')}>
         <Label htmlFor="etatConservation">État de conservation *</Label>
         <Select
           value={data.etatConservation ?? ''}
@@ -306,43 +322,11 @@ function Step4EtatActuel({ data, onChange }: StepProps) {
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="md:col-span-2">
-        <div className="flex items-baseline justify-between">
-          <Label>Travaux envisagés</Label>
-          {selectedTravaux.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {selectedTravaux.length} sélectionné{selectedTravaux.length > 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {WORK_TYPES.map((w) => {
-            const selected = selectedTravaux.includes(w.value as WorkType);
-            const toggle = () => {
-              const next = selected
-                ? selectedTravaux.filter((v) => v !== w.value)
-                : [...selectedTravaux, w.value as WorkType];
-              onChange({ travauxEnvisages: next });
-            };
-            return (
-              <label
-                key={w.value}
-                className={cn(
-                  'flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors select-none',
-                  selected
-                    ? 'border-primary bg-primary/5 text-foreground'
-                    : 'border-input hover:border-primary/40 hover:bg-accent/50'
-                )}
-              >
-                <Checkbox checked={selected} onCheckedChange={toggle} />
-                <span className="leading-tight">{w.label}</span>
-              </label>
-            );
-          })}
-        </div>
+        <p className="text-xs text-muted-foreground">
+          Un monument en péril ou en mauvais état ouvre les dispositifs d&rsquo;urgence.
+          Cette réponse vaut pour tous vos projets de travaux sur ce monument.
+        </p>
       </div>
     </div>
   );
 }
-

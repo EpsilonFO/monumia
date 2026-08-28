@@ -169,6 +169,18 @@ export function SignupPage() {
                 </button>
               </form>
 
+              <p className="mt-4 text-[12.5px] leading-[1.6]" style={{ color: C.inkFaint }}>
+                Votre adresse ne sert qu'à vous prévenir du lancement : jamais cédée, supprimée sur
+                simple demande. Voir notre{' '}
+                <a
+                  href={`${HOME_URL}confidentialite`}
+                  className="underline underline-offset-2 transition-colors duration-200 hover:text-[#0a369d]"
+                >
+                  politique de confidentialité
+                </a>
+                .
+              </p>
+
               <a
                 href={HOME_URL}
                 className="group mt-7 inline-flex items-center gap-2 text-[14px] font-medium transition-colors duration-200 hover:text-[#0a369d]"

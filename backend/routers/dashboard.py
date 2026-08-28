@@ -12,9 +12,14 @@ from fastapi import APIRouter, Depends
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
-from routers.aides import LOCKED_AIDE_LABEL, deterministic_diagnostic_for
-from routers.monuments import fetch_user_monuments
+from routers.aides import (
+    LOCKED_AIDE_LABEL,
+    deterministic_diagnostic_for,
+    merge_projet_into_monument,
+)
+from routers.monuments import fetch_user_monuments, sign_photos
 from services import stripe_billing as billing
+from services.project_access import projet_ids_membre
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -24,17 +29,23 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 _DIGEST_BUCKETS = ("aidesEligibles", "aidesPotentiellementEligibles", "aidesAtteignables")
 
 
-def build_digest(result: dict, monument_id: str, *, locked: bool = False) -> dict:
+def build_digest(result: dict, monument_id: str, projet_id: str, *, locked: bool = False) -> dict:
     """Réduit un diagnostic complet à ce que les vignettes de projet affichent.
 
     Un diagnostic complet pèse ~1,7 Mo : l'essentiel vient des ~95 aides non
     éligibles et de leurs conditions détaillées, dont le dashboard ne lit rien.
     Il n'en a besoin que de compteurs, de deux montants et des dates limites.
+
+    Porte les deux identifiants : `projetId` parce que le digest décrit un
+    chantier, `monumentId` parce que le paywall et les liens d'échéance restent
+    clés monument.
     """
     digest: dict = {
+        "projetId": projet_id,
         "monumentId": monument_id,
         "montantPotentielTotal": result.get("montantPotentielTotal"),
         "montantAtteignableTotal": result.get("montantAtteignableTotal"),
+        "tauxTravauxMaxPct": result.get("tauxTravauxMaxPct"),
     }
     for bucket in _DIGEST_BUCKETS:
         digest[bucket] = [
@@ -66,21 +77,56 @@ def get_dashboard(
     supabase: Client = Depends(get_supabase),
 ):
     monuments, population_by_code = fetch_user_monuments(supabase, user_id)
+    # Les photos vivent dans un bucket privé : sans lien signé, les vignettes de
+    # « Mes monuments » et du tableau de bord seraient cassées.
+    sign_photos(supabase, monuments)
     if not monuments:
-        return {"monuments": [], "dossiers": [], "digests": {}, "suivis": {}}
+        return {
+            "monuments": [],
+            "projets": [],
+            "dossiers": [],
+            "digests": {},
+            "suivis": {},
+        }
 
     monument_ids = [m["id"] for m in monuments]
+    monuments_by_id = {m["id"]: m for m in monuments}
 
-    dossiers = (
-        supabase.table("dossiers")
-        .select("*")
-        .in_("monument_id", monument_ids)
-        .order("date_derniere_modification", desc=True)
-        .execute()
-        .data
-    ) or []
+    # Les projets visibles. Sur un monument dont l'utilisateur est membre, tous ;
+    # sur un monument atteint par un seul chantier (`my_role` None), ce chantier
+    # et lui seul — c'est ici que se joue le « ils ne voient pas le reste ».
+    equipe_monument = {m["id"] for m in monuments if m.get("my_role")}
+    mes_projets = set(projet_ids_membre(supabase, user_id))
+    projets = [
+        p
+        for p in (
+            supabase.table("projets")
+            .select("*")
+            .in_("monument_id", monument_ids)
+            .order("created_at", desc=True)
+            .execute()
+            .data
+        )
+        or []
+        if p["monument_id"] in equipe_monument or p["id"] in mes_projets
+    ]
+    projets_visibles = {p["id"] for p in projets}
 
-    # Les suivis restent filtrés par utilisateur, comme /monuments/{id}/aide-suivis.
+    dossiers = [
+        d
+        for d in (
+            supabase.table("dossiers")
+            .select("*")
+            .in_("monument_id", monument_ids)
+            .order("date_derniere_modification", desc=True)
+            .execute()
+            .data
+        )
+        or []
+        if d["projet_id"] in projets_visibles
+    ]
+
+    # Les suivis restent filtrés par utilisateur, comme /projets/{id}/aide-suivis.
     suivi_rows = (
         supabase.table("aide_suivis")
         .select("*")
@@ -89,34 +135,41 @@ def get_dashboard(
         .execute()
         .data
     ) or []
-    suivis: dict[str, list[dict]] = {mid: [] for mid in monument_ids}
+    # Les lignes PostgREST ne sont pas typées : on resserre la clé en str.
+    suivis: dict[str, list[dict]] = {str(p["id"]): [] for p in projets}
     for row in suivi_rows:
-        suivis.setdefault(row["monument_id"], []).append(row)
+        if row["projet_id"] in projets_visibles:
+            suivis.setdefault(row["projet_id"], []).append(row)
 
     # Droits d'accès lus UNE fois pour tout le dashboard : un abonnement ouvre
-    # tous les projets, sinon seuls les projets payés à l'unité sont nommés.
+    # tous les monuments, sinon seuls ceux payés à l'unité sont nommés.
     access = billing.access_snapshot(supabase, user_id)
     unlocked = set(access["unlockedMonumentIds"])
     all_access = access["allAccess"]
 
-    # Un diagnostic par projet, avec les réponses déjà enregistrées du
-    # questionnaire — exactement ce que le frontend demandait monument par
-    # monument, puis réduit à son digest avant de partir sur le réseau.
-    digests = {
-        m["id"]: build_digest(
+    # Un diagnostic par PROJET : la fiche du monument fusionnée avec le cadrage
+    # du chantier, et les réponses déjà enregistrées de SON questionnaire. Un
+    # monument sans projet n'a pas de digest — le front y affiche le CTA de
+    # création. Le verrou, lui, reste calculé par monument.
+    digests = {}
+    for projet in projets:
+        monument = monuments_by_id.get(projet["monument_id"])
+        if monument is None:
+            continue
+        digests[projet["id"]] = build_digest(
             deterministic_diagnostic_for(
-                m,
-                population_by_code.get(m.get("code_insee") or ""),
-                m.get("questionnaire") or {},
+                merge_projet_into_monument(monument, projet),
+                population_by_code.get(monument.get("code_insee") or ""),
+                projet.get("questionnaire") or {},
             ),
-            m["id"],
-            locked=not all_access and m["id"] not in unlocked,
+            monument["id"],
+            projet["id"],
+            locked=not all_access and monument["id"] not in unlocked,
         )
-        for m in monuments
-    }
 
     return {
         "monuments": monuments,
+        "projets": projets,
         "dossiers": dossiers,
         "digests": digests,
         "suivis": suivis,

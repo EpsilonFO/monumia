@@ -24,9 +24,10 @@ const UNKNOWN_WORDS = [
 /**
  * Détecte les réponses « on ne sait pas » : d'abord le drapeau `unknown` du
  * moteur (options `unknown: true` de l'ontologie, pseudo-option « passer »),
- * puis l'id, puis le libellé — les questions du chemin LLM n'ont ni drapeau ni
- * id normalisés. Ces options portent un « ? » au lieu d'une pastille lettrée :
- * ce n'est pas une réponse comme les autres. Ne jette jamais.
+ * puis l'id, puis le libellé — le repli par libellé couvre les options dont
+ * l'ontologie ne normalise ni le drapeau ni l'id. Ces options portent un « ? »
+ * au lieu d'une pastille lettrée : ce n'est pas une réponse comme les autres.
+ * Ne jette jamais.
  */
 export function isUnknownAnswer(option: QcmOption): boolean {
   if (option.unknown) return true;

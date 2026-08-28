@@ -13,7 +13,7 @@ import { AIDE_STATUT_STYLES } from './AideStatutBadge';
 import { C } from '@/lib/brand';
 
 interface Props {
-  monumentId: string;
+  projetId: string;
   aideId: string;
   suivi?: AideSuivi;
 }
@@ -25,7 +25,7 @@ interface SavePatch {
   motifRefusDetail?: string;
 }
 
-export function AideStatutSelect({ monumentId, aideId, suivi }: Props) {
+export function AideStatutSelect({ projetId, aideId, suivi }: Props) {
   const [saving, setSaving] = useState(false);
   const [montant, setMontant] = useState(suivi?.montantObtenu?.toString() ?? '');
   const [motif, setMotif] = useState<AideRefusMotif>(suivi?.motifRefusCode ?? 'autre');
@@ -39,7 +39,7 @@ export function AideStatutSelect({ monumentId, aideId, suivi }: Props) {
     const targetStatut = patch.statut ?? statut;
     setSaving(true);
     try {
-      await suiviService.upsert(monumentId, aideId, {
+      await suiviService.upsert(projetId, aideId, {
         statut: targetStatut,
         montantObtenu: patch.montantObtenu ?? suivi?.montantObtenu,
         motifRefusCode: patch.motifRefusCode ?? suivi?.motifRefusCode,

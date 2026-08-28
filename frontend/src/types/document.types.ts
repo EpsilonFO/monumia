@@ -9,7 +9,10 @@ export type DocumentVisibility = 'team' | 'responsables' | 'custom';
 
 export interface Document {
   id: ID;
+  /** Monuments auxquels la pièce est rattachée (arrêté, cadastre, photos…). */
   monumentIds: ID[];
+  /** Projets de travaux auxquels elle est rattachée : ne la voient qu'eux. */
+  projetIds: ID[];
   userId: ID;
 
   nom: string;

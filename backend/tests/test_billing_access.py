@@ -209,6 +209,129 @@ class AccessRulesTest(unittest.TestCase):
         self.assertEqual(billing.unlocked_monument_ids(db, "user-3"), [])
 
 
+class _FilteringQuery:
+    """Requête qui applique réellement `eq` / `in_`.
+
+    Le fake principal ignore les filtres, ce qui suffit tant qu'un test ne parle
+    que d'un utilisateur. Dès qu'il faut distinguer le collaborateur qui regarde
+    du propriétaire qui paie, il faut filtrer pour de vrai.
+    """
+
+    def __init__(self, rows: list):
+        self._rows = rows
+        self._single = False
+
+    def select(self, *a, **k):
+        return self
+
+    def order(self, *a, **k):
+        return self
+
+    def limit(self, *a, **k):
+        return self
+
+    def eq(self, column, value):
+        self._rows = [r for r in self._rows if r.get(column) == value]
+        return self
+
+    def in_(self, column, values):
+        allowed = set(values)
+        self._rows = [r for r in self._rows if r.get(column) in allowed]
+        return self
+
+    def maybe_single(self):
+        self._single = True
+        return self
+
+    def single(self):
+        self._single = True
+        return self
+
+    def execute(self):
+        if self._single:
+            return _Resp(self._rows[0] if self._rows else None)
+        return _Resp(list(self._rows))
+
+
+class _FilteringSupabase:
+    def __init__(self, tables: dict):
+        self.tables = tables
+
+    def table(self, name):
+        return _FilteringQuery(list(self.tables.get(name, [])))
+
+
+def _team_tables(**overrides) -> dict:
+    """Projet `projet-1` appartenant à `owner`, avec `collab` comme membre."""
+    tables = {
+        "users": [
+            {"id": "owner", "has_aides_access": False},
+            {"id": "collab", "has_aides_access": False},
+        ],
+        "subscriptions": [],
+        "monument_unlocks": [],
+        "monuments": [{"id": "projet-1", "user_id": "owner"}],
+        "project_members": [{"monument_id": "projet-1", "user_id": "collab"}],
+    }
+    tables.update(overrides)
+    return tables
+
+
+_ABONNEMENT_OWNER = [
+    {
+        "user_id": "owner",
+        "stripe_subscription_id": "sub_1",
+        "status": "active",
+        "current_period_end": "2026-09-06T00:00:00+00:00",
+        "cancel_at_period_end": False,
+    }
+]
+
+
+class OwnerCoverageTest(unittest.TestCase):
+    """L'abonnement du propriétaire couvre son projet, donc son équipe.
+
+    Régression vécue : un collaborateur invité sur le projet d'un abonné voyait
+    les aides caviardées, même promu chef de projet adjoint. Le déblocage à
+    l'unité était bien partagé (il porte sur le projet), mais l'abonnement vit
+    sur la ligne de l'abonné — et n'était lu que pour le spectateur.
+    """
+
+    def test_abonnement_du_proprietaire_couvre_l_equipe(self):
+        db = _FilteringSupabase(_team_tables(subscriptions=_ABONNEMENT_OWNER))
+        self.assertTrue(billing.has_monument_access(db, "collab", "projet-1"))
+        self.assertEqual(billing.unlocked_monument_ids(db, "collab"), ["projet-1"])
+
+    def test_le_collaborateur_ne_devient_pas_abonne_pour_autant(self):
+        """Le projet est couvert, pas le compte : ses autres projets restent fermés."""
+        db = _FilteringSupabase(_team_tables(subscriptions=_ABONNEMENT_OWNER))
+        snapshot = billing.access_snapshot(db, "collab")
+        self.assertFalse(snapshot["allAccess"])
+        self.assertIsNone(snapshot["subscription"])
+        self.assertEqual(snapshot["unlockedMonumentIds"], ["projet-1"])
+
+    def test_octroi_manuel_du_proprietaire_couvre_aussi(self):
+        db = _FilteringSupabase(
+            _team_tables(
+                users=[
+                    {"id": "owner", "has_aides_access": True},
+                    {"id": "collab", "has_aides_access": False},
+                ]
+            )
+        )
+        self.assertTrue(billing.has_monument_access(db, "collab", "projet-1"))
+
+    def test_proprietaire_non_payant_laisse_le_projet_ferme(self):
+        db = _FilteringSupabase(_team_tables())
+        self.assertFalse(billing.has_monument_access(db, "collab", "projet-1"))
+        self.assertEqual(billing.unlocked_monument_ids(db, "collab"), [])
+
+    def test_projet_d_un_abonne_dont_on_n_est_pas_membre_ne_fuite_pas(self):
+        """Le cœur du risque : la couverture ne doit pas ouvrir un projet étranger."""
+        db = _FilteringSupabase(_team_tables(subscriptions=_ABONNEMENT_OWNER, project_members=[]))
+        self.assertEqual(billing.unlocked_monument_ids(db, "collab"), [])
+
+
 # ---------------------------------------------------------------------------
 # Redaction serveur
 # ---------------------------------------------------------------------------

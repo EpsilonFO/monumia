@@ -12,6 +12,7 @@ const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 export function toDossier(row: Record<string, unknown>): Dossier {
   return {
     id: row.id as string,
+    projetId: (row.projet_id ?? row.projetId) as string,
     monumentId: (row.monument_id ?? row.monumentId) as string,
     aideId: (row.aide_id ?? row.aideId) as string,
     userId: (row.user_id ?? row.userId) as string,
@@ -33,8 +34,9 @@ export function toDossier(row: Record<string, unknown>): Dossier {
 }
 
 export const dossierService = {
-  async fetchAll(): Promise<Dossier[]> {
-    const res = await authFetch(`${BASE}/dossiers`);
+  async fetchAll(projetId?: string): Promise<Dossier[]> {
+    const query = projetId ? `?projet_id=${encodeURIComponent(projetId)}` : '';
+    const res = await authFetch(`${BASE}/dossiers${query}`);
     const rows = await handleResponse<Record<string, unknown>[]>(res);
     const dossiers = rows.map(toDossier);
     useDossierStore.getState().setDossiers(dossiers);
@@ -47,11 +49,11 @@ export const dossierService = {
     return toDossier(row);
   },
 
-  async create(monumentId: string, aideId: string, travauxPrevus: string[]): Promise<Dossier> {
+  async create(projetId: string, aideId: string, travauxPrevus: string[]): Promise<Dossier> {
     const res = await authFetch(`${BASE}/dossiers`, {
       method: 'POST',
       body: JSON.stringify({
-        monument_id: monumentId,
+        projet_id: projetId,
         aide_id: aideId,
         travaux_prevus: travauxPrevus,
       }),
@@ -187,6 +189,31 @@ export const dossierService = {
     }
     const dossier = await this.getById(id);
     useDossierStore.getState().updateDossier(id, dossier);
+  },
+
+  /**
+   * Télécharge en zip toutes les pièces téléversées du dossier.
+   *
+   * Le backend construit l'archive (il seul peut lire le bucket privé pour le
+   * compte d'un membre) ; on récupère le blob puis on déclenche l'enregistrement
+   * via un lien éphémère. `authFetch` est obligatoire : la route est protégée.
+   */
+  async downloadArchive(id: string, fallbackName = 'dossier'): Promise<void> {
+    const res = await authFetch(`${BASE}/dossiers/${id}/archive`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail ?? `HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    // Un séparateur de chemin dans le nom proposé casse l'enregistrement.
+    a.download = `${fallbackName.replace(/[/\\]+/g, '-').trim() || 'dossier'}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   },
 
   async delete(id: string): Promise<void> {

@@ -1,19 +1,22 @@
-"""Partage de projet : membres et invitations (niveau monument)."""
+"""Partage d'un monument : membres et invitations.
+
+L'équipe se constitue au niveau du MONUMENT et vaut pour tous ses projets de
+travaux — un projet n'a pas de partage propre.
+"""
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from supabase import Client
 
+from config import request_app_origin
 from db import get_current_user_id, get_supabase
 from services.email_service import send_invitation_email
 from services.invitations import generate_invite_token, invitation_expiry_iso
 from services.project_access import require_project_access
 
 router = APIRouter(prefix="/projects", tags=["sharing"])
-
-APP_URL = "https://app.monumia.fr"
 
 
 class InviteRequest(BaseModel):
@@ -44,7 +47,7 @@ def _monument_or_404(supabase: Client, monument_id: str) -> dict:
         .execute()
     )
     if not res or not res.data:
-        raise HTTPException(status_code=404, detail="Projet introuvable")
+        raise HTTPException(status_code=404, detail="Monument introuvable")
     return res.data
 
 
@@ -89,6 +92,7 @@ def list_members(
 def create_invitation(
     monument_id: str,
     body: InviteRequest,
+    request: Request,
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
@@ -106,7 +110,9 @@ def create_invitation(
             .execute()
         )
         if already.data:
-            raise HTTPException(status_code=409, detail="Cette personne est déjà membre du projet")
+            raise HTTPException(
+                status_code=409, detail="Cette personne est déjà membre de ce monument"
+            )
 
     token = generate_invite_token()
     expires_at = invitation_expiry_iso(datetime.now(UTC))
@@ -131,11 +137,14 @@ def create_invitation(
         if inviter and inviter.data
         else "Un membre"
     )
+    # Le lien suit l'environnement d'où part l'invitation : envoyée depuis la
+    # beta, elle renvoie sur la beta — sinon le destinataire atterrit en
+    # production, où le jeton n'existe pas (« Invitation introuvable »).
     send_invitation_email(
         to_email=email,
         inviter_nom=inviter_nom,
         monument_nom=monument["nom"],
-        invite_url=f"{APP_URL}/invitation/{token}",
+        invite_url=f"{request_app_origin(request)}/invitation/{token}",
         expires_label=expires_at[:10],
     )
     return {
@@ -220,7 +229,7 @@ def leave_project(
     if role == "owner":
         raise HTTPException(
             status_code=403,
-            detail="Le chef de projet ne peut pas quitter le projet ; supprimez-le.",
+            detail="Le chef de projet ne peut pas quitter le monument ; supprimez-le.",
         )
     supabase.table("project_members").delete().eq("monument_id", monument_id).eq(
         "user_id", user_id

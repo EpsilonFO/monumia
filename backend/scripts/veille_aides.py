@@ -38,9 +38,19 @@ from aides_schema import AIDES_DIR, DATA_DIR, Aide, load_aide
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from veille_analyze import STATUTS, AideAnalysis, analyze_all, resume_diff
+from urllib.parse import urlsplit
+
+from veille_analyze import (
+    CHROME_MIN_URLS,
+    STATUTS,
+    AideAnalysis,
+    analyze_all,
+    hotes_affames,
+    resume_diff,
+)
 from veille_collect import DEFAULT_CONCURRENCY, DEFAULT_TIMEOUT, collect
-from veille_llm import MODELE_DEFAUT, REGISTRE
+from veille_journal import Journal, cellule, milliers, tokens_compacts
+from veille_llm import MODELE_DEFAUT, resoudre_modele
 from veille_update import MAX_LLM_DEFAUT, MajResult, mettre_a_jour
 
 MANIFEST_PATH = DATA_DIR / "veille-state.yaml"
@@ -56,20 +66,65 @@ SYMBOLES = {
     "DATE_PERIMEE_SOURCE_INCHANGEE": "⏱",
 }
 
+# Statut adossé à une vérification partielle des citations. Volontairement
+# distinct des symboles de statut : ce n'est pas un statut, c'est une réserve
+# sur la portée de celui qui est affiché.
+SYMBOLE_COUVERTURE = "○"
 
-class Journal:
-    """Tee console + fichier, à la manière de `ingest_aides_batch.py`."""
 
-    def __init__(self) -> None:
-        self.lines: list[str] = []
+def soeurs_du_parc(hote: str, deja: set[str]) -> list[str]:
+    """Slugs du parc dont l'URL officielle est sur cet hôte, hors ceux du run.
 
-    def __call__(self, message: str = "") -> None:
-        print(message, flush=True)
-        self.lines.append(message)
+    Relit les YAML du dossier : les aides sœurs sont par définition celles que
+    le run N'A PAS chargées, donc introuvables dans son propre périmètre.
+    """
+    trouves: list[str] = []
+    for chemin in sorted(AIDES_DIR.glob("*.yaml")):
+        if chemin.stem in deja:
+            continue
+        try:
+            aide = load_aide(chemin)
+        except Exception:
+            # Une fiche illisible ne doit pas faire échouer un avertissement.
+            continue
+        url = aide.source.url_officielle or ""
+        if url and urlsplit(url).netloc.lower() == hote:
+            trouves.append(aide.slug)
+    return trouves
 
-    def save(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("\n".join(self.lines) + "\n", encoding="utf-8")
+
+def alerter_chrome_affame(analyses: dict[str, AideAnalysis], collects: dict, log: Journal) -> None:
+    """Prévient quand le périmètre du run rend un `MAJ_LLM` peu fiable.
+
+    Ne dit rien quand aucune aide d'un hôte affamé n'a bougé : la famine ne
+    produit pas de faux `OK`, seulement de faux `MAJ_LLM`.
+    """
+    affames = hotes_affames(collects)
+    if not affames:
+        return
+    suspects: dict[str, list[str]] = {}
+    for slug, an in analyses.items():
+        if an.statut not in ("MAJ_LLM", "ESCALADE_INGESTION"):
+            continue
+        for u in an.urls:
+            if u.murl.host in affames and u.a_change:
+                suspects.setdefault(u.murl.host, []).append(slug)
+                break
+    if not suspects:
+        return
+    log("")
+    log("  ⚠ périmètre trop étroit pour distinguer le gabarit du contenu :")
+    log(f"    le détecteur de chrome exige {CHROME_MIN_URLS} URL d'un même hôte ; en dessous, un")
+    log("    menu de site peut passer pour un changement de règlement.")
+    for hote, slugs in sorted(suspects.items()):
+        log(f"    {hote} — {affames[hote]} URL vue(s), {len(slugs)} aide(s) concernée(s)")
+        soeurs = soeurs_du_parc(hote, set(analyses))
+        if soeurs:
+            log(
+                f"      relancer avec ses sœurs pour trancher :\n"
+                f"      uv run python scripts/veille_aides.py "
+                f"{' '.join(sorted(set(slugs)) + soeurs)} --report-only"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +199,12 @@ def update_manifest(
             }
         elif ancienne:
             entree["maj"] = ancienne
+        # L'audit d'exhaustivité (`veille_audit.py`) écrit sa propre clé dans la
+        # MÊME entrée. La veille reconstruit la sienne de zéro à chaque passage :
+        # sans ce report explicite, un run de veille effacerait l'historique
+        # d'audit et le ferait tout re-payer au passage suivant.
+        if audit := (manifest.get(slug) or {}).get("audit"):
+            entree["audit"] = audit
         merged[slug] = entree
     return merged
 
@@ -171,16 +232,6 @@ def write_manifest(manifest: dict, path: Path = MANIFEST_PATH) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _cellule(texte: str, largeur: int = 140) -> str:
-    """Texte du modèle rendu inoffensif dans une cellule de tableau markdown.
-
-    Le `resume` est du texte libre : un `|` ou un saut de ligne y casserait le
-    tableau, donc le rapport, donc la revue.
-    """
-    plat = " ".join(texte.split()).replace("|", "\\|")
-    return (plat[: largeur - 1] + "…") if len(plat) > largeur else (plat or "—")
-
-
 def _section_majs(majs: dict[str, MajResult], mode: str) -> list[str]:
     """Ce que l'étage C a produit : les diffs à relire, puis ce qui a échoué."""
     if not majs:
@@ -189,12 +240,15 @@ def _section_majs(majs: dict[str, MajResult], mode: str) -> list[str]:
     echecs = [m for m in majs.values() if m.etat == "echec"]
     inchangees = [m for m in majs.values() if m.etat == "inchange"]
     cout = sum(m.cout_usd for m in majs.values())
+    tok_in = sum(m.tokens_in for m in majs.values())
+    tok_out = sum(m.tokens_out for m in majs.values())
 
     out = [
         "## Étage C",
         "",
-        f"{len(majs)} aide(s) soumise(s) au modèle pour {cout:.3f} $ : "
-        f"{len(appliquees)} mise(s) à jour, {len(inchangees)} sans changement dans le "
+        f"{len(majs)} aide(s) soumise(s) au modèle pour {cout:.3f} $ "
+        f"({milliers(tok_in)} tokens en entrée, {milliers(tok_out)} en sortie) : "
+        + f"{len(appliquees)} mise(s) à jour, {len(inchangees)} sans changement dans le "
         f"mandat, {len(echecs)} en échec.",
         "",
     ]
@@ -218,7 +272,7 @@ def _section_majs(majs: dict[str, MajResult], mode: str) -> list[str]:
         for m in sorted(appliquees, key=lambda m: m.slug):
             champs = ", ".join(f"`{c}`" for c in m.champs) or "—"
             snaps = ", ".join(m.snapshots) or "—"
-            out.append(f"| {m.slug} | {champs} | {_cellule(m.resume)} | {snaps} |")
+            out.append(f"| {m.slug} | {champs} | {cellule(m.resume)} | {snaps} |")
         out += [
             "",
             "```",
@@ -407,6 +461,38 @@ def build_report(
             out += [f"  - {slug} : {p}" for slug, p in illisibles]
         out.append("")
 
+    # Portée des statuts rassurants, aide par aide. Le décompte global de
+    # citations non recontrôlables ci-dessus ne dit pas SUR QUELLES aides le
+    # verdict est creux — or c'est la seule question qui compte pour décider
+    # quoi relire à la main.
+    creuses = sorted(
+        (
+            a
+            for a in analyses.values()
+            if a.statut in ("OK", "DATE_PERIMEE_SOURCE_INCHANGEE")
+            and a.couverture_quotes[1]
+            and a.couverture_quotes[0] < a.couverture_quotes[1]
+        ),
+        key=lambda a: (a.couverture_quotes[0] / a.couverture_quotes[1], a.slug),
+    )
+    if creuses:
+        out += [
+            "## Portée des statuts — couverture partielle des citations",
+            "",
+            "Ces aides n'ont **pas** vu leurs conditions revérifiées, ou seulement "
+            "en partie : le document qui les justifie n'est pas dans le périmètre "
+            "de surveillance. Le statut affiché ne porte que sur les pages "
+            "re-téléchargées. Une couverture de `0/n` ne prouve rien du règlement.",
+            "",
+            "| aide | statut | citations contrôlées |",
+            "|---|---|---:|",
+        ]
+        for an in creuses:
+            n, tot = an.couverture_quotes
+            marque = " ⚠" if n == 0 else ""
+            out.append(f"| {an.slug} | `{an.statut}` | {n}/{tot}{marque} |")
+        out.append("")
+
     return "\n".join(out)
 
 
@@ -439,7 +525,7 @@ def run_stage_c(
     if not candidats:
         return {}
 
-    spec = REGISTRE[args.model]
+    spec = resoudre_modele(args.model)
     if not spec.cle_presente:
         log("")
         log(
@@ -470,7 +556,9 @@ def run_stage_c(
         majs[slug] = maj
         log(
             f"  [{i}/{len(retenus)}] {maj.symbole} {slug:<46} "
-            f"{maj.cout_usd * 100:>5.2f}¢ {maj.latence_s:>5.1f}s  {_cellule(maj.raison, 70)}"
+            f"{maj.cout_usd * 100:>5.2f}¢ {maj.latence_s:>5.1f}s "
+            f"{tokens_compacts(maj.tokens_in):>6}↑{tokens_compacts(maj.tokens_out):>6}↓  "
+            f"{cellule(maj.raison, 52)}"
         )
         if maj.reponse_rejetee:
             # Dans le log, pas dans le rapport : c'est de la matière de
@@ -487,7 +575,12 @@ def run_stage_c(
             f"  … {len(candidats) - len(retenus)} aide(s) laissée(s) de côté : plafond "
             f"--max-llm={args.max_llm}. Relancer après relecture pour la suite."
         )
-    log(f"  coût de l'étage C : {sum(m.cout_usd for m in majs.values()):.3f} $")
+    tok_in = sum(m.tokens_in for m in majs.values())
+    tok_out = sum(m.tokens_out for m in majs.values())
+    log(
+        f"  coût de l'étage C : {sum(m.cout_usd for m in majs.values()):.3f} $"
+        f"  —  {milliers(tok_in)} tokens en entrée, {milliers(tok_out)} en sortie"
+    )
     return majs
 
 
@@ -517,8 +610,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--model",
         default=MODELE_DEFAUT,
-        choices=sorted(REGISTRE),
-        help=f"modèle de l'étage C (défaut : {MODELE_DEFAUT})",
+        help=(
+            f"modèle de l'étage C (défaut : {MODELE_DEFAUT}, réglé par VEILLE_MODEL "
+            "dans backend/.env). Alias du registre, ou `fournisseur:identifiant` ; "
+            "`uv run python scripts/veille_llm.py` liste les deux."
+        ),
     )
     p.add_argument("--limit", type=int, help="ne traiter que les N aides les plus anciennes")
     p.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY)
@@ -542,6 +638,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     log = Journal()
     today = date.today()
+
+    # Un VEILLE_MODEL mal saisi doit dire lequel et proposer les valeurs
+    # valides, pas dérouler une KeyError au milieu d'un passage.
+    try:
+        resoudre_modele(args.model)
+    except KeyError as exc:
+        print(f"ERREUR : {exc.args[0]}", file=sys.stderr)
+        return 1
 
     if args.slugs:
         paths = [AIDES_DIR / f"{s}.yaml" for s in args.slugs]
@@ -602,6 +706,34 @@ def main(argv: list[str] | None = None) -> int:
             (a for a in analyses.values() if a.statut == statut), key=lambda a: a.slug
         ):
             log(f"    {SYMBOLES[statut]} {an.slug:<50} {an.raisons[0] if an.raisons else ''}")
+
+    alerter_chrome_affame(analyses, collects, log)
+
+    # Réserve sur la portée des statuts rassurants. Sans cette section, un `OK`
+    # dont aucune citation n'a pu être recontrôlée se lit « l'aide est à jour »,
+    # alors qu'il ne dit rien du document qui porte les critères. L'information
+    # existait déjà dans la section « Qualité des preuves » du rapport ; en
+    # pratique on ne lit que le RÉCAP, donc elle doit être ici.
+    partielles = sorted(
+        (
+            a
+            for a in analyses.values()
+            if a.statut in ("OK", "DATE_PERIMEE_SOURCE_INCHANGEE")
+            and a.couverture_quotes[1]
+            and a.couverture_quotes[0] < a.couverture_quotes[1]
+        ),
+        key=lambda a: (a.couverture_quotes[0] / a.couverture_quotes[1], a.slug),
+    )
+    if partielles:
+        log("")
+        log("  couverture partielle des citations — le statut ne porte que sur les")
+        log("  pages effectivement re-téléchargées, pas sur le règlement :")
+        for an in partielles:
+            n, tot = an.couverture_quotes
+            alerte = "  ← ne prouve rien" if n == 0 else ""
+            log(
+                f"    {SYMBOLE_COUVERTURE} {an.slug:<50} {n}/{tot} citation(s) contrôlée(s){alerte}"
+            )
 
     if args.report_only or args.offline:
         mode = "report-only"

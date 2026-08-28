@@ -7,9 +7,9 @@ function stats(partial: Partial<ProjectStats>): ProjectStats {
     aidesIdentifiees: 0,
     montantPotentiel: 0,
     montantAtteignable: 0,
+    tauxTravauxMax: 0,
     dossiersActifs: 0,
     prochaineEcheance: null,
-    completion: 0,
     ...partial,
   };
 }

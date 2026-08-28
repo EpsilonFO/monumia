@@ -9,13 +9,13 @@ from supabase import Client
 from db import get_current_user_id, get_supabase
 from services.project_access import (
     allowed_visibilities,
+    best_document_role,
     can_modify_document,
     can_view_document,
-    filter_visible_documents,
-    get_project_role,
-    my_project_roles,
+    max_role,
+    my_scope_roles,
     require_project_access,
-    role_at_least,
+    require_projet_access,
 )
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -58,6 +58,9 @@ class CreateDocumentRequest(BaseModel):
     monument_ids: list[str] = []
     # Backward compat: accept single monument_id and convert to monument_ids
     monument_id: str | None = None
+    # Rattachement à des PROJETS de travaux : un document déposé dans l'onglet
+    # Documents d'un chantier n'est visible que de son équipe.
+    projet_ids: list[str] = []
     date_document: str | None = None
     description: str | None = None
     visibility: str | None = None
@@ -75,7 +78,8 @@ class UpdateDocumentRequest(BaseModel):
 
 
 class AddToProjectsRequest(BaseModel):
-    monument_ids: list[str]
+    monument_ids: list[str] = []
+    projet_ids: list[str] = []
 
 
 # ---------------------------------------------------------------------------
@@ -91,13 +95,12 @@ def _get_document_any(supabase: Client, document_id: str) -> dict:
 
 
 def _require_document_read(supabase: Client, document_id: str, user_id: str) -> dict:
-    """Lecture : l'auteur du document, ou tout membre d'un de ses projets."""
+    """Lecture : l'auteur du document, ou tout membre d'un monument / projet où il pend."""
     doc = _get_document_any(supabase, document_id)
     if doc.get("user_id") == user_id:
         return doc
-    for mid in doc.get("monument_ids") or []:
-        if get_project_role(supabase, mid, user_id) is not None:
-            return doc
+    if _highest_project_role(supabase, doc, user_id) is not None:
+        return doc
     raise HTTPException(status_code=404, detail="Document introuvable")
 
 
@@ -107,7 +110,7 @@ def _require_document_view(supabase: Client, document_id: str, user_id: str) -> 
     Renvoie 404 (et non 403) pour ne pas révéler l'existence d'un document masqué.
     """
     doc = _get_document_any(supabase, document_id)
-    role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
+    role = _highest_project_role(supabase, doc, user_id)
     if can_view_document(
         visibility=doc.get("visibility") or "team",
         allowed_user_ids=doc.get("allowed_user_ids") or [],
@@ -119,14 +122,12 @@ def _require_document_view(supabase: Client, document_id: str, user_id: str) -> 
     raise HTTPException(status_code=404, detail="Document introuvable")
 
 
-def _highest_project_role(supabase: Client, monument_ids: list | None, user_id: str) -> str | None:
-    """Rôle le plus élevé de l'utilisateur parmi les projets du document."""
-    best = None
-    for mid in monument_ids or []:
-        r = get_project_role(supabase, mid, user_id)
-        if r is not None and (best is None or role_at_least(r, best)):
-            best = r
-    return best
+def _highest_project_role(supabase: Client, doc: dict, user_id: str) -> str | None:
+    """Rôle le plus élevé du viewer sur ce document — monuments ET projets confondus."""
+    monument_roles, projet_roles = my_scope_roles(supabase, user_id)
+    return best_document_role(
+        doc.get("monument_ids"), doc.get("projet_ids"), monument_roles, projet_roles
+    )
 
 
 def _can_modify(doc: dict, role: str | None, user_id: str) -> bool:
@@ -167,11 +168,11 @@ def _resolve_visibility(
     return visibility, (list(allowed_user_ids) if visibility == "custom" else [])
 
 
-def _merge_monument_ids(existing: list[str], new: list[str]) -> list[str]:
-    """Return the existing project ids plus any new ones, order-preserving, no dupes.
+def _merge_ids(existing: list[str], new: list[str]) -> list[str]:
+    """Les ids existants plus les nouveaux, ordre préservé, sans doublon.
 
-    Adding a document to a project associates the *same* document with another
-    project — it never creates a copy — so we just grow its monument_ids array.
+    Rattacher un document à un monument ou à un projet associe le *même*
+    document — jamais de copie : on allonge simplement le tableau.
     """
     merged = list(existing)
     for mid in new:
@@ -184,9 +185,33 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _should_auto_trash(monument_ids: list | None, dossiers_utilises: list | None) -> bool:
-    """Vrai si le document n'a plus AUCUN projet ni dossier → il part en corbeille."""
-    return not (monument_ids or []) and not (dossiers_utilises or [])
+def _should_auto_trash(
+    monument_ids: list | None, projet_ids: list | None, dossiers_utilises: list | None
+) -> bool:
+    """Vrai si le document ne pend plus à RIEN (monument, projet, dossier) → corbeille."""
+    return not (monument_ids or []) and not (projet_ids or []) and not (dossiers_utilises or [])
+
+
+def _filter_visible(
+    rows: list[dict],
+    user_id: str,
+    monument_roles: dict[str, str],
+    projet_roles: dict[str, str],
+) -> list[dict]:
+    """Ne garde que les documents que `user_id` a le droit de voir (règle existante)."""
+    return [
+        r
+        for r in rows
+        if can_view_document(
+            visibility=r.get("visibility") or "team",
+            allowed_user_ids=r.get("allowed_user_ids") or [],
+            uploader_id=r.get("user_id"),
+            viewer_id=user_id,
+            viewer_role=best_document_role(
+                r.get("monument_ids"), r.get("projet_ids"), monument_roles, projet_roles
+            ),
+        )
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -197,12 +222,46 @@ def _should_auto_trash(monument_ids: list | None, dossiers_utilises: list | None
 @router.get("")
 def list_documents(
     monument_id: str | None = Query(None),
+    projet_id: str | None = Query(None),
     type: str | None = Query(None),
     trashed: bool = Query(False),
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
+    """Documents d'un monument, d'un projet, ou tout ce que je peux voir.
+
+    Les deux périmètres sont volontairement DISJOINTS : `?monument_id=` ne rend
+    que les pièces du bien (arrêté, cadastre, photos), `?projet_id=` que celles
+    du chantier. Un onglet qui mélangerait les deux montrerait à l'équipe d'un
+    projet des documents du monument auxquels elle n'a pas droit.
+    """
+    if projet_id:
+        _, role = require_projet_access(supabase, projet_id, user_id, "member")
+        query = (
+            supabase.table("documents")
+            .select(COLUMNS)
+            .contains("projet_ids", [projet_id])
+            .is_("trashed_at", "null")
+            .order("date_upload", desc=True)
+        )
+        if type:
+            query = query.eq("type", type)
+        rows = query.execute().data or []
+        return [
+            r
+            for r in rows
+            if can_view_document(
+                visibility=r.get("visibility") or "team",
+                allowed_user_ids=r.get("allowed_user_ids") or [],
+                uploader_id=r.get("user_id"),
+                viewer_id=user_id,
+                viewer_role=role,
+            )
+        ]
+
     if monument_id:
+        # Réservé à l'équipe du MONUMENT : un membre d'un seul de ses projets
+        # n'a rien à faire dans les pièces du bien.
         role = require_project_access(supabase, monument_id, user_id, "member")
         query = (
             supabase.table("documents")
@@ -225,9 +284,10 @@ def list_documents(
             )
         ]
 
-    # Vue « Mes documents » : tout ce que je peux voir (mes uploads + les documents
-    # des projets où je suis membre, filtrés par les droits de consultation).
-    my_roles = my_project_roles(supabase, user_id)
+    # Vue « Mes documents » : tout ce que je peux voir (mes uploads + les pièces
+    # des monuments et des projets où je suis membre), filtré par les droits de
+    # consultation.
+    monument_roles, projet_roles = my_scope_roles(supabase, user_id)
 
     if trashed:
         # Corbeille personnelle : uniquement MES documents jetés.
@@ -242,16 +302,16 @@ def list_documents(
         return query.order("date_upload", desc=True).execute().data or []
 
     query = supabase.table("documents").select(COLUMNS).is_("trashed_at", "null")
-    my_ids = list(my_roles.keys())
-    if my_ids:
-        ids_literal = ",".join(my_ids)
-        query = query.or_(f"user_id.eq.{user_id},monument_ids.ov.{{{ids_literal}}}")
-    else:
-        query = query.eq("user_id", user_id)
+    clauses = [f"user_id.eq.{user_id}"]
+    if monument_roles:
+        clauses.append(f"monument_ids.ov.{{{','.join(monument_roles)}}}")
+    if projet_roles:
+        clauses.append(f"projet_ids.ov.{{{','.join(projet_roles)}}}")
+    query = query.or_(",".join(clauses))
     if type:
         query = query.eq("type", type)
     rows = query.order("date_upload", desc=True).execute().data or []
-    return filter_visible_documents(rows, user_id, my_roles)
+    return _filter_visible(rows, user_id, monument_roles, projet_roles)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -264,16 +324,21 @@ def create_document(
     monument_ids = list(body.monument_ids)
     if body.monument_id and body.monument_id not in monument_ids:
         monument_ids.append(body.monument_id)
+    projet_ids = list(body.projet_ids)
 
-    # Accès (membre suffit pour déposer) + rôle le plus élevé parmi les projets.
-    top_role = None
+    # Accès (membre suffit pour déposer) + rôle le plus élevé sur les rattachements.
+    top_role: str | None = None
     for mid in monument_ids:
-        r = require_project_access(supabase, mid, user_id, "member")
-        if top_role is None or role_at_least(r, top_role):
-            top_role = r
+        top_role = max_role(top_role, require_project_access(supabase, mid, user_id, "member"))
+    for pid in projet_ids:
+        _, r = require_projet_access(supabase, pid, user_id, "member")
+        top_role = max_role(top_role, r)
 
     visibility, allowed_ids = _resolve_visibility(
-        body.visibility, body.allowed_user_ids, top_role, has_project=bool(monument_ids)
+        body.visibility,
+        body.allowed_user_ids,
+        top_role,
+        has_project=bool(monument_ids or projet_ids),
     )
 
     # The client uploads to <user_id>/... in storage, then submits the path here.
@@ -286,6 +351,7 @@ def create_document(
         **payload,
         "url": safe_path,
         "monument_ids": monument_ids,
+        "projet_ids": projet_ids,
         "user_id": user_id,
         "dossiers_utilises": [],
         "visibility": visibility,
@@ -344,7 +410,7 @@ def update_document(
     supabase: Client = Depends(get_supabase),
 ):
     doc = _get_document_any(supabase, document_id)
-    role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
+    role = _highest_project_role(supabase, doc, user_id)
     if not _can_modify(doc, role, user_id):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas modifier ce document")
 
@@ -381,7 +447,7 @@ def delete_document(
     # Suppression : l'auteur, ou un owner/co_owner POUVANT CONSULTER le document
     # (un adjoint exclu d'un doc « personnes choisies » ne peut rien faire). Un
     # simple membre ne peut supprimer que ses propres documents.
-    role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
+    role = _highest_project_role(supabase, doc, user_id)
     if not _can_modify(doc, role, user_id):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas supprimer ce document")
 
@@ -394,7 +460,6 @@ def delete_document(
         and ".." not in storage_path.split("/")
     ):
         safe_path = storage_path
-
     _detacher_des_checklists(supabase, document_id)
     supabase.table("documents").delete().eq("id", document_id).execute()
     # Le stockage en DERNIER : un échec à mi-chemin dans l'autre ordre laisse
@@ -417,16 +482,17 @@ def link_to_dossier(
 
     dossier = (
         supabase.table("dossiers")
-        .select("id, monument_id")
+        .select("id, projet_id")
         .eq("id", dossier_id)
         .maybe_single()
         .execute()
     )
     if not dossier or not dossier.data:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
-    # Tout membre du projet peut rattacher au dossier un document qu'il peut consulter
-    # (le sien, typiquement) — le dépôt de pièces n'est pas réservé aux chefs.
-    require_project_access(supabase, dossier.data["monument_id"], user_id, "member")
+    # Tout membre du PROJET peut rattacher au dossier un document qu'il peut
+    # consulter (le sien, typiquement) — le dépôt de pièces n'est pas réservé aux
+    # chefs, et un collaborateur invité sur le seul chantier doit pouvoir le faire.
+    require_projet_access(supabase, dossier.data["projet_id"], user_id, "member")
 
     dossiers: list = doc.get("dossiers_utilises") or []
     if dossier_id not in dossiers:
@@ -447,7 +513,7 @@ def unlink_from_dossier(
 
     dossier = (
         supabase.table("dossiers")
-        .select("id, monument_id")
+        .select("id, projet_id")
         .eq("id", dossier_id)
         .maybe_single()
         .execute()
@@ -455,7 +521,7 @@ def unlink_from_dossier(
     if dossier and dossier.data:
         # Retirer une pièce d'un dossier suit la règle de modification des documents :
         # l'auteur de la pièce, ou un chef de projet / adjoint POUVANT la consulter.
-        role = get_project_role(supabase, dossier.data["monument_id"], user_id)
+        _, role = require_projet_access(supabase, dossier.data["projet_id"], user_id, "member")
         if not _can_modify(doc, role, user_id):
             raise HTTPException(
                 status_code=403, detail="Vous ne pouvez pas retirer cette pièce du dossier"
@@ -465,7 +531,7 @@ def unlink_from_dossier(
     updated = [d for d in dossiers if d != dossier_id]
 
     patch: dict = {"dossiers_utilises": updated}
-    if _should_auto_trash(doc.get("monument_ids"), updated):
+    if _should_auto_trash(doc.get("monument_ids"), doc.get("projet_ids"), updated):
         patch["trashed_at"] = _now_iso()
     supabase.table("documents").update(patch).eq("id", document_id).execute()
 
@@ -477,25 +543,30 @@ def add_document_to_projects(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    """Associate an existing document with one or more additional projects.
+    """Rattache un document existant à d'autres monuments et / ou projets.
 
-    This appends to the document's monument_ids array — the same file and row
-    are shared across projects. No copy of the file or the row is ever made.
+    On allonge les tableaux `monument_ids` / `projet_ids` : le même fichier et la
+    même ligne servent partout, aucune copie n'est jamais faite.
     """
-    if not body.monument_ids:
-        raise HTTPException(status_code=400, detail="Aucun projet cible fourni")
+    if not body.monument_ids and not body.projet_ids:
+        raise HTTPException(status_code=400, detail="Aucune cible fournie")
 
     # Accès partagé : seul quelqu'un pouvant consulter le document peut le repartager.
     source = _require_document_view(supabase, document_id, user_id)
 
-    # Tout membre d'un projet cible peut y associer le document (modèle lien, pas de copie).
+    # Tout membre d'une cible peut y associer le document (modèle lien, pas de copie).
     for mid in body.monument_ids:
         require_project_access(supabase, mid, user_id, "member")
+    for pid in body.projet_ids:
+        require_projet_access(supabase, pid, user_id, "member")
 
-    merged = _merge_monument_ids(source.get("monument_ids") or [], body.monument_ids)
-    result = (
-        supabase.table("documents").update({"monument_ids": merged}).eq("id", document_id).execute()
-    )
+    updates: dict = {}
+    if body.monument_ids:
+        updates["monument_ids"] = _merge_ids(source.get("monument_ids") or [], body.monument_ids)
+    if body.projet_ids:
+        updates["projet_ids"] = _merge_ids(source.get("projet_ids") or [], body.projet_ids)
+
+    result = supabase.table("documents").update(updates).eq("id", document_id).execute()
     return result.data[0]
 
 
@@ -556,11 +627,16 @@ def trash_document(
     """Mettre un document à la corbeille : le détacher de tous ses projets/dossiers
     et poser `trashed_at`. Récupérable via /restore, supprimable définitivement via DELETE."""
     doc = _get_document_any(supabase, document_id)
-    role = _highest_project_role(supabase, doc.get("monument_ids"), user_id)
+    role = _highest_project_role(supabase, doc, user_id)
     if not _can_modify(doc, role, user_id):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas supprimer ce document")
     _detacher_des_checklists(supabase, document_id)
-    patch = {"monument_ids": [], "dossiers_utilises": [], "trashed_at": _now_iso()}
+    patch = {
+        "monument_ids": [],
+        "projet_ids": [],
+        "dossiers_utilises": [],
+        "trashed_at": _now_iso(),
+    }
     result = supabase.table("documents").update(patch).eq("id", document_id).execute()
     return result.data[0]
 
@@ -591,15 +667,39 @@ def remove_document_from_project(
     """Retirer un document d'UN projet. Si c'était sa dernière attache (plus aucun
     projet ni dossier), il part automatiquement en corbeille. Renvoie le document à jour."""
     doc = _get_document_any(supabase, document_id)
-    role = get_project_role(supabase, monument_id, user_id)
+    role = _highest_project_role(supabase, doc, user_id)
+    if not _can_modify(doc, role, user_id):
+        raise HTTPException(
+            status_code=403, detail="Vous ne pouvez pas retirer ce document du monument"
+        )
+
+    monuments = [m for m in (doc.get("monument_ids") or []) if m != monument_id]
+    patch: dict = {"monument_ids": monuments}
+    if _should_auto_trash(monuments, doc.get("projet_ids"), doc.get("dossiers_utilises")):
+        patch["trashed_at"] = _now_iso()
+    result = supabase.table("documents").update(patch).eq("id", document_id).execute()
+    return result.data[0]
+
+
+@router.delete("/{document_id}/projets/{projet_id}")
+def remove_document_from_projet(
+    document_id: str,
+    projet_id: str,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Retirer un document d'UN projet de travaux. Si c'était sa dernière attache
+    (plus aucun monument, projet ni dossier), il part en corbeille."""
+    doc = _get_document_any(supabase, document_id)
+    role = _highest_project_role(supabase, doc, user_id)
     if not _can_modify(doc, role, user_id):
         raise HTTPException(
             status_code=403, detail="Vous ne pouvez pas retirer ce document du projet"
         )
 
-    monuments = [m for m in (doc.get("monument_ids") or []) if m != monument_id]
-    patch: dict = {"monument_ids": monuments}
-    if _should_auto_trash(monuments, doc.get("dossiers_utilises")):
+    projets = [p for p in (doc.get("projet_ids") or []) if p != projet_id]
+    patch: dict = {"projet_ids": projets}
+    if _should_auto_trash(doc.get("monument_ids"), projets, doc.get("dossiers_utilises")):
         patch["trashed_at"] = _now_iso()
     result = supabase.table("documents").update(patch).eq("id", document_id).execute()
     return result.data[0]

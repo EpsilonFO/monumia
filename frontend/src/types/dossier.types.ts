@@ -13,6 +13,9 @@ export type ChecklistItemStatus = 'fourni' | 'repris' | 'en_attente' | 'manquant
 
 export interface Dossier {
   id: ID;
+  /** Le PROJET de travaux auquel ce dossier appartient. */
+  projetId: ID;
+  /** Monument parent, dénormalisé : c'est lui qui porte les droits et le paywall. */
   monumentId: ID;
   aideId: ID;
   userId: ID;
