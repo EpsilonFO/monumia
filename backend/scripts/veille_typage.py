@@ -80,7 +80,7 @@ from veille_apply import (
     parse_json_output,
 )
 from veille_journal import Journal, cellule, milliers, tokens_compacts
-from veille_llm import MODELE_DEFAUT, REGISTRE, ModelSpec, call, json_schema, system_pour
+from veille_llm import MODELE_DEFAUT, ModelSpec, call, json_schema, resoudre_modele, system_pour
 from veille_update import prompt_correction
 
 MAX_LLM_DEFAUT = 20
@@ -797,7 +797,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("slugs", nargs="*", help="aides à typer (défaut : toutes celles qui en ont)")
     p.add_argument("--dry-run", action="store_true", help="sans écrire un seul fichier")
     p.add_argument("--max-llm", type=int, default=MAX_LLM_DEFAUT)
-    p.add_argument("--model", default=MODELE_DEFAUT, choices=sorted(REGISTRE))
+    p.add_argument(
+        "--model",
+        default=MODELE_DEFAUT,
+        help=f"alias du registre ou `fournisseur:identifiant` (défaut : {MODELE_DEFAUT})",
+    )
     p.add_argument("--limit", type=int)
     return p.parse_args(argv)
 
@@ -806,6 +810,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     log = Journal()
     today = date.today()
+
+    # Un VEILLE_MODEL mal saisi doit dire lequel et proposer les valeurs
+    # valides, pas dérouler une KeyError au milieu d'un passage.
+    try:
+        resoudre_modele(args.model)
+    except KeyError as exc:
+        print(f"ERREUR : {exc.args[0]}", file=sys.stderr)
+        return 1
 
     if args.slugs:
         paths = [AIDES_DIR / f"{s}.yaml" for s in args.slugs]
@@ -834,7 +846,7 @@ def main(argv: list[str] | None = None) -> int:
     debut = time.monotonic()
     resultats = typer_toutes(
         a_faire,
-        REGISTRE[args.model],
+        resoudre_modele(args.model),
         aujourd_hui=today,
         dry_run=args.dry_run,
         max_llm=args.max_llm,

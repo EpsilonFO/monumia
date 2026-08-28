@@ -86,10 +86,10 @@ from veille_journal import Journal, cellule, milliers, tokens_compacts
 from veille_llm import (
     MAX_CHARS_DOCUMENT,
     MODELE_DEFAUT,
-    REGISTRE,
     ModelSpec,
     call,
     json_schema,
+    resoudre_modele,
     system_pour,
 )
 from veille_text import normalize, parse_front_matter
@@ -1311,8 +1311,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--model",
         default=MODELE_DEFAUT,
-        choices=sorted(REGISTRE),
-        help=f"modèle de l'audit (défaut : {MODELE_DEFAUT})",
+        help=(
+            f"modèle de l'audit (défaut : {MODELE_DEFAUT}, réglé par VEILLE_MODEL "
+            "dans backend/.env). Alias du registre, ou `fournisseur:identifiant` ; "
+            "`uv run python scripts/veille_llm.py` liste les deux."
+        ),
     )
     p.add_argument("--limit", type=int, help="ne traiter que les N candidates les plus anciennes")
     p.add_argument(
@@ -1355,6 +1358,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     log = Journal()
     today = date.today()
+
+    # Un VEILLE_MODEL mal saisi doit dire lequel et proposer les valeurs
+    # valides, pas dérouler une KeyError au milieu d'un passage.
+    try:
+        resoudre_modele(args.model)
+    except KeyError as exc:
+        print(f"ERREUR : {exc.args[0]}", file=sys.stderr)
+        return 1
 
     aides = _charger(args.slugs)
     if aides is None:
@@ -1460,7 +1471,7 @@ def _auditer_toutes(
             )
         return resultats
 
-    spec = REGISTRE[args.model]
+    spec = resoudre_modele(args.model)
     if not spec.cle_presente:
         log("")
         log(
@@ -1533,7 +1544,7 @@ def _typer_ajouts(
     aides = [load_aide(AIDES_DIR / f"{slug}.yaml") for slug in slugs]
     return typer_toutes(
         aides,
-        REGISTRE[args.model],
+        resoudre_modele(args.model),
         aujourd_hui=today,
         dry_run=args.dry_run,
         max_llm=args.max_llm,

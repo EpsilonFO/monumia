@@ -456,10 +456,10 @@ function EstimationCard() {
       </div>
 
       <h3 className="mt-2.5 font-serif text-[1.15rem] font-bold leading-snug" style={{ color: C.ink }}>
-        Château de Trévarez
+        Château de Paley
       </h3>
       <p className="text-[12.5px]" style={{ color: C.inkFaint }}>
-        Restauration des toitures · Finistère
+        Restauration de la façade · Seine-et-Marne
       </p>
 
       <p className="mt-4 text-[11.5px] font-medium uppercase tracking-[0.1em]" style={{ color: C.inkFaint }}>
@@ -580,7 +580,7 @@ function Hero() {
             style={{ borderColor: C.border }}
           >
             <img
-              src={`${BASE}img/trevarez-hero.jpg`}
+              src={`${BASE}img/paley.jpg`}
               alt="Le château de Trévarez, en Finistère, monument historique en cours de rénovation, au bout de son allée d’arbres"
               className="aspect-[4/5] w-full object-cover"
               style={{ objectPosition: '50% 0%' }}

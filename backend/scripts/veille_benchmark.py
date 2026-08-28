@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from veille_apply import VeilleLLMOutput, appliquer, parse_output
 from veille_collect import SOURCES_DIR
-from veille_llm import REGISTRE, ModelSpec, build_prompt, call, system_pour
+from veille_llm import REGISTRE, ModelSpec, build_prompt, call, resoudre_modele, system_pour
 from veille_text import flatten_markdown_links, normalized_diff, parse_front_matter
 
 GOLDS_PATH = DATA_DIR / "veille-golds.yaml"
@@ -339,7 +339,8 @@ def rapport(scores: list[Score], golds: list[Gold], raw: bool, aujourd_hui: date
             f"**`{gagnant}`** — {sum(len(s.faux_changements) for s in liste)} faux changement(s), "
             f"{sum(s.cost_usd for s in liste) / len(liste) * 100:.2f} ¢ par aide en moyenne.",
             "",
-            "À reporter dans `MODELE_DEFAUT` de `scripts/veille_llm.py`.",
+            "À reporter dans `VEILLE_MODEL` de `backend/.env` (ou, pour changer le "
+            "défaut du dépôt, dans `MODELE_DEFAUT` de `scripts/veille_llm.py`).",
             "",
         ]
     absents = [a for a, s in REGISTRE.items() if not s.cle_presente]
@@ -389,10 +390,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.models:
         specs = []
         for alias in args.models.split(","):
-            if alias not in REGISTRE:
-                print(f"ERREUR : modèle inconnu « {alias} »", file=sys.stderr)
+            try:
+                specs.append(resoudre_modele(alias))
+            except KeyError as exc:
+                print(f"ERREUR : {exc.args[0]}", file=sys.stderr)
                 return 1
-            specs.append(REGISTRE[alias])
     else:
         specs = [s for s in REGISTRE.values() if s.cle_presente]
     if not specs:

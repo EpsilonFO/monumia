@@ -50,7 +50,7 @@ from veille_analyze import (
 )
 from veille_collect import DEFAULT_CONCURRENCY, DEFAULT_TIMEOUT, collect
 from veille_journal import Journal, cellule, milliers, tokens_compacts
-from veille_llm import MODELE_DEFAUT, REGISTRE
+from veille_llm import MODELE_DEFAUT, resoudre_modele
 from veille_update import MAX_LLM_DEFAUT, MajResult, mettre_a_jour
 
 MANIFEST_PATH = DATA_DIR / "veille-state.yaml"
@@ -525,7 +525,7 @@ def run_stage_c(
     if not candidats:
         return {}
 
-    spec = REGISTRE[args.model]
+    spec = resoudre_modele(args.model)
     if not spec.cle_presente:
         log("")
         log(
@@ -610,8 +610,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--model",
         default=MODELE_DEFAUT,
-        choices=sorted(REGISTRE),
-        help=f"modèle de l'étage C (défaut : {MODELE_DEFAUT})",
+        help=(
+            f"modèle de l'étage C (défaut : {MODELE_DEFAUT}, réglé par VEILLE_MODEL "
+            "dans backend/.env). Alias du registre, ou `fournisseur:identifiant` ; "
+            "`uv run python scripts/veille_llm.py` liste les deux."
+        ),
     )
     p.add_argument("--limit", type=int, help="ne traiter que les N aides les plus anciennes")
     p.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY)
@@ -635,6 +638,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     log = Journal()
     today = date.today()
+
+    # Un VEILLE_MODEL mal saisi doit dire lequel et proposer les valeurs
+    # valides, pas dérouler une KeyError au milieu d'un passage.
+    try:
+        resoudre_modele(args.model)
+    except KeyError as exc:
+        print(f"ERREUR : {exc.args[0]}", file=sys.stderr)
+        return 1
 
     if args.slugs:
         paths = [AIDES_DIR / f"{s}.yaml" for s in args.slugs]
