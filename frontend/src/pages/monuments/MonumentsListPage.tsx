@@ -82,7 +82,9 @@ export function MonumentsListPage() {
   );
 
   return (
-    <div className="space-y-6">
+    /* Colonne resserrée et centrée : une carte par monument, tenue à une largeur
+       de lecture confortable plutôt qu'étirée sur les 1200 px du gabarit. */
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-[28px]" style={{ fontFamily: SERIF, color: C.ink }}>

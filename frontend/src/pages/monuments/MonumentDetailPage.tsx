@@ -281,7 +281,7 @@ export function MonumentDetailPage() {
   const equipeDuMonument = !!monument.myRole;
 
   const tabs: { value: string; label: string; icon: IconComponent; count: number | null }[] = [
-    { value: 'sanitaire', label: 'Fiche sanitaire', icon: IconMonument, count: null },
+    { value: 'sanitaire', label: 'Fiche monument', icon: IconMonument, count: null },
     { value: 'projets', label: 'Projets', icon: IconProjet, count: projets.length },
     ...(equipeDuMonument
       ? [

@@ -15,6 +15,7 @@ from aides_schema import (
     FactDef,
     Financement,
     MultiValue,
+    RangeValue,
     evaluate_predicate,
     load_all_aides,
     load_facts,
@@ -1376,3 +1377,204 @@ class TestFusionMonumentProjet(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAnneeConstructionDeduiteDuSiecle(unittest.TestCase):
+    """Le siècle de la fiche répond à la place de l'utilisateur.
+
+    `annee_construction` porte un `auto_source` sur `monument.siecle_construction` :
+    inutile de demander l'année d'un monument dont la notice donne déjà le
+    siècle. Un siècle n'étant pas une année, la déduction est un INTERVALLE :
+    elle ne tranche que les seuils qu'elle tranche vraiment, et laisse la
+    question posée sinon (fail-closed).
+    """
+
+    def _aide(self, predicate: dict):
+        return _fixture_aide(
+            [
+                {
+                    "id": "anciennete",
+                    "text": "L'édifice doit être ancien.",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": "annee_construction",
+                    "predicate": predicate,
+                }
+            ]
+        )
+
+    def _run(self, predicate: dict, siecle: str | None, answers: dict | None = None):
+        monument = _monument(siecle_construction=siecle)
+        ctx = build_context(monument, None, answers or {})
+        return evaluate_aide(self._aide(predicate), monument, None, ctx, FACTS)
+
+    def test_siecle_connu_tranche_le_gate_sans_question(self):
+        verdict = self._run({"lt": 1800}, "XVIIe siècle")
+        self.assertEqual(verdict.status, "eligible")
+        self.assertEqual(verdict.missing_facts, {})
+
+    def test_siecle_connu_elimine_quand_le_seuil_est_franchi(self):
+        verdict = self._run({"lt": 1800}, "20e siècle")
+        self.assertEqual(verdict.status, "non_eligible")
+        self.assertEqual(verdict.missing_facts, {})
+
+    def test_seuil_a_cheval_sur_le_siecle_pose_la_question(self):
+        # Le 18e siècle court de 1701 à 1800 : « antérieur à 1800 » est vrai au
+        # début, faux à la fin. On ne tranche pas, on demande.
+        verdict = self._run({"lt": 1800}, "18e siècle")
+        self.assertEqual(verdict.status, "potentiel")
+        self.assertIn("annee_construction", verdict.missing_facts)
+
+    def test_siecle_illisible_pose_la_question(self):
+        verdict = self._run({"lt": 1800}, "Moyen Age")
+        self.assertIn("annee_construction", verdict.missing_facts)
+
+    def test_siecle_absent_pose_la_question(self):
+        verdict = self._run({"lt": 1800}, None)
+        self.assertIn("annee_construction", verdict.missing_facts)
+
+    def test_la_reponse_prime_sur_le_siecle(self):
+        # L'utilisateur répond 1850 : plus précis que « 17e siècle » de la fiche.
+        verdict = self._run({"lt": 1800}, "XVIIe siècle", {"annee_construction": 1850})
+        self.assertEqual(verdict.status, "non_eligible")
+
+    def test_fourchette_de_siecles_lue_en_entier(self):
+        # « 14e - 18e siècle » : les deux bornes partagent le mot « siècle ».
+        # Ne lire que la dernière donnerait le 18e — le bâtiment est construit
+        # au 14e et remanié jusqu'au 18e, c'est la PREMIÈRE campagne qui date
+        # sa construction.
+        from eligibility_engine import _annee_depuis_siecle
+
+        self.assertEqual(tuple(_annee_depuis_siecle("14e - 18e siècle")), (1301, 1400))
+        self.assertEqual(tuple(_annee_depuis_siecle("14e, 15e et 16e siècles")), (1301, 1400))
+        self.assertEqual(tuple(_annee_depuis_siecle("12e au 14e siècle")), (1101, 1200))
+        self.assertEqual(tuple(_annee_depuis_siecle("12e s.;13e s.")), (1101, 1200))
+        self.assertEqual(tuple(_annee_depuis_siecle("xviie-xviiie siècles")), (1601, 1700))
+        # Les quantièmes (« 2e moitié », « 4e quart ») ne sont pas des siècles.
+        self.assertEqual(tuple(_annee_depuis_siecle("2e moitié 19e siècle")), (1801, 1900))
+        self.assertEqual(tuple(_annee_depuis_siecle("4e quart 18e siècle")), (1701, 1800))
+        self.assertIsNone(_annee_depuis_siecle("Moyen Age"))
+        self.assertIsNone(_annee_depuis_siecle("Vieux siècle"))
+
+    def test_edifice_remanie_reste_date_de_sa_construction(self):
+        # Cas réel (château de Paley, « 14e - 18e siècle ») : « antérieur à
+        # 1800 » est acquis, la question ne doit plus être posée.
+        verdict = self._run({"lt": 1800}, "14e - 18e siècle")
+        self.assertEqual(verdict.status, "eligible")
+        self.assertEqual(verdict.missing_facts, {})
+
+    def test_fourchette_encadrante_satisfaite(self):
+        verdict = self._run({"all_of": [{"gte": 401}, {"lte": 1996}]}, "12e s.;13e s.")
+        self.assertEqual(verdict.status, "eligible")
+
+    def test_refus_deduit_de_la_fiche_nest_pas_impute_a_lutilisateur(self):
+        verdict = self._run({"lt": 1800}, "20e siècle")
+        self.assertFalse(_match_result(verdict)["elimineParReponse"])
+
+    def test_refus_sur_reponse_reste_impute_a_lutilisateur(self):
+        verdict = self._run({"lt": 1800}, None, {"annee_construction": 1850})
+        self.assertTrue(_match_result(verdict)["elimineParReponse"])
+
+    def test_fait_tranche_par_la_fiche_nest_pas_redemande_sous_un_applies_if(self):
+        # Applicabilité inconnue : l'aide reste en incertitude (fail-closed),
+        # mais l'inconnue est le fait PASSERELLE, pas l'année — que la fiche
+        # donne déjà. Seule la passerelle est posée.
+        aide = _fixture_aide(
+            [
+                {
+                    "id": "anciennete",
+                    "text": "L'édifice doit être ancien.",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": "annee_construction",
+                    "predicate": {"lt": 1800},
+                    "applies_if": {"fact": "erp", "predicate": {"eq": True}},
+                }
+            ]
+        )
+        monument = _monument(siecle_construction="XVIIe siècle")
+        ctx = build_context(monument, None, {})
+        verdict = evaluate_aide(aide, monument, None, ctx, FACTS)
+        self.assertEqual(verdict.status, "potentiel")
+        self.assertNotIn("annee_construction", verdict.missing_facts)
+        self.assertIn("erp", verdict.gateway_facts)
+
+
+class TestEgliseDeduiteDuNom(unittest.TestCase):
+    """« Église Saint-Martin » répond d'avance à « est-ce une église ? ».
+
+    Déduction POSITIVE seulement : un nom sans le mot ne prouve pas le
+    contraire (« Notre-Dame de X », « Collégiale »), la question reste posée.
+    """
+
+    def _aide(self, fact: str = "edifice_eglise_ou_chapelle"):
+        return _fixture_aide(
+            [
+                {
+                    "id": "cultuel",
+                    "text": "L'édifice doit être une église ou une chapelle.",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": fact,
+                    "predicate": {"eq": True},
+                }
+            ]
+        )
+
+    def _run(self, nom: str, fact: str = "edifice_eglise_ou_chapelle", answers=None):
+        monument = _monument(nom=nom)
+        ctx = build_context(monument, None, answers or {})
+        return evaluate_aide(self._aide(fact), monument, None, ctx, FACTS)
+
+    def test_nom_qui_commence_par_eglise_repond_oui(self):
+        verdict = self._run("Église Saint-Martin")
+        self.assertEqual(verdict.status, "eligible")
+        self.assertEqual(verdict.missing_facts, {})
+
+    def test_accents_et_majuscules_indifferents(self):
+        for nom in ("EGLISE SAINT-PIERRE", "église saint-pierre", "L'Église Notre-Dame"):
+            self.assertEqual(self._run(nom).status, "eligible")
+
+    def test_chapelle_et_qualificatifs(self):
+        for nom in ("Chapelle des Pénitents", "Ancienne chapelle Saint-Roch"):
+            self.assertEqual(self._run(nom).status, "eligible")
+
+    def test_le_meme_nom_vaut_pour_ledifice_cultuel(self):
+        verdict = self._run("Chapelle des Pénitents", fact="edifice_cultuel")
+        self.assertEqual(verdict.status, "eligible")
+
+    def test_toponyme_nest_pas_une_chapelle(self):
+        # Le mot doit être la TÊTE du nom, sinon « Château de la Chapelle-… »
+        # deviendrait une chapelle.
+        for nom in ("Château de la Chapelle-Rainsouin", "Manoir de l'Église"):
+            verdict = self._run(nom)
+            self.assertIn("edifice_eglise_ou_chapelle", verdict.missing_facts)
+
+    def test_nom_muet_laisse_la_question_posee(self):
+        for nom in ("Notre-Dame de Paris", "Château de Paley", "Basilique Saint-Denis"):
+            verdict = self._run(nom)
+            self.assertIn("edifice_eglise_ou_chapelle", verdict.missing_facts)
+
+    def test_la_reponse_negative_prime_sur_le_nom(self):
+        # Un propriétaire qui a nommé « Chapelle » une grange peut le dire.
+        verdict = self._run("Chapelle des Pénitents", answers={"edifice_eglise_ou_chapelle": "non"})
+        self.assertEqual(verdict.status, "non_eligible")
+
+
+class TestRangeValue(unittest.TestCase):
+    """Sémantique universelle d'un intervalle : les deux bornes doivent
+    s'accorder, et seuls les opérateurs de seuil concluent aux bornes."""
+
+    def test_bornes_accordees_concluent(self):
+        self.assertIs(evaluate_predicate({"lt": 1800}, RangeValue((1401, 1500))), True)
+        self.assertIs(evaluate_predicate({"gte": 1800}, RangeValue((1401, 1500))), False)
+
+    def test_bornes_en_desaccord_restent_indeterminees(self):
+        self.assertIsNone(evaluate_predicate({"lt": 1800}, RangeValue((1701, 1800))))
+
+    def test_operateur_non_monotone_reste_indetermine(self):
+        # 1450 est dans l'intervalle : conclure « non » éliminerait à tort.
+        self.assertIsNone(evaluate_predicate({"eq": 1450}, RangeValue((1401, 1500))))
+
+    def test_intervalle_degenere_vaut_une_valeur(self):
+        self.assertIs(evaluate_predicate({"eq": 1500}, RangeValue((1500, 1500))), True)

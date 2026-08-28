@@ -11,7 +11,7 @@ const MESSAGES = [
 const STEP_MS = 1800;
 
 /**
- * Attente du diagnostic : quadrilobe qui pulse + messages séquencés (le
+ * Attente du diagnostic : fleur Monumia qui pulse + messages séquencés (le
  * dernier reste affiché tant que la navigation n'a pas eu lieu). Rend
  * l'attente vivante sans fausse barre de progression.
  */

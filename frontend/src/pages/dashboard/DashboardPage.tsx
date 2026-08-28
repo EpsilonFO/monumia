@@ -172,7 +172,7 @@ export function DashboardPage() {
 
       {/* ─── VOS MONUMENTS (parcours) ─── */}
       <section>
-        <SectionHeading eyebrow="Votre patrimoine" title="Vos monuments" />
+        <SectionHeading eyebrow="Vos Monuments" title="" />
         {loading ? (
           <ProjectsInProgressSkeleton />
         ) : (

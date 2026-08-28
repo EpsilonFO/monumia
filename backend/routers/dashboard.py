@@ -17,7 +17,7 @@ from routers.aides import (
     deterministic_diagnostic_for,
     merge_projet_into_monument,
 )
-from routers.monuments import fetch_user_monuments
+from routers.monuments import fetch_user_monuments, sign_photos
 from services import stripe_billing as billing
 from services.project_access import projet_ids_membre
 
@@ -77,6 +77,9 @@ def get_dashboard(
     supabase: Client = Depends(get_supabase),
 ):
     monuments, population_by_code = fetch_user_monuments(supabase, user_id)
+    # Les photos vivent dans un bucket privé : sans lien signé, les vignettes de
+    # « Mes monuments » et du tableau de bord seraient cassées.
+    sign_photos(supabase, monuments)
     if not monuments:
         return {
             "monuments": [],

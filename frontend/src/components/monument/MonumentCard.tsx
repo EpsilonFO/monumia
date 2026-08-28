@@ -1,15 +1,13 @@
 import { Link } from 'react-router';
 import { ArrowRight } from 'lucide-react';
-import { IconLocalisation, IconProjet, IconEcheance, IconDossier } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import { IconLocalisation, IconEcheance, IconDossier } from '@/components/icons';
 import { Clover } from '@/components/illustrations';
 import { MemberAvatarStack } from '@/components/sharing/MemberAvatarStack';
 import { ROUTES } from '@/constants/routes';
 import { C, DEADLINE_TONE, SERIF } from '@/lib/brand';
 import { deadlineLabel } from '@/lib/date-utils';
-import { formatCurrency } from '@/lib/format-utils';
+import { monumentPhotoUrl } from '@/lib/monument-photo';
 import { isProjectShared } from '@/lib/project-permissions';
-import { PROTECTION_LABELS_SHORT, isEnPeril, perilLabel } from '@/constants/monument-options';
 import type { MonumentStats } from '@/lib/project-stats';
 import type { Monument } from '@/types';
 
@@ -18,21 +16,15 @@ interface MonumentCardProps {
   stats?: MonumentStats;
 }
 
-/** Photo héros : on privilégie la façade, sinon le premier cliché disponible. */
-function heroPhoto(m: Monument): string | null {
-  if (!m.photos?.length) return null;
-  const facade = m.photos.find((p) => p.type === 'facade');
-  return (facade ?? m.photos[0])?.url || null;
-}
-
 /**
- * Vignette du monument : photo carrée arrondie ; sans photo, quadrilobe blanc
- * sur bleu profond — le bleu institutionnel ancre la marque dans l'en-tête.
+ * Vignette du monument : photo 16:9 arrondie — le format du héros du tableau de
+ * bord, pour qu'une photo recadrée une fois serve partout sans être retaillée.
+ * Sans photo, la fleur Monumia en blanc sur bleu profond ancre la marque.
  */
 function PhotoThumb({ photo }: { photo: string | null }) {
   return (
     <div
-      className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl"
+      className="flex aspect-video w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl"
       style={{
         background: photo ? undefined : `linear-gradient(150deg, ${C.blue}, ${C.blueDark})`,
         boxShadow: 'inset 0 0 0 1px rgba(7,42,114,0.08)',
@@ -45,27 +37,24 @@ function PhotoThumb({ photo }: { photo: string | null }) {
           style={{ backgroundImage: `url(${photo})` }}
         />
       ) : (
-        <Clover size={30} className="text-white" style={{ opacity: 0.9 }} />
+        <Clover size={28} className="text-white" style={{ opacity: 0.9 }} />
       )}
     </div>
   );
 }
 
 /**
- * Carte d'un monument dans « Mes monuments ». Elle répond à trois questions,
- * dans cet ordre : quel bien, combien de chantiers en cours, et que faire
- * maintenant. Le détail par chantier est un cran plus bas, sur la page du
- * monument, onglet « Projets ».
+ * Carte d'un monument dans « Mes monuments ». Elle répond à deux questions,
+ * dans cet ordre : quel bien, et que faire maintenant. Le détail par chantier
+ * est un cran plus bas, sur la page du monument, onglet « Projets ».
  */
 export function MonumentCard({ monument, stats }: MonumentCardProps) {
   const shared = isProjectShared(monument);
   const members = monument.members ?? [];
-  const photo = heroPhoto(monument);
-  const enPeril = isEnPeril(monument.etatConservation);
+  const photo = monumentPhotoUrl(monument);
 
   const nbProjets = stats?.projets ?? 0;
   const dossiersActifs = stats?.dossiersActifs ?? 0;
-  const montant = stats?.montantPotentiel ?? 0;
 
   // Échéance affichée UNIQUEMENT si elle presse (dépassée, urgente, ou proche).
   const next = stats?.prochaineEcheance ?? null;
@@ -82,10 +71,11 @@ export function MonumentCard({ monument, stats }: MonumentCardProps) {
         className="group overflow-hidden rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_45px_-24px_rgba(7,42,114,0.45)] sm:p-6"
         style={{ background: C.card, borderColor: C.border }}
       >
-        {/* ── En-tête : vignette + nom + lieu, avatars si le monument est partagé ── */}
-        <div className="flex items-center gap-4">
+        {/* ── En-tête : vignette + nom + lieu, avatars si partagé, et le bouton
+            d'action aligné sur le titre. Sur mobile, il passe à la ligne. ── */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
           <PhotoThumb photo={photo} />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 basis-[11rem]">
             <h3
               className="line-clamp-2 text-[20px] font-bold leading-snug"
               style={{ fontFamily: SERIF, color: C.ink }}
@@ -106,83 +96,25 @@ export function MonumentCard({ monument, stats }: MonumentCardProps) {
             )}
           </div>
           {shared && members.length > 0 && (
-            <div className="shrink-0 self-start">
+            <div className="shrink-0">
               <MemberAvatarStack people={members} size="sm" />
             </div>
           )}
+          <span
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-[14px] font-semibold text-white transition-all group-hover:shadow-md max-sm:w-full"
+            style={{ background: C.orange }}
+          >
+            {cta}
+            <ArrowRight
+              className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </span>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Badge variant="outline" style={{ borderColor: C.border, color: C.blue, background: C.paleBlue }}>
-            {PROTECTION_LABELS_SHORT[monument.protection] ?? monument.protection}
-          </Badge>
-          {enPeril !== null && (
-            <Badge
-              variant="outline"
-              style={{
-                borderColor: C.border,
-                color: enPeril ? 'var(--destructive)' : 'var(--success)',
-                background: enPeril ? 'var(--destructive-muted)' : 'var(--success-muted)',
-              }}
-            >
-              {perilLabel(monument.etatConservation)}
-            </Badge>
-          )}
-        </div>
-
-        {/* ── La tuile dit où en est le monument : ses chantiers, ou l'invitation
-            à en lancer un. ── */}
-        <div
-          className="relative mt-4 overflow-hidden rounded-xl border px-5 py-4"
-          style={{
-            background: `linear-gradient(135deg, ${C.paleOrange}, color-mix(in srgb, ${C.paleOrange} 45%, ${C.card}))`,
-            borderColor: `color-mix(in srgb, ${C.orange} 18%, transparent)`,
-          }}
-        >
-          <Clover
-            size={86}
-            className="pointer-events-none absolute -bottom-6 -right-5"
-            style={{ color: C.orange, opacity: 0.08 }}
-            aria-hidden
-          />
-          {nbProjets === 0 ? (
-            <>
-              <p
-                className="text-[19px] font-bold leading-tight"
-                style={{
-                  fontFamily: SERIF,
-                  // Orange légèrement foncé à l'encre : contraste AA sur la tuile chaude.
-                  color: `color-mix(in srgb, ${C.orange} 82%, ${C.ink})`,
-                }}
-              >
-                Aucun projet de travaux
-              </p>
-              <p className="mt-1.5 text-[13px] font-medium" style={{ color: C.ink }}>
-                Décrivez votre chantier, nous cherchons les aides.
-              </p>
-            </>
-          ) : (
-            <>
-              <p
-                className="text-[26px] font-bold leading-none tabular-nums"
-                style={{
-                  fontFamily: SERIF,
-                  color: `color-mix(in srgb, ${C.orange} 82%, ${C.ink})`,
-                }}
-              >
-                {montant > 0 ? formatCurrency(montant) : `${stats?.aidesIdentifiees ?? 0} aide${(stats?.aidesIdentifiees ?? 0) > 1 ? 's' : ''}`}
-              </p>
-              <p className="mt-1.5 flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.ink }}>
-                <IconProjet className="h-4 w-4 shrink-0" aria-hidden />
-                {nbProjets} projet{nbProjets > 1 ? 's' : ''} de travaux
-              </p>
-            </>
-          )}
-        </div>
-
-        {/* ── Pied : faits en toutes lettres + bouton d'action évident ── */}
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+        {/* ── Pied : les faits qui pressent, quand il y en a. ── */}
+        {(dossiersActifs > 0 || (pressing && nextLabel && tone)) && (
+          <div className="mt-4 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
             {dossiersActifs > 0 && (
               <span
                 className="inline-flex items-center gap-1.5 text-[13px] font-medium"
@@ -204,17 +136,7 @@ export function MonumentCard({ monument, stats }: MonumentCardProps) {
               </span>
             )}
           </div>
-          <span
-            className="inline-flex shrink-0 items-center justify-center gap-2 self-stretch rounded-lg px-5 py-2.5 text-[14px] font-semibold text-white transition-all group-hover:shadow-md sm:self-auto"
-            style={{ background: C.orange }}
-          >
-            {cta}
-            <ArrowRight
-              className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
-              aria-hidden
-            />
-          </span>
-        </div>
+        )}
       </article>
     </Link>
   );

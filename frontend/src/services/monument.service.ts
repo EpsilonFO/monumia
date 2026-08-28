@@ -1,5 +1,6 @@
 import type { Monument, MonumentPhoto } from '@/types';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
+import { uploadToStorage } from '@/lib/storage-upload';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -12,6 +13,18 @@ const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
  * travaux_envisages, cloture_at) est parti sur la table `projets` : les
  * chercher ici ne rendrait jamais rien.
  */
+/** Ligne photo (snake_case côté API) → `MonumentPhoto`. */
+function toPhoto(row: Record<string, unknown>): MonumentPhoto {
+  return {
+    id: row.id as string,
+    url: row.url as string,
+    signedUrl: (row.signed_url ?? row.signedUrl) as string | undefined,
+    legende: (row.legende as string) ?? '',
+    type: row.type as MonumentPhoto['type'],
+    datePhoto: (row.datePhoto ?? row.date_photo) as string | undefined,
+  };
+}
+
 export function toMonument(row: Record<string, unknown>): Monument {
   return {
     id: row.id as string,
@@ -39,7 +52,9 @@ export function toMonument(row: Record<string, unknown>): Monument {
     siecleConstruction: row.siecle_construction as string ?? row.siecleConstruction as string,
     descriptionGenerale: row.description_generale as string ?? row.descriptionGenerale as string,
     etatConservation: (row.etat_conservation ?? row.etatConservation ?? undefined) as Monument['etatConservation'],
-    photos: (row.photos as MonumentPhoto[]) ?? [],
+    photos: Array.isArray(row.photos)
+      ? (row.photos as Array<Record<string, unknown>>).map(toPhoto)
+      : [],
     completionPercentage: row.completion_percentage as number ?? row.completionPercentage as number ?? 0,
     createdAt: row.created_at as string ?? row.createdAt as string ?? new Date().toISOString(),
     updatedAt: row.updated_at as string ?? row.updatedAt as string ?? new Date().toISOString(),
@@ -93,6 +108,31 @@ export const monumentService = {
       body: JSON.stringify(photo),
     });
     return handleResponse<MonumentPhoto>(res);
+  },
+
+  /**
+   * Dépose une nouvelle photo de profil : le fichier part dans le bucket privé
+   * sous le dossier de l'utilisateur, puis le backend l'installe sur le
+   * monument (et efface l'ancienne). Rend la photo, lien signé compris.
+   */
+  async setPhotoProfil(monumentId: string, file: File, userId: string): Promise<MonumentPhoto> {
+    const url = await uploadToStorage(file, userId);
+    const res = await authFetch(`${BASE}/monuments/${monumentId}/photo-profil`, {
+      method: 'PUT',
+      body: JSON.stringify({ url, legende: '' }),
+    });
+    const row = await handleResponse<Record<string, unknown>>(res);
+    return toPhoto(row);
+  },
+
+  async removePhotoProfil(monumentId: string): Promise<void> {
+    const res = await authFetch(`${BASE}/monuments/${monumentId}/photo-profil`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail ?? `HTTP ${res.status}`);
+    }
   },
 
   async removePhoto(monumentId: string, photoId: string): Promise<void> {

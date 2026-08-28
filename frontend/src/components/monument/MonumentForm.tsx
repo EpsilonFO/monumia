@@ -29,6 +29,9 @@ const CREATION_STEPS = [
   { number: 3, title: 'Description physique', description: 'Architecture et état du monument' },
 ];
 
+/** Dans l'ordre des étapes : `STEP_COMPONENTS[i]` sert l'étape `i + 1`. */
+const STEP_COMPONENTS = [Step1Identification, Step2StatutJuridique, Step3DescriptionPhysique];
+
 function isStepValid(step: number, data: Partial<Monument>): boolean {
   switch (step) {
     case 1:
@@ -85,15 +88,34 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
         <p className="text-xs text-muted-foreground">{currentStepInfo.description}</p>
       </div>
 
-      {/* Carré blanc (ajusté au contenu) + navigation en colonne à sa droite,
-          calée en haut : elle ne bouge pas quand le carré grandit.
-          En mobile, la colonne repasse sous le carré. */}
+      {/* Carré blanc + navigation en colonne à sa droite. En mobile, la colonne
+          repasse sous le carré. */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <Card className="min-w-0 flex-1">
           <CardContent>
-            {currentStep === 1 && <Step1Identification data={formData} onChange={update} />}
-            {currentStep === 2 && <Step2StatutJuridique data={formData} onChange={update} />}
-            {currentStep === 3 && <Step3DescriptionPhysique data={formData} onChange={update} />}
+            {/* Les trois étapes occupent la MÊME cellule de grille : le carré
+                prend une bonne fois la hauteur de la plus grande (l'étape 3) et
+                ne bouge plus d'une étape à l'autre — donc les boutons non plus.
+                Une hauteur en dur se serait décalée au premier champ ajouté.
+                Les étapes inactives sont `invisible` (donc hors du parcours de
+                tabulation) et `inert` (hors de l'arbre d'accessibilité). */}
+            <div className="grid">
+              {STEP_COMPONENTS.map((Step, i) => {
+                const actif = currentStep === i + 1;
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      'col-start-1 row-start-1 min-w-0',
+                      !actif && 'invisible pointer-events-none'
+                    )}
+                    inert={!actif}
+                  >
+                    <Step data={formData} onChange={update} />
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
 

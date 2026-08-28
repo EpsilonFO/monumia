@@ -182,10 +182,12 @@ export function MonumentWizardPage() {
         </button>
       </header>
 
-      {/* Écran unique, sans rail : la colonne est centrée dans toute la page,
-          et se recentre verticalement tant que le contenu tient à l'écran. */}
+      {/* Écran unique, sans rail : la colonne est centrée horizontalement et
+          calée en HAUT. Le centrage vertical d'avant recalculait la position à
+          chaque changement de hauteur : passer d'une étape à l'autre faisait
+          glisser tout le bloc, boutons compris. */}
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <div className="mx-auto my-auto w-full max-w-[760px] space-y-4 px-5 py-6 sm:py-10">
+        <div className="mx-auto w-full max-w-[760px] space-y-4 px-5 py-6 sm:py-8">
           <div className="space-y-1.5 text-center">
             <div
               className="text-[12px] font-semibold uppercase tracking-[0.2em]"

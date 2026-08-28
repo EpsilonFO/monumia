@@ -9,12 +9,11 @@ import {
 } from '@/components/icons';
 import { Clover } from '@/components/illustrations';
 import { ROLE_LABELS } from '@/components/sharing/RoleBadge';
+import { monumentPhotoUrl } from '@/lib/monument-photo';
 import { sharedRole } from '@/lib/project-permissions';
 import { C, DEADLINE_TONE } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { formatDateShort } from '@/lib/date-utils';
-import { formatCurrency } from '@/lib/format-utils';
-import { montantTileMode } from '@/lib/project-card-view';
 import { ParcoursStepper } from './ParcoursStepper';
 import type { Monument } from '@/types';
 import type { MonumentStats, ProjectStage } from '@/lib/project-stats';
@@ -26,30 +25,13 @@ interface MonumentsInProgressProps {
   stageByMonument?: Record<string, ProjectStage>;
 }
 
-/** Voile bleu Monumia posé sur la photo : laisse respirer le cliché en haut, plombe
- *  le bas en bleu profond pour que le titre blanc reste lisible sur n'importe quelle image. */
+/**
+ * Ombre posée sous le titre, et rien d'autre : la photo garde ses couleurs, le
+ * bleu Monumia ne la teinte plus. Le dégradé reste neutre et confiné au tiers
+ * bas — le titre blanc doit rester lisible sur un ciel clair.
+ */
 const PHOTO_SCRIM =
-  'linear-gradient(to top, rgba(7,42,114,0.94) 6%, rgba(7,42,114,0.58) 40%, rgba(7,42,114,0.08) 82%)';
-
-/** Photo héros : on privilégie la façade, sinon le premier cliché disponible. */
-function heroPhoto(m: Monument): string | null {
-  if (!m.photos?.length) return null;
-  const facade = m.photos.find((p) => p.type === 'facade');
-  return (facade ?? m.photos[0])?.url || null;
-}
-
-/** Kicker éditorial : filet orange + petites caps (repris de la landing). */
-function Kicker({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em]"
-      style={{ color: 'rgba(255,255,255,0.82)' }}
-    >
-      <span aria-hidden style={{ width: 18, height: 2, borderRadius: 2, background: C.orange }} />
-      {children}
-    </span>
-  );
-}
+  'linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.34) 28%, rgba(0,0,0,0) 58%)';
 
 /** Badge en verre posé sur le héros (rôle sur projet partagé). */
 function GlassBadge({ children }: { children: React.ReactNode }) {
@@ -81,20 +63,8 @@ function MonumentTile({
 }) {
   const dossiersActifs = stats?.dossiersActifs ?? 0;
   const next = stats?.prochaineEcheance ?? null;
-  const photo = heroPhoto(monument);
+  const photo = monumentPhotoUrl(monument);
   const role = sharedRole(monument.myRole);
-
-  // Kicker du héros : l'accroche aides du monument, tous projets confondus
-  // (montant si estimé, sinon le nombre d'aides repérées, sinon l'invitation à
-  // lancer un chantier) — plutôt qu'un « En cours » identique partout.
-  const aidesMode = montantTileMode(stats);
-  const kicker =
-    aidesMode === 'money' && stats
-      ? `Jusqu’à ${formatCurrency(stats.montantPotentiel)} d’aides`
-      : aidesMode === 'count' && stats
-        ? `${stats.aidesIdentifiees} aide${stats.aidesIdentifiees > 1 ? 's' : ''} repérée${stats.aidesIdentifiees > 1 ? 's' : ''}`
-        : 'Aides à estimer';
-  const nbProjets = stats?.projets ?? 0;
 
   return (
     <Link
@@ -102,7 +72,7 @@ function MonumentTile({
       className="group relative flex h-full flex-col overflow-hidden rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_-28px_rgba(7,42,114,0.6)]"
       style={{ borderColor: C.border, background: C.card }}
     >
-      {/* ── Héros : photo du monument, sinon dégradé bleu + quadrilobe ── */}
+      {/* ── Héros : photo du monument, sinon dégradé bleu + fleur Monumia ── */}
       <div
         className={`relative overflow-hidden ${featured ? 'h-60 sm:h-72' : 'h-48'}`}
         style={photo ? undefined : { background: `linear-gradient(135deg, ${C.blue}, ${C.blueDark})` }}
@@ -135,9 +105,8 @@ function MonumentTile({
 
         {/* Titre en surimpression (ancré en bas → hauteur de héros constante) */}
         <div className="absolute inset-x-0 bottom-0 p-5">
-          <Kicker>{kicker}</Kicker>
           <p
-            className={`mt-2 line-clamp-2 font-bold leading-tight text-white ${
+            className={`line-clamp-2 font-bold leading-tight text-white ${
               featured ? 'text-[clamp(1.6rem,3vw,2.4rem)]' : 'text-[20px]'
             }`}
             style={{ fontFamily: 'var(--font-serif)' }}
@@ -170,10 +139,6 @@ function MonumentTile({
           <div
             className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-foreground/70"
           >
-            <span className="inline-flex items-center gap-1.5">
-              <IconProjet className="h-3.5 w-3.5" aria-hidden />
-              {nbProjets} projet{nbProjets > 1 ? 's' : ''}
-            </span>
             <span className="inline-flex items-center gap-1.5">
               <IconDossier className="h-3.5 w-3.5" aria-hidden />
               {dossiersActifs} dossier{dossiersActifs > 1 ? 's' : ''}

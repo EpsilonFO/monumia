@@ -166,6 +166,9 @@ interface MonumentFicheProps {
  */
 export function MonumentFiche({ monument, canDelete, deleting, onDelete }: MonumentFicheProps) {
   const protection = PROTECTION_TONE[monument.protection] ?? PROTECTION_TONE.non_protege;
+  // La photo de profil illustre déjà l'en-tête : pas de doublon dans la galerie.
+  // Sans lien signé, l'image serait cassée (bucket privé) — on l'écarte.
+  const galerie = (monument.photos ?? []).filter((p) => p.type !== 'profil' && p.signedUrl);
   const enPeril = isEnPeril(monument.etatConservation);
   const peril = enPeril === null ? PERIL_TONE.inconnu : enPeril ? PERIL_TONE.oui : PERIL_TONE.non;
 
@@ -195,7 +198,7 @@ export function MonumentFiche({ monument, canDelete, deleting, onDelete }: Monum
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* Fiche info — la pièce maîtresse : fond légèrement teinté + quadrilobe fantôme. */}
+      {/* Fiche info — la pièce maîtresse : fond légèrement teinté + fleur fantôme. */}
       <section
         className="relative overflow-hidden rounded-2xl border p-5 sm:p-6"
         style={{
@@ -264,14 +267,14 @@ export function MonumentFiche({ monument, canDelete, deleting, onDelete }: Monum
         </Section>
       )}
 
-      {monument.photos && monument.photos.length > 0 && (
+      {galerie.length > 0 && (
         <Section icon={IconImage} title="Photos" iconBg={C.paleBlue} iconFg={C.blue} accent={C.blueLight}>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {monument.photos.map((p) => (
+            {galerie.map((p) => (
               <figure key={p.url} className="group min-w-0">
                 <div className="aspect-[4/3] overflow-hidden rounded-xl border" style={{ borderColor: C.border }}>
                   <img
-                    src={p.url}
+                    src={p.signedUrl}
                     alt={p.legende || monument.nom}
                     loading="lazy"
                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"

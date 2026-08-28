@@ -1,5 +1,7 @@
+import contextlib
 import re
 import unicodedata
+import uuid
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,6 +19,15 @@ from services.project_access import (
 router = APIRouter(prefix="/monuments", tags=["monuments"])
 
 COLUMNS = "*"
+
+# Les photos vivent dans le même bucket privé que les documents : jamais
+# d'URL publique, un lien signé à la lecture (cf. sign_photos).
+STORAGE_BUCKET = "documents"
+SIGNED_URL_EXPIRY = 7 * 24 * 60 * 60  # 7 jours, en secondes
+
+# La « photo de profil » du monument est une photo comme les autres, marquée par
+# son type : c'est elle qui illustre la fiche, les cartes et le tableau de bord.
+PHOTO_PROFIL_TYPE = "profil"
 
 
 def _to_snake(name: str) -> str:
@@ -50,6 +61,52 @@ def _validate_photo_storage_path(path: str, user_id: str) -> str:
     if not path.startswith(f"{user_id}/"):
         raise HTTPException(status_code=403, detail="URL de photo non autorisée")
     return path
+
+
+def sign_photos(supabase: Client, monuments: list[dict]) -> None:
+    """Attache à chaque photo une `signed_url` affichable, en place.
+
+    Le bucket est privé : le chemin de stockage brut ne s'affiche pas dans un
+    `<img>`. La signature passe par le service role (comme pour les documents)
+    afin que TOUT membre du monument voie la photo, pas seulement le déposant.
+    Une seule signature par lot pour toute la liste. En cas d'échec storage on
+    n'attache rien — une vignette manquante vaut mieux qu'une liste en erreur.
+    """
+    paths = {
+        photo["url"]
+        for monument in monuments
+        for photo in (monument.get("photos") or [])
+        if isinstance(photo.get("url"), str) and photo["url"] and "://" not in photo["url"]
+    }
+    if not paths:
+        return
+
+    signed_by_path: dict[str, str] = {}
+    try:
+        results = supabase.storage.from_(STORAGE_BUCKET).create_signed_urls(
+            sorted(paths), SIGNED_URL_EXPIRY
+        )
+    except Exception:
+        return
+    for entry in results or []:
+        path = (entry.get("path") or "").lstrip("/")
+        signed = entry.get("signedURL") or entry.get("signedUrl")
+        if path and signed:
+            signed_by_path[path] = signed
+
+    for monument in monuments:
+        for photo in monument.get("photos") or []:
+            signed = signed_by_path.get(photo.get("url"))
+            if signed:
+                photo["signed_url"] = signed
+
+
+def _remove_from_storage(supabase: Client, path: str | None) -> None:
+    """Efface au mieux l'objet storage d'une photo remplacée ou retirée."""
+    if not path or "://" in path or ".." in path.split("/"):
+        return
+    with contextlib.suppress(Exception):
+        supabase.storage.from_(STORAGE_BUCKET).remove([path])
 
 
 def _try_resolve_code_insee(
@@ -184,6 +241,13 @@ class AddPhotoRequest(BaseModel):
     legende: str
     type: str
     datePhoto: str | None = None
+
+
+class PhotoProfilRequest(BaseModel):
+    """Chemin de stockage de la photo fraîchement déposée par le front."""
+
+    url: str
+    legende: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -446,6 +510,7 @@ def list_monuments(
     supabase: Client = Depends(get_supabase),
 ):
     monuments, _ = fetch_user_monuments(supabase, user_id)
+    sign_photos(supabase, monuments)
     return monuments
 
 
@@ -511,6 +576,7 @@ def get_monument(
         raise HTTPException(status_code=404, detail="Monument introuvable")
     monument = _enrich_monument(supabase, result.data)
     monument["my_role"] = role
+    sign_photos(supabase, [monument])
     return monument
 
 
@@ -579,8 +645,6 @@ def add_photo(
 
     safe_url = _validate_photo_storage_path(body.url, user_id)
 
-    import uuid
-
     new_photo = {
         "id": str(uuid.uuid4()),
         "url": safe_url,
@@ -593,7 +657,69 @@ def add_photo(
     photos.append(new_photo)
 
     supabase.table("monuments").update({"photos": photos}).eq("id", monument_id).execute()
+    sign_photos(supabase, [{"photos": [new_photo]}])
     return new_photo
+
+
+@router.put("/{monument_id}/photo-profil")
+def set_photo_profil(
+    monument_id: str,
+    body: PhotoProfilRequest,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Pose (ou remplace) la photo de profil du monument.
+
+    Une seule par monument : l'ancienne sort du tableau `photos` et son objet
+    storage est effacé dans la foulée, pour ne pas laisser d'orphelin.
+    """
+    require_project_access(supabase, monument_id, user_id, "co_owner")
+    _m = supabase.table("monuments").select(COLUMNS).eq("id", monument_id).single().execute()
+    if not _m.data:
+        raise HTTPException(status_code=404, detail="Monument introuvable")
+
+    safe_url = _validate_photo_storage_path(body.url, user_id)
+
+    photos = cast(list, _m.data.get("photos") or [])
+    anciennes = [p for p in photos if p.get("type") == PHOTO_PROFIL_TYPE]
+    new_photo = {
+        "id": str(uuid.uuid4()),
+        "url": safe_url,
+        "legende": body.legende,
+        "type": PHOTO_PROFIL_TYPE,
+    }
+    # En tête du tableau : la photo de profil est la première du monument.
+    photos = [new_photo] + [p for p in photos if p.get("type") != PHOTO_PROFIL_TYPE]
+
+    supabase.table("monuments").update({"photos": photos}).eq("id", monument_id).execute()
+    for ancienne in anciennes:
+        _remove_from_storage(supabase, ancienne.get("url"))
+
+    sign_photos(supabase, [{"photos": [new_photo]}])
+    return new_photo
+
+
+@router.delete("/{monument_id}/photo-profil", status_code=status.HTTP_204_NO_CONTENT)
+def remove_photo_profil(
+    monument_id: str,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    require_project_access(supabase, monument_id, user_id, "co_owner")
+    _m = supabase.table("monuments").select(COLUMNS).eq("id", monument_id).single().execute()
+    if not _m.data:
+        raise HTTPException(status_code=404, detail="Monument introuvable")
+
+    photos = cast(list, _m.data.get("photos") or [])
+    retirees = [p for p in photos if p.get("type") == PHOTO_PROFIL_TYPE]
+    if not retirees:
+        raise HTTPException(status_code=404, detail="Aucune photo de profil")
+
+    supabase.table("monuments").update(
+        {"photos": [p for p in photos if p.get("type") != PHOTO_PROFIL_TYPE]}
+    ).eq("id", monument_id).execute()
+    for photo in retirees:
+        _remove_from_storage(supabase, photo.get("url"))
 
 
 @router.delete("/{monument_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)

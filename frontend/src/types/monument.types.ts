@@ -44,9 +44,12 @@ export interface Monument {
 
 export interface MonumentPhoto {
   id: ID;
+  /** CHEMIN de stockage dans le bucket privé — jamais affichable tel quel. */
   url: string;
+  /** Lien signé posé par le backend à la lecture : c'est lui qu'on affiche. */
+  signedUrl?: string;
   legende: string;
-  type: 'facade' | 'interieur' | 'detail' | 'aerien' | 'degradation' | 'autre';
+  type: 'profil' | 'facade' | 'interieur' | 'detail' | 'aerien' | 'degradation' | 'autre';
   datePhoto?: string;
 }
 
