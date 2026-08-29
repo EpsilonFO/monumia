@@ -9,7 +9,7 @@ est un objet JSON que `veille_apply` valide avant de toucher au moindre
 fichier.
 
 Trois niveaux, du plus stable au plus volatil :
-  - `FOURNISSEURS` : protocole, base_url, nom de la clé. Huit entrées, qui ne
+  - `FOURNISSEURS` : protocole, base_url, nom de la clé. Neuf entrées, qui ne
                      bougent pas d'une année sur l'autre.
   - `REGISTRE`     : un modèle = une ligne (alias, fournisseur, identifiant).
   - `MODELE_DEFAUT`: le modèle utilisé partout, réglable sans toucher au code
@@ -24,9 +24,10 @@ Deux familles d'adaptateurs :
   - `anthropic`      : SDK natif. Jamais via une couche compatible OpenAI —
                        elle masque les sorties structurées et le paramétrage
                        du raisonnement, qui diffèrent d'un modèle à l'autre.
-  - `openai_compat`  : SDK `openai` pointé sur une autre base_url. Les sept
+  - `openai_compat`  : SDK `openai` pointé sur une autre base_url. Les huit
                        autres fournisseurs (OpenAI, Gemini, Grok, Kimi, GLM,
-                       Mistral, DeepSeek) exposent le protocole d'OpenAI.
+                       Mistral, DeepSeek, OpenRouter) exposent le protocole
+                       d'OpenAI.
 """
 
 from __future__ import annotations
@@ -137,7 +138,7 @@ class Fournisseur:
     demander qu'un identifiant — pas de recopier une base_url qu'on se trompera
     à saisir, ni de retrouver le nom exact de la variable d'environnement.
 
-    Les huit fournisseurs parlent le protocole d'OpenAI, sauf Anthropic : son
+    Les neuf fournisseurs parlent le protocole d'OpenAI, sauf Anthropic : son
     SDK natif est le seul à exposer les sorties structurées et le réglage du
     raisonnement, que la couche de compatibilité masque.
     """
@@ -180,6 +181,23 @@ FOURNISSEURS: dict[str, Fournisseur] = {
         # Mesuré : deepseek-v4-flash brûlait 8 000 jetons de `reasoning_content`
         # avant d'écrire, et rendait un contenu VIDE.
         max_tokens=32_000,
+    ),
+    # Passerelle, pas éditeur : une seule clé pour joindre les modèles des
+    # autres. Utile pour essayer un fournisseur sans ouvrir un compte chez lui,
+    # au prix d'un identifiant préfixé de l'éditeur (`z-ai/…`, `moonshotai/…`).
+    "openrouter": Fournisseur(
+        "openai_compat",
+        "OPENROUTER_API_KEY",
+        "https://openrouter.ai/api/v1",
+        # `response_format` est transmis tel quel au modèle routé, et ceux qui
+        # ne le connaissent pas répondent 400. On ne le pose donc pas : pour
+        # tout `openai_compat`, `system_pour` met de toute façon le schéma dans
+        # le prompt système, seule la contrainte dure est perdue.
+        structured=False,
+        # Même raison que DeepSeek : la passerelle sert surtout des modèles à
+        # raisonnement, qui consomment leur budget de sortie avant d'écrire.
+        max_tokens=32_000,
+        note="passerelle : identifiant préfixé de l'éditeur, tarif propre à chaque modèle",
     ),
 }
 
@@ -294,6 +312,29 @@ REGISTRE: dict[str, ModelSpec] = {
         "mistral-medium-latest",
         id_verifie=False,
         note="tarif à renseigner",
+    ),
+    # --- OpenRouter (mêmes modèles, une seule clé) -------------------------
+    # Deux exemples, pas une liste à tenir à jour : la passerelle en sert des
+    # centaines, et `VEILLE_MODEL=openrouter:<éditeur>/<modèle>` en atteint
+    # n'importe lequel sans écrire une ligne ici. Les identifiants exacts se
+    # relèvent sur openrouter.ai/models.
+    "or-glm": _spec(
+        "or-glm",
+        "openrouter",
+        "z-ai/glm-5.3-flash",
+        prix_in=0.07,
+        prix_out=0.25,
+        structured=True,
+        note="id, tarif et response_format relevés sur /api/v1/models le 2026-08-28",
+    ),
+    "or-kimi": _spec(
+        "or-kimi",
+        "openrouter",
+        "moonshotai/kimi-k2.6",
+        prix_in=0.95,
+        prix_out=4.00,
+        structured=True,
+        note="k2.7 n'existe pas chez OpenRouter (seul k2.7-code) ; relevé le 2026-08-28",
     ),
 }
 
@@ -715,7 +756,8 @@ def table_registre() -> str:
         "",
         "Changer de modèle : VEILLE_MODEL=<alias> dans backend/.env, ou",
         "VEILLE_MODEL=<fournisseur>:<identifiant> pour un modèle hors registre",
-        "(ex. VEILLE_MODEL=glm:glm-5.4-flash).",
+        "(ex. VEILLE_MODEL=glm:glm-5.4-flash, ou VEILLE_MODEL=openrouter:z-ai/glm-4.6",
+        "pour passer par la passerelle).",
     ]
     return "\n".join(lignes)
 

@@ -113,11 +113,16 @@ def make_collect(
     error: str | None = None,
     baseline_docs: list | None = None,
     extra_urls: list[MonitoredUrl] | None = None,
+    baseline_path_name: str = "2026-07-01-page.md",
+    baseline_urls: dict[str, str] | None = None,
 ) -> AideCollect:
     murl = MonitoredUrl(
         url=URL,
         role="officielle",
-        baseline_path=Path("2026-07-01-page.md"),
+        # Un seul nom, parce que `_snapshot_baselines` ne retient que le
+        # snapshot le PLUS RÉCENT de l'URL — même quand le dossier en garde
+        # plusieurs. Les tests qui simulent ce cas surchargent ce nom.
+        baseline_path=Path(baseline_path_name),
         baseline_sha=baseline_sha,
         baseline_body=baseline,
     )
@@ -139,6 +144,7 @@ def make_collect(
             if baseline_docs is not None
             else ([("2026-07-01-page.md", baseline, "text")] if baseline else [])
         ),
+        baseline_urls=baseline_urls or {},
     )
 
 
@@ -218,6 +224,53 @@ class TestQuotes(unittest.TestCase):
                 ("2026-07-01-page.md", BASELINE, "text"),
                 ("2026-07-01-reglement.pdf", "Le plafond réglementaire est de 40 %.", "pdf"),
             ],
+        )
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.statut, "OK")
+        self.assertEqual(an.regressions, [])
+        self.assertEqual([q.cond_id for q in an.non_recontrolables], ["du-pdf"])
+
+    def test_quote_trouvee_dans_un_snapshot_plus_ancien_de_la_meme_page(self):
+        # Régression vécue sur 35-faat : le dossier gardait deux snapshots de la
+        # MÊME page, `find_quote_in_any` rattachait la quote au plus ancien, et
+        # la table nom→URL ne connaissait que le plus récent. Les 4 citations
+        # sortaient « non recontrôlables » alors que leur page venait d'être
+        # re-téléchargée. 9 aides du dépôt sont dans ce cas, et ce nombre croît
+        # à chaque ré-archivage. C'est la provenance lue dans les snapshots qui
+        # tranche, pas le nom de fichier.
+        aide = make_aide(
+            conditions=[condition("architecte", "Un architecte du patrimoine est requis")]
+        )
+        fresh = BASELINE.replace(
+            "Un architecte du patrimoine est requis pour les édifices classés.\n", ""
+        )
+        col = make_collect(
+            aide,
+            fresh=fresh,
+            baseline_path_name="2026-08-24-page.md",
+            baseline_docs=[
+                ("2026-07-01-page.md", BASELINE, "text"),
+                ("2026-08-24-page.md", BASELINE, "text"),
+            ],
+            baseline_urls={"2026-07-01-page.md": URL, "2026-08-24-page.md": URL},
+        )
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual([q.cond_id for q in an.regressions], ["architecte"])
+        self.assertEqual(an.non_recontrolables, [])
+        self.assertEqual(an.couverture_quotes, (1, 1))
+
+    def test_provenance_hors_perimetre_reste_non_recontrolable(self):
+        # L'autre moitié de la règle : une provenance connue mais non
+        # re-téléchargée ne rend pas la citation contrôlable pour autant.
+        # Assouplir le garde-fou ne doit pas le désarmer.
+        aide = make_aide(conditions=[condition("du-pdf", "Le plafond réglementaire est de 40 %")])
+        col = make_collect(
+            aide,
+            baseline_docs=[
+                ("2026-07-01-page.md", BASELINE, "text"),
+                ("2026-07-01-reglement.pdf", "Le plafond réglementaire est de 40 %.", "pdf"),
+            ],
+            baseline_urls={"2026-07-01-page.md": URL, "2026-07-01-reglement.pdf": PDF_URL},
         )
         an = analyze(aide, col, today=TODAY)
         self.assertEqual(an.statut, "OK")
