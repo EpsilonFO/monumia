@@ -1640,7 +1640,7 @@ function Team() {
           <SectionTitle
             kicker="L’équipe"
             title="Les visages derrière Monumia"
-            sub="Notre conviction : le patrimoine mérite des outils à la hauteur de son histoire et de ceux qui le font vivre."
+            sub="Notre conviction : le patrimoine mérite des outils à la hauteur de son histoire et de ceux qui s'y engagent."
           />
         </Reveal>
 
@@ -1716,7 +1716,7 @@ function Pricing() {
         <Reveal>
           <SectionTitle
             kicker="Tarifs"
-            title="Commencez gratuitement, payez quand vous êtes prêt"
+            title="Une formule pour chaque étape de votre projet"
             sub="Découvrir les dispositifs auxquels votre monument est éligible ne coûte rien. La veille et la gestion de plusieurs monuments viennent ensuite, à votre rythme."
           />
         </Reveal>
@@ -1731,16 +1731,18 @@ function Pricing() {
               <h3 className="font-serif text-[1.3rem] font-bold" style={{ color: C.ink }}>
                 Découverte
               </h3>
-              <p className="mt-1 text-[14px] leading-relaxed" style={{ color: C.inkFaint }}>
+              {/* min-h partagée par les trois cartes : les descriptions n'ont pas la même
+                  longueur, on réserve la hauteur de la plus longue pour aligner les prix. */}
+              <p className="mt-1 text-[14px] leading-relaxed lg:min-h-[8.75rem]" style={{ color: C.inkFaint }}>
                 Vous répondez à quelques questions sur votre monument. Nous croisons vos réponses
-                avec notre base de près de 250 dispositifs, selon de multiples critères, pour
-                identifier ceux qui correspondent à votre situation et à votre monument.
+                avec notre base de près de 250 dispositifs pour identifier ceux qui correspondent
+                à votre situation.
               </p>
-              <p className="mt-6 font-serif text-[2.1rem] font-bold leading-none" style={{ color: C.blue }}>
-                0 €
+              <p className="mt-6 font-serif text-[1.6rem] font-bold leading-none" style={{ color: C.blue }}>
+                Gratuit
               </p>
               <p className="mt-1.5 text-[13px]" style={{ color: C.inkFaint }}>
-                offert, sans carte bancaire
+                pour toujours
               </p>
               <p className="mt-7 text-[13px] font-semibold uppercase tracking-[0.08em]" style={{ color: C.blue }}>
                 Cette offre comprend :
@@ -1780,7 +1782,7 @@ function Pricing() {
               <h3 className="font-serif text-[1.3rem] font-bold" style={{ color: C.ink }}>
                 Veille
               </h3>
-              <p className="mt-1 text-[14px]" style={{ color: C.inkFaint }}>
+              <p className="mt-1 text-[14px] leading-relaxed lg:min-h-[8.75rem]" style={{ color: C.inkFaint }}>
                 Adapté aux monuments qui développent un usage d’ouverture et d’animation : visites,
                 événements, hébergement, tournages…
               </p>
@@ -1798,7 +1800,6 @@ function Pricing() {
                   'Ouvertures de projets illimitées',
                   'Veille automatique par IA, qui vous alerte sur les dates butoirs qui approchent et sur les nouveaux dispositifs auxquels vous devenez éligible en cours d’année',
                   'Tableau de bord et échéancier pour suivre et piloter vos projets',
-                  'Alertes par e-mail',
                   'Invitation de collaborateurs sur l’un de vos projets : professionnel du secteur, architecte, assistant',
                 ].map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-[14.5px] leading-snug" style={{ color: C.inkSoft }}>
@@ -1817,10 +1818,10 @@ function Pricing() {
               className="relative flex h-full flex-col overflow-hidden rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_30px_66px_-28px_rgba(0,0,0,0.5)]"
               style={{ background: C.blue }}
             >
-              <Tracery color="#ffffff" opacity={0.03} size={160} />
+              <Tracery color="#ffffff" opacity={0.015} size={160} />
               <div className="relative flex h-full flex-col">
                 <h3 className="font-serif text-[1.3rem] font-bold text-white">Multi-monuments</h3>
-                <p className="mt-1 text-[14px] text-white/60">
+                <p className="mt-1 text-[14px] leading-relaxed text-white/60 lg:min-h-[8.75rem]">
                   Adapté aux collectivités, associations, propriétaires et gestionnaires de
                   plusieurs monuments.
                 </p>
@@ -1853,8 +1854,7 @@ function Pricing() {
 
         <Reveal delay={300}>
           <p className="mt-10 text-center text-[13.5px]" style={{ color: C.inkFaint }}>
-            Les tarifs définitifs seront annoncés au lancement. L’offre Découverte reste gratuite,
-            sans carte bancaire.
+            Les tarifs définitifs seront annoncés au lancement. L’offre Découverte reste gratuite.
           </p>
         </Reveal>
       </div>
@@ -1974,31 +1974,20 @@ function FinalCta() {
           className="relative mx-auto max-w-4xl overflow-hidden rounded-3xl px-7 py-16 text-center shadow-[0_30px_70px_-35px_rgba(10,54,157,0.55)] sm:px-16 sm:py-20"
           style={{ background: C.blue }}
         >
-          <Tracery color="#ffffff" opacity={0.03} size={180} />
-          <Clover
-            className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 opacity-[0.07] [animation:spin-slow_90s_linear_infinite]"
-            strokeWidth={4}
-            style={{ color: C.orange }}
-          />
-          <Clover
-            className="pointer-events-none absolute -bottom-20 -left-16 h-48 w-48 opacity-[0.06]"
-            strokeWidth={4}
-            style={{ color: C.blueLight }}
-          />
+          <Tracery color="#ffffff" opacity={0.015} size={180} />
 
           <div className="relative">
             <h2 className="mx-auto max-w-2xl font-serif text-[clamp(1.9rem,3.6vw,2.5rem)] leading-[1.2] text-white">
-              Et si votre monument pouvait être financé bien au-delà de ce que vous imaginez ?
+              Nous trouvons les financements. Vous faites vivre votre monument.
             </h2>
             <p className="mx-auto mt-5 max-w-md text-[16px] leading-[1.7] text-white/75">
-              Décrivez votre lieu, découvrez votre estimation. C’est gratuit, et cela ne prend que
-              quelques minutes.
+              Venez découvrir les dispositifs disponibles pour votre monument. 
             </p>
             <div className="mt-9">
               <CtaButton onClick={goToSignup}>Me tenir informé du lancement</CtaButton>
             </div>
             <p className="mt-5 text-[13px] uppercase tracking-[0.12em] text-white/60">
-              Sans carte bancaire · Sans engagement
+              Gratuit · Sans engagement
             </p>
           </div>
         </div>
@@ -2106,14 +2095,14 @@ function Footer() {
             © {new Date().getFullYear()} Monumia. Tous droits réservés.
           </p>
           <p className="text-[12.5px]" style={{ color: C.inkFaint }}>
-            Photo du château de Trévarez :{' '}
+            Photo du château de Paley :{' '}
             <a
-              href="https://commons.wikimedia.org/wiki/File:Ch%C3%A2teau_de_Tr%C3%A9varez_aile_Ouest,_Saint-Goazec_(29).jpg"
+              href="https://www.fondation-patrimoine.org/les-projets/chateau-de-paley/105079"
               target="_blank"
               rel="noopener noreferrer"
               className="underline transition-colors duration-200 hover:text-[#0a369d]"
             >
-              DomFelga
+              Fondation Patrimoine
             </a>
             {', '}
             <a
