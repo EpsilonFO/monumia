@@ -196,6 +196,9 @@ def executer(gold: Gold, spec: ModelSpec, *, raw: bool, aujourd_hui: date, log) 
     diff = normalized_diff(baseline, frais).text
 
     prompt = build_prompt(aide, documents, diff, aujourd_hui=aujourd_hui)
+    # Avant l'appel : un modèle à raisonnement peut répondre en plusieurs
+    # minutes, et un terminal muet se lit « bloqué ».
+    log(f"      {spec.alias:<10} … appel en cours (~{len(prompt) // 4} tokens de prompt)")
     appel = call(spec, system_pour(spec), prompt)
     score.input_tokens = appel.input_tokens
     score.output_tokens = appel.output_tokens

@@ -136,11 +136,17 @@ class UrlVerdict:
     diff: NormalizedDiff | None = None
     # sha du contenu frais identique à celui de l'en-tête du snapshot.
     sha_identique: bool = False
+    # Binaire (PDF scanné, .docx, tableur) dont le sha a changé sans qu'aucun
+    # texte ne permette de dire QUOI : c'est un changement avéré, mais
+    # inexploitable par l'étage C. Il escalade vers un humain.
+    binaire_modifie: bool = False
 
     @property
     def a_change(self) -> bool:
         if self.sha_identique:
             return False
+        if self.binaire_modifie:
+            return True
         return self.diff is not None and not self.diff.is_empty
 
 
@@ -275,25 +281,29 @@ def analyze(
     for murl in collect.urls:
         result = collect.fetched.get(murl.url)
         verdict = UrlVerdict(murl=murl, result=result)
-        # « Rafraîchie » doit vouloir dire EXACTEMENT « a fourni un document
-        # fouillable », au sens de `AideCollect.fresh_docs()`. Un .docx ou un
-        # PDF répond 200 sans rien donner à lire : le compter ferait passer pour
-        # disparues toutes les citations qu'il justifiait.
-        if result and result.ok and result.body_md and murl.role != "formulaire":
-            urls_rafraichies.add(murl.url)
+        if result and result.ok and murl.role != "formulaire":
+            # « Rafraîchie » doit vouloir dire EXACTEMENT « a fourni un document
+            # fouillable », au sens de `AideCollect.fresh_docs()` — c'est
+            # `FetchResult.texte` qui en décide, pour une page comme pour un
+            # PDF. Un .docx ou un scan répond 200 sans rien donner à lire : le
+            # compter ferait passer pour disparues toutes les citations qu'il
+            # justifiait.
+            texte = result.texte
+            if texte is not None:
+                urls_rafraichies.add(murl.url)
             if murl.baseline_sha and result.sha256 == murl.baseline_sha:
                 # Chemin rapide : pas un octet de différence, rien à calculer.
                 verdict.sha_identique = True
             # Le contenu d'un proxy ne passe pas par la même chaîne de conversion
             # que la baseline : le differ produirait du bruit pur.
-            elif (
-                murl.baseline_body is not None
-                and result.body_md is not None
-                and not result.via_proxy
-            ):
-                verdict.diff = normalized_diff(
-                    murl.baseline_body, result.body_md, extra_noise=chrome
-                )
+            elif texte is not None and murl.baseline_body is not None and not result.via_proxy:
+                verdict.diff = normalized_diff(murl.baseline_body, texte, extra_noise=chrome)
+            elif result.is_binary and murl.baseline_sha:
+                # Le sha a bougé et aucun texte comparable n'existe d'un côté ou
+                # de l'autre (.docx, PDF scanné, pdftotext absent). Avant ce cas,
+                # un règlement PDF remplacé n'était tout simplement pas vu : le
+                # sha n'était comparé que pour les pages en markdown.
+                verdict.binaire_modifie = True
         an.urls.append(verdict)
 
     an.quotes = _quote_verdicts(aide, collect, urls_rafraichies)
@@ -302,8 +312,8 @@ def analyze(
         an.date_limite_perimee = aide.calendrier.date_limite
 
     principale = next((u for u in an.urls if u.murl.role == "officielle"), None)
-    if principale and principale.result and principale.result.ok and principale.result.body_md:
-        an.contenu_utile = contenu_utile(principale.result.body_md)
+    if principale and principale.result and principale.result.ok and principale.result.texte:
+        an.contenu_utile = contenu_utile(principale.result.texte)
         if principale.murl.baseline_body is not None:
             an.contenu_utile_baseline = contenu_utile(principale.murl.baseline_body)
 
@@ -364,7 +374,18 @@ def _decider(an: AideAnalysis, principale: UrlVerdict | None, *, panne_generalis
             )
         return
 
-    # 5. Refonte : la retouche champ par champ n'a plus de sens.
+    # 5. Document binaire modifié sans texte comparable : le changement est
+    # certain, son contenu inconnu. Aucun modèle ne peut retoucher une fiche
+    # d'après un fichier qu'il ne lit pas ; un humain doit ouvrir le document.
+    if binaires := [u for u in an.urls if u.binaire_modifie]:
+        an.statut = "ESCALADE_INGESTION"
+        for u in binaires:
+            an.raisons.append(
+                f"document binaire modifié (sha différent) sans texte comparable : {u.murl.url}"
+            )
+        return
+
+    # 6. Refonte : la retouche champ par champ n'a plus de sens.
     gros_diff = [u for u in an.urls if u.diff and u.diff.ratio > RATIO_DIFF_ESCALADE]
     if gros_diff:
         an.statut = "ESCALADE_INGESTION"
@@ -373,7 +394,7 @@ def _decider(an: AideAnalysis, principale: UrlVerdict | None, *, panne_generalis
             an.raisons.append(f"refonte de {u.murl.url} ({u.diff.ratio:.0%} des lignes changées)")
         return
 
-    # 6. Régressions massives de citations : le règlement a changé de structure.
+    # 7. Régressions massives de citations : le règlement a changé de structure.
     controlables = [q for q in an.quotes if q.recontrolable and q.baseline.found]
     regressions = an.regressions
     if (
@@ -388,11 +409,10 @@ def _decider(an: AideAnalysis, principale: UrlVerdict | None, *, panne_generalis
         )
         return
 
-    # 7. Changement circonscrit : c'est le cas nominal de l'étage C.
+    # 8. Changement circonscrit : c'est le cas nominal de l'étage C.
     if an.a_change:
         for u in an.urls:
-            if u.a_change:
-                assert u.diff is not None
+            if u.a_change and u.diff is not None:
                 an.raisons.append(
                     f"{u.murl.url} a changé ({u.diff.added} ligne(s) ajoutée(s), "
                     f"{u.diff.removed} retirée(s))"
@@ -408,7 +428,7 @@ def _decider(an: AideAnalysis, principale: UrlVerdict | None, *, panne_generalis
         an.statut = "MAJ_LLM"
         return
 
-    # 8. Échéance passée alors que la source n'a pas bougé : typiquement une
+    # 9. Échéance passée alors que la source n'a pas bougé : typiquement une
     # annonce sans année (« du 1er septembre au 31 octobre »). Aucun modèle ne
     # peut trancher ça, seul un humain le peut.
     if an.date_limite_perimee:
@@ -441,9 +461,9 @@ def lignes_de_chrome(collects: dict[str, AideCollect]) -> frozenset[str]:
     for col in collects.values():
         for murl in col.urls:
             res = col.fetched.get(murl.url)
-            if not (res and res.ok and res.body_md and murl.baseline_body is not None):
+            if not (res and res.ok and res.texte and murl.baseline_body is not None):
                 continue
-            brut = normalized_diff(murl.baseline_body, res.body_md)
+            brut = normalized_diff(murl.baseline_body, res.texte)
             for ligne in brut.text.splitlines():
                 if ligne[:2] in ("+ ", "- ") and (norm := normalize_line(ligne[2:])):
                     par_ligne[norm].add(murl.url)
@@ -469,7 +489,7 @@ def hotes_affames(collects: dict[str, AideCollect]) -> dict[str, int]:
     for col in collects.values():
         for murl in col.urls:
             res = col.fetched.get(murl.url)
-            if res and res.ok and res.body_md and murl.baseline_body is not None:
+            if res and res.ok and res.texte and murl.baseline_body is not None:
                 par_hote[murl.host].add(murl.url)
     return {h: len(urls) for h, urls in par_hote.items() if len(urls) < CHROME_MIN_URLS}
 

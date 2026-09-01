@@ -9,7 +9,7 @@ const BASE = import.meta.env.BASE_URL;
 export const CGU_PATH = `${BASE}cgu`;
 export const PRIVACY_PATH = `${BASE}confidentialite`;
 
-const DERNIERE_MAJ = '26 août 2026';
+const DERNIERE_MAJ = '1er septembre 2026';
 const CONTACT_EMAIL = 'contact@monumia.fr';
 
 function Section({ id, title, children }: { id?: string; title: string; children: ReactNode }) {
@@ -281,9 +281,12 @@ export function CguPage() {
         </p>
         <p>
           Les documents et informations que vous téléversez <Strong>restent votre propriété</Strong>.
-          Vous concédez à Monumia une licence limitée, non exclusive et révocable, aux seules fins
-          de fournir le Service (stockage, affichage, préparation de vos dossiers). Cette licence
-          prend fin à la suppression des contenus ou de votre compte.
+          Vous concédez à Monumia une licence limitée, non exclusive et révocable, aux fins de
+          fournir le Service (stockage, affichage, préparation de vos dossiers) et, dans les
+          conditions de l'article 9, de constituer des jeux de données anonymisés. Cette licence
+          prend fin à la suppression des contenus ou de votre compte ; elle subsiste toutefois pour
+          les données déjà anonymisées, qui ne permettent plus de vous identifier ni de retrouver
+          vos contenus.
         </p>
         <p>
           Les textes officiels et informations publiques relatifs aux aides restent soumis à leurs
@@ -291,7 +294,55 @@ export function CguPage() {
         </p>
       </Section>
 
-      <Section title="9. Données personnelles">
+      <Section id="donnees-anonymisees" title="9. Données anonymisées et modèles d'intelligence artificielle">
+        <p>
+          Pour fiabiliser ses diagnostics et développer de nouvelles fonctionnalités, Monumia peut
+          constituer, à partir des informations renseignées sur le Service, des{' '}
+          <Strong>jeux de données anonymisés</Strong> destinés à l'analyse statistique et à
+          l'<Strong>entraînement de modèles d'intelligence artificielle</Strong>, par Monumia ou
+          pour son compte.
+        </p>
+        <p>
+          Seules sont concernées les données relatives aux <Strong>monuments et aux projets</Strong>,
+          jamais celles qui décrivent votre personne :
+        </p>
+        <Ul>
+          <li>
+            les informations déclarées sur le monument (nature du bien, protection, état sanitaire,
+            caractéristiques, localisation généralisée) et sur le projet (nature et ampleur des
+            travaux, calendrier, budget) ;
+          </li>
+          <li>vos réponses au questionnaire d'éligibilité et les résultats du diagnostic ;</li>
+          <li>
+            les pièces de dossier qui, par nature ou par votre choix, ont vocation à être rendues
+            publiques (par exemple un dossier de demande d'aide destiné à publication).
+          </li>
+        </Ul>
+        <p>
+          Sont <Strong>exclus</Strong> de cette utilisation : votre identité, vos coordonnées, vos
+          identifiants de connexion, vos données de facturation, les journaux techniques et les
+          documents confidentiels (pièces d'identité, coordonnées bancaires, documents fiscaux,
+          correspondance privée, tout document que vous n'avez pas destiné à une diffusion
+          publique).
+        </p>
+        <p>
+          Avant toute utilisation, les données sont <Strong>anonymisées de manière irréversible</Strong> :
+          suppression ou généralisation de tout élément permettant, directement ou par recoupement,
+          de vous identifier ou d'identifier un propriétaire privé. Monumia s'engage à ne pas
+          chercher à réidentifier les personnes concernées et à interdire cette réidentification à
+          ses éventuels prestataires. Les jeux de données ainsi constitués ne comportent plus de
+          données personnelles et peuvent être conservés après la clôture de votre compte.
+        </p>
+        <p>
+          Vous pouvez <Strong>vous opposer</Strong> à tout moment à cette utilisation pour vos
+          données non encore anonymisées en écrivant à{' '}
+          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>. Les modalités
+          détaillées figurent dans la{' '}
+          <LegalLink href={`${PRIVACY_PATH}#donnees-anonymisees`}>politique de confidentialité</LegalLink>.
+        </p>
+      </Section>
+
+      <Section title="10. Données personnelles">
         <p>
           Le traitement de vos données personnelles est décrit dans notre{' '}
           <LegalLink href={PRIVACY_PATH}>politique de confidentialité</LegalLink>, conforme au
@@ -299,7 +350,7 @@ export function CguPage() {
         </p>
       </Section>
 
-      <Section title="10. Disponibilité et responsabilité">
+      <Section title="11. Disponibilité et responsabilité">
         <p>
           Monumia s'efforce d'assurer un accès continu au Service, sans garantir une disponibilité
           ininterrompue : des interruptions pour maintenance, mise à jour ou cas de force majeure
@@ -316,7 +367,7 @@ export function CguPage() {
         </p>
       </Section>
 
-      <Section title="11. Résiliation">
+      <Section title="12. Résiliation">
         <p>
           Vous pouvez cesser d'utiliser le Service et demander la suppression de votre compte à
           tout moment, depuis l'application ou en écrivant à{' '}
@@ -326,7 +377,7 @@ export function CguPage() {
         </p>
       </Section>
 
-      <Section title="12. Médiation de la consommation">
+      <Section title="13. Médiation de la consommation">
         <p>
           Conformément aux articles L612-1 et suivants du code de la consommation, tout consommateur
           a le droit de recourir gratuitement à un médiateur de la consommation en vue de la
@@ -338,17 +389,17 @@ export function CguPage() {
             Médicys…) : « Médiateur désigné : <nom et coordonnées> ». */}
       </Section>
 
-      <Section title="13. Modification des CGU">
+      <Section title="14. Modification des CGU">
         <p>
           Monumia peut modifier les présentes CGU pour tenir compte des évolutions du Service ou de
           la réglementation. Les utilisateurs disposant d'un compte sont informés de toute
           modification substantielle au moins quinze jours avant son entrée en vigueur. La poursuite
           de l'utilisation du Service après cette date vaut acceptation des CGU modifiées ; à
-          défaut, vous pouvez résilier dans les conditions de l'article 11.
+          défaut, vous pouvez résilier dans les conditions de l'article 12.
         </p>
       </Section>
 
-      <Section title="14. Droit applicable et juridiction">
+      <Section title="15. Droit applicable et juridiction">
         <p>
           Les présentes CGU sont soumises au droit français. En cas de litige et à défaut de
           résolution amiable, les tribunaux français sont compétents dans les conditions du droit
@@ -430,9 +481,11 @@ export function PrivacyPage() {
           <li>
             aucune transmission de vos données personnelles à des services d'intelligence
             artificielle externes : le moteur d'analyse d'éligibilité de Monumia fonctionne sur nos
-            propres serveurs, sans appel à des services tiers ;
+            propres serveurs, sans appel à des services tiers. Seules des données préalablement
+            anonymisées, qui ne vous concernent plus, peuvent servir à entraîner des modèles (voir
+            l'article 4) ;
           </li>
-          <li>aucune collecte de données auprès de mineurs (voir l'article 9).</li>
+          <li>aucune collecte de données auprès de mineurs (voir l'article 10).</li>
         </Ul>
       </Section>
 
@@ -458,10 +511,70 @@ export function PrivacyPage() {
             de collaboration, alertes sur vos projets) : exécution du contrat. Nous n'envoyons pas
             de prospection commerciale pour le compte de tiers.
           </li>
+          <li>
+            <Strong>Constitution de jeux de données anonymisés</Strong> pour améliorer le Service
+            et entraîner des modèles d'intelligence artificielle (voir l'article 4) : intérêt
+            légitime (article 6.1.f), l'anonymisation étant un traitement ultérieur compatible
+            avec les finalités initiales (article 5.1.b). Vous pouvez vous y opposer à tout moment.
+          </li>
         </Ul>
       </Section>
 
-      <Section title="4. Destinataires et sous-traitants">
+      <Section id="donnees-anonymisees" title="4. Données anonymisées et entraînement de modèles d'intelligence artificielle">
+        <p>
+          Pour fiabiliser nos diagnostics d'éligibilité et développer de nouvelles fonctionnalités,
+          nous pouvons constituer, à partir des informations renseignées sur le Service, des{' '}
+          <Strong>jeux de données anonymisés</Strong> servant à des analyses statistiques et à
+          l'<Strong>entraînement de modèles d'intelligence artificielle</Strong>, par Monumia ou
+          pour son compte.
+        </p>
+        <p>
+          <Strong>Ce qui peut être utilisé</Strong> : uniquement les données qui décrivent le
+          monument et le projet, jamais celles qui vous décrivent.
+        </p>
+        <Ul>
+          <li>
+            les informations déclarées sur le monument (nature du bien, protection, état sanitaire,
+            caractéristiques, localisation généralisée à l'échelle de la commune ou du département)
+            et sur le projet (nature et ampleur des travaux, calendrier, budget) ;
+          </li>
+          <li>vos réponses au questionnaire d'éligibilité et les résultats du diagnostic ;</li>
+          <li>
+            les pièces de dossier qui, par nature ou par votre choix, ont vocation à être rendues
+            publiques (par exemple un dossier de demande d'aide destiné à publication).
+          </li>
+        </Ul>
+        <p>
+          <Strong>Ce qui n'est jamais utilisé</Strong> : vos nom, prénom, adresse e-mail, numéro
+          de téléphone, identifiants de connexion, données de facturation, journaux techniques, ni
+          les documents confidentiels (pièces d'identité, coordonnées bancaires, documents fiscaux,
+          correspondance privée, tout document que vous n'avez pas destiné à une diffusion
+          publique).
+        </p>
+        <p>
+          <Strong>Comment nous anonymisons</Strong> : avant toute utilisation, nous supprimons ou
+          généralisons tout élément permettant, directement ou par recoupement, de vous identifier
+          ou d'identifier un propriétaire privé (identifiants de compte, adresse précise, références
+          cadastrales, noms de personnes présents dans les documents). L'anonymisation est
+          irréversible : les jeux de données obtenus ne constituent plus des données personnelles
+          au sens du RGPD. Nous nous engageons à ne pas chercher à réidentifier les personnes
+          concernées et imposons la même interdiction à nos éventuels prestataires. Les données
+          relatives aux monuments appartenant à des personnes morales (communes, associations,
+          sociétés) ne sont pas des données personnelles et peuvent être utilisées sous la même
+          forme.
+        </p>
+        <p>
+          <Strong>Votre droit d'opposition</Strong> : vous pouvez vous opposer à tout moment, sans
+          motif, à l'utilisation de vos données à cette fin en écrivant à{' '}
+          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>. Votre opposition
+          prend effet pour toutes les données non encore anonymisées ; les données déjà anonymisées
+          ne pouvant plus vous être rattachées, il nous est techniquement impossible de les retirer
+          des jeux de données existants. Cette opposition n'a aucune incidence sur votre accès au
+          Service.
+        </p>
+      </Section>
+
+      <Section title="5. Destinataires et sous-traitants">
         <p>
           Vos données ne sont accessibles qu'à l'équipe de Monumia, dans la limite de ce qui est
           nécessaire, et aux sous-traitants suivants, chacun lié par un accord de traitement des
@@ -491,7 +604,7 @@ export function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="5. Transferts hors de l'Union européenne">
+      <Section title="6. Transferts hors de l'Union européenne">
         <p>
           Nos serveurs et nos bases de données sont situés en France et dans l'Union européenne.
           Certains sous-traitants (Supabase, Inc. et Resend, Inc., sociétés américaines) peuvent
@@ -503,7 +616,7 @@ export function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="6. Durées de conservation">
+      <Section title="7. Durées de conservation">
         <Ul>
           <li>
             <Strong>Compte et données de projets</Strong> : pendant toute la durée de vie du
@@ -514,6 +627,11 @@ export function PrivacyPage() {
           <li>
             <Strong>Documents téléversés</Strong> : supprimés avec le projet ou le compte auquel
             ils sont rattachés.
+          </li>
+          <li>
+            <Strong>Jeux de données anonymisés</Strong> (article 4) : n'étant plus des données
+            personnelles, ils peuvent être conservés sans limitation de durée, y compris après la
+            clôture de votre compte.
           </li>
           <li>
             <Strong>Liste d'attente</Strong> : jusqu'au lancement du Service, puis au plus trois
@@ -528,7 +646,7 @@ export function PrivacyPage() {
         </Ul>
       </Section>
 
-      <Section title="7. Vos droits">
+      <Section title="8. Vos droits">
         <p>
           Conformément au RGPD et à la loi Informatique et Libertés, vous disposez des droits
           suivants sur vos données :
@@ -538,7 +656,10 @@ export function PrivacyPage() {
           <li>droit de rectification des données inexactes ou incomplètes ;</li>
           <li>droit à l'effacement (« droit à l'oubli ») ;</li>
           <li>droit à la limitation du traitement ;</li>
-          <li>droit d'opposition, notamment aux traitements fondés sur notre intérêt légitime ;</li>
+          <li>
+            droit d'opposition, notamment aux traitements fondés sur notre intérêt légitime, y
+            compris la constitution de jeux de données anonymisés décrite à l'article 4 ;
+          </li>
           <li>droit à la portabilité de vos données ;</li>
           <li>
             droit de retirer votre consentement à tout moment, sans remettre en cause la licéité
@@ -563,7 +684,7 @@ export function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="8. Cookies et stockage local">
+      <Section title="9. Cookies et stockage local">
         <p>
           Le site monumia.fr <Strong>n'utilise aucun cookie</Strong> : pas de traceur, pas de
           mesure d'audience, pas de bouton de partage tiers. Les polices de caractères sont
@@ -583,7 +704,7 @@ export function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="9. Mineurs">
+      <Section title="10. Mineurs">
         <p>
           Le Service est réservé aux personnes majeures. <Strong>Nous ne collectons pas sciemment
           de données personnelles concernant des mineurs</Strong>, et aucune de nos offres ne leur
@@ -594,7 +715,7 @@ export function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="10. Sécurité">
+      <Section title="11. Sécurité">
         <p>
           Nous mettons en œuvre des mesures techniques et organisationnelles adaptées : chiffrement
           des échanges (TLS), hébergement en France et dans l'Union européenne, mots de passe
@@ -605,7 +726,7 @@ export function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="11. Absence de décision entièrement automatisée">
+      <Section title="12. Absence de décision entièrement automatisée">
         <p>
           Le diagnostic d'éligibilité de Monumia est calculé automatiquement à partir de vos
           déclarations, mais il est <Strong>purement informatif</Strong> : il ne produit aucune
@@ -614,7 +735,7 @@ export function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="12. Modifications de cette politique">
+      <Section title="13. Modifications de cette politique">
         <p>
           Nous pouvons faire évoluer cette politique, notamment en cas de changement de
           sous-traitant ou de fonctionnalité. La date de dernière mise à jour figure en haut de

@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections import Counter
+from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 
@@ -132,6 +133,41 @@ def alerter_chrome_affame(analyses: dict[str, AideAnalysis], collects: dict, log
 # ---------------------------------------------------------------------------
 
 
+def traiter_acquittements(
+    analyses: dict[str, AideAnalysis], manifest: dict, nouveaux: Sequence[str] = ()
+) -> list[str]:
+    """Fait taire les échéances dépassées qu'un humain a déjà arbitrées.
+
+    `DATE_PERIMEE_SOURCE_INCHANGEE` ressortait à l'identique à chaque run — 24
+    aides au 2026-09-01 — sans aucun moyen de dire « vu, c'est une annonce sans
+    année, on attend que la source bouge ». L'acquittement est clé par la date
+    limite : si la fiche ou la source change de date, l'alerte revient. Il vit
+    dans le manifeste (`ack`), reporté d'un run à l'autre comme `maj` et `audit`.
+
+    `nouveaux` : slugs à acquitter lors de CE run (`--acquitter`). Retourne les
+    slugs effectivement acquittés aujourd'hui.
+    """
+    poses: list[str] = []
+    for slug in nouveaux:
+        an = analyses.get(slug)
+        if an and an.statut == "DATE_PERIMEE_SOURCE_INCHANGEE" and an.date_limite_perimee:
+            entree = manifest.setdefault(slug, {})
+            entree["ack"] = {"date_perimee": an.date_limite_perimee.isoformat()}
+            poses.append(slug)
+    for slug, an in analyses.items():
+        ack = (manifest.get(slug) or {}).get("ack") or {}
+        if (
+            an.statut == "DATE_PERIMEE_SOURCE_INCHANGEE"
+            and an.date_limite_perimee
+            and ack.get("date_perimee") == an.date_limite_perimee.isoformat()
+        ):
+            an.statut = "OK"
+            an.raisons = [
+                f"échéance dépassée ({an.date_limite_perimee}) acquittée, source inchangée"
+            ]
+    return poses
+
+
 def load_manifest(path: Path = MANIFEST_PATH) -> dict:
     if not path.exists():
         return {}
@@ -181,30 +217,41 @@ def update_manifest(
             ),
             key=lambda e: e["url"],
         )
-        entree = {
-            "checked_at": today.isoformat(),
-            "status": an.statut.lower(),
-            **({"urls": urls} if urls else {}),
-        }
+        ancienne_entree = manifest.get(slug) or {}
+        entree: dict = {"status": an.statut.lower()}
+        if an.statut == "ERREUR_HTTP":
+            # Rien n'a été vérifié : dater le contrôle d'aujourd'hui enverrait
+            # l'aide en fin de file d'ancienneté, donc hors d'un `--limit` au
+            # passage suivant — l'inverse de « à retenter ». Elle garde sa date
+            # précédente, ou aucune si elle n'a jamais été vue.
+            if ancienne := ancienne_entree.get("checked_at"):
+                entree["checked_at"] = ancienne
+        else:
+            entree["checked_at"] = today.isoformat()
+        if urls:
+            entree["urls"] = urls
         # Trace de la dernière retouche automatique. Conservée d'un run à
         # l'autre : c'est ce qui permet de répondre « quand la veille a-t-elle
         # touché cette fiche, et à quoi » sans fouiller l'historique git.
         maj = majs.get(slug)
-        ancienne = (manifest.get(slug) or {}).get("maj")
+        ancienne_maj = ancienne_entree.get("maj")
         if maj is not None and maj.etat == "applique":
             entree["maj"] = {
                 "date": today.isoformat(),
                 "modele": maj.modele,
                 "champs": maj.champs,
             }
-        elif ancienne:
-            entree["maj"] = ancienne
+        elif ancienne_maj:
+            entree["maj"] = ancienne_maj
         # L'audit d'exhaustivité (`veille_audit.py`) écrit sa propre clé dans la
         # MÊME entrée. La veille reconstruit la sienne de zéro à chaque passage :
         # sans ce report explicite, un run de veille effacerait l'historique
         # d'audit et le ferait tout re-payer au passage suivant.
-        if audit := (manifest.get(slug) or {}).get("audit"):
+        if audit := ancienne_entree.get("audit"):
             entree["audit"] = audit
+        # Acquittement d'échéance (voir `traiter_acquittements`) : même report.
+        if ack := ancienne_entree.get("ack"):
+            entree["ack"] = ack
         merged[slug] = entree
     return merged
 
@@ -278,6 +325,20 @@ def _section_majs(majs: dict[str, MajResult], mode: str) -> list[str]:
             "```",
             "git diff -- data/aides data/sources",
             "```",
+            "",
+        ]
+    if rearchivees := [m for m in inchangees if m.snapshots]:
+        out += [
+            "### Pages ré-archivées sans retouche de fiche",
+            "",
+            "Le modèle a lu la page modifiée et n'a rien trouvé dans son mandat. La "
+            "nouvelle version devient la baseline : sans ça, la même page repasserait "
+            "au modèle à chaque run.",
+            "",
+            *(
+                f"- **{m.slug}** — {', '.join(m.snapshots)} : {cellule(m.resume, 120)}"
+                for m in sorted(rearchivees, key=lambda m: m.slug)
+            ),
             "",
         ]
     if echecs:
@@ -629,6 +690,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="ne rien télécharger : inspecte le périmètre de surveillance seul",
     )
+    p.add_argument(
+        "--acquitter",
+        action="store_true",
+        help=(
+            "pour les slugs donnés en DATE_PERIMEE_SOURCE_INCHANGEE : arbitrage humain "
+            "rendu, ne plus alerter tant que la date limite ne change pas"
+        ),
+    )
     return p.parse_args(argv)
 
 
@@ -645,6 +714,14 @@ def main(argv: list[str] | None = None) -> int:
         resoudre_modele(args.model)
     except KeyError as exc:
         print(f"ERREUR : {exc.args[0]}", file=sys.stderr)
+        return 1
+
+    if args.acquitter and (not args.slugs or args.offline):
+        print(
+            "ERREUR : --acquitter exige des slugs explicites et un run en ligne "
+            "(le manifeste n'est pas écrit hors ligne).",
+            file=sys.stderr,
+        )
         return 1
 
     if args.slugs:
@@ -686,6 +763,16 @@ def main(argv: list[str] | None = None) -> int:
     log(f"{n_urls} URL distinctes surveillées.")
 
     analyses = analyze_all(aides, collects, today=today)
+    acquittees = traiter_acquittements(
+        analyses, manifest, nouveaux=args.slugs if args.acquitter else []
+    )
+    if acquittees:
+        log(f"{len(acquittees)} échéance(s) dépassée(s) acquittée(s) : {', '.join(acquittees)}")
+    if args.acquitter and (refusees := sorted(set(args.slugs) - set(acquittees))):
+        log(
+            f"⚠ non acquittée(s), statut différent de DATE_PERIMEE_SOURCE_INCHANGEE : "
+            f"{', '.join(refusees)}"
+        )
     log(f"collecte et analyse terminées en {(time.monotonic() - start) / 60:.1f} min.")
 
     majs = run_stage_c(args, aides, analyses, collects, today, log)
@@ -740,7 +827,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         mode = "dry-run" if args.dry_run else "complet"
 
-    write_manifest(update_manifest(manifest, analyses, majs, today))
+    if not args.offline:
+        # Hors ligne, aucune source n'a été consultée : dater le contrôle
+        # d'aujourd'hui ferait passer tout le parc pour vérifié.
+        write_manifest(update_manifest(manifest, analyses, majs, today))
     REVIEWS_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REVIEWS_DIR / f"{today.isoformat()}-veille.md"
     report_path.write_text(
@@ -749,17 +839,27 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     log("")
-    log(f"manifeste : {MANIFEST_PATH.relative_to(DATA_DIR.parent)}")
+    if args.offline:
+        log("manifeste : NON mis à jour (--offline)")
+    else:
+        log(f"manifeste : {MANIFEST_PATH.relative_to(DATA_DIR.parent)}")
     log(f"rapport   : {report_path.relative_to(DATA_DIR.parent)}")
     log(f"durée     : {duree / 60:.1f} min")
-    if appliquees := [m for m in majs.values() if m.etat == "applique"]:
+    appliquees = [m for m in majs.values() if m.etat == "applique"]
+    rearchivees = [m for m in majs.values() if m.etat == "inchange" and m.snapshots]
+    if appliquees:
         log("")
         log(
             f"{len(appliquees)} fiche(s) modifiée(s)"
             + (" — à blanc, rien sur disque." if args.dry_run else " sur disque.")
         )
-        if not args.dry_run:
-            log("Relire avant commit : git diff -- data/aides data/sources")
+    if rearchivees:
+        log(
+            f"{len(rearchivees)} aide(s) sans retouche de fiche mais dont la page a été "
+            "ré-archivée (nouvelle baseline)."
+        )
+    if (appliquees or rearchivees) and not args.dry_run:
+        log("Relire avant commit : git diff -- data/aides data/sources")
     log.save(LOG_DIR / f"veille-{today.isoformat()}.log")
 
     echecs = any(m.etat == "echec" for m in majs.values())

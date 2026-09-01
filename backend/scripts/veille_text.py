@@ -41,6 +41,7 @@ from __future__ import annotations
 import difflib
 import re
 import unicodedata
+from array import array
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Literal
@@ -177,6 +178,22 @@ def normalize(s: str) -> str:
     return normalize_with_offsets(s)[0]
 
 
+@lru_cache(maxsize=512)
+def _document_normalise(haystack: str) -> tuple[str, array]:
+    """`normalize_with_offsets` d'un DOCUMENT, mémoïsé.
+
+    `find_quote` cherche chaque citation d'une aide dans chacun de ses
+    documents : sans cache, un règlement de 60 000 caractères était renormalisé
+    caractère par caractère pour chacune de ses vingt citations. Mesuré sur le
+    parc : 5,6 s pour 3 231 citations, contre 0,4 s pour normaliser chaque
+    document une fois. Les offsets sont stockés en `array('I')` (4 octets par
+    caractère) plutôt qu'en liste d'entiers (~36 octets) : 512 documents
+    tiennent en quelques dizaines de Mo.
+    """
+    norm, offsets = normalize_with_offsets(haystack)
+    return norm, array("I", offsets)
+
+
 # Cible d'un lien markdown, et jeton opaque à l'intérieur : longue suite
 # alphanumérique mêlant lettres ET chiffres.
 _LINK_TARGET_RE = re.compile(r"\]\(([^)]*)\)")
@@ -230,11 +247,19 @@ def normalize_lines(text: str) -> list[tuple[str, str]]:
     rempli de texte désaccentué en minuscules serait illisible et induirait le
     modèle en erreur sur la casse réelle de la source.
     """
+    return list(_normalize_lines_cached(text))
+
+
+@lru_cache(maxsize=2048)
+def _normalize_lines_cached(text: str) -> tuple[tuple[str, str], ...]:
+    """Mémoïsé : chaque page est normalisée deux fois par run (passe de détection
+    du chrome, puis diff décisionnel), et sa baseline autant de fois qu'elle a
+    de pages sœurs. Tuple pour que le cache ne rende jamais un objet mutable."""
     pairs = []
     for raw in text.splitlines():
         if norm := normalize_line(raw):
             pairs.append((norm, raw.strip()))
-    return pairs
+    return tuple(pairs)
 
 
 # ---------------------------------------------------------------------------
@@ -514,7 +539,7 @@ def find_quote(
         start = haystack.index(quote)
         return result((start, start + len(quote)), exact=True)
 
-    hay_norm, offsets = normalize_with_offsets(haystack)
+    hay_norm, offsets = _document_normalise(haystack)
 
     def to_raw_span(span: tuple[int, int]) -> tuple[int, int]:
         # `offsets[j]` donne le caractère d'origine ayant produit le normalisé
