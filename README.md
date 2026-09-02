@@ -186,10 +186,19 @@ uv run python scripts/rappels_aides.py --today 2027-04-15 --user <uuid> --previe
 future. `--preview` écrit les emails rendus en HTML, à ouvrir dans un
 navigateur, et implique `--dry-run` — rien n'est envoyé, rien n'est journalisé.
 
-Deux points pour un test en local : `APP_URL=http://localhost:3000` dans
+Trois points pour un test en local : `APP_URL=http://localhost:3000` dans
 `backend/.env.local`, sinon les liens des emails pointent vers la production ;
-et le journal `aide_rappels_envoyes` doit exister, donc la migration doit être
-appliquée. Pour rejouer un rappel déjà parti, vider sa ligne :
+le journal `aide_rappels_envoyes` doit exister, donc la migration doit être
+appliquée ; et le compte de test doit tenir une offre Veille ou Multi-monuments,
+sans quoi le job l'écarte (l'agenda le signale). En local, une ligne
+d'abonnement suffit :
+
+```sql
+insert into subscriptions (stripe_subscription_id, user_id, stripe_customer_id, status, plan)
+values ('sub_test_local', '<uuid>', 'cus_test_local', 'active', 'veille');
+```
+
+Pour rejouer un rappel déjà parti, vider sa ligne :
 
 ```sql
 delete from aide_rappels_envoyes where user_id = '<uuid>';

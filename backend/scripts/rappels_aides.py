@@ -15,9 +15,11 @@ Deux garde-fous portent tout le reste :
   * `aide_rappels_envoyes` — un rappel donné (utilisateur, projet, aide, nature,
     palier, date annoncée) ne part qu'une fois. Sans lui, le job répéterait le
     même email tous les matins pendant un mois.
-  * le PAYWALL — les projets dont le monument n'est pas débloqué sont écartés.
-    Le produit caviarde le nom des aides d'un monument verrouillé
-    (`redact_diagnostic_if_locked`) ; un email les nommerait en clair.
+  * l'OFFRE — les rappels par email font partie de ce que vendent les offres
+    Veille et Multi-monuments (`services/offres.py`). Un compte sur l'offre
+    gratuite est écarté entier, avant même de rejouer ses diagnostics :
+    `peut_recevoir_rappels` est le point de branchement unique, les
+    préférences de notification ne tranchent qu'ensuite.
 
 Usage :
     cd backend && uv run python scripts/rappels_aides.py [options]
@@ -101,6 +103,16 @@ def _client() -> Client:
     return create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SECRET_KEY"])
 
 
+def compte_a_droit_aux_rappels(supabase: Client, user_id: str) -> bool:
+    """L'offre du compte ouvre-t-elle les rappels par email ?
+
+    Délègue à `stripe_billing.peut_recevoir_rappels`, l'autorité unique sur les
+    droits d'un compte. Fonction locale pour que les tests du job la remplacent
+    sans toucher au module de facturation.
+    """
+    return billing.peut_recevoir_rappels(supabase, user_id)
+
+
 def charger_utilisateurs(supabase: Client, user_id: str | None) -> list[dict]:
     """Comptes à traiter, avec ce qu'il faut pour écrire l'email et le régler."""
     query = supabase.table("users").select("id, email, prenom, notification_preferences")
@@ -167,24 +179,16 @@ def _cle_ouverture(projet_id: str, o: RappelOuverture) -> tuple:
 def projets_a_rappeler(supabase: Client, user_id: str) -> list[tuple[dict, dict, int | None]]:
     """Chantiers sur lesquels un rappel peut partir : (projet, monument, population).
 
-    C'est ici que s'applique le PAYWALL. Le produit caviarde le nom des aides
-    d'un monument non débloqué (`redact_diagnostic_if_locked`) ; un email les
-    nommerait en clair, alors on écarte le chantier entier.
+    Le droit au service se joue au niveau du COMPTE (`compte_a_droit_aux_rappels`,
+    vérifié par l'appelant), pas du monument : le détail des aides est gratuit,
+    ce qui se vend c'est la veille. Ici on ne fait que rattacher chaque chantier
+    à sa fiche et à la population de sa commune.
     """
     projets, monuments_by_id, population_by_code = projets_de(supabase, user_id)
-    if not projets:
-        return []
-
-    acces = billing.access_snapshot(supabase, user_id)
-    debloques = set(acces["unlockedMonumentIds"])
-    tout_debloque = acces["allAccess"]
-
     retenus = []
     for projet in projets:
         monument = monuments_by_id.get(projet["monument_id"])
         if monument is None:
-            continue
-        if not tout_debloque and monument["id"] not in debloques:
             continue
         retenus.append((projet, monument, population_by_code.get(monument.get("code_insee") or "")))
     return retenus
@@ -219,6 +223,10 @@ def collecter(
     veut_echeances = prefs.get("rappelsEcheances", True)
     veut_ouvertures = prefs.get("rappelsOuvertures", True)
     if not veut_echeances and not veut_ouvertures:
+        return [], [], []
+    # L'offre décide du droit au service, les préférences du souhait : un compte
+    # gratuit sort ici, sans qu'on rejoue un seul de ses diagnostics.
+    if not compte_a_droit_aux_rappels(supabase, user_id):
         return [], [], []
 
     paliers = normaliser_paliers(prefs.get("rappelDelaisJours"))
@@ -444,11 +452,18 @@ def agenda(supabase: Client, user: dict, today: date, horizon: int) -> None:
     paliers = normaliser_paliers(prefs.get("rappelDelaisJours"))
     cibles = projets_a_rappeler(supabase, user["id"])
     log.info(
-        "%s — %d chantier(s) débloqué(s), paliers %s",
+        "%s — %d chantier(s), paliers %s",
         user.get("email") or user["id"],
         len(cibles),
         list(paliers),
     )
+    # L'agenda reste affiché : il répond à « que prévoit le calendrier ? ». Mais
+    # un testeur doit savoir que, sur ce compte, le job réel n'enverrait rien.
+    if not compte_a_droit_aux_rappels(supabase, user["id"]):
+        log.warning(
+            "    offre sans rappels par email : le job n'enverrait RIEN à ce compte "
+            "(il faut une offre Veille ou Multi-monuments)."
+        )
 
     for projet, monument, population in cibles:
         log.info(

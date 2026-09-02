@@ -1,9 +1,9 @@
 """Tests de l'orchestration du job de rappels (scripts/rappels_aides.py).
 
 La sélection des aides est testée à part (test_rappels_service). Ici on vérifie
-ce que le job décide AUTOUR d'elle : le respect des préférences, le paywall, et
-le dédoublonnage — les trois endroits où une erreur envoie un email de trop, ou
-un email qui divulgue ce que le produit caviarde.
+ce que le job décide AUTOUR d'elle : le respect des préférences, l'offre du
+compte, et le dédoublonnage — les trois endroits où une erreur envoie un email
+de trop, ou un email à un compte qui n'a pas souscrit au service.
 """
 
 import sys
@@ -47,7 +47,7 @@ DIAGNOSTIC = {
 
 class CollecterTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.acces = {"allAccess": False, "unlockedMonumentIds": ["m1"]}
+        self.droit = True
         self.deja: set[tuple] = set()
 
         patches = [
@@ -57,7 +57,7 @@ class CollecterTests(unittest.TestCase):
             patch.object(rappels_aides, "rappels_deja_envoyes", side_effect=lambda *_: self.deja),
             patch.object(rappels_aides, "deterministic_diagnostic_for", return_value=DIAGNOSTIC),
             patch.object(
-                rappels_aides.billing, "access_snapshot", side_effect=lambda *_: self.acces
+                rappels_aides, "compte_a_droit_aux_rappels", side_effect=lambda *_: self.droit
             ),
         ]
         for p in patches:
@@ -105,16 +105,22 @@ class CollecterTests(unittest.TestCase):
         blocs_e, _, _ = self._collecter(rappelDelaisJours=[7])
         self.assertEqual(blocs_e, [])
 
-    def test_monument_verrouille_ne_sort_pas_du_produit(self) -> None:
-        # Le nom d'une aide sur un monument non débloqué est caviardé dans
-        # l'app ; un email le nommerait en clair.
-        self.acces = {"allAccess": False, "unlockedMonumentIds": []}
-        self.assertEqual(self._collecter(), ([], [], []))
+    def test_offre_gratuite_ne_recoit_rien(self) -> None:
+        # Les rappels sont vendus avec Veille et Multi-monuments. Sur l'offre
+        # gratuite, on sort avant même de charger les chantiers : pas un
+        # diagnostic n'est rejoué pour un compte qui ne recevra rien.
+        self.droit = False
+        with patch.object(rappels_aides, "projets_de") as projets:
+            self.assertEqual(self._collecter(), ([], [], []))
+        projets.assert_not_called()
 
-    def test_abonnement_ouvre_tous_les_monuments(self) -> None:
-        self.acces = {"allAccess": True, "unlockedMonumentIds": []}
-        blocs_e, _, _ = self._collecter()
-        self.assertEqual(len(blocs_e), 1)
+    def test_loffre_ne_dispense_pas_des_preferences(self) -> None:
+        # Avoir droit au service ne force pas l'envoi : le compte qui a tout
+        # coupé reste silencieux, offre ou pas.
+        self.droit = True
+        self.assertEqual(
+            self._collecter(rappelsEcheances=False, rappelsOuvertures=False), ([], [], [])
+        )
 
     def test_rappel_deja_envoye_ne_repart_pas(self) -> None:
         self.deja = {
