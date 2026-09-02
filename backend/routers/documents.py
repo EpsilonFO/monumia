@@ -1,4 +1,5 @@
 import contextlib
+import json
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -459,11 +460,15 @@ def delete_document(
         and ".." not in storage_path.split("/")
     ):
         safe_path = storage_path
+    _detacher_des_checklists(supabase, document_id)
+    supabase.table("documents").delete().eq("id", document_id).execute()
+    # Le stockage en DERNIER : un échec à mi-chemin dans l'autre ordre laisse
+    # une ligne vivante dont le fichier n'existe plus — aperçu mort, suppression
+    # qui re-échoue à chaque essai. Un objet orphelin dans le bucket est, lui,
+    # inoffensif.
     if safe_path:
         with contextlib.suppress(Exception):
             supabase.storage.from_(STORAGE_BUCKET).remove([safe_path])
-
-    supabase.table("documents").delete().eq("id", document_id).execute()
 
 
 @router.post("/{document_id}/link/{dossier_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -565,6 +570,54 @@ def add_document_to_projects(
     return result.data[0]
 
 
+def _detacher_des_checklists(supabase: Client, document_id: str) -> None:
+    """Détache un document de toutes les checklists qui le référencent.
+
+    Jeter ou supprimer un document vide `dossiers_utilises` de SON côté, mais
+    les checklists des dossiers (JSONB) pointent toujours vers lui : la pièce
+    resterait « fournie » avec un fichier fantôme, que le front afficherait
+    verrouillée (« Réservé ») sans plus aucune action possible. Les pièces
+    concernées repassent à « manquant » — la reprise pourra proposer un autre
+    fichier. La recherche par `@>` couvre aussi les pièces simplement
+    « reprises », que `dossiers_utilises` ne connaît pas (le lien au dossier ne
+    se crée qu'à la confirmation).
+    """
+    # Import local : documents → dossiers serait un cycle au niveau module
+    # (dossiers importe déjà des helpers de routers), et seul ce recalcul est
+    # nécessaire ici.
+    from routers.dossiers import _recalculate_progression
+
+    rows = (
+        supabase.table("dossiers")
+        .select("id, checklist")
+        # Chaîne JSON impérativement : postgrest-py sérialise une LISTE avec
+        # ','.join(...), qui lève TypeError sur des dicts — l'endpoint entier
+        # répondait 500 (« failed to fetch » côté client).
+        .contains("checklist", json.dumps([{"documentId": document_id}]))
+        .execute()
+        .data
+        or []
+    )
+    for dossier in rows:
+        checklist = dossier.get("checklist") or []
+        modifie = False
+        for item in checklist:
+            if item.get("documentId") == document_id:
+                item["documentId"] = None
+                if item.get("statut") in ("fourni", "repris"):
+                    item["statut"] = "manquant"
+                item.pop("origine", None)
+                item.pop("perime", None)
+                modifie = True
+        if modifie:
+            supabase.table("dossiers").update(
+                {
+                    "checklist": checklist,
+                    "progression_pourcentage": _recalculate_progression({"checklist": checklist}),
+                }
+            ).eq("id", dossier["id"]).execute()
+
+
 @router.post("/{document_id}/trash")
 def trash_document(
     document_id: str,
@@ -577,7 +630,13 @@ def trash_document(
     role = _highest_project_role(supabase, doc, user_id)
     if not _can_modify(doc, role, user_id):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas supprimer ce document")
-    patch = {"monument_ids": [], "dossiers_utilises": [], "trashed_at": _now_iso()}
+    _detacher_des_checklists(supabase, document_id)
+    patch = {
+        "monument_ids": [],
+        "projet_ids": [],
+        "dossiers_utilises": [],
+        "trashed_at": _now_iso(),
+    }
     result = supabase.table("documents").update(patch).eq("id", document_id).execute()
     return result.data[0]
 

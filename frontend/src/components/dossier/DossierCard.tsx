@@ -1,6 +1,6 @@
 import { Link } from 'react-router';
 import { ArrowRight } from 'lucide-react';
-import { IconLocalisation, IconCalendrier, IconSucces, IconErreur, IconTemps } from '@/components/icons';
+import { IconLocalisation, IconCalendrier, IconSucces, IconErreur, IconTemps, IconRafraichir } from '@/components/icons';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useSuiviStore } from '@/stores/useSuiviStore';
 import { ROUTES } from '@/constants/routes';
@@ -106,6 +106,10 @@ export function DossierCard({ dossier }: DossierCardProps) {
   const fournis = dossier.checklist.filter((c) => c.statut === 'fourni').length;
   const manquants = dossier.checklist.filter((c) => c.statut === 'manquant').length;
   const enAttente = dossier.checklist.filter((c) => c.statut === 'en_attente').length;
+  // Pièces reprises automatiquement : elles ne sont ni fournies ni manquantes, et
+  // sans pastille dédiée l'utilisateur ne voit pas qu'il a des pièces à vérifier
+  // avant d'ouvrir le dossier.
+  const repris = dossier.checklist.filter((c) => c.statut === 'repris').length;
   const piecesTotal = dossier.checklist.length;
 
   const [aideName] = dossier.titre.split(' — ');
@@ -155,6 +159,12 @@ export function DossierCard({ dossier }: DossierCardProps) {
                 <span className="flex items-center gap-1.5 font-medium text-success">
                   <IconSucces className="h-4 w-4 shrink-0" strokeWidth={2} />
                   {fournis} fourni{fournis > 1 ? 's' : ''}
+                </span>
+              )}
+              {repris > 0 && (
+                <span className="flex items-center gap-1.5 font-medium" style={{ color: C.blue }}>
+                  <IconRafraichir className="h-4 w-4 shrink-0" strokeWidth={2} />
+                  {repris} à vérifier
                 </span>
               )}
               {manquants > 0 && (

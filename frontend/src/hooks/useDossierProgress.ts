@@ -7,6 +7,8 @@ interface DossierProgress {
   fournis: number;
   enAttente: number;
   manquants: number;
+  /** Pièces reprises automatiquement, en attente de confirmation par le porteur. */
+  repris: number;
   progressionPourcentage: number;
   isComplete: boolean;
 }
@@ -17,21 +19,26 @@ export function useDossierProgress(dossierId: string): DossierProgress {
   return useMemo(() => {
     const dossier = dossiers.find((d) => d.id === dossierId);
     if (!dossier) {
-      return { total: 0, fournis: 0, enAttente: 0, manquants: 0, progressionPourcentage: 0, isComplete: false };
+      return { total: 0, fournis: 0, enAttente: 0, manquants: 0, repris: 0, progressionPourcentage: 0, isComplete: false };
     }
 
     const obligatoires = dossier.checklist.filter((c) => c.obligatoire);
     const fournis = obligatoires.filter((c) => c.statut === 'fourni').length;
     const enAttente = obligatoires.filter((c) => c.statut === 'en_attente').length;
     const manquants = obligatoires.filter((c) => c.statut === 'manquant').length;
+    const repris = obligatoires.filter((c) => c.statut === 'repris').length;
 
     return {
       total: obligatoires.length,
       fournis,
       enAttente,
       manquants,
+      repris,
       progressionPourcentage: obligatoires.length > 0 ? Math.round((fournis / obligatoires.length) * 100) : 0,
-      isComplete: manquants === 0 && enAttente === 0,
+      // Une pièce reprise n'est ni manquante ni en attente : sans la compter ici,
+      // un dossier entièrement pré-rempli se déclarerait complet à 0 % de
+      // progression. Une reprise doit être confirmée pour compter.
+      isComplete: manquants === 0 && enAttente === 0 && repris === 0,
     };
   }, [dossiers, dossierId]);
 }

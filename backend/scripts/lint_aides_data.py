@@ -272,6 +272,14 @@ def main() -> int:
     if sans_raison:
         print(f"raison : {sans_raison} aide(s) sans finalité — valeur en base préservée au load")
 
+    # Couverture du rattachement au référentiel de pièces : le mapping est
+    # incrémental (scripts/map_pieces.py), ce chiffre suit sa progression.
+    total_pieces = sum(len(a.documents_requis) for a in aides)
+    rattachees = sum(1 for a in aides for d in a.documents_requis if d.piece_id is not None)
+    if total_pieces:
+        pct = round(100 * rattachees / total_pieces)
+        print(f"pièces rattachées au référentiel : {rattachees}/{total_pieces} ({pct} %)")
+
     # Dette manual_check : gates (indécidables, objectif zéro) et absence de notes.
     mc_counts = manual_check_counts(aides)
     n_gates = sum(c["gates"] for c in mc_counts.values())

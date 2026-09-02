@@ -357,3 +357,32 @@ def require_monument_read(supabase: Client, monument_id: str, user_id: str) -> R
             return None
 
     raise HTTPException(status_code=404, detail="Monument introuvable ou accès refusé")
+
+
+def filter_visible_documents(
+    rows: list[dict],
+    user_id: str,
+    monument_roles: dict[str, Role],
+    projet_roles: dict[str, Role],
+) -> list[dict]:
+    """Ne garde que les documents que `user_id` a le droit de voir.
+
+    Point de passage unique de la règle de visibilité sur une LISTE : la reprise
+    des pièces (services/piece_reuse) propose des documents à l'utilisateur et
+    doit voir exactement ce que la liste des documents lui montrerait — ni plus,
+    ni moins. Construit sur `best_document_role`, donc sur les DEUX périmètres
+    (pièces du bien et pièces du chantier).
+    """
+    return [
+        r
+        for r in rows
+        if can_view_document(
+            visibility=r.get("visibility") or "team",
+            allowed_user_ids=r.get("allowed_user_ids") or [],
+            uploader_id=r.get("user_id"),
+            viewer_id=user_id,
+            viewer_role=best_document_role(
+                r.get("monument_ids"), r.get("projet_ids"), monument_roles, projet_roles
+            ),
+        )
+    ]

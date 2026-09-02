@@ -325,10 +325,15 @@ def create_dossier_from_aide(
                 label = doc.get("nom") or doc.get("label") or ""
                 description = doc.get("note") or ""
                 obligatoire = doc.get("obligatoire", True)
+                # Rattachement au référentiel (data/pieces.yaml) : c'est lui qui
+                # permet la reprise d'une pièce déjà déposée ailleurs. None est
+                # un état valide — la pièce est alors propre à cette aide.
+                piece_id = doc.get("piece_id") or doc.get("pieceId")
             else:
                 label = doc
                 description = ""
                 obligatoire = True
+                piece_id = None
             checklist.append(
                 {
                     "id": str(uuid.uuid4()),
@@ -338,6 +343,7 @@ def create_dossier_from_aide(
                     "categorie": "document",
                     "ordre": i + 1,
                     "statut": "manquant",
+                    "pieceId": piece_id,
                 }
             )
     else:
@@ -351,6 +357,10 @@ def create_dossier_from_aide(
                         **item,
                         "id": str(uuid.uuid4()),
                         "statut": "manquant",
+                        # Les templates en dur ne sont pas rattachés : ils ne
+                        # servent qu'aux aides sans documents_requis, en voie
+                        # d'extinction à mesure que le corpus se complète.
+                        "pieceId": None,
                     }
                 )
 

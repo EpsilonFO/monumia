@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { ChevronLeft, Loader2 } from 'lucide-react';
-import { IconDocument, IconAttention, IconSupprimer, IconLivre } from '@/components/icons';
+import { IconDocument, IconAttention, IconSupprimer, IconLivre, IconRafraichir } from '@/components/icons';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { AideDetails } from '@/components/aide/AideDetails';
 import { AideStatutSelect } from '@/components/aide/AideStatutSelect';
 import { DossierChecklist } from '@/components/dossier/DossierChecklist';
+import { ReprisesReviewDialog } from '@/components/dossier/ReprisesReviewDialog';
 import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
@@ -33,7 +34,7 @@ import { projetTitre } from '@/lib/projet-titre';
 import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
-import type { Aide, ChecklistItem, Document } from '@/types';
+import type { Aide, ChecklistItem, Document, Dossier } from '@/types';
 
 export function DossierDetailPage() {
   const { projetId, dossierId } = useParams();
@@ -78,8 +79,13 @@ export function DossierDetailPage() {
   const [accessDoc, setAccessDoc] = useState<Document | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Pièces en cours de vérification guidée (null = fenêtre fermée). Le tableau
+  // est figé à l'ouverture pour que l'ordre des étapes ne bouge pas pendant
+  // que les confirmations modifient la checklist.
+  const [reviewItems, setReviewItems] = useState<ChecklistItem[] | null>(null);
 
   const projetFetchedRef = useRef(false);
+  const autoVerifRef = useRef(false);
 
   useEffect(() => {
     if (projet || !projetId || projetFetchedRef.current) return;
@@ -174,7 +180,10 @@ export function DossierDetailPage() {
         const isMissing = msg.includes('404') || msg.includes('not found') || msg.includes('introuvable') || msg.includes('non trouvé') || msg.includes('failed to fetch');
         if (!isMissing) throw err;
       }
-      await dossierService.updateChecklistItem(dossier.id, item.id, 'manquant');
+      // `detacher` plutôt qu'un simple passage à « manquant » : le retrait est
+      // mémorisé sur la pièce, la reprise automatique ne reproposera pas le
+      // fichier qu'on vient d'enlever.
+      await dossierService.detacherChecklistItem(dossier.id, item.id);
       toast.success('Document retiré du dossier');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression');
@@ -182,6 +191,68 @@ export function DossierDetailPage() {
       setBusyItemId(null);
     }
   };
+
+  // Confirmer une pièce reprise n'est pas un remplacement : ouvert à tout membre
+  // du projet (le backend l'exempte de la garde « auteur du document »).
+  //
+  // La confirmation reproduit les DEUX associations du rattachement manuel (cf.
+  // handleAttach) : le document rejoint le projet et le dossier. C'est fait ici,
+  // et non au moment de la reprise, à dessein — associer automatiquement le
+  // document au projet rendrait un document « équipe » visible par toute
+  // l'équipe sans que personne ne l'ait décidé. À la confirmation, l'utilisateur
+  // est l'acteur explicite, comme dans le flux manuel. Sans le lien au dossier,
+  // le document pourrait aussi partir en corbeille (_should_auto_trash) alors
+  // qu'une pièce « fournie » le référence encore.
+  const handleConfirmItem = async (item: ChecklistItem) => {
+    if (!dossier || !projet || !item.documentId) return;
+    const documentId = item.documentId;
+    setBusyItemId(item.id);
+    try {
+      const doc = documents.find((d) => d.id === documentId)
+        ?? await documentService.getById(documentId);
+      // Au PROJET, pas au monument : même périmètre que le rattachement manuel
+      // (handleAttach) — la pièce apparaît pour l'équipe du chantier, pas au-delà.
+      if (!doc.projetIds.includes(projet.id)) {
+        await addToProjectsStore(doc.id, [], [projet.id]);
+      }
+      if (!doc.dossiersUtilises.includes(dossier.id)) {
+        await linkToDossierStore(doc.id, dossier.id);
+      }
+      await dossierService.updateChecklistItem(dossier.id, item.id, 'fourni');
+      // Le document venait d'ailleurs : il n'était pas dans le store, les mises à
+      // jour optimistes ci-dessus n'ont donc rien pu y refléter. Sans ce rechargement,
+      // `canModifyItem` le croirait absent et masquerait « Remplacer ».
+      fetchDocuments().catch(() => {});
+      toast.success('Pièce confirmée');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la confirmation');
+    } finally {
+      setBusyItemId(null);
+    }
+  };
+
+  // Rejeter une pièce reprise détache son document : contrairement à la
+  // confirmation, cette action reste soumise à la garde d'accès du backend
+  // (seul l'auteur du document, ou un chef de projet/adjoint, peut la retirer —
+  // 403 sinon).
+  const handleRejectItem = async (item: ChecklistItem) => {
+    if (!dossier) return;
+    setBusyItemId(item.id);
+    try {
+      await dossierService.detacherChecklistItem(dossier.id, item.id);
+      toast.success('Pièce retirée du dossier');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors du rejet de la pièce');
+    } finally {
+      setBusyItemId(null);
+    }
+  };
+
+  const ouvrirVerification = useCallback((d: Dossier) => {
+    const repris = d.checklist.filter((i) => i.statut === 'repris');
+    if (repris.length > 0) setReviewItems(repris);
+    return repris.length;
+  }, []);
 
   // Remplacer / supprimer une pièce : l'auteur du document, OU un chef de projet /
   // adjoint (tous les droits sur les docs). Un collaborateur ne peut agir que sur
@@ -196,6 +267,29 @@ export function DossierDetailPage() {
   );
 
   const canManageDossier = projectPermissions(projet?.myRole ?? null).canEditProject;
+
+  // Reprise automatique à l'arrivée sur le dossier : c'est le SEUL déclencheur,
+  // il n'y a volontairement aucun bouton à connaître. L'appel est silencieux
+  // (la reprise est un confort, son échec ne doit rien casser) et tourne à
+  // chaque visite pour attraper les fichiers déposés entre-temps. La fenêtre de
+  // vérification, elle, ne s'ouvre d'office qu'une fois par session et par
+  // dossier — la fermer vaut « plus tard », et la bannière reste le chemin
+  // volontaire pour y revenir.
+  useEffect(() => {
+    if (!dossier || !monument || autoVerifRef.current) return;
+    autoVerifRef.current = true;
+    const dejaVue = !!sessionStorage.getItem(`verif-reprises-${dossier.id}`);
+    if (canManageDossier && dossier.statut !== 'soumis') {
+      dossierService
+        .reprendrePieces(dossier.id)
+        .then((maj) => { if (!dejaVue) ouvrirVerification(maj); })
+        .catch(() => { if (!dejaVue) ouvrirVerification(dossier); });
+    } else if (!dejaVue) {
+      // Membre simple : pas le droit de relancer la reprise, mais il peut
+      // confirmer les pièces déjà reprises — on lui ouvre la vérification.
+      ouvrirVerification(dossier);
+    }
+  }, [dossier, monument, canManageDossier, ouvrirVerification]);
 
   const handleDeleteDossier = async () => {
     if (!dossier || !projetId) return;
@@ -256,6 +350,33 @@ export function DossierDetailPage() {
       )}
 
       <div className="space-y-6">
+        {dossier.checklist.some((i) => i.statut === 'repris') && (
+          <div className="flex flex-wrap items-center gap-4 p-4 sm:p-5 rounded-xl border" style={{ borderColor: C.border, background: C.paleBlue }}>
+            <IconRafraichir className="h-5 w-5 shrink-0" style={{ color: C.blue }} />
+            <div className="min-w-0 flex-1 text-[14px]">
+              <p className="font-semibold" style={{ color: C.ink }}>
+                {(() => {
+                  const n = dossier.checklist.filter((i) => i.statut === 'repris').length;
+                  return n === 1
+                    ? 'Une pièce a été remplie avec un fichier déjà envoyé'
+                    : `${n} pièces ont été remplies avec des fichiers déjà envoyés`;
+                })()}
+              </p>
+              <p className="mt-0.5" style={{ color: C.grayFg }}>
+                Vérifiez que ce sont les bons — tant qu’ils ne sont pas confirmés, ces pièces ne comptent pas dans votre dossier.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => ouvrirVerification(dossier)}
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold text-white transition-opacity hover:opacity-90"
+              style={{ background: C.blue }}
+            >
+              Vérifier maintenant
+            </button>
+          </div>
+        )}
+
         <div className="rounded-2xl border overflow-hidden" style={{ background: C.card, borderColor: C.border }}>
           <div className="px-5 py-3 border-b" style={{ borderColor: C.border }}>
             <h3 className="text-[16px]" style={{ fontFamily: SERIF, color: C.ink }}>Pièces du dossier</h3>
@@ -271,6 +392,8 @@ export function DossierDetailPage() {
                 onRequestAttach={(item) => setAttachingItem(item)}
                 onPreview={handlePreview}
                 onRequestDelete={handleDeleteItem}
+                onConfirm={handleConfirmItem}
+                onReject={handleRejectItem}
                 canModifyItem={canModifyItem}
                 archiveName={dossier.titre}
                 busyItemId={busyItemId}
@@ -352,6 +475,19 @@ export function DossierDetailPage() {
         document={previewDoc}
         open={!!previewDoc}
         onOpenChange={(open) => { if (!open) setPreviewDoc(null); }}
+      />
+
+      <ReprisesReviewDialog
+        open={!!reviewItems}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReviewItems(null);
+            if (dossier) sessionStorage.setItem(`verif-reprises-${dossier.id}`, '1');
+          }
+        }}
+        items={reviewItems ?? []}
+        onConfirm={handleConfirmItem}
+        onReject={handleRejectItem}
       />
     </div>
   );

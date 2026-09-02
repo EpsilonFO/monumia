@@ -168,15 +168,18 @@ function OfficePreview({ url, title, filename }: { url: string; title: string; f
   );
 }
 
-// ── Main dialog ───────────────────────────────────────────────────────────────
+// ── Signed URL + corps d'aperçu réutilisables ────────────────────────────────
+// Partagés avec le parcours de vérification des pièces reprises
+// (ReprisesReviewDialog) : même résolution d'URL signée, même rendu par type
+// de fichier — un seul endroit à faire évoluer quand un format s'ajoute.
 
-export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToProject }: DocumentPreviewDialogProps) {
+export function useSignedUrl(document: Document | null, enabled: boolean) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open || !document) {
+    if (!enabled || !document) {
       setSignedUrl(null);
       setError(null);
       return;
@@ -192,11 +195,87 @@ export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToPro
     );
 
     return () => { cancelled = true; };
-  }, [open, document?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled, document?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { signedUrl, loading, error };
+}
+
+export function DocumentPreviewBody({
+  document,
+  signedUrl,
+  loading,
+  error,
+}: {
+  document: Document;
+  signedUrl: string | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  const previewType = getPreviewType(document.mimeType);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+        <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
+        <p className="text-sm">Impossible de charger le document.</p>
+        <p className="text-xs">{error}</p>
+      </div>
+    );
+  }
+  if (!signedUrl) return null;
+
+  return (
+    <>
+      {previewType === 'image' && <ImagePreview url={signedUrl} alt={document.nom} />}
+      {previewType === 'pdf' && (
+        <object data={signedUrl} type="application/pdf" className="w-full h-full">
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+            <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
+            <p className="text-sm">Impossible d'afficher le PDF dans le navigateur.</p>
+            <Button variant="outline" size="sm" asChild>
+              <a href={signedUrl} target="_blank" rel="noopener noreferrer">
+                Ouvrir le PDF
+              </a>
+            </Button>
+          </div>
+        </object>
+      )}
+      {previewType === 'office' && (
+        <OfficePreview url={signedUrl} title={document.nom} filename={document.nomFichier} />
+      )}
+      {previewType === 'text' && <TextPreview url={signedUrl} />}
+      {previewType === 'none' && (
+        <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+          <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
+          <p className="text-sm font-medium">Format non prévisualisable</p>
+          <p className="text-xs">
+            {document.mimeType.includes('heic') || document.mimeType.includes('heif')
+              ? 'Le format HEIC/HEIF n\'est pas supporté par les navigateurs. Téléchargez le fichier pour l\'ouvrir.'
+              : 'Aperçu non disponible pour ce type de fichier.'}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => downloadFile(signedUrl, document.nomFichier)}>
+            <IconTelecharger className="h-4 w-4 mr-1.5" />
+            Télécharger
+          </Button>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Main dialog ───────────────────────────────────────────────────────────────
+
+export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToProject }: DocumentPreviewDialogProps) {
+  const { signedUrl, loading, error } = useSignedUrl(document, open);
 
   if (!document) return null;
-
-  const previewType = getPreviewType(document.mimeType);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -245,57 +324,7 @@ export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToPro
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-auto bg-muted/30">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-              <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
-              <p className="text-sm">Impossible de charger le document.</p>
-              <p className="text-xs">{error}</p>
-            </div>
-          ) : signedUrl ? (
-            <>
-              {previewType === 'image' && (
-                <ImagePreview url={signedUrl} alt={document.nom} />
-              )}
-              {previewType === 'pdf' && (
-                <object data={signedUrl} type="application/pdf" className="w-full h-full">
-                  <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-                    <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
-                    <p className="text-sm">Impossible d'afficher le PDF dans le navigateur.</p>
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={signedUrl} target="_blank" rel="noopener noreferrer">
-                        Ouvrir le PDF
-                      </a>
-                    </Button>
-                  </div>
-                </object>
-              )}
-              {previewType === 'office' && (
-                <OfficePreview url={signedUrl} title={document.nom} filename={document.nomFichier} />
-              )}
-              {previewType === 'text' && (
-                <TextPreview url={signedUrl} />
-              )}
-              {previewType === 'none' && (
-                <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-                  <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
-                  <p className="text-sm font-medium">Format non prévisualisable</p>
-                  <p className="text-xs">
-                    {document.mimeType.includes('heic') || document.mimeType.includes('heif')
-                      ? 'Le format HEIC/HEIF n\'est pas supporté par les navigateurs. Téléchargez le fichier pour l\'ouvrir.'
-                      : 'Aperçu non disponible pour ce type de fichier.'}
-                  </p>
-                  <Button variant="outline" size="sm" onClick={() => downloadFile(signedUrl!, document.nomFichier)}>
-                    <IconTelecharger className="h-4 w-4 mr-1.5" />
-                    Télécharger
-                  </Button>
-                </div>
-              )}
-            </>
-          ) : null}
+          <DocumentPreviewBody document={document} signedUrl={signedUrl} loading={loading} error={error} />
         </div>
       </DialogContent>
     </Dialog>

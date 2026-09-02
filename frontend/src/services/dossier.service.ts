@@ -103,6 +103,28 @@ export const dossierService = {
     return dossier;
   },
 
+  async reprendrePieces(dossierId: string): Promise<Dossier> {
+    const res = await authFetch(`${BASE}/dossiers/${dossierId}/reprendre-pieces`, {
+      method: 'POST',
+    });
+    const row = await handleResponse<Record<string, unknown>>(res);
+    const dossier = toDossier(row);
+    useDossierStore.getState().updateDossier(dossierId, dossier);
+    return dossier;
+  },
+
+  /** Retire le document d'une pièce (rejet d'une reprise). */
+  async detacherChecklistItem(dossierId: string, itemId: string): Promise<Dossier> {
+    const res = await authFetch(`${BASE}/dossiers/${dossierId}/checklist/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ statut: 'manquant', detacher: true }),
+    });
+    const row = await handleResponse<Record<string, unknown>>(res);
+    const dossier = toDossier(row);
+    useDossierStore.getState().updateDossier(dossierId, dossier);
+    return dossier;
+  },
+
   async updateSection(dossierId: string, sectionId: string, contenu: string): Promise<Dossier> {
     const res = await authFetch(`${BASE}/dossiers/${dossierId}/sections/${sectionId}`, {
       method: 'PATCH',

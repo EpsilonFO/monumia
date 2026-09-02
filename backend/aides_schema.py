@@ -55,6 +55,7 @@ from labels import (
     REGION_LABELS,
     TRAVAUX_LABELS,
 )
+from pieces_schema import load_pieces
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 AIDES_DIR = DATA_DIR / "aides"
@@ -610,6 +611,12 @@ class Document(BaseModel):
     distinguer les pièces conditionnelles (« si propriétaire public ») pour ne
     pas remplir des documents inutiles.
 
+    `piece_id` : rattachement au référentiel des pièces canoniques
+    (data/pieces.yaml). C'est lui qui permet de reconnaître qu'un document déjà
+    déposé pour une autre aide répond à cette demande. `None` est un état
+    valide et fréquent : beaucoup de pièces sont propres à une seule aide et
+    n'ont rien à réutiliser.
+
     Rétrocompat : une simple chaîne en YAML est coercée en `{nom: <chaîne>}`.
     """
 
@@ -619,6 +626,14 @@ class Document(BaseModel):
     url: str | None = None
     obligatoire: bool = True
     note: str | None = None
+    piece_id: str | None = None
+
+    @field_validator("piece_id")
+    @classmethod
+    def _piece_connue(cls, v: str | None) -> str | None:
+        if v is not None and v not in load_pieces():
+            raise ValueError(f"pièce inconnue « {v} » (absente de data/pieces.yaml)")
+        return v
 
 
 class Aide(BaseModel):
