@@ -9,14 +9,17 @@ import {
   IconProtection,
   IconSucces,
   IconDeconnexion,
+  IconEcheance,
 } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { C, SERIF } from '@/lib/brand';
 import { computeProfileCompletion } from '@/lib/profile-completion';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { isValidPhone } from '@/lib/phone';
+import { RAPPEL_DELAIS_DEFAUT, type NotificationPreferences } from '@/types';
 
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user);
@@ -175,6 +178,8 @@ export function ProfilePage() {
         </div>
       </section>
 
+      <RappelsPanel />
+
       <Panel>
         <PanelHeader
           icon={<IconProtection className="h-4 w-4 text-primary" strokeWidth={1.8} />}
@@ -225,6 +230,122 @@ export function ProfilePage() {
           Se déconnecter
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ── Rappels par email ── */
+
+/**
+ * Paliers proposés, en jours avant la date limite. Une liste fermée plutôt
+ * qu'un champ libre : le besoin réel tient en quelques crans, et des pastilles
+ * à cocher évitent la saisie invalide que le backend refuserait.
+ */
+const PALIERS_PROPOSES = [60, 30, 15, 7, 3, 1];
+
+function RappelsPanel() {
+  const user = useAuthStore((s) => s.user);
+  const save = useAuthStore((s) => s.updateNotificationPreferences);
+  // Optimiste : la bascule doit répondre tout de suite, l'appel suit. En cas
+  // d'échec on repart de la valeur du store, qui n'a pas bougé.
+  const [pending, setPending] = useState<Partial<NotificationPreferences> | null>(null);
+
+  if (!user) return null;
+  const prefs = { ...user.notificationPreferences, ...pending };
+  const delais = prefs.rappelDelaisJours?.length ? prefs.rappelDelaisJours : RAPPEL_DELAIS_DEFAUT;
+
+  const patch = async (updates: Partial<NotificationPreferences>) => {
+    setPending((p) => ({ ...p, ...updates }));
+    try {
+      await save(updates);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Réglage non enregistré');
+    } finally {
+      setPending(null);
+    }
+  };
+
+  const toggleDelai = (jours: number) => {
+    const actif = delais.includes(jours);
+    // Retirer le dernier palier reviendrait à couper les rappels sans le dire :
+    // c'est l'interrupteur au-dessus qui sert à ça.
+    if (actif && delais.length === 1) {
+      toast.info('Gardez au moins un rappel, ou désactivez-les entièrement.');
+      return;
+    }
+    const suivant = actif ? delais.filter((d) => d !== jours) : [...delais, jours];
+    patch({ rappelDelaisJours: suivant.sort((a, b) => b - a) });
+  };
+
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<IconEcheance className="h-4 w-4 text-primary" strokeWidth={1.8} />}
+        title="Rappels par email"
+      />
+      <div className="divide-y divide-border">
+        <Reglage
+          titre="Échéances qui approchent"
+          description="Un email le matin quand la date limite de dépôt d'une aide identifiée sur vos chantiers se rapproche."
+          checked={prefs.rappelsEcheances}
+          onChange={(v) => patch({ rappelsEcheances: v })}
+        >
+          <p className="mb-2 text-[13px]" style={{ color: C.grayFg }}>
+            Me prévenir&nbsp;:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {PALIERS_PROPOSES.map((jours) => {
+              const actif = delais.includes(jours);
+              return (
+                <button
+                  key={jours}
+                  type="button"
+                  onClick={() => toggleDelai(jours)}
+                  aria-pressed={actif}
+                  className="rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors"
+                  style={
+                    actif
+                      ? { borderColor: C.blue, background: C.paleBlue, color: C.blue }
+                      : { borderColor: C.border, color: C.grayMuted }
+                  }
+                >
+                  {jours === 1 ? '1 jour avant' : `${jours} jours avant`}
+                </button>
+              );
+            })}
+          </div>
+        </Reglage>
+
+        <Reglage
+          titre="Ouverture des guichets"
+          description="Une aide qui patientait dans « Disponibles bientôt » passe en « Éligible maintenant », « À confirmer » ou « À débloquer » dès que sa date d'ouverture est franchie. Cet email vous l'annonce."
+          checked={prefs.rappelsOuvertures}
+          onChange={(v) => patch({ rappelsOuvertures: v })}
+        />
+      </div>
+    </Panel>
+  );
+}
+
+function Reglage({ titre, description, checked, onChange, children }: {
+  titre: string;
+  description: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="px-6 py-5">
+      <div className="flex items-start justify-between gap-5">
+        <div className="min-w-0">
+          <p className="text-[15px] font-medium text-foreground">{titre}</p>
+          <p className="mt-1 text-[13.5px]" style={{ color: C.grayFg }}>
+            {description}
+          </p>
+        </div>
+        <Switch checked={checked} onCheckedChange={onChange} aria-label={titre} />
+      </div>
+      {checked && children && <div className="mt-4">{children}</div>}
     </div>
   );
 }

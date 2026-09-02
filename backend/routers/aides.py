@@ -1,6 +1,7 @@
 import logging
 import traceback
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, model_validator
@@ -193,12 +194,20 @@ def deterministic_diagnostic_for(
     monument: dict,
     population: int | None,
     answers: dict[str, object] | None,
+    today: date | None = None,
 ) -> dict:
     """Lance le moteur déterministe et rend le résultat prêt pour le frontend.
 
     Purement CPU (les YAML sont en cache, ~2 ms par monument) : aucun appel
     réseau, d'où la possibilité de l'exécuter pour tous les projets d'un coup
     dans /dashboard.
+
+    `today` n'est jamais renseigné par les routes — c'est la date du jour qui
+    fait foi pour un utilisateur. Il n'existe que pour les outils hors ligne
+    (`scripts/rappels_aides.py --today`), où figer la date est le seul moyen de
+    vérifier un rappel sans attendre l'échéance : sans lui, la fenêtre de
+    candidature de chaque aide resterait calée sur le vrai jour, et le décalage
+    ne porterait que sur l'arithmétique des paliers.
     """
     aides = load_all_aides()
     facts = {**load_facts(), **load_pending_facts()}
@@ -210,6 +219,7 @@ def deterministic_diagnostic_for(
             monument=monument,
             population=population,
             answers=answers,
+            today=today,
         )
     except Exception as exc:
         logger.error("run_deterministic_diagnostic crashed:\n%s", traceback.format_exc())

@@ -4,12 +4,16 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from supabase import Client
 
 from db import get_anon_supabase, get_current_auth_user, get_current_user_id, get_supabase
+from services.rappels_service import PALIER_MAX, PALIER_MIN, PALIERS_DEFAUT
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Assez pour « 60, 30, 7, 1 » sans transformer les rappels en spam.
+MAX_PALIERS = 5
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -74,6 +78,25 @@ class UpdateNotificationsRequest(BaseModel):
     newAidesMatched: bool | None = None
     dossierUpdates: bool | None = None
     emailNotifications: bool | None = None
+    # Rappels calendaires sur les aides (scripts/rappels_aides.py).
+    rappelsEcheances: bool | None = None
+    rappelsOuvertures: bool | None = None
+    # Paliers de rappel, en jours avant la date limite. Validés ici parce que la
+    # colonne n'est qu'un jsonb : sans borne, une saisie farfelue s'y écrirait
+    # telle quelle. `normaliser_paliers` refait le tri côté job, mais mieux vaut
+    # que l'utilisateur voie son réglage refusé que silencieusement ignoré.
+    rappelDelaisJours: list[int] | None = None
+
+    @field_validator("rappelDelaisJours")
+    @classmethod
+    def _paliers_valides(cls, v: list[int] | None) -> list[int] | None:
+        if v is None:
+            return None
+        if len(v) > MAX_PALIERS:
+            raise ValueError(f"{MAX_PALIERS} paliers de rappel au maximum")
+        if any(not (PALIER_MIN <= p <= PALIER_MAX) for p in v):
+            raise ValueError(f"Un palier doit tenir entre {PALIER_MIN} et {PALIER_MAX} jours")
+        return sorted(set(v), reverse=True)
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -128,7 +151,13 @@ def _get_profile(supabase: Client, user_id: str) -> dict:
 
     # Normalize snake_case DB keys to camelCase for the frontend
     if "notification_preferences" in profile:
-        profile["notificationPreferences"] = profile.pop("notification_preferences")
+        # Complété par les défauts : une clé ajoutée après coup (les rappels
+        # d'aides, par exemple) doit arriver renseignée au front, même sur un
+        # profil créé avant elle.
+        profile["notificationPreferences"] = {
+            **_default_notification_preferences(),
+            **(profile.pop("notification_preferences") or {}),
+        }
     if "onboarding_complete" in profile:
         profile["onboardingComplete"] = profile.pop("onboarding_complete")
     if "created_at" in profile:
@@ -146,11 +175,17 @@ def _get_profile(supabase: Client, user_id: str) -> dict:
 
 
 def _default_notification_preferences() -> dict:
+    """Doit rester aligné sur le `default` de `users.notification_preferences`
+    (migration 20260828152623) : le profil est parfois créé ici, parfois par la
+    base, et les deux chemins doivent produire les mêmes réglages."""
     return {
         "urgentDeadlines": True,
         "newAidesMatched": True,
         "dossierUpdates": True,
         "emailNotifications": False,
+        "rappelsEcheances": True,
+        "rappelsOuvertures": True,
+        "rappelDelaisJours": list(PALIERS_DEFAUT),
     }
 
 
