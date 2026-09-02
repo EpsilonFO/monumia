@@ -384,7 +384,13 @@ def load_aide_depuis(contenu: str) -> Aide:
 class TestParseEtSchema(unittest.TestCase):
     def test_json_entoure_de_fences(self):
         aide = load_aide_depuis(FICHE)
-        brut = "```json\n" + sortie(criteres=[]) + "\n```"
+        # Un critère `conforme` et non `criteres=[]` : un relevé vide est
+        # désormais refusé pour lui-même, ce test ne vise que les fences.
+        brut = (
+            "```json\n"
+            + sortie(criteres=[critere(verdict="conforme", cond_id="edifice-anterieur-1800")])
+            + "\n```"
+        )
         out, erreurs, etape, _ = valider(brut, aide, corpus_test())
         self.assertIsNotNone(out)
         self.assertEqual((erreurs, etape), ([], None))
@@ -1107,3 +1113,114 @@ class TestRapport(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCorpusUneVersionParUrl(unittest.TestCase):
+    """Deux snapshots d'une même page ne doivent jamais être soumis ensemble."""
+
+    URL = "https://ex.fr/aide"
+
+    def _col(self, *, frais: bool) -> AideCollect:
+        recent = Path("/inexistant/aide-test/2026-08-24-page.md")
+        fetched = {}
+        if frais:
+            fetched[self.URL] = FetchResult(url=self.URL, status=200, body_md=SOURCE, sha256="f")
+        return AideCollect(
+            slug="aide-test",
+            urls=[MonitoredUrl(url=self.URL, role="officielle", baseline_path=recent)],
+            fetched=fetched,
+            baseline_docs=[
+                ("2026-07-01-page.md", "ancienne version", "text"),
+                ("2026-08-24-page.md", SOURCE, "text"),
+                ("2026-07-01-reglement.pdf", REGLEMENT_PDF, "pdf"),
+            ],
+            baseline_urls={
+                "2026-07-01-page.md": self.URL,
+                "2026-08-24-page.md": self.URL,
+            },
+        )
+
+    def test_sans_frais_seul_le_snapshot_le_plus_recent_est_soumis(self):
+        aide = load_aide_depuis(FICHE)
+        with mock.patch.object(veille_audit, "SOURCES_DIR", Path("/inexistant")):
+            corpus = construire_corpus(aide, self._col(frais=False))
+        self.assertEqual(
+            [d.nom for d in corpus.docs], ["2026-08-24-page.md", "2026-07-01-reglement.pdf"]
+        )
+
+    def test_avec_frais_toutes_les_versions_archivees_de_la_page_sont_ecartees(self):
+        # Régression vécue sur 35-faat : le frais ET le snapshot du 29 juillet de
+        # la même URL partaient au modèle ensemble.
+        aide = load_aide_depuis(FICHE)
+        with mock.patch.object(veille_audit, "SOURCES_DIR", Path("/inexistant")):
+            corpus = construire_corpus(aide, self._col(frais=True))
+        self.assertEqual([d.nom for d in corpus.docs], [self.URL, "2026-07-01-reglement.pdf"])
+        self.assertEqual(corpus.docs[0].provenance, "frais")
+
+
+class TestTypageRafraichitLEmpreinte(unittest.TestCase):
+    """Après `--typer`, l'empreinte inscrite au manifeste est celle de la fiche typée.
+
+    Sinon chaque aide typée ressort « fiche modifiée » au run suivant et repaie
+    un audit pour un changement qu'on a fait nous-mêmes.
+    """
+
+    def test_sha_fiche_recalcule_apres_typage(self):
+        import argparse
+
+        from veille_typage import TypageResult
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        racine = Path(tmp.name)
+        chemin = racine / "aide-test.yaml"
+        chemin.write_text(FICHE, encoding="utf-8")
+        res = AuditResult(slug="aide-test", etat="ajouts", sha_fiche=sha_fiche(chemin))
+
+        def faux_typer_toutes(aides, spec, **kwargs):
+            chemin.write_text(FICHE + "\n# typée\n", encoding="utf-8")
+            return {"aide-test": TypageResult(slug="aide-test", etat="type")}
+
+        args = argparse.Namespace(
+            typer=True, report_only=False, dry_run=False, model="ds-flash", max_llm=20
+        )
+        with (
+            mock.patch.object(veille_audit, "AIDES_DIR", racine),
+            mock.patch.object(veille_audit, "typer_toutes", faux_typer_toutes),
+        ):
+            veille_audit._typer_ajouts(args, {"aide-test": res}, AUJOURD_HUI, lambda *_: None)
+        self.assertEqual(res.sha_fiche, sha_fiche(chemin))
+
+
+class TestReleveVide(unittest.TestCase):
+    """Un relevé vide face à une fiche citée dans le corpus est un survol, pas un « à jour »."""
+
+    def test_releve_vide_rejete_et_rattrapable(self):
+        aide = load_aide_depuis(FICHE)
+        out, erreurs, etape, _ = valider(sortie(criteres=[]), aide, corpus_test())
+        self.assertIsNotNone(out)
+        self.assertEqual(etape, "referentiel")
+        self.assertTrue(any("relevé vide" in e for e in erreurs))
+
+    def test_releve_vide_tolere_si_rien_de_la_fiche_n_est_dans_le_corpus(self):
+        # Rien ne prouve que la lecture était possible : on ne peut pas exiger
+        # un `conforme` sur une citation que le corpus ne contient pas.
+        aide = load_aide_depuis(FICHE)
+        etranger = Corpus(
+            docs=[
+                DocAudit(
+                    nom="x", contenu="Un tout autre texte.", kind="text", provenance="baseline"
+                )
+            ]
+        )
+        out, erreurs, etape, _ = valider(sortie(criteres=[]), aide, etranger)
+        self.assertEqual((erreurs, etape), ([], None))
+
+    def test_un_releve_non_vide_passe(self):
+        aide = load_aide_depuis(FICHE)
+        out, erreurs, _, _ = valider(
+            sortie(criteres=[critere(verdict="conforme", cond_id="edifice-anterieur-1800")]),
+            aide,
+            corpus_test(),
+        )
+        self.assertEqual(erreurs, [])

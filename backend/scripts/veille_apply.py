@@ -244,7 +244,15 @@ def parse_json_output[M: BaseModel](
     try:
         data = json.loads(brut)
     except json.JSONDecodeError as exc:
-        return None, [f"JSON invalide : {exc}"], "json"
+        # Un objet complet suivi de texte (« Extra data ») : certains modèles
+        # ajoutent une phrase après le JSON malgré la consigne. L'objet est
+        # entier et valide, on le prend ; tout autre défaut reste une erreur.
+        # Mesuré au benchmark d'audit du 2026-09-01 : un cas sur cinq perdu
+        # pour glm-5.3-flash à cause d'un commentaire final.
+        try:
+            data, _fin = json.JSONDecoder().raw_decode(brut)
+        except json.JSONDecodeError:
+            return None, [f"JSON invalide : {exc}"], "json"
     if not isinstance(data, dict):
         return None, [f"objet JSON attendu, reçu {type(data).__name__}"], "json"
     try:
@@ -434,6 +442,17 @@ def lignes_ajoutees(diff: str) -> str:
     return "\n".join(ligne[2:] for ligne in diff.splitlines() if ligne.startswith("+ "))
 
 
+def _seulement_des_disparitions(out: VeilleLLMOutput) -> bool:
+    """La sortie ne fait que signaler des conditions disparues de la source."""
+    return (
+        out.calendrier is None
+        and out.financement is None
+        and out.cumul is None
+        and bool(out.conditions)
+        and all(c.op == "signaler_disparue" for c in out.conditions)
+    )
+
+
 def check_ancrage(out: VeilleLLMOutput, diff: str) -> list[str]:
     """Chaque citation justifiant un changement doit venir de ce qui a CHANGÉ.
 
@@ -458,10 +477,13 @@ def check_ancrage(out: VeilleLLMOutput, diff: str) -> list[str]:
     """
     ajoutees = lignes_ajoutees(diff)
     if not ajoutees.strip():
-        # Aucune ligne ajoutée : rien n'a pu motiver une modification. Le cas
+        # Aucune ligne ajoutée : rien n'a pu motiver une MODIFICATION. Le cas
         # se produit quand le triage a déclenché sur des suppressions seules,
-        # ou sur des citations manquantes.
-        if out.est_vide:
+        # ou sur des citations manquantes. Une sortie qui ne fait que signaler
+        # des conditions disparues est précisément ce qu'un tel diff appelle :
+        # la refuser ici envoyait en escalade le cas nominal de
+        # `signaler_disparue`.
+        if out.est_vide or _seulement_des_disparitions(out):
             return []
         return ["aucune ligne ajoutée dans le diff : aucun changement à retoucher"]
 

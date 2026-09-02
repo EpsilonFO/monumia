@@ -57,3 +57,6 @@ supabase/snippets/
 # Artefacts d'audit de sécurité (contexte, preuves, PoC) : jamais versionnés
 .sb-pentest-context.json
 .sb-pentest-evidence/
+
+# Cache recalculable de la veille (texte extrait des PDF)
+backend/.cache/

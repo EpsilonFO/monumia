@@ -152,6 +152,10 @@ class Fournisseur:
     supports_temperature: bool = True
     budget_sortie_param: str = "max_tokens"
     max_tokens: int = 16_000
+    # Effort de raisonnement (`low`/`medium`/`high`), quand le fournisseur sait le
+    # régler. Anthropic : `output_config.effort`. OpenRouter : `reasoning.effort`,
+    # transmis au modèle routé. Ailleurs : ignoré.
+    effort: str | None = None
     note: str = ""
 
 
@@ -197,6 +201,18 @@ FOURNISSEURS: dict[str, Fournisseur] = {
         # Même raison que DeepSeek : la passerelle sert surtout des modèles à
         # raisonnement, qui consomment leur budget de sortie avant d'écrire.
         max_tokens=32_000,
+        # Mesuré le 2026-09-01 sur l'audit de `sauvegarde-art-francais` (7 000
+        # tokens de prompt) avec glm-5.3-flash. Sans réglage : 25 270 tokens de
+        # sortie et 405 s par appel — un benchmark de dix appels passait pour
+        # bloqué. Avec un effort explicite, sur la fiche intacte puis amputée
+        # d'une condition (`veille_benchmark_audit.py`) :
+        #   low     10-12 s   11 critères relevés, 0 faux, retrait retrouvé
+        #   medium  10-19 s   12 critères relevés, 0 faux, retrait retrouvé
+        #   high    31-62 s   14 critères relevés, 2 FAUX manquants (modalités)
+        # `medium` : même rappel que `low` pour un relevé un peu plus fourni,
+        # sans la sur-lecture de `high`. Désactiver le raisonnement est refusé
+        # par le fournisseur (400).
+        effort="medium",
         note="passerelle : identifiant préfixé de l'éditeur, tarif propre à chaque modèle",
     ),
 }
@@ -213,6 +229,7 @@ def _spec(alias: str, fournisseur: str, model_id: str, **surcharges: Any) -> Mod
         "supports_temperature": f.supports_temperature,
         "budget_sortie_param": f.budget_sortie_param,
         "max_tokens": f.max_tokens,
+        "effort": f.effort,
         "note": f.note,
     }
     champs.update(surcharges)
@@ -636,7 +653,10 @@ def _call_anthropic(
 ) -> LLMCall:
     import anthropic
 
-    client = anthropic.Anthropic(api_key=os.environ[spec.env_key], timeout=timeout)
+    # `max_retries=1` et non le défaut du SDK (2) : un appel qui expire est
+    # rejoué en silence par le client, et trois délais de cinq minutes bout à
+    # bout passent pour un blocage. Les étages gèrent déjà leur propre relance.
+    client = anthropic.Anthropic(api_key=os.environ[spec.env_key], timeout=timeout, max_retries=1)
     kwargs: dict[str, Any] = {
         "model": spec.model_id,
         "max_tokens": max_tokens,
@@ -675,12 +695,10 @@ def _call_anthropic(
     )
 
 
-def _call_openai_compat(
-    spec: ModelSpec, system: str, user: str, *, max_tokens: int, timeout: float
-) -> LLMCall:
-    from openai import OpenAI
-
-    client = OpenAI(api_key=os.environ[spec.env_key], base_url=spec.base_url, timeout=timeout)
+def kwargs_openai_compat(
+    spec: ModelSpec, system: str, user: str, max_tokens: int
+) -> dict[str, Any]:
+    """Arguments de `chat.completions.create`, isolés pour être testables sans réseau."""
     kwargs: dict[str, Any] = {
         "model": spec.model_id,
         spec.budget_sortie_param: max_tokens,
@@ -693,8 +711,24 @@ def _call_openai_compat(
         kwargs["response_format"] = {"type": "json_object"}
     if spec.supports_temperature:
         kwargs["temperature"] = 0
+    if spec.effort and spec.fournisseur == "openrouter":
+        # Paramètre unifié d'OpenRouter, hors schéma OpenAI : passe par
+        # `extra_body`. Sans lui, un modèle à raisonnement dépense son budget de
+        # sortie en chaîne de pensée : 400 s par appel, mesuré (voir le registre).
+        kwargs["extra_body"] = {"reasoning": {"effort": spec.effort}}
+    return kwargs
 
-    resp = client.chat.completions.create(**kwargs)
+
+def _call_openai_compat(
+    spec: ModelSpec, system: str, user: str, *, max_tokens: int, timeout: float
+) -> LLMCall:
+    from openai import OpenAI
+
+    # Même règle que côté Anthropic : une seule relance du SDK, pas deux.
+    client = OpenAI(
+        api_key=os.environ[spec.env_key], base_url=spec.base_url, timeout=timeout, max_retries=1
+    )
+    resp = client.chat.completions.create(**kwargs_openai_compat(spec, system, user, max_tokens))
     choix = resp.choices[0]
     usage = resp.usage
     texte = choix.message.content or ""

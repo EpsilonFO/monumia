@@ -698,14 +698,17 @@ class TestAncrageDansLeDiff(unittest.TestCase):
         chemin, aide, tmp = ecrire_fiche()
         with tmp:
             res = appliquer(
-                sortie(conditions=[{"op": "signaler_disparue", "id": "anteriorite-1800"}]),
+                sortie(conditions=[{"op": "signaler_disparue", "id": "edifice-anterieur-1800"}]),
                 aide,
                 chemin,
                 DOCS,
                 aujourd_hui=AUJOURD_HUI,
                 diff=self.DIFF,
             )
-            self.assertNotEqual(res.etape, "ancrage")
+            # `assertTrue(res.ok)` et non `assertNotEqual(etape, "ancrage")` : la
+            # première version de ce test visait un id de condition inexistant,
+            # butait au référentiel, et passait sans rien prouver de l'ancrage.
+            self.assertTrue(res.ok, res.erreurs)
 
     def test_citation_multiligne_entrecoupee_de_contexte_acceptee(self):
         """Une citation de tableau enjambe des lignes inchangées.
@@ -763,3 +766,64 @@ class TestAncrageDansLeDiff(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDisparitionSurSuppressionSeule(unittest.TestCase):
+    """Un diff fait uniquement de lignes retirées appelle `signaler_disparue`.
+
+    C'est le cas nominal de cette op, et l'ancrage la refusait (« aucune ligne
+    ajoutée ») : la condition partait en escalade au lieu d'être annotée.
+    """
+
+    def test_signaler_disparue_acceptee_sans_ligne_ajoutee(self):
+        chemin, aide, tmp = ecrire_fiche()
+        with tmp:
+            res = appliquer(
+                sortie(conditions=[{"op": "signaler_disparue", "id": "edifice-anterieur-1800"}]),
+                aide,
+                chemin,
+                DOCS,
+                aujourd_hui=AUJOURD_HUI,
+                diff="- Les édifices antérieurs à 1800, non classés, sont éligibles.\n",
+            )
+            self.assertTrue(res.ok, res.erreurs)
+            self.assertIn("non retrouvée dans la source", res.texte or "")
+
+    def test_une_retouche_sans_ligne_ajoutee_reste_refusee(self):
+        chemin, aide, tmp = ecrire_fiche()
+        with tmp:
+            res = appliquer(
+                sortie(
+                    conditions=[{"op": "signaler_disparue", "id": "edifice-anterieur-1800"}],
+                    financement={
+                        "champs": {"taux_max": 40.0},
+                        "quote": "Le taux d'intervention est porté à 40 % du montant des travaux.",
+                    },
+                ),
+                aide,
+                chemin,
+                DOCS,
+                aujourd_hui=AUJOURD_HUI,
+                diff="- une ligne retirée seulement\n",
+            )
+            self.assertEqual(res.etape, "ancrage")
+
+
+class TestJsonSuiviDeTexte(unittest.TestCase):
+    """Un objet JSON complet suivi d'un commentaire est lu ; un JSON cassé reste refusé."""
+
+    def test_texte_apres_l_objet_tolere(self):
+        from veille_apply import VeilleLLMOutput, parse_json_output
+
+        out, erreurs, etape = parse_json_output(
+            '{"slug": "aide-test", "conditions": []}\nVoilà, rien à signaler.', VeilleLLMOutput
+        )
+        self.assertIsNotNone(out)
+        self.assertEqual((erreurs, etape), ([], None))
+
+    def test_objet_tronque_toujours_refuse(self):
+        from veille_apply import VeilleLLMOutput, parse_json_output
+
+        out, _, etape = parse_json_output('{"slug": "aide-test", "conditions": [', VeilleLLMOutput)
+        self.assertIsNone(out)
+        self.assertEqual(etape, "json")

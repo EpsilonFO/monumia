@@ -417,3 +417,128 @@ class TestFormulaireUrl(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------------------------------------------------------------------
+# Documents binaires : PDF diffés par leur texte, le reste par sha
+# ---------------------------------------------------------------------------
+
+# Assez long pour passer `PDF_MIN_TEXT` : en dessous, un PDF est un scan et son
+# texte ne compte pas.
+PDF_TEXTE = (
+    "RÈGLEMENT D'INTERVENTION\n\n"
+    "Article 1 — Objet\n"
+    "Le présent règlement fixe les conditions d'attribution de l'aide régionale à la\n"
+    "restauration du patrimoine bâti non protégé.\n\n"
+    "Article 2 — Bénéficiaires\n"
+    "Les communes, les établissements publics de coopération intercommunale et les\n"
+    "propriétaires privés peuvent déposer une demande.\n\n"
+    "Article 3 — Conditions\n"
+    "Le plafond réglementaire est de 40 % du montant hors taxes des travaux.\n"
+    "Les travaux ne doivent pas avoir commencé avant la notification de la décision.\n"
+    "Le maître d'ouvrage s'engage à ouvrir l'édifice au public au moins dix jours par an.\n\n"
+    "Article 4 — Dépôt\n"
+    "Le dossier complet est transmis par voie dématérialisée avant le 30 juin.\n"
+    "Il comprend un devis détaillé, des photographies de l'état actuel et une note\n"
+    "de présentation du projet signée par le maître d'ouvrage.\n\n"
+    "Article 5 — Versement\n"
+    "La subvention est versée sur présentation des factures acquittées, après\n"
+    "contrôle de conformité par le service instructeur de la Région.\n"
+) * 2
+
+
+def collect_avec_pdf(
+    aide: Aide,
+    *,
+    pdf_frais: str | None = PDF_TEXTE,
+    pdf_sha_frais: str = "sha-pdf-frais",
+    pdf_baseline: str | None = PDF_TEXTE,
+    contenu: bytes | None = b"%PDF-1.4 octets",
+) -> AideCollect:
+    """Une page HTML inchangée, plus un règlement PDF surveillé."""
+    murl_pdf = MonitoredUrl(
+        url=PDF_URL,
+        role="snapshot",
+        label="reglement",
+        baseline_path=Path("2026-07-01-reglement.pdf"),
+        baseline_sha="sha-pdf-baseline",
+        baseline_body=pdf_baseline,
+        is_binary=True,
+    )
+    col = make_collect(
+        aide,
+        baseline_sha="meme-sha",
+        fresh_sha="meme-sha",
+        extra_urls=[murl_pdf],
+        baseline_docs=[
+            ("2026-07-01-page.md", BASELINE, "text"),
+            *([("2026-07-01-reglement.pdf", pdf_baseline, "pdf")] if pdf_baseline else []),
+        ],
+        baseline_urls={"2026-07-01-page.md": URL, "2026-07-01-reglement.pdf": PDF_URL},
+    )
+    col.fetched[PDF_URL] = FetchResult(
+        url=PDF_URL,
+        status=200,
+        sha256=pdf_sha_frais,
+        is_binary=True,
+        content=contenu,
+        texte_pdf=pdf_frais,
+    )
+    return col
+
+
+class TestDocumentsBinaires(unittest.TestCase):
+    """Un règlement PDF remplacé doit être VU. Avant : le sha n'était comparé que
+    pour les pages en markdown, et 97 URL binaires surveillées ne pouvaient
+    jamais sortir « modifiées »."""
+
+    def test_pdf_au_sha_identique_ne_change_rien(self):
+        aide = make_aide(conditions=[condition("du-pdf", "Le plafond réglementaire est de 40 %")])
+        col = collect_avec_pdf(aide, pdf_sha_frais="sha-pdf-baseline")
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.statut, "OK")
+        self.assertTrue(an.urls[1].sha_identique)
+        # Et la citation qu'il porte est bien RECONTRÔLÉE : le PDF frais est lisible.
+        self.assertEqual(an.couverture_quotes, (1, 1))
+
+    def test_pdf_modifie_et_lisible_part_a_l_etage_c(self):
+        aide = make_aide(conditions=[condition("du-pdf", "Le plafond réglementaire est de 40 %")])
+        frais = PDF_TEXTE.replace("40 %", "50 %")
+        an = analyze(aide, collect_avec_pdf(aide, pdf_frais=frais), today=TODAY)
+        self.assertEqual(an.statut, "MAJ_LLM")
+        self.assertTrue(an.urls[1].a_change)
+        self.assertIsNotNone(an.urls[1].diff)
+        self.assertEqual([q.cond_id for q in an.regressions], ["du-pdf"])
+        self.assertTrue(any(PDF_URL in r for r in an.raisons))
+
+    def test_pdf_modifie_mais_illisible_escalade(self):
+        # Scan, .docx, pdftotext absent : le sha dit qu'il a bougé, personne ne
+        # peut dire quoi. C'est un humain qui doit ouvrir le document.
+        aide = make_aide()
+        col = collect_avec_pdf(aide, pdf_frais=None, contenu=b"PK\x03\x04 docx")
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.statut, "ESCALADE_INGESTION")
+        self.assertTrue(an.urls[1].binaire_modifie)
+        self.assertTrue(any("binaire modifié" in r for r in an.raisons))
+
+    def test_pdf_frais_lisible_mais_baseline_scannee_escalade(self):
+        # L'archive ne s'extrait pas : rien à quoi comparer le texte frais.
+        aide = make_aide()
+        col = collect_avec_pdf(aide, pdf_baseline=None)
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.statut, "ESCALADE_INGESTION")
+
+    def test_pdf_scanne_ne_fait_pas_disparaitre_ses_citations(self):
+        # Le garde-fou d'origine : un PDF frais dont on ne tire rien n'est pas
+        # « rafraîchi », donc l'absence de la citation ne prouve rien.
+        aide = make_aide(conditions=[condition("du-pdf", "Le plafond réglementaire est de 40 %")])
+        col = collect_avec_pdf(aide, pdf_frais="trop court", pdf_sha_frais="sha-pdf-baseline")
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.regressions, [])
+        self.assertEqual([q.cond_id for q in an.non_recontrolables], ["du-pdf"])
+
+    def test_fresh_docs_expose_le_texte_du_pdf_en_type_pdf(self):
+        aide = make_aide()
+        docs = collect_avec_pdf(aide).fresh_docs()
+        self.assertEqual([(nom, kind) for nom, _, kind in docs], [(URL, "text"), (PDF_URL, "pdf")])
+        self.assertIn("plafond réglementaire", docs[1][1])

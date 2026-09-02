@@ -594,3 +594,161 @@ class TestResolutionModele(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRafraichirSnapshotsPdf(TestRafraichirSnapshots):
+    """Un règlement PDF modifié est ré-archivé avec sa provenance ; un .docx non."""
+
+    PDF_URL = "https://ex.fr/reglement.pdf"
+
+    def _contexte_binaire(self, contenu: bytes) -> tuple[AideAnalysis, AideCollect]:
+        murl = MonitoredUrl(
+            url=self.PDF_URL,
+            role="snapshot",
+            label="reglement",
+            baseline_sha="0" * 64,
+            is_binary=True,
+        )
+        result = FetchResult(
+            url=self.PDF_URL, status=200, sha256="1" * 64, is_binary=True, content=contenu
+        )
+        collect = AideCollect(slug="aide-test", urls=[murl], fetched={self.PDF_URL: result})
+        an = AideAnalysis(
+            slug="aide-test",
+            statut="ESCALADE_INGESTION",
+            urls=[UrlVerdict(murl=murl, result=result, binaire_modifie=True)],
+        )
+        return an, collect
+
+    def test_pdf_modifie_rearchive_avec_sidecar(self):
+        an, collect = self._contexte_binaire(b"%PDF-1.4 nouveau reglement")
+        noms, fichiers = self._avec_sources(an, collect)
+        attendu = f"{AUJOURD_HUI.isoformat()}-reglement.pdf"
+        self.assertEqual(noms, [attendu])
+        self.assertEqual(fichiers, [attendu, attendu + ".meta.yaml"])
+
+    def test_docx_modifie_non_rearchive(self):
+        an, collect = self._contexte_binaire(b"PK\x03\x04 docx")
+        noms, _ = self._avec_sources(an, collect)
+        self.assertEqual(noms, [])
+
+
+class TestRearchivageSansRetouche(BaseEtageC):
+    """Une page lue par le modèle devient la baseline, même sans retouche.
+
+    Sinon l'aide dont la page a bougé hors mandat repasse au modèle à chaque
+    run, pour la même réponse, indéfiniment.
+    """
+
+    def test_inchange_rearchive_la_page(self):
+        res, apres, _ = self.lancer(reponse(conditions=[]))
+        self.assertEqual(res.etat, "inchange")
+        self.assertEqual(apres, FICHE)
+        self.assertEqual(res.snapshots, [f"{AUJOURD_HUI.isoformat()}.md"])
+
+    def test_inchange_a_blanc_n_archive_rien(self):
+        res, _, _ = self.lancer(reponse(conditions=[]), dry_run=True)
+        self.assertEqual(res.etat, "inchange")
+        self.assertEqual(res.snapshots, [])
+
+
+class TestManifesteErreurHttp(unittest.TestCase):
+    def test_erreur_http_garde_la_date_du_dernier_vrai_controle(self):
+        # Sinon l'aide injoignable recule en fin de file d'ancienneté, donc
+        # hors d'un `--limit` au passage suivant : l'inverse de « à retenter ».
+        avant = {"aide-0": {"checked_at": "2026-07-01", "status": "ok"}}
+        m = update_manifest(avant, analyses_factices("ERREUR_HTTP"), {}, AUJOURD_HUI)
+        self.assertEqual(m["aide-0"]["checked_at"], "2026-07-01")
+        self.assertEqual(m["aide-0"]["status"], "erreur_http")
+
+    def test_erreur_http_sur_une_aide_jamais_vue_reste_sans_date(self):
+        m = update_manifest({}, analyses_factices("ERREUR_HTTP"), {}, AUJOURD_HUI)
+        self.assertNotIn("checked_at", m["aide-0"])
+
+    def test_rapport_liste_les_pages_rearchivees_sans_retouche(self):
+        majs = {
+            "aide-0": MajResult(
+                slug="aide-0",
+                etat="inchange",
+                resume="contact modifié, rien dans le mandat",
+                snapshots=["2026-08-07.md"],
+            )
+        }
+        texte = build_report(
+            analyses_factices("MAJ_LLM"), AUJOURD_HUI, 60.0, majs=majs, mode="complet"
+        )
+        self.assertIn("ré-archivées sans retouche", texte)
+        self.assertIn("2026-08-07.md", texte)
+
+
+class TestAcquittements(unittest.TestCase):
+    """Une échéance dépassée arbitrée par un humain ne ressort plus, tant que la date tient."""
+
+    def _analyses(self) -> dict[str, AideAnalysis]:
+        an = AideAnalysis(
+            slug="aide-0",
+            statut="DATE_PERIMEE_SOURCE_INCHANGEE",
+            raisons=["date limite dépassée (2026-05-30) mais source inchangée"],
+            date_limite_perimee=date(2026, 5, 30),
+        )
+        return {"aide-0": an}
+
+    def test_acquitter_puis_se_taire(self):
+        from veille_aides import traiter_acquittements
+
+        manifest: dict = {}
+        analyses = self._analyses()
+        poses = traiter_acquittements(analyses, manifest, nouveaux=["aide-0"])
+        self.assertEqual(poses, ["aide-0"])
+        self.assertEqual(manifest["aide-0"]["ack"], {"date_perimee": "2026-05-30"})
+        self.assertEqual(analyses["aide-0"].statut, "OK")
+        self.assertIn("acquittée", analyses["aide-0"].raisons[0])
+        # Le run suivant lit l'acquittement au manifeste et se tait de lui-même.
+        suivantes = self._analyses()
+        self.assertEqual(traiter_acquittements(suivantes, manifest), [])
+        self.assertEqual(suivantes["aide-0"].statut, "OK")
+
+    def test_une_nouvelle_date_limite_rallume_l_alerte(self):
+        from veille_aides import traiter_acquittements
+
+        manifest = {"aide-0": {"ack": {"date_perimee": "2025-05-30"}}}
+        analyses = self._analyses()
+        traiter_acquittements(analyses, manifest)
+        self.assertEqual(analyses["aide-0"].statut, "DATE_PERIMEE_SOURCE_INCHANGEE")
+
+    def test_un_autre_statut_ne_s_acquitte_pas(self):
+        from veille_aides import traiter_acquittements
+
+        manifest: dict = {}
+        analyses = analyses_factices("SANS_BASELINE")
+        self.assertEqual(traiter_acquittements(analyses, manifest, nouveaux=["aide-0"]), [])
+        self.assertNotIn("aide-0", manifest)
+
+    def test_l_acquittement_survit_au_manifeste_suivant(self):
+        avant = {"aide-0": {"checked_at": "2026-07-01", "ack": {"date_perimee": "2026-05-30"}}}
+        m = update_manifest(avant, analyses_factices("OK"), {}, AUJOURD_HUI)
+        self.assertEqual(m["aide-0"]["ack"], {"date_perimee": "2026-05-30"})
+
+
+class TestEffortDeRaisonnement(unittest.TestCase):
+    """Le budget de raisonnement d'OpenRouter est plafonné, sinon 400 s par appel."""
+
+    def test_openrouter_transmet_l_effort_en_extra_body(self):
+        from veille_llm import kwargs_openai_compat
+
+        spec = resoudre_modele("or-glm")
+        self.assertEqual(spec.effort, "medium")
+        kwargs = kwargs_openai_compat(spec, "s", "u", 1000)
+        self.assertEqual(kwargs["extra_body"], {"reasoning": {"effort": "medium"}})
+        self.assertEqual(kwargs["max_tokens"], 1000)
+
+    def test_modele_hors_registre_via_openrouter_herite_de_l_effort(self):
+        spec = resoudre_modele("openrouter:z-ai/glm-5.4-flash")
+        self.assertEqual(spec.effort, "medium")
+
+    def test_les_autres_fournisseurs_ne_recoivent_rien(self):
+        from veille_llm import kwargs_openai_compat
+
+        for alias in ("ds-flash", "gpt-luna"):
+            kwargs = kwargs_openai_compat(resoudre_modele(alias), "s", "u", 1000)
+            self.assertNotIn("extra_body", kwargs, alias)

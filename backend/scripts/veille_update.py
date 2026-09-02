@@ -23,12 +23,13 @@ Quatre décisions y sont prises, et elles méritent d'être lues avant le code :
    la fiche était incomplète — et une ré-ingestion type et vérifie, là où la
    veille ne ferait qu'empiler des conditions `untyped`.
 
-4. Une aide réellement modifiée voit ses pages RÉ-ARCHIVÉES. Sans ça le
-   pipeline n'est pas idempotent : la baseline resterait l'ancienne page, le
-   passage suivant rejouerait le même diff, et les citations qu'on vient
-   d'écrire seraient introuvables dans l'archive — comptées en dette de quotes
-   par `veille_quotes_audit.py`. La preuve doit voyager avec la modification,
-   dans le même commit.
+4. Une aide soumise au modèle voit ses pages RÉ-ARCHIVÉES, qu'il ait proposé
+   une retouche ou non. Sans ça le pipeline n'est pas idempotent : la baseline
+   resterait l'ancienne page, le passage suivant rejouerait le même diff — et
+   une aide dont la page a bougé hors mandat repaierait un appel chaque jour.
+   Pour une fiche modifiée, la preuve doit en plus voyager avec la
+   modification, dans le même commit, sinon les citations fraîches seraient
+   comptées en dette par `veille_quotes_audit.py`.
 """
 
 from __future__ import annotations
@@ -45,10 +46,10 @@ from aides_schema import AIDES_DIR, Aide
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from snapshot_source import NAME_RE, write_md_snapshot
+from snapshot_source import NAME_RE, write_md_snapshot, write_pdf_snapshot
 from veille_analyze import AideAnalysis, resume_diff
 from veille_apply import appliquer
-from veille_collect import AideCollect
+from veille_collect import AideCollect, est_pdf
 from veille_llm import ModelSpec, build_prompt, call, system_pour
 
 # Plafond d'appels par passage. Un garde-fou de coût, mais surtout de RELECTURE :
@@ -244,10 +245,18 @@ def mettre_a_jour(
 
     if applied.texte == chemin.read_text(encoding="utf-8"):
         # Le cas NORMAL et le plus fréquent : la page a bougé sur autre chose que
-        # le mandat de la veille. Rien à écrire, et surtout pas de fichier
-        # réécrit à l'identique.
+        # le mandat de la veille. Rien à écrire dans la fiche, et surtout pas de
+        # fichier réécrit à l'identique.
+        #
+        # Mais la page, elle, EST ré-archivée : sans ça, la baseline restait
+        # l'ancienne version, l'étage B rediffait le même écart au passage
+        # suivant, et l'aide repayait un appel au modèle chaque jour pour la même
+        # réponse — indéfiniment. Le verdict du modèle vaut pour la page qu'il a
+        # lue ; c'est donc elle qui devient la baseline.
         res.etat = "inchange"
         res.raison = res.resume or "le modèle ne propose aucun changement dans son mandat"
+        if not dry_run:
+            res.snapshots = rafraichir_snapshots(an, collect, jour=aujourd_hui)
         return res
 
     res.etat = "applique"
@@ -278,15 +287,27 @@ def rafraichir_snapshots(an: AideAnalysis, collect: AideCollect, *, jour: date) 
     ecrits: list[str] = []
     for u in an.urls:
         res = collect.fetched.get(u.murl.url)
-        if not (u.a_change and res and res.ok and res.raw_text and not res.via_proxy):
+        if not (u.a_change and res and res.ok and not res.via_proxy):
             continue
         # Le label compose un nom de fichier. Ceux du dépôt viennent déjà de
         # `snapshot_source`, donc valides — mais un fichier renommé à la main
         # n'a pas à faire échouer une mise à jour par ailleurs correcte.
         label = u.murl.label if u.murl.label and NAME_RE.fullmatch(u.murl.label) else None
-        ecrits.append(
-            write_md_snapshot(an.slug, u.murl.url, res.raw_text, label=label, jour=jour).name
-        )
+        if res.raw_text:
+            ecrits.append(
+                write_md_snapshot(an.slug, u.murl.url, res.raw_text, label=label, jour=jour).name
+            )
+        elif est_pdf(res.content):
+            # Un règlement PDF modifié est ré-archivé avec son sidecar de
+            # provenance : c'est lui qui redeviendra la baseline, texte compris.
+            # Les autres binaires (.docx) ne le sont pas — on ne sait pas les
+            # relire, donc pas les comparer autrement que par sha.
+            assert res.content is not None
+            ecrits.append(
+                write_pdf_snapshot(
+                    an.slug, res.content, url=u.murl.url, label=label, jour=jour
+                ).name
+            )
     return ecrits
 
 
