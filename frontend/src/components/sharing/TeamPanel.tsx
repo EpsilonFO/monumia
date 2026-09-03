@@ -142,7 +142,6 @@ export function TeamPanel({
           équipe est déjà constituée et reste à gérer. */}
       {perms.canInvite && !invitationsOuvertes && (
         <OffreUpsell
-          variante="bandeau"
           action={
             scope === 'monument'
               ? 'inviter des collaborateurs sur ce monument'

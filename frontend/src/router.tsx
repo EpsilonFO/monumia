@@ -24,6 +24,7 @@ import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { InvitationLandingPage } from '@/pages/invitation/InvitationLandingPage';
 import { ROUTES } from '@/constants/routes';
 import { useOffre, useOffreChargee } from '@/hooks/useOffre';
+import { PaywallOverlay } from '@/components/shared/Paywall';
 
 /**
  * Ancien wizard unifié : `/app/projets/nouveau`, avec `?monument=<id>` pour
@@ -47,25 +48,33 @@ function LegacyWizardRedirect() {
  * Le tableau de bord est réservé à l'offre Multi-monuments : sur un seul
  * monument, il n'agrège rien que la fiche ne montre déjà.
  *
- * Ce garde renvoie sur « Mes monuments », et NON sur les tarifs, alors que
- * l'onglet de la barre haute mène bien aux tarifs (cf. navItemsPour). Les deux
- * ne répondent pas à la même intention : `/app` est la racine de l'espace, là
- * où `RootRedirect` dépose tout le monde à la connexion. Y répondre par la page
- * de vente ferait atterrir chaque ouverture de session sur un argumentaire.
- * Cliquer l'onglet, en revanche, est une demande explicite.
+ * Hors offre, la page s'ouvre quand même, floutée, avec le paywall devant. Ce
+ * qui se vend ici est une VUE sur les données du compte : il n'y a donc rien à
+ * cacher, et l'aperçu flou dit « ceci existe et vous concerne » là où une
+ * redirection ne disait rien. Les données sont d'ailleurs déjà chargées —
+ * `GET /dashboard` sert la même réponse à tout le monde, c'est aussi elle qui
+ * alimente « Mes monuments ».
  *
- * On ATTEND la réponse du serveur avant de rediriger. L'état initial est
- * l'offre gratuite (par prudence, cf. useOffre), et trancher dessus éjecterait
- * un abonné vers « Mes monuments » à chaque rechargement — le temps que
- * /billing/access revienne.
+ * On ATTEND la réponse du serveur avant de trancher. L'état initial est l'offre
+ * gratuite (par prudence, cf. useOffre), et flouter dessus montrerait un
+ * paywall à un abonné à chaque rechargement — le temps que /billing/access
+ * revienne.
  */
 // eslint-disable-next-line react-refresh/only-export-components
 function DashboardRoute() {
   const offre = useOffre();
   const charge = useOffreChargee();
   if (!charge) return <div className="min-h-[40vh]" />;
-  if (!offre.dashboard) return <Navigate to={ROUTES.MONUMENTS} replace />;
-  return <DashboardPage />;
+  if (offre.dashboard) return <DashboardPage />;
+  return (
+    <PaywallOverlay
+      offre="Multi-monuments"
+      titre="Tous vos monuments, sur un seul écran"
+      description="Le tableau de bord réunit vos biens, l'avancement de chaque chantier et les échéances qui approchent. Il prend son sens à partir de deux monuments."
+    >
+      <DashboardPage />
+    </PaywallOverlay>
+  );
 }
 
 // Root: send logged-in users to their dashboard, others to login.

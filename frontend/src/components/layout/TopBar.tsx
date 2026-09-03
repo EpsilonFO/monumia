@@ -48,7 +48,7 @@ export function TopBar() {
                 className={({ isActive }) =>
                   cn(
                     'group relative flex h-16 items-center gap-2 px-2.5 text-[14.5px] font-medium transition-colors',
-                    isActive && !item.verrouille
+                    isActive
                       ? 'text-[color:var(--primary)]'
                       : 'text-[color:var(--gray-fg)] hover:text-[color:var(--primary)]',
                   )
@@ -61,10 +61,7 @@ export function TopBar() {
                     <span
                       aria-hidden
                       className="absolute inset-x-1.5 bottom-0 h-[2.5px] rounded-t-full transition-opacity"
-                      style={{
-                        background: C.orange,
-                        opacity: isActive && !item.verrouille ? 1 : 0,
-                      }}
+                      style={{ background: C.orange, opacity: isActive ? 1 : 0 }}
                     />
                   </>
                 )}

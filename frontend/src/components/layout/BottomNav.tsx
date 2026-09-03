@@ -38,9 +38,7 @@ export function BottomNav() {
               className={({ isActive }) =>
                 cn(
                   'flex flex-col items-center gap-1 pb-2 pt-2 text-[11px] font-medium transition-colors',
-                  isActive && !item.verrouille
-                    ? 'text-[color:var(--primary)]'
-                    : 'text-[color:var(--gray-muted)]',
+                  isActive ? 'text-[color:var(--primary)]' : 'text-[color:var(--gray-muted)]',
                 )
               }
             >
@@ -48,9 +46,7 @@ export function BottomNav() {
                 <>
                   <span
                     className="flex h-8 w-16 items-center justify-center rounded-full transition-colors"
-                    style={{
-                      background: isActive && !item.verrouille ? C.paleBlue : 'transparent',
-                    }}
+                    style={{ background: isActive ? C.paleBlue : 'transparent' }}
                   >
                     <Icon size={22} className="shrink-0" />
                   </span>

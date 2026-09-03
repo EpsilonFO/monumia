@@ -561,6 +561,7 @@ class RedactionTest(unittest.TestCase):
     def _aide(self) -> dict:
         return {
             "id": "aide-1",
+            "procedure": "Dépôt en ligne sur la plateforme régionale.",
             "nom": "Subvention DRAC pour monuments classés",
             "nomCourt": "DRAC — MH classés",
             "organisme": "DRAC Normandie",
@@ -591,15 +592,19 @@ class RedactionTest(unittest.TestCase):
             ],
         }
 
-    def test_l_identite_du_financeur_part_le_montant_reste(self):
-        redacted = aides_router.redact_locked_aide(self._aide())
+    def test_le_mode_d_emploi_part_l_identite_et_le_montant_restent(self):
+        redacted = aides_router.retirer_les_modalites(self._aide())
 
-        # Ce qu'on vend : impossible de savoir à qui s'adresser.
-        self.assertEqual(redacted["nom"], aides_router.LOCKED_AIDE_LABEL)
-        self.assertEqual(redacted["nomCourt"], aides_router.LOCKED_AIDE_LABEL)
+        # Ce qu'on vend : de quoi déposer sans nous.
         self.assertIsNone(redacted["organisme"])
         self.assertIsNone(redacted["urlOfficielle"])
-        self.assertNotIn("DRAC", json.dumps(redacted, ensure_ascii=False))
+        self.assertTrue(redacted["locked"])
+
+        # Le NOM reste : la liste l'affiche flouté (décision produit du
+        # 2026-09-03). Assumé, pas oublié — le flou est un habillage, la
+        # frontière est le contrôle sur GET /aides/{id}.
+        self.assertEqual(redacted["nom"], "Subvention DRAC pour monuments classés")
+        self.assertEqual(redacted["nomCourt"], "DRAC — MH classés")
 
         # L'argumentaire de vente, lui, reste entier.
         self.assertEqual(redacted["montantMax"], 40000)
@@ -607,21 +612,23 @@ class RedactionTest(unittest.TestCase):
         self.assertEqual(redacted["dateLimite"], "2026-12-31")
         self.assertEqual(redacted["categorie"], "etat_drac")
         self.assertEqual(redacted["id"], "aide-1")
-        self.assertTrue(redacted["locked"])
 
-    def test_gratuit_masque_les_aides_a_venir_et_elles_seules(self):
+    def test_gratuit_desarme_les_aides_a_venir_et_elles_seules(self):
         out = aides_router.redact_bientot_hors_offre(self._diagnostic(), offres.GRATUIT)
 
         # Ouverte aujourd'hui : le détail des aides est gratuit.
         self.assertEqual(out["aidesEligibles"][0]["aide"]["organisme"], "DRAC Normandie")
-        # À venir : masquée dans les trois seaux à portée.
+        # À venir : le mode d'emploi part, dans les trois seaux à portée. Le nom
+        # reste, la liste l'affiche flouté.
         for bucket in aides_router._BUCKETS_A_PORTEE:
             a_venir = [m for m in out[bucket] if m["disponibilite"] == "bientot"]
+            self.assertTrue(a_venir, bucket)
             for match in a_venir:
-                self.assertEqual(match["aide"]["nom"], aides_router.LOCKED_AIDE_LABEL)
                 self.assertIsNone(match["aide"]["organisme"])
+                self.assertIsNone(match["aide"]["procedure"])
+                self.assertTrue(match["aide"]["locked"])
         # Non éligible : rien à vendre, et le front l'affiche dans sa propre
-        # section quelle que soit sa fenêtre — la masquer n'aurait aucun sens.
+        # section quelle que soit sa fenêtre — la désarmer n'aurait aucun sens.
         self.assertEqual(out["aidesNonEligibles"][0]["aide"]["organisme"], "DRAC Normandie")
 
     def test_veille_rend_le_diagnostic_intact(self):

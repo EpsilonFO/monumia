@@ -37,7 +37,7 @@ import { sharingService } from '@/services/sharing.service';
 import { computeMonumentStats, computeProjectStats, projectStage } from '@/lib/project-stats';
 import { useOffre, useOffreMonument } from '@/hooks/useOffre';
 import { libelleMonuments, sousLePlafond } from '@/lib/offres';
-import { OffreUpsell } from '@/components/shared/OffreUpsell';
+import { PaywallDialog, PaywallOverlay } from '@/components/shared/Paywall';
 import { C, SERIF } from '@/lib/brand';
 import { isAccessLostError } from '@/lib/api-error';
 import { ROUTES } from '@/constants/routes';
@@ -93,6 +93,7 @@ export function MonumentDetailPage() {
   const [accessDoc, setAccessDoc] = useState<Document | null>(null);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
+  const [paywallProjet, setPaywallProjet] = useState(false);
 
   // L'offre qui gouverne CE bien, et non celle du compte : un architecte
   // invité par un client abonné doit pouvoir lancer un chantier de plus.
@@ -121,16 +122,12 @@ export function MonumentDetailPage() {
       ? tabParam
       : 'projets';
   const handleTabChange = useCallback((value: string) => {
-    if (value === 'equipe' && !equipeAccessible) {
-      navigate(ROUTES.TARIFS(monumentId));
-      return;
-    }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('tab', value);
       return next;
     }, { replace: true });
-  }, [setSearchParams, equipeAccessible, navigate, monumentId]);
+  }, [setSearchParams]);
 
   // Rafraîchir au montage (et quand on change de monument) : revenir sur la page
   // doit refléter les changements des autres membres, sans recharger le navigateur.
@@ -202,8 +199,7 @@ export function MonumentDetailPage() {
   // gardé en favori affiche le monument, là où un clic délibéré mène aux
   // tarifs : on n'éjecte pas quelqu'un qui voulait simplement ouvrir sa fiche.
   const activeTab =
-    (!monument?.myRole && (requestedTab === 'documents' || requestedTab === 'equipe')) ||
-    (requestedTab === 'equipe' && !equipeAccessible)
+    (!monument?.myRole && (requestedTab === 'documents' || requestedTab === 'equipe'))
       ? 'projets'
       : requestedTab;
 
@@ -221,9 +217,17 @@ export function MonumentDetailPage() {
     [monument],
   );
 
+  // Le bouton garde son libellé et son geste, et c'est le paywall qui se pose
+  // devant quand le plafond est atteint : refermer la modale laisse
+  // l'utilisateur là où il était, ce qu'une redirection vers les tarifs ne
+  // permet pas.
   const goNouveauProjet = useCallback(() => {
+    if (!peutCreerProjet) {
+      setPaywallProjet(true);
+      return;
+    }
     if (monumentId) navigate(ROUTES.PROJET_NEW(monumentId));
-  }, [monumentId, navigate]);
+  }, [peutCreerProjet, monumentId, navigate]);
 
   if (notFound || (!monument && !monumentId)) {
     return (
@@ -312,6 +316,21 @@ export function MonumentDetailPage() {
   // par l'API — on masque simplement ce qui n'a pas de contenu pour elle.
   const equipeDuMonument = !!monument.myRole;
 
+  // Monté une seule fois, que l'offre l'ouvre ou non : c'est le même panneau,
+  // seul son habillage change.
+  const equipePanel = (
+    <TeamPanel
+      scope="monument"
+      scopeId={monument.id}
+      invitationsOuvertes={offre.equipe}
+      myRole={monument.myRole ?? null}
+      members={members}
+      invitations={invitations}
+      onChanged={reloadMembers}
+      onLeft={() => { deleteMonument(monument.id); navigate(ROUTES.MONUMENTS); }}
+    />
+  );
+
   const tabs: { value: string; label: string; icon: IconComponent; count: number | null }[] = [
     { value: 'sanitaire', label: 'Fiche monument', icon: IconMonument, count: null },
     { value: 'projets', label: 'Projets', icon: IconProjet, count: projets.length },
@@ -334,7 +353,7 @@ export function MonumentDetailPage() {
       <MonumentSummaryBar
         monument={monument}
         members={members}
-        onNouveauProjet={peutCreerProjet ? goNouveauProjet : undefined}
+        onNouveauProjet={goNouveauProjet}
       />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
@@ -403,22 +422,14 @@ export function MonumentDetailPage() {
             <>
               {canEdit && (
                 <div className="flex justify-end">
-                  {peutCreerProjet ? (
-                    <button
-                      onClick={goNouveauProjet}
-                      className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white transition-all duration-200 hover:shadow-md"
-                      style={{ background: C.orange }}
-                    >
-                      <IconAjouter className="h-3.5 w-3.5" strokeWidth={2} />
-                      Nouveau projet
-                    </button>
-                  ) : (
-                    <OffreUpsell
-                      action="mener plus de projets"
-                      offre="Veille"
-                      monumentId={monument.id}
-                    />
-                  )}
+                  <button
+                    onClick={goNouveauProjet}
+                    className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white transition-all duration-200 hover:shadow-md"
+                    style={{ background: C.orange }}
+                  >
+                    <IconAjouter className="h-3.5 w-3.5" strokeWidth={2} />
+                    Nouveau projet
+                  </button>
                 </div>
               )}
               <div className="space-y-4">
@@ -490,16 +501,18 @@ export function MonumentDetailPage() {
 
         {/* ÉQUIPE */}
         <TabsContent value="equipe" className="mt-4">
-          <TeamPanel
-            scope="monument"
-            scopeId={monument.id}
-            invitationsOuvertes={offre.equipe}
-            myRole={monument.myRole ?? null}
-            members={members}
-            invitations={invitations}
-            onChanged={reloadMembers}
-            onLeft={() => { deleteMonument(monument.id); navigate(ROUTES.MONUMENTS); }}
-          />
+          {equipeAccessible ? (
+            equipePanel
+          ) : (
+            <PaywallOverlay
+              offre="Veille"
+              titre="Travaillez à plusieurs sur ce monument"
+              description="Invitez votre architecte, vos artisans ou un assistant. Ils accèdent au monument, à ses projets et à ses documents, avec le rôle que vous leur donnez."
+              monumentId={monument.id}
+            >
+              {equipePanel}
+            </PaywallOverlay>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -525,6 +538,19 @@ export function MonumentDetailPage() {
           onSaved={reloadMonumentDocuments}
         />
       )}
+
+      <PaywallDialog
+        open={paywallProjet}
+        onOpenChange={setPaywallProjet}
+        offre="Veille"
+        titre="Menez autant de chantiers qu'il en faut"
+        description={
+          offre.projetsMax === null
+            ? 'L’offre Veille rend vos projets de travaux illimités, et vous prévient avant chaque date limite.'
+            : `Votre offre couvre ${offre.projetsMax} projets par monument. L’offre Veille les rend illimités, et vous prévient avant chaque date limite.`
+        }
+        monumentId={monument.id}
+      />
 
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>

@@ -101,14 +101,25 @@ def _camelise_diagnostic(result: dict) -> dict:
     return result
 
 
-# Ce que voit une aide caviardée. Le libellé remplace le nom de l'aide dans
-# l'échéancier, où il n'est pas flouté : il doit rester présentable.
+# Le libellé qui remplace le nom d'une aide là où elle n'est PAS floutée : le
+# digest du dashboard, qui alimente l'échéancier et les vignettes de projet. Il
+# doit donc rester présentable.
 LOCKED_AIDE_LABEL = "Aide masquée"
 
-# Champs retirés d'une aide caviardée. Le montant, le taux, la catégorie et la
-# date limite RESTENT visibles : c'est tout l'argumentaire de vente, montrer ce
-# qu'il y a à gagner sans dire où le demander. Ce qui part, c'est ce qu'on
-# vend — l'identité du financeur et le moyen de le contacter.
+# Ce qu'on retire d'une aide dont le guichet n'est pas encore ouvert, pour un
+# compte qui n'a pas l'offre Veille.
+#
+# Le NOM n'en fait plus partie : la liste montre les vrais noms, simplement
+# floutés (décision produit du 2026-09-03). Conséquence à assumer plutôt qu'à
+# oublier — le flou est un habillage, pas une frontière : ces noms partent en
+# clair dans la réponse HTTP et l'onglet Réseau des devtools suffit à les lire.
+# C'est tenable ici parce que le catalogue est construit à partir de sources
+# publiques, et parce que ce que vend l'offre n'est pas le nom : c'est l'email
+# le jour de l'ouverture, et le MODE D'EMPLOI ci-dessous.
+#
+# Le montant, le taux, la catégorie et les dates restent également visibles :
+# c'est l'argumentaire de vente, montrer ce qu'il y a à gagner. Ce qui part,
+# c'est ce qui permettrait de déposer sans nous.
 _REDACTED_AIDE_FIELDS = (
     "organisme",
     "urlOfficielle",
@@ -122,21 +133,13 @@ _REDACTED_AIDE_FIELDS = (
 )
 
 
-def redact_locked_aide(aide: dict) -> dict:
-    """Anonymise une aide que l'offre du compte ne montre pas encore.
+def retirer_les_modalites(aide: dict) -> dict:
+    """Retire d'une aide de quoi la déposer : financeur, contacts, pièces.
 
-    Le floutage CSS côté navigateur ne cache rien : le nom part quand même dans
-    la réponse HTTP, et l'onglet Réseau des devtools suffit à le lire. La seule
-    frontière qui tienne est ici, côté serveur.
-
-    L'`id` est conservé : c'est le slug, il sert de clé de rendu et de clé de
-    corrélation avec les dossiers et les suivis déjà ouverts sur cette aide. Il
-    reste donc devinable — d'où le contrôle posé aussi sur GET /aides/{id}, qui
-    est le seul chemin menant à la fiche complète.
+    Son identité reste (nom, description) : la liste l'affiche floutée. La
+    frontière qui tient, c'est celle-ci plus le contrôle sur GET /aides/{id},
+    seul chemin vers la fiche complète.
     """
-    aide["nom"] = LOCKED_AIDE_LABEL
-    aide["nomCourt"] = LOCKED_AIDE_LABEL
-    aide["description"] = "Passez à l'offre Veille pour voir de quelle aide il s'agit."
     for field in _REDACTED_AIDE_FIELDS:
         if field in aide:
             aide[field] = None
@@ -152,19 +155,19 @@ _BUCKETS_A_PORTEE = ("aidesEligibles", "aidesPotentiellementEligibles", "aidesAt
 
 
 def redact_bientot_hors_offre(result: dict, offre: Offre) -> dict:
-    """Caviarde les aides « Disponibles bientôt » que l'offre ne couvre pas.
+    """Retire leurs modalités aux aides « Disponibles bientôt » hors offre.
 
     C'est le seul paywall qui reste sur les aides : leur détail est gratuit dès
-    lors que le guichet est ouvert. Ce que l'offre Veille vend, c'est de savoir
-    à l'AVANCE quelle aide va ouvrir — et de recevoir l'email le jour où elle
-    ouvre.
+    lors que le guichet est ouvert. Ce que l'offre Veille vend sur celles qui
+    n'ont pas encore ouvert, c'est l'email le jour de l'ouverture et l'accès à
+    leur fiche — plus leur nom, que la liste montre désormais.
     """
     if offre.aides_bientot:
         return result
     for bucket in _BUCKETS_A_PORTEE:
         for match in result.get(bucket, []):
             if match.get("disponibilite") == "bientot":
-                match["aide"] = redact_locked_aide(match["aide"])
+                match["aide"] = retirer_les_modalites(match["aide"])
     return result
 
 

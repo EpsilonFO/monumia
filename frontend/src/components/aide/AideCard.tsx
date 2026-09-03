@@ -9,7 +9,6 @@ import {
   IconTemps,
   IconEcheance,
   IconCalendrier,
-  IconVerrou,
   IconSubvention,
   IconTendance,
   IconInstitution,
@@ -38,17 +37,8 @@ import type { AideMatchResult } from '@/types';
 interface AideCardProps {
   match: AideMatchResult;
   showEligibility?: boolean;
-  /**
-   * Aide dont le guichet n'est pas encore ouvert, sur une offre qui ne les
-   * montre pas. Son nom et son financeur sont déjà absents de la réponse
-   * serveur (cf. redact_bientot_hors_offre) : ce drapeau ne fait que rendre le
-   * verrou lisible et rediriger le clic vers la page Tarifs.
-   */
-  locked?: boolean;
   /** Le PROJET dans lequel l'aide est vue : c'est lui qui clé la fiche d'aide. */
   projetId?: string;
-  /** Son monument : il sert de point de retour depuis la page Tarifs. */
-  monumentId?: string;
   /**
    * `tile` = vignette compacte (non éligibles) · `grid` = carte « opportunité »
    * verticale (≥ 2 aides) · `hero` = grande carte pleine largeur (1 seule aide).
@@ -101,7 +91,7 @@ const CATEGORY_ICON: Record<string, typeof IconInstitution> = {
   autre: IconAide,
 };
 
-export function AideCard({ match, showEligibility = true, locked = false, projetId, monumentId, layout = 'tile' }: AideCardProps) {
+export function AideCard({ match, showEligibility = true, projetId, layout = 'tile' }: AideCardProps) {
   const { aide, criteresRemplis, criteresNonRemplis } = match;
   const navigate = useNavigate();
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
@@ -121,9 +111,8 @@ export function AideCard({ match, showEligibility = true, locked = false, projet
     ? ROUTES.PROJET_AIDE(projetId, aide.id)
     : ROUTES.MONUMENTS;
 
-  const hoverClass = locked
-    ? 'hover:border-warning'
-    : status === 'eligible'
+  const hoverClass =
+    status === 'eligible'
       ? 'hover:border-success'
       : status === 'atteignable'
         ? 'hover:border-info'
@@ -131,18 +120,12 @@ export function AideCard({ match, showEligibility = true, locked = false, projet
           ? 'hover:border-warning'
           : 'hover:border-border';
 
-  const handleCardClick = () => {
-    if (locked) {
-      // Le monument part dans l'URL pour que « Retour » revienne ici :
-      // l'aller-retour vers Stripe quitte le site et efface tout state React.
-      navigate(ROUTES.TARIFS(monumentId));
-    } else {
-      navigate(aideDetailUrl);
-    }
-  };
+  // Le paywall des aides à venir vit au niveau de la SECTION, qui les floute et
+  // les rend inertes : plus rien à intercepter ici.
+  const handleCardClick = () => navigate(aideDetailUrl);
 
   // Animation volontairement minimale : une simple ombre au survol, rien de plus.
-  const cardBase = `group relative overflow-hidden cursor-pointer transition duration-200 hover:shadow-md ${hoverClass} ${redAlert ? 'ring-2 ring-destructive/70' : ''} ${locked ? 'bg-muted/50' : ''}`;
+  const cardBase = `group relative overflow-hidden cursor-pointer transition duration-200 hover:shadow-md ${hoverClass} ${redAlert ? 'ring-2 ring-destructive/70' : ''}`;
 
   // Pièces partagées entre la vignette (`tile`) et la ligne (`row`) — même contenu,
   // agencement différent.
@@ -183,34 +166,10 @@ export function AideCard({ match, showEligibility = true, locked = false, projet
           {DISPONIBILITE_BIENTOT_PILL.label}
         </Badge>
       )}
-      {locked && (
-        <Badge variant="outline" className="border-warning text-warning bg-warning-muted gap-1">
-          <IconVerrou className="h-2.5 w-2.5" />
-          Offre Veille
-        </Badge>
-      )}
     </div>
   );
 
-  /**
-   * Nom de l'aide, ou marque de verrou quand l'offre ne la montre pas encore.
-   *
-   * Le nom n'est pas flouté mais absent : le serveur ne l'envoie pas pour une
-   * aide dont le guichet n'est pas ouvert (cf. redact_locked_aide côté
-   * backend). Un floutage CSS n'aurait rien caché — le nom aurait voyagé quand
-   * même, lisible dans les outils de développement. Le cadenas dit donc
-   * franchement ce qu'il en est, plutôt que de mimer un texte illisible.
-   */
-  const titleText = locked ? (
-    <span className="inline-flex items-baseline gap-1.5">
-      <IconVerrou className="h-[0.8em] w-[0.8em] shrink-0 self-center opacity-70" />
-      <span className="italic">{aide.nomCourt}</span>
-    </span>
-  ) : (
-    aide.nomCourt
-  );
-
-  const title = <CardTitle className="text-base leading-tight">{titleText}</CardTitle>;
+  const title = <CardTitle className="text-base leading-tight">{aide.nomCourt}</CardTitle>;
 
   const description = (className = '') => (
     <p className={`text-sm text-muted-foreground line-clamp-2 ${className}`}>{aide.description}</p>
@@ -257,7 +216,7 @@ export function AideCard({ match, showEligibility = true, locked = false, projet
     </div>
   ) : null;
 
-  const officialLink = !locked && aide.urlOfficielle ? (
+  const officialLink = aide.urlOfficielle ? (
     <Button asChild size="sm" variant="ghost" onClick={(e) => e.stopPropagation()}>
       <a href={aide.urlOfficielle} target="_blank" rel="noopener noreferrer">
         <IconLienExterne className="h-3 w-3 mr-1" />
@@ -317,23 +276,15 @@ export function AideCard({ match, showEligibility = true, locked = false, projet
     valueColor: deadline ? dTone.fg : undefined,
   });
 
-  // Bouton principal clair — signal d'action fort, en bleu charte. Verrouillé,
-  // il annonce sa vraie destination : la page Tarifs, pas la fiche de l'aide.
+  // Bouton principal clair — signal d'action fort, en bleu charte.
   const detailButton = (fullWidth: boolean) => (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); handleCardClick(); }}
       className={`inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-[13.5px] font-semibold text-white transition-shadow duration-200 hover:shadow-md ${fullWidth ? 'w-full' : ''}`}
-      style={{ background: locked ? C.orange : C.blue }}
+      style={{ background: C.blue }}
     >
-      {locked ? (
-        <>
-          <IconVerrou className="h-3.5 w-3.5" />
-          Voir les offres
-        </>
-      ) : (
-        "Voir l'aide"
-      )}
+      Voir l'aide
       <ArrowRight className="h-4 w-4" />
     </button>
   );
@@ -371,7 +322,7 @@ export function AideCard({ match, showEligibility = true, locked = false, projet
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-[20px] leading-snug" style={{ fontFamily: SERIF, color: C.blue }}>
-                    {titleText}
+                    {aide.nomCourt}
                   </h3>
                   {statusPill}
                   {bientotPill}
@@ -429,7 +380,7 @@ export function AideCard({ match, showEligibility = true, locked = false, projet
           {/* Hauteur réservée sur 2 lignes pour que les cartes d'une même
               rangée gardent leurs sections alignées quel que soit le nom. */}
           <h3 className="line-clamp-2 min-h-[2lh] text-[17px] leading-snug" style={{ fontFamily: SERIF, color: C.blue }}>
-            {titleText}
+            {aide.nomCourt}
           </h3>
 
           {description('min-h-[2lh]')}

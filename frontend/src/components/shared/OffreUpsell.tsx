@@ -5,59 +5,28 @@ import { ROUTES } from '@/constants/routes';
 
 interface OffreUpsellProps {
   /**
-   * Ce que l'offre débloquerait, à l'infinitif et sans majuscule : « ajouter un
-   * second monument ». Chaque variante le met en forme à sa façon — la
-   * capitale initiale pour un bouton, une phrase complète pour un bandeau.
+   * Ce que l'offre débloquerait, à l'infinitif et sans majuscule : la phrase se
+   * lit « L'offre Veille permet de {action}. »
    */
   action: string;
-  /**
-   * Nom de l'offre à prendre — « Veille » ou « Multi-monuments ». Nommée dans
-   * le bandeau, où il y a la place de l'expliquer ; absente du bouton, où
-   * « Offre Veille pour mener plus de projets » était plus long que le bouton
-   * qu'il remplace. Le nom de l'offre, c'est la page Tarifs qui le donne.
-   */
+  /** Nom de l'offre à prendre — « Veille » ou « Multi-monuments ». */
   offre: string;
   /** Monument d'où l'on part, pour que « Retour » revienne au bon endroit. */
   monumentId?: string;
-  /** `bouton` remplace un bouton d'action ; `bandeau` explique une section absente. */
-  variante?: 'bouton' | 'bandeau';
 }
 
 /**
- * Ce qui prend la place d'une action que l'offre ne permet pas.
+ * Bandeau discret annonçant ce qu'une offre ouvrirait, à poser DANS un contenu
+ * qui reste par ailleurs utilisable.
  *
- * Le parti pris : une porte visible plutôt qu'un vide. Un bouton simplement
- * disparu se lit comme une panne — l'utilisateur cherche ce qu'il a mal fait,
- * puis écrit au support. Une porte nommée (« l'offre Veille débloque ceci »)
- * transforme la même limite en information.
- *
- * Les deux SUPPRESSIONS font exception et n'utilisent pas ce composant : elles
- * disparaissent sans un mot. Vendre le droit de supprimer se lit mal, et
- * personne n'arrive sur une fiche dans l'intention d'effacer.
+ * À distinguer de `PaywallOverlay` et `PaywallDialog` : ceux-là remplacent
+ * l'accès à un contenu ou à un geste, celui-ci accompagne un contenu ouvert
+ * dont une capacité manque. Seul cas aujourd'hui : l'équipe d'un monument
+ * après une résiliation — les membres restent gérables, la seule chose perdue
+ * est le droit d'en ajouter. Un paywall par-dessus rendrait leur retrait
+ * impossible.
  */
-export function OffreUpsell({
-  action,
-  offre,
-  monumentId,
-  variante = 'bouton',
-}: OffreUpsellProps) {
-  if (variante === 'bouton') {
-    return (
-      <Link
-        to={ROUTES.TARIFS(monumentId)}
-        // `aria-label` porte ce que le libellé ne dit plus : hors contexte
-        // visuel, « Mener plus de projets » ne laisse pas deviner qu'on part
-        // vers les tarifs.
-        aria-label={`${capitale(action)} : découvrir l'offre ${offre}`}
-        className="group inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-[13px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        style={{ borderColor: C.orange, color: C.orange, background: C.paleOrange }}
-      >
-        {capitale(action)}
-        <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-      </Link>
-    );
-  }
-
+export function OffreUpsell({ action, offre, monumentId }: OffreUpsellProps) {
   return (
     <div
       className="flex flex-col gap-3 rounded-2xl border px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
@@ -80,7 +49,3 @@ export function OffreUpsell({
   );
 }
 
-/** Majuscule initiale : `action` arrive à l'infinitif, pour servir les deux variantes. */
-function capitale(texte: string): string {
-  return texte.charAt(0).toUpperCase() + texte.slice(1);
-}

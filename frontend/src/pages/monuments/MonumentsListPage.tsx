@@ -19,7 +19,7 @@ import { computeMonumentStats } from '@/lib/project-stats';
 import { useProjectsData } from '@/hooks/useProjectsData';
 import { useOffre } from '@/hooks/useOffre';
 import { libelleMonuments, sousLePlafond } from '@/lib/offres';
-import { OffreUpsell } from '@/components/shared/OffreUpsell';
+import { PaywallDialog } from '@/components/shared/Paywall';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
@@ -38,6 +38,7 @@ export function MonumentsListPage() {
   // nombre d'aides (sinon les cartes s'affichent vides puis sautent).
   const { loading } = useProjectsData();
 
+  const [paywallMonument, setPaywallMonument] = useState(false);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<MonumentSortKey>('recent');
 
@@ -83,6 +84,11 @@ export function MonumentsListPage() {
   const mesMonuments = user ? monuments.filter((m) => m.userId === user.id).length : 0;
   const peutCreer = sousLePlafond(offre.monumentsMax, mesMonuments);
 
+  // Le bouton garde son libellé et son geste, et c'est le paywall qui se pose
+  // devant quand le plafond est atteint : refermer la modale laisse
+  // l'utilisateur sur sa liste, ce qu'une redirection vers les tarifs ne
+  // permet pas. `Link` quand l'action est ouverte, `button` sinon — un lien
+  // qui n'emmène nulle part mentirait au survol comme au clic milieu.
   const newMonumentButton = peutCreer ? (
     <Link
       to={ROUTES.MONUMENT_NEW}
@@ -93,7 +99,15 @@ export function MonumentsListPage() {
       Nouveau monument
     </Link>
   ) : (
-    <OffreUpsell action="ajouter un second monument" offre="Multi-monuments" />
+    <button
+      type="button"
+      onClick={() => setPaywallMonument(true)}
+      className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[13px] font-semibold text-white transition-all hover:shadow-md"
+      style={{ background: C.orange }}
+    >
+      <IconAjouter className="h-3.5 w-3.5" strokeWidth={2} />
+      Nouveau monument
+    </button>
   );
 
   return (
@@ -190,6 +204,14 @@ export function MonumentsListPage() {
           )}
         </>
       )}
+
+      <PaywallDialog
+        open={paywallMonument}
+        onOpenChange={setPaywallMonument}
+        offre="Multi-monuments"
+        titre="Gérez tout votre parc au même endroit"
+        description="L'offre gratuite couvre un monument. Multi-monuments les rend illimités et ouvre le tableau de bord, qui réunit leurs chantiers et leurs échéances."
+      />
     </div>
   );
 }
