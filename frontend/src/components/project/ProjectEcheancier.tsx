@@ -30,9 +30,14 @@ function joursLabel(d: ProjectDeadline): string {
  * de la plus proche à la plus lointaine.
  *
  * Chaque ligne mène là où l'échéance se traite — la fiche de l'aide, ou le
- * dossier (cf. `deadlineLink`). Sur un projet non débloqué, le nom de l'aide est
- * déjà masqué côté serveur et la fiche renvoie d'elle-même vers les tarifs : le
- * lien n'ouvre donc rien qui ne soit payé.
+ * dossier (cf. `deadlineLink`).
+ *
+ * L'échéancier lui-même est réservé à l'offre Veille : c'est la page du projet
+ * qui le décide (`offre.echeancier`), ce composant n'en sait rien. Il peut donc
+ * porter des lignes dont le nom d'aide est masqué — une aide à venir sur un
+ * compte gratuit, vue par un membre d'une équipe dont le propriétaire est
+ * abonné : le nom est retiré côté serveur, et le lien renvoie de lui-même vers
+ * les tarifs.
  */
 export function ProjectEcheancier({ deadlines }: ProjectEcheancierProps) {
   if (deadlines.length === 0) {

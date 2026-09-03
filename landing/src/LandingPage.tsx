@@ -247,26 +247,6 @@ function CountUp({
   return <>{val.toLocaleString('fr-FR')}</>;
 }
 
-function Kicker({
-  children,
-  color = C.orange,
-  align = 'center',
-}: {
-  children: ReactNode;
-  color?: string;
-  align?: 'center' | 'left';
-}) {
-  return (
-    <div className={`flex items-center gap-3 ${align === 'center' ? 'justify-center' : ''}`}>
-      <span className="h-px w-7" style={{ background: color, opacity: 0.65 }} />
-      <span className="text-[12.5px] font-semibold uppercase tracking-[0.18em]" style={{ color }}>
-        {children}
-      </span>
-      {align === 'center' && <span className="h-px w-7" style={{ background: color, opacity: 0.65 }} />}
-    </div>
-  );
-}
-
 function goToApp() {
   window.location.href = APP_URL;
 }
@@ -314,23 +294,20 @@ function CtaButton({
   );
 }
 
-/* Titre de section : kicker, titre serif, filet orange */
+/* Titre de section : titre serif, filet orange */
 function SectionTitle({
-  kicker,
   title,
   sub,
   dark = false,
 }: {
-  kicker: string;
   title: ReactNode;
   sub?: ReactNode;
   dark?: boolean;
 }) {
   return (
     <div className="mx-auto max-w-3xl text-center">
-      <Kicker color={dark ? C.orangeVif : C.orange}>{kicker}</Kicker>
       <h2
-        className="mt-5 font-serif text-[clamp(1.9rem,3.4vw,2.4rem)] leading-[1.2] tracking-[-0.01em]"
+        className="font-serif text-[clamp(1.9rem,3.4vw,2.4rem)] leading-[1.2] tracking-[-0.01em]"
         style={{ color: dark ? '#fff' : C.ink }}
       >
         {title}
@@ -416,10 +393,12 @@ function Header() {
         <div className="flex items-center gap-5">
           <button
             onClick={goToSignup}
-            className="rounded-full px-5 py-2.5 text-[14px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_20px_-6px_rgba(241,113,5,0.55)]"
+            className="whitespace-nowrap rounded-full px-5 py-2.5 text-[14px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_20px_-6px_rgba(241,113,5,0.55)]"
             style={{ background: C.orange }}
           >
-            Me tenir informé
+            {/* Libellé court sous 640 px : l'intitulé complet ferait déborder l'en-tête */}
+            <span className="sm:hidden">Découvrir</span>
+            <span className="hidden sm:inline">Découvrir mes financements mobilisables</span>
           </button>
         </div>
       </div>
@@ -535,7 +514,7 @@ function Hero() {
           </p>
 
           <div className="fade-up mt-9 flex flex-wrap items-center gap-4" style={{ animationDelay: '0.45s' }}>
-            <CtaButton onClick={goToSignup}>Me tenir informé du lancement</CtaButton>
+            <CtaButton onClick={goToSignup}>Découvrir mes financements mobilisables</CtaButton>
             <a
               href="mailto:contact@monumia.fr"
               className="group inline-flex items-center gap-2.5 rounded-full py-2 pl-2 pr-6 text-[15px] font-semibold transition-all duration-300 hover:-translate-y-0.5 hover:border-[#0a369d] hover:shadow-[0_10px_28px_-14px_rgba(10,54,157,0.45)]"
@@ -1437,11 +1416,7 @@ function Demo() {
 
       <div className="relative z-10 mx-auto max-w-6xl px-5 py-24 lg:px-8 lg:py-32">
         <Reveal>
-          <SectionTitle
-            dark
-            kicker="L’application"
-            title="Trois usages en un seul outil"
-          />
+          <SectionTitle dark title="Trois usages en un seul outil" />
         </Reveal>
 
         {/* Les trois missions, en onglets */}
@@ -1518,7 +1493,7 @@ function Demo() {
                 ))}
               </ul>
               <CtaButton variant="white" onClick={goToSignup} className="mt-9">
-                Me tenir informé du lancement
+                Découvrir mes financements mobilisables
               </CtaButton>
             </div>
 
@@ -1638,7 +1613,6 @@ function Team() {
       <div className="mx-auto max-w-5xl">
         <Reveal>
           <SectionTitle
-            kicker="L’équipe"
             title="Les visages derrière Monumia"
             sub="Notre conviction : le patrimoine mérite des outils à la hauteur de son histoire et de ceux qui s'y engagent."
           />
@@ -1715,9 +1689,8 @@ function Pricing() {
       <div className="mx-auto max-w-6xl">
         <Reveal>
           <SectionTitle
-            kicker="Tarifs"
             title="Une formule pour chaque étape de votre projet"
-            sub="Découvrir les dispositifs auxquels votre monument est éligible ne coûte rien. La veille et la gestion de plusieurs monuments viennent ensuite, à votre rythme."
+            sub="Des offres adaptées à différents cas d’usage."
           />
         </Reveal>
 
@@ -1830,13 +1803,12 @@ function Pricing() {
                 </p>
                 <p className="mt-1.5 text-[13px] text-white/60">selon la taille de votre parc</p>
                 <p className="mt-7 text-[13px] font-semibold uppercase tracking-[0.08em]" style={{ color: C.orangeVif }}>
-                  Cette offre comprend :
+                  Toutes les fonctionnalités de Veille, plus :
                 </p>
                 <ul className="mt-3 flex-1 space-y-3">
                   {[
-                    'Le meilleur de l’offre Découverte, adapté à la gestion de plusieurs monuments',
-                    'Tableau de bord de gestion multi-monuments (avec ou sans veille)',
-                    'Suivez l’intégralité de vos projets depuis un seul espace',
+                    'Gestion de plusieurs monuments en parallèle',
+                    'Tableau de bord de gestion multi-monuments (avec veille)',
                   ].map((f) => (
                     <li key={f} className="flex items-start gap-2.5 text-[14.5px] leading-snug text-white/80">
                       <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.orangeVif }} strokeWidth={2.2} />
@@ -1851,12 +1823,6 @@ function Pricing() {
             </div>
           </Reveal>
         </div>
-
-        <Reveal delay={300}>
-          <p className="mt-10 text-center text-[13.5px]" style={{ color: C.inkFaint }}>
-            Les tarifs définitifs seront annoncés au lancement. L’offre Découverte reste gratuite.
-          </p>
-        </Reveal>
       </div>
     </section>
   );
@@ -1913,7 +1879,7 @@ function Faq() {
   const items = [
     {
       q: 'À qui s’adresse Monumia ?',
-      a: 'À tous ceux qui ont un lieu à entretenir ou à faire vivre : propriétaires privés d’un château, d’un manoir, d’un moulin ou d’une maison ancienne, associations, fondations, communes et collectivités. Si votre lieu a une histoire, Monumia peut chercher les aides qui lui correspondent.',
+      a: 'À tous ceux qui ont un lieu à entretenir ou à faire vivre : propriétaires privés d’un château, d’un manoir, d’un moulin ou d’une maison ancienne, associations, fondations, communes et collectivités.',
     },
     {
       q: 'Mon lieu n’est ni classé, ni inscrit. Ai-je quand même droit à des aides ?',
@@ -1945,9 +1911,19 @@ function Faq() {
       <div className="mx-auto max-w-3xl">
         <Reveal>
           <SectionTitle
-            kicker="Questions fréquentes"
             title="Vos questions, nos réponses"
-            sub="Et s’il en reste une, écrivez-nous : une vraie personne vous répondra."
+            sub={
+              <>
+                Pour toutes vos questions supplémentaires, merci de nous contacter :{' '}
+                <a
+                  href="mailto:contact@monumia.fr"
+                  className="underline underline-offset-4 transition-colors duration-200 hover:text-[#0a369d]"
+                  style={{ color: C.orange }}
+                >
+                  contact@monumia.fr
+                </a>
+              </>
+            }
           />
         </Reveal>
         <div className="mt-12 space-y-4">
@@ -1984,7 +1960,7 @@ function FinalCta() {
               Venez découvrir les dispositifs disponibles pour votre monument. 
             </p>
             <div className="mt-9">
-              <CtaButton onClick={goToSignup}>Me tenir informé du lancement</CtaButton>
+              <CtaButton onClick={goToSignup}>Découvrir mes financements mobilisables</CtaButton>
             </div>
             <p className="mt-5 text-[13px] uppercase tracking-[0.12em] text-white/60">
               Gratuit · Sans engagement

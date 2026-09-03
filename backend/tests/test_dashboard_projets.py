@@ -44,10 +44,26 @@ class _FakeSupabase:
         return _FakeQuery(self._tables.get(name, []))
 
 
-# `fetch_user_monuments` pose toujours `my_role` : renseigné pour l'équipe du
-# monument, None pour un accès obtenu via un seul de ses projets.
-M_AVEC = {"id": "m1", "code_insee": "75056", "nom": "Avec projets", "my_role": "owner"}
-M_SANS = {"id": "m2", "code_insee": "75056", "nom": "Sans projet", "my_role": "owner"}
+# `fetch_user_monuments` pose toujours `my_role` et `offre` : le rôle renseigné
+# pour l'équipe du monument (None pour un accès obtenu via un seul de ses
+# projets), et l'offre qui gouverne le bien — c'est elle qui décide si les aides
+# encore à venir sortent nommées du digest.
+OFFRE_GRATUITE = {"aidesBientot": False}
+OFFRE_VEILLE = {"aidesBientot": True}
+M_AVEC = {
+    "id": "m1",
+    "code_insee": "75056",
+    "nom": "Avec projets",
+    "my_role": "owner",
+    "offre": OFFRE_GRATUITE,
+}
+M_SANS = {
+    "id": "m2",
+    "code_insee": "75056",
+    "nom": "Sans projet",
+    "my_role": "owner",
+    "offre": OFFRE_GRATUITE,
+}
 P1 = {"id": "p1", "monument_id": "m1", "travaux_envisages": ["toiture"], "questionnaire": {}}
 P2 = {"id": "p2", "monument_id": "m1", "travaux_envisages": [], "questionnaire": {"f": "oui"}}
 
@@ -55,7 +71,6 @@ P2 = {"id": "p2", "monument_id": "m1", "travaux_envisages": [], "questionnaire":
 def _dashboard(
     tables: dict,
     *,
-    unlocked: list[str] | None = None,
     monuments: list[dict] | None = None,
     mes_projets: list[str] | None = None,
 ):
@@ -70,10 +85,6 @@ def _dashboard(
         ),
         patch("routers.dashboard.projet_ids_membre", return_value=mes_projets or []),
         patch("routers.dashboard.deterministic_diagnostic_for", return_value={}),
-        patch(
-            "routers.dashboard.billing.access_snapshot",
-            return_value={"unlockedMonumentIds": unlocked or [], "allAccess": False},
-        ),
     ):
         return get_dashboard(user_id="u1", supabase=supabase)
 
@@ -99,15 +110,17 @@ class DashboardPayloadTests(unittest.TestCase):
         self.assertEqual(payload["suivis"]["p1"], [])
         self.assertEqual(payload["suivis"]["p2"], [suivi])
 
-    def test_le_verrou_reste_calcule_par_monument(self) -> None:
-        """Débloquer m1 ouvre TOUS ses projets — le paywall est clé monument."""
+    def test_le_masquage_reste_calcule_par_monument(self) -> None:
+        """L'offre du bien vaut pour TOUS ses projets : aucune requête de droits
+        n'est refaite ici, l'offre posée par `fetch_user_monuments` suffit."""
+        veille = [{**M_AVEC, "offre": OFFRE_VEILLE}, M_SANS]
         with patch("routers.dashboard.build_digest", side_effect=build_digest) as spy:
-            _dashboard({"projets": [P1, P2]}, unlocked=["m1"])
-        self.assertTrue(all(call.kwargs["locked"] is False for call in spy.call_args_list))
+            _dashboard({"projets": [P1, P2]}, monuments=veille)
+        self.assertTrue(all(call.kwargs["masquer_bientot"] is False for call in spy.call_args_list))
 
         with patch("routers.dashboard.build_digest", side_effect=build_digest) as spy:
-            _dashboard({"projets": [P1, P2]}, unlocked=[])
-        self.assertTrue(all(call.kwargs["locked"] is True for call in spy.call_args_list))
+            _dashboard({"projets": [P1, P2]})
+        self.assertTrue(all(call.kwargs["masquer_bientot"] is True for call in spy.call_args_list))
 
     def test_acces_par_projet_ne_montre_que_ce_projet(self) -> None:
         """Le cœur du cloisonnement : invité sur p2, on ne voit pas p1."""
@@ -151,12 +164,26 @@ class BuildDigestTests(unittest.TestCase):
         self.assertEqual(digest["projetId"], "p1")
         self.assertEqual(digest["monumentId"], "m1")
 
-    def test_masque_le_nom_des_aides_quand_verrouille(self) -> None:
+    def test_masque_le_nom_des_aides_encore_a_venir(self) -> None:
+        """Le digest alimente l'échéancier : une aide dont le guichet n'est pas
+        ouvert ne doit pas plus en sortir nommée que du diagnostic complet."""
+        aide = {"id": "a1", "nom": "DRAC MH", "categorie": "etat_drac"}
         result = {
-            "aidesEligibles": [{"aide": {"id": "a1", "nom": "DRAC MH", "categorie": "etat_drac"}}]
+            "aidesEligibles": [
+                {"aide": dict(aide), "disponibilite": "bientot"},
+                {"aide": dict(aide), "disponibilite": "maintenant"},
+            ]
         }
-        digest = build_digest(result, "m1", "p1", locked=True)
+        digest = build_digest(result, "m1", "p1", masquer_bientot=True)
         self.assertEqual(digest["aidesEligibles"][0]["aide"]["nom"], "Aide masquée")
+        # L'aide déjà ouverte reste nommée : son détail est gratuit.
+        self.assertEqual(digest["aidesEligibles"][1]["aide"]["nom"], "DRAC MH")
+
+    def test_ne_masque_rien_avec_l_offre_veille(self) -> None:
+        aide = {"id": "a1", "nom": "DRAC MH", "categorie": "etat_drac"}
+        result = {"aidesEligibles": [{"aide": aide, "disponibilite": "bientot"}]}
+        digest = build_digest(result, "m1", "p1", masquer_bientot=False)
+        self.assertEqual(digest["aidesEligibles"][0]["aide"]["nom"], "DRAC MH")
 
 
 if __name__ == "__main__":

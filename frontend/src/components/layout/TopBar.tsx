@@ -3,15 +3,19 @@ import { landingUrl } from '@/lib/session';
 import { cn } from '@/lib/utils';
 import { C, SERIF } from '@/lib/brand';
 import { IconLivre, LogoMonumia } from '@/components/icons';
-import { ownerNavItems, OwnerAccountMenu, type NavItem } from './ownerNav';
-
-/** Onglets de la barre haute = nav privée + le Blog public (ressources). */
-const topBarNavItems: NavItem[] = [
-  ...ownerNavItems,
-  { to: '/blog', icon: IconLivre, label: 'Blog' },
-];
+import { OwnerAccountMenu } from './ownerNav';
+import { navItemsPour, type NavItem } from './nav-items';
+import { useOffre } from '@/hooks/useOffre';
 
 export function TopBar() {
+  // Onglets de la barre haute = nav privée (variable selon l'offre) + le Blog
+  // public (ressources).
+  const offre = useOffre();
+  const topBarNavItems: NavItem[] = [
+    ...navItemsPour(offre),
+    { to: '/blog', icon: IconLivre, label: 'Blog' },
+  ];
+
   return (
     <header
       className="z-30 shrink-0 bg-[var(--card)]/85 backdrop-blur-xl"
@@ -44,7 +48,7 @@ export function TopBar() {
                 className={({ isActive }) =>
                   cn(
                     'group relative flex h-16 items-center gap-2 px-2.5 text-[14.5px] font-medium transition-colors',
-                    isActive
+                    isActive && !item.verrouille
                       ? 'text-[color:var(--primary)]'
                       : 'text-[color:var(--gray-fg)] hover:text-[color:var(--primary)]',
                   )
@@ -57,7 +61,10 @@ export function TopBar() {
                     <span
                       aria-hidden
                       className="absolute inset-x-1.5 bottom-0 h-[2.5px] rounded-t-full transition-opacity"
-                      style={{ background: C.orange, opacity: isActive ? 1 : 0 }}
+                      style={{
+                        background: C.orange,
+                        opacity: isActive && !item.verrouille ? 1 : 0,
+                      }}
                     />
                   </>
                 )}

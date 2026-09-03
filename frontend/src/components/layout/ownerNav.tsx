@@ -1,23 +1,8 @@
-import type { ComponentType } from 'react';
 import { NavLink } from 'react-router';
-import { IconDashboard, IconMonument, IconDocuments, IconAccount } from '@/components/icons';
+import { IconAccount } from '@/components/icons';
 import { C } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { useAuthStore } from '@/stores/useAuthStore';
-
-export interface NavItem {
-  to: string;
-  icon: ComponentType<{ size?: number; className?: string }>;
-  label: string;
-  end?: boolean;
-}
-
-/** Navigation principale du propriétaire — peu d'entrées, présentées en barre haute. */
-export const ownerNavItems: NavItem[] = [
-  { to: ROUTES.DASHBOARD, icon: IconDashboard, label: 'Tableau de bord', end: true },
-  { to: ROUTES.MONUMENTS, icon: IconMonument, label: 'Mes monuments' },
-  { to: ROUTES.DOCUMENTS, icon: IconDocuments, label: 'Mes documents' },
-];
 
 /** Avatar de compte ancré à droite de la barre haute — mène directement au profil. */
 export function OwnerAccountMenu() {

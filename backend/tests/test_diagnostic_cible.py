@@ -13,6 +13,7 @@ import pydantic
 from fastapi import HTTPException
 
 from routers.aides import DeterministicDiagnosticRequest, diagnostic_deterministe
+from services.offres import VEILLE
 
 
 class _Resp:
@@ -107,13 +108,19 @@ class _Capture:
         return {"aidesEligibles": []}
 
 
-def _run(body: DeterministicDiagnosticRequest, supabase, capture, *, locked=False):
+def _run(body: DeterministicDiagnosticRequest, supabase, capture, *, offre=VEILLE):
+    """Lance la route en remplaçant le moteur et la résolution d'offre.
+
+    L'offre par défaut est Veille : ces tests parlent du CADRAGE passé au
+    moteur, pas du caviardage — laisser le gratuit masquerait les aides à venir
+    et brouillerait leurs assertions.
+    """
     with (
         patch("routers.aides.deterministic_diagnostic_for", capture),
-        patch("routers.aides.billing.has_monument_access", return_value=not locked) as access,
+        patch("routers.aides.quotas.offre_du_monument", return_value=offre) as resolution,
     ):
         result = diagnostic_deterministe(body=body, user_id="u1", supabase=supabase)
-    return result, access
+    return result, resolution
 
 
 class ValidationTests(unittest.TestCase):
@@ -157,10 +164,12 @@ class CibleProjetTests(unittest.TestCase):
         _run(DeterministicDiagnosticRequest(projet_id="p1", answers={}), _supabase(), capture)
         self.assertEqual(capture.answers, {})
 
-    def test_redaction_clee_sur_le_monument_parent(self) -> None:
+    def test_offre_resolue_sur_le_monument_parent(self) -> None:
+        """Le caviardage des aides à venir suit l'offre qui gouverne le BIEN,
+        et le projet ne fait que désigner ce monument."""
         capture = _Capture()
-        _, access = _run(DeterministicDiagnosticRequest(projet_id="p1"), _supabase(), capture)
-        self.assertEqual(access.call_args.args[2], "m1")
+        _, resolution = _run(DeterministicDiagnosticRequest(projet_id="p1"), _supabase(), capture)
+        self.assertEqual(resolution.call_args.args[1], "m1")
 
     def test_projet_introuvable(self) -> None:
         capture = _Capture()

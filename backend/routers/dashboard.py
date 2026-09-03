@@ -18,7 +18,6 @@ from routers.aides import (
     merge_projet_into_monument,
 )
 from routers.monuments import fetch_user_monuments, sign_photos
-from services import stripe_billing as billing
 from services.project_access import projet_ids_membre
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -29,7 +28,9 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 _DIGEST_BUCKETS = ("aidesEligibles", "aidesPotentiellementEligibles", "aidesAtteignables")
 
 
-def build_digest(result: dict, monument_id: str, projet_id: str, *, locked: bool = False) -> dict:
+def build_digest(
+    result: dict, monument_id: str, projet_id: str, *, masquer_bientot: bool = False
+) -> dict:
     """Réduit un diagnostic complet à ce que les vignettes de projet affichent.
 
     Un diagnostic complet pèse ~1,7 Mo : l'essentiel vient des ~95 aides non
@@ -52,10 +53,15 @@ def build_digest(result: dict, monument_id: str, projet_id: str, *, locked: bool
             {
                 "aide": {
                     "id": match["aide"]["id"],
-                    # Le nom alimente l'échéancier du projet : sur un projet non
-                    # débloqué, il ne doit pas plus sortir d'ici que du
-                    # diagnostic complet.
-                    "nom": LOCKED_AIDE_LABEL if locked else match["aide"]["nom"],
+                    # Le nom alimente l'échéancier du projet : une aide dont le
+                    # guichet n'est pas encore ouvert ne doit pas plus sortir
+                    # d'ici que du diagnostic complet (cf.
+                    # redact_bientot_hors_offre).
+                    "nom": (
+                        LOCKED_AIDE_LABEL
+                        if masquer_bientot and match.get("disponibilite") == "bientot"
+                        else match["aide"]["nom"]
+                    ),
                     "categorie": match["aide"]["categorie"],
                     "permanent": match["aide"].get("permanent", False),
                     "dateLimite": match["aide"].get("dateLimite"),
@@ -141,16 +147,12 @@ def get_dashboard(
         if row["projet_id"] in projets_visibles:
             suivis.setdefault(row["projet_id"], []).append(row)
 
-    # Droits d'accès lus UNE fois pour tout le dashboard : un abonnement ouvre
-    # tous les monuments, sinon seuls ceux payés à l'unité sont nommés.
-    access = billing.access_snapshot(supabase, user_id)
-    unlocked = set(access["unlockedMonumentIds"])
-    all_access = access["allAccess"]
-
     # Un diagnostic par PROJET : la fiche du monument fusionnée avec le cadrage
     # du chantier, et les réponses déjà enregistrées de SON questionnaire. Un
     # monument sans projet n'a pas de digest — le front y affiche le CTA de
-    # création. Le verrou, lui, reste calculé par monument.
+    # création. Le masquage des aides à venir, lui, se décide par monument :
+    # `fetch_user_monuments` a déjà résolu l'offre qui gouverne chaque bien, il
+    # n'y a donc aucune requête de droits à refaire ici.
     digests = {}
     for projet in projets:
         monument = monuments_by_id.get(projet["monument_id"])
@@ -164,7 +166,7 @@ def get_dashboard(
             ),
             monument["id"],
             projet["id"],
-            locked=not all_access and monument["id"] not in unlocked,
+            masquer_bientot=not (monument.get("offre") or {}).get("aidesBientot", False),
         )
 
     return {

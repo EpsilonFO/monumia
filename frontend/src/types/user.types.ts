@@ -10,7 +10,6 @@ export interface User {
   metier?: string;
 
   onboardingComplete: boolean;
-  hasAidesAccess: boolean;
   notificationPreferences: NotificationPreferences;
   createdAt: string;
 }

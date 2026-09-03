@@ -51,10 +51,10 @@ Monumia (ex-Patrys) identifie les aides au financement de la restauration du pat
 
 Vocabulaire — **un monument n'est pas un projet**, et la distinction porte tout le modèle :
 
-- Un **monument** (table `monuments`, routes `/app/monuments/...`) est le BIEN : identification, protection, propriétaire, état sanitaire (« en péril ? »). Il porte le **paywall** (`monument_unlocks`, `has_monument_access`), son **équipe** (`project_members`) et ses **documents** (`documents.monument_ids` — arrêté de protection, cadastre, photos).
+- Un **monument** (table `monuments`, routes `/app/monuments/...`) est le BIEN : identification, protection, propriétaire, état sanitaire (« en péril ? »). Il porte l'**offre qui le gouverne** (`monument.offre`, cf. « Les trois offres »), son **équipe** (`project_members`) et ses **documents** (`documents.monument_ids` — arrêté de protection, cadastre, photos).
 - Un **projet** (table `projets`, routes `/app/projets/...`) est un CHANTIER sur ce monument. N projets par monument, chacun avec son cadrage (`travaux_envisages`), son `questionnaire`, son diagnostic, ses **dossiers**, ses **suivis d'aide**, sa propre **équipe** (`projet_members`) et ses propres **documents** (`documents.projet_ids`).
 
-Les deux ont vécu confondus jusqu'à l'inversion de hiérarchie (migrations `20260827105636` / `20260827105649`) : le « projet » était alors une ligne de `monuments`. `dossiers` et `aide_suivis` portent depuis un `projet_id` **et** un `monument_id` — ce dernier volontairement dénormalisé, parce que le paywall et les requêtes batch du dashboard restent clés monument.
+Les deux ont vécu confondus jusqu'à l'inversion de hiérarchie (migrations `20260827105636` / `20260827105649`) : le « projet » était alors une ligne de `monuments`. `dossiers` et `aide_suivis` portent depuis un `projet_id` **et** un `monument_id` — ce dernier volontairement dénormalisé, parce que les requêtes batch du dashboard restent clés monument.
 
 ### Les deux niveaux de partage
 
@@ -70,6 +70,43 @@ Trois conséquences à ne pas oublier en touchant à l'accès :
 - `Monument.myRole` est **nul** pour un membre projet-seulement — c'est un accès restreint, pas un refus. `require_monument_read` rend ce `None` ; le confondre avec un droit d'écriture ouvre une faille. Les écritures passent toujours par `require_project_access`, qui refuse ces gens-là.
 - Le front lit les droits d'une page projet sur **`Projet.myRole`**, jamais sur `Monument.myRole`.
 - Les listes sont filtrées **côté serveur** (`list_projets`, `/dashboard`, `list_documents`) : masquer à l'affichage laisserait fuiter dans la réponse l'existence des autres chantiers.
+
+## Les trois offres
+
+Migration `20260902152215`. Rien de ce qui suit n'est décidé dans un composant : la table des droits vit à un seul endroit par côté, et les deux doivent rester d'accord.
+
+| | Gratuit | Veille | Multi-monuments |
+|---|---|---|---|
+| Prix | 0 € | sur demande | sur demande |
+| Canal | — | « Nous contacter » | « Nous contacter » |
+| Monuments | 1 | 1 | illimités |
+| Projets par monument | 2 | illimités | illimités |
+| Détail des aides ouvertes | ✓ | ✓ | ✓ |
+| Aides « Disponibles bientôt » | caviardées | ✓ | ✓ |
+| Échéancier d'un projet | ✗ | ✓ | ✓ |
+| Emails (ouverture de guichet, rappels) | ✗ | ✓ | ✓ |
+| Inviter (onglet Équipe) | mène aux tarifs | ✓ | ✓ |
+| Supprimer un projet | ✗ | ✓ | ✓ |
+| Tableau de bord | mène aux tarifs | mène aux tarifs | ✓ |
+| Supprimer un monument | ✗ | ✗ | ✓ |
+
+- La table des droits : [backend/services/offres.py](backend/services/offres.py) et son miroir [frontend/src/lib/offres.ts](frontend/src/lib/offres.ts). Les deux sont figées par des tests qui assertent les mêmes valeurs — un bouton affiché que le serveur refuse est le pire des deux mondes.
+- **Multi-monuments contient Veille.** Les droits se cumulent par union des plans (`offre_pour`), jamais par « le premier plan trouvé » : le temps d'une montée en gamme, deux abonnements sont actifs.
+- Un abonnement dont `plan` est NULL (antérieur aux trois offres) n'ouvre **rien**.
+- **Rien ne s'achète en libre-service** : `PLANS_VENDABLES` est VIDE, des deux côtés (`services/offres.py` et `lib/offres.ts`). Les deux offres payantes se négocient — la page Tarifs affiche « Sur demande » et un `mailto`, et `POST /billing/checkout` refuse tout en **409**. Elles restent des offres de plein droit, et Stripe reste l'outil de **facturation** (abonnement créé dans le dashboard, webhook qui l'enregistre, portail client), plus le tunnel de vente. Ouvrir la vente d'une offre = l'ajouter à `PLANS_VENDABLES` des DEUX côtés, poser son prix dans `STRIPE_PRICE_*`, et rendre son bouton à `startCheckout`.
+- Aucun montant n'est écrit dans le code. Le jour où un prix devient public, il viendra de Stripe via `/billing/plans` : un prix affiché qui diffère du prix débité est le pire défaut possible sur une page de paiement.
+- `access.portail` dit si le portail Stripe existe pour ce compte, et ne se déduit PAS de la détention d'une offre : une offre ouverte directement en base n'a pas de Customer, et « Gérer mon abonnement » y répondrait 404.
+- Les garde-fous serveur sont dans [backend/services/quotas.py](backend/services/quotas.py), appelés par les routes de création, de suppression et d'invitation. Ils répondent **402** (offre manquante) et non 403 (droits d'équipe) : le front distingue les deux.
+- **Un bouton gardé plutôt qu'un bouton disparu.** Ce que l'offre ne permet pas mène à la page Tarifs au lieu de s'effacer : l'onglet Équipe reste dans la barre et `handleTabChange` le détourne, l'onglet « Tableau de bord » reste dans la barre haute avec `to` pointant directement sur `/tarifs` (`NavItem.verrouille`, qui empêche aussi de le marquer actif), les CTA de création cèdent la place à `OffreUpsell`. Un bouton simplement absent se lit comme une panne. Les deux SUPPRESSIONS font exception et disparaissent sans un mot : vendre le droit de supprimer se lit mal.
+- **Un clic n'est pas une arrivée.** L'onglet mène aux tarifs, mais le garde de route `/app` renvoie sur « Mes monuments » : c'est là que `RootRedirect` dépose tout le monde à la connexion, et y répondre par la page de vente ferait atterrir chaque ouverture de session sur un argumentaire. Même règle pour `?tab=equipe` gardé en favori.
+- **L'offre gouverne l'AJOUT, jamais le RETRAIT.** Inviter demande Veille ; retirer un membre reste ouvert au gratuit. Une résiliation laisse les collaborateurs en place, et renvoyer alors vers les tarifs rendrait leur accès irrévocable — d'où `equipeAccessible = offre.equipe || equipe déjà constituée` sur les deux pages (l'onglet s'ouvre, pour gérer ce qui est là), et `TeamPanel.invitationsOuvertes` qui ne gouverne que le formulaire d'invitation.
+
+Sur QUI porte un droit, et c'est le seul point délicat :
+
+- **Compte** (`GET /billing/access` → `offre`) : enregistrer un monument, le tableau de bord, les emails de rappel.
+- **Monument** (`monument.offre`, posé par `fetch_user_monuments` et `_enrich_monument`) : ses projets, son calendrier, son équipe, ses suppressions. C'est l'**union** de l'offre du propriétaire et de celle de l'appelant — sans le propriétaire, l'architecte invité par un client abonné se verrait refuser ce que son client paye ; sans l'appelant, on retirerait à un abonné un droit qu'il paye. Même idiome que `max_role` sur les deux niveaux de partage.
+
+Le point de branchement des emails de veille est `stripe_billing.peut_recevoir_rappels(supabase, user_id)` : tout job de rappel doit l'appeler pour chaque destinataire, en plus de ses préférences de notification (l'offre décide du droit au service, les préférences du souhait).
 
 ## Architecture
 
@@ -91,7 +128,7 @@ C'est le point le plus important à comprendre avant de toucher au matching.
 
 Un seul moteur, déterministe : `POST /aides/diagnostic-deterministe` → [eligibility_engine.py](backend/eligibility_engine.py). Il lit les YAML `backend/data/aides/*.yaml` (id = **slug**), ne fait **aucun appel réseau** (~2 ms/diagnostic, YAML en cache) et ne persiste **rien** : le QCM se résout côté client via `eliminationsParOption`. Le front passe partout par `runProjectDiagnostic(projetId, answers)` (wizard, page projet, liste, dashboard).
 
-Le moteur ne connaît **pas** les projets : `FIELD_REGISTRY` et `build_context` lisent toujours `travaux_envisages` sur le monument. La fusion se fait à la frontière, dans `merge_projet_into_monument` ([aides.py](backend/routers/aides.py)) : fiche du monument + cadrage du projet. Ne pas la déplacer dans le moteur. La requête accepte `projet_id` (chemin normal) ou `monument_id` seul (compat d'un onglet SPA non rechargé, résolu vers le projet ouvert le plus récent) ; le paywall reste clé monument dans les deux cas.
+Le moteur ne connaît **pas** les projets : `FIELD_REGISTRY` et `build_context` lisent toujours `travaux_envisages` sur le monument. La fusion se fait à la frontière, dans `merge_projet_into_monument` ([aides.py](backend/routers/aides.py)) : fiche du monument + cadrage du projet. Ne pas la déplacer dans le moteur. La requête accepte `projet_id` (chemin normal) ou `monument_id` seul (compat d'un onglet SPA non rechargé, résolu vers le projet ouvert le plus récent) ; l'offre appliquée reste celle du monument dans les deux cas.
 
 Le moteur ne traite que les aides **engine-ready** (zéro condition `kind: untyped`) ; les autres sont simplement ignorées.
 
@@ -130,6 +167,6 @@ Trois skills couvrent ces tâches : `/ingest-aide` (ingestion/ré-extraction dep
 - **pyright n'analyse pas tout** : `pyproject.toml` exclut `scripts` et `routers`, et n'inclut que `*.py` racine + `services`. Une erreur de type dans un router ne sera vue ni en local ni en CI.
 - **Deux espaces d'identifiants d'aides** cohabitent : slug (YAML, moteur déterministe) et UUID (`aides_v3`). `GET /aides/{id}` résout dans cet ordre UUID puis slug. La création de dossier passe par `aides_v3`, d'où l'étape de sync YAML → base à la fin de `deploy.sh` : une aide en YAML mais absente de `aides_v3` renvoie « Aide introuvable » à la création de dossier.
 - **`vitest.config.ts` utilise `environment: 'node'`** : un test de composant React a besoin d'un environnement DOM explicite.
-- L'accès aux aides est payant (Stripe) : `redact_diagnostic_if_locked` caviarde les résultats côté backend et `has_aides_access` / `src/lib/aides-access.ts` gouvernent l'affichage. Toute nouvelle route exposant des aides doit passer par ce filtre.
+- **Le détail des aides est gratuit.** Le seul caviardage qui reste porte sur les aides dont le guichet n'est pas encore ouvert : `redact_bientot_hors_offre` ([aides.py](backend/routers/aides.py)) et `masquer_bientot` dans `build_digest`. `users.has_aides_access` et `monument_unlocks` ont été supprimés (migration `20260902152215`) ; ne pas les ressusciter.
 - Les accès aux monuments partagés passent par `require_project_access(supabase, monument_id, user_id, role)` — un filtre `user_id` renverrait 404 aux collaborateurs. Pour un projet, c'est `require_projet_access(supabase, projet_id, user_id, role) -> (ligne, rôle)`, qui combine les deux appartenances. Pour la seule LECTURE d'une fiche monument, `require_monument_read` (cf. « les deux niveaux de partage »). La visibilité d'un document se tranche avec `best_document_role(monument_ids, projet_ids, …)`, jamais sur les seuls `monument_ids`.
 - Sans `RESEND_API_KEY`, les emails d'invitation sont écrits en console (mode dev).

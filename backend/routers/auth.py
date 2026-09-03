@@ -133,11 +133,6 @@ def _get_profile(supabase: Client, user_id: str) -> dict:
         profile["onboardingComplete"] = profile.pop("onboarding_complete")
     if "created_at" in profile:
         profile["createdAt"] = profile.pop("created_at")
-    if "has_aides_access" in profile:
-        profile["hasAidesAccess"] = profile.pop("has_aides_access")
-    else:
-        profile["hasAidesAccess"] = False
-
     if "account_type" in profile:
         profile["accountType"] = profile.pop("account_type")
     # `metier` reste tel quel (déjà en une seule clé compatible)
@@ -219,7 +214,6 @@ def register(
         "nom": body.nom,
         "telephone": body.telephone,
         "onboarding_complete": False,
-        "has_aides_access": False,
         "notification_preferences": _default_notification_preferences(),
     }
 
@@ -263,7 +257,6 @@ def register_collaborator(
         "account_type": "collaborateur",
         "metier": body.metier,
         "onboarding_complete": True,
-        "has_aides_access": False,
         "notification_preferences": _default_notification_preferences(),
     }
     supabase.table("users").insert(profile).execute()
@@ -346,7 +339,6 @@ def register_oauth(
         "nom": body.nom,
         "telephone": body.telephone,
         "onboarding_complete": False,
-        "has_aides_access": False,
         "notification_preferences": _default_notification_preferences(),
     }
     # Course entre deux soumissions : la ligne vient d'être créée par
@@ -377,7 +369,6 @@ def register_collaborator_oauth(
         "account_type": "collaborateur",
         "metier": body.metier,
         "onboarding_complete": True,
-        "has_aides_access": False,
         "notification_preferences": _default_notification_preferences(),
     }
     # Course entre deux soumissions : la ligne vient d'être créée par

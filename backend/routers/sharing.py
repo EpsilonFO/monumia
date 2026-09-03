@@ -12,6 +12,7 @@ from supabase import Client
 
 from config import request_app_origin
 from db import get_current_user_id, get_supabase
+from services import quotas
 from services.email_service import send_invitation_email
 from services.invitations import generate_invite_token, invitation_expiry_iso
 from services.project_access import require_project_access
@@ -97,6 +98,7 @@ def create_invitation(
     supabase: Client = Depends(get_supabase),
 ):
     require_project_access(supabase, monument_id, user_id, "co_owner")
+    quotas.verifier_invitation(supabase, monument_id, user_id)
     monument = _monument_or_404(supabase, monument_id)
     email = body.email.strip().lower()
 

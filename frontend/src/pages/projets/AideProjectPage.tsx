@@ -4,12 +4,14 @@ import { ChevronLeft, Loader2 } from 'lucide-react';
 import { IconDossierOuvert, IconAjouterDossier } from '@/components/icons';
 import { AideDetails } from '@/components/aide/AideDetails';
 import { AideHero } from '@/components/aide/AideHero';
+import { getDisponibilite } from '@/components/aide/eligibility-status';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useProjetStore } from '@/stores/useProjetStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { projectPermissions } from '@/lib/project-permissions';
-import { useAidesAccess } from '@/hooks/useAidesAccess';
+import { useOffre, useOffreMonument, useOffreChargee } from '@/hooks/useOffre';
+import { libelleMonuments } from '@/lib/offres';
 import { monumentService } from '@/services/monument.service';
 import { projetService } from '@/services/projet.service';
 import { aideService } from '@/services/aide.service';
@@ -64,9 +66,15 @@ export function AideProjectPage() {
   // atteindrait cette page (lien direct) est renvoyé vers le projet.
   const canAccessAides = projet ? projectPermissions(projet.myRole ?? null).canAccessAides : true;
 
-  // Paywall : la fiche complète d'une aide est précisément ce que l'offre
-  // « Dossier » vend. Elle se débloque PAR MONUMENT, pas par projet.
-  const { locked, loading: accessLoading } = useAidesAccess(monumentId);
+  // Le détail d'une aide est gratuit — sauf tant que son guichet n'est pas
+  // ouvert : savoir à l'avance quelle aide va ouvrir est ce que l'offre Veille
+  // vend. L'offre lue est celle qui gouverne le BIEN, comme sur la page du
+  // projet, pour que l'équipe d'un client abonné voie la même chose que lui.
+  const offre = useOffreMonument(monumentId);
+  const offreCompte = useOffre();
+  const offreChargee = useOffreChargee();
+  const locked =
+    !offre.aidesBientot && !!matchResult && getDisponibilite(matchResult) === 'bientot';
 
   useEffect(() => {
     if (projet || !projetId || projetFetchedRef.current) return;
@@ -86,11 +94,11 @@ export function AideProjectPage() {
   }, [projet, canAccessAides, projetId, navigate]);
 
   useEffect(() => {
-    // On attend la réponse du serveur : rediriger sur l'état initial
-    // (verrouillé par défaut) éjecterait un abonné à chaque rechargement.
-    if (accessLoading || !locked || !monumentId) return;
+    // On attend la réponse du serveur : rediriger sur l'état initial (offre
+    // gratuite par prudence) éjecterait un abonné à chaque rechargement.
+    if (!offreChargee || !locked || !monumentId) return;
     navigate(ROUTES.TARIFS(monumentId), { replace: true });
-  }, [accessLoading, locked, monumentId, navigate]);
+  }, [offreChargee, locked, monumentId, navigate]);
 
   // Le diagnostic complet porte les critères remplis / à débloquer affichés ici.
   // On l'obtient sur place quand il manque : le dashboard ne charge plus qu'un
@@ -160,7 +168,9 @@ export function AideProjectPage() {
   }
 
   // `locked` fait partie du garde : sans lui, la fiche complète s'afficherait le
-  // temps d'un rendu avant que la redirection de l'effet ne prenne effet.
+  // temps d'un rendu avant que la redirection de l'effet ne prenne effet. Le
+  // serveur refuse de toute façon GET /aides/{id} sur une aide à venir hors
+  // offre — ceci évite seulement l'à-coup visuel.
   if (!aide || !projet || !monument || !canAccessAides || locked) {
     return <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blueLight }} /></div>;
   }
@@ -180,7 +190,7 @@ export function AideProjectPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-2 overflow-hidden text-[13px] text-muted-foreground">
-        <Link to={ROUTES.MONUMENTS} className="shrink-0 hover:opacity-70 transition-opacity">Mes monuments</Link>
+        <Link to={ROUTES.MONUMENTS} className="shrink-0 hover:opacity-70 transition-opacity">{libelleMonuments(offreCompte)}</Link>
         <span>/</span>
         <Link to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`} className="truncate hover:opacity-70 transition-opacity">{monument.nom}</Link>
         <span>/</span>

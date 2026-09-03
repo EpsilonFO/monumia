@@ -102,12 +102,17 @@ L'inscription depuis http://localhost:3000 fonctionne immédiatement : la
 confirmation par email est désactivée en local
 ([supabase/config.toml](supabase/config.toml), `enable_confirmations = false`).
 
-L'accès aux aides est payant (Stripe) et caviardé côté backend pour un compte sans
-droits. Sans configurer Stripe, ouvrir l'accès à la main :
+Le détail des aides est gratuit. Ce qui se paie, ce sont les volumes (monuments,
+projets), le calendrier (échéancier, aides à venir) et la veille par email : deux
+abonnements, `veille` et `multi_monuments`, tous deux négociés (aucun montant
+affiché, la page Tarifs renvoie vers `contact@monumia.fr`). Stripe ne sert donc
+qu'à facturer une offre convenue. Pour ouvrir une offre à la main sur un compte
+local :
 
 ```bash
-docker exec supabase_db_monumia psql -U postgres \
-  -c "update public.users set has_aides_access = true;"
+docker exec supabase_db_monumia psql -U postgres -c "
+  insert into public.subscriptions (stripe_subscription_id, user_id, stripe_customer_id, plan, status)
+  select 'sub_local', id, 'cus_local', 'multi_monuments', 'active' from public.users limit 1;"
 ```
 
 ## Au quotidien

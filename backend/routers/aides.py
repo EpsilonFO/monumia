@@ -9,8 +9,11 @@ from supabase import Client
 from aides_schema import load_all_aides, load_facts, load_pending_facts
 from db import get_current_user_id, get_supabase
 from eligibility_engine import aide_display_dict, run_deterministic_diagnostic
+from eligibility_engine import disponibilite as aide_disponibilite
 from routers.monuments import enrich_monument_with_population
+from services import quotas
 from services import stripe_billing as billing
+from services.offres import Offre
 from services.project_access import require_project_access, require_projet_access
 
 logger = logging.getLogger(__name__)
@@ -98,13 +101,13 @@ def _camelise_diagnostic(result: dict) -> dict:
     return result
 
 
-# Ce que voit un projet non débloqué. Le libellé remplace le nom de l'aide dans
+# Ce que voit une aide caviardée. Le libellé remplace le nom de l'aide dans
 # l'échéancier, où il n'est pas flouté : il doit rester présentable.
 LOCKED_AIDE_LABEL = "Aide masquée"
 
-# Champs retirés d'une aide non débloquée. Le montant, le taux, la catégorie et
-# la date limite RESTENT visibles : c'est tout l'argumentaire de vente, montrer
-# ce qu'il y a à gagner sans dire où le demander. Ce qui part, c'est ce qu'on
+# Champs retirés d'une aide caviardée. Le montant, le taux, la catégorie et la
+# date limite RESTENT visibles : c'est tout l'argumentaire de vente, montrer ce
+# qu'il y a à gagner sans dire où le demander. Ce qui part, c'est ce qu'on
 # vend — l'identité du financeur et le moyen de le contacter.
 _REDACTED_AIDE_FIELDS = (
     "organisme",
@@ -120,18 +123,20 @@ _REDACTED_AIDE_FIELDS = (
 
 
 def redact_locked_aide(aide: dict) -> dict:
-    """Anonymise une aide dont le projet n'est pas débloqué.
+    """Anonymise une aide que l'offre du compte ne montre pas encore.
 
     Le floutage CSS côté navigateur ne cache rien : le nom part quand même dans
     la réponse HTTP, et l'onglet Réseau des devtools suffit à le lire. La seule
     frontière qui tienne est ici, côté serveur.
 
-    L'`id` est conservé : il sert de clé de rendu, et ne révèle rien à lui seul —
-    la fiche complète d'une aide, elle, reste derrière son propre contrôle.
+    L'`id` est conservé : c'est le slug, il sert de clé de rendu et de clé de
+    corrélation avec les dossiers et les suivis déjà ouverts sur cette aide. Il
+    reste donc devinable — d'où le contrôle posé aussi sur GET /aides/{id}, qui
+    est le seul chemin menant à la fiche complète.
     """
     aide["nom"] = LOCKED_AIDE_LABEL
     aide["nomCourt"] = LOCKED_AIDE_LABEL
-    aide["description"] = "Débloquez ce projet pour voir de quelle aide il s'agit."
+    aide["description"] = "Passez à l'offre Veille pour voir de quelle aide il s'agit."
     for field in _REDACTED_AIDE_FIELDS:
         if field in aide:
             aide[field] = None
@@ -139,15 +144,27 @@ def redact_locked_aide(aide: dict) -> dict:
     return aide
 
 
-def redact_diagnostic_if_locked(
-    result: dict, supabase: Client, user_id: str, monument_id: str
-) -> dict:
-    """Applique la redaction à tout un diagnostic si le projet n'est pas payé."""
-    if billing.has_monument_access(supabase, user_id, monument_id):
+# Les trois seaux « à portée ». Ce sont eux, et eux seuls, que le front répartit
+# entre « disponibles maintenant » et « disponibles bientôt » : une aide non
+# éligible reste dans sa propre section quelle que soit sa fenêtre de dépôt, et
+# la caviarder n'aurait aucun sens (il n'y a rien à y vendre).
+_BUCKETS_A_PORTEE = ("aidesEligibles", "aidesPotentiellementEligibles", "aidesAtteignables")
+
+
+def redact_bientot_hors_offre(result: dict, offre: Offre) -> dict:
+    """Caviarde les aides « Disponibles bientôt » que l'offre ne couvre pas.
+
+    C'est le seul paywall qui reste sur les aides : leur détail est gratuit dès
+    lors que le guichet est ouvert. Ce que l'offre Veille vend, c'est de savoir
+    à l'AVANCE quelle aide va ouvrir — et de recevoir l'email le jour où elle
+    ouvre.
+    """
+    if offre.aides_bientot:
         return result
-    for bucket in _DIAGNOSTIC_BUCKETS:
+    for bucket in _BUCKETS_A_PORTEE:
         for match in result.get(bucket, []):
-            match["aide"] = redact_locked_aide(match["aide"])
+            if match.get("disponibilite") == "bientot":
+                match["aide"] = redact_locked_aide(match["aide"])
     return result
 
 
@@ -164,9 +181,50 @@ def _is_uuid(value: str) -> bool:
         return False
 
 
+def _slug_aide_a_venir(slug: str | None) -> bool:
+    """Cette aide attend-elle l'ouverture (ou la réouverture) de son guichet ?
+
+    Lu dans les YAML, la même source que le diagnostic : les deux doivent
+    classer une aide dans le même seau, sinon la fiche s'ouvre sur une aide que
+    la liste annonçait masquée (ou l'inverse).
+    """
+    if not slug:
+        return False
+    aide = load_all_aides().get(slug)
+    return aide is not None and aide_disponibilite(aide) == "bientot"
+
+
+def _deja_engage(supabase: Client, user_id: str, slug: str) -> bool:
+    """L'utilisateur travaille-t-il déjà sur cette aide ?
+
+    Indispensable, et pas seulement par courtoisie : `disponibilite` range en
+    « bientôt » AUSSI une aide dont la date limite est passée — la session
+    annuelle est close, l'aide reviendra. Sans cette exemption, un dossier
+    ouvert en juin perdrait le nom de son aide au lendemain de la date limite,
+    au moment précis où son porteur en a le plus besoin.
+
+    Un dossier ou un suivi vaut engagement : dans les deux cas l'utilisateur
+    connaît déjà l'aide, il n'y a plus rien à lui masquer.
+    """
+    for table in ("dossiers", "aide_suivis"):
+        res = (
+            supabase.table(table)
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("aide_id", slug)
+            .limit(1)
+            .execute()
+        )
+        rows = (res.data if res else None) or []
+        if rows:
+            return True
+    return False
+
+
 @router.get("/{aide_id}")
 def get_aide(
     aide_id: str,
+    user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
     """Récupère une aide par id.
@@ -176,7 +234,27 @@ def get_aide(
     (aide servie depuis les YAML). On résout dans cet ordre : UUID en base,
     puis YAML par slug — la même source que le diagnostic, donc l'affichage
     reste cohérent même si le loader n'a pas (encore) poussé l'aide en base.
+
+    Authentifiée, et pas seulement par principe : c'est l'unique chemin vers la
+    fiche complète d'une aide, donc la seule porte par laquelle le nom d'une
+    aide « Disponibles bientôt » — masqué dans le diagnostic — pourrait sortir.
+    Le contrôle porte sur le compte et non sur un monument : la route n'en
+    connaît aucun, et une aide à venir est masquée pour toutes les fiches d'un
+    compte au gratuit.
     """
+    if not billing.offre_du_compte(supabase, user_id).aides_bientot:
+        slug = aide_id
+        if _is_uuid(aide_id):
+            row = (
+                supabase.table("aides_v3").select("slug").eq("id", aide_id).maybe_single().execute()
+            )
+            slug = ((row.data if row else None) or {}).get("slug")
+        if slug and _slug_aide_a_venir(slug) and not _deja_engage(supabase, user_id, slug):
+            raise HTTPException(
+                status_code=402,
+                detail="Passez à l'offre Veille pour consulter les aides qui ouvrent bientôt.",
+            )
+
     if _is_uuid(aide_id):
         result = supabase.table("aides_v3").select("*").eq("id", aide_id).maybe_single().execute()
         if result and result.data:
@@ -297,4 +375,8 @@ def diagnostic_deterministe(
     # c'est lui qui clé le store de diagnostics et les liens d'échéance du front.
     result["projetId"] = projet["id"] if projet else None
 
-    return redact_diagnostic_if_locked(result, supabase, user_id, monument_id)
+    # L'offre qui gouverne le BIEN, pas seulement le compte qui regarde :
+    # l'architecte invité sur le chantier d'un client abonné voit le même
+    # calendrier que son client.
+    offre = quotas.offre_du_monument(supabase, monument_id, user_id)
+    return redact_bientot_hors_offre(result, offre)

@@ -4,10 +4,8 @@ import { ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react';
 import {
   IconAide,
   IconConseil,
-  IconDossier,
   IconSucces,
   IconTemps,
-  IconVerrou,
   IconProtection,
 } from '@/components/icons';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -18,53 +16,58 @@ import { ApiError } from '@/lib/api-error';
 import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
-import type { BillingPlan, BillingPrice } from '@/types';
+import type { BillingPlan, BillingSubscription } from '@/types';
 
 /**
- * Page Tarifs — reprend la mise en page de la section « Tarifs » de la landing
- * (trois portes : gratuit, à l'unité, abonnement) transposée sur les tokens de
- * thème de l'application, pour que le passage du site vitrine à l'app ne se
- * voie pas.
- *
- * Les montants ne sont PAS écrits ici : ils viennent de Stripe via
- * /billing/plans. Un prix affiché qui diffère du prix débité est le pire défaut
- * possible sur une page de paiement, et c'est le sort réservé à tout montant
- * recopié à la main.
+ * Les deux offres payantes se négocient : leurs cartes mènent à un courrier,
+ * pas à un paiement. Même adresse que le site vitrine, pour que les demandes
+ * arrivent au même endroit, et un sujet prérempli par offre pour savoir de
+ * quoi on parle avant d'ouvrir le message.
  */
-
-const CURRENCY = new Intl.NumberFormat('fr-FR', {
-  style: 'currency',
-  currency: 'EUR',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-});
-
-function formatPrice(price: BillingPrice | undefined): string | null {
-  if (!price || price.amountCents == null) return null;
-  return CURRENCY.format(price.amountCents / 100);
+function contactMailto(offre: string): string {
+  return `mailto:contact@monumia.fr?subject=${encodeURIComponent(`Offre ${offre}`)}`;
 }
 
-const DECOUVERTE_FEATURES = [
-  'Description guidée de votre lieu et de votre projet',
-  'Recherche parmi toutes les aides recensées',
-  'Estimation du montant que votre projet peut espérer',
-  'Vos chances d’obtenir ces aides, critère par critère',
+/**
+ * Page Tarifs — trois portes : Gratuit, Veille, Multi-monuments, transposées
+ * sur les tokens de thème de l'application pour que le passage du site vitrine
+ * à l'app ne se voie pas.
+ *
+ * Les deux offres payantes sont des abonnements mensuels, et la seconde
+ * contient la première : les listes de bénéfices se lisent donc en cumul
+ * (« Tout Veille, plus… »), comme le calcul des droits côté serveur.
+ *
+ * Aucun montant n'est affiché : les deux offres payantes se négocient, leurs
+ * cartes portent « Sur demande » et mènent à un courrier. C'est aussi ce que dit
+ * `PLANS_VENDABLES`, vide des deux côtés, et `POST /billing/checkout` refuse en
+ * 409 tout ce qui n'y figure pas.
+ *
+ * Le jour où un prix devient public, il ne sera pas écrit ici : il viendra de
+ * Stripe via /billing/plans. Un prix affiché qui diffère du prix débité est le
+ * pire défaut possible sur une page de paiement, et c'est le sort réservé à tout
+ * montant recopié à la main.
+ */
+
+const GRATUIT_FEATURES = [
+  'Un monument et jusqu’à deux projets de travaux',
+  'La recherche parmi toutes les aides recensées',
+  'Le détail de chaque aide : organisme, contacts, pièces demandées',
+  'Vos chances de l’obtenir, critère par critère',
 ];
 
-const DOSSIER_FEATURES = [
-  'Le nom de chaque aide, son organisme et ses contacts',
-  'Les dates clés du projet et le calendrier des sessions',
-  'La checklist des pièces demandées par les financeurs',
-  'Un espace partagé avec votre architecte ou vos artisans',
-  'Le dossier complet à télécharger, prêt à transmettre',
+const VEILLE_FEATURES = [
+  'Autant de projets de travaux que nécessaire, sur votre monument',
+  'Une équipe : invitez votre architecte, vos artisans, un assistant',
+  'Les aides qui ouvrent bientôt, nommées avant tout le monde',
+  'L’échéancier du chantier : dates limites d’aides et de dossiers',
+  'Un email le jour où un guichet ouvre',
+  'Un rappel par email avant chaque date limite',
 ];
 
-const ABONNEMENT_FEATURES = [
-  'Tous vos projets débloqués, présents et à venir',
-  'La veille des aides : nouvelles aides, appels à projets',
-  'Les alertes avant chaque date limite',
-  'Le tableau de bord et le suivi de toutes vos demandes',
-  'La recherche libre des mécènes et fondations',
+const MULTI_FEATURES = [
+  'Autant de monuments que vous en gérez',
+  'Le tableau de bord : tous vos biens et leurs échéances d’un coup d’œil',
+  'La suppression d’un monument ou d’un projet',
 ];
 
 export function TarifsPage() {
@@ -75,15 +78,17 @@ export function TarifsPage() {
   const access = useBillingStore((s) => s.access);
   const loadAccess = useBillingStore((s) => s.loadAccess);
 
-  // Projet d'où l'on vient : porté par l'URL et non par le state de navigation,
-  // car l'aller-retour vers Stripe quitte le site et perd tout state React.
+  // Monument d'où l'on vient : porté par l'URL et non par le state de
+  // navigation, car l'aller-retour vers Stripe quitte le site et perd tout
+  // state React. Il ne sert plus qu'à revenir au bon endroit — les offres sont
+  // désormais des abonnements de compte, elles ne débloquent pas un bien.
   const monumentId = searchParams.get('projet') ?? undefined;
   const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId));
   const paymentStatus = searchParams.get('paiement');
 
-  const [plans, setPlans] = useState<BillingPrice[]>([]);
-  const [configured, setConfigured] = useState<boolean | null>(null);
-  const [pending, setPending] = useState<BillingPlan | 'portal' | null>(null);
+  // Seul le portail Stripe reste une action asynchrone sur cette page : plus
+  // rien ne s'achète en ligne.
+  const [pending, setPending] = useState<'portal' | null>(null);
   // « attente » = le webhook n'était pas encore arrivé au bout du délai. Il
   // FAUT distinguer ce cas d'une confirmation : annoncer « c'est débloqué »
   // quand l'accès n'est pas accordé est un mensonge que l'utilisateur constate
@@ -92,24 +97,16 @@ export function TarifsPage() {
     'confirmation'
   );
 
-  useEffect(() => {
-    billingService
-      .getPlans()
-      .then((res) => {
-        setPlans(res.plans);
-        setConfigured(res.configured);
-      })
-      .catch(() => setConfigured(false));
-  }, []);
-
-  const dossierPrice = plans.find((p) => p.plan === 'dossier');
-  const abonnementPrice = plans.find((p) => p.plan === 'abonnement');
-
-  const subscribed = !!access?.subscription;
-  const projectUnlocked =
-    !!access && (access.allAccess || (!!monumentId && access.unlockedMonumentIds.includes(monumentId)));
-  // A payé au moins une fois → possède un Customer Stripe, donc un portail.
-  const hasPaid = subscribed || (access?.unlockedMonumentIds.length ?? 0) > 0;
+  const plansDetenus = access?.plans ?? [];
+  const aMultiMonuments = plansDetenus.includes('multi_monuments');
+  // Multi-monuments contient Veille : la carte Veille s'affiche alors comme
+  // acquise, et non comme un achat possible — la revendre ferait payer deux
+  // fois le même service, et le serveur refuse d'ailleurs la session.
+  const aVeille = plansDetenus.includes('veille') || aMultiMonuments;
+  // Le portail de facturation n'existe que pour un compte rattaché à un
+  // Customer Stripe. Détenir une offre ne suffit pas : Multi-monuments se
+  // négocie et peut avoir été ouverte sans passer par Stripe.
+  const portailDisponible = access?.portail ?? false;
 
   // Retour de Stripe : le webhook peut n'être pas encore arrivé quand le
   // navigateur, lui, est déjà revenu. On réinterroge les droits quelques
@@ -123,11 +120,14 @@ export function TarifsPage() {
       await loadAccess();
       if (cancelled) return;
       const current = useBillingStore.getState().access;
+      // L'offre attendue est celle que Stripe vient d'encaisser : la lire dans
+      // l'URL de retour évite de conclure « c'est bon » sur un abonnement plus
+      // ancien qui traînait déjà sur le compte.
+      const attendu = searchParams.get('plan');
       const done =
         !!current &&
-        (current.allAccess ||
-          (!!monumentId && current.unlockedMonumentIds.includes(monumentId)) ||
-          !!current.subscription);
+        current.plans.length > 0 &&
+        (!attendu || current.plans.includes(attendu as BillingPlan));
       if (done) {
         setConfirmState('confirme');
         return;
@@ -144,28 +144,7 @@ export function TarifsPage() {
       cancelled = true;
       if (confirmTimer.current) window.clearTimeout(confirmTimer.current);
     };
-  }, [paymentStatus, monumentId, loadAccess]);
-
-  const startCheckout = useCallback(
-    async (plan: BillingPlan) => {
-      if (!token) {
-        navigate('/login', { state: { from: ROUTES.TARIFS(monumentId) } });
-        return;
-      }
-      setPending(plan);
-      try {
-        // Redirection plein page (et non un onglet) : Stripe Checkout héberge le
-        // formulaire de carte, et les URL de retour ramènent ici.
-        window.location.href = await billingService.startCheckout(plan, monumentId);
-      } catch (err) {
-        setPending(null);
-        toast.error(
-          err instanceof ApiError ? err.message : "Impossible d'ouvrir le paiement pour le moment."
-        );
-      }
-    },
-    [token, monumentId, navigate]
-  );
+  }, [paymentStatus, searchParams, loadAccess]);
 
   const openPortal = useCallback(async () => {
     setPending('portal');
@@ -208,7 +187,7 @@ export function TarifsPage() {
           >
             <IconConseil className="mt-0.5 h-5 w-5 shrink-0" style={{ color: C.blue }} />
             <p className="text-[14px]" style={{ color: C.ink }}>
-              Paiement abandonné, rien n’a été débité. Vos aides identifiées vous attendent.
+              Paiement abandonné, rien n’a été débité. Votre offre actuelle est intacte.
             </p>
           </div>
         )}
@@ -232,7 +211,7 @@ export function TarifsPage() {
           >
             {monument ? (
               <>
-                Débloquez les aides de <em className="italic" style={{ color: C.orange }}>{monument.nom}</em>
+                Allez plus loin sur <em className="italic" style={{ color: C.orange }}>{monument.nom}</em>
               </>
             ) : (
               'Payez quand vous êtes prêt, pas avant'
@@ -243,95 +222,67 @@ export function TarifsPage() {
             className="mx-auto mt-5 max-w-2xl text-[16.5px] font-medium leading-[1.65]"
             style={{ color: C.grayFg }}
           >
-            L’estimation de vos aides est gratuite. Ce qui se paie, c’est le passage à
-            l’action : savoir de quelles aides il s’agit, auprès de qui les demander, et avec quelles
-            pièces.
+            Identifier vos aides et lire leur détail est gratuit, pour toujours. Ce qui se paie,
+            c’est le temps : savoir à l’avance quels guichets ouvrent, être prévenu avant chaque
+            date limite, et mener autant de chantiers et de monuments qu’il en faut.
           </p>
         </header>
 
-        {configured === false && (
-          <div
-            className="mx-auto mt-8 max-w-2xl rounded-xl border p-4 text-center"
-            style={{ background: C.paleOrange, borderColor: C.orange }}
-          >
-            <p className="text-[14px] font-medium" style={{ color: C.ink }}>
-              Le paiement en ligne ouvre très bientôt. Écrivez-nous en attendant : nous débloquons
-              votre projet à la main.
-            </p>
-          </div>
-        )}
-
         <div className="mt-12 grid items-stretch gap-6 lg:grid-cols-3">
-          {/* ── Découverte ─────────────────────────────────────────── */}
+          {/* ── Gratuit ────────────────────────────────────────────── */}
           <PlanCard
             icon={IconAide}
-            name="Découverte"
-            tagline="Pour savoir ce que votre lieu peut espérer."
+            name="Gratuit"
+            tagline="Pour identifier ce que votre lieu peut espérer."
             price="0 €"
             priceNote="pour toujours"
-            features={DECOUVERTE_FEATURES}
+            features={GRATUIT_FEATURES}
             featuresIntro={null}
             accent={C.blue}
-            current
+            current={plansDetenus.length === 0}
             currentLabel="Votre offre actuelle"
           />
 
-          {/* ── Dossier ────────────────────────────────────────────── */}
+          {/* ── Veille ─────────────────────────────────────────────── */}
           <PlanCard
-            icon={IconDossier}
-            name="Dossier"
-            tagline="Pour monter un dossier solide, du premier coup."
-            price={formatPrice(dossierPrice) ?? 'Bientôt'}
-            priceNote="paiement unique, pour un projet"
-            features={DOSSIER_FEATURES}
-            featuresIntro="Tout Découverte, plus :"
+            icon={IconTemps}
+            name="Veille"
+            tagline="Pour ne rater aucun guichet, ni aucune date limite."
+            price="Sur demande"
+            priceNote="nous en parlons ensemble"
+            features={VEILLE_FEATURES}
+            featuresIntro="Tout Gratuit, plus :"
             accent={C.orange}
             highlight
-            badge={monument ? 'Pour ce projet' : 'Le plus choisi'}
-            current={projectUnlocked}
+            badge="Le plus choisi"
+            current={aVeille}
             currentLabel={
-              subscribed
-                ? 'Inclus dans votre abonnement'
-                : monument
-                  ? 'Ce projet est débloqué'
-                  : 'Déjà débloqué'
+              aMultiMonuments ? 'Incluse dans Multi-monuments' : 'Votre abonnement est actif'
             }
-            cta={{
-              label: monument ? `Débloquer ${monument.nom}` : 'Débloquer un projet',
-              onClick: () => startCheckout('dossier'),
-              // Sans monument en contexte, on ne saurait pas quoi débloquer :
-              // l'utilisateur est renvoyé vers la liste de ses monuments.
-              redirectTo: monumentId ? undefined : ROUTES.MONUMENTS,
-              redirectLabel: 'Choisir un monument',
-            }}
-            loading={pending === 'dossier'}
-            waiting={configured === null}
-            unavailable={configured === false || (configured === true && !dossierPrice)}
+            cta={{ label: 'Nous contacter', href: contactMailto('Veille') }}
           />
 
-          {/* ── Abonnement ─────────────────────────────────────────── */}
+          {/* ── Multi-monuments ────────────────────────────────────── */}
           <PlanCard
             icon={IconProtection}
-            name="Abonnement"
-            tagline="Pour piloter votre patrimoine dans la durée."
-            price={formatPrice(abonnementPrice) ?? 'Bientôt'}
-            priceNote={abonnementPrice?.recurring ? 'par mois, sans engagement' : 'par mois'}
-            features={ABONNEMENT_FEATURES}
-            featuresIntro="Tout Dossier, plus :"
+            name="Multi-monuments"
+            tagline="Pour piloter plusieurs biens dans la durée."
+            price="Sur demande"
+            priceNote="selon la taille de votre parc"
+            features={MULTI_FEATURES}
+            featuresIntro="Tout Veille, plus :"
             accent={C.orangeVif}
             dark
-            current={subscribed}
+            current={aMultiMonuments}
             currentLabel="Votre abonnement est actif"
             cta={
-              subscribed
+              // Une offre sur mesure se fait suivre par un humain : le portail
+              // n'est proposé que s'il existe vraiment pour ce compte.
+              aMultiMonuments && portailDisponible
                 ? { label: 'Gérer mon abonnement', onClick: openPortal }
-                : { label: 'Choisir l’abonnement', onClick: () => startCheckout('abonnement') }
+                : { label: 'Nous contacter', href: contactMailto('Multi-monuments') }
             }
-            loading={pending === 'abonnement' || pending === 'portal'}
-            waiting={configured === null}
-            // Un abonné garde son bouton « Gérer mon abonnement » : il mène au
-            // portail Stripe, qui ne dépend pas des prix configurés.
-            unavailable={!subscribed && (configured === false || !abonnementPrice)}
+            loading={pending === 'portal'}
           />
         </div>
 
@@ -339,7 +290,7 @@ export function TarifsPage() {
             payé : sans Customer côté Stripe, l'ouverture échouerait. */}
         <Reassurance
           subscription={access?.subscription ?? null}
-          onOpenPortal={hasPaid ? openPortal : undefined}
+          onOpenPortal={portailDisponible ? openPortal : undefined}
         />
       </div>
     </div>
@@ -366,26 +317,18 @@ interface PlanCardProps {
   badge?: string;
   current?: boolean;
   currentLabel?: string;
-  cta?: {
-    label: string;
-    onClick: () => void;
-    /** Quand l'action réclame d'abord de choisir un projet. */
-    redirectTo?: string;
-    redirectLabel?: string;
-  };
+  /**
+   * L'action de la carte. `onClick` pour un paiement ou le portail Stripe,
+   * `href` pour une offre qui se négocie et mène à un mailto : le bouton est
+   * alors un vrai lien, pour que le client puisse l'ouvrir dans son logiciel
+   * de courrier comme n'importe quelle adresse.
+   */
+  cta?: { label: string; onClick: () => void; href?: never }
+    | { label: string; href: string; onClick?: never };
   loading?: boolean;
   /** Les tarifs ne sont pas encore revenus du serveur. */
   waiting?: boolean;
-  /**
-   * Offre pas encore vendable (Stripe non branché, ou prix manquant). Le bouton
-   * le DIT au lieu de rester grisé sous son libellé habituel : un « Débloquer
-   * Château » inerte laisse croire à une panne.
-   */
-  unavailable?: boolean;
 }
-
-const UNAVAILABLE_HINT =
-  "Le paiement en ligne n'est pas encore activé. Écrivez-nous : nous débloquons votre projet à la main.";
 
 function PlanCard({
   icon: Icon,
@@ -404,7 +347,6 @@ function PlanCard({
   cta,
   loading = false,
   waiting = false,
-  unavailable = false,
 }: PlanCardProps) {
   const shell = dark
     ? 'relative flex h-full flex-col overflow-hidden rounded-2xl p-7 transition-all duration-300 hover:-translate-y-1.5'
@@ -491,30 +433,18 @@ function PlanCard({
             <IconSucces className="h-4 w-4" />
             {currentLabel ?? 'Offre en cours'}
           </div>
-        ) : unavailable ? (
-          // Ni bouton ni action : une mention neutre. Le pourquoi est porté une
-          // seule fois par le bandeau en tête de page, pas répété par carte.
-          <div
-            title={UNAVAILABLE_HINT}
-            className="flex items-center justify-center gap-2 rounded-full px-5 py-3 text-[14px] font-semibold"
-            style={{
-              background: dark ? 'rgba(255,255,255,0.10)' : C.paleBlue,
-              color: dark ? '#fff' : C.blue,
-            }}
-          >
-            <IconTemps className="h-4 w-4" />
-            Bientôt
-          </div>
-        ) : cta?.redirectTo ? (
-          <Link
-            to={cta.redirectTo}
+        ) : cta?.href ? (
+          // Un vrai lien, pas un bouton : « Nous contacter » ouvre un mailto, et
+          // doit se comporter comme une adresse (clic milieu, copier le lien).
+          <a
+            href={cta.href}
             className="group inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[14.5px] font-semibold transition-all duration-300 hover:-translate-y-0.5"
-            style={{ background: accent, color: '#fff' }}
+            style={dark ? { background: '#fff', color: C.blue } : { background: accent, color: '#fff' }}
           >
-            {cta.redirectLabel ?? cta.label}
+            {cta.label}
             <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-          </Link>
-        ) : cta ? (
+          </a>
+        ) : cta?.onClick ? (
           <button
             type="button"
             onClick={cta.onClick}
@@ -524,11 +454,7 @@ function PlanCard({
               dark ? { background: '#fff', color: C.blue } : { background: accent, color: '#fff' }
             }
           >
-            {loading || waiting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <IconVerrou className="h-4 w-4" />
-            )}
+            {(loading || waiting) && <Loader2 className="h-4 w-4 animate-spin" />}
             {cta.label}
             {!loading && !waiting && (
               <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -563,15 +489,15 @@ function PaymentSuccess({
 
   const titre = {
     confirmation: 'Paiement reçu, activation en cours…',
-    confirme: 'C’est débloqué. Merci !',
+    confirme: 'C’est actif. Merci !',
     attente: 'Paiement reçu. L’activation se termine.',
   }[state];
 
   const texte = {
     confirmation: 'Quelques secondes le temps que Stripe nous confirme la transaction.',
     confirme: monumentName
-      ? `Le détail des aides de ${monumentName} est maintenant visible. Votre facture arrive par e-mail.`
-      : 'Le détail de vos aides est maintenant visible. Votre facture arrive par e-mail.',
+      ? `Votre offre est active sur ${monumentName} comme sur tous vos biens. Votre facture arrive par e-mail.`
+      : 'Votre offre est active. Votre facture arrive par e-mail.',
     attente:
       'La confirmation de Stripe met plus de temps que prévu. Elle arrivera d’elle-même : rechargez cette page dans une minute. Rien ne sera débité deux fois.',
   }[state];
@@ -608,7 +534,7 @@ function PaymentSuccess({
           className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
           style={{ background: C.success }}
         >
-          Voir mes aides
+          Retour à mon monument
           <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
         </button>
       )}
@@ -624,7 +550,7 @@ function Reassurance({
   subscription,
   onOpenPortal,
 }: {
-  subscription: { status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null;
+  subscription: BillingSubscription | null;
   onOpenPortal?: () => void;
 }) {
   const periodEnd = subscription?.currentPeriodEnd
@@ -658,7 +584,7 @@ function Reassurance({
       {(subscription || onOpenPortal) && (
         <p className="text-center text-[13px]" style={{ color: C.grayMuted }}>
           {subscription?.cancelAtPeriodEnd && periodEnd
-            ? `Votre abonnement prend fin le ${periodEnd}. Vos projets restent débloqués jusque-là.`
+            ? `Votre abonnement prend fin le ${periodEnd}. Votre offre reste active jusque-là.`
             : subscription && periodEnd
               ? `Prochain prélèvement le ${periodEnd}.`
               : null}

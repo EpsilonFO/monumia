@@ -17,12 +17,17 @@ import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { computeMonumentStats } from '@/lib/project-stats';
 import { useProjectsData } from '@/hooks/useProjectsData';
+import { useOffre } from '@/hooks/useOffre';
+import { libelleMonuments, sousLePlafond } from '@/lib/offres';
+import { OffreUpsell } from '@/components/shared/OffreUpsell';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 
 type MonumentSortKey = 'recent' | 'oldest' | 'name' | 'modified';
 
 export function MonumentsListPage() {
+  const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const projets = useProjetStore((s) => s.projets);
   const dossiers = useDossierStore((s) => s.dossiers);
@@ -70,7 +75,15 @@ export function MonumentsListPage() {
     return sorted;
   }, [monuments, search, sortKey]);
 
-  const newMonumentButton = (
+  // Plafond de l'offre : le bouton de création laisse place à la porte de
+  // sortie quand le compte a déjà son quota de monuments. Le comptage porte sur
+  // les monuments POSSÉDÉS — un bien partagé par quelqu'un d'autre ne consomme
+  // rien, exactement comme côté serveur (services/quotas.py).
+  const offre = useOffre();
+  const mesMonuments = user ? monuments.filter((m) => m.userId === user.id).length : 0;
+  const peutCreer = sousLePlafond(offre.monumentsMax, mesMonuments);
+
+  const newMonumentButton = peutCreer ? (
     <Link
       to={ROUTES.MONUMENT_NEW}
       className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[13px] font-semibold text-white transition-all hover:shadow-md"
@@ -79,16 +92,18 @@ export function MonumentsListPage() {
       <IconAjouter className="h-3.5 w-3.5" strokeWidth={2} />
       Nouveau monument
     </Link>
+  ) : (
+    <OffreUpsell action="ajouter un second monument" offre="Multi-monuments" />
   );
 
   return (
-    /* Colonne resserrée et centrée : une carte par monument, tenue à une largeur
-       de lecture confortable plutôt qu'étirée sur les 1200 px du gabarit. */
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    /* Colonne centrée : une carte par monument. Plus large que la lecture pure —
+       la photo tient les trois quarts de la carte, il lui faut de la place. */
+    <div className="mx-auto w-full max-w-5xl space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-[28px]" style={{ fontFamily: SERIF, color: C.ink }}>
-            Mes monuments
+            {libelleMonuments(offre)}
           </h1>
           <p className="text-[14px] text-muted-foreground">
             Chaque monument, ses projets de travaux et les aides qui vont avec.
@@ -161,9 +176,9 @@ export function MonumentsListPage() {
               Aucun monument ne correspond à votre recherche.
             </div>
           ) : (
-            /* Liste verticale (façon Doctolib) : une carte horizontale par
-               monument, lisible de haut en bas — même rendu avec 1, 2 ou 20. */
-            <div className="space-y-4">
+            /* Liste verticale : une grande carte horizontale par monument,
+               lisible de haut en bas — même rendu avec 1, 2 ou 20. */
+            <div className="space-y-5">
               {visibleMonuments.map((monument) => (
                 <MonumentCard
                   key={monument.id}

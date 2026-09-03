@@ -1,22 +1,33 @@
-"""Facturation Stripe : configuration, droits d'accès, client HTTP.
+"""Facturation Stripe : configuration, offres détenues, client HTTP.
 
-Deux offres payantes, cumulables et de portées différentes :
+Deux offres payantes, toutes deux des abonnements mensuels, et la seconde
+contient la première :
 
-  • « Dossier »    — paiement unique, débloque UN projet, pour toujours.
-  • « Abonnement » — récurrent mensuel, débloque TOUS les projets du compte.
+  • « Veille »          — projets illimités, une équipe, échéancier, aides à
+                          venir, emails.
+  • « Multi-monuments » — tout cela, plus les monuments illimités et le
+                          tableau de bord.
 
-Le calcul des droits vit ici plutôt que dans le routeur : c'est la seule
-autorité sur « cet utilisateur a-t-il accès au détail des aides de ce projet »,
-et l'onglet Aides comme la fiche d'une aide doivent lui poser la même question.
+Aucune des deux ne se vend en libre-service aujourd'hui (`PLANS_VENDABLES` est
+vide) : la page Tarifs n'affiche pas de montant et renvoie vers un courrier.
+Stripe reste l'outil de FACTURATION — abonnement créé dans le dashboard, webhook
+qui l'enregistre, portail client — mais plus le tunnel de vente.
+
+Ce module est la seule autorité sur « quelles offres ce compte détient ». Ce
+que chaque offre ouvre est décrit ailleurs, dans `services/offres.py` : la table
+des droits est pure et se lit sans base de données, ce module ne fait que la
+résoudre pour un utilisateur donné.
 
 Stripe est optionnel : sans `STRIPE_SECRET_KEY`, `is_configured()` renvoie False
 et la page Tarifs se rabat sur son état « bientôt disponible ». Le reste du site
-fonctionne normalement — un déploiement sans clé ne casse rien.
+fonctionne normalement — un déploiement sans clé ne casse rien, et l'offre
+gratuite y est pleinement utilisable.
 """
 
 import logging
 import os
 import time
+from collections.abc import Iterable
 from typing import Any
 
 import stripe
@@ -24,12 +35,30 @@ from fastapi import HTTPException, Request
 from supabase import Client
 
 from config import request_app_origin
+from services.offres import (
+    PLAN_MULTI_MONUMENTS,
+    PLAN_VEILLE,
+    PLANS,
+    PLANS_VENDABLES,
+    Offre,
+    as_dict,
+    offre_pour,
+)
+
+__all__ = [
+    "PLANS",
+    "PLANS_VENDABLES",
+    "PLAN_MULTI_MONUMENTS",
+    "PLAN_VEILLE",
+]
 
 logger = logging.getLogger(__name__)
 
-PLAN_DOSSIER = "dossier"
-PLAN_ABONNEMENT = "abonnement"
-PLANS = (PLAN_DOSSIER, PLAN_ABONNEMENT)
+# Variable d'environnement portant le prix Stripe de chaque offre.
+_PRICE_ENV = {
+    PLAN_VEILLE: "STRIPE_PRICE_VEILLE",
+    PLAN_MULTI_MONUMENTS: "STRIPE_PRICE_MULTI_MONUMENTS",
+}
 
 # Statuts Stripe qui ouvrent l'accès. `past_due` en fait partie volontairement :
 # un prélèvement rejeté déclenche les relances de Stripe (plusieurs jours), et
@@ -52,7 +81,25 @@ def webhook_secret() -> str | None:
 
 
 def price_id(plan: str) -> str | None:
-    return _env("STRIPE_PRICE_DOSSIER" if plan == PLAN_DOSSIER else "STRIPE_PRICE_ABONNEMENT")
+    env = _PRICE_ENV.get(plan)
+    return _env(env) if env else None
+
+
+def plan_pour_price(price: str | None) -> str | None:
+    """Offre correspondant à un id de prix Stripe.
+
+    Repli quand un abonnement arrive sans nos métadonnées (événement rejoué
+    depuis un vieux payload, abonnement créé à la main dans le dashboard
+    Stripe) : le prix, lui, est toujours là.
+
+    C'est le rôle qui reste aux `STRIPE_PRICE_*` maintenant que rien ne se vend
+    en libre-service : reconnaître l'offre d'un abonnement créé à la main dans
+    le dashboard. Un prix négocié client par client n'y figure pas, et c'est
+    alors `subscriptions.plan` qu'il faut renseigner à l'ouverture.
+    """
+    if not price:
+        return None
+    return next((plan for plan in PLANS if price_id(plan) == price), None)
 
 
 def app_url() -> str:
@@ -69,8 +116,13 @@ def return_origin(request: Request) -> str:
 
 
 def is_configured() -> bool:
-    """Vrai si le paiement peut fonctionner : clé + au moins un prix."""
-    return bool(secret_key()) and any(price_id(p) for p in PLANS)
+    """Vrai si un paiement en libre-service peut fonctionner : clé + un prix.
+
+    Faux tant que `PLANS_VENDABLES` est vide, donc faux aujourd'hui : les deux
+    offres se négocient. Ce n'est PAS un indicateur de « Stripe est branché » —
+    la facturation d'une offre négociée, elle, n'a besoin que de la clé.
+    """
+    return bool(secret_key()) and any(price_id(p) for p in PLANS_VENDABLES)
 
 
 def is_test_mode() -> bool:
@@ -140,8 +192,13 @@ def _fetch_price(plan: str) -> dict[str, Any] | None:
 
 
 def public_plans() -> list[dict[str, Any]]:
-    """Les offres payantes réellement vendables, prix compris."""
-    return [p for p in (_fetch_price(plan) for plan in PLANS) if p is not None]
+    """Les offres réellement achetables en ligne, prix compris.
+
+    Vide tant que `PLANS_VENDABLES` l'est : sans prix public, il n'y a rien à
+    lire dans Stripe, et la page Tarifs affiche ses cartes « sur demande » sans
+    rien attendre d'ici.
+    """
+    return [p for p in (_fetch_price(plan) for plan in PLANS_VENDABLES) if p is not None]
 
 
 # ---------------------------------------------------------------------------
@@ -149,159 +206,157 @@ def public_plans() -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
-def _has_manual_grant(supabase: Client, user_id: str) -> bool:
-    """Flag historique `has_aides_access` : porte de service (beta, démos)."""
-    res = (
-        supabase.table("users")
-        .select("has_aides_access")
-        .eq("id", user_id)
-        .maybe_single()
-        .execute()
-    )
-    return bool(res and res.data and res.data.get("has_aides_access"))
+def active_subscriptions(supabase: Client, user_id: str) -> list[dict]:
+    """Les abonnements en cours du compte, du plus récent au plus ancien.
 
-
-def active_subscription(supabase: Client, user_id: str) -> dict | None:
-    """Abonnement en cours du compte, ou None."""
+    Plusieurs lignes sont possibles : une montée de Veille vers Multi-monuments
+    laisse les deux abonnements actifs le temps que le premier arrive à son
+    terme. On les rend tous — ne garder que le dernier retirerait un droit que
+    le client paye encore.
+    """
     res = (
         supabase.table("subscriptions")
         .select("*")
         .eq("user_id", user_id)
         .in_("status", sorted(ACTIVE_SUBSCRIPTION_STATUSES))
         .order("created_at", desc=True)
-        .limit(1)
         .execute()
     )
-    rows = (res.data if res else None) or []
+    return (res.data if res else None) or []
+
+
+def active_subscription(supabase: Client, user_id: str) -> dict | None:
+    """Le plus récent abonnement en cours, ou None.
+
+    Reste utile là où il ne s'agit pas de calculer un droit mais de répondre
+    « ce compte est-il déjà abonné ? » — le garde-fou anti-double-souscription
+    de POST /billing/checkout.
+    """
+    rows = active_subscriptions(supabase, user_id)
     return rows[0] if rows else None
 
 
-def unlocked_monument_ids(supabase: Client, user_id: str) -> list[str]:
-    """Projets couverts, vus par cet utilisateur.
+def _plan_de(row: dict) -> str | None:
+    """L'offre portée par une ligne d'abonnement.
 
-    Le déblocage porte sur le PROJET, pas sur l'acheteur : si le propriétaire a
-    payé, l'architecte invité travaille sur un projet débloqué sans repayer.
-    D'où la lecture par monument_id (tous acheteurs confondus) et non par
-    user_id. Aucune fuite possible : la liste est bornée aux projets dont
-    l'utilisateur est déjà membre.
-
-    Vaut pour les deux formes de paiement : déblocage à l'unité, et projet dont
-    le propriétaire est au forfait (cf. project_is_covered).
+    `plan` est la source normale (posée par le webhook depuis nos métadonnées).
+    Le repli par `stripe_price_id` couvre les abonnements créés sans elles ;
+    NULL sur les deux = abonnement antérieur aux trois offres, qui n'ouvre rien.
     """
-    members = (
-        supabase.table("project_members").select("monument_id").eq("user_id", user_id).execute()
-    )
-    owned = supabase.table("monuments").select("id").eq("user_id", user_id).execute()
-
-    accessible = {row["monument_id"] for row in (members.data or [])}
-    accessible |= {row["id"] for row in (owned.data or [])}
-    if not accessible:
-        return []
-
-    unlocks = (
-        supabase.table("monument_unlocks")
-        .select("monument_id")
-        .in_("monument_id", sorted(accessible))
-        .execute()
-    )
-    covered = {row["monument_id"] for row in (unlocks.data or []) if row["monument_id"]}
-
-    # Projets restants : couverts si leur propriétaire est au forfait. Les
-    # propriétaires sont dédupliqués, donc c'est deux requêtes par propriétaire
-    # distinct (en pratique une poignée), pas par projet.
-    remaining = accessible - covered
-    if remaining:
-        owners = (
-            supabase.table("monuments").select("id, user_id").in_("id", sorted(remaining)).execute()
-        )
-        rows = [r for r in (owners.data or []) if r.get("user_id") and r.get("id") in remaining]
-        forfait: dict[str, bool] = {}
-        for row in rows:
-            owner_id = row["user_id"]
-            if owner_id not in forfait:
-                forfait[owner_id] = _user_has_all_access(supabase, owner_id)
-            if forfait[owner_id]:
-                covered.add(row["id"])
-
-    return sorted(covered)
+    return row.get("plan") or plan_pour_price(row.get("stripe_price_id"))
 
 
-def monument_is_unlocked(supabase: Client, monument_id: str) -> bool:
-    """Un déblocage « Dossier » existe-t-il sur ce projet, par qui que ce soit ?"""
+def active_plans(supabase: Client, user_id: str) -> set[str]:
+    """Les offres que ce compte détient. Vide = offre gratuite."""
+    plans = {_plan_de(row) for row in active_subscriptions(supabase, user_id)}
+    return {p for p in plans if p in PLANS}
+
+
+def plans_par_compte(supabase: Client, user_ids: Iterable[str]) -> dict[str, set[str]]:
+    """Les offres détenues, pour plusieurs comptes d'un coup.
+
+    Une seule requête quel que soit le nombre de comptes : la liste des
+    monuments accessibles peut appartenir à plusieurs propriétaires, et un
+    aller-retour Supabase par propriétaire se paierait sur chaque affichage de
+    « Mes monuments ». Les comptes sans abonnement actif sont absents du
+    résultat — leur ensemble de plans est vide, donc l'offre gratuite.
+    """
+    ids = sorted(set(user_ids))
+    if not ids:
+        return {}
+    rows = (
+        (
+            supabase.table("subscriptions")
+            .select("user_id, plan, stripe_price_id")
+            .in_("user_id", ids)
+            .in_("status", sorted(ACTIVE_SUBSCRIPTION_STATUSES))
+            .execute()
+        ).data
+    ) or []
+    par_compte: dict[str, set[str]] = {}
+    for row in rows:
+        plan = _plan_de(row)
+        if plan in PLANS:
+            par_compte.setdefault(row["user_id"], set()).add(plan)
+    return par_compte
+
+
+def offre_du_compte(supabase: Client, user_id: str) -> Offre:
+    """L'offre effective du compte — l'autorité unique sur ses droits.
+
+    Tout point du produit qui restreint quelque chose passe par ici : quotas de
+    monuments et de projets, suppressions, tableau de bord, échéancier, aides à
+    venir, emails de rappel. Ce qu'ouvre chaque offre est dans
+    `services/offres.py`.
+    """
+    return offre_pour(active_plans(supabase, user_id))
+
+
+def peut_recevoir_rappels(supabase: Client, user_id: str) -> bool:
+    """Ce compte reçoit-il les emails de veille ?
+
+    Deux emails sont concernés, et aucun ne part sur l'offre gratuite :
+    l'annonce qu'une aide « Disponibles bientôt » vient d'ouvrir son guichet, et
+    le rappel avant une date limite.
+
+    Point de branchement unique du job de rappels : il doit appeler cette
+    fonction pour chaque destinataire, en plus de ses préférences de
+    notification — l'offre décide s'il a droit au service, les préférences s'il
+    le souhaite.
+    """
+    return offre_du_compte(supabase, user_id).rappels_email
+
+
+def _a_un_client_stripe(supabase: Client, user_id: str) -> bool:
+    """Ce compte est-il rattaché à un Customer Stripe ?
+
+    C'est la condition du portail de facturation, et elle ne se déduit PAS de
+    la présence d'un abonnement : une offre sur mesure ouverte directement en
+    base donne des droits sans passer par Stripe.
+    """
     res = (
-        supabase.table("monument_unlocks")
-        .select("id")
-        .eq("monument_id", monument_id)
-        .limit(1)
+        supabase.table("users")
+        .select("stripe_customer_id")
+        .eq("id", user_id)
+        .maybe_single()
         .execute()
     )
-    return bool(res and res.data)
-
-
-def _project_owner_id(supabase: Client, monument_id: str) -> str | None:
-    """Propriétaire du projet : `monuments.user_id`, celui qui l'a créé."""
-    res = supabase.table("monuments").select("user_id").eq("id", monument_id).limit(1).execute()
-    rows = (res.data if res else None) or []
-    return rows[0].get("user_id") if rows else None
-
-
-def _user_has_all_access(supabase: Client, user_id: str) -> bool:
-    """Ce compte voit-il TOUS ses projets (abonnement ou octroi manuel) ?"""
-    return (
-        _has_manual_grant(supabase, user_id) or active_subscription(supabase, user_id) is not None
-    )
-
-
-def project_is_covered(supabase: Client, monument_id: str) -> bool:
-    """Ce projet est-il couvert, indépendamment de qui le regarde ?
-
-    Deux façons de l'être, et le principe est le même dans les deux cas : c'est
-    le PROJET qui est payé, pas le spectateur.
-
-      • un déblocage « Dossier » à l'unité, par qui que ce soit ;
-      • un propriétaire au forfait (abonnement ou octroi manuel).
-
-    Le second cas manquait : l'abonnement vit sur la ligne de l'abonné, donc un
-    collaborateur invité sur le projet d'un abonné — même promu chef de projet
-    adjoint — voyait les aides caviardées alors que le projet était payé.
-    """
-    if monument_is_unlocked(supabase, monument_id):
-        return True
-    owner_id = _project_owner_id(supabase, monument_id)
-    return bool(owner_id) and _user_has_all_access(supabase, owner_id)  # type: ignore[arg-type]
+    return bool(((res.data if res else None) or {}).get("stripe_customer_id"))
 
 
 def access_snapshot(supabase: Client, user_id: str) -> dict[str, Any]:
     """État complet des droits — la réponse de GET /billing/access.
 
     Le frontend s'appuie sur CET appel, et non sur le profil persisté dans le
-    localStorage : un profil bricolé côté navigateur ne débloque rien.
+    localStorage : un profil bricolé côté navigateur ne débloque rien. Il reçoit
+    l'offre déjà résolue plutôt que la liste des plans à interpréter — les deux
+    côtés tiennent la même table (`frontend/src/lib/offres.ts`), mais c'est le
+    serveur qui tranche.
     """
-    subscription = active_subscription(supabase, user_id)
-    all_access = subscription is not None or _has_manual_grant(supabase, user_id)
+    subscriptions = active_subscriptions(supabase, user_id)
+    plans = sorted({p for p in (_plan_de(r) for r in subscriptions) if p in PLANS})
+    principale = next((r for r in subscriptions if _plan_de(r) in PLANS), None)
     return {
-        "allAccess": all_access,
-        # Inutile d'énumérer les projets quand tout est ouvert.
-        "unlockedMonumentIds": [] if all_access else unlocked_monument_ids(supabase, user_id),
+        "plans": plans,
+        "offre": as_dict(offre_pour(plans)),
+        # Le portail Stripe n'existe que pour un compte rattaché à un Customer.
+        # Une offre ouverte à la main — Multi-monuments se négocie, cf.
+        # PLANS_VENDABLES — n'en a pas : proposer « Gérer mon abonnement »
+        # mènerait à un 404. Mieux vaut que le front ne le propose pas.
+        "portail": _a_un_client_stripe(supabase, user_id),
         "subscription": (
             {
-                "status": subscription["status"],
-                "currentPeriodEnd": subscription.get("current_period_end"),
-                "cancelAtPeriodEnd": subscription.get("cancel_at_period_end", False),
+                "plan": _plan_de(principale),
+                "status": principale["status"],
+                "currentPeriodEnd": principale.get("current_period_end"),
+                "cancelAtPeriodEnd": principale.get("cancel_at_period_end", False),
             }
-            if subscription
+            if principale
             else None
         ),
         "configured": is_configured(),
         "testMode": is_test_mode(),
     }
-
-
-def has_monument_access(supabase: Client, user_id: str, monument_id: str) -> bool:
-    """Autorité unique pour « peut voir le détail des aides de ce projet »."""
-    if _user_has_all_access(supabase, user_id):
-        return True
-    return project_is_covered(supabase, monument_id)
 
 
 # ---------------------------------------------------------------------------

@@ -10,7 +10,12 @@ import { RoleBadge } from '@/components/sharing/RoleBadge';
 interface MonumentSummaryBarProps {
   monument: Monument;
   members?: ProjectMember[];
-  onNouveauProjet: () => void;
+  /**
+   * Absent quand l'offre du bien a atteint son plafond de projets. L'en-tête
+   * cède alors la place à la porte de sortie : la liste des projets, plus bas,
+   * porte déjà le même appel à l'offre — inutile de le doubler ici.
+   */
+  onNouveauProjet?: () => void;
 }
 
 /**
@@ -64,7 +69,7 @@ export function MonumentSummaryBar({
           </div>
         </div>
 
-        {canEdit && (
+        {canEdit && onNouveauProjet && (
           <button
             onClick={onNouveauProjet}
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md shrink-0"

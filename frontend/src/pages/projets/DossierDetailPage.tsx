@@ -22,6 +22,8 @@ import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useTemplateStore } from '@/stores/useTemplateStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSuiviStore } from '@/stores/useSuiviStore';
+import { useOffre } from '@/hooks/useOffre';
+import { libelleMonuments } from '@/lib/offres';
 import { matchTemplates } from '@/lib/template-matching';
 import { projectPermissions } from '@/lib/project-permissions';
 import { monumentService } from '@/services/monument.service';
@@ -39,6 +41,7 @@ import type { Aide, ChecklistItem, Document, Dossier } from '@/types';
 export function DossierDetailPage() {
   const { projetId, dossierId } = useParams();
   const navigate = useNavigate();
+  const offreCompte = useOffre();
 
   const projet = useProjetStore((s) => s.projets.find((p) => p.id === projetId));
   const upsertProjet = useProjetStore((s) => s.upsertProjet);
@@ -334,7 +337,7 @@ export function DossierDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 overflow-hidden text-[13px] text-muted-foreground">
-        <Link to={ROUTES.MONUMENTS} className="shrink-0 hover:opacity-70 transition-opacity">Mes monuments</Link>
+        <Link to={ROUTES.MONUMENTS} className="shrink-0 hover:opacity-70 transition-opacity">{libelleMonuments(offreCompte)}</Link>
         <span>/</span>
         <Link to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`} className="truncate hover:opacity-70 transition-opacity">{monument.nom}</Link>
         <span>/</span>

@@ -35,6 +35,9 @@ import { documentService } from '@/services/document.service';
 import { dossierService } from '@/services/dossier.service';
 import { sharingService } from '@/services/sharing.service';
 import { computeMonumentStats, computeProjectStats, projectStage } from '@/lib/project-stats';
+import { useOffre, useOffreMonument } from '@/hooks/useOffre';
+import { libelleMonuments, sousLePlafond } from '@/lib/offres';
+import { OffreUpsell } from '@/components/shared/OffreUpsell';
 import { C, SERIF } from '@/lib/brand';
 import { isAccessLostError } from '@/lib/api-error';
 import { ROUTES } from '@/constants/routes';
@@ -91,18 +94,43 @@ export function MonumentDetailPage() {
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
 
+  // L'offre qui gouverne CE bien, et non celle du compte : un architecte
+  // invité par un client abonné doit pouvoir lancer un chantier de plus.
+  const offre = useOffreMonument(monumentId);
+  // Le fil d'Ariane remonte à l'espace du COMPTE : c'est son plafond à lui
+  // qui décide du singulier, pas l'offre qui gouverne ce monument-ci.
+  const offreCompte = useOffre();
+  const peutCreerProjet = sousLePlafond(offre.projetsMax, projets.length);
+
+  // Travailler à plusieurs est un service de l'offre Veille. L'onglet Équipe
+  // reste VISIBLE au gratuit — c'est une porte, pas un vide — mais il mène aux
+  // tarifs plutôt qu'à un formulaire que le serveur refuserait (402).
+  //
+  // Il s'ouvre quand même si une équipe existe déjà, et ce n'est pas une
+  // politesse : après une résiliation, les collaborateurs gardent leur accès.
+  // Renvoyer alors vers les tarifs le rendrait irrévocable. On laisse donc
+  // gérer ce qui est là, sans pouvoir y ajouter (cf. TeamPanel).
+  const equipeAccessible = offre.equipe || members.length > 1 || invitations.length > 0;
+
   const tabParam = searchParams.get('tab');
+  // Onglet par défaut : les Projets. Ouvrir un monument sert le plus souvent à
+  // reprendre un chantier ; la fiche, elle, ne bouge quasiment plus une fois
+  // remplie.
   const requestedTab =
-    tabParam === 'projets' || tabParam === 'documents' || tabParam === 'equipe'
+    tabParam === 'sanitaire' || tabParam === 'documents' || tabParam === 'equipe'
       ? tabParam
-      : 'sanitaire';
+      : 'projets';
   const handleTabChange = useCallback((value: string) => {
+    if (value === 'equipe' && !equipeAccessible) {
+      navigate(ROUTES.TARIFS(monumentId));
+      return;
+    }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('tab', value);
       return next;
     }, { replace: true });
-  }, [setSearchParams]);
+  }, [setSearchParams, equipeAccessible, navigate, monumentId]);
 
   // Rafraîchir au montage (et quand on change de monument) : revenir sur la page
   // doit refléter les changements des autres membres, sans recharger le navigateur.
@@ -169,10 +197,14 @@ export function MonumentDetailPage() {
   }, [members]);
 
   // Un onglet réservé à l'équipe du monument demandé par quelqu'un qui n'en est
-  // pas membre retombe sur la fiche : le serveur refuserait de toute façon.
+  // pas membre retombe sur l'onglet par défaut : le serveur refuserait de toute
+  // façon. Même repli pour l'onglet Équipe hors offre — arriver par un lien
+  // gardé en favori affiche le monument, là où un clic délibéré mène aux
+  // tarifs : on n'éjecte pas quelqu'un qui voulait simplement ouvrir sa fiche.
   const activeTab =
-    !monument?.myRole && (requestedTab === 'documents' || requestedTab === 'equipe')
-      ? 'sanitaire'
+    (!monument?.myRole && (requestedTab === 'documents' || requestedTab === 'equipe')) ||
+    (requestedTab === 'equipe' && !equipeAccessible)
+      ? 'projets'
       : requestedTab;
 
   const stats = useMemo(
@@ -294,7 +326,7 @@ export function MonumentDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-        <Link to={ROUTES.MONUMENTS} className="hover:opacity-70 transition-opacity">Mes monuments</Link>
+        <Link to={ROUTES.MONUMENTS} className="hover:opacity-70 transition-opacity">{libelleMonuments(offreCompte)}</Link>
         <span>/</span>
         <span style={{ color: C.ink }}>{monument.nom}</span>
       </div>
@@ -302,7 +334,7 @@ export function MonumentDetailPage() {
       <MonumentSummaryBar
         monument={monument}
         members={members}
-        onNouveauProjet={goNouveauProjet}
+        onNouveauProjet={peutCreerProjet ? goNouveauProjet : undefined}
       />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
@@ -353,7 +385,13 @@ export function MonumentDetailPage() {
           )}
           <MonumentFiche
             monument={monument}
-            canDelete={projectPermissions(monument.myRole ?? null).canDeleteProject}
+            // Deux conditions, et elles ne disent pas la même chose : le rôle
+            // dit « ce compte a-t-il le droit », l'offre dit « ce produit le
+            // permet-il ». Aucune ne remplace l'autre.
+            canDelete={
+              projectPermissions(monument.myRole ?? null).canDeleteProject &&
+              offre.suppressionMonument
+            }
             deleting={deleting}
             onDelete={() => setConfirmDeleteOpen(true)}
           />
@@ -365,14 +403,22 @@ export function MonumentDetailPage() {
             <>
               {canEdit && (
                 <div className="flex justify-end">
-                  <button
-                    onClick={goNouveauProjet}
-                    className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white transition-all duration-200 hover:shadow-md"
-                    style={{ background: C.orange }}
-                  >
-                    <IconAjouter className="h-3.5 w-3.5" strokeWidth={2} />
-                    Nouveau projet
-                  </button>
+                  {peutCreerProjet ? (
+                    <button
+                      onClick={goNouveauProjet}
+                      className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white transition-all duration-200 hover:shadow-md"
+                      style={{ background: C.orange }}
+                    >
+                      <IconAjouter className="h-3.5 w-3.5" strokeWidth={2} />
+                      Nouveau projet
+                    </button>
+                  ) : (
+                    <OffreUpsell
+                      action="mener plus de projets"
+                      offre="Veille"
+                      monumentId={monument.id}
+                    />
+                  )}
                 </div>
               )}
               <div className="space-y-4">
@@ -447,6 +493,7 @@ export function MonumentDetailPage() {
           <TeamPanel
             scope="monument"
             scopeId={monument.id}
+            invitationsOuvertes={offre.equipe}
             myRole={monument.myRole ?? null}
             members={members}
             invitations={invitations}

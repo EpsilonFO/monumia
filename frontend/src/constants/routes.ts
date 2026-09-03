@@ -7,8 +7,9 @@ export const ROUTES = {
   // Page Tarifs (publique). Le monument passe par l'URL et non par le state de
   // navigation : l'aller-retour vers Stripe quitte le site et perd tout state.
   // Le nom du paramètre (`projet`) est figé : d'anciens liens de retour Stripe
-  // circulent encore. Sa valeur est et reste un id de MONUMENT — c'est lui
-  // qu'on débloque.
+  // circulent encore. Sa valeur est et reste un id de MONUMENT, mais il ne sert
+  // plus qu'à revenir au bon endroit : les offres sont des abonnements de
+  // compte, elles ne débloquent pas un bien en particulier.
   TARIFS: (monumentId?: string) => (monumentId ? `/tarifs?projet=${monumentId}` : '/tarifs'),
 
   // ── Monuments : le bien, sa fiche sanitaire, ses documents, son équipe ──

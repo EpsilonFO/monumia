@@ -38,10 +38,16 @@ import type { AideMatchResult } from '@/types';
 interface AideCardProps {
   match: AideMatchResult;
   showEligibility?: boolean;
+  /**
+   * Aide dont le guichet n'est pas encore ouvert, sur une offre qui ne les
+   * montre pas. Son nom et son financeur sont déjà absents de la réponse
+   * serveur (cf. redact_bientot_hors_offre) : ce drapeau ne fait que rendre le
+   * verrou lisible et rediriger le clic vers la page Tarifs.
+   */
   locked?: boolean;
   /** Le PROJET dans lequel l'aide est vue : c'est lui qui clé la fiche d'aide. */
   projetId?: string;
-  /** Son monument : c'est LUI qu'on débloque, jamais le projet. */
+  /** Son monument : il sert de point de retour depuis la page Tarifs. */
   monumentId?: string;
   /**
    * `tile` = vignette compacte (non éligibles) · `grid` = carte « opportunité »
@@ -127,8 +133,8 @@ export function AideCard({ match, showEligibility = true, locked = false, projet
 
   const handleCardClick = () => {
     if (locked) {
-      // Le MONUMENT part dans l'URL : c'est l'unité que vend l'offre « Dossier »,
-      // et l'aller-retour vers Stripe efface tout state React.
+      // Le monument part dans l'URL pour que « Retour » revienne ici :
+      // l'aller-retour vers Stripe quitte le site et efface tout state React.
       navigate(ROUTES.TARIFS(monumentId));
     } else {
       navigate(aideDetailUrl);
@@ -180,20 +186,20 @@ export function AideCard({ match, showEligibility = true, locked = false, projet
       {locked && (
         <Badge variant="outline" className="border-warning text-warning bg-warning-muted gap-1">
           <IconVerrou className="h-2.5 w-2.5" />
-          À débloquer
+          Offre Veille
         </Badge>
       )}
     </div>
   );
 
   /**
-   * Nom de l'aide, ou marque de verrou quand le projet n'est pas débloqué.
+   * Nom de l'aide, ou marque de verrou quand l'offre ne la montre pas encore.
    *
-   * Le nom n'est pas flouté mais absent : le serveur ne l'envoie pas pour un
-   * projet non payé (cf. redact_locked_aide côté backend). Un floutage CSS
-   * n'aurait rien caché — le nom aurait voyagé quand même, lisible dans les
-   * outils de développement. Le cadenas dit donc franchement ce qu'il en est,
-   * plutôt que de mimer un texte illisible.
+   * Le nom n'est pas flouté mais absent : le serveur ne l'envoie pas pour une
+   * aide dont le guichet n'est pas ouvert (cf. redact_locked_aide côté
+   * backend). Un floutage CSS n'aurait rien caché — le nom aurait voyagé quand
+   * même, lisible dans les outils de développement. Le cadenas dit donc
+   * franchement ce qu'il en est, plutôt que de mimer un texte illisible.
    */
   const titleText = locked ? (
     <span className="inline-flex items-baseline gap-1.5">
@@ -323,7 +329,7 @@ export function AideCard({ match, showEligibility = true, locked = false, projet
       {locked ? (
         <>
           <IconVerrou className="h-3.5 w-3.5" />
-          Débloquer
+          Voir les offres
         </>
       ) : (
         "Voir l'aide"

@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
+from services import quotas
 from services.project_access import (
     get_projet_role,
     projet_role_depuis,
@@ -100,6 +101,9 @@ def create_projet(
     supabase: Client = Depends(get_supabase),
 ):
     require_project_access(supabase, monument_id, user_id, "co_owner")
+    # Plafond de projets de l'offre qui gouverne le bien. Avant l'insertion :
+    # un projet créé puis refusé laisserait un chantier fantôme.
+    quotas.verifier_creation_projet(supabase, monument_id, user_id)
     row = {
         **_row_from(body),
         "monument_id": monument_id,
@@ -155,7 +159,8 @@ def delete_projet(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    require_projet_access(supabase, projet_id, user_id, "co_owner")
+    projet, _ = require_projet_access(supabase, projet_id, user_id, "co_owner")
+    quotas.verifier_suppression_projet(supabase, projet["monument_id"], user_id)
     # Les dossiers et suivis du projet tombent en cascade (FK on delete cascade).
     supabase.table("projets").delete().eq("id", projet_id).execute()
 

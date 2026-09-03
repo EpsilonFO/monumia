@@ -7,10 +7,16 @@ au lieu d'en empiler des doublons.
     # mode test
     uv run python scripts/stripe_setup.py --key sk_test_xxx
 
-    # mode réel, avec les montants définitifs
+    # mode réel, avec le montant définitif
     uv run python scripts/stripe_setup.py --key sk_live_xxx \\
-        --dossier 149 --abonnement 29 \\
+        --veille 50 \\
         --webhook-url https://app.monumia.fr/api/billing/webhook
+
+Il ne crée que l'offre Veille, et ce prix ne sert PAS à la vendre en ligne :
+les deux offres se négocient (cf. services/offres.py, PLANS_VENDABLES). Il sert
+à facturer un client une fois l'offre convenue, et à ce que le webhook
+reconnaisse son abonnement. Une offre à prix négocié se pose directement dans
+`subscriptions.plan` (cf. docs/stripe-setup.md).
 
 Il affiche à la fin les trois variables à recopier dans backend/.env. Rien
 n'est écrit sur le disque : les secrets restent sous vos yeux, pas dans un
@@ -31,14 +37,13 @@ import stripe
 
 # Clés stables qui servent à retrouver un prix déjà créé. Ne les changez pas :
 # c'est le seul lien entre deux exécutions du script.
-LOOKUP_DOSSIER = "monumia_dossier_projet"
-LOOKUP_ABONNEMENT = "monumia_abonnement_mensuel"
+LOOKUP_VEILLE = "monumia_veille_mensuel"
 
-# Événements dont le backend a réellement besoin. En demander moins réduit le
-# bruit dans le dashboard et le volume de requêtes vers le webhook.
+# Événements dont le backend a réellement besoin. Les deux offres sont des
+# abonnements : `checkout.session.*` ne sert plus à rien, l'état complet arrive
+# avec customer.subscription.created. En demander moins réduit le bruit dans le
+# dashboard et le volume de requêtes vers le webhook.
 WEBHOOK_EVENTS = [
-    "checkout.session.completed",
-    "checkout.session.async_payment_succeeded",
     "customer.subscription.created",
     "customer.subscription.updated",
     "customer.subscription.deleted",
@@ -121,7 +126,7 @@ def ensure_webhook(client: stripe.StripeClient, url: str) -> tuple[str, str | No
         params={
             "url": url,
             "enabled_events": WEBHOOK_EVENTS,
-            "description": "Monumia — déblocages et abonnements",
+            "description": "Monumia — abonnements",
         }
     )
     return created.id, created.secret
@@ -131,18 +136,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--key", required=True, help="Clé secrète Stripe (sk_test_… ou sk_live_…)")
     parser.add_argument(
-        "--dossier",
+        "--veille",
         type=euros_to_cents,
-        default=14900,
+        default=5000,
         metavar="EUROS",
-        help="Prix du déblocage d'un projet, en euros (défaut : 149)",
-    )
-    parser.add_argument(
-        "--abonnement",
-        type=euros_to_cents,
-        default=2900,
-        metavar="EUROS",
-        help="Prix de l'abonnement mensuel, en euros (défaut : 29)",
+        help="Prix mensuel de l'offre Veille, en euros (défaut : 50)",
     )
     parser.add_argument(
         "--webhook-url",
@@ -170,40 +168,22 @@ def main() -> int:
     mode = "RÉEL (les cartes seront débitées)" if live else "test"
     print(f"Mode : {mode}\n")
 
-    dossier_product = ensure_product(
+    veille_product = ensure_product(
         client,
-        "Monumia — Dossier",
-        "Accès complet aux aides d'un projet : critères, montants, contacts, checklist.",
+        "Monumia — Veille",
+        "Projets illimités, échéancier, aides à venir et rappels par email.",
     )
-    dossier_price, dossier_new = ensure_price(
+    veille_price, veille_new = ensure_price(
         client,
-        product=dossier_product,
-        lookup_key=LOOKUP_DOSSIER,
-        amount_cents=args.dossier,
-        recurring=False,
-        force_new=args.force_new_price,
-    )
-    print(
-        f"{'créé  ' if dossier_new else 'existe'}  Dossier      "
-        f"{dossier_price.unit_amount / 100:.2f} € — {dossier_price.id}"
-    )
-
-    abo_product = ensure_product(
-        client,
-        "Monumia — Abonnement",
-        "Tous vos projets débloqués, veille des aides, alertes et suivi.",
-    )
-    abo_price, abo_new = ensure_price(
-        client,
-        product=abo_product,
-        lookup_key=LOOKUP_ABONNEMENT,
-        amount_cents=args.abonnement,
+        product=veille_product,
+        lookup_key=LOOKUP_VEILLE,
+        amount_cents=args.veille,
         recurring=True,
         force_new=args.force_new_price,
     )
     print(
-        f"{'créé  ' if abo_new else 'existe'}  Abonnement   "
-        f"{abo_price.unit_amount / 100:.2f} €/mois — {abo_price.id}"
+        f"{'créé  ' if veille_new else 'existe'}  Veille           "
+        f"{veille_price.unit_amount / 100:.2f} €/mois — {veille_price.id}"
     )
 
     webhook_secret = None
@@ -215,8 +195,7 @@ def main() -> int:
     print("\n" + "─" * 72)
     print("À recopier dans backend/.env (et backend/.env.beta pour la beta) :\n")
     print(f"STRIPE_SECRET_KEY={args.key}")
-    print(f"STRIPE_PRICE_DOSSIER={dossier_price.id}")
-    print(f"STRIPE_PRICE_ABONNEMENT={abo_price.id}")
+    print(f"STRIPE_PRICE_VEILLE={veille_price.id}")
     if webhook_secret:
         print(f"STRIPE_WEBHOOK_SECRET={webhook_secret}")
     elif not args.no_webhook:

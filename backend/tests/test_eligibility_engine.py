@@ -309,6 +309,73 @@ class TestRaisonPrefilter(unittest.TestCase):
         self.assertEqual(match["aide"]["raison"], ["restauration_travaux"])
 
 
+class TestFaitsDeduitsDesRaisons(unittest.TestCase):
+    """L'étape « Votre projet » répond d'avance certains faits : demander à un
+    propriétaire qui refait sa toiture si son projet est un festival se lit
+    comme une panne. Le filtrage `hors_projet` n'y suffit pas — une aide
+    multi-raison (Fondation CA Pays de France) reste candidate pour un pur
+    chantier et traîne ses faits événementiels avec elle."""
+
+    FACT = "projet_evenementiel_ponctuel"
+    GATE = {
+        "id": "pas-evenementiel",
+        "text": "L'aide ne concerne pas les opérations événementielles",
+        "kind": "user_fact",
+        "fact": FACT,
+        "predicate": {"eq": False},
+    }
+    # Les deux finalités, comme la Fondation CA Pays de France : c'est le cas
+    # que le préfiltre des raisons ne sait pas écarter.
+    AIDE = _fixture_aide(
+        [GATE],
+        slug="fx-mixte",
+        raison=["restauration_travaux", "valorisation_rayonnement"],
+    )
+
+    def _run(self, answers=None):
+        return run_deterministic_diagnostic(
+            {self.AIDE.slug: self.AIDE}, FACTS, _monument(), 3000, answers
+        )
+
+    def _questions(self, res) -> set[str]:
+        return {q["id"] for q in res["qcmQuestions"]}
+
+    def test_travaux_seuls_repondent_non_sans_poser_la_question(self):
+        res = self._run({"_raisons": ["restauration_travaux"]})
+        self.assertNotIn(self.FACT, self._questions(res))
+        self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-mixte"])
+
+    def test_faire_vivre_le_lieu_laisse_la_question_posee(self):
+        """« Faire vivre » couvre autant des visites pérennes qu'une exposition
+        d'un été : la déduction ne tranche pas, la question survit."""
+        res = self._run({"_raisons": ["restauration_travaux", "valorisation_rayonnement"]})
+        self.assertIn(self.FACT, self._questions(res))
+        self.assertEqual(len(res["aidesPotentiellementEligibles"]), 1)
+
+    def test_sans_raisons_comportement_inchange(self):
+        for answers in (None, {}, {"_raisons": []}):
+            res = self._run(answers)
+            self.assertIn(self.FACT, self._questions(res), answers)
+
+    def test_reponse_de_l_utilisateur_prime_sur_la_deduction(self):
+        """Un projet d'événement déclaré tel quel reste écarté, même si
+        l'intention « faire vivre le lieu » a été décochée depuis."""
+        res = self._run({"_raisons": ["restauration_travaux"], self.FACT: "oui"})
+        self.assertEqual([m["aide"]["id"] for m in res["aidesNonEligibles"]], ["fx-mixte"])
+
+    def test_je_ne_sais_pas_ne_bloque_pas_la_deduction(self):
+        res = self._run({"_raisons": ["restauration_travaux"], self.FACT: "skip"})
+        self.assertNotIn(self.FACT, self._questions(res))
+        self.assertEqual(len(res["aidesEligibles"]), 1)
+
+    def test_answers_du_caller_non_mutees(self):
+        """Le dict d'entrée est partagé (store front, cache) : la déduction en
+        travaille une copie."""
+        answers = {"_raisons": ["restauration_travaux"]}
+        self._run(answers)
+        self.assertEqual(answers, {"_raisons": ["restauration_travaux"]})
+
+
 class TestHardFilters(unittest.TestCase):
     def test_inscrit_aide_refuses_classe_monument(self):
         """drac-mh-inscrits exige protection=inscrit → un classé est non éligible."""

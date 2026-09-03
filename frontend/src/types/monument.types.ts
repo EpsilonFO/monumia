@@ -1,4 +1,5 @@
 import type { ID, ProtectionLevel, OwnershipType, Region } from './common.types';
+import type { Offre } from '@/lib/offres';
 
 export interface Monument {
   id: ID;
@@ -6,6 +7,19 @@ export interface Monument {
   myRole?: import('./sharing.types').ProjectRole;
   members?: import('./sharing.types').MemberPreview[];
   memberCount?: number;
+
+  /**
+   * L'offre qui gouverne CE bien : celle de son propriétaire unie à celle de
+   * l'appelant (cf. backend/services/quotas.py). C'est elle qui décide des
+   * boutons de la fiche et de ses projets — pas l'offre du compte, sinon
+   * l'architecte invité par un client abonné perdrait l'échéancier que son
+   * client paye. Pour ce qui relève du COMPTE (second monument, tableau de
+   * bord), lire `useOffre()`.
+   *
+   * Absente d'un monument construit localement avant le premier aller-retour
+   * serveur : `useOffreMonument` retombe alors sur l'offre gratuite.
+   */
+  offre?: Offre;
 
   // Step 1: Identification
   nom: string;

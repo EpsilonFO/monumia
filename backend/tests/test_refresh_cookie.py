@@ -44,7 +44,6 @@ PROFILE_ROW = {
     "onboarding_complete": True,
     "notification_preferences": {},
     "created_at": "2026-01-01T00:00:00Z",
-    "has_aides_access": False,
     "account_type": "proprietaire",
     "metier": None,
 }

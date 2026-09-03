@@ -23,6 +23,7 @@ import { DocumentsPage } from '@/pages/documents/DocumentsPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { InvitationLandingPage } from '@/pages/invitation/InvitationLandingPage';
 import { ROUTES } from '@/constants/routes';
+import { useOffre, useOffreChargee } from '@/hooks/useOffre';
 
 /**
  * Ancien wizard unifié : `/app/projets/nouveau`, avec `?monument=<id>` pour
@@ -40,6 +41,31 @@ function LegacyWizardRedirect() {
       replace
     />
   );
+}
+
+/**
+ * Le tableau de bord est réservé à l'offre Multi-monuments : sur un seul
+ * monument, il n'agrège rien que la fiche ne montre déjà.
+ *
+ * Ce garde renvoie sur « Mes monuments », et NON sur les tarifs, alors que
+ * l'onglet de la barre haute mène bien aux tarifs (cf. navItemsPour). Les deux
+ * ne répondent pas à la même intention : `/app` est la racine de l'espace, là
+ * où `RootRedirect` dépose tout le monde à la connexion. Y répondre par la page
+ * de vente ferait atterrir chaque ouverture de session sur un argumentaire.
+ * Cliquer l'onglet, en revanche, est une demande explicite.
+ *
+ * On ATTEND la réponse du serveur avant de rediriger. L'état initial est
+ * l'offre gratuite (par prudence, cf. useOffre), et trancher dessus éjecterait
+ * un abonné vers « Mes monuments » à chaque rechargement — le temps que
+ * /billing/access revienne.
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+function DashboardRoute() {
+  const offre = useOffre();
+  const charge = useOffreChargee();
+  if (!charge) return <div className="min-h-[40vh]" />;
+  if (!offre.dashboard) return <Navigate to={ROUTES.MONUMENTS} replace />;
+  return <DashboardPage />;
 }
 
 // Root: send logged-in users to their dashboard, others to login.
@@ -138,7 +164,9 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <DashboardPage /> },
+      // `/app` reste la racine de l'espace : le garde renvoie sur « Mes
+      // monuments » quand l'offre n'ouvre pas le tableau de bord.
+      { index: true, element: <DashboardRoute /> },
       // Monuments : la liste et la fiche du bien
       { path: 'monuments', element: <MonumentsListPage /> },
       { path: 'monuments/:monumentId', element: <MonumentDetailPage /> },

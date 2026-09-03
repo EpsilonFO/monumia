@@ -13,7 +13,8 @@ interface AidesPaywallBannerProps {
 }
 
 /**
- * Bandeau au-dessus des aides d'un projet non débloqué.
+ * Bandeau au-dessus de la section « Disponibles bientôt », quand l'offre du
+ * compte ne montre pas encore ces aides.
  *
  * Le parti pris : montrer l'enjeu chiffré en grand, et rester factuel sur ce qui
  * manque. Le montant et le nombre d'aides sont réels — c'est le résultat du
@@ -27,12 +28,12 @@ export function AidesPaywallBanner({
 }: AidesPaywallBannerProps) {
   const facts = [
     montantTotal > 0
-      ? { icon: IconSubvention, value: formatCurrency(montantTotal), label: 'récupérables, au mieux' }
+      ? { icon: IconSubvention, value: formatCurrency(montantTotal), label: 'à venir, au mieux' }
       : null,
     {
       icon: IconAide,
       value: String(nombreAides),
-      label: `aide${nombreAides > 1 ? 's' : ''} identifiée${nombreAides > 1 ? 's' : ''}`,
+      label: `aide${nombreAides > 1 ? 's' : ''} à venir`,
     },
     nombreAidesAvecTaux > 0
       ? {
@@ -55,17 +56,17 @@ export function AidesPaywallBanner({
             style={{ background: C.paleOrange, color: C.orange }}
           >
             <IconVerrou className="h-3 w-3" />
-            Projet non débloqué
+            Offre Veille
           </span>
 
           <h3 className="text-[19px] leading-snug" style={{ fontFamily: SERIF, color: C.ink }}>
-            Votre diagnostic est prêt. Les noms des aides sont masqués.
+            Ces guichets ne sont pas encore ouverts. Leurs noms sont masqués.
           </h3>
 
           <p className="text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
-            Vous voyez les montants, les taux, les échéances et vos critères remplis. Débloquez ce
-            projet pour découvrir de quelles aides il s’agit, à quel organisme les demander et avec
-            quelles pièces.
+            Vous voyez les montants, les taux et les dates. L’offre Veille vous dit de quelles
+            aides il s’agit, et vous prévient par email le jour où chacune ouvre. De quoi préparer
+            le dossier avant les autres candidats.
           </p>
         </div>
 
@@ -98,7 +99,7 @@ export function AidesPaywallBanner({
             className="group inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[14.5px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
             style={{ background: C.orange }}
           >
-            Débloquer ce projet
+            Découvrir l'offre Veille
             <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
           </Link>
         </div>

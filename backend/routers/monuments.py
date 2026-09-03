@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
+from services import quotas
+from services.offres import as_dict
 from services.project_access import (
     monument_ids_via_projets,
     projet_ids_membre,
@@ -313,9 +315,17 @@ def enrich_monument_with_population(supabase: Client, monument: dict) -> tuple[d
     return monument, row.get("population")
 
 
-def _enrich_monument(supabase: Client, monument: dict) -> dict:
-    """Voir enrich_monument_with_population — variante sans la population."""
+def _enrich_monument(supabase: Client, monument: dict, user_id: str) -> dict:
+    """Voir enrich_monument_with_population — variante sans la population.
+
+    Pose aussi `offre` : l'offre qui gouverne ce bien (celle de son propriétaire
+    unie à celle de l'appelant, cf. services/quotas.py). Le frontend en tire les
+    boutons qu'il affiche sur la fiche et sur les projets du monument — d'où sa
+    présence sur TOUTE réponse portant un monument, et pas seulement sur la
+    liste : une fiche fraîchement créée doit déjà savoir ce qu'elle permet.
+    """
     monument, _ = enrich_monument_with_population(supabase, monument)
+    monument["offre"] = as_dict(quotas.offre_du_monument(supabase, monument["id"], user_id))
     return monument
 
 
@@ -330,7 +340,7 @@ def _get_monument_or_404(supabase: Client, monument_id: str, user_id: str) -> di
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
-    return _enrich_monument(supabase, result.data)
+    return _enrich_monument(supabase, result.data, user_id)
 
 
 def _compute_completion(monument: dict) -> int:
@@ -496,11 +506,17 @@ def fetch_user_monuments(
         profiles = cast("dict[str, dict]", {r["id"]: r for r in prows})
     members_by_monument = build_members_index(all_members, profiles)
 
+    # L'offre qui gouverne chaque bien, en deux requêtes pour toute la liste.
+    # Le frontend s'en sert pour décider quels boutons afficher sur chaque
+    # monument, et /dashboard pour masquer les aides encore à venir.
+    offres = quotas.offres_des_monuments(supabase, [m["id"] for m in monuments], user_id)
+
     for m in monuments:
         m["my_role"] = role_by_id.get(m["id"])
         preview = members_by_monument.get(m["id"], [])
         m["members"] = preview
         m["member_count"] = len(preview)
+        m["offre"] = as_dict(offres[m["id"]])
     return monuments, population_by_code
 
 
@@ -520,6 +536,10 @@ def create_monument(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
+    # Plafond de l'offre AVANT toute écriture : le monument gratuit est unique,
+    # et la ligne créée puis refusée laisserait un bien orphelin.
+    quotas.verifier_creation_monument(supabase, user_id)
+
     data = _snake_row(body.model_dump(exclude_none=True))
 
     # Resolve code_insee from commune name, falling back to the historical INSEE
@@ -555,7 +575,7 @@ def create_monument(
     # Le créateur est chef de projet : renvoyer le rôle et le nombre de membres
     # dès la création, pour que l'UI propose immédiatement l'invitation d'équipe
     # (sinon `my_role` n'est peuplé qu'au prochain GET).
-    enriched = _enrich_monument(supabase, monument)
+    enriched = _enrich_monument(supabase, monument, user_id)
     enriched["my_role"] = "owner"
     enriched["member_count"] = 1
     return enriched
@@ -574,7 +594,7 @@ def get_monument(
     result = supabase.table("monuments").select(COLUMNS).eq("id", monument_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
-    monument = _enrich_monument(supabase, result.data)
+    monument = _enrich_monument(supabase, result.data, user_id)
     monument["my_role"] = role
     sign_photos(supabase, [monument])
     return monument
@@ -605,7 +625,7 @@ def update_monument(
         result = (
             supabase.table("monuments").select(COLUMNS).eq("id", monument_id).single().execute()
         )
-        return _enrich_monument(supabase, result.data)
+        return _enrich_monument(supabase, result.data, user_id)
 
     result = supabase.table("monuments").update(updates).eq("id", monument_id).execute()
     monument = result.data[0]
@@ -617,7 +637,7 @@ def update_monument(
     ).execute()
     monument["completion_percentage"] = pct
 
-    return _enrich_monument(supabase, monument)
+    return _enrich_monument(supabase, monument, user_id)
 
 
 @router.delete("/{monument_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -627,6 +647,7 @@ def delete_monument(
     supabase: Client = Depends(get_supabase),
 ):
     require_project_access(supabase, monument_id, user_id, "owner")
+    quotas.verifier_suppression_monument(supabase, monument_id, user_id)
     supabase.table("monuments").delete().eq("id", monument_id).execute()
 
 

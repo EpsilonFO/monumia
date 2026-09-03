@@ -39,6 +39,9 @@ export function toMonument(row: Record<string, unknown>): Monument {
         }))
       : undefined,
     memberCount: (row.member_count as number) ?? undefined,
+    // L'offre qui gouverne ce bien, résolue par le serveur. Absente d'un
+    // monument fabriqué localement : les hooks retombent alors sur le gratuit.
+    offre: (row.offre as Monument['offre']) ?? undefined,
     nom: row.nom as string,
     commune: row.commune as string,
     codeInsee: row.code_insee as string ?? row.codeInsee as string ?? '',

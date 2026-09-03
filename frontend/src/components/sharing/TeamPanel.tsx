@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import { projetSharingService, sharingService } from '@/services/sharing.service';
 import { projectPermissions } from '@/lib/project-permissions';
+import { OffreUpsell } from '@/components/shared/OffreUpsell';
 import { RoleBadge } from './RoleBadge';
 import { MemberAvatar } from './MemberAvatar';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -26,6 +27,13 @@ interface TeamPanelProps {
   scope: 'monument' | 'projet';
   /** Id du monument ou du projet, selon `scope`. */
   scopeId: string;
+  /**
+   * L'offre du bien permet-elle d'AJOUTER quelqu'un ? Le retrait, lui, reste
+   * toujours ouvert : après une résiliation, l'équipe garde son accès, et
+   * couper un accès qu'on ne contrôle plus n'est pas un service mais une
+   * sécurité. D'où deux droits distincts là où il n'y en avait qu'un.
+   */
+  invitationsOuvertes: boolean;
   myRole: ProjectRole | null;
   members: ProjectMember[];
   invitations: ProjectInvitation[];
@@ -73,7 +81,16 @@ const TEXTES = {
  * n'est pas le même : sur un projet, ce panneau ouvre un accès CLOISONNÉ, et le
  * dire est la moitié du travail.
  */
-export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChanged, onLeft }: TeamPanelProps) {
+export function TeamPanel({
+  scope,
+  scopeId,
+  invitationsOuvertes,
+  myRole,
+  members,
+  invitations,
+  onChanged,
+  onLeft,
+}: TeamPanelProps) {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const perms = projectPermissions(myRole);
   const api = scope === 'projet' ? projetSharingService : sharingService;
@@ -83,6 +100,7 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
   const [confirmRemove, setConfirmRemove] = useState<ProjectMember | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const isSolo = members.length === 1 && invitations.length === 0;
+  const peutInviter = perms.canInvite && invitationsOuvertes;
 
   const handleInvite = async () => {
     const target = email.trim();
@@ -119,7 +137,22 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
         <p className="text-[13px] text-muted-foreground">{t.intro}</p>
       </div>
 
-      {perms.canInvite && (
+      {/* Le formulaire cède la place à la porte de sortie quand l'offre ne
+          permet plus d'ajouter : on n'arrive ici, dans ce cas, que parce qu'une
+          équipe est déjà constituée et reste à gérer. */}
+      {perms.canInvite && !invitationsOuvertes && (
+        <OffreUpsell
+          variante="bandeau"
+          action={
+            scope === 'monument'
+              ? 'inviter des collaborateurs sur ce monument'
+              : 'inviter des collaborateurs sur ce chantier'
+          }
+          offre="Veille"
+        />
+      )}
+
+      {peutInviter && (
         <div
           className="rounded-xl border p-4 space-y-2"
           style={{ background: C.card, borderColor: C.border }}
@@ -158,7 +191,7 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
       {isSolo && (
         <p className="text-[13px] text-muted-foreground">
           {t.solo}
-          {perms.canInvite ? ' Invitez vos collaborateurs ci-dessus.' : ''}
+          {peutInviter ? ' Invitez vos collaborateurs ci-dessus.' : ''}
         </p>
       )}
 

@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Literal
@@ -318,6 +319,58 @@ AUTO_SOURCE_DERIVERS = {
     # Une église ou une chapelle est, par construction, un édifice cultuel.
     "edifice_cultuel": _eglise_ou_chapelle_depuis_nom,
 }
+
+
+def _evenementiel_depuis_raisons(raisons: set[str]) -> bool | None:
+    """Une intention non cochée répond d'avance : pas de « faire vivre le lieu »,
+    donc pas de festival.
+
+    L'inverse n'est jamais vrai — « Faire vivre et ouvrir le lieu » couvre
+    autant des visites pérennes qu'une exposition d'un été —, d'où le None qui
+    laisse la question posée là où elle discrimine vraiment.
+    """
+    return None if "valorisation_rayonnement" in raisons else False
+
+
+# Faits que l'étape « Votre projet » répond d'avance, par déduction des
+# intentions cochées. Pendant de AUTO_SOURCE_DERIVERS : même principe (ne pas
+# demander ce que l'on sait déjà), mais la source est l'intention déclarée et
+# non la fiche du monument. Ne jamais y mettre une déduction qui pourrait
+# ÉCARTER une aide : une intention non cochée est une indication sur le projet,
+# pas une preuve — fail-closed, la déduction rend None et la question survit.
+FAITS_DEDUITS_DES_RAISONS: dict[str, Callable[[set[str]], object]] = {
+    "projet_evenementiel_ponctuel": _evenementiel_depuis_raisons,
+}
+
+
+def deduire_faits_des_raisons(
+    raisons: set[str],
+    answers: dict[str, object],
+    facts: dict[str, FactDef],
+) -> dict[str, object]:
+    """Complète les réponses par les faits déductibles des intentions déclarées.
+
+    Poser à un propriétaire qui refait sa toiture « votre projet est-il un
+    festival ? » se lit comme une panne : l'étape « Votre projet » a déjà dit
+    non. Le filtrage `hors_projet` ne suffit pas, parce qu'une aide multi-raison
+    (Fondation CA Pays de France : restauration ET valorisation) reste candidate
+    pour un pur chantier et traîne ses faits événementiels avec elle.
+
+    La réponse de l'utilisateur prime toujours : la déduction ne remplit qu'un
+    fait qu'il n'a pas renseigné (une réponse « je ne sais pas » n'en est pas
+    une). `raisons` vide ⇒ aucune déduction, comme `hors_projet` ne filtre rien :
+    un questionnaire d'avant l'étape ne dit rien des intentions.
+    """
+    if not raisons:
+        return answers
+    complete = dict(answers)
+    for fact_key, deduire in FAITS_DEDUITS_DES_RAISONS.items():
+        if _normalize_answer(facts.get(fact_key), complete.get(fact_key)) is not None:
+            continue
+        valeur = deduire(raisons)
+        if valeur is not None:
+            complete[fact_key] = valeur
+    return complete
 
 
 def _answered_value(ctx: dict, fact_key: str, facts: dict[str, FactDef]):
@@ -1271,7 +1324,9 @@ def run_deterministic_diagnostic(
     ready = {slug: a for slug, a in ready.items() if not hors_projet(a, raisons)}
     hors_sujet = ready_avant_raisons - len(ready)
 
-    ctx = build_context(monument, population, fact_answers)
+    ctx = build_context(
+        monument, population, deduire_faits_des_raisons(raisons, fact_answers, facts)
+    )
     # Exclure les aides dont l'utilisateur a déclaré qu'elles ne le concernent
     # pas (périmètre de l'aide : festivals, compagnies, écoles d'art…). Même
     # traitement que les aides hors projet : elles n'ont jamais été candidates.

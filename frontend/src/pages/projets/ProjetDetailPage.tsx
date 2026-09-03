@@ -23,7 +23,9 @@ import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDial
 import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
 import { TeamPanel } from '@/components/sharing/TeamPanel';
 import { projectPermissions } from '@/lib/project-permissions';
-import { useAidesAccess } from '@/hooks/useAidesAccess';
+import { useOffre, useOffreMonument } from '@/hooks/useOffre';
+import { libelleMonuments } from '@/lib/offres';
+import { OffreUpsell } from '@/components/shared/OffreUpsell';
 import { ProjetSummaryBar } from '@/components/projet/ProjetSummaryBar';
 import { ProjectDetailSkeleton } from '@/components/skeletons';
 import { ProjectEcheancier } from '@/components/project/ProjectEcheancier';
@@ -150,21 +152,46 @@ export function ProjetDetailPage() {
   // L'onglet « Aides » est réservé au chef de projet et à son adjoint. Pour un
   // collaborateur, on retombe sur « Dossiers ».
   const canAccessAides = perms.canAccessAides;
-  // Paywall : le détail des aides est vendu PAR MONUMENT — jamais par projet.
-  // Débloquer un monument ouvre tous ses chantiers.
-  const { locked } = useAidesAccess(monumentId);
+  // L'offre qui gouverne le BIEN, et non le compte : un collaborateur invité
+  // par un client abonné voit le même calendrier que son client. Elle décide
+  // ici de trois choses — l'échéancier, les aides encore à venir, et la
+  // suppression du chantier.
+  const offre = useOffreMonument(monumentId);
+  const offreCompte = useOffre();
+  // Travailler à plusieurs est un service de l'offre Veille. L'onglet Équipe
+  // reste VISIBLE au gratuit — c'est une porte, pas un vide — mais il mène aux
+  // tarifs plutôt qu'à un formulaire que le serveur refuserait (402).
+  //
+  // Il s'ouvre quand même si une équipe existe déjà, et ce n'est pas une
+  // politesse : après une résiliation, les collaborateurs gardent leur accès.
+  // Renvoyer alors vers les tarifs le rendrait irrévocable. On laisse donc
+  // gérer ce qui est là, sans pouvoir y ajouter (cf. TeamPanel).
+  const equipeAccessible = offre.equipe || members.length > 1 || invitations.length > 0;
   const requestedTab =
     tabParam === 'dossiers' || tabParam === 'documents' || tabParam === 'equipe'
       ? tabParam
       : 'aides';
-  const activeTab = requestedTab === 'aides' && !canAccessAides ? 'dossiers' : requestedTab;
+  // Deux replis vers « Dossiers », le seul onglet toujours ouvert : l'onglet
+  // Aides est réservé au chef de projet et à son adjoint, et l'onglet Équipe à
+  // l'offre Veille. Arriver par un lien gardé en favori affiche le projet, là
+  // où un clic délibéré mène aux tarifs : on n'éjecte pas quelqu'un qui voulait
+  // simplement ouvrir son chantier.
+  const activeTab =
+    (requestedTab === 'aides' && !canAccessAides) ||
+    (requestedTab === 'equipe' && !equipeAccessible)
+      ? 'dossiers'
+      : requestedTab;
   const handleTabChange = useCallback((value: string) => {
+    if (value === 'equipe' && !equipeAccessible) {
+      navigate(ROUTES.TARIFS(monumentId));
+      return;
+    }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('tab', value);
       return next;
     }, { replace: true });
-  }, [setSearchParams]);
+  }, [setSearchParams, equipeAccessible, navigate, monumentId]);
 
   // Chargement du projet, avec la résolution des vieux liens en repli. Rafraîchi
   // au montage : revenir sur la page doit refléter les changements des autres
@@ -366,29 +393,34 @@ export function ProjetDetailPage() {
   // L'affichage des aides s'adapte au nombre : 1 → bandeau pleine largeur, sinon
   // grille 6 colonnes où chaque carte s'étale (rangées de deux ou de trois) pour
   // que chaque rangée soit pleine — jamais de case vide (voir aideGridSpans).
+  // Le verrou porte désormais sur UNE aide et non sur le projet : seules les
+  // aides dont le guichet n'est pas encore ouvert sont floutées, et seulement
+  // hors offre Veille. Le serveur en a déjà retiré le nom et le financeur
+  // (cf. redact_bientot_hors_offre) — le floutage n'en est que la traduction
+  // visuelle, il ne cache rien à lui seul.
+  const estVerrouillee = (match: AideMatchResult) =>
+    !offre.aidesBientot && getDisponibilite(match) === 'bientot';
+
   const renderAideList = (list: AideMatchResult[]) => {
     if (list.length === 1)
-      return <AideCard match={list[0]} projetId={projet.id} monumentId={monument.id} layout="hero" locked={locked} />;
+      return <AideCard match={list[0]} projetId={projet.id} monumentId={monument.id} layout="hero" locked={estVerrouillee(list[0])} />;
     const spans = aideGridSpans(list.length);
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
         {list.map((match, i) => (
           <div key={match.aide.id} className={spans[i]}>
-            <AideCard match={match} projetId={projet.id} monumentId={monument.id} layout="grid" locked={locked} />
+            <AideCard match={match} projetId={projet.id} monumentId={monument.id} layout="grid" locked={estVerrouillee(match)} />
           </div>
         ))}
       </div>
     );
   };
 
-  // Enjeu chiffré du bandeau paywall : le montant agrégé du diagnostic, ou à
-  // défaut la somme des plafonds des aides à portée (les non éligibles sont
-  // exclues — elles ne sont pas un gain possible).
   const aidesAPortee = [...toutesEligibles, ...toutesAtteignables, ...toutesPotentiels];
-  const montantPaywall =
-    diagnostic?.montantPotentielTotal ??
-    aidesAPortee.reduce((sum, m) => sum + (m.aide.montantMax ?? 0), 0);
-  const nombreAidesAvecTaux = aidesAPortee.filter((m) => m.aide.tauxMax != null).length;
+  // Enjeu chiffré du bandeau d'offre : la somme des plafonds des SEULES aides
+  // encore à venir. Le montant total du diagnostic ne dirait rien de ce que
+  // l'offre débloque — l'essentiel en vient d'aides déjà consultables.
+  const montantBientot = bientot.reduce((sum, m) => sum + (m.aide.montantMax ?? 0), 0);
 
   const dossierNames = Object.fromEntries(allDossiers.map((d) => [d.id, d.titre]));
   const monumentNames = { [monument.id]: monument.nom };
@@ -429,7 +461,7 @@ export function ProjetDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 overflow-hidden text-[13px] text-muted-foreground">
-        <Link to={ROUTES.MONUMENTS} className="shrink-0 hover:opacity-70 transition-opacity">Mes monuments</Link>
+        <Link to={ROUTES.MONUMENTS} className="shrink-0 hover:opacity-70 transition-opacity">{libelleMonuments(offreCompte)}</Link>
         <span>/</span>
         <Link
           to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`}
@@ -504,16 +536,16 @@ export function ProjetDetailPage() {
             </div>
           ) : (
             <div className="space-y-8">
-              {locked && (
-                <AidesPaywallBanner
+              {offre.echeancier ? (
+                <ProjectEcheancier deadlines={deadlines} />
+              ) : (
+                <OffreUpsell
+                  variante="bandeau"
+                  action="suivre toutes les échéances de ce chantier, et de les rappeler par email avant la date limite"
+                  offre="Veille"
                   monumentId={monument.id}
-                  montantTotal={montantPaywall}
-                  nombreAides={aidesAPortee.length}
-                  nombreAidesAvecTaux={nombreAidesAvecTaux}
                 />
               )}
-
-              <ProjectEcheancier deadlines={deadlines} />
 
               <AideFiltreBar options={filtreOptions} value={filtreKey} onChange={setFiltreKey} />
 
@@ -566,6 +598,13 @@ export function ProjetDetailPage() {
                     dossier pour la prochaine session : la pastille de chaque aide indique où vous
                     en êtes sur ses critères.
                   </p>
+                  {!offre.aidesBientot && (
+                    <AidesPaywallBanner
+                      monumentId={monument.id}
+                      montantTotal={montantBientot}
+                      nombreAides={bientot.length}
+                    />
+                  )}
                   {renderAideList(bientot)}
                 </section>
               )}
@@ -588,7 +627,7 @@ export function ProjetDetailPage() {
                     </p>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                      {nonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} projetId={projet.id} monumentId={monument.id} locked={locked} />))}
+                      {nonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} projetId={projet.id} monumentId={monument.id} />))}
                     </div>
                   )
                 )}
@@ -660,6 +699,7 @@ export function ProjetDetailPage() {
           <TeamPanel
             scope="projet"
             scopeId={projet.id}
+            invitationsOuvertes={offre.equipe}
             myRole={projet.myRole ?? null}
             members={members}
             invitations={invitations}
@@ -691,7 +731,10 @@ export function ProjetDetailPage() {
         />
       )}
 
-      {perms.canEditProject && (
+      {/* Deux conditions distinctes : le rôle dit « ce compte a-t-il le droit »,
+          l'offre dit « ce produit le permet-il ». Un plafond de deux projets
+          qu'on pourrait vider en boucle ne serait pas un plafond. */}
+      {perms.canEditProject && offre.suppressionProjet && (
         <div className="flex justify-end pt-2">
           <button
             onClick={() => setConfirmDeleteOpen(true)}
