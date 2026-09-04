@@ -128,6 +128,18 @@ export function libelleMonuments(offre: Offre): string {
   return offre.monumentsMax === 1 ? 'Mon monument' : 'Mes monuments';
 }
 
+/**
+ * Le compte (ou le monument) est-il resté sur l'offre gratuite ?
+ *
+ * Prédicat d'AFFICHAGE, pas un droit : il ne garde aucune action, il choisit ce
+ * qu'une page met en avant. Il n'a donc pas de miroir côté serveur, et rien de
+ * ce qu'il masque n'est retenu — même idiome que `libelleMonuments`. Un droit
+ * qui refuse quelque chose se pose dans `Offre`, où le serveur le tient aussi.
+ */
+export function estOffreGratuite(offre: Offre): boolean {
+  return offre.nom === OFFRE_GRATUITE.nom;
+}
+
 /** Le plus permissif de plusieurs plafonds ; `null` (illimité) l'emporte. */
 function plafondMax(valeurs: (number | null)[]): number | null {
   return valeurs.includes(null) ? null : Math.max(...(valeurs as number[]));

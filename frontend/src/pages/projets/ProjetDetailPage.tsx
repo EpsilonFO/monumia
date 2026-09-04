@@ -24,7 +24,7 @@ import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog'
 import { TeamPanel } from '@/components/sharing/TeamPanel';
 import { projectPermissions } from '@/lib/project-permissions';
 import { useOffre, useOffreMonument } from '@/hooks/useOffre';
-import { libelleMonuments } from '@/lib/offres';
+import { estOffreGratuite, libelleMonuments } from '@/lib/offres';
 import { PaywallOverlay } from '@/components/shared/Paywall';
 import { formatCurrency } from '@/lib/format-utils';
 import { ProjetSummaryBar } from '@/components/projet/ProjetSummaryBar';
@@ -406,15 +406,27 @@ export function ProjetDetailPage() {
   // Les cartes ne portent plus de verrou : le paywall des aides à venir vit au
   // niveau de la SECTION, qui les floute et les rend inertes d'un bloc. Un
   // cadenas par carte, derrière ce flou, n'aurait fait que brouiller l'aperçu.
+  // Le bandeau chiffré des cartes, lui, ne s'affiche qu'à partir de Veille —
+  // c'est l'offre du MONUMENT qui décide, comme pour ses projets et son
+  // calendrier. Rien n'est retenu pour autant : montant, taux et échéance
+  // restent sur la fiche de l'aide, qui est gratuite.
+  const chiffresAides = !estOffreGratuite(offre);
   const renderAideList = (list: AideMatchResult[]) => {
     if (list.length === 1)
-      return <AideCard match={list[0]} projetId={projet.id} layout="hero" />;
+      return (
+        <AideCard match={list[0]} projetId={projet.id} layout="hero" showChiffres={chiffresAides} />
+      );
     const spans = aideGridSpans(list.length);
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
         {list.map((match, i) => (
           <div key={match.aide.id} className={spans[i]}>
-            <AideCard match={match} projetId={projet.id} layout="grid" />
+            <AideCard
+              match={match}
+              projetId={projet.id}
+              layout="grid"
+              showChiffres={chiffresAides}
+            />
           </div>
         ))}
       </div>

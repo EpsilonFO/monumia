@@ -37,6 +37,13 @@ import type { AideMatchResult } from '@/types';
 interface AideCardProps {
   match: AideMatchResult;
   showEligibility?: boolean;
+  /**
+   * Le bandeau pâle « Montant max / des travaux / Échéance ». Retiré en offre
+   * gratuite : ces chiffres restent lisibles sur la fiche de l'aide, mais mis
+   * en tête de chaque carte ils promettent un plan de financement que l'offre
+   * ne suit pas encore.
+   */
+  showChiffres?: boolean;
   /** Le PROJET dans lequel l'aide est vue : c'est lui qui clé la fiche d'aide. */
   projetId?: string;
   /**
@@ -91,7 +98,13 @@ const CATEGORY_ICON: Record<string, typeof IconInstitution> = {
   autre: IconAide,
 };
 
-export function AideCard({ match, showEligibility = true, projetId, layout = 'tile' }: AideCardProps) {
+export function AideCard({
+  match,
+  showEligibility = true,
+  showChiffres = true,
+  projetId,
+  layout = 'tile',
+}: AideCardProps) {
   const { aide, criteresRemplis, criteresNonRemplis } = match;
   const navigate = useNavigate();
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
@@ -334,6 +347,7 @@ export function AideCard({ match, showEligibility = true, projetId, layout = 'ti
             {criteriaSummary}
           </div>
           <div className="flex shrink-0 flex-col gap-4 lg:w-72">
+            {showChiffres && (
             <div className="space-y-3 rounded-xl p-4" style={{ background: C.paleBlue }}>
               {facts.map((f, i) => {
                 const Icon = f.icon;
@@ -350,6 +364,7 @@ export function AideCard({ match, showEligibility = true, projetId, layout = 'ti
                 );
               })}
             </div>
+            )}
             {detailButton(true)}
           </div>
         </div>
@@ -385,6 +400,7 @@ export function AideCard({ match, showEligibility = true, projetId, layout = 'ti
 
           {description('min-h-[2lh]')}
 
+          {showChiffres && (
           <div
             className="grid gap-3 rounded-xl px-3 py-3"
             style={{ background: C.paleBlue, gridTemplateColumns: `repeat(${facts.length}, minmax(0, 1fr))` }}
@@ -402,6 +418,7 @@ export function AideCard({ match, showEligibility = true, projetId, layout = 'ti
               );
             })}
           </div>
+          )}
 
           <div className="mt-auto flex items-center justify-between gap-3 pt-1">
             <div>{criteriaSummary}</div>
