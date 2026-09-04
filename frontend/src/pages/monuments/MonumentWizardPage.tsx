@@ -4,15 +4,19 @@ import { ArrowRight, X } from 'lucide-react';
 import { MerimeeSearch } from '@/components/monument/MerimeeSearch';
 import { MonumentForm } from '@/components/monument/MonumentForm';
 import { LogoMonumia } from '@/components/icons';
+import { PaywallDialog } from '@/components/shared/Paywall';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
+import { useBrouillonInviteStore } from '@/stores/useBrouillonInviteStore';
 import { monumentService } from '@/services/monument.service';
 import { merimeeService } from '@/services/merimee.service';
+import { aideService } from '@/services/aide.service';
+import { ApiError } from '@/lib/api-error';
 import { REGIONS } from '@/constants/regions';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { toast } from 'sonner';
-import type { MerimeeRecord, Monument, ProtectionLevel, Region } from '@/types';
+import type { MerimeeRecord, Monument, MonumentInput, ProtectionLevel, Region } from '@/types';
 
 const REGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
   REGIONS.map((r) => [r.label.toLowerCase(), r.value])
@@ -26,18 +30,36 @@ const EYEBROW = 'Nouveau monument';
  * questionnaire appartiennent au projet et se saisissent dans le wizard
  * projet, une fois le monument décrit.
  *
- * Sortie : la page du monument, onglet « Projets », dont l'état vide porte le
- * CTA « Lancer un projet de travaux ».
+ * Page PUBLIQUE, et c'est le pivot du parcours découverte : un visiteur y
+ * décrit son bien sans compte, le brouillon partant dans le `localStorage`
+ * (cf. `useBrouillonInviteStore`) plutôt qu'en base. Un connecté, lui, crée
+ * son monument pour de vrai. Le critère est `user && token`, exactement celui
+ * de `ProtectedRoute` : `App.tsx` attend le rafraîchissement de session avant
+ * de rendre le router, donc un profil persisté dont le refresh échoue compte
+ * bien comme un visiteur.
+ *
+ * Sortie : le wizard projet. Dans les deux cas — un monument sans chantier ne
+ * mène à aucun diagnostic, et faire atterrir sur la fiche laissait
+ * l'utilisateur devant un onglet vide à re-cliquer.
  */
 export function MonumentWizardPage() {
   const navigate = useNavigate();
-  const user = useAuthStore((s) => s.user);
+  const connecte = useAuthStore((s) => Boolean(s.user && s.token));
   const addMonument = useMonumentStore((s) => s.addMonument);
   const setActiveMonument = useMonumentStore((s) => s.setActiveMonument);
+  const brouillonMonument = useBrouillonInviteStore((s) => s.monument);
+  const setBrouillonMonument = useBrouillonInviteStore((s) => s.setMonument);
 
-  const [mode, setMode] = useState<'search' | 'manual'>('search');
-  const [prefillData, setPrefillData] = useState<Partial<Monument> | null>(null);
+  // Un visiteur qui revient (F5, onglet fermé, « Précédent » depuis le wizard
+  // projet) retrouve sa fiche : mode manuel, formulaire prérempli. La valeur
+  // est lue une fois, à l'initialisation — le formulaire est ensuite maître
+  // de son propre état.
+  const [mode, setMode] = useState<'search' | 'manual'>(brouillonMonument ? 'manual' : 'search');
+  const [prefillData, setPrefillData] = useState<Partial<Monument> | null>(
+    brouillonMonument ?? null,
+  );
   const [saving, setSaving] = useState(false);
+  const [paywallOuvert, setPaywallOuvert] = useState(false);
 
   const handleMerimeeSelect = async (searchRecord: MerimeeRecord) => {
     try {
@@ -123,43 +145,70 @@ export function MonumentWizardPage() {
   };
 
   const handleFormSubmit = async (data: Partial<Monument>) => {
-    if (!user) return;
+    const payload: MonumentInput = {
+      nom: data.nom ?? 'Mon monument',
+      commune: data.commune ?? '',
+      codeInsee: data.codeInsee ?? '',
+      protection: data.protection ?? 'non_protege',
+      // Le formulaire impose le type de propriétaire (champ requis) : ce
+      // repli ne sert qu'à satisfaire le type.
+      proprietaire: data.proprietaire ?? 'prive_personne_physique',
+      referenceMerimee: data.referenceMerimee,
+      dateProtection: data.dateProtection,
+      typeProtection: data.typeProtection,
+      siecleConstruction: data.siecleConstruction,
+      descriptionGenerale: data.descriptionGenerale,
+      etatConservation: data.etatConservation,
+    };
+
     setSaving(true);
     try {
-      const created = await monumentService.create({
-        nom: data.nom ?? 'Mon monument',
-        commune: data.commune ?? '',
-        codeInsee: data.codeInsee ?? '',
-        protection: data.protection ?? 'non_protege',
-        // Le formulaire impose le type de propriétaire (champ requis) : ce
-        // repli ne sert qu'à satisfaire le type.
-        proprietaire: data.proprietaire ?? 'prive_personne_physique',
-        referenceMerimee: data.referenceMerimee,
-        dateProtection: data.dateProtection,
-        typeProtection: data.typeProtection,
-        siecleConstruction: data.siecleConstruction,
-        descriptionGenerale: data.descriptionGenerale,
-        etatConservation: data.etatConservation,
-      });
+      if (!connecte) {
+        // Dry-run du diagnostic invité : rien ne s'enregistre, mais la commune
+        // est RÉSOLUE côté serveur (400 si elle est introuvable). La valider
+        // maintenant est le seul moment utile — plus tard, le 400 tomberait au
+        // rejeu, après l'inscription, sur un brouillon qu'on ne peut plus
+        // corriger.
+        await aideService.runDiagnosticInvite({
+          monument: payload,
+          travauxEnvisages: [],
+          answers: {},
+        });
+        setBrouillonMonument(payload);
+        navigate(ROUTES.PROJET_NEW_INVITE);
+        return;
+      }
 
+      const created = await monumentService.create(payload);
       addMonument(created);
       setActiveMonument(created.id);
-      navigate(`${ROUTES.MONUMENT_DETAIL(created.id)}?tab=projets`);
+      navigate(ROUTES.PROJET_NEW(created.id));
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Erreur lors de la création du monument'
-      );
+      // 402 : le compte a déjà son monument gratuit. Désormais atteignable
+      // depuis la landing (les CTA mènent ici sans savoir qui est connecté),
+      // donc traité comme une porte et non comme une panne.
+      if (err instanceof ApiError && err.status === 402) {
+        setPaywallOuvert(true);
+      } else {
+        toast.error(
+          err instanceof Error ? err.message : 'Erreur lors de la création du monument'
+        );
+      }
     } finally {
       setSaving(false);
     }
   };
+
+  // Quitter : vers l'espace pour un connecté, vers la connexion pour un
+  // visiteur (il n'a pas d'espace, et son brouillon l'attend ici).
+  const quitterVers = connecte ? ROUTES.MONUMENTS : '/login';
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden" style={{ background: 'var(--app-bg)' }}>
       <header className="flex shrink-0 items-center justify-between px-5 py-4">
         <button
           type="button"
-          onClick={() => navigate(ROUTES.MONUMENTS)}
+          onClick={() => navigate(quitterVers)}
           className="flex items-center gap-2.5"
           aria-label="Quitter"
         >
@@ -173,7 +222,7 @@ export function MonumentWizardPage() {
         </button>
         <button
           type="button"
-          onClick={() => navigate(ROUTES.MONUMENTS)}
+          onClick={() => navigate(quitterVers)}
           className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors hover:bg-black/5"
           style={{ color: C.grayFg }}
         >
@@ -262,6 +311,17 @@ export function MonumentWizardPage() {
           )}
         </div>
       </main>
+
+      {/* Le compte a déjà son monument gratuit. En MODALE et non en toast :
+          c'est une porte, et on referme sur son formulaire intact plutôt que
+          d'être expédié sur la page des tarifs. */}
+      <PaywallDialog
+        open={paywallOuvert}
+        onOpenChange={setPaywallOuvert}
+        offre="Multi-monuments"
+        titre="Un deuxième monument, et tous les suivants"
+        description="L'offre gratuite couvre un monument. Multi-monuments lève la limite, réunit tous vos biens sur un tableau de bord et ouvre les suppressions."
+      />
     </div>
   );
 }

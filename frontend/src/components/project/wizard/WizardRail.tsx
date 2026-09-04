@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react';
 import {
   IconChantier,
+  IconCompte,
   IconDiagnostic,
   IconListe,
   IconLocalisation,
@@ -66,6 +67,37 @@ export const PROJET_WIZARD_STEPS: WizardStep[] = [
     hint: 'Les aides mobilisables pour votre projet.',
     icon: IconDiagnostic,
   },
+];
+
+/** Étape de COMPTE, propre au parcours découverte : le diagnostic est calculé,
+ *  il ne manque qu'un compte pour l'ouvrir. Elle est dans le rail dès le début
+ *  pour que le visiteur sache où le parcours le mène — la découvrir au dernier
+ *  écran se lirait comme un péage surprise.
+ *
+ *  « Votre compte » plutôt que « Créer mon compte » : l'écran mène à la page de
+ *  connexion, qui sert aussi bien à se connecter qu'à s'inscrire. */
+export const INSCRIPTION_STEP: WizardStep = {
+  key: 'inscription',
+  label: 'Votre compte',
+  hint: 'Gratuit : votre diagnostic vous attend juste derrière.',
+  icon: IconCompte,
+};
+
+/**
+ * Parcours DÉCOUVERTE : mêmes étapes qu'un projet ordinaire, plus
+ * l'inscription juste avant le diagnostic. Le rail travaille par RANG et non
+ * par clé (cf. `WizardRail`) : insérer une étape suffit, rien d'autre à
+ * ajuster.
+ *
+ * L'étape « péril » n'y figure pas, et n'a pas à y figurer : `MonumentForm`
+ * impose `etatConservation` à son étape 3, donc un brouillon découverte porte
+ * toujours la réponse. Le rattrapage ne concerne que les fiches créées avant
+ * que la question n'existe.
+ */
+export const PROJET_WIZARD_STEPS_INVITE: WizardStep[] = [
+  ...PROJET_WIZARD_STEPS.slice(0, 3),
+  INSCRIPTION_STEP,
+  ...PROJET_WIZARD_STEPS.slice(3),
 ];
 
 // Mêmes tonalités que MonumentFiche (bg pâle + texte soutenu par niveau).

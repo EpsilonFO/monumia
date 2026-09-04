@@ -9,6 +9,7 @@ import { useDocumentStore } from './useDocumentStore';
 import { useAideStore } from './useAideStore';
 import { useSuiviStore } from './useSuiviStore';
 import { useBillingStore } from './useBillingStore';
+import { useBrouillonInviteStore } from './useBrouillonInviteStore';
 import { setSessionCookie, clearSessionCookie } from '@/lib/session';
 
 interface AuthState {
@@ -80,6 +81,14 @@ export const useAuthStore = create<AuthState>()(
         // Sinon les monuments débloqués du compte précédent resteraient ouverts
         // pour le suivant, le temps que /billing/access réponde.
         useBillingStore.getState().reset();
+        // Le brouillon découverte n'est PAS une donnée de compte : c'est une
+        // saisie faite avant d'en avoir un, et la vider ferait perdre son
+        // travail à qui se déconnecte pour reprendre sur le bon compte. Sauf
+        // s'il porte déjà un monumentId — le rejeu a commencé, il est lié au
+        // compte qui part.
+        if (useBrouillonInviteStore.getState().monumentId) {
+          useBrouillonInviteStore.getState().vider();
+        }
       },
     }),
     {

@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronDown, Loader2 } from 'lucide-react';
 import {
   type IconComponent,
   IconDiagnostic, IconSucces, IconHelp, IconErreur, IconCle, IconCalendrier,
-  IconAide, IconDossier, IconDocuments, IconDepot, IconEquipe, IconRafraichir, IconSupprimer,
+  IconAide, IconDossier, IconDocuments, IconDepot, IconEquipe, IconSupprimer,
 } from '@/components/icons';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import {
@@ -12,6 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { InfoBulle } from '@/components/shared/InfoBulle';
 import { AideCard } from '@/components/aide/AideCard';
 import { AideFiltreBar } from '@/components/aide/AideFiltreBar';
 import { DossierCard } from '@/components/dossier/DossierCard';
@@ -285,14 +286,28 @@ export function ProjetDetailPage() {
     }
   }, [projetId, setDiagnostic, projet?.questionnaire]);
 
-  // « Refaire le questionnaire » : on prévient que les réponses et le diagnostic
-  // actuels seront effacés, puis on rouvre le wizard projet sur CE projet
-  // (intentions et travaux préremplis, questionnaire vierge).
-  const confirmRefaire = useCallback(() => {
-    if (!projetId || !monumentId) return;
-    setConfirmRefaireOpen(false);
-    navigate(`${ROUTES.PROJET_NEW(monumentId)}?projet=${projetId}`);
-  }, [projetId, monumentId, navigate]);
+  // « Refaire le questionnaire », deux façons :
+  //
+  //  - 'tout'    : on repart d'un questionnaire vierge (les réponses actuelles
+  //                sont remplacées) — le comportement historique.
+  //  - 'passees' : on garde les réponses données et on ne repose que les
+  //                questions restées sans réponse. C'est le cas courant : on a
+  //                passé trois questions faute de savoir, on revient avec la
+  //                réponse. Tout resaisir pour trois questions décourage.
+  const confirmRefaire = useCallback(
+    (mode: 'tout' | 'passees') => {
+      if (!projetId || !monumentId) return;
+      setConfirmRefaireOpen(false);
+      const base = `${ROUTES.PROJET_NEW(monumentId)}?projet=${projetId}`;
+      navigate(mode === 'passees' ? `${base}&reprendre=passees` : base);
+    },
+    [projetId, monumentId, navigate],
+  );
+
+  // Les questions que le moteur pose ENCORE sont exactement celles restées sans
+  // réponse : un fait répondu n'est plus une incertitude, il sort donc de
+  // `qcmQuestions`. Ce compteur dit s'il y a matière à ne refaire que celles-là.
+  const questionsRestantes = diagnostic?.qcmQuestions?.length ?? 0;
 
   /** Renommage en place depuis l'en-tête. On relaie l'erreur : l'en-tête garde
    *  alors la saisie et reste en édition. */
@@ -583,6 +598,12 @@ export function ProjetDetailPage() {
               <section className="space-y-3">
                 <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
                   <IconSucces className="h-4 w-4 text-success" />Disponibles maintenant ({eligiblesMaintenant.length})
+                  <InfoBulle libelle="Disponibles maintenant">
+                    Nous passons en revue, une par une, toutes les conditions publiées par
+                    chaque aide et nous les confrontons à la fiche de votre monument et à vos
+                    réponses. Ici&nbsp;: aucune condition ne manque et aucune n'est contredite,
+                    et le guichet est ouvert aujourd'hui.
+                  </InfoBulle>
                 </h3>
                 {eligiblesMaintenant.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground">
@@ -597,6 +618,11 @@ export function ProjetDetailPage() {
                 <section className="space-y-3">
                   <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
                     <IconCle className="h-4 w-4 text-info" />À débloquer ({atteignablesMaintenant.length})
+                    <InfoBulle libelle="À débloquer">
+                      Une condition n'est pas remplie, mais elle dépend d'une démarche que vous
+                      pouvez engager (une protection, un label, un accord, une adhésion). Ce
+                      n'est donc pas un refus&nbsp;: c'est une étape.
+                    </InfoBulle>
                   </h3>
                   <p className="text-[13px] text-muted-foreground">
                     Une démarche vous sépare de ces aides. Ouvrez la fiche pour voir laquelle,
@@ -609,6 +635,12 @@ export function ProjetDetailPage() {
               <section className="space-y-3">
                 <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
                   <IconHelp className="h-4 w-4" style={{ color: C.orangeVif }} />À confirmer ({potentielsMaintenant.length})
+                  <InfoBulle libelle="À confirmer">
+                    Rien ne les écarte, mais vos réponses ne suffisent pas encore à trancher&nbsp;:
+                    une ou plusieurs conditions restent en suspens. Nous ne les éliminons jamais
+                    dans le doute. Complétez le questionnaire, ou ouvrez la fiche pour voir ce
+                    qu'il reste à vérifier auprès de l'organisme.
+                  </InfoBulle>
                 </h3>
                 {potentielsMaintenant.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground">
@@ -623,6 +655,11 @@ export function ProjetDetailPage() {
                 <section className="space-y-3">
                   <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
                     <IconCalendrier className="h-4 w-4 text-info" />Disponibles bientôt ({bientot.length})
+                    <InfoBulle libelle="Disponibles bientôt">
+                      Leurs conditions sont examinées exactement comme celles des autres&nbsp;:
+                      c'est leur calendrier qui les met à part, pas votre dossier. La fenêtre de
+                      candidature est fermée, ou pas encore ouverte.
+                    </InfoBulle>
                   </h3>
                   <p className="text-[13px] text-muted-foreground">
                     La fenêtre de candidature est fermée ou pas encore ouverte. Préparez votre
@@ -647,14 +684,24 @@ export function ProjetDetailPage() {
               )}
 
               <section className="space-y-3">
-                <button
-                  onClick={() => setShowNonEligibles((v) => !v)}
-                  className="flex items-center gap-2 text-[15px]"
-                  style={{ fontFamily: SERIF, color: C.ink }}
-                >
-                  <IconErreur className="h-4 w-4 text-destructive" />Non éligibles ({nonEligibles.length})
-                  <ChevronDown className={`h-4 w-4 transition-transform ${showNonEligibles ? 'rotate-180' : ''}`} />
-                </button>
+                {/* Le « i » est HORS du bouton : imbriqué dedans, il replierait
+                    la section au moment même où on lui demande une explication. */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowNonEligibles((v) => !v)}
+                    className="flex items-center gap-2 text-[15px]"
+                    style={{ fontFamily: SERIF, color: C.ink }}
+                  >
+                    <IconErreur className="h-4 w-4 text-destructive" />Non éligibles ({nonEligibles.length})
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showNonEligibles ? 'rotate-180' : ''}`} />
+                  </button>
+                  <InfoBulle libelle="Non éligibles">
+                    Au moins une condition est ici contredite par la fiche du monument ou par vos
+                    réponses — un critère de protection, de propriétaire, de territoire. Nous les
+                    laissons visibles pour que vous puissiez voir ce qui bloque, et parce qu'une
+                    réponse corrigée peut faire revenir une aide dans les autres listes.
+                  </InfoBulle>
+                </div>
                 {showNonEligibles && (
                   nonEligibles.length === 0 ? (
                     <p className="text-[13px] text-muted-foreground">
@@ -792,21 +839,53 @@ export function ProjetDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Refaire le questionnaire&nbsp;?</AlertDialogTitle>
             <AlertDialogDescription>
-              Vous repartirez du cadrage déjà enregistré pour ce projet&nbsp;: seules les
-              réponses au questionnaire seront redemandées. Vos réponses actuelles seront
-              remplacées et le diagnostic d&rsquo;aides recalculé.
+              Le cadrage du projet (vos intentions, les travaux) est conservé dans les
+              deux cas&nbsp;; seul le questionnaire est repris, et le diagnostic
+              d&rsquo;aides recalculé ensuite.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {/* Deux boutons de même poids, pas une action et son annulation : ce
+              sont deux intentions distinctes, et la plus fréquente — revenir sur
+              les questions qu'on avait passées — est offerte en premier. */}
+          <div className="flex flex-col gap-2.5">
+            {questionsRestantes > 0 && (
+              <button
+                type="button"
+                onClick={() => confirmRefaire('passees')}
+                className="rounded-xl border-[1.5px] px-4 py-3 text-left transition-colors hover:bg-warning-muted"
+                style={{ borderColor: C.orange, background: C.card }}
+              >
+                <span className="block text-[14.5px] font-semibold" style={{ color: C.ink }}>
+                  Seulement les questions passées
+                  <span className="ml-1.5 font-normal tabular-nums" style={{ color: C.orange }}>
+                    ({questionsRestantes})
+                  </span>
+                </span>
+                <span className="mt-0.5 block text-[13px]" style={{ color: C.grayFg }}>
+                  Vos réponses actuelles sont conservées&nbsp;: on ne repose que celles
+                  restées sans réponse.
+                </span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => confirmRefaire('tout')}
+              className="rounded-xl border px-4 py-3 text-left transition-colors hover:bg-muted"
+              style={{ borderColor: C.border, background: C.card }}
+            >
+              <span className="block text-[14.5px] font-semibold" style={{ color: C.ink }}>
+                Tout refaire depuis le début
+              </span>
+              <span className="mt-0.5 block text-[13px]" style={{ color: C.grayFg }}>
+                Le questionnaire repart vierge&nbsp;: vos réponses actuelles seront
+                remplacées.
+              </span>
+            </button>
+          </div>
+
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmRefaire}
-              className="text-white hover:opacity-90"
-              style={{ background: C.orange }}
-            >
-              <IconRafraichir className="h-4 w-4" />
-              Refaire le questionnaire
-            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

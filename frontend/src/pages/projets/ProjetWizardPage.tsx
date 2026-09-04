@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { ProjectQuestionnaire } from '@/components/project/ProjectQuestionnaire';
 import { ProjectIntentStep } from '@/components/project/wizard/ProjectIntentStep';
 import { ProjectTravauxStep } from '@/components/project/wizard/ProjectTravauxStep';
 import { PerilStep } from '@/components/project/wizard/PerilStep';
+import { InscriptionStep } from '@/components/project/wizard/InscriptionStep';
 import { WizardShell } from '@/components/project/wizard/WizardShell';
 import { DiagnosticLoader } from '@/components/project/wizard/DiagnosticLoader';
 import {
   PERIL_RATTRAPAGE_STEP,
   PROJET_WIZARD_STEPS,
+  PROJET_WIZARD_STEPS_INVITE,
   type WizardProgress,
   type WizardStepKey,
 } from '@/components/project/wizard/WizardRail';
@@ -18,11 +20,18 @@ import { IconAttention, IconRafraichir } from '@/components/icons';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useProjetStore } from '@/stores/useProjetStore';
 import { useAideStore } from '@/stores/useAideStore';
+import { useBrouillonInviteStore } from '@/stores/useBrouillonInviteStore';
+import { monumentDepuisBrouillon } from '@/lib/brouillon-invite';
 import { monumentService } from '@/services/monument.service';
 import { projetService } from '@/services/projet.service';
 import { aideService } from '@/services/aide.service';
 import { sanitizeQcmQuestions } from '@/lib/qcm';
-import { RAISONS_KEY, readRaisons } from '@/constants/raisons';
+import {
+  RAISONS_KEY,
+  raisonProposee,
+  readRaisons,
+  sansClesReservees,
+} from '@/constants/raisons';
 import type { EtatConservation } from '@/constants/monument-options';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
@@ -31,6 +40,7 @@ import type {
   Monument,
   ProjectQuestionnaireAnswers,
   QcmQuestion,
+  SyntheseInvite,
   WorkType,
 } from '@/types';
 
@@ -41,40 +51,83 @@ import type {
  * protection. Le parcours part directement de l'intention (« Que voulez-vous
  * faire ? »), puis des travaux, puis du questionnaire.
  *
- * Deux entrées :
+ * Trois entrées :
  *  - sans paramètre : nouveau projet, créé par POST à la fin de l'étape travaux ;
  *  - `?projet=<id>` : « Refaire le questionnaire » d'un projet existant —
- *    intentions et travaux préremplis, PATCH au lieu de POST.
+ *    intentions et travaux préremplis, PATCH au lieu de POST. Avec
+ *    `&reprendre=passees`, les réponses déjà données sont conservées et seules
+ *    celles restées sans réponse sont reposées (on démarre alors directement
+ *    sur le questionnaire) ;
+ *  - route INVITÉE (`ROUTES.PROJET_NEW_INVITE`, sans `:monumentId`) : le
+ *    parcours découverte. Rien ne s'écrit en base, tout va dans le brouillon
+ *    `localStorage`, le questionnaire vient de l'endpoint public, et une étape
+ *    « Créer mon compte » s'insère avant le diagnostic.
+ *
+ * `modeInvite` se lit sur l'ABSENCE du paramètre d'URL et non sur l'état
+ * d'authentification : c'est la route qui décide du parcours. Un connecté qui
+ * arriverait sur la route invitée en sortira par l'écran de reprise, où sa
+ * session est déjà là.
  *
  * Rattrapage : si le monument n'a jamais répondu à la question du péril (fiche
  * créée avant qu'elle n'existe), un écran la pose en préambule. Sans lui, elle
- * ne serait plus jamais posée — le wizard monument ne repasse pas.
+ * ne serait plus jamais posée — le wizard monument ne repasse pas. Le mode
+ * invité n'en a jamais besoin : `MonumentForm` impose l'état sanitaire.
  */
 export function ProjetWizardPage() {
   const navigate = useNavigate();
   const { monumentId } = useParams();
   const [searchParams] = useSearchParams();
   const existingProjetId = searchParams.get('projet');
+  /**
+   * « Refaire le questionnaire » → seulement les questions restées sans
+   * réponse. On garde alors le questionnaire enregistré et on le TRANSMET au
+   * moteur : un fait répondu n'est plus une incertitude, il ne ressort donc pas
+   * dans `qcmQuestions` — la liste rendue est exactement celle des questions
+   * passées. Sans ce mode, la requête ne porte que les intentions et le moteur
+   * repose tout.
+   */
+  const reprendrePassees =
+    existingProjetId !== null && searchParams.get('reprendre') === 'passees';
 
   const upsertProjet = useProjetStore((s) => s.upsertProjet);
   const updateMonument = useMonumentStore((s) => s.updateMonument);
   const setDiagnostic = useAideStore((s) => s.setDiagnostic);
 
+  // Parcours découverte : la route invitée n'a pas de `:monumentId`.
+  const modeInvite = !monumentId;
+  const brouillon = useBrouillonInviteStore();
+
   const [monument, setMonument] = useState<Monument | null>(null);
   const [projetId, setProjetId] = useState<string | null>(existingProjetId);
   const [saving, setSaving] = useState(false);
-  const [answers, setAnswers] = useState<ProjectQuestionnaireAnswers>({});
+  // En invité, l'état initial vient du brouillon : un F5 en plein
+  // questionnaire ne doit rien perdre.
+  const [answers, setAnswers] = useState<ProjectQuestionnaireAnswers>(
+    modeInvite ? brouillon.answers : {},
+  );
   // Intentions de l'étape « Votre projet » (finalités du catalogue). Elles
   // préfiltrent les aides candidates AVANT la génération du questionnaire.
-  const [raisons, setRaisons] = useState<string[]>([]);
+  const [raisons, setRaisons] = useState<string[]>(modeInvite ? brouillon.raisons : []);
   // `travaux === null` : pas de réponse ; `[]` : « Pas encore déterminé ».
-  const [travaux, setTravaux] = useState<WorkType[] | null>(null);
+  const [travaux, setTravaux] = useState<WorkType[] | null>(
+    modeInvite ? brouillon.travaux : null,
+  );
   // Rattrapage du péril : `null` tant qu'on ne sait pas si la question a déjà
-  // été posée (fiche en cours de chargement) ou qu'elle ne l'a jamais été.
-  const [etatConservation, setEtatConservation] = useState<EtatConservation | null>(null);
+  // été posée (fiche en cours de chargement) ou qu'elle ne l'a jamais été. En
+  // invité, la réponse est dans le brouillon dès l'étape 3 du wizard monument.
+  const [etatConservation, setEtatConservation] = useState<EtatConservation | null>(
+    (modeInvite ? brouillon.monument?.etatConservation : null) ?? null,
+  );
   const [besoinPeril, setBesoinPeril] = useState(false);
-  const [step, setStep] = useState<WizardStepKey>('intention');
+  // « Seulement les questions passées » démarre sur le questionnaire : le
+  // cadrage n'est pas en cause, le repasser ferait perdre du temps.
+  const [step, setStep] = useState<WizardStepKey>(
+    modeInvite ? brouillon.etape : reprendrePassees ? 'questionnaire' : 'intention',
+  );
   const [progress, setProgress] = useState<WizardProgress | null>(null);
+  // Accroche de l'écran d'inscription. `null` tant que le diagnostic complet
+  // n'a pas répondu : son absence ne bloque pas l'inscription.
+  const [synthese, setSynthese] = useState<SyntheseInvite | null>(null);
   // Questionnaire du moteur d'aides : on lance un premier diagnostic déterministe
   // (intentions seules, sans réponses) dès l'étape 3 pour obtenir les questions à
   // poser (faits manquants) et le résultat de base.
@@ -90,14 +143,29 @@ export function ProjetWizardPage() {
   const cadrageKey = [
     raisons.join('|'),
     travaux === null ? '?' : travaux.join('|'),
+    // À cadrage identique, « tout refaire » et « seulement les questions
+    // passées » ne rendent pas le même jeu de questions.
+    reprendrePassees ? 'passees' : 'tout',
   ].join('#');
 
   const steps = useMemo(
-    () => (besoinPeril ? [PERIL_RATTRAPAGE_STEP, ...PROJET_WIZARD_STEPS] : PROJET_WIZARD_STEPS),
-    [besoinPeril],
+    () =>
+      modeInvite
+        ? PROJET_WIZARD_STEPS_INVITE
+        : besoinPeril
+          ? [PERIL_RATTRAPAGE_STEP, ...PROJET_WIZARD_STEPS]
+          : PROJET_WIZARD_STEPS,
+    [modeInvite, besoinPeril],
   );
 
   const eyebrow = existingProjetId ? 'Questionnaire' : 'Nouveau projet';
+
+  // Le rail montre le bien : la fiche chargée, ou le brouillon en invité.
+  const monumentAffiche = modeInvite
+    ? brouillon.monument
+      ? monumentDepuisBrouillon(brouillon.monument)
+      : null
+    : monument;
 
   // Hors AppLayout, les stores peuvent être vides (arrivée directe par URL) :
   // on charge la fiche pour la mini-fiche du rail et le rattrapage du péril.
@@ -130,14 +198,24 @@ export function ProjetWizardPage() {
         // de cocher si le projet arrive en retard.
         if (prefilled.current) return;
         prefilled.current = true;
-        const previous = readRaisons(p.questionnaire);
+        // Filtré sur ce que l'écran propose ENCORE : un projet cadré sur
+        // « Optimiser la fiscalité » rouvrirait sinon sur quatre tuiles
+        // décochées et un « Continuer » actif. Rien ne reste ⇒ l'étape
+        // redemande l'intention.
+        const previous = readRaisons(p.questionnaire).filter(raisonProposee);
         if (previous.length > 0) setRaisons(previous);
         setTravaux(p.travauxEnvisages);
+        // Ne compléter que les questions passées suppose de repartir des
+        // réponses existantes — sans les clés réservées, qui voyagent à part
+        // et sont recomposées à l'enregistrement.
+        if (reprendrePassees) setAnswers(sansClesReservees(p.questionnaire));
       })
       .catch(() => {
         toast.error('Ce projet est introuvable.');
       });
-  }, [existingProjetId]);
+    // `reprendrePassees` vient de l'URL : il ne bouge pas pendant la vie du
+    // wizard, et `prefilled` garantit de toute façon un seul préremplissage.
+  }, [existingProjetId, reprendrePassees]);
 
   // Dès l'entrée dans le questionnaire, on calcule le diagnostic déterministe de
   // base (intentions seules, sans réponses) pour en déduire les questions à
@@ -145,16 +223,42 @@ export function ProjetWizardPage() {
   // aides qui servent le projet déclaré. Le moteur étant pur et rapide, c'est
   // immédiat.
   useEffect(() => {
-    if (step !== 'questionnaire' || !projetId || loadedCadrageKey === cadrageKey || loadError) {
-      return;
-    }
+    if (step !== 'questionnaire' || loadedCadrageKey === cadrageKey || loadError) return;
+    // Hors invité, le cadrage est relu SUR LE SERVEUR depuis le projet : pas
+    // de projet, pas de questionnaire. En invité il n'y a pas de projet du
+    // tout, tout part dans le corps de la requête.
+    if (!modeInvite && !projetId) return;
+    const monumentBrouillon = brouillon.monument;
+    if (modeInvite && !monumentBrouillon) return;
+
     let cancelled = false;
     setLoadingQuestions(true);
-    aideService
-      .runDeterministicDiagnostic(projetId, { [RAISONS_KEY]: raisons })
-      .then((result) => {
+    // Deux endpoints, une seule forme exploitée : `qcmQuestions`. Les aideIds
+    // de la version invitée sont pseudonymisés, ce qui ne change rien à
+    // `sanitizeQcmQuestions` ni à la résolution des éliminations côté client
+    // (de simples tests d'appartenance).
+    const requete = modeInvite
+      ? aideService
+          .runDiagnosticInvite({
+            monument: monumentBrouillon!,
+            travauxEnvisages: travaux ?? [],
+            answers: { [RAISONS_KEY]: raisons },
+          })
+          .then((r) => r.qcmQuestions)
+      : aideService
+          .runDeterministicDiagnostic(projetId!, {
+            // Les réponses connues ne partent QUE dans le mode « questions
+            // passées » : ailleurs, le moteur les tiendrait pour résolues et
+            // les retirerait de sa liste — l'inverse de « tout refaire ».
+            ...(reprendrePassees ? answers : {}),
+            [RAISONS_KEY]: raisons,
+          })
+          .then((r) => r.qcmQuestions);
+
+    requete
+      .then((qcmQuestions) => {
         if (cancelled) return;
-        setQuestions(sanitizeQcmQuestions(result.qcmQuestions));
+        setQuestions(sanitizeQcmQuestions(qcmQuestions));
         setLoadedCadrageKey(cadrageKey);
       })
       .catch((err) => {
@@ -167,7 +271,83 @@ export function ProjetWizardPage() {
     return () => {
       cancelled = true;
     };
-  }, [step, projetId, raisons, cadrageKey, loadedCadrageKey, loadError]);
+    // `brouillon.monument` est volontairement hors des dépendances : il ne
+    // change pas pendant le wizard projet (le wizard monument est en amont),
+    // et l'objet est recréé à chaque réhydratation du store.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    step,
+    projetId,
+    raisons,
+    travaux,
+    cadrageKey,
+    loadedCadrageKey,
+    loadError,
+    modeInvite,
+    reprendrePassees,
+  ]);
+
+  // Accroche chiffrée de l'étape « Votre compte » : le diagnostic complet,
+  // relancé avec TOUTES les réponses.
+  //
+  // En effet plutôt qu'à la fin du questionnaire, parce que `synthese` est un
+  // état de composant que le brouillon ne persiste pas : un F5 sur cette étape
+  // — ou une reprise le lendemain, qui rouvre le wizard directement là —
+  // afficherait sinon la variante sans chiffres. Non bloquant : un échec ne
+  // coûte que l'accroche, l'écran garde son bouton.
+  const accrocheDemandee = useRef(false);
+  useEffect(() => {
+    if (step !== 'inscription') {
+      // Quitter puis revenir au questionnaire, répondre, revenir : la synthèse
+      // doit repartir des nouvelles réponses.
+      accrocheDemandee.current = false;
+      return;
+    }
+    if (!modeInvite || accrocheDemandee.current) return;
+    const monumentBrouillon = brouillon.monument;
+    if (!monumentBrouillon) return;
+    accrocheDemandee.current = true;
+
+    // Le garde `useRef` SEUL, sans drapeau d'annulation au démontage : les deux
+    // ensemble s'annulent sous StrictMode. Le premier passage lance l'appel,
+    // son nettoyage marquerait la réponse comme périmée, et le second passage
+    // ne relancerait rien (le ref est déjà posé) — l'accroche n'arriverait
+    // jamais. Même idiome que `AuthCallbackPage` et `RepriseBrouillonPage` ;
+    // un `setState` après démontage n'avertit plus depuis React 18.
+    aideService
+      .runDiagnosticInvite({
+        monument: monumentBrouillon,
+        travauxEnvisages: travaux ?? [],
+        answers: { ...answers, [RAISONS_KEY]: raisons },
+      })
+      .then((r) => setSynthese(r.synthese))
+      .catch((err) => console.error('Erreur accroche invité (ignorée):', err));
+    // Les réponses et le cadrage sont figés à ce stade (le questionnaire est
+    // derrière) : les lire une fois suffit, et les mettre en dépendances
+    // relancerait l'appel à chaque frappe des étapes précédentes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modeInvite, step]);
+
+  /**
+   * Fin du parcours invité : l'écran « Votre compte ».
+   *
+   * Deux chemins y mènent — avoir répondu à tout, ou QUITTER le questionnaire
+   * en cours de route. Dans les deux cas les réponses partent dans le
+   * brouillon, et l'accroche chiffrée est recalculée par l'effet ci-dessus (le
+   * brouillon ne persiste pas la synthèse).
+   */
+  const allerAInscription = () => {
+    brouillon.setAnswers(answers);
+    brouillon.setEtape('inscription');
+    setStep('inscription');
+  };
+
+  /** Retour au questionnaire depuis l'écran de fin, quand on l'a quitté en
+   *  cours de route : sans ça, « Quitter » serait une porte à sens unique. */
+  const revenirAuQuestionnaire = () => {
+    brouillon.setEtape('questionnaire');
+    setStep('questionnaire');
+  };
 
   // Rattrapage du péril : la réponse va sur le MONUMENT (elle décrit le bien).
   const handlePerilNext = async () => {
@@ -196,7 +376,21 @@ export function ProjetWizardPage() {
   // travaux non enregistrés donnerait un diagnostic calculé sur l'état
   // précédent, sans que rien ne le signale.
   const handleTravauxNext = async () => {
-    if (!monumentId || travaux === null) return;
+    if (travaux === null) return;
+    // En invité, rien à persister : le cadrage va dans le brouillon, et le
+    // questionnaire est calculé à partir de ce qu'on envoie dans le corps.
+    if (modeInvite) {
+      brouillon.setCadrage(raisons, travaux);
+      brouillon.setEtape('questionnaire');
+      if (loadedCadrageKey !== null && loadedCadrageKey !== cadrageKey) {
+        setAnswers({});
+        setQuestions([]);
+        brouillon.setAnswers({});
+      }
+      setStep('questionnaire');
+      return;
+    }
+    if (!monumentId) return;
     setSaving(true);
     try {
       const projet = projetId
@@ -225,6 +419,14 @@ export function ProjetWizardPage() {
   // projet (la page recalcule le même diagnostic à partir de là), puis on amorce
   // le store pour éviter un écran vide.
   const handleQuestionnaireNext = async () => {
+    // En invité, la fin du questionnaire mène à l'inscription, pas au
+    // diagnostic : c'est là que le compte se crée, et c'est l'écran de reprise
+    // qui écrira monument et projet.
+    if (modeInvite) {
+      allerAInscription();
+      return;
+    }
+
     if (!projetId) return;
     const questionnaire: ProjectQuestionnaireAnswers = { ...answers, [RAISONS_KEY]: raisons };
     setSaving(true);
@@ -244,22 +446,49 @@ export function ProjetWizardPage() {
   };
 
   // Quitter : le projet n'est créé qu'à la fin de l'étape travaux, et les
-  // réponses au questionnaire ne sont écrites qu'à la toute fin.
-  const exitTo = projetId
-    ? ROUTES.PROJET_DETAIL(projetId)
-    : monumentId
-      ? `${ROUTES.MONUMENT_DETAIL(monumentId)}?tab=projets`
-      : ROUTES.MONUMENTS;
+  // réponses au questionnaire ne sont écrites qu'à la toute fin. En invité, il
+  // n'y a pas d'espace où retourner — la connexion, donc, et sans alarmer : le
+  // brouillon reste sur l'appareil.
+  const exitTo = modeInvite
+    ? '/login'
+    : projetId
+      ? ROUTES.PROJET_DETAIL(projetId)
+      : monumentId
+        ? `${ROUTES.MONUMENT_DETAIL(monumentId)}?tab=projets`
+        : ROUTES.MONUMENTS;
+
+  // Quitter le questionnaire en invité ne fait pas sortir : on montre l'écran
+  // de fin avec ce que les réponses déjà données ont trouvé.
+  const quitterVersInscription = modeInvite && step === 'questionnaire';
+
+  // Arrivée directe sur la route invitée sans brouillon (favori, lien
+  // partagé) : le prérequis est le monument, on renvoie le décrire.
+  if (modeInvite && !brouillon.monument) {
+    return <Navigate to={ROUTES.MONUMENT_NEW} replace />;
+  }
 
   return (
     <WizardShell
       steps={steps}
       step={step}
-      monument={monument}
+      monument={monumentAffiche}
       progress={step === 'questionnaire' ? progress : null}
-      confirmQuit={step === 'questionnaire' && Object.keys(answers).length > 0}
+      // Rien à confirmer quand quitter mène à l'écran de fin : les réponses
+      // sont dans le brouillon et le questionnaire reste reprenable.
+      confirmQuit={
+        !quitterVersInscription && step === 'questionnaire' && Object.keys(answers).length > 0
+      }
       quitDisabled={step === 'diagnostic'}
       exitTo={exitTo}
+      onQuit={quitterVersInscription ? allerAInscription : undefined}
+      quitMessage={
+        modeInvite
+          ? 'Votre brouillon reste sur cet appareil : vous pourrez reprendre ici.'
+          : undefined
+      }
+      // L'étape « Votre compte » est entièrement centrée sur son chiffre : le
+      // trèfle en filigrane venait s'y poser juste à côté.
+      sansFiligrane={step === 'inscription'}
     >
       {step === 'peril' && (
         <PerilStep
@@ -275,7 +504,16 @@ export function ProjetWizardPage() {
         <ProjectIntentStep
           value={raisons}
           onChange={setRaisons}
-          onNext={() => setStep('travaux')}
+          onNext={() => {
+            // En invité, les intentions vont dans le brouillon dès maintenant :
+            // un F5 à l'étape des travaux ne doit pas ramener à une page
+            // d'intentions vide. Les travaux, eux, sont encore inconnus.
+            if (modeInvite) {
+              brouillon.setCadrage(raisons, travaux);
+              brouillon.setEtape('travaux');
+            }
+            setStep('travaux');
+          }}
           retake={!!existingProjetId}
         />
       )}
@@ -341,8 +579,9 @@ export function ProjetWizardPage() {
                   Le questionnaire n&rsquo;a pas pu être chargé.
                 </p>
                 <p className="mt-1 text-[14px]" style={{ color: C.grayFg }}>
-                  Vérifiez votre connexion puis réessayez&nbsp;— votre projet est bien
-                  enregistré.
+                  {modeInvite
+                    ? 'Vérifiez votre connexion puis réessayez — vos réponses restent sur cet appareil.'
+                    : 'Vérifiez votre connexion puis réessayez — votre projet est bien enregistré.'}
                 </p>
               </div>
               <button
@@ -372,7 +611,7 @@ export function ProjetWizardPage() {
                 className="group inline-flex items-center gap-2 rounded-2xl px-7 py-3.5 text-[16px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
                 style={{ background: C.orange }}
               >
-                Voir les aides
+                {modeInvite ? 'Découvrir mes financements' : 'Voir les aides'}
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </button>
             </div>
@@ -380,13 +619,23 @@ export function ProjetWizardPage() {
             <ProjectQuestionnaire
               questions={questions}
               value={answers}
-              onChange={setAnswers}
+              // En invité, chaque réponse part aussi dans le brouillon : un F5
+              // au milieu du questionnaire ne perd rien.
+              onChange={(a) => {
+                setAnswers(a);
+                if (modeInvite) brouillon.setAnswers(a);
+              }}
               onComplete={handleQuestionnaireNext}
               submitting={saving}
+              completeLabel={modeInvite ? 'Découvrir mes financements' : undefined}
               onProgress={setProgress}
             />
           )}
         </div>
+      )}
+
+      {step === 'inscription' && (
+        <InscriptionStep synthese={synthese} onRetour={revenirAuQuestionnaire} />
       )}
 
       {step === 'diagnostic' && <DiagnosticLoader />}

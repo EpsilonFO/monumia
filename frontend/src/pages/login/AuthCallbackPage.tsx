@@ -7,6 +7,10 @@ import { usePendingOAuthStore } from '@/stores/usePendingOAuthStore';
 import { authService } from '@/services/auth.service';
 import { parseOAuthCallbackHash } from '@/lib/oauth-callback';
 import { takePendingInvitation } from '@/lib/pending-invitation';
+import {
+  brouillonPretPourRejeu,
+  prendreRetourGoogleBrouillon,
+} from '@/lib/brouillon-invite';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 
@@ -48,6 +52,14 @@ export function AuthCallbackPage() {
     // laisser un jeton traîner sur une tentative suivante.
     const pendingInvitation = takePendingInvitation();
 
+    // Google lancé depuis le parcours découverte : on renverra sur l'écran de
+    // reprise, qui crée le monument et le projet du brouillon. Le drapeau est
+    // consommé QUOI QU'IL ARRIVE (même sur erreur, même sans brouillon
+    // rejouable), pour ne pas détourner une connexion Google ultérieure. Et
+    // c'est bien lui qui porte l'intention : un brouillon oublié dans le
+    // localStorage ne suffit pas à déclencher un rejeu.
+    const retourBrouillon = prendreRetourGoogleBrouillon() && brouillonPretPourRejeu();
+
     if (parsed.status === 'error') {
       setError(ERROR_MESSAGE);
       return;
@@ -64,12 +76,16 @@ export function AuthCallbackPage() {
             await authService.oauthSession(parsed.accessToken, parsed.refreshToken).catch(() => {});
           }
           setAuth(status.user, parsed.accessToken);
+          // L'invitation garde la priorité : c'est une action explicite reçue
+          // par email, et l'écran d'invitation a son propre parcours.
           navigate(
             pendingInvitation
               ? `/invitation/${pendingInvitation}`
-              : status.user.accountType === 'collaborateur'
-                ? ROUTES.MONUMENTS
-                : '/app',
+              : retourBrouillon
+                ? ROUTES.REPRISE
+                : status.user.accountType === 'collaborateur'
+                  ? ROUTES.MONUMENTS
+                  : '/app',
             { replace: true },
           );
           return;
@@ -106,7 +122,7 @@ export function AuthCallbackPage() {
           await authService.oauthSession(parsed.accessToken, parsed.refreshToken).catch(() => {});
         }
         setAuth(user, parsed.accessToken);
-        navigate('/app', { replace: true });
+        navigate(retourBrouillon ? ROUTES.REPRISE : '/app', { replace: true });
       })
       .catch((err: unknown) => { console.error(err); setError(ERROR_MESSAGE); });
   }, [navigate, setAuth, setPendingSession]);

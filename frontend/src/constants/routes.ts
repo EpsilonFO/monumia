@@ -18,6 +18,22 @@ export const ROUTES = {
   /** Onglets : ?tab=sanitaire|projets|documents|equipe */
   MONUMENT_DETAIL: (id: string) => `/app/monuments/${id}`,
 
+  /**
+   * Wizard projet du parcours DÉCOUVERTE (publique, sans monument en base) :
+   * le visiteur y cadre son chantier et répond au questionnaire avant d'avoir
+   * un compte. Sous `/monuments/nouveau` parce qu'elle en est la suite
+   * immédiate, et parce que le brouillon du monument est son seul prérequis.
+   */
+  PROJET_NEW_INVITE: '/app/monuments/nouveau/projet',
+
+  /**
+   * Rejeu du brouillon découverte, juste après l'inscription : le monument et
+   * le projet y sont créés pour de vrai. Écran unique où convergent les trois
+   * entrées (inscription email, retour Google, « J'ai déjà un compte »), pour
+   * que le wizard n'ait pas à survivre au changement d'état d'auth.
+   */
+  REPRISE: '/app/reprise',
+
   // ── Projets de travaux : un chantier, son questionnaire, ses aides ──
   PROJET_NEW: (monumentId: string) => `/app/monuments/${monumentId}/projets/nouveau`,
   /** Onglets : ?tab=aides|dossiers */

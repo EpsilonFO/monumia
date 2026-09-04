@@ -56,6 +56,21 @@ export interface Monument {
   updatedAt: string;
 }
 
+/**
+ * Le monument tel qu'on le SAISIT : la fiche sans ce que le serveur y ajoute
+ * (identifiant, propriétaire, dates, complétion, photos).
+ *
+ * Nommé plutôt qu'inline dans `monument.service.ts` parce que le parcours
+ * découverte le garde en brouillon `localStorage` AVANT toute inscription, et
+ * le rejoue tel quel sur `POST /monuments` après. Un type nommé, c'est la
+ * garantie que ce qui a été mis de côté est exactement ce que la création
+ * attend.
+ */
+export type MonumentInput = Omit<
+  Monument,
+  'id' | 'userId' | 'createdAt' | 'updatedAt' | 'completionPercentage' | 'photos'
+>;
+
 export interface MonumentPhoto {
   id: ID;
   /** CHEMIN de stockage dans le bucket privé — jamais affichable tel quel. */

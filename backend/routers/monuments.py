@@ -159,12 +159,19 @@ def _try_resolve_code_insee(
     return None
 
 
-def _resolve_code_insee(
+def resolve_code_insee(
     supabase: Client,
     commune_name: str,
     historical_code: str | None = None,
 ) -> str:
-    """Resolve a commune name to a current code_insee, or raise 400."""
+    """Resolve a commune name to a current code_insee, or raise 400.
+
+    Publique (et pas seulement pour ce routeur) : le diagnostic invité
+    (`routers/aides.py`) la réutilise telle quelle, parce qu'elle est la seule
+    à gérer le code INSEE historique de Mérimée via `communes_historique`.
+    `enrich_monument_with_population` fait un `eq("code_insee")` direct et
+    raterait une commune fusionnée.
+    """
     code = _try_resolve_code_insee(supabase, commune_name, historical_code)
     if code is None:
         raise HTTPException(
@@ -544,7 +551,7 @@ def create_monument(
 
     # Resolve code_insee from commune name, falling back to the historical INSEE
     # code (e.g. Mérimée's cog_insee_lors_de_la_protection) via communes_historique.
-    data["code_insee"] = _resolve_code_insee(supabase, body.commune, historical_code=body.codeInsee)
+    data["code_insee"] = resolve_code_insee(supabase, body.commune, historical_code=body.codeInsee)
 
     # Remove fields not stored in monuments table
     for key in ("commune", "departement", "region", "coordonnees"):
@@ -613,7 +620,7 @@ def update_monument(
 
     # Re-resolve code_insee when commune changes
     if body.commune is not None:
-        updates["code_insee"] = _resolve_code_insee(
+        updates["code_insee"] = resolve_code_insee(
             supabase, body.commune, historical_code=body.codeInsee
         )
 

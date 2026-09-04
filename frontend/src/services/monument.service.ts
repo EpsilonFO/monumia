@@ -1,4 +1,4 @@
-import type { Monument, MonumentPhoto } from '@/types';
+import type { Monument, MonumentInput, MonumentPhoto } from '@/types';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
 import { uploadToStorage } from '@/lib/storage-upload';
 
@@ -77,7 +77,7 @@ export const monumentService = {
     return toMonument(row);
   },
 
-  async create(data: Omit<Monument, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'completionPercentage' | 'photos'>): Promise<Monument> {
+  async create(data: MonumentInput): Promise<Monument> {
     const res = await authFetch(`${BASE}/monuments`, {
       method: 'POST',
       body: JSON.stringify(data),

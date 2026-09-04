@@ -242,6 +242,37 @@ export interface AideDiagnosticResult {
   qcmAnswers?: Record<string, string | string[]>;
 }
 
+/**
+ * L'accroche chiffrée du parcours découverte : ce qu'un VISITEUR sans compte
+ * apprend de son diagnostic. Des compteurs et des montants, jamais un nom
+ * d'aide — la liste l'attend derrière l'inscription, recalculée sous l'offre
+ * réelle du compte.
+ */
+export interface SyntheseInvite {
+  eligibles: number;
+  potentielles: number;
+  atteignables: number;
+  totalAnalysees: number;
+  montantPotentielTotal?: number | null;
+  montantAtteignableTotal?: number | null;
+  tauxTravauxMaxPct?: number | null;
+}
+
+/**
+ * Réponse de `POST /aides/diagnostic-invite`. Volontairement PAUVRE face à
+ * `AideDiagnosticResult` : de quoi poser le questionnaire, de quoi donner
+ * envie, rien de plus.
+ *
+ * Les `aideIds` des questions sont pseudonymisés côté serveur (« a1 », « a2 »…) :
+ * `computeEliminatedAideIds` et `isQuestionServingLiveAide` ne font que des
+ * tests d'appartenance entre `aideIds` et `eliminationsParOption`, des alias
+ * stables à l'échelle d'une réponse leur suffisent.
+ */
+export interface DiagnosticInviteResult {
+  qcmQuestions: QcmQuestion[];
+  synthese: SyntheseInvite;
+}
+
 /** Vue allégée d'une aide : ce qu'une vignette de projet en montre. */
 export interface AideDigest {
   id: ID;

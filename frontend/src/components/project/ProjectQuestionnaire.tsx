@@ -4,8 +4,8 @@ import { AllClear } from '@/components/illustrations';
 import { AnswerCard } from '@/components/project/wizard/AnswerCard';
 import { SkipCard } from '@/components/project/wizard/SkipCard';
 import { isUnknownAnswer } from '@/components/project/wizard/unknownAnswer';
-import { IconInfo, IconSubvention } from '@/components/icons';
-import { formatCurrency } from '@/lib/format-utils';
+import { IconInfo } from '@/components/icons';
+import { Slider } from '@/components/ui/slider';
 import { computeEliminatedAideIds, isQuestionServingLiveAide } from '@/lib/qcm';
 import { C, SERIF } from '@/lib/brand';
 import { cn } from '@/lib/utils';
@@ -178,6 +178,9 @@ export function ProjectQuestionnaire({
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** D'où vient le dernier changement d'écran : le curseur de progression
+   *  garde le focus, tout le reste le donne à la réponse. */
+  const origineRef = useRef<'parcours' | 'curseur'>('parcours');
   const optionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const finishRef = useRef<HTMLHeadingElement | null>(null);
 
@@ -203,6 +206,7 @@ export function ProjectQuestionnaire({
     const current = questions[index];
     if (!current) return;
     seenRef.current.ids.add(current.id);
+    if (origineRef.current === 'curseur') return;
     const targetId = selectedIds(current, value)[0] ?? current.options[0]?.id;
     if (targetId) optionRefs.current[`${current.id}:${targetId}`]?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -217,14 +221,29 @@ export function ProjectQuestionnaire({
 
   const goNext = () => {
     clearTimer();
+    origineRef.current = 'parcours';
     setDir('fwd');
     setIndex((i) => Math.min(i + 1, total));
   };
 
   const goBack = () => {
     clearTimer();
+    origineRef.current = 'parcours';
     setDir('back');
     setIndex((i) => Math.max(i - 1, 0));
+  };
+
+  /** Saut direct à une question (curseur de progression). */
+  const allerA = (cible: number) => {
+    const borne = Math.max(0, Math.min(cible, total - 1));
+    clearTimer();
+    // Le focus doit RESTER sur le curseur : c'est lui qu'on manipule, et
+    // l'effet ci-dessous le donnerait à la première réponse — au clavier, une
+    // seule flèche aurait porté, les suivantes seraient parties dans le
+    // parcours des options.
+    origineRef.current = 'curseur';
+    setDir(borne >= index ? 'fwd' : 'back');
+    setIndex(borne);
   };
 
   /** Sélectionne une réponse puis avance automatiquement après un court délai. */
@@ -348,8 +367,6 @@ export function ProjectQuestionnaire({
   }
 
   // ─── Une question à la fois ───
-  // La barre reflète la position courante (jamais 0 % sur la 1re question).
-  const pct = Math.round(((index + 1) / total) * 100);
   // Les options « je ne sais pas » du moteur descendent en bas de la liste,
   // rendues comme le bouton « Passer cette question » : même forme pour la même
   // intention. Quand le moteur n'en fournit aucune, on ajoute notre « passer ».
@@ -361,46 +378,33 @@ export function ProjectQuestionnaire({
   const multiple = !!q!.multiple;
   const chosen = selectedIds(q!, value);
 
-  // L'enjeu vit sur la ligne de progression, pas entre la question et ses
-  // réponses : il motive sans s'intercaler dans la lecture.
-  const enjeuLabel = q!.enjeuMax
-    ? `Jusqu'à ${formatCurrency(q!.enjeuMax)} en jeu`
-    : `${q!.aideIds.length} aide${q!.aideIds.length > 1 ? 's' : ''} concernée${q!.aideIds.length > 1 ? 's' : ''}`;
-
   return (
     <div>
-      {/* Barre fine de progression, en tête de scène. */}
+      {/* Curseur de progression, en tête de scène : il DIT où l'on en est et
+          il permet d'y aller. Un questionnaire de cinquante questions se
+          parcourt mal une flèche « Précédent » à la fois — pour revoir la
+          troisième réponse, il fallait cliquer quarante fois.
+
+          Sauter en avant équivaut à passer les questions intermédiaires, ce
+          que le questionnaire autorise déjà explicitement (« Passer cette
+          question ») : le moteur traite un fait sans réponse comme inconnu, et
+          rend une incertitude plutôt qu'une élimination. */}
       <div className="pb-4">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-          <span
-            aria-live="polite"
-            className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-            style={{ color: C.orange }}
-          >
-            Question {index + 1} <span style={{ color: C.grayMuted }}>sur {total}</span>
-          </span>
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
-            style={{ background: 'var(--secondary)', color: C.blue }}
-          >
-            <IconSubvention className="h-3.5 w-3.5" />
-            {enjeuLabel}
-          </span>
-        </div>
-        <div
-          className="mt-2 h-1.5 w-full overflow-hidden rounded-full"
-          style={{ background: C.border }}
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={total}
-          aria-valuenow={index + 1}
+        <span
+          aria-live="polite"
+          className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+          style={{ color: C.orange }}
         >
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{
-              width: `${pct}%`,
-              background: 'linear-gradient(90deg, var(--accent), var(--orange-vif))',
-            }}
+          Question {index + 1} <span style={{ color: C.grayMuted }}>sur {total}</span>
+        </span>
+        <div className="mt-2">
+          <Slider
+            aria-label="Aller à une question"
+            min={1}
+            max={total}
+            step={1}
+            value={[Math.min(index + 1, total)]}
+            onValueChange={([position]) => allerA(position - 1)}
           />
         </div>
       </div>
@@ -446,7 +450,6 @@ export function ProjectQuestionnaire({
                 <AnswerCard
                   key={option.id}
                   option={option}
-                  optionIndex={optionIndex}
                   selected={selected}
                   roving={roving}
                   multiple={multiple}
@@ -512,15 +515,28 @@ export function ProjectQuestionnaire({
           Précédent
         </button>
         {multiple ? (
-          <button
-            type="button"
-            onClick={goNext}
-            className="group inline-flex min-h-11 items-center gap-2 rounded-xl px-5 py-2.5 text-[15px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)]"
-            style={{ background: C.orange }}
-          >
-            Continuer
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </button>
+          /* « Continuer » n'avance qu'une fois quelque chose de coché : en choix
+             multiple, rien de coché ne veut pas dire « aucune de ces réponses »
+             mais « je n'ai pas répondu », et l'échappatoire porte son propre
+             libellé — « Passer cette question », ou le « je ne sais pas » du
+             moteur juste au-dessus. */
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {chosen.length === 0 && (
+              <span className="text-[13px]" style={{ color: C.grayMuted }}>
+                Choisissez au moins une réponse.
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={goNext}
+              disabled={chosen.length === 0}
+              className="group inline-flex min-h-11 items-center gap-2 rounded-xl px-5 py-2.5 text-[15px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:shadow-none"
+              style={{ background: C.orange }}
+            >
+              Continuer
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </button>
+          </div>
         ) : (
           <span className="hidden text-[12px] sm:block" style={{ color: C.grayMuted }}>
             Vous pourrez refaire ce questionnaire plus tard

@@ -251,6 +251,15 @@ function goToApp() {
   window.location.href = APP_URL;
 }
 
+/* Parcours DÉCOUVERTE : le visiteur décrit son monument et obtient son
+   diagnostic AVANT d'avoir un compte — le wizard monument de l'app est
+   désormais public, et l'inscription n'arrive qu'à la fin. C'est la
+   destination des CTA « Découvrir mes financements mobilisables », qui
+   menaient jusqu'ici à la liste d'attente. */
+function goToDecouverte() {
+  window.location.href = `${APP_URL}/app/monuments/nouveau`;
+}
+
 /* Page d'inscription à la liste d'attente : route servie par le fallback SPA de
    nginx (sous BASE — '/lancement' en prod, '/landing/lancement' en beta). */
 export const SIGNUP_PATH = `${BASE}lancement`;
@@ -392,7 +401,7 @@ function Header() {
 
         <div className="flex items-center gap-5">
           <button
-            onClick={goToSignup}
+            onClick={goToDecouverte}
             className="whitespace-nowrap rounded-full px-5 py-2.5 text-[14px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_20px_-6px_rgba(241,113,5,0.55)]"
             style={{ background: C.orange }}
           >
@@ -486,24 +495,16 @@ function Hero() {
 
       <div className="relative mx-auto grid max-w-6xl items-center gap-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12">
         <div>
-          <div className="fade-up" style={{ animationDelay: '0.05s' }}>
-            <span
-              className="text-[12.5px] font-semibold uppercase tracking-[0.18em]"
-              style={{ color: C.orange }}
-            >
-              Lancement en Septembre 2026
-            </span>
-          </div>
 
           <h1
             className="fade-up mt-6 font-serif text-[clamp(1.85rem,4.2vw,2.7rem)] leading-[1.13] tracking-[-0.015em]"
             style={{ color: C.ink, animationDelay: '0.15s' }}
           >
-            Monumia <span style={{ color: C.blue }}>identifie</span> et{' '}
-            <span style={{ color: C.blue }}>qualifie</span> les financements mobilisables pour{' '}
+            Monumia <span style={{ color: C.blue }}>identifie </span>
+            les financements pour{' '}
             <span style={{ color: C.orange }}>restaurer</span>,{' '}
             <span style={{ color: C.orange }}>ouvrir</span> et{' '}
-            <span style={{ color: C.orange }}>animer</span> un monument.
+            <span style={{ color: C.orange }}>animer</span> votre monument.
           </h1>
 
           <p
@@ -514,7 +515,7 @@ function Hero() {
           </p>
 
           <div className="fade-up mt-9 flex flex-wrap items-center gap-4" style={{ animationDelay: '0.45s' }}>
-            <CtaButton onClick={goToSignup}>Découvrir mes financements mobilisables</CtaButton>
+            <CtaButton onClick={goToDecouverte}>Découvrir mes financements mobilisables</CtaButton>
             <a
               href="mailto:contact@monumia.fr"
               className="group inline-flex items-center gap-2.5 rounded-full py-2 pl-2 pr-6 text-[15px] font-semibold transition-all duration-300 hover:-translate-y-0.5 hover:border-[#0a369d] hover:shadow-[0_10px_28px_-14px_rgba(10,54,157,0.45)]"
@@ -1492,7 +1493,7 @@ function Demo() {
                   </li>
                 ))}
               </ul>
-              <CtaButton variant="white" onClick={goToSignup} className="mt-9">
+              <CtaButton variant="white" onClick={goToDecouverte} className="mt-9">
                 Découvrir mes financements mobilisables
               </CtaButton>
             </div>
@@ -1960,7 +1961,7 @@ function FinalCta() {
               Venez découvrir les dispositifs disponibles pour votre monument. 
             </p>
             <div className="mt-9">
-              <CtaButton onClick={goToSignup}>Découvrir mes financements mobilisables</CtaButton>
+              <CtaButton onClick={goToDecouverte}>Découvrir mes financements mobilisables</CtaButton>
             </div>
             <p className="mt-5 text-[13px] uppercase tracking-[0.12em] text-white/60">
               Gratuit · Sans engagement

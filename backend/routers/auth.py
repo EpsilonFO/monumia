@@ -177,6 +177,25 @@ def _validate_password(password: str) -> None:
         )
 
 
+def _erreur_inscription(exc: Exception) -> HTTPException:
+    """Traduit l'échec d'un `sign_up` Supabase en réponse exploitable.
+
+    Le cas de loin le plus fréquent est l'adresse déjà inscrite, et il mérite
+    son propre statut : le front y attache un lien « Se connecter » plutôt
+    qu'un toast rouge. C'est devenu vital avec le parcours découverte — le
+    visiteur arrive sur l'inscription avec un brouillon complet derrière lui,
+    et un message anglais sans issue lui ferait perdre tout son travail.
+
+    Le message de la bibliothèque n'est pas un contrat : on cherche « already »
+    (« User already registered », « already been registered »…) et on retombe
+    sur le 400 générique pour tout le reste.
+    """
+    message = str(exc)
+    if "already" in message.lower():
+        return HTTPException(status_code=409, detail="Un compte existe déjà avec cette adresse.")
+    return HTTPException(status_code=400, detail=message)
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -199,7 +218,7 @@ def register(
             }
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise _erreur_inscription(e) from e
 
     if not auth_response.user:
         raise HTTPException(status_code=400, detail="Échec de la création du compte")
@@ -241,7 +260,7 @@ def register_collaborator(
     try:
         auth_response = anon.auth.sign_up({"email": body.email, "password": body.password})
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise _erreur_inscription(e) from e
 
     if not auth_response.user:
         raise HTTPException(status_code=400, detail="Échec de la création du compte")

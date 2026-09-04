@@ -16,6 +16,7 @@ import { MonumentsListPage } from '@/pages/monuments/MonumentsListPage';
 import { MonumentWizardPage } from '@/pages/monuments/MonumentWizardPage';
 import { MonumentDetailPage } from '@/pages/monuments/MonumentDetailPage';
 import { ProjetWizardPage } from '@/pages/projets/ProjetWizardPage';
+import { RepriseBrouillonPage } from '@/pages/projets/RepriseBrouillonPage';
 import { ProjetDetailPage } from '@/pages/projets/ProjetDetailPage';
 import { AideProjectPage } from '@/pages/projets/AideProjectPage';
 import { DossierDetailPage } from '@/pages/projets/DossierDetailPage';
@@ -137,13 +138,24 @@ export const router = createBrowserRouter([
   },
 
   // Les deux wizards — plein écran immersif, hors du shell AppLayout.
+  //
+  // Le wizard monument est PUBLIC : c'est la porte du parcours découverte, où
+  // le visiteur décrit son bien avant d'avoir un compte (les quatre CTA de la
+  // landing arrivent ici). La page décide seule de ce qu'elle fait du résultat
+  // — création en base si l'on est connecté, brouillon `localStorage` sinon.
+  // `ProtectedRoute` lui-même ne change pas : les autres routes le gardent.
   {
     path: '/app/monuments/nouveau',
-    element: (
-      <ProtectedRoute>
-        <MonumentWizardPage />
-      </ProtectedRoute>
-    ),
+    element: <MonumentWizardPage />,
+  },
+  // Suite du parcours découverte : le cadrage et le questionnaire, sans
+  // monument en base. Sans paramètre d'URL, et c'est ce qui distingue le mode
+  // invité du mode normal dans la page. Sans garde non plus — le prérequis est
+  // le brouillon, pas la session, et la page renvoie au wizard monument s'il
+  // manque.
+  {
+    path: '/app/monuments/nouveau/projet',
+    element: <ProjetWizardPage />,
   },
   {
     // `?projet=<id>` : « Refaire le questionnaire » d'un projet existant.
@@ -160,6 +172,18 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <LegacyWizardRedirect />
+      </ProtectedRoute>
+    ),
+  },
+
+  // Rejeu du brouillon découverte, juste après l'inscription. Protégé (il
+  // écrit en base au nom du compte) et plein écran comme les wizards : c'est
+  // la dernière étape du même parcours, pas une page de l'espace.
+  {
+    path: '/app/reprise',
+    element: (
+      <ProtectedRoute>
+        <RepriseBrouillonPage />
       </ProtectedRoute>
     ),
   },

@@ -3,17 +3,17 @@ import traceback
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from supabase import Client
 
 from aides_schema import load_all_aides, load_facts, load_pending_facts
 from db import get_current_user_id, get_supabase
 from eligibility_engine import aide_display_dict, run_deterministic_diagnostic
 from eligibility_engine import disponibilite as aide_disponibilite
-from routers.monuments import enrich_monument_with_population
+from routers.monuments import enrich_monument_with_population, resolve_code_insee
 from services import quotas
 from services import stripe_billing as billing
-from services.offres import Offre
+from services.offres import GRATUIT, Offre
 from services.project_access import require_project_access, require_projet_access
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,67 @@ class DeterministicDiagnosticRequest(BaseModel):
         if not self.projet_id and not self.monument_id:
             raise ValueError("projet_id ou monument_id est requis")
         return self
+
+
+class MonumentInvite(BaseModel):
+    """Le monument tel que le décrit un VISITEUR, sans compte ni ligne en base.
+
+    Sous-ensemble strict de `CreateMonumentRequest` : uniquement ce que
+    `build_context` lit (cf. eligibility_engine). Les autres champs du
+    formulaire — référence Mérimée, dates de protection, description — sont
+    ignorés par Pydantic : le brouillon les garde côté client jusqu'au rejeu,
+    ils n'ont rien à faire dans un calcul.
+
+    Toutes les bornes sont explicites. La route est PUBLIQUE, et pyright
+    n'analyse pas `routers/` : ce modèle est le seul rempart, les tests en sont
+    le filet.
+    """
+
+    nom: str = Field(max_length=200)
+    commune: str = Field(max_length=120)
+    #: Code INSEE éventuellement HISTORIQUE (Mérimée), résolu par
+    #: `resolve_code_insee` vers la commune actuelle.
+    codeInsee: str | None = Field(default=None, max_length=10)
+    protection: str = Field(max_length=40)
+    proprietaire: str = Field(max_length=60)
+    etatConservation: str | None = Field(default=None, max_length=20)
+    siecleConstruction: str | None = Field(default=None, max_length=40)
+
+
+#: Plafonds du diagnostic invité. Rien de métier : le corpus compte quelques
+#: dizaines de types de travaux et l'ontologie une centaine de faits — au-delà,
+#: c'est un client qui déraille ou un abus.
+_MAX_TRAVAUX_INVITE = 30
+_MAX_ANSWERS_INVITE = 100
+
+
+class DiagnosticInviteRequest(BaseModel):
+    """Un diagnostic complet en un seul corps : le bien, le cadrage, les réponses.
+
+    Rien n'est persisté, donc rien n'est référencé par un id : le visiteur n'a
+    ni monument ni projet en base. C'est l'équivalent de
+    `merge_projet_into_monument` fait côté client.
+    """
+
+    monument: MonumentInvite
+    travaux_envisages: list[str] = Field(default_factory=list, alias="travauxEnvisages")
+    answers: dict[str, object] = Field(default_factory=dict)
+
+    model_config = {"populate_by_name": True}
+
+    @field_validator("travaux_envisages")
+    @classmethod
+    def _borne_les_travaux(cls, v: list[str]) -> list[str]:
+        if len(v) > _MAX_TRAVAUX_INVITE:
+            raise ValueError(f"Au plus {_MAX_TRAVAUX_INVITE} types de travaux")
+        return [t[:60] for t in v]
+
+    @field_validator("answers")
+    @classmethod
+    def _borne_les_reponses(cls, v: dict[str, object]) -> dict[str, object]:
+        if len(v) > _MAX_ANSWERS_INVITE:
+            raise ValueError(f"Au plus {_MAX_ANSWERS_INVITE} réponses")
+        return v
 
 
 # ---------------------------------------------------------------------------
@@ -169,6 +230,59 @@ def redact_bientot_hors_offre(result: dict, offre: Offre) -> dict:
             if match.get("disponibilite") == "bientot":
                 match["aide"] = retirer_les_modalites(match["aide"])
     return result
+
+
+def pseudonymiser_aides(questions: list[dict]) -> list[dict]:
+    """Remplace les slugs d'aides des questions par des alias « a1, a2… ».
+
+    Le front ne fait que des tests d'APPARTENANCE entre `aideIds` et les
+    valeurs d'`eliminationsParOption` (cf. `computeEliminatedAideIds` et
+    `isQuestionServingLiveAide` dans frontend/src/lib/qcm.ts) : un alias stable
+    à l'intérieur d'une même réponse lui suffit, et le visiteur n'apprend
+    aucun nom d'aide au passage.
+
+    Rien d'autre n'a besoin d'être masqué dans une question : `dependsOn`
+    référence des questionId et des ids d'option, `categorie` est une clé de
+    fait, et les textes viennent de `facts.yaml` (l'ontologie, pas le
+    catalogue). Copie, jamais de mutation en place : les questions sortent du
+    moteur, dont les YAML sont en cache mémoire.
+    """
+    alias: dict[str, str] = {}
+
+    def alias_de(slug: str) -> str:
+        if slug not in alias:
+            alias[slug] = f"a{len(alias) + 1}"
+        return alias[slug]
+
+    sorties: list[dict] = []
+    for question in questions:
+        q = dict(question)
+        q["aideIds"] = [alias_de(s) for s in question.get("aideIds") or []]
+        elim = question.get("eliminationsParOption")
+        if elim:
+            q["eliminationsParOption"] = {
+                option: [alias_de(s) for s in slugs] for option, slugs in elim.items()
+            }
+        sorties.append(q)
+    return sorties
+
+
+def synthese_invite(result: dict) -> dict:
+    """L'accroche chiffrée : des compteurs et des montants, aucun nom d'aide.
+
+    C'est TOUT ce qu'un visiteur sans compte apprend du catalogue. La liste des
+    aides ne sort pas d'ici — elle l'attend derrière l'inscription, où le
+    diagnostic est rejoué sous l'offre réelle du compte.
+    """
+    return {
+        "eligibles": len(result.get("aidesEligibles") or []),
+        "potentielles": len(result.get("aidesPotentiellementEligibles") or []),
+        "atteignables": len(result.get("aidesAtteignables") or []),
+        "totalAnalysees": result.get("totalAidesAnalysees") or 0,
+        "montantPotentielTotal": result.get("montantPotentielTotal"),
+        "montantAtteignableTotal": result.get("montantAtteignableTotal"),
+        "tauxTravauxMaxPct": result.get("tauxTravauxMaxPct"),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -383,3 +497,59 @@ def diagnostic_deterministe(
     # calendrier que son client.
     offre = quotas.offre_du_monument(supabase, monument_id, user_id)
     return redact_bientot_hors_offre(result, offre)
+
+
+@router.post("/diagnostic-invite")
+def diagnostic_invite(
+    body: DiagnosticInviteRequest,
+    supabase: Client = Depends(get_supabase),
+):
+    """Diagnostic d'un monument DÉCRIT SUR PLACE, sans compte ni persistance.
+
+    C'est le moteur du parcours découverte : le visiteur décrit son bien depuis
+    la landing, cadre un chantier, répond au questionnaire, et ne crée son
+    compte qu'à la fin. Rien n'est écrit — ni monument, ni projet, ni
+    diagnostic : le brouillon vit dans le `localStorage` du navigateur, et
+    l'inscription rejoue `POST /monuments` puis `POST /monuments/{id}/projets`.
+
+    PUBLIQUE, donc, et la réponse est volontairement PAUVRE : les questions du
+    QCM (avec des identifiants d'aides pseudonymisés) et une synthèse chiffrée.
+    Aucun objet aide n'en sort, aucun nom, aucun slug. Le visiteur voit
+    strictement moins qu'un compte gratuit, et c'est ce qui rend l'ouverture
+    tenable — le seul chemin vers la fiche d'une aide reste
+    `GET /aides/{aide_id}`, authentifié.
+
+    Coût par appel : une requête `communes` et ~2 ms de CPU, comparable à
+    `GET /communes/search` (public lui aussi). Le backend n'a aucun limiteur de
+    débit : c'est un `limit_req` nginx qui borne l'abus, au déploiement.
+    """
+    m = body.monument
+    # Résolution STRICTE (400 si la commune est introuvable) : le front la
+    # provoque dès l'étape monument, en dry-run. Un 400 découvert au rejeu
+    # tomberait APRÈS l'inscription, sur un brouillon impossible à corriger.
+    code_insee = resolve_code_insee(supabase, m.commune, historical_code=m.codeInsee or None)
+
+    # Le monument que le moteur attend : snake_case, `travaux_envisages` posé
+    # directement dessus — c'est ce que fait `merge_projet_into_monument` pour
+    # un projet en base, sauf qu'ici il n'y a ni l'un ni l'autre.
+    monument = {
+        "nom": m.nom,
+        "code_insee": code_insee,
+        "protection": m.protection,
+        "proprietaire": m.proprietaire,
+        "etat_conservation": m.etatConservation,
+        "siecle_construction": m.siecleConstruction,
+        "travaux_envisages": body.travaux_envisages,
+    }
+    monument, population = enrich_monument_with_population(supabase, monument)
+
+    result = deterministic_diagnostic_for(monument, population, body.answers)
+    # Symétrie avec la route authentifiée : un visiteur est au gratuit. Sans
+    # effet sur ce qui sort (aucune aide ne sort), mais le jour où la synthèse
+    # s'enrichira, elle partira d'un résultat déjà caviardé.
+    result = redact_bientot_hors_offre(result, GRATUIT)
+
+    return {
+        "qcmQuestions": pseudonymiser_aides(result.get("qcmQuestions") or []),
+        "synthese": synthese_invite(result),
+    }

@@ -1,16 +1,17 @@
 #!/bin/bash
 #
-# Génère backend/.env.local et frontend/.env.local à partir de la stack Supabase
-# locale. Ces deux fichiers sont gitignorés et propres à chaque machine : les clés
-# locales sont régénérées par le CLI, il n'y a donc rien à se faire passer entre
-# développeurs, et `supabase status` en est la seule source de vérité.
+# Génère backend/.env.local, frontend/.env.local et landing/.env.local à partir
+# de la stack Supabase locale. Ces fichiers sont gitignorés et propres à chaque
+# machine : les clés locales sont régénérées par le CLI, il n'y a donc rien à se
+# faire passer entre développeurs, et `supabase status` en est la seule source
+# de vérité.
 #
 # Démarre la stack si elle est arrêtée (idempotent, et `supabase start` applique
 # au passage les migrations sur une base vierge).
 #
 # Usage :
 #   ./scripts/setup-env-local.sh            # n'écrase pas un fichier existant
-#   ./scripts/setup-env-local.sh --force    # réécrit les deux fichiers
+#   ./scripts/setup-env-local.sh --force    # réécrit les trois fichiers
 set -eo pipefail
 
 RACINE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -93,6 +94,19 @@ VITE_API_URL=http://localhost:8000
 VITE_SUPABASE_URL=$API_URL
 VITE_SUPABASE_ANON_KEY=$ANON_KEY
 VITE_LANDING_URL=http://localhost:3001
+EOF
+)"
+
+# La landing n'a aucune clé Supabase (elle ne parle qu'au backend), mais elle a
+# besoin de savoir où vit l'application : ses CTA « Découvrir mes financements »
+# ouvrent le wizard monument, et le défaut du code est la PRODUCTION. Sans ce
+# fichier, cliquer sur la landing locale envoie sur app.monumia.fr.
+ecrire landing/.env.local "$(
+  cat <<EOF
+# Généré par scripts/setup-env-local.sh — ne pas committer (gitignoré).
+
+VITE_API_URL=http://localhost:8000
+VITE_APP_URL=http://localhost:3000
 EOF
 )"
 

@@ -38,6 +38,24 @@ interface WizardShellProps {
   quitDisabled?: boolean;
   /** Destination du bouton Quitter (le monument, sa liste, le projet…). */
   exitTo: string;
+  /**
+   * Remplace la navigation du bouton Quitter par une action de l'appelant.
+   *
+   * Sert au parcours découverte, où quitter le questionnaire ne doit pas faire
+   * sortir : on va à l'écran de fin, qui montre ce que les réponses données ont
+   * déjà trouvé. Abandonner en cours de route est le moment où l'on a le plus
+   * à montrer, pas le moment de renvoyer sur une page de connexion.
+   *
+   * `exitTo` reste requis : la confirmation de sortie et les autres étapes
+   * s'en servent toujours.
+   */
+  onQuit?: () => void;
+  /**
+   * Cache le trèfle en filigrane de la scène. Pour les écrans dont le contenu
+   * est lui-même centré et dépouillé — l'étape « Votre compte », où le
+   * filigrane venait se poser juste à côté du chiffre et le concurrençait.
+   */
+  sansFiligrane?: boolean;
   /** Texte de la confirmation de sortie, selon ce qui serait perdu. */
   quitMessage?: string;
   children: ReactNode;
@@ -56,7 +74,9 @@ export function WizardShell({
   confirmQuit,
   quitDisabled = false,
   exitTo,
+  onQuit,
   quitMessage,
+  sansFiligrane = false,
   children,
 }: WizardShellProps) {
   const navigate = useNavigate();
@@ -72,6 +92,7 @@ export function WizardShell({
   const quit = () => {
     if (quitDisabled) return;
     if (confirmQuit) setQuitOpen(true);
+    else if (onQuit) onQuit();
     else navigate(exitTo);
   };
 
@@ -154,11 +175,13 @@ export function WizardShell({
             bouge jamais. */}
         <main ref={sceneRef} className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
           <div className="relative mx-auto w-full max-w-[760px] px-5 py-6 sm:py-10">
-            <Clover
-              size={180}
-              className="pointer-events-none absolute -right-8 top-4 hidden md:block"
-              style={{ color: C.blue, opacity: 0.04 }}
-            />
+            {!sansFiligrane && (
+              <Clover
+                size={180}
+                className="pointer-events-none absolute -right-8 top-4 hidden md:block"
+                style={{ color: C.blue, opacity: 0.04 }}
+              />
+            )}
             <div className="relative">{children}</div>
           </div>
         </main>
