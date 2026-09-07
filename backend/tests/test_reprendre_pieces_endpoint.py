@@ -338,10 +338,11 @@ class CreationRobusteTests(unittest.TestCase):
         ):
             cree = create_dossier(body, user_id="u1", supabase=supabase)
 
+        sections = cree["sections"] or []
         commune = next(
             champ
-            for section in cree["sections"]
-            for champ in section.get("champsAutoremplis", [])
+            for section in sections
+            for champ in (section.get("champsAutoremplis") or [])
             if champ["champ"] == "Commune"
         )
         self.assertEqual(commune["valeur"], "Paris")
