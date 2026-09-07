@@ -1,8 +1,8 @@
 """
 Étage C, première moitié : registre de modèles, adaptateurs, prompt.
 
-UN appel par aide, jamais de boucle agentique. L'outil d'ingestion existant
-(`ingest_aide_agent.py`) tourne cinq minutes et brûle des jetons pour UNE
+UN appel par aide, jamais de boucle agentique. L'agent d'ingestion
+(`scripts/ingerer.py`) tourne plusieurs minutes et brûle des jetons pour UNE
 aide ; la veille repasse sur 142 fiches et doit rester bon marché. Tout ce que
 le modèle a besoin de savoir est donc mis dans un seul prompt, et sa réponse
 est un objet JSON que `veille_apply` valide avant de toucher au moindre
@@ -52,7 +52,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from veille_apply import VeilleLLMOutput
 
-# Les clés vivent dans backend/.env, comme pour `ingest_aide_agent.py`, et
+# Les clés vivent dans backend/.env, comme pour le pipeline d'ingestion, et
 # `.env.local` (gitignoré) prime — même ordre que db.py et les autres scripts.
 # Ne charger que `.env.local` masquait toutes les clés de `.env` : le registre
 # annonçait `DEEPSEEK_API_KEY` absente alors qu'elle était posée.
@@ -272,7 +272,7 @@ REGISTRE: dict[str, ModelSpec] = {
         "deepseek-v4-flash",
         prix_in=0.28,
         prix_out=0.42,
-        note="id confirmé : déjà utilisé par ingest_aide_agent.py",
+        note="id confirmé : utilisé en production sur le catalogue",
     ),
     "ds-pro": _spec(
         "ds-pro",
@@ -280,7 +280,7 @@ REGISTRE: dict[str, ModelSpec] = {
         "deepseek-v4-pro",
         prix_in=0.55,
         prix_out=2.20,
-        note="id confirmé : défaut de ingest_aide_agent.py (contexte 1M)",
+        note="id confirmé : modèle de vérification adversariale (contexte 1M)",
     ),
     # --- OpenAI ------------------------------------------------------------
     "gpt-luna": _spec(

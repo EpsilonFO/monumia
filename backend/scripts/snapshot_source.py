@@ -8,7 +8,8 @@ changement de règlement diffe les snapshots successifs.
 - URL HTML  → markdown (html2text) avec en-tête de métadonnées (url, date, sha256)
 - URL PDF   → copie binaire .pdf (lisible par l'agent via Read) + sidecar de
               provenance `<stamp>.pdf.meta.yaml`
-- Fichier local (PDF/HTML/MD) → copie avec en-tête quand c'est du texte
+- URL DOCX  → texte extrait, archivé en .md (cf. `docx_bytes_to_text`)
+- Fichier local (PDF/DOCX/HTML/MD) → copie avec en-tête quand c'est du texte
 
 Le module s'utilise aussi comme bibliothèque : `to_markdown`,
 `write_md_snapshot` et `write_pdf_snapshot` sont les briques que la veille
@@ -22,12 +23,15 @@ Imprime le chemin du snapshot créé (relatif à backend/).
 """
 
 import hashlib
+import io
 import re
 import sys
 import time
+import zipfile
 from datetime import UTC, date, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
+from xml.etree import ElementTree
 
 import html2text
 import httpx
@@ -131,6 +135,13 @@ def to_markdown(html: str) -> str:
     h.body_width = 0  # pas de re-wrap : les quotes doivent rester cherchables
     h.ignore_images = True
     h.ignore_emphasis = True
+    # Sans ça, html2text rabat sur l'ASCII les accents écrits en entités HTML
+    # (`&agrave;` → « a ») : « s'adresse à tous les propriétaires » devenait
+    # « s'adresse a tous les proprietaires » dans l'archive, et toute quote
+    # prise dessus était un faux verbatim. Mesuré sur pass-renovation.hautsde
+    # france.fr le 2026-09-04. Le sha256 de l'en-tête porte sur le HTML brut,
+    # pas sur ce markdown : aucune baseline de veille n'en dépend.
+    h.unicode_snob = True
     return h.handle(html)
 
 
@@ -183,6 +194,119 @@ def _resolve_target(
 def _read_md_sha(path: Path) -> str | None:
     m = _HEADER_SHA_RE.match(path.read_text(encoding="utf-8", errors="replace"))
     return m.group(1) if m else None
+
+
+# --- .docx -----------------------------------------------------------------
+#
+# Les guides d'aides régionaux publient volontiers leur règlement
+# d'intervention en .docx, et c'est là que vivent les critères fins. Sans
+# conversion, l'archive contenait le ZIP brut (« PK...[Content_Types].xml ») :
+# illisible pour l'agent, et aucune quote ne pouvait s'y retrouver. Mesuré sur
+# hdf-jardins-en-scene le 2026-09-06 — 8 des 34 conditions de la référence, dont
+# 2 exigences décisives et l'assiette de financement, ne sont citables QUE
+# depuis les deux annexes .docx. Le pipeline manuel les convertissait à la main,
+# hors bande ; celui payé à l'API n'avait pas de mains.
+#
+# Stdlib volontairement : un .docx est un ZIP contenant `word/document.xml`,
+# et l'extraction du texte ne vaut pas une dépendance de plus.
+_NS_W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+_NS_MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
+_DOCX_ENTREE = "word/document.xml"
+
+
+def est_docx(content: bytes) -> bool:
+    """Vrai si ces octets sont un document Word (ZIP portant `word/document.xml`).
+
+    Le test porte sur le CONTENU, pas sur l'extension ni le content-type : un
+    .xlsx et un .zip commencent par la même signature `PK\\x03\\x04`.
+    """
+    if content[:4] != b"PK\x03\x04":
+        return False
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            return _DOCX_ENTREE in archive.namelist()
+    except (zipfile.BadZipFile, OSError):
+        return False
+
+
+def _texte_paragraphe(paragraphe: ElementTree.Element) -> str:
+    """Texte des runs de CE paragraphe, sans descendre dans ceux qu'il contient.
+
+    Une zone de texte Word porte ses propres `w:p` : les parcourir depuis le
+    paragraphe qui les ancre sortait leur contenu deux fois, une fois agrégé
+    dans l'ancre et une fois pour lui-même. Chaque paragraphe ne rend donc que
+    ses propres runs, les imbriqués étant rendus pour leur compte, dans l'ordre
+    du document.
+    """
+    morceaux: list[str] = []
+
+    def descendre(noeud: ElementTree.Element) -> None:
+        for enfant in noeud:
+            if enfant.tag == f"{_NS_W}p":
+                continue
+            if enfant.tag == f"{_NS_W}t":
+                morceaux.append(enfant.text or "")
+            elif enfant.tag == f"{_NS_W}tab":
+                morceaux.append("\t")
+            elif enfant.tag in (f"{_NS_W}br", f"{_NS_W}cr"):
+                morceaux.append("\n")
+            descendre(enfant)
+
+    descendre(paragraphe)
+    return "".join(morceaux).strip()
+
+
+def docx_bytes_to_text(content: bytes) -> str:
+    """Texte d'un .docx, un paragraphe par ligne. Chaîne vide si illisible.
+
+    Les paragraphes des cellules de tableau sont des `w:p` comme les autres :
+    ils ressortent donc en lignes, ce qui suffit pour citer un règlement. Rend
+    "" plutôt que de lever — un document illisible est une donnée que
+    l'appelant signale, pas une exception (même contrat que `pdf_bytes_to_text`).
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            xml = archive.read(_DOCX_ENTREE)
+        racine = ElementTree.fromstring(xml)
+    except (KeyError, zipfile.BadZipFile, OSError, ElementTree.ParseError):
+        return ""
+    # Word duplique le contenu des zones de texte dans une branche de repli
+    # `mc:Fallback` destinée aux lecteurs anciens : le même encadré y figure
+    # une seconde fois, en VML.
+    replis = {p for repli in racine.iter(f"{_NS_MC}Fallback") for p in repli.iter(f"{_NS_W}p")}
+    lignes = [
+        texte
+        for paragraphe in racine.iter(f"{_NS_W}p")
+        if paragraphe not in replis and (texte := _texte_paragraphe(paragraphe))
+    ]
+    return "\n\n".join(lignes) + "\n" if lignes else ""
+
+
+def write_docx_snapshot(
+    slug: str,
+    content: bytes,
+    *,
+    url: str | None = None,
+    label: str | None = None,
+    jour: date | None = None,
+) -> tuple[Path, str]:
+    """Archive le TEXTE d'un .docx en .md. Retourne (chemin, texte extrait).
+
+    Contrairement au PDF, c'est le texte converti qui est archivé et dont le
+    sha256 est pris — et c'est plus juste ici : re-zipper un document identique
+    change ses octets (horodatages internes), donc un sha sur le binaire
+    signalerait un changement de règlement à chaque re-téléchargement.
+    """
+    texte = docx_bytes_to_text(content)
+    chemin = write_md_snapshot(
+        slug,
+        url or f"docx://{slug}",
+        texte,
+        label=label,
+        body_is_markdown=True,
+        jour=jour,
+    )
+    return chemin, texte
 
 
 def write_md_snapshot(
@@ -269,6 +393,8 @@ def snapshot(slug: str, source: str, label: str | None = None) -> Path:
         content_type = resp.headers.get("content-type", "")
         if "pdf" in content_type or source.lower().endswith(".pdf"):
             return write_pdf_snapshot(slug, resp.content, url=str(resp.url), label=label)
+        if est_docx(resp.content):
+            return write_docx_snapshot(slug, resp.content, url=str(resp.url), label=label)[0]
         return write_md_snapshot(slug, str(resp.url), resp.text, label=label)
 
     src = Path(source).expanduser()
@@ -276,6 +402,8 @@ def snapshot(slug: str, source: str, label: str | None = None) -> Path:
         raise SystemExit(f"fichier introuvable : {src}")
     if src.suffix.lower() == ".pdf":
         return write_pdf_snapshot(slug, src.read_bytes(), label=label)
+    if src.suffix.lower() == ".docx":
+        return write_docx_snapshot(slug, src.read_bytes(), url=f"file://{src}", label=label)[0]
     return write_md_snapshot(
         slug,
         f"file://{src}",

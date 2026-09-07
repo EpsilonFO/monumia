@@ -1,0 +1,198 @@
+"""Étage 3 : ouvrir les fiches retenues et les qualifier.
+
+C'est ici que la fiche de prospection gagne ses colonnes — montant, taux,
+bénéficiaires, note — et c'est le seul étage qui lit vraiment les pages. La
+règle qui gouverne tout le reste : **rien n'est inventé**. Un montant absent de
+la page reste `None` ; il vaut mieux une colonne vide qu'un chiffre plausible
+que personne ne vérifiera avant l'ingestion.
+
+Le slug est proposé ici et pas ailleurs, parce que c'est le seul moment où l'on
+connaît à la fois le titre du dispositif, le préfixe du territoire et les slugs
+déjà pris.
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+import unicodedata
+from dataclasses import dataclass
+from pathlib import Path
+
+from pydantic import BaseModel, Field
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import providall
+from pipeline.llm import Compteur
+from pipeline.web import Fetcheur
+
+from .collecte import Candidat, liens
+from .territoires import Territoire
+from .tri import Famille
+
+MAX_CAR_PAGE = 25_000
+MAX_LIENS_DOCUMENTS = 25
+MAX_CAR_NOTE = 600
+
+CONSIGNE = """\
+Tu qualifies UNE page de dispositif d'aide pour le catalogue Monumia, qui recense
+ce qu'un propriétaire de monument historique peut mobiliser pour son bien.
+
+Règle absolue : **n'invente rien**. Un montant, un taux, une liste de bénéficiaires
+qui ne figurent pas sur la page restent vides. Une colonne vide dans la fiche de
+prospection est un fait ; un chiffre plausible est un piège que personne ne
+rattrapera avant l'ingestion.
+
+`retenir` si le monument peut être le lieu, le support ou l'objet de la dépense,
+ET qu'un propriétaire (commune, EPCI, département, région, personne physique, SCI,
+association, entreprise, établissement du culte…) peut en être bénéficiaire —
+directement, ou via une association support si tu le notes.
+
+`urls_pdf` : uniquement des liens présents dans la liste fournie (règlement,
+cadre d'intervention, formulaire). N'en fabrique aucun.
+"""
+
+
+class LectureFiche(BaseModel):
+    retenir: bool
+    famille: Famille = "hors_perimetre"
+    titre: str = Field(description="Intitulé exact du dispositif, tel qu'il apparaît sur la page")
+    montant_taux: str | None = Field(
+        default=None, description="Montants et taux TELS QUE la page les écrit ; None si absents"
+    )
+    beneficiaires: str | None = Field(
+        default=None, description="Qui peut déposer, d'après la page ; None si non précisé"
+    )
+    note: str = Field(
+        default="",
+        description="Pourquoi c'est (ou non) mobilisable par un propriétaire de monument, "
+        "et ce qu'il faudra typer à l'ingestion",
+    )
+    slug_propose: str = Field(
+        default="", description="Identifiant en kebab-case, SANS le préfixe territorial"
+    )
+    urls_pdf: list[str] = []
+    doublon_probable: str | None = Field(
+        default=None, description="Slug du catalogue dont ce dispositif semble être un doublon"
+    )
+    priorite: str = "normale"
+    source_unique_vulgarisation: bool = Field(
+        default=False,
+        description="Vrai si la page est une présentation sans règlement ni modalités précises",
+    )
+
+
+@dataclass
+class Lecture:
+    """Une fiche lue : le candidat d'origine, le verdict, et ce qui a raté."""
+
+    candidat: Candidat
+    fiche: LectureFiche | None = None
+    erreur: str | None = None
+
+    @property
+    def retenue(self) -> bool:
+        return self.fiche is not None and self.fiche.retenir
+
+
+def _documents_lies(page, territoire: Territoire) -> list[str]:
+    """Les liens de la page qui ressemblent à un règlement téléchargeable."""
+    trouves: list[str] = []
+    for _titre, url, _contexte in liens(page):
+        if territoire.pdf_probable(url) and url not in trouves:
+            trouves.append(url)
+    return trouves[:MAX_LIENS_DOCUMENTS]
+
+
+def lire(
+    candidat: Candidat,
+    territoire: Territoire,
+    fetcheur: Fetcheur,
+    client: providall.Client,
+    *,
+    compteur: Compteur | None = None,
+) -> Lecture:
+    """Ouvre une page candidate et la qualifie. Ne lève jamais."""
+    page = fetcheur.get(candidat.url)
+    if not page.ok:
+        return Lecture(candidat, erreur=f"{page.erreur or f'HTTP {page.status}'}")
+    if page.est_pdf:
+        return Lecture(candidat, erreur="PDF — à traiter directement à l'ingestion")
+    markdown = page.markdown()
+    if len(markdown.strip()) < 500:
+        return Lecture(
+            candidat,
+            erreur=f"page vide ou SPA ({len(markdown.strip())} car.) — source citable à chercher",
+        )
+
+    documents = _documents_lies(page, territoire)
+    prompt = "\n\n".join(
+        [
+            f"URL : {page.url_finale}",
+            "Documents liés depuis cette page (les seuls que tu peux citer dans `urls_pdf`) :\n"
+            + ("\n".join(f"  {u}" for u in documents) or "  (aucun)"),
+            "--- Contenu de la page ---",
+            markdown[:MAX_CAR_PAGE],
+        ]
+    )
+    essai = client.try_complete_json(LectureFiche, prompt, system=CONSIGNE)
+    if compteur is not None:
+        compteur.ajouter(essai.response, "lecture")
+    if essai.data is None:
+        return Lecture(candidat, erreur=f"lecture impossible : {essai.response.error}")
+
+    fiche = essai.data
+    # Un PDF que la page ne porte pas est un PDF inventé : on ne garde que ce
+    # qui a été réellement vu, sans quoi l'ingestion partirait sur un 404.
+    fiche.urls_pdf = [u for u in fiche.urls_pdf if u in documents]
+    fiche.note = " ".join(fiche.note.split())[:MAX_CAR_NOTE]
+    return Lecture(candidat, fiche=fiche)
+
+
+# ---------------------------------------------------------------------------
+# Slugs
+# ---------------------------------------------------------------------------
+
+_NON_SLUG = re.compile(r"[^a-z0-9]+")
+
+
+def kebab(texte: str) -> str:
+    sans_accent = "".join(
+        c for c in unicodedata.normalize("NFD", texte.lower()) if unicodedata.category(c) != "Mn"
+    )
+    return _NON_SLUG.sub("-", sans_accent).strip("-")
+
+
+def slug_final(territoire: Territoire, propose: str, titre: str, occupes: set[str]) -> str:
+    """Slug définitif : préfixe territorial, unicité, jamais un slug déjà pris.
+
+    `occupes` doit contenir les slugs du CATALOGUE et ceux déjà proposés dans la
+    même fiche : deux dispositifs voisins d'une même région produisent
+    volontiers le même slug, et un doublon écraserait silencieusement le premier
+    fichier à l'ingestion.
+    """
+    base = kebab(propose or titre) or "aide"
+    prefixe = territoire.prefixe_slug
+    if not base.startswith(f"{prefixe}-"):
+        base = f"{prefixe}-{base}"
+    base = base[:60].rstrip("-")
+    if base not in occupes:
+        return base
+    for n in range(2, 100):
+        candidat = f"{base}-{n}"
+        if candidat not in occupes:
+            return candidat
+    raise ValueError(f"impossible de trouver un slug libre pour « {base} »")
+
+
+__all__ = [
+    "CONSIGNE",
+    "MAX_CAR_PAGE",
+    "Lecture",
+    "LectureFiche",
+    "kebab",
+    "lire",
+    "slug_final",
+]

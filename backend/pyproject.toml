@@ -20,6 +20,7 @@ dependencies = [
     "stripe>=12.0.0",
     "anthropic>=0.69.0",
     "brotli>=1.2.0",
+    "providall",
 ]
 
 [dependency-groups]
@@ -49,3 +50,6 @@ venvPath = "."
 venv = ".venv"
 include = ["*.py", "services"]
 exclude = [".venv", "scripts", "routers"]
+
+[tool.uv.sources]
+providall = { git = "ssh://git@github.com/EpsilonFO/providall.git", subdirectory = "python", tag = "v0.1.0" }

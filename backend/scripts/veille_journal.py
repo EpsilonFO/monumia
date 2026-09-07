@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 class Journal:
-    """Tee console + fichier, à la manière de `ingest_aides_batch.py`."""
+    """Tee console + fichier : la sortie complète part sur le terminal ET dans le journal."""
 
     def __init__(self) -> None:
         self.lines: list[str] = []

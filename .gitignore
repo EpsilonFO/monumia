@@ -60,3 +60,9 @@ supabase/snippets/
 
 # Cache recalculable de la veille (texte extrait des PDF)
 backend/.cache/
+
+# Pipeline de prospection / ingestion : intermédiaires et journaux régénérables.
+# Les LIVRABLES restent versionnés — territoires.yaml, file-attente.yaml, les
+# fiches de review et les snapshots.
+backend/data/prospection/*/*.jsonl
+backend/data/reviews/logs/

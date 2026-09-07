@@ -1036,7 +1036,7 @@ class TestRapport(unittest.TestCase):
             "## Portées partielles",
             "## Échecs de validation",
             "git diff -- data/aides",
-            "ingest_aides_batch.py escaladee",
+            "ingerer.py --slug escaladee",
             "le taux a changé",
         ):
             self.assertIn(attendu, rapport, attendu)
