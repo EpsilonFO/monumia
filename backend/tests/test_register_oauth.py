@@ -47,12 +47,29 @@ class _UsersQuery:
         return resp
 
 
+class _AbonnementsQuery:
+    """L'octroi de l'offre de création : on ne capture que ce qui est upserté."""
+
+    def __init__(self, upserts):
+        self._upserts = upserts
+
+    def upsert(self, row, *a, **k):
+        self._upserts.append(row)
+        return self
+
+    def execute(self):
+        return _Resp(None)
+
+
 class _FakeSupabase:
     def __init__(self, users_responses):
         self.inserted = []
+        self.abonnements = []
         self._users = _UsersQuery(list(users_responses), self.inserted)
 
     def table(self, name):
+        if name == "subscriptions":
+            return _AbonnementsQuery(self.abonnements)
         assert name == "users", f"table inattendue : {name}"
         return self._users
 

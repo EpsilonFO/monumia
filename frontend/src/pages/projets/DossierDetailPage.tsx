@@ -38,6 +38,16 @@ import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
 import type { Aide, ChecklistItem, Document, Dossier } from '@/types';
 
+/**
+ * Le sélecteur d'avancement (« À faire », « En préparation », « Déposé »…) est
+ * masqué pour l'instant, en haut du dossier ouvert. Rien d'autre ne change : le
+ * suivi continue d'exister en base, de se charger ici et d'alimenter les
+ * vignettes et l'échéancier — seul son éditeur disparaît de cette page.
+ *
+ * Remettre `true` le rend tel quel.
+ */
+const AVANCEMENT_MODIFIABLE = false;
+
 export function DossierDetailPage() {
   const { projetId, dossierId } = useParams();
   const navigate = useNavigate();
@@ -348,7 +358,7 @@ export function DossierDetailPage() {
 
       <h1 className="text-[clamp(1.4rem,3vw,1.9rem)] leading-tight" style={{ fontFamily: SERIF, color: C.ink }}>{dossier.titre}</h1>
 
-      {projetId && dossier.aideId && (
+      {AVANCEMENT_MODIFIABLE && projetId && dossier.aideId && (
         <AideStatutSelect projetId={projetId} aideId={dossier.aideId} suivi={suivi} />
       )}
 
