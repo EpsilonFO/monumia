@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from supabase import Client
 
 from db import get_anon_supabase, get_current_auth_user, get_current_user_id, get_supabase
+from services import stripe_billing as billing
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -237,6 +238,8 @@ def register(
     }
 
     supabase.table("users").insert(profile).execute()
+    # Tout compte neuf repart avec l'offre du moment (cf. PLAN_A_LA_CREATION).
+    billing.octroyer_offre_initiale(supabase, user_id)
 
     session = auth_response.session
     if session and session.refresh_token:
@@ -279,6 +282,8 @@ def register_collaborator(
         "notification_preferences": _default_notification_preferences(),
     }
     supabase.table("users").insert(profile).execute()
+    # Tout compte neuf repart avec l'offre du moment (cf. PLAN_A_LA_CREATION).
+    billing.octroyer_offre_initiale(supabase, user_id)
 
     session = auth_response.session
     if session and session.refresh_token:
@@ -364,6 +369,9 @@ def register_oauth(
     # l'autre requête — l'idempotence retombe sur le profil existant.
     with contextlib.suppress(Exception):
         supabase.table("users").insert(profile).execute()
+    # Même octroi que pour une inscription par mot de passe. L'appel est
+    # idempotent : la course entre deux soumissions réécrit la même ligne.
+    billing.octroyer_offre_initiale(supabase, auth_user.id)
 
     return {"user": _get_profile(supabase, auth_user.id)}
 
@@ -394,6 +402,9 @@ def register_collaborator_oauth(
     # l'autre requête — l'idempotence retombe sur le profil existant.
     with contextlib.suppress(Exception):
         supabase.table("users").insert(profile).execute()
+    # Même octroi que pour une inscription par mot de passe. L'appel est
+    # idempotent : la course entre deux soumissions réécrit la même ligne.
+    billing.octroyer_offre_initiale(supabase, auth_user.id)
 
     return {"user": _get_profile(supabase, auth_user.id)}
 

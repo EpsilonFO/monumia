@@ -11,6 +11,12 @@
  * Les deux tables doivent rester d'accord. `lib/__tests__/offres.test.ts` fige
  * les mêmes valeurs que `tests/test_billing_access.py` côté serveur : un bouton
  * affiché que le serveur refuse est le pire des deux mondes.
+ *
+ * À noter, si l'offre gratuite semble introuvable en testant : depuis le
+ * 2026-09-07, tout compte NEUF reçoit Multi-monuments d'office (côté serveur,
+ * `PLAN_A_LA_CREATION`). GRATUIT reste l'état des comptes créés avant, et le
+ * repli du front tant que `GET /billing/access` n'a pas répondu — d'où son
+ * maintien ici à l'identique.
  */
 
 export type BillingPlan = 'veille' | 'multi_monuments';

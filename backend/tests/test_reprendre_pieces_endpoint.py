@@ -47,6 +47,9 @@ class _Query:
     def is_(self, *a, **k):
         return self
 
+    def limit(self, *a, **k):
+        return self
+
     def or_(self, *a, **k):
         return self
 
@@ -266,12 +269,29 @@ class FetchAideTests(unittest.TestCase):
 
 class CreationRobusteTests(unittest.TestCase):
     """La reprise est un confort greffé sur la création de dossier, qui marchait
-    avant elle : son échec ne doit pas se transformer en 500."""
+    avant elle : son échec ne doit pas se transformer en 500.
+
+    L'enrichissement du monument n'est PAS simulé ici, et c'est volontaire :
+    tant qu'il l'était, un changement de sa signature passait la CI et cassait
+    la création de dossier en production (un `TypeError` non rattrapé, donc un
+    500 et un « NetworkError » côté navigateur).
+    """
 
     def _supabase(self) -> _FakeSupabase:
         return _FakeSupabase(
             {
-                "monuments": {"id": "p1", "nom": "Chapelle"},
+                "monuments": {"id": "p1", "nom": "Chapelle", "code_insee": "75056"},
+                "communes": [
+                    {
+                        "nom_commune": "Paris",
+                        "departement": "Paris",
+                        "departement_num": "75",
+                        "region": "Île-de-France",
+                        "region_code": "ile-de-france",
+                        "population": 2100000,
+                        "epci_siren": None,
+                    }
+                ],
                 "aides_v3": {"id": "a1", "nom": "Aide", "documents_requis": [{"nom": "RIB"}]},
                 "users": {"id": "u1", "nom": "Dupont"},
                 "dossiers": {"id": "d1"},
@@ -289,7 +309,6 @@ class CreationRobusteTests(unittest.TestCase):
                 "routers.dossiers.require_projet_access",
                 return_value=({"id": "p1", "monument_id": "m1"}, "owner"),
             ),
-            patch("routers.dossiers._enrich_monument", side_effect=lambda _sb, m: m),
             patch("routers.dossiers.apply_reuse", side_effect=RuntimeError("PostgREST HS")),
         ):
             cree = create_dossier(body, user_id="u1", supabase=supabase)
@@ -301,6 +320,31 @@ class CreationRobusteTests(unittest.TestCase):
         self.assertEqual(cree["checklist"][0]["statut"], "manquant")
         self.assertNotIn("documentId", cree["checklist"][0])
         self.assertEqual(len(supabase.inserts["dossiers"]), 1)
+
+    def test_creation_nominale_recopie_la_commune_du_monument(self) -> None:
+        """Le pré-remplissage du dossier cite la commune : c'est la seule
+        raison d'enrichir le monument ici."""
+        from routers.dossiers import CreateDossierRequest, create_dossier
+
+        supabase = self._supabase()
+        body = CreateDossierRequest(projet_id="p1", aide_id="a1", travaux_prevus=[])
+
+        with (
+            patch(
+                "routers.dossiers.require_projet_access",
+                return_value=({"id": "p1", "monument_id": "m1"}, "owner"),
+            ),
+            patch("routers.dossiers.apply_reuse", side_effect=lambda _s, c, *a: (c, 0)),
+        ):
+            cree = create_dossier(body, user_id="u1", supabase=supabase)
+
+        commune = next(
+            champ
+            for section in cree["sections"]
+            for champ in section.get("champsAutoremplis", [])
+            if champ["champ"] == "Commune"
+        )
+        self.assertEqual(commune["valeur"], "Paris")
 
 
 class DetachementSchemaTests(unittest.TestCase):
@@ -373,6 +417,9 @@ class _Table:
         return self
 
     def is_(self, *a, **k):
+        return self
+
+    def limit(self, *a, **k):
         return self
 
     def or_(self, *a, **k):

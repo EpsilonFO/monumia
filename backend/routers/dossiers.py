@@ -13,7 +13,7 @@ from pydantic import BaseModel, model_validator
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
-from routers.monuments import _enrich_monument
+from routers.monuments import enrich_monument_with_population
 from services.dossier_service import create_dossier_from_aide
 from services.piece_reuse import apply_reuse
 from services.project_access import (
@@ -454,7 +454,10 @@ def create_dossier(
     if not user_result.data:
         raise HTTPException(status_code=404, detail="Profil introuvable")
 
-    monument = _enrich_monument(supabase, monument_result.data)
+    # Commune, département et région, que le pré-remplissage du dossier recopie.
+    # Pas `_enrich_monument` : sa seule différence est de poser `offre`, dont la
+    # réponse (un dossier) n'a que faire — c'est une requête de plus pour rien.
+    monument, _ = enrich_monument_with_population(supabase, monument_result.data)
     # Resolve travaux codes → labels via ref_travaux
     travaux_labels = body.travaux_prevus
     if body.travaux_prevus:

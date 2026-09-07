@@ -16,6 +16,11 @@ Trois offres, et la troisième contient la deuxième :
 Le détail des aides n'est PAS dans cette table : il est gratuit. Ce qui se vend,
 c'est le volume, le calendrier et la veille.
 
+Depuis le 2026-09-07, tout compte NEUF reçoit Multi-monuments d'office
+(`PLAN_A_LA_CREATION`) : l'offre gratuite reste décrite ici, elle n'est plus que
+l'état des comptes créés avant, et celui vers lequel les nouveaux retomberaient
+si l'octroi était refermé.
+
 Le miroir côté frontend est `frontend/src/lib/offres.ts`, et les deux doivent
 rester d'accord — les tests de chaque côté figent la même table.
 """
@@ -38,6 +43,16 @@ PLANS = (PLAN_VEILLE, PLAN_MULTI_MONUMENTS)
 #: Ouvrir la vente en ligne d'une offre = l'ajouter ici, poser son prix dans
 #: `STRIPE_PRICE_*`, et rendre son bouton à `startCheckout` sur la page Tarifs.
 PLANS_VENDABLES: tuple[str, ...] = ()
+
+#: L'offre ouverte d'office à tout compte CRÉÉ à partir du 2026-09-07, sans
+#: contrepartie Stripe : rien n'est facturé, rien n'expire. Elle est posée à
+#: l'inscription par `stripe_billing.octroyer_offre_initiale`.
+#:
+#: Les comptes antérieurs ne sont PAS rattrapés — le geste ne porte que sur les
+#: créations, comme demandé. Le fermer = remettre `None` ici : les comptes déjà
+#: ouverts gardent la ligne d'abonnement qu'ils ont reçue, seuls les nouveaux
+#: retombent sur l'offre gratuite.
+PLAN_A_LA_CREATION: str | None = PLAN_MULTI_MONUMENTS
 
 
 @dataclass(frozen=True)

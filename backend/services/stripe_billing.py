@@ -36,6 +36,7 @@ from supabase import Client
 
 from config import request_app_origin
 from services.offres import (
+    PLAN_A_LA_CREATION,
     PLAN_MULTI_MONUMENTS,
     PLAN_VEILLE,
     PLANS,
@@ -48,6 +49,7 @@ from services.offres import (
 __all__ = [
     "PLANS",
     "PLANS_VENDABLES",
+    "PLAN_A_LA_CREATION",
     "PLAN_MULTI_MONUMENTS",
     "PLAN_VEILLE",
 ]
@@ -290,6 +292,60 @@ def offre_du_compte(supabase: Client, user_id: str) -> Offre:
     `services/offres.py`.
     """
     return offre_pour(active_plans(supabase, user_id))
+
+
+#: Préfixe de la clé primaire des abonnements OCTROYÉS — ceux qui n'ont aucune
+#: contrepartie chez Stripe. Un id d'abonnement Stripe commence toujours par
+#: `sub_` : le préfixe garantit qu'aucun webhook ne viendra écraser la ligne, et
+#: se relit dans la base comme « ce droit a été donné, pas payé ».
+PREFIXE_OCTROI = "octroi:"
+
+
+def octroyer_offre_initiale(supabase: Client, user_id: str) -> None:
+    """Ouvre à un compte NEUF l'offre offerte à la création (`PLAN_A_LA_CREATION`).
+
+    Écrit une ligne d'abonnement `active` sans id Stripe, sans prix et sans fin
+    de période : c'est un droit donné, pas une vente. Passer par la table des
+    abonnements plutôt que par un drapeau sur `users` garde `offre_du_compte`
+    seule autorité sur les droits — quotas, tableau de bord, échéancier et
+    rappels email suivent sans qu'aucun appelant ne change.
+
+    Conséquences volontaires :
+
+      * `access.portail` reste faux (aucun Customer Stripe), donc « Gérer mon
+        abonnement » ne s'affiche pas et ne mène pas à un 404 ;
+      * l'octroi ne remplace pas un abonnement payé et n'est pas remplacé par
+        lui : les droits se cumulent par union des plans (cf. `offre_pour`).
+
+    Idempotent : la clé primaire est dérivée du compte, donc une inscription
+    rejouée (double clic, retry réseau) réécrit la même ligne. Un échec est
+    journalisé mais jamais propagé — un compte doit se créer même si l'octroi
+    échoue, l'offre gratuite reste un état parfaitement utilisable.
+    """
+    if PLAN_A_LA_CREATION is None:
+        return
+    try:
+        supabase.table("subscriptions").upsert(
+            {
+                "stripe_subscription_id": f"{PREFIXE_OCTROI}{user_id}",
+                "user_id": user_id,
+                # `not null` sur la colonne, et il n'y a pas de client Stripe :
+                # même convention que le webhook, qui écrit `customer_id or ""`.
+                "stripe_customer_id": "",
+                "stripe_price_id": None,
+                "plan": PLAN_A_LA_CREATION,
+                "status": "active",
+                # Aucune échéance : la page Tarifs n'annonce donc ni prochain
+                # prélèvement ni fin d'abonnement.
+                "current_period_end": None,
+                "cancel_at_period_end": False,
+            },
+            on_conflict="stripe_subscription_id",
+        ).execute()
+    except Exception:
+        logger.exception(
+            "Octroi de l'offre %s au compte %s impossible", PLAN_A_LA_CREATION, user_id
+        )
 
 
 def peut_recevoir_rappels(supabase: Client, user_id: str) -> bool:
