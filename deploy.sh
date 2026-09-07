@@ -14,6 +14,18 @@ git pull
 source scripts/lib-migrations.sh
 source scripts/lib-release.sh
 
+# ── Tout déployer sauf la landing de PROD ─────────────
+#
+#   SKIP_LANDING_PROD=1 ./deploy.sh
+#
+# monumia.fr reste alors sur la release qu'il sert déjà : son bundle n'est pas
+# construit et, surtout, son lien `current` n'est pas rebasculé. Tout le reste
+# part normalement — app.monumia.fr, la beta, la landing beta (donc la landing
+# reste vérifiable sous beta.monumia.fr/landing), les backends, les migrations,
+# nginx. Rien n'est mémorisé sur l'hôte : le déploiement suivant, sans le
+# drapeau, remet monumia.fr au niveau du dépôt.
+SKIP_LANDING_PROD="${SKIP_LANDING_PROD:-}"
+
 push_migrations "beta" backend/.env.beta
 push_migrations "prod" backend/.env
 
@@ -23,11 +35,19 @@ SHA=$(git rev-parse --short HEAD)
 # Toute la construction se fait pendant que nginx et les backends servent
 # normalement. C'est l'essentiel du gain : les ~90 s de builds vite ne sont
 # plus dans la fenêtre de coupure, elles sont à côté.
-echo "Building images ($SHA)..."
-sudo docker compose build \
-  app-frontend-build beta-frontend-build \
-  landing-build landing-beta-build \
+build_targets=(
+  app-frontend-build beta-frontend-build
+  landing-beta-build
   app-backend beta-backend
+)
+# `if` et non `[ … ] && …` : sous `set -e`, un test faux en fin de liste
+# suffirait à arrêter le déploiement.
+if [ -z "$SKIP_LANDING_PROD" ]; then
+  build_targets+=(landing-build)
+fi
+
+echo "Building images ($SHA)..."
+sudo docker compose build "${build_targets[@]}"
 
 # ── Publication du statique ───────────────────────────
 # Extraction de /dist hors des images vers /srv/monumia/<cible>/releases/<sha>,
@@ -35,8 +55,12 @@ sudo docker compose build \
 echo "Publishing static releases..."
 publish_dist app          monumia-app-frontend-build  "$SHA"
 publish_dist beta         monumia-beta-frontend-build "$SHA"
-publish_dist landing      monumia-landing-build       "$SHA"
 publish_dist landing-beta monumia-landing-beta-build  "$SHA"
+if [ -z "$SKIP_LANDING_PROD" ]; then
+  publish_dist landing    monumia-landing-build       "$SHA"
+else
+  echo "   landing → inchangée (SKIP_LANDING_PROD)"
+fi
 
 # ── Backends ──────────────────────────────────────────
 # Seul point de coupure restant : la recréation des conteneurs backend, soit
@@ -98,6 +122,9 @@ echo "────────────────────────�
 echo "  release         : $SHA"
 echo "  migrations beta : OK"
 echo "  migrations prod : OK"
+if [ -n "$SKIP_LANDING_PROD" ]; then
+  echo "  landing prod    : INCHANGÉE (SKIP_LANDING_PROD)"
+fi
 [ -n "$sync_failures" ] && echo "  sync aides      : ÉCHEC ($sync_failures)" || echo "  sync aides      : OK"
 [ -n "$nginx_reload_failed" ] && echo "  nginx           : reload REFUSÉ" || echo "  nginx           : OK"
 echo "─────────────────────────────────────"
