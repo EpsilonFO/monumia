@@ -120,6 +120,10 @@ services:
       - certbot_www:/var/www/certbot
       - certbot_conf:/etc/letsencrypt
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    # Sans cette ligne, la boucle de renouvellement ne survit pas à un reboot du
+    # VPS : c'est ce qui est arrivé le 2026-07-08 (conteneur mort, code 255),
+    # et les certificats ont expiré le 2026-09-08 sans que rien ne le signale.
+    restart: unless-stopped
 
 volumes:
   # Les anciens volumes de dist (patrys_landing_dist, patrys_app_frontend_dist,
