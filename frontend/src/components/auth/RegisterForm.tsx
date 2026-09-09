@@ -42,8 +42,19 @@ function LegalLink({ href, children }: { href: string; children: React.ReactNode
 
 interface RegisterFormProps {
   /** Appelé APRÈS `setAuth` : la session est en place, la navigation peut
-   *  viser une route protégée. */
+   *  viser une route protégée. N'est PAS appelé quand la confirmation d'email
+   *  est exigée : il n'y a alors pas de session, et rien à naviguer. */
   onSuccess: (user: User) => void;
+  /** Inscription venue du parcours découverte. Transmise au serveur pour que
+   *  le lien de confirmation ramène sur l'écran de reprise du brouillon. */
+  reprise?: boolean;
+  /**
+   * Compte créé, mais adresse à confirmer : il n'y a pas de session, et donc
+   * rien à naviguer. C'est l'APPELANT qui affiche l'écran d'attente, parce que
+   * lui seul peut effacer ce qui l'entoure — titre, onglets, bouton Google
+   * n'ont plus rien à dire à ce moment-là.
+   */
+  onConfirmationRequise: (email: string) => void;
   /**
    * Le recours offert quand l'adresse est déjà prise (409). Fourni par
    * l'appelant, parce que « se connecter » ne veut pas dire la même chose de
@@ -62,7 +73,12 @@ interface RegisterFormProps {
  * son wizard, sans quitter l'écran. Les deux appelants partagent donc les mêmes
  * validations et la même case CGU — un formulaire dupliqué aurait dérivé.
  */
-export function RegisterForm({ onSuccess, recoursConnexion }: RegisterFormProps) {
+export function RegisterForm({
+  onSuccess,
+  reprise,
+  onConfirmationRequise,
+  recoursConnexion,
+}: RegisterFormProps) {
   const setAuth = useAuthStore((s) => s.setAuth);
 
   const [registerForm, setRegisterForm] = useState({
@@ -130,13 +146,14 @@ export function RegisterForm({ onSuccess, recoursConnexion }: RegisterFormProps)
         prenom: registerForm.prenom.trim(),
         nom: registerForm.nom.trim(),
         telephone: registerForm.telephone.trim() || undefined,
+        reprise,
       });
-      // Jeton absent : ce serait `enable_confirmations = true` côté Supabase,
-      // où le compte existe mais la session attend la validation de l'email.
-      // `setAuth(user, null)` ne compile pas et poserait un état mi-connecté
+      // Jeton absent : la confirmation d'email est exigée (`enable_confirmations`
+      // côté Supabase). Le compte existe, mais la session n'ouvre qu'après le
+      // clic dans l'email — `setAuth(user, null)` poserait un état mi-connecté
       // que `ProtectedRoute` rejetterait sans rien expliquer.
       if (!access_token) {
-        toast.success('Compte créé. Confirmez votre email, puis reconnectez-vous.');
+        onConfirmationRequise(registerForm.email);
         return;
       }
       setAuth(user, access_token);

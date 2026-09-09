@@ -8,6 +8,7 @@ import { usePendingOAuthStore } from '@/stores/usePendingOAuthStore';
 import { MetierSelect } from '@/components/sharing/MetierSelect';
 import { AuthLayout } from '@/components/layout/AuthLayout';
 import { GoogleButton } from '@/components/auth/GoogleButton';
+import { ConfirmerEmail } from '@/components/auth/ConfirmerEmail';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,6 +16,7 @@ import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
 import { setPendingInvitation } from '@/lib/pending-invitation';
+import { ApiError } from '@/lib/api-error';
 import { toast } from 'sonner';
 
 const SUCCESS = 'var(--success)';
@@ -73,6 +75,16 @@ export function InvitationLandingPage() {
   const [mode, setMode] = useState<Mode>(oauthAccessToken ? 'oauth' : 'choice');
   const [busy, setBusy] = useState(false);
   const [acceptCgu, setAcceptCgu] = useState(false);
+  // Confirmation d'email exigée : le compte est créé mais sans session, donc
+  // l'invitation ne peut pas être acceptée tout de suite. Le lien de
+  // confirmation ramène ici (`invitation` transmis au serveur), et le bouton
+  // « Rejoindre » attendra la personne, connectée.
+  const [emailAConfirmer, setEmailAConfirmer] = useState<{
+    email: string;
+    // Ce qui a mené là : l'inscription (le compte vient d'être créé) ou la
+    // connexion (compte plus ancien, jamais confirmé). Le message diffère.
+    variante: 'inscription' | 'connexion';
+  } | null>(null);
 
   const [form, setForm] = useState({
     prenom: oauthPrenom ?? '',
@@ -133,7 +145,12 @@ export function InvitationLandingPage() {
         nom: form.nom,
         metier: form.metier,
         telephone: form.telephone || undefined,
+        invitation: token,
       });
+      if (!access_token) {
+        setEmailAConfirmer({ email: form.email, variante: 'inscription' });
+        return;
+      }
       setAuth(u, access_token);
       await acceptAndGo();
     } catch (e) {
@@ -192,6 +209,13 @@ export function InvitationLandingPage() {
       setAuth(u, access_token);
       await acceptAndGo();
     } catch (e) {
+      // 403 : identifiants bons, adresse pas encore confirmée. Le renvoi de
+      // l'email est le seul chemin de sortie, un toast rouge n'en donnerait
+      // aucun.
+      if (e instanceof ApiError && e.status === 403) {
+        setEmailAConfirmer({ email: form.email, variante: 'connexion' });
+        return;
+      }
       toast.error(e instanceof Error ? e.message : 'Connexion impossible');
     } finally {
       setBusy(false);
@@ -199,6 +223,22 @@ export function InvitationLandingPage() {
   };
 
   // ── États non nominaux ──
+  if (emailAConfirmer) {
+    return (
+      <AuthLayout panelEyebrow="Invitation">
+        <ConfirmerEmail
+          email={emailAConfirmer.email}
+          intention={{ invitation: token }}
+          variante={emailAConfirmer.variante}
+        >
+          <p className="text-center text-[13px] leading-[1.6]" style={{ color: C.grayMuted }}>
+            L&rsquo;invitation reste valable : le lien vous ramènera ici, et il n&rsquo;y aura plus
+            qu&rsquo;à rejoindre {preview ? `« ${preview.monumentNom} »` : 'le monument'}.
+          </p>
+        </ConfirmerEmail>
+      </AuthLayout>
+    );
+  }
   if (error) {
     return (
       <AuthLayout panelEyebrow="Invitation">

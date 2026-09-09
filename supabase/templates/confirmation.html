@@ -1,0 +1,62 @@
+<!--
+  Email de confirmation d'inscription (template Supabase « Confirm signup »).
+
+  Même charte que l'email d'invitation (`backend/services/email_service.py`) :
+  ce sont les deux seuls messages que reçoit un compte neuf, et ils doivent se
+  reconnaître comme venant du même produit.
+
+  Contraintes propres à l'email, qui expliquent le HTML de 2005 :
+    * tout est en styles INLINE — Gmail retire les feuilles de style ;
+    * largeur fixée à 520 px, centrée par marge automatique ;
+    * aucune image distante, donc aucun blocage d'affichage à l'ouverture.
+
+  Variables disponibles ici : {{ .ConfirmationURL }} (le lien), {{ .Email }},
+  {{ .SiteURL }}, {{ .Token }}. Aucune durée n'est annoncée : elle se règle
+  dans le Dashboard et un chiffre écrit en dur finirait par mentir. Le recours
+  en cas de lien périmé est indiqué à la place, et il correspond mot pour mot à
+  ce que dit l'application (cf. `EXPIRE_MESSAGE` dans AuthCallbackPage).
+-->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">
+  Confirmez votre adresse pour activer votre compte Monumia.
+</div>
+<div style="background:#fdf9f0;padding:32px 0;font-family:Inter,Arial,sans-serif;color:#222b35">
+  <div style="max-width:520px;margin:0 auto;background:#fffefb;border:1px solid #ece3d2;border-radius:12px;overflow:hidden">
+    <div style="background:#0a369d;color:#fff;padding:18px 28px;font-size:18px;font-weight:700">Monumia</div>
+    <div style="padding:28px">
+      <h1 style="margin:0 0 18px;font-family:'PT Serif',Georgia,'Times New Roman',serif;font-size:23px;line-height:1.25;font-weight:400;color:#222b35">
+        Il reste une étape&nbsp;: confirmer votre adresse
+      </h1>
+      <p style="margin:0 0 8px;font-size:15px;line-height:1.6">
+        Votre compte Monumia est créé. Confirmez cette adresse pour l&rsquo;activer&nbsp;:
+      </p>
+      <div style="background:#eef3ff;border-radius:8px;padding:12px 18px;margin:12px 0 20px;font-size:15px;font-weight:600;color:#072a72;word-break:break-all">
+        {{ .Email }}
+      </div>
+      <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#f17105;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:8px">
+        Confirmer mon adresse &rarr;
+      </a>
+      <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#4a5561">
+        Vous serez connecté directement, sans avoir à ressaisir votre mot de passe.
+      </p>
+
+      <div style="height:1px;background:#ece3d2;margin:24px 0"></div>
+
+      <p style="margin:0 0 14px;font-size:12.5px;line-height:1.6;color:#8a8a8a">
+        Le bouton ne fonctionne pas&nbsp;? Copiez ce lien dans votre navigateur&nbsp;:<br />
+        <a href="{{ .ConfirmationURL }}" style="color:#0a369d;word-break:break-all">{{ .ConfirmationURL }}</a>
+      </p>
+      <p style="margin:0 0 14px;font-size:12.5px;line-height:1.6;color:#8a8a8a">
+        Lien expiré&nbsp;? Saisissez vos identifiants sur
+        <a href="{{ .SiteURL }}" style="color:#0a369d;text-decoration:none">Monumia</a> : un nouvel
+        email de confirmation vous sera proposé.
+      </p>
+      <p style="margin:0;font-size:12.5px;line-height:1.6;color:#8a8a8a">
+        Si vous n&rsquo;avez pas créé de compte sur Monumia, ignorez simplement cet email — aucun
+        compte ne sera activé.
+      </p>
+    </div>
+  </div>
+  <p style="max-width:520px;margin:16px auto 0;font-size:11.5px;line-height:1.5;color:#a89f8f;text-align:center">
+    Monumia — les financements de la restauration du patrimoine
+  </p>
+</div>
