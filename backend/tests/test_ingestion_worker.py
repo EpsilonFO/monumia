@@ -353,6 +353,19 @@ class TestOrchestrateur(unittest.TestCase):
         self.assertEqual(etat["a"].statut, "valide")
         self.assertEqual(etat["b"].statut, "ingere")
 
+    def test_relancer_echecs_remet_en_valide_et_laisse_le_reste(self):
+        self.ecrire_etat(
+            a=tache(statut="echec"), b=tache(statut="ingere"), c=tache(statut="en_cours")
+        )
+        self.assertEqual(
+            orchestrateur.relancer_echecs(self.etat_path, territoires=["nulle-part"]), []
+        )
+        self.assertEqual(orchestrateur.relancer_echecs(self.etat_path), ["a"])
+        etat = charger(self.etat_path)
+        self.assertEqual(etat["a"].statut, "valide")
+        self.assertEqual(etat["b"].statut, "ingere")
+        self.assertEqual(etat["c"].statut, "en_cours")
+
 
 class TestBilan(unittest.TestCase):
     def test_rappelle_les_commandes_manuelles(self):
@@ -369,6 +382,32 @@ class TestBilan(unittest.TestCase):
 
     def test_sans_resultat(self):
         self.assertEqual(orchestrateur.bilan([]), "Aucune aide ingérée.")
+
+    def test_un_banc_dessai_ninvite_ni_a_committer_ni_a_charger(self):
+        """`--sortie` n'écrit rien dans data/ : le dire faux est un piège.
+
+        Le bilan invitait à `git add -p backend/data` et à
+        `load_aides_yaml.py` pour des fichiers qui sont sous `~/bench/`, et
+        annonçait le fait proposé « dans data/facts_pending.yaml » alors qu'il
+        était dans la copie du banc — sur un fichier qui a déjà été écrasé une
+        fois, désigner le mauvais est le pire des messages.
+        """
+        r = verdict("a")
+        r.faits_proposes = ["jardin_remarquable"]
+        texte = orchestrateur.bilan([r], sortie=Path("/tmp/bench/x"))
+        self.assertIn("/tmp/bench/x/facts_pending.yaml", texte)
+        self.assertIn("n'a pas bougé", texte)
+        self.assertIn("comparer_aides.py", texte)
+        self.assertNotIn("git add", texte)
+        self.assertNotIn("load_aides_yaml.py", texte)
+
+    def test_un_run_reel_garde_les_commandes_manuelles(self):
+        r = verdict("a")
+        r.faits_proposes = ["jardin_remarquable"]
+        texte = orchestrateur.bilan([r])
+        self.assertIn("data/facts_pending.yaml", texte)
+        self.assertIn("git add", texte)
+        self.assertIn("load_aides_yaml.py", texte)
 
 
 if __name__ == "__main__":

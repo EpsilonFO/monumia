@@ -509,6 +509,31 @@ class TestSlugs(unittest.TestCase):
         self.assertEqual(slug_final(t, "restauration", "x", set()), "ex-restauration")
         self.assertEqual(slug_final(t, "ex-restauration", "x", set()), "ex-restauration")
 
+    def test_territoire_deja_en_tete_de_la_proposition_nest_pas_double(self):
+        """Balayage Grand Est du 2026-09-08 : 8 slugs sur 42 en « region-grand-est-grand-est-… »."""
+        t = territoire(nom="Grand Est", prefixe_slug="region-grand-est")
+        for propose in (
+            "grand-est-culture-et-creation-numerique",
+            "grandest-culture-et-creation-numerique",
+            "region-grand-est-culture-et-creation-numerique",
+            "culture-et-creation-numerique",
+        ):
+            self.assertEqual(
+                slug_final(t, propose, "x", set()),
+                "region-grand-est-culture-et-creation-numerique",
+                propose,
+            )
+
+    def test_troncature_sur_un_tiret_jamais_au_milieu_dun_mot(self):
+        t = territoire(nom="Grand Est", prefixe_slug="region-grand-est")
+        slug = slug_final(t, "aide-proprietaires-renovation-patrimoine-ardennes", "x", set())
+        self.assertLessEqual(len(slug), 60)
+        self.assertEqual(slug, "region-grand-est-aide-proprietaires-renovation-patrimoine")
+        # Un slug qui tient en 60 n'est pas touché.
+        self.assertEqual(
+            slug_final(t, "soutien-memoire", "x", set()), "region-grand-est-soutien-memoire"
+        )
+
     def test_collision_suffixee(self):
         t = territoire()
         self.assertEqual(
@@ -625,6 +650,67 @@ class TestFiche(unittest.TestCase):
         self.assertIn("_aucune_", markdown)
         self.assertIn("_aucun_", markdown)
         self.assertEqual(parser_slugs(markdown), [])
+
+
+# ---------------------------------------------------------------------------
+# Point de contrôle humain (valider / ignorer)
+# ---------------------------------------------------------------------------
+
+
+class TestTransitions(unittest.TestCase):
+    """`valider` / `ignorer`, et surtout ce qu'ils REFUSENT de rebasculer."""
+
+    def setUp(self):
+        import prospecter
+
+        self.prospecter = prospecter
+        self.dossier = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dossier.cleanup)
+        self.etat_path = Path(self.dossier.name) / "file-attente.yaml"
+
+    def _poser(self, **statuts):
+        from pipeline.etat import Tache, ecrire
+
+        ecrire(
+            self.etat_path,
+            {
+                slug: Tache(
+                    titre=slug,
+                    url=f"https://guide.example/{slug}",
+                    territoire="ex",
+                    statut=statut,
+                    ajoute_le=JOUR,
+                )
+                for slug, statut in statuts.items()
+            },
+        )
+
+    def _lancer(self, sous_commande, *slugs, tout=False):
+        import argparse
+
+        from pipeline.etat import charger
+
+        args = argparse.Namespace(
+            territoire="ex", slugs=list(slugs), tout=tout, etat=self.etat_path
+        )
+        self.prospecter._transitionner(args, "valide" if sous_commande == "valider" else "ignore")
+        return {s: t.statut for s, t in charger(self.etat_path).items()}
+
+    def test_valider_un_slug_nomme_revient_sur_un_ignorer(self):
+        """Sans ça, la seule issue est d'éditer le YAML à la main — vu le 2026-09-09."""
+        self._poser(a="ignore", b="a_valider")
+        self.assertEqual(self._lancer("valider", "a"), {"a": "valide", "b": "a_valider"})
+
+    def test_tout_ne_ressuscite_jamais_les_ignorees(self):
+        self._poser(a="ignore", b="a_valider")
+        self.assertEqual(self._lancer("valider", tout=True), {"a": "ignore", "b": "valide"})
+
+    def test_une_aide_ingeree_ou_en_cours_reste_intouchee(self):
+        self._poser(a="ingere", b="en_cours", c="echec")
+        self.assertEqual(
+            self._lancer("valider", "a", "b", "c"),
+            {"a": "ingere", "b": "en_cours", "c": "echec"},
+        )
 
 
 # ---------------------------------------------------------------------------

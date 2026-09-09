@@ -20,7 +20,7 @@ Trois précautions, toutes apprises du même travers des modèles en lot :
 from __future__ import annotations
 
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Literal
 
@@ -182,11 +182,22 @@ def trier(
     compteur: Compteur | None = None,
     taille_lot: int = TAILLE_LOT,
     skill_path: Path = SKILL_PROSPECTION,
+    progression: Callable[[int, int, list[TriCandidat]], None] | None = None,
 ) -> list[TriCandidat]:
+    """Trie tous les lots. `progression(i, n, tries_du_lot)` est appelé après chacun.
+
+    Dix appels séquentiels de 30 à 40 s sans un mot : le 2026-09-08, un
+    balayage de 239 candidats a paru bloqué pendant vingt minutes alors qu'il
+    avançait normalement. Le rappel sert à le dire.
+    """
     systeme = prompt_systeme(territoire, existantes, skill_path)
     resultats: list[TriCandidat] = []
-    for lot in lots(candidats, taille_lot):
-        resultats += trier_lot(lot, client, systeme, compteur=compteur)
+    tous = list(lots(candidats, taille_lot))
+    for i, lot in enumerate(tous, 1):
+        tries = trier_lot(lot, client, systeme, compteur=compteur)
+        resultats += tries
+        if progression is not None:
+            progression(i, len(tous), tries)
     return resultats
 
 

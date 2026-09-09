@@ -343,6 +343,58 @@ class TestLintEtReview(BaseOutils):
         self.assertTrue(sortie.startswith("ERREUR"))
         self.assertFalse(self.etat.review_ecrite)
 
+    def test_review_refusee_si_aide_modifiee_depuis_verification(self):
+        """Une fiche ne peut pas conclure sur un rapport de vérification périmé.
+
+        Mesuré le 2026-09-07 : les trois fiches Grand Est annonçaient « tous
+        traités » quand une relecture indépendante des fichiers finaux relevait
+        encore 9 bloquants. L'agent notait sa propre copie.
+        """
+        self.appeler("snapshotter", url="https://example.org/aide")
+        chemin = self.atelier.relatif(self.atelier.snapshots()[0])
+        yaml_texte = aide_yaml(
+            "se dérouler dans un parc ou un jardin ouvert au public", snapshot=chemin
+        )
+        self.appeler("ecrire_aide", yaml_texte=yaml_texte)
+        texte = "## Conditions\n\n" + ("Une ligne de fiche de review. " * 40)
+
+        # Sans vérification au dossier, rien à périmer : la fiche passe.
+        self.assertIn("Fiche écrite", self.appeler("ecrire_review", markdown=texte))
+
+        # Une vérification a eu lieu, puis l'aide a changé : la fiche est refusée.
+        self.etat.verification = object()  # type: ignore[assignment]
+        self.appeler("ecrire_aide", yaml_texte=yaml_texte)
+        self.assertTrue(self.etat.modifiee_depuis_verification)
+        sortie = self.appeler("ecrire_review", markdown=texte)
+        self.assertTrue(sortie.startswith("ERREUR"))
+        self.assertIn("verification_adversariale", sortie)
+
+    def test_review_refusee_si_verificateur_configure_mais_jamais_appele(self):
+        """Avec un vérificateur au dossier, pas de fiche sans au moins une vérification.
+
+        Rien ne l'imposait : un agent pouvait écrire l'aide, linter, rédiger la
+        fiche et terminer avec « 0 bloquant » sans que le vérificateur ait vu le
+        fichier. Le compteur du bilan aurait alors été vide, pas rassurant.
+        """
+        outils, etat = outils_pour(
+            self.atelier,
+            facts=dict(self.facts),
+            pending=self.pending,
+            fetcheur=self.fetcheur,
+            client_verif=object(),  # type: ignore[arg-type]  — jamais appelé ici
+        )
+        table = {o.name: o for o in outils}
+        texte = "## Conditions\n\n" + ("Une ligne de fiche de review. " * 40)
+
+        sortie = table["ecrire_review"].run({"markdown": texte})
+        self.assertTrue(sortie.startswith("ERREUR"))
+        self.assertIn("verification_adversariale", sortie)
+        self.assertFalse(etat.review_ecrite)
+
+        etat.verification = object()  # type: ignore[assignment]
+        self.assertIn("Fiche écrite", table["ecrire_review"].run({"markdown": texte}))
+        self.assertTrue(etat.review_ecrite)
+
     def test_review_valide_ecrite_avec_entete(self):
         texte = "## Conditions\n\n" + ("Une ligne de fiche de review. " * 40)
         sortie = self.appeler("ecrire_review", markdown=texte)

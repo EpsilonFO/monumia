@@ -66,12 +66,39 @@ def construire_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="relibérer les aides restées `en_cours` d'un run interrompu",
     )
+    mode.add_argument(
+        "--relancer-echecs",
+        action="store_true",
+        help="remettre en `valide` les aides en `echec` (du territoire donné, sinon toutes) "
+        "pour les rejouer dans ce run",
+    )
 
     reglages = p.add_argument_group("réglages")
-    reglages.add_argument("--parallele", type=int, default=orchestrateur.PARALLELE_DEFAUT)
-    reglages.add_argument("--budget-aide", type=float, default=Limites.budget_usd)
-    reglages.add_argument("--budget-total", type=float, default=orchestrateur.BUDGET_TOTAL_DEFAUT)
-    reglages.add_argument("--max-tours", type=int, default=Limites.max_tours)
+    reglages.add_argument(
+        "--parallele",
+        type=int,
+        default=orchestrateur.PARALLELE_DEFAUT,
+        help=f"aides ingérées en même temps (défaut : {orchestrateur.PARALLELE_DEFAUT})",
+    )
+    reglages.add_argument(
+        "--budget-aide",
+        type=float,
+        default=Limites.budget_usd,
+        help=f"plafond en $ par aide, arrêt dur à ×{Limites.facteur_arret_dur} "
+        f"(défaut : {Limites.budget_usd:.2f})",
+    )
+    reglages.add_argument(
+        "--budget-total",
+        type=float,
+        default=orchestrateur.BUDGET_TOTAL_DEFAUT,
+        help=f"plafond en $ pour tout le run (défaut : {orchestrateur.BUDGET_TOTAL_DEFAUT:.0f})",
+    )
+    reglages.add_argument(
+        "--max-tours",
+        type=int,
+        default=Limites.max_tours,
+        help=f"tours d'agent par aide (défaut : {Limites.max_tours})",
+    )
     reglages.add_argument("--model", help="modèle d'extraction (défaut : LLM_MODEL_INGESTION)")
     reglages.add_argument(
         "--model-verif", help="modèle de vérification (défaut : LLM_MODEL_VERIFICATION)"
@@ -160,6 +187,13 @@ def main(argv: list[str] | None = None) -> int:
             f"reprise : {len(liberes)} aide(s) relibérée(s){': ' + ', '.join(liberes) if liberes else ''}"
         )
 
+    if args.relancer_echecs:
+        relances = orchestrateur.relancer_echecs(args.etat, territoires=args.territoire or None)
+        print(
+            f"relance des échecs : {len(relances)} aide(s) remise(s) en `valide`"
+            f"{': ' + ', '.join(relances) if relances else ''}"
+        )
+
     config = ConfigIngestion(
         modele=args.model,
         modele_verif=args.model_verif,
@@ -209,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
             for slug in slugs
         ]
 
-    print(orchestrateur.bilan(resultats, compteur))
+    print(orchestrateur.bilan(resultats, compteur, sortie=args.sortie))
     return 0 if all(r.ok for r in resultats) else 1
 
 

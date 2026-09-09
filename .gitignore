@@ -66,3 +66,6 @@ backend/.cache/
 # fiches de review et les snapshots.
 backend/data/prospection/*/*.jsonl
 backend/data/reviews/logs/
+
+# Verrous du pipeline de prospection/ingestion (scripts/pipeline/verrou.py)
+*.yaml.lock

@@ -77,6 +77,11 @@ class EtatOutils:
     aide_ecrite: bool = False
     dernier_lint_ok: bool = False
     verification: RapportVerification | None = None
+    # Vrai dès que le YAML change après une vérification : le rapport en main
+    # ne décrit alors plus le fichier sur le disque. Mesuré le 2026-09-07 sur
+    # trois aides Grand Est — les fiches annonçaient « tous traités » quand
+    # `ds-pro` relevait encore 9 bloquants sur les fichiers finaux.
+    modifiee_depuis_verification: bool = False
     faits_proposes: list[str] = field(default_factory=list)
     appels: Counter[str] = field(default_factory=Counter)
 
@@ -533,6 +538,7 @@ def outils_pour(
             yaml.safe_dump(brut, allow_unicode=True, sort_keys=False, width=100),
         )
         etat.aide_ecrite = True
+        etat.modifiee_depuis_verification = etat.verification is not None
         return "\n".join(
             [
                 f"Écrit : {atelier.relatif(atelier.yaml_path)} "
@@ -648,6 +654,7 @@ def outils_pour(
             return f"ERREUR : le fichier écrit n'est pas chargeable — {exc}"
         rapport, rendu = verifier(atelier, client_verif, aide=aide, compteur=compteur)
         etat.verification = rapport
+        etat.modifiee_depuis_verification = False
         journal.evenement(
             f"vérification : {len(rapport.problemes)} problème(s), "
             f"{len(rapport.bloquants)} bloquant(s)"
@@ -679,6 +686,20 @@ def outils_pour(
             return (
                 "ERREUR : la fiche doit être structurée en sections markdown (`## `) — "
                 "cf. le format de l'étape 5 du skill."
+            )
+        if client_verif is not None and etat.verification is None:
+            return (
+                "ERREUR : un modèle de vérification est configuré et tu n'as jamais appelé "
+                "`verification_adversariale`. L'étape 4 du skill n'est pas facultative : "
+                "lance-la sur le fichier écrit, puis réécris la fiche avec son verdict."
+            )
+        if etat.modifiee_depuis_verification:
+            return (
+                "ERREUR : tu as modifié l'aide depuis la dernière "
+                "`verification_adversariale`. Le rapport que tu as en main ne décrit plus "
+                "le fichier sur le disque, et la fiche ne peut donc pas affirmer que les "
+                "problèmes sont traités. Relance `verification_adversariale`, puis réécris "
+                "la fiche avec son verdict réel."
             )
         entete = entete_review() if entete_review else _entete_review_defaut(atelier)
         atelier.review_path.parent.mkdir(parents=True, exist_ok=True)

@@ -30,6 +30,7 @@ charger en base. Elle produit une fiche de review et une file d'attente.
 import argparse
 import json
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -66,6 +67,16 @@ REVIEWS_DIR = Path(__file__).resolve().parent.parent / "data" / "reviews"
 
 def dossier_travail(cle: str) -> Path:
     return PROSPECTION_DIR / cle
+
+
+def _court(url: str, n: int = 64) -> str:
+    return url if len(url) <= n else url[: n - 1] + "…"
+
+
+def _progression_tri(i: int, n: int, tries: list[tri_mod.TriCandidat]) -> None:
+    retenus = sum(1 for t in tries if t.decision == "retenir")
+    douteux = sum(1 for t in tries if t.decision == "douteux")
+    print(f"    [2/3] lot {i}/{n} : {retenus} retenue(s), {douteux} douteuse(s)", flush=True)
 
 
 def prospecter(
@@ -125,6 +136,7 @@ def prospecter(
                 existantes,
                 client_pour("tri", args.model_tri),
                 compteur=compteur,
+                progression=_progression_tri,
             )
             chemin_tri.write_text(
                 "".join(t.model_dump_json() + "\n" for t in tries), encoding="utf-8"
@@ -141,11 +153,19 @@ def prospecter(
         # --- étage 3 : lecture
         a_ouvrir = set(tri_mod.a_lire(tries))
         client_lecture = client_pour("lecture", args.model_lecture)
-        lectures = [
-            lecture_mod.lire(c, territoire, fetcheur, client_lecture, compteur=compteur)
-            for c in collecte.candidats
-            if c.url in a_ouvrir
-        ]
+        a_lire = [c for c in collecte.candidats if c.url in a_ouvrir]
+        print(f"    [3/3] {len(a_lire)} page(s) à lire, une par une", flush=True)
+        lectures: list[lecture_mod.Lecture] = []
+        debut = time.monotonic()
+        for i, c in enumerate(a_lire, 1):
+            le = lecture_mod.lire(c, territoire, fetcheur, client_lecture, compteur=compteur)
+            lectures.append(le)
+            verdict = "retenue" if le.retenue else ("ERREUR " if le.erreur else "écartée")
+            print(
+                f"    [3/3] {i:>3}/{len(a_lire)} {verdict}  {_court(c.url)}"
+                f"  ({time.monotonic() - debut:.0f} s)",
+                flush=True,
+            )
         (travail / "lectures.jsonl").write_text(
             "".join(
                 json.dumps(
@@ -214,18 +234,40 @@ def cmd_etat(args: argparse.Namespace) -> int:
     return 0
 
 
+# Statuts sur lesquels une transition manuelle a le droit de porter. `--tout`
+# ne touche QUE `a_valider` : reprendre en bloc ce qu'on vient d'écarter n'a
+# aucun sens. Nommer un slug est en revanche un geste délibéré, et doit pouvoir
+# revenir sur un `ignorer` — sinon la seule issue est d'éditer le YAML à la
+# main, ce qui s'est présenté dès le premier territoire (2026-09-09).
+DEPUIS_NOMME: tuple[str, ...] = ("a_valider", "ignore", "valide")
+DEPUIS_TOUT: tuple[str, ...] = ("a_valider",)
+
+
 def _transitionner(args: argparse.Namespace, vers: str) -> int:
     etat = charger(args.etat)
+    depuis = DEPUIS_TOUT if args.tout else DEPUIS_NOMME
     cibles = [
         slug
         for slug, t in etat.items()
         if t.territoire == args.territoire
-        and t.statut == "a_valider"
+        and t.statut in depuis
+        and t.statut != vers
         and (args.tout or slug in args.slugs)
     ]
     inconnus = [s for s in args.slugs if s not in etat]
     for slug in inconnus:
         print(f"  slug inconnu, ignoré : {slug}")
+    figes = [
+        s
+        for s in args.slugs
+        if s in etat and etat[s].statut not in depuis and etat[s].statut != vers
+    ]
+    for slug in figes:
+        print(
+            f"  {slug} : statut `{etat[slug].statut}` — inchangé "
+            "(une aide en cours d'ingestion, ingérée ou en échec ne se rebascule pas ici ; "
+            "cf. `ingerer.py --reprendre` / `--relancer-echecs`)"
+        )
     for slug in cibles:
         mettre_a_jour(args.etat, slug, statut=vers)
         print(f"  {slug} → {vers}")
@@ -370,7 +412,12 @@ def _parseur_transition(verbe: str) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog=f"prospecter.py {verbe}")
     p.add_argument("territoire")
     p.add_argument("slugs", nargs="*")
-    p.add_argument("--tout", action="store_true", help="toutes les candidates `a_valider`")
+    p.add_argument(
+        "--tout",
+        action="store_true",
+        help="toutes les candidates `a_valider` (jamais celles déjà ignorées : "
+        "pour revenir sur un `ignorer`, nommer le slug)",
+    )
     _options_communes(p)
     return p
 

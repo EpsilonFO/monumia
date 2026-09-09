@@ -165,6 +165,24 @@ def kebab(texte: str) -> str:
     return _NON_SLUG.sub("-", sans_accent).strip("-")
 
 
+LONGUEUR_MAX_SLUG = 60
+
+
+def _formes_du_territoire(territoire: Territoire) -> list[str]:
+    """Ce que le modèle colle volontiers en tête du slug qu'il propose.
+
+    Le préfixe lui-même, le nom du territoire en kebab (« grand-est »), sans
+    tirets (« grandest »), et les suffixes du préfixe (« region-grand-est » →
+    « grand-est »). Les plus longs d'abord, pour retirer « region-grand-est »
+    avant « grand-est ».
+    """
+    nom = kebab(territoire.nom)
+    formes = {territoire.prefixe_slug, nom, nom.replace("-", "")}
+    morceaux = territoire.prefixe_slug.split("-")
+    formes.update("-".join(morceaux[i:]) for i in range(1, len(morceaux)))
+    return sorted((f for f in formes if f), key=len, reverse=True)
+
+
 def slug_final(territoire: Territoire, propose: str, titre: str, occupes: set[str]) -> str:
     """Slug définitif : préfixe territorial, unicité, jamais un slug déjà pris.
 
@@ -172,12 +190,31 @@ def slug_final(territoire: Territoire, propose: str, titre: str, occupes: set[st
     même fiche : deux dispositifs voisins d'une même région produisent
     volontiers le même slug, et un doublon écraserait silencieusement le premier
     fichier à l'ingestion.
+
+    Deux défauts vus au balayage Grand Est du 2026-09-08 (8 et 14 slugs sur
+    42) : le modèle met déjà le territoire en tête de sa proposition
+    (« grand-est-culture », « grandest-soutien-memoire ») et le préfixe se
+    retrouvait doublé ; la coupe à 60 caractères tombait au milieu d'un mot
+    (« …-renovation-patrimoine-ar »). Un slug devient un nom de fichier
+    définitif : on retire les formes du territoire déjà présentes, et on coupe
+    sur un tiret.
     """
     base = kebab(propose or titre) or "aide"
     prefixe = territoire.prefixe_slug
-    if not base.startswith(f"{prefixe}-"):
-        base = f"{prefixe}-{base}"
-    base = base[:60].rstrip("-")
+    formes = _formes_du_territoire(territoire)
+    retire = True
+    while retire:
+        retire = False
+        for forme in formes:
+            if base.startswith(f"{forme}-") and len(base) > len(forme) + 1:
+                base = base[len(forme) + 1 :]
+                retire = True
+    base = f"{prefixe}-{base}"
+    if len(base) > LONGUEUR_MAX_SLUG:
+        base = base[:LONGUEUR_MAX_SLUG]
+        if "-" in base[len(prefixe) + 1 :]:
+            base = base.rsplit("-", 1)[0]
+    base = base.rstrip("-")
     if base not in occupes:
         return base
     for n in range(2, 100):
@@ -192,6 +229,7 @@ __all__ = [
     "MAX_CAR_PAGE",
     "Lecture",
     "LectureFiche",
+    "LONGUEUR_MAX_SLUG",
     "kebab",
     "lire",
     "slug_final",

@@ -58,6 +58,28 @@ def reprendre(etat_path: Path = FILE_ATTENTE) -> list[str]:
     return liberes
 
 
+def relancer_echecs(
+    etat_path: Path = FILE_ATTENTE, *, territoires: Sequence[str] | None = None
+) -> list[str]:
+    """Rend `valide` aux aides en `echec`, pour les rejouer — après un correctif du
+    harnais, typiquement. Filtrable par territoire.
+
+    Le `<slug>.yaml.echec` est laissé en place : il contient le YAML que le
+    modèle avait produit, ce qu'il y a de plus utile pour comprendre l'échec, et
+    il vit hors du glob `*.yaml`. La relance écrira son propre `<slug>.yaml` à
+    côté ; c'est à la relecture de trancher lequel garder.
+    """
+    relances = []
+    for slug, tache in charger(etat_path).items():
+        if tache.statut != "echec":
+            continue
+        if territoires and tache.territoire not in territoires:
+            continue
+        if transition(etat_path, slug, "valide", depuis=("echec",)):
+            relances.append(slug)
+    return relances
+
+
 def executer(
     slugs: Sequence[str],
     config: ConfigIngestion,
@@ -195,8 +217,21 @@ class _interception_sigint:
             signal.signal(signal.SIGINT, self.precedent)
 
 
-def bilan(resultats: Sequence[ResultatIngestion], compteur: Compteur | None = None) -> str:
-    """Le tableau de fin de run, et les commandes à lancer ensuite."""
+def bilan(
+    resultats: Sequence[ResultatIngestion],
+    compteur: Compteur | None = None,
+    *,
+    sortie: Path | None = None,
+) -> str:
+    """Le tableau de fin de run, et les commandes à lancer ensuite.
+
+    `sortie` (le `--sortie` du banc d'essai) change TOUT ce qui suit le
+    tableau : rien de ce qu'un run redirigé produit n'a vocation à être
+    committé ni chargé en base, et le fait proposé n'est pas allé dans
+    `data/facts_pending.yaml` mais dans la copie du banc. Le dire faux invitait
+    à committer des fichiers qui ne sont pas là, et à chercher un fait dans un
+    fichier qui ne l'a pas.
+    """
     if not resultats:
         return "Aucune aide ingérée."
     largeur = max(len(r.slug) for r in resultats)
@@ -218,14 +253,36 @@ def bilan(resultats: Sequence[ResultatIngestion], compteur: Compteur | None = No
         "",
         f"{len(ok)}/{len(resultats)} aide(s) ingérée(s). "
         + (compteur.resume() if compteur else ""),
-        f"{bloquants} problème(s) bloquant(s) relevé(s) par le vérificateur — à lire dans les reviews.",
+        (
+            f"{bloquants} problème(s) bloquant(s) que le vérificateur maintient sur les fichiers "
+            "FINAUX — l'agent les a vus et a gardé sa version : ce sont des arbitrages, à relire "
+            "dans la section « À trancher » des fiches."
+            if bloquants
+            else "0 problème bloquant sur les fichiers finaux."
+        ),
     ]
     if faits:
-        lignes.append(
-            f"{len(faits)} fait(s) proposé(s) dans data/facts_pending.yaml : {', '.join(faits)} "
-            "— à approuver à la main (déplacer vers facts.yaml)."
+        ou = f"{sortie}/facts_pending.yaml" if sortie else "data/facts_pending.yaml"
+        suite = (
+            " — copie du banc d'essai, le vrai `data/facts_pending.yaml` n'a pas bougé."
+            if sortie
+            else " — à approuver à la main (déplacer vers facts.yaml)."
         )
-    if ok:
+        lignes.append(f"{len(faits)} fait(s) proposé(s) dans {ou} : {', '.join(faits)}{suite}")
+
+    if not ok:
+        return "\n".join(lignes)
+    if sortie:
+        lignes += [
+            "",
+            f"BANC D'ESSAI — rien n'a été écrit dans data/. Tout est sous {sortie} :",
+            f"  aides {sortie}/aides/   reviews {sortie}/reviews/   journaux {sortie}/reviews/logs/",
+            "",
+            "  uv run python scripts/comparer_aides.py tableau "
+            + " ".join(r.slug for r in ok)
+            + f" --sortie {sortie}",
+        ]
+    else:
         lignes += [
             "",
             "À FAIRE À LA MAIN (le pipeline ne commite ni ne charge jamais) :",
@@ -240,6 +297,7 @@ def bilan(resultats: Sequence[ResultatIngestion], compteur: Compteur | None = No
 __all__ = [
     "BUDGET_TOTAL_DEFAUT",
     "PARALLELE_DEFAUT",
+    "relancer_echecs",
     "bilan",
     "executer",
     "reprendre",
