@@ -27,6 +27,8 @@ from eligibility_engine import (
     _numeric_gap,
     _options_for_fact,
     build_context,
+    build_questions,
+    deduire_faits_des_faits,
     disponibilite,
     engine_ready_aides,
     evaluate_aide,
@@ -1442,6 +1444,90 @@ class TestFusionMonumentProjet(unittest.TestCase):
         self.assertIs(merge_projet_into_monument(fiche, None), fiche)
 
 
+class TestFaitDeduitDUneAutreReponse(unittest.TestCase):
+    """« Le monument n'est pas accessible à la visite » répond d'avance « ouvert
+    0 jour par an » : la question des jours se pose APRÈS celle de
+    l'accessibilité, s'y branche, et n'est plus posée après un « non » — le
+    serveur déduit la valeur. Celui qui répond quand même garde sa réponse."""
+
+    SOURCE = "site_accessible_visite"
+    DEDUIT = "jours_ouverture_public_par_an"
+    GATE_VISITE = {
+        "id": "visite",
+        "text": "Édifice accessible à la visite du public",
+        "kind": "user_fact",
+        "fact": SOURCE,
+        "predicate": {"eq": True},
+    }
+    GATE_JOURS = {
+        "id": "jours",
+        "text": "Ouvert au public au moins 40 jours par an",
+        "kind": "user_fact",
+        "fact": DEDUIT,
+        "predicate": {"gte": 40},
+    }
+
+    def _run(self, answers=None, aides=None):
+        if aides is None:
+            aides = [
+                _fixture_aide([self.GATE_VISITE], slug="fx-visite"),
+                _fixture_aide([self.GATE_JOURS], slug="fx-jours"),
+            ]
+        return run_deterministic_diagnostic(
+            {a.slug: a for a in aides}, FACTS, _monument(), 3000, answers
+        )
+
+    def _ids(self, res) -> list[str]:
+        return [q["id"] for q in res["qcmQuestions"]]
+
+    def test_la_source_se_pose_avant_et_la_question_deduite_s_y_branche(self):
+        questions = {q["id"]: q for q in self._run()["qcmQuestions"]}
+        self.assertEqual(list(questions), [self.SOURCE, self.DEDUIT])
+        # Seul « oui » laisse la question : « non » déduit 0, « passer » aussi
+        # garde la question (le front traite `skip` comme non répondu).
+        self.assertEqual(
+            questions[self.DEDUIT]["dependsOn"],
+            {"questionId": self.SOURCE, "showForOptionIds": ["oui"]},
+        )
+
+    def test_la_source_passe_devant_meme_avec_moins_d_aides(self):
+        # Deux aides sur les jours contre une sur la visite : sans promotion de
+        # la source, le nombre d'aides mettrait les jours en premier.
+        aides = [
+            _fixture_aide([self.GATE_VISITE], slug="fx-visite"),
+            _fixture_aide([self.GATE_JOURS], slug="fx-jours"),
+            _fixture_aide([self.GATE_JOURS], slug="fx-jours-bis"),
+        ]
+        self.assertEqual(self._ids(self._run(aides=aides))[0], self.SOURCE)
+
+    def test_non_a_la_visite_deduit_zero_jour_sans_poser_la_question(self):
+        res = self._run({self.SOURCE: "non"})
+        self.assertEqual(self._ids(res), [])
+        # 0 jour < 40 : l'aide tombe, mais le fait porte un levier (ouvrir
+        # davantage), donc « atteignable » et non « non éligible ».
+        self.assertEqual([m["aide"]["id"] for m in res["aidesAtteignables"]], ["fx-jours"])
+        self.assertEqual(res["aidesPotentiellementEligibles"], [])
+
+    def test_oui_a_la_visite_laisse_la_question_des_jours(self):
+        self.assertEqual(self._ids(self._run({self.SOURCE: "oui"})), [self.DEDUIT])
+
+    def test_source_passee_ne_deduit_rien(self):
+        self.assertEqual(self._ids(self._run({self.SOURCE: "skip"})), [self.SOURCE, self.DEDUIT])
+
+    def test_la_reponse_de_l_utilisateur_prime_sur_la_deduction(self):
+        res = self._run({self.SOURCE: "non", self.DEDUIT: "ge40"})
+        self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-jours"])
+
+    def test_deduction_directe(self):
+        self.assertEqual(
+            deduire_faits_des_faits({self.SOURCE: "non"}, FACTS),
+            {self.SOURCE: "non", self.DEDUIT: 0},
+        )
+        # Une source inconnue ou positive ne déduit rien.
+        self.assertEqual(deduire_faits_des_faits({}, FACTS), {})
+        self.assertEqual(deduire_faits_des_faits({self.SOURCE: "oui"}, FACTS), {self.SOURCE: "oui"})
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -1645,3 +1731,106 @@ class TestRangeValue(unittest.TestCase):
 
     def test_intervalle_degenere_vaut_une_valeur(self):
         self.assertIs(evaluate_predicate({"eq": 1500}, RangeValue((1500, 1500))), True)
+
+
+class TestOrdreDesQuestions(unittest.TestCase):
+    """À nombre d'aides égal, les questions suivent l'ordre du règlement, pas
+    l'alphabet : « possède un orgue » avant « âge de l'orgue », et les
+    questions d'une même aide se suivent au lieu de se disperser."""
+
+    ORGUE = {
+        "id": "objet-orgue",
+        "text": "Orgue à tuyaux existant",
+        "kind": "user_fact",
+        "fact": "possede_orgue_a_tuyaux",
+        "predicate": {"eq": True},
+    }
+    AGE = {
+        "id": "age",
+        "text": "Instrument de plus de 50 ans",
+        "kind": "user_fact",
+        "fact": "age_orgue_ans",
+        "predicate": {"gte": 50},
+    }
+    MANIFESTATIONS = {
+        "id": "manifestations",
+        "text": "Manifestations culturelles publiques",
+        "kind": "user_fact",
+        "fact": "manifestations_culturelles_publiques_orgue",
+        "predicate": {"eq": True},
+    }
+
+    def _ids(self, aides: dict) -> list[str]:
+        res = run_deterministic_diagnostic(aides, FACTS, _monument(), 3000, None)
+        return [q["id"] for q in res["qcmQuestions"]]
+
+    def test_ordre_de_la_source_plutot_que_l_alphabet(self):
+        aide = _fixture_aide([self.ORGUE, self.AGE], slug="fx-orgue")
+        self.assertEqual(self._ids({aide.slug: aide}), ["possede_orgue_a_tuyaux", "age_orgue_ans"])
+
+    def test_les_questions_d_une_meme_aide_se_suivent(self):
+        # Alphabet : age (fx-a), manifestations (fx-b), possede (fx-a) — fx-a
+        # dispersée autour de fx-b. Attendu : fx-a entière, puis fx-b.
+        a = _fixture_aide([self.ORGUE, self.AGE], slug="fx-a")
+        b = _fixture_aide([self.MANIFESTATIONS], slug="fx-b")
+        self.assertEqual(
+            self._ids({a.slug: a, b.slug: b}),
+            [
+                "possede_orgue_a_tuyaux",
+                "age_orgue_ans",
+                "manifestations_culturelles_publiques_orgue",
+            ],
+        )
+
+    def test_le_nombre_d_aides_prime_toujours(self):
+        # `age_orgue_ans` sert deux aides : il passe avant le reste, quel que
+        # soit l'ordre dans lequel fx-a l'énonce.
+        a = _fixture_aide([self.ORGUE, self.AGE], slug="fx-a")
+        b = _fixture_aide([self.AGE], slug="fx-b")
+        self.assertEqual(self._ids({a.slug: a, b.slug: b})[0], "age_orgue_ans")
+
+    def test_build_questions_sur_verdicts_vides(self):
+        self.assertEqual(build_questions([], FACTS), [])
+
+
+class TestFaitArtistiqueDeduitDesRaisons(unittest.TestCase):
+    """Même déduction que pour l'événementiel : un pur chantier ne voit jamais
+    « votre projet est-il artistique ou culturel ? » — l'étape « Votre projet »
+    a déjà répondu non, comme le dit le `help` du fait."""
+
+    FACT = "projet_artistique_ou_culturel"
+    GATE = {
+        "id": "objet-artistique",
+        "text": "Réalisation d'un projet artistique ou culturel",
+        "kind": "user_fact",
+        "fact": FACT,
+        "predicate": {"eq": True},
+    }
+    AIDE = _fixture_aide(
+        [GATE],
+        slug="fx-academie",
+        raison=["restauration_travaux", "valorisation_rayonnement"],
+    )
+
+    def _run(self, answers=None):
+        return run_deterministic_diagnostic(
+            {self.AIDE.slug: self.AIDE}, FACTS, _monument(), 3000, answers
+        )
+
+    def _questions(self, res) -> set[str]:
+        return {q["id"] for q in res["qcmQuestions"]}
+
+    def test_travaux_seuls_repondent_non_sans_poser_la_question(self):
+        res = self._run({"_raisons": ["restauration_travaux"]})
+        self.assertNotIn(self.FACT, self._questions(res))
+        self.assertEqual([m["aide"]["id"] for m in res["aidesNonEligibles"]], ["fx-academie"])
+
+    def test_faire_vivre_le_lieu_laisse_la_question_posee(self):
+        res = self._run({"_raisons": ["valorisation_rayonnement"]})
+        self.assertIn(self.FACT, self._questions(res))
+        self.assertEqual(len(res["aidesPotentiellementEligibles"]), 1)
+
+    def test_reponse_de_l_utilisateur_prime_sur_la_deduction(self):
+        res = self._run({"_raisons": ["restauration_travaux"], self.FACT: "oui"})
+        self.assertNotIn(self.FACT, self._questions(res))
+        self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-academie"])

@@ -321,9 +321,9 @@ AUTO_SOURCE_DERIVERS = {
 }
 
 
-def _evenementiel_depuis_raisons(raisons: set[str]) -> bool | None:
+def _faire_vivre_depuis_raisons(raisons: set[str]) -> bool | None:
     """Une intention non cochée répond d'avance : pas de « faire vivre le lieu »,
-    donc pas de festival.
+    donc ni festival, ni projet artistique ou culturel.
 
     L'inverse n'est jamais vrai — « Faire vivre et ouvrir le lieu » couvre
     autant des visites pérennes qu'une exposition d'un été —, d'où le None qui
@@ -339,7 +339,12 @@ def _evenementiel_depuis_raisons(raisons: set[str]) -> bool | None:
 # ÉCARTER une aide : une intention non cochée est une indication sur le projet,
 # pas une preuve — fail-closed, la déduction rend None et la question survit.
 FAITS_DEDUITS_DES_RAISONS: dict[str, Callable[[set[str]], object]] = {
-    "projet_evenementiel_ponctuel": _evenementiel_depuis_raisons,
+    "projet_evenementiel_ponctuel": _faire_vivre_depuis_raisons,
+    # Même déduction : un projet ou une action artistique ou culturelle
+    # (exposition, spectacle, résidence…) relève de « faire vivre le lieu ».
+    # Cohérent avec le `help` du fait : « répondez non si votre projet porte
+    # uniquement sur des travaux sur le bâtiment ».
+    "projet_artistique_ou_culturel": _faire_vivre_depuis_raisons,
 }
 
 
@@ -370,6 +375,54 @@ def deduire_faits_des_raisons(
         valeur = deduire(raisons)
         if valeur is not None:
             complete[fact_key] = valeur
+    return complete
+
+
+# Faits qu'une AUTRE réponse du questionnaire rend inutiles à demander. Pendant
+# de FAITS_DEDUITS_DES_RAISONS, avec une réponse pour source au lieu de
+# l'intention : fait déduit → (fait source, {réponse source → valeur déduite}).
+#
+# « Le monument n'est pas accessible à la visite du public (ni maintenant, ni
+# après travaux) » répond d'avance « ouvert 0 jour par an » : poser la seconde
+# question juste après la première se lit comme une panne. L'inverse ne se
+# déduit pas — 0 jour aujourd'hui peut devenir accessible après les travaux.
+#
+# Deux effets, qui doivent rester d'accord : côté serveur la valeur déduite
+# entre dans le contexte comme une réponse (celle de l'utilisateur prime) ;
+# côté questionnaire la question déduite se branche sur sa source (`dependsOn`,
+# cf. _depends_on_deduction) et se pose avant elle, si bien que le front ne la
+# montre plus dès que la source y répond.
+FAITS_DEDUITS_DES_FAITS: dict[str, tuple[str, dict[object, object]]] = {
+    "jours_ouverture_public_par_an": ("site_accessible_visite", {False: 0}),
+}
+
+
+def _meme_valeur(a: object, b: object) -> bool:
+    """Égalité stricte de type : `0 == False` en Python, pas ici."""
+    return type(a) is type(b) and a == b
+
+
+def deduire_faits_des_faits(
+    answers: dict[str, object],
+    facts: dict[str, FactDef],
+) -> dict[str, object]:
+    """Complète les réponses par les faits déductibles d'une autre réponse.
+
+    La réponse de l'utilisateur prime toujours : la déduction ne remplit qu'un
+    fait qu'il n'a pas renseigné. Source inconnue (non répondue, « je ne sais
+    pas ») ⇒ rien n'est déduit et la question survit (fail-closed).
+    """
+    complete = dict(answers)
+    for fact_key, (source_key, table) in FAITS_DEDUITS_DES_FAITS.items():
+        if _normalize_answer(facts.get(fact_key), complete.get(fact_key)) is not None:
+            continue
+        source = _normalize_answer(facts.get(source_key), complete.get(source_key))
+        if source is None:
+            continue
+        for valeur_source, deduit in table.items():
+            if _meme_valeur(source, valeur_source):
+                complete[fact_key] = deduit
+                break
     return complete
 
 
@@ -974,6 +1027,35 @@ def _depends_on(
     return {"questionId": gateway, "showForOptionIds": show_for}
 
 
+def _depends_on_deduction(
+    fact_key: str,
+    built: dict[str, dict],
+    options_by_fact: dict[str, list[dict]],
+) -> dict | None:
+    """Branchement d'une question DÉDUITE sur sa source (FAITS_DEDUITS_DES_FAITS).
+
+    La question n'a de sens que pour les réponses à la source qui ne déduisent
+    rien ; pour les autres, le serveur connaît déjà la valeur. L'option « je ne
+    sais pas » garde la question (fail-closed). Source non posée : rien à quoi
+    se brancher, la question reste.
+    """
+    deduction = FAITS_DEDUITS_DES_FAITS.get(fact_key)
+    if deduction is None:
+        return None
+    source_key, table = deduction
+    if source_key not in built:
+        return None
+    show_for = [
+        opt["id"]
+        for opt in options_by_fact[source_key]
+        if opt.get("unknown")
+        or not any(_meme_valeur(opt.get("value", opt.get("repr")), v) for v in table)
+    ]
+    if not show_for or len(show_for) == len(options_by_fact[source_key]):
+        return None
+    return {"questionId": source_key, "showForOptionIds": show_for}
+
+
 def build_questions(
     verdicts: list[AideVerdict],
     facts: dict[str, FactDef],
@@ -998,6 +1080,8 @@ def build_questions(
     by_fact: dict[str, dict[str, list[Condition]]] = {}
     gateway_by_fact: dict[str, dict[str, list[Condition]]] = {}
     montant_by_slug: dict[str, float] = {}
+    # (slug, fait) → rang de la PREMIÈRE condition de l'aide portant ce fait.
+    rang_source: dict[tuple[str, str], int] = {}
     for v in verdicts:
         if v.status not in ("potentiel", "atteignable"):
             continue
@@ -1006,16 +1090,46 @@ def build_questions(
             by_fact.setdefault(fact_key, {})[v.aide.slug] = conds
         for fact_key, conds in v.gateway_facts.items():
             gateway_by_fact.setdefault(fact_key, {})[v.aide.slug] = conds
+        for rang, cond in enumerate(v.aide.conditions):
+            if cond.fact:
+                rang_source.setdefault((v.aide.slug, cond.fact), rang)
 
     def aide_slugs(fact_key: str) -> list[str]:
         return sorted(set(by_fact.get(fact_key, {})) | set(gateway_by_fact.get(fact_key, {})))
 
+    def ordre_source(fact_key: str) -> tuple[str, int]:
+        """Départage à nombre d'aides égal : les questions d'une même aide se
+        suivent, dans l'ordre où le règlement énonce ses conditions.
+
+        Le YAML suit le texte officiel : « possède un orgue » y précède « âge de
+        l'orgue », et l'objet d'une aide ses exclusions. Un départage
+        alphabétique sur la clé du fait les mélangeait (`age_orgue_ans` avant
+        `possede_orgue_a_tuyaux`) et dispersait une aide sur tout le
+        questionnaire. Un fait sans condition dans l'aide (gate synthétique de
+        périmètre) passe en dernier."""
+        slugs = aide_slugs(fact_key)
+        premier = slugs[0] if slugs else ""
+        return (premier, rang_source.get((premier, fact_key), 10**6))
+
+    candidats = set(by_fact) | set(gateway_by_fact)
+    # Un fait dont une réponse en déduit un autre (FAITS_DEDUITS_DES_FAITS) se
+    # pose avant lui, comme une passerelle : c'est ce qui permet au front de
+    # sauter la question déduite.
+    sources_deduction = {
+        source for cible, (source, _) in FAITS_DEDUITS_DES_FAITS.items() if cible in candidats
+    }
     # Tri : les faits PASSERELLES d'abord (une question dont dépend une autre se
-    # pose avant elle), puis ceux qui débloquent le plus d'aides. Le graphe
-    # d'applicabilité n'a qu'un niveau dans le corpus : pas de tri topologique.
+    # pose avant elle), puis ceux qui débloquent le plus d'aides, puis l'ordre de
+    # la source. Le graphe d'applicabilité n'a qu'un niveau dans le corpus : pas
+    # de tri topologique.
     ordered = sorted(
-        set(by_fact) | set(gateway_by_fact),
-        key=lambda k: (k not in gateway_by_fact, -len(aide_slugs(k)), k),
+        candidats,
+        key=lambda k: (
+            k not in gateway_by_fact and k not in sources_deduction,
+            -len(aide_slugs(k)),
+            *ordre_source(k),
+            k,
+        ),
     )
 
     questions: list[dict] = []
@@ -1077,7 +1191,9 @@ def build_questions(
             "eliminationsParOption": elim,
             "categorie": fact_key,
         }
-        depends_on = _depends_on(all_conds, built, options_by_fact)
+        depends_on = _depends_on(all_conds, built, options_by_fact) or _depends_on_deduction(
+            fact_key, built, options_by_fact
+        )
         if depends_on:
             question["dependsOn"] = depends_on
         options_by_fact[fact_key] = options
@@ -1324,9 +1440,10 @@ def run_deterministic_diagnostic(
     ready = {slug: a for slug, a in ready.items() if not hors_projet(a, raisons)}
     hors_sujet = ready_avant_raisons - len(ready)
 
-    ctx = build_context(
-        monument, population, deduire_faits_des_raisons(raisons, fact_answers, facts)
+    reponses = deduire_faits_des_faits(
+        deduire_faits_des_raisons(raisons, fact_answers, facts), facts
     )
+    ctx = build_context(monument, population, reponses)
     # Exclure les aides dont l'utilisateur a déclaré qu'elles ne le concernent
     # pas (périmètre de l'aide : festivals, compagnies, écoles d'art…). Même
     # traitement que les aides hors projet : elles n'ont jamais été candidates.
