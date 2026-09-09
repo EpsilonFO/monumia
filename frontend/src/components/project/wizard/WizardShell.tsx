@@ -15,12 +15,7 @@ import { Clover } from '@/components/illustrations';
 import { LogoMonumia } from '@/components/icons';
 import { C } from '@/lib/brand';
 import type { Monument } from '@/types';
-import {
-  WizardRail,
-  type WizardProgress,
-  type WizardStep,
-  type WizardStepKey,
-} from './WizardRail';
+import { WizardRail, type WizardStep, type WizardStepKey } from './WizardRail';
 
 interface WizardShellProps {
   /** Les étapes de CE wizard (monument ou projet) : le shell n'en connaît
@@ -28,9 +23,6 @@ interface WizardShellProps {
   steps: WizardStep[];
   step: WizardStepKey;
   monument: Monument | null;
-  /** Progression du questionnaire, ou null hors de cette étape : c'est sa
-   *  présence qui fait apparaître la barre fine du header mobile. */
-  progress: WizardProgress | null;
   /** Vrai quand quitter perdrait des réponses en cours → confirmation. */
   confirmQuit: boolean;
   /** Vrai sur un écran qui navigue de lui-même (le calcul du diagnostic) :
@@ -70,7 +62,6 @@ export function WizardShell({
   steps,
   step,
   monument,
-  progress,
   confirmQuit,
   quitDisabled = false,
   exitTo,
@@ -97,19 +88,13 @@ export function WizardShell({
   };
 
   const stepLabel = steps.find((s) => s.key === step)?.label ?? '';
-  // Valeurs pré-calculées : TypeScript ne peut pas re-narrower `progress` à
-  // travers le booléen `showBar` dans le JSX.
-  const qTotal = progress?.total ?? 0;
-  const qNum = progress ? Math.min(progress.index + 1, progress.total) : 0;
-  const showBar = qTotal > 0;
-  const pct = qTotal > 0 ? Math.round((qNum / qTotal) * 100) : 0;
 
   return (
     <div className="flex h-dvh overflow-hidden" style={{ background: 'var(--app-bg)' }}>
-      <WizardRail steps={steps} step={step} monument={monument} progress={progress} onQuit={quit} />
+      <WizardRail steps={steps} step={step} monument={monument} onQuit={quit} />
 
       <div className="relative flex min-w-0 flex-1 flex-col">
-        {/* Header mobile : logo, étape, progression fine, monument en chip. */}
+        {/* Header mobile : logo, étape, monument en chip. */}
         <header
           className="z-10 shrink-0 border-b px-4 py-3 lg:hidden"
           style={{ background: C.card, borderColor: C.border }}
@@ -122,13 +107,6 @@ export function WizardShell({
               <p className="text-[13px] font-semibold" style={{ color: C.ink }}>
                 {stepLabel}
               </p>
-              {showBar && (
-                <p className="text-[11px] tabular-nums" style={{ color: C.grayMuted }}>
-                  {progress && progress.index >= progress.total
-                    ? 'Terminé'
-                    : `Question ${qNum} / ${qTotal}`}
-                </p>
-              )}
             </div>
             {monument ? (
               <span
@@ -141,20 +119,6 @@ export function WizardShell({
               <span className="w-[22px]" aria-hidden />
             )}
           </div>
-          {showBar && (
-            <div
-              className="mt-2 h-1 w-full overflow-hidden rounded-full"
-              style={{ background: C.border }}
-            >
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${pct}%`,
-                  background: 'linear-gradient(90deg, var(--accent), var(--orange-vif))',
-                }}
-              />
-            </div>
-          )}
         </header>
 
         {!quitDisabled && (

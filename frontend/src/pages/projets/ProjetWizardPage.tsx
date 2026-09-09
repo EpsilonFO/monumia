@@ -12,7 +12,6 @@ import {
   PERIL_RATTRAPAGE_STEP,
   PROJET_WIZARD_STEPS,
   PROJET_WIZARD_STEPS_INVITE,
-  type WizardProgress,
   type WizardStepKey,
 } from '@/components/project/wizard/WizardRail';
 import { AllClear } from '@/components/illustrations';
@@ -28,9 +27,11 @@ import { aideService } from '@/services/aide.service';
 import { sanitizeQcmQuestions } from '@/lib/qcm';
 import {
   RAISONS_KEY,
+  questionnaireDeCadrage,
   raisonProposee,
   readRaisons,
   sansClesReservees,
+  sansEtapeTravaux,
 } from '@/constants/raisons';
 import type { EtatConservation } from '@/constants/monument-options';
 import { ROUTES } from '@/constants/routes';
@@ -121,10 +122,13 @@ export function ProjetWizardPage() {
   const [besoinPeril, setBesoinPeril] = useState(false);
   // « Seulement les questions passées » démarre sur le questionnaire : le
   // cadrage n'est pas en cause, le repasser ferait perdre du temps.
-  const [step, setStep] = useState<WizardStepKey>(
-    modeInvite ? brouillon.etape : reprendrePassees ? 'questionnaire' : 'intention',
-  );
-  const [progress, setProgress] = useState<WizardProgress | null>(null);
+  const [step, setStep] = useState<WizardStepKey>(() => {
+    if (!modeInvite) return reprendrePassees ? 'questionnaire' : 'intention';
+    // Brouillon laissé sur l'étape des travaux avant qu'elle ne soit sautée
+    // pour « Faire vivre » : on reprend à l'intention, qui enchaîne d'elle-même.
+    if (brouillon.etape === 'travaux' && sansEtapeTravaux(brouillon.raisons)) return 'intention';
+    return brouillon.etape;
+  });
   // Accroche de l'écran d'inscription. `null` tant que le diagnostic complet
   // n'a pas répondu : son absence ne bloque pas l'inscription.
   const [synthese, setSynthese] = useState<SyntheseInvite | null>(null);
@@ -140,23 +144,28 @@ export function ProjetWizardPage() {
   // aides candidates, les travaux en font tomber par hard_filter. Le péril n'y
   // figure plus — il appartient au monument et ne change pas d'un projet à
   // l'autre. Revenir en arrière et changer l'un des deux régénère.
-  const cadrageKey = [
-    raisons.join('|'),
-    travaux === null ? '?' : travaux.join('|'),
-    // À cadrage identique, « tout refaire » et « seulement les questions
-    // passées » ne rendent pas le même jeu de questions.
-    reprendrePassees ? 'passees' : 'tout',
-  ].join('#');
+  const cleCadrage = (travauxChoisis: WorkType[] | null) =>
+    [
+      raisons.join('|'),
+      travauxChoisis === null ? '?' : travauxChoisis.join('|'),
+      // À cadrage identique, « tout refaire » et « seulement les questions
+      // passées » ne rendent pas le même jeu de questions.
+      reprendrePassees ? 'passees' : 'tout',
+    ].join('#');
+  const cadrageKey = cleCadrage(travaux);
 
-  const steps = useMemo(
-    () =>
-      modeInvite
-        ? PROJET_WIZARD_STEPS_INVITE
-        : besoinPeril
-          ? [PERIL_RATTRAPAGE_STEP, ...PROJET_WIZARD_STEPS]
-          : PROJET_WIZARD_STEPS,
-    [modeInvite, besoinPeril],
-  );
+  // « Faire vivre et ouvrir le lieu » n'est pas un chantier : l'étape des
+  // travaux disparaît du rail, et l'intention enchaîne sur le questionnaire.
+  const sauterTravaux = sansEtapeTravaux(raisons);
+  const steps = useMemo(() => {
+    const base = modeInvite
+      ? PROJET_WIZARD_STEPS_INVITE
+      : besoinPeril
+        ? [PERIL_RATTRAPAGE_STEP, ...PROJET_WIZARD_STEPS]
+        : PROJET_WIZARD_STEPS;
+    // Le rail travaille par rang : retirer l'étape suffit.
+    return sauterTravaux ? base.filter((s) => s.key !== 'travaux') : base;
+  }, [modeInvite, besoinPeril, sauterTravaux]);
 
   const eyebrow = existingProjetId ? 'Questionnaire' : 'Nouveau projet';
 
@@ -187,6 +196,11 @@ export function ProjetWizardPage() {
       });
   }, [monumentId]);
 
+  // Questionnaire DÉJÀ ENREGISTRÉ sur le projet repris. Un ref, pas un état :
+  // il ne sert qu'à ne pas effacer des réponses en réécrivant le cadrage, et
+  // rien à l'écran n'en dépend. Vide pour un nouveau projet.
+  const questionnaireEnregistre = useRef<ProjectQuestionnaireAnswers>({});
+
   // « Refaire le questionnaire » : on reprend le cadrage du projet existant.
   const prefilled = useRef(false);
   useEffect(() => {
@@ -198,6 +212,7 @@ export function ProjetWizardPage() {
         // de cocher si le projet arrive en retard.
         if (prefilled.current) return;
         prefilled.current = true;
+        questionnaireEnregistre.current = p.questionnaire ?? {};
         // Filtré sur ce que l'écran propose ENCORE : un projet cadré sur
         // « Optimiser la fiscalité » rouvrirait sinon sur quatre tuiles
         // décochées et un « Continuer » actif. Rien ne reste ⇒ l'étape
@@ -370,19 +385,25 @@ export function ProjetWizardPage() {
     setStep('intention');
   };
 
-  // Fin de l'étape travaux : le cadrage vit sur le PROJET, que le moteur relit
-  // côté serveur pour ses hard_filters — on le persiste donc AVANT de générer
-  // le questionnaire. En cas d'échec on reste sur l'écran : partir avec des
+  // Fin de l'étape travaux : le cadrage vit sur le PROJET — les travaux, que le
+  // moteur relit côté serveur pour ses hard_filters, et la finalité, qui écarte
+  // les aides d'un autre métier. On le persiste donc AVANT de générer le
+  // questionnaire. En cas d'échec on reste sur l'écran : partir avec des
   // travaux non enregistrés donnerait un diagnostic calculé sur l'état
   // précédent, sans que rien ne le signale.
-  const handleTravauxNext = async () => {
-    if (travaux === null) return;
+  //
+  // `travauxChoisis` : l'état par défaut, ou `[]` quand l'étape est sautée
+  // depuis l'intention — le `setTravaux` qui l'accompagne n'est pas encore
+  // visible dans cette fermeture.
+  const handleTravauxNext = async (travauxChoisis: WorkType[] | null = travaux) => {
+    if (travauxChoisis === null) return;
+    const nouvelleCle = cleCadrage(travauxChoisis);
     // En invité, rien à persister : le cadrage va dans le brouillon, et le
     // questionnaire est calculé à partir de ce qu'on envoie dans le corps.
     if (modeInvite) {
-      brouillon.setCadrage(raisons, travaux);
+      brouillon.setCadrage(raisons, travauxChoisis);
       brouillon.setEtape('questionnaire');
-      if (loadedCadrageKey !== null && loadedCadrageKey !== cadrageKey) {
+      if (loadedCadrageKey !== null && loadedCadrageKey !== nouvelleCle) {
         setAnswers({});
         setQuestions([]);
         brouillon.setAnswers({});
@@ -392,12 +413,25 @@ export function ProjetWizardPage() {
     }
     if (!monumentId) return;
     setSaving(true);
+    // Le cadrage part ENTIER : les travaux ET la finalité. Cette dernière est
+    // ce qui écarte du diagnostic les aides d'un autre métier (`hors_projet`
+    // côté serveur) ; ne l'écrire qu'à la sortie du questionnaire laissait la
+    // page d'un projet quitté en route lister « Hauts-de-France en fête » à
+    // qui venait de cocher « Restaurer ou faire des travaux ».
+    const questionnaire = questionnaireDeCadrage(questionnaireEnregistre.current, raisons);
     try {
       const projet = projetId
-        ? await projetService.update(projetId, { travauxEnvisages: travaux })
-        : await projetService.create(monumentId, { travauxEnvisages: travaux });
+        ? await projetService.update(projetId, {
+            travauxEnvisages: travauxChoisis,
+            questionnaire,
+          })
+        : await projetService.create(monumentId, {
+            travauxEnvisages: travauxChoisis,
+            questionnaire,
+          });
       upsertProjet(projet);
       setProjetId(projet.id);
+      questionnaireEnregistre.current = projet.questionnaire;
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Erreur lors de l’enregistrement de votre projet"
@@ -408,7 +442,7 @@ export function ProjetWizardPage() {
     }
     // Changer le cadrage périme les réponses déjà données (leurs questions
     // peuvent disparaître) — on repart d'un questionnaire propre.
-    if (loadedCadrageKey !== null && loadedCadrageKey !== cadrageKey) {
+    if (loadedCadrageKey !== null && loadedCadrageKey !== nouvelleCle) {
       setAnswers({});
       setQuestions([]);
     }
@@ -472,7 +506,6 @@ export function ProjetWizardPage() {
       steps={steps}
       step={step}
       monument={monumentAffiche}
-      progress={step === 'questionnaire' ? progress : null}
       // Rien à confirmer quand quitter mène à l'écran de fin : les réponses
       // sont dans le brouillon et le questionnaire reste reprenable.
       confirmQuit={
@@ -505,6 +538,14 @@ export function ProjetWizardPage() {
           value={raisons}
           onChange={setRaisons}
           onNext={() => {
+            // Pas de chantier : le projet est cadré sur « Pas encore
+            // déterminé » et l'on passe directement au questionnaire (création
+            // ou mise à jour du projet comprise, comme après l'étape travaux).
+            if (sauterTravaux) {
+              setTravaux([]);
+              void handleTravauxNext([]);
+              return;
+            }
             // En invité, les intentions vont dans le brouillon dès maintenant :
             // un F5 à l'étape des travaux ne doit pas ramener à une page
             // d'intentions vide. Les travaux, eux, sont encore inconnus.
@@ -523,7 +564,7 @@ export function ProjetWizardPage() {
           eyebrow={eyebrow}
           value={travaux}
           onChange={setTravaux}
-          onNext={handleTravauxNext}
+          onNext={() => void handleTravauxNext()}
           onBack={() => setStep('intention')}
           saving={saving}
         />
@@ -628,7 +669,6 @@ export function ProjetWizardPage() {
               onComplete={handleQuestionnaireNext}
               submitting={saving}
               completeLabel={modeInvite ? 'Découvrir mes financements' : undefined}
-              onProgress={setProgress}
             />
           )}
         </div>

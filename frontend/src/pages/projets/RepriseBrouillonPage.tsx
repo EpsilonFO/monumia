@@ -135,7 +135,6 @@ export function RepriseBrouillonPage() {
       steps={PROJET_WIZARD_STEPS_INVITE}
       step="diagnostic"
       monument={monumentBrouillon ? monumentDepuisBrouillon(monumentBrouillon) : null}
-      progress={null}
       confirmQuit={false}
       quitDisabled
       exitTo={ROUTES.MONUMENTS}

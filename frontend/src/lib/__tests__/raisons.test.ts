@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { RAISONS_KEY, readRaisons, sansClesReservees } from '@/constants/raisons';
+import {
+  RAISONS_KEY,
+  questionnaireDeCadrage,
+  readRaisons,
+  sansClesReservees,
+  sansEtapeTravaux,
+} from '@/constants/raisons';
 
 /**
  * Un `questionnaire` persisté mêle deux natures : les réponses aux faits, et
@@ -52,5 +58,72 @@ describe('sansClesReservees', () => {
     };
     expect(readRaisons(questionnaire)).toEqual(['restauration_travaux']);
     expect(Object.keys(sansClesReservees(questionnaire))).toEqual(['etat_travaux']);
+  });
+});
+
+/**
+ * L'étape « Les travaux » n'a de sens que pour un chantier. « Faire vivre et
+ * ouvrir le lieu » choisi seul la saute ; toute intention de travaux, même
+ * mêlée à d'autres sur un projet d'avant le choix exclusif, la garde.
+ */
+describe('sansEtapeTravaux', () => {
+  it('saute l’étape pour « Faire vivre et ouvrir le lieu » seul', () => {
+    expect(sansEtapeTravaux(['valorisation_rayonnement'])).toBe(true);
+  });
+
+  it('garde l’étape pour un chantier', () => {
+    expect(sansEtapeTravaux(['restauration_travaux'])).toBe(false);
+    expect(sansEtapeTravaux(['etude_ingenierie'])).toBe(false);
+  });
+
+  it('garde l’étape sur un ancien projet multi-intentions', () => {
+    expect(sansEtapeTravaux(['valorisation_rayonnement', 'restauration_travaux'])).toBe(false);
+  });
+
+  it('garde l’étape sans intention (questionnaire d’avant l’étape)', () => {
+    expect(sansEtapeTravaux([])).toBe(false);
+  });
+});
+
+/**
+ * Le cadrage d'un projet (fin de l'étape des travaux) enregistre la finalité
+ * SANS attendre la sortie du questionnaire : c'est elle qui écarte du
+ * diagnostic les aides d'un autre métier, et la page du projet la relit depuis
+ * `projet.questionnaire`. Quitter le wizard en cours de questionnaire ne doit
+ * donc plus laisser un projet sans finalité — ni perdre les réponses déjà
+ * enregistrées.
+ */
+describe('questionnaireDeCadrage', () => {
+  it('pose la finalité sur un nouveau projet', () => {
+    expect(questionnaireDeCadrage(undefined, ['restauration_travaux'])).toEqual({
+      [RAISONS_KEY]: ['restauration_travaux'],
+    });
+  });
+
+  it('garde les réponses aux faits déjà enregistrées', () => {
+    expect(
+      questionnaireDeCadrage({ etat_travaux: 'non_commences' }, ['etude_ingenierie']),
+    ).toEqual({ etat_travaux: 'non_commences', [RAISONS_KEY]: ['etude_ingenierie'] });
+  });
+
+  it('remplace l’ancienne finalité, jamais ne l’ajoute', () => {
+    expect(
+      questionnaireDeCadrage(
+        { [RAISONS_KEY]: ['valorisation_rayonnement'], fait: 'oui' },
+        ['restauration_travaux'],
+      ),
+    ).toEqual({ fait: 'oui', [RAISONS_KEY]: ['restauration_travaux'] });
+  });
+
+  it('ne mute pas le questionnaire enregistré', () => {
+    const source = { [RAISONS_KEY]: ['valorisation_rayonnement'], fait: 'oui' };
+    questionnaireDeCadrage(source, ['restauration_travaux']);
+    expect(source).toEqual({ [RAISONS_KEY]: ['valorisation_rayonnement'], fait: 'oui' });
+  });
+
+  it('est relu par readRaisons', () => {
+    expect(readRaisons(questionnaireDeCadrage({}, ['valorisation_rayonnement']))).toEqual([
+      'valorisation_rayonnement',
+    ]);
   });
 });

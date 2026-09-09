@@ -25,12 +25,6 @@ export interface WizardStep {
   icon: IconComponent;
 }
 
-/** Progression du questionnaire : index 0-based, index === total sur l'écran de fin. */
-export interface WizardProgress {
-  index: number;
-  total: number;
-}
-
 /** Étape optionnelle en tête du wizard projet : le monument a été créé avant
  *  que la question du péril n'existe, elle n'a donc jamais été posée. Sans ce
  *  rattrapage, elle ne le serait plus jamais. */
@@ -58,7 +52,7 @@ export const PROJET_WIZARD_STEPS: WizardStep[] = [
   {
     key: 'questionnaire',
     label: 'Questionnaire',
-    hint: 'Des questions simples, sans aucun document.',
+    hint: 'Quelques minutes, sans aucun document.',
     icon: IconListe,
   },
   {
@@ -115,8 +109,6 @@ interface WizardRailProps {
   steps: WizardStep[];
   step: WizardStepKey;
   monument: Monument | null;
-  /** Accepté pour stabilité d'interface (header mobile du shell l'utilise). */
-  progress: WizardProgress | null;
   onQuit: () => void;
 }
 

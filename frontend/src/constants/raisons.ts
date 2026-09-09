@@ -93,3 +93,41 @@ export function sansClesReservees(
     Object.entries(answers ?? {}).filter(([cle]) => !cle.startsWith('_')),
   );
 }
+
+/**
+ * « Faire vivre et ouvrir le lieu » n'est pas un chantier : demander « sur
+ * quoi portent les travaux ? » juste après contredit ce qu'on vient de cocher.
+ * Le wizard saute alors l'étape des travaux et cadre le projet sur « Pas encore
+ * déterminé » (`[]`), que le moteur traite en fail-open : les aides à
+ * `hard_filters.travaux` restent candidates, comme aujourd'hui pour ce choix.
+ *
+ * Seule la finalité seule compte : un projet d'avant le choix exclusif, qui
+ * porte plusieurs intentions dont un chantier, garde l'étape.
+ */
+export function sansEtapeTravaux(raisons: string[]): boolean {
+  return raisons.length === 1 && raisons[0] === 'valorisation_rayonnement';
+}
+
+/**
+ * Questionnaire à ENREGISTRER quand le cadrage d'un projet est arrêté (fin de
+ * l'étape des travaux, création du projet comprise) : les intentions posées
+ * par-dessus les réponses aux faits déjà enregistrées.
+ *
+ * La finalité est ce qui écarte les aides d'un autre métier (`hors_projet`
+ * côté serveur), et elle ne vaut que si elle est PERSISTÉE : la page du projet,
+ * le dashboard et l'échéancier relancent le moteur depuis `projet.questionnaire`,
+ * sans rien savoir de l'état du wizard. Écrite seulement à la sortie du
+ * questionnaire, un projet quitté en cours de route restait sans finalité — sa
+ * page listait alors des aides étrangères à ce qu'on venait de cocher.
+ *
+ * Les réponses aux faits sont RECOPIÉES et non effacées : à ce stade le
+ * questionnaire n'a pas été repassé, et « tout refaire » ne les remplace qu'à
+ * sa sortie. Les clés réservées du précédent, elles, tombent — `raisons` est
+ * la seule source des intentions.
+ */
+export function questionnaireDeCadrage(
+  precedent: ProjectQuestionnaireAnswers | undefined,
+  raisons: string[],
+): ProjectQuestionnaireAnswers {
+  return { ...sansClesReservees(precedent), [RAISONS_KEY]: raisons };
+}

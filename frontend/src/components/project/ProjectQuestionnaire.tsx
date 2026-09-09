@@ -5,7 +5,6 @@ import { AnswerCard } from '@/components/project/wizard/AnswerCard';
 import { SkipCard } from '@/components/project/wizard/SkipCard';
 import { isUnknownAnswer } from '@/components/project/wizard/unknownAnswer';
 import { IconInfo } from '@/components/icons';
-import { Slider } from '@/components/ui/slider';
 import { computeEliminatedAideIds, isQuestionServingLiveAide } from '@/lib/qcm';
 import { C, SERIF } from '@/lib/brand';
 import { cn } from '@/lib/utils';
@@ -22,8 +21,6 @@ interface ProjectQuestionnaireProps {
   submitting?: boolean;
   /** Libellé du bouton final. */
   completeLabel?: string;
-  /** Remonte la position courante (rail + header mobile du shell). */
-  onProgress?: (progress: { index: number; total: number }) => void;
 }
 
 /** Délai avant l'auto-avance : laisse voir sa réponse se cocher. */
@@ -137,7 +134,6 @@ export function ProjectQuestionnaire({
   onComplete,
   submitting,
   completeLabel = 'Lancer le diagnostic',
-  onProgress,
 }: ProjectQuestionnaireProps) {
   // Questions déjà affichées, par id. Une question que le curseur a dépassée ne
   // doit plus jamais disparaître, même passée : le parcours se repère à un
@@ -153,8 +149,7 @@ export function ProjectQuestionnaire({
   }
 
   // Le parcours ne connaît que les questions PERTINENTES pour les réponses déjà
-  // données : la progression, la navigation et l'écran de fin se calculent
-  // dessus. Une question porteuse répondue peut en faire disparaître d'autres —
+  // données : la navigation et l'écran de fin se calculent dessus. Une question porteuse répondue peut en faire disparaître d'autres —
   // toujours situées après elle, donc l'index courant reste valide.
   const questions = useMemo(() => {
     // Une réponse peut écarter d'un coup toutes les aides que d'autres questions
@@ -178,9 +173,6 @@ export function ProjectQuestionnaire({
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** D'où vient le dernier changement d'écran : le curseur de progression
-   *  garde le focus, tout le reste le donne à la réponse. */
-  const origineRef = useRef<'parcours' | 'curseur'>('parcours');
   const optionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const finishRef = useRef<HTMLHeadingElement | null>(null);
 
@@ -206,44 +198,21 @@ export function ProjectQuestionnaire({
     const current = questions[index];
     if (!current) return;
     seenRef.current.ids.add(current.id);
-    if (origineRef.current === 'curseur') return;
     const targetId = selectedIds(current, value)[0] ?? current.options[0]?.id;
     if (targetId) optionRefs.current[`${current.id}:${targetId}`]?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, onFinish]);
 
-  // Le shell (rail desktop + header mobile) affiche la progression : on la
-  // lui remonte à chaque changement d'écran (index === total sur la fin).
-  useEffect(() => {
-    onProgress?.({ index: Math.min(index, total), total });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, total]);
-
   const goNext = () => {
     clearTimer();
-    origineRef.current = 'parcours';
     setDir('fwd');
     setIndex((i) => Math.min(i + 1, total));
   };
 
   const goBack = () => {
     clearTimer();
-    origineRef.current = 'parcours';
     setDir('back');
     setIndex((i) => Math.max(i - 1, 0));
-  };
-
-  /** Saut direct à une question (curseur de progression). */
-  const allerA = (cible: number) => {
-    const borne = Math.max(0, Math.min(cible, total - 1));
-    clearTimer();
-    // Le focus doit RESTER sur le curseur : c'est lui qu'on manipule, et
-    // l'effet ci-dessous le donnerait à la première réponse — au clavier, une
-    // seule flèche aurait porté, les suivantes seraient parties dans le
-    // parcours des options.
-    origineRef.current = 'curseur';
-    setDir(borne >= index ? 'fwd' : 'back');
-    setIndex(borne);
   };
 
   /** Sélectionne une réponse puis avance automatiquement après un court délai. */
@@ -380,34 +349,11 @@ export function ProjectQuestionnaire({
 
   return (
     <div>
-      {/* Curseur de progression, en tête de scène : il DIT où l'on en est et
-          il permet d'y aller. Un questionnaire de cinquante questions se
-          parcourt mal une flèche « Précédent » à la fois — pour revoir la
-          troisième réponse, il fallait cliquer quarante fois.
-
-          Sauter en avant équivaut à passer les questions intermédiaires, ce
-          que le questionnaire autorise déjà explicitement (« Passer cette
-          question ») : le moteur traite un fait sans réponse comme inconnu, et
-          rend une incertitude plutôt qu'une élimination. */}
-      <div className="pb-4">
-        <span
-          aria-live="polite"
-          className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-          style={{ color: C.orange }}
-        >
-          Question {index + 1} <span style={{ color: C.grayMuted }}>sur {total}</span>
-        </span>
-        <div className="mt-2">
-          <Slider
-            aria-label="Aller à une question"
-            min={1}
-            max={total}
-            step={1}
-            value={[Math.min(index + 1, total)]}
-            onValueChange={([position]) => allerA(position - 1)}
-          />
-        </div>
-      </div>
+      {/* Pas de compteur ni de curseur « Question N sur M » : le nombre de
+          questions dépend des aides candidates et peut dépasser cinquante,
+          ce qui décourage avant même la première réponse. Le rail annonce
+          « Quelques minutes », et les questions sans objet tombent au fil
+          des réponses. Seul « Précédent » reste pour revenir en arrière. */}
 
       {/* Question (glisse à chaque changement) */}
       <div key={q!.id} className={cn(slideClass, 'pb-1')}>
