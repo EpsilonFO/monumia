@@ -322,6 +322,13 @@ class FactDef(BaseModel):
     # bloquées uniquement là-dessus passent en statut « atteignable » au lieu
     # d'être refusées (cf. Levier).
     levier: Levier | None = None
+    # Fait qu'AUCUNE condition ne doit gater : sa réponse ne trie rien (seuil
+    # quasi universel) ou n'a pas de sens avant le montage du dossier. Le lint
+    # refuse un gate dessus et `detail_fait` le dit à l'agent. Archétype :
+    # autofinancement_pct — cf. TYPING « manual_check + effect: info ». Le
+    # 2026-09-09, cinq aides d'un même lot ont regaté dessus : la règle ne
+    # vivait que dans un commentaire YAML, que personne ne lit à la machine.
+    hors_gate: bool = False
 
     @model_validator(mode="after")
     def _options_iff_enum(self) -> FactDef:
