@@ -173,6 +173,36 @@ def check_aide(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
     return errors
 
 
+def check_hors_gate(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
+    """Aucun gate, aucun périmètre sur un fait marqué `hors_gate`.
+
+    Miroir, côté pipeline, du test de corpus
+    `test_corpus_autofinancement_ne_gate_plus_nulle_part` : l'agent d'ingestion
+    voit le lint, jamais pytest.
+    """
+    conseil = "typer manual_check + info (TYPING, « manual_check + effect: info »)"
+    erreurs: list[str] = []
+
+    def _hors_gate(fact: str | None) -> bool:
+        return bool(fact) and fact in facts and facts[fact].hors_gate
+
+    if aide.applies_if and _hors_gate(aide.applies_if.fact):
+        erreurs.append(
+            f"{aide.slug} / applies_if: fait « {aide.applies_if.fact} » hors_gate — {conseil}"
+        )
+    for cond in aide.conditions:
+        where = f"{aide.slug} / {cond.id}"
+        if cond.effect == "gate" and _hors_gate(cond.fact):
+            erreurs.append(
+                f"{where}: gate sur le fait « {cond.fact} » marqué hors_gate — {conseil}"
+            )
+        if cond.applies_if and _hors_gate(cond.applies_if.fact):
+            erreurs.append(
+                f"{where}: applies_if sur le fait « {cond.applies_if.fact} » hors_gate — {conseil}"
+            )
+    return erreurs
+
+
 def check_facts(facts: dict[str, FactDef]) -> list[str]:
     return [
         f"facts.yaml / {key}: auto_source « {f.auto_source} » absent de FIELD_REGISTRY"
@@ -208,6 +238,7 @@ def main() -> int:
             continue
         aides.append(aide)
         errors.extend(check_aide(aide, facts))
+        errors.extend(check_hors_gate(aide, facts))
 
     kinds = Counter(c.kind for a in aides for c in a.conditions)
     # Usage : conditions ET clauses applies_if — un fait seulement ciblé par
