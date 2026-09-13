@@ -111,6 +111,41 @@ function isVisible(question: QcmQuestion, answers: ProjectQuestionnaireAnswers):
   return given.some((id) => dep.showForOptionIds.includes(id));
 }
 
+/**
+ * Barre de progression du questionnaire — une jauge, et RIEN d'écrit.
+ *
+ * Le nombre de questions dépend des aides encore candidates et peut dépasser
+ * cinquante : l'annoncer (« Question 3 sur 52 ») décourage avant la première
+ * réponse. Une barre dit la même chose sans le chiffre, et elle dit vrai —
+ * son dénominateur fond à mesure que les réponses écartent des aides, donc
+ * elle avance plus vite que le rang de la question.
+ */
+function Progression({ pct }: { pct: number }) {
+  return (
+    <div
+      role="progressbar"
+      aria-label="Progression du questionnaire"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={pct}
+      aria-valuetext={`${pct}\u00a0% du questionnaire parcouru`}
+      className="mb-5 h-1.5 w-full overflow-hidden rounded-full"
+      style={{ background: `color-mix(in srgb, ${C.blue} 12%, transparent)` }}
+    >
+      {/* Un plancher visible : à la première question d'une longue liste, le
+          ratio réel ne ferait qu'un ou deux pixels, qu'on lirait comme une
+          barre vide. `aria-valuenow` reste, lui, la valeur exacte. */}
+      <div
+        className="h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none"
+        style={{
+          width: `${Math.max(pct, 3)}%`,
+          background: `linear-gradient(90deg, ${C.orange}, ${C.orangeVif})`,
+        }}
+      />
+    </div>
+  );
+}
+
 function prefersReducedMotion(): boolean {
   return (
     typeof window !== 'undefined' &&
@@ -173,6 +208,8 @@ export function ProjectQuestionnaire({
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Plus haute progression atteinte À CET ÉCRAN (cf. le calcul de `pct`).
+  const progressHighWater = useRef({ index: 0, pct: 0 });
   const optionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const finishRef = useRef<HTMLHeadingElement | null>(null);
 
@@ -281,56 +318,76 @@ export function ProjectQuestionnaire({
 
   const slideClass = dir === 'fwd' ? 'q-in-fwd' : 'q-in-back';
 
+  // Rang de la question courante sur les questions ENCORE pertinentes (l'écran
+  // de fin vaut 100 %). Sur place, la barre ne recule jamais : cocher une case
+  // de plus sur une question à choix multiple LIBÈRE des aides (sémantique
+  // existentielle, cf. `computeEliminatedAideIds`) et peut donc rallonger la
+  // liste — voir la jauge redescendre pendant qu'on répond se lirait comme une
+  // punition. Changer d'écran la relâche : « Précédent » doit bien faire
+  // reculer la barre.
+  const rawPct = total === 0 ? 100 : Math.round((Math.min(index + 1, total) / total) * 100);
+  const highWater = progressHighWater.current;
+  if (highWater.index !== index) {
+    highWater.index = index;
+    highWater.pct = rawPct;
+  } else if (rawPct > highWater.pct) {
+    highWater.pct = rawPct;
+  }
+  const pct = highWater.pct;
+
   // ─── Écran de fin ───
   if (onFinish) {
     const answered = questions.filter((qq) => value[qq.id] !== undefined).length;
     return (
-      <div className={cn('flex flex-col items-center gap-5 py-10 text-center', slideClass)}>
-        <AllClear />
-        <h2
-          ref={finishRef}
-          tabIndex={-1}
-          className="text-[clamp(1.5rem,3.4vw,2rem)] leading-tight outline-none"
-          style={{ fontFamily: SERIF, color: C.ink }}
-        >
-          C&rsquo;est tout&nbsp;!
-        </h2>
-        <p className="max-w-sm text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
-          {answered > 0
-            ? `Vous avez répondu à ${answered} question${answered > 1 ? 's' : ''}. `
-            : 'Pas de souci si vous avez passé des questions. '}
-          On met à jour vos aides.
-        </p>
-        <button
-          type="button"
-          onClick={onComplete}
-          disabled={submitting}
-          className="group mt-1 inline-flex min-h-[3.25rem] items-center gap-2 rounded-2xl px-7 py-3.5 text-[16px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
-          style={{ background: C.orange }}
-        >
-          {submitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Analyse des aides en cours…
-            </>
-          ) : (
-            <>
-              {completeLabel}
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </>
-          )}
-        </button>
-        {!submitting && (
+      <div>
+        <Progression pct={pct} />
+        <div className={cn('flex flex-col items-center gap-5 py-10 text-center', slideClass)}>
+          <AllClear />
+          <h2
+            ref={finishRef}
+            tabIndex={-1}
+            className="text-[clamp(1.5rem,3.4vw,2rem)] leading-tight outline-none"
+            style={{ fontFamily: SERIF, color: C.ink }}
+          >
+            C&rsquo;est tout&nbsp;!
+          </h2>
+          <p className="max-w-sm text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
+            {answered > 0
+              ? `Vous avez répondu à ${answered} question${answered > 1 ? 's' : ''}. `
+              : 'Pas de souci si vous avez passé des questions. '}
+            On met à jour vos aides.
+          </p>
           <button
             type="button"
-            onClick={goBack}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium underline-offset-2 hover:underline"
-            style={{ color: C.grayMuted }}
+            onClick={onComplete}
+            disabled={submitting}
+            className="group mt-1 inline-flex min-h-[3.25rem] items-center gap-2 rounded-2xl px-7 py-3.5 text-[16px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
+            style={{ background: C.orange }}
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Revoir mes réponses
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analyse des aides en cours…
+              </>
+            ) : (
+              <>
+                {completeLabel}
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </>
+            )}
           </button>
-        )}
+          {!submitting && (
+            <button
+              type="button"
+              onClick={goBack}
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium underline-offset-2 hover:underline"
+              style={{ color: C.grayMuted }}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Revoir mes réponses
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -349,11 +406,12 @@ export function ProjectQuestionnaire({
 
   return (
     <div>
-      {/* Pas de compteur ni de curseur « Question N sur M » : le nombre de
-          questions dépend des aides candidates et peut dépasser cinquante,
+      {/* Une barre, mais jamais de compteur « Question N sur M » : le nombre
+          de questions dépend des aides candidates et peut dépasser cinquante,
           ce qui décourage avant même la première réponse. Le rail annonce
           « Quelques minutes », et les questions sans objet tombent au fil
-          des réponses. Seul « Précédent » reste pour revenir en arrière. */}
+          des réponses — d'où une barre qui accélère. */}
+      <Progression pct={pct} />
 
       {/* Question (glisse à chaque changement) */}
       <div key={q!.id} className={cn(slideClass, 'pb-1')}>
