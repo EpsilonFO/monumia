@@ -11,7 +11,7 @@ from db import get_current_user_id, get_supabase
 from eligibility_engine import aide_display_dict, run_deterministic_diagnostic
 from eligibility_engine import disponibilite as aide_disponibilite
 from routers.monuments import enrich_monument_with_population, resolve_code_insee
-from services import quotas
+from services import catalogue_admin, quotas
 from services import stripe_billing as billing
 from services.offres import GRATUIT, Offre
 from services.project_access import require_project_access, require_projet_access
@@ -338,6 +338,20 @@ def _deja_engage(supabase: Client, user_id: str, slug: str) -> bool:
     return False
 
 
+def _slug_de(supabase: Client, aide_id: str) -> str | None:
+    """Le slug derrière un identifiant d'aide, qu'il soit un UUID ou déjà un slug.
+
+    Deux espaces d'identifiants cohabitent (cf. CLAUDE.md) : le YAML et le
+    moteur parlent slug, `aides_v3` parle UUID. Tout ce qui se décide sur
+    l'aide elle-même — paywall des guichets à venir, retrait du catalogue — se
+    décide sur le slug, donc la résolution est faite une fois pour toutes.
+    """
+    if not _is_uuid(aide_id):
+        return aide_id
+    row = supabase.table("aides_v3").select("slug").eq("id", aide_id).maybe_single().execute()
+    return ((row.data if row else None) or {}).get("slug")
+
+
 @router.get("/{aide_id}")
 def get_aide(
     aide_id: str,
@@ -359,18 +373,25 @@ def get_aide(
     connaît aucun, et une aide à venir est masquée pour toutes les fiches d'un
     compte au gratuit.
     """
-    if not billing.offre_du_compte(supabase, user_id).aides_bientot:
-        slug = aide_id
-        if _is_uuid(aide_id):
-            row = (
-                supabase.table("aides_v3").select("slug").eq("id", aide_id).maybe_single().execute()
-            )
-            slug = ((row.data if row else None) or {}).get("slug")
-        if slug and _slug_aide_a_venir(slug) and not _deja_engage(supabase, user_id, slug):
-            raise HTTPException(
-                status_code=402,
-                detail="Passez à l'offre Veille pour consulter les aides qui ouvrent bientôt.",
-            )
+    # Le slug est résolu une seule fois : le paywall des aides à venir et le
+    # retrait du catalogue se prononcent tous les deux dessus. Une ligne
+    # `aides_v3` héritée sans slug laisse `None`, et l'aide est servie
+    # (fail-open : pas de faux 404 sur une donnée incomplète).
+    slug = _slug_de(supabase, aide_id)
+
+    if slug and slug in catalogue_admin.catalogue_effectif(supabase).retirees:
+        raise HTTPException(status_code=404, detail="Aide retirée du catalogue")
+
+    if (
+        slug
+        and _slug_aide_a_venir(slug)
+        and not billing.offre_du_compte(supabase, user_id).aides_bientot
+        and not _deja_engage(supabase, user_id, slug)
+    ):
+        raise HTTPException(
+            status_code=402,
+            detail="Passez à l'offre Veille pour consulter les aides qui ouvrent bientôt.",
+        )
 
     if _is_uuid(aide_id):
         result = supabase.table("aides_v3").select("*").eq("id", aide_id).maybe_single().execute()
@@ -388,15 +409,31 @@ def deterministic_diagnostic_for(
     monument: dict,
     population: int | None,
     answers: dict[str, object] | None,
+    *,
+    supabase: Client | None = None,
 ) -> dict:
     """Lance le moteur déterministe et rend le résultat prêt pour le frontend.
 
     Purement CPU (les YAML sont en cache, ~2 ms par monument) : aucun appel
     réseau, d'où la possibilité de l'exécuter pour tous les projets d'un coup
     dans /dashboard.
+
+    Un seul funnel sert TOUS les diagnostics du produit (route projet, route
+    invité, dashboard) : c'est donc ici, et nulle part ailleurs, que s'applique
+    la surcouche d'administration — aides retirées du catalogue et questions
+    reformulées (cf. services/catalogue_admin). Elle couvre du même coup les
+    quatre seaux, `totalAidesAnalysees`, l'échéancier, les vignettes et le QCM.
+
+    `supabase=None` rend le moteur NU, sur les seuls YAML : c'est ce que veulent
+    les tests du moteur et les scripts hors ligne. Les trois appelants du
+    produit passent leur client.
     """
-    aides = load_all_aides()
-    facts = {**load_facts(), **load_pending_facts()}
+    if supabase is not None:
+        catalogue = catalogue_admin.catalogue_effectif(supabase)
+        aides, facts = catalogue.aides, catalogue.facts
+    else:
+        aides = load_all_aides()
+        facts = {**load_facts(), **load_pending_facts()}
 
     try:
         result = run_deterministic_diagnostic(
@@ -486,7 +523,7 @@ def diagnostic_deterministe(
     )
 
     result = deterministic_diagnostic_for(
-        merge_projet_into_monument(monument, projet), population, answers
+        merge_projet_into_monument(monument, projet), population, answers, supabase=supabase
     )
     # Le moteur ne connaît que le monument : on stampe le projet à la frontière,
     # c'est lui qui clé le store de diagnostics et les liens d'échéance du front.
@@ -543,7 +580,7 @@ def diagnostic_invite(
     }
     monument, population = enrich_monument_with_population(supabase, monument)
 
-    result = deterministic_diagnostic_for(monument, population, body.answers)
+    result = deterministic_diagnostic_for(monument, population, body.answers, supabase=supabase)
     # Symétrie avec la route authentifiée : un visiteur est au gratuit. Sans
     # effet sur ce qui sort (aucune aide ne sort), mais le jour où la synthèse
     # s'enrichira, elle partira d'un résultat déjà caviardé.

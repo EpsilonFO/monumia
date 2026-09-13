@@ -45,7 +45,15 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from labels import (
     DEPARTEMENT_LABELS,
@@ -254,6 +262,21 @@ def evaluate_predicate(predicate: dict[str, Any], value: Any) -> bool | None:
     raise ValueError(f"opérateur inconnu : {op}")
 
 
+def predicate_leaves(predicate: dict) -> list[tuple[str, object]]:
+    """Comparaisons FEUILLES d'un prédicat, combinateurs aplatis.
+
+    `{"any_of": [{"eq": "a"}, {"in": ["b"]}]}` → `[("eq", "a"), ("in", ["b"])]`.
+    Deux usages, et c'est pourquoi la fonction vit ici plutôt que dans l'un des
+    deux : le linter vérifie que chaque valeur citée existe dans les options du
+    fait, et l'administration du catalogue cherche l'inverse — quelles aides
+    citent une option qu'on s'apprête à supprimer.
+    """
+    op, val = next(iter(predicate.items()))
+    if op in COMBINATOR_OPS:
+        return [leaf for p in val for leaf in predicate_leaves(p)]
+    return [(op, val)]
+
+
 # ---------------------------------------------------------------------------
 # Ontologie des faits
 # ---------------------------------------------------------------------------
@@ -272,6 +295,35 @@ class FactOption(BaseModel):
     # alors le fait comme inconnu (None) — la condition reste une incertitude
     # au lieu d'éliminer l'aide. Fail-closed, jamais fail-open.
     unknown: bool = False
+    # Réservé aux faits `boolean` qui déclarent leurs options : valeur de vérité
+    # que cette réponse envoie aux prédicats des aides. Permet d'offrir plus de
+    # deux réponses à une question binaire (« oui », « non », « les deux ») sans
+    # retyper un seul prédicat — ils restent `eq: true` / `eq: false`.
+    #
+    # `None` veut dire « ne tranche pas » : le fait reste inconnu, la condition
+    # reste une incertitude, l'aide n'est JAMAIS écartée. C'est la convention
+    # `None` déjà en vigueur dans `evaluate_predicate`, et elle rend la réponse
+    # inoffensive par construction.
+    #
+    # Sur un `enum` / `multi_enum`, l'identifiant EST la valeur : le champ y est
+    # interdit (cf. `_options_coherentes`).
+    valeur: bool | None = None
+
+
+# Le couple Oui/Non d'un fait `boolean` qui ne déclare RIEN. Défini une seule
+# fois : le moteur (options du QCM, normalisation des réponses) et
+# l'administration du catalogue (panneau d'édition des réponses) le lisent tous
+# les deux — deux définitions dériveraient, et un « oui » qui ne vaut plus True
+# est une élimination silencieuse.
+OPTIONS_BOOLEEN_IMPLICITES: tuple[FactOption, ...] = (
+    FactOption(id="oui", label="Oui", valeur=True),
+    FactOption(id="non", label="Non", valeur=False),
+)
+
+# Types dont les réponses viennent de la DÉCLARATION du fait, donc éditables.
+# Les tranches d'un `integer` / `number` sont fabriquées par le moteur depuis
+# les seuils des prédicats : elles n'ont rien à faire dans le YAML.
+TYPES_A_OPTIONS = ENUM_FACT_TYPES | {"boolean"}
 
 
 class Levier(BaseModel):
@@ -322,13 +374,65 @@ class FactDef(BaseModel):
     # bloquées uniquement là-dessus passent en statut « atteignable » au lieu
     # d'être refusées (cf. Levier).
     levier: Levier | None = None
+    # Fait qu'AUCUNE condition ne doit gater : sa réponse ne trie rien (seuil
+    # quasi universel) ou n'a pas de sens avant le montage du dossier. Le lint
+    # refuse un gate dessus et `detail_fait` le dit à l'agent. Archétype :
+    # autofinancement_pct — cf. TYPING « manual_check + effect: info ». Le
+    # 2026-09-09, cinq aides d'un même lot ont regaté dessus : la règle ne
+    # vivait que dans un commentaire YAML, que personne ne lit à la machine.
+    hors_gate: bool = False
 
     @model_validator(mode="after")
-    def _options_iff_enum(self) -> FactDef:
+    def _options_coherentes(self) -> FactDef:
+        """Cinq règles, dont la première porte toute la compatibilité ascendante.
+
+        Un `boolean` PEUT déclarer ses options (pour offrir plus de deux
+        réponses), mais il doit alors garder `oui`/`non` avec leurs valeurs
+        d'origine : c'est ce qui rend l'ajout INERTE pour les réponses déjà
+        persistées dans `projets.questionnaire`, et ce qui garantit que les deux
+        valeurs de vérité restent atteignables — un booléen dont plus aucune
+        réponse ne vaut `false` rendrait ses gates impossibles à échouer.
+        """
         if self.type in ENUM_FACT_TYPES and not self.options:
             raise ValueError(f"un fait de type {self.type} doit définir `options`")
-        if self.type not in ENUM_FACT_TYPES and self.options:
-            raise ValueError("`options` est réservé aux faits enum / multi_enum")
+        # R5 — les tranches d'un fait numérique viennent des seuils des aides.
+        if self.type not in TYPES_A_OPTIONS and self.options:
+            raise ValueError("`options` est réservé aux faits enum / multi_enum / boolean")
+        if not self.options:
+            return self
+
+        # R3 — identifiants uniques.
+        ids = [o.id for o in self.options]
+        doublons = sorted({i for i in ids if ids.count(i) > 1})
+        if doublons:
+            raise ValueError(f"identifiants d'options en double : {', '.join(doublons)}")
+
+        for o in self.options:
+            # R2 — sur un fait à choix, l'identifiant EST la valeur.
+            if self.type in ENUM_FACT_TYPES and o.valeur is not None:
+                raise ValueError(
+                    f"`valeur` est réservé aux faits boolean ; option « {o.id} » "
+                    f"d'un fait {self.type}"
+                )
+            # R4 — une réponse « je ne sais pas » ne tranche rien, par définition.
+            if o.unknown and o.valeur is not None:
+                raise ValueError(f"option « {o.id} » : `unknown: true` exclut `valeur`")
+
+        if self.type == "boolean":
+            # R1 — le couple implicite doit survivre à la déclaration.
+            par_id = {o.id: o for o in self.options}
+            for attendu in OPTIONS_BOOLEEN_IMPLICITES:
+                presente = par_id.get(attendu.id)
+                if presente is None:
+                    raise ValueError(
+                        f"un fait boolean qui déclare ses options doit garder "
+                        f"« {attendu.id} » (les réponses déjà enregistrées en dépendent)"
+                    )
+                if presente.valeur is not attendu.valeur:
+                    raise ValueError(
+                        f"option « {attendu.id} » : valeur attendue {attendu.valeur}, "
+                        f"reçu {presente.valeur}"
+                    )
         return self
 
 
@@ -342,6 +446,45 @@ OPS_BY_FACT_TYPE: dict[str, frozenset[str]] = {
     # opérateurs qu'un enum, `contains` n'a rien à y faire.
     "multi_enum": frozenset({"eq", "neq", "in", "not_in"}),
 }
+
+
+def check_fact_predicate(
+    where: str,
+    fact_key: str | None,
+    predicate: Predicate,
+    facts: dict[str, FactDef],
+) -> list[str]:
+    """Le prédicat est-il posable sur ce fait ? Liste d'erreurs, vide si tout va.
+
+    Remontée du linter le 2026-09-13, pour la même raison que `predicate_leaves`
+    avant elle : un SECOND usager au runtime. L'administration du catalogue
+    laisse modifier le prédicat d'une condition depuis `/admin`, et la validation
+    doit y être MOT POUR MOT celle du lint — deux validations qui divergent, et
+    la surcouche accepterait ce que le YAML refuse.
+
+    Le lint réimporte le nom, donc `veille_apply` et `veille_typage` continuent
+    de faire `from lint_aides_data import check_fact_predicate` sans changement.
+    Bénéfice de bord : la fonction gagne le type-check de pyright, qui n'analyse
+    pas `scripts/`.
+    """
+    errors: list[str] = []
+    fact = facts.get(fact_key or "")
+    if fact is None:
+        errors.append(f"{where}: fait inconnu « {fact_key} » (absent de facts.yaml)")
+        return errors
+    allowed_ops = OPS_BY_FACT_TYPE[fact.type]
+    for op, val in predicate_leaves(predicate.root):
+        if op not in allowed_ops:
+            errors.append(f"{where}: opérateur « {op} » invalide pour un fait {fact.type}")
+        if fact.type in ENUM_FACT_TYPES:
+            option_ids = {o.id for o in fact.options or []}
+            vals = val if isinstance(val, list) else [val]
+            bad = [v for v in vals if v not in option_ids]
+            if bad:
+                errors.append(f"{where}: valeur(s) hors options du fait : {bad}")
+        if fact.type == "boolean" and not isinstance(val, bool):
+            errors.append(f"{where}: un fait boolean se compare à true/false, reçu {val!r}")
+    return errors
 
 
 # ---------------------------------------------------------------------------
@@ -719,10 +862,25 @@ class Aide(BaseModel):
 # retournées sont PARTAGÉES entre requêtes — ne jamais les modifier en place.
 
 
+def _valider_faits(raw: dict, origine: Path) -> dict[str, FactDef]:
+    """Valide une ontologie en NOMMANT la clé fautive.
+
+    Sans ça, l'erreur pydantic d'une option mal déclarée arrive sans son fait :
+    illisible dans la sortie du lint, qui charge les 900 faits d'un coup.
+    """
+    faits: dict[str, FactDef] = {}
+    for key, val in raw.items():
+        try:
+            faits[key] = FactDef.model_validate(val)
+        except ValidationError as exc:
+            raise ValueError(f"{origine.name} — fait « {key} » : {exc}") from exc
+    return faits
+
+
 @cache
 def load_facts(path: Path = FACTS_FILE) -> dict[str, FactDef]:
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return {key: FactDef.model_validate(val) for key, val in raw.items()}
+    return _valider_faits(raw, path)
 
 
 @cache
@@ -731,7 +889,7 @@ def load_pending_facts(path: Path = FACTS_PENDING_FILE) -> dict[str, FactDef]:
     if not path.exists():
         return {}
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return {key: FactDef.model_validate(val) for key, val in raw.items()}
+    return _valider_faits(raw, path)
 
 
 def load_aide(path: Path) -> Aide:

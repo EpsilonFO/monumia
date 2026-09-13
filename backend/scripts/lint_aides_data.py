@@ -28,17 +28,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from aides_schema import (
     AIDES_DIR,
-    COMBINATOR_OPS,
-    ENUM_FACT_TYPES,
     FIELD_REGISTRY,
-    OPS_BY_FACT_TYPE,
     OPS_BY_FIELD_TYPE,
     Aide,
     FactDef,
     Predicate,
+    # Remontée dans aides_schema (second usager au runtime : /admin). Réimportée
+    # ici parce que `veille_apply` et `veille_typage` l'importent DU LINT.
+    check_fact_predicate,
     load_aide,
     load_facts,
     load_pending_facts,
+    predicate_leaves,
 )
 
 # Kinds dont la condition est opposable à une source : la quote y est attendue
@@ -87,39 +88,6 @@ def check_manual_check_ratchet(counts: dict[str, dict[str, int]]) -> list[str]:
     return errors
 
 
-def _leaf_ops_and_values(predicate: dict) -> list[tuple[str, object]]:
-    op, val = next(iter(predicate.items()))
-    if op in COMBINATOR_OPS:
-        return [leaf for p in val for leaf in _leaf_ops_and_values(p)]
-    return [(op, val)]
-
-
-def check_fact_predicate(
-    where: str,
-    fact_key: str | None,
-    predicate: Predicate,
-    facts: dict[str, FactDef],
-) -> list[str]:
-    errors: list[str] = []
-    fact = facts.get(fact_key or "")
-    if fact is None:
-        errors.append(f"{where}: fait inconnu « {fact_key} » (absent de facts.yaml)")
-        return errors
-    allowed_ops = OPS_BY_FACT_TYPE[fact.type]
-    for op, val in _leaf_ops_and_values(predicate.root):
-        if op not in allowed_ops:
-            errors.append(f"{where}: opérateur « {op} » invalide pour un fait {fact.type}")
-        if fact.type in ENUM_FACT_TYPES:
-            option_ids = {o.id for o in fact.options or []}
-            vals = val if isinstance(val, list) else [val]
-            bad = [v for v in vals if v not in option_ids]
-            if bad:
-                errors.append(f"{where}: valeur(s) hors options du fait : {bad}")
-        if fact.type == "boolean" and not isinstance(val, bool):
-            errors.append(f"{where}: un fait boolean se compare à true/false, reçu {val!r}")
-    return errors
-
-
 def check_field_predicate(where: str, field: str | None, predicate: Predicate) -> list[str]:
     errors: list[str] = []
     spec = FIELD_REGISTRY.get(field or "")
@@ -128,7 +96,7 @@ def check_field_predicate(where: str, field: str | None, predicate: Predicate) -
         return errors
     allowed_ops = OPS_BY_FIELD_TYPE[spec["type"]]
     values = spec.get("values")
-    for op, val in _leaf_ops_and_values(predicate.root):
+    for op, val in predicate_leaves(predicate.root):
         if op not in allowed_ops:
             errors.append(f"{where}: opérateur « {op} » invalide pour un champ {spec['type']}")
         if values is not None:
@@ -173,6 +141,36 @@ def check_aide(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
     return errors
 
 
+def check_hors_gate(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
+    """Aucun gate, aucun périmètre sur un fait marqué `hors_gate`.
+
+    Miroir, côté pipeline, du test de corpus
+    `test_corpus_autofinancement_ne_gate_plus_nulle_part` : l'agent d'ingestion
+    voit le lint, jamais pytest.
+    """
+    conseil = "typer manual_check + info (TYPING, « manual_check + effect: info »)"
+    erreurs: list[str] = []
+
+    def _hors_gate(fact: str | None) -> bool:
+        return bool(fact) and fact in facts and facts[fact].hors_gate
+
+    if aide.applies_if and _hors_gate(aide.applies_if.fact):
+        erreurs.append(
+            f"{aide.slug} / applies_if: fait « {aide.applies_if.fact} » hors_gate — {conseil}"
+        )
+    for cond in aide.conditions:
+        where = f"{aide.slug} / {cond.id}"
+        if cond.effect == "gate" and _hors_gate(cond.fact):
+            erreurs.append(
+                f"{where}: gate sur le fait « {cond.fact} » marqué hors_gate — {conseil}"
+            )
+        if cond.applies_if and _hors_gate(cond.applies_if.fact):
+            erreurs.append(
+                f"{where}: applies_if sur le fait « {cond.applies_if.fact} » hors_gate — {conseil}"
+            )
+    return erreurs
+
+
 def check_facts(facts: dict[str, FactDef]) -> list[str]:
     return [
         f"facts.yaml / {key}: auto_source « {f.auto_source} » absent de FIELD_REGISTRY"
@@ -208,6 +206,7 @@ def main() -> int:
             continue
         aides.append(aide)
         errors.extend(check_aide(aide, facts))
+        errors.extend(check_hors_gate(aide, facts))
 
     kinds = Counter(c.kind for a in aides for c in a.conditions)
     # Usage : conditions ET clauses applies_if — un fait seulement ciblé par

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
   IconEnregistrer,
@@ -9,6 +9,7 @@ import {
   IconProtection,
   IconSucces,
   IconDeconnexion,
+  IconReglages,
 } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +18,7 @@ import { computeProfileCompletion } from '@/lib/profile-completion';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { isValidPhone } from '@/lib/phone';
+import { ROUTES } from '@/constants/routes';
 
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user);
@@ -213,6 +215,33 @@ export function ProfilePage() {
           )}
         </div>
       </Panel>
+
+      {/* ═════════ ADMINISTRATION ═════════
+          Discrète et réservée : la seule porte vers `/admin`, qui ne figure
+          dans aucune navigation. Les onglets de l'application sont les mêmes
+          pour tout le monde, une page d'exploitation n'a rien à y faire. */}
+      {currentUser.estAdmin && (
+        <Panel>
+          <PanelHeader
+            icon={<IconReglages className="h-4 w-4 text-primary" strokeWidth={1.8} />}
+            title="Administration du catalogue"
+          />
+          <div className="px-6 py-5">
+            <p className="text-[14px]" style={{ color: C.grayFg }}>
+              Retirer une aide du catalogue, reformuler une question du questionnaire. Les
+              modifications s'appliquent au prochain chargement de page des utilisateurs.
+            </p>
+            <Link
+              to={ROUTES.ADMIN}
+              className="mt-3 inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-[14px] font-semibold transition-colors hover:bg-[var(--secondary)]"
+              style={{ borderColor: C.border, color: C.blue }}
+            >
+              <IconReglages className="h-4 w-4" />
+              Ouvrir l'administration
+            </Link>
+          </div>
+        </Panel>
+      )}
 
       {/* ═════════ DÉCONNEXION ═════════ */}
       <div className="pb-2">

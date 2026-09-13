@@ -8,6 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from supabase import Client
 
+from config import est_admin
 from db import get_anon_supabase, get_current_auth_user, get_current_user_id, get_supabase
 from services import stripe_billing as billing
 
@@ -152,6 +153,11 @@ def _get_profile(supabase: Client, user_id: str) -> dict:
     if "account_type" in profile:
         profile["accountType"] = profile.pop("account_type")
     # `metier` reste tel quel (déjà en une seule clé compatible)
+
+    # Administration du catalogue : un CONFORT d'affichage (le lien vers /admin
+    # dans le profil, le garde de route côté SPA). L'autorité reste
+    # `require_admin`, sur chaque route du router d'administration.
+    profile["estAdmin"] = est_admin(user_id)
 
     return profile
 

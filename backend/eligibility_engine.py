@@ -31,6 +31,7 @@ from typing import Literal
 
 from aides_schema import (
     ENUM_FACT_TYPES,
+    OPTIONS_BOOLEEN_IMPLICITES,
     ROLE_BY_TYPE,
     Aide,
     AppliesIf,
@@ -171,12 +172,26 @@ def _tranche_repr(option_id: str):
 
 def _normalize_answer(fact: FactDef | None, raw):
     """Convertit une réponse du QCM (id d'option) vers la valeur typée attendue
-    par les prédicats : oui/non → bool, tranche numérique → représentant, enum →
-    id (déjà la valeur), multi_enum → MultiValue des ids cochés, `skip`/option
-    `unknown` → None (fait non renseigné).
+    par les prédicats : réponse d'un booléen → sa `valeur` déclarée, tranche
+    numérique → représentant, enum → id (déjà la valeur), multi_enum →
+    MultiValue des ids cochés, `skip`/option `unknown` → None (fait non
+    renseigné).
 
     Sans cette normalisation, passer l'id brut « non » à un prédicat `eq: false`
     donnerait `"non" == False` → False, marquant l'aide non éligible à tort.
+
+    Un fait `boolean` qui ne déclare rien retombe sur OPTIONS_BOOLEEN_IMPLICITES
+    (« oui » → True, « non » → False) : ajouter des options à un booléen est donc
+    strictement inerte pour les réponses déjà persistées, puisque R1 impose que
+    le couple y survive. Une option de `valeur` nulle rend None — le fait reste
+    inconnu, l'aide n'est jamais écartée.
+
+    Un id d'option INCONNU du fait vaut fait non renseigné, jamais valeur
+    brute : les réponses sont persistées dans `projets.questionnaire` et les
+    options d'un fait peuvent changer sous elles (correction de `facts.yaml`,
+    reformulation depuis /admin). Une réponse devenue orpheline éliminerait
+    sinon des aides pour toujours, sans que personne puisse la corriger — c'est
+    exactement le cas que le principe fail-closed du moteur doit couvrir.
     """
     if raw is None or raw == "skip":
         return None
@@ -185,24 +200,23 @@ def _normalize_answer(fact: FactDef | None, raw):
     if fact.type == "boolean":
         if isinstance(raw, bool):
             return raw
-        if raw == "oui":
-            return True
-        if raw == "non":
-            return False
+        for opt in fact.options or OPTIONS_BOOLEEN_IMPLICITES:
+            if opt.id == raw:
+                return None if opt.unknown else opt.valeur
         return None
     if fact.type == "multi_enum":
         # Le front envoie une liste d'ids ; une réponse d'avant le passage en
         # choix multiple (chaîne unique, déjà persistée dans
         # `monuments.questionnaire`) reste lisible telle quelle.
         raws = raw if isinstance(raw, (list, tuple)) else [raw]
-        unknown_ids = {o.id for o in fact.options or [] if o.unknown}
-        kept = [v for v in raws if isinstance(v, str) and v != "skip" and v not in unknown_ids]
+        connues = {o.id for o in fact.options or [] if not o.unknown}
+        kept = [v for v in raws if isinstance(v, str) and v in connues]
         return MultiValue(kept) if kept else None
     if fact.type == "enum":
         for opt in fact.options or []:
-            if opt.id == raw and opt.unknown:
-                return None
-        return raw
+            if opt.id == raw:
+                return None if opt.unknown else raw
+        return None
     if fact.type in ("integer", "number"):
         if isinstance(raw, (int, float)) and not isinstance(raw, bool):
             return raw
@@ -966,9 +980,12 @@ def _options_for_fact(fact: FactDef, gate_conds: list[Condition]) -> list[dict]:
     """Options d'une question, selon le type du fait. Chaque option a `value`
     (à injecter pour calculer l'élimination) ou `repr` (numérique)."""
     if fact.type == "boolean":
+        # Un booléen peut déclarer plus de deux réponses, chacune disant la
+        # valeur qu'elle envoie aux prédicats (cf. FactOption.valeur). Sans
+        # déclaration, le couple implicite — même liste que `_normalize_answer`.
         return [
-            {"id": "oui", "label": "Oui", "value": True},
-            {"id": "non", "label": "Non", "value": False},
+            {"id": o.id, "label": o.label, "value": o.valeur, "unknown": o.unknown}
+            for o in fact.options or OPTIONS_BOOLEEN_IMPLICITES
         ]
     if fact.type in ENUM_FACT_TYPES:
         return [
@@ -1185,8 +1202,23 @@ def build_questions(
         # `unknown` est remonté au front : ces options portent un « ? » plutôt
         # qu'une pastille lettrée, ne comptent pour aucune élimination, et sont
         # exclusives des autres en choix multiple.
+        # Quand le fait DÉCLARE ses options, `unknown` part explicitement — y
+        # compris `false` : le front n'a alors plus à deviner au libellé quelle
+        # réponse est une échappatoire (cf. unknownAnswer.ts), et une réponse de
+        # plein droit nommée « Je ne sais pas trop » garde sa pastille lettrée.
+        # Les options FABRIQUÉES par le moteur (tranches numériques, couple
+        # booléen implicite) gardent l'ancien contrat : rien à déclarer.
+        declare = bool(fact.options)
         shown_options = [
-            {"id": o["id"], "label": o["label"], **({"unknown": True} if o.get("unknown") else {})}
+            {
+                "id": o["id"],
+                "label": o["label"],
+                **(
+                    {"unknown": bool(o.get("unknown"))}
+                    if declare
+                    else ({"unknown": True} if o.get("unknown") else {})
+                ),
+            }
             for o in options
         ]
         # Le pseudo-choix « passer » n'a pas de sens en choix multiple : ne rien
