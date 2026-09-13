@@ -588,6 +588,42 @@ class TestQuestionGeneration(unittest.TestCase):
             "drac-mh-classes", q_travaux["eliminationsParOption"].get("non_commences", [])
         )
 
+    def test_fait_porteur_de_levier_n_elimine_jamais(self):
+        """Un gate en échec sur un fait ACTIONNABLE rend l'aide « à débloquer »,
+        pas refusée. L'annoncer comme éliminée ferait tomber du questionnaire
+        les autres questions de l'aide (`isQuestionServingLiveAide` côté front),
+        qui reviendrait ensuite avec des critères jamais posés."""
+        aide = _fixture_aide(
+            [
+                self._gate("s_engage_ouverture_public", {"eq": True}),
+                self._gate("erp", {"eq": True}),
+            ]
+        )
+        questions = {q["id"]: q for q in self._questions([aide])}
+        self.assertEqual(questions["s_engage_ouverture_public"]["eliminationsParOption"], {})
+
+        # Le refus assumé : l'aide survit en « atteignable », et sa seconde
+        # question garde donc tout son sens.
+        res = run_deterministic_diagnostic(
+            {aide.slug: aide}, FACTS, _monument(), 3000, {"s_engage_ouverture_public": False}
+        )
+        self.assertEqual([m["aide"]["id"] for m in res["aidesAtteignables"]], [aide.slug])
+        self.assertIn("erp", [q["id"] for q in res["qcmQuestions"]])
+
+    def test_gate_a_derogation_n_elimine_jamais(self):
+        """`derogation_possible` dégrade l'échec en incertitude : l'aide reste
+        potentielle. Même question, même option, seule la version ferme tombe."""
+        souple = _fixture_aide(
+            [self._gate("etat_travaux", {"eq": "non_commences"}, derogation_possible=True)],
+            slug="fx-souple",
+        )
+        ferme = _fixture_aide(
+            [self._gate("etat_travaux", {"eq": "non_commences"})],
+            slug="fx-ferme",
+        )
+        q_travaux = {q["id"]: q for q in self._questions([souple, ferme])}["etat_travaux"]
+        self.assertEqual(q_travaux["eliminationsParOption"]["en_cours"], ["fx-ferme"])
+
     def test_skip_never_eliminates(self):
         m = _monument()
         res = run_deterministic_diagnostic(AIDES, FACTS, m, 3000)
@@ -595,7 +631,12 @@ class TestQuestionGeneration(unittest.TestCase):
             self.assertNotIn("skip", q["eliminationsParOption"])
 
     @staticmethod
-    def _gate(fact: str, predicate: dict, applies_if: dict | None = None) -> dict:
+    def _gate(
+        fact: str,
+        predicate: dict,
+        applies_if: dict | None = None,
+        derogation_possible: bool = False,
+    ) -> dict:
         cond = {
             "id": f"c-{fact.replace('_', '-')}",
             "text": f"Condition sur {fact}",
@@ -605,6 +646,8 @@ class TestQuestionGeneration(unittest.TestCase):
         }
         if applies_if:
             cond["applies_if"] = applies_if
+        if derogation_possible:
+            cond["derogation_possible"] = True
         return cond
 
     def _questions(self, aides: list[Aide], answers=None) -> list[dict]:
