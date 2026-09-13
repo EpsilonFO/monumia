@@ -328,6 +328,11 @@ def index_faits(facts: dict[str, FactDef], pending: dict[str, FactDef]) -> str:
     lignes.append("")
     lignes.append("`*` sur une option = réponse « je ne sais pas » (le moteur la traite")
     lignes.append("comme un fait inconnu, jamais comme un « non »).")
+    lignes.append("")
+    lignes.append("Un fait `boolean` peut lui aussi porter des options : la question offre")
+    lignes.append("alors plus de deux réponses, chacune envoyant true, false ou « rien »")
+    lignes.append("aux prédicats. Cela NE CHANGE RIEN au typage d'une condition — un gate")
+    lignes.append("sur un booléen se pose toujours `{eq: true}` ou `{eq: false}`.")
     return "\n".join(lignes)
 
 

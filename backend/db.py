@@ -7,6 +7,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from supabase import Client, ClientOptions, create_client
 
+from config import est_admin
+
 load_dotenv()
 load_dotenv(".env.local", override=True)  # local overrides, gitignored
 
@@ -150,3 +152,18 @@ def get_current_auth_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token invalide ou expiré",
         ) from e
+
+
+def require_admin(user_id: str = Depends(get_current_user_id)) -> str:
+    """Réserve une route à l'administration du catalogue (cf. `config.est_admin`).
+
+    403 et non 404 : la route existe, elle n'est simplement pas pour ce compte.
+    Le profil porte `estAdmin` pour l'affichage, mais c'est ici qu'est
+    l'autorité — un bouton caché ne protège rien.
+    """
+    if not est_admin(user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès réservé à l'administration",
+        )
+    return user_id
