@@ -1066,9 +1066,12 @@ def build_questions(
     éliminations) et les faits PASSERELLES (`gateway_facts`, qui débloquent
     l'applicabilité d'une condition sans jamais éliminer personne).
 
-    eliminationsParOption[option] = aides dont un gate sur ce fait devient
-    IMPOSSIBLE si l'utilisateur choisit cette option — calculé en évaluant le
-    prédicat à la valeur de l'option. Exact, pas de réparation de monotonie.
+    eliminationsParOption[option] = aides que cette option REFUSE vraiment, au
+    sens du statut `non_eligible` — calculé en évaluant le prédicat à la valeur
+    de l'option. Exact, pas de réparation de monotonie. Un gate en échec qui
+    n'est pas dirimant (fait porteur d'un `levier`, condition à
+    `derogation_possible`) n'y entre donc pas : l'aide reste vivante, et le
+    front doit continuer de poser ses autres questions.
 
     Sur une question à choix multiple (`multiple: true`), chaque entrée vaut
     « si c'était la seule case cochée » : cocher une case de plus ne peut que
@@ -1149,16 +1152,30 @@ def build_questions(
             continue
 
         elim: dict[str, list[str]] = {}
+        # Un fait porteur d'un levier n'élimine JAMAIS : son gate en échec rend
+        # l'aide « à débloquer » (cf. evaluate_aide), pas refusée.
+        fait_dirimant = fact.levier is None
         for opt in options:
             if opt.get("unknown"):
                 continue  # option « pas encore choisi » : n'élimine jamais
             test_value = opt.get("value", opt.get("repr"))
             eliminated = []
             for slug, conds in aides_conds.items():
-                # L'aide est éliminée si AU MOINS un de ses gates sur ce fait
-                # devient faux à cette valeur. Les gates synthétiques des faits
-                # passerelles sont exclus : ils libèrent, ils n'éliminent pas.
-                if any(evaluate_predicate(c.predicate.root, test_value) is False for c in conds):
+                # L'aide est éliminée si AU MOINS un de ses gates DIRIMANTS sur
+                # ce fait devient faux à cette valeur. Les gates synthétiques des
+                # faits passerelles sont exclus : ils libèrent, ils n'éliminent
+                # pas. Un gate à `derogation_possible` ne l'est pas davantage :
+                # son échec dégrade en incertitude, l'aide reste potentielle.
+                #
+                # Annoncer ici une élimination que le moteur n'applique pas
+                # coûte cher : le front élague le questionnaire sur cette liste
+                # (`isQuestionServingLiveAide`), et l'aide, toujours vivante,
+                # revient avec des critères jamais posés.
+                if fait_dirimant and any(
+                    evaluate_predicate(c.predicate.root, test_value) is False
+                    and not c.derogation_possible
+                    for c in conds
+                ):
                     eliminated.append(slug)
             if eliminated:
                 elim[opt["id"]] = sorted(eliminated)
