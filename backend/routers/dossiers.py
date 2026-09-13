@@ -14,6 +14,7 @@ from supabase import Client
 
 from db import get_current_user_id, get_supabase
 from routers.monuments import enrich_monument_with_population
+from services import catalogue_admin
 from services.dossier_service import create_dossier_from_aide
 from services.piece_reuse import apply_reuse
 from services.project_access import (
@@ -448,6 +449,14 @@ def create_dossier(
     aide_result = aide_query.maybe_single().execute()
     if not aide_result or not aide_result.data:
         raise HTTPException(status_code=404, detail="Aide introuvable")
+
+    # Une aide retirée du catalogue par l'administration ne s'ouvre plus, même
+    # pour qui la suivait déjà : c'est le sens du retrait — l'aide s'est
+    # révélée fausse ou disparue, monter un dossier dessus est une perte de
+    # temps. Le contrôle est ici ET sur GET /aides/{id}, les deux seules portes.
+    aide_slug = aide_result.data.get("slug")
+    if aide_slug and aide_slug in catalogue_admin.catalogue_effectif(supabase).retirees:
+        raise HTTPException(status_code=404, detail="Aide retirée du catalogue")
 
     # Fetch user profile
     user_result = supabase.table("users").select("*").eq("id", user_id).single().execute()

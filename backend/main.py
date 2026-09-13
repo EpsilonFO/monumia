@@ -7,6 +7,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from config import ALLOWED_ORIGINS
 from logging_config import setup_logging
 from routers import (
+    admin,
     aides,
     auth,
     billing,
@@ -55,6 +56,7 @@ app.add_middleware(
 )
 
 app.include_router(merimee.router)
+app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(monuments.router)
 app.include_router(projets.router)

@@ -10,6 +10,8 @@ import { BlogIndexPage } from '@/pages/blog/BlogIndexPage';
 import { BlogCategoryPage } from '@/pages/blog/BlogCategoryPage';
 import { BlogArticlePage } from '@/pages/blog/BlogArticlePage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { AdminRoute } from '@/components/auth/AdminRoute';
+import { AdminPage } from '@/pages/admin/AdminPage';
 // Owner / Commune pages
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { MonumentsListPage } from '@/pages/monuments/MonumentsListPage';
@@ -218,6 +220,20 @@ export const router = createBrowserRouter([
       { path: 'aides', element: <Navigate to={ROUTES.MONUMENTS} replace /> },
       { path: 'aides/:aideId', element: <Navigate to={ROUTES.MONUMENTS} replace /> },
     ],
+  },
+
+  // Administration du catalogue (fondateurs). Hors de `/app` mais dans le même
+  // shell : la barre haute reste, on n'a pas quitté l'application.
+  {
+    path: '/admin',
+    element: (
+      <ProtectedRoute>
+        <AdminRoute>
+          <AppLayout />
+        </AdminRoute>
+      </ProtectedRoute>
+    ),
+    children: [{ index: true, element: <AdminPage /> }],
   },
 
   // Catch-all → login

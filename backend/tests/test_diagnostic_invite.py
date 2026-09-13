@@ -123,7 +123,7 @@ class _Capture:
         self.answers: dict | None = None
         self._result = result if result is not None else {"qcmQuestions": []}
 
-    def __call__(self, monument, population, answers):
+    def __call__(self, monument, population, answers, **_kw):
         self.monument = monument
         self.population = population
         self.answers = answers
