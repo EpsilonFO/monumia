@@ -28,17 +28,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from aides_schema import (
     AIDES_DIR,
-    COMBINATOR_OPS,
-    ENUM_FACT_TYPES,
     FIELD_REGISTRY,
-    OPS_BY_FACT_TYPE,
     OPS_BY_FIELD_TYPE,
     Aide,
     FactDef,
     Predicate,
+    # Remontée dans aides_schema (second usager au runtime : /admin). Réimportée
+    # ici parce que `veille_apply` et `veille_typage` l'importent DU LINT.
+    check_fact_predicate,
     load_aide,
     load_facts,
     load_pending_facts,
+    predicate_leaves,
 )
 
 # Kinds dont la condition est opposable à une source : la quote y est attendue
@@ -87,39 +88,6 @@ def check_manual_check_ratchet(counts: dict[str, dict[str, int]]) -> list[str]:
     return errors
 
 
-def _leaf_ops_and_values(predicate: dict) -> list[tuple[str, object]]:
-    op, val = next(iter(predicate.items()))
-    if op in COMBINATOR_OPS:
-        return [leaf for p in val for leaf in _leaf_ops_and_values(p)]
-    return [(op, val)]
-
-
-def check_fact_predicate(
-    where: str,
-    fact_key: str | None,
-    predicate: Predicate,
-    facts: dict[str, FactDef],
-) -> list[str]:
-    errors: list[str] = []
-    fact = facts.get(fact_key or "")
-    if fact is None:
-        errors.append(f"{where}: fait inconnu « {fact_key} » (absent de facts.yaml)")
-        return errors
-    allowed_ops = OPS_BY_FACT_TYPE[fact.type]
-    for op, val in _leaf_ops_and_values(predicate.root):
-        if op not in allowed_ops:
-            errors.append(f"{where}: opérateur « {op} » invalide pour un fait {fact.type}")
-        if fact.type in ENUM_FACT_TYPES:
-            option_ids = {o.id for o in fact.options or []}
-            vals = val if isinstance(val, list) else [val]
-            bad = [v for v in vals if v not in option_ids]
-            if bad:
-                errors.append(f"{where}: valeur(s) hors options du fait : {bad}")
-        if fact.type == "boolean" and not isinstance(val, bool):
-            errors.append(f"{where}: un fait boolean se compare à true/false, reçu {val!r}")
-    return errors
-
-
 def check_field_predicate(where: str, field: str | None, predicate: Predicate) -> list[str]:
     errors: list[str] = []
     spec = FIELD_REGISTRY.get(field or "")
@@ -128,7 +96,7 @@ def check_field_predicate(where: str, field: str | None, predicate: Predicate) -
         return errors
     allowed_ops = OPS_BY_FIELD_TYPE[spec["type"]]
     values = spec.get("values")
-    for op, val in _leaf_ops_and_values(predicate.root):
+    for op, val in predicate_leaves(predicate.root):
         if op not in allowed_ops:
             errors.append(f"{where}: opérateur « {op} » invalide pour un champ {spec['type']}")
         if values is not None:
