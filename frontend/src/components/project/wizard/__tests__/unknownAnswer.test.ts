@@ -24,4 +24,23 @@ describe('isUnknownAnswer', () => {
     expect(isUnknownAnswer({ id: 'e', label: 'Non, aucun' })).toBe(false);
     expect(isUnknownAnswer({ id: 'f', label: 'Usage cultuel' })).toBe(false);
   });
+
+  it('le drapeau explicite `false` prime sur le libellé', () => {
+    // Quand le fait DÉCLARE ses réponses, le moteur émet `unknown` dans les
+    // deux sens : une réponse de plein droit mal nommée hériterait sinon du
+    // « ? », du tri en bas de liste et de l'exclusivité en choix multiple.
+    expect(isUnknownAnswer({ id: 'les_deux', label: 'Je ne sais pas trop', unknown: false })).toBe(
+      false,
+    );
+    expect(isUnknownAnswer({ id: 'incertain', label: 'Incertain', unknown: false })).toBe(false);
+  });
+
+  it('le repli par libellé reste pour les options fabriquées par le moteur', () => {
+    // Pas de drapeau du tout : tranches numériques, couple Oui/Non implicite.
+    expect(isUnknownAnswer({ id: 'g', label: 'Je ne sais pas' })).toBe(true);
+  });
+
+  it('le pseudo-choix « passer » reste détecté malgré l’absence de drapeau', () => {
+    expect(isUnknownAnswer({ id: 'skip', label: 'Passer cette question' })).toBe(true);
+  });
 });

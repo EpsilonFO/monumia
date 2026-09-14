@@ -1442,6 +1442,184 @@ class TestFusionMonumentProjet(unittest.TestCase):
         self.assertIs(merge_projet_into_monument(fiche, None), fiche)
 
 
+class TestBooleenAReponsesDeclarees(unittest.TestCase):
+    """Un `boolean` qui déclare ses réponses : le QCM en offre plus de deux, les
+    prédicats des aides restent `eq: true` / `eq: false`.
+
+    Le fait est SYNTHÉTIQUE : le comportement testé est celui du moteur, pas le
+    contenu (mutable) de l'ontologie.
+    """
+
+    FACT_KEY = "fixture_booleen_declare"
+
+    def _fact(self) -> FactDef:
+        return FactDef.model_validate(
+            {
+                "type": "boolean",
+                "scope": "projet",
+                "question": "Les travaux portent-ils sur la partie protégée ?",
+                "options": [
+                    {"id": "oui", "label": "Oui", "valeur": True},
+                    {"id": "non", "label": "Non", "valeur": False},
+                    {"id": "les_deux", "label": "Les deux"},
+                ],
+            }
+        )
+
+    def _facts(self) -> dict[str, FactDef]:
+        return {**FACTS, self.FACT_KEY: self._fact()}
+
+    def _aide(self) -> Aide:
+        return _fixture_aide(
+            [
+                {
+                    "id": "gate-protege",
+                    "text": "Les travaux portent sur la partie protégée.",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": self.FACT_KEY,
+                    "predicate": {"eq": True},
+                }
+            ]
+        )
+
+    def _questions(self, answers: dict | None = None) -> list[dict]:
+        res = run_deterministic_diagnostic(
+            {"fixture-aide": self._aide()},
+            self._facts(),
+            _monument(),
+            3000,
+            answers=answers,
+            today=date(2026, 2, 14),
+        )
+        return res["qcmQuestions"]
+
+    def _diagnostic(self, answers: dict) -> dict:
+        return run_deterministic_diagnostic(
+            {"fixture-aide": self._aide()},
+            self._facts(),
+            _monument(),
+            3000,
+            answers=answers,
+            today=date(2026, 2, 14),
+        )
+
+    def test_options_du_moteur_portent_les_valeurs_declarees(self):
+        opts = _options_for_fact(self._fact(), [])
+        self.assertEqual(
+            [(o["id"], o["value"]) for o in opts],
+            [("oui", True), ("non", False), ("les_deux", None)],
+        )
+
+    def test_trois_reponses_plus_passer(self):
+        question = next(q for q in self._questions() if q["id"] == self.FACT_KEY)
+        self.assertEqual([o["id"] for o in question["options"]], ["oui", "non", "les_deux", "skip"])
+
+    def test_unknown_emis_explicitement_quand_le_fait_declare(self):
+        """Le front n'a plus à deviner au libellé : `false` part sur le fil."""
+        question = next(q for q in self._questions() if q["id"] == self.FACT_KEY)
+        declarees = [o for o in question["options"] if o["id"] != "skip"]
+        self.assertTrue(all("unknown" in o for o in declarees))
+        self.assertEqual([o["unknown"] for o in declarees], [False, False, False])
+
+    def test_seule_la_reponse_contraire_elimine(self):
+        question = next(q for q in self._questions() if q["id"] == self.FACT_KEY)
+        self.assertEqual(question["eliminationsParOption"], {"non": ["fixture-aide"]})
+
+    def test_la_reponse_neutre_nest_pas_dans_les_eliminations(self):
+        question = next(q for q in self._questions() if q["id"] == self.FACT_KEY)
+        self.assertNotIn("les_deux", question["eliminationsParOption"])
+
+    def test_la_reponse_neutre_laisse_laide_en_potentiel(self):
+        """Fail-closed : valeur nulle → fait inconnu → incertitude, jamais un
+        refus. L'aide reste « à confirmer » et la question revient."""
+        res = self._diagnostic({self.FACT_KEY: "les_deux"})
+        self.assertEqual(
+            [m["aide"]["id"] for m in res["aidesPotentiellementEligibles"]], ["fixture-aide"]
+        )
+        self.assertEqual(res["aidesNonEligibles"], [])
+
+    def test_la_reponse_contraire_ecarte(self):
+        res = self._diagnostic({self.FACT_KEY: "non"})
+        self.assertEqual([m["aide"]["id"] for m in res["aidesNonEligibles"]], ["fixture-aide"])
+
+    def test_la_reponse_favorable_rend_eligible(self):
+        res = self._diagnostic({self.FACT_KEY: "oui"})
+        self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fixture-aide"])
+
+    def test_showforoptionids_inclut_la_reponse_neutre(self):
+        """Une question branchée sur ce fait doit rester posée quand la réponse
+        ne tranche pas : la condition peut encore s'appliquer (fail-closed)."""
+        aide = _fixture_aide(
+            [
+                {
+                    "id": "passerelle",
+                    "text": "Gate passerelle.",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": self.FACT_KEY,
+                    "predicate": {"eq": True},
+                },
+                {
+                    "id": "dependante",
+                    "text": "Ne s'applique qu'aux chantiers sur partie protégée.",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": "diagnostic_prealable_realise",
+                    "predicate": {"eq": True},
+                    "applies_if": {"fact": self.FACT_KEY, "predicate": {"eq": True}},
+                },
+            ]
+        )
+        res = run_deterministic_diagnostic(
+            {"fixture-aide": aide},
+            self._facts(),
+            _monument(),
+            3000,
+            today=date(2026, 2, 14),
+        )
+        dependante = next(
+            q for q in res["qcmQuestions"] if q["id"] == "diagnostic_prealable_realise"
+        )
+        self.assertEqual(dependante["dependsOn"]["questionId"], self.FACT_KEY)
+        self.assertIn("les_deux", dependante["dependsOn"]["showForOptionIds"])
+        self.assertNotIn("non", dependante["dependsOn"]["showForOptionIds"])
+
+
+class TestBooleenSansOptions(unittest.TestCase):
+    """Le cas de 562 faits : rien ne change, le couple implicite fait foi."""
+
+    def test_options_implicites(self):
+        fact = FactDef.model_validate({"type": "boolean", "scope": "projet", "question": "q ?"})
+        self.assertEqual(
+            [(o["id"], o["value"], o["unknown"]) for o in _options_for_fact(fact, [])],
+            [("oui", True, False), ("non", False, False)],
+        )
+
+    def test_unknown_reste_tu_quand_le_fait_ne_declare_rien(self):
+        """Contrat d'origine : le drapeau n'est émis que s'il vaut `true`. Le
+        repli par libellé du front (`unknownAnswer.ts`) continue de s'appliquer
+        aux options FABRIQUÉES par le moteur."""
+        aide = _fixture_aide(
+            [
+                {
+                    "id": "gate",
+                    "text": "Le diagnostic préalable est réalisé.",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": "diagnostic_prealable_realise",
+                    "predicate": {"eq": True},
+                }
+            ]
+        )
+        res = run_deterministic_diagnostic(
+            {"fixture-aide": aide}, FACTS, _monument(), 3000, today=date(2026, 2, 14)
+        )
+        question = next(q for q in res["qcmQuestions"] if q["id"] == "diagnostic_prealable_realise")
+        self.assertEqual([o["id"] for o in question["options"]], ["oui", "non", "skip"])
+        self.assertTrue(all("unknown" not in o for o in question["options"]))
+
+
 if __name__ == "__main__":
     unittest.main()
 

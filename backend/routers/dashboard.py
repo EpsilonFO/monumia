@@ -163,6 +163,7 @@ def get_dashboard(
                 merge_projet_into_monument(monument, projet),
                 population_by_code.get(monument.get("code_insee") or ""),
                 projet.get("questionnaire") or {},
+                supabase=supabase,
             ),
             monument["id"],
             projet["id"],

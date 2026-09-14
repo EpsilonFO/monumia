@@ -102,7 +102,7 @@ class _Capture:
         self.monument: dict | None = None
         self.answers = None
 
-    def __call__(self, monument, population, answers):
+    def __call__(self, monument, population, answers, **_kw):
         self.monument = monument
         self.answers = answers
         return {"aidesEligibles": []}

@@ -8,6 +8,12 @@ export interface User {
   telephone?: string;
   accountType?: 'proprietaire' | 'collaborateur';
   metier?: string;
+  /**
+   * Ce compte administre-t-il le catalogue (page `/admin`) ? Posé par le
+   * serveur depuis `ADMIN_USER_IDS`. Confort d'affichage seulement : chaque
+   * route d'administration revérifie, et répond 403 sinon.
+   */
+  estAdmin?: boolean;
 
   onboardingComplete: boolean;
   notificationPreferences: NotificationPreferences;

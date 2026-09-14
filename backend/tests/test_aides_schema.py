@@ -8,11 +8,14 @@ import unittest
 from pydantic import ValidationError
 
 from aides_schema import (
+    OPTIONS_BOOLEEN_IMPLICITES,
     ROLE_BY_TYPE,
     TYPES,
     Aide,
     Condition,
+    FactDef,
     Predicate,
+    _valider_faits,
     evaluate_predicate,
     load_all_aides,
     load_facts,
@@ -234,6 +237,154 @@ class TestCorpus(unittest.TestCase):
         self.assertEqual(by_id["mod"].effect, "modulateur")
         self.assertEqual(by_id["mc"].effect, "gate")
         self.assertEqual(by_id["nfo"].effect, "info")
+
+
+class TestOptionsDeclareesSurUnBooleen(unittest.TestCase):
+    """Les cinq règles de `_options_coherentes`.
+
+    Un `boolean` peut offrir plus de deux réponses, chacune déclarant la valeur
+    qu'elle envoie aux prédicats — lesquels restent `eq: true` / `eq: false`.
+    """
+
+    @staticmethod
+    def _fait(**extra):
+        base = {"type": "boolean", "scope": "projet", "question": "q ?"}
+        return FactDef.model_validate({**base, **extra})
+
+    OUI_NON = [
+        {"id": "oui", "label": "Oui", "valeur": True},
+        {"id": "non", "label": "Non", "valeur": False},
+    ]
+
+    def test_booleen_sans_options_reste_valide(self):
+        """Le cas de 562 faits du corpus : rien à déclarer, rien ne change."""
+        self.assertIsNone(self._fait().options)
+
+    def test_booleen_avec_une_troisieme_reponse(self):
+        fait = self._fait(
+            options=[*self.OUI_NON, {"id": "les_deux", "label": "Les deux", "valeur": None}]
+        )
+        assert fait.options is not None
+        self.assertEqual([o.id for o in fait.options], ["oui", "non", "les_deux"])
+        self.assertIsNone(fait.options[2].valeur)
+
+    # R1 — le couple implicite survit à la déclaration.
+    def test_r1_oui_manquant_refuse(self):
+        with self.assertRaises(ValidationError) as ctx:
+            self._fait(options=[{"id": "non", "label": "Non", "valeur": False}])
+        self.assertIn("oui", str(ctx.exception))
+
+    def test_r1_non_manquant_refuse(self):
+        with self.assertRaises(ValidationError):
+            self._fait(options=[{"id": "oui", "label": "Oui", "valeur": True}])
+
+    def test_r1_valeur_du_couple_non_detournee(self):
+        """« oui » qui ne vaut plus True rendrait un gate `eq: true` impossible."""
+        with self.assertRaises(ValidationError) as ctx:
+            self._fait(
+                options=[
+                    {"id": "oui", "label": "Oui", "valeur": False},
+                    {"id": "non", "label": "Non", "valeur": False},
+                ]
+            )
+        self.assertIn("valeur attendue", str(ctx.exception))
+
+    # R2 — sur un fait à choix, l'identifiant EST la valeur.
+    def test_r2_valeur_interdite_sur_un_enum(self):
+        with self.assertRaises(ValidationError) as ctx:
+            FactDef.model_validate(
+                {
+                    "type": "enum",
+                    "scope": "projet",
+                    "question": "q ?",
+                    "options": [{"id": "a", "label": "A", "valeur": True}],
+                }
+            )
+        self.assertIn("réservé aux faits boolean", str(ctx.exception))
+
+    def test_r2_valeur_interdite_sur_un_multi_enum(self):
+        with self.assertRaises(ValidationError):
+            FactDef.model_validate(
+                {
+                    "type": "multi_enum",
+                    "scope": "projet",
+                    "question": "q ?",
+                    "options": [{"id": "a", "label": "A", "valeur": False}],
+                }
+            )
+
+    # R3 — identifiants uniques.
+    def test_r3_identifiants_en_double_refuses(self):
+        with self.assertRaises(ValidationError) as ctx:
+            self._fait(options=[*self.OUI_NON, {"id": "oui", "label": "Encore oui"}])
+        self.assertIn("double", str(ctx.exception))
+
+    # R4 — une réponse neutre ne tranche rien.
+    def test_r4_unknown_exclut_valeur(self):
+        with self.assertRaises(ValidationError) as ctx:
+            self._fait(
+                options=[
+                    *self.OUI_NON,
+                    {"id": "nsp", "label": "?", "unknown": True, "valeur": True},
+                ]
+            )
+        self.assertIn("unknown", str(ctx.exception))
+
+    def test_r4_unknown_seul_accepte(self):
+        fait = self._fait(options=[*self.OUI_NON, {"id": "nsp", "label": "?", "unknown": True}])
+        assert fait.options is not None
+        self.assertTrue(fait.options[2].unknown)
+        self.assertIsNone(fait.options[2].valeur)
+
+    # R5 — les tranches d'un fait numérique viennent des seuils des aides.
+    def test_r5_options_interdites_sur_un_integer(self):
+        with self.assertRaises(ValidationError) as ctx:
+            FactDef.model_validate(
+                {
+                    "type": "integer",
+                    "scope": "projet",
+                    "question": "q ?",
+                    "options": [{"id": "a", "label": "A"}],
+                }
+            )
+        self.assertIn("réservé aux faits", str(ctx.exception))
+
+    def test_couple_implicite_expose_les_deux_valeurs(self):
+        self.assertEqual(
+            [(o.id, o.valeur) for o in OPTIONS_BOOLEEN_IMPLICITES],
+            [("oui", True), ("non", False)],
+        )
+
+
+class TestErreurNommeLaCle(unittest.TestCase):
+    """Sans la clé, l'erreur pydantic est illisible dans la sortie du lint, qui
+    charge les 900 faits de l'ontologie d'un seul coup."""
+
+    def test_le_message_porte_la_cle_du_fait(self):
+        from pathlib import Path
+
+        brut = {
+            "fait_sain": {"type": "boolean", "scope": "projet", "question": "q ?"},
+            "fait_casse": {
+                "type": "boolean",
+                "scope": "projet",
+                "question": "q ?",
+                "options": [{"id": "non", "label": "Non", "valeur": False}],
+            },
+        }
+        with self.assertRaises(ValueError) as ctx:
+            _valider_faits(brut, Path("facts.yaml"))
+        message = str(ctx.exception)
+        self.assertIn("fait_casse", message)
+        self.assertIn("facts.yaml", message)
+
+    def test_ontologie_saine_passe(self):
+        from pathlib import Path
+
+        faits = _valider_faits(
+            {"f": {"type": "boolean", "scope": "projet", "question": "q ?"}}, Path("facts.yaml")
+        )
+        self.assertEqual(list(faits), ["f"])
 
 
 if __name__ == "__main__":
