@@ -46,8 +46,10 @@ class Strategie(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: Literal["liste_html", "sitemap", "pagination", "decouverte"]
-    # sitemap
-    url: str | None = None
+    # sitemap : une URL, ou plusieurs — un site range volontiers ses appels à
+    # projets dans un sitemap distinct de son guide (Grand Est : `ge_guide` et
+    # `ge_projet`, et le second portait 13 dispositifs que personne ne voyait).
+    url: str | list[str] | None = None
     # pagination : patron d'URL contenant {n}, et les bornes du compteur
     patron: str | None = None
     de: int = 0
@@ -57,10 +59,17 @@ class Strategie(BaseModel):
     max_pages: int = 120
     profondeur: int = 2
 
+    @property
+    def urls_sitemap(self) -> list[str]:
+        """Les sitemaps à lire, qu'`url` porte une chaîne ou une liste."""
+        if not self.url:
+            return []
+        return [self.url] if isinstance(self.url, str) else list(self.url)
+
     @model_validator(mode="after")
     def _coherence(self) -> Strategie:
-        if self.type == "sitemap" and not self.url:
-            raise ValueError("une stratégie sitemap exige `url`")
+        if self.type == "sitemap" and not self.urls_sitemap:
+            raise ValueError("une stratégie sitemap exige `url` (une chaîne ou une liste non vide)")
         if self.type == "pagination":
             if not self.patron:
                 raise ValueError("une stratégie pagination exige `patron`")

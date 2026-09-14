@@ -10,11 +10,18 @@ La doctrine du tri n'est pas écrite ici : elle est EXTRAITE du skill
 d'admission »), comme le prompt d'ingestion l'est du sien. Une seule source de
 vérité pour ce qu'on retient et ce qu'on écarte.
 
-Trois précautions, toutes apprises du même travers des modèles en lot :
+Cinq précautions, toutes apprises du même travers des modèles en lot :
   - une URL absente de la réponse devient `douteux`, jamais `ecarter` — un
     oubli ne doit pas se lire comme un refus ;
   - une URL inventée est ignorée ;
-  - un lot en échec passe en entier en `douteux`, et l'étage 3 tranchera.
+  - un lot en échec passe en entier en `douteux`, et l'étage 3 tranchera ;
+  - un `ecarter` prononcé sur une candidate SANS titre ni contexte redevient
+    `douteux` : c'est la seule décision irréversible du pipeline, et la prendre
+    sur un slug d'URL a coûté 173 pages jamais ouvertes le 2026-09-08 ;
+  - une décision autre qu'`ecarter` ne peut pas être rangée `hors_perimetre`.
+
+Les deux dernières sont des garde-fous du CODE, pas du prompt : la consigne les
+dit aussi, mais un modèle en lot de 25 n'en fait qu'à sa tête une fois sur dix.
 """
 
 from __future__ import annotations
@@ -39,11 +46,20 @@ from .territoires import Territoire
 
 TAILLE_LOT = 25
 
+# Motif posé par le code, jamais par le modèle : la fiche compte les
+# requalifications dessus, et `--rejouer` doit les retrouver dans tri.jsonl.
+MOTIF_SANS_TITRE = "écart sur l'URL seule, sans titre ni contexte, requalifié en douteux"
+
 Famille = Literal[
     "restauration_bati",
-    "tourisme_hebergement",
-    "spectacles_manifestations",
+    "energie_climat",
+    "eau_nature_domaine",
+    "securite_risques",
     "parcs_jardins_paysages",
+    "tourisme_hebergement",
+    "activite_economique_lieu",
+    "spectacles_manifestations",
+    "vie_locale_associative",
     "mediation_numerique_expositions",
     "accessibilite_publics",
     "etudes_ingenierie",
@@ -52,18 +68,59 @@ Famille = Literal[
     "hors_perimetre",
 ]
 
-FAMILLES: tuple[str, ...] = (
-    "restauration_bati",
-    "tourisme_hebergement",
-    "spectacles_manifestations",
-    "parcs_jardins_paysages",
-    "mediation_numerique_expositions",
-    "accessibilite_publics",
-    "etudes_ingenierie",
-    "labels_passerelles",
-    "adjacente",
-    "hors_perimetre",
-)
+# Le `Literal` seul ne dit rien au modèle : « eau_nature_domaine » ne se devine
+# pas, et une famille mal comprise est une aide rangée n'importe où. La
+# description tient sur une ligne et part dans les deux prompts.
+FAMILLES_DESCRIPTION: dict[str, str] = {
+    "restauration_bati": (
+        "travaux sur le bâti, protégé ou non, y compris le mobilier attaché "
+        "(orgues, cloches, vitraux)"
+    ),
+    "energie_climat": (
+        "rénovation énergétique, chauffage et énergies renouvelables (géothermie, bois, "
+        "réseaux de chaleur, solaire), adaptation au changement climatique, matériaux "
+        "biosourcés, AMO énergie"
+    ),
+    "eau_nature_domaine": (
+        "eau et sécheresse, cours d'eau et plans d'eau (moulins, douves, étangs), "
+        "biodiversité, Natura 2000, forêt, vergers, haies, agriculture ou viticulture "
+        "du domaine"
+    ),
+    "securite_risques": (
+        "catastrophes naturelles, inondations, incendie, foudre, sûreté, mise en sécurité"
+    ),
+    "parcs_jardins_paysages": "parcs et jardins, arbres, paysages, abords",
+    "tourisme_hebergement": (
+        "hébergements (gîtes, chambres d'hôtes, hôtels, insolite, plein air), sites de "
+        "visite, itinérance, événementiel touristique"
+    ),
+    "activite_economique_lieu": (
+        "reconversion et nouvel usage, tiers-lieux, commerce, artisanat ou ESS installés "
+        "dans le lieu, création ou reprise d'activité, prêts, garanties et chèques "
+        "mobilisables par l'exploitant du monument"
+    ),
+    "spectacles_manifestations": (
+        "festivals, saisons, résidences, manifestations accueillies dans le monument"
+    ),
+    "vie_locale_associative": (
+        "vie associative, fêtes et initiatives locales, mémoire, langues et cultures "
+        "régionales, coopération, dont une association d'amis du monument peut bénéficier"
+    ),
+    "mediation_numerique_expositions": (
+        "signalétique, scénographie, numérique, expositions, publications, inventaire"
+    ),
+    "accessibilite_publics": "accessibilité, accueil des publics, handicap",
+    "etudes_ingenierie": "études préalables, diagnostics, ingénierie, AMO",
+    "labels_passerelles": "labels et dispositifs qui ouvrent l'accès à d'autres aides",
+    "adjacente": "utile au monument sans entrer dans une famille ci-dessus : à garder",
+    "hors_perimetre": "absolument rien à voir (voir la liste fermée du skill)",
+}
+FAMILLES: tuple[str, ...] = tuple(FAMILLES_DESCRIPTION)
+
+
+def familles_rendues() -> str:
+    return "\n".join(f"  {f} : {d}" for f, d in FAMILLES_DESCRIPTION.items())
+
 
 Decision = Literal["retenir", "ecarter", "douteux"]
 
@@ -79,7 +136,9 @@ SKILL_PROSPECTION = (
 class TriCandidat(BaseModel):
     url: str
     decision: Decision
-    famille: Famille = "hors_perimetre"
+    # `adjacente` et non `hors_perimetre` : une décision autre qu'`ecarter` ne
+    # peut pas être « rien à voir », et le défaut se lit tel quel dans la fiche.
+    famille: Famille = "adjacente"
     motif: str = Field(default="", description="Une phrase : pourquoi cette décision")
 
 
@@ -117,6 +176,7 @@ def prompt_systeme(
         [
             doctrine(skill_path),
             "---",
+            "# Familles (champ `famille`)\n" + familles_rendues(),
             f"# Territoire prospecté : {territoire.nom}",
             "Aides DÉJÀ présentes dans le catalogue pour ce territoire — les écarter\n"
             "si tu les reconnais (`decision: ecarter`, motif « déjà au catalogue ») :\n" + deja,
@@ -126,6 +186,13 @@ def prompt_systeme(
             "trancher, réponds `douteux` — la page sera ouverte et relue à l'étape\n"
             "suivante. `douteux` est une réponse normale et peu coûteuse ; `ecarter`\n"
             "à tort fait perdre une aide définitivement.\n\n"
+            "Quand le titre ET le contexte sont vides, tu ne sais RIEN de la page :\n"
+            "`ecarter` est alors interdit, réponds `douteux`. Le code convertira de\n"
+            "toute façon.\n\n"
+            "`ecarter` est réservé à ce qui n'a ABSOLUMENT rien à voir avec un\n"
+            "monument, son domaine, une activité qui s'y tient ou la structure qui le\n"
+            "porte : c'est une minorité des URL d'un guide régional. Devant un doute,\n"
+            "`douteux` ; devant une aide plausible sous UN cas d'usage, `retenir`.\n"
             "Rends une entrée par URL, avec l'URL RECOPIÉE À L'IDENTIQUE.",
         ]
     )
@@ -141,6 +208,11 @@ def _rendre_lot(lot: list[Candidat]) -> str:
         f"URL : {c.url}\nTitre : {c.titre or '(sans titre)'}\nContexte : {c.extrait or '(aucun)'}"
         for c in lot
     )
+
+
+def sans_information(c: Candidat) -> bool:
+    """Ni titre ni contexte : la seule chose connue de cette page est son URL."""
+    return not c.titre.strip() and not c.extrait.strip()
 
 
 def trier_lot(
@@ -164,13 +236,26 @@ def trier_lot(
     # les deux cas le tri ne peut que retarder une décision, jamais en prendre
     # une que le modèle n'a pas prise.
     par_url = {r.url: r for r in essai.data.resultats if r.url in connues}
-    return [
-        par_url.get(
+    sortie: list[TriCandidat] = []
+    for c in lot:
+        t = par_url.get(
             c.url,
             TriCandidat(url=c.url, decision="douteux", motif="absente de la réponse du modèle"),
         )
-        for c in lot
-    ]
+        # Une élimination est la seule décision irréversible du pipeline. Prise
+        # sur un slug d'URL, elle a perdu sécheresse, géothermie et Natura 2000
+        # le 2026-09-08 : sans titre ni contexte, elle redevient un doute.
+        if t.decision == "ecarter" and sans_information(c):
+            t = t.model_copy(
+                update={"decision": "douteux", "motif": f"{MOTIF_SANS_TITRE} ({t.motif})"}
+            )
+        # « On la garde, mais elle n'a rien à voir » ne veut rien dire : la
+        # fiche la rangerait sous une famille qui dit le contraire de la
+        # décision.
+        if t.decision != "ecarter" and t.famille == "hors_perimetre":
+            t = t.model_copy(update={"famille": "adjacente"})
+        sortie.append(t)
+    return sortie
 
 
 def trier(
@@ -208,6 +293,8 @@ def a_lire(tries: list[TriCandidat]) -> list[str]:
 
 __all__ = [
     "FAMILLES",
+    "FAMILLES_DESCRIPTION",
+    "MOTIF_SANS_TITRE",
     "SKILL_PROSPECTION",
     "TAILLE_LOT",
     "Decision",
@@ -216,8 +303,10 @@ __all__ = [
     "TriCandidat",
     "a_lire",
     "doctrine",
+    "familles_rendues",
     "lots",
     "prompt_systeme",
+    "sans_information",
     "trier",
     "trier_lot",
 ]

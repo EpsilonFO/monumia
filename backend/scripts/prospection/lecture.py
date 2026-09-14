@@ -17,6 +17,7 @@ import re
 import sys
 import unicodedata
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -30,34 +31,53 @@ from pipeline.web import Fetcheur
 
 from .collecte import Candidat, liens
 from .territoires import Territoire
-from .tri import Famille
+from .tri import SKILL_PROSPECTION, Famille, doctrine, familles_rendues
 
 MAX_CAR_PAGE = 25_000
 MAX_LIENS_DOCUMENTS = 25
 MAX_CAR_NOTE = 600
 
-CONSIGNE = """\
-Tu qualifies UNE page de dispositif d'aide pour le catalogue Monumia, qui recense
-ce qu'un propriétaire de monument historique peut mobiliser pour son bien.
+CONSIGNE_EXTRACTION = """\
+# Règles d'extraction
 
 Règle absolue : **n'invente rien**. Un montant, un taux, une liste de bénéficiaires
 qui ne figurent pas sur la page restent vides. Une colonne vide dans la fiche de
 prospection est un fait ; un chiffre plausible est un piège que personne ne
 rattrapera avant l'ingestion.
 
-`retenir` si le monument peut être le lieu, le support ou l'objet de la dépense,
-ET qu'un propriétaire (commune, EPCI, département, région, personne physique, SCI,
-association, entreprise, établissement du culte…) peut en être bénéficiaire —
-directement, ou via une association support si tu le notes.
-
 `urls_pdf` : uniquement des liens présents dans la liste fournie (règlement,
 cadre d'intervention, formulaire). N'en fabrique aucun.
 """
 
 
+@lru_cache(maxsize=4)
+def consigne(skill_path: Path = SKILL_PROSPECTION) -> str:
+    """Doctrine du skill (la même que le tri) + règles d'extraction + familles.
+
+    La lecture portait jusqu'au 2026-09-11 sa propre doctrine, écrite en dur et
+    plus étroite que celle du tri : une aide que le tri laissait passer pouvait
+    se faire recaler ici sur un critère que personne n'avait relu. Une seule
+    source, et c'est le skill.
+
+    Mémoïsé : le prompt système est le même pour toutes les pages d'un passage,
+    et relire le skill par fiche ne servirait qu'à le relire 250 fois.
+    """
+    return "\n\n".join(
+        [
+            "Tu qualifies UNE page de dispositif d'aide pour le catalogue Monumia, qui "
+            "recense ce qu'un propriétaire de monument peut mobiliser pour faire vivre son bien.",
+            doctrine(skill_path),
+            "# Familles (champ `famille`)\n" + familles_rendues(),
+            CONSIGNE_EXTRACTION,
+            "`retenir: true` par défaut. `retenir: false` UNIQUEMENT sur l'un des deux "
+            "constats certains du test d'admission, et la `note` dit lequel.",
+        ]
+    )
+
+
 class LectureFiche(BaseModel):
     retenir: bool
-    famille: Famille = "hors_perimetre"
+    famille: Famille = "adjacente"
     titre: str = Field(description="Intitulé exact du dispositif, tel qu'il apparaît sur la page")
     montant_taux: str | None = Field(
         default=None, description="Montants et taux TELS QUE la page les écrit ; None si absents"
@@ -113,6 +133,7 @@ def lire(
     client: providall.Client,
     *,
     compteur: Compteur | None = None,
+    skill_path: Path = SKILL_PROSPECTION,
 ) -> Lecture:
     """Ouvre une page candidate et la qualifie. Ne lève jamais."""
     page = fetcheur.get(candidat.url)
@@ -137,7 +158,7 @@ def lire(
             markdown[:MAX_CAR_PAGE],
         ]
     )
-    essai = client.try_complete_json(LectureFiche, prompt, system=CONSIGNE)
+    essai = client.try_complete_json(LectureFiche, prompt, system=consigne(skill_path))
     if compteur is not None:
         compteur.ajouter(essai.response, "lecture")
     if essai.data is None:
@@ -225,11 +246,12 @@ def slug_final(territoire: Territoire, propose: str, titre: str, occupes: set[st
 
 
 __all__ = [
-    "CONSIGNE",
+    "CONSIGNE_EXTRACTION",
     "MAX_CAR_PAGE",
     "Lecture",
     "LectureFiche",
     "LONGUEUR_MAX_SLUG",
+    "consigne",
     "kebab",
     "lire",
     "slug_final",

@@ -160,6 +160,14 @@ Les `.env.local` sont chargés en priorité sur les `.env`, côté backend
 LLM. `DEEPSEEK_API_KEY` et compagnie ne servent qu'aux outils hors ligne
 (ingestion d'aides, veille des sources).
 
+**Administration du catalogue.** `ADMIN_USER_IDS` liste les UUID Supabase des
+comptes qui ouvrent la page `/admin` (retirer une aide du catalogue, reformuler
+une question du questionnaire), séparés par des virgules. À renseigner **par
+environnement** — prod et beta ont chacun leur projet Supabase, donc des
+identifiants différents pour les mêmes personnes — puis à redémarrer le backend.
+Vide ou absente : aucun administrateur, et les sept routes `/admin/...`
+répondent 403.
+
 ## Hooks git
 
 Installés par `./setup.sh`.

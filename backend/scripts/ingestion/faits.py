@@ -111,7 +111,14 @@ def detail(facts: dict[str, FactDef], pending: dict[str, FactDef], fact_id: str)
         allow_unicode=True,
         sort_keys=False,
     )
-    return f"{entete}\n{corps}"
+    avertissement = ""
+    if fait.hors_gate:
+        avertissement = (
+            "\n⚠ HORS GATE : aucune condition ne doit gater sur ce fait, le lint le refuse. "
+            "La condition se type `manual_check` + `effect: info`, sans `fact` ni `predicate`, "
+            "en gardant `text` et `quote` (TYPING, « manual_check + effect: info »).\n"
+        )
+    return f"{entete}\n{corps}{avertissement}"
 
 
 # ---------------------------------------------------------------------------

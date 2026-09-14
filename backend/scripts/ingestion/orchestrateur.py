@@ -104,6 +104,7 @@ def executer(
     contexte = ContextePartage.construire(config.atelier(slugs[0] if slugs else "reference"))
     arret = threading.Event()
     resultats: list[ResultatIngestion] = []
+    differes: list[tuple[Tache, ResultatIngestion]] = []
     restants = list(slugs)
     en_vol: dict[Future[ResultatIngestion], str] = {}
 
@@ -134,7 +135,7 @@ def executer(
                 slug = en_vol.pop(future)
                 resultat = future.result()
                 resultats.append(resultat)
-                _consigner(etat_path, etat[slug], resultat)
+                _consigner_ou_differer(etat_path, etat[slug], resultat, differes)
                 print(
                     f"  ← {slug} : {'ok' if resultat.ok else 'ÉCHEC — ' + (resultat.motif_echec or '')}"
                 )
@@ -149,12 +150,14 @@ def executer(
                     resultat = None
                 if resultat is not None:
                     resultats.append(resultat)
-                    _consigner(etat_path, etat[slug], resultat)
+                    _consigner_ou_differer(etat_path, etat[slug], resultat, differes)
                 else:
                     transition(etat_path, slug, "valide", depuis=("en_cours",))
             for slug in restants:
                 transition(etat_path, slug, "valide", depuis=("en_cours",))
 
+    if differes:
+        _reconsigner(etat_path, differes)
     return resultats
 
 
@@ -190,6 +193,54 @@ def _consigner(etat_path: Path, tache: Tache, resultat: ResultatIngestion) -> No
             "tentatives": tentatives,
         },
     )
+
+
+def _consigner_ou_differer(
+    etat_path: Path,
+    tache: Tache,
+    resultat: ResultatIngestion,
+    differes: list[tuple[Tache, ResultatIngestion]],
+) -> None:
+    """Consigne le verdict ; si la file d'attente s'y refuse, le garde pour la fin.
+
+    Le 2026-09-13, un `git commit` lancé dans un autre terminal a fait repasser
+    `file-attente.yaml` par sa version HEAD le temps des hooks de pre-commit
+    (qui met de côté les modifications non indexées). `mettre_a_jour` a levé
+    `KeyError` sur un slug que HEAD ne connaissait pas, la boucle principale est
+    morte, et huit aides pourtant terminées sont restées `en_cours`. Le verdict
+    d'une aide est ce qui a coûté le plus cher du run : on ne le perd pas parce
+    que le fichier d'état était indisponible cinq secondes.
+    """
+    try:
+        _consigner(etat_path, tache, resultat)
+    except Exception as exc:  # noqa: BLE001 — la file est un fichier partagé, tout peut arriver
+        differes.append((tache, resultat))
+        print(
+            f"  ⚠ {resultat.slug} : verdict non consigné ({type(exc).__name__}: {exc}) "
+            "— nouvelle tentative en fin de run"
+        )
+
+
+def _reconsigner(etat_path: Path, differes: list[tuple[Tache, ResultatIngestion]]) -> None:
+    """Retente les consignations différées ; dit clairement ce qui reste à faire à la main."""
+    restes: list[str] = []
+    for tache, resultat in differes:
+        try:
+            _consigner(etat_path, tache, resultat)
+            print(f"  ✓ {resultat.slug} : verdict consigné au second essai")
+        except Exception as exc:  # noqa: BLE001
+            restes.append(
+                f"{resultat.slug} ({'ok' if resultat.ok else 'échec'} ; {type(exc).__name__}: {exc})"
+            )
+    if restes:
+        print(
+            f"\n⚠ {len(restes)} verdict(s) impossibles à consigner — leurs fichiers (YAML, review, "
+            "journal) sont bien sur disque, mais leur statut reste `en_cours` dans la file "
+            "d'attente. Ne PAS relancer avec --reprendre (ce serait les ré-ingérer) : corriger "
+            "le statut à la main d'après data/reviews/logs/ingest-<slug>.log."
+        )
+        for r in restes:
+            print(f"  - {r}")
 
 
 class _interception_sigint:

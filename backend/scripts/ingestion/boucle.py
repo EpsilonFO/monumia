@@ -22,6 +22,7 @@ tous dans `worker.py`, après coup, et déterministes.
 from __future__ import annotations
 
 import json
+import re
 import sys
 import time
 from collections.abc import Callable, Sequence
@@ -34,10 +35,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import providall
 from pipeline.llm import Compteur
 from providall import Message, Response, ToolCall, Usage
-from providall.errors import ProvidallError
+from providall.errors import EmptyResponseError, ProvidallError
 from providall.tools import Tool, as_tools
 
-Arret = Literal["termine", "sans_review", "budget", "max_tours", "erreur_modele"]
+Arret = Literal["termine", "sans_review", "budget", "max_tours", "erreur_modele", "boucle"]
 
 # Une sortie d'outil plus courte que ça ne vaut pas la peine d'être élaguée :
 # le talon qui la remplacerait coûterait presque autant.
@@ -69,6 +70,27 @@ class Limites:
     max_relances: int = 2
     # Au-delà de ce multiple du budget, on coupe sans négocier.
     facteur_arret_dur: float = 1.25
+    # Un modèle à raisonnement peut brûler tout son budget de sortie à réfléchir
+    # et ne rien rendre (`EmptyResponseError`, budget de sortie épuisé). Élaguer
+    # n'y change rien ; on rejoue le tour avec deux fois plus de jetons de
+    # sortie, une fois, sans dépasser ce plafond. Vu le 2026-09-09 sur or-glm à
+    # 32 000 jetons, alors qu'OpenRouter en accepte 131 072 pour ce modèle.
+    plafond_sortie_sauvetage: int = 128_000
+    # Une erreur TRANSITOIRE du fournisseur (`retryable`), après les relances
+    # internes de providall : on attend un peu et on rejoue le tour, une fois.
+    # Le 2026-09-09, un `finish_reason='error'` répété a tué une aide au tour 5.
+    pause_relance_s: float = 2.0
+    # Détection de boucle. Le 2026-09-09, une aide a passé 95 tours à relire les
+    # mêmes lignes sans jamais écrire : 12 centimes grâce au cache, donc le
+    # budget en dollars n'a rien vu, et seuls les 120 tours l'ont arrêtée, deux
+    # heures plus tard. Deux signaux : le même appel d'outil répété à
+    # l'identique d'un tour sur l'autre, et l'absence prolongée d'appel qui
+    # fasse avancer l'ingestion (snapshot, fait, écriture, lint, vérification).
+    # Un rappel à l'ordre au premier seuil, l'arrêt au second.
+    appels_identiques_avertir: int = 3
+    appels_identiques_max: int = 6
+    tours_sans_progres_avertir: int = 40
+    tours_sans_progres_max: int = 60
 
 
 @dataclass
@@ -328,13 +350,35 @@ def executer(
     relances = 0
     averti = False
     sauvetages = 0
+    max_tokens_force: int | None = None
+    relance_transitoire_faite = False
+    signature_precedente = ""
+    repetitions = 0
+    dernier_tour_progres = 0
+    avertis: set[str] = set()
     depart = time.monotonic()
 
     for tour in range(1, limites.max_tours + 1):
         try:
-            reponse = client.complete(conversation, tools=definitions)
+            reponse = client.complete(conversation, tools=definitions, max_tokens=max_tokens_force)
         except ProvidallError as exc:
             journal.evenement(f"appel en échec : {type(exc).__name__}: {exc}")
+            if _sortie_epuisee(exc) and max_tokens_force is None:
+                courant = _max_tokens_courant(client, exc)
+                max_tokens_force = min(courant * 2, limites.plafond_sortie_sauvetage)
+                if max_tokens_force > courant:
+                    journal.evenement(
+                        f"sauvetage : budget de sortie épuisé à {courant} jetons (raisonnement), "
+                        f"même tour rejoué avec {max_tokens_force} — conservé pour la suite du run"
+                    )
+                    continue
+            if getattr(exc, "retryable", False) and not relance_transitoire_faite:
+                relance_transitoire_faite = True
+                journal.evenement(
+                    f"erreur transitoire, même tour rejoué dans {limites.pause_relance_s:g} s"
+                )
+                time.sleep(limites.pause_relance_s)
+                continue
             # Une seule tentative de sauvetage : si le contexte a débordé,
             # l'élagage peut suffire à faire repasser l'appel. Au-delà, on
             # rend la main — providall a déjà fait ses propres relances.
@@ -410,6 +454,55 @@ def executer(
                 Message(role="tool", tool_call_id=appel.id, name=appel.name, content=sortie)
             )
 
+        # --- détection de boucle
+        signature = _signature_tour(reponse.tool_calls)
+        repetitions = repetitions + 1 if signature == signature_precedente else 1
+        signature_precedente = signature
+        if any(a.name in OUTILS_PROGRES for a in reponse.tool_calls):
+            dernier_tour_progres = tour
+        sans_progres = tour - dernier_tour_progres
+        motif_boucle = None
+        if repetitions >= limites.appels_identiques_max:
+            motif_boucle = f"le même appel d'outil rejoué {repetitions} tours de suite"
+        elif sans_progres >= limites.tours_sans_progres_max:
+            motif_boucle = (
+                f"{sans_progres} tours sans snapshot, fait, écriture, lint ni vérification"
+            )
+        if motif_boucle:
+            journal.evenement(
+                f"arrêt : boucle — {motif_boucle}, durée {time.monotonic() - depart:.0f} s"
+            )
+            return Resultat(
+                arret="boucle",
+                tours=tour,
+                usage=usage_cumule,
+                cout_usd=budget.cout,
+                cout_inconnu=budget.inconnu,
+                messages=conversation,
+                motif=motif_boucle,
+            )
+        rappel = None
+        if repetitions == limites.appels_identiques_avertir and "identiques" not in avertis:
+            avertis.add("identiques")
+            rappel = (
+                f"Tu viens de faire {repetitions} fois de suite exactement le même appel "
+                "d'outil, avec le même résultat. Il ne rendra rien de plus. Avec ce que tu "
+                "as déjà lu, écris le fichier (`ecrire_aide`), lance `lint`, puis la "
+                "vérification et la fiche. Si une information manque vraiment, dis-le "
+                "dans la fiche plutôt que de la chercher encore."
+            )
+        elif sans_progres == limites.tours_sans_progres_avertir and "progres" not in avertis:
+            avertis.add("progres")
+            rappel = (
+                f"Cela fait {sans_progres} tours que tu lis et cherches sans rien produire. "
+                "Écris maintenant le fichier avec ce que tu as (`ecrire_aide`), puis `lint`, "
+                "`verification_adversariale` et `ecrire_review`. Ce qui reste incertain se "
+                "consigne dans la fiche."
+            )
+        if rappel:
+            journal.evenement(f"rappel à l'ordre : {rappel[:60]}…")
+            conversation.append(Message(role="user", content=rappel))
+
         contexte = (
             reponse.usage.input_tokens
             + reponse.usage.cache_read_tokens
@@ -455,6 +548,44 @@ def executer(
     )
 
 
+OUTILS_PROGRES: frozenset[str] = frozenset(
+    {
+        "snapshotter",
+        "proposer_fait",
+        "ecrire_aide",
+        "lint",
+        "verification_adversariale",
+        "ecrire_review",
+    }
+)
+
+
+def _signature_tour(appels: Sequence[ToolCall]) -> str:
+    """Empreinte des appels d'un tour, pour reconnaître un tour rejoué à l'identique."""
+    return "|".join(
+        f"{a.name}:{json.dumps(getattr(a, 'arguments', None), sort_keys=True, ensure_ascii=False)}"
+        for a in appels
+    )
+
+
+def _sortie_epuisee(exc: ProvidallError) -> bool:
+    """Vrai si le modèle a rendu un vide parce que son budget de SORTIE était épuisé."""
+    return isinstance(exc, EmptyResponseError) and (
+        exc.finish_reason == "length" or "budget de sortie" in str(exc)
+    )
+
+
+def _max_tokens_courant(client: providall.Client, exc: ProvidallError, defaut: int = 32_000) -> int:
+    """Le budget de sortie qui vient d'être épuisé : celui du client, sinon celui
+    que providall a écrit dans le message (« (32000 jetons) »), sinon `defaut`."""
+    if client.max_tokens:
+        return int(client.max_tokens)
+    trouve = re.search(r"\((\d[\d\s\u202f]*) jetons\)", str(exc))
+    if trouve:
+        return int(re.sub(r"\D", "", trouve.group(1)))
+    return defaut
+
+
 def _sauvetage(conversation: list[Message], limites: Limites, journal: Journal) -> bool:
     """Élague en cas d'erreur, dans l'espoir que le contexte était simplement trop long.
 
@@ -472,6 +603,7 @@ def _sauvetage(conversation: list[Message], limites: Limites, journal: Journal) 
 __all__ = [
     "AVERTISSEMENT_BUDGET",
     "OUTILS_INELAGUABLES",
+    "OUTILS_PROGRES",
     "TALON",
     "Arret",
     "Budget",

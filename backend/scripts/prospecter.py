@@ -2,6 +2,9 @@
 Prospection des guides d'aides territoriaux — le skill `/prospecter-aides-region`,
 payé à l'API.
 
+    # TOUT d'un coup : collecte, tri, lecture, puis un agent d'ingestion par aide
+    uv run python scripts/prospecter.py normandie --auto --parallele 5
+
     # balayer un territoire, écrire la fiche, poser les candidates en `a_valider`
     uv run python scripts/prospecter.py hauts-de-france
     uv run python scripts/prospecter.py --regions          # les 13 régions
@@ -17,6 +20,9 @@ payé à l'API.
 
     # départements sans point d'entrée : proposer une URL de guide à coller
     uv run python scripts/prospecter.py deviner-sites 44 49 85
+
+    # confronter une liste d'URL externe à ce qu'on a (et dire pourquoi ça manque)
+    uv run python scripts/prospecter.py comparer grand-est /tmp/urls-du-collegue.txt
 
 Trois étages : `collecte` (aucun modèle, sauf sur un site inconnu), `tri` (par
 lots de 25, sur le titre seul), `lecture` (les retenues et les douteuses sont
@@ -39,9 +45,11 @@ from pydantic import BaseModel
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from ingestion import orchestrateur
+from ingestion.boucle import Limites
 from pipeline.etat import FILE_ATTENTE, PROSPECTION_DIR, charger, mettre_a_jour
 from pipeline.etat import fusionner as fusionner_etat
-from pipeline.llm import Compteur, charger_env, client_pour
+from pipeline.llm import Compteur, charger_env, client_pour, resolution_pour
 from pipeline.web import Fetcheur
 from prospection import collecte as collecte_mod
 from prospection import fiche as fiche_mod
@@ -76,7 +84,12 @@ def _court(url: str, n: int = 64) -> str:
 def _progression_tri(i: int, n: int, tries: list[tri_mod.TriCandidat]) -> None:
     retenus = sum(1 for t in tries if t.decision == "retenir")
     douteux = sum(1 for t in tries if t.decision == "douteux")
-    print(f"    [2/3] lot {i}/{n} : {retenus} retenue(s), {douteux} douteuse(s)", flush=True)
+    requalifies = sum(1 for t in tries if t.motif.startswith(tri_mod.MOTIF_SANS_TITRE))
+    dont = f" dont {requalifies} requalifiée(s)" if requalifies else ""
+    print(
+        f"    [2/3] lot {i}/{n} : {retenus} retenue(s), {douteux} douteuse(s){dont}",
+        flush=True,
+    )
 
 
 def prospecter(
@@ -111,6 +124,9 @@ def prospecter(
                 territoire,
                 fetcheur,
                 corpus,
+                # La file compte autant que le corpus : une URL déjà `ignore`
+                # reviendrait sinon sous un slug suffixé, à chaque passage.
+                file=charger(args.etat),
                 client_decouverte=client_pour("decouverte", args.model_decouverte),
                 compteur=compteur,
             )
@@ -280,6 +296,35 @@ def _transitionner(args: argparse.Namespace, vers: str) -> int:
     return 0
 
 
+def cmd_comparer(args: argparse.Namespace) -> int:
+    """Confronte une liste d'URL externe au corpus, à la file et à la dernière fiche.
+
+    Utile tant que deux pipelines coexistent : la question n'est pas « qui a le
+    plus d'URL » mais « pourquoi celle-là nous manque » — écartée au tri,
+    écartée à la lecture, ou jamais collectée.
+    """
+    from prospection import comparer as comparer_mod
+
+    territoires = charger_territoires(args.territoires)
+    territoire = territoires.get(args.territoire)
+    if territoire is None:
+        print(f"territoire inconnu de {args.territoires} : {args.territoire}")
+        return 2
+    if not args.fichier.exists():
+        print(f"fichier introuvable : {args.fichier}")
+        return 2
+    resultat = comparer_mod.comparer(
+        args.territoire,
+        territoire,
+        comparer_mod.lire_urls(args.fichier),
+        load_all_aides(),
+        charger(args.etat),
+        fiche=comparer_mod.derniere_fiche(args.territoire, REVIEWS_DIR),
+    )
+    print(comparer_mod.rendre(resultat, args.territoire))
+    return 0
+
+
 class SiteOfficiel(BaseModel):
     """Ce qu'on demande au modèle quand l'annuaire de l'État ne sait pas."""
 
@@ -393,10 +438,47 @@ def construire_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--etape", type=int, choices=(1, 2, 3), help="s'arrêter après cet étage")
     p.add_argument("--rejouer", action="store_true", help="repartir des .jsonl, sans réseau")
-    p.add_argument("--auto", action="store_true", help="valider et ingérer dans la foulée")
+    p.add_argument(
+        "--auto",
+        action="store_true",
+        help="enchaîner : valider les retenues et les ingérer, sans point de contrôle humain",
+    )
     p.add_argument("--model-tri")
     p.add_argument("--model-lecture")
     p.add_argument("--model-decouverte")
+
+    ing = p.add_argument_group(
+        "ingestion (avec --auto)",
+        "Mêmes réglages que ingerer.py. Sans --auto, ils sont sans effet.",
+    )
+    ing.add_argument(
+        "--parallele",
+        type=int,
+        default=orchestrateur.PARALLELE_DEFAUT,
+        help=f"aides ingérées en même temps (défaut : {orchestrateur.PARALLELE_DEFAUT})",
+    )
+    ing.add_argument(
+        "--budget-aide",
+        type=float,
+        default=Limites.budget_usd,
+        help=f"plafond en $ par aide (défaut : {Limites.budget_usd:.2f})",
+    )
+    ing.add_argument(
+        "--budget-total",
+        type=float,
+        default=orchestrateur.BUDGET_TOTAL_DEFAUT,
+        help=f"plafond en $ pour toute l'ingestion (défaut : {orchestrateur.BUDGET_TOTAL_DEFAUT:.0f})",
+    )
+    ing.add_argument(
+        "--max-tours",
+        type=int,
+        default=Limites.max_tours,
+        help=f"tours d'agent par aide (défaut : {Limites.max_tours})",
+    )
+    ing.add_argument("--model-ingestion", help="modèle d'extraction (défaut : LLM_MODEL_INGESTION)")
+    ing.add_argument(
+        "--model-verif", help="modèle de vérification (défaut : LLM_MODEL_VERIFICATION)"
+    )
     _options_communes(p)
     return p
 
@@ -422,6 +504,14 @@ def _parseur_transition(verbe: str) -> argparse.ArgumentParser:
     return p
 
 
+def _parseur_comparer() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="prospecter.py comparer")
+    p.add_argument("territoire")
+    p.add_argument("fichier", type=Path, help="liste d'URL externe, une par ligne")
+    _options_communes(p)
+    return p
+
+
 def _parseur_deviner() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="prospecter.py deviner-sites")
     p.add_argument("departements", nargs="+", help="codes INSEE (44, 2A, 971…)")
@@ -434,6 +524,7 @@ SOUS_COMMANDES = {
     "etat": (_parseur_etat, cmd_etat),
     "valider": (lambda: _parseur_transition("valider"), lambda a: _transitionner(a, "valide")),
     "ignorer": (lambda: _parseur_transition("ignorer"), lambda a: _transitionner(a, "ignore")),
+    "comparer": (_parseur_comparer, cmd_comparer),
     "deviner-sites": (_parseur_deviner, cmd_deviner_sites),
 }
 
@@ -493,8 +584,11 @@ def _enchainer(args: argparse.Namespace, cles: list[str]) -> int:
 
     Le point de contrôle humain est SAUTÉ, pas supprimé — les fiches sont
     écrites et les reviews d'ingestion restent à relire avant tout commit.
+
+    Les réglages d'ingestion viennent de la ligne de commande, comme pour
+    `ingerer.py` : sans eux, un balayage de région entier tournait à 3 en
+    parallèle sans qu'on puisse rien y faire.
     """
-    from ingestion import orchestrateur
     from ingestion.worker import ConfigIngestion
 
     etat = charger(args.etat)
@@ -503,11 +597,30 @@ def _enchainer(args: argparse.Namespace, cles: list[str]) -> int:
     ]
     for slug in a_valider:
         mettre_a_jour(args.etat, slug, statut="valide")
-    print(f"--auto : {len(a_valider)} candidate(s) validée(s) sans relecture")
+    print(f"\n--auto : {len(a_valider)} candidate(s) validée(s) sans relecture")
     if not a_valider:
         return 0
+    config = ConfigIngestion(
+        modele=args.model_ingestion,
+        modele_verif=args.model_verif,
+        limites=Limites(max_tours=args.max_tours, budget_usd=args.budget_aide),
+        jour=date.today(),
+    )
+    ingestion = resolution_pour("ingestion", args.model_ingestion)
+    verification = resolution_pour("verification", args.model_verif)
+    print(f"extraction   : {ingestion.spec.alias} ({ingestion.source})")
+    print(f"vérification : {verification.spec.alias} ({verification.source})")
+    print(
+        f"budget       : ${args.budget_aide:.2f} par aide, ${args.budget_total:.2f} au total, "
+        f"{args.max_tours} tours max, {args.parallele} en parallèle\n"
+    )
     resultats = orchestrateur.executer(
-        a_valider, ConfigIngestion(), etat_path=args.etat, compteur=Compteur()
+        a_valider,
+        config,
+        parallele=args.parallele,
+        budget_total=args.budget_total,
+        etat_path=args.etat,
+        compteur=Compteur(),
     )
     print(orchestrateur.bilan(resultats))
     return 0 if all(r.ok for r in resultats) else 1

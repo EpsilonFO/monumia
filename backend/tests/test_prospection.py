@@ -28,7 +28,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import providall  # noqa: E402
 from pipeline.web import Fetcheur, reinitialiser_delais  # noqa: E402
 from prospection.annuaire import sites_departementaux  # noqa: E402
-from prospection.collecte import Candidat, Collecte, collecter, dedoublonner, liens  # noqa: E402
+from prospection.collecte import (  # noqa: E402
+    Candidat,
+    Collecte,
+    collecter,
+    dedoublonner,
+    liens,
+    titre_et_chapeau,
+)
 from prospection.fiche import attribuer_slugs, parser_slugs, rendre_fiche, taches  # noqa: E402
 from prospection.lecture import Lecture, LectureFiche, kebab, lire, slug_final  # noqa: E402
 from prospection.territoires import (  # noqa: E402
@@ -38,7 +45,14 @@ from prospection.territoires import (  # noqa: E402
     charger_territoires,
     selectionner,
 )
-from prospection.tri import TriCandidat, a_lire, doctrine, prompt_systeme, trier  # noqa: E402
+from prospection.tri import (  # noqa: E402
+    MOTIF_SANS_TITRE,
+    TriCandidat,
+    a_lire,
+    doctrine,
+    prompt_systeme,
+    trier,
+)
 from providall.testing import chat_reply, fake_provider, json_reply  # noqa: E402
 
 from aides_schema import Aide  # noqa: E402
@@ -186,6 +200,17 @@ class TestValidation(unittest.TestCase):
         with self.assertRaises(ValueError):
             Strategie(type="sitemap")
 
+    def test_sitemap_accepte_une_liste_durl(self):
+        s = Strategie(type="sitemap", url=["https://x/a.xml", "https://x/b.xml"])
+        self.assertEqual(s.urls_sitemap, ["https://x/a.xml", "https://x/b.xml"])
+        self.assertEqual(
+            Strategie(type="sitemap", url="https://x/a.xml").urls_sitemap, ["https://x/a.xml"]
+        )
+
+    def test_sitemap_liste_vide_refusee(self):
+        with self.assertRaises(ValueError):
+            Strategie(type="sitemap", url=[])
+
     def test_statut_pret_sans_guide_refuse(self):
         with self.assertRaises(ValueError):
             territoire(guides=[])
@@ -282,6 +307,128 @@ class TestCollecte(BaseProspection):
                 {},
             )
         self.assertEqual([c.url for c in collecte.candidats], ["https://guide.example/dispositif1"])
+        # Un sitemap ne rend que des URL : la fiche est ouverte pour son titre,
+        # sans quoi l'étage 2 trierait sur le seul slug.
+        self.assertEqual(collecte.candidats[0].titre, "Restauration du patrimoine protégé")
+        self.assertIn("édifices protégés", collecte.candidats[0].extrait)
+        self.assertEqual(collecte.pages_visitees, 2)
+
+    def test_deux_sitemaps_dedoublonnes(self):
+        """Grand Est range ses appels à projets dans un sitemap à part."""
+        sitemaps = {
+            "/a.xml": ["https://guide.example/dispositif1", "https://guide.example/dispositif2"],
+            "/b.xml": ["https://guide.example/dispositif2", "https://guide.example/dispositif3"],
+        }
+        ouvertes: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            chemin = request.url.path
+            if chemin in sitemaps:
+                corps = "".join(f"<url><loc>{u}</loc></url>" for u in sitemaps[chemin])
+                return httpx.Response(
+                    200,
+                    text='<?xml version="1.0"?><urlset xmlns='
+                    f'"http://www.sitemaps.org/schemas/sitemap/0.9">{corps}</urlset>',
+                    headers={"content-type": "application/xml"},
+                )
+            ouvertes.append(chemin)
+            return repondre(request)
+
+        with Fetcheur(transport=httpx.MockTransport(handler), delai_s=0.0) as f:
+            collecte = collecter(
+                territoire(
+                    strategie={
+                        "type": "sitemap",
+                        "url": ["https://guide.example/a.xml", "https://guide.example/b.xml"],
+                    }
+                ),
+                f,
+                {},
+            )
+        self.assertEqual(
+            [c.url for c in collecte.candidats],
+            [
+                "https://guide.example/dispositif1",
+                "https://guide.example/dispositif2",
+                "https://guide.example/dispositif3",
+            ],
+        )
+        # dispositif2 est dans les deux sitemaps : ouvert une seule fois.
+        self.assertEqual(len(ouvertes), 3)
+        self.assertEqual(len([n for n in collecte.notes if "URL énumérées" in n]), 2)
+
+    def test_sitemap_page_injoignable_donne_un_titre_vide(self):
+        xml = (
+            '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+            "<url><loc>https://guide.example/dispositif1</loc></url>"
+            "</urlset>"
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith(".xml"):
+                return httpx.Response(200, text=xml, headers={"content-type": "application/xml"})
+            return httpx.Response(500, text="boum")
+
+        with Fetcheur(transport=httpx.MockTransport(handler), delai_s=0.0) as f:
+            collecte = collecter(
+                territoire(strategie={"type": "sitemap", "url": "https://guide.example/s.xml"}),
+                f,
+                {},
+            )
+        self.assertEqual(len(collecte.candidats), 1)
+        self.assertEqual(collecte.candidats[0].titre, "")
+        self.assertTrue(any("1 sans titre lisible" in n for n in collecte.notes))
+
+
+class TestTitreEtChapeau(unittest.TestCase):
+    def page(self, html: str, **kw):
+        from pipeline.web import Page
+
+        return Page(
+            url="https://x/a",
+            url_finale="https://x/a",
+            status=kw.pop("status", 200),
+            content_type=kw.pop("content_type", "text/html"),
+            contenu=b"",
+            texte=html,
+            **kw,
+        )
+
+    def test_ignore_les_listes_et_les_titres_secondaires(self):
+        page = self.page(
+            "<html><head><title>Ignoré - Le Site</title></head><body>"
+            "<h1>Anticiper le manque d'eau</h1>"
+            "<h5>Aide correspondante au Pacte pour les ruralités</h5>"
+            '<p><a href="/plus">En savoir plus sur ce dispositif régional</a></p>'
+            "<p>Aide régionale</p>"
+            "<ul><li>Une avance de trésorerie de 30 % dès le démarrage du projet</li></ul>"
+            "<p>Bénéficiez de l'aide régionale pouvant aller jusqu'à 100 000 euros.</p>"
+            "</body></html>"
+        )
+        titre, chapeau = titre_et_chapeau(page)
+        self.assertEqual(titre, "Anticiper le manque d'eau")
+        self.assertEqual(
+            chapeau, "Bénéficiez de l'aide régionale pouvant aller jusqu'à 100 000 euros."
+        )
+
+    def test_repli_sur_la_balise_title(self):
+        page = self.page(
+            "<html><head><title>Aide  aux  moulins</title></head><body>"
+            "<h2>Pas un H1</h2></body></html>"
+        )
+        titre, _chapeau = titre_et_chapeau(page)
+        self.assertEqual(titre, "Aide aux moulins")
+
+    def test_page_en_erreur_ne_rend_rien(self):
+        page = self.page("<html><body><h1>Titre</h1></body></html>", status=500)
+        self.assertEqual(titre_et_chapeau(page), ("", ""))
+
+    def test_chapeau_plafonne(self):
+        from prospection.collecte import MAX_CAR_EXTRAIT
+
+        page = self.page(f"<html><body><h1>T</h1><p>{'a' * 900}</p></body></html>")
+        _titre, chapeau = titre_et_chapeau(page)
+        self.assertEqual(len(chapeau), MAX_CAR_EXTRAIT)
 
     def test_pagination_sarrete_quand_rien_de_neuf(self):
         vues: list[str] = []
@@ -316,22 +463,132 @@ class TestCollecte(BaseProspection):
 
 
 class TestDedoublonnage(unittest.TestCase):
+    def tache(self, slug: str, url: str, statut: str):
+        from pipeline.etat import Tache
+
+        return Tache(titre=slug, url=url, territoire="ex", statut=statut)
+
     def test_ignore_www_https_et_slash_final(self):
         corpus = {"deja": aide("deja", "http://www.guide.example/aide/")}
-        retenus, doublons = dedoublonner(
+        retenus, doublons, en_file = dedoublonner(
             [Candidat("https://guide.example/aide"), Candidat("https://guide.example/autre")],
             corpus,
         )
         self.assertEqual([c.url for c in retenus], ["https://guide.example/autre"])
         self.assertEqual(doublons, [("https://guide.example/aide", "deja")])
+        self.assertEqual(en_file, [])
 
     def test_le_formulaire_compte_aussi(self):
         corpus = {"deja": aide("deja", source={"formulaire_url": "https://guide.example/form"})}
-        _retenus, doublons = dedoublonner([Candidat("https://guide.example/form")], corpus)
+        _retenus, doublons, _en_file = dedoublonner(
+            [Candidat("https://guide.example/form")], corpus
+        )
         self.assertEqual(len(doublons), 1)
+
+    def test_une_url_deja_en_file_nest_pas_retriee(self):
+        """Les cinq `ignore` de Grand Est revenaient à chaque passage, en `-2`."""
+        file = {"ex-ecartee": self.tache("ex-ecartee", "https://guide.example/aide/", "ignore")}
+        retenus, doublons, en_file = dedoublonner(
+            [Candidat("https://guide.example/aide"), Candidat("https://guide.example/autre")],
+            {},
+            file,
+        )
+        self.assertEqual([c.url for c in retenus], ["https://guide.example/autre"])
+        self.assertEqual(doublons, [])
+        self.assertEqual(en_file, [("https://guide.example/aide", "ex-ecartee", "ignore")])
+
+    def test_une_url_ingeree_mais_absente_du_corpus_nest_pas_retriee(self):
+        """Ingérée, en échec, en cours : tous les statuts comptent, pas seulement `ignore`."""
+        for statut in ("ingere", "echec", "en_cours", "valide", "a_valider"):
+            file = {"ex-deja": self.tache("ex-deja", "https://guide.example/aide", statut)}
+            retenus, _doublons, en_file = dedoublonner(
+                [Candidat("https://guide.example/aide")], {}, file
+            )
+            self.assertEqual(retenus, [], statut)
+            self.assertEqual(en_file[0][2], statut)
+
+    def test_le_catalogue_prime_sur_la_file(self):
+        corpus = {"ex-deja": aide("ex-deja", "https://guide.example/aide")}
+        file = {"ex-deja": self.tache("ex-deja", "https://guide.example/aide", "ingere")}
+        _retenus, doublons, en_file = dedoublonner(
+            [Candidat("https://guide.example/aide")], corpus, file
+        )
+        self.assertEqual(len(doublons), 1)
+        self.assertEqual(en_file, [])
 
 
 class TestLiens(unittest.TestCase):
+    def page(self, html: str):
+        from pipeline.web import Page
+
+        return Page(
+            url="https://x/a",
+            url_finale="https://x/guide",
+            status=200,
+            content_type="text/html",
+            contenu=b"",
+            texte=html,
+        )
+
+    def test_un_lien_qui_enveloppe_une_carte_entiere_nest_pas_perdu(self):
+        """paysdelaloire.fr, 2026-09-11 : 14 liens perdus sur 187, dont les 12 fiches.
+
+        Le `<a>` enveloppe la carte entière ; html2text en rend un libellé sur
+        dix lignes, que le balayage ligne à ligne ne voyait pas.
+        """
+        page = self.page(
+            "<html><body>"
+            '<a href="/les-aides/aap-handicap-et-tourisme">'
+            "<ul><li>Économie et Entreprise</li><li>Tourisme</li></ul>"
+            "<h3>AAP Handicap et Tourisme</h3>"
+            "<p>Améliorer l'accessibilité touristique des sites de visite.</p>"
+            "<ul><li>Associations</li><li>Entreprises</li></ul>"
+            "<span>En savoir plus</span></a>"
+            "</body></html>"
+        )
+        trouves = liens(page)
+        self.assertEqual(len(trouves), 1)
+        titre, url, contexte = trouves[0]
+        self.assertEqual(url, "https://x/les-aides/aap-handicap-et-tourisme")
+        # Les puces sont les étiquettes et les bénéficiaires : le titre est la
+        # plus longue ligne qui n'en est pas une.
+        self.assertIn("accessibilité touristique", titre)
+        self.assertNotIn("*", titre)
+        self.assertIn("Associations", contexte)
+
+    def test_un_lien_sur_une_ligne_garde_son_titre_et_sa_ligne(self):
+        """Le cas courant ne doit rien changer : même titre, même contexte."""
+        page = self.page(
+            "<html><body><p>Avant. "
+            '<a href="/fiche1">Restauration du patrimoine</a> jusqu\'à 40 %.</p></body></html>'
+        )
+        titre, url, contexte = liens(page)[0]
+        self.assertEqual(titre, "Restauration du patrimoine")
+        self.assertEqual(url, "https://x/fiche1")
+        self.assertIn("Avant.", contexte)
+        self.assertIn("40 %", contexte)
+
+    def test_un_libelle_ne_deborde_pas_sur_le_lien_suivant(self):
+        page = self.page(
+            '<html><body><p>Voir [1] plus bas.</p><p><a href="/fiche1">Fiche 1</a></p>'
+            '<p><a href="/fiche2">Fiche 2</a></p></body></html>'
+        )
+        self.assertEqual([u for _t, u, _c in liens(page)], ["https://x/fiche1", "https://x/fiche2"])
+
+    def test_titre_du_libelle(self):
+        from prospection.collecte import titre_du_libelle
+
+        self.assertEqual(titre_du_libelle("  Aide aux  moulins "), "Aide aux moulins")
+        self.assertEqual(titre_du_libelle(""), "")
+        self.assertEqual(
+            titre_du_libelle("* Tourisme\n\nUne aide longue et descriptive\n* Associations"),
+            "Une aide longue et descriptive",
+        )
+        # Rien que des puces : on rend la plus longue plutôt que rien.
+        self.assertEqual(
+            titre_du_libelle("* court\n* une puce plus longue"), "* une puce plus longue"
+        )
+
     def test_resolution_relative_contre_lurl_finale(self):
         from pipeline.web import Page
 
@@ -368,6 +625,49 @@ class TestTri(unittest.TestCase):
         self.assertIn("Le spectre", texte)
         self.assertIn("test d'admission", texte)
         self.assertIn("Ce qu'on écarte", texte)
+        # La doctrine large du 2026-09-11 : si ces phrases disparaissent du
+        # skill, les deux prompts repartent sur un tri étroit sans prévenir.
+        self.assertIn("faire vivre", texte)
+        self.assertIn("retenir par défaut", texte.lower())
+        self.assertIn("absolument rien", texte.lower())
+
+    def test_familles_coherentes(self):
+        from typing import get_args
+
+        from prospection.tri import FAMILLES, FAMILLES_DESCRIPTION, Famille, familles_rendues
+
+        self.assertEqual(set(FAMILLES), set(get_args(Famille)))
+        for famille, description in FAMILLES_DESCRIPTION.items():
+            self.assertTrue(description.strip(), famille)
+        self.assertIn("energie_climat", familles_rendues())
+
+    def test_le_prompt_du_tri_liste_les_familles(self):
+        systeme = prompt_systeme(territoire(), {})
+        self.assertIn("eau_nature_domaine", systeme)
+        self.assertIn("Natura 2000", systeme)
+
+    def test_famille_hors_perimetre_sur_un_retenir_devient_adjacente(self):
+        c = Candidat("https://guide.example/dispositif4", "Prêt aux entreprises du tourisme")
+        reponse = {
+            "resultats": [
+                {"url": c.url, "decision": "retenir", "famille": "hors_perimetre", "motif": "m"}
+            ]
+        }
+        with fake_provider(json_reply(reponse)):
+            tries = trier([c], territoire(), {}, client())
+        self.assertEqual(tries[0].decision, "retenir")
+        self.assertEqual(tries[0].famille, "adjacente")
+
+    def test_famille_hors_perimetre_sur_un_ecarter_est_conservee(self):
+        c = Candidat("https://guide.example/dispositif4", "Bourse de mobilité internationale")
+        reponse = {
+            "resultats": [
+                {"url": c.url, "decision": "ecarter", "famille": "hors_perimetre", "motif": "m"}
+            ]
+        }
+        with fake_provider(json_reply(reponse)):
+            tries = trier([c], territoire(), {}, client())
+        self.assertEqual(tries[0].famille, "hors_perimetre")
 
     def test_le_prompt_liste_les_aides_deja_au_catalogue(self):
         systeme = prompt_systeme(territoire(), {"ex-deja": aide("ex-deja")})
@@ -422,6 +722,45 @@ class TestTri(unittest.TestCase):
             tries = trier(self.candidats, territoire(), {}, client())
         self.assertTrue(all(t.decision == "douteux" for t in tries))
         self.assertEqual(len(a_lire(tries)), 3)
+
+    def test_ecarter_sans_titre_devient_douteux(self):
+        """Grand Est 2026-09-08 : 173 URL écartées sur leur seul slug, jamais ouvertes."""
+        nu = Candidat("https://guide.example/dispositif4")
+        reponse = {
+            "resultats": [
+                {
+                    "url": nu.url,
+                    "decision": "ecarter",
+                    "famille": "adjacente",
+                    "motif": "sécheresse, hors patrimoine",
+                }
+            ]
+        }
+        with fake_provider(json_reply(reponse)):
+            tries = trier([nu], territoire(), {}, client())
+        self.assertEqual(tries[0].decision, "douteux")
+        self.assertTrue(tries[0].motif.startswith(MOTIF_SANS_TITRE))
+        self.assertIn("sécheresse", tries[0].motif)
+        self.assertEqual(tries[0].famille, "adjacente")
+        self.assertEqual(a_lire(tries), [nu.url])
+
+    def test_ecarter_avec_titre_reste_ecarter(self):
+        titre = Candidat("https://guide.example/dispositif4", "Bourse de mobilité internationale")
+        reponse = {
+            "resultats": [{"url": titre.url, "decision": "ecarter", "motif": "aide à la personne"}]
+        }
+        with fake_provider(json_reply(reponse)):
+            tries = trier([titre], territoire(), {}, client())
+        self.assertEqual(tries[0].decision, "ecarter")
+        self.assertEqual(tries[0].motif, "aide à la personne")
+
+    def test_un_contexte_seul_suffit_a_laisser_ecarter(self):
+        """Le garde-fou porte sur l'absence TOTALE d'information, pas sur le titre seul."""
+        c = Candidat("https://guide.example/dispositif4", "", "Bourse d'écriture pour auteurs")
+        reponse = {"resultats": [{"url": c.url, "decision": "ecarter", "motif": "individuel"}]}
+        with fake_provider(json_reply(reponse)):
+            tries = trier([c], territoire(), {}, client())
+        self.assertEqual(tries[0].decision, "ecarter")
 
 
 # ---------------------------------------------------------------------------
@@ -496,6 +835,17 @@ class TestLecture(BaseProspection):
             )
         self.assertFalse(lecture.retenue)
         self.assertIn("lecture impossible", lecture.erreur or "")
+
+    def test_la_lecture_charge_la_meme_doctrine_que_le_tri(self):
+        """Une doctrine écrite en dur ici recalerait ce que le tri a laissé passer."""
+        from prospection.lecture import consigne
+
+        texte = consigne()
+        self.assertIn("test d'admission", texte)
+        self.assertIn("n'invente rien", texte)
+        self.assertIn("eau_nature_domaine", texte)
+        self.assertIn("retenir: true", texte)
+        self.assertIn(doctrine(), texte)
 
 
 class TestSlugs(unittest.TestCase):
@@ -588,7 +938,11 @@ class TestFiche(unittest.TestCase):
                 url="https://guide.example/dispositif2", decision="ecarter", motif="hors sujet"
             )
         ]
-        self.collecte = Collecte(notes=["3 URL trouvées"], doublons=[("https://x/1", "ex-deja")])
+        self.collecte = Collecte(
+            notes=["3 URL trouvées"],
+            doublons=[("https://x/1", "ex-deja")],
+            en_file=[("https://x/2", "ex-ecartee", "ignore")],
+        )
         self.slugs = attribuer_slugs(territoire(), self.lectures, set())
         self.markdown = rendre_fiche(
             "ex",
@@ -627,6 +981,29 @@ class TestFiche(unittest.TestCase):
         self.assertIn("HTTP 500", self.markdown)
         self.assertIn("déjà au catalogue", self.markdown)
         self.assertIn("$0.0100", self.markdown)
+        self.assertIn(
+            "déjà en file d'attente (`ignore`) : https://x/2 → `ex-ecartee`", self.markdown
+        )
+
+    def test_les_requalifications_sont_comptees(self):
+        markdown = rendre_fiche(
+            "ex",
+            territoire(),
+            [],
+            [
+                TriCandidat(
+                    url="https://guide.example/dispositif4",
+                    decision="douteux",
+                    motif=f"{MOTIF_SANS_TITRE} (sécheresse)",
+                )
+            ],
+            Collecte(),
+            {},
+            {},
+            jour=JOUR,
+        )
+        self.assertIn("1 élimination(s) prise(s) sans titre ni contexte", markdown)
+        self.assertIn("requalifiée(s) en douteuses", markdown)
 
     def test_le_bloc_de_slugs_se_relit(self):
         relu = parser_slugs(self.markdown)
@@ -711,6 +1088,105 @@ class TestTransitions(unittest.TestCase):
             self._lancer("valider", "a", "b", "c"),
             {"a": "ingere", "b": "en_cours", "c": "echec"},
         )
+
+
+# ---------------------------------------------------------------------------
+# Comparaison avec une liste externe
+# ---------------------------------------------------------------------------
+
+
+class TestComparer(unittest.TestCase):
+    """`prospecter.py comparer` : pourquoi une URL du voisin nous manque."""
+
+    def setUp(self):
+        from pipeline.etat import Tache
+
+        self.corpus = {"ex-deja": aide("ex-deja", "https://guide.example/dispositif1")}
+        self.file = {
+            "ex-ecartee": Tache(
+                titre="Écartée",
+                url="https://guide.example/dispositif2",
+                territoire="ex",
+                statut="ignore",
+            ),
+            "autre-territoire": Tache(
+                titre="Ailleurs",
+                url="https://guide.example/dispositif9",
+                territoire="ailleurs",
+                statut="ingere",
+            ),
+        }
+        self.fiche = (
+            "# Prospection\n\n## Écartées (et pourquoi)\n\n"
+            "- **Bourse d'écriture** — https://guide.example/dispositif3 — bénéficiaire individuel\n"
+            "- https://guide.example/dispositif4 — hors sujet au tri\n\n"
+            "## Notes techniques\n\n"
+            "- non lue : https://guide.example/dispositif5 — HTTP 500\n"
+        )
+
+    def _comparer(self, externes):
+        from prospection.comparer import comparer
+
+        with tempfile.TemporaryDirectory() as tmp:
+            chemin = Path(tmp) / "fiche.md"
+            chemin.write_text(self.fiche, encoding="utf-8")
+            return comparer("ex", territoire(), externes, self.corpus, self.file, fiche=chemin)
+
+    def test_lire_urls_tolere_puces_et_commentaires(self):
+        from prospection.comparer import lire_urls
+
+        with tempfile.TemporaryDirectory() as tmp:
+            chemin = Path(tmp) / "urls.txt"
+            chemin.write_text(
+                "# une liste\n"
+                "https://guide.example/a\n"
+                "- https://guide.example/b (annoté)\n"
+                "\n"
+                "https://guide.example/a/\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                lire_urls(chemin), ["https://guide.example/a", "https://guide.example/b"]
+            )
+
+    def test_une_url_commune_dit_dou_on_la_connait(self):
+        r = self._comparer(["https://guide.example/dispositif1/"])
+        self.assertEqual(
+            r.communes, [("https://guide.example/dispositif1/", "catalogue `ex-deja`")]
+        )
+        self.assertEqual(r.externes_seules, [])
+
+    def test_la_file_compte_comme_nous_lavons(self):
+        r = self._comparer(["https://guide.example/dispositif2"])
+        self.assertEqual(r.communes[0][1], "file `ex-ecartee` (ignore)")
+
+    def test_le_motif_dune_manquante_vient_de_la_fiche(self):
+        r = self._comparer(
+            [
+                "https://guide.example/dispositif3",
+                "https://guide.example/dispositif4",
+                "https://guide.example/dispositif5",
+                "https://guide.example/dispositif404",
+            ]
+        )
+        motifs = dict(r.externes_seules)
+        self.assertIn("bénéficiaire individuel", motifs["https://guide.example/dispositif3"])
+        self.assertIn("hors sujet au tri", motifs["https://guide.example/dispositif4"])
+        self.assertIn("HTTP 500", motifs["https://guide.example/dispositif5"])
+        self.assertIn("jamais vue", motifs["https://guide.example/dispositif404"])
+
+    def test_les_notres_seules_ignorent_les_autres_territoires(self):
+        r = self._comparer([])
+        urls = [u for u, _ in r.notres_seules]
+        self.assertEqual(len(urls), 2)
+        self.assertFalse(any("dispositif9" in u for u in urls))
+
+    def test_rendu_lisible(self):
+        from prospection.comparer import rendre
+
+        texte = rendre(self._comparer(["https://guide.example/dispositif3"]), "ex")
+        self.assertIn("Chez eux et pas chez nous (1)", texte)
+        self.assertIn("bénéficiaire individuel", texte)
 
 
 # ---------------------------------------------------------------------------

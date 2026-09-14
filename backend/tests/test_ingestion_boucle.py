@@ -144,6 +144,94 @@ class TestArrets(unittest.TestCase):
         self.assertEqual(resultat.arret, "max_tours")
         self.assertEqual(resultat.tours, 4)
 
+    def test_sortie_epuisee_rejoue_le_tour_avec_deux_fois_plus_de_jetons(self):
+        """or-glm, 2026-09-09 : 32 000 jetons de sortie partis en raisonnement, réponse vide.
+
+        Élaguer le contexte n'y change rien. On rejoue le même tour avec deux
+        fois plus de jetons de sortie, une seule fois, et on garde ce réglage
+        pour le reste du run.
+        """
+        atelier = Atelier()
+        vide = providall.EmptyResponseError(
+            "contenu vide — budget de sortie épuisé avant la réponse (32000 jetons), "
+            "modèle à raisonnement : augmenter max_tokens",
+            finish_reason="length",
+            provider="openrouter",
+        )
+        with fake_provider(vide, chat_reply("fini")) as faux:
+            resultat = executer(client(), "SYS", "commence", atelier.outils())
+        self.assertEqual(resultat.arret, "termine")
+        self.assertEqual(faux.calls, 2)
+        premier = faux.bodies[0]["max_tokens"]
+        self.assertEqual(faux.bodies[1]["max_tokens"], min(premier * 2, 128_000))
+        self.assertGreater(faux.bodies[1]["max_tokens"], premier)
+
+    def test_sortie_epuisee_deux_fois_de_suite_est_une_erreur_modele(self):
+        atelier = Atelier()
+        vide = providall.EmptyResponseError(
+            "contenu vide — budget de sortie épuisé avant la réponse (32000 jetons)",
+            finish_reason="length",
+            provider="openrouter",
+        )
+        with fake_provider(vide) as faux:
+            resultat = executer(client(), "SYS", "commence", atelier.outils())
+        self.assertEqual(resultat.arret, "erreur_modele")
+        # un sauvetage par manque de sortie, puis l'élagage n'a rien à retirer : on rend la main
+        self.assertLessEqual(faux.calls, 3)
+
+    def test_boucle_dappels_identiques_arretee_bien_avant_le_plafond(self):
+        """2026-09-09 : 95 tours à relire les mêmes lignes, 12 centimes, deux heures."""
+        atelier = Atelier()
+        with fake_provider(chat_reply(tool_calls=[tool_call("lire_snapshot", {"chemin": "x.md"})])):
+            resultat = executer(
+                client(), "SYS", "commence", atelier.outils(), review_ecrite=lambda: atelier.review
+            )
+        self.assertEqual(resultat.arret, "boucle")
+        self.assertEqual(resultat.tours, Limites.appels_identiques_max)
+        self.assertIn("rejoué", resultat.motif)
+        rappels = [
+            m for m in resultat.messages if m.role == "user" and "même appel" in str(m.content)
+        ]
+        self.assertEqual(len(rappels), 1)
+
+    def test_tours_sans_progres_arretes(self):
+        """Des appels tous différents, mais jamais rien qui fasse avancer l'ingestion."""
+        atelier = Atelier()
+        limites = Limites(
+            tours_sans_progres_avertir=4, tours_sans_progres_max=6, appels_identiques_max=10**6
+        )
+        reponses = [
+            chat_reply(tool_calls=[tool_call("lire_snapshot", {"chemin": f"{i}.md"})])
+            for i in range(20)
+        ]
+        with fake_provider(*reponses):
+            resultat = executer(
+                client(),
+                "SYS",
+                "commence",
+                atelier.outils(),
+                limites=limites,
+                review_ecrite=lambda: atelier.review,
+            )
+        self.assertEqual(resultat.arret, "boucle")
+        self.assertEqual(resultat.tours, 6)
+        self.assertIn("sans", resultat.motif)
+
+    def test_erreur_transitoire_rejouee_une_fois(self):
+        atelier = Atelier()
+        transitoire = providall.EmptyResponseError(
+            "contenu vide — finish_reason='error' (7646 jetons de sortie facturés)",
+            finish_reason="error",
+            retryable=True,
+            provider="openrouter",
+        )
+        with fake_provider(transitoire, chat_reply("fini")) as faux:
+            resultat = executer(
+                client(), "SYS", "commence", atelier.outils(), limites=Limites(pause_relance_s=0.0)
+            )
+        self.assertEqual(resultat.arret, "termine")
+        self.assertEqual(faux.calls, 2)
+
     def test_erreur_modele_sans_rien_a_elaguer(self):
         atelier = Atelier()
         with fake_provider(providall.ServerError("502", provider="deepseek")):
@@ -152,6 +240,7 @@ class TestArrets(unittest.TestCase):
                 "SYS",
                 "commence",
                 atelier.outils(),
+                limites=Limites(pause_relance_s=0.0),
                 review_ecrite=lambda: atelier.review,
             )
         self.assertEqual(resultat.arret, "erreur_modele")

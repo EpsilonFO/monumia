@@ -96,6 +96,57 @@ def enregistrer_tarif(alias: str, price_in: float, price_out: float) -> ModelSpe
 
 
 # --------------------------------------------------------------------------
+# Modèles déclarés par le dépôt
+# --------------------------------------------------------------------------
+
+# DeepSeek a retiré V4 Pro et V4 Flash. Depuis le 2026-09-14 04:00 UTC,
+# `deepseek-v4-pro` et `deepseek-v4-flash` sont ROUTÉS vers V4.1 Flash côté
+# serveur — mais le registre providall garde leur ancien tarif. S'appuyer sur ce
+# routage facturerait la sortie à 0,42 $/M (alias `ds-flash`) ou 2,20 $/M
+# (`ds-pro`) au lieu des 0,60 à 1,20 $/M réellement débités : le budget en
+# dollars, seul garde-fou d'un run de 130 aides, deviendrait faux dans le sens
+# dangereux. D'où deux alias explicites, nommés d'après le modèle qui répond.
+#
+# Le tarif retenu est celui des HEURES PLEINES (lundi au vendredi, 01:00-04:00
+# et 06:00-10:00 UTC), alors que 82 % de la semaine est à moitié prix : providall
+# ne porte qu'un tarif par modèle, et sur un PLAFOND de budget, surestimer est la
+# seule erreur sans conséquence.
+
+PRIX_V41_FLASH = dict(price_in=0.30, price_out=1.20, price_cache_read=0.006)
+
+MODELES_MAISON: tuple[ModelSpec, ...] = (
+    # Le vérificateur passe par OpenRouter et non par DeepSeek en direct pour une
+    # seule raison : `structured_outputs` figure dans ses `supported_parameters`,
+    # donc `try_complete_json` obtient un json_schema STRICT. L'API DeepSeek ne
+    # propose que `json_object`, qui garantit du JSON valide mais pas conforme,
+    # et ferait retomber `RapportVerification` d'un cran. OpenRouter répercute la
+    # même grille peak / off-peak, le tarif est donc identique.
+    providall.spec(
+        "or-ds41",
+        "openrouter",
+        "deepseek/deepseek-v4.1-flash",
+        caps={"structured": "json_schema"},
+        note="V4.1 Flash routé par OpenRouter ; id, tarif et structured_outputs "
+        "relevés sur /api/v1/models le 2026-09-11",
+        **PRIX_V41_FLASH,
+    ),
+    # La même chose en direct, pour le banc d'essai : une famille de moins dans
+    # le chemin quand on cherche à qui imputer un écart.
+    providall.spec(
+        "ds-v41",
+        "deepseek",
+        "deepseek-flash",
+        note="V4.1 Flash chez DeepSeek ; `deepseek-flash` est l'id officiel "
+        "(annonce du 2026-09-10), `structured` limité à json_object",
+        **PRIX_V41_FLASH,
+    ),
+)
+
+for _modele in MODELES_MAISON:
+    providall.register_model(_modele, replace=True)
+
+
+# --------------------------------------------------------------------------
 # Compteur
 # --------------------------------------------------------------------------
 
@@ -194,6 +245,8 @@ class Compteur:
 
 __all__ = [
     "BACKEND_DIR",
+    "MODELES_MAISON",
+    "PRIX_V41_FLASH",
     "ROLES",
     "Compteur",
     "charger_env",

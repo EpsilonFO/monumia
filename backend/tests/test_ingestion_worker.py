@@ -366,6 +366,51 @@ class TestOrchestrateur(unittest.TestCase):
         self.assertEqual(etat["b"].statut, "ingere")
         self.assertEqual(etat["c"].statut, "en_cours")
 
+    def test_une_consignation_ratee_est_retentee_en_fin_de_run(self):
+        # 2026-09-13 : un `git commit` lancé dans un autre terminal a fait passer
+        # la file d'attente par sa version HEAD le temps des hooks de pre-commit.
+        # `mettre_a_jour` a levé KeyError, la boucle principale est morte et huit
+        # aides pourtant terminées sont restées `en_cours`. Un verdict qu'on ne
+        # peut pas écrire tout de suite se garde et se réécrit à la fin.
+        self.ecrire_etat(a=tache(), b=tache())
+        vrai = orchestrateur.mettre_a_jour
+        rates: list[str] = []
+
+        def capricieux(chemin, slug, **champs):
+            if not rates:
+                rates.append(slug)
+                raise KeyError(f"slug absent de la file d'attente : {slug}")
+            return vrai(chemin, slug, **champs)
+
+        with unittest.mock.patch.object(orchestrateur, "mettre_a_jour", capricieux):
+            resultats = orchestrateur.executer(
+                ["a", "b"],
+                self.config,
+                parallele=1,
+                etat_path=self.etat_path,
+                ingerer=lambda slug, t, c, *, contexte, compteur=None: verdict(slug),
+            )
+        self.assertEqual(len(resultats), 2)
+        self.assertEqual(rates, ["a"])
+        etat = charger(self.etat_path)
+        self.assertEqual((etat["a"].statut, etat["b"].statut), ("ingere", "ingere"))
+
+    def test_une_consignation_toujours_ratee_laisse_le_statut_en_cours(self):
+        self.ecrire_etat(a=tache())
+        with unittest.mock.patch.object(
+            orchestrateur, "mettre_a_jour", side_effect=KeyError("slug absent")
+        ):
+            resultats = orchestrateur.executer(
+                ["a"],
+                self.config,
+                etat_path=self.etat_path,
+                ingerer=lambda slug, t, c, *, contexte, compteur=None: verdict(slug),
+            )
+        # Le run rend quand même son verdict ; la file, elle, garde le jeton :
+        # `--reprendre` ré-ingérerait, c'est à la main qu'on corrige.
+        self.assertTrue(resultats[0].ok)
+        self.assertEqual(charger(self.etat_path)["a"].statut, "en_cours")
+
 
 class TestBilan(unittest.TestCase):
     def test_rappelle_les_commandes_manuelles(self):

@@ -30,7 +30,7 @@ from aides_schema import Aide
 from .collecte import Collecte
 from .lecture import Lecture, slug_final
 from .territoires import Territoire
-from .tri import TriCandidat
+from .tri import MOTIF_SANS_TITRE, TriCandidat
 
 # Le bloc de slugs est fait pour être relu : une ligne = un slug, des espaces,
 # une URL. Éditable à la main sans rien casser.
@@ -132,6 +132,8 @@ def rendre_fiche(
         lignes.append(f"- {note}")
     for url, slug in collecte.doublons:
         lignes.append(f"- déjà au catalogue : {url} → `{slug}`")
+    for url, slug, statut in collecte.en_file:
+        lignes.append(f"- déjà en file d'attente (`{statut}`) : {url} → `{slug}`")
     for lecture in en_erreur:
         lignes.append(f"- non lue : {lecture.candidat.url} — {lecture.erreur}")
     douteuses = [t for t in tries if t.decision == "douteux"]
@@ -139,6 +141,12 @@ def rendre_fiche(
         lignes.append(
             f"- {len(douteuses)} candidate(s) douteuse(s) au tri, ouvertes et tranchées "
             "à la lecture"
+        )
+    requalifiees = [t for t in tries if t.motif.startswith(MOTIF_SANS_TITRE)]
+    if requalifiees:
+        lignes.append(
+            f"- {len(requalifiees)} élimination(s) prise(s) sans titre ni contexte, "
+            "requalifiée(s) en douteuses et ouvertes à la lecture"
         )
     if cout:
         lignes.append(f"- coût du passage : {cout}")

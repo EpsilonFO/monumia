@@ -168,6 +168,8 @@ Les deux skills de catalogue ont un **jumeau exécutable**, qui fait le même tr
 
 Le pipeline s'arrête exactement là où s'arrête un skill : il écrit dans le working tree, produit une fiche de review par aide, et n'exécute **jamais** `git add`, un commit, ni `load_aides_yaml.py`. Une aide qu'il n'accepte pas est renommée `<slug>.yaml.echec`, hors du glob `*.yaml` — invisible au lint, au moteur et au loader — plutôt que laissée au catalogue.
 
+**Pas de `git commit` pendant qu'un run (`ingerer.py`, `prospecter.py`) tourne**, même depuis un autre terminal ou une autre session. pre-commit met de côté les modifications non indexées le temps des hooks : `file-attente.yaml`, `facts_pending.yaml` et `facts.yaml` reviennent à leur version HEAD pendant quelques secondes, et le run lit alors des fichiers d'un autre âge. Vu le 2026-09-13 : lint rouge sur cinq faits pourtant présents, et orchestrateur tué par un slug « absent de la file ». L'orchestrateur retente désormais une consignation ratée en fin de run, mais rien ne rattrape un lint faussé. Un `en_cours` sans processus vivant est une orpheline : `--reprendre` la ré-ingère ; si son journal `data/reviews/logs/ingest-<slug>.log` dit déjà « OK », corriger le statut à la main plutôt que repayer l'ingestion.
+
 ## Pièges connus
 
 - **pyright n'analyse pas tout** : `pyproject.toml` exclut `scripts` et `routers`, et n'inclut que `*.py` racine + `services`. Une erreur de type dans un router ne sera vue ni en local ni en CI.

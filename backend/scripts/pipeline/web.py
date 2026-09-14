@@ -42,7 +42,9 @@ from snapshot_source import (
 # demandent la plupart des `robots.txt` des sites publics ; les hôtes
 # différents ne s'attendent pas les uns les autres.
 DELAI_HOTE_S = 1.0
-TAILLE_CACHE = 200
+# Un sitemap régional dépasse 200 fiches (Grand Est : 244) ; en dessous, la
+# lecture retélécharge ce que la collecte vient d'ouvrir.
+TAILLE_CACHE = 400
 
 # Partagés au niveau module : deux `Fetcheur` construits par deux workers
 # doivent quand même se relayer sur le même hôte.
