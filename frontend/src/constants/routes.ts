@@ -52,5 +52,12 @@ export const ROUTES = {
    */
   ADMIN: '/admin',
 
+  /**
+   * Le catalogue en chiffres (aides par territoire, par nature, chiffrage).
+   * Sous `/admin` et derrière le même garde : c'est la même page
+   * d'exploitation, vue par les nombres plutôt que ligne à ligne.
+   */
+  ADMIN_STATS: '/admin/statistiques',
+
   INVITATION: (token: string) => `/invitation/${token}`,
 } as const;

@@ -126,9 +126,10 @@ class _FakeSupabase:
 #: Un prédicat que la condition choisie accepte : ses propres options.
 PREDICAT_OK = {"operateur": "in", "valeurs": COND_OPTIONS}
 
-#: (méthode, chemin, corps) — les onze routes du router.
+#: (méthode, chemin, corps) — les douze routes du router.
 ROUTES = (
     ("get", "/admin/aides", None),
+    ("get", "/admin/statistiques", None),
     ("put", f"/admin/aides/{SLUG}/retrait", {"motif": "obsolète"}),
     ("delete", f"/admin/aides/{SLUG}/retrait", None),
     ("get", "/admin/faits", None),

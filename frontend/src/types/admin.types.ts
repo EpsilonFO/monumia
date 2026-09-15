@@ -176,3 +176,105 @@ export interface ImpactPredicat {
 /** Ce que la route d'écriture rend : la ligne à jour, ou une entrée minimale
  *  quand la condition a quitté le mandat (rétablissement de nettoyage). */
 export type AdminConditionCourante = AdminCondition | (ConditionOrpheline & { absenteDuMandat: true });
+
+/* ───────────────────────── Le catalogue en chiffres ─────────────────────────
+ *
+ * Miroir de `backend/services/catalogue_stats.py`. Un `null` de chiffrage veut
+ * dire « la source n'annonce rien », jamais « zéro » : la page l'écrit `n.c.`
+ * et ne le fait entrer dans aucune moyenne.
+ */
+
+/** Le chiffrage d'un groupe d'aides, identique pour une région, un département,
+ *  une catégorie. Les compteurs portent sur les aides SERVIES ; `retirees` est
+ *  à part, parce qu'une aide retirée n'est plus proposée à personne. */
+export interface BlocStats {
+  nb: number;
+  retirees: number;
+  /** Aides entièrement typées : les seules que le moteur déterministe traite. */
+  typees: number;
+  /** Aides dont le guichet n'est pas ouvert aujourd'hui. */
+  bientot: number;
+  nbAvecTaux: number;
+  tauxMin: number | null;
+  tauxMax: number | null;
+  tauxMedian: number | null;
+  nbAvecMontant: number;
+  montantMedian: number | null;
+  montantMax: number | null;
+}
+
+export interface StatsCorpus extends BlocStats {
+  /** Retirées comprises, contrairement à `nb`. */
+  total: number;
+  nationales: number;
+  regionales: number;
+  /** Périmètre plus étroit qu'une région entière. */
+  locales: number;
+}
+
+export interface StatsRegion extends BlocStats {
+  code: string;
+  label: string;
+  /** Aides valables dans TOUTE la région. */
+  regionales: number;
+  /** Aides au périmètre plus étroit : elles n'y valent pas partout. */
+  locales: number;
+  /** Financées par le Conseil régional (`categorie`), périmètre mis à part. */
+  conseilRegional: number;
+  /** Financées par un Conseil départemental de la région. */
+  conseilsDepartementaux: number;
+  nationales: number;
+  /** Le MAXIMUM local, pas un acquis (cf. `locales`). */
+  couvertureMax: number;
+}
+
+export interface StatsDepartement extends BlocStats {
+  code: string;
+  label: string;
+  region: string | null;
+  regionLabel: string;
+  /** Aides dont le périmètre nomme ce département, quel qu'en soit le
+   *  financeur : un dispositif régional restreint et une délégation de
+   *  fondation en font partie. */
+  locales: number;
+  /** Parmi elles, celles financées par le Conseil départemental lui-même.
+   *  Zéro en face d'une couverture élevée = un financeur à prospecter. */
+  conseilDepartemental: number;
+  /** Aides de sa région, qui valent bien ici. */
+  regionales: number;
+  nationales: number;
+  /** Exacte, elle : ce qu'un monument de ce département voit. */
+  couverture: number;
+}
+
+/** Une catégorie de financeur ou un type de dispositif. */
+export interface StatsNature extends BlocStats {
+  code: string;
+  label: string;
+}
+
+/**
+ * L'écart entre le corpus servi et `aides_v3`. Une aide absente de la table
+ * est proposée par le diagnostic mais répond « Aide introuvable » à la
+ * création de dossier : c'est une panne, pas une statistique.
+ */
+export interface StatsSynchronisation {
+  /** Faux si la table n'a pas répondu : la page retire le bloc plutôt que de
+   *  réclamer tout le catalogue. */
+  lisible: boolean;
+  enBase: number | null;
+  nbManquantes: number;
+  /** Tronquée côté serveur : `nbManquantes` fait foi. */
+  manquantes: string[];
+}
+
+export interface StatistiquesCatalogue {
+  genereLe: string;
+  corpus: StatsCorpus;
+  national: BlocStats;
+  regions: StatsRegion[];
+  departements: StatsDepartement[];
+  categories: StatsNature[];
+  types: StatsNature[];
+  synchronisation: StatsSynchronisation;
+}

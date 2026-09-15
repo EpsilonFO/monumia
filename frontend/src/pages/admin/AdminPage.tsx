@@ -1,12 +1,14 @@
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { IconTendance } from '@/components/icons';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AdminAidesPanel } from '@/components/admin/AdminAidesPanel';
 import { AdminConditionsPanel } from '@/components/admin/AdminConditionsPanel';
 import { AdminFaitsPanel } from '@/components/admin/AdminFaitsPanel';
 import { ApiError } from '@/lib/api-error';
+import { C } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 
 /**
@@ -47,6 +49,19 @@ export function AdminPage() {
       <PageHeader
         title="Administration du catalogue"
         description="Retirer une aide du catalogue, reformuler une question du questionnaire, modifier le critère d’une condition. Les modifications s’appliquent au prochain chargement de page des utilisateurs."
+        action={
+          /* Vers la même matière, vue par les nombres : où le catalogue couvre,
+             où il est creux. Lecture seule, d'où le bouton discret plutôt qu'un
+             quatrième onglet — ce n'est pas un geste d'administration de plus. */
+          <Link
+            to={ROUTES.ADMIN_STATS}
+            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[14px] font-medium transition-colors hover:bg-[var(--secondary)]"
+            style={{ borderColor: C.border, color: C.blue }}
+          >
+            <IconTendance className="h-4 w-4" />
+            Le catalogue en chiffres
+          </Link>
+        }
       />
 
       <Tabs value={onglet} onValueChange={setOnglet}>

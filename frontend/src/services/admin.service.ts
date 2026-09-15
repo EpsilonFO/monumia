@@ -7,6 +7,7 @@ import type {
   InventaireConditions,
   OperateurPredicat,
   OptionSurchargee,
+  StatistiquesCatalogue,
   SurchargeFait,
 } from '@/types/admin.types';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
@@ -38,6 +39,15 @@ export const adminService = {
   async republierAide(slug: string): Promise<AdminAide> {
     const res = await authFetch(`${BASE}/admin/aides/${slug}/retrait`, { method: 'DELETE' });
     return handleResponse<AdminAide>(res);
+  },
+
+  /**
+   * Le catalogue en chiffres. Recalculé à chaque appel côté serveur : la page
+   * la rappelle d'elle-même, sans rien mettre en cache ici.
+   */
+  async statistiques(): Promise<StatistiquesCatalogue> {
+    const res = await authFetch(`${BASE}/admin/statistiques`);
+    return handleResponse<StatistiquesCatalogue>(res);
   },
 
   async listFaits(): Promise<AdminFait[]> {

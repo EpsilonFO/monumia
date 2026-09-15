@@ -6,7 +6,7 @@ envoie aux prédicats des aides, ce qui permet d'offrir plus de deux réponses �
 une question binaire sans retyper un seul prédicat. Seules les tranches d'un
 fait numérique restent calculées par le moteur.
 
-Onze routes, toutes réservées aux comptes de `ADMIN_USER_IDS` (cf.
+Douze routes, toutes réservées aux comptes de `ADMIN_USER_IDS` (cf.
 `config.est_admin`). Le `Depends(require_admin)` est posé sur le ROUTER et non
 sur chaque route : aucune route nouvelle ne peut l'oublier.
 
@@ -28,7 +28,7 @@ from supabase import Client
 from aides_schema import load_all_aides, load_facts, load_pending_facts
 from db import get_supabase, require_admin
 from eligibility_engine import engine_ready_aides
-from services import catalogue_admin
+from services import catalogue_admin, catalogue_stats
 from services.catalogue_admin import (
     HELP_MAX,
     LABEL_MAX,
@@ -156,6 +156,23 @@ def republier_aide(slug: str, supabase: Client = Depends(get_supabase)):
     au retrait : une aide archivée entre-temps garderait sinon sa ligne de
     retrait pour toujours, sans moyen de la retirer depuis l'application."""
     return catalogue_admin.republier_aide(supabase, slug)
+
+
+# ---------------------------------------------------------------------------
+# Statistiques du catalogue
+# ---------------------------------------------------------------------------
+
+
+@router.get("/statistiques")
+def statistiques(supabase: Client = Depends(get_supabase)):
+    """Le catalogue en chiffres : par région, par département, au national.
+
+    Recalculé à chaque appel sur le catalogue en cache — la page se rafraîchit
+    d'elle-même, et un retrait enregistré se voit au plus tard au TTL suivant.
+    Un nouveau lot d'aides, lui, entre par les YAML : il apparaît au
+    redémarrage du backend, c'est-à-dire au déploiement qui l'amène.
+    """
+    return catalogue_stats.statistiques_catalogue(supabase)
 
 
 # ---------------------------------------------------------------------------
