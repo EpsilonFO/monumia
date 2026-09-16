@@ -17,8 +17,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from supabase import Client
 
+from aides_schema import load_facts, load_pending_facts
 from db import get_current_user_id, get_supabase
 from services import quotas
+from services.faits_durables import details_reprises, faits_durables
 from services.project_access import (
     get_projet_role,
     projet_role_depuis,
@@ -91,6 +93,51 @@ def list_projets(
     for row in rows:
         row["my_role"] = projet_role_depuis(row, monument_role, roles_propres, user_id)
     return rows
+
+
+@router.get("/monuments/{monument_id}/faits-durables")
+def get_faits_durables(
+    monument_id: str,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Les réponses du monument qu'un nouveau projet n'a pas à redemander.
+
+    62 faits de l'ontologie décrivent le BIEN et 40 le PROPRIÉTAIRE : ils ne
+    changent pas d'un chantier à l'autre, et les reposer à chaque projet est la
+    première cause de questionnaire interminable au second projet.
+
+    Droit exigé : `co_owner` sur le monument — c'est exactement celui de CRÉER
+    un projet (cf. `create_projet`), et cette route ne sert qu'à ça. Un
+    collaborateur invité sur un seul chantier n'y a donc pas accès : les
+    réponses viennent des AUTRES projets du monument, qu'il n'a pas le droit de
+    voir (cf. « les deux niveaux de partage »).
+
+    Rend aussi, pour chaque clé, le projet d'où la réponse vient et son titre,
+    plus `details` : la QUESTION et la RÉPONSE en clair. Le wizard en fait un
+    bandeau dépliable, et c'est indispensable — une réponse reprise n'est plus
+    une incertitude, donc le moteur ne rend plus sa question, donc aucune fiche
+    d'aide ne l'offre à la correction. Sans cette liste, l'utilisateur ne peut
+    ni savoir ce qu'on a repris, ni le vérifier.
+    """
+    require_project_access(supabase, monument_id, user_id, "co_owner")
+    projets = (
+        supabase.table("projets")
+        .select("id, titre, questionnaire, updated_at")
+        .eq("monument_id", monument_id)
+        .execute()
+        .data
+        or []
+    )
+    facts = {**load_facts(), **load_pending_facts()}
+    reponses, source = faits_durables(projets, facts)
+    titres = {p["id"]: p.get("titre") for p in projets if p.get("id") in set(source.values())}
+    return {
+        "reponses": reponses,
+        "source": source,
+        "titres": titres,
+        "details": details_reprises(reponses, source, facts, titres),
+    }
 
 
 @router.post("/monuments/{monument_id}/projets", status_code=status.HTTP_201_CREATED)

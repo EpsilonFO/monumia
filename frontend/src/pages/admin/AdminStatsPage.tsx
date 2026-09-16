@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { IconAttention, IconRafraichir, IconRecherche } from '@/components/icons';
@@ -25,35 +25,46 @@ import {
 import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import type {
-  BlocStats,
+  GroupeStats,
   StatistiquesCatalogue,
-  StatsDepartement,
   StatsNature,
-  StatsRegion,
+  StatsTerritoire,
 } from '@/types/admin.types';
 
 /**
- * Le catalogue en chiffres : combien d'aides, sur quel territoire, à quel taux.
+ * Le catalogue en chiffres : combien d'aides par territoire, et lesquelles.
  *
  * Page d'exploitation, atteinte depuis `/admin` et soumise au même garde. Elle
  * ne MODIFIE rien : c'est la carte de ce qui est couvert et de ce qui ne l'est
  * pas, celle qu'on regarde avant de décider la prochaine région à prospecter.
  *
- * La distinction qui porte toute la page : le PÉRIMÈTRE d'une aide (où elle
- * s'applique, `hard_filters`) n'est pas son FINANCEUR (qui paye, `categorie`).
- * Une aide de la Fondation du Patrimoine peut n'être ouverte qu'à huit
- * départements sans qu'un euro vienne d'un Département. D'où deux familles de
- * colonnes, et jamais un chiffre qui mélange les deux.
+ * **Un seul chiffre par ligne, et les noms nus derrière.** La page a eu treize
+ * colonnes (financeur, typage, guichet, taux, plafonds) : personne ne les
+ * lisait, et chercher « combien d'aides pour la Bretagne ? » demandait de
+ * choisir entre six nombres. Elle répond maintenant à cette question-là, puis
+ * à « lesquelles ? » quand on déplie une ligne — le NOM seul, sans organisme
+ * ni chiffres, qui rallongeaient chaque puce sans rien apprendre. Le reste se
+ * lit dans les autres onglets de `/admin`, où il est à sa place.
  *
- * Trois choses qu'elle refuse de faire, parce qu'elles mentiraient :
+ * **Les lignes classent par FINANCEUR, pas par périmètre.** « Les aides du
+ * département de l'Isère » veut dire celles que le Conseil départemental
+ * finance — pas celles qui s'y appliquent, qui sont aussi celles de la Région
+ * et de l'État. Un dispositif régional limité à trois départements reste sur
+ * la ligne de sa Région, et la délégation Rhône-Alpes d'une fondation va dans
+ * « autres financeurs ».
+ *
+ * Les quatre échelons sont DISJOINTS et s'additionnent : Conseil régional,
+ * Conseil départemental, périmètre national, autres financeurs. Le quatrième
+ * n'est pas une poubelle : sans lui, une aide de fondation ouverte à huit
+ * départements serait soit invisible, soit comptée comme une aide du
+ * Département, ce qu'elle n'est pas.
+ *
+ * Deux choses que la page refuse de faire, parce qu'elles mentiraient :
  *
  * - additionner des plafonds. Les aides ne s'additionnent pas, elles se
  *   cumulent sous plafond public : une « enveloppe disponible » n'existe pas ;
- * - afficher `0 €` là où la source ne chiffre rien. C'est `n.c.`, et la
- *   colonne « chiffrées » dit sur combien d'aides la fourchette porte ;
- * - masquer les territoires vides. Un zéro en face d'un département EST le
- *   chiffre qu'on vient chercher. L'interrupteur existe, il n'est pas l'état
- *   initial.
+ * - afficher `0 €` là où la source ne chiffre rien. C'est `n.c.`, et le
+ *   dépliant dit sur combien d'aides la fourchette porte.
  *
  * Le rafraîchissement : la page se rappelle toute seule chaque minute, et à
  * chaque retour d'onglet. Elle suit ainsi les retraits enregistrés depuis
@@ -71,7 +82,7 @@ function EnTete<T>({
   tri,
   setTri,
   defaut = 'desc',
-  align = 'right',
+  align = 'left',
   children,
 }: {
   cle: keyof T;
@@ -100,16 +111,6 @@ function EnTete<T>({
   );
 }
 
-function Chiffre({ valeur, muet = false }: { valeur: number; muet?: boolean }) {
-  return (
-    <TableCell
-      className={`text-right tabular-nums ${muet && valeur === 0 ? 'text-muted-foreground' : ''}`}
-    >
-      {valeur}
-    </TableCell>
-  );
-}
-
 /** Un compteur du bandeau de tête. */
 function Vignette({ valeur, libelle, note }: { valeur: number; libelle: string; note?: string }) {
   return (
@@ -123,178 +124,174 @@ function Vignette({ valeur, libelle, note }: { valeur: number; libelle: string; 
   );
 }
 
-/** Les trois colonnes d'argent, identiques dans les quatre tableaux. */
-function Argent({ bloc }: { bloc: BlocStats }) {
+/**
+ * Le dépliant d'une ligne : le chiffrage du groupe, puis les aides par leur nom.
+ *
+ * C'est ici que vivent le taux et le plafond — pas en colonnes. Un groupe vide
+ * le dit en une phrase plutôt que d'ouvrir un cadre vide : sur cent un
+ * départements, la plupart n'ont encore rien.
+ */
+/** Les aides d'un groupe, par leur nom et rien d'autre. Une seule
+ *  implémentation : les dépliants et les deux onglets de liste s'en servent. */
+function ListeAides({ slugs, aides }: { slugs: string[]; aides: Record<string, string> }) {
   return (
-    <>
-      <TableCell className="text-right tabular-nums whitespace-nowrap">
-        {formaterTaux(bloc)}
-      </TableCell>
-      <TableCell className="text-right tabular-nums whitespace-nowrap">
-        {formaterMontant(bloc.montantMedian)}
-      </TableCell>
-      <TableCell className="text-right tabular-nums text-muted-foreground whitespace-nowrap">
-        {formaterCouverture(bloc.nbAvecMontant, bloc.nb)}
-      </TableCell>
-    </>
+    <ul className="space-y-1 text-[13px] leading-snug text-foreground">
+      {slugs.map((slug) => {
+        const nom = aides[slug];
+        // Un slug sans nom ne peut venir que d'une réponse tronquée : on saute
+        // la ligne plutôt que d'afficher une puce vide.
+        if (!nom) return null;
+        return <li key={slug}>{nom}</li>;
+      })}
+    </ul>
   );
 }
 
-function TableRegions({ lignes }: { lignes: StatsRegion[] }) {
-  const [tri, setTri] = useState<Tri<StatsRegion>>({ cle: 'nb', sens: 'desc' });
+/** La ligne de chiffrage d'un groupe : ce qui reste des colonnes d'argent. */
+function Chiffrage({ groupe }: { groupe: GroupeStats }) {
+  return (
+    <p className="text-[12.5px] text-muted-foreground">
+      Taux : <span className="text-foreground">{formaterTaux(groupe)}</span> · Plafond médian :{' '}
+      <span className="text-foreground">{formaterMontant(groupe.montantMedian)}</span> · chiffrées :{' '}
+      {formaterCouverture(groupe.nbAvecMontant, groupe.nb)}
+    </p>
+  );
+}
+
+function Depliant({
+  groupe,
+  aides,
+  colonnes,
+}: {
+  groupe: GroupeStats;
+  aides: Record<string, string>;
+  colonnes: number;
+}) {
+  return (
+    <TableRow className="hover:bg-transparent">
+      <TableCell colSpan={colonnes} className="bg-secondary/40 px-4 py-3">
+        {groupe.nb === 0 ? (
+          <p className="text-[13px] text-muted-foreground">
+            Aucune aide de cette collectivité dans le catalogue.
+          </p>
+        ) : (
+          <>
+            <div className="mb-2">
+              <Chiffrage groupe={groupe} />
+            </div>
+            <ListeAides slugs={groupe.slugs} aides={aides} />
+          </>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/**
+ * Le tableau des territoires : un nom, un nombre, et le détail au clic.
+ *
+ * `avecRegion` ajoute la seule colonne qui distingue les deux onglets — la
+ * région de rattachement d'un département. Le reste est identique, et deux
+ * composats jumeaux dériveraient l'un de l'autre à la première retouche.
+ */
+function TableauTerritoires({
+  lignes,
+  titre,
+  colonneNb,
+  avecRegion = false,
+  aides,
+}: {
+  lignes: StatsTerritoire[];
+  titre: string;
+  /** Ce que le nombre compte. « Aides » tout court laisserait croire au total
+   *  applicable sur le territoire, qui est une autre question. */
+  colonneNb: string;
+  avecRegion?: boolean;
+  aides: Record<string, string>;
+}) {
+  const [tri, setTri] = useState<Tri<StatsTerritoire>>({ cle: 'nb', sens: 'desc' });
+  const [ouvert, setOuvert] = useState<string | null>(null);
   const visibles = trierLignes(lignes, tri);
+  const colonnes = avecRegion ? 3 : 2;
+
+  if (visibles.length === 0) {
+    return (
+      <p className="px-4 py-8 text-center text-[14px] text-muted-foreground">
+        Aucun territoire ne correspond à votre recherche.
+      </p>
+    );
+  }
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <EnTete<StatsRegion> cle="label" tri={tri} setTri={setTri} defaut="asc" align="left">
-            Région
+          <EnTete<StatsTerritoire> cle="label" tri={tri} setTri={setTri} defaut="asc">
+            {titre}
           </EnTete>
-          <EnTete<StatsRegion> cle="nb" tri={tri} setTri={setTri}>
-            Aides
+          {avecRegion && (
+            <EnTete<StatsTerritoire> cle="regionLabel" tri={tri} setTri={setTri} defaut="asc">
+              Région
+            </EnTete>
+          )}
+          <EnTete<StatsTerritoire> cle="nb" tri={tri} setTri={setTri} align="right">
+            {colonneNb}
           </EnTete>
-          <EnTete<StatsRegion> cle="regionales" tri={tri} setTri={setTri}>
-            Toute la région
-          </EnTete>
-          <EnTete<StatsRegion> cle="locales" tri={tri} setTri={setTri}>
-            Périmètre étroit
-          </EnTete>
-          <EnTete<StatsRegion> cle="couvertureMax" tri={tri} setTri={setTri}>
-            Couv. max
-          </EnTete>
-          <EnTete<StatsRegion> cle="conseilRegional" tri={tri} setTri={setTri}>
-            Conseil régional
-          </EnTete>
-          <EnTete<StatsRegion> cle="conseilsDepartementaux" tri={tri} setTri={setTri}>
-            Conseils dép.
-          </EnTete>
-          <EnTete<StatsRegion> cle="typees" tri={tri} setTri={setTri}>
-            Typées
-          </EnTete>
-          <EnTete<StatsRegion> cle="bientot" tri={tri} setTri={setTri}>
-            Bientôt
-          </EnTete>
-          <EnTete<StatsRegion> cle="retirees" tri={tri} setTri={setTri}>
-            Retirées
-          </EnTete>
-          <EnTete<StatsRegion> cle="tauxMax" tri={tri} setTri={setTri}>
-            Taux
-          </EnTete>
-          <EnTete<StatsRegion> cle="montantMedian" tri={tri} setTri={setTri}>
-            Plafond médian
-          </EnTete>
-          <TableHead className="text-right">Chiffrées</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {visibles.map((ligne) => (
-          <TableRow key={ligne.code}>
-            <TableCell className="font-medium text-foreground">{ligne.label}</TableCell>
-            <Chiffre valeur={ligne.nb} muet />
-            <Chiffre valeur={ligne.regionales} muet />
-            <Chiffre valeur={ligne.locales} muet />
-            <Chiffre valeur={ligne.couvertureMax} />
-            <Chiffre valeur={ligne.conseilRegional} muet />
-            <Chiffre valeur={ligne.conseilsDepartementaux} muet />
-            <Chiffre valeur={ligne.typees} muet />
-            <Chiffre valeur={ligne.bientot} muet />
-            <Chiffre valeur={ligne.retirees} muet />
-            <Argent bloc={ligne} />
-          </TableRow>
+          <Fragment key={ligne.code}>
+            <TableRow
+              onClick={() => setOuvert(ouvert === ligne.code ? null : ligne.code)}
+              className={`cursor-pointer ${ouvert === ligne.code ? 'bg-secondary' : ''}`}
+            >
+              <TableCell className="font-medium text-foreground whitespace-nowrap">
+                <span aria-hidden className="mr-2 inline-block w-2 text-muted-foreground">
+                  {ouvert === ligne.code ? '▾' : '▸'}
+                </span>
+                {avecRegion && (
+                  <span className="mr-2 font-mono text-[11.5px] text-muted-foreground">
+                    {ligne.code}
+                  </span>
+                )}
+                {ligne.label}
+              </TableCell>
+              {avecRegion && (
+                <TableCell className="text-[13px] text-muted-foreground whitespace-nowrap">
+                  {ligne.regionLabel}
+                </TableCell>
+              )}
+              <TableCell
+                className={`text-right tabular-nums ${ligne.nb === 0 ? 'text-muted-foreground' : ''}`}
+              >
+                {ligne.nb}
+              </TableCell>
+            </TableRow>
+            {ouvert === ligne.code && (
+              <Depliant groupe={ligne} aides={aides} colonnes={colonnes} />
+            )}
+          </Fragment>
         ))}
       </TableBody>
     </Table>
   );
 }
 
-function TableDepartements({ lignes }: { lignes: StatsDepartement[] }) {
-  const [tri, setTri] = useState<Tri<StatsDepartement>>({ cle: 'couverture', sens: 'desc' });
-  const visibles = trierLignes(lignes, tri);
-
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <EnTete<StatsDepartement> cle="label" tri={tri} setTri={setTri} defaut="asc" align="left">
-            Département
-          </EnTete>
-          <EnTete<StatsDepartement>
-            cle="regionLabel"
-            tri={tri}
-            setTri={setTri}
-            defaut="asc"
-            align="left"
-          >
-            Région
-          </EnTete>
-          <EnTete<StatsDepartement> cle="locales" tri={tri} setTri={setTri}>
-            Périmètre local
-          </EnTete>
-          <EnTete<StatsDepartement> cle="regionales" tri={tri} setTri={setTri}>
-            + régionales
-          </EnTete>
-          <EnTete<StatsDepartement> cle="nationales" tri={tri} setTri={setTri}>
-            + nationales
-          </EnTete>
-          <EnTete<StatsDepartement> cle="couverture" tri={tri} setTri={setTri}>
-            Couverture
-          </EnTete>
-          <EnTete<StatsDepartement> cle="conseilDepartemental" tri={tri} setTri={setTri}>
-            Conseil dép.
-          </EnTete>
-          <EnTete<StatsDepartement> cle="typees" tri={tri} setTri={setTri}>
-            Typées
-          </EnTete>
-          <EnTete<StatsDepartement> cle="retirees" tri={tri} setTri={setTri}>
-            Retirées
-          </EnTete>
-          <EnTete<StatsDepartement> cle="tauxMax" tri={tri} setTri={setTri}>
-            Taux
-          </EnTete>
-          <EnTete<StatsDepartement> cle="montantMedian" tri={tri} setTri={setTri}>
-            Plafond médian
-          </EnTete>
-          <TableHead className="text-right">Chiffrées</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {visibles.map((ligne) => (
-          <TableRow key={ligne.code}>
-            <TableCell className="font-medium text-foreground whitespace-nowrap">
-              <span className="mr-2 font-mono text-[11.5px] text-muted-foreground">
-                {ligne.code}
-              </span>
-              {ligne.label}
-            </TableCell>
-            <TableCell className="text-[13px] text-muted-foreground whitespace-nowrap">
-              {ligne.regionLabel}
-            </TableCell>
-            <Chiffre valeur={ligne.locales} muet />
-            <Chiffre valeur={ligne.regionales} muet />
-            <Chiffre valeur={ligne.nationales} muet />
-            <Chiffre valeur={ligne.couverture} />
-            <Chiffre valeur={ligne.conseilDepartemental} muet />
-            <Chiffre valeur={ligne.typees} muet />
-            <Chiffre valeur={ligne.retirees} muet />
-            <Argent bloc={ligne} />
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
-
-function TableNature({
+/** Même tableau, pour les regroupements qui ne sont pas des territoires. */
+function TableauNature({
   titre,
   colonne,
   lignes,
+  aides,
 }: {
   titre: string;
   colonne: string;
   lignes: StatsNature[];
+  aides: Record<string, string>;
 }) {
   const [tri, setTri] = useState<Tri<StatsNature>>({ cle: 'nb', sens: 'desc' });
+  const [ouvert, setOuvert] = useState<string | null>(null);
   const visibles = trierLignes(lignes, tri);
 
   return (
@@ -305,32 +302,35 @@ function TableNature({
       <Table>
         <TableHeader>
           <TableRow>
-            <EnTete<StatsNature> cle="label" tri={tri} setTri={setTri} defaut="asc" align="left">
+            <EnTete<StatsNature> cle="label" tri={tri} setTri={setTri} defaut="asc">
               {colonne}
             </EnTete>
-            <EnTete<StatsNature> cle="nb" tri={tri} setTri={setTri}>
+            <EnTete<StatsNature> cle="nb" tri={tri} setTri={setTri} align="right">
               Aides
             </EnTete>
-            <EnTete<StatsNature> cle="typees" tri={tri} setTri={setTri}>
-              Typées
-            </EnTete>
-            <EnTete<StatsNature> cle="tauxMax" tri={tri} setTri={setTri}>
-              Taux
-            </EnTete>
-            <EnTete<StatsNature> cle="montantMedian" tri={tri} setTri={setTri}>
-              Plafond médian
-            </EnTete>
-            <TableHead className="text-right">Chiffrées</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {visibles.map((ligne) => (
-            <TableRow key={ligne.code}>
-              <TableCell className="font-medium text-foreground">{ligne.label}</TableCell>
-              <Chiffre valeur={ligne.nb} muet />
-              <Chiffre valeur={ligne.typees} muet />
-              <Argent bloc={ligne} />
-            </TableRow>
+            <Fragment key={ligne.code}>
+              <TableRow
+                onClick={() => setOuvert(ouvert === ligne.code ? null : ligne.code)}
+                className={`cursor-pointer ${ouvert === ligne.code ? 'bg-secondary' : ''}`}
+              >
+                <TableCell className="font-medium text-foreground">
+                  <span aria-hidden className="mr-2 inline-block w-2 text-muted-foreground">
+                    {ouvert === ligne.code ? '▾' : '▸'}
+                  </span>
+                  {ligne.label}
+                </TableCell>
+                <TableCell
+                  className={`text-right tabular-nums ${ligne.nb === 0 ? 'text-muted-foreground' : ''}`}
+                >
+                  {ligne.nb}
+                </TableCell>
+              </TableRow>
+              {ouvert === ligne.code && <Depliant groupe={ligne} aides={aides} colonnes={2} />}
+            </Fragment>
           ))}
         </TableBody>
       </Table>
@@ -399,7 +399,8 @@ export function AdminStatsPage() {
           navigate(ROUTES.DASHBOARD, { replace: true });
           return;
         }
-        if (!silencieux) toast.error(err instanceof Error ? err.message : 'Statistiques indisponibles');
+        if (!silencieux)
+          toast.error(err instanceof Error ? err.message : 'Statistiques indisponibles');
       } finally {
         if (monte.current) setChargement(false);
       }
@@ -436,7 +437,7 @@ export function AdminStatsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Le catalogue en chiffres"
-        description="Les aides servies aujourd’hui, par territoire et par nature. Lecture seule : les retraits se font dans l’administration du catalogue."
+        description="Combien d’aides finance chaque Conseil régional, chaque Conseil départemental, et combien valent partout. Cliquer une ligne déplie leurs noms."
         action={
           <div className="flex items-center gap-3">
             {stats && (
@@ -471,40 +472,35 @@ export function AdminStatsPage() {
         <>
           <Synchronisation stats={stats} />
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <Vignette
               valeur={stats.corpus.nb}
-              libelle="Aides servies"
+              libelle="Aides au catalogue"
               note={
                 stats.corpus.retirees > 0
-                  ? `${stats.corpus.retirees} retirée${stats.corpus.retirees > 1 ? 's' : ''} du catalogue`
-                  : `sur ${stats.corpus.total} au corpus`
+                  ? `${stats.corpus.retirees} retirée${stats.corpus.retirees > 1 ? 's' : ''}, non comptée${stats.corpus.retirees > 1 ? 's' : ''}`
+                  : undefined
               }
             />
             <Vignette
               valeur={stats.corpus.nationales}
               libelle="Nationales"
-              note="sans filtre de territoire"
+              note="État, fiscalité, fondations nationales"
             />
             <Vignette
               valeur={stats.corpus.regionales}
-              libelle="Régionales"
-              note="toute une région"
+              libelle="Conseils régionaux"
+              note="quel que soit leur périmètre"
             />
             <Vignette
-              valeur={stats.corpus.locales}
-              libelle="Périmètre local"
-              note="un ou quelques départements"
+              valeur={stats.corpus.departementales}
+              libelle="Conseils départementaux"
+              note="quel que soit leur périmètre"
             />
             <Vignette
-              valeur={stats.corpus.typees}
-              libelle="Typées"
-              note="traitées par le moteur"
-            />
-            <Vignette
-              valeur={stats.corpus.bientot}
-              libelle="Guichet fermé"
-              note="« disponibles bientôt »"
+              valeur={stats.corpus.autres}
+              libelle="Autres financeurs"
+              note="fondations, Europe, mécénat"
             />
           </div>
 
@@ -523,7 +519,7 @@ export function AdminStatsPage() {
             </div>
             <label className="flex items-center gap-2 text-[13px] text-muted-foreground">
               <Switch checked={masquerVidesActif} onCheckedChange={setMasquerVidesActif} />
-              Masquer les territoires sans aide propre
+              Masquer les territoires sans aide
             </label>
           </div>
 
@@ -531,47 +527,96 @@ export function AdminStatsPage() {
             <TabsList>
               <TabsTrigger value="regions">Régions</TabsTrigger>
               <TabsTrigger value="departements">Départements</TabsTrigger>
+              <TabsTrigger value="national">National</TabsTrigger>
+              <TabsTrigger value="autres">Autres financeurs</TabsTrigger>
               <TabsTrigger value="nature">Nature</TabsTrigger>
             </TabsList>
 
             <TabsContent value="regions" className="mt-4 space-y-2">
               <div className="overflow-hidden rounded-xl border border-border bg-card">
-                <TableRegions lignes={regions} />
+                <TableauTerritoires
+                  lignes={regions}
+                  titre="Région"
+                  colonneNb="Aides du Conseil régional"
+                  aides={stats.aides}
+                />
               </div>
               <p className="text-[12.5px] text-muted-foreground">
-                Les trois premières colonnes disent le PÉRIMÈTRE : « Toute la région » vaut partout
-                dans la région, « Périmètre étroit » ne vaut que sur les départements nommés. « Couv.
-                max » y ajoute les {stats.corpus.nationales} aides nationales : c’est un maximum
-                régional, pas un acquis. Les deux dernières disent le FINANCEUR, qui est une autre
-                question : un appel à projets de Région peut être limité à trois départements, et
-                une fondation couvrir toute la région.
+                Les aides financées par chaque Conseil régional, y compris celles qu’il limite à
+                quelques départements. Ce que la Région finance, pas ce qui s’applique sur son
+                territoire : les aides de l’État et des Départements sont sur leurs propres
+                onglets.
               </p>
             </TabsContent>
 
             <TabsContent value="departements" className="mt-4 space-y-2">
               <div className="overflow-hidden rounded-xl border border-border bg-card">
-                <TableDepartements lignes={departements} />
+                <TableauTerritoires
+                  lignes={departements}
+                  titre="Département"
+                  colonneNb="Aides du Conseil départemental"
+                  avecRegion
+                  aides={stats.aides}
+                />
               </div>
               <p className="text-[12.5px] text-muted-foreground">
-                « Couverture » est exacte : c’est ce qu’un monument de ce département voit, les
-                trois étages additionnés, sans double compte. « Périmètre local » retient les aides
-                qui nomment ce département, quel qu’en soit le financeur ; « Conseil dép. » ne
-                retient que celles du Département lui-même — un zéro en face d’une couverture
-                élevée désigne un financeur entier à prospecter. Les colonnes d’argent portent sur
-                les seules aides locales : les régionales sont chiffrées sur leur propre ligne.
+                Les aides financées par chaque Conseil départemental. Un zéro ne veut pas dire
+                qu’un monument du département n’a droit à rien : il voit aussi les aides de sa
+                région, les nationales et celles des autres financeurs. Il veut dire qu’il reste un
+                Département entier à prospecter.
+              </p>
+            </TabsContent>
+
+            <TabsContent value="national" className="mt-4 space-y-2">
+              <div className="overflow-hidden rounded-xl border border-border bg-card px-4 py-4">
+                <p className="text-[14px] font-medium text-foreground">
+                  {stats.corpus.nationales} aides sans filtre géographique
+                </p>
+                <div className="mt-0.5 mb-3">
+                  <Chiffrage groupe={stats.national} />
+                </div>
+                <ListeAides slugs={stats.national.slugs} aides={stats.aides} />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="autres" className="mt-4 space-y-2">
+              <div className="overflow-hidden rounded-xl border border-border bg-card px-4 py-4">
+                <p className="text-[14px] font-medium text-foreground">
+                  {stats.corpus.autres} aides d’un financeur sans échelon territorial
+                </p>
+                <div className="mt-0.5 mb-3">
+                  <Chiffrage groupe={stats.autres} />
+                </div>
+                <ListeAides slugs={stats.autres.slugs} aides={stats.aides} />
+              </div>
+              <p className="text-[12.5px] text-muted-foreground">
+                Fondations, Europe, mécénat : leur périmètre est local sans qu’un euro vienne d’une
+                collectivité. Les compter comme des aides de Département serait faux, les cacher
+                les ferait disparaître de la page.
               </p>
             </TabsContent>
 
             <TabsContent value="nature" className="mt-4 grid gap-4 xl:grid-cols-2">
-              <TableNature titre="Par financeur" colonne="Catégorie" lignes={stats.categories} />
-              <TableNature titre="Par dispositif" colonne="Type" lignes={stats.types} />
+              <TableauNature
+                titre="Par financeur"
+                colonne="Catégorie"
+                lignes={stats.categories}
+                aides={stats.aides}
+              />
+              <TableauNature
+                titre="Par dispositif"
+                colonne="Type"
+                lignes={stats.types}
+                aides={stats.aides}
+              />
             </TabsContent>
           </Tabs>
 
           <p className="text-[12.5px] text-muted-foreground">
-            « Taux » donne la fourchette du groupe, « Plafond médian » la médiane des montants
-            maximum annoncés, « Chiffrées » sur combien d’aides ce plafond porte. {NON_CHIFFRE} =
-            la source n’annonce pas de montant : rien n’est déduit, rien n’est additionné.
+            Les quatre chiffres de tête s’additionnent : une aide est comptée une seule fois, sur
+            l’échelon qui la finance. {NON_CHIFFRE} = la source n’annonce ni taux ni montant : rien
+            n’est déduit, rien n’est additionné. Les aides retirées du catalogue ne sont ni
+            comptées ni listées.
           </p>
         </>
       )}

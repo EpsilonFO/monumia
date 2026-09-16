@@ -1,4 +1,5 @@
 import type { ProjectQuestionnaireAnswers } from '@/types';
+import { FAMILLES_KEY } from './familles';
 
 /**
  * Finalités d'une aide (colonne `aides_v3.raison`, constante `RAISONS` côté
@@ -122,12 +123,23 @@ export function sansEtapeTravaux(raisons: string[]): boolean {
  *
  * Les réponses aux faits sont RECOPIÉES et non effacées : à ce stade le
  * questionnaire n'a pas été repassé, et « tout refaire » ne les remplace qu'à
- * sa sortie. Les clés réservées du précédent, elles, tombent — `raisons` est
- * la seule source des intentions.
+ * sa sortie. Les clés réservées du précédent, elles, tombent — `raisons` et
+ * `familles` sont les seules sources du cadrage.
+ *
+ * `familles` est en TRI-ÉTAT (cf. `readFamilles`) : `null` veut dire « la
+ * question n'a pas été posée », et la clé est alors ABSENTE du questionnaire —
+ * ce qui n'est pas la même chose qu'une liste vide, qui est la réponse
+ * « montrez-moi tout ». Les deux ne filtrent rien, mais seule la seconde est un
+ * choix, et l'écrire permet de ne pas reposer la question.
  */
 export function questionnaireDeCadrage(
   precedent: ProjectQuestionnaireAnswers | undefined,
   raisons: string[],
+  familles: string[] | null,
 ): ProjectQuestionnaireAnswers {
-  return { ...sansClesReservees(precedent), [RAISONS_KEY]: raisons };
+  return {
+    ...sansClesReservees(precedent),
+    [RAISONS_KEY]: raisons,
+    ...(familles === null ? {} : { [FAMILLES_KEY]: familles }),
+  };
 }

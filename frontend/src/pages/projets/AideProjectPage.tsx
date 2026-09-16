@@ -33,6 +33,7 @@ export function AideProjectPage() {
 
   const projet = useProjetStore((s) => s.projets.find((p) => p.id === projetId));
   const upsertProjet = useProjetStore((s) => s.upsertProjet);
+  const repondreFait = useProjetStore((s) => s.repondreFait);
   const monumentId = projet?.monumentId;
   const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId));
   const upsertMonument = useMonumentStore((s) => s.upsertMonument);
@@ -47,6 +48,7 @@ export function AideProjectPage() {
   const [aide, setAide] = useState<Aide | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [opening, setOpening] = useState(false);
+  const [envoiReponse, setEnvoiReponse] = useState(false);
 
   const projetFetchedRef = useRef(false);
 
@@ -103,16 +105,22 @@ export function AideProjectPage() {
   // Le diagnostic complet porte les critères remplis / à débloquer affichés ici.
   // On l'obtient sur place quand il manque : le dashboard ne charge plus qu'un
   // digest par projet, donc arriver par une échéance ne le fournit plus.
+  //
+  // Même effet que sur la page du projet, et SANS garde `|| diagnostic` :
+  // répondre depuis cette fiche change `projet.questionnaire`, et un diagnostic
+  // déjà en store laisserait le verdict figé sur les réponses d'avant. Le
+  // moteur est pur et coûte deux millisecondes : une relance à l'arrivée ne se
+  // voit pas.
   const questionnaireKey = projet ? JSON.stringify(projet.questionnaire ?? {}) : '';
   useEffect(() => {
-    if (!projetId || diagnostic || !questionnaireKey) return;
+    if (!projetId || !questionnaireKey) return;
     let cancelled = false;
     aideService
       .runProjectDiagnostic(projetId, JSON.parse(questionnaireKey))
       .then((result) => { if (!cancelled) setDiagnostic(projetId, result); })
       .catch(console.error);
     return () => { cancelled = true; };
-  }, [projetId, diagnostic, questionnaireKey, setDiagnostic]);
+  }, [projetId, questionnaireKey, setDiagnostic]);
 
   useEffect(() => {
     if (!aideId) return;
@@ -124,6 +132,32 @@ export function AideProjectPage() {
   useEffect(() => {
     dossierService.fetchAll().then(setDossiers).catch(console.error);
   }, [setDossiers]);
+
+  /**
+   * Répondre depuis la fiche. Le droit est `canEditProject` (= co_owner),
+   * miroir de ce qu'exige `update_projet` : proposer un formulaire qu'un 403
+   * refuserait serait pire que de ne rien proposer. Aucune relance manuelle du
+   * diagnostic — le questionnaire mis à jour suffit à déclencher l'effet.
+   */
+  const peutRepondre = !!projet && projectPermissions(projet.myRole ?? null).canEditProject;
+  const handleRepondre = useMemo(
+    () =>
+      peutRepondre && projetId
+        ? async (factKey: string, value: string | string[] | undefined) => {
+            setEnvoiReponse(true);
+            try {
+              await repondreFait(projetId, factKey, value);
+            } catch (err) {
+              toast.error(
+                err instanceof Error ? err.message : "Votre réponse n'a pas pu être enregistrée",
+              );
+            } finally {
+              setEnvoiReponse(false);
+            }
+          }
+        : undefined,
+    [peutRepondre, projetId, repondreFait],
+  );
 
   const existingDossier = useMemo(
     () => dossiers.find((d) => d.projetId === projetId && d.aideId === aideId) ?? null,
@@ -201,7 +235,16 @@ export function AideProjectPage() {
 
       <AideHero aide={aide} matchResult={matchResult} cta={cta} />
 
-      <AideDetails aide={aide} matchResult={matchResult} monumentName={monument.nom} showHeader={false} />
+      <AideDetails
+        aide={aide}
+        matchResult={matchResult}
+        monumentName={monument.nom}
+        showHeader={false}
+        questions={diagnostic?.qcmQuestions}
+        answers={projet.questionnaire ?? {}}
+        onRepondre={handleRepondre}
+        envoiEnCours={envoiReponse}
+      />
     </div>
   );
 }

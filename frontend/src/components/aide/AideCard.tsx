@@ -21,6 +21,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AIDE_CATEGORIES } from '@/constants/aide-categories';
 import { ROUTES } from '@/constants/routes';
+import { QuestionOptions } from '@/components/project/wizard/QuestionOptions';
+import { questionsPourAide } from '@/lib/diagnostic-bilan';
 import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import { daysUntil, formatDateShort } from '@/lib/date-utils';
 import { C, SERIF } from '@/lib/brand';
@@ -32,7 +34,7 @@ import {
   STATUS_PILL_LABEL,
   STATUS_TONE,
 } from './eligibility-status';
-import type { AideMatchResult } from '@/types';
+import type { AideMatchResult, ProjectQuestionnaireAnswers, QcmQuestion } from '@/types';
 
 interface AideCardProps {
   match: AideMatchResult;
@@ -51,6 +53,21 @@ interface AideCardProps {
    * verticale (≥ 2 aides) · `hero` = grande carte pleine largeur (1 seule aide).
    */
   layout?: 'tile' | 'grid' | 'hero';
+  /**
+   * Répondre SUR LA CARTE. Depuis que le tronc commun ne pose que les questions
+   * partagées, celles qui ne servent qu'une aide arrivent ici — et une question
+   * affichée avec ses réponses vaut mieux qu'un « il reste une condition »
+   * derrière un clic : c'est ce qui évite les faux espoirs d'une liste d'aides
+   * « à confirmer » qui fond dès qu'on l'ouvre.
+   *
+   * Les quatre vont ensemble : sans `onRepondre` (droit d'écriture), rien n'est
+   * posé — on ne montre pas une question à qui ne peut pas y répondre.
+   */
+  questions?: QcmQuestion[];
+  answers?: ProjectQuestionnaireAnswers;
+  onRepondre?: (factKey: string, value: string | string[] | undefined) => void;
+  /** Une réponse est en cours d'enregistrement : toutes les cartes se figent. */
+  envoiEnCours?: boolean;
 }
 
 type Urgency = 'urgent' | 'warning' | 'normal' | 'past';
@@ -104,6 +121,10 @@ export function AideCard({
   showChiffres = true,
   projetId,
   layout = 'tile',
+  questions,
+  answers,
+  onRepondre,
+  envoiEnCours,
 }: AideCardProps) {
   const { aide, criteresRemplis, criteresNonRemplis } = match;
   const navigate = useNavigate();
@@ -289,6 +310,55 @@ export function AideCard({
     valueColor: deadline ? dTone.fg : undefined,
   });
 
+  // Questions qui séparent ENCORE cette aide d'un verdict. Uniquement sur les
+  // cartes « à confirmer » : ailleurs il n'y a rien à trancher. Les layouts
+  // `hero` et `grid` n'affichent aucune incertitude (c'est `tile` qui le fait),
+  // la place est donc libre pour la question elle-même.
+  const restantes =
+    onRepondre && questions && status === 'potential'
+      ? questionsPourAide(aide.id, questions, answers ?? {})
+      : [];
+
+  /**
+   * Une seule question restante → on la pose, sur place. Au-delà, on annonce
+   * combien il en reste et on renvoie à la fiche : empiler trois questions dans
+   * une carte de grille la transformerait en formulaire.
+   *
+   * La carte entière est cliquable : chaque contrôle arrête la propagation,
+   * sans quoi cocher une réponse naviguerait vers la fiche.
+   */
+  const questionInline =
+    restantes.length === 0 ? null : (
+      <div
+        className="rounded-xl border p-3"
+        style={{ borderColor: C.border, background: 'var(--secondary)' }}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        role="presentation"
+      >
+        {restantes.length === 1 ? (
+          <QuestionOptions
+            question={restantes[0]}
+            value={answers?.[restantes[0].id]}
+            onAnswer={(v) => onRepondre?.(restantes[0].id, v)}
+            compact
+            disabled={envoiEnCours}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={handleCardClick}
+            className="flex w-full items-center gap-2 text-left text-[13.5px] font-semibold"
+            style={{ color: C.orange }}
+          >
+            <IconHelp className="h-4 w-4 shrink-0" />
+            {restantes.length} questions pour trancher
+            <ArrowRight className="ml-auto h-4 w-4" />
+          </button>
+        )}
+      </div>
+    );
+
   // Bouton principal clair — signal d'action fort, en bleu charte.
   const detailButton = (fullWidth: boolean) => (
     <button
@@ -345,6 +415,7 @@ export function AideCard({
             </div>
             {description()}
             {criteriaSummary}
+            {questionInline}
           </div>
           <div className="flex shrink-0 flex-col gap-4 lg:w-72">
             {showChiffres && (
@@ -419,6 +490,8 @@ export function AideCard({
             })}
           </div>
           )}
+
+          {questionInline}
 
           <div className="mt-auto flex items-center justify-between gap-3 pt-1">
             <div>{criteriaSummary}</div>

@@ -1,3 +1,4 @@
+import { FAMILLES_KEY, readFamilles } from '@/constants/familles';
 import { describe, it, expect } from 'vitest';
 import {
   RAISONS_KEY,
@@ -95,14 +96,14 @@ describe('sansEtapeTravaux', () => {
  */
 describe('questionnaireDeCadrage', () => {
   it('pose la finalité sur un nouveau projet', () => {
-    expect(questionnaireDeCadrage(undefined, ['restauration_travaux'])).toEqual({
+    expect(questionnaireDeCadrage(undefined, ['restauration_travaux'], null)).toEqual({
       [RAISONS_KEY]: ['restauration_travaux'],
     });
   });
 
   it('garde les réponses aux faits déjà enregistrées', () => {
     expect(
-      questionnaireDeCadrage({ etat_travaux: 'non_commences' }, ['etude_ingenierie']),
+      questionnaireDeCadrage({ etat_travaux: 'non_commences' }, ['etude_ingenierie'], null),
     ).toEqual({ etat_travaux: 'non_commences', [RAISONS_KEY]: ['etude_ingenierie'] });
   });
 
@@ -111,19 +112,65 @@ describe('questionnaireDeCadrage', () => {
       questionnaireDeCadrage(
         { [RAISONS_KEY]: ['valorisation_rayonnement'], fait: 'oui' },
         ['restauration_travaux'],
+        null,
       ),
     ).toEqual({ fait: 'oui', [RAISONS_KEY]: ['restauration_travaux'] });
   });
 
   it('ne mute pas le questionnaire enregistré', () => {
     const source = { [RAISONS_KEY]: ['valorisation_rayonnement'], fait: 'oui' };
-    questionnaireDeCadrage(source, ['restauration_travaux']);
+    questionnaireDeCadrage(source, ['restauration_travaux'], null);
     expect(source).toEqual({ [RAISONS_KEY]: ['valorisation_rayonnement'], fait: 'oui' });
   });
 
   it('est relu par readRaisons', () => {
-    expect(readRaisons(questionnaireDeCadrage({}, ['valorisation_rayonnement']))).toEqual([
+    expect(readRaisons(questionnaireDeCadrage({}, ['valorisation_rayonnement'], null))).toEqual([
       'valorisation_rayonnement',
     ]);
+  });
+
+  /**
+   * Les familles sont en TRI-ÉTAT, et c'est tout l'enjeu : `null` (« la
+   * question n'a pas été posée ») laisse la clé ABSENTE, tandis que `[]`
+   * (« montrez-moi tout ») s'écrit. Les deux ne filtrent rien côté moteur,
+   * mais seule la seconde est une réponse — et l'écrire permet de ne pas
+   * reposer la question.
+   */
+  it('omet _familles quand la question n’a pas été posée', () => {
+    const q = questionnaireDeCadrage({}, ['restauration_travaux'], null);
+    expect(FAMILLES_KEY in q).toBe(false);
+    expect(readFamilles(q)).toBeNull();
+  });
+
+  it('écrit une liste vide pour « montrez-moi tout »', () => {
+    const q = questionnaireDeCadrage({}, ['valorisation_rayonnement'], []);
+    expect(q[FAMILLES_KEY]).toEqual([]);
+    expect(readFamilles(q)).toEqual([]);
+  });
+
+  it('pose les familles cochées et les relit', () => {
+    const q = questionnaireDeCadrage({ fait: 'oui' }, ['valorisation_rayonnement'], [
+      'spectacles_manifestations',
+    ]);
+    expect(q).toEqual({
+      fait: 'oui',
+      [RAISONS_KEY]: ['valorisation_rayonnement'],
+      [FAMILLES_KEY]: ['spectacles_manifestations'],
+    });
+    expect(readFamilles(q)).toEqual(['spectacles_manifestations']);
+  });
+
+  it('remplace les anciennes familles, jamais ne les cumule', () => {
+    expect(
+      questionnaireDeCadrage(
+        { [FAMILLES_KEY]: ['tourisme_hebergement'], fait: 'oui' },
+        ['valorisation_rayonnement'],
+        ['spectacles_manifestations'],
+      ),
+    ).toEqual({
+      fait: 'oui',
+      [RAISONS_KEY]: ['valorisation_rayonnement'],
+      [FAMILLES_KEY]: ['spectacles_manifestations'],
+    });
   });
 });

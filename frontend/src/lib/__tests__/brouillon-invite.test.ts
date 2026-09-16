@@ -65,7 +65,9 @@ const {
   monumentDepuisBrouillon,
   prendreRetourGoogleBrouillon,
 } = await import('@/lib/brouillon-invite');
-const { useBrouillonInviteStore } = await import('@/stores/useBrouillonInviteStore');
+const { useBrouillonInviteStore, VERSION_BROUILLON } = await import(
+  '@/stores/useBrouillonInviteStore'
+);
 const { useMonumentStore } = await import('@/stores/useMonumentStore');
 const { useProjetStore } = await import('@/stores/useProjetStore');
 
@@ -258,10 +260,13 @@ describe('finaliserBrouillon — deux onglets', () => {
     backing.set(
       'monumia-brouillon-invite',
       JSON.stringify({
-        version: 1,
+        version: VERSION_BROUILLON,
         state: {
           monument: MONUMENT,
           raisons: ['fiscalite'],
+          // `null` : l'étape des activités n'a pas été posée (intention
+          // fiscale). La clé `_familles` reste donc absente du questionnaire.
+          familles: null,
           travaux: ['facade'],
           answers: { etat_travaux: 'acheves' },
           etape: 'inscription',

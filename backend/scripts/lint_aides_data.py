@@ -20,6 +20,7 @@ Après un batch de résorption relu, abaisser le plafond :
 """
 
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -36,10 +37,39 @@ from aides_schema import (
     # Remontée dans aides_schema (second usager au runtime : /admin). Réimportée
     # ici parce que `veille_apply` et `veille_typage` l'importent DU LINT.
     check_fact_predicate,
+    evaluate_predicate,
     load_aide,
     load_facts,
     load_pending_facts,
     predicate_leaves,
+)
+from eligibility_engine import _normalize_answer, deduire_faits_des_faits
+from labels import DEPARTEMENT_LABELS, REGION_LABELS
+
+# `help` NOMINATIF : marqueurs de financeur et de territoire. Un fait cité par
+# plusieurs aides dont l'aide contextuelle nomme un seul financeur fait croire
+# que la question ne concerne que celui-là — c'est le retour du testeur du
+# 2026-09-16 sur `budget_projet_mediation` et `appellation_musee_de_france`,
+# dont le `help` nommait un autre financeur que l'aide qui posait la question.
+# Les libellés de territoire viennent du référentiel, pas d'une liste à tenir.
+MOTIFS_NOMINATIFS = re.compile(
+    "|".join(
+        [
+            r"\bR[ée]gion\b",
+            r"\bD[ée]partement\b",
+            r"\bConseil d[ée]partemental\b",
+            r"\bFondation\b",
+            r"\bAcad[ée]mie\b",
+            r"\bInstitut de France\b",
+            r"\bDRAC\b",
+            r"\bGIP\b",
+            r"\bFEDER\b",
+            r"\bVMF\b",
+            r"\bREMPART\b",
+            r"\bDemeure Historique\b",
+            *(re.escape(nom) for nom in {**REGION_LABELS, **DEPARTEMENT_LABELS}.values()),
+        ]
+    )
 )
 
 # Kinds dont la condition est opposable à une source : la quote y est attendue
@@ -171,12 +201,70 @@ def check_hors_gate(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
     return erreurs
 
 
+# Marqueur de lien d'auteur — `[[fait]]`. Il n'a jamais été rendu : le front
+# affiche `question` et `help` tels quels, crochets compris. Le lecteur d'un
+# `help` est l'UTILISATEUR ; un renvoi vers une autre question s'écrit en
+# français (« la question sur le statut juridique du porteur »). Les
+# commentaires YAML, eux, restent libres : ils ne sortent jamais du fichier.
+LIEN_AUTEUR = "[["
+
+
 def check_facts(facts: dict[str, FactDef]) -> list[str]:
-    return [
+    erreurs = [
         f"facts.yaml / {key}: auto_source « {f.auto_source} » absent de FIELD_REGISTRY"
         for key, f in facts.items()
         if f.auto_source and f.auto_source not in FIELD_REGISTRY
     ]
+    erreurs += [
+        f"facts.yaml / {key}: `{champ}` contient un lien d'auteur `[[…]]`, rendu brut à "
+        f"l'écran — le réécrire en français"
+        for key, f in facts.items()
+        for champ in ("question", "help")
+        if LIEN_AUTEUR in (getattr(f, champ, None) or "")
+    ]
+    erreurs += [
+        f"facts.yaml / {key} / option {o.id}: `label` contient un lien d'auteur `[[…]]`"
+        for key, f in facts.items()
+        for o in f.options or []
+        if LIEN_AUTEUR in o.label
+    ]
+    erreurs.extend(check_pertinent_si(facts))
+    return erreurs
+
+
+def check_pertinent_si(facts: dict[str, FactDef]) -> list[str]:
+    """La dépendance intrinsèque d'un fait : cible, prédicat, et pas de chaîne.
+
+    Le prédicat est validé par `check_fact_predicate`, la MÊME fonction que les
+    conditions d'aides et l'administration du catalogue : une clause qui
+    citerait une option inexistante ne serait jamais vraie, et la question
+    qu'elle gouverne ne serait plus jamais posée — un fait tu, pas une erreur.
+
+    La chaîne est limitée à UN niveau parce que `build_questions` suppose une
+    seule passerelle (`_depends_on` ne projette qu'un `showForOptionIds`) : une
+    question branchée sur une question elle-même branchée resterait invisible.
+    """
+    erreurs: list[str] = []
+    for key, f in facts.items():
+        clause = f.pertinent_si
+        if clause is None:
+            continue
+        ou = f"facts.yaml / {key} (pertinent_si)"
+        if clause.fact == key:
+            erreurs.append(f"{ou}: un fait ne peut pas dépendre de lui-même")
+            continue
+        cible = facts.get(clause.fact or "")
+        if cible is None:
+            erreurs.append(f"{ou}: fait cible inconnu « {clause.fact} »")
+            continue
+        erreurs.extend(check_fact_predicate(ou, clause.fact, clause.predicate, facts))
+        if cible.pertinent_si is not None:
+            erreurs.append(
+                f"{ou}: la cible « {clause.fact} » porte elle-même un `pertinent_si` — "
+                "chaîne limitée à un niveau (le questionnaire ne sait rendre qu'une "
+                "passerelle)"
+            )
+    return erreurs
 
 
 def main() -> int:
@@ -317,6 +405,112 @@ def main() -> int:
         )
         for slug in sans_calendrier:
             print(f"  {slug}")
+
+    # `applies_if` de condition qui RÉPÈTE le `pertinent_si` de son fait : la
+    # clause est déjà reportée par le moteur, la recopier est du bruit. Non
+    # bloquant — c'est un guide pour la migration éditoriale, et une clause
+    # propre reste toujours légitime (elle est plus spécifique).
+    redondantes = sorted(
+        f"{a.slug} / {c.id} ({c.fact})"
+        for a in aides
+        for c in a.conditions
+        if c.fact
+        and c.applies_if
+        and (pertinent := (facts[c.fact].pertinent_si if c.fact in facts else None))
+        and c.applies_if.fact == pertinent.fact
+        and c.applies_if.predicate.root == pertinent.predicate.root
+    )
+    if redondantes:
+        print(
+            f"pertinent_si : {len(redondantes)} condition(s) dont l'`applies_if` répète la "
+            f"dépendance déjà déclarée sur le fait — retirable :"
+        )
+        for ligne in redondantes:
+            print(f"  {ligne}")
+
+    # COHÉRENCE entre `raison` et « aucun travaux » : une aide ne porte
+    # `valorisation_rayonnement` que si elle finance une action SANS chantier
+    # (cf. data/TYPING.md, § `raison`). Le moteur sait le vérifier — si un de
+    # ses gates est réfuté par « ce projet ne comporte pas de travaux », elle ne
+    # le fait pas. C'est le filtre strict posé sur la DONNÉE plutôt qu'au
+    # runtime : un tag faux se voit ici au lieu de se payer en aides hors sujet
+    # et en questions de chantier dans un projet d'animation.
+    #
+    # Non bloquant : neuf aides restent dans ce cas pour une dette de TYPAGE
+    # (plancher de dépenses posé sur `budget_travaux_estime`, gate `acheves`
+    # appliqué à un prix d'action), qui se corrige en rouvrant la source. Le
+    # ratchet, lui, vit dans
+    # `tests/test_eligibility_engine.py::TestProjetSansTravaux`.
+    sans_travaux = deduire_faits_des_faits({"etat_travaux": "aucun"}, facts)
+    incoherentes = []
+    for aide in aides:
+        if "valorisation_rayonnement" not in aide.raison:
+            continue
+        refutes = sorted(
+            {
+                f"{c.id} ({c.fact})"
+                for c in aide.conditions
+                if c.kind == "user_fact"
+                and c.effect == "gate"
+                and c.fact in sans_travaux
+                and c.predicate is not None
+                and evaluate_predicate(
+                    c.predicate.root,
+                    _normalize_answer(facts.get(c.fact), sans_travaux[c.fact]),
+                )
+                is False
+            }
+        )
+        if refutes:
+            incoherentes.append(f"{aide.slug} — {', '.join(refutes)}")
+    if incoherentes:
+        print(
+            f"raison : {len(incoherentes)} aide(s) `valorisation_rayonnement` qu'un projet SANS "
+            f"TRAVAUX ne peut pas obtenir (tag faux, ou condition trop large) :"
+        )
+        for ligne in sorted(incoherentes):
+            print(f"  {ligne}")
+
+    # Dette de familles : une aide « faire vivre le lieu » sans famille passe
+    # tous les cadrages (fail-open par aide) et se présente donc à un projet de
+    # spectacles comme à un projet d'hébergement. Non bloquant : le backfill est
+    # éditorial et se relit par lots (cf. scripts/proposer_familles.py).
+    sans_famille = sorted(
+        a.slug for a in aides if "valorisation_rayonnement" in a.raison and not a.familles
+    )
+    if sans_famille:
+        print(
+            f"familles : {len(sans_famille)} aide(s) `valorisation_rayonnement` sans famille "
+            f"— elles se présentent à tous les projets « faire vivre le lieu » :"
+        )
+        for slug in sans_famille:
+            print(f"  {slug}")
+
+    # `help` NOMINATIF sur un fait PARTAGÉ : la question est posée pour plusieurs
+    # aides, et son aide contextuelle n'en nomme qu'une — le lecteur croit que la
+    # question ne concerne que ce financeur-là, ou ce territoire-là. Le contexte
+    # par aide se donne au complément (`contexteAide`) et sur la fiche, pas dans
+    # le `help`. Non bloquant : la réécriture est éditoriale et se fait par lots.
+    # Un marqueur que la QUESTION nomme déjà est intrinsèque au fait (« avez-vous
+    # obtenu une subvention de l'État (DRAC) ? ») : ce n'est pas le contexte
+    # d'une aide parmi d'autres, et le signaler ne serait que du bruit.
+    nominatifs = sorted(
+        f"{key} ({fact_usage[key]} aides) : {', '.join(sorted(noms))}"
+        for key, f in facts.items()
+        if fact_usage.get(key, 0) >= 2
+        and f.help
+        and (
+            noms := set(MOTIFS_NOMINATIFS.findall(f.help))
+            - set(MOTIFS_NOMINATIFS.findall(f.question or ""))
+        )
+    )
+    if nominatifs:
+        print(
+            f"help nominatif : {len(nominatifs)} fait(s) partagé(s) par au moins deux aides "
+            f"dont le `help` nomme un financeur ou un territoire :"
+        )
+        for ligne in nominatifs:
+            print(f"  {ligne}")
 
     if errors:
         print(f"\n✗ {len(errors)} erreur(s) :")

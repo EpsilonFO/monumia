@@ -35,6 +35,28 @@ export const PERIL_RATTRAPAGE_STEP: WizardStep = {
   icon: IconDiagnostic,
 };
 
+/** Étape propre à l'intention « Faire vivre et ouvrir le lieu » : quelles
+ *  activités, sur les 13 familles du catalogue. Insérée après l'intention, et
+ *  seulement pour elle — « Restaurer » et « Préparer le projet » impliquent
+ *  déjà leurs familles côté moteur et n'ont rien à demander. */
+export const FAMILLES_STEP: WizardStep = {
+  key: 'familles',
+  label: 'Les activités',
+  hint: 'Ce que vous voulez faire vivre — les aides ne financent pas les mêmes.',
+  icon: IconProjet,
+};
+
+/** Étape posée quand le monument porte DÉJÀ un projet : ses réponses durables
+ *  (le bien, le propriétaire) peuvent être reprises, et l'utilisateur doit le
+ *  dire lui-même — les reprendre en silence laisserait des réponses décidées
+ *  dans son dos, qu'aucune fiche d'aide ne lui offrirait à la correction. */
+export const REPRISES_STEP: WizardStep = {
+  key: 'reprises',
+  label: 'Vos réponses',
+  hint: 'Ce que nous savons déjà de votre monument.',
+  icon: IconListe,
+};
+
 /** Création d'un projet de travaux sur un monument déjà décrit. */
 export const PROJET_WIZARD_STEPS: WizardStep[] = [
   {

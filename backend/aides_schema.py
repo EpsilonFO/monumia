@@ -58,6 +58,7 @@ from pydantic import (
 from labels import (
     DEPARTEMENT_LABELS,
     ETAT_LABELS,
+    FAMILLES_LABELS,
     OWNERSHIP_LABELS,
     PROTECTION_LABELS,
     REGION_LABELS,
@@ -100,6 +101,12 @@ RAISONS = (
     "valorisation_rayonnement",
     "fiscalite",
 )
+
+# Familles thématiques — colonne aides_v3.familles (text[] NOT NULL + CHECK).
+# Liste fermée dérivée du référentiel de libellés : une seule définition des
+# codes, trois lieux où elle doit rester d'accord (ici, le CHECK SQL de la
+# migration, et `FAMILLE_OPTIONS` côté front), ce que des tests vérifient.
+FAMILLES = tuple(FAMILLES_LABELS)
 
 # Rôle d'une aide dans un PLAN DE FINANCEMENT — dérivé de `type` (pas de champ
 # YAML : `type` suffit à le déterminer). Le plan traite chaque rôle autrement :
@@ -353,6 +360,35 @@ class Levier(BaseModel):
     url: str | None = None
 
 
+class AppliesIf(BaseModel):
+    """Clause d'applicabilité : la condition ne concerne qu'un sous-ensemble
+    de profils. Cible soit un champ structuré (`field` — ex. « autofinancement
+    20 % » seulement pour les collectivités), soit un fait utilisateur (`fact`
+    — ex. « engagement de location 9 ans » seulement si l'usage prévu est la
+    location) : exactement l'un des deux. Prédicat faux ⇒ condition ignorée ;
+    prédicat inconnu ⇒ la condition reste potentiellement applicable
+    (fail-closed).
+
+    Le même modèle porte la clause de PÉRIMÈTRE d'une aide entière
+    (`Aide.applies_if`) et la DÉPENDANCE INTRINSÈQUE d'un fait
+    (`FactDef.pertinent_si`), qui n'acceptent toutes deux qu'un `fact`.
+
+    Déclarée avant `FactDef`, qui la référence : pydantic résout les
+    annotations à la création de la classe."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: str | None = None
+    fact: str | None = None
+    predicate: Predicate
+
+    @model_validator(mode="after")
+    def _exactly_one_target(self) -> AppliesIf:
+        if bool(self.field) == bool(self.fact):
+            raise ValueError("applies_if cible exactement un de `field` ou `fact`")
+        return self
+
+
 class FactDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -381,6 +417,46 @@ class FactDef(BaseModel):
     # 2026-09-09, cinq aides d'un même lot ont regaté dessus : la règle ne
     # vivait que dans un commentaire YAML, que personne ne lit à la machine.
     hors_gate: bool = False
+    # DÉPENDANCE INTRINSÈQUE du fait : la question n'a de sens que si cette
+    # clause est vraie. « Depuis combien d'années les travaux sont-ils
+    # achevés ? » ne veut rien dire tant que `etat_travaux` ne vaut pas
+    # `acheves` — c'est une propriété du FAIT, pas de telle aide, et elle était
+    # jusqu'ici recopiée en `applies_if` sur chaque condition qui le cite
+    # (quatre fois pour ce fait, huit pour la location, sept pour le jardin,
+    # neuf pour l'activité de restauration).
+    #
+    # Le moteur la reporte sur les conditions exactement comme il reporte le
+    # périmètre d'une aide (cf. `_scoped_conditions`) : la clause PROPRE d'une
+    # condition reste prioritaire, et le périmètre de l'aide passe avant celle
+    # du fait — une condition ne porte qu'une clause, et le périmètre décide
+    # d'abord si l'aide concerne l'utilisateur.
+    #
+    # Frontière : une clause qui ne vaut que pour UNE aide reste un `applies_if`
+    # de condition. `pertinent_si` ne dit que ce qui est vrai du fait partout.
+    pertinent_si: AppliesIf | None = None
+
+    @model_validator(mode="after")
+    def _pertinent_si_cible_un_fait(self) -> FactDef:
+        """Trois restrictions, pour que la clause reste rendable et sûre.
+
+        Un `field` n'a rien à faire ici : la dépendance d'une question porte sur
+        une autre RÉPONSE, jamais sur une donnée de la fiche (qui relève de
+        `hard_filters` ou d'un `applies_if` de condition). Un combinateur ne se
+        rendrait pas à l'écran (`_depends_on` projette un `showForOptionIds`).
+        Et un fait ne peut pas dépendre de lui-même.
+
+        L'existence de la cible et la compatibilité du prédicat avec son type
+        sont vérifiées par le LINT (`check_fact_predicate`), qui seul dispose de
+        l'ontologie entière — mot pour mot la validation de l'administration.
+        """
+        clause = self.pertinent_si
+        if clause is None:
+            return self
+        if clause.field:
+            raise ValueError("`pertinent_si` cible un `fact`, jamais un `field`")
+        if set(clause.predicate.root) & COMBINATOR_OPS:
+            raise ValueError("`pertinent_si` attend un prédicat simple, sans combinateur")
+        return self
 
     @model_validator(mode="after")
     def _options_coherentes(self) -> FactDef:
@@ -544,31 +620,6 @@ OPS_BY_FIELD_TYPE: dict[str, frozenset[str]] = {
 
 ConditionKind = Literal["untyped", "auto", "user_fact", "discretionary", "info", "manual_check"]
 ConditionEffect = Literal["gate", "modulateur", "info"]
-
-
-class AppliesIf(BaseModel):
-    """Clause d'applicabilité : la condition ne concerne qu'un sous-ensemble
-    de profils. Cible soit un champ structuré (`field` — ex. « autofinancement
-    20 % » seulement pour les collectivités), soit un fait utilisateur (`fact`
-    — ex. « engagement de location 9 ans » seulement si l'usage prévu est la
-    location) : exactement l'un des deux. Prédicat faux ⇒ condition ignorée ;
-    prédicat inconnu ⇒ la condition reste potentiellement applicable
-    (fail-closed).
-
-    Le même modèle porte la clause de PÉRIMÈTRE d'une aide entière
-    (`Aide.applies_if`), qui n'accepte elle qu'un `fact`."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    field: str | None = None
-    fact: str | None = None
-    predicate: Predicate
-
-    @model_validator(mode="after")
-    def _exactly_one_target(self) -> AppliesIf:
-        if bool(self.field) == bool(self.fact):
-            raise ValueError("applies_if cible exactement un de `field` ou `fact`")
-        return self
 
 
 class Condition(BaseModel):
@@ -814,6 +865,19 @@ class Aide(BaseModel):
     #
     # Seul un `fact` est admis : un champ structuré relève de `hard_filters`.
     applies_if: AppliesIf | None = None
+    # FAMILLES thématiques de l'aide (liste fermée, cf. labels.FAMILLES_LABELS).
+    # L'axe de cadrage d'un projet « faire vivre le lieu », là où `raison` met
+    # dans le même sac un festival, un gîte et un outil de médiation.
+    #
+    # Vide = l'aide concerne tout projet (fail-open), exactement comme une
+    # `raison` absente : `hors_famille` ne l'écarte jamais. Ne poser une famille
+    # que si la source RESTREINT le thème — un tag posé « au cas où » est un
+    # faux négatif silencieux.
+    #
+    # Pluriel assumé : une aide « restauration et valorisation d'un site ouvert
+    # au public » relève de deux familles, et la réduire à une seule l'écarterait
+    # de l'autre.
+    familles: list[str] = []
     conditions: list[Condition] = []
     flags: Flags = Flags()
     # Étapes de constitution du dossier (prose numérotée, fidèle à la source).
@@ -823,6 +887,7 @@ class Aide(BaseModel):
     tags: list[str] = []
 
     _v_raison = field_validator("raison")(_codes_validator(RAISONS, "raison"))
+    _v_familles = field_validator("familles")(_codes_validator(FAMILLES, "famille"))
 
     @field_validator("documents_requis", mode="before")
     @classmethod

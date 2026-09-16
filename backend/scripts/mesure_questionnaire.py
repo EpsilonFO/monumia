@@ -24,47 +24,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from aides_schema import AIDES_DIR, load_aide, load_facts, load_pending_facts  # noqa: E402
-from eligibility_engine import run_deterministic_diagnostic  # noqa: E402
-
-# Faits de périmètre d'aide : le banc les répond « non » pour simuler un
-# propriétaire dont le projet est une pure restauration de monument.
-PERIMETRES = (
-    "projet_hebergement_touristique",
-    "projet_developpement_touristique",
-    "projet_equipement_culturel",
-    "projet_lieu_diffusion_culturelle",
-    "porteur_compagnie_artistique",
-    "porteur_ecole_art",
-    "projet_valorisation_historique",
+from profils_questionnaire import (  # noqa: E402
+    PROFILS,
+    Mesure,
+    Profil,
+    mesurer,
 )
 
-PROFILS: dict[str, dict] = {
-    "privé, inscrit, Pays de la Loire": dict(
-        protection="inscrit",
-        proprietaire="prive_personne_physique",
-        region="pays-de-la-loire",
-        departement_num="44",
-        etat_conservation="mauvais",
-        travaux_envisages=["toiture", "facade"],
-    ),
-    "commune, non protégé, Nouvelle-Aquitaine": dict(
-        protection="non_protege",
-        proprietaire="public_commune",
-        region="nouvelle-aquitaine",
-        departement_num="33",
-        etat_conservation="moyen",
-        travaux_envisages=["toiture"],
-    ),
-    "association, inscrit, Centre-Val de Loire": dict(
-        protection="inscrit",
-        proprietaire="association",
-        region="centre-val-de-loire",
-        departement_num="37",
-        etat_conservation="moyen",
-        travaux_envisages=["maconnerie"],
-    ),
-}
-POPULATION = 3000
+# Ratchet du tronc commun : le fichier que le test de CI compare au catalogue.
+BASELINE_FILE = Path(__file__).resolve().parent.parent / "data" / "questionnaire_baseline.json"
 
 
 def charge_aides() -> dict:
@@ -103,28 +71,8 @@ def rejoue_typage(aides: dict, retypages: dict) -> dict:
     return out
 
 
-def mesure(aides: dict, facts: dict, monument: dict, answers: dict) -> dict:
-    res = run_deterministic_diagnostic(aides, facts, monument, POPULATION, answers)
-    lignes = [
-        *res["aidesEligibles"],
-        *res["aidesPotentiellementEligibles"],
-        *res["aidesAtteignables"],
-        *res["aidesNonEligibles"],
-    ]
-    retenues = [r for r in lignes if r["statut"] != "non_eligible"]
-    mc = sum(
-        1
-        for r in retenues
-        for e in r["llmEvaluation"]["evaluations"]
-        if e.get("nature") == "manual_check" and e.get("verdict") == "incertitude"
-    )
-    return {
-        "retenues": len(retenues),
-        "eligibles": sum(1 for r in retenues if r["statut"] == "eligible"),
-        "mc": mc,
-        "questions": len(res["qcmQuestions"]),
-        "slugs_eligibles": {r["aide"]["id"] for r in retenues if r["statut"] == "eligible"},
-    }
+def mesure(aides: dict, facts: dict, profil: Profil) -> Mesure:
+    return mesurer(aides, facts, profil)
 
 
 def audit_fail_open(aides: dict) -> list[tuple[str, int]]:
@@ -163,10 +111,35 @@ def snapshot(aides: dict, cible: Path) -> None:
     print(f"{len(etat)} conditions enregistrées dans {cible}")
 
 
+def baseline_courante(aides: dict, facts: dict) -> dict:
+    """État du tronc commun profil par profil, au format du ratchet.
+
+    `tronc_ids` est là pour le message d'échec : sans lui, un test rouge dirait
+    « 27 au lieu de 25 » sans nommer les deux questions entrées, et il faudrait
+    relancer le banc à la main pour relire le diff.
+    """
+    out = {}
+    for nom, profil in PROFILS.items():
+        m = mesurer(aides, facts, profil)
+        out[nom] = {
+            "tronc": len(m.tronc),
+            "tronc_ids": sorted(q["id"] for q in m.tronc),
+            # Informatif : le total croît avec le catalogue, c'est justement ce
+            # dont le tronc commun affranchit l'utilisateur.
+            "total": len(m.questions),
+        }
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--retypages", type=Path, help="snapshot JSON d'un typage antérieur")
     ap.add_argument("--snapshot", type=Path, help="enregistre le typage courant et sort")
+    ap.add_argument(
+        "--update-baseline",
+        action="store_true",
+        help="réécrit data/questionnaire_baseline.json (le diff fait partie de la revue)",
+    )
     args = ap.parse_args()
 
     facts = {**load_facts(), **load_pending_facts()}
@@ -174,29 +147,39 @@ def main() -> None:
     if args.snapshot:
         snapshot(apres, args.snapshot)
         return
+    if args.update_baseline:
+        etat = baseline_courante(apres, facts)
+        BASELINE_FILE.write_text(
+            json.dumps(etat, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        print(f"baseline réécrit : {BASELINE_FILE.name} ({len(etat)} profil(s)) — à relire au diff")
+        return
     avant = rejoue_typage(apres, json.loads(args.retypages.read_text())) if args.retypages else None
-    non = dict.fromkeys(PERIMETRES, False)
 
     print("Banc de mesure — colonnes : aides non écartées par un hard_filter, dont")
     print("éligibles, conditions manual_check en incertitude, questions posées.")
-    print("Les faits de périmètre sont répondus « non » (restauration pure).\n")
-    for nom, monument in PROFILS.items():
+    print("« tronc » = questions partagées par au moins deux aides (le questionnaire")
+    print("général) ; « propres » = questions d'une seule aide, posées sur sa carte.\n")
+    for nom, profil in PROFILS.items():
         print(f"  {nom}")
-        m_apres = mesure(apres, facts, monument, non)
+        m_apres = mesure(apres, facts, profil)
         if avant is not None:
-            m_avant = mesure(avant, facts, monument, non)
+            m_avant = mesure(avant, facts, profil)
             for etiquette, m in (("AVANT", m_avant), ("APRÈS", m_apres)):
                 print(
-                    f"    {etiquette}  aides={m['retenues']:3d}  éligibles={m['eligibles']:2d}"
-                    f"  mc={m['mc']:3d}  questions={m['questions']:2d}"
+                    f"    {etiquette}  aides={m.retenues:3d}  éligibles={m.eligibles:2d}"
+                    f"  mc={m.manual_check:3d}  questions={len(m.questions):3d}"
+                    f"  tronc={len(m.tronc):3d}  propres={len(m.propres):3d}"
                 )
-            gagnees = m_apres["slugs_eligibles"] - m_avant["slugs_eligibles"]
+            gagnees = m_apres.slugs_eligibles - m_avant.slugs_eligibles
             if gagnees:
                 print(f"    ⚠ deviennent éligibles : {', '.join(sorted(gagnees))}")
         else:
             print(
-                f"    aides={m_apres['retenues']:3d}  éligibles={m_apres['eligibles']:2d}"
-                f"  mc={m_apres['mc']:3d}  questions={m_apres['questions']:2d}"
+                f"    aides={m_apres.retenues:3d}  éligibles={m_apres.eligibles:2d}"
+                f"  mc={m_apres.manual_check:3d}  questions={len(m_apres.questions):3d}"
+                f"  tronc={len(m_apres.tronc):3d}  propres={len(m_apres.propres):3d}"
             )
         print()
 

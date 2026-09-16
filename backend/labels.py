@@ -51,6 +51,82 @@ TRAVAUX_LABELS = {
     "ventilation": "Ventilation",
 }
 
+# ── Familles thématiques d'une aide ────────────────────────────────────────────
+#
+# L'axe de cadrage d'un projet « faire vivre le lieu », ce que `raison` ne sait
+# pas dire : ses quatre valeurs mettent dans le même sac un festival, un gîte et
+# un outil de médiation. Liste FERMÉE, portée par l'aide (`Aide.familles`), et
+# non par un fait : la famille est décidée par un humain à la prospection, une
+# fois pour toutes, là où un fait demanderait une réponse à chaque utilisateur.
+#
+# Les 13 clés et leurs descriptions viennent de `scripts/prospection/tri.py`
+# (branche `feat/pipeline-prospection-ingestion`), où elles sont déjà calculées
+# pour chaque dispositif candidat : c'est ce travail que l'ingestion perdait.
+# `adjacente` et `hors_perimetre` restent des valeurs de TRI, pas des familles —
+# elles disent de garder ou d'écarter un candidat, pas ce que l'aide finance.
+#
+# Deux usages, deux textes : `FAMILLES_LABELS` est le libellé produit (tuile du
+# wizard, puce d'une fiche d'aide), `FAMILLES_DESCRIPTION` la définition qui
+# part dans les prompts d'ingestion et sert de règle au relecteur.
+FAMILLES_LABELS = {
+    "restauration_bati": "Restauration du bâti",
+    "energie_climat": "Énergie et climat",
+    "eau_nature_domaine": "Eau, nature et domaine",
+    "securite_risques": "Sécurité et risques",
+    "parcs_jardins_paysages": "Parcs, jardins et paysages",
+    "tourisme_hebergement": "Tourisme et hébergement",
+    "activite_economique_lieu": "Activité économique dans le lieu",
+    "spectacles_manifestations": "Spectacles et manifestations",
+    "vie_locale_associative": "Vie locale et associative",
+    "mediation_numerique_expositions": "Médiation, expositions, musée, numérique",
+    "accessibilite_publics": "Accessibilité et accueil des publics",
+    "etudes_ingenierie": "Études et ingénierie",
+    "labels_passerelles": "Labels et passerelles",
+}
+
+FAMILLES_DESCRIPTION = {
+    "restauration_bati": (
+        "travaux sur le bâti, protégé ou non, y compris le mobilier attaché "
+        "(orgues, cloches, vitraux)"
+    ),
+    "energie_climat": (
+        "rénovation énergétique, chauffage et énergies renouvelables (géothermie, bois, "
+        "réseaux de chaleur, solaire), adaptation au changement climatique, matériaux "
+        "biosourcés, AMO énergie"
+    ),
+    "eau_nature_domaine": (
+        "eau et sécheresse, cours d'eau et plans d'eau (moulins, douves, étangs), "
+        "biodiversité, Natura 2000, forêt, vergers, haies, agriculture ou viticulture "
+        "du domaine"
+    ),
+    "securite_risques": (
+        "catastrophes naturelles, inondations, incendie, foudre, sûreté, mise en sécurité"
+    ),
+    "parcs_jardins_paysages": "parcs et jardins, arbres, paysages, abords",
+    "tourisme_hebergement": (
+        "hébergements (gîtes, chambres d'hôtes, hôtels, insolite, plein air), sites de "
+        "visite, itinérance, événementiel touristique"
+    ),
+    "activite_economique_lieu": (
+        "reconversion et nouvel usage, tiers-lieux, commerce, artisanat ou ESS installés "
+        "dans le lieu, création ou reprise d'activité, prêts, garanties et chèques "
+        "mobilisables par l'exploitant du monument"
+    ),
+    "spectacles_manifestations": (
+        "festivals, saisons, résidences, manifestations accueillies dans le monument"
+    ),
+    "vie_locale_associative": (
+        "vie associative, fêtes et initiatives locales, mémoire, langues et cultures "
+        "régionales, coopération, dont une association d'amis du monument peut bénéficier"
+    ),
+    "mediation_numerique_expositions": (
+        "signalétique, scénographie, numérique, expositions, musées, publications, inventaire"
+    ),
+    "accessibilite_publics": "accessibilité, accueil des publics, handicap",
+    "etudes_ingenierie": "études préalables, diagnostics, ingénierie, AMO",
+    "labels_passerelles": "labels et dispositifs qui ouvrent l'accès à d'autres aides",
+}
+
 ETAT_LABELS = {
     "bon": "Bon état",
     "moyen": "État moyen",

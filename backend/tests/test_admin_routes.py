@@ -1,13 +1,21 @@
-"""Les sept routes d'administration du catalogue : qui y entre, et ce qu'elles
+"""Les routes d'administration du catalogue : qui y entre, et ce qu'elles
 refusent.
 
 Le garde est posé sur le ROUTER (`dependencies=[Depends(require_admin)]`) : le
 premier test le vérifie route par route, parce qu'une route ajoutée plus tard
-sans garde serait une porte ouverte sur le catalogue de production.
+sans garde serait une porte ouverte sur le catalogue de production. Les trois
+routes qui ATTRIBUENT les rôles sont derrière le même garde, et le test les
+traite comme les autres — c'est là qu'une porte ouverte coûterait le plus cher.
+
+Les deux caches module-level (surcouche du catalogue, rôles de compte) sont
+invalidés en setUp ET en tearDown : ils sont partagés entre les tests, qui
+n'utilisent pas le même faux client.
 """
 
 import os
 import unittest
+from pathlib import Path
+from typing import get_args
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -16,6 +24,7 @@ from aides_schema import load_all_aides, load_facts, load_pending_facts
 from db import get_current_user_id, get_supabase
 from main import app
 from services import catalogue_admin as ca
+from services import roles
 
 SLUG = sorted(load_all_aides())[0]
 FACT_ENUM = next(k for k, f in sorted(load_facts().items()) if f.type == "enum")
@@ -68,6 +77,9 @@ class _Query:
         self._table = table
         self._suppression = False
         self._filtres: list[tuple[str, object]] = []
+        self._in: list[tuple[str, set]] = []
+        self._ordre: tuple[str, bool] | None = None
+        self._limite: int | None = None
 
     def select(self, *_a, **_k) -> "_Query":
         return self
@@ -87,6 +99,18 @@ class _Query:
         self._filtres.append((colonne, valeur))
         return self
 
+    def in_(self, colonne, valeurs) -> "_Query":
+        self._in.append((colonne, set(valeurs)))
+        return self
+
+    def order(self, colonne, desc: bool = False) -> "_Query":
+        self._ordre = (colonne, desc)
+        return self
+
+    def limit(self, n) -> "_Query":
+        self._limite = n
+        return self
+
     def execute(self) -> _Resp:
         lignes = list(self._store.rows.get(self._table, []))
         if self._suppression:
@@ -99,11 +123,18 @@ class _Query:
             return _Resp([])
         for colonne, valeur in self._filtres:
             lignes = [r for r in lignes if r.get(colonne) == valeur]
+        for colonne, valeurs in self._in:
+            lignes = [r for r in lignes if r.get(colonne) in valeurs]
+        if self._ordre is not None:
+            colonne, desc = self._ordre
+            lignes = sorted(lignes, key=lambda r: str(r.get(colonne) or ""), reverse=desc)
+        if self._limite is not None:
+            lignes = lignes[: self._limite]
         return _Resp(lignes)
 
 
-#: Clés primaires des trois tables de la surcouche, la composite comprise.
-CLES = (("slug",), ("fact_key",), ("aide_slug", "condition_id"))
+#: Clés primaires des tables écrites par /admin, la composite comprise.
+CLES = (("slug",), ("fact_key",), ("aide_slug", "condition_id"), ("user_id", "role"))
 
 
 def _meme_cle(gauche: dict, droite: dict) -> bool:
@@ -126,7 +157,13 @@ class _FakeSupabase:
 #: Un prédicat que la condition choisie accepte : ses propres options.
 PREDICAT_OK = {"operateur": "in", "valeurs": COND_OPTIONS}
 
-#: (méthode, chemin, corps) — les douze routes du router.
+#: Un compte ordinaire, présent en base : celui à qui les tests donnent et
+#: reprennent un rôle. Jamais "u1", l'appelant — se retirer l'administration à
+#: soi-même est refusé.
+AUTRE_ID = "u2"
+AUTRE_EMAIL = "associe@monumia.fr"
+
+#: (méthode, chemin, corps) — les quinze routes du router.
 ROUTES = (
     ("get", "/admin/aides", None),
     ("get", "/admin/statistiques", None),
@@ -140,13 +177,22 @@ ROUTES = (
     ("post", f"/admin/conditions/{COND_SLUG}/{COND_ID}/simuler", PREDICAT_OK),
     ("put", f"/admin/conditions/{COND_SLUG}/{COND_ID}", PREDICAT_OK),
     ("delete", f"/admin/conditions/{COND_SLUG}/{COND_ID}", None),
+    ("get", "/admin/utilisateurs", None),
+    ("put", f"/admin/roles/beta_testeur/{AUTRE_ID}", {"motif": "lot 2"}),
+    ("delete", f"/admin/roles/beta_testeur/{AUTRE_ID}", None),
 )
 
 
 class _BaseAdmin(unittest.TestCase):
     def setUp(self) -> None:
         ca.invalider()
-        self.supabase = _FakeSupabase()
+        roles.invalider()
+        self.supabase = _FakeSupabase(
+            users=[
+                {"id": "u1", "email": "fondateur@monumia.fr", "prenom": "Félix", "nom": "O."},
+                {"id": AUTRE_ID, "email": AUTRE_EMAIL, "prenom": "Associé", "nom": "M."},
+            ]
+        )
         app.dependency_overrides[get_current_user_id] = lambda: "u1"
         app.dependency_overrides[get_supabase] = lambda: self.supabase
         self.client = TestClient(app)
@@ -154,6 +200,7 @@ class _BaseAdmin(unittest.TestCase):
     def tearDown(self) -> None:
         app.dependency_overrides.clear()
         ca.invalider()
+        roles.invalider()
 
     def appeler(self, methode: str, chemin: str, corps=None):
         appel = getattr(self.client, methode)
@@ -171,8 +218,17 @@ class GardeTests(_BaseAdmin):
         with patch.dict(os.environ, {"ADMIN_USER_IDS": "quelquun-dautre"}):
             self.assertEqual(self.appeler("get", "/admin/aides").status_code, 403)
 
-    def test_compte_de_lallowlist_accepte(self) -> None:
+    def test_compte_du_socle_accepte(self) -> None:
         with patch.dict(os.environ, {"ADMIN_USER_IDS": " autre , u1 "}):
+            for methode, chemin, corps in ROUTES:
+                with self.subTest(route=f"{methode.upper()} {chemin}"):
+                    self.assertEqual(self.appeler(methode, chemin, corps).status_code, 200)
+
+    def test_compte_nomme_en_base_accepte_sans_variable(self) -> None:
+        """Tout l'objet du chantier : la table suffit, le `.env` peut être vide."""
+        self.supabase.rows[roles.TABLE] = [{"user_id": "u1", "role": "admin"}]
+        roles.invalider()
+        with patch.dict(os.environ, {"ADMIN_USER_IDS": ""}):
             for methode, chemin, corps in ROUTES:
                 with self.subTest(route=f"{methode.upper()} {chemin}"):
                     self.assertEqual(self.appeler(methode, chemin, corps).status_code, 200)
@@ -586,3 +642,194 @@ class ConditionsTests(_BaseAdmin):
             ca.predicat_depuis(entree["operateur"], entree["valeurs"]),
             ca.canoniser_predicat(condition.predicate.root),
         )
+
+
+class RolesTests(_BaseAdmin):
+    """Les trois routes qui listent les comptes et basculent leurs rôles.
+
+    L'enjeu n'est pas le CRUD mais quatre invariants : la page ne doit jamais
+    pouvoir se fermer sur elle-même, elle ne doit jamais promettre un geste qui
+    n'aura pas lieu (retirer un compte que le `.env` rouvre aussitôt), un
+    bêta-testeur ne doit JAMAIS entrer ici, et ce que la liste annonce
+    modifiable doit être exactement ce que le serveur accepte.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.env = patch.dict(os.environ, {"ADMIN_USER_IDS": "u1"})
+        self.env.start()
+
+    def tearDown(self) -> None:
+        self.env.stop()
+        super().tearDown()
+
+    def utilisateurs(self) -> dict[str, dict]:
+        corps = self.appeler("get", "/admin/utilisateurs").json()
+        return {ligne["userId"]: ligne for ligne in corps["utilisateurs"]}
+
+    def test_les_roles_du_type_sont_ceux_du_service_et_de_la_base(self) -> None:
+        """Le `Literal` de la route, `roles.ROLES` et la contrainte SQL doivent
+        dire la même chose : un rôle ajouté à l'un et pas aux autres passerait la
+        validation et échouerait à l'insertion."""
+        from routers.admin import RoleAttribuable
+
+        self.assertEqual(set(get_args(RoleAttribuable)), set(roles.ROLES))
+        migration = (
+            Path(__file__).resolve().parents[2]
+            / "supabase/migrations/20260916064516_roles_de_compte.sql"
+        ).read_text()
+        for role in roles.ROLES:
+            self.assertIn(f"'{role}'", migration)
+
+    def test_la_liste_porte_tous_les_comptes_et_leurs_bascules(self) -> None:
+        """On clique sur une ligne existante plutôt que de taper un email : la
+        liste doit donc porter les comptes SANS rôle, eux aussi."""
+        self.supabase.rows[roles.TABLE] = [
+            {
+                "user_id": AUTRE_ID,
+                "role": "beta_testeur",
+                "motif": "lot 2",
+                "ajoute_par": "u1",
+                "created_at": "2026-09-16T00:00:00+00:00",
+            }
+        ]
+        par_id = self.utilisateurs()
+        self.assertEqual(set(par_id), {"u1", AUTRE_ID})
+
+        associe = par_id[AUTRE_ID]
+        self.assertEqual(associe["email"], AUTRE_EMAIL)
+        self.assertEqual(associe["prenom"], "Associé")
+        beta = associe["roles"]["beta_testeur"]
+        self.assertTrue(beta["actif"])
+        self.assertEqual(beta["source"], "base")
+        self.assertTrue(beta["modifiable"])
+        self.assertEqual(beta["motif"], "lot 2")
+        # Qui a attribué, par son email : un UUID ne dit rien six mois plus tard.
+        self.assertEqual(beta["ajoutePar"], "fondateur@monumia.fr")
+        # Et l'autre bascule est simplement éteinte, pas absente.
+        self.assertFalse(associe["roles"]["admin"]["actif"])
+        self.assertIsNone(associe["roles"]["admin"]["source"])
+        self.assertTrue(associe["roles"]["admin"]["modifiable"])
+
+    def test_la_liste_dit_ce_que_le_serveur_accepte(self) -> None:
+        """L'invariant qui tient l'écran : une bascule annoncée modifiable
+        aboutit, une bascule bloquée part en 409. Un bouton qui échoue est un
+        bouton qui n'aurait pas dû s'afficher."""
+        self.supabase.rows[roles.TABLE] = [
+            {"user_id": "u1", "role": "beta_testeur"},
+            {"user_id": AUTRE_ID, "role": "admin"},
+            {"user_id": AUTRE_ID, "role": "beta_testeur"},
+        ]
+        roles.invalider()
+        for user_id, ligne in self.utilisateurs().items():
+            for role, etat in ligne["roles"].items():
+                if not etat["actif"]:
+                    continue
+                with self.subTest(compte=user_id, role=role):
+                    attendu = 200 if etat["modifiable"] else 409
+                    reponse = self.appeler("delete", f"/admin/roles/{role}/{user_id}")
+                    self.assertEqual(reponse.status_code, attendu)
+                    if attendu == 409:
+                        self.assertTrue(etat["raison"])
+
+    def test_basculer_admin_donne_la_main(self) -> None:
+        ligne = self.appeler("put", f"/admin/roles/admin/{AUTRE_ID}").json()
+        self.assertEqual(ligne["userId"], AUTRE_ID)
+        self.assertTrue(ligne["roles"]["admin"]["actif"])
+        self.assertTrue(roles.est_admin(self.supabase, AUTRE_ID))
+        ecrit = self.supabase.upserts[roles.TABLE][-1]
+        self.assertEqual(ecrit["user_id"], AUTRE_ID)
+        self.assertEqual(ecrit["role"], "admin")
+        self.assertEqual(ecrit["ajoute_par"], "u1")
+
+    def test_beta_testeur_n_ouvre_pas_la_page(self) -> None:
+        """Le point du chantier : l'offre sans le catalogue. Un bêta-testeur est
+        dans la table, et chaque route d'administration lui répond 403."""
+        self.appeler("put", f"/admin/roles/beta_testeur/{AUTRE_ID}")
+        self.assertFalse(roles.est_admin(self.supabase, AUTRE_ID))
+
+        app.dependency_overrides[get_current_user_id] = lambda: AUTRE_ID
+        with patch.dict(os.environ, {"ADMIN_USER_IDS": ""}):
+            for methode, chemin, corps in ROUTES:
+                with self.subTest(route=f"{methode.upper()} {chemin}"):
+                    self.assertEqual(self.appeler(methode, chemin, corps).status_code, 403)
+
+    def test_les_deux_roles_se_cumulent_et_se_retirent_separement(self) -> None:
+        self.appeler("put", f"/admin/roles/admin/{AUTRE_ID}")
+        ligne = self.appeler("put", f"/admin/roles/beta_testeur/{AUTRE_ID}").json()
+        self.assertEqual(
+            {role for role, etat in ligne["roles"].items() if etat["actif"]},
+            {"admin", "beta_testeur"},
+        )
+        ligne = self.appeler("delete", f"/admin/roles/beta_testeur/{AUTRE_ID}").json()
+        self.assertEqual(
+            {role for role, etat in ligne["roles"].items() if etat["actif"]}, {"admin"}
+        )
+        self.assertTrue(roles.est_admin(self.supabase, AUTRE_ID))
+
+    def test_role_inconnu_est_refuse_par_le_type(self) -> None:
+        reponse = self.appeler("put", f"/admin/roles/super_admin/{AUTRE_ID}")
+        self.assertEqual(reponse.status_code, 422)
+        self.assertEqual(self.supabase.upserts.get(roles.TABLE), None)
+
+    def test_attribution_est_idempotente(self) -> None:
+        """Ce qu'exige une bascule : un double-clic, ou deux onglets ouverts, ne
+        doivent pas produire deux lignes ni une erreur."""
+        self.appeler("put", f"/admin/roles/admin/{AUTRE_ID}")
+        self.appeler("put", f"/admin/roles/admin/{AUTRE_ID}")
+        self.assertEqual(len(self.supabase.rows[roles.TABLE]), 1)
+        self.assertTrue(self.utilisateurs()[AUTRE_ID]["roles"]["admin"]["actif"])
+
+    def test_identifiant_inconnu_est_404(self) -> None:
+        """La clé étrangère le refuserait, mais par une erreur qui sortirait en
+        500 : mieux vaut un 404 qui dit ce qui s'est passé."""
+        reponse = self.appeler("put", "/admin/roles/admin/jamais-inscrit")
+        self.assertEqual(reponse.status_code, 404)
+        self.assertEqual(self.supabase.upserts.get(roles.TABLE), None)
+
+    def test_retrait_reprend_la_main(self) -> None:
+        self.appeler("put", f"/admin/roles/admin/{AUTRE_ID}")
+        ligne = self.appeler("delete", f"/admin/roles/admin/{AUTRE_ID}").json()
+        self.assertFalse(ligne["roles"]["admin"]["actif"])
+        self.assertFalse(roles.est_admin(self.supabase, AUTRE_ID))
+
+    def test_se_retirer_l_administration_est_refuse(self) -> None:
+        """Le seul geste de cette page qui pourrait la fermer pour de bon."""
+        self.supabase.rows[roles.TABLE] = [{"user_id": "u1", "role": "admin"}]
+        roles.invalider()
+        reponse = self.appeler("delete", "/admin/roles/admin/u1")
+        self.assertEqual(reponse.status_code, 409)
+        self.assertTrue(roles.est_admin(self.supabase, "u1"))
+
+    def test_se_retirer_son_propre_role_de_beta_testeur_est_permis(self) -> None:
+        """Le refus porte sur l'ADMINISTRATION, pas sur l'appartenance à soi :
+        retirer son bêta-test ne ferme aucune porte."""
+        self.supabase.rows[roles.TABLE] = [{"user_id": "u1", "role": "beta_testeur"}]
+        roles.invalider()
+        self.assertTrue(self.utilisateurs()["u1"]["roles"]["beta_testeur"]["modifiable"])
+        self.assertEqual(self.appeler("delete", "/admin/roles/beta_testeur/u1").status_code, 200)
+
+    def test_retirer_l_administration_a_un_compte_du_socle_est_refuse(self) -> None:
+        """La suppression réussirait, le `.env` le rouvrirait, et la page
+        mentirait."""
+        with patch.dict(os.environ, {"ADMIN_USER_IDS": f"u1,{AUTRE_ID}"}):
+            etat = self.utilisateurs()[AUTRE_ID]["roles"]["admin"]
+            self.assertEqual(etat["source"], "socle")
+            self.assertFalse(etat["modifiable"])
+            reponse = self.appeler("delete", f"/admin/roles/admin/{AUTRE_ID}")
+        self.assertEqual(reponse.status_code, 409)
+        self.assertIn("ADMIN_USER_IDS", reponse.json()["detail"])
+
+    def test_le_socle_ne_protege_que_l_administration(self) -> None:
+        """Il ne porte que le rôle `admin` : le bêta-test d'un compte du socle
+        reste retirable depuis la page."""
+        self.supabase.rows[roles.TABLE] = [{"user_id": AUTRE_ID, "role": "beta_testeur"}]
+        roles.invalider()
+        with patch.dict(os.environ, {"ADMIN_USER_IDS": f"u1,{AUTRE_ID}"}):
+            reponse = self.appeler("delete", f"/admin/roles/beta_testeur/{AUTRE_ID}")
+        self.assertEqual(reponse.status_code, 200)
+
+    def test_retirer_un_role_non_porte_ne_se_plaint_pas(self) -> None:
+        """Idempotent, comme la republication d'une aide : une ligne orpheline
+        doit pouvoir partir."""
+        self.assertEqual(self.appeler("delete", f"/admin/roles/admin/{AUTRE_ID}").status_code, 200)

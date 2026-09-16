@@ -8,6 +8,7 @@ import unittest
 from datetime import date
 
 from aides_schema import (
+    FAMILLES,
     Aide,
     AppliesIf,
     Calendrier,
@@ -22,16 +23,22 @@ from aides_schema import (
     load_pending_facts,
 )
 from eligibility_engine import (
+    FAITS_DEDUITS_DES_FAMILLES,
+    FAMILLES_PAR_RAISON,
     _match_result,
+    _normalize_answer,
     _normalize_boundary,
     _numeric_gap,
+    _numeric_tranches,
     _options_for_fact,
+    _retournerait_contre,
     build_context,
     build_questions,
     deduire_faits_des_faits,
     disponibilite,
     engine_ready_aides,
     evaluate_aide,
+    libelle_tranche,
     run_deterministic_diagnostic,
     split_reserved_answers,
 )
@@ -46,6 +53,8 @@ def _fixture_aide(conditions: list[dict], slug: str = "fixture-aide", **hard_fil
     """Aide synthétique pour tester le COMPORTEMENT du moteur sans dépendre du
     contenu (mutable) du corpus — celui-ci est gardé par lint_aides_data.py."""
     raison = hard_filters.pop("raison", [])
+    familles = hard_filters.pop("familles", [])
+    applies_if = hard_filters.pop("applies_if", None)
     return Aide.model_validate(
         {
             "slug": slug,
@@ -54,10 +63,27 @@ def _fixture_aide(conditions: list[dict], slug: str = "fixture-aide", **hard_fil
             "categorie": "region",
             "type": "subvention",
             "raison": raison,
+            "familles": familles,
             "description": "d",
             "conditions": conditions,
             "hard_filters": hard_filters,
+            **({"applies_if": applies_if} if applies_if else {}),
         }
+    )
+
+
+def _fait_gate(aide: Aide) -> str:
+    """Le fait de `FAITS_DEDUITS_DES_FAMILLES` que cette aide gate en positif."""
+    from aides_schema import evaluate_predicate as _ev
+
+    return next(
+        c.fact
+        for c in aide.conditions
+        if c.fact in FAITS_DEDUITS_DES_FAMILLES
+        and c.effect == "gate"
+        and c.predicate is not None
+        and _ev(c.predicate.root, False) is False
+        and c.fact
     )
 
 
@@ -595,17 +621,17 @@ class TestQuestionGeneration(unittest.TestCase):
         qui reviendrait ensuite avec des critères jamais posés."""
         aide = _fixture_aide(
             [
-                self._gate("s_engage_ouverture_public", {"eq": True}),
+                self._gate("ouverture_public", {"not_in": ["aucune"]}),
                 self._gate("erp", {"eq": True}),
             ]
         )
         questions = {q["id"]: q for q in self._questions([aide])}
-        self.assertEqual(questions["s_engage_ouverture_public"]["eliminationsParOption"], {})
+        self.assertEqual(questions["ouverture_public"]["eliminationsParOption"], {})
 
         # Le refus assumé : l'aide survit en « atteignable », et sa seconde
         # question garde donc tout son sens.
         res = run_deterministic_diagnostic(
-            {aide.slug: aide}, FACTS, _monument(), 3000, {"s_engage_ouverture_public": False}
+            {aide.slug: aide}, FACTS, _monument(), 3000, {"ouverture_public": ["aucune"]}
         )
         self.assertEqual([m["aide"]["id"] for m in res["aidesAtteignables"]], [aide.slug])
         self.assertIn("erp", [q["id"] for q in res["qcmQuestions"]])
@@ -1197,9 +1223,9 @@ class TestNumericTranches(unittest.TestCase):
         opts = _options_for_fact(fact, [self._gate("jours_ouverture_public_par_an", {"gt": 0})])
         labels = [o["label"] for o in opts]
         self.assertNotIn("Moins de 0 jours/an", labels)
-        # Frontière utile = 1 : « Moins de 1 » (= 0 jour) et « 1 ou plus ».
+        # Frontière utile = 1 : la bande basse (= 0 jour) et « 1 ou plus ».
         self.assertEqual([o["repr"] for o in opts], [0, 1])
-        self.assertIn("1 jours/an ou plus", labels)
+        self.assertIn("1 jour/an ou plus", labels)
 
     def test_gt_zero_reachable_via_questionnaire(self):
         # Régression dure : avec gt:0 une option DOIT garder l'aide éligible.
@@ -1230,6 +1256,91 @@ class TestNumericTranches(unittest.TestCase):
             [self._gate("jours_ouverture_public_par_an", {"gte": 0})],
         )
         self.assertFalse(any(o["id"].startswith("lt") for o in opts))
+
+    def test_unite_accordee_au_nombre(self):
+        """« 1 jour », pas « 1 jours » : l'unité s'accorde sur le nombre qu'elle
+        suit. `mois` est invariable, une unité composée n'accorde que sa tête."""
+        for unit, attendu in (
+            ("ans", ["Aucun (0)", "1 an ou plus"]),
+            ("mois", ["Aucun (0)", "1 mois ou plus"]),
+            ("compagnies", ["Aucun (0)", "1 compagnie ou plus"]),
+            ("jours/an", ["Aucun (0)", "1 jour/an ou plus"]),
+        ):
+            opts = _options_for_fact(self._fact("integer", unit), [self._gate("f", {"gte": 1})])
+            self.assertEqual([o["label"] for o in opts], attendu, unit)
+
+    def test_tranche_basse_dun_compteur_a_seuil_un(self):
+        """« Moins de 1 jour » se lit comme un arrondi alors que la bande ne
+        contient que 0. On le dit : « Aucun (0) »."""
+        opts = _options_for_fact(
+            self._fact("integer", "jours/an"),
+            [self._gate("jours_ouverture_public_par_an", {"gte": 1})],
+        )
+        basse = next(o for o in opts if o["id"].startswith("lt"))
+        self.assertEqual(basse["label"], "Aucun (0)")
+        self.assertEqual(basse["repr"], 0)
+        # Un seuil plus haut garde le libellé ordinaire : la bande y contient
+        # bien d'autres valeurs que zéro.
+        opts = _options_for_fact(self._fact("integer", "ans"), [self._gate("f", {"gte": 3})])
+        self.assertEqual(
+            next(o for o in opts if o["id"].startswith("lt"))["label"], "Moins de 3 ans"
+        )
+
+    def test_euro_reste_colle_et_sans_unite_reste_nu(self):
+        """Deux cas où l'accord ne s'applique pas : l'euro est un symbole collé
+        au nombre, et un fait sans unité (une année de construction) n'en a
+        pas."""
+        opts = _options_for_fact(self._fact("number", "€"), [self._gate("f", {"gte": 1})])
+        self.assertIn("1€ ou plus", [o["label"] for o in opts])
+        opts = _options_for_fact(self._fact("integer"), [self._gate("f", {"lt": 1800})])
+        self.assertEqual([o["label"] for o in opts], ["Moins de 1800", "1800 ou plus"])
+
+    def test_une_tranche_se_relit_depuis_son_seul_identifiant(self):
+        """L'invariant qui autorise `libelle_tranche` : l'identifiant d'une
+        tranche porte ses bornes, donc son libellé se reconstruit à l'identique
+        sans connaître les seuils des aides qui l'ont produit.
+
+        C'est ce qui permet de rappeler à l'utilisateur ce qu'il a répondu (une
+        réponse persistée vaut `ge5`, hors de tout diagnostic). Si les deux
+        chemins dérivaient, on lui montrerait un libellé différent de celui
+        qu'il a cliqué — pire que pas de libellé du tout.
+        """
+        jeux = [
+            ([1], "jours/an"),
+            ([1], "compagnies"),
+            ([3, 5], "ans"),
+            ([6, 9], "ans"),
+            ([12], "mois"),
+            ([1, 15, 25, 40, 90], "jours/an"),
+            ([10000, 50000], "€"),
+            ([1], "%"),
+            ([2.5, 7.5], "%"),
+            ([1800, 1926], None),
+            ([3000], "litres"),
+        ]
+        for bornes, unit in jeux:
+            for option in _numeric_tranches(bornes, unit):
+                self.assertEqual(
+                    libelle_tranche(option["id"], unit),
+                    option["label"],
+                    f"{option['id']} ({unit})",
+                )
+
+    def test_un_identifiant_dune_autre_forme_ne_se_relit_pas(self):
+        """On n'invente pas : une réponse d'avant les tranches, ou écrite à la
+        main, rend None plutôt qu'un libellé fabriqué."""
+        for brut in ("oui", "40000", "ge", "lt", "de3a4", "", "ge5ans"):
+            self.assertIsNone(libelle_tranche(brut, "ans"), brut)
+
+    def test_les_consignes_de_saisie_zero_ont_disparu(self):
+        """Corpus : un fait rendu en TRANCHES ne propose jamais de saisir 0. La
+        consigne « (0 si …) » décrivait un champ de saisie qui n'existe pas."""
+        fautifs = sorted(
+            key
+            for key, f in FACTS.items()
+            if f.type in ("integer", "number") and "(0 si" in (f.question or "")
+        )
+        self.assertEqual(fautifs, [])
 
 
 class TestMultiEnum(unittest.TestCase):
@@ -1351,6 +1462,7 @@ class TestDiagnosticShape(unittest.TestCase):
             self.assertIn(key, match)
         self.assertIn("id", match["aide"])  # = slug
         self.assertIn("raison", match["aide"])
+        self.assertIn("familles", match["aide"])
         for question in res["qcmQuestions"]:
             for key in ("id", "question", "help", "options", "aideIds", "enjeuMax"):
                 self.assertIn(key, question)
@@ -1488,19 +1600,24 @@ class TestFusionMonumentProjet(unittest.TestCase):
 
 
 class TestFaitDeduitDUneAutreReponse(unittest.TestCase):
-    """« Le monument n'est pas accessible à la visite » répond d'avance « ouvert
-    0 jour par an » : la question des jours se pose APRÈS celle de
-    l'accessibilité, s'y branche, et n'est plus posée après un « non » — le
-    serveur déduit la valeur. Celui qui répond quand même garde sa réponse."""
+    """« Fermé au public, sans projet d'ouverture » répond d'avance « ouvert
+    0 jour par an » : la question des jours se pose APRÈS celle de l'ouverture,
+    s'y branche, et n'est plus posée dès que cette case est cochée — le serveur
+    déduit la valeur. Celui qui répond quand même garde sa réponse.
 
-    SOURCE = "site_accessible_visite"
+    La source est un fait à choix MULTIPLE : la déduction ne vaut que si la case
+    déduisante est la seule cochée."""
+
+    SOURCE = "ouverture_public"
     DEDUIT = "jours_ouverture_public_par_an"
+    FERME = ["aucune"]
+    OUVERT = ["jep_evenements"]
     GATE_VISITE = {
         "id": "visite",
         "text": "Édifice accessible à la visite du public",
         "kind": "user_fact",
         "fact": SOURCE,
-        "predicate": {"eq": True},
+        "predicate": {"not_in": ["aucune"]},
     }
     GATE_JOURS = {
         "id": "jours",
@@ -1526,11 +1643,17 @@ class TestFaitDeduitDUneAutreReponse(unittest.TestCase):
     def test_la_source_se_pose_avant_et_la_question_deduite_s_y_branche(self):
         questions = {q["id"]: q for q in self._run()["qcmQuestions"]}
         self.assertEqual(list(questions), [self.SOURCE, self.DEDUIT])
-        # Seul « oui » laisse la question : « non » déduit 0, « passer » aussi
-        # garde la question (le front traite `skip` comme non répondu).
+        # Seule « fermé au public » retire la question : elle déduit 0 jour.
+        # Toutes les autres cases la gardent, « je ne sais pas » comprise
+        # (fail-closed), et « passer » aussi (le front traite `skip` comme non
+        # répondu).
+        options = [o["id"] for o in questions[self.SOURCE]["options"]]
         self.assertEqual(
             questions[self.DEDUIT]["dependsOn"],
-            {"questionId": self.SOURCE, "showForOptionIds": ["oui"]},
+            {
+                "questionId": self.SOURCE,
+                "showForOptionIds": [o for o in options if o != "aucune"],
+            },
         )
 
     def test_la_source_passe_devant_meme_avec_moins_d_aides(self):
@@ -1543,32 +1666,50 @@ class TestFaitDeduitDUneAutreReponse(unittest.TestCase):
         ]
         self.assertEqual(self._ids(self._run(aides=aides))[0], self.SOURCE)
 
-    def test_non_a_la_visite_deduit_zero_jour_sans_poser_la_question(self):
-        res = self._run({self.SOURCE: "non"})
+    def test_ferme_au_public_deduit_zero_jour_sans_poser_la_question(self):
+        res = self._run({self.SOURCE: self.FERME})
         self.assertEqual(self._ids(res), [])
-        # 0 jour < 40 : l'aide tombe, mais le fait porte un levier (ouvrir
-        # davantage), donc « atteignable » et non « non éligible ».
-        self.assertEqual([m["aide"]["id"] for m in res["aidesAtteignables"]], ["fx-jours"])
+        # Les DEUX aides tombent « atteignables » plutôt que « non éligibles »,
+        # et c'est la décision de la fusion : `ouverture_public` porte un levier
+        # (ouvrir au public, même quelques jours), donc aucun de ses gates n'est
+        # dirimant. Ouvrir est un geste que le propriétaire peut faire ; le lui
+        # présenter en rouge le priverait de la démarche.
+        self.assertEqual(
+            [m["aide"]["id"] for m in res["aidesAtteignables"]], ["fx-visite", "fx-jours"]
+        )
         self.assertEqual(res["aidesPotentiellementEligibles"], [])
 
-    def test_oui_a_la_visite_laisse_la_question_des_jours(self):
-        self.assertEqual(self._ids(self._run({self.SOURCE: "oui"})), [self.DEDUIT])
+    def test_ouvert_au_public_laisse_la_question_des_jours(self):
+        self.assertEqual(self._ids(self._run({self.SOURCE: self.OUVERT})), [self.DEDUIT])
 
     def test_source_passee_ne_deduit_rien(self):
         self.assertEqual(self._ids(self._run({self.SOURCE: "skip"})), [self.SOURCE, self.DEDUIT])
 
     def test_la_reponse_de_l_utilisateur_prime_sur_la_deduction(self):
-        res = self._run({self.SOURCE: "non", self.DEDUIT: "ge40"})
+        res = self._run({self.SOURCE: self.FERME, self.DEDUIT: "ge40"})
         self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-jours"])
 
     def test_deduction_directe(self):
         self.assertEqual(
-            deduire_faits_des_faits({self.SOURCE: "non"}, FACTS),
-            {self.SOURCE: "non", self.DEDUIT: 0},
+            deduire_faits_des_faits({self.SOURCE: self.FERME}, FACTS),
+            {self.SOURCE: self.FERME, self.DEDUIT: 0},
         )
         # Une source inconnue ou positive ne déduit rien.
         self.assertEqual(deduire_faits_des_faits({}, FACTS), {})
-        self.assertEqual(deduire_faits_des_faits({self.SOURCE: "oui"}, FACTS), {self.SOURCE: "oui"})
+        self.assertEqual(
+            deduire_faits_des_faits({self.SOURCE: self.OUVERT}, FACTS),
+            {self.SOURCE: self.OUVERT},
+        )
+
+    def test_selection_contradictoire_ne_deduit_rien(self):
+        """Sur une source à choix multiple, la déduction exige que la case
+        déduisante soit la SEULE cochée : « fermé au public » coché AVEC
+        « ouvert lors des Journées du patrimoine » est une sélection qui se
+        contredit, et la sémantique existentielle du MultiValue veut qu'on n'en
+        conclue rien (fail-closed). La question des jours survit."""
+        melange = {self.SOURCE: self.FERME + self.OUVERT}
+        self.assertEqual(deduire_faits_des_faits(melange, FACTS), melange)
+        self.assertEqual(self._ids(self._run(melange)), [self.DEDUIT])
 
 
 class TestBooleenAReponsesDeclarees(unittest.TestCase):
@@ -2055,3 +2196,741 @@ class TestFaitArtistiqueDeduitDesRaisons(unittest.TestCase):
         res = self._run({"_raisons": ["restauration_travaux"], self.FACT: "oui"})
         self.assertNotIn(self.FACT, self._questions(res))
         self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-academie"])
+
+
+class TestProjetSansTravaux(unittest.TestCase):
+    """L'option « aucun » d'`etat_travaux` : la réponse de cadrage d'un projet
+    « faire vivre le lieu ».
+
+    Elle réfute par construction les deux familles de gates sur l'état des
+    travaux — les programmes qui financent un chantier (`eq: non_commences`) et
+    les prix qui en récompensent un (`eq: acheves`) — et déduit un budget de
+    travaux nul, ce qui retire du QCM la question du budget.
+    """
+
+    FACT = "etat_travaux"
+    BUDGET = "budget_travaux_estime"
+
+    GATE_PROGRAMME = {
+        "id": "travaux-non-commences",
+        "text": "Les travaux ne doivent pas avoir commencé au dépôt du dossier.",
+        "kind": "user_fact",
+        "effect": "gate",
+        "fact": FACT,
+        "predicate": {"eq": "non_commences"},
+    }
+    GATE_PRIX = {
+        "id": "travaux-acheves",
+        "text": "Le prix récompense un chantier achevé.",
+        "kind": "user_fact",
+        "effect": "gate",
+        "fact": FACT,
+        "predicate": {"eq": "acheves"},
+    }
+    GATE_BUDGET = {
+        "id": "budget-minimum",
+        "text": "Le budget des travaux doit atteindre 10 000 € HT.",
+        "kind": "user_fact",
+        "effect": "gate",
+        "fact": BUDGET,
+        "predicate": {"gte": 10000},
+    }
+
+    def _run(self, conditions: list[dict], answers=None, slug="fx-travaux"):
+        aide = _fixture_aide(conditions, slug=slug)
+        return run_deterministic_diagnostic({slug: aide}, FACTS, _monument(), 3000, answers)
+
+    def _questions(self, res) -> list[str]:
+        return [q["id"] for q in res["qcmQuestions"]]
+
+    def test_aucun_refuse_un_programme_de_chantier(self):
+        res = self._run([self.GATE_PROGRAMME], {self.FACT: "aucun"})
+        self.assertEqual([m["aide"]["id"] for m in res["aidesNonEligibles"]], ["fx-travaux"])
+
+    def test_aucun_refuse_un_prix_de_chantier(self):
+        res = self._run([self.GATE_PRIX], {self.FACT: "aucun"})
+        self.assertEqual([m["aide"]["id"] for m in res["aidesNonEligibles"]], ["fx-travaux"])
+
+    def test_les_trois_autres_reponses_sont_inchangees(self):
+        for reponse, attendu in (
+            ("non_commences", "aidesEligibles"),
+            ("en_cours", "aidesNonEligibles"),
+            ("acheves", "aidesNonEligibles"),
+        ):
+            res = self._run([self.GATE_PROGRAMME], {self.FACT: reponse})
+            self.assertEqual([m["aide"]["id"] for m in res[attendu]], ["fx-travaux"], reponse)
+
+    def test_aucun_deduit_un_budget_de_travaux_nul(self):
+        self.assertEqual(
+            deduire_faits_des_faits({self.FACT: "aucun"}, FACTS),
+            {self.FACT: "aucun", self.BUDGET: 0},
+        )
+        # Les autres réponses ne déduisent rien : le budget reste à demander.
+        for reponse in ("non_commences", "en_cours", "acheves", "skip"):
+            self.assertEqual(
+                deduire_faits_des_faits({self.FACT: reponse}, FACTS),
+                {self.FACT: reponse},
+                reponse,
+            )
+
+    def test_la_question_du_budget_disparait_et_le_seuil_echoue(self):
+        res = self._run([self.GATE_BUDGET], {self.FACT: "aucun"})
+        self.assertNotIn(self.BUDGET, self._questions(res))
+        self.assertEqual([m["aide"]["id"] for m in res["aidesNonEligibles"]], ["fx-travaux"])
+
+    def test_la_reponse_de_l_utilisateur_prime_sur_la_deduction(self):
+        res = self._run([self.GATE_BUDGET], {self.FACT: "aucun", self.BUDGET: "ge10000"})
+        self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-travaux"])
+
+    def test_la_question_du_budget_se_branche_sur_l_etat_des_travaux(self):
+        """`dependsOn` : le front ne montre plus le budget dès qu'« aucun » est
+        coché, et la source se pose AVANT lui."""
+        res = self._run([self.GATE_PROGRAMME, self.GATE_BUDGET])
+        ids = self._questions(res)
+        self.assertEqual(ids[0], self.FACT)
+        budget = next(q for q in res["qcmQuestions"] if q["id"] == self.BUDGET)
+        self.assertEqual(budget["dependsOn"]["questionId"], self.FACT)
+        self.assertNotIn("aucun", budget["dependsOn"]["showForOptionIds"])
+        self.assertEqual(
+            sorted(budget["dependsOn"]["showForOptionIds"]),
+            ["acheves", "en_cours", "non_commences"],
+        )
+
+    def test_aucun_est_la_derniere_reponse_proposee(self):
+        """« Aucun » ferme la liste : les trois réponses habituelles d'un projet
+        de restauration restent en tête, dans leur ordre."""
+        res = self._run([self.GATE_PROGRAMME])
+        question = next(q for q in res["qcmQuestions"] if q["id"] == self.FACT)
+        self.assertEqual(
+            [o["id"] for o in question["options"]],
+            ["non_commences", "en_cours", "acheves", "aucun", "skip"],
+        )
+
+    #: Aides `valorisation_rayonnement` qu'un projet SANS TRAVAUX ne peut
+    #: toujours pas obtenir, et pourquoi. Dette de TYPAGE, pas de `raison` : le
+    #: fait choisi à l'ingestion ne convient pas, et le corriger demande de
+    #: rouvrir la source (`/ingest-aide`), pas de retoucher un prédicat.
+    DETTE_DE_TYPAGE = {
+        "56-valorisation-restauration-patrimoine": "plancher de 2 500 € posé sur "
+        "`budget_travaux_estime` alors qu'il porte sur le coût du projet, "
+        "« équipements de valorisation » compris",
+        "71-label-ens": "planchers posés sur `budget_travaux_estime` alors que le label "
+        "et le plan de gestion ne sont pas des travaux",
+        "europa-nostra-heritage-awards": "`etat_travaux eq acheves` appliqué aux cinq "
+        "catégories, alors que Recherche, Éducation et Engagement citoyen n'ont pas de "
+        "chantier",
+        "fondation-ca-paysdefrance": "plancher de 50 000 € sur `budget_travaux_estime` "
+        "alors que la fondation finance aussi le patrimoine artistique et muséal",
+        "naq-tourisme-sites-visites": "plancher de 50 000 € sur `budget_travaux_estime` "
+        "alors que la modernisation d'un site de visite n'est pas que du bâti",
+        "pdl-handicap-tourisme": "plancher de 1 500 € sur `budget_travaux_estime` alors "
+        "que l'aide finance l'ACQUISITION d'équipements",
+        "pdl-tourisme-culturel-innovation": "plancher de 5 000 € sur "
+        "`budget_travaux_estime` alors que la première branche est un produit touristique",
+        "prix-patrimoine-institut-de-france": "`etat_travaux eq acheves` alors que le "
+        "prix récompense une ACTION de médiation déjà mise en place, pas un chantier",
+        "prix-regional-biodiversite-paca-fondation-patrimoine": "`etat_travaux` appliqué "
+        "aux deux branches, alors que la préservation de la biodiversité n'est pas un "
+        "chantier",
+    }
+
+    def test_corpus_une_aide_de_valorisation_est_obtenable_sans_travaux(self):
+        """L'invariant qui tient la cohérence entre `raison` et « aucun travaux ».
+
+        Une aide ne porte `valorisation_rayonnement` que si elle finance une
+        action SANS chantier (data/TYPING.md, § `raison`). Le moteur sait le
+        vérifier : si un de ses gates est RÉFUTÉ par « ce projet ne comporte pas
+        de travaux », elle ne le fait pas.
+
+        C'est le filtre strict, posé sur la DONNÉE plutôt qu'au runtime : un tag
+        faux se voit ici au lieu de se payer en aides hors sujet et en questions
+        de chantier dans un projet d'animation. Le second passage de l'audit du
+        2026-09-16 a corrigé 29 `raison` fautives et élargi 14 prédicats à
+        l'état « aucun » ; les neuf restantes sont une dette de TYPAGE, nommée
+        ci-dessus et à reprendre par l'ingestion.
+
+        La réciproque n'est PAS un invariant : une aide de restauration a tout
+        lieu de refuser « aucun », c'est même ce qui rend la réponse utile.
+        """
+        reponses = deduire_faits_des_faits({self.FACT: "aucun"}, FACTS)
+        fautives = {}
+        for slug, aide in AIDES.items():
+            if "valorisation_rayonnement" not in aide.raison:
+                continue
+            refutes = [
+                f"{c.id} ({c.fact})"
+                for c in aide.conditions
+                if c.kind == "user_fact"
+                and c.effect == "gate"
+                and c.fact in reponses
+                and c.predicate is not None
+                and evaluate_predicate(
+                    c.predicate.root, _normalize_answer(FACTS.get(c.fact), reponses[c.fact])
+                )
+                is False
+            ]
+            if refutes:
+                fautives[slug] = refutes
+        self.assertEqual(
+            sorted(fautives),
+            sorted(self.DETTE_DE_TYPAGE),
+            "une aide `valorisation_rayonnement` qu'un projet sans travaux ne peut pas "
+            "obtenir : soit son `raison` est faux (retirer la valorisation), soit sa "
+            "condition est trop large (énumérer « aucun » parmi les états admis), soit "
+            "elle rejoint la dette de typage nommée dans DETTE_DE_TYPAGE",
+        )
+
+
+class TestProgrammeValorisationDeduitDesRaisons(unittest.TestCase):
+    """Cocher « Faire vivre et ouvrir le lieu » EST un programme de
+    valorisation : demander « prévoyez-vous des actions de valorisation après
+    les travaux ? » juste après se lit comme une panne, et la question n'a de
+    surcroît aucun sens pour un projet sans chantier.
+
+    Déduction POSITIVE, la seule de la table : elle n'est tenable que parce
+    qu'aucun gate du corpus ne porte `eq: false` sur ce fait (cf. le test de
+    corpus ci-dessous), donc elle ne peut écarter personne.
+    """
+
+    FACT = "prevoit_programme_valorisation"
+    GATE = {
+        "id": "programme-de-valorisation",
+        "text": "Le porteur doit prévoir un programme de valorisation du bien restauré.",
+        "kind": "user_fact",
+        "effect": "gate",
+        "fact": FACT,
+        "predicate": {"eq": True},
+    }
+    AIDE = _fixture_aide(
+        [GATE],
+        slug="fx-valorisation",
+        raison=["restauration_travaux", "valorisation_rayonnement"],
+    )
+
+    def _run(self, answers=None):
+        return run_deterministic_diagnostic(
+            {self.AIDE.slug: self.AIDE}, FACTS, _monument(), 3000, answers
+        )
+
+    def _questions(self, res) -> set[str]:
+        return {q["id"] for q in res["qcmQuestions"]}
+
+    def test_faire_vivre_repond_oui_sans_poser_la_question(self):
+        res = self._run({"_raisons": ["valorisation_rayonnement"]})
+        self.assertNotIn(self.FACT, self._questions(res))
+        self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-valorisation"])
+
+    def test_un_pur_chantier_garde_la_question(self):
+        """L'inverse ne se déduit pas : un projet de restauration peut très bien
+        prévoir un programme de valorisation, que plusieurs aides exigent."""
+        res = self._run({"_raisons": ["restauration_travaux"]})
+        self.assertIn(self.FACT, self._questions(res))
+        self.assertEqual(len(res["aidesPotentiellementEligibles"]), 1)
+
+    def test_sans_raisons_comportement_inchange(self):
+        for answers in (None, {}, {"_raisons": []}):
+            self.assertIn(self.FACT, self._questions(self._run(answers)), answers)
+
+    def test_reponse_de_l_utilisateur_prime_sur_la_deduction(self):
+        """Un « non » explicite survit à la déduction. L'aide tombe
+        « atteignable » et non « non éligible » : le fait porte un levier
+        (prévoir des actions de valorisation est un choix de conduite de
+        projet), donc aucun de ses gates n'est dirimant."""
+        res = self._run({"_raisons": ["valorisation_rayonnement"], self.FACT: "non"})
+        self.assertEqual([m["aide"]["id"] for m in res["aidesAtteignables"]], ["fx-valorisation"])
+
+    def test_corpus_aucun_gate_negatif_sur_le_fait_deduit(self):
+        """Ce qui autorise la déduction positive. Un `eq: false` futur ferait
+        « écartée par vos réponses » sans que l'utilisateur ait répondu."""
+        fautifs = sorted(
+            f"{slug} / {c.id}"
+            for slug, aide in AIDES.items()
+            for c in aide.conditions
+            if c.fact == self.FACT
+            and c.effect == "gate"
+            and c.predicate is not None
+            and evaluate_predicate(c.predicate.root, True) is False
+        )
+        self.assertEqual(fautifs, [])
+
+
+class TestReponseQuiNeTranchePas(unittest.TestCase):
+    """`s_engage_mesure_impact_environnemental` : le premier fait `boolean` du
+    corpus à déclarer ses réponses, avec une troisième qui ne tranche pas.
+
+    L'engagement porte sur des indicateurs que chaque financeur définit à sa
+    façon : « oui » ou « non » dans l'abstrait n'était répondable par personne,
+    et un « non » par prudence écartait des aides. « Selon l'aide en jeu »
+    laisse le fait INCONNU — la condition reste une incertitude, l'aide reste
+    « à confirmer », et aucun prédicat d'aide n'a eu à bouger.
+    """
+
+    FACT = "s_engage_mesure_impact_environnemental"
+    GATE = {
+        "id": "mesure-impact",
+        "text": "Le porteur chiffre l'impact environnemental visé par les travaux.",
+        "kind": "user_fact",
+        "effect": "gate",
+        "fact": FACT,
+        "predicate": {"eq": True},
+    }
+
+    def _run(self, answers=None):
+        aide = _fixture_aide([self.GATE], slug="fx-impact")
+        return run_deterministic_diagnostic({"fx-impact": aide}, FACTS, _monument(), 3000, answers)
+
+    def test_les_trois_reponses_sont_proposees_dans_lordre(self):
+        question = next(q for q in self._run()["qcmQuestions"] if q["id"] == self.FACT)
+        self.assertEqual(
+            [o["id"] for o in question["options"]], ["oui", "non", "selon_aide", "skip"]
+        )
+
+    def test_oui_et_non_gardent_leur_sens(self):
+        """R1 du schéma : les réponses déjà enregistrées ne changent pas de sens.
+        `non` laisse l'aide « atteignable » plutôt que refusée, le fait portant
+        un levier (c'est une contrepartie à accepter, pas un droit à obtenir)."""
+        self.assertEqual(
+            [m["aide"]["id"] for m in self._run({self.FACT: "oui"})["aidesEligibles"]],
+            ["fx-impact"],
+        )
+        self.assertEqual(
+            [m["aide"]["id"] for m in self._run({self.FACT: "non"})["aidesAtteignables"]],
+            ["fx-impact"],
+        )
+
+    def test_selon_laide_n_ecarte_jamais(self):
+        res = self._run({self.FACT: "selon_aide"})
+        self.assertEqual(res["aidesNonEligibles"], [])
+        self.assertEqual(
+            [m["aide"]["id"] for m in res["aidesPotentiellementEligibles"]], ["fx-impact"]
+        )
+
+    def test_selon_laide_ne_porte_aucune_elimination(self):
+        """Le front recalcule les éliminations sans appeler le serveur
+        (`computeEliminatedAideIds`) : la table ne doit rien porter sur cette
+        réponse. Elle est ici vide pour TOUTES les réponses, le fait ayant un
+        levier — la mécanique générale (`non` écarte, la réponse qui ne tranche
+        pas non) est couverte par TestBooleenAReponsesDeclarees."""
+        question = next(q for q in self._run()["qcmQuestions"] if q["id"] == self.FACT)
+        self.assertEqual(question["eliminationsParOption"].get("selon_aide", []), [])
+
+
+class TestFamillesPrefilter(unittest.TestCase):
+    """Étape « Les activités » : les familles cochées (clé réservée `_familles`)
+    écartent les aides d'un autre thème.
+
+    Miroir de `TestRaisonPrefilter` un cran plus fin : `raison` met dans le même
+    sac un festival, un gîte et un outil de médiation, la famille les sépare.
+    """
+
+    SPECTACLE = _fixture_aide([], slug="fx-spectacle", familles=["spectacles_manifestations"])
+    HEBERGEMENT = _fixture_aide([], slug="fx-hebergement", familles=["tourisme_hebergement"])
+    SANS_FAMILLE = _fixture_aide([], slug="fx-sans-famille")
+    MIXTE = _fixture_aide(
+        [],
+        slug="fx-mixte",
+        familles=["spectacles_manifestations", "tourisme_hebergement"],
+    )
+    # Une aide de restauration taguée bâti, pour le cas des projets anciens.
+    BATI = _fixture_aide(
+        [], slug="fx-bati", raison=["restauration_travaux"], familles=["restauration_bati"]
+    )
+
+    def _run(self, aides, answers=None):
+        catalogue = {a.slug: a for a in aides}
+        return run_deterministic_diagnostic(catalogue, FACTS, _monument(), 3000, answers)
+
+    def _slugs(self, res) -> set[str]:
+        return {
+            m["aide"]["id"]
+            for bucket in (
+                "aidesEligibles",
+                "aidesPotentiellementEligibles",
+                "aidesAtteignables",
+                "aidesNonEligibles",
+            )
+            for m in res[bucket]
+        }
+
+    def test_familles_ecartent_les_aides_hors_theme(self):
+        res = self._run(
+            [self.SPECTACLE, self.HEBERGEMENT], {"_familles": ["spectacles_manifestations"]}
+        )
+        self.assertEqual(self._slugs(res), {"fx-spectacle"})
+        self.assertEqual(res["totalAidesAnalysees"], 1)
+
+    def test_aide_sans_famille_passe_toujours(self):
+        """Fail-open, comme pour `raison` : faute de tag, on ne masque jamais."""
+        res = self._run(
+            [self.HEBERGEMENT, self.SANS_FAMILLE], {"_familles": ["spectacles_manifestations"]}
+        )
+        self.assertEqual(self._slugs(res), {"fx-sans-famille"})
+
+    def test_intersection_partielle_suffit(self):
+        res = self._run([self.MIXTE], {"_familles": ["spectacles_manifestations"]})
+        self.assertEqual(self._slugs(res), {"fx-mixte"})
+
+    def test_montrez_moi_tout_ne_filtre_rien(self):
+        """`[]` est une RÉPONSE (« je ne sais pas encore »), pas une absence :
+        elle ne filtre rien, comme la clé absente."""
+        for answers in (None, {}, {"_familles": []}):
+            res = self._run([self.SPECTACLE, self.HEBERGEMENT], answers)
+            self.assertEqual(self._slugs(res), {"fx-spectacle", "fx-hebergement"}, answers)
+
+    def test_un_projet_ancien_multi_intentions_garde_ses_aides_de_travaux(self):
+        """`FAMILLES_PAR_RAISON` : l'intention « restaurer » implique les cinq
+        familles de chantier. Sans ça, un projet d'avant le choix exclusif qui
+        repasse le wizard et coche « spectacles » perdrait toutes ses aides de
+        restauration — elles ne sont pas hors sujet, elles sont l'autre moitié
+        de son projet."""
+        res = self._run(
+            [self.SPECTACLE, self.HEBERGEMENT, self.BATI],
+            {
+                "_raisons": ["restauration_travaux", "valorisation_rayonnement"],
+                "_familles": ["spectacles_manifestations"],
+            },
+        )
+        self.assertEqual(self._slugs(res), {"fx-spectacle", "fx-bati"})
+
+    def test_les_familles_implicites_ne_declenchent_pas_le_filtre(self):
+        """Un projet de restauration ne voit PAS l'étape des activités : ses
+        familles implicites ne doivent donc rien filtrer, sinon il perdrait
+        toute aide taguée hors des cinq familles de chantier."""
+        res = self._run([self.SPECTACLE, self.BATI], {"_raisons": ["restauration_travaux"]})
+        self.assertEqual(self._slugs(res), {"fx-spectacle", "fx-bati"})
+
+    def test_cle_reservee_ne_devient_pas_un_fait(self):
+        facts_answers, reserved = split_reserved_answers(
+            {"_familles": ["spectacles_manifestations"], "etat_travaux": "aucun"}
+        )
+        self.assertEqual(facts_answers, {"etat_travaux": "aucun"})
+        self.assertEqual(reserved, {"_familles": ["spectacles_manifestations"]})
+
+    def test_valeur_mal_formee_ne_filtre_rien(self):
+        """Le dict vient de `projets.questionnaire`, donc d'un enregistrement
+        qui peut précéder la clé ou l'avoir mal écrite : fail-open."""
+        for brut in ("spectacles_manifestations", 42, None, [None, 7]):
+            res = self._run([self.SPECTACLE, self.HEBERGEMENT], {"_familles": brut})
+            self.assertEqual(self._slugs(res), {"fx-spectacle", "fx-hebergement"}, repr(brut))
+
+    def test_aide_display_expose_les_familles(self):
+        res = self._run([self.SPECTACLE], {"_familles": ["spectacles_manifestations"]})
+        match = (res["aidesEligibles"] + res["aidesPotentiellementEligibles"])[0]
+        self.assertEqual(match["aide"]["familles"], ["spectacles_manifestations"])
+
+
+class TestFaitsDeduitsDesFamilles(unittest.TestCase):
+    """Les familles cochées répondent d'avance aux faits de PÉRIMÈTRE d'un autre
+    thème : avoir coché « spectacles » dit déjà que le projet n'est pas un
+    hébergement touristique.
+
+    La garde est le cœur du dispositif. `hors_famille` promet un fail-open PAR
+    AIDE, alors que la déduction agit PAR FAIT : répondre « non » à un fait de
+    périmètre écarte, via `hors_perimetre`, les aides non taguées qui s'appuient
+    dessus. On ne déduit donc que si toutes les porteuses du fait sont taguées
+    dans les familles que la table associe à CE fait.
+    """
+
+    FACT = "projet_hebergement_touristique"
+    PERIMETRE = {"fact": FACT, "predicate": {"eq": True}}
+
+    def _aide(self, slug, familles, perimetre=True):
+        return _fixture_aide(
+            [],
+            slug=slug,
+            familles=familles,
+            **({"applies_if": self.PERIMETRE} if perimetre else {}),
+        )
+
+    def _run(self, aides, answers):
+        catalogue = {a.slug: a for a in aides}
+        return run_deterministic_diagnostic(catalogue, FACTS, _monument(), 3000, answers)
+
+    def _questions(self, res) -> set[str]:
+        return {q["id"] for q in res["qcmQuestions"]}
+
+    EXCLUSION = {
+        "id": "pas-un-hebergement",
+        "text": "Le dispositif ne finance pas les hébergements touristiques.",
+        "kind": "user_fact",
+        "effect": "gate",
+        "fact": FACT,
+        "predicate": {"eq": False},
+    }
+
+    def test_une_famille_dun_autre_theme_repond_non_davance(self):
+        """Ce que la déduction supprime, c'est la QUESTION — ici celle qu'une
+        aide de spectacles pose en EXCLUSION (« pas un hébergement »). Avoir
+        coché « spectacles » y répond déjà, et l'aide devient éligible sans
+        qu'on ait eu à demander."""
+        aide = _fixture_aide(
+            [self.EXCLUSION], slug="fx-spectacle", familles=["spectacles_manifestations"]
+        )
+        res = self._run([aide], {"_familles": ["spectacles_manifestations"]})
+        self.assertNotIn(self.FACT, self._questions(res))
+        self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-spectacle"])
+
+    def test_un_gate_positif_mal_tague_bloque_la_deduction(self):
+        """Le cas le plus dangereux, et il existe dans le corpus : treize aides
+        gatent `eq: true` sur un fait de la table SANS en faire leur périmètre.
+        Déduire « non » les ferait tomber « écartées par vos réponses » sans que
+        l'utilisateur ait rien répondu. La garde regarde donc les conditions
+        autant que les périmètres."""
+        positif = {**self.EXCLUSION, "id": "est-un-lieu", "predicate": {"eq": True}}
+        aide = _fixture_aide([positif], slug="fx-non-taguee")
+        exclusion = _fixture_aide(
+            [self.EXCLUSION], slug="fx-spectacle", familles=["spectacles_manifestations"]
+        )
+        res = self._run([aide, exclusion], {"_familles": ["spectacles_manifestations"]})
+        self.assertIn(self.FACT, self._questions(res))
+        self.assertEqual(res["aidesNonEligibles"], [])
+
+    def test_la_famille_cochee_laisse_la_question_posee(self):
+        aide = self._aide("fx-hebergement", ["tourisme_hebergement"])
+        res = self._run([aide], {"_familles": ["tourisme_hebergement"]})
+        self.assertIn(self.FACT, self._questions(res))
+
+    def test_une_porteuse_non_taguee_bloque_la_deduction(self):
+        """Le cas qui justifie la garde : sans elle, une aide non taguée à
+        périmètre tourisme serait écartée par la bande, alors que
+        `hors_famille` vient de la laisser passer."""
+        mixte = self._aide("fx-mixte", ["tourisme_hebergement", "spectacles_manifestations"])
+        nue = self._aide("fx-non-taguee", [])
+        res = self._run([mixte, nue], {"_familles": ["spectacles_manifestations"]})
+        self.assertIn(self.FACT, self._questions(res))
+        self.assertIn(
+            "fx-non-taguee", {m["aide"]["id"] for m in res["aidesPotentiellementEligibles"]}
+        )
+
+    def test_une_porteuse_taguee_hors_table_bloque_la_deduction(self):
+        """Même raison : une aide « festival touristique » taguée spectacles est
+        gardée par `hors_famille`, la déduction la tuerait."""
+        festival = self._aide("fx-festival", ["spectacles_manifestations"])
+        res = self._run([festival], {"_familles": ["spectacles_manifestations"]})
+        self.assertIn(self.FACT, self._questions(res))
+
+    def test_sans_familles_declarees_aucune_deduction(self):
+        aide = self._aide("fx-hebergement", ["tourisme_hebergement"])
+        for answers in (None, {}, {"_familles": []}):
+            res = self._run([aide], answers)
+            self.assertIn(self.FACT, self._questions(res), answers)
+
+    def test_la_reponse_de_l_utilisateur_prime(self):
+        mixte = self._aide("fx-mixte", ["tourisme_hebergement", "spectacles_manifestations"])
+        res = self._run([mixte], {"_familles": ["spectacles_manifestations"], self.FACT: "oui"})
+        self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-mixte"])
+
+    def test_answers_du_caller_non_mutees(self):
+        mixte = self._aide("fx-mixte", ["tourisme_hebergement", "spectacles_manifestations"])
+        answers = {"_familles": ["spectacles_manifestations"]}
+        self._run([mixte], answers)
+        self.assertEqual(answers, {"_familles": ["spectacles_manifestations"]})
+
+    def test_corpus_aucun_fait_du_monument_dans_la_table(self):
+        """Un fait de scope `monument` n'a rien à faire dans la table : il décrit
+        le BIEN, et un jardin ne cesse pas d'exister parce qu'on monte un
+        festival. Les faits de porteur (`porteur_compagnie_artistique`…), eux,
+        y sont légitimes : ils décrivent qui dépose, ce que le thème du projet
+        renseigne bel et bien."""
+        fautifs = sorted(
+            f"{k} (scope {FACTS[k].scope})"
+            for k in FAITS_DEDUITS_DES_FAMILLES
+            if k in FACTS and FACTS[k].scope == "monument"
+        )
+        self.assertEqual(fautifs, [])
+
+    def test_corpus_les_faits_deduits_existent_et_sont_des_booleens(self):
+        """La déduction écrit `False` : sur un `multi_enum`, elle n'aurait aucun
+        sens (`_normalize_answer` en attend une liste d'options)."""
+        fautifs = sorted(
+            k for k in FAITS_DEDUITS_DES_FAMILLES if k not in FACTS or FACTS[k].type != "boolean"
+        )
+        self.assertEqual(fautifs, [])
+
+    def test_corpus_les_familles_citees_existent(self):
+        inconnues = sorted(
+            {f for familles in FAITS_DEDUITS_DES_FAMILLES.values() for f in familles}
+            - set(FAMILLES)
+        ) + sorted(
+            {f for familles in FAMILLES_PAR_RAISON.values() for f in familles} - set(FAMILLES)
+        )
+        self.assertEqual(inconnues, [])
+
+    def test_corpus_la_garde_protege_tous_les_gates_positifs(self):
+        """Le corpus compte treize aides qui gatent `eq: true` sur un fait de la
+        table SANS en faire leur périmètre (les lieux de diffusion de
+        Seine-et-Marne, les compagnies, les écoles de musique…). Chacune doit
+        être vue par la garde : déduire « non » les ferait tomber « écartées par
+        vos réponses » sur une question jamais posée.
+
+        C'est l'invariant que la garde tient par construction ; ce test vérifie
+        qu'elle les voit bien, et il échouerait si la garde revenait à ne
+        regarder que les périmètres.
+
+        À ne pas confondre avec la table des RAISONS, qui n'a PAS de garde (elle
+        déduit de la seule intention déclarée) : là, une élimination sans
+        question posée existe et est assumée — l'aide à projet de l'Académie des
+        beaux-arts est bien écartée d'un projet purement de travaux, et
+        l'utilisateur l'a dit en cochant son intention.
+        """
+        exposees = sorted(
+            slug
+            for slug, aide in AIDES.items()
+            for c in aide.conditions
+            if c.fact in FAITS_DEDUITS_DES_FAMILLES
+            and c.effect == "gate"
+            and c.predicate is not None
+            and evaluate_predicate(c.predicate.root, False) is False
+        )
+        self.assertTrue(exposees, "le corpus n'expose plus le cas : test à revoir")
+        for slug in exposees:
+            self.assertTrue(
+                _retournerait_contre(AIDES[slug], _fait_gate(AIDES[slug])),
+                f"{slug} n'est pas vue par la garde",
+            )
+
+    def test_corpus_une_aide_taguee_a_perimetre_deduit_reste_dans_la_table(self):
+        """L'invariant qui protège la garde : une aide qui porte des familles ET
+        dont le périmètre est un fait de la table doit les porter DANS les
+        familles de ce fait. Sinon `hors_famille` la garde et la déduction la
+        tue — le seul cas où les deux mécaniques se contredisent.
+
+        Une aide SANS famille est hors sujet ici : la garde la voit et renonce
+        à déduire (fail-closed), ce que testent les cas synthétiques ci-dessus.
+        """
+        fautives = sorted(
+            f"{slug} ({aide.applies_if.fact} ← {aide.familles})"
+            for slug, aide in AIDES.items()
+            if aide.applies_if
+            and aide.applies_if.fact in FAITS_DEDUITS_DES_FAMILLES
+            and aide.familles
+            and not set(aide.familles) <= FAITS_DEDUITS_DES_FAMILLES[aide.applies_if.fact]
+        )
+        self.assertEqual(fautives, [])
+
+
+class TestPertinentSi(unittest.TestCase):
+    """`pertinent_si` : la dépendance déclarée UNE FOIS sur le fait.
+
+    « Depuis combien d'années les travaux sont-ils achevés ? » n'a de sens que
+    si `etat_travaux = acheves`. C'est une propriété du FAIT, pas de telle aide,
+    et elle était recopiée en `applies_if` sur chacune des quatre conditions qui
+    le citaient. Le moteur la reporte désormais comme il reporte le périmètre
+    d'une aide, et le reste suit tout seul : `dependsOn`, `gateway_facts`, ordre
+    des questions.
+    """
+
+    FACT = "fixture_anciennete"
+    SOURCE = "etat_travaux"
+
+    def _facts(self, **surcharge) -> dict[str, FactDef]:
+        return {
+            **FACTS,
+            self.FACT: FactDef.model_validate(
+                {
+                    "type": "integer",
+                    "scope": "projet",
+                    "unit": "ans",
+                    "question": "Depuis combien d'années les travaux sont-ils achevés ?",
+                    "pertinent_si": {"fact": self.SOURCE, "predicate": {"eq": "acheves"}},
+                    **surcharge,
+                }
+            ),
+        }
+
+    GATE = {
+        "id": "acheve-recemment",
+        "text": "Le chantier doit être achevé depuis moins de 3 ans.",
+        "kind": "user_fact",
+        "effect": "gate",
+        "fact": FACT,
+        "predicate": {"lte": 3},
+    }
+
+    def _run(self, answers=None, aide=None, facts=None):
+        aide = aide or _fixture_aide([self.GATE], slug="fx-prix")
+        return run_deterministic_diagnostic(
+            {aide.slug: aide}, facts or self._facts(), _monument(), 3000, answers
+        )
+
+    def _questions(self, res) -> dict[str, dict]:
+        return {q["id"]: q for q in res["qcmQuestions"]}
+
+    def test_la_question_se_branche_sur_le_fait_porteur(self):
+        """Effet visible : un `dependsOn` que le front sait rendre, alors
+        qu'aucune condition ne déclare plus la clause."""
+        qs = self._questions(self._run())
+        self.assertEqual(
+            qs[self.FACT]["dependsOn"],
+            {"questionId": self.SOURCE, "showForOptionIds": ["acheves"]},
+        )
+        # La porteuse est posée AVANT sa dépendante : sans quoi le branchement
+        # ne servirait à rien.
+        ids = [q["id"] for q in self._run()["qcmQuestions"]]
+        self.assertLess(ids.index(self.SOURCE), ids.index(self.FACT))
+
+    def test_la_question_disparait_quand_la_clause_est_fausse(self):
+        for reponse in ("non_commences", "en_cours", "aucun"):
+            self.assertNotIn(self.FACT, self._questions(self._run({self.SOURCE: reponse})), reponse)
+
+    def test_la_question_reste_quand_la_clause_est_vraie(self):
+        self.assertIn(self.FACT, self._questions(self._run({self.SOURCE: "acheves"})))
+
+    def test_clause_inconnue_laisse_la_question_posee(self):
+        """Fail-closed : sans réponse à la porteuse, on pose les deux."""
+        qs = self._questions(self._run({self.SOURCE: "skip"}))
+        self.assertIn(self.FACT, qs)
+        self.assertIn(self.SOURCE, qs)
+
+    def test_la_condition_n_est_pas_evaluee_hors_de_sa_clause(self):
+        """Le point qui compte : un chantier à venir ne doit pas être REFUSÉ par
+        un critère d'ancienneté, il doit l'ignorer."""
+        res = self._run({self.SOURCE: "non_commences", self.FACT: "ge6"})
+        self.assertEqual(res["aidesNonEligibles"], [])
+        self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-prix"])
+
+    def test_la_clause_propre_dune_condition_reste_prioritaire(self):
+        """Plus spécifique : elle gagne, et le fait ne la surcharge pas."""
+        gate = {
+            **self.GATE,
+            "applies_if": {"fact": "travaux_parties_protegees", "predicate": {"eq": True}},
+        }
+        qs = self._questions(self._run(aide=_fixture_aide([gate], slug="fx-prix")))
+        self.assertEqual(qs[self.FACT]["dependsOn"]["questionId"], "travaux_parties_protegees")
+
+    def test_le_perimetre_de_laide_passe_avant_la_clause_du_fait(self):
+        """Une condition ne porte qu'UNE clause, et la première question à
+        trancher est « cette aide me concerne-t-elle ? ». Perdre la clause du
+        fait ne fait alors que poser une question de plus (fail-closed)."""
+        aide = _fixture_aide(
+            [self.GATE],
+            slug="fx-prix",
+            applies_if={"fact": "projet_hebergement_touristique", "predicate": {"eq": True}},
+        )
+        qs = self._questions(self._run(aide=aide))
+        self.assertEqual(qs[self.FACT]["dependsOn"]["questionId"], "projet_hebergement_touristique")
+
+    def test_un_gate_sur_le_fait_porteur_nherite_pas_de_lui_meme(self):
+        """Sinon la question serait sa propre condition d'applicabilité, et ne
+        se poserait jamais."""
+        facts = self._facts(pertinent_si={"fact": self.SOURCE, "predicate": {"eq": "acheves"}})
+        gate = {**self.GATE, "fact": self.SOURCE, "predicate": {"eq": "acheves"}}
+        qs = self._questions(self._run(aide=_fixture_aide([gate], slug="fx-prix"), facts=facts))
+        self.assertIsNone(qs[self.SOURCE].get("dependsOn"))
+
+    def test_corpus_la_clause_du_fait_a_remplace_les_quatre_recopies(self):
+        """Ce que le lot a fait : la règle vit une fois sur le fait, et aucune
+        condition ne la répète. Une recopie future serait du bruit (le lint la
+        signale) ; ce test fige l'état atteint sur le fait réel."""
+        fait = FACTS["anciennete_achevement_travaux_ans"]
+        self.assertIsNotNone(fait.pertinent_si)
+        assert fait.pertinent_si is not None  # pour pyright
+        self.assertEqual(fait.pertinent_si.fact, "etat_travaux")
+        self.assertEqual(fait.pertinent_si.predicate.root, {"eq": "acheves"})
+        recopies = sorted(
+            f"{slug} / {c.id}"
+            for slug, aide in AIDES.items()
+            for c in aide.conditions
+            if c.fact == "anciennete_achevement_travaux_ans" and c.applies_if is not None
+        )
+        self.assertEqual(recopies, [])

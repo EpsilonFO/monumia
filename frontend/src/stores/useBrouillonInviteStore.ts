@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { Famille } from '@/constants/familles';
 import type { MonumentInput, ProjectQuestionnaireAnswers, WorkType } from '@/types';
 
 /**
@@ -21,13 +22,22 @@ import type { MonumentInput, ProjectQuestionnaireAnswers, WorkType } from '@/typ
  */
 
 /** Où en est le visiteur. Sert à rouvrir le wizard là où il l'a laissé. */
-export type EtapeBrouillon = 'intention' | 'travaux' | 'questionnaire' | 'inscription';
+export type EtapeBrouillon =
+  | 'intention'
+  | 'familles'
+  | 'travaux'
+  | 'questionnaire'
+  | 'inscription';
 
 interface BrouillonInviteState {
   /** La fiche du bien, telle que `POST /monuments` l'attend. */
   monument: MonumentInput | null;
   /** Intentions de l'étape « Votre projet » (clé réservée `_raisons` au rejeu). */
   raisons: string[];
+  /** Familles de l'étape « Les activités » (clé réservée `_familles` au
+   *  rejeu). `null` : question non posée ; `[]` : « montrez-moi tout ». Même
+   *  tri-état que le wizard, cf. `readFamilles`. */
+  familles: Famille[] | null;
   /** `null` : pas de réponse ; `[]` : « Pas encore déterminé ». Même tri-state
    *  que le wizard et que la colonne `projets.travaux_envisages`. */
   travaux: WorkType[] | null;
@@ -43,7 +53,11 @@ interface BrouillonInviteState {
   creeLe: string | null;
 
   setMonument: (monument: MonumentInput) => void;
-  setCadrage: (raisons: string[], travaux: WorkType[] | null) => void;
+  setCadrage: (
+    raisons: string[],
+    travaux: WorkType[] | null,
+    familles?: Famille[] | null,
+  ) => void;
   setAnswers: (answers: ProjectQuestionnaireAnswers) => void;
   setEtape: (etape: EtapeBrouillon) => void;
   marquerMonumentCree: (monumentId: string) => void;
@@ -54,6 +68,7 @@ interface BrouillonInviteState {
 const ETAT_INITIAL = {
   monument: null,
   raisons: [],
+  familles: null,
   travaux: null,
   answers: {},
   etape: 'intention' as EtapeBrouillon,
@@ -68,8 +83,12 @@ const ETAT_INITIAL = {
 export const TTL_JOURS = 7;
 
 /** Version du FORMAT persisté. À incrémenter dès qu'un champ change de forme —
- *  une version inconnue est jetée, jamais migrée (cf. `migrate`). */
-export const VERSION_BROUILLON = 1;
+ *  une version inconnue est jetée, jamais migrée (cf. `migrate`).
+ *
+ *  v2 (2026-09-16) : `familles`, en tri-état. Un brouillon v1 relu tel quel
+ *  porterait `undefined` là où le wizard attend `null` ou une liste, et son
+ *  rejeu écrirait un questionnaire sans cadrage d'activités — on le jette. */
+export const VERSION_BROUILLON = 2;
 
 export function estPerime(creeLe: string | null): boolean {
   if (!creeLe) return false;
@@ -101,7 +120,15 @@ export const useBrouillonInviteStore = create<BrouillonInviteState>()(
           };
         }),
 
-      setCadrage: (raisons, travaux) => set({ raisons, travaux }),
+      // `familles` est OPTIONNEL : l'étape des travaux appelle `setCadrage` sans
+      // elle (un projet de restauration n'a pas d'activités), et écraser la
+      // valeur posée par l'étape précédente la perdrait.
+      setCadrage: (raisons, travaux, familles) =>
+        set((s) => ({
+          raisons,
+          travaux,
+          familles: familles === undefined ? s.familles : familles,
+        })),
 
       setAnswers: (answers) => set({ answers }),
 

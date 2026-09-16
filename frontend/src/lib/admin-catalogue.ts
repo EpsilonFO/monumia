@@ -6,7 +6,13 @@
  * décident rien de ce qui suit.
  */
 
-import type { AdminAide, AdminFait, OptionSurchargee, SurchargeFait } from '@/types/admin.types';
+import type {
+  AdminAide,
+  AdminFait,
+  OptionSurchargee,
+  SurchargeFait,
+  UtilisateurAdmin,
+} from '@/types/admin.types';
 
 /** Minuscules sans accents : on cherche « eglise » et on trouve « Église ». */
 export function normaliser(texte: string): string {
@@ -22,6 +28,26 @@ export function filtrerAides(aides: AdminAide[], recherche: string): AdminAide[]
   if (!q) return aides;
   return aides.filter((aide) =>
     [aide.slug, aide.nom, aide.organisme].some((champ) => normaliser(champ).includes(q)),
+  );
+}
+
+/**
+ * Les comptes qui correspondent à la recherche, pour l'onglet Rôles.
+ *
+ * Le nom ET le prénom ET l'email, plus l'identifiant — c'est le seul repère
+ * d'une ligne du socle dont le compte a disparu. Filtré ici, côté client : la
+ * liste tient dans la page, et une frappe ne doit pas attendre le réseau.
+ */
+export function filtrerUtilisateurs(
+  utilisateurs: UtilisateurAdmin[],
+  recherche: string,
+): UtilisateurAdmin[] {
+  const q = normaliser(recherche);
+  if (!q) return utilisateurs;
+  return utilisateurs.filter((u) =>
+    [u.prenom, u.nom, u.email, u.userId, [u.prenom, u.nom].filter(Boolean).join(' ')].some(
+      (champ) => champ && normaliser(champ).includes(q),
+    ),
   );
 }
 

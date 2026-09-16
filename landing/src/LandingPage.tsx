@@ -14,7 +14,6 @@ import {
   Info,
   Lock,
   Mail,
-  Radar,
   Search,
   Sparkles,
 } from 'lucide-react';
@@ -310,10 +309,14 @@ function SectionTitle({
   title,
   sub,
   dark = false,
+  filet = true,
 }: {
   title: ReactNode;
   sub?: ReactNode;
   dark?: boolean;
+  /* Le filet orange sous le titre. Sans lui, le sous-titre remonte contre le
+     titre plutôt que de garder l'écart que le filet occupait. */
+  filet?: boolean;
 }) {
   return (
     <div className="mx-auto max-w-3xl text-center">
@@ -323,13 +326,15 @@ function SectionTitle({
       >
         {title}
       </h2>
-      <div
-        className="mx-auto mt-5 h-[3px] w-12 rounded-full"
-        style={{ background: dark ? C.orangeVif : C.orange }}
-      />
+      {filet && (
+        <div
+          className="mx-auto mt-5 h-[3px] w-12 rounded-full"
+          style={{ background: dark ? C.orangeVif : C.orange }}
+        />
+      )}
       {sub && (
         <p
-          className="mx-auto mt-5 max-w-2xl text-[17px] font-medium leading-[1.65]"
+          className={`mx-auto ${filet ? 'mt-5' : 'mt-3'} max-w-2xl text-[17px] font-medium leading-[1.65]`}
           style={{ color: dark ? 'rgba(255,255,255,0.7)' : C.inkSoft }}
         >
           {sub}
@@ -736,7 +741,7 @@ function Constat() {
         <div ref={ref} className="grid items-start gap-14 sm:grid-cols-2 sm:gap-10">
           <Reveal>
             {/* 17,88 % mauvais état + 4,90 % péril = 22,78 % sur 36 512 MH */}
-            <ConstatChiffre chiffre="Près d’1 sur 4">
+            <ConstatChiffre chiffre="Près d’un sur quatre">
               monuments historiques en mauvais état ou en péril.
             </ConstatChiffre>
           </Reveal>
@@ -798,38 +803,20 @@ function Constat() {
               rel="noopener noreferrer"
               className="group mx-auto block w-[200px] transition-transform duration-300 hover:-translate-y-1"
             >
-              {/* La couverture du rapport, dessinée : un document qu’on peut ouvrir */}
+              {/* La couverture du rapport, telle qu’elle est publiée : la première
+                  page du PDF du Sénat, rendue en image */}
               <span
                 className="block overflow-hidden rounded-lg border shadow-[0_18px_40px_-22px_rgba(34,43,53,0.5)]"
                 style={{ background: '#fff', borderColor: C.border }}
               >
-                <span className="block h-1.5 w-full" style={{ background: C.blue }} />
-                <span className="block px-5 pb-6 pt-5">
-                  <span
-                    className="block text-[9.5px] font-semibold uppercase tracking-[0.2em]"
-                    style={{ color: C.inkFaint }}
-                  >
-                    Sénat
-                  </span>
-                  <span
-                    className="mt-3 block font-serif text-[13.5px] font-bold leading-snug"
-                    style={{ color: C.ink }}
-                  >
-                    Rapport d’information n° 865
-                  </span>
-                  <span className="mt-1.5 block text-[10.5px]" style={{ color: C.inkFaint }}>
-                    7 juillet 2026
-                  </span>
-                  <span aria-hidden="true" className="mt-5 block">
-                    {[100, 92, 96, 78, 88, 94, 64].map((w, i) => (
-                      <span
-                        key={i}
-                        className="mb-1.5 block h-[3px] rounded-full"
-                        style={{ width: `${w}%`, background: 'rgba(34,43,53,0.12)' }}
-                      />
-                    ))}
-                  </span>
-                </span>
+                <img
+                  src={`${BASE}img/rapport-senat.jpg`}
+                  alt="Couverture du rapport d’information n° 865 du Sénat, 7 juillet 2026"
+                  loading="lazy"
+                  width={396}
+                  height={560}
+                  className="block w-full"
+                />
               </span>
               <span
                 className="mt-3.5 flex items-center justify-center gap-1.5 text-[13.5px] font-semibold underline-offset-2 group-hover:underline"
@@ -1298,14 +1285,6 @@ function SceneVeille() {
       </p>
 
       <div
-        className="demo-pop mt-4 flex items-start gap-2.5 rounded-xl p-3.5 text-[12.5px] leading-snug"
-        style={{ background: C.paleOrange, color: C.ink, animationDelay: '5.2s' }}
-      >
-        <Radar className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.orange }} strokeWidth={1.8} />
-        Notre conseil : isoler votre manoir débloquerait de nouvelles aides de la Région.
-      </div>
-
-      <div
         className="toast-in mt-auto flex items-start gap-2.5 rounded-xl border bg-white p-3 shadow-[0_12px_28px_-14px_rgba(34,43,53,0.35)]"
         style={{ borderColor: C.border, animationDelay: '7.2s' }}
       >
@@ -1584,15 +1563,7 @@ const CATEGORIES: Array<{
       ],
       [
         'Une veille sur vos financements',
-        'Au-delà de vos projets en cours, Monumia identifie en continu les aides auxquelles votre lieu donne droit.',
-      ],
-      [
-        'Les financements liés à vos travaux',
-        'Pour chaque projet, Monumia vous indique les aides associées, y compris celles que vous ne connaissez pas encore.',
-      ],
-      [
-        'L’annuaire des fondations et mécènes',
-        'La fiche complète de chaque fondation : dates, modalités, contacts.',
+        'Au-delà de vos projets en cours, Monumia identifie en continu les aides auxquelles votre monument est éligible.',
       ],
     ],
     scene: SceneVeille,
@@ -2036,6 +2007,7 @@ function Team() {
       <div className="mx-auto max-w-6xl">
         <Reveal>
           <SectionTitle
+            filet={false}
             title="Car nous avons décidé de ne plus attendre."
             sub="Ensemble, ils portent Monumia."
           />
@@ -2045,44 +2017,31 @@ function Team() {
           {TEAM.map((m, i) => (
             <ParallaxItem key={m.name} factor={m.factor}>
               <Reveal delay={i * 130}>
-                <figure className={`group relative mx-auto max-w-[280px] ${m.lift}`}>
-                  {/* Le cadre : pierre crème, portrait en rectangle adouci */}
-                  <div
-                    className="relative rounded-2xl border p-3 shadow-[0_26px_50px_-30px_rgba(34,43,53,0.45)] transition-shadow duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:shadow-[0_36px_70px_-30px_rgba(241,113,5,0.4)]"
-                    style={{ background: C.card, borderColor: C.border }}
-                  >
-                    <div className="relative overflow-hidden rounded-xl">
-                      <img
-                        src={m.img}
-                        alt={m.alt}
-                        loading="lazy"
-                        className="aspect-[9/10] w-full object-cover"
-                        style={m.imgStyle}
-                      />
-                      {/* La lueur de bougie qui monte du seuil */}
-                      <span
-                        aria-hidden="true"
-                        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-[1100ms] ease-out group-hover:opacity-100"
-                        style={{
-                          background:
-                            'radial-gradient(120% 78% at 50% 102%, rgba(252,137,5,0.3), rgba(252,137,5,0.1) 45%, rgba(252,137,5,0) 72%)',
-                        }}
-                      />
-                    </div>
-
-                    {/* Le nom gravé sur le socle, sous le portrait */}
-                    <figcaption
-                      className="mt-3.5 text-center font-serif text-[15px] font-bold leading-snug"
-                      style={{ color: C.blue }}
-                    >
-                      {m.name}
-                    </figcaption>
+                <figure className={`group relative mx-auto max-w-[320px] ${m.lift}`}>
+                  {/* Le portrait à nu : ni cadre crème ni lueur orange, la photo
+                      occupe toute la largeur de la carte */}
+                  <div className="relative overflow-hidden rounded-2xl shadow-[0_26px_50px_-30px_rgba(34,43,53,0.45)] transition-shadow duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:shadow-[0_36px_70px_-30px_rgba(34,43,53,0.45)]">
+                    <img
+                      src={m.img}
+                      alt={m.alt}
+                      loading="lazy"
+                      className="aspect-[9/10] w-full object-cover"
+                      style={m.imgStyle}
+                    />
                   </div>
+
+                  {/* Le nom gravé sur le socle, sous le portrait */}
+                  <figcaption
+                    className="mt-3.5 text-center font-serif text-[15px] font-bold leading-snug"
+                    style={{ color: C.blue }}
+                  >
+                    {m.name}
+                  </figcaption>
 
                   {/* Le cartel, comme au musée */}
                   <div className="mt-6 text-center">
                     <p
-                      className="mx-auto max-w-[260px] text-[13.5px] leading-[1.6]"
+                      className="mx-auto max-w-[300px] text-[13.5px] leading-[1.6]"
                       style={{ color: C.inkSoft }}
                     >
                       {m.desc}
@@ -2310,10 +2269,7 @@ function Pricing() {
     >
       <div className="mx-auto max-w-6xl">
         <Reveal>
-          <SectionTitle
-            title="Une formule pour chaque étape de votre projet"
-            sub="Ce que chaque formule contient, sans surprise."
-          />
+          <SectionTitle filet={false} title="Des offres adaptées à vos besoins" />
         </Reveal>
 
         <div className="mt-14 grid items-stretch gap-6 lg:grid-cols-3">
@@ -2379,11 +2335,11 @@ function Faq() {
   const items = [
     {
       q: 'À qui s’adresse Monumia ?',
-      a: 'À tous ceux qui ont un lieu à entretenir ou à faire vivre : propriétaires privés d’un château, d’un manoir, d’un moulin ou d’une maison ancienne, associations, fondations, communes et collectivités.',
+      a: 'À tous ceux qui ont un lieu à entretenir ou à faire vivre : propriétaires privés, communes et collectivités.',
     },
     {
       q: 'Mon lieu n’est ni classé, ni inscrit. Ai-je quand même droit à des aides ?',
-      a: 'Très souvent, oui. Les Monuments historiques ne sont qu’une partie du paysage : les collectivités et les fondations soutiennent aussi le patrimoine non protégé, comme les églises rurales, les moulins, les lavoirs ou les maisons de caractère. Le questionnaire tient compte de la situation exacte de votre lieu.',
+      a: 'Très souvent, oui. Les Monuments historiques ne représentent qu’une petite partie du patrimoine : les monuments non protégés peuvent eux aussi bénéficier d’aides financières. Le questionnaire tient compte de la situation exacte de votre lieu.',
     },
     {
       q: 'Quels types de financements trouvez-vous ?',
@@ -2391,7 +2347,7 @@ function Faq() {
     },
     {
       q: 'Je ne suis pas à l’aise avec l’informatique. Est-ce pour moi ?',
-      a: 'C’est précisément pour vous que Monumia est conçu. Les questions sont posées en français courant, chaque terme technique est expliqué d’un simple survol, et le parcours avance pas à pas. Et si vous bloquez, une vraie personne vous répond par e-mail.',
+      a: 'Oui, Monumia a été pensé pour vous. Le parcours avance pas à pas, les questions sont posées en langage simple et chaque terme technique est expliqué. Et si vous êtes bloqué, nous vous répondons par e-mail.',
     },
     {
       q: 'Monumia dépose-t-il les demandes à ma place ?',
@@ -2399,11 +2355,11 @@ function Faq() {
     },
     {
       q: 'Combien ça coûte ?',
-      a: 'Découverte est gratuite, sans carte bancaire : un monument, deux projets, le détail de chaque aide, l’espace documents et l’aide au montage des dossiers. Veille ajoute les projets illimités, l’échéancier, les alertes avant chaque clôture et l’invitation de collaborateurs. Multi-monuments réunit plusieurs monuments sur un seul tableau de bord.',
+      a: 'Découverte est gratuite, sans carte bancaire : un monument, deux projets, le détail de chaque aide, l’espace documents et l’aide au montage des dossiers. Veille ajoute les projets illimités, l’échéancier, les alertes avant chaque clôture et l’invitation de collaborateurs. Multi-monuments comprend tout ce que propose Veille et réunit plusieurs monuments sur un seul tableau de bord. Pour les offres payantes, prenez rendez-vous via notre lien Calendly ou écrivez-nous par e-mail : nous en discutons ensemble et vous proposons un devis adapté.',
     },
     {
       q: 'D’où viennent vos informations ?',
-      a: 'Notre base est construite à partir des publications officielles des financeurs (administrations, collectivités, fondations) et tenue à jour en continu. Chaque fiche indique ses sources et les contacts utiles.',
+      a: 'Notre base de données est construite à partir des publications officielles des financeurs (administrations, collectivités, fondations) et tenue à jour en continu. Chaque fiche indique ses sources et les contacts utiles.',
     },
   ];
   return (
@@ -2453,13 +2409,9 @@ function FinalCta() {
           <Tracery color="#ffffff" opacity={0.015} size={180} />
 
           <div className="relative">
-            <h2 className="mx-auto max-w-2xl font-serif text-[clamp(1.9rem,3.6vw,2.5rem)] leading-[1.2] text-white">
-              Nous trouvons les aides. Vous faites vivre votre monument.
+            <h2 className="mx-auto max-w-3xl font-serif text-[clamp(1.9rem,3.6vw,2.5rem)] leading-[1.2] text-white">
+              Mobilisez enfin toutes les aides pour restaurer, ouvrir ou animer votre monument.
             </h2>
-            <p className="mx-auto mt-5 max-w-md text-[16px] leading-[1.7] text-white/75">
-              Quelques questions. En quelques minutes, vous connaissez les aides auxquelles
-              votre monument est éligible et la marche à suivre pour les demander.
-            </p>
             <div className="mt-9">
               <CtaButton onClick={goToDecouverte}>Trouver les aides pour mon monument</CtaButton>
             </div>

@@ -7,10 +7,11 @@ import {
   formaterHeure,
   formaterMontant,
   formaterTaux,
+  formaterTauxSeul,
   masquerVides,
   trierLignes,
 } from '@/lib/admin-stats';
-import type { BlocStats, StatsDepartement } from '@/types/admin.types';
+import type { GroupeStats, StatsTerritoire } from '@/types/admin.types';
 
 /**
  * Les espaces insécables d'`Intl` (avant « % », entre les milliers) varient
@@ -21,12 +22,10 @@ function espaces(texte: string): string {
   return texte.replace(/[\u00a0\u202f]/g, ' ');
 }
 
-function bloc(over: Partial<BlocStats> = {}): BlocStats {
+function groupe(over: Partial<GroupeStats> = {}): GroupeStats {
   return {
     nb: 3,
-    retirees: 0,
-    typees: 3,
-    bientot: 0,
+    slugs: ['a', 'b', 'c'],
     nbAvecTaux: 2,
     tauxMin: 15,
     tauxMax: 40,
@@ -38,37 +37,39 @@ function bloc(over: Partial<BlocStats> = {}): BlocStats {
   };
 }
 
-function departement(over: Partial<StatsDepartement> = {}): StatsDepartement {
+function territoire(over: Partial<StatsTerritoire> = {}): StatsTerritoire {
   return {
-    ...bloc(),
+    ...groupe(),
     code: '88',
     label: 'Vosges',
     region: 'grand-est',
     regionLabel: 'Grand Est',
-    locales: 3,
-    conseilDepartemental: 1,
-    regionales: 2,
-    nationales: 55,
-    couverture: 60,
     ...over,
   };
 }
 
 describe('formaterTaux', () => {
   it('donne la fourchette quand les deux bornes diffèrent', () => {
-    expect(espaces(formaterTaux(bloc()))).toBe('15 à 40 %');
+    expect(espaces(formaterTaux(groupe()))).toBe('15 à 40 %');
   });
 
   it('ne répète pas une borne unique', () => {
-    expect(espaces(formaterTaux(bloc({ tauxMin: 20, tauxMax: 20 })))).toBe('20 %');
+    expect(espaces(formaterTaux(groupe({ tauxMin: 20, tauxMax: 20 })))).toBe('20 %');
   });
 
   it('dit « non chiffré » plutôt que zéro quand la source n’annonce rien', () => {
-    expect(formaterTaux(bloc({ tauxMin: null, tauxMax: null }))).toBe(NON_CHIFFRE);
+    expect(formaterTaux(groupe({ tauxMin: null, tauxMax: null }))).toBe(NON_CHIFFRE);
   });
 
   it('affiche un taux réellement nul, qui n’est pas une absence', () => {
-    expect(espaces(formaterTaux(bloc({ tauxMin: 0, tauxMax: 0 })))).toBe('0 %');
+    expect(espaces(formaterTaux(groupe({ tauxMin: 0, tauxMax: 0 })))).toBe('0 %');
+  });
+});
+
+describe('formaterTauxSeul', () => {
+  it('affiche le taux d’une aide, ou son absence', () => {
+    expect(espaces(formaterTauxSeul(40))).toBe('40 %');
+    expect(formaterTauxSeul(null)).toBe(NON_CHIFFRE);
   });
 });
 
@@ -91,24 +92,20 @@ describe('formaterCouverture', () => {
 
 describe('trierLignes', () => {
   const lignes = [
-    departement({ code: '88', label: 'Vosges', locales: 3, montantMax: 120000 }),
-    departement({ code: '57', label: 'Moselle', locales: 7, montantMax: null }),
-    departement({ code: '08', label: 'Ardennes', locales: 1, montantMax: 900000 }),
+    territoire({ code: '88', label: 'Vosges', nb: 3, montantMax: 120000 }),
+    territoire({ code: '57', label: 'Moselle', nb: 7, montantMax: null }),
+    territoire({ code: '08', label: 'Ardennes', nb: 1, montantMax: 900000 }),
   ];
 
   it('trie les nombres dans les deux sens', () => {
-    expect(trierLignes(lignes, { cle: 'locales', sens: 'desc' }).map((l) => l.locales)).toEqual([
-      7, 3, 1,
-    ]);
-    expect(trierLignes(lignes, { cle: 'locales', sens: 'asc' }).map((l) => l.locales)).toEqual([
-      1, 3, 7,
-    ]);
+    expect(trierLignes(lignes, { cle: 'nb', sens: 'desc' }).map((l) => l.nb)).toEqual([7, 3, 1]);
+    expect(trierLignes(lignes, { cle: 'nb', sens: 'asc' }).map((l) => l.nb)).toEqual([1, 3, 7]);
   });
 
   it('trie le texte en français, accents compris', () => {
     const noms = ['Éure', 'Ardèche', 'Zonza'];
     const trie = trierLignes(
-      noms.map((label) => departement({ label })),
+      noms.map((label) => territoire({ label })),
       { cle: 'label', sens: 'asc' },
     );
     expect(trie.map((l) => l.label)).toEqual(['Ardèche', 'Éure', 'Zonza']);
@@ -125,21 +122,21 @@ describe('trierLignes', () => {
 
   it('ne modifie pas le tableau reçu', () => {
     const copie = [...lignes];
-    trierLignes(lignes, { cle: 'locales', sens: 'asc' });
+    trierLignes(lignes, { cle: 'nb', sens: 'asc' });
     expect(lignes).toEqual(copie);
   });
 });
 
 describe('basculerTri', () => {
   it('inverse le sens sur la même colonne', () => {
-    expect(basculerTri({ cle: 'locales', sens: 'desc' }, 'locales', 'desc')).toEqual({
-      cle: 'locales',
+    expect(basculerTri({ cle: 'nb', sens: 'desc' }, 'nb', 'desc')).toEqual({
+      cle: 'nb',
       sens: 'asc',
     });
   });
 
   it('repart du sens par défaut en changeant de colonne', () => {
-    expect(basculerTri({ cle: 'locales', sens: 'asc' }, 'label', 'asc')).toEqual({
+    expect(basculerTri({ cle: 'nb', sens: 'asc' }, 'label', 'asc')).toEqual({
       cle: 'label',
       sens: 'asc',
     });
@@ -148,8 +145,8 @@ describe('basculerTri', () => {
 
 describe('filtrerTerritoires', () => {
   const lignes = [
-    departement({ code: '88', label: 'Vosges', regionLabel: 'Grand Est' }),
-    departement({ code: '35', label: 'Ille-et-Vilaine', regionLabel: 'Bretagne' }),
+    territoire({ code: '88', label: 'Vosges', regionLabel: 'Grand Est' }),
+    territoire({ code: '35', label: 'Ille-et-Vilaine', regionLabel: 'Bretagne' }),
   ];
 
   it('cherche sur le code INSEE', () => {
@@ -170,7 +167,7 @@ describe('filtrerTerritoires', () => {
 });
 
 describe('masquerVides', () => {
-  const lignes = [departement({ nb: 0 }), departement({ nb: 4 })];
+  const lignes = [territoire({ nb: 0 }), territoire({ nb: 4 })];
 
   it('garde les territoires sans aide tant que le masquage est inactif', () => {
     expect(masquerVides(lignes, false)).toHaveLength(2);

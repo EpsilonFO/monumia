@@ -79,6 +79,10 @@ def aide_to_row(aide: Aide) -> dict:
         "demarche_description": aide.demarche,
         "documents_requis": [d.model_dump() for d in aide.documents_requis],
         "tags": aide.tags,
+        # Familles thématiques. Écrites sans condition, à l'inverse de `raison`
+        # (cf. l'upsert plus bas) : la colonne est neuve, aucune valeur en base
+        # ne précède le YAML, donc rien à préserver — le YAML est la vérité.
+        "familles": aide.familles,
     }
 
 

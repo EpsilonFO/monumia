@@ -14,7 +14,7 @@
 
 import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import { normaliser } from '@/lib/admin-catalogue';
-import type { BlocStats } from '@/types/admin.types';
+import type { GroupeStats } from '@/types/admin.types';
 
 /** Ce qu'affiche une case dont la source n'annonce rien (« non chiffré »). */
 export const NON_CHIFFRE = 'n.c.';
@@ -23,8 +23,8 @@ export const NON_CHIFFRE = 'n.c.';
  * La fourchette de taux d'un groupe, telle qu'elle se lit dans un tableau :
  * « 15 à 40 % », ou « 40 % » quand les deux bornes se rejoignent.
  */
-export function formaterTaux(bloc: BlocStats): string {
-  const { tauxMin, tauxMax } = bloc;
+export function formaterTaux(groupe: GroupeStats): string {
+  const { tauxMin, tauxMax } = groupe;
   if (tauxMin === null || tauxMax === null) return NON_CHIFFRE;
   if (tauxMin === tauxMax) return formatPercentage(tauxMax);
   return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(tauxMin)} à ${formatPercentage(tauxMax)}`;
@@ -32,6 +32,11 @@ export function formaterTaux(bloc: BlocStats): string {
 
 export function formaterMontant(valeur: number | null): string {
   return valeur === null ? NON_CHIFFRE : formatCurrency(valeur);
+}
+
+/** Le taux d'UNE aide, pour la ligne d'un dépliant. */
+export function formaterTauxSeul(taux: number | null): string {
+  return taux === null ? NON_CHIFFRE : formatPercentage(taux);
 }
 
 /** « 12 / 29 » : combien d'aides du groupe portent réellement ce chiffre. */

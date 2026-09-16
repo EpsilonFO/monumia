@@ -346,6 +346,24 @@ def _faire_vivre_depuis_raisons(raisons: set[str]) -> bool | None:
     return None if "valorisation_rayonnement" in raisons else False
 
 
+def _valorisation_prevue_depuis_raisons(raisons: set[str]) -> bool | None:
+    """Miroir de `_faire_vivre_depuis_raisons`, dans l'autre sens : cocher
+    « Faire vivre et ouvrir le lieu » EST un programme de valorisation.
+
+    Demander « prévoyez-vous des actions de valorisation après les travaux ? »
+    à qui vient de déclarer que son projet est de faire vivre le lieu se lit
+    comme une panne, et la question n'a de surcroît aucun sens pour un projet
+    sans chantier. L'inverse ne se déduit pas — un projet purement de
+    restauration peut très bien prévoir un programme de valorisation, que
+    plusieurs aides exigent —, d'où le None qui laisse la question posée.
+
+    Les 16 conditions du corpus qui gatent ce fait sont toutes `eq: true` : la
+    déduction ne peut écarter aucune aide (cf. le commentaire de la table, et
+    le test de corpus qui fige cette propriété).
+    """
+    return True if "valorisation_rayonnement" in raisons else None
+
+
 # Faits que l'étape « Votre projet » répond d'avance, par déduction des
 # intentions cochées. Pendant de AUTO_SOURCE_DERIVERS : même principe (ne pas
 # demander ce que l'on sait déjà), mais la source est l'intention déclarée et
@@ -359,6 +377,9 @@ FAITS_DEDUITS_DES_RAISONS: dict[str, Callable[[set[str]], object]] = {
     # Cohérent avec le `help` du fait : « répondez non si votre projet porte
     # uniquement sur des travaux sur le bâtiment ».
     "projet_artistique_ou_culturel": _faire_vivre_depuis_raisons,
+    # Déduction POSITIVE (la seule) : cf. _valorisation_prevue_depuis_raisons,
+    # admise parce qu'aucun gate du corpus ne porte `eq: false` sur ce fait.
+    "prevoit_programme_valorisation": _valorisation_prevue_depuis_raisons,
 }
 
 
@@ -392,14 +413,123 @@ def deduire_faits_des_raisons(
     return complete
 
 
+# Faits de PÉRIMÈTRE qu'une famille cochée rend plausibles : fait → familles qui
+# le rendent plausible. Pendant de FAITS_DEDUITS_DES_RAISONS un cran plus fin —
+# avoir coché « spectacles » répond d'avance « non » à « votre projet est-il un
+# hébergement touristique ? ».
+#
+# Deux faits de scope `monument` (`bien_parc_jardin_ou_arboretum`,
+# `possede_orgue_a_tuyaux`) et le `multi_enum` `projet_dimension_environnementale`
+# sont volontairement ABSENTS : les deux premiers décrivent le bien et non le
+# projet (un jardin ne cesse pas d'exister parce qu'on monte un festival), le
+# troisième n'est pas un périmètre.
+FAITS_DEDUITS_DES_FAMILLES: dict[str, frozenset[str]] = {
+    "projet_lieu_diffusion_culturelle": frozenset({"spectacles_manifestations"}),
+    "porteur_compagnie_artistique": frozenset({"spectacles_manifestations"}),
+    "porteur_ecole_art": frozenset({"spectacles_manifestations"}),
+    "porteur_structure_musicale": frozenset({"spectacles_manifestations"}),
+    "projet_hebergement_touristique": frozenset({"tourisme_hebergement"}),
+    "projet_developpement_touristique": frozenset(
+        {"tourisme_hebergement", "activite_economique_lieu"}
+    ),
+    "projet_equipement_culturel": frozenset(
+        {"mediation_numerique_expositions", "spectacles_manifestations"}
+    ),
+    "projet_artistique_ou_culturel": frozenset(
+        {"mediation_numerique_expositions", "spectacles_manifestations"}
+    ),
+    "projet_lie_chasse_peche_nature": frozenset({"eau_nature_domaine", "parcs_jardins_paysages"}),
+    "projet_amenagement_urbain_nature_en_ville": frozenset({"parcs_jardins_paysages"}),
+    "projet_support_insertion_ou_formation": frozenset(
+        {"restauration_bati", "activite_economique_lieu"}
+    ),
+}
+
+
+def _retournerait_contre(aide: Aide, fact_key: str) -> bool:
+    """Répondre `False` à ce fait retournerait-il cette aide contre elle-même ?
+
+    Deux façons : son PÉRIMÈTRE porte sur le fait et la réponse l'en sort
+    (`hors_perimetre` l'écarte alors du résultat), ou l'un de ses GATES porte
+    sur le fait et la réponse le réfute (l'aide tombe « écartée par vos
+    réponses », sur une question que l'utilisateur n'a jamais vue).
+
+    Forme exacte de la garde de `deduire_faits_des_familles`, et plus sûre que
+    la coïncidence des tags : elle ne suppose rien du catalogue, et elle vaut
+    donc aussi pendant que le backfill des familles est en cours.
+    """
+    if (
+        aide.applies_if
+        and aide.applies_if.fact == fact_key
+        and evaluate_predicate(aide.applies_if.predicate.root, False) is False
+    ):
+        return True
+    return any(
+        c.fact == fact_key
+        and c.effect == "gate"
+        and c.predicate is not None
+        and evaluate_predicate(c.predicate.root, False) is False
+        for c in aide.conditions
+    )
+
+
+def deduire_faits_des_familles(
+    effectives: set[str],
+    declarees: set[str],
+    answers: dict[str, object],
+    facts: dict[str, FactDef],
+    candidates: dict[str, Aide],
+) -> dict[str, object]:
+    """Répond « non » d'avance aux faits de périmètre qu'aucune famille cochée
+    ne rend plausibles — mais seulement quand c'est SÛR.
+
+    La garde est le cœur de la fonction. `hors_famille` promet un fail-open PAR
+    AIDE : une aide non taguée passe toujours. Or la déduction agit PAR FAIT, et
+    répondre « non » à un fait écarte du même coup, via `hors_perimetre` ou via
+    un gate, les aides que le filtrage venait de garder. On ne déduit donc que si
+    la valeur déduite ne RETOURNE aucune aide candidate contre elle-même
+    (cf. `_retournerait_contre`). Sinon `None` : la question reste posée
+    (fail-closed).
+
+    Sans cette garde : `feder-normandie-tourisme-responsable` (périmètre
+    `projet_developpement_touristique`, pas de famille) serait écartée par la
+    bande ; une aide « festival touristique » taguée `spectacles` serait gardée
+    par `hors_famille` puis tuée par la déduction ; et les treize aides du
+    corpus qui gatent `eq: true` sur un fait de la table sans en faire leur
+    périmètre tomberaient « écartées par vos réponses » sans réponse.
+
+    Ce qui reste permis, et c'est tout le gain : résoudre une EXCLUSION. Une
+    aide de spectacles qui exige « le projet n'est pas un hébergement
+    touristique » n'a plus besoin de poser la question à qui vient de cocher
+    « spectacles ».
+    """
+    if not declarees:
+        return answers
+    complete = dict(answers)
+    for fact_key, familles_du_fait in FAITS_DEDUITS_DES_FAMILLES.items():
+        if _normalize_answer(facts.get(fact_key), complete.get(fact_key)) is not None:
+            continue
+        if familles_du_fait & effectives:
+            continue  # une famille cochée rend le fait plausible : on demande
+        if any(_retournerait_contre(a, fact_key) for a in candidates.values()):
+            continue
+        complete[fact_key] = False
+    return complete
+
+
 # Faits qu'une AUTRE réponse du questionnaire rend inutiles à demander. Pendant
 # de FAITS_DEDUITS_DES_RAISONS, avec une réponse pour source au lieu de
 # l'intention : fait déduit → (fait source, {réponse source → valeur déduite}).
 #
-# « Le monument n'est pas accessible à la visite du public (ni maintenant, ni
-# après travaux) » répond d'avance « ouvert 0 jour par an » : poser la seconde
-# question juste après la première se lit comme une panne. L'inverse ne se
-# déduit pas — 0 jour aujourd'hui peut devenir accessible après les travaux.
+# « Fermé au public, sans projet d'ouverture » répond d'avance « ouvert 0 jour
+# par an » : poser la seconde question juste après la première se lit comme une
+# panne. L'inverse ne se déduit pas — 0 jour aujourd'hui peut devenir accessible
+# après les travaux.
+#
+# La source est ici un fait à choix MULTIPLE : la déduction ne vaut que si la
+# case déduisante est la SEULE cochée (cf. deduire_faits_des_faits). C'est ce que
+# veut la sémantique existentielle du MultiValue, et la table garde des
+# identifiants d'option nus, ceux-là mêmes que compare _depends_on_deduction.
 #
 # Deux effets, qui doivent rester d'accord : côté serveur la valeur déduite
 # entre dans le contexte comme une réponse (celle de l'utilisateur prime) ;
@@ -407,7 +537,12 @@ def deduire_faits_des_raisons(
 # cf. _depends_on_deduction) et se pose avant elle, si bien que le front ne la
 # montre plus dès que la source y répond.
 FAITS_DEDUITS_DES_FAITS: dict[str, tuple[str, dict[object, object]]] = {
-    "jours_ouverture_public_par_an": ("site_accessible_visite", {False: 0}),
+    "jours_ouverture_public_par_an": ("ouverture_public", {"aucune": 0}),
+    # « Ce projet ne comporte pas de travaux » répond d'avance « budget de
+    # travaux : 0 € » : les gates `gte` d'un programme de chantier échouent
+    # (l'aide part en « écartée par vos réponses », ce qu'elle est), et la
+    # question disparaît du QCM au profit de sa source.
+    "budget_travaux_estime": ("etat_travaux", {"aucun": 0}),
 }
 
 
@@ -433,6 +568,14 @@ def deduire_faits_des_faits(
         source = _normalize_answer(facts.get(source_key), complete.get(source_key))
         if source is None:
             continue
+        # Source à choix multiple : on ne conclut que d'une sélection d'UNE case,
+        # et la table se compare alors à son identifiant nu. Cocher « fermé au
+        # public » EN PLUS d'« ouvert lors des Journées du patrimoine » est une
+        # sélection qui se contredit : on n'en déduit rien (fail-closed).
+        if isinstance(source, MultiValue):
+            if len(source) != 1:
+                continue
+            source = source[0]
         for valeur_source, deduit in table.items():
             if _meme_valeur(source, valeur_source):
                 complete[fact_key] = deduit
@@ -498,28 +641,52 @@ def hors_perimetre(aide: Aide, ctx: dict, facts: dict[str, FactDef]) -> bool:
     return aide.applies_if is not None and _evaluate_clause(aide.applies_if, ctx, facts) is False
 
 
-def _scoped_conditions(aide: Aide) -> list[Condition]:
-    """Conditions de l'aide, chacune héritant du PÉRIMÈTRE de l'aide.
+# Fait « vide », pour que `_scoped_conditions` lise `pertinent_si` sans un `if`
+# de plus : une condition peut citer un fait absent de l'ontologie (le lint le
+# refuse, mais le moteur ne doit pas casser pour autant).
+_SANS_FAIT = FactDef(type="boolean", scope="projet", question="")
 
-    Reporter la clause de l'aide sur ses conditions les fait entrer telles
-    quelles dans la mécanique existante : le fait de périmètre est posé comme
-    fait passerelle, et chaque question de l'aide en hérite d'un `dependsOn`.
-    Une aide de 27 conditions se déclare donc en une ligne de YAML.
 
-    Une condition qui porte DÉJÀ sa propre clause garde la sienne : elle est
-    plus spécifique, et le branchement conditionnel se désactive alors de
-    lui-même (fail-closed, la question est posée). Un gate qui porte sur le fait
-    de périmètre lui-même n'hérite de rien : il serait sa propre condition
-    d'applicabilité.
+def _scoped_conditions(aide: Aide, facts: dict[str, FactDef]) -> list[Condition]:
+    """Conditions de l'aide, chacune héritant de la clause qui la gouverne.
+
+    Deux clauses peuvent être reportées, par ordre de priorité DÉCROISSANTE :
+
+    1. la clause PROPRE de la condition, toujours gardée : elle est la plus
+       spécifique, et le branchement conditionnel se désactive alors de lui-même
+       (fail-closed, la question est posée) ;
+    2. le PÉRIMÈTRE de l'aide (`Aide.applies_if`), reporté sur chacune de ses
+       conditions : le fait de périmètre est posé comme fait passerelle, et
+       chaque question de l'aide en hérite d'un `dependsOn`. Une aide de 27
+       conditions se déclare ainsi en une ligne de YAML ;
+    3. la DÉPENDANCE INTRINSÈQUE du fait gaté (`FactDef.pertinent_si`) :
+       « depuis combien d'années les travaux sont-ils achevés ? » n'a de sens
+       que si `etat_travaux = acheves`. Déclarée UNE FOIS sur le fait au lieu
+       d'être recopiée sur chaque condition qui le cite.
+
+    Le périmètre passe avant la dépendance du fait parce qu'une condition ne
+    porte qu'UNE clause, et que la première question à trancher est « cette aide
+    me concerne-t-elle ? ». Perdre `pertinent_si` dans ce cas ne fait que poser
+    une question de plus (fail-closed), jamais écarter une aide.
+
+    Un gate qui porte sur le fait de sa propre clause n'hérite de rien : il
+    serait sa propre condition d'applicabilité.
     """
-    clause = aide.applies_if
-    if clause is None:
+
+    def clause_de(cond: Condition) -> AppliesIf | None:
+        if cond.applies_if is not None:
+            return None  # la sienne, plus spécifique, est gardée
+        for clause in (aide.applies_if, (facts.get(cond.fact or "") or _SANS_FAIT).pertinent_si):
+            if clause is not None and cond.fact != clause.fact:
+                return clause
+        return None
+
+    reportees = [(c, clause_de(c)) for c in aide.conditions]
+    if all(clause is None for _, clause in reportees):
         return aide.conditions
     return [
-        c
-        if c.applies_if is not None or c.fact == clause.fact
-        else c.model_copy(update={"applies_if": clause})
-        for c in aide.conditions
+        c if clause is None else c.model_copy(update={"applies_if": clause})
+        for c, clause in reportees
     ]
 
 
@@ -755,7 +922,7 @@ def evaluate_aide(
             }
         )
 
-    for cond in _scoped_conditions(aide):
+    for cond in _scoped_conditions(aide, facts):
         applies = _applies(cond, ctx, facts)
         if applies is False:
             continue  # condition non applicable à ce profil → ni gate, ni affichée
@@ -945,6 +1112,86 @@ def _normalize_boundary(op: str, val: float, is_integer: bool) -> float | None:
     return val  # gte, lt, eq, neq… : la valeur est déjà la frontière
 
 
+def _unite_singulier(unit: str) -> str:
+    """Forme singulière d'une unité : « 1 jour », pas « 1 jours ».
+
+    En français le pluriel du nom compté se marque par un -s final ; `mois` est
+    invariable, et une unité composée ne s'accorde que sur son premier segment
+    (« jours/an » → « jour/an »).
+    """
+    tete, _, queue = unit.partition("/")
+    if tete != "mois" and tete.endswith("s"):
+        tete = tete[:-1]
+    return f"{tete}/{queue}" if queue else tete
+
+
+def _fmt_borne(v: float) -> str:
+    return str(int(v)) if float(v).is_integer() else str(v)
+
+
+def _suffixe_unite(v: float, unit: str | None) -> str:
+    """Unité accordée au nombre qui la précède."""
+    if not unit:
+        return ""
+    if unit == "€":
+        return unit
+    return f" {_unite_singulier(unit) if abs(v) == 1 else unit}"
+
+
+# Les trois formes de libellé d'une tranche, définies UNE FOIS : elles servent à
+# fabriquer les options (`_numeric_tranches`) et à les relire depuis leur seul
+# identifiant (`libelle_tranche`). Deux définitions dériveraient, et un libellé
+# relu qui ne dirait pas la même chose que celui qu'on a montré à l'utilisateur
+# serait pire que pas de libellé du tout.
+def _libelle_basse(borne: float, unit: str | None) -> str:
+    # Seuil à 1 sur un compteur : la bande ne contient que 0. « Moins de 1 jour »
+    # se lit comme un arrondi ; « Aucun (0) » dit ce qu'elle est.
+    if borne == 1:
+        return "Aucun (0)"
+    return f"Moins de {_fmt_borne(borne)}{_suffixe_unite(borne, unit)}"
+
+
+def _libelle_intermediaire(lo: float, hi: float, unit: str | None) -> str:
+    # L'unité s'accorde sur la borne HAUTE, celle qu'elle suit dans le libellé.
+    return f"De {_fmt_borne(lo)} à {_fmt_borne(hi)}{_suffixe_unite(hi, unit)}"
+
+
+def _libelle_haute(borne: float, unit: str | None) -> str:
+    return f"{_fmt_borne(borne)}{_suffixe_unite(borne, unit)} ou plus"
+
+
+# Identifiants produits par `_numeric_tranches` : `lt<borne>`, `<lo>_<hi>`,
+# `ge<borne>`. Les bornes peuvent être décimales (`fmt` rend `2.5` tel quel).
+_NOMBRE = r"\d+(?:\.\d+)?"
+_TRANCHE_BASSE = re.compile(rf"^lt({_NOMBRE})$")
+_TRANCHE_INTERMEDIAIRE = re.compile(rf"^({_NOMBRE})_({_NOMBRE})$")
+_TRANCHE_HAUTE = re.compile(rf"^ge({_NOMBRE})$")
+
+
+def libelle_tranche(option_id: str, unit: str | None) -> str | None:
+    """Relit le libellé d'une tranche depuis son seul IDENTIFIANT.
+
+    Utile là où les options ne sont pas reconstructibles : une réponse persistée
+    dans `projets.questionnaire` vaut `ge5`, et les tranches sont fabriquées
+    depuis les seuils des aides CANDIDATES — hors diagnostic, on ne les a pas.
+
+    Mais l'identifiant porte ses propres bornes (`lt5`, `5_9`, `ge5`) : le
+    libellé se reconstruit donc à l'identique, sans rien supposer du catalogue.
+    C'est ce qui permet de montrer « 5 ans ou plus » plutôt qu'un laconique
+    « réponse déjà donnée » quand on rappelle à l'utilisateur ce qu'il a répondu.
+
+    Rend None sur un identifiant d'une autre forme (réponse d'avant les
+    tranches, valeur écrite à la main) : on n'invente pas de libellé.
+    """
+    if m := _TRANCHE_BASSE.match(option_id):
+        return _libelle_basse(float(m.group(1)), unit)
+    if m := _TRANCHE_INTERMEDIAIRE.match(option_id):
+        return _libelle_intermediaire(float(m.group(1)), float(m.group(2)), unit)
+    if m := _TRANCHE_HAUTE.match(option_id):
+        return _libelle_haute(float(m.group(1)), unit)
+    return None
+
+
 def _numeric_tranches(boundaries: list[float], unit: str | None) -> list[dict]:
     """Construit des options MECE à partir de bornes triées (cf.
     `_normalize_boundary`). Chaque option porte un `repr` (valeur représentative
@@ -952,26 +1199,31 @@ def _numeric_tranches(boundaries: list[float], unit: str | None) -> list[dict]:
     seuil au représentant est exact.
     """
     ts = sorted(set(boundaries))
-    suffix = f" {unit}" if unit and unit not in ("€",) else (unit or "")
-
-    def fmt(v: float) -> str:
-        return str(int(v)) if float(v).is_integer() else str(v)
+    fmt = _fmt_borne
 
     options = []
     # Tranche basse : strictement sous la plus petite borne. Omise si elle ne
     # contient aucune valeur atteignable (borne basse <= 0 pour un compteur).
     if ts[0] - 1 >= 0:
         options.append(
-            {"id": f"lt{fmt(ts[0])}", "label": f"Moins de {fmt(ts[0])}{suffix}", "repr": ts[0] - 1}
+            {"id": f"lt{fmt(ts[0])}", "label": _libelle_basse(ts[0], unit), "repr": ts[0] - 1}
         )
     # Tranches intermédiaires.
     for lo, hi in zip(ts, ts[1:], strict=False):
         options.append(
-            {"id": f"{fmt(lo)}_{fmt(hi)}", "label": f"De {fmt(lo)} à {fmt(hi)}{suffix}", "repr": lo}
+            {
+                "id": f"{fmt(lo)}_{fmt(hi)}",
+                "label": _libelle_intermediaire(lo, hi, unit),
+                "repr": lo,
+            }
         )
     # Tranche haute : au-dessus de la plus grande borne (incluse).
     options.append(
-        {"id": f"ge{fmt(ts[-1])}", "label": f"{fmt(ts[-1])}{suffix} ou plus", "repr": ts[-1]}
+        {
+            "id": f"ge{fmt(ts[-1])}",
+            "label": _libelle_haute(ts[-1], unit),
+            "repr": ts[-1],
+        }
     )
     return options
 
@@ -1239,6 +1491,11 @@ def build_questions(
             "eliminatingOptionIds": [],
             "eliminationsParOption": elim,
             "categorie": fact_key,
+            # Où la réponse vaut : le bien, le projet, ou le propriétaire. Sert
+            # aux faits DURABLES — une réponse de scope `monument` ou
+            # `proprietaire` se reprend d'un projet à l'autre du même bien
+            # (cf. services/faits_durables.py).
+            "scope": fact.scope,
         }
         depends_on = _depends_on(all_conds, built, options_by_fact) or _depends_on_deduction(
             fact_key, built, options_by_fact
@@ -1275,6 +1532,11 @@ def aide_display_dict(aide: Aide) -> dict:
         "type": aide.type,
         # Finalités de l'aide — sert au préfiltre « Votre projet » et au debug.
         "raison": aide.raison,
+        # Familles thématiques — servent au préfiltre « Votre projet » et aux
+        # facettes du mode découverte. Comme `raison`, la clé passe en
+        # snake_case (hors _AIDE_KEY_MAP) et n'est pas caviardée par
+        # `retirer_les_modalites` : une famille n'est pas une modalité.
+        "familles": aide.familles,
         "montant_max": f.montant_max,
         "montant_min": f.montant_min,
         "taux_max": f.taux_max,
@@ -1413,6 +1675,19 @@ def engine_ready_aides(aides: dict[str, Aide]) -> dict[str, Aide]:
     }
 
 
+def _codes_reserves(brut: object) -> set[str]:
+    """Liste de codes portée par une clé réservée (`_raisons`, `_familles`).
+
+    Tolérante par construction : le dict vient de `projets.questionnaire`, donc
+    d'un enregistrement qui peut précéder la clé. Absence, valeur d'un autre
+    type et éléments non textuels rendent un ensemble vide — « rien de déclaré »,
+    qui ne filtre rien.
+    """
+    if not isinstance(brut, (list, tuple, set)):
+        return set()
+    return {c for c in brut if isinstance(c, str)}
+
+
 def hors_projet(aide: Aide, raisons: set[str]) -> bool:
     """Vrai si l'aide ne sert AUCUNE des finalités déclarées par l'utilisateur.
 
@@ -1422,6 +1697,50 @@ def hors_projet(aide: Aide, raisons: set[str]) -> bool:
     if not raisons or not aide.raison:
         return False
     return not (set(aide.raison) & raisons)
+
+
+# Familles qu'une finalité IMPLIQUE, pour les projets qui n'ont pas vu l'étape
+# « Votre projet » dans sa version familles. L'intention étant exclusive depuis
+# le passage au choix unique, l'étape ne s'affiche que pour « faire vivre le
+# lieu » seul ; un projet ANCIEN à plusieurs intentions qui repasse le wizard la
+# verra aussi, et il ne faut pas lui retirer ses aides de restauration parce
+# qu'il aura coché « spectacles ». Projection de la skill de prospection.
+FAMILLES_PAR_RAISON: dict[str, frozenset[str]] = {
+    "restauration_travaux": frozenset(
+        {
+            "restauration_bati",
+            "energie_climat",
+            "eau_nature_domaine",
+            "securite_risques",
+            "parcs_jardins_paysages",
+        }
+    ),
+    "etude_ingenierie": frozenset({"etudes_ingenierie"}),
+}
+
+
+def familles_effectives(declarees: set[str], raisons: set[str]) -> set[str]:
+    """Familles déclarées, complétées de celles qu'impliquent les finalités."""
+    return set(declarees).union(*(FAMILLES_PAR_RAISON.get(r, frozenset()) for r in raisons))
+
+
+def hors_famille(aide: Aide, effectives: set[str], declarees: set[str]) -> bool:
+    """Vrai si l'aide ne relève d'AUCUNE des familles retenues par le projet.
+
+    Calqué sur `hors_projet`, avec le même fail-open et la même asymétrie : une
+    aide sans `familles` passe toujours (on ne masque jamais une aide faute de
+    tag), et rien n'est filtré tant que l'utilisateur n'a rien DÉCLARÉ — c'est
+    le sens de « Je ne sais pas encore, montrez-moi tout », qui envoie une liste
+    vide et doit tout garder.
+
+    `declarees` gouverne l'activation du filtre, `effectives` son contenu : les
+    familles implicites d'une finalité ne déclenchent jamais un filtrage à
+    elles seules (sinon un projet de restauration, qui ne voit pas l'étape
+    familles, perdrait toute aide taguée hors des cinq familles de travaux).
+    """
+    if not declarees or not aide.familles:
+        return False
+    return not (set(aide.familles) & effectives)
 
 
 Disponibilite = Literal["maintenant", "bientot"]
@@ -1471,12 +1790,12 @@ def run_deterministic_diagnostic(
     """
     today = today or date.today()
     fact_answers, reserved = split_reserved_answers(answers)
-    raw_raisons = reserved.get("_raisons")
-    raisons = (
-        {r for r in raw_raisons if isinstance(r, str)}
-        if isinstance(raw_raisons, (list, tuple, set))
-        else set()
-    )
+    raisons = _codes_reserves(reserved.get("_raisons"))
+    # `_familles` : ce que l'utilisateur a coché à l'étape « Votre projet » d'un
+    # projet « faire vivre le lieu ». Clé absente comme liste vide ⇒ rien de
+    # déclaré, donc aucun filtrage (cf. hors_famille).
+    familles_declarees = _codes_reserves(reserved.get("_familles"))
+    familles = familles_effectives(familles_declarees, raisons)
 
     ready = engine_ready_aides(aides)
     # La fenêtre de candidature n'écarte plus aucune aide : elle est portée par
@@ -1489,8 +1808,25 @@ def run_deterministic_diagnostic(
     ready = {slug: a for slug, a in ready.items() if not hors_projet(a, raisons)}
     hors_sujet = ready_avant_raisons - len(ready)
 
+    # Même geste, un cran plus fin : la FAMILLE thématique, que `raison` ne sait
+    # pas dire (un festival, un gîte et un outil de médiation partagent
+    # « valorisation_rayonnement »). Posé juste après `hors_projet` pour que les
+    # deux filtres de cadrage comptent dans le même `hors_sujet`.
+    ready_avant_familles = len(ready)
+    ready = {
+        slug: a for slug, a in ready.items() if not hors_famille(a, familles, familles_declarees)
+    }
+    hors_sujet += ready_avant_familles - len(ready)
+
     reponses = deduire_faits_des_faits(
-        deduire_faits_des_raisons(raisons, fact_answers, facts), facts
+        deduire_faits_des_familles(
+            familles,
+            familles_declarees,
+            deduire_faits_des_raisons(raisons, fact_answers, facts),
+            facts,
+            ready,
+        ),
+        facts,
     )
     ctx = build_context(monument, population, reponses)
     # Exclure les aides dont l'utilisateur a déclaré qu'elles ne le concernent

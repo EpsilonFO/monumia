@@ -1,35 +1,46 @@
-"""Le catalogue en chiffres : combien d'aides, sur quel territoire, à quel taux.
+"""Le catalogue en chiffres : combien d'aides, et lesquelles, sur quel territoire.
 
 Lecture seule, pour la page d'administration `/admin/statistiques`. Cinq
 décisions portent tout le module :
 
+- **Un seul chiffre par ligne, et la liste des noms derrière.** La page répond
+  à « combien d'aides pour la Bretagne ? », puis « lesquelles ? » quand on
+  déplie. Tout le reste (financeur, typage, guichet) se lit ailleurs dans
+  `/admin` : le répéter ici faisait treize colonnes que personne ne lisait.
+
 - **Le corpus compté est celui qui est SERVI**, `catalogue_effectif` — YAML
   moins les aides retirées. Une page qui compterait des aides qu'aucun
   diagnostic ne propose mentirait sur la couverture réelle. Les retirées ne
-  disparaissent pas pour autant : elles sont comptées à part, sur leur propre
-  territoire, parce qu'un retrait est une décision qu'on doit pouvoir relire.
+  sont donc listées nulle part ; seul le total du corpus dit combien il y en a.
 
-- **La portée d'une aide est son PÉRIMÈTRE, pas son financeur.** Les deux ne se
-  recouvrent pas : une aide de la Fondation du Patrimoine peut n'être ouverte
-  qu'à huit départements, et un appel à projets régional s'appliquer partout
-  dans la région. Le financeur, lui, vit dans `categorie` — d'où les colonnes
-  « Conseil régional » et « Conseil départemental », qui répondent à l'autre
-  question : cette collectivité-ci finance-t-elle quelque chose chez nous ?
+- **Les lignes classent par FINANCEUR, pas par périmètre.** « Les aides du
+  département de l'Isère » veut dire « celles que le Conseil départemental de
+  l'Isère finance » — pas « celles qui s'appliquent en Isère », qui sont aussi
+  celles de la Région et de l'État. Un dispositif régional limité à trois
+  départements reste une aide de la RÉGION, et la délégation Rhône-Alpes d'une
+  fondation reste une aide de FONDATION. C'est `categorie` qui tranche, et
+  `hard_filters` ne sert plus qu'à savoir sur quelle ligne l'accrocher.
 
-- **Une énumération qui couvre toute la région ne restreint rien.** Beaucoup
-  d'aides RÉGIONALES du corpus listent en plus les douze départements de leur
-  région (convention de la colonne `aides_v3.departements`). Les compter comme
-  locales ferait afficher « 0 aide régionale » à une région qui en a douze, et
-  ferait lire « 11 aides départementales » là où il n'y a aucune aide de
-  Conseil départemental. Le test `PorteeTests` fige cette règle.
+- **Quatre échelons DISJOINTS**, ce qui rend les chiffres de tête
+  additionnables : Conseil régional, Conseil départemental, périmètre national
+  (État, fiscalité, fondations nationales), et tout le reste — les financeurs
+  qui n'ont pas d'échelon territorial mais un périmètre local (fondations,
+  Europe, mécénat). Une aide tombe dans exactement un seau, et les quatre
+  somment au corpus servi. Le quatrième n'est pas une poubelle : sans lui, une
+  aide de fondation ouverte à huit départements serait soit invisible, soit
+  comptée comme une aide du Département, ce qu'elle n'est pas.
 
-- **Une aide au périmètre local compte dans sa région** (`REGION_DEPARTEMENTS`) :
-  sans ce rattachement, une région dont toutes les aides nomment un département
-  apparaîtrait vide alors qu'elle est la mieux couverte du catalogue.
+- **Le périmètre sert encore à deux choses** : accrocher une aide régionale à
+  sa région même quand elle n'énumère que des départements, et écrire en clair
+  sur quel territoire elle porte. `Entree.portee` neutralise pour cela
+  l'énumération redondante — beaucoup d'aides régionales listent en plus les
+  douze départements de leur région (convention de la colonne
+  `aides_v3.departements`), et les lire comme départementales rattacherait un
+  appel à projets de Région à douze lignes de département.
 
 - **Rien n'est sommé sur l'argent.** Un « total des plafonds » n'existe pas :
-  les aides ne s'additionnent pas, elles se cumulent sous plafond public. On
-  publie des bornes et des médianes, jamais une enveloppe.
+  les aides ne s'additionnent pas, elles se cumulent sous plafond public. Le
+  dépliant publie des bornes et une médiane, jamais une enveloppe.
 
 Le compte des aides absentes d'`aides_v3` est la seule lecture de la base
 métier : une aide présente en YAML mais absente de la table répond « Aide
@@ -44,7 +55,6 @@ from statistics import median
 from typing import Literal
 
 from aides_schema import CATEGORIES, TYPES, Aide, load_all_aides
-from eligibility_engine import disponibilite, engine_ready_aides
 from labels import (
     DEPARTEMENT_LABELS,
     DEPARTEMENT_REGION,
@@ -77,10 +87,16 @@ TYPE_LABELS = {
     "souscription": "Souscription publique",
 }
 
-#: Périmètre d'une aide. « locale » = plus étroit qu'une région entière : un
-#: département, une poignée de départements, le ressort d'une délégation. Ce
-#: n'est PAS « aide du Conseil départemental », qui se lit sur `categorie`.
-Portee = Literal["nationale", "region", "locale"]
+#: Périmètre d'une aide. « departement » veut dire « périmètre d'un ou quelques
+#: départements nommés » — pas « aide du Conseil départemental », qui se lit
+#: sur `categorie` et n'est pas la même question (la délégation régionale d'une
+#: fondation a un périmètre départemental sans qu'un euro vienne du Département).
+Portee = Literal["nationale", "region", "departement"]
+
+#: Qui finance, et à quel étage. C'est l'axe des tableaux — pas `Portee`.
+#: « autre » = un financeur sans échelon territorial (fondation, Europe,
+#: mécénat) dont l'aide ne vaut pourtant pas partout.
+Echelon = Literal["national", "region", "departement", "autre"]
 
 #: Au-delà, la liste des slugs désynchronisés n'est plus une liste mais un
 #: symptôme : on donne le compte et les premiers, le reste tient dans les logs
@@ -97,12 +113,10 @@ def _departements_de(regions: Iterable[str]) -> set[str]:
 
 @dataclass(frozen=True)
 class Entree:
-    """Une aide du corpus et les trois booléens qui la classent."""
+    """Une aide du corpus, et si elle a été retirée du catalogue."""
 
     aide: Aide
     retiree: bool
-    typee: bool
-    bientot: bool
 
     @property
     def portee(self) -> Portee:
@@ -111,20 +125,42 @@ class Entree:
         Une aide qui déclare sa région ET tous les départements de cette région
         reste RÉGIONALE : la liste ne retire rien, elle sert au filtrage en
         base. C'est le cas de la plupart des dispositifs régionaux du corpus —
-        les lire comme locaux affichait « 0 régionale, 20 départementales » sur
+        les lire comme départementaux affichait « 0 régionale » sur
         Auvergne-Rhône-Alpes, et faisait passer dix appels à projets de la
         Région pour des aides de Conseil départemental.
 
         Une énumération STRICTEMENT plus étroite, elle, restreint pour de bon
         (huit départements sur douze pour une délégation de fondation) : la
-        portée est locale, et l'aide n'apparaît que sur ces départements-là.
+        portée est départementale, et l'aide n'apparaît que sur ces
+        départements-là.
         """
         filtres = self.aide.hard_filters
         if not filtres.departements:
             return "region" if filtres.regions else "nationale"
         if filtres.regions and set(filtres.departements) >= _departements_de(filtres.regions):
             return "region"
-        return "locale"
+        return "departement"
+
+    @property
+    def echelon(self) -> Echelon:
+        """Qui finance, et à quel étage — l'axe des tableaux.
+
+        `categorie` tranche en premier, et c'est tout le point : « les aides du
+        département de l'Isère » veut dire celles du Conseil départemental, pas
+        celles qui s'appliquent en Isère. Un dispositif régional limité à trois
+        départements reste une aide de la Région.
+
+        Le territoire n'intervient qu'en garde-fou : une aide de collectivité
+        sans territoire où l'accrocher n'aurait aucune ligne pour l'afficher,
+        et disparaîtrait de la page. Elle retombe alors sur son périmètre, où
+        elle reste visible.
+        """
+        categorie = self.aide.categorie
+        if categorie == "region" and self.regions:
+            return "region"
+        if categorie == "departement" and self.aide.hard_filters.departements:
+            return "departement"
+        return "national" if self.portee == "nationale" else "autre"
 
     @property
     def regions(self) -> set[str]:
@@ -154,29 +190,28 @@ def _taux(aide: Aide) -> float | None:
     return fin.taux_max if fin.taux_max is not None else fin.taux_min
 
 
-def _bloc(entrees: Iterable[Entree]) -> dict:
-    """Le chiffrage d'un groupe : ce que la même ligne de tableau montre
-    partout, que le groupe soit une région, un département ou une catégorie.
+def _groupe(entrees: Iterable[Entree]) -> dict:
+    """Un groupe d'aides : son compte, ses slugs, et son chiffrage.
 
-    Les aides RETIRÉES sont comptées à part et sortent de tout le reste : elles
-    ne sont plus servies, les inclure dans les taux gonflerait des chiffres que
-    plus personne ne voit.
+    Les aides RETIRÉES en sortent entièrement — elles ne sont plus servies, et
+    les garder dans les taux gonflerait des chiffres que plus personne ne voit.
+    Le total du corpus dit à lui seul combien il y en a.
+
+    Les slugs sont triés par NOM et non par slug : c'est l'ordre dans lequel le
+    dépliant les affiche, et le front n'a pas à retrier une liste que le
+    serveur connaît déjà.
     """
-    entrees = list(entrees)
-    servies = [e for e in entrees if not e.retiree]
-    aides = [e.aide for e in servies]
+    servies = sorted((e.aide for e in entrees if not e.retiree), key=lambda a: a.nom)
 
-    taux = _nombres(_taux(a) for a in aides)
+    taux = _nombres(_taux(a) for a in servies)
     taux_min = _nombres(
-        a.financement.taux_min if a.financement.taux_min is not None else _taux(a) for a in aides
+        a.financement.taux_min if a.financement.taux_min is not None else _taux(a) for a in servies
     )
-    montants = _nombres(a.financement.montant_max for a in aides)
+    montants = _nombres(a.financement.montant_max for a in servies)
 
     return {
         "nb": len(servies),
-        "retirees": len(entrees) - len(servies),
-        "typees": sum(1 for e in servies if e.typee),
-        "bientot": sum(1 for e in servies if e.bientot),
+        "slugs": [a.slug for a in servies],
         "nbAvecTaux": len(taux),
         "tauxMin": min(taux_min) if taux_min else None,
         "tauxMax": max(taux) if taux else None,
@@ -184,70 +219,6 @@ def _bloc(entrees: Iterable[Entree]) -> dict:
         "nbAvecMontant": len(montants),
         "montantMedian": median(montants) if montants else None,
         "montantMax": max(montants) if montants else None,
-    }
-
-
-def _collectivite(entrees: Iterable[Entree], categorie: str) -> int:
-    """Combien de ces aides sont financées par la collectivité de cet échelon.
-
-    Réponse à la question que le périmètre ne donne PAS : « le Conseil
-    départemental de l'Isère finance-t-il quelque chose ? ». Onze aides
-    applicables en Isère et zéro ici veut dire qu'il reste un financeur entier
-    à prospecter.
-    """
-    return sum(1 for e in entrees if not e.retiree and e.aide.categorie == categorie)
-
-
-def _ligne_region(code: str, entrees: list[Entree], nationales: int) -> dict:
-    """Une région : ses aides à périmètre régional, celles à périmètre plus
-    étroit, et ce qu'un monument y voit au mieux.
-
-    `couvertureMax` est un MAXIMUM, pas un acquis : les aides locales ne valent
-    que sur leurs départements. La page le dit, la clé le rappelle.
-    """
-    return {
-        "code": code,
-        "label": REGION_LABELS.get(code, code),
-        "regionales": sum(1 for e in entrees if not e.retiree and e.portee == "region"),
-        "locales": sum(1 for e in entrees if not e.retiree and e.portee == "locale"),
-        "conseilRegional": _collectivite(entrees, "region"),
-        "conseilsDepartementaux": _collectivite(entrees, "departement"),
-        "nationales": nationales,
-        "couvertureMax": sum(1 for e in entrees if not e.retiree) + nationales,
-        **_bloc(entrees),
-    }
-
-
-def _ligne_departement(
-    code: str, locales: list[Entree], regionales: list[Entree], nationales: int
-) -> dict:
-    """Un département : les aides qui le nomment, celles de sa région, les
-    nationales.
-
-    Ici la couverture est EXACTE — un monument de ce département voit les trois
-    étages. C'est le chiffre de prospection : il dit où le catalogue est encore
-    creux. Le chiffrage (taux, plafonds) reste calculé sur les seules aides
-    locales : les régionales sont déjà chiffrées sur leur propre ligne.
-
-    `conseilDepartemental` ne compte que les aides du Conseil départemental
-    lui-même. Ce n'est pas un sous-ensemble cosmétique de `locales` : une
-    délégation de fondation ou un dispositif régional restreint y sont locaux
-    sans qu'un euro vienne du Département.
-    """
-    locales_servies = sum(1 for e in locales if not e.retiree)
-    regionales_servies = sum(1 for e in regionales if not e.retiree)
-    region = DEPARTEMENT_REGION.get(code)
-    return {
-        "code": code,
-        "label": DEPARTEMENT_LABELS.get(code, code),
-        "region": region,
-        "regionLabel": REGION_LABELS.get(region or "", ""),
-        "locales": locales_servies,
-        "conseilDepartemental": _collectivite(locales, "departement"),
-        "regionales": regionales_servies,
-        "nationales": nationales,
-        "couverture": locales_servies + regionales_servies + nationales,
-        **_bloc(locales),
     }
 
 
@@ -296,45 +267,39 @@ def statistiques_catalogue(supabase) -> dict:
     catalogue = catalogue_effectif(supabase)
     toutes = load_all_aides()
     servies = catalogue.aides
-    typees = engine_ready_aides(servies)
 
     entrees = [
-        Entree(
-            # La version SERVIE quand elle existe (surcharges de prédicats
-            # appliquées) ; le YAML brut pour une retirée, qui n'y est plus.
-            aide=servies.get(slug, aide),
-            retiree=slug in catalogue.retirees,
-            typee=slug in typees,
-            bientot=disponibilite(servies.get(slug, aide)) == "bientot",
-        )
+        # La version SERVIE quand elle existe (surcharges de prédicats
+        # appliquées) ; le YAML brut pour une retirée, qui n'y est plus.
+        Entree(aide=servies.get(slug, aide), retiree=slug in catalogue.retirees)
         for slug, aide in sorted(toutes.items())
     ]
+    debout = [e for e in entrees if not e.retiree]
 
-    nationales = [e for e in entrees if e.portee == "nationale"]
-    nb_nationales = sum(1 for e in nationales if not e.retiree)
-
-    par_region = {
-        code: [e for e in entrees if code in e.regions] for code in sorted(REGION_DEPARTEMENTS)
-    }
+    national = _groupe(e for e in entrees if e.echelon == "national")
+    autres = _groupe(e for e in entrees if e.echelon == "autre")
+    # Une aide de Région accrochée à SA région, y compris quand elle n'énumère
+    # que des départements : `regions` recouvre les deux écritures.
     regions = [
-        _ligne_region(code, groupe, nb_nationales) for code, groupe in sorted(par_region.items())
+        {
+            "code": code,
+            "label": REGION_LABELS.get(code, code),
+            **_groupe(e for e in entrees if e.echelon == "region" and code in e.regions),
+        }
+        for code in sorted(REGION_DEPARTEMENTS)
     ]
-    # Le `portee == "locale"` n'est pas une précaution de style : une aide
-    # régionale énumère souvent tous les départements de sa région, et sans ce
-    # filtre elle serait comptée DEUX FOIS sur chacun d'eux — une fois en local,
-    # une fois en régional. La couverture d'un département est une somme de
-    # trois étages disjoints, ou elle ne veut rien dire.
     departements = [
-        _ligne_departement(
-            code,
-            [
+        {
+            "code": code,
+            "label": DEPARTEMENT_LABELS.get(code, code),
+            "region": region,
+            "regionLabel": REGION_LABELS.get(region, region),
+            **_groupe(
                 e
                 for e in entrees
-                if e.portee == "locale" and code in e.aide.hard_filters.departements
-            ],
-            [e for e in par_region[region] if e.portee == "region"],
-            nb_nationales,
-        )
+                if e.echelon == "departement" and code in e.aide.hard_filters.departements
+            ),
+        }
         for region, codes in sorted(REGION_DEPARTEMENTS.items())
         for code in codes
     ]
@@ -343,19 +308,26 @@ def statistiques_catalogue(supabase) -> dict:
         "genereLe": datetime.now(UTC).isoformat(),
         "corpus": {
             "total": len(entrees),
-            "nationales": nb_nationales,
-            "regionales": sum(1 for e in entrees if not e.retiree and e.portee == "region"),
-            "locales": sum(1 for e in entrees if not e.retiree and e.portee == "locale"),
-            **_bloc(entrees),
+            "nb": len(debout),
+            "retirees": len(entrees) - len(debout),
+            "nationales": national["nb"],
+            "regionales": sum(1 for e in debout if e.echelon == "region"),
+            "departementales": sum(1 for e in debout if e.echelon == "departement"),
+            "autres": autres["nb"],
         },
-        "national": _bloc(nationales),
+        # slug → nom, envoyé une fois : les groupes ne portent que des slugs, et
+        # une aide de fondation ouverte à huit départements verrait sinon son
+        # nom recopié huit fois.
+        "aides": {e.aide.slug: e.aide.nom for e in debout},
+        "national": national,
+        "autres": autres,
         "regions": regions,
         "departements": departements,
         "categories": [
             {
                 "code": code,
                 "label": CATEGORIE_LABELS.get(code, code),
-                **_bloc(e for e in entrees if e.aide.categorie == code),
+                **_groupe(e for e in entrees if e.aide.categorie == code),
             }
             for code in CATEGORIES
         ],
@@ -363,7 +335,7 @@ def statistiques_catalogue(supabase) -> dict:
             {
                 "code": code,
                 "label": TYPE_LABELS.get(code, code),
-                **_bloc(e for e in entrees if e.aide.type == code),
+                **_groupe(e for e in entrees if e.aide.type == code),
             }
             for code in TYPES
         ],

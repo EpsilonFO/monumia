@@ -70,3 +70,118 @@ export function isQuestionServingLiveAide(
   const eliminated = eliminatedAideIds instanceof Set ? eliminatedAideIds : new Set(eliminatedAideIds);
   return ids.some((id) => !eliminated.has(id));
 }
+
+/**
+ * Réponse à une question, toujours vue comme une liste d'ids : une seule case
+ * pour une question simple, plusieurs pour une question à choix multiple.
+ */
+export function selectedIds(
+  question: QcmQuestion,
+  answers: Record<string, string | string[]>,
+): string[] {
+  const answer = answers[question.id];
+  if (Array.isArray(answer)) return answer;
+  return typeof answer === 'string' ? [answer] : [];
+}
+
+/**
+ * Une question conditionnelle n'est posée que si la réponse à la question dont
+ * elle dépend la rend pertinente. Fail-closed : tant que cette question n'est
+ * pas répondue (ou qu'elle est passée), on pose quand même — mieux vaut une
+ * question de trop qu'une aide écartée sans que l'utilisateur l'ait su.
+ * Le moteur garantit que la question porteuse est posée AVANT ses dépendantes.
+ * Sur une question porteuse à choix multiple, une seule case pertinente suffit.
+ */
+export function isVisible(
+  question: QcmQuestion,
+  answers: Record<string, string | string[]>,
+): boolean {
+  const dep = question.dependsOn;
+  if (!dep) return true;
+  const answer = answers[dep.questionId];
+  const given = (Array.isArray(answer) ? answer : [answer]).filter(
+    (id): id is string => typeof id === 'string' && id !== 'skip',
+  );
+  if (given.length === 0) return true;
+  return given.some((id) => dep.showForOptionIds.includes(id));
+}
+
+/**
+ * Seuil du TRONC COMMUN : une question mérite le questionnaire général quand
+ * elle départage au moins deux aides encore vivantes. En dessous, elle ne
+ * concerne qu'une aide et se pose là où l'utilisateur regarde cette aide —
+ * c'est ce qui casse la croissance linéaire du questionnaire (la moitié des
+ * faits du catalogue ne sont cités que par une seule aide).
+ */
+export const MIN_AIDES_TRONC_COMMUN = 2;
+
+/** Nombre d'aides de la question que les réponses précédentes n'ont pas écartées. */
+export function countLiveAides(question: QcmQuestion, eliminated: Set<string>): number {
+  const ids = question.aideIds;
+  if (!Array.isArray(ids)) return 0;
+  return ids.reduce((n, id) => (eliminated.has(id) ? n : n + 1), 0);
+}
+
+/**
+ * La question porte-t-elle sur assez d'aides vivantes pour le tronc commun ?
+ *
+ * Fail-open comme `isQuestionServingLiveAide` : sans `aideIds` exploitable, on
+ * garde la question dans le tronc — mieux vaut une question de trop qu'une
+ * question reléguée sur une carte qu'on n'ouvrira jamais.
+ */
+export function isQuestionPartagee(
+  q: QcmQuestion,
+  eliminated: Set<string>,
+  min = MIN_AIDES_TRONC_COMMUN,
+): boolean {
+  const ids = q.aideIds;
+  if (!Array.isArray(ids) || ids.length === 0) return true;
+  return countLiveAides(q, eliminated) >= min;
+}
+
+/**
+ * Répartit les questions ENCORE UTILES (vivantes et pertinentes au vu des
+ * réponses) entre le tronc commun et celles propres à une seule aide.
+ *
+ * Règle `dependsOn` : LA PORTEUSE SUIT SA DÉPENDANTE DANS LE TRONC. Une
+ * question branchée sur une autre n'a de sens que si la porteuse a été posée ;
+ * si la dépendante est partagée, sa porteuse reste donc dans le tronc même
+ * quand elle ne sert qu'une aide. L'inverse n'est jamais vrai : on n'évince
+ * jamais une dépendante partagée à cause de sa porteuse. Le cas `applies_if`
+ * est redondant (les aideIds de la dépendante sont inclus dans ceux de la
+ * porteuse) ; le cas déduction (`ouverture_public` →
+ * `jours_ouverture_public_par_an`), aux aideIds indépendants, ne l'est pas.
+ */
+export function partitionnerQuestions(
+  questions: QcmQuestion[],
+  answers: Record<string, string | string[]>,
+  min = MIN_AIDES_TRONC_COMMUN,
+): { tronc: QcmQuestion[]; propres: QcmQuestion[] } {
+  const eliminated = new Set(computeEliminatedAideIds(answers, questions));
+  const vivantes = questions.filter(
+    (q) => isVisible(q, answers) && isQuestionServingLiveAide(q, eliminated),
+  );
+  const tronc = new Set(
+    vivantes.filter((q) => isQuestionPartagee(q, eliminated, min)).map((q) => q.id),
+  );
+  // Remontée des porteuses jusqu'au point fixe : le corpus n'a qu'un niveau de
+  // branchement, mais une chaîne A → B → C ne coûte que quelques passes et
+  // évite de laisser une question orpheline de sa porteuse.
+  const parId = new Map(vivantes.map((q) => [q.id, q]));
+  for (let passe = 0; passe < vivantes.length; passe++) {
+    let change = false;
+    for (const q of vivantes) {
+      const dep = q.dependsOn;
+      if (!dep || !tronc.has(q.id) || tronc.has(dep.questionId)) continue;
+      if (parId.has(dep.questionId)) {
+        tronc.add(dep.questionId);
+        change = true;
+      }
+    }
+    if (!change) break;
+  }
+  return {
+    tronc: vivantes.filter((q) => tronc.has(q.id)),
+    propres: vivantes.filter((q) => !tronc.has(q.id)),
+  };
+}
