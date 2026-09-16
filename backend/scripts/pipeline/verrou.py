@@ -100,9 +100,38 @@ def ajouter_sous_verrou(
         ecrire_atomique(chemin, complet)
 
 
+def reecrire_sous_verrou(
+    chemin: Path,
+    transformer: Callable[[str], str],
+    *,
+    valider: Callable[[str], None],
+    timeout_s: float = 30.0,
+) -> None:
+    """Réécrit `chemin` sous verrou : lecture, `transformer`, validation, écriture.
+
+    Symétrique d'`ajouter_sous_verrou`, pour les modifications qui ne sont pas
+    des ajouts (retirer un fait proposé, corriger une entrée). Même contrat,
+    donc même garantie : `transformer` reçoit le texte COMPLET relu sous le
+    verrou — jamais celui qu'un appelant aurait lu avant de le prendre — et une
+    exception levée par `transformer` ou par `valider` laisse le fichier
+    strictement intact.
+
+    Le patron existe déjà dans `pipeline/etat.py`, mais il passe par un
+    aller-retour pydantic qui reformate tout le fichier. Inutilisable sur
+    `facts_pending.yaml`, dont les justifications commentées sont précisément ce
+    que la relecture humaine arbitre.
+    """
+    with verrou_fichier(chemin, timeout_s):
+        courant = chemin.read_text(encoding="utf-8") if chemin.exists() else ""
+        complet = transformer(courant)
+        valider(complet)
+        ecrire_atomique(chemin, complet)
+
+
 __all__ = [
     "VerrouIndisponible",
     "ajouter_sous_verrou",
     "ecrire_atomique",
+    "reecrire_sous_verrou",
     "verrou_fichier",
 ]

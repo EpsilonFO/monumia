@@ -1,4 +1,4 @@
-"""Les outils de l'agent d'ingestion — treize, tous bornés au slug en cours.
+"""Les outils de l'agent d'ingestion — quatorze, tous bornés au slug en cours.
 
 Pas de bash, pas de lecture de fichier arbitraire, pas d'écriture hors des
 quatre chemins de l'atelier. Ce n'est pas de la méfiance envers le modèle :
@@ -210,7 +210,7 @@ def outils_pour(
     compteur: Compteur | None = None,
     entete_review: Callable[[], str] | None = None,
 ) -> tuple[list[providall.Tool], EtatOutils]:
-    """Les treize outils, fermés sur cet atelier. Renvoie aussi leur état partagé."""
+    """Les quatorze outils, fermés sur cet atelier. Renvoie aussi leur état partagé."""
     etat = EtatOutils()
     journal = journal or JournalMuet()
 
@@ -500,6 +500,39 @@ def outils_pour(
             journal.evenement(f"fait proposé : {fact_id}")
         return message
 
+    def retirer_fait(
+        fact_id: Annotated[
+            str, Field(description="Identifiant du fait à retirer, proposé par CETTE ingestion")
+        ],
+        motif: Annotated[
+            str,
+            Field(
+                description="Pourquoi ce fait n'a plus lieu d'être : doublon retrouvé, "
+                "formulation abandonnée, condition retypée autrement"
+            ),
+        ],
+    ) -> str:
+        """Retire de facts_pending.yaml un fait que TU viens de proposer. Ton droit à l'erreur.
+
+        Sans cet outil, corriger un fait mal formulé n'a qu'un geste possible :
+        en proposer un second, et laisser le premier derrière soi. C'est ce qui
+        a produit les `_v2`, les `_seule` et les faits proposés que plus aucune
+        aide ne référence. Si tu changes d'avis sur un fait — meilleure clé,
+        meilleure question, ou doublon que tu viens de retrouver — retire-le.
+
+        Deux refus : un fait proposé par une AUTRE ingestion (il porte le typage
+        d'une autre aide), et un fait encore référencé par une condition
+        (retype-la d'abord avec `ecrire_aide`).
+        """
+        compter("retirer_fait")
+        message = faits_mod.retirer(atelier, fact_id, proposes=etat.faits_proposes)
+        if not message.startswith("ERREUR"):
+            if fact_id in etat.faits_proposes:
+                etat.faits_proposes.remove(fact_id)
+            pending.pop(fact_id, None)
+            journal.evenement(f"fait retiré : {fact_id} — {' '.join(motif.split())[:120]}")
+        return message
+
     # ------------------------------------------------------------------ aide
 
     def ecrire_aide(
@@ -721,6 +754,7 @@ def outils_pour(
             chercher_faits,
             detail_fait,
             proposer_fait,
+            retirer_fait,
             ecrire_aide,
             lire_aide,
             lint,

@@ -185,5 +185,164 @@ class TestProposition(BaseFaits):
         )
 
 
+class TestProximite(BaseFaits):
+    """L'avertissement de proximité : il oriente, il ne refuse jamais.
+
+    Les deux populations mesurées sur le corpus réel se chevauchent de bout en
+    bout (vrais doublons de 0,09 à 1,00, voisins légitimes de 0,27 à 0,89) : un
+    seuil ne peut donc pas trancher. Ce que ces tests fixent, c'est qu'un fait
+    proche FORCE la lecture — et qu'une justification qui le nomme passe.
+    """
+
+    PROCHE = "type: boolean\nscope: monument\nquestion: Le monument est-il ouvert au public ?\n"
+    # Une justification longue et sérieuse, qui ne NOMME simplement aucun des
+    # faits proches : c'est exactement le geste qui a produit le passif.
+    SANS_CITATION = (
+        "Le règlement conditionne l'aide à l'ouverture du bien au public, et rien dans "
+        "l'ontologie ne semble porter ce critère. Le fait est déclaratif, vérifié au "
+        "dossier par la production du calendrier d'ouverture de l'année écoulée."
+    )
+
+    def proposer_proche(self, justif=SANS_CITATION):
+        return self.proposer(
+            fact_id="monument_ouvert_public", definition=self.PROCHE, justif=justif
+        )
+
+    def test_fait_proche_non_cite_refuse(self):
+        sortie = self.proposer_proche()
+        self.assertIn("ERREUR", sortie)
+        self.assertIn("monument_ouvert_au_public", sortie)
+        self.assertEqual(self.pending_path.read_text(encoding="utf-8"), "")
+
+    def test_lerreur_montre_la_question_du_fait_proche(self):
+        """Le message doit permettre de trancher sans rappeler `detail_fait`."""
+        sortie = self.proposer_proche()
+        self.assertIn("Le monument est-il ouvert au public ?", sortie)
+        self.assertIn("detail_fait", sortie)
+
+    def test_fait_proche_cite_accepte(self):
+        justif = (
+            "Le fait proche `monument_ouvert_au_public` porte l'ouverture PERMANENTE du "
+            "monument, alors que le règlement ne demande ici qu'une ouverture le jour de "
+            "la manifestation : les deux se répondent « oui » et « non » indépendamment, "
+            "et les fusionner rendrait le gate faux pour les monuments fermés à l'année."
+        )
+        sortie = self.proposer_proche(justif)
+        self.assertNotIn("ERREUR", sortie)
+        self.assertIn("monument_ouvert_public", load_pending_facts(self.pending_path))
+
+    def test_fait_lointain_inchange(self):
+        """Un fait sans voisin passe sans avoir rien à citer."""
+        self.assertNotIn("ERREUR", self.proposer())
+
+    def test_la_proximite_voit_aussi_les_faits_deja_proposes(self):
+        """Le passif vient surtout de là : un worker repropose ce qu'un autre a écrit."""
+        self.proposer()
+        sortie = self.proposer(
+            fact_id="jardin_remarquable_v2",
+            definition=DEFINITION,
+            justif=JUSTIFICATION,
+        )
+        self.assertIn("ERREUR", sortie)
+        self.assertIn("jardin_remarquable", sortie)
+
+
+class TestRetrait(BaseFaits):
+    """`retirer_fait` : le droit à l'erreur de l'agent, et ses deux gardes."""
+
+    AUTRE = "type: boolean\nscope: monument\nquestion: Espace naturel sensible ?\n"
+    JUSTIF_AUTRE = (
+        "Le classement en Espace naturel sensible relève du département et ouvre des "
+        "financements propres ; aucun fait de l'ontologie ne porte ce classement, qui ne "
+        "se déduit ni de la protection au titre des monuments historiques ni d'un label."
+    )
+
+    def proposer_voisin(self):
+        return self.proposer(
+            fact_id="jardin_labellise_ens", definition=self.AUTRE, justif=self.JUSTIF_AUTRE
+        )
+
+    def retirer(self, fact_id="jardin_remarquable", proposes=("jardin_remarquable",)):
+        return faits.retirer(self.atelier, fact_id, proposes=proposes)
+
+    def test_retrait_preserve_le_voisin_et_sa_justification(self):
+        """Le pendant de `test_deux_faits_saccumulent` : on retire l'un, l'autre reste ENTIER."""
+        self.proposer()
+        self.proposer_voisin()
+        sortie = self.retirer()
+        self.assertNotIn("ERREUR", sortie)
+        contenu = self.pending_path.read_text(encoding="utf-8")
+        self.assertEqual(set(yaml.safe_load(contenu)), {"jardin_labellise_ens"})
+        # La justification commentée du voisin est ce que la relecture humaine
+        # arbitre : un `safe_dump` l'aurait effacée sans bruit.
+        self.assertIn("# --- ex-aide ---", contenu)
+        self.assertIn("Espace naturel sensible", contenu)
+        self.assertIn("Espace naturel sensible relève du département", contenu)
+        self.assertNotIn("Jardin remarquable", contenu)
+
+    def test_retrait_du_dernier_fait_vide_le_fichier(self):
+        self.proposer()
+        self.assertNotIn("ERREUR", self.retirer())
+        self.assertEqual(self.pending_path.read_text(encoding="utf-8"), "")
+        self.assertEqual(load_pending_facts(self.pending_path), {})
+
+    def test_retrait_du_premier_preserve_le_second(self):
+        self.proposer()
+        self.proposer_voisin()
+        self.assertNotIn(
+            "ERREUR", self.retirer("jardin_labellise_ens", proposes=("jardin_labellise_ens",))
+        )
+        self.assertEqual(set(load_pending_facts(self.pending_path)), {"jardin_remarquable"})
+
+    def test_fait_dun_autre_run_refuse(self):
+        """Sans cette garde, un worker parallèle effacerait le fait d'un autre."""
+        self.proposer()
+        avant = self.pending_path.read_text(encoding="utf-8")
+        sortie = self.retirer(proposes=())
+        self.assertIn("ERREUR", sortie)
+        self.assertIn("pas été proposé par cette ingestion", sortie)
+        self.assertEqual(self.pending_path.read_text(encoding="utf-8"), avant)
+
+    def test_fait_encore_reference_refuse(self):
+        self.proposer()
+        avant = self.pending_path.read_text(encoding="utf-8")
+        self.atelier.aides_dir.mkdir(parents=True, exist_ok=True)
+        (self.atelier.aides_dir / "ex-aide.yaml").write_text(
+            "conditions:\n  - id: c1\n    fact: jardin_remarquable\n", encoding="utf-8"
+        )
+        sortie = self.retirer()
+        self.assertIn("ERREUR", sortie)
+        self.assertIn("ex-aide", sortie)
+        self.assertEqual(self.pending_path.read_text(encoding="utf-8"), avant)
+
+    def test_fait_absent_du_fichier_refuse(self):
+        sortie = self.retirer("zorglub", proposes=("zorglub",))
+        self.assertIn("ERREUR", sortie)
+        self.assertIn("rien à retirer", sortie)
+
+    def test_un_fait_approuve_ne_se_retire_pas(self):
+        """`facts.yaml` n'est pas de ce ressort : l'approbation est humaine."""
+        sortie = self.retirer("monument_ouvert_au_public", proposes=("monument_ouvert_au_public",))
+        self.assertIn("ERREUR", sortie)
+
+    def test_le_retrait_est_visible_immediatement(self):
+        """Le lint tourne dans le MÊME processus : le cache doit avoir été purgé."""
+        self.proposer()
+        self.retirer()
+        self.assertNotIn("jardin_remarquable", load_pending_facts(self.pending_path))
+
+    def test_retrait_puis_reproposition(self):
+        """Le geste que l'outil existe pour permettre : corriger, plutôt qu'empiler."""
+        self.proposer()
+        self.retirer()
+        self.assertNotIn(
+            "ERREUR",
+            self.proposer(
+                fact_id="jardin_remarquable",
+                definition=DEFINITION.replace("boolean", "boolean"),
+            ),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

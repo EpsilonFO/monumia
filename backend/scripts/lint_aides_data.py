@@ -34,6 +34,7 @@ Après un batch de résorption relu, abaisser le plafond :
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from collections.abc import Sequence
@@ -346,7 +347,15 @@ def lint(
                 + f" ({sum(kinds.values())} au total)"
             )
 
-    rapport.lignes.extend(_bloc_pending(rapport.aides, pending, strict, rapport))
+    # L'usage se compte sur TOUT `aides_dir`, y compris en mono-slug : sinon
+    # chaque lint d'une aide déclarerait orphelins les faits proposés par les
+    # autres. En mode global, les aides sont déjà chargées — rien à rebalayer.
+    usage_global = (
+        set(compter_usage_faits(rapport.aides)) if global_mode else faits_references_dans(aides_dir)
+    )
+    rapport.lignes.extend(
+        _bloc_pending(rapport.aides, pending, strict, rapport, usage_global=usage_global)
+    )
     if quotes:
         _bloc_quotes(rapport, global_mode)
 
@@ -366,6 +375,52 @@ def lint(
     return rapport
 
 
+# Volontairement PERMISSIF : la forme repliée (`fact: x`) comme la forme en flux
+# (`applies_if: {fact: x}`), et jusqu'à une mention en commentaire. Sur-détecter
+# fait dire « encore référencé » d'un fait qui ne l'est plus — un orphelin
+# annoncé à tort, lui, ferait retirer un fait dont une aide dépend.
+_REF_FAIT_RE = re.compile(r"\bfact:\s*['\"]?([A-Za-z0-9_]+)")
+
+
+def faits_references_dans(aides_dir: Path) -> set[str]:
+    """Les clés de faits citées par le catalogue ENTIER, par balayage textuel.
+
+    Charger les 396 fichiers coûte 2,7 s, le balayage 0,08 s — et il faut bien
+    balayer tout le catalogue même quand le lint ne porte que sur un slug,
+    sinon un fait proposé par une autre aide paraîtrait orphelin. L'agent
+    d'ingestion lance ce lint plusieurs fois par aide : la différence se paie à
+    chaque tour.
+
+    Les deux méthodes rendent exactement les mêmes 711 clés sur le catalogue
+    réel (`TestOrphelins.test_le_balayage_textuel_est_fidele_au_parsing`).
+    """
+    if not aides_dir.is_dir():
+        return set()
+    return {
+        cle
+        for chemin in aides_dir.glob("*.yaml")
+        for cle in _REF_FAIT_RE.findall(chemin.read_text(encoding="utf-8", errors="replace"))
+    }
+
+
+def compter_usage_faits(aides: list[Aide]) -> Counter[str]:
+    """Combien de conditions citent chaque fait — `fact`, `applies_if.fact`, périmètre.
+
+    Un fait seulement ciblé par un `applies_if` est bien « utilisé » : il
+    déclenche une question. Les faits de périmètre d'une aide comptent aussi,
+    ce sont même les premiers du questionnaire.
+    """
+    usage = Counter(
+        ref
+        for a in aides
+        for c in a.conditions
+        for ref in [c.fact, c.applies_if.fact if c.applies_if else None]
+        if ref
+    )
+    usage.update(a.applies_if.fact for a in aides if a.applies_if and a.applies_if.fact)
+    return usage
+
+
 def _statistiques(aides: list[Aide], facts: dict[str, FactDef]) -> list[str]:
     """Le tableau de bord du catalogue — seulement en mode global.
 
@@ -374,18 +429,7 @@ def _statistiques(aides: list[Aide], facts: dict[str, FactDef]) -> list[str]:
     """
     lignes: list[str] = []
     kinds = Counter(c.kind for a in aides for c in a.conditions)
-    # Usage : conditions ET clauses applies_if — un fait seulement ciblé par
-    # un applies_if est bien « utilisé » (il déclenche une question).
-    fact_usage = Counter(
-        ref
-        for a in aides
-        for c in a.conditions
-        for ref in [c.fact, c.applies_if.fact if c.applies_if else None]
-        if ref
-    )
-    # Les faits de périmètre comptent comme utilisés : ils déclenchent la
-    # première question du questionnaire.
-    fact_usage.update(a.applies_if.fact for a in aides if a.applies_if and a.applies_if.fact)
+    fact_usage = compter_usage_faits(aides)
     n_cond = sum(kinds.values())
     n_typed = n_cond - kinds.get("untyped", 0)
 
@@ -430,8 +474,20 @@ def _statistiques(aides: list[Aide], facts: dict[str, FactDef]) -> list[str]:
 
 
 def _bloc_pending(
-    aides: list[Aide], pending: dict[str, FactDef], strict: bool, rapport: RapportLint
+    aides: list[Aide],
+    pending: dict[str, FactDef],
+    strict: bool,
+    rapport: RapportLint,
+    *,
+    usage_global: set[str] | None = None,
 ) -> list[str]:
+    """Les faits en attente, et ceux que plus aucune aide ne référence.
+
+    `usage_global` est compté sur TOUT le catalogue, jamais sur les seules
+    aides lintées : en mono-slug, un fait proposé par une autre aide paraîtrait
+    orphelin à chaque passage, et l'agent d'ingestion se verrait reprocher le
+    fait du voisin à chacun de ses lints.
+    """
     if not pending:
         return []
     refs = [
@@ -445,6 +501,22 @@ def _bloc_pending(
         f"⏳ faits en attente d'approbation ({len(pending)}) : {', '.join(sorted(pending))}",
         *(f"   {ref}" for ref in refs),
     ]
+    if usage_global is not None:
+        orphelins = sorted(set(pending) - usage_global)
+        if orphelins:
+            # Un fait proposé que plus rien ne cite est un BROUILLON : l'agent a
+            # changé d'avis et n'avait, avant `retirer_fait`, aucun moyen de
+            # l'effacer. Il ne pose aucune question à personne — il encombre la
+            # relecture humaine, qui doit arbitrer 526 entrées.
+            lignes.append(
+                f"   ⚠ {len(orphelins)} proposé(s) qu'AUCUNE aide ne référence "
+                f"(brouillons à retirer) : {', '.join(orphelins)}"
+            )
+            if strict:
+                rapport.erreurs.append(
+                    f"--strict : {len(orphelins)} fait(s) proposé(s) sans aucune référence "
+                    f"dans le catalogue — retirer de facts_pending.yaml : {', '.join(orphelins)}"
+                )
     if strict:
         rapport.erreurs.append(
             f"--strict : {len(pending)} fait(s) non approuvé(s) dans facts_pending.yaml "

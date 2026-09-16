@@ -20,6 +20,7 @@ from pipeline.verrou import (  # noqa: E402
     VerrouIndisponible,
     ajouter_sous_verrou,
     ecrire_atomique,
+    reecrire_sous_verrou,
     verrou_fichier,
 )
 
@@ -92,6 +93,76 @@ class TestAjoutConcurrent(unittest.TestCase):
             cible.write_text("sans-fin-de-ligne", encoding="utf-8")
             ajouter_sous_verrou(cible, "suite", valider=lambda _t: None)
             self.assertEqual(cible.read_text(encoding="utf-8"), "sans-fin-de-ligne\nsuite\n")
+
+
+class TestReecritureConcurrente(unittest.TestCase):
+    """Le pendant du test d'ajout, pour le retrait : deux threads, rien de perdu."""
+
+    def test_deux_threads_retirent_chacun_leurs_lignes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cible = Path(tmp) / "pending.yaml"
+            cible.write_text(
+                "".join(f"{p}{i}\n" for p in ("a", "b") for i in range(100)), encoding="utf-8"
+            )
+            erreurs: list[BaseException] = []
+
+            def travailler(prefixe: str) -> None:
+                try:
+                    for i in range(100):
+                        reecrire_sous_verrou(
+                            cible,
+                            lambda texte, cle=f"{prefixe}{i}\n": texte.replace(cle, "", 1),
+                            valider=lambda _t: None,
+                        )
+                except BaseException as exc:  # noqa: BLE001 — remonté par le test
+                    erreurs.append(exc)
+
+            fils = [threading.Thread(target=travailler, args=(p,)) for p in ("a", "b")]
+            for f in fils:
+                f.start()
+            for f in fils:
+                f.join()
+
+            self.assertEqual(erreurs, [])
+            self.assertEqual(cible.read_text(encoding="utf-8"), "")
+
+    def test_validation_qui_leve_laisse_le_fichier_intact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cible = Path(tmp) / "pending.yaml"
+            cible.write_text("depart: 1\n", encoding="utf-8")
+
+            def refuser(_texte: str) -> None:
+                raise ValueError("le retrait aurait emporté le voisin")
+
+            with self.assertRaises(ValueError):
+                reecrire_sous_verrou(cible, lambda _t: "", valider=refuser)
+            self.assertEqual(cible.read_text(encoding="utf-8"), "depart: 1\n")
+
+    def test_transformation_qui_leve_laisse_le_fichier_intact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cible = Path(tmp) / "pending.yaml"
+            cible.write_text("depart: 1\n", encoding="utf-8")
+
+            def exploser(_texte: str) -> str:
+                raise KeyError("clé introuvable")
+
+            with self.assertRaises(KeyError):
+                reecrire_sous_verrou(cible, exploser, valider=lambda _t: None)
+            self.assertEqual(cible.read_text(encoding="utf-8"), "depart: 1\n")
+
+    def test_la_transformation_voit_le_fichier_relu_sous_le_verrou(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cible = Path(tmp) / "pending.yaml"
+            cible.write_text("deja: la\n", encoding="utf-8")
+            vus: list[str] = []
+
+            def transformer(texte: str) -> str:
+                vus.append(texte)
+                return texte + "neuf: ici\n"
+
+            reecrire_sous_verrou(cible, transformer, valider=lambda _t: None)
+            self.assertEqual(vus, ["deja: la\n"])
+            self.assertEqual(cible.read_text(encoding="utf-8"), "deja: la\nneuf: ici\n")
 
 
 class TestVerrouTimeout(unittest.TestCase):

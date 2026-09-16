@@ -36,6 +36,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline.etat import FILE_ATTENTE, Tache, charger, mettre_a_jour, transition
 from pipeline.llm import Compteur
 
+from .ontologie import RapportOntologie
+from .ontologie import rendre as rendre_ontologie
 from .worker import ConfigIngestion, ContextePartage, ResultatIngestion, ingerer_aide
 
 PARALLELE_DEFAUT = 3
@@ -273,8 +275,14 @@ def bilan(
     compteur: Compteur | None = None,
     *,
     sortie: Path | None = None,
+    ontologie: RapportOntologie | None = None,
 ) -> str:
     """Le tableau de fin de run, et les commandes à lancer ensuite.
+
+    `ontologie` est le rapport d'audit de fin de run, imprimé sous la section
+    des faits proposés : un seul `print` en fin de run, donc un seul endroit à
+    lire. Son coût N'EST PAS couvert par `--budget-total`, qui n'arbitre
+    qu'avant le lancement d'une aide — le bilan le dit plutôt que de le taire.
 
     `sortie` (le `--sortie` du banc d'essai) change TOUT ce qui suit le
     tableau : rien de ce qu'un run redirigé produit n'a vocation à être
@@ -320,6 +328,8 @@ def bilan(
             else " — à approuver à la main (déplacer vers facts.yaml)."
         )
         lignes.append(f"{len(faits)} fait(s) proposé(s) dans {ou} : {', '.join(faits)}{suite}")
+    if ontologie is not None:
+        lignes.append(rendre_ontologie(ontologie))
 
     if not ok:
         return "\n".join(lignes)

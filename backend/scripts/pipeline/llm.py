@@ -1,6 +1,6 @@
 """Résolution du modèle par rôle, et comptage du coût.
 
-Le pipeline fait appel à cinq modèles pour cinq métiers différents, qui n'ont
+Le pipeline fait appel à six modèles pour six métiers différents, qui n'ont
 ni le même volume ni la même exigence : trier trois cents URL au kilo ne
 demande pas le modèle qui typera une condition d'éligibilité. D'où un ROLE par
 métier, et un modèle réglable par rôle sans toucher au code :
@@ -31,10 +31,19 @@ from providall.config import resolve as _resolve
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 
-# Les cinq métiers. `decouverte` sert à trouver la rubrique « aides » d'un site
+# Les six métiers. `decouverte` sert à trouver la rubrique « aides » d'un site
 # inconnu, `tri` à classer des URL en lot, `lecture` à qualifier une fiche,
-# `ingestion` à écrire le YAML, `verification` à le réfuter.
-ROLES: tuple[str, ...] = ("tri", "lecture", "decouverte", "ingestion", "verification")
+# `ingestion` à écrire le YAML, `verification` à le réfuter, `audit` à relire
+# l'ontologie en fin de run. Ce dernier ne juge que des paires de faits déjà
+# appariées : un modèle bon marché y suffit, d'où un rôle à lui.
+ROLES: tuple[str, ...] = (
+    "tri",
+    "lecture",
+    "decouverte",
+    "ingestion",
+    "verification",
+    "audit",
+)
 
 
 def charger_env(directory: Path = BACKEND_DIR) -> list[Path]:

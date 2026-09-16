@@ -34,14 +34,21 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from ingestion import orchestrateur
+from ingestion import ontologie, orchestrateur
 from ingestion.boucle import Limites
 from ingestion.contexte import apercu, estimer_jetons
 from ingestion.worker import ConfigIngestion, ContextePartage, ingerer_aide
 from pipeline.etat import FILE_ATTENTE, Tache, charger, selectionner
-from pipeline.llm import Compteur, charger_env, enregistrer_tarif, parse_tarif, resolution_pour
+from pipeline.llm import (
+    Compteur,
+    charger_env,
+    client_pour,
+    enregistrer_tarif,
+    parse_tarif,
+    resolution_pour,
+)
 
-from aides_schema import AIDES_DIR, load_aide
+from aides_schema import AIDES_DIR, load_aide, load_facts, load_pending_facts
 
 
 def construire_parser() -> argparse.ArgumentParser:
@@ -108,6 +115,11 @@ def construire_parser() -> argparse.ArgumentParser:
     )
     reglages.add_argument(
         "--sortie", type=Path, help="écrire dans ce dossier au lieu de data/ (banc d'essai)"
+    )
+    reglages.add_argument(
+        "--sans-audit",
+        action="store_true",
+        help="sauter l'audit d'ontologie de fin de run (un appel, hors --budget-total)",
     )
     reglages.add_argument("--etat", type=Path, default=FILE_ATTENTE, help=argparse.SUPPRESS)
     reglages.add_argument(
@@ -243,8 +255,53 @@ def main(argv: list[str] | None = None) -> int:
             for slug in slugs
         ]
 
-    print(orchestrateur.bilan(resultats, compteur, sortie=args.sortie))
+    print(
+        orchestrateur.bilan(
+            resultats,
+            compteur,
+            sortie=args.sortie,
+            ontologie=_auditer_ontologie(args, config, slugs[0], compteur),
+        )
+    )
     return 0 if all(r.ok for r in resultats) else 1
+
+
+def _auditer_ontologie(
+    args: argparse.Namespace,
+    config: ConfigIngestion,
+    slug: str,
+    compteur: Compteur,
+) -> ontologie.RapportOntologie | None:
+    """L'audit de fin de run, ou None s'il est désactivé.
+
+    Appelé depuis `main()` et non depuis `orchestrateur.executer` : le mode
+    direct `--slug` ne passe pas par `executer`, et l'audit doit couvrir les
+    deux. L'ontologie est RELUE depuis le disque plutôt que reprise du
+    `ContextePartage` — les faits proposés par le run viennent d'y être écrits,
+    et c'est eux qu'il s'agit d'auditer.
+
+    L'atelier est celui du run : au banc d'essai, `pending_path` est la copie
+    sous `--sortie` et non `data/facts_pending.yaml`.
+
+    Rien de ce qui se passe ici ne peut faire échouer le run. L'audit arrive
+    APRÈS l'ingestion — les YAML sont écrits, les fiches de review aussi — et il
+    ne modifie aucun fichier : perdre une ingestion de 130 aides parce que
+    `LLM_MODEL_AUDIT` désigne un alias inconnu serait absurde. `auditer` ne lève
+    déjà jamais ; ce `try` couvre ce qui l'entoure (résolution du modèle,
+    lecture de l'ontologie).
+    """
+    try:
+        atelier = config.atelier(slug)
+        load_facts.cache_clear()
+        load_pending_facts.cache_clear()
+        facts = load_facts(atelier.facts_path)
+        pending = load_pending_facts(atelier.pending_path)
+        if not pending:
+            return None
+        client = None if args.sans_audit else client_pour("audit")
+        return ontologie.auditer(atelier, facts, pending, client, compteur=compteur)
+    except Exception as exc:  # noqa: BLE001 — un audit raté ne casse pas un run réussi
+        return ontologie.RapportOntologie(degrade=f"audit d'ontologie impossible : {exc}")
 
 
 def _banniere(

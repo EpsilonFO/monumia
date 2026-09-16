@@ -417,6 +417,46 @@ class TestFaits(BaseOutils):
             "Aucun fait", self.appeler("chercher_faits", mots="jardin", scope="proprietaire")
         )
 
+    def test_proposer_puis_retirer(self):
+        """L'aller-retour complet : l'ontologie n'est plus en ajout seul."""
+        justif = (
+            "Aucun fait existant ne porte le label « Jardin remarquable » : "
+            "`monument_ouvert_au_public` ne dit rien du label et `surface_jardin_m2` mesure "
+            "une surface, pas une distinction. Le règlement en fait un critère de bonification."
+        )
+        ajout = self.appeler(
+            "proposer_fait",
+            fact_id="jardin_remarquable",
+            definition_yaml=(
+                "type: boolean\nscope: monument\n"
+                "question: Le jardin est-il labellisé « Jardin remarquable » ?\n"
+            ),
+            justification=justif,
+        )
+        self.assertNotIn("ERREUR", ajout)
+        self.assertEqual(self.etat.faits_proposes, ["jardin_remarquable"])
+        self.assertIn("jardin_remarquable", self.pending)
+
+        retrait = self.appeler(
+            "retirer_fait", fact_id="jardin_remarquable", motif="doublon de surface_jardin_m2"
+        )
+        self.assertNotIn("ERREUR", retrait)
+        # L'état du run ET l'ontologie partagée entre workers suivent le retrait,
+        # sans quoi les voisins continueraient de voir un fait effacé.
+        self.assertEqual(self.etat.faits_proposes, [])
+        self.assertNotIn("jardin_remarquable", self.pending)
+
+    def test_retirer_un_fait_dun_autre_run_refuse(self):
+        """La garde qui empêche un worker d'effacer le fait d'un autre."""
+        self.atelier.pending_path.write_text(
+            "fait_dailleurs:\n  type: boolean\n  scope: monument\n  question: Ailleurs ?\n",
+            encoding="utf-8",
+        )
+        load_pending_facts.cache_clear()
+        sortie = self.appeler("retirer_fait", fact_id="fait_dailleurs", motif="je le crois inutile")
+        self.assertIn("ERREUR", sortie)
+        self.assertIn("fait_dailleurs", load_pending_facts(self.atelier.pending_path))
+
 
 class TestPassagePlusProche(unittest.TestCase):
     def test_rien_quand_le_document_na_aucun_rapport(self):

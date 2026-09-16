@@ -24,7 +24,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import lint_aides_data  # noqa: E402
 import veille_collect  # noqa: E402
-from lint_aides_data import lint, main  # noqa: E402
+from lint_aides_data import (  # noqa: E402
+    compter_usage_faits,
+    faits_references_dans,
+    lint,
+    main,
+)
 
 FACTS = """\
 monument_ouvert_au_public:
@@ -338,6 +343,115 @@ class TestFaitsEnAttente(BaseLint):
             encoding="utf-8",
         )
         self.assertTrue(self.lint("ex-aide").ok)
+
+
+class TestOrphelins(BaseLint):
+    """Un fait proposé que plus aucune aide ne cite : le lint doit le CONCLURE.
+
+    Il calculait déjà qui référence quoi et n'en tirait rien. 48 des 526 faits
+    en attente sont dans ce cas : des brouillons qu'un agent ne pouvait pas
+    effacer avant `retirer_fait`, et que la relecture humaine doit arbitrer un
+    par un pour rien.
+    """
+
+    PENDING_DEUX = (
+        "jardin_remarquable:\n  type: boolean\n  scope: monument\n"
+        "  question: Le jardin est-il labellisé remarquable ?\n"
+        "orphelin_oublie:\n  type: boolean\n  scope: monument\n"
+        "  question: Plus personne ne pose cette question ?\n"
+    )
+    COND_PENDING = """\
+  - id: label-jardin
+    text: Le jardin est labellisé « Jardin remarquable ».
+    kind: user_fact
+    effect: modulateur
+    fact: jardin_remarquable
+    predicate: {eq: true}
+"""
+
+    def test_orphelin_signale_en_avertissement(self):
+        self.pending.write_text(self.PENDING_DEUX, encoding="utf-8")
+        self.ecrire_aide("ex-aide", self.COND_PENDING)
+        rapport = self.lint()
+        self.assertTrue(rapport.ok, rapport.texte())
+        self.assertIn("AUCUNE aide ne référence", rapport.texte())
+        self.assertIn("orphelin_oublie", rapport.texte().split("AUCUNE aide ne référence")[1])
+
+    def test_fait_reference_nest_pas_orphelin(self):
+        self.pending.write_text(self.PENDING_DEUX, encoding="utf-8")
+        self.ecrire_aide("ex-aide", self.COND_PENDING)
+        ligne = next(
+            li for li in self.lint().texte().splitlines() if "AUCUNE aide ne référence" in li
+        )
+        self.assertNotIn("jardin_remarquable", ligne)
+        self.assertIn("1 proposé(s)", ligne)
+
+    def test_orphelin_bloquant_en_strict(self):
+        self.pending.write_text(self.PENDING_DEUX, encoding="utf-8")
+        self.ecrire_aide("ex-aide", self.COND_PENDING)
+        rapport = self.lint(strict=True)
+        self.assertFalse(rapport.ok)
+        self.assertIn("sans aucune référence", rapport.texte())
+
+    def test_un_applies_if_suffit_a_referencer(self):
+        """Un fait seulement ciblé par un `applies_if` pose bien une question."""
+        self.pending.write_text(
+            "profil_collectivite:\n  type: boolean\n  scope: proprietaire\n"
+            "  question: Êtes-vous une collectivité ?\n",
+            encoding="utf-8",
+        )
+        self.ecrire_aide(
+            "ex-aide",
+            """\
+  - id: seulement-collectivites
+    text: Pour les collectivités, une délibération est requise.
+    kind: manual_check
+    effect: info
+    applies_if: {fact: profil_collectivite, predicate: {eq: true}}
+""",
+        )
+        self.assertNotIn("AUCUNE aide ne référence", self.lint().texte())
+
+    def test_mono_slug_ne_declare_pas_orphelin_le_fait_dune_autre_aide(self):
+        """Le piège : sans balayage global, chaque lint d'agent accuserait le voisin.
+
+        L'agent d'ingestion lance `lint <son slug>` plusieurs fois par aide. Si
+        l'usage n'était compté que sur les aides lintées, il se verrait
+        reprocher à chaque tour tous les faits proposés par les autres.
+        """
+        self.pending.write_text(self.PENDING_DEUX, encoding="utf-8")
+        self.ecrire_aide("ex-aide", self.COND_PENDING)
+        self.ecrire_aide("autre-aide", COND_OK)
+        rapport = self.lint("autre-aide")
+        self.assertIn("AUCUNE aide ne référence", rapport.texte())
+        ligne = next(li for li in rapport.texte().splitlines() if "AUCUNE aide ne référence" in li)
+        self.assertNotIn("jardin_remarquable", ligne)
+        self.assertIn("orphelin_oublie", ligne)
+
+    def test_le_balayage_textuel_est_fidele_au_parsing(self):
+        """Les deux chemins de comptage doivent voir les mêmes références.
+
+        Le mono-slug balaie `aides_dir` au motif textuel (0,08 s contre 2,7 s),
+        le mode global réutilise les aides déjà chargées. Un écart ferait
+        dépendre le verdict « orphelin » du mode d'appel.
+        """
+        self.ecrire_aide("ex-aide", COND_OK)
+        self.ecrire_aide(
+            "flux-aide",
+            """\
+  - id: en-flux
+    text: Pour les jardins ouverts, la gratuité est requise.
+    kind: user_fact
+    effect: gate
+    fact: gratuite_acces
+    predicate: {eq: true}
+    applies_if: {fact: monument_ouvert_au_public, predicate: {eq: true}}
+""",
+        )
+        rapport = self.lint()
+        self.assertEqual(
+            faits_references_dans(self.aides_dir), set(compter_usage_faits(rapport.aides))
+        )
 
 
 class TestCLI(BaseLint):
