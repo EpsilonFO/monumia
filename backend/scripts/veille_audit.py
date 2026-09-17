@@ -37,7 +37,7 @@ Trois circuits de sortie, et un seul écrit :
                            reformule JAMAIS automatiquement (règle du dépôt) :
                            l'humain tranche, correction manuelle ou
                            /ingest-aide.
-  - fiche trop incomplète → escalade vers `ingest_aides_batch.py`, zéro écriture
+  - fiche trop incomplète → escalade vers `ingerer.py --slug …`, zéro écriture
 
 Codes de sortie : 0 terminé ; 1 erreur fatale ; 2 au moins une escalade, un
 échec de validation ou une aide inauditable.
@@ -1261,13 +1261,13 @@ def _section_escalades(escalades: list[AuditResult]) -> list[str]:
                 f"  - citation : {cellule(quote, 200)}",
             ]
         out.append("")
-    slugs = " ".join(sorted(r.slug for r in escalades))
+    slugs = " ".join(f"--slug {slug}" for slug in sorted(r.slug for r in escalades))
     out += [
         "",
         "Commande prête :",
         "",
         "```",
-        f"uv run python scripts/ingest_aides_batch.py {slugs}",
+        f"uv run python scripts/ingerer.py {slugs}",
         "```",
         "",
     ]

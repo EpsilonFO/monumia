@@ -292,6 +292,11 @@ def predicate_leaves(predicate: dict) -> list[tuple[str, object]]:
 # (`multi_enum`).
 ENUM_FACT_TYPES = frozenset({"enum", "multi_enum"})
 
+# Le fait qui dit QUI dépose la demande. Nommé une seule fois : le lint, le
+# script de proposition de gates et le worker d'ingestion le citent tous —
+# `porteurs_concernes` n'a de sens que par rapport à ses options.
+FAIT_PORTEUR = "statut_juridique_porteur"
+
 
 class FactOption(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -434,6 +439,34 @@ class FactDef(BaseModel):
     # Frontière : une clause qui ne vaut que pour UNE aide reste un `applies_if`
     # de condition. `pertinent_si` ne dit que ce qui est vrai du fait partout.
     pertinent_si: AppliesIf | None = None
+    # Les seules catégories de porteur pour qui ce fait a un sens (ids d'options
+    # de `statut_juridique_porteur`). Une aide qui gate ce fait doit gater aussi
+    # `statut_juridique_porteur`, sinon elle interroge des communes sur leur
+    # effectif salarié. Le lint (`check_porteur_entreprise`) le refuse, et
+    # `detail_fait` le dit à l'agent d'ingestion.
+    #
+    # Ce n'est PAS un `pertinent_si` : `_evaluate_aide` ignore une condition
+    # dont la clause vaut False, si bien qu'un `pertinent_si` désarmerait le
+    # gate PME au lieu de le faire échouer — un prêt PME s'ouvrirait à une
+    # commune. Le marqueur ne change donc rien au moteur : il oblige seulement
+    # l'aide à traduire sa puce « Bénéficiaires » en gate, ce qu'elle aurait dû
+    # faire de toute façon.
+    #
+    # L'existence des options est vérifiée par le LINT (`check_facts`), qui seul
+    # dispose de l'ontologie entière — comme `pertinent_si` délègue l'existence
+    # de sa cible.
+    porteurs_concernes: list[str] | None = None
+
+    @model_validator(mode="after")
+    def _porteurs_concernes_non_vide(self) -> FactDef:
+        """Une liste vide dirait « aucun porteur », donc « question jamais posée ».
+
+        C'est une faute de frappe, pas une intention : le marqueur s'omet quand
+        le fait concerne tout le monde.
+        """
+        if self.porteurs_concernes is not None and not self.porteurs_concernes:
+            raise ValueError("`porteurs_concernes` vide : omettre le champ plutôt que le vider")
+        return self
 
     @model_validator(mode="after")
     def _pertinent_si_cible_un_fait(self) -> FactDef:

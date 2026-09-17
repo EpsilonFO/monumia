@@ -49,7 +49,11 @@ observability/alloy.env
 supabase/seed.sql
 supabase/snippets/
 
-.claude/
+# `.claude/` reste hors dépôt (worktrees, réglages locaux), SAUF les skills :
+# `scripts/ingestion` et `scripts/prospection` chargent leur SKILL.md comme
+# prompt, et leurs tests le lisent : sans eux, la CI échoue au checkout.
+.claude/*
+!.claude/skills/
 
 # Visual companion (brainstorming)
 .superpowers/
@@ -60,3 +64,12 @@ supabase/snippets/
 
 # Cache recalculable de la veille (texte extrait des PDF)
 backend/.cache/
+
+# Pipeline de prospection / ingestion : intermédiaires et journaux régénérables.
+# Les LIVRABLES restent versionnés — territoires.yaml, file-attente.yaml, les
+# fiches de review et les snapshots.
+backend/data/prospection/*/*.jsonl
+backend/data/reviews/logs/
+
+# Verrous du pipeline de prospection/ingestion (scripts/pipeline/verrou.py)
+*.yaml.lock

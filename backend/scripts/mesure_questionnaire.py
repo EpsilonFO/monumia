@@ -29,6 +29,7 @@ from profils_questionnaire import (  # noqa: E402
     Mesure,
     Profil,
     mesurer,
+    parcours_simule,
 )
 
 # Ratchet du tronc commun : le fichier que le test de CI compare au catalogue.
@@ -116,14 +117,24 @@ def baseline_courante(aides: dict, facts: dict) -> dict:
 
     `tronc_ids` est là pour le message d'échec : sans lui, un test rouge dirait
     « 27 au lieu de 25 » sans nommer les deux questions entrées, et il faudrait
-    relancer le banc à la main pour relire le diff.
+    relancer le banc à la main pour relire le diff. `parcours_ids` joue le même
+    rôle pour le parcours simulé.
+
+    Le PARCOURS est la grandeur que vit l'utilisateur : le tronc dit ce que le
+    questionnaire pourrait poser, le parcours ce qu'il pose réellement une fois
+    que les réponses ont écarté des aides. Les deux sont enregistrés, parce que
+    le second seul masquerait un tronc qui gonfle derrière une première réponse
+    très éliminante.
     """
     out = {}
     for nom, profil in PROFILS.items():
         m = mesurer(aides, facts, profil)
+        parcours = parcours_simule(aides, facts, profil)
         out[nom] = {
             "tronc": len(m.tronc),
             "tronc_ids": sorted(q["id"] for q in m.tronc),
+            "parcours": len(parcours),
+            "parcours_ids": parcours,
             # Informatif : le total croît avec le catalogue, c'est justement ce
             # dont le tronc commun affranchit l'utilisateur.
             "total": len(m.questions),

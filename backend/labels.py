@@ -49,6 +49,16 @@ TRAVAUX_LABELS = {
     "parcs_jardins": "Parcs et jardins",
     "protection_solaire": "Protection solaire",
     "ventilation": "Ventilation",
+    # Le DOMAINE autour du bâti, ajouté le 2026-09-17. Un monument, ce n'est pas
+    # qu'un bâtiment : des terres, un bois, un étang, une activité installée. Ces
+    # quatre codes existent pour que les aides qui ne financent QUE cela puissent
+    # se cadrer — sans eux, elles n'ont aucun moyen de dire « je ne finance pas
+    # votre toiture » et posent leurs questions à tout le monde (mesuré sur le
+    # lot Grand Est : 88 aides dans le tronc commun d'une commune des Vosges).
+    "exploitation_agricole": "Exploitation agricole (plantations, vergers, haies)",
+    "foret": "Forêt et desserte forestière",
+    "eau_milieux_aquatiques": "Eau et milieux aquatiques (cours d'eau, étang, captage)",
+    "equipement_professionnel": "Équipement professionnel (matériel, véhicule)",
 }
 
 # ── Familles thématiques d'une aide ────────────────────────────────────────────

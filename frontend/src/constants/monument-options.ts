@@ -56,6 +56,16 @@ export const WORK_TYPES = [
   { value: 'parcs_jardins', label: 'Parcs et jardins' },
   { value: 'protection_solaire', label: 'Protection solaire' },
   { value: 'ventilation', label: 'Ventilation' },
+  // Le DOMAINE autour du bâti. Miroir de `TRAVAUX_LABELS` ([backend/labels.py]) :
+  // un code présent d'un seul côté rend invisibles les aides qui s'y cadrent —
+  // l'utilisateur ne pourrait jamais le cocher.
+  { value: 'exploitation_agricole', label: 'Exploitation agricole (plantations, vergers, haies)' },
+  { value: 'foret', label: 'Forêt et desserte forestière' },
+  {
+    value: 'eau_milieux_aquatiques',
+    label: 'Eau et milieux aquatiques (cours d’eau, étang, captage)',
+  },
+  { value: 'equipement_professionnel', label: 'Équipement professionnel (matériel, véhicule)' },
 ] as const;
 
 export const MATERIAUX = [

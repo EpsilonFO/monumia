@@ -415,13 +415,13 @@ def build_report(
         out += ["## Escalades — ré-ingestion complète", ""]
         for an in escalades:
             out.append(f"- **{an.slug}** — {' ; '.join(an.raisons)}")
-        slugs = " ".join(an.slug for an in escalades)
+        slugs = " ".join(f"--slug {an.slug}" for an in escalades)
         out += [
             "",
             "Commande prête :",
             "",
             "```",
-            f"uv run python scripts/ingest_aides_batch.py {slugs}",
+            f"uv run python scripts/ingerer.py {slugs}",
             "```",
             "",
         ]

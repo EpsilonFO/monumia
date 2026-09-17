@@ -622,7 +622,7 @@ class TestQuestionGeneration(unittest.TestCase):
         aide = _fixture_aide(
             [
                 self._gate("ouverture_public", {"not_in": ["aucune"]}),
-                self._gate("erp", {"eq": True}),
+                self._gate("porteur_est_proprietaire", {"eq": True}),
             ]
         )
         questions = {q["id"]: q for q in self._questions([aide])}
@@ -634,7 +634,7 @@ class TestQuestionGeneration(unittest.TestCase):
             {aide.slug: aide}, FACTS, _monument(), 3000, {"ouverture_public": ["aucune"]}
         )
         self.assertEqual([m["aide"]["id"] for m in res["aidesAtteignables"]], [aide.slug])
-        self.assertIn("erp", [q["id"] for q in res["qcmQuestions"]])
+        self.assertIn("porteur_est_proprietaire", [q["id"] for q in res["qcmQuestions"]])
 
     def test_gate_a_derogation_n_elimine_jamais(self):
         """`derogation_possible` dégrade l'échec en incertitude : l'aide reste
@@ -687,8 +687,8 @@ class TestQuestionGeneration(unittest.TestCase):
         aides = [
             _fixture_aide(
                 [self._gate("etat_travaux", {"eq": "non_commences"})]
-                + ([self._gate("erp", {"eq": True})] if i < 2 else [])
-                + ([self._gate("residence_principale", {"eq": True})] if i < 1 else []),
+                + ([self._gate("porteur_est_proprietaire", {"eq": True})] if i < 2 else [])
+                + ([self._gate("visible_voie_publique", {"eq": True})] if i < 1 else []),
                 slug=f"fx-{i}",
             )
             for i in range(3)
@@ -2003,7 +2003,7 @@ class TestAnneeConstructionDeduiteDuSiecle(unittest.TestCase):
                     "effect": "gate",
                     "fact": "annee_construction",
                     "predicate": {"lt": 1800},
-                    "applies_if": {"fact": "erp", "predicate": {"eq": True}},
+                    "applies_if": {"fact": "porteur_est_proprietaire", "predicate": {"eq": True}},
                 }
             ]
         )
@@ -2012,7 +2012,7 @@ class TestAnneeConstructionDeduiteDuSiecle(unittest.TestCase):
         verdict = evaluate_aide(aide, monument, None, ctx, FACTS)
         self.assertEqual(verdict.status, "potentiel")
         self.assertNotIn("annee_construction", verdict.missing_facts)
-        self.assertIn("erp", verdict.gateway_facts)
+        self.assertIn("porteur_est_proprietaire", verdict.gateway_facts)
 
 
 class TestEgliseDeduiteDuNom(unittest.TestCase):
@@ -2332,6 +2332,29 @@ class TestProjetSansTravaux(unittest.TestCase):
         "prix-regional-biodiversite-paca-fondation-patrimoine": "`etat_travaux` appliqué "
         "aux deux branches, alors que la préservation de la biodiversité n'est pas un "
         "chantier",
+        # Lot venu du pipeline de prospection (branche `feat/pipeline-prospection-
+        # ingestion`), ingéré avant que cet invariant existe. Les `etat_travaux`
+        # « dépôt avant démarrage » y ont été élargis à « aucun » comme ailleurs ; ne
+        # restent que des PLANCHERS DE DÉPENSES posés sur `budget_travaux_estime`, qui
+        # demandent de rouvrir la source pour savoir sur quelle assiette ils portent.
+        "normandie-reconversion-espaces-activites-industriels-friche": "plancher de "
+        "200 000 € sur `budget_travaux_estime` alors que la reconversion d'une friche "
+        "porte aussi sur des études et de l'animation de site",
+        "region-grand-est-chantiers-benevoles": "plancher de 2 000 € sur "
+        "`budget_travaux_estime` alors qu'un chantier de bénévoles est d'abord une "
+        "action de transmission",
+        "region-grand-est-soutien-amenagement-musees-equipements": "plancher de "
+        "150 000 € sur `budget_travaux_estime` alors que l'aide finance aussi des "
+        "équipements muséographiques",
+        "region-grand-est-soutien-developpement-tourisme-fluvial": "plancher de "
+        "40 000 € sur `budget_travaux_estime`, et `etat_travaux` appliqué aux deux "
+        "branches dont l'animation de l'escale",
+        "region-grand-est-soutien-hebergements-collectifs": "plancher de 125 000 € sur "
+        "`budget_travaux_estime` alors que l'assiette couvre aussi l'équipement",
+        "region-grand-est-soutien-hostels": "plancher de 125 000 € sur "
+        "`budget_travaux_estime` alors que l'assiette couvre aussi l'équipement",
+        "region-grand-est-soutien-hotellerie": "plancher de 125 000 € sur "
+        "`budget_travaux_estime` alors que l'assiette couvre aussi l'équipement",
     }
 
     def test_corpus_une_aide_de_valorisation_est_obtenable_sans_travaux(self):
@@ -2893,10 +2916,13 @@ class TestPertinentSi(unittest.TestCase):
         """Plus spécifique : elle gagne, et le fait ne la surcharge pas."""
         gate = {
             **self.GATE,
-            "applies_if": {"fact": "travaux_parties_protegees", "predicate": {"eq": True}},
+            "applies_if": {
+                "fact": "travaux_perimetre_protection",
+                "predicate": {"eq": "protegees_seulement"},
+            },
         }
         qs = self._questions(self._run(aide=_fixture_aide([gate], slug="fx-prix")))
-        self.assertEqual(qs[self.FACT]["dependsOn"]["questionId"], "travaux_parties_protegees")
+        self.assertEqual(qs[self.FACT]["dependsOn"]["questionId"], "travaux_perimetre_protection")
 
     def test_le_perimetre_de_laide_passe_avant_la_clause_du_fait(self):
         """Une condition ne porte qu'UNE clause, et la première question à
