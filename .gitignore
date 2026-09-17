@@ -49,7 +49,11 @@ observability/alloy.env
 supabase/seed.sql
 supabase/snippets/
 
-.claude/
+# `.claude/` reste hors dépôt (worktrees, réglages locaux), SAUF les skills :
+# `scripts/ingestion` et `scripts/prospection` chargent leur SKILL.md comme
+# prompt, et leurs tests le lisent : sans eux, la CI échoue au checkout.
+.claude/*
+!.claude/skills/
 
 # Visual companion (brainstorming)
 .superpowers/
