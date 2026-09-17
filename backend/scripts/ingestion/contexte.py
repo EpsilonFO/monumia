@@ -40,6 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from aides_schema import (
     CATEGORIES,
+    FAIT_PORTEUR,
     OPS_BY_FACT_TYPE,
     OPS_BY_FIELD_TYPE,
     RAISONS,
@@ -432,6 +433,7 @@ def prompt_initial(
     urls_pdf: tuple[str, ...] = (),
     territoire: str | None = None,
     famille: str | None = None,
+    beneficiaires: str | None = None,
     note: str | None = None,
     existante: str | None = None,
     aide_reference: str | None = None,
@@ -454,6 +456,11 @@ def prompt_initial(
         morceaux.append(f"- Territoire : {territoire}")
     if famille:
         morceaux.append(f"- Famille pressentie à la prospection : {famille}")
+    if beneficiaires:
+        morceaux.append(
+            "- Bénéficiaires lus à la prospection (à vérifier sur la source, à typer en gate "
+            f"`{FAIT_PORTEUR}`) : {beneficiaires}"
+        )
     if note:
         morceaux.append(f"- Note de prospection (indicative, à vérifier sur la source) : {note}")
     morceaux.append(f"- Fichier à écrire : {atelier.relatif(atelier.yaml_path)}")
@@ -548,16 +555,42 @@ def richesse_doctrinale(aide: Aide) -> int:
 def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None:
     """(slug, YAML) du meilleur gabarit disponible pour ce slug.
 
-    Le classement est LEXICOGRAPHIQUE, `applies_if` d'abord : un gabarit qui
-    porte un périmètre bat tout gabarit qui n'en porte pas, quelle que soit sa
-    richesse par ailleurs. C'est le mécanisme le plus coûteux à rater (sans
+    Le classement est LEXICOGRAPHIQUE : `applies_if`, puis
+    `hard_filters.travaux`, puis `familles`. Un gabarit qui porte un périmètre
+    bat tout gabarit qui n'en porte pas, quelle que soit sa richesse par
+    ailleurs ; à périmètre égal celui qui montre un CADRAGE des travaux
+    l'emporte ; à cadrage égal, celui qui montre une FAMILLE. C'est le mécanisme le plus coûteux à rater (sans
     lui, les conditions d'une aide d'un autre métier polluent le questionnaire
     de tout le monde) et le seul que le modèle ne peut pas deviner. Le laisser
     en simple bonus pondéré ne suffisait pas : le bonus « modulateurs » de
     `richesse_doctrinale` le dépassait, et 19 slugs sur 215 retombaient sur un
     gabarit sans périmètre.
 
-    À `applies_if` égal, la RICHESSE DOCTRINALE départage, parce qu'un gabarit
+    `hard_filters.travaux` est venu en second le 2026-09-17, pour la même raison
+    et après le même constat : AUCUN des 405 gabarits servis n'en portait, et le
+    champ n'était rempli que sur 42 aides du catalogue. Le lot Grand Est y a
+    laissé 88 aides sans cadrage dans le tronc commun d'une commune des Vosges —
+    une aide qui ne finance qu'une plantation ou une desserte forestière n'avait
+    aucun moyen de dire qu'elle ne finance pas une toiture. Troisième fois que le
+    même défaut se paie (`applies_if`, `modulateur`, puis celui-ci) : ce que le
+    gabarit ne montre pas, le modèle ne le produit pas.
+
+    `familles` est venu en troisième, le même jour et pour la même raison : 21 %
+    du catalogue seulement, alors que le champ est explicitement demandé à
+    l'extraction (SKILL.md, étape 2). C'est la leçon la plus dure de ces trois
+    passages — `applies_if`, que l'étape 2 ne demande NULLE PART, est le mieux
+    rempli des trois (44 %) parce qu'il est le seul que le gabarit garantissait.
+    Le gabarit ne fait pas que compléter la consigne : il l'emporte sur elle.
+
+    Le GATE BÉNÉFICIAIRES est venu en quatrième, le 2026-09-17, pour la
+    quatrième fois la même raison : 37 aides du lot Grand Est gataient un fait
+    d'entreprise sans dire qui pouvait déposer, et posaient donc leurs questions
+    de PME à toutes les communes. Un gabarit qui montre la traduction de la puce
+    « Bénéficiaires » en gate `in` sur `statut_juridique_porteur` est la seule
+    manière de la rendre évidente au modèle — le lint la refuse désormais, mais
+    un refus arrive après coup, un gabarit avant.
+
+    À famille égale, la RICHESSE DOCTRINALE départage, parce qu'un gabarit
     pauvre enseigne la pauvreté (cf. `richesse_doctrinale`), avec une prime au
     même préfixe territorial (une aide du même financeur partage ses
     conventions — nom court, tournures du règlement, structure des documents).
@@ -574,7 +607,7 @@ def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None
     # appel reparsait les 215 fichiers du catalogue, soit 21 500 lectures pour
     # un lot de cent aides (et 4 minutes pour un seul test).
     catalogue = load_all_aides(aides_dir)
-    meilleur: tuple[tuple[int, int, str], str] | None = None
+    meilleur: tuple[tuple[int, int, int, int, int, str], str] | None = None
     for autre, aide in catalogue.items():
         if autre == slug:
             continue
@@ -583,7 +616,14 @@ def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None
         )
         # Le slug termine la clé : à note égale, le choix doit être le MÊME
         # d'un passage à l'autre, sinon le préfixe de cache ne mord plus.
-        cle = (1 if aide.applies_if else 0, note, autre)
+        cle = (
+            1 if aide.applies_if else 0,
+            1 if aide.hard_filters.travaux else 0,
+            1 if aide.familles else 0,
+            1 if any(c.fact == FAIT_PORTEUR and c.effect == "gate" for c in aide.conditions) else 0,
+            note,
+            autre,
+        )
         if meilleur is None or cle > meilleur[0]:
             meilleur = (cle, autre)
     if meilleur is None:

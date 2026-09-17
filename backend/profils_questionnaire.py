@@ -101,6 +101,12 @@ PROFILS: dict[str, Profil] = {
     ),
     # ── Les profils du diagnostic du 2026-09-16 : église classée d'une commune
     # de 1 200 habitants, cadrée par la finalité comme le fait le wizard. ──
+    #
+    # `statut_juridique_porteur` fait partie du cadrage depuis le 2026-09-17 :
+    # c'est la 2e question du QCM, tout le monde y répond, et sans sa réponse le
+    # ratchet compte les ~90 questions d'entreprise que le gate bénéficiaires
+    # écarte. Les trois profils historiques ci-dessus restent figés — leurs
+    # mesures publiées (69/56/55) doivent rester comparables.
     "commune, classé, Grand Est (88), restauration": Profil(
         monument=dict(
             protection="classe",
@@ -111,7 +117,10 @@ PROFILS: dict[str, Profil] = {
             travaux_envisages=["toiture", "charpente", "maconnerie"],
         ),
         population=1200,
-        answers={"_raisons": ["restauration_travaux"]},
+        answers={
+            "_raisons": ["restauration_travaux"],
+            "statut_juridique_porteur": ["public_commune"],
+        },
     ),
     "commune, classé, BFC (71), restauration": Profil(
         monument=dict(
@@ -123,7 +132,10 @@ PROFILS: dict[str, Profil] = {
             travaux_envisages=["toiture", "charpente", "maconnerie"],
         ),
         population=1200,
-        answers={"_raisons": ["restauration_travaux"]},
+        answers={
+            "_raisons": ["restauration_travaux"],
+            "statut_juridique_porteur": ["public_commune"],
+        },
     ),
     "personne physique, classé, BFC (71), restauration": Profil(
         monument=dict(
@@ -135,7 +147,10 @@ PROFILS: dict[str, Profil] = {
             travaux_envisages=["toiture", "charpente", "maconnerie"],
         ),
         population=1200,
-        answers={"_raisons": ["restauration_travaux"]},
+        answers={
+            "_raisons": ["restauration_travaux"],
+            "statut_juridique_porteur": ["prive_personne_physique"],
+        },
     ),
     "commune, classé, Île-de-France (77), restauration": Profil(
         monument=dict(
@@ -147,7 +162,10 @@ PROFILS: dict[str, Profil] = {
             travaux_envisages=["toiture", "charpente", "maconnerie"],
         ),
         population=1200,
-        answers={"_raisons": ["restauration_travaux"]},
+        answers={
+            "_raisons": ["restauration_travaux"],
+            "statut_juridique_porteur": ["public_commune"],
+        },
     ),
     # Le périmètre qui s'élargit : « faire vivre le lieu », sans chantier. C'est
     # le profil que l'ouverture du catalogue (spectacles, jardins, hébergement,
@@ -168,7 +186,11 @@ PROFILS: dict[str, Profil] = {
             travaux_envisages=[],
         ),
         population=1200,
-        answers={"_raisons": ["valorisation_rayonnement"], "etat_travaux": "aucun"},
+        answers={
+            "_raisons": ["valorisation_rayonnement"],
+            "etat_travaux": "aucun",
+            "statut_juridique_porteur": ["public_commune"],
+        },
     ),
     # Le profil du testeur du 2026-09-16 (retours
     # `docs/retours-questionnaire-faire-vivre-le-lieu-2026-09-16.md`) : c'est
@@ -184,7 +206,11 @@ PROFILS: dict[str, Profil] = {
             travaux_envisages=[],
         ),
         population=1200,
-        answers={"_raisons": ["valorisation_rayonnement"], "etat_travaux": "aucun"},
+        answers={
+            "_raisons": ["valorisation_rayonnement"],
+            "etat_travaux": "aucun",
+            "statut_juridique_porteur": ["prive_personne_physique"],
+        },
     ),
 }
 
@@ -245,3 +271,177 @@ def mesurer(aides: dict[str, Aide], facts: dict[str, FactDef], profil: Profil) -
         propres=propres,
         slugs_eligibles={r["aide"]["id"] for r in retenues if r["statut"] == "eligible"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Miroir Python de l'élimination front (frontend/src/lib/qcm.ts)
+# ---------------------------------------------------------------------------
+#
+# `partition_tronc` compte les questions que le questionnaire POURRAIT poser,
+# réponses vides. Ce n'est pas ce que vit l'utilisateur : il répond, et chaque
+# réponse écarte des aides, donc des questions. Sur le profil « commune, classé,
+# Grand Est (88), restauration », l'écart était de 68 questions calculées contre
+# 18 réellement posées — et c'est le second chiffre qui décide si le tunnel est
+# supportable.
+#
+# Les deux miroirs (celui-ci et `qcm.ts`) ne peuvent plus diverger en silence :
+# `tests/fixtures/qcm_elimination.json` est rejouée des deux côtés.
+
+#: Réponse « je ne sais pas » : elle n'écarte rien, par construction.
+ID_SKIP = "skip"
+
+
+def _ids_choisis(question: dict, reponse: object) -> list[str]:
+    """Les ids réellement retenus, sans les réponses « je ne sais pas »."""
+    bruts = reponse if isinstance(reponse, list) else [reponse]
+    inconnues = {o["id"] for o in question.get("options") or [] if o.get("unknown")}
+    return [i for i in bruts if isinstance(i, str) and i and i != ID_SKIP and i not in inconnues]
+
+
+def aides_eliminees(answers: dict[str, object], questions: list[dict]) -> set[str]:
+    """Miroir de `computeEliminatedAideIds` ([frontend/src/lib/qcm.ts]).
+
+    Question à choix multiple : une aide n'est écartée que si CHAQUE case cochée
+    l'écarte — cocher une case de plus ne peut que libérer des aides (sémantique
+    existentielle du moteur, cf. `MultiValue`). D'où l'INTERSECTION, et non
+    l'union, des éliminations par option.
+
+    Repli sur `eliminatingOptionIds` quand la carte fine ne rend rien, dans le
+    même ordre que le front : une carte fine vide ne doit pas court-circuiter la
+    forme grossière, sans quoi des aides resteraient vivantes ici et mortes à
+    l'écran.
+    """
+    eliminees: set[str] = set()
+    for question in questions:
+        choisis = _ids_choisis(question, answers.get(question["id"]))
+        if not choisis:
+            continue
+        par_option = question.get("eliminationsParOption") or {}
+        commun: set[str] | None = None
+        for identifiant in choisis:
+            portee = set(par_option.get(identifiant) or [])
+            commun = portee if commun is None else (commun & portee)
+            if not commun:
+                break
+        if commun:
+            eliminees |= commun
+            continue
+        grossier = set(question.get("eliminatingOptionIds") or [])
+        if grossier and all(i in grossier for i in choisis):
+            eliminees |= set(question.get("aideIds") or [])
+    return eliminees
+
+
+def est_visible(question: dict, answers: dict[str, object]) -> bool:
+    """Miroir de `isVisible` : une question branchée attend sa porteuse.
+
+    Fail-closed comme le front : tant que la porteuse n'est pas répondue, on
+    pose quand même — une question de trop plutôt qu'une aide écartée en
+    silence.
+    """
+    dep = question.get("dependsOn")
+    if not dep:
+        return True
+    reponse = answers.get(dep["questionId"])
+    donnes = [
+        i
+        for i in (reponse if isinstance(reponse, list) else [reponse])
+        if isinstance(i, str) and i != ID_SKIP
+    ]
+    if not donnes:
+        return True
+    return any(i in dep["showForOptionIds"] for i in donnes)
+
+
+def sert_une_aide_vivante(question: dict, eliminees: set[str]) -> bool:
+    """Miroir de `isQuestionServingLiveAide`. Fail-open sans `aideIds`."""
+    ids = question.get("aideIds")
+    if not ids:
+        return True
+    return any(i not in eliminees for i in ids)
+
+
+def _option_la_plus_eliminante(question: dict, eliminees: set[str]) -> str | None:
+    """L'option qui écarte le plus d'aides encore vivantes.
+
+    La règle est écrite noir sur blanc parce qu'elle décide de la mesure : elle
+    donne le parcours le plus COURT, donc le chiffre le plus favorable au
+    catalogue. C'est assumé — un ratchet ne se compare qu'à lui-même, et il lui
+    faut surtout une règle stable. Un parcours mesuré sur la réponse la moins
+    éliminante dirait autre chose (le pire cas), ce qui est une autre mesure, pas
+    une correction de celle-ci.
+    """
+    par_option = question.get("eliminationsParOption") or {}
+    grossier = set(question.get("eliminatingOptionIds") or [])
+    toutes = set(question.get("aideIds") or [])
+    inconnues = {o["id"] for o in question.get("options") or [] if o.get("unknown")}
+    meilleur: tuple[int, str] | None = None
+    for option in question.get("options") or []:
+        identifiant = option["id"]
+        if identifiant == ID_SKIP or identifiant in inconnues:
+            continue
+        portee = set(par_option.get(identifiant) or ())
+        if not portee and identifiant in grossier:
+            portee = toutes
+        gain = len(portee - eliminees)
+        # L'id départage à gain égal : le parcours doit être le MÊME d'un
+        # passage à l'autre, sinon le ratchet mesure du bruit.
+        if meilleur is None or (gain, identifiant) > (meilleur[0], meilleur[1]):
+            meilleur = (gain, identifiant)
+    return meilleur[1] if meilleur else None
+
+
+def parcours_simule(aides: dict[str, Aide], facts: dict[str, FactDef], profil: Profil) -> list[str]:
+    """Les questions du tronc RÉELLEMENT posées, dans l'ordre, jusqu'à épuisement.
+
+    À chaque tour : la première question du tronc encore visible
+    (`dependsOn` respecté) et encore servante (au moins une aide vivante), à
+    laquelle on répond par l'option la plus éliminante. Le tour suivant repart
+    des aides restantes — c'est ce que fait le front, question après question.
+    """
+    mesure = mesurer(aides, facts, profil)
+    tronc = mesure.tronc
+    answers: dict[str, object] = {}
+    posees: list[str] = []
+    # Borne de sûreté : une question par tour, jamais deux fois la même.
+    for _ in range(len(tronc)):
+        eliminees = aides_eliminees(answers, tronc)
+        suivante = next(
+            (
+                q
+                for q in tronc
+                if q["id"] not in answers
+                and est_visible(q, answers)
+                and sert_une_aide_vivante(q, eliminees)
+            ),
+            None,
+        )
+        if suivante is None:
+            break
+        choix = _option_la_plus_eliminante(suivante, eliminees)
+        if choix is None:
+            break
+        answers[suivante["id"]] = choix
+        posees.append(suivante["id"])
+    return posees
+
+
+def delta_tronc(
+    aides_avant: dict[str, Aide],
+    aides_apres: dict[str, Aide],
+    facts: dict[str, FactDef],
+) -> dict[str, tuple[int, int, list[str]]]:
+    """Par profil : (tronc avant, tronc après, ids des questions ENTRANTES).
+
+    Sert à chiffrer ce qu'une aide coûte au questionnaire de tout le monde —
+    la seule grandeur qu'une fiche de review ne peut pas deviner depuis la
+    fiche de l'aide seule.
+    """
+    sortie: dict[str, tuple[int, int, list[str]]] = {}
+    for nom, profil in PROFILS.items():
+        avant = mesurer(aides_avant, facts, profil)
+        apres = mesurer(aides_apres, facts, profil)
+        ids_avant = {q["id"] for q in avant.tronc}
+        entrantes = sorted(q["id"] for q in apres.tronc if q["id"] not in ids_avant)
+        sortie[nom] = (len(avant.tronc), len(apres.tronc), entrantes)
+    return sortie

@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline.verrou import ajouter_sous_verrou, reecrire_sous_verrou
 from veille_text import normalize
 
-from aides_schema import FactDef, load_pending_facts
+from aides_schema import FAIT_PORTEUR, FactDef, load_pending_facts
 
 from .atelier import Atelier
 
@@ -142,6 +142,13 @@ def detail(facts: dict[str, FactDef], pending: dict[str, FactDef], fact_id: str)
             "\n⚠ HORS GATE : aucune condition ne doit gater sur ce fait, le lint le refuse. "
             "La condition se type `manual_check` + `effect: info`, sans `fact` ni `predicate`, "
             "en gardant `text` et `quote` (TYPING, « manual_check + effect: info »).\n"
+        )
+    if fait.porteurs_concernes:
+        avertissement += (
+            f"\n⚠ RÉSERVÉ AUX PORTEURS : {', '.join(fait.porteurs_concernes)}. Si tu gates sur "
+            f"ce fait, l'aide DOIT aussi gater `{FAIT_PORTEUR}` (gate `in` traduisant la puce "
+            "« Bénéficiaires » de la source) — le lint le refuse sinon. Sans ce gate, l'aide "
+            "pose sa question d'entreprise à toutes les communes (TYPING § bénéficiaires).\n"
         )
     return f"{entete}\n{corps}{avertissement}"
 

@@ -28,6 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -119,6 +120,93 @@ class ResultatIngestion:
     faits_proposes: list[str] = field(default_factory=list)
     bloquants: int = 0
     controles_rates: list[str] = field(default_factory=list)
+    #: « +N question(s) de tronc (profil) », vide si l'aide n'en fait entrer aucune.
+    cout_questions: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Coût en questions
+# ---------------------------------------------------------------------------
+
+#: Au-delà, l'aide fait entrer assez de questions dans le tronc d'un profil pour
+#: que la fiche le dise en toutes lettres. Trois, parce qu'une aide légitime en
+#: apporte une ou deux en réutilisant des faits existants — c'est ce qu'on lui
+#: demande — et que la série de 2026-09 montre le décrochage à partir de trois.
+SEUIL_ALERTE_QUESTIONS = 3
+
+
+class CoutQuestions(NamedTuple):
+    """Le bloc à appender à la review, et la ligne à mettre au bilan de run."""
+
+    bloc: str
+    resume: str
+
+
+def cout_en_questions(atelier: Atelier) -> CoutQuestions:
+    """Ce que l'aide coûte au questionnaire de TOUS les propriétaires.
+
+    Invisible depuis la fiche de l'aide : une question n'entre au tronc commun
+    que si une AUTRE aide la partage déjà. La relecture humaine ne peut donc pas
+    la deviner, et c'est exactement le genre de coût qui s'accumule sans que
+    personne ne le voie — 90 aides économiques du lot Grand Est ont ainsi ajouté
+    dix questions au parcours d'une commune des Vosges.
+
+    Le diagnostic coûte ~2 ms : mesurer les neuf profils deux fois est gratuit
+    devant une ingestion. Ne fait JAMAIS échouer un run — toute exception rend
+    une ligne « mesure indisponible », comme l'audit d'ontologie.
+    """
+    try:
+        from profils_questionnaire import delta_tronc
+
+        load_facts.cache_clear()
+        load_pending_facts.cache_clear()
+        facts = {
+            **load_facts(atelier.facts_path),
+            **load_pending_facts(atelier.pending_path),
+        }
+        apres = {
+            chemin.stem: load_aide(chemin) for chemin in sorted(atelier.aides_dir.glob("*.yaml"))
+        }
+        if atelier.slug not in apres:
+            return CoutQuestions("", "")
+        avant = {slug: aide for slug, aide in apres.items() if slug != atelier.slug}
+        delta = delta_tronc(avant, apres, facts)
+    except Exception as exc:  # noqa: BLE001 — une mesure ratée ne casse pas une ingestion
+        return CoutQuestions(
+            f"\n## Coût en questions (mesuré)\n\nmesure indisponible : {exc}\n",
+            "coût en questions non mesuré",
+        )
+
+    lignes = [
+        "",
+        "## Coût en questions (mesuré)",
+        "",
+        "Questions du TRONC COMMUN (partagées par au moins deux aides) avant et après",
+        "cette aide, par profil de référence. Une question qui entre ici est posée à",
+        "tous les propriétaires de ce profil, pas seulement aux candidats de l'aide.",
+        "",
+        "| profil | tronc avant | après | questions entrantes |",
+        "|---|---:|---:|---|",
+    ]
+    pire_nom, pire_n = "", 0
+    for nom, (avant_n, apres_n, entrantes) in delta.items():
+        if len(entrantes) > pire_n:
+            pire_nom, pire_n = nom, len(entrantes)
+        lignes.append(
+            f"| {nom} | {avant_n} | {apres_n} | {', '.join(f'`{q}`' for q in entrantes) or '—'} |"
+        )
+    lignes.append("")
+    if pire_n >= SEUIL_ALERTE_QUESTIONS:
+        lignes += [
+            f"⚠ **{pire_n} questions entrent dans le tronc du profil « {pire_nom} ».** Vérifier "
+            "que l'aide porte bien son cadrage : `applies_if` de périmètre, "
+            "`hard_filters.travaux`, `familles`, et le gate `statut_juridique_porteur` si elle "
+            "vise un porteur particulier. Sans cadrage, ses questions sont posées à tout le "
+            "monde.",
+            "",
+        ]
+    resume = f"+{pire_n} question(s) de tronc ({pire_nom})" if pire_n else ""
+    return CoutQuestions("\n".join(lignes), resume)
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +341,7 @@ def ingerer_aide(
             urls_pdf=tuple(tache.urls_pdf),
             territoire=tache.territoire,
             famille=tache.famille,
+            beneficiaires=tache.beneficiaires,
             note=None,
             existante=existante,
             aide_reference=reference[1] if reference else None,
@@ -270,6 +359,13 @@ def ingerer_aide(
         fetcheur.close()
 
         echecs = controler(atelier, resultat, etat)
+        # AVANT `_mettre_en_echec` : celui-ci renomme le YAML en `.yaml.echec`,
+        # hors du glob que la mesure balaye. Après, on mesurerait le catalogue
+        # sans l'aide qu'on vient d'ingérer.
+        cout = cout_en_questions(atelier) if atelier.review_path.exists() else CoutQuestions("", "")
+        if cout.bloc:
+            with atelier.review_path.open("a", encoding="utf-8") as fichier:
+                fichier.write(cout.bloc)
         if echecs:
             _mettre_en_echec(atelier, " ; ".join(echecs))
             journal.evenement("ÉCHEC : " + " ; ".join(echecs))
@@ -296,6 +392,7 @@ def ingerer_aide(
             faits_proposes=list(etat.faits_proposes),
             bloquants=bloquants,
             controles_rates=echecs,
+            cout_questions=cout.resume,
         )
     except Exception as exc:  # noqa: BLE001 — un worker ne fait jamais tomber le run
         journal.evenement("EXCEPTION : " + traceback.format_exc())

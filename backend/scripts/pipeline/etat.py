@@ -69,6 +69,11 @@ class Tache(BaseModel):
     urls_pdf: list[str] = []
     territoire: str
     famille: str | None = None
+    # Qui peut déposer, d'après la page de prospection. Transmis tel quel à
+    # l'ingestion, qui doit le VÉRIFIER sur la source et le typer en gate
+    # `statut_juridique_porteur` : cette donnée était lue à la prospection puis
+    # perdue entre la fiche markdown et la file.
+    beneficiaires: str | None = None
     priorite: Priorite = "normale"
     statut: Statut = "a_valider"
     ajoute_le: date | None = None

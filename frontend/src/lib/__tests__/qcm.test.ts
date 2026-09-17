@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve as resolvePath } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   computeEliminatedAideIds,
@@ -251,5 +253,46 @@ describe('partitionnerQuestions', () => {
       'ouverture_public',
       'jours_ouverture_public_par_an',
     ]);
+  });
+});
+
+/**
+ * La fixture PARTAGÉE avec le backend. Le ratchet du questionnaire
+ * (`backend/tests/test_questionnaire_tronc_commun.py`) simule le parcours d'un
+ * propriétaire en rejouant ces mêmes règles en Python (`aides_eliminees`,
+ * `est_visible`) : si les deux implémentations divergent, le ratchet garde une
+ * grandeur que personne ne vit, et rien ne le dit.
+ *
+ * Lue au runtime plutôt qu'importée : `tsconfig.app.json` n'inclut que `src` et
+ * n'active pas `resolveJsonModule` — un `import` de JSON hors de `src` casserait
+ * `npx tsc -b` pour toute l'application.
+ */
+describe('miroir Python de l’élimination (fixture partagée)', () => {
+  const fixture = JSON.parse(
+    readFileSync(
+      resolvePath(__dirname, '../../../../backend/tests/fixtures/qcm_elimination.json'),
+      'utf-8',
+    ),
+  ) as {
+    questions: QcmQuestion[];
+    cas_elimination: { nom: string; answers: Record<string, string | string[]>; eliminees: string[] }[];
+    cas_visibilite: {
+      nom: string;
+      question: string;
+      answers: Record<string, string | string[]>;
+      visible: boolean;
+    }[];
+  };
+
+  it.each(fixture.cas_elimination)('élimination — $nom', (cas) => {
+    expect(new Set(computeEliminatedAideIds(cas.answers, fixture.questions))).toEqual(
+      new Set(cas.eliminees),
+    );
+  });
+
+  it.each(fixture.cas_visibilite)('visibilité — $nom', (cas) => {
+    const q = fixture.questions.find((question) => question.id === cas.question);
+    expect(q).toBeDefined();
+    expect(isVisible(q!, cas.answers)).toBe(cas.visible);
   });
 });

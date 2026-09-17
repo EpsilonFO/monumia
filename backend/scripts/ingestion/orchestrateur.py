@@ -284,6 +284,11 @@ def bilan(
     lire. Son coût N'EST PAS couvert par `--budget-total`, qui n'arbitre
     qu'avant le lancement d'une aide — le bilan le dit plutôt que de le taire.
 
+    `cout_questions` d'une aide est la seule grandeur du bilan qu'on ne peut pas
+    lire dans sa fiche : une question n'entre au tronc commun que si une AUTRE
+    aide la partage déjà. Elle est mesurée par le worker, juste après les
+    post-contrôles et avant toute mise en échec.
+
     `sortie` (le `--sortie` du banc d'essai) change TOUT ce qui suit le
     tableau : rien de ce qu'un run redirigé produit n'a vocation à être
     committé ni chargé en base, et le fait proposé n'est pas allé dans
@@ -320,6 +325,14 @@ def bilan(
             else "0 problème bloquant sur les fichiers finaux."
         ),
     ]
+    couteuses = [r for r in resultats if r.cout_questions]
+    if couteuses:
+        lignes += [
+            "",
+            "Coût en questions — ce que chaque aide ajoute au TRONC COMMUN, donc au "
+            "questionnaire de tous les propriétaires du profil nommé (détail dans la review) :",
+            *(f"  {r.slug} : {r.cout_questions}" for r in sorted(couteuses, key=lambda r: r.slug)),
+        ]
     if faits:
         ou = f"{sortie}/facts_pending.yaml" if sortie else "data/facts_pending.yaml"
         suite = (

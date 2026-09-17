@@ -63,7 +63,6 @@ dependencies = [
     { name = "httpx" },
     { name = "jinja2" },
     { name = "openai" },
-    { name = "providall" },
     { name = "pydantic", extra = ["email"] },
     { name = "pyjwt" },
     { name = "python-dotenv" },
@@ -81,6 +80,9 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+pipeline = [
+    { name = "providall" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -91,7 +93,6 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "openai", specifier = ">=1.40.0" },
-    { name = "providall", git = "ssh://git@github.com/EpsilonFO/providall.git?subdirectory=python&tag=v0.1.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.12.5" },
     { name = "pyjwt", specifier = ">=2.10.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
@@ -109,6 +110,7 @@ dev = [
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "ruff", specifier = ">=0.9.0" },
 ]
+pipeline = [{ name = "providall", git = "ssh://git@github.com/EpsilonFO/providall.git?subdirectory=python&tag=v0.1.0" }]
 
 [[package]]
 name = "brotli"

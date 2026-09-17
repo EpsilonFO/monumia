@@ -20,7 +20,6 @@ dependencies = [
     "stripe>=12.0.0",
     "anthropic>=0.69.0",
     "brotli>=1.2.0",
-    "providall",
 ]
 
 [dependency-groups]
@@ -29,6 +28,24 @@ dev = [
     "pyright>=1.1.0",
     "pre-commit>=4.5.1",
     "pytest>=8.0.0",
+]
+# `providall` vit dans un dépôt PRIVÉ, tiré en SSH. Le déclarer dans
+# [project].dependencies imposait une clé SSH à tout ce qui fait `uv sync` :
+# le runner GitHub (qui n'en a pas → CI rouge) et le build Docker (qui n'en a
+# pas non plus → le prochain deploy.sh aurait cassé de la même façon).
+#
+# Or aucun code servi par l'API ne l'importe : main.py, les routers et les
+# services l'ignorent. Il ne sert qu'à `scripts/` (prospection, ingestion) et
+# à leurs tests. C'est donc un outil de poste de travail, pas une dépendance
+# de production — d'où un groupe NON par défaut, que ni `uv sync` (Docker) ni
+# `uv sync --group dev` n'installent.
+#
+# En local, pour faire tourner le pipeline ou ses tests :
+#     uv sync --group dev --group pipeline
+# La CI fait de même, avec une clé de déploiement en lecture seule
+# (secret PROVIDALL_DEPLOY_KEY, cf. .github/workflows/ci.yml).
+pipeline = [
+    "providall",
 ]
 
 [tool.ruff]

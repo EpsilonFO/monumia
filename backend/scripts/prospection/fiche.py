@@ -178,6 +178,7 @@ def taches(
             urls_pdf=list(f.urls_pdf),
             territoire=cle,
             famille=f.famille,
+            beneficiaires=f.beneficiaires,
             priorite=f.priorite if f.priorite in ("haute", "normale", "basse") else "normale",
             statut="a_valider",
             ajoute_le=jour,

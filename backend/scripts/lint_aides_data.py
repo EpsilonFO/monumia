@@ -47,6 +47,7 @@ from aides_schema import (
     AIDES_DIR,
     FACTS_FILE,
     FACTS_PENDING_FILE,
+    FAIT_PORTEUR,
     FIELD_REGISTRY,
     OPS_BY_FIELD_TYPE,
     Aide,
@@ -93,7 +94,7 @@ MOTIFS_NOMINATIFS = re.compile(
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from veille_collect import load_baselines
-from veille_text import find_quote_in_any
+from veille_text import find_quote_in_any, normalize
 
 # Kinds dont la condition est opposable à une source : la quote y est attendue
 # à terme (les conditions issues des seeds legacy n'en ont pas encore).
@@ -229,6 +230,48 @@ def check_hors_gate(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
     return erreurs
 
 
+def gate_porteur(aide: Aide) -> bool:
+    """L'aide dit-elle QUI peut déposer ?
+
+    Un `applies_if` d'aide sur le même fait compte : quatre aides du catalogue
+    cadrent ainsi leur périmètre entier plutôt que condition par condition, et
+    le moteur les traite pareil (`_scoped_conditions`).
+    """
+    if aide.applies_if and aide.applies_if.fact == FAIT_PORTEUR:
+        return True
+    return any(c.effect == "gate" and c.fact == FAIT_PORTEUR for c in aide.conditions)
+
+
+def check_porteur_entreprise(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
+    """Un gate sur un fait d'entreprise oblige à dire qui peut déposer.
+
+    Sans cela, l'aide reste vivante pour une commune jusqu'à sa PREMIÈRE
+    question d'entreprise — et cette question est posée. Mesuré le 2026-09-17
+    sur un profil « commune, classé, Grand Est, restauration » : 18 questions
+    réellement posées, dont 10 d'entreprise ; 10 questions une fois le gate
+    porteur posé sur les 52 aides muettes. Seul `hard_filters` écarte en
+    silence, et il parle du propriétaire du BIEN, pas du porteur du dossier.
+
+    La correction n'est jamais de retirer le marqueur : c'est de traduire la
+    puce « Bénéficiaires » de la source en gate `in` sur `statut_juridique_porteur`.
+    """
+    if gate_porteur(aide):
+        return []
+    erreurs: list[str] = []
+    for cond in aide.conditions:
+        if cond.effect != "gate" or not cond.fact:
+            continue
+        marques = (facts[cond.fact].porteurs_concernes or []) if cond.fact in facts else []
+        if not marques:
+            continue
+        erreurs.append(
+            f"{aide.slug} / {cond.id}: gate sur « {cond.fact} », réservé aux porteurs "
+            f"{{{', '.join(marques)}}}, sans gate {FAIT_PORTEUR} — typer la puce "
+            "Bénéficiaires de la source en gate `in` (TYPING § bénéficiaires)"
+        )
+    return erreurs
+
+
 # Marqueur de lien d'auteur — `[[fait]]`. Il n'a jamais été rendu : le front
 # affiche `question` et `help` tels quels, crochets compris. Le lecteur d'un
 # `help` est l'UTILISATEUR ; un renvoi vers une autre question s'écrit en
@@ -257,6 +300,119 @@ def check_facts(facts: dict[str, FactDef]) -> list[str]:
         if LIEN_AUTEUR in o.label
     ]
     erreurs.extend(check_pertinent_si(facts))
+    erreurs.extend(check_porteurs_concernes(facts))
+    return erreurs
+
+
+# Vocabulaire qui trahit une question réservée à un porteur économique. Liste
+# FERMÉE, appliquée à la clé ET à la question normalisées. Elle ne décide rien :
+# elle ALERTE, sans jamais bloquer. Le marqueur reste une décision humaine —
+# « ouvrez-vous votre atelier à la visite ? » parle d'entreprise sans être
+# réservée à une entreprise, et un faux positif qu'on ne peut pas taire
+# apprendrait à ne plus lire l'alerte.
+MOTS_PORTEUR_ECONOMIQUE = re.compile(
+    "|".join(
+        [
+            r"\bentreprises?\b",
+            r"\bpme\b",
+            r"\btpe\b",
+            r"\beti\b",
+            r"\bsalaries?\b",
+            r"\beffectif\b",
+            r"\bchiffre d'affaires\b",
+            r"\bexploitant\b",
+            r"\bexploitation agricole\b",
+            r"\bagriculteur\b",
+            r"\brepreneur\b",
+            r"\bdirigeant\b",
+            r"\bsociete\b",
+            r"\bfonds propres\b",
+            r"\bcotation\b",
+            r"\bimmatricul",
+            r"\bsiret\b",
+            r"\bsiren\b",
+        ]
+    )
+)
+
+
+# L'entreprise dont parle la question est un TIERS — celle qui exécute les
+# travaux, pas celle qui dépose le dossier. « Les travaux ont-ils été réalisés
+# par des entreprises du bâtiment ? » concerne une commune autant qu'une SARL.
+# C'est la famille de faux positifs la plus nombreuse, et la seule qui soit
+# systématique : elle se reconnaît au fait que l'entreprise y est complément
+# d'agent, jamais sujet.
+MOTS_ENTREPRISE_TIERCE = re.compile(
+    "|".join(
+        [
+            r"realise(?:e|s|es)? par",
+            r"\bcertifie",
+            r"\brge\b",
+            r"\bpressenties?\b",
+            r"recours a une entreprise",
+            r"\bprestataires?\b",
+        ]
+    )
+)
+
+
+def faits_entreprise_sans_marqueur(facts: dict[str, FactDef]) -> list[str]:
+    """Les faits dont le vocabulaire sent l'entreprise et qui ne se déclarent pas.
+
+    C'est la DETTE que le marqueur laisse derrière lui : `porteurs_concernes`
+    bloque une aide qui gate un fait marqué, mais rien ne fait naître un fait
+    marqué. Un lot sur une région viticole ferait naître
+    `chiffre_affaires_viticole` sans garde-fou, et ses aides reposeraient leurs
+    questions d'entreprise aux communes — exactement le défaut du lot Grand Est,
+    transposé aux faits.
+
+    Volontairement NON bloquant, et c'est le cœur du réglage : la liste est une
+    invitation à relire, pas un verdict. `creation_offre_visite_entreprise`
+    parle d'entreprise et concerne pourtant un monument qui ouvre son atelier à
+    la visite ; le refuser obligerait à marquer un fait à tort, ce qui est bien
+    pire qu'un fait non marqué.
+    """
+    suspects: list[str] = []
+    for key, f in sorted(facts.items()):
+        # Un fait `hors_gate` ne peut être gaté par AUCUNE aide : le marqueur,
+        # qui n'agit qu'à travers un gate, n'y changerait rien.
+        if f.porteurs_concernes or f.hors_gate or key == FAIT_PORTEUR:
+            continue
+        texte = normalize(f"{key.replace('_', ' ')} {f.question}")
+        if MOTS_PORTEUR_ECONOMIQUE.search(texte) and not MOTS_ENTREPRISE_TIERCE.search(texte):
+            suspects.append(key)
+    return suspects
+
+
+def check_porteurs_concernes(facts: dict[str, FactDef]) -> list[str]:
+    """Les catégories citées par le marqueur existent bien chez le porteur.
+
+    Une option inventée rendrait le marqueur muet à la relecture et le message
+    du lint incompréhensible — il nomme les catégories concernées.
+
+    Si `statut_juridique_porteur` lui-même manque à l'ontologie servie, on se
+    TAIT : 207 aides gatent dessus, leur `check_aide` le dira déjà, et une
+    ontologie partielle (un test, un script hors ligne) n'a pas à récolter une
+    erreur par fait marqué. Le marqueur ne lie pas le moteur, il ne documente
+    que la contrainte portée par `check_porteur_entreprise`.
+    """
+    porteur = facts.get(FAIT_PORTEUR)
+    erreurs: list[str] = []
+    for key, f in facts.items():
+        if not f.porteurs_concernes:
+            continue
+        ou = f"facts.yaml / {key} (porteurs_concernes)"
+        if key == FAIT_PORTEUR:
+            erreurs.append(f"{ou}: le fait porteur ne se marque pas lui-même")
+            continue
+        if porteur is None:
+            continue
+        connues = {o.id for o in (porteur.options or [])}
+        inconnues = [v for v in f.porteurs_concernes if v not in connues]
+        if inconnues:
+            erreurs.append(
+                f"{ou}: option(s) inconnue(s) de « {FAIT_PORTEUR} » : {', '.join(inconnues)}"
+            )
     return erreurs
 
 
@@ -422,6 +578,7 @@ def lint(
         rapport.aides.append(aide)
         rapport.erreurs.extend(check_aide(aide, facts))
         rapport.erreurs.extend(check_hors_gate(aide, facts))
+        rapport.erreurs.extend(check_porteur_entreprise(aide, facts))
 
     if global_mode:
         rapport.lignes.extend(_statistiques(rapport.aides, facts))
@@ -442,7 +599,14 @@ def lint(
         set(compter_usage_faits(rapport.aides)) if global_mode else faits_references_dans(aides_dir)
     )
     rapport.lignes.extend(
-        _bloc_pending(rapport.aides, pending, strict, rapport, usage_global=usage_global)
+        _bloc_pending(
+            rapport.aides,
+            pending,
+            strict,
+            rapport,
+            usage_global=usage_global,
+            global_mode=global_mode,
+        )
     )
     if quotes:
         _bloc_quotes(rapport, global_mode)
@@ -552,6 +716,18 @@ def _statistiques(aides: list[Aide], facts: dict[str, FactDef]) -> list[str]:
             f"évaluables sourcées — dette : {sans_quote}"
         )
 
+    # Dette du marqueur porteur : un fait neuf ne naît jamais marqué, et rien
+    # ne le fait naître marqué. Non bloquant — la liste est une invitation à
+    # relire, pas un verdict (cf. `faits_entreprise_sans_marqueur`).
+    sans_marqueur = faits_entreprise_sans_marqueur(facts)
+    marques = sum(1 for f in facts.values() if f.porteurs_concernes)
+    lignes.append(
+        f"porteurs_concernes : {marques} fait(s) marqué(s) — "
+        f"{len(sans_marqueur)} à relire (vocabulaire d'entreprise, aucun marqueur)"
+    )
+    if sans_marqueur:
+        lignes.append(f"  {', '.join(sans_marqueur)}")
+
     sans_raison = sum(1 for a in aides if not a.raison)
     if sans_raison:
         lignes.append(f"raison : {sans_raison} aide(s) sans finalité — valeur en base préservée")
@@ -573,6 +749,7 @@ def _bloc_pending(
     rapport: RapportLint,
     *,
     usage_global: set[str] | None = None,
+    global_mode: bool = False,
 ) -> list[str]:
     """Les faits en attente, et ceux que plus aucune aide ne référence.
 
@@ -580,6 +757,10 @@ def _bloc_pending(
     aides lintées : en mono-slug, un fait proposé par une autre aide paraîtrait
     orphelin à chaque passage, et l'agent d'ingestion se verrait reprocher le
     fait du voisin à chacun de ses lints.
+
+    `global_mode` ne sert qu'à taire l'alerte « vocabulaire d'entreprise sans
+    marqueur » : en global, `_statistiques` la donne déjà pour tout le
+    catalogue, et la répéter ici la ferait lire deux fois — donc plus du tout.
     """
     if not pending:
         return []
@@ -610,6 +791,19 @@ def _bloc_pending(
                     f"--strict : {len(orphelins)} fait(s) proposé(s) sans aucune référence "
                     f"dans le catalogue — retirer de facts_pending.yaml : {', '.join(orphelins)}"
                 )
+    # Les faits que les aides lintées CITENT et qui sentent l'entreprise sans se
+    # déclarer. En mono-slug, c'est exactement le fait que l'agent vient de
+    # proposer : l'alerte arrive donc pendant qu'il peut encore le corriger, et
+    # pas six mois plus tard dans une dette globale que personne ne lit.
+    cites = {f for a in aides for c in a.conditions for f in (c.fact,) if f in pending}
+    a_relire = [f for f in faits_entreprise_sans_marqueur(pending) if f in cites]
+    if a_relire and not global_mode:
+        lignes.append(
+            f"   ⚠ {len(a_relire)} fait(s) au vocabulaire d'entreprise sans "
+            f"`porteurs_concernes` : {', '.join(a_relire)} — si la question n'a de sens "
+            "que pour une entreprise ou une exploitation, le déclarer (le lint obligera "
+            "alors les aides à gater aussi statut_juridique_porteur)"
+        )
     if strict:
         rapport.erreurs.append(
             f"--strict : {len(pending)} fait(s) non approuvé(s) dans facts_pending.yaml "

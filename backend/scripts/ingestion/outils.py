@@ -474,7 +474,13 @@ def outils_pour(
         definition_yaml: Annotated[
             str,
             Field(
-                description="Définition YAML du fait (type, scope, question, options, help, levier)"
+                description="Définition YAML du fait (type, scope, question, options, help, "
+                "levier, porteurs_concernes). `porteurs_concernes` est OBLIGATOIRE dès que la "
+                "question n'a de sens que pour certains porteurs — effectif salarié, chiffre "
+                "d'affaires, ancienneté d'entreprise, exploitation agricole : la liste des ids "
+                "d'options de `statut_juridique_porteur` concernés, p. ex. "
+                "[societe, entreprise_individuelle]. Sans lui, le fait naît sans garde-fou et "
+                "ses aides poseront leurs questions d'entreprise à toutes les communes"
             ),
         ],
         justification: Annotated[
@@ -491,6 +497,12 @@ def outils_pour(
         utilisable immédiatement dans une condition `kind: user_fact`, mais
         reste « en attente » : c'est un humain qui l'approuvera en le déplaçant
         vers facts.yaml. Mentionne-le dans la fiche de review.
+
+        Si la question ne concerne que certains porteurs (une entreprise, une
+        exploitation agricole), déclare `porteurs_concernes` : le lint obligera
+        alors toute aide qui gate ce fait à dire aussi qui peut déposer. Un fait
+        marqué protège TOUTES les aides à venir ; un fait qui naît sans marqueur
+        laisse le trou se recreuser lot après lot.
         """
         compter("proposer_fait")
         message = faits_mod.proposer(atelier, facts, fact_id, definition_yaml, justification)

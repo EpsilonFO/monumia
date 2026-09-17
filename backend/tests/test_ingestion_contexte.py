@@ -219,6 +219,71 @@ class TestGabarit(unittest.TestCase):
                 sans.append(slug)
         self.assertEqual(sans, [], "slugs dont le gabarit ne montre aucun modulateur")
 
+    def test_le_gabarit_montre_toujours_un_cadrage_des_travaux(self):
+        """Le troisième mécanisme que les runs ratent, et pour la même raison.
+
+        Constaté le 2026-09-17 : aucun des 405 gabarits servis ne portait de
+        `hard_filters.travaux`, et le champ n'était rempli que sur 42 aides. Une
+        aide qui ne finance qu'une plantation ou une desserte forestière n'a
+        alors aucun moyen de dire qu'elle ne finance pas une toiture — elle pose
+        ses questions à tous les projets de restauration.
+        """
+        from ingestion.contexte import choisir_aide_reference
+
+        from aides_schema import AIDES_DIR, load_all_aides
+
+        sans: list[str] = []
+        for slug in load_all_aides():
+            choix = choisir_aide_reference(slug, AIDES_DIR)
+            hf = (yaml.safe_load(choix[1]) or {}).get("hard_filters") or {} if choix else {}
+            if not hf.get("travaux"):
+                sans.append(slug)
+        self.assertEqual(sans, [], "slugs dont le gabarit ne montre pas le cadrage des travaux")
+
+    def test_le_gabarit_montre_toujours_une_famille(self):
+        """Le quatrième, et celui qui livre la leçon des trois autres.
+
+        `familles` est demandé noir sur blanc à l'étape 2 du skill, et n'était
+        rempli que sur 21 % du catalogue ; `applies_if`, que l'étape 2 ne demande
+        nulle part, l'était sur 44 % — parce qu'il était le seul garanti ici. Le
+        gabarit l'emporte sur la consigne écrite, et c'est pourquoi chaque
+        mécanisme qui compte doit être garanti là plutôt que rappelé ailleurs.
+        """
+        from ingestion.contexte import choisir_aide_reference
+
+        from aides_schema import AIDES_DIR, load_all_aides
+
+        sans: list[str] = []
+        for slug in load_all_aides():
+            choix = choisir_aide_reference(slug, AIDES_DIR)
+            if choix is None or not (yaml.safe_load(choix[1]) or {}).get("familles"):
+                sans.append(slug)
+        self.assertEqual(sans, [], "slugs dont le gabarit ne montre pas de famille")
+
+    def test_le_gabarit_montre_toujours_un_gate_beneficiaires(self):
+        """Le cinquième, et il coûtait des questions à tous les propriétaires.
+
+        Le 2026-09-17, 37 aides du lot Grand Est gataient un fait d'entreprise
+        (PME, effectif, cotation Banque de France) sans jamais dire qui pouvait
+        déposer : sur un projet de commune, chacune restait vivante jusqu'à sa
+        première question d'entreprise — et cette question était posée. Le lint
+        le refuse désormais, mais un refus arrive après l'extraction ; le
+        gabarit, lui, arrive avant.
+        """
+        from ingestion.contexte import choisir_aide_reference
+
+        from aides_schema import AIDES_DIR, FAIT_PORTEUR, load_all_aides
+
+        sans: list[str] = []
+        for slug in load_all_aides():
+            choix = choisir_aide_reference(slug, AIDES_DIR)
+            conditions = (yaml.safe_load(choix[1]) or {}).get("conditions") or [] if choix else []
+            if not any(
+                c.get("fact") == FAIT_PORTEUR and c.get("effect") == "gate" for c in conditions
+            ):
+                sans.append(slug)
+        self.assertEqual(sans, [], "slugs dont le gabarit ne montre pas de gate bénéficiaires")
+
     def test_le_gabarit_nest_jamais_laide_en_cours(self):
         from ingestion.contexte import choisir_aide_reference
 
