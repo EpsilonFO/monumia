@@ -446,29 +446,59 @@ FAITS_DEDUITS_DES_FAMILLES: dict[str, frozenset[str]] = {
 }
 
 
-def _retournerait_contre(aide: Aide, fact_key: str) -> bool:
-    """Répondre `False` à ce fait retournerait-il cette aide contre elle-même ?
+# Miroir POSITIF, et volontairement beaucoup plus étroit : les faits qu'une
+# famille COCHÉE ne rend pas seulement plausibles mais certains, parce qu'ils
+# redisent ce que la famille déclare déjà. Cocher « Spectacles et
+# manifestations » puis s'entendre demander « votre projet est-il une action
+# artistique ou culturelle ? » se lit comme une panne — c'est le même argument
+# que `_valorisation_prevue_depuis_raisons`, et il est soumis à la même
+# condition : la déduction ne doit pouvoir écarter AUCUNE aide.
+#
+# Deux entrées seulement, et la garde de `_retournerait_contre` les revérifie à
+# chaque diagnostic plutôt que de faire confiance à cette liste. Mesuré sur le
+# corpus au 2026-09-18 : 9 et 35 références, aucune qu'un « oui » réfute.
+#
+# `projet_evenementiel_ponctuel` n'y est PAS, et c'est le cas intéressant :
+# cinq aides le gatent `eq: false`, un « oui » déduit les ferait tomber
+# « écartées par vos réponses » sur une question jamais posée. Ponctuel ou
+# pérenne est précisément ce que « spectacles » ne dit pas — la question reste
+# donc posée, et elle est la seule des trois à discriminer.
+#
+# On ne lit ici que les familles DÉCLARÉES : celles qu'une finalité implique
+# sont une indication, pas une déclaration, et ne peuvent pas porter un « oui ».
+FAITS_DEDUITS_VRAI_DES_FAMILLES: dict[str, frozenset[str]] = {
+    "projet_artistique_ou_culturel": frozenset(
+        {"spectacles_manifestations", "mediation_numerique_expositions"}
+    ),
+    "projet_lieu_diffusion_culturelle": frozenset({"spectacles_manifestations"}),
+}
+
+
+def _retournerait_contre(aide: Aide, fact_key: str, valeur: bool = False) -> bool:
+    """Répondre `valeur` à ce fait retournerait-il cette aide contre elle-même ?
 
     Deux façons : son PÉRIMÈTRE porte sur le fait et la réponse l'en sort
     (`hors_perimetre` l'écarte alors du résultat), ou l'un de ses GATES porte
     sur le fait et la réponse le réfute (l'aide tombe « écartée par vos
     réponses », sur une question que l'utilisateur n'a jamais vue).
 
-    Forme exacte de la garde de `deduire_faits_des_familles`, et plus sûre que
-    la coïncidence des tags : elle ne suppose rien du catalogue, et elle vaut
-    donc aussi pendant que le backfill des familles est en cours.
+    Forme exacte de la garde de `deduire_faits_des_familles`, dans les deux
+    sens, et plus sûre que la coïncidence des tags : elle ne suppose rien du
+    catalogue, et elle vaut donc aussi pendant que le backfill des familles est
+    en cours. `valeur` par défaut à `False` : c'est la déduction négative, de
+    loin la plus fréquente.
     """
     if (
         aide.applies_if
         and aide.applies_if.fact == fact_key
-        and evaluate_predicate(aide.applies_if.predicate.root, False) is False
+        and evaluate_predicate(aide.applies_if.predicate.root, valeur) is False
     ):
         return True
     return any(
         c.fact == fact_key
         and c.effect == "gate"
         and c.predicate is not None
-        and evaluate_predicate(c.predicate.root, False) is False
+        and evaluate_predicate(c.predicate.root, valeur) is False
         for c in aide.conditions
     )
 
@@ -514,6 +544,14 @@ def deduire_faits_des_familles(
         if any(_retournerait_contre(a, fact_key) for a in candidates.values()):
             continue
         complete[fact_key] = False
+    for fact_key, familles_du_fait in FAITS_DEDUITS_VRAI_DES_FAMILLES.items():
+        if _normalize_answer(facts.get(fact_key), complete.get(fact_key)) is not None:
+            continue
+        if not (familles_du_fait & declarees):
+            continue  # aucune famille cochée ne l'affirme : on demande
+        if any(_retournerait_contre(a, fact_key, True) for a in candidates.values()):
+            continue
+        complete[fact_key] = True
     return complete
 
 

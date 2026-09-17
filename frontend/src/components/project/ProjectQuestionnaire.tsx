@@ -202,6 +202,20 @@ function BilanTronc({
             {' '}&middot; dont {complet.aConfirmerUneQuestion} à une seule question d&rsquo;un verdict
           </>
         )}
+        {/* La page projet range sous « Disponibles bientôt » toute aide dont la
+            fenêtre est fermée, quel que soit son statut. Sans cette ligne, le
+            chiffre ci-dessus promet des aides que l'écran suivant n'affiche pas
+            là où on les cherche. */}
+        {complet.eligibles > complet.eligiblesMaintenant && (
+          <>
+            {' '}&middot;{' '}
+            {complet.eligiblesMaintenant === 0
+              ? complet.eligibles > 1
+                ? 'leurs guichets ouvrent plus tard'
+                : 'son guichet ouvre plus tard'
+              : `dont ${complet.eligibles - complet.eligiblesMaintenant} dont le guichet ouvre plus tard`}
+          </>
+        )}
       </p>
     </div>
   );

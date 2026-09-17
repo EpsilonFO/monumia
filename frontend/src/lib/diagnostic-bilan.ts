@@ -4,6 +4,7 @@ import type {
   ProjectQuestionnaireAnswers,
   QcmQuestion,
 } from '@/types';
+import { getDisponibilite } from '@/components/aide/eligibility-status';
 import { sanitizeQcmQuestions } from './qcm';
 
 /**
@@ -19,6 +20,13 @@ export interface BilanDiagnostic {
   /** `totalAidesAnalysees` : les aides que le moteur a réellement examinées. */
   aPortee: number;
   eligibles: number;
+  /** Parmi `eligibles`, celles dont la fenêtre de candidature est OUVERTE.
+   *
+   *  Séparé parce que la page projet range les autres sous « Disponibles
+   *  bientôt » : annoncer « 1 aide mobilisable » puis n'en montrer aucune sous
+   *  « Disponibles maintenant » se lit comme une panne. Les deux écrans lisent
+   *  désormais le même `getDisponibilite`, et ne peuvent plus diverger. */
+  eligiblesMaintenant: number;
   atteignables: number;
   aConfirmer: number;
   /** Refus IMPUTABLES aux réponses, pas aux filtres automatiques de la fiche. */
@@ -77,10 +85,12 @@ export function bilanDiagnostic(result: AideDiagnosticResult): BilanDiagnostic {
   const questions = sanitizeQcmQuestions(result.qcmQuestions);
   const answers = result.qcmAnswers ?? {};
   const aConfirmer = result.aidesPotentiellementEligibles ?? [];
+  const eligibles = result.aidesEligibles ?? [];
   const questionsRestantes = questions.length;
   return {
     aPortee: result.totalAidesAnalysees ?? 0,
-    eligibles: (result.aidesEligibles ?? []).length,
+    eligibles: eligibles.length,
+    eligiblesMaintenant: eligibles.filter((m) => getDisponibilite(m) === 'maintenant').length,
     atteignables: (result.aidesAtteignables ?? []).length,
     aConfirmer: aConfirmer.length,
     // `elimineParReponse` distingue le refus dû à une réponse du refus dû aux

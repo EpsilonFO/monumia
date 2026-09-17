@@ -238,7 +238,12 @@ def _urls_dun_sitemap(url: str, fetcheur: Fetcheur, collecte: Collecte) -> list[
         collecte.notes.append(f"sitemap injoignable : {url} → {page.erreur or page.status}")
         return []
     try:
-        racine = ET.fromstring(page.contenu)
+        # Un sitemap peut arriver précédé d'un blanc — seine-et-marne.fr (Drupal
+        # simple_sitemap) émet un saut de ligne AVANT la déclaration XML, et
+        # `fromstring` refuse alors tout le document (« XML or text declaration
+        # not at start of entity »). Le guide entier disparaissait en silence,
+        # réduit à une note technique.
+        racine = ET.fromstring(page.contenu.lstrip())
     except ET.ParseError as exc:
         collecte.notes.append(f"sitemap illisible : {url} → {exc}")
         return []
