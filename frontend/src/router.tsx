@@ -12,6 +12,7 @@ import { BlogArticlePage } from '@/pages/blog/BlogArticlePage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { AdminRoute } from '@/components/auth/AdminRoute';
 import { AdminPage } from '@/pages/admin/AdminPage';
+import { AdminStatsPage } from '@/pages/admin/AdminStatsPage';
 // Owner / Commune pages
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { MonumentsListPage } from '@/pages/monuments/MonumentsListPage';
@@ -233,7 +234,10 @@ export const router = createBrowserRouter([
         </AdminRoute>
       </ProtectedRoute>
     ),
-    children: [{ index: true, element: <AdminPage /> }],
+    children: [
+      { index: true, element: <AdminPage /> },
+      { path: 'statistiques', element: <AdminStatsPage /> },
+    ],
   },
 
   // Catch-all → login

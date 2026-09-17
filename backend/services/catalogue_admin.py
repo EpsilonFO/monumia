@@ -1095,6 +1095,18 @@ def _entree_fait(
         "scope": original.scope,
         "pending": pending,
         "nbAides": len(concernees),
+        # Dépendance INTRINSÈQUE du fait, en lecture seule : la question ne se
+        # pose que si cette autre réponse le permet. L'administration ne la
+        # modifie pas — elle vaut pour toutes les aides à la fois, et c'est une
+        # décision éditoriale du YAML, pas un correctif d'exploitation.
+        "pertinentSi": (
+            {
+                "fact": original.pertinent_si.fact,
+                "predicate": original.pertinent_si.predicate.root,
+            }
+            if original.pertinent_si
+            else None
+        ),
         "original": {
             "question": original.question,
             "help": original.help,

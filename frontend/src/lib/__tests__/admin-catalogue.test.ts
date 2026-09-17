@@ -3,10 +3,28 @@ import {
   faitEffectif,
   filtrerAides,
   filtrerFaits,
+  filtrerUtilisateurs,
   normaliser,
   payloadSurcharge,
 } from '@/lib/admin-catalogue';
-import type { AdminAide, AdminFait, OptionSurchargee } from '@/types/admin.types';
+import type {
+  AdminAide,
+  AdminFait,
+  EtatRole,
+  OptionSurchargee,
+  UtilisateurAdmin,
+} from '@/types/admin.types';
+
+/** Une bascule éteinte : ces tests ne portent que sur la recherche. */
+const ETAT_ETEINT: EtatRole = {
+  actif: false,
+  source: null,
+  modifiable: true,
+  raison: null,
+  motif: null,
+  ajouteLe: null,
+  ajoutePar: null,
+};
 
 function aide(over: Partial<AdminAide> = {}): AdminAide {
   return {
@@ -35,6 +53,7 @@ function fait(over: Partial<AdminFait> = {}): AdminFait {
     scope: 'monument',
     pending: false,
     nbAides: 3,
+    pertinentSi: null,
     original: {
       question: 'Quel est l’usage du bien ?',
       help: 'Son usage principal aujourd’hui.',
@@ -258,5 +277,49 @@ describe('payloadSurcharge sur une question Oui/Non', () => {
         options: avecNull,
       }),
     ).toBeNull();
+  });
+});
+
+describe('filtrerUtilisateurs', () => {
+  const compte = (
+    userId: string,
+    prenom: string | null,
+    nom: string | null,
+    email: string | null,
+  ): UtilisateurAdmin => ({
+    userId,
+    prenom,
+    nom,
+    email,
+    createdAt: null,
+    compteIntrouvable: email === null,
+    roles: {
+      admin: ETAT_ETEINT,
+      beta_testeur: ETAT_ETEINT,
+    },
+  });
+
+  const comptes = [
+    compte('u1', 'Félix', 'Ollivier', 'felix@monumia.fr'),
+    compte('u2', 'Chloé', 'Béranger', 'chloe@exemple.fr'),
+    compte('socle-42', null, null, null),
+  ];
+
+  it('rend tout le monde sans recherche', () => {
+    expect(filtrerUtilisateurs(comptes, '   ')).toHaveLength(3);
+  });
+
+  it('cherche sans tenir compte des accents ni de la casse', () => {
+    expect(filtrerUtilisateurs(comptes, 'beranger').map((c) => c.userId)).toEqual(['u2']);
+    expect(filtrerUtilisateurs(comptes, 'FÉLIX').map((c) => c.userId)).toEqual(['u1']);
+  });
+
+  it('cherche aussi sur l’email et sur le nom complet', () => {
+    expect(filtrerUtilisateurs(comptes, 'chloe@').map((c) => c.userId)).toEqual(['u2']);
+    expect(filtrerUtilisateurs(comptes, 'felix ollivier').map((c) => c.userId)).toEqual(['u1']);
+  });
+
+  it('retrouve une ligne du socle par son identifiant — son seul repère', () => {
+    expect(filtrerUtilisateurs(comptes, 'socle-42').map((c) => c.userId)).toEqual(['socle-42']);
   });
 });

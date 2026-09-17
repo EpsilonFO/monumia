@@ -63,6 +63,9 @@ class _Query:
     def order(self, *a, **k):
         return self
 
+    def limit(self, *a, **k):
+        return self
+
     def single(self):
         self._single = True
         return self
@@ -107,17 +110,6 @@ class _FakeSupabase:
         return [payload for table, _, payload in self.writes if table == "subscriptions"]
 
 
-PROFIL = {
-    "id": "user-1",
-    "email": "marie@exemple.fr",
-    "prenom": "Marie",
-    "nom": "Dupont",
-    "onboarding_complete": False,
-    "notification_preferences": {},
-    "created_at": "2026-09-07T00:00:00Z",
-    "account_type": "proprietaire",
-}
-
 AUTH_USER = SimpleNamespace(id="user-1", email="marie@exemple.fr", user_metadata={})
 
 
@@ -132,7 +124,14 @@ def _anon(user_id: str = "user-1"):
 
 
 def _base(**tables) -> _FakeSupabase:
-    return _FakeSupabase({"users": [dict(PROFIL)], **tables})
+    """Base d'une inscription : `users` est VIDE.
+
+    C'est l'état réel avant un `insert` de profil, et `register` en dépend
+    désormais — il vérifie qu'aucun profil n'existe (réinscription d'une
+    adresse jamais confirmée). Le faux client ajoute la ligne écrite à ses
+    lignes lisibles, donc `_get_profile` la relit juste après.
+    """
+    return _FakeSupabase({"users": [], **tables})
 
 
 class OctroiSurLesQuatreInscriptionsTest(unittest.TestCase):
@@ -237,7 +236,7 @@ class RobustesseTest(unittest.TestCase):
         """Le compte doit exister même si l'octroi échoue : l'offre gratuite
         reste un état utilisable, un 500 à l'inscription non."""
         supabase = _FakeSupabase(
-            {"users": [dict(PROFIL)]}, erreurs={"subscriptions": Exception("base indisponible")}
+            {"users": []}, erreurs={"subscriptions": Exception("base indisponible")}
         )
         resultat = register(
             body=RegisterRequest(

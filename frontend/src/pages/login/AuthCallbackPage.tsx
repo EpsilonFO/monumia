@@ -19,9 +19,15 @@ const MUTED = 'var(--muted-foreground)';
 const ERROR_MESSAGE =
   'La connexion avec Google n’a pas abouti. Vous pouvez réessayer, ou vous connecter avec votre adresse email.';
 
+/** Un lien de confirmation périmé ne se réessaie pas : il se re-demande. Le
+ *  message doit le dire, sinon la personne reclique indéfiniment sur le même
+ *  lien mort. */
+const EXPIRE_MESSAGE =
+  'Ce lien a expiré. Depuis la page de connexion, saisissez vos identifiants : un nouvel email de confirmation vous sera proposé.';
+
 /**
- * Atterrissage du flux « Continuer avec Google ». Supabase redirige ici avec
- * les jetons dans le fragment d'URL. On demande au backend si le profil
+ * Atterrissage du flux « Continuer avec Google », et du lien de CONFIRMATION
+ * d'email : les deux arrivent ici avec les jetons dans le fragment d'URL. On demande au backend si le profil
  * applicatif existe déjà : oui → connexion directe ; non → le profil est créé
  * ici même à partir de ce que Google renvoie, puis connexion directe.
  *
@@ -31,18 +37,51 @@ const ERROR_MESSAGE =
  * collaborateur et le rôle sur le projet (les jetons l'attendent alors en
  * mémoire dans usePendingOAuthStore).
  */
+/**
+ * Ce que l'URL d'arrivée raconte, lu UNE FOIS au premier rendu.
+ *
+ * Lecture séparée de l'effet, parce que l'effet efface l'URL aussitôt (les
+ * jetons ne doivent pas traîner dans la barre d'adresse) : tout ce dont
+ * l'écran a besoin doit avoir été extrait avant.
+ */
+function lireArrivee() {
+  const parsed = parseOAuthCallbackHash(window.location.hash);
+  // L'intention posée par le serveur dans le lien de confirmation (cf.
+  // `_url_retour_confirmation`), et non dans le `sessionStorage` : ce lien
+  // s'ouvre presque toujours dans un autre onglet, souvent sur un autre
+  // appareil, où rien du parcours n'a survécu.
+  const params = new URLSearchParams(window.location.search);
+  const invitation = params.get('invitation');
+  const reprise = params.get('reprise') === 'brouillon';
+  // Arrivée par un lien d'email plutôt que par Google. Deux flux aboutissent
+  // sur cet écran, et il ne peut pas tenir le même discours aux deux :
+  // « Connexion avec Google » à qui vient de confirmer son adresse est
+  // incompréhensible. Sur erreur le fragment ne porte pas de `type` ; restent
+  // `otp_expired`, qui ne vient que d'un lien d'email, et nos propres
+  // paramètres de requête, qui ont survécu à la redirection.
+  const lienEmail =
+    (parsed.status === 'ok' && parsed.type !== '') ||
+    (parsed.status === 'error' && parsed.code === 'otp_expired') ||
+    invitation !== null ||
+    reprise;
+  return { parsed, invitation, reprise, lienEmail };
+}
+
 export function AuthCallbackPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
   const setPendingSession = usePendingOAuthStore((s) => s.setSession);
   const [error, setError] = useState<string | null>(null);
+  // Initialiseur paresseux : l'URL est lue au premier rendu, donc avant que
+  // l'effet ne la nettoie. Un `setState` dans l'effet aurait provoqué un
+  // rendu en cascade pour une valeur qui ne change jamais.
+  const [{ parsed, invitation, reprise, lienEmail }] = useState(lireArrivee);
   const ranRef = useRef(false);
 
   useEffect(() => {
     if (ranRef.current) return; // garde StrictMode : l'effet ne doit tourner qu'une fois
     ranRef.current = true;
 
-    const parsed = parseOAuthCallbackHash(window.location.hash);
     // Nettoie l'URL pour ne pas laisser traîner les jetons.
     window.history.replaceState(null, '', window.location.pathname);
 
@@ -50,7 +89,7 @@ export function AuthCallbackPage() {
     // d'invitation, qui possède tout le parcours collaborateur (rôle sur le
     // projet, acceptation). Consommé ici même en cas d'erreur, pour ne pas
     // laisser un jeton traîner sur une tentative suivante.
-    const pendingInvitation = takePendingInvitation();
+    const pendingInvitation = takePendingInvitation() ?? invitation;
 
     // Google lancé depuis le parcours découverte : on renverra sur l'écran de
     // reprise, qui crée le monument et le projet du brouillon. Le drapeau est
@@ -58,10 +97,11 @@ export function AuthCallbackPage() {
     // rejouable), pour ne pas détourner une connexion Google ultérieure. Et
     // c'est bien lui qui porte l'intention : un brouillon oublié dans le
     // localStorage ne suffit pas à déclencher un rejeu.
-    const retourBrouillon = prendreRetourGoogleBrouillon() && brouillonPretPourRejeu();
+    const retourBrouillon =
+      (prendreRetourGoogleBrouillon() || reprise) && brouillonPretPourRejeu();
 
     if (parsed.status === 'error') {
-      setError(ERROR_MESSAGE);
+      setError(parsed.code === 'otp_expired' ? EXPIRE_MESSAGE : ERROR_MESSAGE);
       return;
     }
 
@@ -125,7 +165,7 @@ export function AuthCallbackPage() {
         navigate(retourBrouillon ? ROUTES.REPRISE : '/app', { replace: true });
       })
       .catch((err: unknown) => { console.error(err); setError(ERROR_MESSAGE); });
-  }, [navigate, setAuth, setPendingSession]);
+  }, [navigate, setAuth, setPendingSession, parsed, invitation, reprise]);
 
   return (
     <AuthLayout>
@@ -134,10 +174,28 @@ export function AuthCallbackPage() {
           className="text-[clamp(1.9rem,4vw,2.5rem)] leading-[1.1]"
           style={{ fontFamily: SERIF, color: C.ink }}
         >
-          Connexion avec <span style={{ color: C.blue }}>Google</span>
+          {!lienEmail ? (
+            <>
+              Connexion avec <span style={{ color: C.blue }}>Google</span>
+            </>
+          ) : error ? (
+            /* L'adresse n'est justement PAS confirmée : le titre ne peut pas
+               annoncer l'inverse de ce que dit le message juste dessous. */
+            <>
+              Lien de <span style={{ color: C.blue }}>confirmation</span>
+            </>
+          ) : (
+            <>
+              Adresse <span style={{ color: C.blue }}>confirmée</span>
+            </>
+          )}
         </h1>
         <p className="text-[15px]" style={{ color: MUTED }}>
-          {error ? 'La connexion ne s’est pas terminée.' : 'Un instant, nous vous connectons…'}
+          {error
+            ? lienEmail
+              ? 'Ce lien n’a pas pu être utilisé.'
+              : 'La connexion ne s’est pas terminée.'
+            : 'Un instant, nous vous connectons…'}
         </p>
       </div>
 

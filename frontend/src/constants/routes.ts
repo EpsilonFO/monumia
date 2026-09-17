@@ -45,12 +45,20 @@ export const ROUTES = {
   PROFIL: '/app/profil',
 
   /**
-   * Administration du catalogue, réservée aux fondateurs (`ADMIN_USER_IDS`
-   * côté serveur). Hors de `/app` et absente de la navigation : c'est une page
+   * Administration du catalogue, réservée au rôle `admin` de la table
+   * `comptes_roles` (et au socle `ADMIN_USER_IDS`) côté serveur. Hors de
+   * `/app` et absente de la navigation : c'est une page
    * d'exploitation, pas une fonctionnalité du produit. On y arrive par le lien
    * discret de la page Profil.
    */
   ADMIN: '/admin',
+
+  /**
+   * Le catalogue en chiffres (aides par territoire, par nature, chiffrage).
+   * Sous `/admin` et derrière le même garde : c'est la même page
+   * d'exploitation, vue par les nombres plutôt que ligne à ligne.
+   */
+  ADMIN_STATS: '/admin/statistiques',
 
   INVITATION: (token: string) => `/invitation/${token}`,
 } as const;

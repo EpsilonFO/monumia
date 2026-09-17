@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { ProjectQuestionnaire } from '@/components/project/ProjectQuestionnaire';
+import { ProjectFamillesStep } from '@/components/project/wizard/ProjectFamillesStep';
+import { ProjectReprisesStep } from '@/components/project/wizard/ProjectReprisesStep';
 import { ProjectIntentStep } from '@/components/project/wizard/ProjectIntentStep';
 import { ProjectTravauxStep } from '@/components/project/wizard/ProjectTravauxStep';
 import { PerilStep } from '@/components/project/wizard/PerilStep';
@@ -9,10 +11,11 @@ import { InscriptionStep } from '@/components/project/wizard/InscriptionStep';
 import { WizardShell } from '@/components/project/wizard/WizardShell';
 import { DiagnosticLoader } from '@/components/project/wizard/DiagnosticLoader';
 import {
+  FAMILLES_STEP,
   PERIL_RATTRAPAGE_STEP,
+  REPRISES_STEP,
   PROJET_WIZARD_STEPS,
   PROJET_WIZARD_STEPS_INVITE,
-  type WizardProgress,
   type WizardStepKey,
 } from '@/components/project/wizard/WizardRail';
 import { AllClear } from '@/components/illustrations';
@@ -23,20 +26,38 @@ import { useAideStore } from '@/stores/useAideStore';
 import { useBrouillonInviteStore } from '@/stores/useBrouillonInviteStore';
 import { monumentDepuisBrouillon } from '@/lib/brouillon-invite';
 import { monumentService } from '@/services/monument.service';
-import { projetService } from '@/services/projet.service';
+import { projetService, type RepriseDurable } from '@/services/projet.service';
 import { aideService } from '@/services/aide.service';
-import { sanitizeQcmQuestions } from '@/lib/qcm';
+import { partitionnerQuestions, sanitizeQcmQuestions } from '@/lib/qcm';
+import { clesApportees, fusionnerFaitsDurables } from '@/lib/faits-durables';
+import {
+  bilanDiagnostic,
+  bilanInvite,
+  minutesPourQuestions,
+  type BilanDiagnostic,
+} from '@/lib/diagnostic-bilan';
+import { OFFRE_GRATUITE, estOffreGratuite } from '@/lib/offres';
 import {
   RAISONS_KEY,
+  questionnaireDeCadrage,
   raisonProposee,
   readRaisons,
   sansClesReservees,
+  sansEtapeTravaux,
 } from '@/constants/raisons';
+import {
+  FAMILLE_TRAVAUX,
+  FAMILLES_KEY,
+  familleProposee,
+  readFamilles,
+  type Famille,
+} from '@/constants/familles';
 import type { EtatConservation } from '@/constants/monument-options';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { toast } from 'sonner';
 import type {
+  AideDiagnosticResult,
   Monument,
   ProjectQuestionnaireAnswers,
   QcmQuestion,
@@ -108,6 +129,13 @@ export function ProjetWizardPage() {
   // Intentions de l'étape « Votre projet » (finalités du catalogue). Elles
   // préfiltrent les aides candidates AVANT la génération du questionnaire.
   const [raisons, setRaisons] = useState<string[]>(modeInvite ? brouillon.raisons : []);
+  // Familles de l'étape « Les activités », en TRI-ÉTAT : `null` = question non
+  // posée (projet de restauration, ou projet d'avant l'étape), `[]` =
+  // « montrez-moi tout ». Seule la seconde s'écrit dans le questionnaire, et
+  // c'est ce qui permet de ne pas reposer la question.
+  const [familles, setFamilles] = useState<Famille[] | null>(
+    modeInvite ? brouillon.familles : null,
+  );
   // `travaux === null` : pas de réponse ; `[]` : « Pas encore déterminé ».
   const [travaux, setTravaux] = useState<WorkType[] | null>(
     modeInvite ? brouillon.travaux : null,
@@ -121,10 +149,24 @@ export function ProjetWizardPage() {
   const [besoinPeril, setBesoinPeril] = useState(false);
   // « Seulement les questions passées » démarre sur le questionnaire : le
   // cadrage n'est pas en cause, le repasser ferait perdre du temps.
-  const [step, setStep] = useState<WizardStepKey>(
-    modeInvite ? brouillon.etape : reprendrePassees ? 'questionnaire' : 'intention',
-  );
-  const [progress, setProgress] = useState<WizardProgress | null>(null);
+  const [step, setStep] = useState<WizardStepKey>(() => {
+    if (!modeInvite) return reprendrePassees ? 'questionnaire' : 'intention';
+    // Brouillon laissé sur l'étape des travaux alors que le cadrage ne la
+    // prévoit plus : « Faire vivre » la remplace par les activités, et ne la
+    // rouvre que si la famille des travaux y est cochée. On reprend à
+    // l'intention, qui réenchaîne d'elle-même sur la bonne étape.
+    if (
+      brouillon.etape === 'travaux' &&
+      sansEtapeTravaux(brouillon.raisons) &&
+      !(brouillon.familles ?? []).includes(FAMILLE_TRAVAUX)
+    ) {
+      return 'intention';
+    }
+    // Symétrique : un brouillon laissé sur les activités dont l'intention a
+    // changé depuis n'a plus d'étape où revenir.
+    if (brouillon.etape === 'familles' && !sansEtapeTravaux(brouillon.raisons)) return 'intention';
+    return brouillon.etape;
+  });
   // Accroche de l'écran d'inscription. `null` tant que le diagnostic complet
   // n'a pas répondu : son absence ne bloque pas l'inscription.
   const [synthese, setSynthese] = useState<SyntheseInvite | null>(null);
@@ -132,6 +174,53 @@ export function ProjetWizardPage() {
   // (intentions seules, sans réponses) dès l'étape 3 pour obtenir les questions à
   // poser (faits manquants) et le résultat de base.
   const [questions, setQuestions] = useState<QcmQuestion[]>([]);
+  /**
+   * Le questionnaire se joue en deux temps : le TRONC COMMUN ne pose que les
+   * questions partagées par au moins deux aides vivantes, puis un écran de fin
+   * honnête propose de découvrir le diagnostic ou de répondre au COMPLÉMENT —
+   * ce qui ne concerne plus qu'une aide à la fois. « Refaire → seulement les
+   * questions passées » saute cette partition : on y redemande justement tout
+   * ce qui reste.
+   */
+  const [phase, setPhase] = useState<'tronc' | 'complement'>('tronc');
+  const portee: 'tronc' | 'toutes' =
+    reprendrePassees || phase === 'complement' ? 'toutes' : 'tronc';
+  /** Bilan AFFICHÉ en fin de tronc : `null` = relance en cours (spinner). */
+  const [bilan, setBilan] = useState<
+    BilanDiagnostic | Pick<BilanDiagnostic, 'questionsRestantes' | 'minutesEstimees'> | null
+  >(null);
+  /** Diagnostic complet de la relance : sert la table de contexte du complément. */
+  const [bilanResult, setBilanResult] = useState<AideDiagnosticResult | null>(null);
+  /** Questions à poser au complément, telles que la relance les a rendues. */
+  const questionsComplement = useRef<QcmQuestion[] | null>(null);
+  /**
+   * Réponses REPRISES des autres projets du monument (faits de scope `monument`
+   * ou `proprietaire` : la protection du bien, le statut du porteur, ses
+   * revenus — rien qui change d'un chantier à l'autre).
+   *
+   * Un `ref` et non un état : `handleTravauxNext` les relit pour réarmer
+   * `answers` quand le cadrage change, et une valeur figée dans la fermeture y
+   * serait périmée. C'est le bogue que la relecture du plan avait signalé — le
+   * `setAnswers({})` d'un changement de cadrage effaçait les faits repris, puis
+   * la sortie du questionnaire persistait sans eux.
+   */
+  const durablesRef = useRef<ProjectQuestionnaireAnswers>({});
+  /**
+   * Les réponses PROPOSÉES à la reprise, tant que l'utilisateur n'a pas
+   * répondu. Distinctes de `durablesRef`, qui ne porte que les ACCEPTÉES :
+   * rien ne doit être appliqué ni enregistré avant l'accord, sinon refuser
+   * demanderait d'effacer ce qu'on vient d'écrire.
+   */
+  const proposeesRef = useRef<ProjectQuestionnaireAnswers>({});
+  /**
+   * Les réponses reprises, NOMMÉES — d'abord pour l'écran qui demande l'accord,
+   * ensuite pour le rappel du questionnaire. Un simple compte ne suffirait pas :
+   * il faut pouvoir dire LESQUELLES, puisqu'une réponse reprise n'est plus une
+   * incertitude et qu'aucune fiche d'aide ne l'offre donc à la correction.
+   */
+  const [reprises, setReprises] = useState<RepriseDurable[]>([]);
+  /** Réponse à l'écran de reprise. `null` : pas encore demandé, ou pas répondu. */
+  const [reprendreDurables, setReprendreDurables] = useState<boolean | null>(null);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [loadedCadrageKey, setLoadedCadrageKey] = useState<string | null>(null);
@@ -140,23 +229,63 @@ export function ProjetWizardPage() {
   // aides candidates, les travaux en font tomber par hard_filter. Le péril n'y
   // figure plus — il appartient au monument et ne change pas d'un projet à
   // l'autre. Revenir en arrière et changer l'un des deux régénère.
-  const cadrageKey = [
-    raisons.join('|'),
-    travaux === null ? '?' : travaux.join('|'),
-    // À cadrage identique, « tout refaire » et « seulement les questions
-    // passées » ne rendent pas le même jeu de questions.
-    reprendrePassees ? 'passees' : 'tout',
-  ].join('#');
+  /**
+   * Les seules clés RÉSERVÉES du cadrage, à poser sur les réponses aux faits.
+   * Une fonction et non une constante : elle est lue dans des effets dont
+   * `familles` n'est pas une dépendance, et une valeur figée y serait périmée.
+   *
+   * `_familles` est omise quand la question n'a pas été posée (`null`) : le
+   * moteur distingue « rien de déclaré » (ne filtre rien, ne déduit rien) de
+   * « montrez-moi tout » (`[]`, qui ne filtre rien non plus mais est un choix).
+   */
+  const cadrageSeul = (): ProjectQuestionnaireAnswers => ({
+    [RAISONS_KEY]: raisons,
+    ...(familles === null ? {} : { [FAMILLES_KEY]: familles }),
+  });
 
-  const steps = useMemo(
-    () =>
-      modeInvite
-        ? PROJET_WIZARD_STEPS_INVITE
-        : besoinPeril
-          ? [PERIL_RATTRAPAGE_STEP, ...PROJET_WIZARD_STEPS]
-          : PROJET_WIZARD_STEPS,
-    [modeInvite, besoinPeril],
-  );
+  const cleCadrage = (travauxChoisis: WorkType[] | null) =>
+    [
+      raisons.join('|'),
+      // Changer d'activités change les aides candidates, donc les questions.
+      familles === null ? '?' : familles.join('|'),
+      travauxChoisis === null ? '?' : travauxChoisis.join('|'),
+      // À cadrage identique, « tout refaire » et « seulement les questions
+      // passées » ne rendent pas le même jeu de questions.
+      reprendrePassees ? 'passees' : 'tout',
+    ].join('#');
+  const cadrageKey = cleCadrage(travaux);
+
+  // « Faire vivre et ouvrir le lieu » n'est pas un chantier : l'étape des
+  // travaux disparaît du rail, remplacée par celle des activités. Elle revient
+  // si l'utilisateur coche « Des travaux sont nécessaires » — beaucoup de
+  // projets d'ouverture aménagent quelque chose.
+  const etapeFamilles = sansEtapeTravaux(raisons);
+  // Il y a quelque chose à demander, on y est, ou on y est déjà passé : une
+  // étape traversée ne disparaît pas du rail, sinon celui-ci se contracterait
+  // juste après qu'on l'a franchie (un refus vide `reprises`).
+  const etapeReprises =
+    reprises.length > 0 || step === 'reprises' || reprendreDurables !== null;
+  const sauterTravaux = etapeFamilles && !(familles ?? []).includes(FAMILLE_TRAVAUX);
+  const steps = useMemo(() => {
+    const base = modeInvite
+      ? PROJET_WIZARD_STEPS_INVITE
+      : besoinPeril
+        ? [PERIL_RATTRAPAGE_STEP, ...PROJET_WIZARD_STEPS]
+        : PROJET_WIZARD_STEPS;
+    // Le rail travaille par rang : insérer ou retirer une étape suffit.
+    const avecFamilles = etapeFamilles
+      ? base.flatMap((s) => (s.key === 'intention' ? [s, FAMILLES_STEP] : [s]))
+      : base;
+    const avecTravaux = sauterTravaux
+      ? avecFamilles.filter((s) => s.key !== 'travaux')
+      : avecFamilles;
+    // L'étape de reprise n'apparaît qu'une fois les réponses durables connues
+    // (elles sont lues à la création du projet) : le rail change de forme en
+    // cours de route, ce qu'il sait faire — il travaille par rang.
+    return etapeReprises
+      ? avecTravaux.flatMap((s) => (s.key === 'questionnaire' ? [REPRISES_STEP, s] : [s]))
+      : avecTravaux;
+  }, [modeInvite, besoinPeril, etapeFamilles, sauterTravaux, etapeReprises]);
 
   const eyebrow = existingProjetId ? 'Questionnaire' : 'Nouveau projet';
 
@@ -187,6 +316,11 @@ export function ProjetWizardPage() {
       });
   }, [monumentId]);
 
+  // Questionnaire DÉJÀ ENREGISTRÉ sur le projet repris. Un ref, pas un état :
+  // il ne sert qu'à ne pas effacer des réponses en réécrivant le cadrage, et
+  // rien à l'écran n'en dépend. Vide pour un nouveau projet.
+  const questionnaireEnregistre = useRef<ProjectQuestionnaireAnswers>({});
+
   // « Refaire le questionnaire » : on reprend le cadrage du projet existant.
   const prefilled = useRef(false);
   useEffect(() => {
@@ -198,12 +332,20 @@ export function ProjetWizardPage() {
         // de cocher si le projet arrive en retard.
         if (prefilled.current) return;
         prefilled.current = true;
+        questionnaireEnregistre.current = p.questionnaire ?? {};
         // Filtré sur ce que l'écran propose ENCORE : un projet cadré sur
         // « Optimiser la fiscalité » rouvrirait sinon sur quatre tuiles
         // décochées et un « Continuer » actif. Rien ne reste ⇒ l'étape
         // redemande l'intention.
         const previous = readRaisons(p.questionnaire).filter(raisonProposee);
         if (previous.length > 0) setRaisons(previous);
+        // Même filtrage pour les familles, et même raison : une famille qui
+        // n'est plus proposée rouvrirait sur une tuile décochée. `null` reste
+        // `null` — la question n'avait pas été posée, l'étape la posera.
+        const famillesPrecedentes = readFamilles(p.questionnaire);
+        if (famillesPrecedentes !== null) {
+          setFamilles(famillesPrecedentes.filter(familleProposee) as Famille[]);
+        }
         setTravaux(p.travauxEnvisages);
         // Ne compléter que les questions passées suppose de repartir des
         // réponses existantes — sans les clés réservées, qui voyagent à part
@@ -242,16 +384,18 @@ export function ProjetWizardPage() {
           .runDiagnosticInvite({
             monument: monumentBrouillon!,
             travauxEnvisages: travaux ?? [],
-            answers: { [RAISONS_KEY]: raisons },
+            answers: cadrageSeul(),
           })
           .then((r) => r.qcmQuestions)
       : aideService
           .runDeterministicDiagnostic(projetId!, {
-            // Les réponses connues ne partent QUE dans le mode « questions
-            // passées » : ailleurs, le moteur les tiendrait pour résolues et
-            // les retirerait de sa liste — l'inverse de « tout refaire ».
-            ...(reprendrePassees ? answers : {}),
-            [RAISONS_KEY]: raisons,
+            // Les réponses connues partent TOUJOURS : le moteur les tient pour
+            // résolues et ne rend pas leurs questions, ce qui est exactement ce
+            // qu'on veut des faits DURABLES repris des autres projets du
+            // monument. « Tout refaire » n'en pâtit pas — `answers` ne porte
+            // alors que ces faits repris, et rien de ce chantier-ci.
+            ...answers,
+            ...cadrageSeul(),
           })
           .then((r) => r.qcmQuestions);
 
@@ -318,7 +462,7 @@ export function ProjetWizardPage() {
       .runDiagnosticInvite({
         monument: monumentBrouillon,
         travauxEnvisages: travaux ?? [],
-        answers: { ...answers, [RAISONS_KEY]: raisons },
+        answers: { ...answers, ...cadrageSeul() },
       })
       .then((r) => setSynthese(r.synthese))
       .catch((err) => console.error('Erreur accroche invité (ignorée):', err));
@@ -370,34 +514,91 @@ export function ProjetWizardPage() {
     setStep('intention');
   };
 
-  // Fin de l'étape travaux : le cadrage vit sur le PROJET, que le moteur relit
-  // côté serveur pour ses hard_filters — on le persiste donc AVANT de générer
-  // le questionnaire. En cas d'échec on reste sur l'écran : partir avec des
+  /** Le cadrage a changé : le questionnaire est régénéré, on repart du tronc. */
+  const repartirDuTronc = () => {
+    setPhase('tronc');
+    setBilan(null);
+    setBilanResult(null);
+    questionsComplement.current = null;
+  };
+
+  // Fin de l'étape travaux : le cadrage vit sur le PROJET — les travaux, que le
+  // moteur relit côté serveur pour ses hard_filters, et la finalité, qui écarte
+  // les aides d'un autre métier. On le persiste donc AVANT de générer le
+  // questionnaire. En cas d'échec on reste sur l'écran : partir avec des
   // travaux non enregistrés donnerait un diagnostic calculé sur l'état
   // précédent, sans que rien ne le signale.
-  const handleTravauxNext = async () => {
-    if (travaux === null) return;
+  //
+  // `travauxChoisis` : l'état par défaut, ou `[]` quand l'étape est sautée
+  // depuis l'intention — le `setTravaux` qui l'accompagne n'est pas encore
+  // visible dans cette fermeture.
+  const handleTravauxNext = async (travauxChoisis: WorkType[] | null = travaux) => {
+    if (travauxChoisis === null) return;
+    const nouvelleCle = cleCadrage(travauxChoisis);
     // En invité, rien à persister : le cadrage va dans le brouillon, et le
     // questionnaire est calculé à partir de ce qu'on envoie dans le corps.
     if (modeInvite) {
-      brouillon.setCadrage(raisons, travaux);
+      brouillon.setCadrage(raisons, travauxChoisis, familles);
       brouillon.setEtape('questionnaire');
-      if (loadedCadrageKey !== null && loadedCadrageKey !== cadrageKey) {
+      if (loadedCadrageKey !== null && loadedCadrageKey !== nouvelleCle) {
         setAnswers({});
         setQuestions([]);
         brouillon.setAnswers({});
+        repartirDuTronc();
       }
       setStep('questionnaire');
       return;
     }
     if (!monumentId) return;
     setSaving(true);
+    // Premier projet de la session : on reprend les faits DURABLES des autres
+    // projets du monument. Par le service et non par le store : celui-ci peut
+    // être vide hors `AppLayout`, et une reprise silencieusement vide se
+    // lirait comme une panne. Un échec n'arrête rien — on repose les questions.
+    let aDemander: RepriseDurable[] = [];
+    if (!projetId) {
+      try {
+        const durables = await projetService.faitsDurables(monumentId);
+        // Ce que la reprise APPORTERAIT, pas ce qu'elle contient : une réponse
+        // que ce projet portait déjà n'est pas une reprise, et l'annoncer
+        // ferait dire à l'écran « 12 réponses » là où l'utilisateur n'en
+        // reconnaît que trois.
+        const apportees = clesApportees(durables.reponses, questionnaireEnregistre.current);
+        proposeesRef.current = Object.fromEntries(
+          apportees.map((cle) => [cle, durables.reponses[cle]]),
+        );
+        aDemander = durables.details.filter((d) => apportees.includes(d.fact));
+        setReprises(aDemander);
+      } catch (err) {
+        console.error('Erreur lecture des faits durables (ignorée):', err);
+      }
+    }
+    // Le cadrage part ENTIER : les travaux ET la finalité. Cette dernière est
+    // ce qui écarte du diagnostic les aides d'un autre métier (`hors_projet`
+    // côté serveur) ; ne l'écrire qu'à la sortie du questionnaire laissait la
+    // page d'un projet quitté en route lister « Hauts-de-France en fête » à
+    // qui venait de cocher « Restaurer ou faire des travaux ».
+    // `durablesRef` ne porte que les réponses ACCEPTÉES : à la création il est
+    // vide, l'accord n'a pas encore été demandé. Rien de repris ne s'enregistre
+    // donc avant que l'utilisateur ne l'ait dit (cf. `accepterReprises`).
+    const questionnaire = questionnaireDeCadrage(
+      fusionnerFaitsDurables(durablesRef.current, questionnaireEnregistre.current),
+      raisons,
+      familles,
+    );
     try {
       const projet = projetId
-        ? await projetService.update(projetId, { travauxEnvisages: travaux })
-        : await projetService.create(monumentId, { travauxEnvisages: travaux });
+        ? await projetService.update(projetId, {
+            travauxEnvisages: travauxChoisis,
+            questionnaire,
+          })
+        : await projetService.create(monumentId, {
+            travauxEnvisages: travauxChoisis,
+            questionnaire,
+          });
       upsertProjet(projet);
       setProjetId(projet.id);
+      questionnaireEnregistre.current = projet.questionnaire;
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Erreur lors de l’enregistrement de votre projet"
@@ -406,14 +607,192 @@ export function ProjetWizardPage() {
     } finally {
       setSaving(false);
     }
-    // Changer le cadrage périme les réponses déjà données (leurs questions
-    // peuvent disparaître) — on repart d'un questionnaire propre.
-    if (loadedCadrageKey !== null && loadedCadrageKey !== cadrageKey) {
-      setAnswers({});
+    // Changer le cadrage périme les réponses données ICI (leurs questions
+    // peuvent disparaître) — on repart du questionnaire, mais PAS de zéro : les
+    // faits repris des autres projets décrivent le bien et le propriétaire, que
+    // le cadrage de ce chantier ne change pas.
+    if (loadedCadrageKey !== null && loadedCadrageKey !== nouvelleCle) {
+      setAnswers(durablesRef.current);
       setQuestions([]);
+      repartirDuTronc();
+    } else if (Object.keys(durablesRef.current).length > 0) {
+      setAnswers((precedentes) => fusionnerFaitsDurables(durablesRef.current, precedentes));
+    }
+    // Des réponses à reprendre ⇒ on le DEMANDE avant de générer le
+    // questionnaire : le moteur ne doit pas les tenir pour acquises tant que
+    // l'utilisateur ne les a pas vues.
+    setStep(aDemander.length > 0 ? 'reprises' : 'questionnaire');
+  };
+
+  /**
+   * Sortie de l'écran de reprise. L'accord est APPLIQUÉ ici, pas avant : les
+   * réponses entrent dans l'état du questionnaire et dans le projet enregistré.
+   *
+   * Un refus n'a rien à défaire — rien n'avait été écrit — et vide les deux
+   * réserves pour que le changement de cadrage ne les réintroduise pas.
+   */
+  const handleReprisesNext = async () => {
+    if (reprendreDurables === null) return;
+    if (!reprendreDurables) {
+      proposeesRef.current = {};
+      setReprises([]);
+      setStep('questionnaire');
+      return;
+    }
+    durablesRef.current = proposeesRef.current;
+    const acceptees = durablesRef.current;
+    setAnswers((precedentes) => fusionnerFaitsDurables(acceptees, precedentes));
+    if (projetId) {
+      setSaving(true);
+      try {
+        const projet = await projetService.update(projetId, {
+          questionnaire: {
+            ...fusionnerFaitsDurables(
+              acceptees,
+              sansClesReservees(questionnaireEnregistre.current),
+            ),
+            ...cadrageSeul(),
+          },
+        });
+        upsertProjet(projet);
+        questionnaireEnregistre.current = projet.questionnaire;
+      } catch (err) {
+        // Non bloquant : les réponses sont dans l'état, la sortie du
+        // questionnaire les persistera de toute façon.
+        console.error('Erreur enregistrement des réponses reprises (ignorée):', err);
+      } finally {
+        setSaving(false);
+      }
     }
     setStep('questionnaire');
   };
+
+  /**
+   * Fin du TRONC COMMUN : on relance le moteur avec les réponses données pour
+   * bâtir un bilan VRAI (et, côté connecté, amorcer le store de diagnostic —
+   * le résultat était jusqu'ici jeté). Rappelé à chaque retour sur l'écran de
+   * fin : « Revoir mes réponses » puis « Continuer » repartirait sinon de
+   * chiffres périmés.
+   *
+   * Repli si la relance échoue : la partition locale des questions suffit à
+   * annoncer combien il en reste — l'écran garde ses deux options, il perd
+   * seulement ses compteurs d'aides.
+   */
+  const handleFinTronc = () => {
+    setBilan(null);
+    setBilanResult(null);
+    questionsComplement.current = null;
+    const replier = () => {
+      const propres = partitionnerQuestions(questions, answers).propres;
+      questionsComplement.current = propres;
+      setBilan({
+        questionsRestantes: propres.length,
+        minutesEstimees: minutesPourQuestions(propres.length),
+      });
+    };
+    const reponses: ProjectQuestionnaireAnswers = { ...answers, ...cadrageSeul() };
+    if (modeInvite) {
+      const monumentBrouillon = brouillon.monument;
+      if (!monumentBrouillon) return replier();
+      aideService
+        .runDiagnosticInvite({
+          monument: monumentBrouillon,
+          travauxEnvisages: travaux ?? [],
+          answers: reponses,
+        })
+        .then((r) => {
+          questionsComplement.current = sanitizeQcmQuestions(r.qcmQuestions);
+          setBilan(bilanInvite(r));
+        })
+        .catch((err) => {
+          console.error('Erreur bilan de fin de tronc (repli local):', err);
+          replier();
+        });
+      return;
+    }
+    if (!projetId) return replier();
+    aideService
+      .runDeterministicDiagnostic(projetId, reponses)
+      .then((r) => {
+        questionsComplement.current = sanitizeQcmQuestions(r.qcmQuestions);
+        setBilanResult(r);
+        setBilan(bilanDiagnostic(r));
+        setDiagnostic(projetId, r);
+      })
+      .catch((err) => {
+        console.error('Erreur bilan de fin de tronc (repli local):', err);
+        replier();
+      });
+  };
+
+  /**
+   * « Répondre aux questions restantes » : on persiste D'ABORD ce que le tronc
+   * a récolté — `handleQuestionnaireNext` n'écrira qu'à la toute fin, et
+   * abandonner en plein complément ne doit rien coûter — puis on remplace le
+   * jeu de questions par celui de la relance. `key={phase}` sur le
+   * questionnaire remet index, questions vues et jauge à zéro ; l'effet qui
+   * charge les questions ne dépend ni de `questions` ni de `phase`, il ne
+   * repartira donc pas.
+   */
+  const handleContinuerComplement = async () => {
+    const suite = questionsComplement.current;
+    if (!suite) return;
+    if (modeInvite) {
+      brouillon.setAnswers(answers);
+    } else if (projetId) {
+      try {
+        upsertProjet(
+          await projetService.update(projetId, {
+            questionnaire: { ...answers, ...cadrageSeul() },
+          }),
+        );
+      } catch (err) {
+        console.error('Erreur enregistrement du tronc commun (ignorée):', err);
+      }
+    }
+    setQuestions(sanitizeQcmQuestions(suite));
+    setPhase('complement');
+  };
+
+  /**
+   * Contexte d'une question du complément : l'aide qu'elle débloque, son enjeu.
+   *
+   * Absent en mode invité — les `aideIds` y sont des pseudonymes recalculés à
+   * chaque réponse, ils ne nomment rien. Le montant suit la règle des cartes :
+   * il ne s'affiche qu'à partir de l'offre Veille, c'est l'offre du MONUMENT
+   * qui décide.
+   */
+  const contexteAide = useMemo(() => {
+    if (modeInvite || !bilanResult) return undefined;
+    const chiffres = !estOffreGratuite(monument?.offre ?? OFFRE_GRATUITE);
+    const table = new Map<string, { nom: string; montantMax?: number | null }>();
+    for (const m of [
+      ...(bilanResult.aidesEligibles ?? []),
+      ...(bilanResult.aidesPotentiellementEligibles ?? []),
+      ...(bilanResult.aidesAtteignables ?? []),
+      ...(bilanResult.aidesNonEligibles ?? []),
+    ]) {
+      table.set(m.aide.id, { nom: m.aide.nomCourt || m.aide.nom, montantMax: m.aide.montantMax });
+    }
+    return (q: QcmQuestion) => {
+      // L'aide au plus fort enjeu, pas `aideIds[0]` — les ids sont des slugs, et
+      // le premier par ordre alphabétique nommait une aide au hasard. Le
+      // classement se fait sur le montant RÉEL, avant le masquage de l'offre
+      // gratuite : sinon le nom affiché changerait avec l'offre.
+      let meilleure: { nom: string; montantMax?: number | null } | undefined;
+      for (const id of q.aideIds ?? []) {
+        const entree = table.get(id);
+        if (!entree) continue;
+        if (!meilleure || (entree.montantMax ?? 0) > (meilleure.montantMax ?? 0)) meilleure = entree;
+      }
+      if (!meilleure) return null;
+      return {
+        nom: meilleure.nom,
+        montantMax: chiffres ? meilleure.montantMax : null,
+        nbAides: q.aideIds?.length ?? 1,
+      };
+    };
+  }, [modeInvite, bilanResult, monument?.offre]);
 
   // Questionnaire → page du projet : on persiste réponses ET intentions sur le
   // projet (la page recalcule le même diagnostic à partir de là), puis on amorce
@@ -428,7 +807,7 @@ export function ProjetWizardPage() {
     }
 
     if (!projetId) return;
-    const questionnaire: ProjectQuestionnaireAnswers = { ...answers, [RAISONS_KEY]: raisons };
+    const questionnaire: ProjectQuestionnaireAnswers = { ...answers, ...cadrageSeul() };
     setSaving(true);
     setStep('diagnostic');
     try {
@@ -472,7 +851,6 @@ export function ProjetWizardPage() {
       steps={steps}
       step={step}
       monument={monumentAffiche}
-      progress={step === 'questionnaire' ? progress : null}
       // Rien à confirmer quand quitter mène à l'écran de fin : les réponses
       // sont dans le brouillon et le questionnaire reste reprenable.
       confirmQuit={
@@ -505,11 +883,22 @@ export function ProjetWizardPage() {
           value={raisons}
           onChange={setRaisons}
           onNext={() => {
+            // « Faire vivre et ouvrir le lieu » : ce ne sont pas des travaux
+            // qu'on demande ensuite, mais des ACTIVITÉS. L'étape des travaux
+            // ne revient que si l'utilisateur y déclare en avoir besoin.
+            if (etapeFamilles) {
+              if (modeInvite) {
+                brouillon.setCadrage(raisons, travaux, familles);
+                brouillon.setEtape('familles');
+              }
+              setStep('familles');
+              return;
+            }
             // En invité, les intentions vont dans le brouillon dès maintenant :
             // un F5 à l'étape des travaux ne doit pas ramener à une page
             // d'intentions vide. Les travaux, eux, sont encore inconnus.
             if (modeInvite) {
-              brouillon.setCadrage(raisons, travaux);
+              brouillon.setCadrage(raisons, travaux, familles);
               brouillon.setEtape('travaux');
             }
             setStep('travaux');
@@ -518,13 +907,49 @@ export function ProjetWizardPage() {
         />
       )}
 
+      {step === 'familles' && (
+        <ProjectFamillesStep
+          eyebrow={eyebrow}
+          value={familles}
+          onChange={setFamilles}
+          onNext={() => {
+            // Des travaux déclarés nécessaires ⇒ on demande sur quoi ils
+            // portent. Sinon le projet est cadré « Pas encore déterminé » et
+            // l'on enchaîne sur le questionnaire, création du projet comprise.
+            if ((familles ?? []).includes(FAMILLE_TRAVAUX)) {
+              if (modeInvite) {
+                brouillon.setCadrage(raisons, travaux, familles);
+                brouillon.setEtape('travaux');
+              }
+              setStep('travaux');
+              return;
+            }
+            setTravaux([]);
+            void handleTravauxNext([]);
+          }}
+          onBack={() => setStep('intention')}
+          saving={saving}
+        />
+      )}
+
+      {step === 'reprises' && (
+        <ProjectReprisesStep
+          eyebrow={eyebrow}
+          reprises={reprises}
+          value={reprendreDurables}
+          onChange={setReprendreDurables}
+          onNext={() => void handleReprisesNext()}
+          saving={saving}
+        />
+      )}
+
       {step === 'travaux' && (
         <ProjectTravauxStep
           eyebrow={eyebrow}
           value={travaux}
           onChange={setTravaux}
-          onNext={handleTravauxNext}
-          onBack={() => setStep('intention')}
+          onNext={() => void handleTravauxNext()}
+          onBack={() => setStep(etapeFamilles ? 'familles' : 'intention')}
           saving={saving}
         />
       )}
@@ -617,8 +1042,18 @@ export function ProjetWizardPage() {
             </div>
           ) : (
             <ProjectQuestionnaire
+              key={phase}
               questions={questions}
               value={answers}
+              portee={portee}
+              finTronc={{
+                bilan,
+                onDecouvrir: handleQuestionnaireNext,
+                onContinuer: () => void handleContinuerComplement(),
+              }}
+              onFinTronc={handleFinTronc}
+              reprises={reprises}
+              contexteAide={phase === 'complement' ? contexteAide : undefined}
               // En invité, chaque réponse part aussi dans le brouillon : un F5
               // au milieu du questionnaire ne perd rien.
               onChange={(a) => {
@@ -628,7 +1063,6 @@ export function ProjetWizardPage() {
               onComplete={handleQuestionnaireNext}
               submitting={saving}
               completeLabel={modeInvite ? 'Découvrir mes financements' : undefined}
-              onProgress={setProgress}
             />
           )}
         </div>

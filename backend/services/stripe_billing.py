@@ -18,6 +18,12 @@ que chaque offre ouvre est décrit ailleurs, dans `services/offres.py` : la tabl
 des droits est pure et se lit sans base de données, ce module ne fait que la
 résoudre pour un utilisateur donné.
 
+Deux offres y entrent sans passer par Stripe, et par le même chemin — l'union
+des plans, jamais un `if` ailleurs dans le produit : celle octroyée à la
+création d'un compte (`octroyer_offre_initiale`, qui écrit une ligne), et celle
+qu'ouvre un RÔLE de compte — administrateur ou bêta-testeur (`PLAN_DES_ROLES`,
+synthétisée à la lecture pour qu'elle suive les rôles dans les deux sens).
+
 Stripe est optionnel : sans `STRIPE_SECRET_KEY`, `is_configured()` renvoie False
 et la page Tarifs se rabat sur son état « bientôt disponible ». Le reste du site
 fonctionne normalement — un déploiement sans clé ne casse rien, et l'offre
@@ -35,6 +41,7 @@ from fastapi import HTTPException, Request
 from supabase import Client
 
 from config import request_app_origin
+from services import roles
 from services.offres import (
     PLAN_A_LA_CREATION,
     PLAN_MULTI_MONUMENTS,
@@ -48,6 +55,7 @@ from services.offres import (
 
 __all__ = [
     "PLANS",
+    "PLAN_DES_ROLES",
     "PLANS_VENDABLES",
     "PLAN_A_LA_CREATION",
     "PLAN_MULTI_MONUMENTS",
@@ -248,10 +256,31 @@ def _plan_de(row: dict) -> str | None:
     return row.get("plan") or plan_pour_price(row.get("stripe_price_id"))
 
 
+#: L'offre qu'ouvre un RÔLE de compte (cf. `services/roles.ROLES_AVEC_OFFRE` —
+#: administrateur, bêta-testeur). Pas une faveur : la page `/admin` sert à
+#: exploiter le catalogue et il faut pouvoir le regarder depuis le produit ; et
+#: on ne demande pas à un bêta-testeur d'essayer une moitié de produit. Dans les
+#: deux cas, sans s'ouvrir un abonnement dans Stripe.
+PLAN_DES_ROLES = PLAN_MULTI_MONUMENTS
+
+
+def _avec_plan_de_role(plans: set[str], a_un_role: bool) -> set[str]:
+    """Ajoute l'offre ouverte par un rôle, sans jamais en retirer une.
+
+    Synthétisée ici plutôt qu'écrite comme une ligne d'abonnement octroyée : le
+    droit suit alors les rôles dans les deux sens — retirer un rôle de
+    `comptes_roles` reprend l'offre du même coup, et ne reprend que celle-là (un
+    abonnement réel reste dans l'union).
+    """
+    return plans | {PLAN_DES_ROLES} if a_un_role else plans
+
+
 def active_plans(supabase: Client, user_id: str) -> set[str]:
     """Les offres que ce compte détient. Vide = offre gratuite."""
     plans = {_plan_de(row) for row in active_subscriptions(supabase, user_id)}
-    return {p for p in plans if p in PLANS}
+    return _avec_plan_de_role(
+        {p for p in plans if p in PLANS}, user_id in roles.comptes_avec_offre(supabase)
+    )
 
 
 def plans_par_compte(supabase: Client, user_ids: Iterable[str]) -> dict[str, set[str]]:
@@ -280,6 +309,11 @@ def plans_par_compte(supabase: Client, user_ids: Iterable[str]) -> dict[str, set
         plan = _plan_de(row)
         if plan in PLANS:
             par_compte.setdefault(row["user_id"], set()).add(plan)
+    # Les rôles, en une lecture (cache module-level) : l'offre qu'ils ouvrent
+    # doit se retrouver ici aussi, sinon le propriétaire administrateur ou
+    # bêta-testeur d'un monument ne gouvernerait pas ses propres chantiers.
+    for user_id in roles.comptes_avec_offre(supabase).intersection(ids):
+        par_compte.setdefault(user_id, set()).add(PLAN_DES_ROLES)
     return par_compte
 
 
@@ -390,7 +424,15 @@ def access_snapshot(supabase: Client, user_id: str) -> dict[str, Any]:
     serveur qui tranche.
     """
     subscriptions = active_subscriptions(supabase, user_id)
-    plans = sorted({p for p in (_plan_de(r) for r in subscriptions) if p in PLANS})
+    # `subscription` reste celle de Stripe : un compte qui tient son offre d'un
+    # rôle la voit dans `plans` et `offre`, mais sans échéance ni prélèvement à
+    # venir — il n'y a rien à facturer.
+    plans = sorted(
+        _avec_plan_de_role(
+            {p for p in (_plan_de(r) for r in subscriptions) if p in PLANS},
+            user_id in roles.comptes_avec_offre(supabase),
+        )
+    )
     principale = next((r for r in subscriptions if _plan_de(r) in PLANS), None)
     return {
         "plans": plans,

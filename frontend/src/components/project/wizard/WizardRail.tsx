@@ -25,12 +25,6 @@ export interface WizardStep {
   icon: IconComponent;
 }
 
-/** Progression du questionnaire : index 0-based, index === total sur l'écran de fin. */
-export interface WizardProgress {
-  index: number;
-  total: number;
-}
-
 /** Étape optionnelle en tête du wizard projet : le monument a été créé avant
  *  que la question du péril n'existe, elle n'a donc jamais été posée. Sans ce
  *  rattrapage, elle ne le serait plus jamais. */
@@ -39,6 +33,28 @@ export const PERIL_RATTRAPAGE_STEP: WizardStep = {
   label: 'État du monument',
   hint: 'Une question restée sans réponse sur votre fiche.',
   icon: IconDiagnostic,
+};
+
+/** Étape propre à l'intention « Faire vivre et ouvrir le lieu » : quelles
+ *  activités, sur les 13 familles du catalogue. Insérée après l'intention, et
+ *  seulement pour elle — « Restaurer » et « Préparer le projet » impliquent
+ *  déjà leurs familles côté moteur et n'ont rien à demander. */
+export const FAMILLES_STEP: WizardStep = {
+  key: 'familles',
+  label: 'Les activités',
+  hint: 'Ce que vous voulez faire vivre — les aides ne financent pas les mêmes.',
+  icon: IconProjet,
+};
+
+/** Étape posée quand le monument porte DÉJÀ un projet : ses réponses durables
+ *  (le bien, le propriétaire) peuvent être reprises, et l'utilisateur doit le
+ *  dire lui-même — les reprendre en silence laisserait des réponses décidées
+ *  dans son dos, qu'aucune fiche d'aide ne lui offrirait à la correction. */
+export const REPRISES_STEP: WizardStep = {
+  key: 'reprises',
+  label: 'Vos réponses',
+  hint: 'Ce que nous savons déjà de votre monument.',
+  icon: IconListe,
 };
 
 /** Création d'un projet de travaux sur un monument déjà décrit. */
@@ -58,7 +74,7 @@ export const PROJET_WIZARD_STEPS: WizardStep[] = [
   {
     key: 'questionnaire',
     label: 'Questionnaire',
-    hint: 'Des questions simples, sans aucun document.',
+    hint: 'Quelques minutes, sans aucun document.',
     icon: IconListe,
   },
   {
@@ -115,8 +131,6 @@ interface WizardRailProps {
   steps: WizardStep[];
   step: WizardStepKey;
   monument: Monument | null;
-  /** Accepté pour stabilité d'interface (header mobile du shell l'utilise). */
-  progress: WizardProgress | null;
   onQuit: () => void;
 }
 

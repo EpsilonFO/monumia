@@ -36,7 +36,41 @@ export interface ProjetInput {
   questionnaire?: Projet['questionnaire'];
 }
 
+/**
+ * Réponses DURABLES d'un monument : celles qu'un nouveau projet n'a pas à
+ * redemander (faits de scope `monument` ou `proprietaire`).
+ *
+ * `source` dit de quel projet vient chaque réponse et `titres` comment il
+ * s'appelle : le wizard en fait un bandeau, et une reprise qu'on ne peut pas
+ * tracer n'est pas explicable.
+ */
+export interface RepriseDurable {
+  fact: string;
+  /** La question telle que le questionnaire l'aurait posée. */
+  question: string;
+  /** La réponse en clair, ou `null` quand on ne sait pas la nommer (tranche
+   *  numérique, fabriquée par le moteur depuis les seuils des aides). */
+  reponse: string | null;
+  projetId: string;
+  projetTitre: string | null;
+}
+
+export interface FaitsDurables {
+  reponses: Projet['questionnaire'];
+  source: Record<string, string>;
+  titres: Record<string, string | null>;
+  /** De quoi NOMMER les reprises à l'écran. Indispensable : une réponse reprise
+   *  n'est plus une incertitude, donc le moteur ne rend plus sa question, donc
+   *  aucune fiche d'aide ne l'offre à la correction. */
+  details: RepriseDurable[];
+}
+
 export const projetService = {
+  async faitsDurables(monumentId: string): Promise<FaitsDurables> {
+    const res = await authFetch(`${BASE}/monuments/${monumentId}/faits-durables`);
+    return handleResponse<FaitsDurables>(res);
+  },
+
   async listByMonument(monumentId: string): Promise<Projet[]> {
     const res = await authFetch(`${BASE}/monuments/${monumentId}/projets`);
     const rows = await handleResponse<Record<string, unknown>[]>(res);

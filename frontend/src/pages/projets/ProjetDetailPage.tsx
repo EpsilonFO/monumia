@@ -14,6 +14,7 @@ import {
 import { EmptyState } from '@/components/shared/EmptyState';
 import { InfoBulle } from '@/components/shared/InfoBulle';
 import { AideCard } from '@/components/aide/AideCard';
+import { AideFamilleBar } from '@/components/aide/AideFamilleBar';
 import { AideFiltreBar } from '@/components/aide/AideFiltreBar';
 import { DossierCard } from '@/components/dossier/DossierCard';
 import { DocumentCard } from '@/components/document/DocumentCard';
@@ -44,7 +45,10 @@ import { dossierService } from '@/services/dossier.service';
 import { suiviService } from '@/services/suivi.service';
 import { resolveLegacyProjetId } from '@/lib/legacy-id';
 import { AIDE_FILTRES, filtresDisponibles, filtrerAides, type AideFiltreKey } from '@/lib/aide-filtres';
+import { famillesDisponibles, filtrerParFamille } from '@/lib/aide-familles';
 import { computeProjectStats, mergeProjectDeadlines } from '@/lib/project-stats';
+import { questionsPourAide } from '@/lib/diagnostic-bilan';
+import { sanitizeQcmQuestions } from '@/lib/qcm';
 import { daysUntil } from '@/lib/date-utils';
 import { C, SERIF } from '@/lib/brand';
 import { aideGridSpans } from '@/lib/aide-grid';
@@ -104,6 +108,7 @@ export function ProjetDetailPage() {
   const projet = useProjetStore((s) => s.projets.find((p) => p.id === projetId));
   const upsertProjet = useProjetStore((s) => s.upsertProjet);
   const deleteProjetLocal = useProjetStore((s) => s.deleteProjet);
+  const repondreFait = useProjetStore((s) => s.repondreFait);
 
   const monumentId = projet?.monumentId;
   const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId));
@@ -135,6 +140,10 @@ export function ProjetDetailPage() {
   const [deleting, setDeleting] = useState(false);
   // Filtre par financeur, appliqué à TOUTES les sections d'aides de la page.
   const [filtreKey, setFiltreKey] = useState<AideFiltreKey>('toutes');
+  // Facette de FAMILLE, second axe de tri (le thème, là où le filtre ci-dessus
+  // porte sur le financeur). `null` = aucune facette, tout passe — y compris
+  // les aides sans famille, qu'aucune facette ne compte.
+  const [familleFacette, setFamilleFacette] = useState<string | null>(null);
 
   // Documents et équipe DU CHANTIER : deux périmètres propres au projet, que
   // l'équipe du monument voit en plus des siens, et qu'un collaborateur invité
@@ -309,6 +318,43 @@ export function ProjetDetailPage() {
   // `qcmQuestions`. Ce compteur dit s'il y a matière à ne refaire que celles-là.
   const questionsRestantes = diagnostic?.qcmQuestions?.length ?? 0;
 
+  // Les questions du diagnostic, telles que les cartes et la fiche d'une aide
+  // les reposent. Mémorisées sur l'objet `diagnostic` : sans ça, chaque rendu
+  // rendrait un nouveau tableau et ferait remonter les cartes.
+  const questionsDiagnostic = useMemo(
+    () => sanitizeQcmQuestions(diagnostic?.qcmQuestions),
+    [diagnostic],
+  );
+
+  /**
+   * Répondre à une question depuis la carte d'une aide.
+   *
+   * Le droit est `canEditProject` (= co_owner), miroir exact de ce qu'exige
+   * `update_projet` côté serveur (routers/projets.py) : afficher des réponses
+   * qu'un 403 refuserait serait le pire des deux mondes. L'écriture est
+   * sérialisée par le store — `questionnaire` est remplacé en bloc.
+   *
+   * Pas de relance explicite du diagnostic : le projet mis à jour change
+   * `questionnaireKey`, et l'effet ci-dessus recalcule tout seul.
+   */
+  const [envoiReponse, setEnvoiReponse] = useState(false);
+  const handleRepondre = useCallback(
+    async (factKey: string, value: string | string[] | undefined) => {
+      if (!projetId) return;
+      setEnvoiReponse(true);
+      try {
+        await repondreFait(projetId, factKey, value);
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Votre réponse n'a pas pu être enregistrée",
+        );
+      } finally {
+        setEnvoiReponse(false);
+      }
+    },
+    [projetId, repondreFait],
+  );
+
   /** Renommage en place depuis l'en-tête. On relaie l'erreur : l'en-tête garde
    *  alors la saisie et reste en édition. */
   const handleRenommerProjet = useCallback(
@@ -362,7 +408,15 @@ export function ProjetDetailPage() {
   // désormais dans l'onglet « Dossiers ». Supprimer le dossier l'y fait réapparaître.
   const dossierAideIds = new Set(dossiers.map((d) => d.aideId));
   const toutesEligibles = [...(diagnostic?.aidesEligibles ?? [])].filter((m) => !dossierAideIds.has(m.aide.id)).sort(byDeadline);
-  const toutesPotentiels = [...(diagnostic?.aidesPotentiellementEligibles ?? [])].filter((m) => !dossierAideIds.has(m.aide.id)).sort(byDeadline);
+  // « À confirmer » se trie sur la DISTANCE À UN VERDICT, pas sur l'échéance :
+  // une aide qu'une seule question sépare d'une réponse vaut mieux en tête
+  // qu'une aide qui en demande cinq. À égalité, l'échéance départage.
+  const reste = (m: AideMatchResult) =>
+    questionsPourAide(m.aide.id, questionsDiagnostic, projet.questionnaire ?? {}).length;
+  const toutesPotentiels = [...(diagnostic?.aidesPotentiellementEligibles ?? [])]
+    .filter((m) => !dossierAideIds.has(m.aide.id))
+    .sort((a, b) => reste(a) - reste(b) || byDeadline(a, b));
+  const potentielsUneQuestion = toutesPotentiels.filter((m) => reste(m) === 1).length;
   // « À débloquer » : ordre du backend conservé (enjeu décroissant) — c'est le
   // montant en jeu qui décide si la démarche vaut la peine, pas l'échéance.
   const toutesAtteignables = (diagnostic?.aidesAtteignables ?? []).filter((m) => !dossierAideIds.has(m.aide.id));
@@ -382,10 +436,19 @@ export function ProjetDetailPage() {
     filtreKey,
   );
   const filtre = AIDE_FILTRES.find((f) => f.key === filtreKey) ?? AIDE_FILTRES[0];
-  const eligibles = filtrerAides(toutesEligibles, filtre);
-  const potentiels = filtrerAides(toutesPotentiels, filtre);
-  const atteignables = filtrerAides(toutesAtteignables, filtre);
-  const nonEligibles = filtrerAides(toutesNonEligibles, filtre);
+  // Les facettes de famille se comptent sur les mêmes aides que les filtres de
+  // financeur, et APRÈS eux : les deux axes se cumulent, et une facette qui
+  // annonce 4 aides doit en laisser 4 avec le financeur en cours.
+  const familleOptions = famillesDisponibles(
+    filtrerAides([...toutesEligibles, ...toutesAtteignables, ...toutesPotentiels], filtre),
+    familleFacette,
+  );
+  const parFiltres = (aides: typeof toutesEligibles) =>
+    filtrerParFamille(filtrerAides(aides, filtre), familleFacette);
+  const eligibles = parFiltres(toutesEligibles);
+  const potentiels = parFiltres(toutesPotentiels);
+  const atteignables = parFiltres(toutesAtteignables);
+  const nonEligibles = parFiltres(toutesNonEligibles);
 
   // La fenêtre de candidature prime sur le statut : quelle que soit l'avancée du
   // dossier sur le fond, une aide qu'on ne peut pas déposer aujourd'hui part en
@@ -411,10 +474,26 @@ export function ProjetDetailPage() {
   // calendrier. Rien n'est retenu pour autant : montant, taux et échéance
   // restent sur la fiche de l'aide, qui est gratuite.
   const chiffresAides = !estOffreGratuite(offre);
+  // Répondre depuis une carte suppose le droit d'écrire sur le projet ; sinon
+  // les cartes restent en lecture seule et renvoient à la fiche.
+  const propsReponse = perms.canEditProject
+    ? {
+        questions: questionsDiagnostic,
+        answers: projet.questionnaire ?? {},
+        onRepondre: handleRepondre,
+        envoiEnCours: envoiReponse,
+      }
+    : {};
   const renderAideList = (list: AideMatchResult[]) => {
     if (list.length === 1)
       return (
-        <AideCard match={list[0]} projetId={projet.id} layout="hero" showChiffres={chiffresAides} />
+        <AideCard
+          match={list[0]}
+          projetId={projet.id}
+          layout="hero"
+          showChiffres={chiffresAides}
+          {...propsReponse}
+        />
       );
     const spans = aideGridSpans(list.length);
     return (
@@ -426,6 +505,7 @@ export function ProjetDetailPage() {
               projetId={projet.id}
               layout="grid"
               showChiffres={chiffresAides}
+              {...propsReponse}
             />
           </div>
         ))}
@@ -607,6 +687,12 @@ export function ProjetDetailPage() {
 
               <AideFiltreBar options={filtreOptions} value={filtreKey} onChange={setFiltreKey} />
 
+              <AideFamilleBar
+                options={familleOptions}
+                value={familleFacette}
+                onChange={setFamilleFacette}
+              />
+
               <section className="space-y-3">
                 <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
                   <IconSucces className="h-4 w-4 text-success" />Disponibles maintenant ({eligiblesMaintenant.length})
@@ -660,7 +746,21 @@ export function ProjetDetailPage() {
                       ? 'Aucune aide à confirmer.'
                       : `Aucune aide à confirmer chez « ${filtre.label} ».`}
                   </p>
-                ) : renderAideList(potentielsMaintenant)}
+                ) : (
+                  <>
+                    {/* Le chiffre qui compte n'est pas le nombre d'aides mais ce
+                        qu'il en coûte de trancher : les plus proches d'un
+                        verdict sont en tête, et celles à une seule question se
+                        répondent sans quitter la page. */}
+                    {potentielsUneQuestion > 0 && perms.canEditProject && (
+                      <p className="text-[13px] text-muted-foreground">
+                        Dont {potentielsUneQuestion} à une seule question&nbsp;: répondez
+                        directement sur la carte.
+                      </p>
+                    )}
+                    {renderAideList(potentielsMaintenant)}
+                  </>
+                )}
               </section>
 
               {bientot.length > 0 && (

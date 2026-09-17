@@ -1,5 +1,6 @@
 import type {
   AdminAide,
+  ListeUtilisateurs,
   AdminConditionCourante,
   AdminFait,
   ImpactOptions,
@@ -7,6 +8,9 @@ import type {
   InventaireConditions,
   OperateurPredicat,
   OptionSurchargee,
+  RoleCompte,
+  UtilisateurAdmin,
+  StatistiquesCatalogue,
   SurchargeFait,
 } from '@/types/admin.types';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
@@ -15,8 +19,9 @@ const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 /**
  * Administration du catalogue. Toutes les routes répondent 403 à un compte qui
- * n'est pas dans `ADMIN_USER_IDS` côté serveur : `user.estAdmin` ne sert qu'à
- * ne pas proposer une porte fermée, il ne garde rien.
+ * n'est pas administrateur côté serveur (rôle `admin` dans `comptes_roles`, ou
+ * socle `ADMIN_USER_IDS`) : `user.estAdmin` ne sert qu'à ne pas proposer une
+ * porte fermée, il ne garde rien.
  *
  * Chaque écriture rend la LIGNE À JOUR (aide ou fait complet) : la page
  * remplace la sienne avec, sans relister tout le catalogue.
@@ -38,6 +43,15 @@ export const adminService = {
   async republierAide(slug: string): Promise<AdminAide> {
     const res = await authFetch(`${BASE}/admin/aides/${slug}/retrait`, { method: 'DELETE' });
     return handleResponse<AdminAide>(res);
+  },
+
+  /**
+   * Le catalogue en chiffres. Recalculé à chaque appel côté serveur : la page
+   * la rappelle d'elle-même, sans rien mettre en cache ici.
+   */
+  async statistiques(): Promise<StatistiquesCatalogue> {
+    const res = await authFetch(`${BASE}/admin/statistiques`);
+    return handleResponse<StatistiquesCatalogue>(res);
   },
 
   async listFaits(): Promise<AdminFait[]> {
@@ -111,5 +125,30 @@ export const adminService = {
       method: 'DELETE',
     });
     return handleResponse<AdminConditionCourante>(res);
+  },
+
+  /**
+   * Les comptes et l'état de leurs bascules. Un seul appel au montage : la
+   * page filtre ensuite côté client, et chaque bascule se contente de
+   * remplacer sa ligne avec ce que l'écriture rend.
+   */
+  async listUtilisateurs(): Promise<ListeUtilisateurs> {
+    const res = await authFetch(`${BASE}/admin/utilisateurs`);
+    return handleResponse<ListeUtilisateurs>(res);
+  },
+
+  /**
+   * Bascule un rôle. Idempotentes toutes les deux — un double-clic ou deux
+   * onglets ouverts ne doivent produire ni doublon ni erreur — et chacune rend
+   * la LIGNE À JOUR du compte, pas la liste entière.
+   */
+  async attribuerRole(userId: string, role: RoleCompte): Promise<UtilisateurAdmin> {
+    const res = await authFetch(`${BASE}/admin/roles/${role}/${userId}`, { method: 'PUT' });
+    return handleResponse<UtilisateurAdmin>(res);
+  },
+
+  async retirerRole(userId: string, role: RoleCompte): Promise<UtilisateurAdmin> {
+    const res = await authFetch(`${BASE}/admin/roles/${role}/${userId}`, { method: 'DELETE' });
+    return handleResponse<UtilisateurAdmin>(res);
   },
 };

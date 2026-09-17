@@ -76,7 +76,7 @@ export function MonumentSummaryBar({
             style={{ background: C.orange }}
           >
             <IconAjouter className="h-4 w-4" strokeWidth={2} />
-            Nouveau projet de travaux
+            Nouveau projet
           </button>
         )}
       </div>

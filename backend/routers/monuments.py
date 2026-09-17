@@ -2,6 +2,7 @@ import contextlib
 import re
 import unicodedata
 import uuid
+from datetime import date
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -40,6 +41,41 @@ def _to_snake(name: str) -> str:
 def _snake_row(data: dict) -> dict:
     """Recursively convert all dict keys from camelCase to snake_case."""
     return {_to_snake(k): v for k, v in data.items()}
+
+
+# Colonnes `date` de `monuments`. Le formulaire envoie `""` pour dire « pas de
+# date » — notamment quand on choisit « non protégé », qui vide date et détail
+# de protection. PostgreSQL, lui, refuse la chaîne vide sur une colonne `date`
+# (« invalid input syntax for type date »), et l'erreur PostgREST remontait en
+# 500 à la dernière étape du wizard : c'est le cas typique d'un monument absent
+# de Mérimée, saisi à la main et non protégé.
+DATE_COLUMNS = ("date_protection",)
+
+
+def _normalize_dates(row: dict) -> dict:
+    """Chaîne vide → NULL SQL, date mal formée → 400 plutôt que 500.
+
+    La clé est CONSERVÉE à None au lieu d'être retirée : sur un PATCH, la
+    retirer laisserait l'ancienne date en base, et effacer une date deviendrait
+    impossible.
+    """
+    for column in DATE_COLUMNS:
+        value = row.get(column)
+        if not isinstance(value, str):
+            continue
+        cleaned = value.strip()
+        if not cleaned:
+            row[column] = None
+            continue
+        try:
+            date.fromisoformat(cleaned)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Date invalide : '{value}' (format attendu AAAA-MM-JJ)",
+            ) from None
+        row[column] = cleaned
+    return row
 
 
 def _normalize_commune(name: str) -> str:
@@ -547,7 +583,7 @@ def create_monument(
     # et la ligne créée puis refusée laisserait un bien orphelin.
     quotas.verifier_creation_monument(supabase, user_id)
 
-    data = _snake_row(body.model_dump(exclude_none=True))
+    data = _normalize_dates(_snake_row(body.model_dump(exclude_none=True)))
 
     # Resolve code_insee from commune name, falling back to the historical INSEE
     # code (e.g. Mérimée's cog_insee_lors_de_la_protection) via communes_historique.
@@ -616,7 +652,7 @@ def update_monument(
 ):
     require_project_access(supabase, monument_id, user_id, "co_owner")
 
-    updates = _snake_row(body.model_dump(exclude_none=True))
+    updates = _normalize_dates(_snake_row(body.model_dump(exclude_none=True)))
 
     # Re-resolve code_insee when commune changes
     if body.commune is not None:

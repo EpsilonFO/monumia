@@ -14,6 +14,9 @@ export interface RegisterPayload {
   prenom: string;
   nom: string;
   telephone?: string;
+  /** Inscription venue du parcours découverte : le lien de confirmation
+   *  ramènera sur l'écran de reprise du brouillon. */
+  reprise?: boolean;
 }
 
 export interface RegisterCollaboratorPayload {
@@ -23,6 +26,9 @@ export interface RegisterCollaboratorPayload {
   nom: string;
   metier: string;
   telephone?: string;
+  /** Jeton de l'invitation d'où vient l'inscription : le lien de confirmation
+   *  ramènera sur elle. */
+  invitation?: string;
 }
 
 export type RegisterOauthPayload = Omit<RegisterPayload, 'email' | 'password'>;
@@ -43,6 +49,19 @@ export interface AuthResponse {
   user: import('@/types').User;
 }
 
+/**
+ * Réponse d'une INSCRIPTION, où le jeton peut manquer.
+ *
+ * `access_token` nul veut dire : compte créé, session en attente de la
+ * confirmation de l'adresse email. Type distinct d'`AuthResponse` à dessein —
+ * la connexion, elle, ne rend jamais de jeton nul (elle répond 403), et
+ * relâcher son type aurait obligé tous ses appelants à traiter un cas
+ * impossible. Ici au contraire, le compilateur exige que le cas soit vu.
+ */
+export interface RegisterResponse extends Omit<AuthResponse, 'access_token'> {
+  access_token: string | null;
+}
+
 export const authService = {
   // credentials: 'include' sur les appels d'auth : nécessaire pour recevoir /
   // envoyer le cookie httpOnly `monumia_refresh` posé par le backend.
@@ -56,24 +75,24 @@ export const authService = {
     return handleResponse<AuthResponse>(res);
   },
 
-  async register(payload: RegisterPayload): Promise<AuthResponse> {
+  async register(payload: RegisterPayload): Promise<RegisterResponse> {
     const res = await fetch(`${BASE}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify(payload),
     });
-    return handleResponse<AuthResponse>(res);
+    return handleResponse<RegisterResponse>(res);
   },
 
-  async registerCollaborator(payload: RegisterCollaboratorPayload): Promise<AuthResponse> {
+  async registerCollaborator(payload: RegisterCollaboratorPayload): Promise<RegisterResponse> {
     const res = await fetch(`${BASE}/auth/register-collaborator`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify(payload),
     });
-    return handleResponse<AuthResponse>(res);
+    return handleResponse<RegisterResponse>(res);
   },
 
   async oauthProfileStatus(accessToken: string): Promise<OauthProfileStatusResponse> {
@@ -159,6 +178,20 @@ export const authService = {
       body: JSON.stringify(prefs),
     });
     return handleResponse(res);
+  },
+
+  /** Renvoie l'email de confirmation d'inscription. Réponse toujours 200 :
+   *  l'existence du compte ne se déduit pas d'ici. */
+  async resendConfirmation(
+    email: string,
+    intention?: { reprise?: boolean; invitation?: string },
+  ): Promise<void> {
+    const res = await fetch(`${BASE}/auth/resend-confirmation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, ...intention }),
+    });
+    await handleResponse(res);
   },
 
   async requestPasswordReset(email: string): Promise<void> {

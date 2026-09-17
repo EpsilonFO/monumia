@@ -276,6 +276,25 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                 <p className="font-mono text-[11.5px] text-muted-foreground">{ouvert.key}</p>
               </div>
 
+              {/* Dépendance intrinsèque du fait, en LECTURE SEULE : elle vaut
+                  pour toutes les aides à la fois et relève de l'éditorial (le
+                  YAML), pas de l'exploitation. L'afficher évite de chercher
+                  pourquoi une question ne se pose « jamais ». */}
+              {ouvert.pertinentSi && (
+                <p
+                  className="rounded-lg px-3 py-2 text-[12.5px]"
+                  style={{ background: C.paleBlue, color: C.blue }}
+                >
+                  Posée seulement si{' '}
+                  <span className="font-mono">{ouvert.pertinentSi.fact}</span>{' '}
+                  <span className="font-mono">
+                    {JSON.stringify(ouvert.pertinentSi.predicate)}
+                  </span>
+                  . Cette dépendance est déclarée sur le fait dans{' '}
+                  <span className="font-mono">facts.yaml</span> et ne se modifie pas ici.
+                </p>
+              )}
+
               <div className="space-y-1.5">
                 <label htmlFor="question-fait" className="text-[13px] font-medium text-foreground">
                   Question posée

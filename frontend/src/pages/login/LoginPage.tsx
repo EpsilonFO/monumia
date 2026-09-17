@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { EyeOff, Loader2, ArrowRight } from 'lucide-react';
+import { EyeOff, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { IconVoir } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,8 @@ import { authService } from '@/services/auth.service';
 import { AuthLayout } from '@/components/layout/AuthLayout';
 import { GoogleButton } from '@/components/auth/GoogleButton';
 import { RegisterForm, inputCls } from '@/components/auth/RegisterForm';
+import { ConfirmerEmail } from '@/components/auth/ConfirmerEmail';
+import { ApiError } from '@/lib/api-error';
 import { brouillonPretPourRejeu, marquerRetourGoogleBrouillon } from '@/lib/brouillon-invite';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
@@ -54,6 +56,14 @@ export function LoginPage() {
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
   const [showLoginPwd, setShowLoginPwd] = useState(false);
+  // Adresse à confirmer : après une inscription (le compte vient d'être créé)
+  // ou après une connexion refusée en 403 (compte plus ancien, jamais
+  // confirmé). L'adresse est prise et la session fermée : le renvoi de l'email
+  // est la seule issue, d'où un écran plein et non un toast.
+  const [emailAConfirmer, setEmailAConfirmer] = useState<{
+    email: string;
+    variante: 'inscription' | 'connexion';
+  } | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,11 +75,61 @@ export function LoginPage() {
         apresAuth ?? (user.accountType === 'collaborateur' ? ROUTES.MONUMENTS : '/app'),
       );
     } catch (err: unknown) {
+      // 403 : le mot de passe est BON, c'est l'adresse qui n'est pas confirmée.
+      // Un toast « email ou mot de passe incorrect » enverrait l'utilisateur
+      // ressaisir un mot de passe juste, puis demander une réinitialisation
+      // qui ne réglerait rien.
+      if (err instanceof ApiError && err.status === 403) {
+        setEmailAConfirmer({ email: loginForm.email, variante: 'connexion' });
+        return;
+      }
       toast.error(err instanceof Error ? err.message : 'Email ou mot de passe incorrect');
     } finally {
       setLoginLoading(false);
     }
   };
+
+  // Arrivée depuis le parcours découverte : le visiteur vient de cliquer
+  // « Se connecter pour découvrir mon diagnostic ». Le panneau lui redit
+  // pourquoi il est là — sans ça, il tombe sur un écran de connexion
+  // générique qui ne parle plus du tout de son monument. Hissé hors du rendu
+  // parce que l'écran d'attente de confirmation le réutilise tel quel.
+  const panneau = {
+    panelEyebrow: reprise ? 'Votre diagnostic vous attend' : undefined,
+    panelHeadline: reprise ? (
+      <>
+        Votre diagnostic est <span style={{ color: C.orange }}>prêt</span>.
+      </>
+    ) : undefined,
+    panelDescription: reprise
+      ? 'Votre monument et votre projet sont conservés : dès votre connexion, ils rejoignent votre espace et le diagnostic s’ouvre.'
+      : undefined,
+  };
+
+  // L'adresse à confirmer prend TOUT l'écran : ni titre, ni onglets, ni bouton
+  // Google. Il n'y a plus qu'une chose à faire, aller dans sa boîte, et tout ce
+  // qui parlait de créer un compte parle désormais d'une étape déjà franchie.
+  // Un simple retour suffit pour revenir corriger l'adresse.
+  if (emailAConfirmer) {
+    return (
+      <AuthLayout contentClassName="max-w-md space-y-6" {...panneau}>
+        <button
+          type="button"
+          onClick={() => setEmailAConfirmer(null)}
+          className="flex items-center gap-1.5 text-[13.5px] font-medium transition-opacity hover:opacity-70"
+          style={{ color: MUTED }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Retour
+        </button>
+        <ConfirmerEmail
+          email={emailAConfirmer.email}
+          intention={{ reprise }}
+          variante={emailAConfirmer.variante}
+        />
+      </AuthLayout>
+    );
+  }
 
   return (
     // L'inscription tient six champs sur deux colonnes : la colonne crème
@@ -77,23 +137,7 @@ export function LoginPage() {
     // champs de moitié dans la largeur de la connexion.
     <AuthLayout
       contentClassName={tab === 'register' ? 'max-w-3xl space-y-5' : 'max-w-md space-y-6'}
-      // Arrivée depuis le parcours découverte : le visiteur vient de cliquer
-      // « Se connecter pour découvrir mon diagnostic ». Le panneau lui redit
-      // pourquoi il est là — sans ça, il tombe sur un écran de connexion
-      // générique qui ne parle plus du tout de son monument.
-      panelEyebrow={reprise ? 'Votre diagnostic vous attend' : undefined}
-      panelHeadline={
-        reprise ? (
-          <>
-            Votre diagnostic est <span style={{ color: C.orange }}>prêt</span>.
-          </>
-        ) : undefined
-      }
-      panelDescription={
-        reprise
-          ? 'Votre monument et votre projet sont conservés : dès votre connexion, ils rejoignent votre espace et le diagnostic s’ouvre.'
-          : undefined
-      }
+      {...panneau}
     >
       {/* heading */}
       <div className="space-y-1.5">
@@ -120,7 +164,7 @@ export function LoginPage() {
         {(['login', 'register'] as const).map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => { setTab(t); setEmailAConfirmer(null); }}
             className="flex-1 rounded-lg py-2 text-[13.5px] font-semibold transition-all duration-200"
             style={{
               background: tab === t ? C.blue : 'transparent',
@@ -226,7 +270,9 @@ export function LoginPage() {
       {/* ── Inscription ── */}
       {tab === 'register' && (
         <RegisterForm
+          reprise={reprise}
           onSuccess={() => navigate(apresAuth ?? '/app')}
+          onConfirmationRequise={(email) => setEmailAConfirmer({ email, variante: 'inscription' })}
           recoursConnexion={
             <button
               type="button"

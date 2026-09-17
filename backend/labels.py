@@ -51,6 +51,82 @@ TRAVAUX_LABELS = {
     "ventilation": "Ventilation",
 }
 
+# ── Familles thématiques d'une aide ────────────────────────────────────────────
+#
+# L'axe de cadrage d'un projet « faire vivre le lieu », ce que `raison` ne sait
+# pas dire : ses quatre valeurs mettent dans le même sac un festival, un gîte et
+# un outil de médiation. Liste FERMÉE, portée par l'aide (`Aide.familles`), et
+# non par un fait : la famille est décidée par un humain à la prospection, une
+# fois pour toutes, là où un fait demanderait une réponse à chaque utilisateur.
+#
+# Les 13 clés et leurs descriptions viennent de `scripts/prospection/tri.py`
+# (branche `feat/pipeline-prospection-ingestion`), où elles sont déjà calculées
+# pour chaque dispositif candidat : c'est ce travail que l'ingestion perdait.
+# `adjacente` et `hors_perimetre` restent des valeurs de TRI, pas des familles —
+# elles disent de garder ou d'écarter un candidat, pas ce que l'aide finance.
+#
+# Deux usages, deux textes : `FAMILLES_LABELS` est le libellé produit (tuile du
+# wizard, puce d'une fiche d'aide), `FAMILLES_DESCRIPTION` la définition qui
+# part dans les prompts d'ingestion et sert de règle au relecteur.
+FAMILLES_LABELS = {
+    "restauration_bati": "Restauration du bâti",
+    "energie_climat": "Énergie et climat",
+    "eau_nature_domaine": "Eau, nature et domaine",
+    "securite_risques": "Sécurité et risques",
+    "parcs_jardins_paysages": "Parcs, jardins et paysages",
+    "tourisme_hebergement": "Tourisme et hébergement",
+    "activite_economique_lieu": "Activité économique dans le lieu",
+    "spectacles_manifestations": "Spectacles et manifestations",
+    "vie_locale_associative": "Vie locale et associative",
+    "mediation_numerique_expositions": "Médiation, expositions, musée, numérique",
+    "accessibilite_publics": "Accessibilité et accueil des publics",
+    "etudes_ingenierie": "Études et ingénierie",
+    "labels_passerelles": "Labels et passerelles",
+}
+
+FAMILLES_DESCRIPTION = {
+    "restauration_bati": (
+        "travaux sur le bâti, protégé ou non, y compris le mobilier attaché "
+        "(orgues, cloches, vitraux)"
+    ),
+    "energie_climat": (
+        "rénovation énergétique, chauffage et énergies renouvelables (géothermie, bois, "
+        "réseaux de chaleur, solaire), adaptation au changement climatique, matériaux "
+        "biosourcés, AMO énergie"
+    ),
+    "eau_nature_domaine": (
+        "eau et sécheresse, cours d'eau et plans d'eau (moulins, douves, étangs), "
+        "biodiversité, Natura 2000, forêt, vergers, haies, agriculture ou viticulture "
+        "du domaine"
+    ),
+    "securite_risques": (
+        "catastrophes naturelles, inondations, incendie, foudre, sûreté, mise en sécurité"
+    ),
+    "parcs_jardins_paysages": "parcs et jardins, arbres, paysages, abords",
+    "tourisme_hebergement": (
+        "hébergements (gîtes, chambres d'hôtes, hôtels, insolite, plein air), sites de "
+        "visite, itinérance, événementiel touristique"
+    ),
+    "activite_economique_lieu": (
+        "reconversion et nouvel usage, tiers-lieux, commerce, artisanat ou ESS installés "
+        "dans le lieu, création ou reprise d'activité, prêts, garanties et chèques "
+        "mobilisables par l'exploitant du monument"
+    ),
+    "spectacles_manifestations": (
+        "festivals, saisons, résidences, manifestations accueillies dans le monument"
+    ),
+    "vie_locale_associative": (
+        "vie associative, fêtes et initiatives locales, mémoire, langues et cultures "
+        "régionales, coopération, dont une association d'amis du monument peut bénéficier"
+    ),
+    "mediation_numerique_expositions": (
+        "signalétique, scénographie, numérique, expositions, musées, publications, inventaire"
+    ),
+    "accessibilite_publics": "accessibilité, accueil des publics, handicap",
+    "etudes_ingenierie": "études préalables, diagnostics, ingénierie, AMO",
+    "labels_passerelles": "labels et dispositifs qui ouvrent l'accès à d'autres aides",
+}
+
 ETAT_LABELS = {
     "bon": "Bon état",
     "moyen": "État moyen",
@@ -184,4 +260,52 @@ DEPARTEMENT_LABELS = {
     "973": "Guyane",
     "974": "La Réunion",
     "976": "Mayotte",
+}
+
+# Rattachement d'un département à sa région (découpage de 2016, DOM compris).
+# Le catalogue ne porte PAS cette information : une aide départementale ne
+# déclare que ses `hard_filters.departements`, et c'est cette table qui permet
+# de la compter dans sa région — sans elle, une région dont toutes les aides
+# sont départementales apparaîtrait vide. La partition est exhaustive et
+# disjointe sur DEPARTEMENT_LABELS, ce que `test_labels_geo` vérifie : un
+# département oublié ici disparaîtrait silencieusement des statistiques.
+REGION_DEPARTEMENTS = {
+    "auvergne-rhone-alpes": [
+        "01",
+        "03",
+        "07",
+        "15",
+        "26",
+        "38",
+        "42",
+        "43",
+        "63",
+        "69",
+        "73",
+        "74",
+    ],
+    "bourgogne-franche-comte": ["21", "25", "39", "58", "70", "71", "89", "90"],
+    "bretagne": ["22", "29", "35", "56"],
+    "centre-val-de-loire": ["18", "28", "36", "37", "41", "45"],
+    "corse": ["2A", "2B"],
+    "grand-est": ["08", "10", "51", "52", "54", "55", "57", "67", "68", "88"],
+    "hauts-de-france": ["02", "59", "60", "62", "80"],
+    "ile-de-france": ["75", "77", "78", "91", "92", "93", "94", "95"],
+    "normandie": ["14", "27", "50", "61", "76"],
+    "nouvelle-aquitaine": ["16", "17", "19", "23", "24", "33", "40", "47", "64", "79", "86", "87"],
+    "occitanie": ["09", "11", "12", "30", "31", "32", "34", "46", "48", "65", "66", "81", "82"],
+    "pays-de-la-loire": ["44", "49", "53", "72", "85"],
+    "provence-alpes-cote-d-azur": ["04", "05", "06", "13", "83", "84"],
+    "guadeloupe": ["971"],
+    "martinique": ["972"],
+    "guyane": ["973"],
+    "la-reunion": ["974"],
+    "mayotte": ["976"],
+}
+
+#: L'inverse : code INSEE du département → code de sa région.
+DEPARTEMENT_REGION = {
+    departement: region
+    for region, departements in REGION_DEPARTEMENTS.items()
+    for departement in departements
 }

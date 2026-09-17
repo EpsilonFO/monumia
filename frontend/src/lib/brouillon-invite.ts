@@ -3,7 +3,7 @@ import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useProjetStore } from '@/stores/useProjetStore';
 import { monumentService } from '@/services/monument.service';
 import { projetService } from '@/services/projet.service';
-import { RAISONS_KEY } from '@/constants/raisons';
+import { questionnaireDeCadrage } from '@/constants/raisons';
 import type { Monument, MonumentInput } from '@/types';
 
 /**
@@ -113,7 +113,15 @@ export async function finaliserBrouillon(): Promise<{ monumentId: string; projet
         // `[]` est une valeur valide (« Pas encore déterminé ») : le tri-state
         // du brouillon se ramène ici à ce que la colonne accepte.
         travauxEnvisages: brouillon.travaux ?? [],
-        questionnaire: { ...brouillon.answers, [RAISONS_KEY]: brouillon.raisons },
+        // Le cadrage entier est recomposé depuis ses sources uniques (le
+        // brouillon ne stocke pas les clés réservées dans `answers`).
+        // `familles` à `null` veut dire « question non posée » : la clé reste
+        // alors absente, ce qui n'est pas la même chose qu'une liste vide.
+        questionnaire: questionnaireDeCadrage(
+          brouillon.answers,
+          brouillon.raisons,
+          brouillon.familles,
+        ),
       });
   useBrouillonInviteStore.getState().marquerProjetCree(projet.id);
 

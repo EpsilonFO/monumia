@@ -21,8 +21,10 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import time
 import unittest
+from unittest.mock import patch
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -31,7 +33,7 @@ from db import get_supabase
 from main import app
 from routers import aides as aides_router
 from routers import billing as billing_router
-from services import offres, quotas
+from services import offres, quotas, roles
 from services import stripe_billing as billing
 
 WEBHOOK_SECRET = "whsec_test_secret"
@@ -164,6 +166,7 @@ def _tables(**overrides) -> dict:
     """Un monument `mon-1` appartenant à `owner`, un projet, rien de payé."""
     tables: dict = {
         "users": [{"id": "owner"}, {"id": "collab"}],
+        "comptes_roles": [],
         "subscriptions": [],
         "monuments": [{"id": "mon-1", "user_id": "owner"}],
         "projets": [{"id": "prj-1", "monument_id": "mon-1"}],
@@ -235,6 +238,99 @@ class TableDesOffresTest(unittest.TestCase):
 
     def test_plan_seul_accepte_comme_ensemble(self):
         self.assertEqual(offres.offre_pour(offres.PLAN_VEILLE), offres.VEILLE)
+
+
+# ---------------------------------------------------------------------------
+# L'offre ouverte par un rôle de compte
+# ---------------------------------------------------------------------------
+
+
+def _role(user_id: str, role: str) -> dict:
+    return {"user_id": user_id, "role": role}
+
+
+class OffreDesRolesTest(unittest.TestCase):
+    """Un administrateur ou un bêta-testeur détient Multi-monuments sans ligne
+    d'abonnement.
+
+    Elle est SYNTHÉTISÉE à la lecture, et c'est le point à protéger : le droit
+    doit suivre les rôles dans les deux sens — l'attribution l'ouvre, le retrait
+    le referme — sans jamais écraser un abonnement réel.
+
+    Le socle `ADMIN_USER_IDS` est vidé dans chaque test : sans ça, le `.env.local`
+    de la machine déciderait du résultat.
+    """
+
+    def setUp(self):
+        roles.invalider()
+        self.env = patch.dict(os.environ, {"ADMIN_USER_IDS": ""})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        roles.invalider()
+
+    def test_administrateur_detient_multi_monuments(self):
+        db = _FakeSupabase(_tables(comptes_roles=[_role("owner", roles.ROLE_ADMIN)]))
+        self.assertEqual(billing.active_plans(db, "owner"), {offres.PLAN_MULTI_MONUMENTS})
+        self.assertEqual(billing.offre_du_compte(db, "owner"), offres.MULTI_MONUMENTS)
+        # Et le reste du monde n'a pas de rôle pour autant.
+        self.assertEqual(billing.active_plans(db, "collab"), set())
+
+    def test_beta_testeur_detient_la_meme_offre(self):
+        """Le rôle n'ouvre QUE ça — l'administration lui est fermée
+        (cf. test_admin_routes), et c'est tout l'objet de la distinction."""
+        db = _FakeSupabase(_tables(comptes_roles=[_role("owner", roles.ROLE_BETA_TESTEUR)]))
+        self.assertEqual(billing.offre_du_compte(db, "owner"), offres.MULTI_MONUMENTS)
+        self.assertFalse(roles.est_admin(db, "owner"))
+
+    def test_socle_env_ouvre_la_meme_offre(self):
+        db = _FakeSupabase(_tables())
+        with patch.dict(os.environ, {"ADMIN_USER_IDS": "owner"}):
+            roles.invalider()
+            self.assertEqual(billing.active_plans(db, "owner"), {offres.PLAN_MULTI_MONUMENTS})
+
+    def test_sans_role_le_compte_reste_au_gratuit(self):
+        """Le droit suit les rôles : c'est pourquoi il n'est pas écrit comme un
+        abonnement octroyé, qui lui survivrait."""
+        db = _FakeSupabase(_tables())
+        self.assertEqual(billing.active_plans(db, "owner"), set())
+        self.assertEqual(billing.offre_du_compte(db, "owner"), offres.GRATUIT)
+
+    def test_abonnement_reel_n_est_pas_ecrase(self):
+        db = _FakeSupabase(
+            _tables(
+                comptes_roles=[_role("owner", roles.ROLE_BETA_TESTEUR)],
+                subscriptions=[_abonnement("owner", "veille")],
+            )
+        )
+        self.assertEqual(
+            billing.active_plans(db, "owner"),
+            {offres.PLAN_VEILLE, offres.PLAN_MULTI_MONUMENTS},
+        )
+
+    def test_snapshot_porte_l_offre_mais_aucune_echeance(self):
+        """Rien n'est facturé : ni prochain prélèvement, ni portail Stripe."""
+        db = _FakeSupabase(_tables(comptes_roles=[_role("owner", roles.ROLE_BETA_TESTEUR)]))
+        snapshot = billing.access_snapshot(db, "owner")
+        self.assertEqual(snapshot["plans"], [offres.PLAN_MULTI_MONUMENTS])
+        self.assertEqual(snapshot["offre"]["nom"], "Multi-monuments")
+        self.assertIsNone(snapshot["subscription"])
+        self.assertFalse(snapshot["portail"])
+
+    def test_l_offre_gouverne_aussi_ses_monuments(self):
+        """`plans_par_compte` alimente l'offre du MONUMENT : sans l'ajout ici,
+        un bêta-testeur ne gouvernerait pas ses propres chantiers."""
+        db = _FakeSupabase(_tables(comptes_roles=[_role("owner", roles.ROLE_BETA_TESTEUR)]))
+        self.assertEqual(
+            billing.plans_par_compte(db, ["owner", "collab"]),
+            {"owner": {offres.PLAN_MULTI_MONUMENTS}},
+        )
+        self.assertTrue(quotas.offre_du_monument(db, "mon-1", "owner").dashboard)
+
+    def test_les_rappels_email_suivent(self):
+        db = _FakeSupabase(_tables(comptes_roles=[_role("owner", roles.ROLE_BETA_TESTEUR)]))
+        self.assertTrue(billing.peut_recevoir_rappels(db, "owner"))
 
 
 # ---------------------------------------------------------------------------

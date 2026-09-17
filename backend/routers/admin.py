@@ -6,9 +6,13 @@ envoie aux prédicats des aides, ce qui permet d'offrir plus de deux réponses �
 une question binaire sans retyper un seul prédicat. Seules les tranches d'un
 fait numérique restent calculées par le moteur.
 
-Onze routes, toutes réservées aux comptes de `ADMIN_USER_IDS` (cf.
-`config.est_admin`). Le `Depends(require_admin)` est posé sur le ROUTER et non
-sur chaque route : aucune route nouvelle ne peut l'oublier.
+Quinze routes, toutes réservées aux ADMINISTRATEURS (cf. `services.roles`, qui
+unit le rôle `admin` de la table `comptes_roles` au socle `ADMIN_USER_IDS`). Le
+`Depends(require_admin)` est posé sur le ROUTER et non sur chaque route : aucune
+route nouvelle ne peut l'oublier — y compris celles qui attribuent les rôles.
+
+Le rôle `beta_testeur` s'attribue ici, mais n'ouvre RIEN ici : il ne donne que
+l'offre Multi-monuments, et ses porteurs n'ont pas accès à cette page.
 
 La mécanique vit dans `services/catalogue_admin` — pyright n'analyse pas
 `routers/`. Ici : les corps de requête (bornés, `extra="forbid"`), les 404 et
@@ -28,7 +32,7 @@ from supabase import Client
 from aides_schema import load_all_aides, load_facts, load_pending_facts
 from db import get_supabase, require_admin
 from eligibility_engine import engine_ready_aides
-from services import catalogue_admin
+from services import catalogue_admin, catalogue_stats, roles
 from services.catalogue_admin import (
     HELP_MAX,
     LABEL_MAX,
@@ -38,6 +42,7 @@ from services.catalogue_admin import (
     OptionSurchargee,
     SurchargeFait,
 )
+from services.roles import MOTIF_MAX as MOTIF_ROLE_MAX
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -67,6 +72,25 @@ class OptionRequest(BaseModel):
     #: `None` = « ne tranche pas ». Refusé sur un fait à choix par
     #: `valider_surcharge`, qui rend un 422.
     valeur: bool | None = None
+
+
+#: Les rôles attribuables, en `Literal` : le lot est fermé par le TYPE, et non
+#: par une validation qu'on pourrait oublier. Doit rester d'accord avec
+#: `roles.ROLES` et avec la contrainte de la base — le test le vérifie.
+RoleAttribuable = Literal["admin", "beta_testeur"]
+
+
+class AttributionRequest(BaseModel):
+    """Attribuer un rôle. Le compte et le rôle sont dans le CHEMIN (`PUT
+    /admin/roles/{role}/{user_id}`), comme pour le retrait d'une aide : la
+    bascule est idempotente, et son corps ne porte que ce qui est facultatif."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: Pourquoi, pour l'autre fondateur qui verra la ligne. La bascule de
+    #: `/admin` n'en envoie pas — il n'y a pas où l'écrire sur un bouton — mais
+    #: la colonne existe et se remplit très bien depuis un appel direct.
+    motif: str | None = Field(default=None, max_length=MOTIF_ROLE_MAX)
 
 
 class SimulationRequest(BaseModel):
@@ -156,6 +180,23 @@ def republier_aide(slug: str, supabase: Client = Depends(get_supabase)):
     au retrait : une aide archivée entre-temps garderait sinon sa ligne de
     retrait pour toujours, sans moyen de la retirer depuis l'application."""
     return catalogue_admin.republier_aide(supabase, slug)
+
+
+# ---------------------------------------------------------------------------
+# Statistiques du catalogue
+# ---------------------------------------------------------------------------
+
+
+@router.get("/statistiques")
+def statistiques(supabase: Client = Depends(get_supabase)):
+    """Le catalogue en chiffres : par région, par département, au national.
+
+    Recalculé à chaque appel sur le catalogue en cache — la page se rafraîchit
+    d'elle-même, et un retrait enregistré se voit au plus tard au TTL suivant.
+    Un nouveau lot d'aides, lui, entre par les YAML : il apparaît au
+    redémarrage du backend, c'est-à-dire au déploiement qui l'amène.
+    """
+    return catalogue_stats.statistiques_catalogue(supabase)
 
 
 # ---------------------------------------------------------------------------
@@ -285,3 +326,72 @@ def retablir_predicat(slug: str, condition_id: str, supabase: Client = Depends(g
     par cette route qu'on la nettoie.
     """
     return catalogue_admin.retablir_predicat(supabase, slug, condition_id)
+
+
+# ---------------------------------------------------------------------------
+# Rôles de compte
+# ---------------------------------------------------------------------------
+
+
+@router.get("/utilisateurs")
+def lister_utilisateurs(
+    user_id: str = Depends(require_admin),
+    supabase: Client = Depends(get_supabase),
+):
+    """Les comptes, chacun avec l'état de ses deux bascules.
+
+    L'appelant est passé au service parce que l'état des bascules en dépend :
+    on ne peut pas retirer sa PROPRE administration, et le bouton doit le dire
+    plutôt que de partir en 409.
+    """
+    return roles.lister_utilisateurs(supabase, user_id)
+
+
+@router.put("/roles/{role}/{cible_id}")
+def attribuer_role(
+    role: RoleAttribuable,
+    cible_id: str,
+    body: AttributionRequest | None = None,
+    user_id: str = Depends(require_admin),
+    supabase: Client = Depends(get_supabase),
+):
+    """Donne ce rôle à ce compte, et rend sa ligne à jour.
+
+    `admin` donne la main sur cette page ; `beta_testeur` ne donne rien d'autre
+    que l'offre Multi-monuments (cf. `stripe_billing.PLAN_DES_ROLES`), que les
+    deux rôles ouvrent.
+
+    404 sur un identifiant sans compte : la clé étrangère le refuserait de toute
+    façon, mais par une erreur Postgres qui sortirait en 500.
+    """
+    try:
+        return roles.ajouter_role(supabase, cible_id, role, user_id, body.motif if body else None)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.delete("/roles/{role}/{cible_id}")
+def retirer_role(
+    role: RoleAttribuable,
+    cible_id: str,
+    user_id: str = Depends(require_admin),
+    supabase: Client = Depends(get_supabase),
+):
+    """Reprend ce rôle à ce compte, et l'offre qui venait avec.
+
+    409 sur les deux gestes qui ne peuvent pas aboutir, tous deux propres à
+    `admin` : se retirer soi-même l'administration (le seul qui pourrait fermer
+    la page pour de bon) et la retirer à un compte du socle `ADMIN_USER_IDS`
+    (qui resterait administrateur malgré la suppression). `roles._verrou` en est
+    le miroir exact côté affichage — un bouton qui part en 409 est un bouton qui
+    n'aurait pas dû s'afficher.
+
+    Pas de 404 sur un identifiant sans ce rôle : la suppression est idempotente,
+    et une ligne orpheline doit pouvoir partir.
+    """
+    try:
+        return roles.retirer_role(supabase, cible_id, role, user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

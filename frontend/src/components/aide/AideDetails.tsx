@@ -25,12 +25,21 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
+import { QuestionOptions } from '@/components/project/wizard/QuestionOptions';
 import { AIDE_CATEGORIES, AIDE_TYPES } from '@/constants/aide-categories';
+import { questionsPourAide } from '@/lib/diagnostic-bilan';
 import { formatCurrency } from '@/lib/format-utils';
 import { deadlineLabel } from '@/lib/date-utils';
 import { C, SERIF, DEADLINE_TONE } from '@/lib/brand';
 import { getEligibilityStatus, STATUS_BADGE } from './eligibility-status';
-import type { Aide, AideDocument, AideLevier, AideMatchResult } from '@/types';
+import type {
+  Aide,
+  AideDocument,
+  AideLevier,
+  AideMatchResult,
+  ProjectQuestionnaireAnswers,
+  QcmQuestion,
+} from '@/types';
 
 export const decodeHtml = (text: string | null | undefined): string => {
   if (!text) return '';
@@ -48,6 +57,23 @@ interface AideDetailsProps {
   showDocumentsRequis?: boolean;
   /** Contenu rendu dans la colonne de droite, sous la fiche « L'essentiel ». */
   aside?: ReactNode;
+  /**
+   * Répondre depuis la fiche. Même contrat que sur la carte : sans
+   * `onRepondre`, l'analyse reste en lecture seule (c'est le cas d'un
+   * collaborateur sans droit d'écriture, et du parcours invité).
+   */
+  questions?: QcmQuestion[];
+  answers?: ProjectQuestionnaireAnswers;
+  onRepondre?: (factKey: string, value: string | string[] | undefined) => void;
+  envoiEnCours?: boolean;
+}
+
+/** Ce qu'il faut pour poser une question dans l'analyse — rien ou tout. */
+interface ReponseEnPlace {
+  questions?: QcmQuestion[];
+  answers?: ProjectQuestionnaireAnswers;
+  onRepondre?: (factKey: string, value: string | string[] | undefined) => void;
+  envoiEnCours?: boolean;
 }
 
 type IconType = ComponentType<{ className?: string; strokeWidth?: number; style?: React.CSSProperties }>;
@@ -289,11 +315,37 @@ function EvalGroup({ icon: Icon, tone, title, count, defaultOpen = false, childr
  * Détail de l'analyse, groupé selon la nature des conditions. Si aucune
  * évaluation ne porte de `nature`, bascule sur un rendu à plat.
  */
-function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) {
+function EligibilityAnalysis({
+  matchResult,
+  questions,
+  answers,
+  onRepondre,
+  envoiEnCours,
+}: { matchResult: AideMatchResult } & ReponseEnPlace) {
   const evals: Evaluation[] = matchResult.llmEvaluation?.evaluations ?? [];
   const eliminatoires = matchResult.criteresNonRemplis ?? [];
   const leviers = matchResult.leviers ?? [];
   const hasNature = evals.some((e) => !!e.nature);
+
+  // SOURCE DE VÉRITÉ des questions de cette aide : `q.aideIds`, jamais
+  // `evaluations[].categorie`. Une condition bloquée par une passerelle
+  // `applies_if` n'a pas de `categorie` quand son propre fait est connu
+  // (eligibility_engine.py) : s'appuyer sur elle laisserait des questions
+  // invisibles, alors qu'elles sont ce qui sépare l'aide d'un verdict.
+  const restantes =
+    onRepondre && questions ? questionsPourAide(matchResult.aide.id, questions, answers ?? {}) : [];
+  const parFait = new Map(restantes.map((q) => [q.id, q]));
+  const poser = (q: QcmQuestion, sousUnCritere = false) => (
+    <div className={sousUnCritere ? 'pl-6 pt-1' : 'pt-0.5'}>
+      <QuestionOptions
+        question={q}
+        value={answers?.[q.id]}
+        onAnswer={(v) => onRepondre?.(q.id, v)}
+        compact
+        disabled={envoiEnCours}
+      />
+    </div>
+  );
 
   if (!hasNature) {
     return (
@@ -322,6 +374,14 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
   const valides = evals.filter((e) => e.nature === 'user_fact' && (e.verdict === 'oui' || isClarified(e)));
   const autos = evals.filter((e) => e.nature === 'auto' && e.verdict === 'oui');
 
+  // Appariement question ↔ critère affiché. On le calcule AVANT le rendu : une
+  // question posée deux fois (sous son critère et dans les orphelines) ferait
+  // deux formulaires concurrents pour un seul fait.
+  const appariees = new Set(
+    aVerifier.map((e) => e.categorie).filter((k): k is string => !!k && parFait.has(k)),
+  );
+  const orphelines = restantes.filter((q) => !appariees.has(q.id));
+
   return (
     <div className="space-y-2.5">
       {eliminatoires.length > 0 && (
@@ -336,7 +396,26 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
       )}
       {aVerifier.length > 0 && (
         <EvalGroup icon={IconHelp} tone="amber" title="À vérifier de votre côté" count={aVerifier.length} defaultOpen>
-          {aVerifier.map((e, i) => <EvalLine key={i} critere={e.critere} tone="amber" />)}
+          {aVerifier.map((e, i) => {
+            const q = e.categorie ? parFait.get(e.categorie) : undefined;
+            return (
+              <div key={i} className="space-y-1">
+                <EvalLine critere={e.critere} tone="amber" />
+                {q && poser(q, true)}
+              </div>
+            );
+          })}
+        </EvalGroup>
+      )}
+      {/* Les questions de l'aide qu'aucun critère affiché ne porte : conditions
+          suspendues à une passerelle, dont l'évaluation n'a pas de `categorie`.
+          Sans ce bloc elles resteraient invisibles ici alors même qu'elles
+          gouvernent le verdict. */}
+      {orphelines.length > 0 && (
+        <EvalGroup icon={IconHelp} tone="amber" title="Précisez votre situation" count={orphelines.length} defaultOpen>
+          {orphelines.map((q) => (
+            <div key={q.id}>{poser(q)}</div>
+          ))}
         </EvalGroup>
       )}
       {aConfirmer.length > 0 && (
@@ -757,7 +836,7 @@ function DocumentsCollapsible({ docs }: { docs: (string | AideDocument)[] }) {
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 
-export function AideDetails({ aide, matchResult, monumentName, showHeader = true, showDocumentsRequis = true, aside }: AideDetailsProps) {
+export function AideDetails({ aide, matchResult, monumentName, showHeader = true, showDocumentsRequis = true, aside, questions, answers, onRepondre, envoiEnCours }: AideDetailsProps) {
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
 
   return (
@@ -790,7 +869,13 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
                 </span>
               )}
             >
-              <EligibilityAnalysis matchResult={matchResult} />
+              <EligibilityAnalysis
+                matchResult={matchResult}
+                questions={questions}
+                answers={answers}
+                onRepondre={onRepondre}
+                envoiEnCours={envoiEnCours}
+              />
             </SectionCard>
           )}
 

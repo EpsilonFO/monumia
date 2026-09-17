@@ -71,6 +71,11 @@ export interface Aide {
   formulaireUrl?: string;
 
   baseTTC: boolean;
+
+  /** Familles thématiques de l'aide (liste fermée, cf. `constants/familles`).
+   *  Vide ou absente = l'aide concerne tout projet (fail-open). Sert au cadrage
+   *  « faire vivre le lieu » côté serveur, et aux facettes de la page projet. */
+  familles?: string[];
 }
 
 export interface AideEligibilityCriteria {
@@ -207,6 +212,10 @@ export interface QcmQuestion {
   /** Fine-grained elimination: optionId -> aideIds eliminated when that option is selected. */
   eliminationsParOption?: Record<string, string[]>;
   categorie?: string;
+  /** Où la réponse vaut : le bien, le projet, ou le propriétaire. Une réponse
+   *  de scope `monument` ou `proprietaire` est DURABLE — elle se reprend d'un
+   *  projet à l'autre du même monument (cf. `projetService.faitsDurables`). */
+  scope?: 'monument' | 'projet' | 'proprietaire';
   incertitudesGroupees?: string[];
   dependsOn?: QcmDependsOn;
   /** Montants max cumulés des aides suspendues à cette question (0 si aucune chiffrée). */
