@@ -622,7 +622,7 @@ class TestQuestionGeneration(unittest.TestCase):
         aide = _fixture_aide(
             [
                 self._gate("ouverture_public", {"not_in": ["aucune"]}),
-                self._gate("erp", {"eq": True}),
+                self._gate("porteur_est_proprietaire", {"eq": True}),
             ]
         )
         questions = {q["id"]: q for q in self._questions([aide])}
@@ -634,7 +634,7 @@ class TestQuestionGeneration(unittest.TestCase):
             {aide.slug: aide}, FACTS, _monument(), 3000, {"ouverture_public": ["aucune"]}
         )
         self.assertEqual([m["aide"]["id"] for m in res["aidesAtteignables"]], [aide.slug])
-        self.assertIn("erp", [q["id"] for q in res["qcmQuestions"]])
+        self.assertIn("porteur_est_proprietaire", [q["id"] for q in res["qcmQuestions"]])
 
     def test_gate_a_derogation_n_elimine_jamais(self):
         """`derogation_possible` dégrade l'échec en incertitude : l'aide reste
@@ -687,7 +687,7 @@ class TestQuestionGeneration(unittest.TestCase):
         aides = [
             _fixture_aide(
                 [self._gate("etat_travaux", {"eq": "non_commences"})]
-                + ([self._gate("erp", {"eq": True})] if i < 2 else [])
+                + ([self._gate("porteur_est_proprietaire", {"eq": True})] if i < 2 else [])
                 + ([self._gate("residence_principale", {"eq": True})] if i < 1 else []),
                 slug=f"fx-{i}",
             )
@@ -2003,7 +2003,7 @@ class TestAnneeConstructionDeduiteDuSiecle(unittest.TestCase):
                     "effect": "gate",
                     "fact": "annee_construction",
                     "predicate": {"lt": 1800},
-                    "applies_if": {"fact": "erp", "predicate": {"eq": True}},
+                    "applies_if": {"fact": "porteur_est_proprietaire", "predicate": {"eq": True}},
                 }
             ]
         )
@@ -2012,7 +2012,7 @@ class TestAnneeConstructionDeduiteDuSiecle(unittest.TestCase):
         verdict = evaluate_aide(aide, monument, None, ctx, FACTS)
         self.assertEqual(verdict.status, "potentiel")
         self.assertNotIn("annee_construction", verdict.missing_facts)
-        self.assertIn("erp", verdict.gateway_facts)
+        self.assertIn("porteur_est_proprietaire", verdict.gateway_facts)
 
 
 class TestEgliseDeduiteDuNom(unittest.TestCase):
