@@ -161,10 +161,20 @@ class TestIndexFaits(unittest.TestCase):
         for option in fait.options or []:
             self.assertIn(option.id, ligne)
 
-    def test_beaucoup_plus_court_que_facts_yaml(self):
-        from aides_schema import FACTS_FILE
+    def test_beaucoup_plus_court_que_ses_sources(self):
+        """Tout l'objet de l'index : donner au modèle de quoi RECONNAÎTRE un fait
+        existant sans lui servir l'ontologie entière.
 
-        self.assertLess(len(self.texte), len(FACTS_FILE.read_text(encoding="utf-8")) / 2)
+        La comparaison porte sur les DEUX fichiers qu'il résume, approuvés et
+        proposés : l'index les couvre tous les deux, et le confronter au seul
+        `facts.yaml` le déclarait trop long dès que la file des faits proposés
+        dépassait l'ontologie approuvée — ce qui est arrivé avec la prospection,
+        sans que l'index ait grossi par rapport à ce qu'il résume.
+        """
+        from aides_schema import FACTS_FILE, FACTS_PENDING_FILE
+
+        sources = sum(len(f.read_text(encoding="utf-8")) for f in (FACTS_FILE, FACTS_PENDING_FILE))
+        self.assertLess(len(self.texte), sources / 2)
 
 
 class TestGabarit(unittest.TestCase):
