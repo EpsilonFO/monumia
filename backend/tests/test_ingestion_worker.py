@@ -62,6 +62,7 @@ def aide_yaml(conditions: str) -> str:
     return f"""\
 slug: ex-aide
 nom: Aide d'exemple
+nom_court: Exemple
 organisme: Région d'exemple
 categorie: region
 type: subvention

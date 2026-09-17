@@ -868,6 +868,10 @@ class Aide(BaseModel):
 
     slug: str = Field(pattern=r"^[a-z0-9-]+$")
     nom: str
+    # Absent du YAML = `null` en base, or `aides_v3.nom_court` est NOT NULL :
+    # c'est le LINT qui l'exige (cf. lint_aides_data), pas le schéma. Le garder
+    # optionnel ici laisse les fixtures de test à ce qu'elles testent, et met le
+    # refus là où le workflow l'attend — avant le commit, pas au chargement.
     nom_court: str | None = None
     organisme: str
     categorie: Literal[CATEGORIES]  # type: ignore[valid-type]

@@ -68,6 +68,7 @@ def aide_yaml(quote: str, *, slug: str = "ex-aide", snapshot: str = "", jour: da
     return f"""\
 slug: {slug}
 nom: Aide d'exemple
+nom_court: Exemple
 organisme: Région d'exemple
 categorie: region
 type: subvention
