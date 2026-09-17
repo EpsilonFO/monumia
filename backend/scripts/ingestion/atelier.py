@@ -80,6 +80,20 @@ class Atelier:
     def dossier_sources(self) -> Path:
         return self.sources_dir / self.slug
 
+    @property
+    def dossiers_catalogue(self) -> tuple[Path, ...]:
+        """Où chercher qui RÉFÉRENCE un fait : le catalogue entier, run compris.
+
+        Au banc d'essai, `aides_dir` ne contient que les aides du run — deux ou
+        trois fichiers. S'y arrêter ferait passer pour orphelins les 499 faits
+        en attente proposés par tout le reste du catalogue, à chaque lint de
+        l'agent comme dans l'audit de fin de run. Les deux dossiers sont donc
+        rendus, et `AIDES_DIR` n'apparaît qu'une fois en run normal.
+        """
+        if self.aides_dir.resolve() == AIDES_DIR.resolve():
+            return (self.aides_dir,)
+        return (self.aides_dir, AIDES_DIR)
+
     def snapshots(self) -> list[Path]:
         """Snapshots archivés du slug, triés (donc du plus ancien au plus récent)."""
         if not self.dossier_sources.is_dir():

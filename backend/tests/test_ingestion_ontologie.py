@@ -76,6 +76,10 @@ PENDING = {
         "Le porteur a-t-il son siège en Grand Est ?", scope="proprietaire"
     ),
     "jardin_remarquable": fait("Le jardin est-il labellisé « Jardin remarquable » ?"),
+    # Clé volontairement impossible dans le vrai catalogue : les tests d'orphelins
+    # passent par `Atelier.dossiers_catalogue`, qui balaie AUSSI `data/aides/`.
+    # Sans ça, ils mesureraient l'état du dépôt au lieu de la fonction.
+    "zz_fait_que_rien_ne_reference": fait("Question que personne ne pose ?"),
 }
 
 REPONSE = {
@@ -110,6 +114,9 @@ class BaseOntologie(unittest.TestCase):
         # nettoyage, les tests suivants liraient un tmpdir effacé.
         self.addCleanup(restaurer_sources)
         self.atelier = atelier_redirige("ex-aide", Path(self._tmp.name), jour=JOUR)
+        self._tmp_bis = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp_bis.cleanup)
+        self.racine_bis = Path(self._tmp_bis.name)
 
     def ecrire_aide(self, slug: str, fact_id: str) -> None:
         self.atelier.aides_dir.mkdir(parents=True, exist_ok=True)
@@ -208,6 +215,29 @@ class TestOrphelins(BaseOntologie):
     def test_dossier_daides_absent_rend_tout_orphelin(self):
         self.assertEqual(orphelins(PENDING, Path("/n/existe/pas")), sorted(PENDING))
 
+    def test_plusieurs_dossiers_sont_balayes(self):
+        """Le banc d'essai en a deux : les aides du run, et le vrai catalogue.
+
+        N'en balayer qu'un ferait passer pour orphelins les 499 faits proposés
+        par tout le reste du catalogue — à chaque lint de l'agent, et dans le
+        rapport de fin de run.
+        """
+        autre = self.racine_bis / "aides"
+        autre.mkdir(parents=True, exist_ok=True)
+        (autre / "ailleurs.yaml").write_text(
+            "conditions:\n  - id: c1\n    fact: porteur_siege_grand_est\n", encoding="utf-8"
+        )
+        self.ecrire_aide("ex-aide", "jardin_remarquable")
+        restants = orphelins(PENDING, self.atelier.aides_dir, autre)
+        self.assertNotIn("jardin_remarquable", restants)
+        self.assertNotIn("porteur_siege_grand_est", restants)
+        self.assertIn("zz_fait_que_rien_ne_reference", restants)
+
+    def test_le_banc_dessai_voit_le_vrai_catalogue(self):
+        """`dossiers_catalogue` ajoute `data/aides/` dès que l'atelier est redirigé."""
+        self.assertEqual(len(self.atelier.dossiers_catalogue), 2)
+        self.assertIn(self.atelier.aides_dir, self.atelier.dossiers_catalogue)
+
 
 class TestAuditer(BaseOntologie):
     def test_rapport_nominal(self):
@@ -226,7 +256,9 @@ class TestAuditer(BaseOntologie):
         with fake_provider(json_reply(menteur)):
             rapport = auditer(self.atelier, FACTS, PENDING, client())
         self.assertNotIn("fait_invente", rapport.orphelins)
-        self.assertEqual(rapport.orphelins, sorted(set(PENDING) - {"jardin_remarquable"}))
+        # Référencé par l'aide du run : ce n'est pas un brouillon.
+        self.assertNotIn("jardin_remarquable", rapport.orphelins)
+        self.assertIn("zz_fait_que_rien_ne_reference", rapport.orphelins)
         self.assertEqual(rapport.polarites_suspectes, [])
 
     def test_panne_du_modele_donne_un_rapport_degrade(self):

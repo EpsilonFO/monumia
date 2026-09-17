@@ -144,13 +144,15 @@ def paires_suspectes(
     return scores[:limite]
 
 
-def orphelins(pending: dict[str, FactDef], aides_dir: Path) -> list[str]:
+def orphelins(pending: dict[str, FactDef], *aides_dirs: Path) -> list[str]:
     """Les faits proposés qu'aucune aide ne référence — des brouillons.
 
     Même comptage que le lint, sur le catalogue ENTIER : un fait proposé par une
-    autre aide du même run ne doit pas passer pour abandonné.
+    autre aide — du même run ou d'un autre — ne doit pas passer pour abandonné.
+    Plusieurs dossiers pour le banc d'essai, dont `aides_dir` ne porte que les
+    aides du run (cf. `Atelier.dossiers_catalogue`).
     """
-    return sorted(set(pending) - faits_references_dans(aides_dir))
+    return sorted(set(pending) - faits_references_dans(*aides_dirs))
 
 
 def _nie(jetons: list[str], i: int) -> bool:
@@ -289,7 +291,7 @@ def auditer(
     rien coûterait une ingestion entière pour une information de confort.
     """
     rapport = RapportOntologie(
-        orphelins=orphelins(pending, atelier.aides_dir),
+        orphelins=orphelins(pending, *atelier.dossiers_catalogue),
         polarites_suspectes=polarites_suspectes(pending),
     )
     paires = paires_suspectes(facts, pending, seuil=seuil, limite=limite)

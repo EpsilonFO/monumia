@@ -663,6 +663,10 @@ def outils_pour(
             aides_dir=atelier.aides_dir,
             facts_path=atelier.facts_path,
             pending_path=atelier.pending_path,
+            # Au banc d'essai, le vrai catalogue en plus du dossier du run :
+            # sans lui, les faits proposés par les autres aides passeraient
+            # pour orphelins à chaque lint.
+            reference_dirs=atelier.dossiers_catalogue,
         )
         etat.dernier_lint_ok = rapport.ok
         return rapport.texte()

@@ -288,6 +288,7 @@ def lint(
     facts_path: Path = FACTS_FILE,
     pending_path: Path = FACTS_PENDING_FILE,
     baseline_path: Path = BASELINE_FILE,
+    reference_dirs: Sequence[Path] = (),
 ) -> RapportLint:
     """Lint du catalogue entier, ou des seuls `slugs` donnés.
 
@@ -382,8 +383,12 @@ def lint(
 _REF_FAIT_RE = re.compile(r"\bfact:\s*['\"]?([A-Za-z0-9_]+)")
 
 
-def faits_references_dans(aides_dir: Path) -> set[str]:
+def faits_references_dans(*aides_dirs: Path) -> set[str]:
     """Les clés de faits citées par le catalogue ENTIER, par balayage textuel.
+
+    Plusieurs dossiers parce que le banc d'essai en a deux : celui du run
+    (`--sortie`) et le vrai `data/aides/`. N'en balayer qu'un ferait passer pour
+    orphelins les faits proposés par tout le reste du catalogue.
 
     Charger les 396 fichiers coûte 2,7 s, le balayage 0,08 s — et il faut bien
     balayer tout le catalogue même quand le lint ne porte que sur un slug,
@@ -394,11 +399,11 @@ def faits_references_dans(aides_dir: Path) -> set[str]:
     Les deux méthodes rendent exactement les mêmes 711 clés sur le catalogue
     réel (`TestOrphelins.test_le_balayage_textuel_est_fidele_au_parsing`).
     """
-    if not aides_dir.is_dir():
-        return set()
     return {
         cle
-        for chemin in aides_dir.glob("*.yaml")
+        for dossier in aides_dirs
+        if dossier.is_dir()
+        for chemin in dossier.glob("*.yaml")
         for cle in _REF_FAIT_RE.findall(chemin.read_text(encoding="utf-8", errors="replace"))
     }
 
