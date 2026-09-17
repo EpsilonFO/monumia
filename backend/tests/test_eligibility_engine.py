@@ -688,7 +688,7 @@ class TestQuestionGeneration(unittest.TestCase):
             _fixture_aide(
                 [self._gate("etat_travaux", {"eq": "non_commences"})]
                 + ([self._gate("porteur_est_proprietaire", {"eq": True})] if i < 2 else [])
-                + ([self._gate("residence_principale", {"eq": True})] if i < 1 else []),
+                + ([self._gate("visible_voie_publique", {"eq": True})] if i < 1 else []),
                 slug=f"fx-{i}",
             )
             for i in range(3)
