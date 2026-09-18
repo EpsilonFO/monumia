@@ -478,7 +478,7 @@ function Partenaires({ className = '', style }: { className?: string; style?: CS
         className="text-[11px] font-semibold uppercase tracking-[0.16em]"
         style={{ color: C.inkFaint }}
       >
-        Nos partenaires
+        Ils nous soutiennent
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-5 sm:mt-5 sm:gap-x-8">
         {PARTENAIRES.map((p) => (

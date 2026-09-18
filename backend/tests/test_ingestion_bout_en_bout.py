@@ -72,6 +72,7 @@ def aide_yaml(conditions: str, snapshot: str) -> str:
     return f"""\
 slug: ex-aide
 nom: Aide à la restauration du patrimoine rural
+nom_court: Restauration rurale (exemple)
 organisme: Région d'exemple
 categorie: region
 type: subvention

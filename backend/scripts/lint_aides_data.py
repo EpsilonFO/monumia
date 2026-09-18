@@ -272,6 +272,25 @@ def check_porteur_entreprise(aide: Aide, facts: dict[str, FactDef]) -> list[str]
     return erreurs
 
 
+def check_colonnes_non_nulles(aide: Aide) -> list[str]:
+    """Champs que `aides_v3` refuse en NULL, et que le schéma laisse optionnels.
+
+    `nom_court` est NOT NULL en base mais `str | None` dans `aides_schema` :
+    l'exiger au chargement Pydantic obligerait chaque fixture de test à porter
+    un champ sans rapport avec ce qu'elle teste. Le refus vit donc ici, là où le
+    workflow l'attend — avant le commit, pas trois étapes plus loin quand
+    `load_aides_yaml.py` remonte une violation de contrainte sur une fiche déjà
+    relue et committée (vu le 2026-09-18 sur
+    `normandie-cofinancement-projets-integres`).
+    """
+    if (aide.nom_court or "").strip():
+        return []
+    return [
+        f"{aide.slug}: `nom_court` vide — NOT NULL dans aides_v3, le chargement "
+        "échouerait. Un libellé court qui situe l'aide et son territoire."
+    ]
+
+
 # Marqueur de lien d'auteur — `[[fait]]`. Il n'a jamais été rendu : le front
 # affiche `question` et `help` tels quels, crochets compris. Le lecteur d'un
 # `help` est l'UTILISATEUR ; un renvoi vers une autre question s'écrit en
@@ -576,6 +595,7 @@ def lint(
             rapport.erreurs.append(f"{path.name}: {e}")
             continue
         rapport.aides.append(aide)
+        rapport.erreurs.extend(check_colonnes_non_nulles(aide))
         rapport.erreurs.extend(check_aide(aide, facts))
         rapport.erreurs.extend(check_hors_gate(aide, facts))
         rapport.erreurs.extend(check_porteur_entreprise(aide, facts))
