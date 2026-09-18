@@ -34,6 +34,7 @@ import textwrap
 from pathlib import Path
 from typing import Any, Literal, Union, get_args, get_origin
 
+import yaml
 from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -93,6 +94,10 @@ PRIME_MEME_PREFIXE = 3
 
 # Au-delà, un gabarit coûte plus de contexte qu'il n'apprend de format.
 TAILLE_MAX_GABARIT = 40_000
+
+# Les deux endroits où un YAML se coupe sans se casser : le début d'une clé de
+# premier niveau, et le début d'un élément de liste (à n'importe quel niveau).
+FRONTIERE_YAML = re.compile(r"^(?:[A-Za-z_][\w.-]*:|\s*-\s)")
 
 
 # ---------------------------------------------------------------------------
@@ -552,6 +557,41 @@ def richesse_doctrinale(aide: Aide) -> int:
     return points
 
 
+def tronquer_gabarit(texte: str) -> str:
+    """Le gabarit raccourci, mais toujours un document YAML valide.
+
+    Une coupe à l'octet tombait au milieu d'un scalaire cité (vu le
+    2026-09-18 sur `cvl-filieres-locales`, 55 k : le gabarit servi ne se
+    parsait plus). Un gabarit qui ne se charge pas enseigne une syntaxe
+    cassée — c'est exactement ce qu'il est là pour éviter.
+
+    On coupe donc à une FRONTIÈRE : le début d'une clé de premier niveau ou
+    d'un élément de liste, la plus tardive qui tienne sous la limite et dont
+    le document tronqué se parse encore. Couper sur un élément de liste plutôt
+    que sur la seule clé de premier niveau importe : `conditions` est le
+    dernier champ et le plus long d'une fiche, et s'arrêter avant lui servirait
+    un gabarit sans une seule condition — soit tout ce qu'il a à montrer.
+    """
+    if len(texte) < TAILLE_MAX_GABARIT:
+        return texte
+    frontieres: list[int] = []
+    position = 0
+    for ligne in texte.splitlines(keepends=True):
+        if position > TAILLE_MAX_GABARIT:
+            break
+        if position and FRONTIERE_YAML.match(ligne):
+            frontieres.append(position)
+        position += len(ligne)
+    for coupe in reversed(frontieres):
+        morceau = texte[:coupe]
+        try:
+            yaml.safe_load(morceau)
+        except yaml.YAMLError:
+            continue
+        return morceau
+    return texte[:TAILLE_MAX_GABARIT]
+
+
 def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None:
     """(slug, YAML) du meilleur gabarit disponible pour ce slug.
 
@@ -632,7 +672,7 @@ def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None
     texte = chemin.read_text(encoding="utf-8")
     # Un gabarit énorme mangerait la fenêtre de contexte pour rien ; à ce
     # stade il n'en reste qu'un à mesurer, la troncature est donc gratuite.
-    return meilleur[1], texte if len(texte) < TAILLE_MAX_GABARIT else texte[:TAILLE_MAX_GABARIT]
+    return meilleur[1], tronquer_gabarit(texte)
 
 
 def estimer_jetons(texte: str) -> int:
@@ -661,4 +701,5 @@ __all__ = [
     "sans_front_matter",
     "section",
     "titres",
+    "tronquer_gabarit",
 ]
