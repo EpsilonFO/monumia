@@ -82,42 +82,6 @@ export function Clover({
   );
 }
 
-/* Semis de fleurs Monumia en filigrane — réservé aux fonds bleus */
-function Tracery({
-  color,
-  opacity = 0.035,
-  size = 200,
-  className = '',
-}: {
-  color: string;
-  opacity?: number;
-  size?: number;
-  className?: string;
-}) {
-  return (
-    <div
-      aria-hidden="true"
-      className={`pointer-events-none absolute inset-0 h-full w-full ${className}`}
-      style={{
-        backgroundColor: color,
-        opacity,
-        WebkitMaskImage: LOGO_URL,
-        maskImage: LOGO_URL,
-        /* `round repeat` = round en X, repeat en Y. En X, les tuiles sont
-           ajustées pour qu'un nombre entier de fleurs tienne sur la largeur :
-           aucune fleur coupée sur les côtés. En Y, taille figée et ancrée en
-           haut : la hauteur d'un bloc peut changer (ex. changement d'onglet de
-           la démo) sans étirer les quadrilobes. La largeur ne variant qu'au
-           redimensionnement de la fenêtre, le motif reste stable à l'usage. */
-        WebkitMaskRepeat: 'round repeat',
-        maskRepeat: 'round repeat',
-        WebkitMaskSize: `${size}px ${size}px`,
-        maskSize: `${size}px ${size}px`,
-      }}
-    />
-  );
-}
-
 function prefersReducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
@@ -478,7 +442,7 @@ function Partenaires({ className = '', style }: { className?: string; style?: CS
         className="text-[11px] font-semibold uppercase tracking-[0.16em]"
         style={{ color: C.inkFaint }}
       >
-        Ils nous soutiennent
+        Référencé par
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-5 sm:mt-5 sm:gap-x-8">
         {PARTENAIRES.map((p) => (
@@ -774,7 +738,7 @@ function Constat() {
         <Reveal>
           <div className="mt-24">
             <SectionTitle
-              title="Un maquis d’aides, amplifiant la complexité de la recherche de financements."
+              title="Un maquis d'aides qui complique la recherche de financements."
               sub="Des dizaines de guichets, de l’Europe à la DRAC en passant par les préfectures, les Régions, les Départements, les fondations, les prix-concours… Chacun a ses propres critères d’éligibilité, montants, calendriers… Aujourd’hui, la recherche est complexe et fastidieuse."
             />
             <div className="mx-auto mt-9 flex max-w-2xl flex-wrap justify-center gap-2">
@@ -791,58 +755,69 @@ function Constat() {
           </div>
         </Reveal>
 
-        {/* Le Sénat dit la même chose que nous, et nous l’avons construit */}
-        <Reveal delay={120}>
-          <div
-            className="mt-20 grid items-center gap-10 rounded-2xl border p-7 sm:p-10 md:grid-cols-[200px_minmax(0,1fr)] md:gap-12"
-            style={{ background: C.card, borderColor: C.border }}
-          >
-            <a
-              href={RAPPORT_SENAT}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group mx-auto block w-[200px] transition-transform duration-300 hover:-translate-y-1"
-            >
-              {/* La couverture du rapport, telle qu’elle est publiée : la première
-                  page du PDF du Sénat, rendue en image */}
-              <span
-                className="block overflow-hidden rounded-lg border shadow-[0_18px_40px_-22px_rgba(34,43,53,0.5)]"
-                style={{ background: '#fff', borderColor: C.border }}
-              >
-                <img
-                  src={`${BASE}img/rapport-senat.jpg`}
-                  alt="Couverture du rapport d’information n° 865 du Sénat, 7 juillet 2026"
-                  loading="lazy"
-                  width={396}
-                  height={560}
-                  className="block w-full"
-                />
-              </span>
-              <span
-                className="mt-3.5 flex items-center justify-center gap-1.5 text-[13.5px] font-semibold underline-offset-2 group-hover:underline"
-                style={{ color: C.blue }}
-              >
-                <FileText className="h-4 w-4" strokeWidth={1.8} />
-                Consulter le rapport
-              </span>
-            </a>
-
-            <div>
-              <p
-                className="text-[11.5px] font-semibold uppercase tracking-[0.16em]"
-                style={{ color: C.orange }}
-              >
-                Le Sénat partage notre constat
-              </p>
-              <p className="mt-4 text-[16.5px] leading-[1.75]" style={{ color: C.inkSoft }}>
-                En juillet 2026, le Sénat recommande un guichet unique des subventions, « assorti
-                d’un portail d’information recensant l’ensemble des dispositifs de soutien
-                disponibles ». En parallèle de ce rapport, Monumia a déjà créé cette plateforme.
-              </p>
-            </div>
-          </div>
-        </Reveal>
       </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────
+   Le Sénat dit la même chose que nous, et nous l’avons construit. Posé après
+   la démonstration : la recommandation se lit mieux une fois la plateforme vue.
+   ──────────────────────────────────────────── */
+
+function RapportSenat() {
+  return (
+    <section className="px-5 pb-6 pt-20 lg:px-8 lg:pb-8 lg:pt-24">
+      <Reveal>
+        <div
+          className="mx-auto grid max-w-6xl items-center gap-10 rounded-2xl border p-7 sm:p-10 md:grid-cols-[200px_minmax(0,1fr)] md:gap-12"
+          style={{ background: C.card, borderColor: C.border }}
+        >
+          <a
+            href={RAPPORT_SENAT}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group mx-auto block w-[200px] transition-transform duration-300 hover:-translate-y-1"
+          >
+            {/* La couverture du rapport, telle qu’elle est publiée : la première
+                page du PDF du Sénat, rendue en image */}
+            <span
+              className="block overflow-hidden rounded-lg border shadow-[0_18px_40px_-22px_rgba(34,43,53,0.5)]"
+              style={{ background: '#fff', borderColor: C.border }}
+            >
+              <img
+                src={`${BASE}img/rapport-senat.jpg`}
+                alt="Couverture du rapport d’information n° 865 du Sénat, 7 juillet 2026"
+                loading="lazy"
+                width={396}
+                height={560}
+                className="block w-full"
+              />
+            </span>
+            <span
+              className="mt-3.5 flex items-center justify-center gap-1.5 text-[13.5px] font-semibold underline-offset-2 group-hover:underline"
+              style={{ color: C.blue }}
+            >
+              <FileText className="h-4 w-4" strokeWidth={1.8} />
+              Consulter le rapport
+            </span>
+          </a>
+
+          <div>
+            <p
+              className="text-[11.5px] font-semibold uppercase tracking-[0.16em]"
+              style={{ color: C.orange }}
+            >
+              Le Sénat partage notre constat
+            </p>
+            <p className="mt-4 text-[16.5px] leading-[1.75]" style={{ color: C.inkSoft }}>
+              En juillet 2026, le Sénat recommande un guichet unique des subventions, « assorti
+              d’un portail d’information recensant l’ensemble des dispositifs de soutien
+              disponibles ». En parallèle de ce rapport, Monumia a déjà créé cette plateforme.
+            </p>
+          </div>
+        </div>
+      </Reveal>
     </section>
   );
 }
@@ -1619,8 +1594,6 @@ function Demo() {
       className="relative scroll-mt-20 overflow-hidden"
       style={{ background: C.blue }}
     >
-      <Tracery color="#ffffff" opacity={0.03} size={720} />
-
       {/* Une salle éclairée : deux nappes de bleu clair, au plafond et au sol, et
           une lumière blanche qui pose le titre. Le halo du haut est bleu et non
           orange : sur ce bleu profond, un orange diffus tourne au mauve terne. */}
@@ -2009,8 +1982,8 @@ function Team() {
           <SectionTitle
             filet={false}
             title="Car nous avons décidé de ne plus attendre."
-            sub="Ensemble, ils portent Monumia."
-          />
+            sub="Ensemble, nous portons Monumia."
+          /> 
         </Reveal>
 
         <div className="mx-auto mt-14 grid max-w-2xl gap-14 md:max-w-4xl md:grid-cols-2 md:gap-10 lg:max-w-6xl lg:grid-cols-4 lg:gap-8">
@@ -2181,7 +2154,6 @@ function PlanCard({ plan }: { plan: Plan }) {
 
   return (
     <div className={shell} style={shellStyle}>
-      {dark && <Tracery color="#ffffff" opacity={0.03} size={160} />}
       {plan.badge && (
         <span
           className={
@@ -2406,8 +2378,6 @@ function FinalCta() {
           className="relative mx-auto max-w-4xl overflow-hidden rounded-3xl px-7 py-16 text-center shadow-[0_30px_70px_-35px_rgba(10,54,157,0.55)] sm:px-16 sm:py-20"
           style={{ background: C.blue }}
         >
-          <Tracery color="#ffffff" opacity={0.015} size={180} />
-
           <div className="relative">
             <h2 className="mx-auto max-w-3xl font-serif text-[clamp(1.9rem,3.6vw,2.5rem)] leading-[1.2] text-white">
               Mobilisez enfin toutes les aides pour restaurer, ouvrir ou animer votre monument.
@@ -2571,6 +2541,7 @@ export function LandingPage() {
         <Hero />
         <Constat />
         <Demo />
+        <RapportSenat />
         <Exemple />
         <Team />
         <Pricing />
