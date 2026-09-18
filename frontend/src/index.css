@@ -293,6 +293,9 @@
 .animate-fade-in {
   animation: fade-in-kf 500ms ease-out;
 }
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in { animation: none; }
+}
 
 .font-hand {
   font-family: var(--font-hand);

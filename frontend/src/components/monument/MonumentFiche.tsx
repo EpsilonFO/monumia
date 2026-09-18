@@ -1,11 +1,6 @@
-import type { ComponentType, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
-import {
-  IconMonument, IconProtection, IconDiagnostic, IconLocalisation,
-  IconCalendrier, IconParchemin, IconCle, IconPublic,
-  IconLivre, IconImage, IconModifier, IconSupprimer,
-} from '@/components/icons';
-import { Clover } from '@/components/illustrations';
+import { IconModifier, IconSupprimer } from '@/components/icons';
 import { C, SERIF } from '@/lib/brand';
 import { formatDate } from '@/lib/date-utils';
 import {
@@ -13,58 +8,34 @@ import {
 } from '@/constants/monument-options';
 import type { Monument } from '@/types';
 
-type IconType = ComponentType<{ className?: string; strokeWidth?: number; style?: React.CSSProperties }>;
-
 /* ------------------------------------------------------------------ */
-/* Tonalités par valeur métier                                         */
+/* Ce que disent les statuts                                           */
 /* ------------------------------------------------------------------ */
 
-// Chaque niveau de protection a sa couleur et une phrase qui explique, en
-// langage courant, ce que ce statut change concrètement pour le propriétaire.
-const PROTECTION_TONE: Record<string, { bg: string; fg: string; sub: string }> = {
-  classe: {
-    bg: 'var(--secondary)', fg: 'var(--primary)',
-    sub: "Le plus haut niveau de protection au titre des Monuments Historiques : les aides de l'État vous sont largement ouvertes.",
-  },
-  inscrit: {
-    bg: 'var(--info-muted)', fg: 'var(--info)',
-    sub: 'Une protection officielle qui ouvre droit à de nombreuses aides publiques.',
-  },
-  abords: {
-    bg: 'var(--cat-3-soft)', fg: 'var(--cat-3)',
-    sub: "Votre bien se trouve dans le périmètre protégé d'un monument historique.",
-  },
-  spr: {
-    bg: 'var(--cat-4-soft)', fg: 'var(--cat-4)',
-    sub: 'Un site reconnu pour la valeur de son patrimoine architectural et paysager.',
-  },
-  non_protege: {
-    bg: 'var(--muted)', fg: 'var(--gray-fg)',
-    sub: 'Pas encore de protection officielle — certaines aides restent néanmoins accessibles.',
-  },
+// L'en-tête de la fiche énonce le statut comme le fait l'arrêté — « Classé au
+// titre des monuments historiques », et non le libellé court des badges. C'est
+// la seule page où il se lit en entier ; ailleurs la place manque.
+const PROTECTION_ENONCE: Record<string, string> = {
+  classe: 'Classé au titre des monuments historiques',
+  inscrit: 'Inscrit au titre des monuments historiques',
+  abords: "Situé aux abords d'un monument historique",
+  spr: 'En site patrimonial remarquable',
+  non_protege: 'Non protégé',
 };
 
-// Pastille de couleur associée au signal péril (simple repère visuel).
-const PERIL_DOT = { oui: 'var(--destructive)', non: 'var(--success)' };
+// Ce que ce statut change concrètement pour le propriétaire, en une phrase.
+const PROTECTION_PHRASE: Record<string, string> = {
+  classe: "Le plus haut niveau de protection au titre des monuments historiques : les aides de l'État vous sont largement ouvertes.",
+  inscrit: 'Une protection officielle qui ouvre droit à de nombreuses aides publiques.',
+  abords: "Le bien se trouve dans le périmètre protégé d'un monument historique.",
+  spr: 'Un site reconnu pour la valeur de son patrimoine architectural et paysager.',
+  non_protege: 'Pas encore de protection officielle. Certaines aides restent néanmoins accessibles.',
+};
 
-// L'état sanitaire se lit en deux registres : la pastille de la fiche info, et
-// l'encadré qui dit ce que ce statut change concrètement pour le propriétaire.
-const PERIL_TONE = {
-  oui: {
-    bg: 'var(--destructive-muted)',
-    fg: 'var(--destructive)',
-    sub: "Plusieurs dispositifs d'urgence — loto du patrimoine, missions et fonds régionaux de sauvegarde — ne s'adressent qu'aux monuments dans cette situation.",
-  },
-  non: {
-    bg: 'var(--success-muted)',
-    fg: 'var(--success)',
-    sub: 'Le monument est globalement sain. Les aides d’urgence ne vous concernent pas, les dispositifs de restauration courante restent ouverts.',
-  },
-  inconnu: {
-    bg: 'var(--muted)',
-    fg: 'var(--gray-fg)',
-    sub: "La question n'a pas encore été posée pour ce monument. Y répondre débloque ou écarte les dispositifs d'urgence.",
-  },
+const PERIL_PHRASE = {
+  oui: "Les dispositifs d'urgence, loto du patrimoine et fonds régionaux de sauvegarde, ne s'adressent qu'aux monuments dans cette situation.",
+  non: "Le monument est globalement sain. Les aides d'urgence ne vous concernent pas, les dispositifs de restauration courante restent ouverts.",
+  inconnu: "La question n'a pas encore été posée. Y répondre ouvre ou écarte les dispositifs d'urgence.",
 };
 
 const PHOTO_TYPE_LABELS: Record<string, string> = {
@@ -76,61 +47,58 @@ const PHOTO_TYPE_LABELS: Record<string, string> = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Briques d'affichage                                                 */
+/* Briques                                                             */
 /* ------------------------------------------------------------------ */
 
-function Section({ icon: Icon, title, iconBg = 'var(--secondary)', iconFg = 'var(--primary)', accent, children }: {
-  icon: IconType;
-  title: ReactNode;
-  iconBg?: string;
-  iconFg?: string;
-  /** Filet coloré sur la tranche gauche (même signature que les encadrés du blog). */
-  accent?: string;
-  children: ReactNode;
-}) {
+/** Un fait d'identification : l'étiquette au-dessus, la valeur en serif juste
+ *  en dessous. Les deux se touchent — une étiquette à gauche et sa valeur au
+ *  bout d'une ligne de 500 px obligent l'œil à faire l'aller-retour. */
+function Fait({ label, value }: { label: string; value: string }) {
   return (
-    <section
-      className={`relative flex flex-col overflow-hidden rounded-2xl border p-5 sm:p-6 ${accent ? 'pl-6 sm:pl-7' : ''}`}
-      style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
-    >
-      {accent && <span aria-hidden className="absolute inset-y-0 left-0 w-1.5" style={{ background: accent }} />}
-      <h3 className="mb-4 flex items-center gap-2.5 text-[17px]" style={{ fontFamily: SERIF, color: C.ink }}>
-        <span
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-          style={{ background: iconBg, color: iconFg }}
-        >
-          <Icon className="h-[16px] w-[16px]" strokeWidth={2} />
-        </span>
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
-}
-
-function Field({ icon: Icon, label, value, dot }: { icon: IconType; label: string; value: string; dot?: string }) {
-  return (
-    <div className="flex items-start gap-3">
-      <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border"
-        style={{ background: '#fff', borderColor: C.border, color: C.blue }}
-      >
-        <Icon className="h-[17px] w-[17px]" strokeWidth={1.8} />
-      </span>
-      <div className="min-w-0">
-        <p className="text-[12px] font-semibold uppercase leading-none tracking-[0.08em]" style={{ color: C.grayMuted }}>{label}</p>
-        <p className="mt-1.5 flex items-center gap-2 text-[15px] font-medium leading-snug" style={{ color: C.ink }}>
-          {dot && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: dot }} aria-hidden />}
-          {value}
-        </p>
-      </div>
+    <div className="min-w-0">
+      <dt className="text-[13px] leading-snug" style={{ color: C.grayMuted }}>{label}</dt>
+      <dd className="mt-1 text-[17px] leading-snug" style={{ fontFamily: SERIF, color: C.ink }}>{value}</dd>
     </div>
   );
 }
 
-/** Description : la première phrase en serif donne le ton, la suite en corps courant.
- *  Pas de mise en avant si la « phrase » est douteuse (parenthèse ouverte, abréviation
- *  type « cad. » fréquente dans les notices Mérimée). */
+/** Titre de section, dans la feuille : une étiquette discrète, pas un titre qui
+ *  concurrence son propre contenu — la description s'ouvre sur du serif 21 px,
+ *  un intertitre plus gros lui passerait devant. Pas de pastille d'icône non
+ *  plus : le mot suffit. */
+function Titre({ children }: { children: ReactNode }) {
+  return (
+    <h3 className="mb-3.5 text-[13.5px] font-medium leading-snug" style={{ color: C.grayMuted }}>
+      {children}
+    </h3>
+  );
+}
+
+/** Un statut de l'en-tête : l'énoncé en grand, puis ce qu'il change. */
+function Statut({ enonce, phrase, note, pastille }: {
+  enonce: string;
+  phrase: string;
+  /** Sous l'énoncé : la date de l'arrêté, quand il y en a une. */
+  note?: string;
+  pastille?: string;
+}) {
+  return (
+    <div>
+      <p className="flex items-baseline gap-2.5 text-[22px] leading-[1.3]" style={{ fontFamily: SERIF, color: C.ink }}>
+        {pastille && (
+          <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: pastille }} />
+        )}
+        {enonce}
+      </p>
+      {note && <p className="mt-1 text-[13.5px]" style={{ color: C.grayMuted }}>{note}</p>}
+      <p className="mt-2.5 max-w-[60ch] text-[14.5px] leading-[1.65]" style={{ color: C.grayFg }}>{phrase}</p>
+    </div>
+  );
+}
+
+/** Description : la première phrase donne le ton en plus gros, la suite au
+ *  corps courant. Pas de mise en avant si la « phrase » est douteuse (parenthèse
+ *  ouverte, abréviation type « cad. » fréquente dans les notices Mérimée). */
 function Description({ text }: { text: string }) {
   const cut = text.indexOf('. ');
   const head = cut > 0 && cut < 220 ? text.slice(0, cut + 1) : '';
@@ -139,10 +107,12 @@ function Description({ text }: { text: string }) {
   const lead = head && balanced && !abbrev ? head : '';
   const body = lead ? text.slice(cut + 1).trim() : text;
   return (
-    <div className="space-y-2.5">
-      {lead && <p className="text-[18px] leading-snug" style={{ fontFamily: SERIF, color: C.ink }}>{lead}</p>}
+    <div className="max-w-[74ch] space-y-4">
+      {lead && (
+        <p className="text-[21px] leading-[1.55]" style={{ fontFamily: SERIF, color: C.ink }}>{lead}</p>
+      )}
       {body && (
-        <p className="whitespace-pre-line text-[14.5px] leading-relaxed" style={{ color: C.grayFg }}>{body}</p>
+        <p className="whitespace-pre-line text-[16.5px] leading-[1.8]" style={{ color: C.grayFg }}>{body}</p>
       )}
     </div>
   );
@@ -154,6 +124,8 @@ function Description({ text }: { text: string }) {
 
 interface MonumentFicheProps {
   monument: Monument;
+  canEdit: boolean;
+  onEdit: () => void;
   canDelete: boolean;
   deleting: boolean;
   onDelete: () => void;
@@ -163,158 +135,150 @@ interface MonumentFicheProps {
  * Fiche sanitaire du monument : ce qui décrit le BIEN et ne bouge pas d'un
  * chantier à l'autre. Les travaux envisagés n'y figurent plus — ils cadrent un
  * projet, et vivent sur sa propre page.
+ *
+ * Une SEULE feuille pleine largeur, découpée par des filets, plutôt qu'une pile
+ * d'encadrés de largeurs différentes : la fiche est un document, pas un
+ * assemblage de vignettes. Elle s'ouvre sur les deux statuts qui gouvernent
+ * l'éligibilité aux aides (protection, état sanitaire) ; viennent ensuite
+ * l'identification, la description, les photos.
  */
-export function MonumentFiche({ monument, canDelete, deleting, onDelete }: MonumentFicheProps) {
-  const protection = PROTECTION_TONE[monument.protection] ?? PROTECTION_TONE.non_protege;
+export function MonumentFiche({
+  monument, canEdit, onEdit, canDelete, deleting, onDelete,
+}: MonumentFicheProps) {
   // La photo de profil illustre déjà l'en-tête : pas de doublon dans la galerie.
   // Sans lien signé, l'image serait cassée (bucket privé) — on l'écarte.
   const galerie = (monument.photos ?? []).filter((p) => p.type !== 'profil' && p.signedUrl);
   const enPeril = isEnPeril(monument.etatConservation);
-  const peril = enPeril === null ? PERIL_TONE.inconnu : enPeril ? PERIL_TONE.oui : PERIL_TONE.non;
 
-  // Fiche info : seuls les champs renseignés apparaissent.
-  const fields = [
-    monument.referenceMerimee && { icon: IconParchemin, label: 'Réf. Mérimée', value: monument.referenceMerimee },
-    monument.commune && { icon: IconLocalisation, label: 'Commune', value: monument.commune },
-    monument.departement && { icon: IconPublic, label: 'Département', value: monument.departement },
+  // Un bien non protégé peut garder d'anciennes dates en base : on ne les montre pas.
+  const dateArrete = monument.protection !== 'non_protege' && monument.dateProtection
+    ? `Arrêté du ${formatDate(monument.dateProtection)}`
+    : undefined;
+
+  // Identification : seuls les champs renseignés apparaissent.
+  const faits = [
+    monument.referenceMerimee && { label: 'Référence Mérimée', value: monument.referenceMerimee },
+    monument.commune && { label: 'Commune', value: monument.commune },
+    monument.departement && { label: 'Département', value: monument.departement },
     monument.siecleConstruction && {
-      icon: IconCalendrier, label: 'Siècle de construction',
+      label: 'Siècle de construction',
       // Les données Mérimée arrivent parfois sous la forme « 12e s.;13e s. ».
       value: monument.siecleConstruction.split(';').map((s) => s.trim()).filter(Boolean).join(' · '),
     },
     monument.proprietaire && {
-      icon: IconCle, label: 'Propriétaire',
+      label: 'Propriétaire',
       value: OWNERSHIP_TYPES.find((o) => o.value === monument.proprietaire)?.label ?? monument.proprietaire,
     },
-    // Tant que la question péril n'a pas été posée (fiche créée avant que
-    // l'étape n'existe), la ligne n'apparaît pas plutôt que d'afficher un vide :
-    // la section « État sanitaire » plus bas dit, elle, qu'il reste à répondre.
-    enPeril !== null && {
-      icon: IconDiagnostic, label: 'État du monument',
-      value: perilLabel(monument.etatConservation) ?? '',
-      dot: enPeril ? PERIL_DOT.oui : PERIL_DOT.non,
-    },
-  ].filter((f): f is { icon: IconType; label: string; value: string; dot?: string } => Boolean(f));
+  ].filter((f): f is { label: string; value: string } => Boolean(f));
 
   return (
-    <div className="space-y-4 animate-fade-in">
-      {/* Fiche info — la pièce maîtresse : fond légèrement teinté + fleur fantôme. */}
-      <section
-        className="relative overflow-hidden rounded-2xl border p-5 sm:p-6"
-        style={{
-          background: 'linear-gradient(135deg, var(--secondary) 0%, var(--card) 48%)',
-          borderColor: C.border,
-          boxShadow: 'var(--shadow-card)',
-        }}
-      >
-        <Clover
-          size={140}
-          className="pointer-events-none absolute -right-6 -top-7"
-          style={{ color: C.blue, opacity: 0.06 }}
-        />
-        <h3 className="mb-4 flex items-center gap-2.5 text-[17px]" style={{ fontFamily: SERIF, color: C.ink }}>
-          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: C.blue, color: '#fff' }}>
-            <IconMonument className="h-[16px] w-[16px]" strokeWidth={2} />
-          </span>
-          Fiche info
-        </h3>
-        {fields.length > 0 ? (
-          <div className="relative grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-            {fields.map((f) => <Field key={f.label} icon={f.icon} label={f.label} value={f.value} dot={f.dot} />)}
-          </div>
-        ) : (
-          <p className="text-[14px]" style={{ color: C.grayMuted }}>
-            Les informations du monument apparaîtront ici une fois la fiche renseignée.
-          </p>
-        )}
-      </section>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Section icon={IconProtection} title="Protection" iconBg={protection.bg} iconFg={protection.fg} accent={protection.fg}>
-          <div className="space-y-3">
-            <div className="rounded-xl p-4" style={{ background: protection.bg }}>
-              <p className="text-[16px] font-bold leading-snug" style={{ color: protection.fg }}>
-                {PROTECTION_LABELS[monument.protection] ?? monument.protection}
-              </p>
-              <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: C.grayFg }}>{protection.sub}</p>
-            </div>
-            {/* Un bien non protégé peut garder d'anciennes dates en base : on ne les montre pas. */}
-            {monument.protection !== 'non_protege' && monument.dateProtection && (
-              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-medium" style={{ background: C.cream, color: C.grayFg }}>
-                <IconCalendrier className="h-3.5 w-3.5" />
-                Protégé depuis le {formatDate(monument.dateProtection)}
-              </span>
-            )}
-          </div>
-        </Section>
-
-        {/* État sanitaire — le second pilier de la fiche, à côté de la
-            protection : c'est lui qui ouvre ou ferme les dispositifs d'urgence,
-            et il vaut pour TOUS les projets du monument. */}
-        <Section icon={IconDiagnostic} title="État sanitaire" iconBg={peril.bg} iconFg={peril.fg} accent={peril.fg}>
-          <div className="rounded-xl p-4" style={{ background: peril.bg }}>
-            <p className="text-[16px] font-bold leading-snug" style={{ color: peril.fg }}>
-              {enPeril === null ? 'Non renseigné' : (perilLabel(monument.etatConservation) ?? '')}
-            </p>
-            <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: C.grayFg }}>{peril.sub}</p>
-          </div>
-        </Section>
-      </div>
-
-      {monument.descriptionGenerale && (
-        <Section icon={IconLivre} title="Description du monument" accent={C.blue}>
-          <Description text={monument.descriptionGenerale} />
-        </Section>
-      )}
-
-      {galerie.length > 0 && (
-        <Section icon={IconImage} title="Photos" iconBg={C.paleBlue} iconFg={C.blue} accent={C.blueLight}>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {galerie.map((p) => (
-              <figure key={p.url} className="group min-w-0">
-                <div className="aspect-[4/3] overflow-hidden rounded-xl border" style={{ borderColor: C.border }}>
-                  <img
-                    src={p.signedUrl}
-                    alt={p.legende || monument.nom}
-                    loading="lazy"
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                  />
-                </div>
-                {(p.legende || PHOTO_TYPE_LABELS[p.type]) && (
-                  <figcaption className="mt-1.5 flex items-center gap-2 text-[12.5px]" style={{ color: C.grayMuted }}>
-                    {PHOTO_TYPE_LABELS[p.type] && (
-                      <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: C.paleBlue, color: C.blue }}>
-                        {PHOTO_TYPE_LABELS[p.type]}
-                      </span>
-                    )}
-                    {p.legende && <span className="truncate">{p.legende}</span>}
-                  </figcaption>
-                )}
-              </figure>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px]" style={{ color: C.grayMuted }}>
-          <span className="flex items-center gap-1.5">
-            <IconCalendrier className="h-3.5 w-3.5" />
-            Créé le {formatDate(monument.createdAt)}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <IconModifier className="h-3.5 w-3.5" />
-            Modifié le {formatDate(monument.updatedAt)}
-          </span>
+    <div className="space-y-3 animate-fade-in">
+      {canEdit && (
+        <div className="flex justify-end">
+          <button
+            onClick={onEdit}
+            className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white transition-all duration-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            style={{ background: C.blue }}
+          >
+            <IconModifier className="h-3.5 w-3.5" strokeWidth={2} />
+            Modifier la fiche
+          </button>
         </div>
+      )}
+
+      <article
+        className="overflow-hidden rounded-2xl border"
+        style={{ borderColor: C.border, background: C.card, boxShadow: 'var(--shadow-card)' }}
+      >
+        {/* En-tête de la feuille : les deux faits qui ouvrent ou ferment les
+            aides. Le fond teinté les distingue du corps de la fiche sans avoir
+            à les enfermer chacun dans un encadré de plus. */}
+        <div
+          className="grid gap-7 p-6 sm:p-8 md:grid-cols-2 md:gap-10"
+          style={{ background: 'var(--secondary)' }}
+        >
+          <Statut
+            enonce={PROTECTION_ENONCE[monument.protection]
+              ?? PROTECTION_LABELS[monument.protection]
+              ?? monument.protection}
+            note={dateArrete}
+            phrase={PROTECTION_PHRASE[monument.protection] ?? ''}
+          />
+          <div
+            className="md:border-l md:pl-10"
+            style={{ borderColor: 'color-mix(in srgb, var(--primary) 18%, transparent)' }}
+          >
+            <Statut
+              enonce={enPeril === null ? 'État non renseigné' : (perilLabel(monument.etatConservation) ?? '')}
+              phrase={enPeril === null ? PERIL_PHRASE.inconnu : enPeril ? PERIL_PHRASE.oui : PERIL_PHRASE.non}
+              pastille={enPeril === null ? C.grayMuted : enPeril ? C.danger : C.success}
+            />
+          </div>
+        </div>
+
+        {faits.length > 0 && (
+          <dl
+            className="grid gap-x-10 gap-y-7 border-t p-6 sm:grid-cols-2 sm:p-8 lg:grid-cols-3"
+            style={{ borderColor: C.border }}
+          >
+            {faits.map((f) => <Fait key={f.label} label={f.label} value={f.value} />)}
+          </dl>
+        )}
+
+        {monument.descriptionGenerale && (
+          <section className="border-t p-6 sm:p-8" style={{ borderColor: C.border }}>
+            <Titre>Description</Titre>
+            <Description text={monument.descriptionGenerale} />
+          </section>
+        )}
+
+        {galerie.length > 0 && (
+          <section className="border-t p-6 sm:p-8" style={{ borderColor: C.border }}>
+            <Titre>Photos</Titre>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
+              {galerie.map((p) => (
+                <figure key={p.url} className="min-w-0 space-y-2">
+                  <div className="aspect-[4/3] overflow-hidden rounded-lg border" style={{ borderColor: C.border }}>
+                    <img
+                      src={p.signedUrl}
+                      alt={p.legende || monument.nom}
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  {(p.legende || PHOTO_TYPE_LABELS[p.type]) && (
+                    <figcaption className="text-[13px] leading-snug">
+                      {PHOTO_TYPE_LABELS[p.type] && (
+                        <span style={{ color: C.ink }}>{PHOTO_TYPE_LABELS[p.type]}</span>
+                      )}
+                      {p.legende && (
+                        <span style={{ color: C.grayMuted }}>
+                          {PHOTO_TYPE_LABELS[p.type] ? ', ' : ''}{p.legende}
+                        </span>
+                      )}
+                    </figcaption>
+                  )}
+                </figure>
+              ))}
+            </div>
+          </section>
+        )}
+      </article>
+
+      <div className="flex flex-col gap-3 px-1 pt-1 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[13px]" style={{ color: C.grayMuted }}>
+          Fiche créée le {formatDate(monument.createdAt)}, modifiée le {formatDate(monument.updatedAt)}.
+        </p>
         {canDelete && (
           <button
             onClick={onDelete}
             disabled={deleting}
-            className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[13px] font-semibold transition-colors hover:bg-destructive-muted disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex items-center gap-2 self-start rounded-full border px-4 py-2 text-[13px] font-semibold transition-colors hover:bg-destructive-muted disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:self-auto"
             style={{ borderColor: C.border, color: C.danger }}
           >
-            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconSupprimer className="h-4 w-4" strokeWidth={1.8} />}
+            {deleting
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <IconSupprimer className="h-4 w-4" strokeWidth={1.8} />}
             Supprimer le monument
           </button>
         )}

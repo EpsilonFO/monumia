@@ -390,20 +390,11 @@ export function MonumentDetailPage() {
         </div>
 
         {/* FICHE SANITAIRE */}
-        <TabsContent value="sanitaire" className="mt-4 space-y-4">
-          {canEdit && (
-            <div className="flex justify-end">
-              <button
-                onClick={() => setIsEditing(true)}
-                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white transition-all duration-200 hover:shadow-md"
-                style={{ background: C.blue }}
-              >
-                Modifier la fiche
-              </button>
-            </div>
-          )}
+        <TabsContent value="sanitaire" className="mt-4">
           <MonumentFiche
             monument={monument}
+            canEdit={canEdit}
+            onEdit={() => setIsEditing(true)}
             // Deux conditions, et elles ne disent pas la même chose : le rôle
             // dit « ce compte a-t-il le droit », l'offre dit « ce produit le
             // permet-il ». Aucune ne remplace l'autre.
