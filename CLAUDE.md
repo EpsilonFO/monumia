@@ -28,6 +28,12 @@ uv run ruff format . && uv run ruff check --fix .
 uv run pyright .
 ```
 
+Dans un **worktree neuf**, le venv se crée sans `providall` (groupe `pipeline`, non
+installé par défaut parce qu'il vient d'un dépôt privé en SSH, cf. `pyproject.toml`) :
+les tests du pipeline ne s'importent plus et pyright rate onze imports. Un
+`uv sync --group dev --group pipeline` depuis `backend/` répare, et côté frontend il
+faut un `npm ci` (ou le lien que pose `scripts/tsc-check.sh`).
+
 Frontend (depuis `frontend/`) :
 
 ```bash
