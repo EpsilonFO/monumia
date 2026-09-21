@@ -584,7 +584,7 @@ function Hero() {
           >
             À quelles aides votre monument est-il éligible ? Pour quel montant ? Comment les
             obtenir ? Monumia croise votre projet de restauration, d’ouverture ou d’animation
-            avec plus de 400 aides, de la DRAC aux fondations.
+            avec plus de 2000 aides, de la DRAC aux fondations.
           </p>
 
           <div className="fade-up mt-9 flex flex-wrap items-center gap-4" style={{ animationDelay: '0.45s' }}>
@@ -832,16 +832,23 @@ function RapportSenat() {
           </a>
 
           <div>
-            <p
-              className="text-[11.5px] font-semibold uppercase tracking-[0.16em]"
-              style={{ color: C.orange }}
+            {/* Un vrai titre de section, et non l'exergue en petites capitales
+                qui tenait ici : c'est l'argument le plus fort de la page, il
+                doit se lire à la hauteur des autres. Le filet orange reprend
+                l'idiome de `SectionTitle`, aligné à gauche — le bloc est en
+                deux colonnes, un titre centré flotterait à côté de sa
+                couverture. */}
+            <h2
+              className="font-serif text-[clamp(1.55rem,2.9vw,2.05rem)] leading-[1.2] tracking-[-0.01em]"
+              style={{ color: C.ink }}
             >
               Le Sénat partage notre constat
-            </p>
-            <p className="mt-4 text-[16.5px] leading-[1.75]" style={{ color: C.inkSoft }}>
+            </h2>
+            <div className="mt-4 h-[3px] w-12 rounded-full" style={{ background: C.orange }} />
+            <p className="mt-5 text-[16.5px] leading-[1.75]" style={{ color: C.inkSoft }}>
               En juillet 2026, le Sénat recommande un guichet unique des subventions, « assorti
               d’un portail d’information recensant l’ensemble des dispositifs de soutien
-              disponibles ». En parallèle de ce rapport, Monumia a déjà créé cette plateforme.
+              disponibles ».
             </p>
           </div>
         </div>
