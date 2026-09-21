@@ -13,6 +13,7 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { AdminRoute } from '@/components/auth/AdminRoute';
 import { AdminPage } from '@/pages/admin/AdminPage';
 import { AdminStatsPage } from '@/pages/admin/AdminStatsPage';
+import { MonComptePage } from '@/pages/compte/MonComptePage';
 // Owner / Commune pages
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { MonumentsListPage } from '@/pages/monuments/MonumentsListPage';
@@ -115,6 +116,17 @@ export const router = createBrowserRouter([
   {
     path: '/auth/callback',
     element: <AuthCallbackPage />,
+  },
+
+  // « Mon compte » depuis la landing : un aiguillage, pas une page. Hors de
+  // `/app` parce qu'il n'affiche rien et repart aussitôt.
+  {
+    path: ROUTES.MON_COMPTE,
+    element: (
+      <ProtectedRoute>
+        <MonComptePage />
+      </ProtectedRoute>
+    ),
   },
 
   // Tarifs page (public)

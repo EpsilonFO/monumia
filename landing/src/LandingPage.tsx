@@ -17,6 +17,7 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react';
+import { sessionActive } from './session';
 
 const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.monumia.fr';
 
@@ -223,12 +224,34 @@ function goToDecouverte() {
   window.location.href = `${APP_URL}/app/monuments/nouveau`;
 }
 
+/* Espace du compte. La landing ne sait QUE qu'une session existe : c'est
+   l'application qui choisit entre tableau de bord, fiche du monument et
+   wizard d'enregistrement (elle seule connaît l'offre et les biens du
+   compte). D'où cet aiguillage plutôt qu'une destination fixe. */
+function goToCompte() {
+  window.location.href = `${APP_URL}/mon-compte`;
+}
+
 /* Page d'inscription à la liste d'attente : route servie par le fallback SPA de
    nginx (sous BASE — '/lancement' en prod, '/landing/lancement' en beta). */
 export const SIGNUP_PATH = `${BASE}lancement`;
 function goToSignup() {
   window.location.href = SIGNUP_PATH;
 }
+
+/* Tout CTA d'ENTRÉE dans le produit passe par ici. Connecté, ni le parcours
+   découverte ni la liste d'attente n'ont de sens : le premier redemanderait de
+   décrire un monument déjà enregistré, la seconde un compte déjà ouvert. Le
+   cookie est relu à CHAQUE clic, et non au montage : entre-temps on a pu se
+   déconnecter dans l'onglet d'à côté.
+
+   Les boutons qui ne sont pas une entrée gardent leur destination : « Nous
+   contacter » de l'offre Multi-monuments reste un courrier. */
+function siConnecte(sinon: () => void): () => void {
+  return () => (sessionActive() ? goToCompte() : sinon());
+}
+
+const entrerDansMonumia = siConnecte(goToDecouverte);
 
 /* Offre multi-monuments : pas d'auto-inscription, on passe par un échange. */
 function goToContact() {
@@ -314,6 +337,11 @@ function SectionTitle({
 
 function Header() {
   const [scrolled, setScrolled] = useState(false);
+  // Le seul endroit où la session change un LIBELLÉ, et non seulement une
+  // destination : proposer « Trouver mes aides » à qui en a déjà une liste le
+  // renverrait refaire son diagnostic. Lu au montage — la barre est rendue une
+  // fois, et le clic relit le cookie de toute façon.
+  const [connecte] = useState(sessionActive);
   const barRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let raf = 0;
@@ -373,11 +401,11 @@ function Header() {
 
         <div className="flex items-center gap-5">
           <button
-            onClick={goToDecouverte}
+            onClick={entrerDansMonumia}
             className="whitespace-nowrap rounded-full px-5 py-2.5 text-[14px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_20px_-6px_rgba(241,113,5,0.55)]"
             style={{ background: C.orange }}
           >
-            Trouver mes aides
+            {connecte ? 'Mon compte' : 'Trouver mes aides'}
           </button>
         </div>
       </div>
@@ -514,7 +542,7 @@ function EstimationCard() {
       </p>
 
       <button
-        onClick={goToDecouverte}
+        onClick={entrerDansMonumia}
         className="mt-3 self-start text-[12.5px] font-semibold transition-opacity duration-200 hover:opacity-75"
         style={{ color: C.orange }}
       >
@@ -560,7 +588,7 @@ function Hero() {
           </p>
 
           <div className="fade-up mt-9 flex flex-wrap items-center gap-4" style={{ animationDelay: '0.45s' }}>
-            <CtaButton variant="blue" onClick={goToDecouverte}>
+            <CtaButton variant="blue" onClick={entrerDansMonumia}>
               Trouver les aides pour mon monument
             </CtaButton>
             <a
@@ -1715,7 +1743,7 @@ function Demo() {
                   </li>
                 ))}
               </ul>
-              <CtaButton variant="white" onClick={goToDecouverte} className="mt-9">
+              <CtaButton variant="white" onClick={entrerDansMonumia} className="mt-9">
                 Trouver les aides pour mon monument
               </CtaButton>
             </div>
@@ -1820,7 +1848,7 @@ function Exemple() {
               </footer>
             </blockquote>
 
-            <CtaButton onClick={goToDecouverte} className="mt-9">
+            <CtaButton onClick={entrerDansMonumia} className="mt-9">
               Et pour mon monument ?
             </CtaButton>
           </div>
@@ -2058,7 +2086,9 @@ const PLANS: Plan[] = [
     name: 'Découverte',
     audience: 'gratuit',
     tone: 'cream',
-    onClick: goToSignup,
+    // « Trouver mes aides » : même règle que les autres CTA d'entrée, à ceci
+    // près que le chemin du visiteur est ici la liste d'attente.
+    onClick: siConnecte(goToSignup),
     punchline: 'Trouvez toutes les aides de votre monument.',
     intro: [
       'Vous répondez à quelques questions sur votre monument, sa protection et votre projet. Nous croisons vos réponses avec plus de 400 aides, de l’État aux fondations, et vous rendons celles auxquelles votre projet peut prétendre, avec le taux et le plafond annoncés par chaque financeur.',
@@ -2383,7 +2413,7 @@ function FinalCta() {
               Mobilisez enfin toutes les aides pour restaurer, ouvrir ou animer votre monument.
             </h2>
             <div className="mt-9">
-              <CtaButton onClick={goToDecouverte}>Trouver les aides pour mon monument</CtaButton>
+              <CtaButton onClick={entrerDansMonumia}>Trouver les aides pour mon monument</CtaButton>
             </div>
             <p className="mt-5 text-[13px] uppercase tracking-[0.12em] text-white/60">
               Gratuit · Sans engagement
