@@ -168,6 +168,24 @@ identifiants différents pour les mêmes personnes — puis à redémarrer le ba
 Vide ou absente : aucun administrateur, et les sept routes `/admin/...`
 répondent 403.
 
+**Retours de bêta-test (Ybug).** `VITE_YBUG_ID` branche le widget
+[Ybug](https://ybug.io) dans la SPA : un bouton flottant qui capture l'écran,
+laisse l'annoter et commenter, puis envoie le rapport au projet Ybug (avec
+l'URL, le navigateur et la console). Vide ou absente, **rien n'est chargé** :
+ni script, ni bouton, ni requête vers ybug.io — c'est le seul interrupteur.
+L'identifiant se lit dans le snippet d'installation du tableau de bord Ybug.
+Comme toute variable `VITE_`, elle est figée **au build** : en déploiement, elle
+vient de `APP_YBUG_ID` / `BETA_YBUG_ID` dans le `.env` de la racine, et changer
+la valeur demande de rebuilder le front. Deux variables distinctes pour pouvoir
+n'ouvrir le bouton qu'en beta, ou séparer les deux flux de retours.
+
+Le widget joint à chaque rapport l'identifiant du compte, son nom, son email,
+ses offres et son statut d'administrateur ([frontend/src/lib/ybug.ts](frontend/src/lib/ybug.ts))
+— de quoi recontacter l'auteur et rejouer son cas. Rien d'autre du compte n'y
+passe, et hors session le rapport part en visiteur anonyme. Ybug devient donc
+un sous-traitant qui reçoit des données personnelles : à mentionner dans la
+politique de confidentialité avant d'ouvrir la beta.
+
 ## Hooks git
 
 Installés par `./setup.sh`.

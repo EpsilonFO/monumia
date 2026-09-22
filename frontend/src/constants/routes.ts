@@ -4,6 +4,15 @@ export const ROUTES = {
 
   DASHBOARD: '/app',
 
+  /**
+   * Aiguillage « Mon compte », où arrivent les boutons de la landing quand un
+   * visiteur est déjà connecté. La landing ne sait qu'une chose — une session
+   * existe (cookie de présence) — donc c'est ici, côté application, qu'on
+   * choisit entre le tableau de bord, la fiche du monument et le wizard
+   * d'enregistrement (cf. `lib/destination-compte.ts`).
+   */
+  MON_COMPTE: '/mon-compte',
+
   // Page Tarifs (publique). Le monument passe par l'URL et non par le state de
   // navigation : l'aller-retour vers Stripe quitte le site et perd tout state.
   // Le nom du paramètre (`projet`) est figé : d'anciens liens de retour Stripe

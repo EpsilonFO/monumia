@@ -1,4 +1,4 @@
-import { IconLocalisation, IconAjouter } from '@/components/icons';
+import { IconAjouter, IconLocalisation } from '@/components/icons';
 import { MonumentPhotoProfil } from '@/components/monument/MonumentPhotoProfil';
 import { C, SERIF } from '@/lib/brand';
 import type { Monument, ProjectMember } from '@/types';
@@ -27,7 +27,7 @@ export function MonumentSummaryBar({
   members = [],
   onNouveauProjet,
 }: MonumentSummaryBarProps) {
-  const location = [monument.commune, monument.departement].filter(Boolean).join(' · ');
+  const location = [monument.commune, monument.departement].filter(Boolean).join(', ');
 
   const shared = isProjectShared({
     myRole: monument.myRole,
@@ -40,30 +40,38 @@ export function MonumentSummaryBar({
   return (
     <div
       className="rounded-2xl border p-6 sm:p-7"
-      style={{ background: C.card, borderColor: C.border }}
+      style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
     >
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 items-start gap-4">
-          {/* Le portrait du bien, à côté de son nom — celui qu'on retrouve
-              ensuite sur les cartes de « Mes monuments ». */}
-          <MonumentPhotoProfil monument={monument} canEdit={canEdit} />
-          <div className="space-y-3 min-w-0">
-            <h1 className="text-[clamp(1.5rem,3vw,2rem)] leading-tight" style={{ fontFamily: SERIF, color: C.ink }}>
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center">
+          {/* Le portrait du bien, celui qu'on retrouve ensuite sur les cartes de
+              « Mes monuments ».
+
+              La colonne est bornée à partir de `sm` : le cadre est fluide
+              (pleine largeur sur un téléphone), et sans cette borne il
+              réclamerait toute la ligne — le nom du monument se replierait
+              alors en trois lignes contre la photo. */}
+          <div className="w-full shrink-0 sm:w-[212px]">
+            <MonumentPhotoProfil monument={monument} canEdit={canEdit} width={212} radius="0.75rem" />
+          </div>
+          <div className="min-w-0 flex-1 space-y-2.5">
+            <h1
+              className="text-[clamp(1.6rem,3vw,2.15rem)] leading-[1.15]"
+              style={{ fontFamily: SERIF, color: C.ink }}
+            >
               {monument.nom}
             </h1>
             {location && (
-              <div className="flex items-center gap-1.5 text-[14px] text-muted-foreground">
-                <IconLocalisation className="h-3.5 w-3.5" style={{ color: C.blueLight }} />
-                <span>{location}</span>
-              </div>
+              <p className="flex items-center gap-1.5 text-[14.5px]" style={{ color: C.grayFg }}>
+                <IconLocalisation className="h-4 w-4 shrink-0" style={{ color: C.blueLight }} />
+                {location}
+              </p>
             )}
-            <div className="flex items-center gap-2 flex-wrap">
-              {shared && <SharedBadge count={members.length || monument.memberCount} />}
-              {showRole && monument.myRole && <RoleBadge role={monument.myRole} />}
-            </div>
-            {shared && members.length > 0 && (
-              <div className="flex items-center gap-2 pt-1">
-                <MemberAvatarStack people={members} size="sm" />
+            {(shared || showRole) && (
+              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                {shared && <SharedBadge count={members.length || monument.memberCount} />}
+                {showRole && monument.myRole && <RoleBadge role={monument.myRole} />}
+                {shared && members.length > 0 && <MemberAvatarStack people={members} size="sm" />}
               </div>
             )}
           </div>
@@ -72,7 +80,7 @@ export function MonumentSummaryBar({
         {canEdit && onNouveauProjet && (
           <button
             onClick={onNouveauProjet}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md shrink-0"
+            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg px-5 py-2.5 text-[13px] font-semibold text-white transition-all duration-200 hover:shadow-md sm:self-auto"
             style={{ background: C.orange }}
           >
             <IconAjouter className="h-4 w-4" strokeWidth={2} />

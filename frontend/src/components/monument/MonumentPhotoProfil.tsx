@@ -21,8 +21,13 @@ interface MonumentPhotoProfilProps {
   monument: Monument;
   /** Co-chef de projet ou plus : seul lui peut changer la photo. */
   canEdit: boolean;
-  /** Largeur du cadre 16:9, en pixels ; la hauteur s'en déduit. */
+  /** Largeur MAXIMALE du cadre 16:9, en pixels. Le cadre est fluide en deçà :
+   *  sur un téléphone, une planche de 240 px posée dans une colonne de 358
+   *  ressemblerait à une vignette oubliée plutôt qu'au portrait du bien. */
   width?: number;
+  /** Rayon des angles. La fiche monument la veut en planche (angles courts),
+   *  proche des photos de sa galerie ; ailleurs, la vignette reste arrondie. */
+  radius?: string;
 }
 
 /**
@@ -37,8 +42,8 @@ export function MonumentPhotoProfil({
   monument,
   canEdit,
   width = 148,
+  radius = '1.125rem',
 }: MonumentPhotoProfilProps) {
-  const height = Math.round(width * RATIO);
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   // Ce qu'on est en train de recadrer : un fichier tout juste choisi, ou l'URL
@@ -104,11 +109,12 @@ export function MonumentPhotoProfil({
   const removable = canEdit && photo?.type === 'profil';
 
   return (
-    <div className="group/photo flex shrink-0 flex-col items-center gap-1" style={{ width }}>
-      <div className="relative" style={{ width, height }}>
+    <div className="group/photo flex w-full shrink-0 flex-col items-center gap-1" style={{ maxWidth: width }}>
+      <div className="relative w-full" style={{ aspectRatio: `1 / ${RATIO}` }}>
         <div
-          className="h-full w-full overflow-hidden rounded-2xl"
+          className="h-full w-full overflow-hidden"
           style={{
+            borderRadius: radius,
             background: url ? undefined : `linear-gradient(150deg, ${C.blue}, ${C.blueDark})`,
             boxShadow: 'inset 0 0 0 1px rgba(7,42,114,0.08)',
           }}
@@ -121,7 +127,7 @@ export function MonumentPhotoProfil({
             />
           ) : (
             <span className="flex h-full w-full items-center justify-center">
-              <Clover size={height * 0.52} className="text-white" style={{ opacity: 0.9 }} />
+              <Clover className="text-white" style={{ width: '30%', height: 'auto', aspectRatio: '1 / 1', opacity: 0.9 }} />
             </span>
           )}
         </div>
@@ -140,8 +146,8 @@ export function MonumentPhotoProfil({
               onClick={() => (url ? setARecadrer(url) : inputRef.current?.click())}
               disabled={busy}
               aria-label={url ? 'Recadrer la photo du monument' : 'Ajouter une photo du monument'}
-              className="absolute inset-0 flex items-center justify-center rounded-2xl text-white opacity-0 transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-100"
-              style={{ background: 'rgba(7,42,114,0.62)' }}
+              className="absolute inset-0 flex items-center justify-center text-white opacity-0 transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-100"
+              style={{ background: 'rgba(7,42,114,0.62)', borderRadius: radius }}
             >
               {busy ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
