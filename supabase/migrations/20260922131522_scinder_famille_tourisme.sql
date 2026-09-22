@@ -9,24 +9,34 @@
 --   `hebergement_touristique` — gîtes, chambres d'hôtes, hôtel, camping, hostel…
 --   `tourisme_visite`         — sites de visite, itinérance, évènementiel.
 --
--- Deux temps, dans cet ordre : élargir les lignes AVANT de resserrer le CHECK,
--- sinon la contrainte rejetterait les lignes qu'elle doit encore accepter.
+-- TROIS temps, et l'ordre porte tout : DROP, puis UPDATE, puis ADD. Le CHECK en
+-- place énumère les treize anciennes valeurs — il interdit donc les deux
+-- nouvelles, et un UPDATE lancé avant le DROP échoue en 23514 sur sa propre
+-- première ligne. (Première écriture de cette migration : l'UPDATE venait en
+-- tête, au motif qu'il fallait « élargir avant de resserrer ». C'est l'inverse :
+-- ici le resserrement est déjà là, c'est lui qu'on desserre d'abord.)
 --
--- (a) Les lignes qui portent l'ancien code reçoivent les DEUX nouveaux. Élargir
+-- (a) DROP du CHECK existant. La table reste une poignée de millisecondes sans
+-- contrainte, dans la transaction de la migration : rien d'autre n'écrit.
+--
+-- (b) Les lignes qui portent l'ancien code reçoivent les DEUX nouveaux. Élargir
 -- ne coûte rien — `hors_famille` n'écarte que sur intersection vide, donc une
 -- famille de plus ne masque jamais une aide — et de toute façon le prochain
 -- `load_aides_yaml.py` réécrira le tag exact décidé dans les YAML. C'est un
 -- filet pour l'intervalle entre la migration et le load, pas la vérité.
 --
--- (b) Le CHECK est REPOSÉ (drop + add, pas `IF NOT EXISTS`) : il existe déjà
--- avec les treize anciennes valeurs, et le laisser en place refuserait les
--- deux nouvelles. Ses 14 valeurs sont celles de `labels.FAMILLES_LABELS`, d'où
+-- (c) ADD du CHECK à 14 valeurs, celles de `labels.FAMILLES_LABELS`, d'où
 -- `aides_schema.FAMILLES` dérive et que `frontend/src/constants/familles.ts`
 -- reproduit — trois lieux, trois tests qui les comparent
 -- (`tests/test_familles.py`, `src/constants/__tests__/familles.test.ts`).
+-- Pas d'`IF NOT EXISTS` sur le DROP+ADD : reposer la contrainte EST le but, et
+-- la migration reste rejouable puisqu'elle la recrée toujours à l'identique.
 --
 -- ⚠ À APPLIQUER AVANT le `load_aides_yaml.py` qui suit le re-tag des aides :
 -- sans elle, l'upsert des 44 fiches retaguées échoue sur le CHECK.
+
+alter table public.aides_v3
+    drop constraint if exists aides_v3_familles_check;
 
 update public.aides_v3
    set familles = array_cat(
@@ -34,9 +44,6 @@ update public.aides_v3
            array['hebergement_touristique', 'tourisme_visite']
        )
  where 'tourisme_hebergement' = any(familles);
-
-alter table public.aides_v3
-    drop constraint if exists aides_v3_familles_check;
 
 alter table public.aides_v3
     add constraint aides_v3_familles_check check (
