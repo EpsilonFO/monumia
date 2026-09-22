@@ -79,6 +79,11 @@ nom_court: Exemple
 organisme: Région d'exemple
 categorie: region
 type: subvention
+# Le ressort du financeur : `check_portee_geographique` refuse une aide
+# régionale qui ne le déclare pas, elle se proposerait dans toute la France.
+hard_filters:
+  regions:
+  - grand-est
 description: Une aide pour tester les outils.
 source:
   url_officielle: https://example.org/aide

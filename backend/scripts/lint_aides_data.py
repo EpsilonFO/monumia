@@ -51,6 +51,7 @@ from ontologie_regles import (
 
 from aides_schema import (
     AIDES_DIR,
+    CATEGORIES_TERRITORIALES,
     FACTS_FILE,
     FACTS_PENDING_FILE,
     FAIT_PORTEUR,
@@ -72,6 +73,7 @@ from aides_schema import (
     load_facts,
     load_pending_facts,
     predicate_leaves,
+    sans_rien_a_verifier,
 )
 from eligibility_engine import _normalize_answer, deduire_faits_des_faits
 from labels import DEPARTEMENT_LABELS, REGION_LABELS
@@ -307,6 +309,50 @@ def gate_plus_large_que_le_marqueur(aide: Aide, facts: dict[str, FactDef]) -> li
                 f"« {cond.fact} » ne concerne pas — sa question leur sera posée"
             )
     return lignes
+
+
+def check_portee_geographique(aide: Aide) -> list[str]:
+    """Une aide départementale ou régionale doit dire sur quel territoire elle porte.
+
+    Signalé par un test utilisateur du 2026-09-22 : un monument des Vosges se
+    voyait proposer des aides de Meurthe-et-Moselle et des Hauts-de-Seine. Le
+    ressort d'un conseil départemental EST son département ; l'omettre ne rend
+    pas l'aide plus large, elle la rend fausse partout ailleurs.
+
+    Ce n'est pas une condition au sens de la doctrine (elle ne se lit pas dans
+    une puce du règlement) : c'est le périmètre du financeur, et c'est pour ça
+    qu'il tient dans `hard_filters` et non dans `conditions`.
+    """
+    champ = CATEGORIES_TERRITORIALES.get(aide.categorie)
+    if champ and not getattr(aide.hard_filters, champ):
+        return [
+            f"{aide.slug}: `categorie: {aide.categorie}` sans `hard_filters.{champ}` — "
+            f"l'aide se proposera hors du ressort de {aide.organisme[:60]}"
+        ]
+    return []
+
+
+def check_fail_open(aide: Aide) -> list[str]:
+    """Aucun gate vérifiable ET aucun hard_filter : l'aide est éligible partout.
+
+    Cf. `aides_schema.sans_rien_a_verifier`. AVERTISSEMENT et non erreur, parce
+    que l'état est rare mais légitime : `vmf-prix-restauration` est un prix
+    ouvert à tout propriétaire de patrimoine bâti, paysager ou mobilier, et son
+    snapshot ne publie AUCUN critère discriminant. Y poser un gate reviendrait à
+    l'inventer, ce que la doctrine interdit avant tout.
+
+    Le cas qui a fait remonter le défaut — une aide des Hauts-de-Seine proposée
+    à un monument des Vosges — est couvert en ERREUR par
+    `check_portee_geographique` : ce qui manquait n'était pas un critère
+    d'éligibilité, c'était le ressort du financeur.
+    """
+    if sans_rien_a_verifier(aide):
+        return [
+            f"{aide.slug}: aucune condition vérifiable et aucun hard_filter — "
+            "le moteur n'a rien à opposer et l'annonce « potentiellement éligible » "
+            "à tout le monde, partout"
+        ]
+    return []
 
 
 def check_urls_partagees(aides: Sequence[Aide]) -> list[str]:
@@ -699,6 +745,7 @@ def lint(
     # Groupés en UN avertissement plutôt qu'un par condition : 271 lignes sur le
     # corpus noieraient les deux qui portent (cf. `RapportLint.texte`).
     gates_larges: list[str] = []
+    fail_open: list[str] = []
     for path in chemins:
         if not path.exists():
             rapport.erreurs.append(f"{path.name}: fichier absent de {aides_dir}")
@@ -712,7 +759,17 @@ def lint(
         rapport.erreurs.extend(check_colonnes_non_nulles(aide))
         rapport.erreurs.extend(check_aide(aide, facts))
         rapport.erreurs.extend(check_hors_gate(aide, facts))
+        rapport.erreurs.extend(check_portee_geographique(aide))
+        fail_open.extend(check_fail_open(aide))
         gates_larges.extend(gate_plus_large_que_le_marqueur(aide, facts))
+
+    if fail_open:
+        rapport.avertissements.append(
+            f"{len(fail_open)} aide(s) sans rien à vérifier — ni gate, ni hard_filter, ni "
+            "`applies_if` — donc annoncées « potentiellement éligibles » partout :\n"
+            + "\n".join(f"      {li}" for li in fail_open[:6])
+            + (f"\n      … et {len(fail_open) - 6} autre(s)" if len(fail_open) > 6 else "")
+        )
 
     if gates_larges:
         rapport.avertissements.append(

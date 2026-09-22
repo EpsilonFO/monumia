@@ -964,6 +964,53 @@ class Aide(BaseModel):
         return self
 
 
+#: Une aide de ces catégories est instruite par un financeur dont le ressort EST
+#: son territoire. Sans filtre géographique, elle se propose partout.
+CATEGORIES_TERRITORIALES = {"departement": "departements", "region": "regions"}
+
+
+def hard_filters_poses(aide: Aide) -> int:
+    """Combien de restrictions structurées l'aide déclare."""
+    hf = aide.hard_filters
+    champs = (
+        "protections",
+        "proprietaires",
+        "travaux",
+        "regions",
+        "departements",
+        "etats_conservation",
+    )
+    return sum(1 for c in champs if getattr(hf, c, None)) + (1 if hf.commune_max_population else 0)
+
+
+def sans_rien_a_verifier(aide: Aide) -> bool:
+    """L'aide n'oppose RIEN : ni gate vérifiable, ni hard_filter.
+
+    Le moteur n'a alors rien à évaluer et la rend « potentiellement éligible »
+    à tout le monde, partout. Vu en production le 2026-09-22 sur un monument
+    des Vosges à qui `92-innovation-ess-financements` s'affichait « vous semblez
+    éligible » — une fiche dont la page source répondait 503 à l'ingestion et
+    qui se déclarait elle-même non actionnable.
+
+    `mesure_questionnaire.audit_fail_open` portait déjà ce diagnostic, mot pour
+    mot, depuis un script de mesure dont la sortie n'arrête rien. Le contrôle
+    appartient au lint.
+
+    `applies_if` COMPTE : c'est le périmètre de l'aide, et le moteur s'en sert
+    pour la déclarer hors sujet (`hors_perimetre`). Une aide qui ne porte que
+    lui — `programme-patrimoine-emploi-fondation-patrimoine` et son
+    `projet_support_insertion_ou_formation` — n'est pas fail-open, et l'oublier
+    faisait de ce contrôle un faux positif sur du cœur de métier.
+    """
+    if aide.applies_if is not None:
+        return False
+    verifiables = any(
+        c.kind in ("auto", "user_fact", "manual_check") and c.effect == "gate"
+        for c in aide.conditions
+    )
+    return not verifiables and hard_filters_poses(aide) == 0
+
+
 def gate_porteur(aide: Aide) -> bool:
     """L'aide dit-elle EXPLICITEMENT qui peut déposer ?
 

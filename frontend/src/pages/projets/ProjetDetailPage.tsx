@@ -29,7 +29,7 @@ import { estOffreGratuite, libelleMonuments } from '@/lib/offres';
 import { PaywallOverlay } from '@/components/shared/Paywall';
 import { formatCurrency } from '@/lib/format-utils';
 import { ProjetSummaryBar } from '@/components/projet/ProjetSummaryBar';
-import { ProjectDetailSkeleton } from '@/components/skeletons';
+import { AidesTabSkeleton, ProjectDetailSkeleton } from '@/components/skeletons';
 import { ProjectEcheancier } from '@/components/project/ProjectEcheancier';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useProjetStore } from '@/stores/useProjetStore';
@@ -234,13 +234,19 @@ export function ProjetDetailPage() {
   // les réponses (projet.questionnaire) se résolvent côté client via
   // eliminationsParOption.
   const questionnaireKey = projet ? JSON.stringify(projet.questionnaire ?? {}) : '';
+  // Le projet dont le diagnostic est RETOMBÉ (réussi ou en erreur). On mémorise
+  // la tentative plutôt qu'un simple booléen « en cours » : posé par l'effet,
+  // ce booléen serait encore faux au premier rendu qui suit l'arrivée du
+  // projet, et l'invitation à lancer le moteur clignoterait avant le squelette.
+  const [diagnosticTente, setDiagnosticTente] = useState<string | null>(null);
   useEffect(() => {
     if (!projetId || !questionnaireKey) return;
     let cancelled = false;
     const answers: ProjectQuestionnaireAnswers = JSON.parse(questionnaireKey);
     aideService.runProjectDiagnostic(projetId, answers)
       .then((result) => { if (!cancelled) setDiagnostic(projetId, result); })
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => { if (!cancelled) setDiagnosticTente(projetId); });
     return () => { cancelled = true; };
   }, [projetId, questionnaireKey, setDiagnostic]);
 
@@ -403,6 +409,11 @@ export function ProjetDetailPage() {
   }
 
   if (!projet || !monument || !stats) return <ProjectDetailSkeleton />;
+
+  // Le moteur tourne : on dessine le gabarit de l'onglet plutôt que l'invitation
+  // à le lancer, qui donnait à croire qu'il restait un geste à faire. Le bloc
+  // « Lancer le moteur » ne reste que pour une tentative retombée sans résultat.
+  const chargementDiagnostic = !diagnostic && diagnosticTente !== projetId;
 
   // Une aide déjà passée en dossier disparaît de la liste des aides : elle vit
   // désormais dans l'onglet « Dossiers ». Supprimer le dossier l'y fait réapparaître.
@@ -639,7 +650,9 @@ export function ProjetDetailPage() {
 
         {/* AIDES */}
         <TabsContent value="aides" className="mt-4 space-y-6">
-          {!diagnostic ? (
+          {chargementDiagnostic ? (
+            <AidesTabSkeleton />
+          ) : !diagnostic ? (
             <div className="rounded-2xl border py-10 text-center space-y-4" style={{ background: C.paleBlue, borderColor: C.border }}>
               <div className="mx-auto w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#fff' }}>
                 <IconDiagnostic className="h-7 w-7" style={{ color: C.blue }} />

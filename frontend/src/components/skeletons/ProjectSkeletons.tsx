@@ -120,3 +120,48 @@ export function DossierDetailSkeleton() {
     </div>
   );
 }
+
+/**
+ * Onglet « Aides » d'un projet, le temps que le diagnostic revienne.
+ *
+ * Le moteur est rapide, mais il reste un aller-retour réseau : sans ce
+ * squelette, la page affichait pendant ce temps l'invitation à « lancer le
+ * moteur », c'est-à-dire un écran vide alors que le calcul était déjà en
+ * cours. On dessine donc le gabarit réel — échéancier, barres de filtre,
+ * sections et cartes — plutôt que d'annoncer un travail à faire.
+ */
+export function AidesTabSkeleton() {
+  return (
+    <div className="space-y-8">
+      {/* Échéancier */}
+      <Skeleton className="h-[88px] rounded-2xl" />
+
+      {/* Pastilles de financeur, puis puces de famille */}
+      <div className="flex flex-wrap gap-2">
+        {[120, 96, 140, 104].map((w) => (
+          <Skeleton key={w} className="h-[38px] rounded-full" style={{ width: w }} />
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {[72, 88, 64, 80, 68].map((w) => (
+          <Skeleton key={w} className="h-[26px] rounded-full" style={{ width: w }} />
+        ))}
+      </div>
+
+      {/* Deux sections de cartes (titre + grille) */}
+      {[2, 3].map((cartes) => (
+        <div key={cartes} className="space-y-3">
+          <Skeleton className="h-5 w-56" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+            {Array.from({ length: cartes }, (_, i) => (
+              <Skeleton
+                key={i}
+                className={`h-[260px] rounded-2xl ${cartes === 2 ? 'lg:col-span-3' : 'lg:col-span-2'}`}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

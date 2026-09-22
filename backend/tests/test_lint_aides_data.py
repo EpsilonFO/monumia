@@ -74,6 +74,12 @@ organisme: Région d'exemple
 categorie: region
 type: subvention
 description: Une aide pour tester le linter.
+# `check_portee_geographique` exige le ressort d'un financeur territorial : une
+# aide régionale sans région se propose dans toute la France (vu en production
+# le 2026-09-22 sur un monument des Vosges).
+hard_filters:
+  regions:
+  - grand-est
 conditions:
 {conditions or "  []"}
 """
@@ -1033,3 +1039,132 @@ class TestOrphelinsDuRun(BaseLint):
 """,
         )
         self.assertTrue(self.lint("ex-aide", faits_du_run=["fait_utilise"]).ok)
+
+
+class TestPorteeGeographique(BaseLint):
+    """Le défaut remonté par un test utilisateur le 2026-09-22.
+
+    Un monument des Vosges (88) se voyait proposer des aides de
+    Meurthe-et-Moselle et des Hauts-de-Seine, dont une fiche posée sur une page
+    en HTTP 503 qui ne portait aucune donnée d'éligibilité et s'affichait
+    « Bonne nouvelle, vous semblez éligible ».
+    """
+
+    def _aide(self, **kw):
+        from aides_schema import Aide
+
+        base = {
+            "slug": "x-truc",
+            "nom": "x",
+            "organisme": "Département de la Meuse",
+            "categorie": "departement",
+            "type": "subvention",
+            "description": "d",
+            "source": {"url_officielle": "https://x.fr/a"},
+        }
+        return Aide.model_validate({**base, **kw})
+
+    def test_une_aide_departementale_sans_departement_est_une_erreur(self):
+        from lint_aides_data import check_portee_geographique
+
+        erreurs = check_portee_geographique(self._aide())
+        self.assertEqual(len(erreurs), 1, erreurs)
+        self.assertIn("hard_filters.departements", erreurs[0])
+
+    def test_le_departement_pose_suffit(self):
+        from lint_aides_data import check_portee_geographique
+
+        self.assertEqual(
+            check_portee_geographique(self._aide(hard_filters={"departements": ["55"]})), []
+        )
+
+    def test_une_region_doit_porter_sa_region(self):
+        from lint_aides_data import check_portee_geographique
+
+        aide = self._aide(categorie="region", organisme="Région Grand Est")
+        self.assertEqual(len(check_portee_geographique(aide)), 1)
+        ok = self._aide(
+            categorie="region",
+            organisme="Région Grand Est",
+            hard_filters={"regions": ["grand-est"]},
+        )
+        self.assertEqual(check_portee_geographique(ok), [])
+
+    def test_une_aide_nationale_na_pas_de_ressort_a_declarer(self):
+        """DRAC, fondations, fiscalité : leur périmètre EST la France."""
+        from lint_aides_data import check_portee_geographique
+
+        for categorie in ("etat_drac", "fondation", "fiscalite", "europe", "mecenat", "autre"):
+            with self.subTest(categorie=categorie):
+                self.assertEqual(check_portee_geographique(self._aide(categorie=categorie)), [])
+
+
+class TestFailOpen(BaseLint):
+    """Une aide qui n'oppose RIEN passe pour éligible à tout le monde, partout."""
+
+    def _aide(self, **kw):
+        from aides_schema import Aide
+
+        base = {
+            "slug": "x-truc",
+            "nom": "x",
+            "organisme": "Fondation",
+            "categorie": "fondation",
+            "type": "subvention",
+            "description": "d",
+            "source": {"url_officielle": "https://x.fr/a"},
+        }
+        return Aide.model_validate({**base, **kw})
+
+    def test_sans_rien_du_tout(self):
+        from lint_aides_data import check_fail_open
+
+        self.assertEqual(len(check_fail_open(self._aide())), 1)
+
+    def test_un_hard_filter_suffit_a_opposer_quelque_chose(self):
+        from lint_aides_data import check_fail_open
+
+        self.assertEqual(check_fail_open(self._aide(hard_filters={"departements": ["55"]})), [])
+
+    def test_applies_if_compte_comme_perimetre(self):
+        """Le faux positif de la première version, sur du cœur de métier.
+
+        `programme-patrimoine-emploi-fondation-patrimoine` ne porte QUE son
+        `applies_if` (`projet_support_insertion_ou_formation`), et le moteur
+        s'en sert pour la déclarer hors périmètre.
+        """
+        from lint_aides_data import check_fail_open
+
+        aide = self._aide(
+            applies_if={"fact": "etat_travaux", "predicate": {"eq": "acheves"}},
+        )
+        self.assertEqual(check_fail_open(aide), [])
+
+    def test_le_defaut_nest_pas_bloquant(self):
+        """Avertissement, pas erreur : `vmf-prix-restauration` est un prix dont
+        la source ne publie AUCUN critère. Y poser un gate serait l'inventer."""
+        from lint_aides_data import lint
+
+        # Pas `ecrire_aide` : le gabarit partagé porte désormais un ressort
+        # régional, donc il n'est plus fail-open.
+        (self.aides_dir / "sans-rien.yaml").write_text(
+            "slug: sans-rien\n"
+            "nom: Prix d'exemple\n"
+            "organisme: Association\n"
+            "categorie: autre\n"
+            "type: subvention\n"
+            "description: Un prix dont la source ne publie aucun critère.\n"
+            "conditions: []\n",
+            encoding="utf-8",
+        )
+        rapport = lint(
+            aides_dir=self.aides_dir,
+            facts_path=self.facts,
+            pending_path=self.pending,
+            baseline_path=self.baseline,
+            ratchet=False,
+        )
+        self.assertTrue(
+            any("sans rien à vérifier" in a for a in rapport.avertissements),
+            rapport.avertissements,
+        )

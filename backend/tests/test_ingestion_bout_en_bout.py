@@ -76,6 +76,11 @@ nom_court: Restauration rurale (exemple)
 organisme: Région d'exemple
 categorie: region
 type: subvention
+# Le ressort du financeur : `check_portee_geographique` refuse une aide
+# régionale qui ne le déclare pas, elle se proposerait dans toute la France.
+hard_filters:
+  regions:
+  - grand-est
 raison: [restauration_travaux]
 familles: [restauration_bati]
 description: Soutien à la restauration des édifices non protégés.
