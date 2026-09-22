@@ -364,9 +364,19 @@ class TestLotsReels(unittest.TestCase):
     Un lot déjà appliqué est idempotent par refus : ses clés ne sont plus dans
     `facts_pending.yaml`, donc le rejouer est refusé et n'écrit rien. C'est
     exactement ce qu'on veut d'un script de migration relancé par erreur.
+
+    `data/fusions/` héberge aussi les tables de RETYPAGE (clé `retypages`), qui
+    ont leur propre script et leur propre miroir dans `test_retyper_faits.py` :
+    on ne retient ici que les tables de fusion.
     """
 
-    LOTS = sorted((Path(__file__).resolve().parent.parent / "data" / "fusions").glob("*.yaml"))
+    LOTS = [
+        chemin
+        for chemin in sorted(
+            (Path(__file__).resolve().parent.parent / "data" / "fusions").glob("*.yaml")
+        )
+        if "fusions" in (yaml.safe_load(chemin.read_text(encoding="utf-8")) or {})
+    ]
 
     def test_toutes_les_tables_sont_bien_formees(self):
         self.assertTrue(self.LOTS, "aucune table de fusion versionnée")

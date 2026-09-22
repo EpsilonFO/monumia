@@ -11,7 +11,10 @@ Ce que ces tests fixent, et qui n'est pas négociable :
     donc rien à dire de ce que la source dit ;
   - un `applies_if` est un PÉRIMÈTRE, pas une condition : le retyper changerait
     la portée de l'aide, et c'est hors mandat ;
-  - un fichier annoté à la main n'est pas réécrit à la machine.
+  - un fichier annoté à la main garde ses commentaires : seul le bloc de la
+    condition visée est réécrit, et l'invariant refuse le fichier entier plutôt
+    que d'écrire un retypage approximatif ;
+  - un fait APPROUVÉ ne se retire que si la table l'écrit (`source: facts.yaml`).
 
 Run from backend/:  uv run pytest tests/test_retyper_faits.py
 """
@@ -21,12 +24,14 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest import mock
 
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
+import retyper_faits  # noqa: E402
 from retyper_faits import (  # noqa: E402
     Retypage,
     appliquer,
@@ -42,10 +47,17 @@ from aides_schema import load_facts, load_pending_facts  # noqa: E402
 JOUR = date(2026, 9, 21)
 
 FACTS = """\
+# --- Le bien ---
 monument_ouvert_au_public:
   type: boolean
   scope: monument
   question: Le monument est-il ouvert au public ?
+
+# --- Le dépôt ---
+demande_deposee_avant_demarrage:
+  type: boolean
+  scope: projet
+  question: La demande sera-t-elle déposée avant le démarrage des travaux ?
 """
 
 PENDING = """\
@@ -249,18 +261,6 @@ class TestRefus(BaseRetypage):
         self.assertFalse(rapport.ok)
         self.assertIn("hors mandat", rapport.erreurs[0])
 
-    def test_un_fichier_commente_est_refuse(self):
-        """704 fichiers sur 1 079 sont stables ; les autres ont été annotés."""
-        chemin = self.ecrire("ex-aide", [GATE_ENGAGEMENT])
-        chemin.write_text(
-            "# Fiche relue à la main le 2026-09-01.\n" + chemin.read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
-        rapport = self.appliquer([Retypage("s_engage_charte_qualite")])
-        self.assertFalse(rapport.ok)
-        self.assertIn("réécriture YAML", rapport.erreurs[0])
-        self.assertIn("adhesion-charte", rapport.erreurs[0])
-
     def test_un_fichier_commente_qui_ne_cite_pas_le_fait_ne_bloque_pas(self):
         """Sinon un seul fichier annoté figerait tout le catalogue."""
         self.ecrire("ex-aide", [GATE_ENGAGEMENT])
@@ -286,6 +286,190 @@ class TestRefus(BaseRetypage):
         self.assertFalse(rapport.ok)
         self.assertEqual(chemin.read_text(encoding="utf-8"), avant)
         self.assertEqual(self.pending.read_text(encoding="utf-8"), PENDING)
+
+
+#: Fiche ANNOTÉE, celle que `safe_dump` détruirait : un en-tête de relecture, un
+#: commentaire dans la liste des conditions, une liste indentée de deux espaces
+#: (et non zéro comme `safe_dump`), un commentaire en fin de ligne.
+AIDE_ANNOTEE = """\
+# Fiche relue à la main le 2026-09-01.
+slug: ex-annotee
+nom: Aide d'exemple
+nom_court: Exemple
+organisme: Région d'exemple
+categorie: region
+type: subvention
+description: Une aide pour tester le retypage.
+familles:
+  - restauration_bati
+conditions:
+  # Puce 3 du règlement, scindée en deux.
+  - id: adhesion-charte
+    text: Le porteur adhère à la charte qualité du territoire.
+    kind: user_fact
+    effect: gate
+    fact: s_engage_charte_qualite
+    predicate:
+      eq: true
+    quote: le porteur s'engage à adhérer à la charte qualité
+  - id: ouvert
+    text: Le monument est ouvert au public.
+    kind: user_fact
+    effect: gate
+    fact: monument_ouvert_au_public
+    predicate:
+      eq: true
+    notes: Vérifié sur la fiche.
+"""
+
+
+class TestReecritureTextuelle(BaseRetypage):
+    """58 des 109 fichiers du lot des engagements sont annotés à la main.
+
+    `safe_dump` du fichier entier effacerait leurs commentaires, qui sont
+    précisément ce que la relecture humaine a produit — d'où une réécriture du
+    seul bloc visé, et un invariant qui refuse le fichier entier plutôt que de
+    le réparer.
+    """
+
+    def ecrire_annotee(self, texte: str = AIDE_ANNOTEE) -> Path:
+        chemin = self.aides_dir / "ex-annotee.yaml"
+        chemin.write_text(texte, encoding="utf-8")
+        return chemin
+
+    def test_les_commentaires_survivent(self):
+        chemin = self.ecrire_annotee()
+        rapport = self.appliquer([Retypage("s_engage_charte_qualite", "Engagement du demandeur.")])
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        texte = chemin.read_text(encoding="utf-8")
+        self.assertIn("# Fiche relue à la main le 2026-09-01.", texte)
+        self.assertIn("# Puce 3 du règlement, scindée en deux.", texte)
+
+    def test_la_condition_visee_est_bien_retypee(self):
+        self.ecrire_annotee()
+        self.appliquer([Retypage("s_engage_charte_qualite", "Engagement du demandeur.")])
+        cond = yaml.safe_load((self.aides_dir / "ex-annotee.yaml").read_text(encoding="utf-8"))[
+            "conditions"
+        ][0]
+        self.assertEqual(cond["kind"], "info")
+        self.assertEqual(cond["effect"], "info")
+        self.assertNotIn("fact", cond)
+        self.assertNotIn("predicate", cond)
+        self.assertEqual(cond["text"], "Le porteur adhère à la charte qualité du territoire.")
+        self.assertEqual(cond["quote"], "le porteur s'engage à adhérer à la charte qualité")
+        self.assertIn("2026-09-21", cond["notes"])
+
+    def test_les_autres_conditions_ne_bougent_pas_dun_caractere(self):
+        chemin = self.ecrire_annotee()
+        self.appliquer([Retypage("s_engage_charte_qualite")])
+        texte = chemin.read_text(encoding="utf-8")
+        intacte = AIDE_ANNOTEE[AIDE_ANNOTEE.index("  - id: ouvert") :]
+        self.assertTrue(texte.endswith(intacte), texte)
+
+    def test_une_forme_inattendue_est_refusee_et_nommee(self):
+        """`id` n'ouvre pas l'item : le découpage renonce plutôt que d'improviser."""
+        self.ecrire_annotee(
+            AIDE_ANNOTEE.replace(
+                "  - id: adhesion-charte\n"
+                "    text: Le porteur adhère à la charte qualité du territoire.\n",
+                "  - text: Le porteur adhère à la charte qualité du territoire.\n"
+                "    id: adhesion-charte\n",
+            )
+        )
+        rapport = self.appliquer([Retypage("s_engage_charte_qualite")])
+        self.assertFalse(rapport.ok)
+        self.assertIn("ex-annotee", rapport.erreurs[0])
+        self.assertIn("adhesion-charte", rapport.erreurs[0])
+
+    def test_un_invariant_viole_refuse_le_fichier_et_necrit_rien(self):
+        """La garde qui autorise tout le reste : ce qui sort doit charger
+        EXACTEMENT ce que `_retyper_condition` produit, sinon rien ne part."""
+        chemin = self.ecrire_annotee()
+        avant = chemin.read_text(encoding="utf-8")
+        with mock.patch.object(retyper_faits, "_reecrire_textuellement", return_value=AIDE_ANNOTEE):
+            rapport = self.appliquer([Retypage("s_engage_charte_qualite")])
+        self.assertFalse(rapport.ok)
+        self.assertIn("réécriture textuelle", rapport.erreurs[0])
+        self.assertEqual(chemin.read_text(encoding="utf-8"), avant)
+        self.assertEqual(self.pending.read_text(encoding="utf-8"), PENDING)
+
+
+class TestFaitApprouve(BaseRetypage):
+    """Un fait de `facts.yaml` se retire quand la TABLE porte la décision.
+
+    Le script exigeait une décision humaine ; il exige désormais qu'elle soit
+    ÉCRITE — relue, commitée, diffable — plutôt que prise en ligne de commande.
+    """
+
+    GATE = {
+        "id": "depot-avant-demarrage",
+        "text": "La demande est déposée avant tout commencement d'exécution.",
+        "kind": "user_fact",
+        "effect": "gate",
+        "fact": "demande_deposee_avant_demarrage",
+        "predicate": {"eq": True},
+    }
+    LIGNE = Retypage(
+        "demande_deposee_avant_demarrage",
+        "Formalité de dépôt ; le critère réel est `etat_travaux`.",
+        source="facts.yaml",
+        kind_declare="info",
+    )
+
+    def test_sans_source_il_reste_refuse(self):
+        self.ecrire("ex-aide", [self.GATE])
+        rapport = self.appliquer([Retypage("demande_deposee_avant_demarrage")])
+        self.assertFalse(rapport.ok)
+        self.assertIn("APPROUVÉ", rapport.erreurs[0])
+        self.assertIn("source: facts.yaml", rapport.erreurs[0])
+
+    def test_avec_source_il_est_retire_de_facts_yaml(self):
+        self.ecrire("ex-aide", [self.GATE])
+        rapport = self.appliquer([self.LIGNE])
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        self.assertEqual(rapport.retires, ["demande_deposee_avant_demarrage"])
+        load_facts.cache_clear()
+        self.assertEqual(sorted(load_facts(self.facts)), ["monument_ouvert_au_public"])
+
+    def test_le_voisin_et_ses_commentaires_restent(self):
+        """L'invariant de `fusionner_faits`, sur `facts.yaml` cette fois : le
+        fichier porte exactement les faits d'avant, moins celui qu'on retire."""
+        self.ecrire("ex-aide", [self.GATE])
+        self.appliquer([self.LIGNE])
+        texte = self.facts.read_text(encoding="utf-8")
+        self.assertIn("# --- Le bien ---", texte)
+        self.assertIn("monument_ouvert_au_public:", texte)
+        self.assertNotIn("demande_deposee_avant_demarrage", texte)
+
+    def test_le_pending_nest_pas_touche(self):
+        self.ecrire("ex-aide", [self.GATE])
+        self.appliquer([self.LIGNE])
+        self.assertEqual(self.pending.read_text(encoding="utf-8"), PENDING)
+
+    def test_le_kind_declare_prime_sur_le_prefixe(self):
+        """`demande_deposee_avant_demarrage` est une promesse sans être un
+        `s_engage_*` : sans la table, elle tomberait en `manual_check`."""
+        self.ecrire("ex-aide", [self.GATE])
+        self.appliquer([self.LIGNE])
+        self.assertEqual(self.relire("ex-aide")["conditions"][0]["kind"], "info")
+        self.assertEqual(
+            Retypage("demande_deposee_avant_demarrage", source="facts.yaml").kind, "manual_check"
+        )
+
+    def test_une_source_qui_ne_porte_pas_le_fait_est_refusee(self):
+        self.ecrire("ex-aide", [GATE_ENGAGEMENT])
+        rapport = self.appliquer([Retypage("s_engage_charte_qualite", source="facts.yaml")])
+        self.assertFalse(rapport.ok)
+        self.assertIn("n'y est pas", rapport.erreurs[0])
+
+    def test_les_deux_ontologies_dans_la_meme_table(self):
+        self.ecrire("ex-aide", [self.GATE, GATE_ENGAGEMENT])
+        rapport = self.appliquer([self.LIGNE, Retypage("s_engage_charte_qualite")])
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        load_facts.cache_clear()
+        load_pending_facts.cache_clear()
+        self.assertEqual(sorted(load_facts(self.facts)), ["monument_ouvert_au_public"])
+        self.assertEqual(sorted(load_pending_facts(self.pending)), ["itineraire_eligible_pdipr"])
 
 
 class TestTable(BaseRetypage):
@@ -314,6 +498,49 @@ class TestTable(BaseRetypage):
     def test_le_kind_derive_du_prefixe(self):
         self.assertEqual(Retypage("s_engage_x").kind, "info")
         self.assertEqual(Retypage("itineraire_y").kind, "manual_check")
+
+    def test_charger_source_et_kind(self):
+        chemin = self.racine / "table.yaml"
+        chemin.write_text(
+            "retypages:\n"
+            "  - fait: demande_deposee_avant_demarrage\n"
+            "    motif: Formalité de dépôt.\n"
+            "    source: facts.yaml\n"
+            "    kind: info\n",
+            encoding="utf-8",
+        )
+        retypages, erreurs = charger_table(chemin)
+        self.assertEqual(erreurs, [])
+        self.assertEqual(
+            retypages,
+            [
+                Retypage(
+                    "demande_deposee_avant_demarrage",
+                    "Formalité de dépôt.",
+                    source="facts.yaml",
+                    kind_declare="info",
+                )
+            ],
+        )
+
+    def test_une_source_inconnue_est_signalee(self):
+        chemin = self.racine / "table.yaml"
+        chemin.write_text(
+            "retypages:\n  - fait: s_engage_x\n    source: ontologie.yaml\n", encoding="utf-8"
+        )
+        _retypages, erreurs = charger_table(chemin)
+        self.assertEqual(len(erreurs), 1, erreurs)
+        self.assertIn("source", erreurs[0])
+
+    def test_un_kind_hors_mandat_est_signale(self):
+        """Élargir la liste des `kind`, c'est élargir le mandat du script."""
+        chemin = self.racine / "table.yaml"
+        chemin.write_text(
+            "retypages:\n  - fait: s_engage_x\n    kind: user_fact\n", encoding="utf-8"
+        )
+        _retypages, erreurs = charger_table(chemin)
+        self.assertEqual(len(erreurs), 1, erreurs)
+        self.assertIn("hors du mandat", erreurs[0])
 
 
 class TestOrphelins(BaseRetypage):
@@ -383,6 +610,49 @@ class TestInvariant(BaseRetypage):
             ),
             [],
         )
+
+
+class TestLotsReels(unittest.TestCase):
+    """Miroir de `test_fusionner_faits.TestLotsReels` pour les tables de retypage.
+
+    Un lot déjà appliqué est idempotent par refus : ses faits ne sont plus dans
+    l'ontologie, donc le rejouer ne réécrit rien. Ce qui doit rester vrai, c'est
+    que la table se charge et que chaque ligne porte son motif — c'est lui qui
+    rend le diff relisible dans six mois.
+    """
+
+    LOTS = [
+        chemin
+        for chemin in sorted(
+            (Path(__file__).resolve().parent.parent / "data" / "fusions").glob("*.yaml")
+        )
+        if "retypages" in (yaml.safe_load(chemin.read_text(encoding="utf-8")) or {})
+    ]
+
+    def test_toutes_les_tables_sont_bien_formees(self):
+        self.assertTrue(self.LOTS, "aucune table de retypage versionnée")
+        for chemin in self.LOTS:
+            with self.subTest(table=chemin.name):
+                retypages, erreurs = charger_table(chemin)
+                self.assertEqual(erreurs, [])
+                self.assertTrue(retypages)
+
+    def test_chaque_ligne_porte_un_motif(self):
+        for chemin in self.LOTS:
+            retypages, _ = charger_table(chemin)
+            for r in retypages:
+                with self.subTest(table=chemin.name, fait=r.fait):
+                    self.assertTrue(r.motif.strip())
+
+    def test_le_lot_4_est_applique_et_ne_rejoue_rien(self):
+        """Ses 43 faits ont quitté l'ontologie : le rejouer est refusé, ligne
+        par ligne, et rien n'est écrit."""
+        chemin = next(c for c in self.LOTS if "lot-4" in c.name)
+        retypages, _ = charger_table(chemin)
+        rapport = appliquer(retypages, ecrire=False)
+        self.assertFalse(rapport.ok)
+        refuses = {r.fait for r in retypages if any(r.fait in e for e in rapport.erreurs)}
+        self.assertEqual(refuses, {r.fait for r in retypages})
 
 
 if __name__ == "__main__":

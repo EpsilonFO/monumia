@@ -1,7 +1,7 @@
 """Les familles thématiques : une liste fermée en TROIS endroits.
 
 `labels.FAMILLES_LABELS` (d'où `aides_schema.FAMILLES` dérive), le CHECK SQL de
-la migration `ajouter_familles_aides_v3`, et `FAMILLE_OPTIONS` côté front. Une
+la dernière migration qui le repose, et `FAMILLE_OPTIONS` côté front. Une
 famille ajoutée à l'un et pas aux autres passerait la validation Pydantic et
 échouerait à l'insertion (ou l'inverse : un code accepté en base qu'aucun
 libellé ne sait rendre).
@@ -17,8 +17,8 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from aides_schema import FAMILLES, Aide
-from labels import FAMILLES_DESCRIPTION, FAMILLES_LABELS
+from aides_schema import AIDES_DIR, FAMILLES, Aide, load_aide
+from labels import FAMILLES_DESCRIPTION, FAMILLES_HERITEES, FAMILLES_LABELS
 
 RACINE = Path(__file__).resolve().parents[2]
 MIGRATIONS = RACINE / "supabase" / "migrations"
@@ -26,7 +26,7 @@ FRONT_FAMILLES = RACINE / "frontend" / "src" / "constants" / "familles.ts"
 
 
 class TableDesFamillesTest(unittest.TestCase):
-    #: Les treize familles et leur libellé produit, FIGÉS. Toute modification
+    #: Les quatorze familles et leur libellé produit, FIGÉS. Toute modification
     #: ici doit se retrouver dans le front et dans le CHECK SQL.
     ATTENDUES = {
         "restauration_bati": "Restauration du bâti",
@@ -34,7 +34,8 @@ class TableDesFamillesTest(unittest.TestCase):
         "eau_nature_domaine": "Eau, nature et domaine",
         "securite_risques": "Sécurité et risques",
         "parcs_jardins_paysages": "Parcs, jardins et paysages",
-        "tourisme_hebergement": "Tourisme et hébergement",
+        "hebergement_touristique": "Hébergement touristique",
+        "tourisme_visite": "Site de visite et tourisme",
         "activite_economique_lieu": "Activité économique dans le lieu",
         "spectacles_manifestations": "Spectacles et manifestations",
         "vie_locale_associative": "Vie locale et associative",
@@ -44,7 +45,7 @@ class TableDesFamillesTest(unittest.TestCase):
         "labels_passerelles": "Labels et passerelles",
     }
 
-    def test_les_treize_familles_et_leurs_libelles(self) -> None:
+    def test_les_quatorze_familles_et_leurs_libelles(self) -> None:
         self.assertEqual(FAMILLES_LABELS, self.ATTENDUES)
         self.assertEqual(FAMILLES, tuple(self.ATTENDUES))
 
@@ -56,11 +57,18 @@ class TableDesFamillesTest(unittest.TestCase):
             self.assertTrue(description.strip(), code)
 
     def test_le_check_sql_dit_la_meme_chose(self) -> None:
-        """La migration est lue par glob sur son nom : son horodatage est celui
-        du CLI et ne doit pas figer le test."""
-        fichiers = sorted(MIGRATIONS.glob("*ajouter_familles_aides_v3.sql"))
-        self.assertEqual(len(fichiers), 1, "migration des familles introuvable ou en double")
-        sql = fichiers[0].read_text(encoding="utf-8")
+        """Le CHECK qui fait foi est celui de la migration la PLUS RÉCENTE qui
+        le pose : une scission le repose (drop + add), et comparer le référentiel
+        d'aujourd'hui au premier CHECK écrit ferait échouer le test pour de bon.
+        Les migrations sont horodatées par le CLI, donc l'ordre du glob est
+        chronologique."""
+        portantes = [
+            p
+            for p in sorted(MIGRATIONS.glob("*.sql"))
+            if "familles <@ array[" in p.read_text(encoding="utf-8")
+        ]
+        self.assertTrue(portantes, "aucune migration ne pose le CHECK des familles")
+        sql = portantes[-1].read_text(encoding="utf-8")
         tableau = re.search(r"familles <@ array\[(.*?)\]::text\[\]", sql, re.S)
         self.assertIsNotNone(tableau, "CHECK `familles <@ array[...]` absent de la migration")
         assert tableau is not None  # pour pyright
@@ -69,7 +77,7 @@ class TableDesFamillesTest(unittest.TestCase):
 
     def test_le_front_dit_la_meme_chose(self) -> None:
         """Le type `Famille` et `FAMILLE_OPTIONS` sont testés côté front ; ici
-        on vérifie seulement que les treize CODES y sont, pour qu'un ajout
+        on vérifie seulement que les quatorze CODES y sont, pour qu'un ajout
         backend ne puisse pas rester invisible à l'écran."""
         source = FRONT_FAMILLES.read_text(encoding="utf-8")
         for code in FAMILLES_LABELS:
@@ -96,6 +104,42 @@ class TableDesFamillesTest(unittest.TestCase):
         for tri in ("adjacente", "hors_perimetre"):
             with self.assertRaises(ValidationError, msg=tri):
                 Aide.model_validate({**base, "familles": [tri]})
+
+
+class FamillesHeriteesTest(unittest.TestCase):
+    """Les codes RETIRÉS du référentiel, et ce qu'ils valent encore.
+
+    Un projet enregistré porte ses familles telles qu'elles ont été cochées ;
+    rien ne les réécrit. Un code retiré sans alias déclarerait donc une famille
+    qu'aucune aide ne porte, et `hors_famille` (déclaré non vide, intersection
+    vide) écarterait TOUTES les aides taguées.
+    """
+
+    def test_un_code_herite_est_sorti_du_referentiel(self) -> None:
+        for ancien in FAMILLES_HERITEES:
+            self.assertNotIn(ancien, FAMILLES_LABELS, ancien)
+
+    def test_un_heritage_ne_pointe_que_vers_des_familles_vivantes(self) -> None:
+        for ancien, successeurs in FAMILLES_HERITEES.items():
+            self.assertTrue(successeurs, ancien)
+            for code in successeurs:
+                self.assertIn(code, FAMILLES_LABELS, f"{ancien} → {code}")
+
+    def test_le_front_porte_le_meme_alias(self) -> None:
+        source = FRONT_FAMILLES.read_text(encoding="utf-8")
+        for ancien, successeurs in FAMILLES_HERITEES.items():
+            self.assertIn(f"{ancien}: [", source, ancien)
+            for code in successeurs:
+                self.assertIn(f"'{code}'", source, code)
+
+    def test_aucune_aide_ne_porte_encore_un_code_herite(self) -> None:
+        """L'alias est un filet pour les QUESTIONNAIRES déjà enregistrés, pas
+        une permission d'écrire l'ancien code : `Aide.familles` le refuse, et ce
+        test le redit sur le catalogue réel."""
+        for chemin in sorted(AIDES_DIR.glob("*.yaml")):
+            familles = load_aide(chemin).familles
+            for ancien in FAMILLES_HERITEES:
+                self.assertNotIn(ancien, familles, chemin.stem)
 
 
 if __name__ == "__main__":

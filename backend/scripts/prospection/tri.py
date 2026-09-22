@@ -56,7 +56,8 @@ Famille = Literal[
     "eau_nature_domaine",
     "securite_risques",
     "parcs_jardins_paysages",
-    "tourisme_hebergement",
+    "hebergement_touristique",
+    "tourisme_visite",
     "activite_economique_lieu",
     "spectacles_manifestations",
     "vie_locale_associative",
@@ -93,9 +94,15 @@ FAMILLES_DESCRIPTION: dict[str, str] = {
         "catastrophes naturelles, inondations, incendie, foudre, sûreté, mise en sécurité"
     ),
     "parcs_jardins_paysages": "parcs et jardins, arbres, paysages, abords",
-    "tourisme_hebergement": (
-        "hébergements (gîtes, chambres d'hôtes, hôtels, insolite, plein air), sites de "
-        "visite, itinérance, événementiel touristique"
+    "hebergement_touristique": (
+        "l'HÉBERGEMENT lui-même : gîte, chambre d'hôtes, meublé, hôtel, hostel, "
+        "hébergement collectif, hôtellerie de plein air, insolite"
+    ),
+    "tourisme_visite": (
+        "le lieu OUVERT À LA VISITE et ce qui l'entoure : mise en tourisme, accueil des "
+        "visiteurs, itinérance et randonnée, évènementiel touristique, promotion et "
+        "stratégie touristique d'un territoire. Scindé de l'hébergement le 2026-09-22 : "
+        "un gîte et un sentier de randonnée ne posent pas les mêmes questions"
     ),
     "activite_economique_lieu": (
         "reconversion et nouvel usage, tiers-lieux, commerce, artisanat ou ESS installés "

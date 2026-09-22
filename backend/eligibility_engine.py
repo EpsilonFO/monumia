@@ -46,6 +46,7 @@ from aides_schema import (
 from labels import (
     DEPARTEMENT_LABELS,
     ETAT_LABELS,
+    FAMILLES_HERITEES,
     OWNERSHIP_LABELS,
     PROTECTION_LABELS,
     REGION_LABELS,
@@ -430,9 +431,9 @@ FAITS_DEDUITS_DES_FAMILLES: dict[str, frozenset[str]] = {
     "porteur_compagnie_artistique": frozenset({"spectacles_manifestations"}),
     "porteur_ecole_art": frozenset({"spectacles_manifestations"}),
     "porteur_structure_musicale": frozenset({"spectacles_manifestations"}),
-    "projet_hebergement_touristique": frozenset({"tourisme_hebergement"}),
+    "projet_hebergement_touristique": frozenset({"hebergement_touristique"}),
     "projet_developpement_touristique": frozenset(
-        {"tourisme_hebergement", "activite_economique_lieu"}
+        {"hebergement_touristique", "tourisme_visite", "activite_economique_lieu"}
     ),
     "projet_equipement_culturel": frozenset(
         {"mediation_numerique_expositions", "spectacles_manifestations"}
@@ -456,9 +457,19 @@ FAITS_DEDUITS_DES_FAMILLES: dict[str, frozenset[str]] = {
 # que `_valorisation_prevue_depuis_raisons`, et il est soumis à la même
 # condition : la déduction ne doit pouvoir écarter AUCUNE aide.
 #
-# Deux entrées seulement, et la garde de `_retournerait_contre` les revérifie à
-# chaque diagnostic plutôt que de faire confiance à cette liste. Mesuré sur le
-# corpus au 2026-09-18 : 9 et 35 références, aucune qu'un « oui » réfute.
+# Trois entrées, et la garde de `_retournerait_contre` les revérifie à chaque
+# diagnostic plutôt que de faire confiance à cette liste. Mesuré sur le corpus
+# au 2026-09-18 : 9 et 35 références pour les deux premières, aucune qu'un
+# « oui » réfute.
+#
+# La troisième, `projet_hebergement_touristique`, n'a pu entrer qu'après la
+# SCISSION de `tourisme_hebergement` (2026-09-22) : tant que la même famille
+# couvrait les gîtes ET les sites de visite, cocher la tuile ne disait pas que
+# le projet était un hébergement, et trois aides qui gatent `eq: false` sur ce
+# fait faisaient tomber la garde pour tout le monde. Deux d'entre elles sont
+# désormais `tourisme_visite` et sortent par `hors_famille` avant la déduction ;
+# qui coche les DEUX tuiles garde donc la question, et c'est légitime — c'est
+# alors elle qui tranche entre les aides d'hébergement et les autres.
 #
 # `projet_evenementiel_ponctuel` n'y est PAS, et c'est le cas intéressant :
 # cinq aides le gatent `eq: false`, un « oui » déduit les ferait tomber
@@ -473,6 +484,7 @@ FAITS_DEDUITS_VRAI_DES_FAMILLES: dict[str, frozenset[str]] = {
         {"spectacles_manifestations", "mediation_numerique_expositions"}
     ),
     "projet_lieu_diffusion_culturelle": frozenset({"spectacles_manifestations"}),
+    "projet_hebergement_touristique": frozenset({"hebergement_touristique"}),
 }
 
 
@@ -583,6 +595,23 @@ FAITS_DEDUITS_DES_FAITS: dict[str, tuple[str, dict[object, object]]] = {
     # (l'aide part en « écartée par vos réponses », ce qu'elle est), et la
     # question disparaît du QCM au profit de sa source.
     "budget_travaux_estime": ("etat_travaux", {"aucun": 0}),
+    # « Mes travaux relèvent de l'entretien courant » répond d'avance « non »
+    # à « mon programme est-il une création / extension / rénovation
+    # fondamentale ? », qui exclut l'entretien courant dans son énoncé même.
+    # Sans ça, les deux questions se suivaient en se contredisant.
+    #
+    # Dans CE sens seulement, et pour deux raisons. La réciproque serait tout
+    # aussi vraie (une rénovation fondamentale n'est pas de l'entretien
+    # courant), mais la SOURCE d'une déduction se pose avant sa cible : c'est
+    # la question la plus partagée qui doit passer devant (13 aides contre 5),
+    # pas une question d'hôtellerie posée à tout le monde. Et deux entrées
+    # croisées feraient un cycle dans la table, que ni l'ordre des questions ni
+    # `_depends_on_deduction` ne savent trancher.
+    #
+    # Les deux faits ne se FUSIONNENT pas pour autant : « mise aux normes
+    # seule » et « simple rafraîchissement » ne sont ni l'un ni l'autre, et
+    # répondent non aux deux questions.
+    "projet_renovation_fondamentale": ("travaux_entretien_courant", {True: False}),
 }
 
 
@@ -671,20 +700,49 @@ def _applies(cond: Condition, ctx: dict, facts: dict[str, FactDef]) -> bool | No
     return _evaluate_clause(cond.applies_if, ctx, facts)
 
 
+# Fait « vide », pour que `_pertinence` et `_scoped_conditions` lisent
+# `pertinent_si` sans un `if` de plus : une condition peut citer un fait absent
+# de l'ontologie (le lint le refuse, mais le moteur ne doit pas casser pour
+# autant).
+_SANS_FAIT = FactDef(type="boolean", scope="projet", question="")
+
+
+def _pertinence(fact_key: str | None, ctx: dict, facts: dict[str, FactDef]) -> bool | None:
+    """Le fait a-t-il une valeur pour ce profil ? (clause `pertinent_si` du fait)
+
+    Une seule question, posée aux trois endroits qui en tirent une conséquence :
+    le BRANCHEMENT de la question (`_depends_on_pertinence`), l'évaluation de
+    la CONDITION qui cite le fait, et le PÉRIMÈTRE d'une aide posé dessus.
+
+    True quand le fait ne déclare pas de porte — le cas courant. False dit que
+    le fait n'a pas de valeur ici : « quel type d'hébergement ? » ne veut rien
+    dire sans projet d'hébergement, et une exclusion posée dessus ne doit
+    écarter personne. None = la porte est inconnue (fail-closed).
+    """
+    clause = (facts.get(fact_key or "") or _SANS_FAIT).pertinent_si
+    if clause is None:
+        return True
+    return _evaluate_clause(clause, ctx, facts)
+
+
 def hors_perimetre(aide: Aide, ctx: dict, facts: dict[str, FactDef]) -> bool:
     """Vrai si l'utilisateur a répondu que cette aide ne concerne pas son projet.
 
     Fail-closed : tant que le fait de périmètre est inconnu, l'aide reste
     candidate (et la question est posée). Seule une réponse explicitement
     négative l'écarte.
+
+    Une PORTE fermée vaut réponse négative : une aide dont tout le périmètre est
+    « votre hébergement est-il un hôtel ? » ne concerne pas quelqu'un qui n'a
+    pas de projet d'hébergement. Sans cette règle, l'aide restait « potentielle »
+    pour toujours — son périmètre en incertitude sur un fait qu'on ne lui
+    demanderait jamais.
     """
-    return aide.applies_if is not None and _evaluate_clause(aide.applies_if, ctx, facts) is False
-
-
-# Fait « vide », pour que `_scoped_conditions` lise `pertinent_si` sans un `if`
-# de plus : une condition peut citer un fait absent de l'ontologie (le lint le
-# refuse, mais le moteur ne doit pas casser pour autant).
-_SANS_FAIT = FactDef(type="boolean", scope="projet", question="")
+    if aide.applies_if is None:
+        return False
+    if _pertinence(aide.applies_if.fact, ctx, facts) is False:
+        return True
+    return _evaluate_clause(aide.applies_if, ctx, facts) is False
 
 
 def _scoped_conditions(aide: Aide, facts: dict[str, FactDef]) -> list[Condition]:
@@ -706,8 +764,15 @@ def _scoped_conditions(aide: Aide, facts: dict[str, FactDef]) -> list[Condition]
 
     Le périmètre passe avant la dépendance du fait parce qu'une condition ne
     porte qu'UNE clause, et que la première question à trancher est « cette aide
-    me concerne-t-elle ? ». Perdre `pertinent_si` dans ce cas ne fait que poser
-    une question de plus (fail-closed), jamais écarter une aide.
+    me concerne-t-elle ? ».
+
+    Cette fonction n'est plus le seul lecteur de `pertinent_si`, et ce report
+    n'en est plus que la voie la plus COURTE — celle qui ne coûte aucun cas
+    particulier quand la condition n'a pas de clause. Les deux clauses plus
+    spécifiques lui prennent sa place sans rien lui faire perdre : `_pertinence`
+    est consultée à part dans `evaluate_aide` (la condition est ignorée, l'aide
+    sort du périmètre) et dans `_depends_on_pertinence` (la question se branche
+    sur la porte). Perdre le report ne coûte donc plus rien du tout.
 
     Un gate qui porte sur le fait de sa propre clause n'hérite de rien : il
     serait sa propre condition d'applicabilité.
@@ -827,6 +892,45 @@ def _gateway_condition(cond: Condition) -> Condition:
             "predicate": cond.applies_if.predicate.root,
         }
     )
+
+
+def _porte_condition(clause: AppliesIf, fact: FactDef | None) -> Condition:
+    """Gate synthétique sur la PORTE d'un fait (`FactDef.pertinent_si`)."""
+    assert clause.fact  # garanti par l'appelant
+    return Condition.model_validate(
+        {
+            "id": "pertinence",
+            "text": _perimetre_texte(fact),
+            "kind": "user_fact",
+            "fact": clause.fact,
+            "predicate": clause.predicate.root,
+        }
+    )
+
+
+def _poser_porte(
+    gateway_facts: dict[str, list[Condition]],
+    fact_key: str | None,
+    ctx: dict,
+    facts: dict[str, FactDef],
+) -> None:
+    """Pose la PORTE d'un fait comme fait passerelle, tant qu'elle est inconnue.
+
+    Sans elle, la question du fait porté n'aurait rien à quoi se brancher —
+    `_depends_on_pertinence` renonce (fail-closed) et la question part à tout
+    le monde. `_scoped_conditions` reporte déjà la porte sur les conditions qui
+    n'ont pas de clause propre ; cette fonction couvre les deux cas où une
+    clause plus spécifique lui a pris la place : le PÉRIMÈTRE d'une aide et la
+    clause PROPRE d'une condition.
+
+    Ne repose rien si le fait de la porte est déjà posé : une question suffit.
+    """
+    clause = (facts.get(fact_key or "") or _SANS_FAIT).pertinent_si
+    if clause is None or not clause.fact or clause.fact in gateway_facts:
+        return
+    if _evaluate_clause(clause, ctx, facts) is not None:
+        return  # porte tranchée : soit le fait est pertinent, soit tout est écarté
+    gateway_facts[clause.fact] = [_porte_condition(clause, facts.get(clause.fact))]
 
 
 # ---------------------------------------------------------------------------
@@ -1030,6 +1134,10 @@ def evaluate_aide(
         verdict.gateway_facts.setdefault(aide.applies_if.fact or "", []).append(
             _perimetre_condition(aide, perimetre_fact)
         )
+        # Le fait de périmètre a lui-même une porte, encore inconnue : sans
+        # elle, l'aide n'aurait AUCUNE question — sa question de périmètre se
+        # brancherait sur une porte absente du questionnaire.
+        _poser_porte(verdict.gateway_facts, aide.applies_if.fact, ctx, facts)
         verdict.evaluations.append(
             {
                 "critere": _perimetre_texte(perimetre_fact),
@@ -1047,6 +1155,17 @@ def evaluate_aide(
     gate_explicite = gate_porteur(aide)
 
     for cond in _scoped_conditions(aide, facts):
+        # La porte du FAIT (`pertinent_si`) tranche avant toute clause : un fait
+        # sans valeur pour ce profil n'a pas à être évalué, même quand la
+        # condition porte sa propre clause — `_scoped_conditions` a alors gardé
+        # celle-ci et perdu la porte. Une exclusion « pas de gîte » ne bloque
+        # plus quelqu'un qui n'a aucun projet d'hébergement.
+        pertinent = _pertinence(cond.fact, ctx, facts)
+        if pertinent is False:
+            continue  # le fait n'a pas de valeur ici → ni gate, ni affichée
+        if pertinent is None and cond.effect == "gate" and cond.applies_if is not None:
+            _poser_porte(verdict.gateway_facts, cond.fact, ctx, facts)
+
         applies = _applies(cond, ctx, facts)
         if applies is False:
             continue  # condition non applicable à ce profil → ni gate, ni affichée
@@ -1457,6 +1576,39 @@ def _depends_on(
     return {"questionId": gateway, "showForOptionIds": show_for}
 
 
+def _depends_on_pertinence(
+    fact: FactDef,
+    built: dict[str, dict],
+    options_by_fact: dict[str, list[dict]],
+) -> dict | None:
+    """Branchement d'une question sur la PORTE de son fait (`pertinent_si`).
+
+    C'est l'AUTORITÉ du branchement, avant toute inférence : la clause est
+    déclarée sur le FAIT, donc vraie de toutes les aides à la fois, là où
+    `_depends_on` doit la remonter des conditions et renonce (fail-closed) dès
+    qu'une seule ne la porte pas. Sur `type_hebergement_touristique`, cinq aides
+    sur treize suffisaient à casser l'inférence : trois l'utilisent comme
+    périmètre d'AIDE (le gate synthétique n'a pas d'`applies_if`), deux ont une
+    clause PROPRE que `_scoped_conditions` garde à la place de la porte.
+
+    Porte non posée : rien à quoi se brancher, la question reste (fail-closed).
+    """
+    clause = fact.pertinent_si
+    if clause is None or not clause.fact or clause.fact not in built:
+        return None
+    show_for = [
+        opt["id"]
+        for opt in options_by_fact[clause.fact]
+        # Option « je ne sais pas » : la porte reste inconnue, le fait est donc
+        # peut-être pertinent — on garde la question (fail-closed).
+        if opt.get("unknown")
+        or evaluate_predicate(clause.predicate.root, opt.get("value", opt.get("repr"))) is not False
+    ]
+    if not show_for or len(show_for) == len(options_by_fact[clause.fact]):
+        return None  # jamais pertinent, ou toujours : pas de branchement utile
+    return {"questionId": clause.fact, "showForOptionIds": show_for}
+
+
 def _depends_on_deduction(
     fact_key: str,
     built: dict[str, dict],
@@ -1551,6 +1703,17 @@ def build_questions(
     sources_deduction = {
         source for cible, (source, _) in FAITS_DEDUITS_DES_FAITS.items() if cible in candidats
     }
+    # Même geste pour la PORTE d'un fait (`pertinent_si`) : elle se pose avant
+    # lui, sinon `_depends_on_pertinence` n'a rien à quoi se brancher et la
+    # question part à tout le monde. Une porte sert parfois MOINS d'aides que
+    # sa dépendante (« avez-vous un projet d'hébergement ? » face aux treize
+    # aides qui en demandent le type) : le classement par nombre d'aides,
+    # seul, l'aurait mise après.
+    portes: set[str] = set()
+    for cible in candidats:
+        porte = (facts.get(cible) or _SANS_FAIT).pertinent_si
+        if porte is not None and porte.fact:
+            portes.add(porte.fact)
     # Le fait PORTEUR entre au premier étage dès qu'une aide l'attend par
     # dérivation (`_porteur_condition`) : tant qu'on ignore qui dépose, les
     # questions d'entreprise de ces aides n'ont pas à être posées, et y répondre
@@ -1570,7 +1733,7 @@ def build_questions(
         candidats,
         key=lambda k: (
             not (porteur_derive and k == FAIT_PORTEUR),
-            k not in gateway_by_fact and k not in sources_deduction,
+            k not in gateway_by_fact and k not in sources_deduction and k not in portes,
             -len(aide_slugs(k)),
             *ordre_source(k),
             k,
@@ -1670,8 +1833,10 @@ def build_questions(
             # (cf. services/faits_durables.py).
             "scope": fact.scope,
         }
-        depends_on = _depends_on(all_conds, built, options_by_fact) or _depends_on_deduction(
-            fact_key, built, options_by_fact
+        depends_on = (
+            _depends_on_pertinence(fact, built, options_by_fact)
+            or _depends_on(all_conds, built, options_by_fact)
+            or _depends_on_deduction(fact_key, built, options_by_fact)
         )
         if depends_on:
             question["dependsOn"] = depends_on
@@ -1861,6 +2026,24 @@ def _codes_reserves(brut: object) -> set[str]:
     return {c for c in brut if isinstance(c, str)}
 
 
+def familles_heritees(declarees: set[str]) -> set[str]:
+    """Traduit les codes de famille RETIRÉS du référentiel (`FAMILLES_HERITEES`).
+
+    Un projet garde dans `projets.questionnaire._familles` les codes cochés le
+    jour où il a été cadré, et rien ne les réécrit. Sans cette traduction, un
+    projet coché « Tourisme et hébergement » avant la scission du 2026-09-22
+    déclarerait une famille qu'aucune aide ne porte plus : `hors_famille`
+    (déclaré non vide, intersection vide) écarterait TOUTES les aides taguées,
+    l'inverse exact de ce que l'utilisateur a demandé.
+
+    Un héritage ÉLARGIT toujours — l'ancien code vaut ses successeurs — donc la
+    traduction ne peut rien retirer. Un code inconnu est laissé tel quel :
+    `hors_famille` est déjà fail-open par aide, et une famille orpheline ne
+    ferme rien d'autre qu'elle-même.
+    """
+    return {code for d in declarees for code in FAMILLES_HERITEES.get(d, frozenset({d}))}
+
+
 def hors_projet(aide: Aide, raisons: set[str]) -> bool:
     """Vrai si l'aide ne sert AUCUNE des finalités déclarées par l'utilisateur.
 
@@ -1967,7 +2150,10 @@ def run_deterministic_diagnostic(
     # `_familles` : ce que l'utilisateur a coché à l'étape « Votre projet » d'un
     # projet « faire vivre le lieu ». Clé absente comme liste vide ⇒ rien de
     # déclaré, donc aucun filtrage (cf. hors_famille).
-    familles_declarees = _codes_reserves(reserved.get("_familles"))
+    # `familles_heritees` traduit d'abord les codes retirés du référentiel : un
+    # projet cadré avant la scission du 2026-09-22 porte encore
+    # `tourisme_hebergement`, que plus aucune aide ne tague.
+    familles_declarees = familles_heritees(_codes_reserves(reserved.get("_familles")))
     familles = familles_effectives(familles_declarees, raisons)
 
     ready = engine_ready_aides(aides)

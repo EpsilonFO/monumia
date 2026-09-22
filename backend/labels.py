@@ -69,11 +69,19 @@ TRAVAUX_LABELS = {
 # non par un fait : la famille est décidée par un humain à la prospection, une
 # fois pour toutes, là où un fait demanderait une réponse à chaque utilisateur.
 #
-# Les 13 clés et leurs descriptions viennent de `scripts/prospection/tri.py`
+# Les clés et leurs descriptions viennent de `scripts/prospection/tri.py`
 # (branche `feat/pipeline-prospection-ingestion`), où elles sont déjà calculées
 # pour chaque dispositif candidat : c'est ce travail que l'ingestion perdait.
 # `adjacente` et `hors_perimetre` restent des valeurs de TRI, pas des familles —
 # elles disent de garder ou d'écarter un candidat, pas ce que l'aide finance.
+#
+# Scission du 2026-09-22 : `tourisme_hebergement` mettait dans le même sac un
+# gîte et un sentier de randonnée. Un testeur qui cochait la tuile s'entendait
+# demander « créez-vous un hébergement touristique ? » juste après l'avoir dit —
+# la famille ne pouvait pas répondre à sa place, puisqu'elle couvrait aussi les
+# sites de visite. Les deux codes qui la remplacent le peuvent (cf.
+# `FAITS_DEDUITS_VRAI_DES_FAMILLES`). L'ancien code survit en ALIAS
+# (`FAMILLES_HERITEES`), pour les projets déjà enregistrés.
 #
 # Deux usages, deux textes : `FAMILLES_LABELS` est le libellé produit (tuile du
 # wizard, puce d'une fiche d'aide), `FAMILLES_DESCRIPTION` la définition qui
@@ -84,7 +92,8 @@ FAMILLES_LABELS = {
     "eau_nature_domaine": "Eau, nature et domaine",
     "securite_risques": "Sécurité et risques",
     "parcs_jardins_paysages": "Parcs, jardins et paysages",
-    "tourisme_hebergement": "Tourisme et hébergement",
+    "hebergement_touristique": "Hébergement touristique",
+    "tourisme_visite": "Site de visite et tourisme",
     "activite_economique_lieu": "Activité économique dans le lieu",
     "spectacles_manifestations": "Spectacles et manifestations",
     "vie_locale_associative": "Vie locale et associative",
@@ -113,9 +122,13 @@ FAMILLES_DESCRIPTION = {
         "catastrophes naturelles, inondations, incendie, foudre, sûreté, mise en sécurité"
     ),
     "parcs_jardins_paysages": "parcs et jardins, arbres, paysages, abords",
-    "tourisme_hebergement": (
-        "hébergements (gîtes, chambres d'hôtes, hôtels, insolite, plein air), sites de "
-        "visite, itinérance, événementiel touristique"
+    "hebergement_touristique": (
+        "hébergements touristiques : gîtes, chambres d'hôtes, meublés, hôtels, hostels, "
+        "hébergement collectif, hôtellerie de plein air, insolite"
+    ),
+    "tourisme_visite": (
+        "sites de visite, itinérance et randonnée, événementiel touristique, promotion et "
+        "stratégie touristique d'un territoire"
     ),
     "activite_economique_lieu": (
         "reconversion et nouvel usage, tiers-lieux, commerce, artisanat ou ESS installés "
@@ -135,6 +148,24 @@ FAMILLES_DESCRIPTION = {
     "accessibilite_publics": "accessibilité, accueil des publics, handicap",
     "etudes_ingenierie": "études préalables, diagnostics, ingénierie, AMO",
     "labels_passerelles": "labels et dispositifs qui ouvrent l'accès à d'autres aides",
+}
+
+# Codes de famille RETIRÉS du référentiel → ce qu'ils valent aujourd'hui.
+#
+# Un projet enregistré porte ses familles dans `projets.questionnaire._familles`,
+# et rien ne les réécrit. Sans cette table, un projet coché « Tourisme et
+# hébergement » avant la scission déclarerait une famille que plus aucune aide ne
+# porte : `hors_famille` (déclaré non vide, intersection vide) écarterait TOUTES
+# les aides taguées — l'inverse exact de ce que l'utilisateur a demandé.
+#
+# Un héritage ÉLARGIT donc toujours (l'ancien code vaut ses deux successeurs) ;
+# il ne peut rien retirer. Lu par le moteur (`familles_heritees`, appliqué avant
+# `hors_famille` comme avant les déductions) et par le front (`readFamilles`,
+# qui recoche les deux tuiles à la reprise du wizard). Les `tri.jsonl` de
+# prospection ne sont PAS réécrits pour la même raison : ce sont des décisions
+# humaines datées, et l'alias suffit à les lire.
+FAMILLES_HERITEES: dict[str, frozenset[str]] = {
+    "tourisme_hebergement": frozenset({"hebergement_touristique", "tourisme_visite"}),
 }
 
 ETAT_LABELS = {

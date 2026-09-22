@@ -590,6 +590,12 @@ def outils_pour(
         Une exigence propre à cette aide-ci se type `manual_check` +
         `effect: info` ; un engagement du demandeur se type `info` + `info`.
 
+        **Une PROMESSE n'est jamais un fait** (« acceptez-vous de… »,
+        « vous engagez-vous à… », « déposerez-vous… ») : tout demandeur répond
+        oui, et la question entre dans le questionnaire de TOUS les
+        propriétaires. Pas de fait `s_engage_*` : la famille entière a été
+        retypée en `info` le 2026-09-22 et retirée de `facts.yaml`.
+
         Si la question ne concerne que certains porteurs (une entreprise, une
         exploitation agricole), déclare `porteurs_concernes` : le lint obligera
         alors toute aide qui gate ce fait à dire aussi qui peut déposer. Un fait

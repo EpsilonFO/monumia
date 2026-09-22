@@ -163,7 +163,7 @@ describe('questionnaireDeCadrage', () => {
   it('remplace les anciennes familles, jamais ne les cumule', () => {
     expect(
       questionnaireDeCadrage(
-        { [FAMILLES_KEY]: ['tourisme_hebergement'], fait: 'oui' },
+        { [FAMILLES_KEY]: ['hebergement_touristique'], fait: 'oui' },
         ['valorisation_rayonnement'],
         ['spectacles_manifestations'],
       ),

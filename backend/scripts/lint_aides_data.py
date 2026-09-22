@@ -311,6 +311,37 @@ def gate_plus_large_que_le_marqueur(aide: Aide, facts: dict[str, FactDef]) -> li
     return lignes
 
 
+def check_famille_faire_vivre(aide: Aide) -> list[str]:
+    """Une aide « faire vivre le lieu » DOIT déclarer ses familles. Bloquant.
+
+    `hors_famille` est fail-open PAR AIDE : sans `familles`, l'aide passe tous
+    les cadrages et se présente à un projet de spectacles comme à un projet
+    d'hébergement — avec ses questions. Mesuré le 2026-09-22 sur le profil qui a
+    révélé le bug (Vosges, « faire vivre », tuile tourisme) : 106 aides
+    candidates, 80 questions, 31 dans le tronc commun, contre 10 pour le même
+    profil en Bourgogne-Franche-Comté. Dix-sept aides non taguées portaient
+    l'essentiel de l'écart.
+
+    La règle ne vaut QUE pour `valorisation_rayonnement` : le filtre des
+    familles ne s'active jamais pour une aide de restauration seule
+    (`hors_projet` l'a déjà écartée d'un projet d'animation, et un projet de
+    travaux ne voit pas l'étape des familles). « Vide = fail-open » reste donc
+    la doctrine ailleurs — cf. `data/TYPING.md` § `familles`.
+
+    Une aide généraliste n'est pas une exception : elle déclare TOUTES les
+    familles que sa page énumère. Ajouter une famille ne peut qu'élargir sa
+    visibilité (`hors_famille` n'écarte que sur intersection vide) ; le risque
+    est tout entier dans le tag trop étroit.
+    """
+    if "valorisation_rayonnement" in aide.raison and not aide.familles:
+        return [
+            f"{aide.slug}: `valorisation_rayonnement` sans `familles` — l'aide se présenterait "
+            "à TOUS les projets « faire vivre le lieu », quel qu'en soit le thème "
+            "(cf. data/TYPING.md, § `familles`)"
+        ]
+    return []
+
+
 def check_portee_geographique(aide: Aide) -> list[str]:
     """Une aide départementale ou régionale doit dire sur quel territoire elle porte.
 
@@ -760,6 +791,7 @@ def lint(
         rapport.erreurs.extend(check_aide(aide, facts))
         rapport.erreurs.extend(check_hors_gate(aide, facts))
         rapport.erreurs.extend(check_portee_geographique(aide))
+        rapport.erreurs.extend(check_famille_faire_vivre(aide))
         fail_open.extend(check_fail_open(aide))
         gates_larges.extend(gate_plus_large_que_le_marqueur(aide, facts))
 
@@ -1147,8 +1179,11 @@ def _bloc_calendrier(aides: list[Aide]) -> list[str]:
 
 
 def _bloc_dettes_editoriales(aides: list[Aide], facts: dict[str, FactDef]) -> list[str]:
-    """Quatre dettes que seul le catalogue ENTIER rend lisibles — toutes non
-    bloquantes : elles se résorbent par lots éditoriaux, pas à l'ingestion."""
+    """Trois dettes que seul le catalogue ENTIER rend lisibles — toutes non
+    bloquantes : elles se résorbent par lots éditoriaux, pas à l'ingestion.
+
+    La quatrième, les aides « faire vivre » sans famille, est passée en ERREUR
+    le 2026-09-22 une fois le backfill fait (`check_famille_faire_vivre`)."""
     lignes: list[str] = []
     fact_usage = compter_usage_faits(aides)
 
@@ -1214,20 +1249,6 @@ def _bloc_dettes_editoriales(aides: list[Aide], facts: dict[str, FactDef]) -> li
             f"TRAVAUX ne peut pas obtenir (tag faux, ou condition trop large) :"
         )
         lignes.extend(f"  {ligne}" for ligne in sorted(incoherentes))
-
-    # Dette de familles : une aide « faire vivre le lieu » sans famille passe
-    # tous les cadrages (fail-open par aide) et se présente donc à un projet de
-    # spectacles comme à un projet d'hébergement. Non bloquant : le backfill est
-    # éditorial et se relit par lots (cf. scripts/proposer_familles.py).
-    sans_famille = sorted(
-        a.slug for a in aides if "valorisation_rayonnement" in a.raison and not a.familles
-    )
-    if sans_famille:
-        lignes.append(
-            f"familles : {len(sans_famille)} aide(s) `valorisation_rayonnement` sans famille "
-            f"— elles se présentent à tous les projets « faire vivre le lieu » :"
-        )
-        lignes.extend(f"  {slug}" for slug in sans_famille)
 
     # `help` NOMINATIF sur un fait PARTAGÉ : la question est posée pour plusieurs
     # aides, et son aide contextuelle n'en nomme qu'une — le lecteur croit que la

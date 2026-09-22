@@ -9,8 +9,8 @@ function aide(id: string, familles?: string[]): AideMatchResult {
 
 const SPECTACLE = aide('a-spectacle', ['spectacles_manifestations']);
 const SPECTACLE_BIS = aide('a-spectacle-bis', ['spectacles_manifestations']);
-const TOURISME = aide('a-tourisme', ['tourisme_hebergement']);
-const MIXTE = aide('a-mixte', ['spectacles_manifestations', 'tourisme_hebergement']);
+const TOURISME = aide('a-tourisme', ['hebergement_touristique']);
+const MIXTE = aide('a-mixte', ['spectacles_manifestations', 'hebergement_touristique']);
 const SANS = aide('a-sans');
 
 describe('matchFamille', () => {
@@ -19,8 +19,8 @@ describe('matchFamille', () => {
   });
 
   it('retient une aide qui porte la famille, même parmi plusieurs', () => {
-    expect(matchFamille(MIXTE, 'tourisme_hebergement')).toBe(true);
-    expect(matchFamille(SPECTACLE, 'tourisme_hebergement')).toBe(false);
+    expect(matchFamille(MIXTE, 'hebergement_touristique')).toBe(true);
+    expect(matchFamille(SPECTACLE, 'hebergement_touristique')).toBe(false);
   });
 
   it('écarte une aide sans famille dès qu’une facette est choisie', () => {
@@ -50,14 +50,14 @@ describe('famillesDisponibles', () => {
   it('compte les familles et trie par compte décroissant', () => {
     expect(famillesDisponibles([SPECTACLE, SPECTACLE_BIS, TOURISME], null)).toEqual([
       { famille: 'spectacles_manifestations', label: 'Spectacles et manifestations', count: 2 },
-      { famille: 'tourisme_hebergement', label: 'Tourisme et hébergement', count: 1 },
+      { famille: 'hebergement_touristique', label: 'Hébergement touristique', count: 1 },
     ]);
   });
 
   it('compte une aide dans chacune de ses familles', () => {
     const facettes = famillesDisponibles([MIXTE, TOURISME], null);
     expect(facettes.map((f) => [f.famille, f.count])).toEqual([
-      ['tourisme_hebergement', 2],
+      ['hebergement_touristique', 2],
       ['spectacles_manifestations', 1],
     ]);
   });
@@ -80,8 +80,8 @@ describe('famillesDisponibles', () => {
   it('range les comptes égaux par libellé', () => {
     const facettes = famillesDisponibles([SPECTACLE, TOURISME], null);
     expect(facettes.map((f) => f.label)).toEqual([
+      'Hébergement touristique',
       'Spectacles et manifestations',
-      'Tourisme et hébergement',
     ]);
   });
 });

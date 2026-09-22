@@ -11,8 +11,13 @@ import type { ProjectQuestionnaireAnswers } from '@/types';
  * hébergement touristique.
  *
  * Liste FERMÉE, fermée en trois endroits qui doivent rester d'accord : ici, le
- * `FAMILLES_LABELS` du backend et le CHECK SQL de la migration
- * `ajouter_familles_aides_v3`. Des tests des deux côtés le vérifient.
+ * `FAMILLES_LABELS` du backend et le CHECK SQL de la migration des familles.
+ * Des tests des deux côtés le vérifient.
+ *
+ * Scission du 2026-09-22 : `tourisme_hebergement` est SORTI de la liste, au
+ * profit de `hebergement_touristique` et `tourisme_visite` — un gîte et un
+ * sentier de randonnée ne posent pas les mêmes questions. L'ancien code reste
+ * lisible via `FAMILLES_HERITEES`, jamais écrit.
  */
 export type Famille =
   | 'restauration_bati'
@@ -20,7 +25,8 @@ export type Famille =
   | 'eau_nature_domaine'
   | 'securite_risques'
   | 'parcs_jardins_paysages'
-  | 'tourisme_hebergement'
+  | 'hebergement_touristique'
+  | 'tourisme_visite'
   | 'activite_economique_lieu'
   | 'spectacles_manifestations'
   | 'vie_locale_associative'
@@ -30,7 +36,7 @@ export type Famille =
   | 'labels_passerelles';
 
 /**
- * Les treize familles, LIBELLÉS COMPRIS — miroir de `FAMILLES_LABELS`. Sert à
+ * Les quatorze familles, LIBELLÉS COMPRIS — miroir de `FAMILLES_LABELS`. Sert à
  * relire ce qui est déjà en base (les facettes d'une liste d'aides) ; ce que
  * l'étape « Votre projet » propose, c'est `FAMILLES_CHOIX`, plus court.
  */
@@ -61,9 +67,14 @@ export const FAMILLE_OPTIONS: { value: Famille; label: string; hint: string }[] 
     hint: 'Parcs et jardins, arbres remarquables, paysages, abords.',
   },
   {
-    value: 'tourisme_hebergement',
-    label: 'Tourisme et hébergement',
-    hint: 'Gîtes, chambres d’hôtes, site de visite, itinérance.',
+    value: 'hebergement_touristique',
+    label: 'Hébergement touristique',
+    hint: 'Gîtes, chambres d’hôtes, hôtel, camping, hébergement collectif.',
+  },
+  {
+    value: 'tourisme_visite',
+    label: 'Site de visite et tourisme',
+    hint: 'Ouverture à la visite, itinérance, évènementiel touristique.',
   },
   {
     value: 'activite_economique_lieu',
@@ -119,17 +130,34 @@ export const FAMILLE_OPTIONS: { value: Famille; label: string; hint: string }[] 
  * Ordre décroissant du poids attendu au catalogue (regroupement des 60 aides
  * « valorisation seule » du 2026-09-16) : la première tuile est celle qui
  * débloque le plus. `activite_economique_lieu` ferme donc la marche.
+ *
+ * Les deux tuiles de tourisme se suivent à la place qu'occupait l'ancienne
+ * `tourisme_hebergement`, hébergement d'abord : c'est le cas où le cadrage
+ * gagne le plus, puisque cocher l'hébergement répond d'avance « oui » à
+ * `projet_hebergement_touristique` (`FAITS_DEDUITS_VRAI_DES_FAMILLES`).
  */
 export const FAMILLES_CHOIX: Famille[] = [
   'spectacles_manifestations',
   'mediation_numerique_expositions',
-  'tourisme_hebergement',
+  'hebergement_touristique',
+  'tourisme_visite',
   'vie_locale_associative',
   'labels_passerelles',
   'parcs_jardins_paysages',
   'accessibilite_publics',
   'activite_economique_lieu',
 ];
+
+/**
+ * Codes de famille RETIRÉS du référentiel → ce qu'ils valent aujourd'hui.
+ * Miroir de `labels.FAMILLES_HERITEES` (backend). Un projet enregistré avant la
+ * scission porte encore l'ancien code dans son questionnaire, et rien ne le
+ * réécrit : `readFamilles` le traduit à la lecture pour que le wizard recoche
+ * les deux tuiles, et le moteur fait le même geste avant de filtrer.
+ */
+export const FAMILLES_HERITEES: Record<string, Famille[]> = {
+  tourisme_hebergement: ['hebergement_touristique', 'tourisme_visite'],
+};
 
 /**
  * Famille de la tuile « Des travaux sont nécessaires » de l'étape.
@@ -177,5 +205,11 @@ export const FAMILLES_KEY = '_familles';
 export function readFamilles(answers: ProjectQuestionnaireAnswers | undefined): string[] | null {
   if (!answers || !(FAMILLES_KEY in answers)) return null;
   const raw = answers[FAMILLES_KEY];
-  return Array.isArray(raw) ? raw.filter((f): f is string => typeof f === 'string') : null;
+  if (!Array.isArray(raw)) return null;
+  const codes = raw.filter((f): f is string => typeof f === 'string');
+  // Les codes retirés du référentiel valent leurs successeurs : sans ça, un
+  // projet coché avant la scission rouvrirait le wizard sans aucune tuile
+  // cochée, et le moteur écarterait toutes les aides taguées.
+  const lus = codes.flatMap((code) => FAMILLES_HERITEES[code] ?? [code]);
+  return [...new Set(lus)];
 }

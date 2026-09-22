@@ -212,6 +212,52 @@ PROFILS: dict[str, Profil] = {
             "statut_juridique_porteur": ["prive_personne_physique"],
         },
     ),
+    # Les deux profils du testeur du 2026-09-22 : même monument, même intention,
+    # deux FAMILLES différentes. Ils entrent au ratchet ensemble parce que c'est
+    # leur ÉCART qui dit si le cadrage fonctionne — un projet d'hébergement ne
+    # doit pas voir les questions d'un festival, et réciproquement.
+    #
+    # Le Grand Est est le territoire le plus dense du catalogue, et c'est là que
+    # le bug s'est vu : 106 aides candidates, 80 questions générées, 31 dans le
+    # tronc commun, contre 10 pour le même profil en Bourgogne-Franche-Comté.
+    # Trois causes, toutes corrigées le 2026-09-22 — 17 aides « faire vivre »
+    # sans famille (backfill + lint bloquant), la famille tourisme trop large
+    # (scindée en deux), et « le fioul après les travaux » posé sans travaux
+    # (`pertinent_si` sur `etat_travaux`).
+    "association, inscrit, Grand Est (88), hébergement": Profil(
+        monument=dict(
+            protection="inscrit",
+            proprietaire="association",
+            region="grand-est",
+            departement_num="88",
+            etat_conservation="bon",
+            travaux_envisages=[],
+        ),
+        population=1200,
+        answers={
+            "_raisons": ["valorisation_rayonnement"],
+            "_familles": ["hebergement_touristique"],
+            "etat_travaux": "aucun",
+            "statut_juridique_porteur": ["association"],
+        },
+    ),
+    "association, inscrit, Grand Est (88), spectacles": Profil(
+        monument=dict(
+            protection="inscrit",
+            proprietaire="association",
+            region="grand-est",
+            departement_num="88",
+            etat_conservation="bon",
+            travaux_envisages=[],
+        ),
+        population=1200,
+        answers={
+            "_raisons": ["valorisation_rayonnement"],
+            "_familles": ["spectacles_manifestations"],
+            "etat_travaux": "aucun",
+            "statut_juridique_porteur": ["association"],
+        },
+    ),
 }
 
 

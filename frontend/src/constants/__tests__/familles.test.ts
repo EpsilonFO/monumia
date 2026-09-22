@@ -4,6 +4,7 @@ import {
   FAMILLE_OPTIONS,
   FAMILLE_TRAVAUX,
   FAMILLES_CHOIX,
+  FAMILLES_HERITEES,
   FAMILLES_KEY,
   familleProposee,
   libelleFamille,
@@ -19,14 +20,15 @@ import {
  * assertions figent donc exactement les mêmes valeurs que le test Python.
  */
 describe('table des familles', () => {
-  it('porte les treize familles et leurs libellés', () => {
+  it('porte les quatorze familles et leurs libellés', () => {
     expect(FAMILLE_OPTIONS.map((o) => [o.value, o.label])).toEqual([
       ['restauration_bati', 'Restauration du bâti'],
       ['energie_climat', 'Énergie et climat'],
       ['eau_nature_domaine', 'Eau, nature et domaine'],
       ['securite_risques', 'Sécurité et risques'],
       ['parcs_jardins_paysages', 'Parcs, jardins et paysages'],
-      ['tourisme_hebergement', 'Tourisme et hébergement'],
+      ['hebergement_touristique', 'Hébergement touristique'],
+      ['tourisme_visite', 'Site de visite et tourisme'],
       ['activite_economique_lieu', 'Activité économique dans le lieu'],
       ['spectacles_manifestations', 'Spectacles et manifestations'],
       ['vie_locale_associative', 'Vie locale et associative'],
@@ -44,7 +46,7 @@ describe('table des familles', () => {
   });
 
   /**
-   * L'étape ne propose pas les treize : les cinq familles de chantier et les
+   * L'étape ne propose pas les quatorze : les cinq familles de chantier et les
    * études relèvent des intentions « Restaurer » et « Préparer le projet », que
    * le moteur implique déjà (`FAMILLES_PAR_RAISON`) sans rien demander.
    * `parcs_jardins_paysages` fait exception — ouvrir un jardin à la visite est
@@ -54,7 +56,8 @@ describe('table des familles', () => {
     expect(FAMILLES_CHOIX).toEqual([
       'spectacles_manifestations',
       'mediation_numerique_expositions',
-      'tourisme_hebergement',
+      'hebergement_touristique',
+      'tourisme_visite',
       'vie_locale_associative',
       'labels_passerelles',
       'parcs_jardins_paysages',
@@ -78,7 +81,7 @@ describe('table des familles', () => {
   });
 
   it('rend le libellé, ou le code d’une famille inconnue', () => {
-    expect(libelleFamille('tourisme_hebergement')).toBe('Tourisme et hébergement');
+    expect(libelleFamille('hebergement_touristique')).toBe('Hébergement touristique');
     // Fail-open : une famille venue du serveur et inconnue ici s'affiche telle
     // quelle plutôt que de vider la puce.
     expect(libelleFamille('famille_future')).toBe('famille_future');
@@ -124,5 +127,50 @@ describe('readFamilles', () => {
         [FAMILLES_KEY]: ['spectacles_manifestations', 7],
       } as unknown as ProjectQuestionnaireAnswers),
     ).toEqual(['spectacles_manifestations']);
+  });
+
+  /**
+   * Un projet cadré avant la scission du 2026-09-22 porte encore
+   * `tourisme_hebergement` : sans alias, le wizard rouvrirait sans aucune tuile
+   * cochée, et le moteur écarterait toutes les aides taguées (déclaré non vide,
+   * intersection vide).
+   */
+  it('traduit un code retiré du référentiel en ses successeurs', () => {
+    expect(readFamilles({ [FAMILLES_KEY]: ['tourisme_hebergement'] })).toEqual([
+      'hebergement_touristique',
+      'tourisme_visite',
+    ]);
+  });
+
+  it('ne double pas un successeur déjà coché', () => {
+    expect(
+      readFamilles({ [FAMILLES_KEY]: ['tourisme_hebergement', 'hebergement_touristique'] }),
+    ).toEqual(['hebergement_touristique', 'tourisme_visite']);
+  });
+
+  it('laisse passer un code inconnu qui n’est pas un héritage', () => {
+    // Fail-open, comme `libelleFamille` : une famille venue du serveur et
+    // inconnue ici ne ferme qu'elle-même.
+    expect(readFamilles({ [FAMILLES_KEY]: ['famille_future'] })).toEqual(['famille_future']);
+  });
+});
+
+/**
+ * Miroir de `backend/tests/test_familles.py::FamillesHeriteesTest`.
+ */
+describe('FAMILLES_HERITEES', () => {
+  it('ne pointe que vers des familles vivantes', () => {
+    const codes = FAMILLE_OPTIONS.map((o) => o.value);
+    for (const [ancien, successeurs] of Object.entries(FAMILLES_HERITEES)) {
+      expect(codes, ancien).not.toContain(ancien);
+      expect(successeurs.length, ancien).toBeGreaterThan(0);
+      for (const code of successeurs) expect(codes, `${ancien} → ${code}`).toContain(code);
+    }
+  });
+
+  it('porte la scission du 2026-09-22', () => {
+    expect(FAMILLES_HERITEES).toEqual({
+      tourisme_hebergement: ['hebergement_touristique', 'tourisme_visite'],
+    });
   });
 });

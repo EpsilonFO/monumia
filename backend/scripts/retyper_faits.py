@@ -24,7 +24,7 @@ change, c'est son STATUT dans le moteur, pas ce que la source dit.
 
 Dans les deux cas, `fact`, `predicate` et `derogation_possible` disparaissent,
 et `notes` gagne une ligne de provenance. Le fait est ensuite retiré de
-`facts_pending.yaml`.
+`facts_pending.yaml` — ou de `facts.yaml` si la ligne le dit (voir `source`).
 
 Format de la table :
 
@@ -33,17 +33,34 @@ Format de la table :
         motif: Engagement du demandeur, vérifié au dossier.
       - fait: itineraire_eligible_pdipr
         motif: Liste d'exclusions propre au règlement, aucune portée partagée.
+      - fait: demande_deposee_avant_demarrage
+        motif: Formalité de dépôt ; le critère réel est `etat_travaux`.
+        source: facts.yaml   # fait APPROUVÉ : le retrait est décidé ici
+        kind: info           # le préfixe ne le donne pas
+
+`source` et `kind` sont OPTIONNELS et ne changent rien quand ils manquent :
+sans `source`, le fait se lit et se retire de `facts_pending.yaml` et un fait
+approuvé est refusé ; sans `kind`, il se déduit du préfixe. Les deux sont là
+pour que la décision s'écrive dans la TABLE — relue, commitée, diffable — et
+non dans un drapeau de ligne de commande.
 
 Ce que le script REFUSE, et rien de ce qui suit n'est négociable :
 
-  - un fait approuvé (`facts.yaml`) : le retirer est une décision humaine ;
+  - un fait approuvé (`facts.yaml`) SANS `source: facts.yaml` sur sa ligne : le
+    retirer est une décision humaine, et elle s'écrit ;
   - un fait cité par un `applies_if` : c'est un périmètre, pas une condition —
     le retyper changerait la portée de l'aide, pas le statut d'un critère ;
-  - un fichier d'aide que `safe_dump(safe_load(t)) != t`, c'est-à-dire porteur
-    de commentaires ou d'une mise en forme qu'une réécriture détruirait. Les
-    YAML du lot sont tous écrits par `ecrire_aide`, donc stables ; ceux qu'un
-    humain a annotés ne le sont pas, et ce sont précisément ceux qu'il ne faut
-    pas toucher à la machine.
+  - un `kind` hors des deux que ce script produit (`info`, `manual_check`).
+
+Les fichiers d'aide que `safe_dump(safe_load(t)) != t` — porteurs de
+commentaires ou d'une mise en forme qu'une réécriture entière détruirait — ne
+sont plus refusés : ils passent par une réécriture TEXTUELLE du seul bloc de la
+condition visée (`_reecrire_textuellement`), le reste du fichier n'étant pas
+touché d'un caractère. Un invariant vérifié avant toute écriture compare le
+fichier réécrit à ce que `_retyper_condition` produit ; s'il échoue, le fichier
+entier est refusé et nommé. 58 des 109 fichiers du lot des engagements sont dans
+ce cas — la voie `safe_dump` seule aurait laissé plus de la moitié du lot à la
+main.
 
 Neutre pour le cliquet `manual_check` : celui-ci ne compte que les `gate` et les
 `manual_check` sans `notes`, et ce script produit des `effect: info` avec notes.
@@ -52,6 +69,7 @@ Neutre pour le cliquet `manual_check` : celui-ci ne compte que les `gate` et les
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import date
@@ -79,6 +97,14 @@ from aides_schema import (
 #: place dans le questionnaire, parce que la réponse est toujours « oui ».
 PREFIXE_ENGAGEMENT = "s_engage_"
 
+#: Les deux `kind` que ce script produit, et les seuls que `kind:` accepte dans
+#: la table. Élargir la liste, c'est élargir le mandat.
+KINDS_AUTORISES = ("info", "manual_check")
+
+#: Les deux fichiers d'ontologie, valeurs admises de `source:`.
+SOURCE_PENDING = "facts_pending.yaml"
+SOURCE_APPROUVE = "facts.yaml"
+
 
 @dataclass(frozen=True)
 class Retypage:
@@ -86,15 +112,29 @@ class Retypage:
 
     fait: str
     motif: str = ""
+    #: D'où retirer le fait. Vide = `facts_pending.yaml`, le cas ordinaire.
+    #: `facts.yaml` dit que le fait est APPROUVÉ et que son retrait est décidé —
+    #: la décision humaine que le script exige est cette ligne-là.
+    source: str = ""
+    #: `kind` imposé par la table, quand le préfixe ne le donne pas
+    #: (`demande_deposee_avant_demarrage` est une promesse sans être un
+    #: `s_engage_*`).
+    kind_declare: str = ""
+
+    @property
+    def approuve(self) -> bool:
+        return self.source == SOURCE_APPROUVE
 
     @property
     def kind(self) -> str:
-        """`info` pour un engagement, `manual_check` sinon.
+        """Celui de la table, sinon `info` pour un engagement, `manual_check`.
 
         La distinction n'est pas cosmétique : une `info` ne s'affiche pas comme
         un critère à vérifier (l'utilisateur n'a rien à faire d'un engagement
         qu'il prendra en signant), un `manual_check` si.
         """
+        if self.kind_declare:
+            return self.kind_declare
         return "info" if self.fait.startswith(PREFIXE_ENGAGEMENT) else "manual_check"
 
 
@@ -148,7 +188,27 @@ def charger_table(chemin: Path) -> tuple[list[Retypage], list[str]]:
         if not isinstance(ligne, dict) or not ligne.get("fait"):
             erreurs.append(f"retypage n° {i} : `fait` manquant")
             continue
-        retypages.append(Retypage(fait=str(ligne["fait"]), motif=str(ligne.get("motif") or "")))
+        source = str(ligne.get("source") or "")
+        if source and source not in (SOURCE_PENDING, SOURCE_APPROUVE):
+            erreurs.append(
+                f"retypage n° {i} : `source: {source}` inconnu — "
+                f"{SOURCE_PENDING} ou {SOURCE_APPROUVE}"
+            )
+            continue
+        kind = str(ligne.get("kind") or "")
+        if kind and kind not in KINDS_AUTORISES:
+            erreurs.append(
+                f"retypage n° {i} : `kind: {kind}` hors du mandat — {' ou '.join(KINDS_AUTORISES)}"
+            )
+            continue
+        retypages.append(
+            Retypage(
+                fait=str(ligne["fait"]),
+                motif=str(ligne.get("motif") or ""),
+                source=source,
+                kind_declare=kind,
+            )
+        )
     return retypages, erreurs
 
 
@@ -200,10 +260,16 @@ def verifier(
     erreurs: list[str] = []
     vus: set[str] = set()
     for r in retypages:
-        if r.fait in facts:
+        if r.approuve:
+            if r.fait not in facts:
+                erreurs.append(
+                    f"« {r.fait} » porte `source: {SOURCE_APPROUVE}` mais n'y est pas — "
+                    "ligne à corriger avant de retirer quoi que ce soit."
+                )
+        elif r.fait in facts:
             erreurs.append(
                 f"« {r.fait} » est APPROUVÉ (facts.yaml) — le retirer est une décision "
-                "humaine, pas une migration."
+                f"humaine : l'écrire dans la table (`source: {SOURCE_APPROUVE}`)."
             )
         elif r.fait not in pending:
             erreurs.append(f"« {r.fait} » n'est pas dans facts_pending.yaml — déjà retypé ?")
@@ -218,7 +284,6 @@ def verifier(
         except Exception as exc:  # noqa: BLE001 — le lint le dira mieux
             erreurs.append(f"{chemin.stem} : illisible ({exc})")
             continue
-        vises = _conditions_visees(aide, cles)
         if aide.applies_if and aide.applies_if.fact in cles:
             erreurs.append(
                 f"{chemin.stem} : `applies_if` d'aide sur « {aide.applies_if.fact} » — c'est un "
@@ -231,13 +296,6 @@ def verifier(
                     f"{chemin.stem} / {cond.id} : `applies_if` de condition sur "
                     f"« {cond.applies_if.fact} » — clause d'applicabilité, hors mandat."
                 )
-        if vises and not _round_trip_stable(chemin):
-            erreurs.append(
-                f"{chemin.stem} : le fichier ne survit pas à une réécriture YAML (commentaires "
-                "ou mise en forme manuelle). Conditions visées : "
-                f"{', '.join(vises)}. À retyper à la main — c'est justement un fichier "
-                "qu'on n'écrase pas à la machine."
-            )
     return erreurs
 
 
@@ -251,22 +309,35 @@ def _conditions_visees(aide: Aide, cles: set[str]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+#: Clés que le retypage EFFACE d'une condition. Seule liste, lue par les deux
+#: voies d'écriture (`safe_dump` et réécriture textuelle).
+CLES_EFFACEES = ("fact", "predicate", "derogation_possible")
+
+
+def _notes_retypees(brut: dict, r: Retypage, jour: date) -> str:
+    """Les `notes` de la condition retypée : celles d'avant, plus la provenance."""
+    notes = str(brut.get("notes") or "").strip()
+    provenance = (
+        f"Retypé le {jour.isoformat()} : {r.motif or 'exigence propre à cette aide'} "
+        f"(ex-fait {r.fait})."
+    )
+    return f"{notes} {provenance}".strip() if notes else provenance
+
+
 def _retyper_condition(brut: dict, r: Retypage, jour: date) -> dict:
     """La condition réécrite : `text` et `quote` intacts, le reste effacé.
 
     `text` et `quote` sont ce que la SOURCE dit, et ce script ne lit aucune
     source : il n'a rien à en dire. Ce qu'il change est le statut de la
     condition dans le moteur.
+
+    C'est aussi la RÉFÉRENCE de la réécriture textuelle : ce qu'elle doit
+    produire, clé par clé, faute de quoi le fichier est refusé.
     """
-    notes = str(brut.get("notes") or "").strip()
-    provenance = (
-        f"Retypé le {jour.isoformat()} : {r.motif or 'exigence propre à cette aide'} "
-        f"(ex-fait {r.fait})."
-    )
     sortie = {
         cle: val
         for cle, val in brut.items()
-        if cle not in ("fact", "predicate", "derogation_possible", "kind", "effect", "notes")
+        if cle not in (*CLES_EFFACEES, "kind", "effect", "notes")
     }
     # L'ordre des clés suit celui d'`ecrire_aide` : id, text, kind, effect, …
     ordonne: dict = {}
@@ -275,9 +346,164 @@ def _retyper_condition(brut: dict, r: Retypage, jour: date) -> dict:
             ordonne[cle] = sortie.pop(cle)
     ordonne["kind"] = r.kind
     ordonne["effect"] = "info"
-    ordonne["notes"] = f"{notes} {provenance}".strip() if notes else provenance
+    ordonne["notes"] = _notes_retypees(brut, r, jour)
     ordonne.update(sortie)
     return ordonne
+
+
+# ---------------------------------------------------------------------------
+# Réécriture TEXTUELLE d'un bloc de condition
+#
+# Pour les 58 fichiers du lot qu'un humain a annotés : `safe_dump` du fichier
+# entier effacerait ses commentaires, qui sont précisément ce que la relecture
+# a produit. On ne touche donc que les lignes du bloc visé, et on vérifie
+# ensuite que le fichier rendu charge EXACTEMENT le retypage attendu.
+# ---------------------------------------------------------------------------
+
+
+def _bloc_scalaire(cle: str, valeur: str, indent: int) -> list[str]:
+    """Les lignes YAML d'une clé scalaire, indentées. L'échappement vient de PyYAML."""
+    brut = yaml.safe_dump({cle: valeur}, allow_unicode=True, sort_keys=False, width=100)
+    return [(" " * indent + li) if li.strip() else li for li in brut.splitlines(keepends=True)]
+
+
+def _bornes_conditions(lignes: list[str]) -> tuple[int, int] | None:
+    """(début, fin) des lignes de la section `conditions:` de premier niveau."""
+    depart = next((i for i, li in enumerate(lignes) if re.match(r"^conditions:\s*$", li)), None)
+    if depart is None:
+        return None
+    for i in range(depart + 1, len(lignes)):
+        li = lignes[i]
+        if not li.strip() or li[:1] in (" ", "\t") or li.lstrip().startswith(("-", "#")):
+            continue
+        return depart, i  # première clé de premier niveau qui suit
+    return depart, len(lignes)
+
+
+def _bloc_condition(lignes: list[str], cond_id: str) -> tuple[int, int, int] | None:
+    """(début, fin, indentation des clés) du bloc d'une condition, ou None.
+
+    None dès que la forme n'est pas celle attendue — `id` ailleurs qu'en
+    première clé de l'item, section `conditions` absente. L'appelant refuse
+    alors le fichier : mieux vaut le nommer que le réécrire de travers.
+    """
+    section = _bornes_conditions(lignes)
+    if section is None:
+        return None
+    debut_section, fin_section = section
+    entete = re.compile(rf"^(\s*)-(\s+)id:\s*{re.escape(cond_id)}\s*$")
+    for i in range(debut_section + 1, fin_section):
+        m = entete.match(lignes[i])
+        if m is None:
+            continue
+        prefixe = m.group(1) + "-"
+        indent_cle = len(m.group(1)) + 1 + len(m.group(2))
+        fin = fin_section
+        for j in range(i + 1, fin_section):
+            suite = lignes[j]
+            if suite.startswith(prefixe) and suite[len(prefixe) :][:1] in (" ", "\t"):
+                fin = j
+                break
+        return i, fin, indent_cle
+    return None
+
+
+def _segments(lignes: list[str], indent_cle: int) -> list[tuple[str | None, list[str]]]:
+    """Découpe le CORPS d'un bloc de condition en (clé, lignes). Clé None = orphelin."""
+    cle_re = re.compile(rf"^ {{{indent_cle}}}([A-Za-z_][A-Za-z0-9_]*):")
+    segments: list[tuple[str | None, list[str]]] = []
+    for li in lignes:
+        m = cle_re.match(li)
+        if m is not None:
+            segments.append((m.group(1), [li]))
+        elif segments:
+            segments[-1][1].append(li)
+        else:
+            segments.append((None, [li]))
+    return segments
+
+
+def _detacher_queue(corps: list[str], indent_cle: int) -> tuple[list[str], list[str]]:
+    """Sépare d'un segment les lignes de fin qui ne lui appartiennent pas.
+
+    Une ligne vide, ou un commentaire MOINS indenté que les clés, n'est pas la
+    valeur de la clé : c'est le séparateur ou le titre de section qui annonce
+    l'entrée suivante. Sans ce détachement, retirer `fact:` ou régénérer
+    `notes:` emporterait au passage un commentaire que la relecture a écrit —
+    vu une fois, sur `merite-arboretums-de-france`.
+
+    Un `#` PLUS indenté que les clés est du TEXTE dans un scalaire replié, pas
+    un commentaire : il reste où il est.
+    """
+    fin = len(corps)
+    while fin > 0:
+        li = corps[fin - 1]
+        nu = li.strip()
+        if nu and (not nu.startswith("#") or len(li) - len(li.lstrip()) >= indent_cle):
+            break
+        fin -= 1
+    return corps[:fin], corps[fin:]
+
+
+def _reecrire_condition(
+    lignes: list[str], brut_cond: dict, r: Retypage, jour: date
+) -> list[str] | None:
+    """Le bloc d'une condition, retypé sur place. None si la forme échappe."""
+    trouve = _bloc_condition(lignes, str(brut_cond.get("id") or ""))
+    if trouve is None:
+        return None
+    debut, fin, indent_cle = trouve
+    marge = " " * indent_cle
+    sortie: list[str] = [lignes[debut]]
+    vues: set[str] = set()
+    queue: list[str] = []
+    for cle, brut_segment in _segments(lignes[debut + 1 : fin], indent_cle):
+        corps, queue = _detacher_queue(brut_segment, indent_cle)
+        if cle in CLES_EFFACEES:
+            sortie.extend(queue)  # le segment part, ce qui le suivait reste
+            continue
+        if cle in ("kind", "effect", "notes"):
+            vues.add(cle)
+            if cle == "kind":
+                sortie.append(f"{marge}kind: {r.kind}\n")
+            elif cle == "effect":
+                sortie.append(f"{marge}effect: info\n")
+            else:
+                sortie.extend(
+                    _bloc_scalaire("notes", _notes_retypees(brut_cond, r, jour), indent_cle)
+                )
+            sortie.extend(queue)
+            continue
+        sortie.extend(corps)
+        sortie.extend(queue)
+    # Clés absentes du fichier (valeurs par défaut du schéma) : le retypage les
+    # rend explicites, sinon l'invariant verrait la différence et refuserait.
+    # Elles s'insèrent AVANT la queue du dernier segment, qui annonce la suite.
+    ajouts: list[str] = []
+    if "kind" not in vues:
+        ajouts.append(f"{marge}kind: {r.kind}\n")
+    if "effect" not in vues:
+        ajouts.append(f"{marge}effect: info\n")
+    if "notes" not in vues:
+        ajouts.extend(_bloc_scalaire("notes", _notes_retypees(brut_cond, r, jour), indent_cle))
+    if ajouts and queue and sortie[-len(queue) :] == queue:
+        sortie[len(sortie) - len(queue) : len(sortie)] = ajouts + queue
+    else:
+        sortie.extend(ajouts)
+    return lignes[:debut] + sortie + lignes[fin:]
+
+
+def _reecrire_textuellement(
+    texte: str, cibles: list[dict], par_cle: dict[str, Retypage], jour: date
+) -> str | None:
+    """Le fichier avec les seuls blocs visés retypés. None si l'un échappe."""
+    lignes = texte.splitlines(keepends=True)
+    for brut_cond in cibles:
+        rendu = _reecrire_condition(lignes, brut_cond, par_cle[brut_cond["fact"]], jour)
+        if rendu is None:
+            return None
+        lignes = rendu
+    return "".join(lignes)
 
 
 def appliquer(
@@ -305,61 +531,106 @@ def appliquer(
         texte = chemin.read_text(encoding="utf-8")
         brut = yaml.safe_load(texte)
         conditions = brut.get("conditions") or []
-        touche = False
-        for i, cond in enumerate(conditions):
-            r = par_cle.get(cond.get("fact") or "")
-            if r is None:
-                continue
-            conditions[i] = _retyper_condition(cond, r, jour)
-            rapport.retypages.setdefault(r.fait, []).append(f"{chemin.stem}/{cond['id']}")
-            touche = True
-        if not touche:
+        cibles = [c for c in conditions if (c.get("fact") or "") in par_cle]
+        if not cibles:
             continue
+        attendu = {
+            **brut,
+            "conditions": [
+                _retyper_condition(c, par_cle[c["fact"]], jour)
+                if (c.get("fact") or "") in par_cle
+                else c
+                for c in conditions
+            ],
+        }
         try:
-            Aide.model_validate(brut)
+            Aide.model_validate(attendu)
         except Exception as exc:  # noqa: BLE001
             rapport.erreurs.append(f"{chemin.stem} : le retypage produit un YAML invalide — {exc}")
             continue
-        nouveaux[chemin] = yaml.safe_dump(brut, allow_unicode=True, sort_keys=False, width=100)
+        if _round_trip_stable(chemin):
+            contenu = yaml.safe_dump(attendu, allow_unicode=True, sort_keys=False, width=100)
+        else:
+            # Fichier annoté : on ne touche que les blocs visés, et on vérifie
+            # que le fichier rendu charge EXACTEMENT le retypage attendu — un
+            # découpage qui aurait mordu sur un voisin se voit ici, avant
+            # l'écriture, et le fichier entier est refusé plutôt que réparé.
+            contenu = _reecrire_textuellement(texte, cibles, par_cle, jour)
+            if contenu is None or yaml.safe_load(contenu) != attendu:
+                rapport.erreurs.append(
+                    f"{chemin.stem} : la réécriture textuelle ne rend pas le retypage attendu. "
+                    f"Conditions visées : {', '.join(c['id'] for c in cibles)}. "
+                    "À retyper à la main."
+                )
+                continue
+        nouveaux[chemin] = contenu
+        for cond in cibles:
+            rapport.retypages.setdefault(cond["fact"], []).append(f"{chemin.stem}/{cond['id']}")
         rapport.fichiers_touches.append(chemin.stem)
     if not rapport.ok:
         return rapport
 
-    texte_pending = pending_path.read_text(encoding="utf-8")
-    for cle in par_cle:
-        bornes = _decouper_bloc(texte_pending, cle)
-        if bornes is None:
-            rapport.erreurs.append(
-                f"« {cle} » introuvable en tête de ligne dans {pending_path.name}"
-            )
+    # Chaque fait part de SON fichier : `facts_pending.yaml` par défaut,
+    # `facts.yaml` pour ceux dont la table porte la décision de retrait.
+    ontologies = {
+        pending_path: (pending, [r.fait for r in retypages if not r.approuve]),
+        facts_path: (facts, [r.fait for r in retypages if r.approuve]),
+    }
+    textes: dict[Path, str] = {}
+    for chemin, (avant, cles) in ontologies.items():
+        if not cles:
             continue
-        debut, fin = bornes
-        lignes = texte_pending.splitlines(keepends=True)
-        texte_pending = "".join(lignes[:debut] + lignes[fin:])
-        rapport.retires.append(cle)
+        texte_ontologie, erreurs = _retirer_faits(chemin, cles, set(avant))
+        rapport.erreurs.extend(erreurs)
+        if not erreurs:
+            textes[chemin] = texte_ontologie
+            rapport.retires.extend(cles)
     if not rapport.ok:
-        return rapport
-
-    # Le même invariant que `fusionner_faits` : le fichier réécrit porte
-    # exactement les faits d'avant, moins ceux qu'on retire. Un découpage
-    # textuel qui aurait mordu sur un voisin se voit ici, avant l'écriture.
-    attendu = set(pending) - set(par_cle)
-    obtenu = set(yaml.safe_load(texte_pending) or {})
-    if obtenu != attendu:
-        rapport.erreurs.append(
-            "le retrait aurait emporté d'autres faits (perdus : "
-            f"{sorted(attendu - obtenu) or 'aucun'}, "
-            f"en trop : {sorted(obtenu - attendu) or 'aucun'})"
-        )
         return rapport
 
     if ecrire:
         for chemin, contenu in nouveaux.items():
             chemin.write_text(contenu, encoding="utf-8")
-        pending_path.write_text(
-            (texte_pending.rstrip("\n") + "\n") if texte_pending.strip() else "", encoding="utf-8"
-        )
+        for chemin, contenu in textes.items():
+            chemin.write_text(
+                (contenu.rstrip("\n") + "\n") if contenu.strip() else "", encoding="utf-8"
+            )
     return rapport
+
+
+def _retirer_faits(chemin: Path, cles: list[str], avant: set[str]) -> tuple[str, list[str]]:
+    """Retire des blocs de faits d'un fichier d'ontologie, TEXTUELLEMENT.
+
+    Découpage textuel et jamais `safe_load` puis `safe_dump` : `facts.yaml`
+    porte en tête la table des fusions et, bloc par bloc, les justifications que
+    la relecture humaine a arbitrées — un dump les effacerait toutes.
+
+    Le même invariant que `fusionner_faits` clôt l'affaire : le fichier réécrit
+    porte exactement les faits d'avant, moins ceux qu'on retire. Un découpage
+    qui aurait mordu sur un voisin se voit ici, avant l'écriture.
+    """
+    texte = chemin.read_text(encoding="utf-8")
+    erreurs: list[str] = []
+    for cle in cles:
+        bornes = _decouper_bloc(texte, cle)
+        if bornes is None:
+            erreurs.append(f"« {cle} » introuvable en tête de ligne dans {chemin.name}")
+            continue
+        debut, fin = bornes
+        lignes = texte.splitlines(keepends=True)
+        texte = "".join(lignes[:debut] + lignes[fin:])
+    if erreurs:
+        return texte, erreurs
+
+    attendu = avant - set(cles)
+    obtenu = set(yaml.safe_load(texte) or {})
+    if obtenu != attendu:
+        erreurs.append(
+            f"{chemin.name} : le retrait aurait emporté d'autres faits (perdus : "
+            f"{sorted(attendu - obtenu) or 'aucun'}, "
+            f"en trop : {sorted(obtenu - attendu) or 'aucun'})"
+        )
+    return texte, erreurs
 
 
 # ---------------------------------------------------------------------------

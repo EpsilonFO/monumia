@@ -52,7 +52,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from aides_schema import AIDES_DIR, FAMILLES, Aide, load_aide  # noqa: E402
 from eligibility_engine import FAITS_DEDUITS_DES_FAMILLES, hors_projet  # noqa: E402
-from labels import FAMILLES_LABELS  # noqa: E402
+from labels import FAMILLES_HERITEES, FAMILLES_LABELS  # noqa: E402
 
 RACINE = Path(__file__).resolve().parent.parent
 PROSPECTION_DIR = RACINE / "data" / "prospection"
@@ -94,10 +94,10 @@ FAMILLES_PAR_TAG: dict[str, str] = {
     "signaletique": "mediation_numerique_expositions",
     "scenographie": "mediation_numerique_expositions",
     "inventaire": "mediation_numerique_expositions",
-    "tourisme": "tourisme_hebergement",
-    "hebergement": "tourisme_hebergement",
-    "gite": "tourisme_hebergement",
-    "chambre-d-hotes": "tourisme_hebergement",
+    "tourisme": "tourisme_visite",
+    "hebergement": "hebergement_touristique",
+    "gite": "hebergement_touristique",
+    "chambre-d-hotes": "hebergement_touristique",
     "accessibilite": "accessibilite_publics",
     "handicap": "accessibilite_publics",
     "parcs-jardins": "parcs_jardins_paysages",
@@ -161,14 +161,20 @@ def _normaliser_url(url: str) -> str:
     return u.rstrip("/")
 
 
-def charge_tri() -> dict[str, tuple[str, str]]:
-    """URL normalisée → (famille, territoire), depuis les fiches de prospection.
+def charge_tri() -> dict[str, tuple[list[str], str]]:
+    """URL normalisée → (familles, territoire), depuis les fiches de prospection.
 
     Seules les vraies familles sont retenues : `adjacente` et `hors_perimetre`
     sont des décisions de TRI (garder / écarter un candidat) et ne disent pas
     ce que l'aide finance.
+
+    Les 35 `tri.jsonl` ne sont PAS réécrits quand une famille est retirée du
+    référentiel : ce sont des décisions humaines datées. `FAMILLES_HERITEES` les
+    relit — un `tourisme_hebergement` décidé avant la scission vaut donc ses DEUX
+    successeurs, ce qui est exactement ce que la décision d'alors permettait de
+    dire, et pas un mot de plus.
     """
-    index: dict[str, tuple[str, str]] = {}
+    index: dict[str, tuple[list[str], str]] = {}
     for fichier in sorted(PROSPECTION_DIR.glob("*/tri.jsonl")):
         territoire = fichier.parent.name
         for ligne in fichier.read_text(encoding="utf-8").splitlines():
@@ -179,8 +185,11 @@ def charge_tri() -> dict[str, tuple[str, str]]:
             except json.JSONDecodeError:
                 continue
             famille, url = entree.get("famille"), entree.get("url")
-            if famille in FAMILLES and isinstance(url, str):
-                index.setdefault(_normaliser_url(url), (famille, territoire))
+            if not isinstance(url, str) or not isinstance(famille, str):
+                continue
+            codes = sorted(FAMILLES_HERITEES.get(famille, frozenset({famille})))
+            if all(c in FAMILLES for c in codes):
+                index.setdefault(_normaliser_url(url), (codes, territoire))
     return index
 
 
@@ -191,12 +200,19 @@ def _normaliser_tag(tag: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", t).strip("-")
 
 
-def proposer(aide: Aide, tri: dict[str, tuple[str, str]]) -> Proposition | None:
+def proposer(aide: Aide, tri: dict[str, tuple[list[str], str]]) -> Proposition | None:
     """La proposition pour cette aide, ou None si aucun signal."""
     url = _normaliser_url(aide.source.url_officielle or "")
     if url and url in tri:
-        famille, territoire = tri[url]
-        return Proposition(aide.slug, [famille], f"tri.jsonl ({territoire})", net=True)
+        familles, territoire = tri[url]
+        provenance = f"tri.jsonl ({territoire})"
+        if len(familles) > 1:
+            # La décision d'origine portait un code AUJOURD'HUI RETIRÉ, et son
+            # alias ouvre plusieurs successeurs : le prospecteur n'a pas tranché
+            # entre eux, personne ne peut le faire à sa place. Jamais `net`.
+            provenance += f" — code hérité, à trancher entre {', '.join(familles)}"
+            return Proposition(aide.slug, familles, provenance, net=False)
+        return Proposition(aide.slug, familles, provenance, net=True)
 
     if aide.applies_if and aide.applies_if.fact in FAITS_DEDUITS_DES_FAMILLES:
         familles = sorted(FAITS_DEDUITS_DES_FAMILLES[aide.applies_if.fact])
@@ -343,17 +359,37 @@ def fiche(aides: dict[str, Aide], propositions: list[Proposition], sans_signal: 
 BLOC_RAISON = re.compile(r"^raison:\n(?:[ ]*-[ ].*\n)+", re.M)
 
 
+#: Une clé `familles:` VIDE, sous ses deux écritures YAML (`familles: []` ou une
+#: clé nue suivie d'une autre clé). Pour le moteur, elle ne vaut pas mieux que
+#: l'absence de clé : `hors_famille` est fail-open par aide, donc l'aide passe
+#: tous les cadrages. C'est bien une aide À TAGUER, et la ligne doit être
+#: REMPLACÉE plutôt que doublée — sinon le YAML porte deux clés `familles`.
+BLOC_FAMILLES_VIDE = re.compile(r"^familles:[ ]*\[[ ]*\][ ]*\n", re.M)
+
+
 def appliquer(slug: str, familles: list[str]) -> bool:
-    """Insère `familles:` après le bloc `raison:`, par édition textuelle.
+    """Pose `familles:` sur une aide qui n'en porte pas, par édition textuelle.
 
     Jamais de `yaml.dump` : les fichiers d'aides sont commentés, et un
     aller-retour par le loader YAML les effacerait tous.
+
+    Deux cas, et c'est tout l'intérêt de ne pas décider sur le TEXTE : une aide
+    dont la clé est absente reçoit le bloc après `raison:` ; une aide dont la
+    clé existe mais est VIDE le voit remplacer sur place. Décider sur
+    `re.search("^familles:")` prenait `familles: []` pour un tag posé et laissait
+    trois aides sans famille (`45-subvention-organismes`, `54-culture-tourisme`,
+    `67-soutien-manifestations-sportives`) — or le moteur, lui, traite la liste
+    vide en fail-open exactement comme l'absence.
     """
     chemin = AIDES_DIR / f"{slug}.yaml"
     texte = chemin.read_text(encoding="utf-8")
-    if re.search(r"^familles:", texte, re.M):
-        return False
     bloc = "familles:\n" + "".join(f"  - {f}\n" for f in familles)
+    vide = BLOC_FAMILLES_VIDE.search(texte)
+    if vide:
+        chemin.write_text(texte[: vide.start()] + bloc + texte[vide.end() :], encoding="utf-8")
+        return True
+    if re.search(r"^familles:", texte, re.M):
+        return False  # clé présente et NON vide : l'aide est déjà taguée
     m = BLOC_RAISON.search(texte)
     if not m:
         return False

@@ -8,10 +8,17 @@ critère n'ait été contrôlé).
     uv run python scripts/mesure_questionnaire.py
     uv run python scripts/mesure_questionnaire.py --retypages avant.json
 
-`--retypages` attend un JSON {"<slug>/<condition-id>": {"kind": ..., "effect": ...}}
-décrivant un état ANTÉRIEUR du typage : le banc rejoue alors les deux états et
-affiche le delta. Le format est celui produit par un simple parcours du
-catalogue, cf. la fiche de review du lot 2.
+`--retypages` attend un JSON {"<slug>/<condition-id>": {"kind": ..., "effect": ...,
+"fact": ..., "predicate": ...}} décrivant un état ANTÉRIEUR du typage : le banc
+rejoue alors les deux états et affiche le delta. C'est ce que `--snapshot`
+écrit, à prendre AVANT d'appliquer le lot.
+
+Le snapshot porte de quoi remonter un GATE, et pas seulement son kind : le lot
+des engagements (2026-09-22) est le premier à retirer `fact` et `predicate` des
+conditions retypées, et un `user_fact` rejoué sans prédicat faisait tomber le
+banc. Les snapshots antérieurs, qui ne portaient que kind/effect, restent lus —
+leurs conditions démunies sont alors laissées dans leur état courant et
+comptées à part, plutôt que rejouées de travers.
 """
 
 from __future__ import annotations
@@ -23,7 +30,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from aides_schema import AIDES_DIR, load_aide, load_facts, load_pending_facts  # noqa: E402
+from aides_schema import (  # noqa: E402
+    AIDES_DIR,
+    Predicate,
+    load_aide,
+    load_facts,
+    load_pending_facts,
+)
 from profils_questionnaire import (  # noqa: E402
     PROFILS,
     Mesure,
@@ -40,9 +53,13 @@ def charge_aides() -> dict:
     return {p.stem: load_aide(p) for p in sorted(AIDES_DIR.glob("*.yaml"))}
 
 
-def rejoue_typage(aides: dict, retypages: dict) -> dict:
-    """Reconstruit un état antérieur du typage à partir d'un snapshot."""
+def rejoue_typage(aides: dict, retypages: dict) -> tuple[dict, list[str]]:
+    """Reconstruit un état antérieur du typage à partir d'un snapshot.
+
+    Rend (catalogue rejoué, conditions que le snapshot ne sait pas remonter).
+    """
     out = {}
+    demunies: list[str] = []
     for slug, aide in aides.items():
         conds = []
         change = False
@@ -57,7 +74,27 @@ def rejoue_typage(aides: dict, retypages: dict) -> dict:
                 ancien = {**ancien, "effect": "info"}
             if ancien and (ancien["kind"], ancien["effect"]) != (c.kind, c.effect):
                 maj = {"kind": ancien["kind"], "effect": ancien["effect"]}
-                if ancien["kind"] not in ("auto", "user_fact"):
+                if ancien["kind"] in ("auto", "user_fact"):
+                    # Gate rejoué : il lui faut de quoi trancher. Le snapshot le
+                    # porte depuis le lot des engagements ; sans ça, on laisse la
+                    # condition telle quelle plutôt que de fabriquer un gate sans
+                    # prédicat, que le moteur ne saurait pas évaluer.
+                    predicat = ancien.get("predicate") or (
+                        c.predicate.root if c.predicate else None
+                    )
+                    if predicat is None:
+                        demunies.append(f"{slug}/{c.id}")
+                        conds.append(c)
+                        continue
+                    maj |= {
+                        "fact": ancien.get("fact", c.fact),
+                        "field": ancien.get("field", c.field),
+                        "predicate": Predicate.model_validate(predicat),
+                        "derogation_possible": bool(
+                            ancien.get("derogation_possible", c.derogation_possible)
+                        ),
+                    }
+                else:
                     maj |= {
                         "fact": None,
                         "field": None,
@@ -69,7 +106,24 @@ def rejoue_typage(aides: dict, retypages: dict) -> dict:
             else:
                 conds.append(c)
         out[slug] = aide.model_copy(update={"conditions": conds}) if change else aide
-    return out
+    return out, demunies
+
+
+def orphelins_d_ontologie(aides: dict, facts: dict) -> set[str]:
+    """Faits cités par un gate du catalogue rejoué, mais absents de l'ontologie.
+
+    Le snapshot décrit le TYPAGE, pas l'ontologie : un lot qui retire des faits
+    de `facts.yaml` rejoue donc des gates que le moteur ne sait plus interroger
+    (`build_questions` saute un fait inconnu). Sans ce garde-fou, la colonne
+    AVANT affichait le même chiffre que la colonne APRÈS et le lot semblait
+    n'avoir rien changé — vu le 2026-09-22 sur le lot des engagements.
+    """
+    return {
+        cond.fact
+        for aide in aides.values()
+        for cond in aide.conditions
+        if cond.kind == "user_fact" and cond.effect == "gate" and cond.fact not in facts
+    }
 
 
 def mesure(aides: dict, facts: dict, profil: Profil) -> Mesure:
@@ -102,9 +156,20 @@ def audit_fail_open(aides: dict) -> list[tuple[str, int]]:
 
 
 def snapshot(aides: dict, cible: Path) -> None:
-    """Enregistre le typage courant, à passer plus tard en `--retypages`."""
+    """Enregistre le typage courant, à passer plus tard en `--retypages`.
+
+    De quoi remonter un GATE, pas seulement son kind : un lot qui retire `fact`
+    et `predicate` de ses conditions ne serait sinon pas rejouable.
+    """
     etat = {
-        f"{slug}/{c.id}": {"kind": c.kind, "effect": c.effect}
+        f"{slug}/{c.id}": {
+            "kind": c.kind,
+            "effect": c.effect,
+            "fact": c.fact,
+            "field": c.field,
+            "predicate": c.predicate.root if c.predicate else None,
+            "derogation_possible": c.derogation_possible,
+        }
         for slug, aide in aides.items()
         for c in aide.conditions
     }
@@ -166,7 +231,35 @@ def main() -> None:
         )
         print(f"baseline réécrit : {BASELINE_FILE.name} ({len(etat)} profil(s)) — à relire au diff")
         return
-    avant = rejoue_typage(apres, json.loads(args.retypages.read_text())) if args.retypages else None
+    avant, demunies = (
+        rejoue_typage(apres, json.loads(args.retypages.read_text()))
+        if args.retypages
+        else (None, [])
+    )
+    if demunies:
+        print(
+            f"⚠ {len(demunies)} condition(s) que le snapshot ne sait pas remonter "
+            "(prédicat absent) — laissées dans leur état courant :"
+        )
+        for cible in demunies[:10]:
+            print(f"    {cible}")
+        print()
+    if avant is not None:
+        orphelins = orphelins_d_ontologie(avant, facts)
+        if orphelins:
+            print(
+                f"⚠ {len(orphelins)} gate(s) rejoué(s) citent un fait qui a QUITTÉ "
+                "l'ontologie : le moteur ne leur pose aucune question, et la colonne "
+                "AVANT sous-estime donc le questionnaire d'alors."
+            )
+            print(
+                "  Un lot qui retire des faits ne se mesure pas au rejeu : lancer le "
+                "banc sans `--retypages` sur les DEUX arbres et comparer les deux "
+                "tableaux."
+            )
+            for cible in sorted(orphelins)[:10]:
+                print(f"    {cible}")
+            print()
 
     print("Banc de mesure — colonnes : aides non écartées par un hard_filter, dont")
     print("éligibles, conditions manual_check en incertitude, questions posées.")
