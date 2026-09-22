@@ -67,8 +67,9 @@ def rendre_fiche(
 ) -> str:
     """La fiche markdown complète. `slugs` : URL → slug définitif."""
     retenues = [le for le in lectures if le.retenue]
+    indeterminees = [le for le in lectures if le.indeterminee]
+    hors_perimetre = [le for le in lectures if le.ecartee]
     ecartees = [t for t in tries if t.decision == "ecarter"]
-    lues_non_retenues = [le for le in lectures if le.fiche is not None and not le.fiche.retenir]
     en_erreur = [le for le in lectures if le.erreur]
 
     lignes = [
@@ -79,17 +80,28 @@ def rendre_fiche(
         f"Déjà dans le corpus : {len(existantes)} aide(s)"
         + (f" — {', '.join(f'`{s}`' for s in sorted(existantes))}" if existantes else ""),
         "",
+    ]
+    if collecte.plafonnee:
+        lignes += [
+            f"> ⚠ **Balayage plafonné** à {territoire.strategie.max_candidats} candidates :",
+            "> ce qui suit n'est pas tout ce que le guide contient. La recette est à",
+            "> préciser dans `territoires.yaml` avant de conclure quoi que ce soit du",
+            "> volume.",
+            "",
+        ]
+    lignes += [
         "> Fiche produite par `scripts/prospecter.py`. Elle ne crée aucun YAML : elle",
         "> pose des candidates en `a_valider` dans `data/prospection/file-attente.yaml`.",
         "> Relire, corriger les slugs si besoin, puis `prospecter.py valider`.",
         "",
         "## Candidates retenues",
         "",
-        "| # | Dispositif | URL | Famille | Montant / taux | Bénéficiaires | Note |",
-        "|---|---|---|---|---|---|---|",
+        "| # | Dispositif | URL | Famille | Destinataire | Objet | Montant / taux | "
+        "Bénéficiaires | Note |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     if not retenues:
-        lignes.append("| — | _aucune_ | | | | | |")
+        lignes.append("| — | _aucune_ | | | | | | | |")
     for i, lecture in enumerate(retenues, start=1):
         f = lecture.fiche
         assert f is not None
@@ -105,16 +117,56 @@ def rendre_fiche(
             note = f"**page de vulgarisation, règlement à trouver** — {note}"
         lignes.append(
             f"| {i} | {_cellule(f.titre)} | {lecture.candidat.url}{pdf} | {f.famille} | "
-            f"{_cellule(f.montant_taux)} | {_cellule(f.beneficiaires)} | {note} |"
+            f"{f.destinataire} | {f.objet} | {_cellule(f.montant_taux)} | "
+            f"{_cellule(f.beneficiaires)} | {note} |"
         )
 
-    lignes += ["", "## Écartées (et pourquoi)", ""]
-    if not ecartees and not lues_non_retenues:
+    lignes += [
+        "",
+        "## À trancher à la main (destinataire ou objet indéterminé)",
+        "",
+        "Ni retenues ni écartées : la page ne permettait pas de dire à qui l'aide",
+        "s'adresse. Elles restent `a_valider` dans la file et `promouvables` les",
+        "retient — les valider revient à trancher.",
+        "",
+    ]
+    if not indeterminees:
         lignes.append("- _aucune_")
-    for lecture in lues_non_retenues:
+    for lecture in indeterminees:
         f = lecture.fiche
         assert f is not None
-        lignes.append(f"- **{_cellule(f.titre)}** — {lecture.candidat.url} — {_cellule(f.note)}")
+        slug = slugs.get(lecture.candidat.url, "")
+        lignes.append(
+            f"- `{slug}` **{_cellule(f.titre)}** — {lecture.candidat.url} — "
+            f"destinataire `{f.destinataire}`, objet `{f.objet}` — {_cellule(f.note)}"
+        )
+
+    lignes += [
+        "",
+        "## Écartées par le test du destinataire",
+        "",
+        "Entrées en `ignore` dans la file avec leur motif : elles ne reviendront pas",
+        "au balayage suivant. Rouvrir l'une d'elles se fait à la main",
+        "(`prospecter.py valider <slug>`).",
+        "",
+    ]
+    if not hors_perimetre:
+        lignes.append("- _aucune_")
+    for lecture in sorted(
+        hors_perimetre,
+        key=lambda le: (le.fiche.categorie_ecart or "", le.fiche.titre),  # type: ignore[union-attr]
+    ):
+        f = lecture.fiche
+        assert f is not None
+        lignes.append(
+            f"- [{f.categorie_ecart or 'objet_hors_lieu'}] **{_cellule(f.titre)}** — "
+            f"{lecture.candidat.url} — destinataire `{f.destinataire}`, objet "
+            f"`{f.objet}` — {_cellule(f.note)}"
+        )
+
+    lignes += ["", "## Écartées au tri, sans ouvrir la page", ""]
+    if not ecartees:
+        lignes.append("- _aucune_")
     for tri in ecartees:
         lignes.append(f"- {tri.url} — {_cellule(tri.motif)}")
 
@@ -162,25 +214,53 @@ def taches(
     *,
     jour: date,
 ) -> dict[str, Tache]:
-    """Les candidates retenues, prêtes à entrer en `a_valider` dans la file."""
+    """Toutes les candidates lues entrent dans la file — leur statut les distingue.
+
+    Trois sorts, et il est important que les trois soient TRACÉS :
+
+    - retenue par le test du destinataire → `a_valider`, comme avant ;
+    - indéterminée → `a_valider` aussi, mais `promouvables` la retiendra : elle
+      attend un arbitrage humain, pas une ingestion ;
+    - écartée par le test → `ignore` + `motif_ignore`, et elle n'en bougera
+      plus. C'est ce qui l'empêche de revenir au balayage suivant : jusqu'ici
+      une candidate non retenue n'entrait simplement pas dans la file, donc
+      `dedoublonner` ne la connaissait pas et la re-proposait à chaque passage.
+
+    Les documents vus à la collecte rejoignent `urls_pdf` : la page ouverte par
+    l'étage 1 a pu montrer un règlement que la lecture, qui ne connaissait que
+    `.pdf`, ne savait pas nommer.
+    """
     sortie: dict[str, Tache] = {}
     for lecture in lectures:
-        if not lecture.retenue:
-            continue
         f = lecture.fiche
-        assert f is not None
+        if f is None:
+            continue
         slug = slugs.get(lecture.candidat.url)
         if not slug:
             continue
+        documents = list(dict.fromkeys([*f.urls_pdf, *lecture.candidat.documents]))
+        ecartee = lecture.ecartee
+        motif = None
+        if ecartee:
+            categorie = f.categorie_ecart or "objet_hors_lieu"
+            motif = f"hors périmètre : {categorie} (destinataire {f.destinataire}, objet {f.objet})"
         sortie[slug] = Tache(
             titre=f.titre or lecture.candidat.titre or slug,
             url=lecture.candidat.url,
-            urls_pdf=list(f.urls_pdf),
+            urls_pdf=documents,
             territoire=cle,
+            departements=territoire.codes_departements(cle),
             famille=f.famille,
             beneficiaires=f.beneficiaires,
+            destinataire=f.destinataire,
+            objet=f.objet,
+            categorie_ecart=f.categorie_ecart,
+            note=f.note or None,
+            doublon_probable=f.doublon_probable,
+            source_unique_vulgarisation=f.source_unique_vulgarisation,
             priorite=f.priorite if f.priorite in ("haute", "normale", "basse") else "normale",
-            statut="a_valider",
+            statut="ignore" if ecartee else "a_valider",
+            motif_ignore=motif,
             ajoute_le=jour,
             fiche=chemin_fiche,
         )
@@ -190,12 +270,18 @@ def taches(
 def attribuer_slugs(
     territoire: Territoire, lectures: list[Lecture], occupes: set[str]
 ) -> dict[str, str]:
-    """URL → slug définitif, uniques entre eux et contre le catalogue."""
+    """URL → slug définitif, uniques entre eux et contre le catalogue.
+
+    TOUTES les lectures abouties en reçoivent un, écartées comprises : leur
+    slug est la clé sous laquelle la file les mémorise en `ignore`, et sans lui
+    elles reviendraient à chaque balayage. Les retenues passent EN PREMIER,
+    pour qu'une écartée au titre voisin ne leur vole pas le slug propre et ne
+    les pousse pas en `-2`.
+    """
     pris = set(occupes)
     attribue: dict[str, str] = {}
-    for lecture in lectures:
-        if not lecture.retenue:
-            continue
+    abouties = [le for le in lectures if le.fiche is not None]
+    for lecture in sorted(abouties, key=lambda le: not le.retenue):
         f = lecture.fiche
         assert f is not None
         slug = slug_final(territoire, f.slug_propose, f.titre or lecture.candidat.titre, pris)

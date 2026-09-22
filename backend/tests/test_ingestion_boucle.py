@@ -26,6 +26,7 @@ from ingestion.boucle import (  # noqa: E402
     TALON,
     JournalMuet,
     Limites,
+    classe_erreur,
     elaguer,
     executer,
     tronquer,
@@ -231,6 +232,92 @@ class TestArrets(unittest.TestCase):
             )
         self.assertEqual(resultat.arret, "termine")
         self.assertEqual(faux.calls, 2)
+
+    def test_backoff_cinq_essais_puis_erreur_modele(self):
+        """351 tâches perdues le 2026-09-18 sur UNE relance à 2 s.
+
+        Les pauses doublent : une coupure de réseau d'une minute ne doit pas
+        tuer une ingestion, et cinq essais coûtent zéro dollar.
+        """
+        atelier = Atelier()
+        panne = providall.NetworkError("Connection error", provider="openrouter")
+        pauses: list[float] = []
+        with fake_provider(panne) as faux:
+            resultat = executer(
+                client(),
+                "SYS",
+                "commence",
+                atelier.outils(),
+                dormir=pauses.append,
+            )
+        self.assertEqual(resultat.arret, "erreur_modele")
+        self.assertEqual(resultat.classe_erreur, "transitoire")
+        self.assertEqual(pauses, [2.0, 4.0, 8.0, 16.0, 32.0])
+        # 5 relances + l'appel initial + l'appel d'après sauvetage.
+        self.assertGreaterEqual(faux.calls, 6)
+
+    def test_la_pause_est_plafonnee(self):
+        atelier = Atelier()
+        panne = providall.NetworkError("Connection error", provider="openrouter")
+        pauses: list[float] = []
+        with fake_provider(panne):
+            executer(
+                client(),
+                "SYS",
+                "commence",
+                atelier.outils(),
+                limites=Limites(relances_transitoires=8, pause_relance_max_s=10.0),
+                dormir=pauses.append,
+            )
+        self.assertEqual(pauses, [2.0, 4.0, 8.0, 10.0, 10.0, 10.0, 10.0, 10.0])
+
+    def test_le_compteur_de_relances_repart_apres_un_appel_reussi(self):
+        """Cinq relances est un budget de PANNE, pas un quota de run."""
+        atelier = Atelier()
+        panne = providall.NetworkError("Connection error", provider="openrouter")
+        pauses: list[float] = []
+        with fake_provider(
+            panne,
+            chat_reply(tool_calls=[tool_call("lire_snapshot", {"chemin": "a.md"})]),
+            panne,
+            chat_reply(tool_calls=[tool_call("ecrire_review", {"markdown": "## Fiche"})]),
+            chat_reply("fini"),
+        ):
+            resultat = executer(client(), "SYS", "commence", atelier.outils(), dormir=pauses.append)
+        self.assertEqual(resultat.arret, "termine")
+        # Les deux pauses valent 2 s : le compteur est reparti entre les deux.
+        self.assertEqual(pauses, [2.0, 2.0])
+
+    def test_credits_openrouter_est_transitoire(self):
+        """100 tâches mortes pour un 402 que providall marque `retryable=False`.
+
+        Le jugement est exact pour un appel isolé — rien ne sert de rejouer tout
+        de suite — et faux pour un run de six heures : le solde remonte.
+        """
+        credits = providall.APIError(
+            "402 — credits épuisés sur openrouter", provider="openrouter", retryable=False
+        )
+        self.assertEqual(classe_erreur(credits), "transitoire")
+
+    def test_auth_error_nest_jamais_rejouee(self):
+        """55 `AuthError` dans les journaux : rejouer une clé invalide 900 fois."""
+        auth = providall.AuthError("clé invalide", provider="openrouter")
+        self.assertEqual(classe_erreur(auth), "fatal")
+        atelier = Atelier()
+        pauses: list[float] = []
+        with fake_provider(auth) as faux:
+            resultat = executer(client(), "SYS", "commence", atelier.outils(), dormir=pauses.append)
+        self.assertEqual(resultat.arret, "erreur_modele")
+        self.assertEqual(resultat.classe_erreur, "fatal")
+        self.assertEqual(pauses, [])
+        # Aucun sauvetage non plus : élaguer le contexte n'y changerait rien.
+        self.assertEqual(faux.calls, 1)
+
+    def test_une_erreur_de_serveur_ordinaire_nest_ni_lun_ni_lautre(self):
+        """Un 400 mal formé n'est pas une panne : il faut le voir, pas le rejouer."""
+        self.assertEqual(
+            classe_erreur(providall.BadRequestError("schéma invalide", provider="x")), ""
+        )
 
     def test_erreur_modele_sans_rien_a_elaguer(self):
         atelier = Atelier()

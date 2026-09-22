@@ -28,6 +28,13 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from ontologie_regles import (
+    MAX_CAR_QUESTION,
+    booleen_a_seuil,
+    polarites_suspectes,
+    question_trop_longue,
+    seuil_chiffre,
+)
 from pipeline.verrou import ajouter_sous_verrou, reecrire_sous_verrou
 from veille_text import normalize
 
@@ -58,6 +65,16 @@ SEUIL_PROXIMITE = 0.68
 # Au-delà, la liste cesse d'orienter et devient un mur de texte que le modèle
 # recopiera sans lire.
 MAX_PROCHES = 6
+
+# Faits NEUFS qu'une seule aide peut faire naître. Mesuré : 563 faits proposés
+# pour 643 aides, dont 431 (77 %) cités par une seule aide — et l'ontologie a
+# doublé en une nuit. Une aide légitime réutilise l'existant et apporte un ou
+# deux faits ; au-delà, ce ne sont plus des faits mais les puces d'un règlement.
+#
+# Le plafond n'est pas un couperet arbitraire : il a trois issues, toutes
+# ouvertes par la doctrine, et le message les nomme. C'est ce qui le distingue
+# d'une limite qui pousserait le modèle à tricher sur les libellés.
+MAX_FAITS_PAR_AIDE = 3
 
 
 def _texte_indexe(cle: str, fait: FactDef) -> str:
@@ -216,26 +233,82 @@ def _proches(
     return scores[:limite]
 
 
-def _message_proximite(proches: list[tuple[float, str]], tous: dict[str, FactDef]) -> str:
+def _message_proximite(
+    proches: list[tuple[float, str]],
+    tous: dict[str, FactDef],
+    *,
+    non_lus: Sequence[str] = (),
+) -> str:
     """L'erreur qui ORIENTE : les faits proches, leur question, et quoi en faire."""
     lignes = [
         f"ERREUR : {len(proches)} fait(s) de l'ontologie ressemblent à celui que tu proposes. "
-        "Relis-les, puis soit tu en réutilises un (le prédicat porte le seuil, pas le fait), "
-        "soit tu reproposes en CITANT chaque clé ci-dessous dans ta justification et en "
-        "disant ce qui la disqualifie :",
+        "Relis-les avec `detail_fait`, puis soit tu en réutilises un (le prédicat porte le "
+        "seuil, pas le fait), soit tu reproposes en disant ce qui les disqualifie :",
     ]
     for score, cle in proches:
         fait = tous[cle]
         options = "  [" + ", ".join(o.id for o in fait.options) + "]" if fait.options else ""
+        marque = "  ← pas encore lu" if cle in non_lus else ""
         lignes.append(
             f"  {cle}  ({score:.0%})  {fait.type}  {fait.scope}  "
-            f"« {' '.join(fait.question.split())} »{options}"
+            f"« {' '.join(fait.question.split())} »{options}{marque}"
+        )
+    if non_lus:
+        lignes.append(
+            "Appelle `detail_fait` sur chacun des faits marqués « pas encore lu » avant de "
+            "reproposer : recopier une clé dans la justification ne dit pas que tu l'as lue, "
+            "et c'est exactement comme ça que 27 paires de quasi-doublons sont entrées."
         )
     lignes.append(
-        "`detail_fait <clé>` pour la définition complète. Un fait légitimement voisin "
-        "n'est PAS refusé : il suffit de le nommer et d'expliquer l'écart."
+        "Un fait légitimement voisin n'est PAS refusé : il suffit de l'avoir lu et "
+        "d'expliquer l'écart dans la justification."
     )
     return "\n".join(lignes)
+
+
+def _refus_de_forme(fact_id: str, fait: FactDef) -> str | None:
+    """Les trois refus de FORME, ou `None`. Chacun oriente vers ce qu'il faut écrire.
+
+    Ils se posent à l'ÉCRITURE et pas au lint, parce qu'ici le fait n'existe pas
+    encore : l'agent peut corriger et reproposer, sans qu'aucun prédicat ne cite
+    déjà la clé. Le lint, lui, ne peut qu'avertir sur un stock déjà écrit.
+    """
+    seuil = booleen_a_seuil(fact_id, fait) or (
+        seuil_chiffre(fact_id, fait.question) if fait.type == "boolean" else None
+    )
+    if seuil:
+        return (
+            f"ERREUR : « {fact_id} » est un booléen qui enferme un seuil chiffré "
+            f"(« {seuil} »). Le seuil appartient au PRÉDICAT de l'aide, pas au fait : deux "
+            "règlements qui exigent 15 et 20 ans doivent poser UNE question (« quel âge a "
+            "le bâtiment ? ») et non deux booléens qu'aucun moteur ne sait rapprocher.\n"
+            "Propose plutôt un `integer` ou un `number` — clé sans chiffre, `unit` renseignée, "
+            "question ouverte — et gate dessus avec `{gte: 15}`. Si la valeur ne se demande "
+            "pas raisonnablement au propriétaire, type la condition `manual_check` + "
+            "`effect: info` et ne propose aucun fait."
+        )
+    longueur = question_trop_longue(fait)
+    if longueur:
+        return (
+            f"ERREUR : la question fait {longueur} caractères ({MAX_CAR_QUESTION} au maximum). "
+            "Une question est UNE phrase, lisible par un propriétaire qui n'a pas le "
+            "règlement sous les yeux ; le détail va dans `help`, que le front affiche en "
+            "aide contextuelle.\n"
+            "Si ce que tu écris est la liste d'exclusions d'un règlement, ce n'est pas un "
+            "fait : c'est `hard_filters.travaux` ou un `applies_if` quand elle borne l'objet, "
+            "et `manual_check` + `effect: info` sinon."
+        )
+    if polarites_suspectes({fact_id: fait}):
+        return (
+            f"ERREUR : la clé « {fact_id} » et la question semblent de polarité OPPOSÉE — "
+            "l'une affirme ce que l'autre nie. Chaque prédicat qui citerait ce fait dirait "
+            "alors le contraire de ce que tu as lu dans la source, et ni le lint ni le moteur "
+            "ne peuvent le voir.\n"
+            "Accorde les deux : soit la clé dit ce que la question demande "
+            "(`chauffage_sans_fioul` ↔ « le chauffage sera-t-il sans fioul ? »), soit tu "
+            "inverses la question."
+        )
+    return None
 
 
 def _validateur(fact_id: str, facts: dict[str, FactDef]):
@@ -264,12 +337,32 @@ def _validateur(fact_id: str, facts: dict[str, FactDef]):
     return valider
 
 
+def _message_plafond(deja: Sequence[str]) -> str:
+    """Le refus qui ORIENTE : trois issues nommées, aucune n'est « débrouille-toi »."""
+    return (
+        f"ERREUR : plafond atteint — cette ingestion a déjà proposé {len(deja)} fait(s) neuf(s) "
+        f"({', '.join(deja)}), c'est le maximum. Une aide qui en demande un quatrième décrit "
+        "les puces de son règlement, pas des questions que d'autres financeurs poseraient.\n"
+        "Trois issues, toutes conformes à la doctrine :\n"
+        "  - une exigence PROPRE à cette aide, qu'aucun fait partageable ne porte, se type "
+        "`kind: manual_check` + `effect: info` : la condition garde son `text` et sa `quote`, "
+        "et s'affiche « à confirmer avec l'organisme » ;\n"
+        "  - un ENGAGEMENT du demandeur (« s'engage à… », charte, balisage) se type "
+        "`kind: info` + `effect: info` : il se vérifie au dossier, pas au questionnaire ;\n"
+        "  - si l'un des faits déjà proposés est moins partageable que celui-ci, "
+        "`retirer_fait` le retire, et tu reproposes."
+    )
+
+
 def proposer(
     atelier: Atelier,
     facts: dict[str, FactDef],
     fact_id: str,
     definition_yaml: str,
     justification: str,
+    *,
+    deja_proposes: Sequence[str] = (),
+    detailles: Sequence[str] = (),
 ) -> str:
     """Ajoute un fait à `facts_pending.yaml`. Renvoie le message rendu à l'agent.
 
@@ -288,6 +381,8 @@ def proposer(
             "aucun fait existant ne convient (cite les faits proches que tu as écartés "
             "et ce qui les disqualifie) — c'est ce texte qui sert à la relecture humaine."
         )
+    if len(deja_proposes) >= MAX_FAITS_PAR_AIDE:
+        return _message_plafond(deja_proposes)
 
     try:
         brut = yaml.safe_load(definition_yaml)
@@ -305,6 +400,10 @@ def proposer(
     except Exception as exc:
         return f"ERREUR : définition de fait invalide — {exc}"
 
+    forme = _refus_de_forme(fact_id, fait)
+    if forme:
+        return forme
+
     if fact_id in facts:
         return (
             f"ERREUR : « {fact_id} » existe déjà dans facts.yaml — réutilise-le "
@@ -319,9 +418,13 @@ def proposer(
         )
 
     proches = _proches(fact_id, fait, {**facts, **pending})
-    non_cites = [(s, c) for s, c in proches if c not in justification]
-    if non_cites:
-        return _message_proximite(proches, {**facts, **pending})
+    # « Cite le fait voisin » doit vouloir dire « va le LIRE ». Le garde
+    # cherchait la clé du voisin comme SOUS-CHAÎNE de la justification : recopier
+    # `porteur_siege_grand_est` dans une phrase suffisait à lever l'alerte, sans
+    # avoir jamais ouvert sa définition. On demande maintenant un `detail_fait`.
+    non_lus = [(s, c) for s, c in proches if c not in detailles]
+    if non_lus:
+        return _message_proximite(proches, {**facts, **pending}, non_lus=[c for _s, c in non_lus])
 
     definition = fait.model_dump(exclude_none=True, exclude_defaults=True)
     bloc = _bloc(atelier.slug, fact_id, definition, justification, atelier.jour)

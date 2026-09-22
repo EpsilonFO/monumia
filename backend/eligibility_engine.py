@@ -31,6 +31,7 @@ from typing import Literal
 
 from aides_schema import (
     ENUM_FACT_TYPES,
+    FAIT_PORTEUR,
     OPTIONS_BOOLEEN_IMPLICITES,
     ROLE_BY_TYPE,
     Aide,
@@ -40,6 +41,7 @@ from aides_schema import (
     MultiValue,
     RangeValue,
     evaluate_predicate,
+    gate_porteur,
 )
 from labels import (
     DEPARTEMENT_LABELS,
@@ -827,6 +829,86 @@ def _gateway_condition(cond: Condition) -> Condition:
     )
 
 
+# ---------------------------------------------------------------------------
+# Le marqueur `porteurs_concernes`, rendu exécutable
+# ---------------------------------------------------------------------------
+
+
+def _porteur_admis(fact: FactDef, ctx: dict, facts: dict[str, FactDef]) -> bool | None:
+    """Le porteur déclaré fait-il partie de ceux que ce fait concerne ?
+
+    `True` : il en fait partie (ou le fait ne marque personne — le cas courant).
+    `False` : il n'en fait pas partie, la condition doit ÉCHOUER.
+    `None` : le porteur est inconnu, la condition reste une incertitude et la
+    question du porteur est posée.
+
+    Fail-closed, comme tout le moteur : une valeur inconnue ne rend jamais
+    `False`. C'est la différence entre « cette aide n'est pas pour vous » et
+    « dites-nous qui vous êtes ».
+    """
+    marques = fact.porteurs_concernes
+    if not marques:
+        return True
+    valeur = _resolve_fact_value(ctx, FAIT_PORTEUR, facts)
+    if valeur is None:
+        return None
+    return evaluate_predicate({"in": list(marques)}, valeur)
+
+
+def _porteur_condition(cond: Condition, fact: FactDef) -> Condition:
+    """Le gate SYNTHÉTIQUE qui pose la question du porteur à la place de `cond`.
+
+    Miroir éliminant de `_gateway_condition` : celui-là ne sert qu'à poser une
+    question (« la condition s'applique-t-elle ? »), celui-ci ÉLIMINE — un
+    porteur hors du marqueur ferme l'aide. La distinction porte tout
+    `eliminationsParOption` : le front calcule les éliminations depuis le
+    prédicat, et un gate qui n'élimine pas ne doit pas y entrer.
+
+    Le `text` reprend celui de la condition d'origine : c'est lui que
+    l'utilisateur lira dans « critères non remplis », et « réservé aux porteurs :
+    société, entreprise individuelle » sans dire de quel critère il s'agit ne
+    renseignerait personne.
+    """
+    marques = list(fact.porteurs_concernes or [])
+    return Condition.model_validate(
+        {
+            "id": f"{cond.id}--porteur",
+            "text": cond.text,
+            "kind": "user_fact",
+            "effect": "gate",
+            "fact": FAIT_PORTEUR,
+            "predicate": {"in": marques},
+        }
+    )
+
+
+def conditions_porteur_derivees(
+    aide: Aide, facts: dict[str, FactDef]
+) -> list[tuple[Condition, Condition]]:
+    """(condition d'origine, gate porteur dérivé) pour chaque fait marqué qu'elle gate.
+
+    Vide si l'aide pose déjà un gate porteur EXPLICITE : celui-ci a précédence,
+    et c'est mesuré — 138 aides du corpus ont un gate plus large que le marqueur
+    d'un fait qu'elles gatent, dont 31 qui admettent `public_commune`. Les
+    cumuler refuserait une commune que la source admet noir sur blanc.
+
+    Partagé avec `services/catalogue_admin.construire_index` : l'écran
+    « impact des réponses » de `/admin` doit voir les mêmes gates que le moteur,
+    sinon il sous-déclare ce que « Commune » écarte.
+    """
+    if gate_porteur(aide):
+        return []
+    derivees: list[tuple[Condition, Condition]] = []
+    for cond in aide.conditions:
+        if cond.effect != "gate" or not cond.fact:
+            continue
+        fact = facts.get(cond.fact)
+        if fact is None or not fact.porteurs_concernes:
+            continue
+        derivees.append((cond, _porteur_condition(cond, fact)))
+    return derivees
+
+
 def _evaluate_hard_filters(
     aide: Aide, monument: dict, population: int | None
 ) -> tuple[list[str], list[str]]:
@@ -960,6 +1042,10 @@ def evaluate_aide(
             }
         )
 
+    # Calculé UNE fois : un gate porteur explicite désarme la dérivation pour
+    # toute l'aide (cf. `conditions_porteur_derivees`).
+    gate_explicite = gate_porteur(aide)
+
     for cond in _scoped_conditions(aide, facts):
         applies = _applies(cond, ctx, facts)
         if applies is False:
@@ -1008,6 +1094,7 @@ def evaluate_aide(
 
         fact: FactDef | None = None
         value = None
+        porteur_inconnu = False
         # Gate tranché sur la FICHE (auto_source) et non sur une réponse : son
         # refus n'est pas imputable à l'utilisateur (cf. _match_result).
         issu_fiche = False
@@ -1016,6 +1103,40 @@ def evaluate_aide(
             cat = None
         elif cond.kind == "user_fact":
             fact = facts.get(cond.fact or "")
+            # Le marqueur `porteurs_concernes` du fait gaté, rendu exécutable :
+            # une commune ne s'entend plus demander son effectif salarié, et
+            # l'aide qui l'exige lui est fermée sans qu'elle ait à répondre.
+            # Placé AVANT les branches `derogation_possible` et `levier` : un
+            # porteur hors du marqueur n'est pas un critère qu'on peut lever,
+            # c'est le mauvais destinataire.
+            admis = (
+                _porteur_admis(fact, ctx, facts)
+                if fact is not None and cond.effect == "gate" and not gate_explicite
+                else True
+            )
+            if admis is False:
+                has_non = True
+                marques = ", ".join(fact.porteurs_concernes or []) if fact else ""
+                verdict.criteres_non_remplis.append(cond.text)
+                verdict.raison_ineligibilite = verdict.raison_ineligibilite or cond.text
+                verdict.evaluations.append(
+                    {
+                        "critere": cond.text,
+                        "verdict": NON,
+                        "explication": f"Réservé aux porteurs : {marques}.",
+                        "nature": nature,
+                    }
+                )
+                continue
+            if admis is None:
+                # Le porteur est inconnu : on POSE sa question (éliminante,
+                # donc `eliminationsParOption` exact par construction) et on
+                # laisse la condition en incertitude sans demander son fait.
+                assert fact is not None
+                verdict.missing_facts.setdefault(FAIT_PORTEUR, []).append(
+                    _porteur_condition(cond, fact)
+                )
+            porteur_inconnu = admis is None
             value = _resolve_fact_value(ctx, cond.fact, facts)
             issu_fiche = value is not None and _answered_value(ctx, cond.fact, facts) is None
             result = evaluate_predicate(cond.predicate.root, value)
@@ -1026,12 +1147,14 @@ def evaluate_aide(
 
         # Le FAIT tranche-t-il, indépendamment de l'applicabilité ? Un fait déjà
         # connu (réponse ou fiche) ne se redemande pas : l'inconnue restante est
-        # alors le fait passerelle, posé de son côté.
+        # alors le fait passerelle — ou le PORTEUR —, posé de son côté.
         fait_tranche = result is not None
 
         # applies_if indéterminé : la condition s'applique peut-être (fail-closed)
-        # → si on n'a pas pu trancher le gate, on reste en incertitude.
-        if applies is None and result is True:
+        # → si on n'a pas pu trancher le gate, on reste en incertitude. Même
+        # geste pour un porteur inconnu : tant qu'on ignore si l'aide s'adresse
+        # à lui, un critère satisfait ne la rend pas éligible.
+        if (applies is None or porteur_inconnu) and result is True:
             result = None
 
         if result is True:
@@ -1428,6 +1551,17 @@ def build_questions(
     sources_deduction = {
         source for cible, (source, _) in FAITS_DEDUITS_DES_FAITS.items() if cible in candidats
     }
+    # Le fait PORTEUR entre au premier étage dès qu'une aide l'attend par
+    # dérivation (`_porteur_condition`) : tant qu'on ignore qui dépose, les
+    # questions d'entreprise de ces aides n'ont pas à être posées, et y répondre
+    # ne servirait à rien si le porteur les écarte toutes ensuite. Les gates
+    # dérivés sont reconnaissables à leur id suffixé — on ne se fie pas à la
+    # seule présence du fait, qu'une aide peut gater explicitement.
+    porteur_derive = any(
+        cond.id.endswith("--porteur")
+        for conds in by_fact.get(FAIT_PORTEUR, {}).values()
+        for cond in conds
+    )
     # Tri : les faits PASSERELLES d'abord (une question dont dépend une autre se
     # pose avant elle), puis ceux qui débloquent le plus d'aides, puis l'ordre de
     # la source. Le graphe d'applicabilité n'a qu'un niveau dans le corpus : pas
@@ -1435,6 +1569,7 @@ def build_questions(
     ordered = sorted(
         candidats,
         key=lambda k: (
+            not (porteur_derive and k == FAIT_PORTEUR),
             k not in gateway_by_fact and k not in sources_deduction,
             -len(aide_slugs(k)),
             *ordre_source(k),

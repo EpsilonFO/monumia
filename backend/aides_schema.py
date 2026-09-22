@@ -440,21 +440,33 @@ class FactDef(BaseModel):
     # de condition. `pertinent_si` ne dit que ce qui est vrai du fait partout.
     pertinent_si: AppliesIf | None = None
     # Les seules catégories de porteur pour qui ce fait a un sens (ids d'options
-    # de `statut_juridique_porteur`). Une aide qui gate ce fait doit gater aussi
-    # `statut_juridique_porteur`, sinon elle interroge des communes sur leur
-    # effectif salarié. Le lint (`check_porteur_entreprise`) le refuse, et
-    # `detail_fait` le dit à l'agent d'ingestion.
+    # de `statut_juridique_porteur`). Une aide qui gate un fait marqué n'est
+    # ouverte qu'à ces porteurs-là : le MOTEUR l'applique désormais, elle n'a
+    # plus à le redire (`conditions_porteur_derivees`).
     #
-    # Ce n'est PAS un `pertinent_si` : `_evaluate_aide` ignore une condition
-    # dont la clause vaut False, si bien qu'un `pertinent_si` désarmerait le
-    # gate PME au lieu de le faire échouer — un prêt PME s'ouvrirait à une
-    # commune. Le marqueur ne change donc rien au moteur : il oblige seulement
-    # l'aide à traduire sa puce « Bénéficiaires » en gate, ce qu'elle aurait dû
-    # faire de toute façon.
+    # Le marqueur a été un garde-fou de LINT jusqu'au 2026-09-21 : l'aide devait
+    # traduire sa puce « Bénéficiaires » en gate `in`, et le lint refusait
+    # sinon. Ça a produit l'inverse de son but — quand la source ne nomme pas
+    # ses bénéficiaires, le modèle INVENTAIT le gate pour satisfaire le lint,
+    # le vérificateur le contestait à chaque passage, et le modèle le maintenait
+    # « parce que le lint l'exige ». 580 aides sur 643 gatent le porteur, 60
+    # conditions le disent dans leurs `notes`, 13 sont étiquetées « NON SOURCÉ ».
+    #
+    # Le marqueur est donc devenu EXÉCUTABLE, et la règle de lint un simple
+    # relevé. Un gate porteur explicite garde la PRÉCÉDENCE : 138 aides du
+    # corpus ont un gate plus large que le marqueur d'un fait qu'elles gatent
+    # (31 admettent `public_commune`), et un cumul strict refuserait une commune
+    # que la source admet.
+    #
+    # Ce n'est toujours PAS un `pertinent_si` : `_evaluate_aide` ignore une
+    # condition dont la clause vaut False, si bien qu'un `pertinent_si`
+    # désarmerait le gate PME au lieu de le faire échouer — un prêt PME
+    # s'ouvrirait à une commune.
     #
     # L'existence des options est vérifiée par le LINT (`check_facts`), qui seul
     # dispose de l'ontologie entière — comme `pertinent_si` délègue l'existence
-    # de sa cible.
+    # de sa cible. C'est une ERREUR CRITIQUE : une option inconnue dans le
+    # marqueur refuserait désormais l'aide à tout le monde.
     porteurs_concernes: list[str] | None = None
 
     @model_validator(mode="after")
@@ -950,6 +962,23 @@ class Aide(BaseModel):
                 raise ValueError(f"id de condition en doublon : {c.id}")
             seen.add(c.id)
         return self
+
+
+def gate_porteur(aide: Aide) -> bool:
+    """L'aide dit-elle EXPLICITEMENT qui peut déposer ?
+
+    Un `applies_if` d'aide sur le même fait compte : quatre aides du catalogue
+    cadrent ainsi leur périmètre entier plutôt que condition par condition, et
+    le moteur les traite pareil (`_scoped_conditions`).
+
+    Vit ici et non dans `scripts/lint_aides_data.py` parce que le MOTEUR en a
+    besoin : un gate explicite a précédence sur le marqueur `porteurs_concernes`
+    (cf. `FactDef.porteurs_concernes`), et le moteur ne peut pas importer
+    `scripts/`.
+    """
+    if aide.applies_if and aide.applies_if.fact == FAIT_PORTEUR:
+        return True
+    return any(c.effect == "gate" and c.fact == FAIT_PORTEUR for c in aide.conditions)
 
 
 # ---------------------------------------------------------------------------

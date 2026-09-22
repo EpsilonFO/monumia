@@ -58,6 +58,11 @@ class Strategie(BaseModel):
     # decouverte
     max_pages: int = 120
     profondeur: int = 2
+    # Toutes stratégies : ce que le balayage peut au plus rendre. Le tri et la
+    # lecture n'ont AUCUN plafond propre — celui-ci les borne tous les deux. Un
+    # guide régional rend 200 à 300 fiches ; 800 laisse la marge d'un gros
+    # département sans laisser passer les 24 185 candidates de la Moselle.
+    max_candidats: int = 800
 
     @property
     def urls_sitemap(self) -> list[str]:
@@ -77,6 +82,8 @@ class Strategie(BaseModel):
                 raise ValueError("le patron de pagination doit contenir « {n} »")
             if self.pas < 1 or self.a < self.de:
                 raise ValueError("bornes de pagination incohérentes")
+        if self.max_candidats < 1:
+            raise ValueError("max_candidats doit être strictement positif")
         return self
 
 
@@ -87,6 +94,13 @@ class Territoire(BaseModel):
     type: TypeTerritoire
     # Région d'appartenance d'un département — sert au regroupement des runs.
     region: str | None = None
+    # Les départements que ce territoire couvre RÉELLEMENT, quand ils ne se
+    # déduisent pas de sa clé. La Collectivité européenne d'Alsace instruit pour
+    # le 67 et le 68 : sans ce champ, `territoires.yaml` donnait le même guide
+    # aux deux clés et 17 dispositifs sont entrés deux fois au catalogue, sous
+    # `67-*` ET sous `68-*`. Dicté au modèle pour qu'il écrive
+    # `hard_filters.departements: ['67', '68']` sur un seul fichier.
+    departements: list[str] = []
     # Préfixe imposé aux slugs proposés (`hdf`, `71`…).
     prefixe_slug: str
     statut: Statut = "sans_point_entree"
@@ -115,7 +129,21 @@ class Territoire(BaseModel):
                     re.compile(motif)
                 except re.error as exc:
                     raise ValueError(f"expression régulière invalide « {motif} » : {exc}") from exc
+        inconnus = [d for d in self.departements if d not in DEPARTEMENT_LABELS]
+        if inconnus:
+            raise ValueError(f"code(s) de département inconnu(s) : {', '.join(inconnus)}")
         return self
+
+    def codes_departements(self, cle: str) -> list[str]:
+        """Les départements couverts : ceux déclarés, sinon la clé si c'en est un.
+
+        C'est ce que l'ingestion doit écrire en `hard_filters.departements`. La
+        clé seule ne suffit pas — une collectivité peut instruire pour deux
+        départements, et c'est exactement le cas qui a produit 17 doublons.
+        """
+        if self.departements:
+            return list(self.departements)
+        return [cle] if self.type == "departement" else []
 
     def fiche_probable(self, url: str) -> bool:
         """L'URL a-t-elle la forme d'une fiche de dispositif ?"""
@@ -207,13 +235,19 @@ def aides_existantes(cle: str, territoire: Territoire, aides: dict[str, Aide]) -
     `hard_filters` géographiques (la vérité déclarée). Ni l'une ni l'autre n'est
     suffisante seule — `region-grand-est-classe` n'a pas le préfixe `ge-`, et
     une aide toute neuve peut n'avoir pas encore ses filtres.
+
+    Les codes cherchés sont TOUS ceux que le territoire couvre : le guide de la
+    Collectivité européenne d'Alsace est celui du 67 comme du 68, et ne
+    chercher que sous `68` faisait re-proposer les 17 dispositifs déjà ingérés
+    sous `67-*`.
     """
     dimension = "departements" if territoire.type == "departement" else "regions"
+    codes = set(territoire.codes_departements(cle)) if dimension == "departements" else {cle}
+    codes.add(cle)
     retenues = {}
     for slug, aide in aides.items():
-        if slug.startswith(f"{territoire.prefixe_slug}-") or cle in getattr(
-            aide.hard_filters, dimension
-        ):
+        filtres = set(getattr(aide.hard_filters, dimension))
+        if slug.startswith(f"{territoire.prefixe_slug}-") or codes & filtres:
             retenues[slug] = aide
     return retenues
 

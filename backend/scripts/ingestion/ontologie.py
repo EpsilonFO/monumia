@@ -25,10 +25,12 @@ trace dans un diff.
 from __future__ import annotations
 
 import sys
+from datetime import date
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Literal
 
+import yaml
 from pydantic import BaseModel, Field
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -36,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import providall
 from lint_aides_data import faits_references_dans
+from ontologie_regles import polarites_suspectes
 from pipeline.llm import Compteur
 from veille_text import normalize
 
@@ -52,16 +55,6 @@ SEUIL_AUDIT = SEUIL_PROXIMITE - 0.08
 # Au-delà, le prompt cesse d'être lisible par le modèle comme par l'humain qui
 # relira le rapport. Les paires sont triées par score : on garde les pires.
 MAX_PAIRES = 60
-
-# Les deux seuls négateurs retenus, et c'est une décision de PRÉCISION. Y
-# ajouter « hors », « pas », « exclu » fait passer les suspects de 12 à 34 sur
-# le corpus réel, pour un seul vrai cas de plus : le français place un nom entre
-# le négateur et ce qu'il nie (« hors des catégories exclues »), et l'adjacence
-# de jetons ne sait pas le suivre. Un rapport à 90 % de bruit n'est pas lu, donc
-# ne rattrape rien.
-_NEGATEURS = frozenset({"non", "sans"})
-# En dessous, un préfixe commun ne prouve aucune parenté de sens.
-_RACINE_MIN = 5
 
 
 class Fusion(BaseModel):
@@ -153,52 +146,6 @@ def orphelins(pending: dict[str, FactDef], *aides_dirs: Path) -> list[str]:
     aides du run (cf. `Atelier.dossiers_catalogue`).
     """
     return sorted(set(pending) - faits_references_dans(*aides_dirs))
-
-
-def _nie(jetons: list[str], i: int) -> bool:
-    """Le jeton `i` est-il directement précédé d'un négateur ?"""
-    return i > 0 and jetons[i - 1] in _NEGATEURS
-
-
-def _jetons_question(question: str) -> list[str]:
-    """La question en jetons nus : la ponctuation collée masquerait la racine."""
-    return [j.strip("().,;:?!«»\"'") for j in normalize(question).replace("'", " ").split()]
-
-
-def polarites_suspectes(pending: dict[str, FactDef]) -> list[str]:
-    """Les faits dont la clé AFFIRME ce que la question NIE, ou l'inverse.
-
-    `demande_eligible_france_agrimer`, dont la question demande précisément
-    l'INÉLIGIBILITÉ, est le cas type — et il est plus grave qu'un doublon :
-    chaque prédicat qui cite ce fait dit alors le contraire de ce que son auteur
-    a lu dans la source. Un doublon coûte une question de trop ; celui-ci fausse
-    un verdict d'éligibilité, et ni le lint ni le moteur ne peuvent le voir.
-
-    On cherche une RACINE commune à la clé et à la question, puis on compare la
-    polarité de ses deux occurrences : `sans cartographie` dans la clé contre
-    « dispose-t-elle d'une cartographie » dans la question. Comparer les deux
-    polarités globalement ne dirait rien — presque toute question de règlement
-    contient une négation quelque part.
-    """
-    suspects = []
-    for cle, fait in pending.items():
-        jetons_cle = cle.split("_")
-        jetons_question = _jetons_question(fait.question)
-        for i, mot in enumerate(jetons_cle):
-            if len(mot) < _RACINE_MIN or mot in _NEGATEURS:
-                continue
-            proche = next(
-                (
-                    j
-                    for j, q in enumerate(jetons_question)
-                    if len(q) >= _RACINE_MIN and (q.startswith(mot) or mot.startswith(q))
-                ),
-                None,
-            )
-            if proche is not None and _nie(jetons_cle, i) != _nie(jetons_question, proche):
-                suspects.append(cle)
-                break
-    return sorted(suspects)
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +308,96 @@ def rendre(rapport: RapportOntologie) -> str:
     return "\n".join(lignes)
 
 
+def rendre_markdown(rapport: RapportOntologie, *, jour: date, titre: str = "") -> str:
+    """Le même rapport, en fiche de review — ce qui reste APRÈS la fin du run.
+
+    Le rendu console de `rendre` défile avec le journal et disparaît. Les
+    fusions à faire, les orphelins à retirer et les polarités à corriger sont
+    un travail de plusieurs heures qui commence le lendemain : il lui faut un
+    fichier.
+
+    Les trois listes sont là, et les paires NON JUGÉES aussi — une panne de
+    l'auditeur ne doit pas rendre le rapport muet sur ce qu'il n'a pas pu
+    trancher, sinon on croit qu'il n'y avait rien à dire.
+    """
+    lignes = [
+        f"# Audit de l'ontologie — {titre or jour.isoformat()}",
+        "",
+        "> Aucun fichier n'a été modifié. Une fusion se fait à la main, dans",
+        "> `facts_pending.yaml` ET dans les aides qui citent le fait retiré —",
+        "> `scripts/fusionner_faits.py` prend une table, `scripts/retyper_faits.py`",
+        "> retype les conditions d'un fait qu'on retire.",
+        "",
+    ]
+    if rapport.degrade:
+        lignes += [f"⚠ **{rapport.degrade}**", ""]
+
+    a_fusionner = rapport.a_fusionner
+    lignes += [f"## Fusions proposées ({len(a_fusionner)})", ""]
+    if not a_fusionner:
+        lignes.append("_aucune_")
+    for f in a_fusionner:
+        marque = " ⚠ **POLARITÉ INVERSÉE**" if f.verdict == "polarite_inversee" else ""
+        lignes.append(f"- `{f.retirer}` → `{f.garder}`{marque}")
+        lignes.append(f"  {' '.join(f.motif.split())}")
+        if f.prudence:
+            lignes.append(f"  **prudence** : {' '.join(f.prudence.split())}")
+
+    lignes += ["", f"## Orphelins ({len(rapport.orphelins)})", ""]
+    lignes.append(
+        "Proposés, référencés par aucune aide : des brouillons. "
+        "`retyper_faits.py --retirer-orphelins`."
+        if rapport.orphelins
+        else "_aucun_"
+    )
+    for cle in rapport.orphelins:
+        lignes.append(f"- `{cle}`")
+
+    lignes += ["", f"## Polarités suspectes ({len(rapport.polarites_suspectes)})", ""]
+    lignes.append(
+        "La clé AFFIRME ce que la question NIE, ou l'inverse : chaque prédicat qui cite "
+        "ce fait dit alors le contraire de ce qu'on a lu dans la source. Ni le lint ni le "
+        "moteur ne peuvent le voir."
+        if rapport.polarites_suspectes
+        else "_aucune_"
+    )
+    for cle in rapport.polarites_suspectes:
+        lignes.append(f"- `{cle}`")
+
+    distincts = [f for f in rapport.fusions if f.verdict == "distincts"]
+    if distincts:
+        lignes += ["", f"## Jugées distinctes ({len(distincts)})", ""]
+        for f in distincts:
+            lignes.append(f"- `{f.retirer}` / `{f.garder}` — {' '.join(f.motif.split())}")
+
+    if rapport.commentaire:
+        lignes += ["", "## Commentaire de l'auditeur", "", " ".join(rapport.commentaire.split())]
+    return "\n".join(lignes) + "\n"
+
+
+def table_de_fusion(rapport: RapportOntologie) -> str:
+    """Les fusions proposées, au format que `fusionner_faits.py` relit.
+
+    Produite à côté de la fiche : passer d'un rapport à une table à la main,
+    c'est 88 lignes à recopier et une erreur garantie. La table reste une
+    PROPOSITION — `fusionner_faits.py` refuse de lui-même les polarités
+    inversées, les types et les scopes discordants.
+    """
+    fusions = [
+        {"retirer": f.retirer, "garder": f.garder, "motif": " ".join(f.motif.split())}
+        for f in rapport.a_fusionner
+    ]
+    entete = (
+        "# Table produite par l'audit d'ontologie — à RELIRE avant de l'appliquer.\n"
+        "#   uv run python scripts/fusionner_faits.py <ce fichier> --dry-run\n"
+        "# Les paires à polarité inversée sont refusées par le script : elles\n"
+        "# demandent d'inverser le prédicat des aides du fait retiré, règlement en main.\n\n"
+    )
+    return entete + yaml.safe_dump(
+        {"fusions": fusions}, allow_unicode=True, sort_keys=False, width=100
+    )
+
+
 __all__ = [
     "CONSIGNE",
     "MAX_PAIRES",
@@ -373,4 +410,6 @@ __all__ = [
     "paires_suspectes",
     "polarites_suspectes",
     "rendre",
+    "rendre_markdown",
+    "table_de_fusion",
 ]

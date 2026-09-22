@@ -77,6 +77,7 @@ organisme: Région d'exemple
 categorie: region
 type: subvention
 raison: [restauration_travaux]
+familles: [restauration_bati]
 description: Soutien à la restauration des édifices non protégés.
 source:
   url_officielle: https://example.org/aide

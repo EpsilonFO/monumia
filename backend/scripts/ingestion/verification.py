@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -155,8 +156,40 @@ def _audit_quotes(aide: Aide, atelier: Atelier) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _bloc_precedents(precedents: Sequence[str]) -> str:
+    """Ce que le vérificateur a déjà dit, pour qu'il ne se contredise pas.
+
+    Il ne voyait RIEN de ses passages antérieurs : chaque appel repartait de
+    zéro sur un fichier qui avait changé entre-temps. D'où 2 442 passages sur
+    695 aides, des reproches qui reviennent après correction, et des positions
+    opposées d'un passage à l'autre sur la même condition.
+
+    Ce bloc ne lui demande pas de se taire — un problème réel doit être répété
+    tant qu'il n'est pas corrigé. Il lui demande de ne pas SOULEVER AU TROISIÈME
+    PASSAGE, sur une condition inchangée, ce que le premier pouvait déjà voir.
+    """
+    if not precedents:
+        return ""
+    return "\n\n".join(
+        [
+            "## Tes verdicts précédents sur cette aide",
+            "\n".join(f"  {li}" for li in precedents),
+            "Ne te contredis pas : un problème que tu as jugé résolu ne revient pas, et "
+            "une position que tu as prise ne s'inverse pas sans que la condition ait "
+            "changé. Ne soulève pas maintenant, sur une condition INCHANGÉE, ce que ton "
+            "premier passage pouvait déjà voir — ce passage-ci sert à contrôler les "
+            "corrections, pas à recommencer la relecture.",
+        ]
+    )
+
+
 def construire_prompt(
-    aide: Aide, atelier: Atelier, *, skill_md: str, max_car_par_doc: int = MAX_CAR_PAR_DOC
+    aide: Aide,
+    atelier: Atelier,
+    *,
+    skill_md: str,
+    max_car_par_doc: int = MAX_CAR_PAR_DOC,
+    precedents: Sequence[str] = (),
 ) -> str:
     corpus, illisibles = _documents(atelier, max_car_par_doc)
     avertissement = (
@@ -167,10 +200,12 @@ def construire_prompt(
         else ""
     )
     return "\n\n".join(
-        [
+        bloc
+        for bloc in [
             prompt_verificateur(skill_md),
             "Tu n'as ni outil ni accès au système de fichiers : tout ce qu'il te faut "
             "est ci-dessous. Réponds UNIQUEMENT par le JSON demandé.",
+            _bloc_precedents(precedents),
             _audit_quotes(aide, atelier),
             condense_schema(),
             f"## Fichier extrait — {atelier.slug}.yaml\n\n```yaml\n"
@@ -178,6 +213,7 @@ def construire_prompt(
             + "\n```",
             "## Sources archivées" + avertissement + "\n\n" + (corpus or "(aucun snapshot)"),
         ]
+        if bloc
     )
 
 
@@ -189,10 +225,17 @@ def verifier(
     compteur: Compteur | None = None,
     max_car_par_doc: int = MAX_CAR_PAR_DOC,
     skill_path: Path = SKILL_PATH,
+    precedents: Sequence[str] = (),
 ) -> tuple[RapportVerification, str]:
     """(rapport, rendu markdown). Ne lève jamais : une panne devient un rapport mineur."""
     skill_md = skill_path.read_text(encoding="utf-8")
-    prompt = construire_prompt(aide, atelier, skill_md=skill_md, max_car_par_doc=max_car_par_doc)
+    prompt = construire_prompt(
+        aide,
+        atelier,
+        skill_md=skill_md,
+        max_car_par_doc=max_car_par_doc,
+        precedents=precedents,
+    )
     essai = client_verif.try_complete_json(RapportVerification, prompt)
     if compteur is not None:
         compteur.ajouter(essai.response, "verification")

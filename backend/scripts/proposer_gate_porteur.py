@@ -7,9 +7,17 @@ BIEN, pas du porteur du dossier. Mesuré le 2026-09-17 sur un profil « commune,
 classé, Grand Est, restauration » : 18 questions réellement posées dont 10
 d'entreprise, contre 10 questions une fois le gate porteur posé.
 
-Le corpus n'est pas deviné : c'est EXACTEMENT ce que la règle de lint
-`check_porteur_entreprise` sort en erreur (elle est importée, pas réécrite). Le
-marqueur `porteurs_concernes` de `facts.yaml` en est la source.
+Le corpus n'est pas deviné : c'est EXACTEMENT ce que relève
+`aides_sous_derivation_porteur` (elle est importée, pas réécrite). Le marqueur
+`porteurs_concernes` de `facts.yaml` en est la source.
+
+**Ce script est devenu facultatif le 2026-09-21** : le marqueur est désormais
+exécutable (`eligibility_engine.conditions_porteur_derivees`), donc une aide
+qui n'a pas de gate explicite est DÉJÀ fermée aux autres porteurs. Poser le gate
+reste utile quand la source NOMME ses bénéficiaires — le gate explicite est plus
+précis que le marqueur, et il a précédence. Il ne l'est plus du tout quand la
+source est muette : dans ce cas, le laisser vide est désormais la bonne réponse,
+et l'inventer est le défaut que la règle de lint provoquait.
 
     uv run python scripts/proposer_gate_porteur.py             # fiche du jour
     uv run python scripts/proposer_gate_porteur.py --stdout    # sans écrire
@@ -45,7 +53,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from lint_aides_data import check_porteur_entreprise, gate_porteur  # noqa: E402
+from lint_aides_data import aides_sous_derivation_porteur, gate_porteur  # noqa: E402
 from veille_collect import load_baselines  # noqa: E402
 from veille_text import find_quote_in_any, normalize  # noqa: E402
 
@@ -478,7 +486,7 @@ def fiche(
     lignes = [
         f"# Gate « Bénéficiaires » — proposition du {jour.isoformat()}",
         "",
-        "Corpus : les aides que `check_porteur_entreprise` sort en erreur, c'est-à-dire "
+        "Corpus : les aides que `aides_sous_derivation_porteur` relève, c'est-à-dire "
         "celles qui gatent un fait marqué `porteurs_concernes` sans dire qui peut déposer. "
         f"{len(marques)} fait(s) portent le marqueur.",
         "",
@@ -581,7 +589,7 @@ def corpus(aides: dict[str, Aide], facts) -> tuple[list[str], list[Permissif]]:
     en_erreur: list[str] = []
     permissifs: list[Permissif] = []
     for slug, aide in aides.items():
-        if check_porteur_entreprise(aide, facts):
+        if aides_sous_derivation_porteur(aide, facts):
             en_erreur.append(slug)
             continue
         if not gate_porteur(aide):

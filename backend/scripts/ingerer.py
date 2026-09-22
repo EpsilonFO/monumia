@@ -80,6 +80,14 @@ def construire_parser() -> argparse.ArgumentParser:
         "pour les rejouer dans ce run",
     )
 
+    p.add_argument(
+        "--seulement-sans-yaml",
+        action="store_true",
+        help="avec --relancer-echecs : ne relancer que les échecs « aucun fichier YAML "
+        "écrit » (une panne du fournisseur), et épargner les vrais refus dont le "
+        "`.yaml.echec` attend une relecture",
+    )
+
     reglages = p.add_argument_group("réglages")
     reglages.add_argument(
         "--parallele",
@@ -200,9 +208,14 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if args.relancer_echecs:
-        relances = orchestrateur.relancer_echecs(args.etat, territoires=args.territoire or None)
+        relances = orchestrateur.relancer_echecs(
+            args.etat,
+            territoires=args.territoire or None,
+            seulement_sans_yaml=args.seulement_sans_yaml,
+        )
+        cadre = " (sans YAML écrit seulement)" if args.seulement_sans_yaml else ""
         print(
-            f"relance des échecs : {len(relances)} aide(s) remise(s) en `valide`"
+            f"relance des échecs{cadre} : {len(relances)} aide(s) remise(s) en `valide`"
             f"{': ' + ', '.join(relances) if relances else ''}"
         )
 
@@ -239,6 +252,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     compteur = Compteur()
+    disjoncteur = orchestrateur.Disjoncteur()
     if args.file_attente:
         resultats = orchestrateur.executer(
             slugs,
@@ -247,6 +261,7 @@ def main(argv: list[str] | None = None) -> int:
             budget_total=args.budget_total,
             etat_path=args.etat,
             compteur=compteur,
+            disjoncteur=disjoncteur,
         )
     else:
         contexte = ContextePartage.construire(config.atelier(slugs[0]))
@@ -263,6 +278,12 @@ def main(argv: list[str] | None = None) -> int:
             ontologie=_auditer_ontologie(args, config, slugs[0], compteur),
         )
     )
+    if disjoncteur.motif:
+        # Code 3 et non 1 : `balayage.py` et l'utilisateur doivent distinguer
+        # « des aides ont échoué » (on relit les fiches) de « le fournisseur
+        # est à terre » (on vérifie le solde, puis on relance le même run).
+        print(f"\n⛔ {disjoncteur.motif}")
+        return 3
     return 0 if all(r.ok for r in resultats) else 1
 
 

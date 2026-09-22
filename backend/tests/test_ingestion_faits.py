@@ -74,8 +74,124 @@ class BaseFaits(unittest.TestCase):
         )
         load_pending_facts.cache_clear()
 
-    def proposer(self, fact_id="jardin_remarquable", definition=DEFINITION, justif=JUSTIFICATION):
-        return faits.proposer(self.atelier, FACTS, fact_id, definition, justif)
+    def proposer(
+        self,
+        fact_id="jardin_remarquable",
+        definition=DEFINITION,
+        justif=JUSTIFICATION,
+        *,
+        deja_proposes=(),
+        detailles=(),
+    ):
+        return faits.proposer(
+            self.atelier,
+            FACTS,
+            fact_id,
+            definition,
+            justif,
+            deja_proposes=deja_proposes,
+            detailles=detailles,
+        )
+
+
+class TestPlafondEtForme(BaseFaits):
+    """D1-D4 — ce qu'une aide n'a PAS le droit de faire naître.
+
+    563 faits proposés pour 643 aides, dont 431 cités par une seule : l'ontologie
+    a doublé en une nuit. Chacun de ces quatre refus ORIENTE — il nomme ce qu'il
+    faut écrire à la place, sinon il pousse à contourner.
+    """
+
+    def test_le_quatrieme_fait_est_refuse_et_oriente(self):
+        sortie = self.proposer(deja_proposes=("a", "b", "c"))
+        self.assertIn("ERREUR", sortie)
+        self.assertIn("plafond", sortie)
+        # Les trois issues de la doctrine, nommées.
+        self.assertIn("manual_check", sortie)
+        self.assertIn("effect: info", sortie)
+        self.assertIn("retirer_fait", sortie)
+        self.assertEqual(self.pending_path.read_text(encoding="utf-8"), "")
+
+    def test_le_troisieme_passe(self):
+        self.assertNotIn("ERREUR", self.proposer(deja_proposes=("a", "b")))
+
+    def test_booleen_a_seuil_dans_la_cle_refuse(self):
+        """Le seuil appartient au prédicat : 37 booléens du lot l'enfermaient."""
+        sortie = self.proposer(
+            fact_id="logement_plus_15_ans",
+            definition=(
+                "type: boolean\nscope: monument\nquestion: Le logement a-t-il plus de 15 ans ?\n"
+            ),
+        )
+        self.assertIn("ERREUR", sortie)
+        self.assertIn("integer", sortie)
+        self.assertIn("gte", sortie)
+
+    def test_integer_a_seuil_accepte(self):
+        """La clé peut nommer l'unité ; c'est le COMPARATEUR qui est interdit."""
+        sortie = self.proposer(
+            fact_id="age_batiment_ans",
+            definition=(
+                "type: integer\nscope: monument\nunit: ans\n"
+                "question: Quel âge a le bâtiment, en années ?\n"
+            ),
+        )
+        self.assertNotIn("ERREUR", sortie)
+
+    def test_un_millesime_dans_la_cle_passe(self):
+        """« avant 1948 » n'est pas un seuil comparatif."""
+        sortie = self.proposer(
+            fact_id="batiment_construit_avant_1948",
+            definition=(
+                "type: boolean\nscope: monument\n"
+                "question: Le bâtiment a-t-il été construit avant 1948 ?\n"
+            ),
+        )
+        self.assertNotIn("ERREUR", sortie)
+
+    def test_question_trop_longue_refusee(self):
+        """36 listes d'exclusions du lot faisaient de 500 à 656 caractères."""
+        liste = "intermédiation financière, promotion immobilière, " * 12
+        sortie = self.proposer(
+            fact_id="activite_hors_exclusions",
+            definition=(
+                "type: boolean\nscope: proprietaire\n"
+                f"question: >-\n  L'activité est-elle hors des catégories exclues : {liste} ?\n"
+            ),
+        )
+        self.assertIn("ERREUR", sortie)
+        self.assertIn("help", sortie)
+        self.assertIn("manual_check", sortie)
+
+    def test_polarite_cle_question_opposee_refusee(self):
+        """Le pire des défauts : chaque prédicat dirait l'inverse de la source."""
+        sortie = self.proposer(
+            fact_id="demande_eligible_france_agrimer",
+            definition=(
+                "type: boolean\nscope: projet\n"
+                "question: La demande est-elle non éligible aux aides France AgriMer ?\n"
+            ),
+        )
+        self.assertIn("ERREUR", sortie)
+        self.assertIn("polarité", sortie.lower())
+
+    def test_aucun_refus_de_forme_nest_muet(self):
+        """Un refus qui ne dit pas quoi écrire pousse à contourner le libellé."""
+        for fact_id, definition in (
+            (
+                "logement_plus_15_ans",
+                "type: boolean\nscope: monument\nquestion: Le logement a-t-il plus de 15 ans ?\n",
+            ),
+            (
+                "demande_eligible_france_agrimer",
+                "type: boolean\nscope: projet\n"
+                "question: La demande est-elle non éligible aux aides France AgriMer ?\n",
+            ),
+        ):
+            with self.subTest(fact_id=fact_id):
+                sortie = self.proposer(fact_id=fact_id, definition=definition)
+                self.assertIn("ERREUR", sortie)
+                self.assertGreater(len(sortie), 300, "un refus doit orienter, pas buter")
 
 
 class TestRecherche(unittest.TestCase):
@@ -191,7 +307,12 @@ class TestProximite(BaseFaits):
     Les deux populations mesurées sur le corpus réel se chevauchent de bout en
     bout (vrais doublons de 0,09 à 1,00, voisins légitimes de 0,27 à 0,89) : un
     seuil ne peut donc pas trancher. Ce que ces tests fixent, c'est qu'un fait
-    proche FORCE la lecture — et qu'une justification qui le nomme passe.
+    proche FORCE la LECTURE — et qu'une proposition qui l'a lu passe.
+
+    La citation ne suffit plus, depuis le 2026-09-21 : le garde cherchait la clé
+    du voisin comme sous-chaîne de la justification, donc la recopier levait
+    l'alerte sans avoir jamais ouvert sa définition. 27 paires de quasi-doublons
+    sont entrées comme ça.
     """
 
     PROCHE = "type: boolean\nscope: monument\nquestion: Le monument est-il ouvert au public ?\n"
@@ -203,12 +324,15 @@ class TestProximite(BaseFaits):
         "dossier par la production du calendrier d'ouverture de l'année écoulée."
     )
 
-    def proposer_proche(self, justif=SANS_CITATION):
+    def proposer_proche(self, justif=SANS_CITATION, *, detailles=()):
         return self.proposer(
-            fact_id="monument_ouvert_public", definition=self.PROCHE, justif=justif
+            fact_id="monument_ouvert_public",
+            definition=self.PROCHE,
+            justif=justif,
+            detailles=detailles,
         )
 
-    def test_fait_proche_non_cite_refuse(self):
+    def test_fait_proche_non_lu_refuse(self):
         sortie = self.proposer_proche()
         self.assertIn("ERREUR", sortie)
         self.assertIn("monument_ouvert_au_public", sortie)
@@ -219,17 +343,27 @@ class TestProximite(BaseFaits):
         sortie = self.proposer_proche()
         self.assertIn("Le monument est-il ouvert au public ?", sortie)
         self.assertIn("detail_fait", sortie)
+        self.assertIn("pas encore lu", sortie)
 
-    def test_fait_proche_cite_accepte(self):
+    def test_fait_proche_lu_accepte(self):
         justif = (
             "Le fait proche `monument_ouvert_au_public` porte l'ouverture PERMANENTE du "
             "monument, alors que le règlement ne demande ici qu'une ouverture le jour de "
             "la manifestation : les deux se répondent « oui » et « non » indépendamment, "
             "et les fusionner rendrait le gate faux pour les monuments fermés à l'année."
         )
-        sortie = self.proposer_proche(justif)
+        sortie = self.proposer_proche(justif, detailles=("monument_ouvert_au_public",))
         self.assertNotIn("ERREUR", sortie)
         self.assertIn("monument_ouvert_public", load_pending_facts(self.pending_path))
+
+    def test_citer_sans_avoir_lu_ne_suffit_plus(self):
+        """Recopier une clé dans une phrase n'est pas l'avoir ouverte."""
+        justif = (
+            "Le fait proche `monument_ouvert_au_public` ne convient pas ici, car le "
+            "règlement vise l'ouverture ponctuelle d'un jour de manifestation et non "
+            "l'ouverture permanente qu'il mesure, ce qui rendrait le gate faux."
+        )
+        self.assertIn("ERREUR", self.proposer_proche(justif))
 
     def test_fait_lointain_inchange(self):
         """Un fait sans voisin passe sans avoir rien à citer."""

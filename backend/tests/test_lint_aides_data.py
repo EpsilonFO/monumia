@@ -529,43 +529,100 @@ class BaseMarqueurs(BaseLint):
     def erreurs_porteur(self):
         return [e for e in self.lint().erreurs if "statut_juridique_porteur" in e]
 
+    def avertissements_porteur(self):
+        return [a for a in self.lint().avertissements if "gate porteur" in a]
+
+    def charger_facts(self):
+        load_facts.cache_clear()
+        return load_facts(self.facts)
+
 
 class TestPorteurEntreprise(BaseMarqueurs):
-    """Un gate sur un fait d'entreprise oblige à dire qui peut déposer."""
+    """Le marqueur `porteurs_concernes` : d'une règle de lint à un gate exécuté.
 
-    def test_gate_entreprise_sans_gate_porteur_est_une_erreur(self):
+    C'était une ERREUR jusqu'au 2026-09-21 — l'aide devait traduire sa puce
+    « Bénéficiaires » en gate `in`, ou le lint sortait rouge. La règle a produit
+    l'inverse de son but : quand la source ne nomme pas ses bénéficiaires, le
+    modèle inventait le gate pour satisfaire le lint (580 aides sur 643 en
+    gatent un, 13 conditions sont étiquetées « NON SOURCÉ »), le vérificateur le
+    contestait, et le modèle le maintenait « parce que le lint l'exige ».
+
+    Le marqueur est maintenant exécutable côté moteur, et le lint n'en fait plus
+    qu'un relevé.
+    """
+
+    def test_gate_entreprise_sans_gate_porteur_nest_plus_une_erreur(self):
+        """Ne pas nommer ses bénéficiaires quand la source se tait est LA bonne réponse."""
         self.ecrire_aide("pret-pme", GATE_EFFECTIF)
-        erreurs = self.erreurs_porteur()
-        self.assertEqual(len(erreurs), 1, erreurs)
-        self.assertIn("pret-pme / effectif", erreurs[0])
-        self.assertIn("societe, entreprise_individuelle", erreurs[0])
-
-    def test_gate_porteur_pose_sur_l_aide_leve_l_erreur(self):
-        self.ecrire_aide("pret-pme", GATE_EFFECTIF + GATE_PORTEUR)
         self.assertEqual(self.erreurs_porteur(), [])
 
-    def test_applies_if_d_aide_sur_le_porteur_leve_l_erreur(self):
+    def test_le_lint_releve_les_aides_sous_derivation(self):
+        """Un relevé, pas un silence : l'agent doit savoir qu'il est couvert."""
+        from lint_aides_data import aides_sous_derivation_porteur
+
+        self.ecrire_aide("pret-pme", GATE_EFFECTIF)
+        # Mono-slug : c'est le lint que l'agent d'ingestion lit, et c'est là que
+        # le message doit l'ORIENTER. En global, `_statistiques` n'en donne que
+        # le compte.
+        rapport = self.lint("pret-pme")
+        self.assertIn("le marqueur `porteurs_concernes` fait le travail", rapport.texte())
+        self.assertIn("gate porteur dérivé du marqueur : 1 aide(s)", self.lint().texte())
+        releve = aides_sous_derivation_porteur(rapport.aides[0], self.charger_facts())
+        self.assertEqual(len(releve), 1, releve)
+        self.assertIn("effectif", releve[0])
+        self.assertIn("societe, entreprise_individuelle", releve[0])
+
+    def test_le_message_oriente_contre_le_gate_invente(self):
+        self.ecrire_aide("pret-pme", GATE_EFFECTIF)
+        texte = self.lint("pret-pme").texte()
+        self.assertIn("que si la source NOMME ses bénéficiaires", texte)
+
+    def test_un_gate_porteur_explicite_desarme_le_releve(self):
+        """La précédence : la source qui nomme ses bénéficiaires a raison."""
+        self.ecrire_aide("pret-pme", GATE_EFFECTIF + GATE_PORTEUR)
+        from lint_aides_data import aides_sous_derivation_porteur
+
+        rapport = self.lint()
+        self.assertEqual(aides_sous_derivation_porteur(rapport.aides[0], self.charger_facts()), [])
+
+    def test_applies_if_d_aide_sur_le_porteur_compte_comme_un_gate(self):
         # Quatre aides du catalogue cadrent leur périmètre entier ainsi plutôt
         # que condition par condition : le moteur les traite pareil.
+        from lint_aides_data import aides_sous_derivation_porteur
+
         (self.aides_dir / "pret-pme.yaml").write_text(
             aide_yaml("pret-pme", GATE_EFFECTIF)
             + "applies_if:\n  fact: statut_juridique_porteur\n  predicate:\n    in: [societe]\n",
             encoding="utf-8",
         )
-        self.assertEqual(self.erreurs_porteur(), [])
+        rapport = self.lint()
+        self.assertEqual(aides_sous_derivation_porteur(rapport.aides[0], self.charger_facts()), [])
 
-    def test_un_gate_porteur_meme_etroit_suffit(self):
-        # Le lint exige que l'aide DISE qui dépose, il ne juge pas la liste :
-        # la justesse du prédicat se relit au diff, contre la source.
-        etroit = GATE_PORTEUR.replace("[societe, entreprise_individuelle]", "[public_commune]")
-        self.ecrire_aide("pret-pme", GATE_EFFECTIF + etroit)
-        self.assertEqual(self.erreurs_porteur(), [])
+    def test_un_gate_plus_large_que_le_marqueur_est_un_avertissement(self):
+        """138 aides du corpus, dont 31 admettant `public_commune`. La source a
+        raison — mais la question du fait marqué leur sera posée, et ça se voit."""
+        large = GATE_PORTEUR.replace(
+            "[societe, entreprise_individuelle]", "[societe, public_commune]"
+        )
+        self.ecrire_aide("pret-pme", GATE_EFFECTIF + large)
+        rapport = self.lint()
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        avertissements = self.avertissements_porteur()
+        self.assertEqual(len(avertissements), 1, avertissements)
+        self.assertIn("public_commune", avertissements[0])
+
+    def test_un_gate_aussi_etroit_que_le_marqueur_nalerte_pas(self):
+        self.ecrire_aide("pret-pme", GATE_EFFECTIF + GATE_PORTEUR)
+        self.assertEqual(self.avertissements_porteur(), [])
 
     def test_condition_non_gate_sur_un_fait_marque_ne_contraint_rien(self):
         # `effect: info` ne trie personne : elle n'ajoute pas de question
         # éliminante, donc pas de raison d'exiger un gate porteur.
+        from lint_aides_data import aides_sous_derivation_porteur
+
         self.ecrire_aide("pret-pme", GATE_EFFECTIF.replace("effect: gate", "effect: info"))
-        self.assertEqual(self.erreurs_porteur(), [])
+        rapport = self.lint()
+        self.assertEqual(aides_sous_derivation_porteur(rapport.aides[0], self.charger_facts()), [])
 
     def test_marqueur_citant_une_option_inconnue_est_une_erreur(self):
         self.facts.write_text(
@@ -802,3 +859,177 @@ class TestCLI(BaseLint):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUrlsPartagees(BaseLint):
+    """F2 — un dispositif, une fiche. À ACTIVER après le dédoublonnage du lot.
+
+    130 groupes d'URL partagées au 2026-09-18, dont 51 ré-ingestions d'aides
+    déjà au catalogue sous un slug suffixé `-2`. Rendue bloquante dès
+    maintenant, la règle interdirait tout travail sur le catalogue avant de
+    l'avoir corrigé : elle est donc exportée et appelée par le bilan, pas encore
+    par `lint`.
+    """
+
+    def _aides(self, *urls: str):
+        from aides_schema import Aide
+
+        return [
+            Aide.model_validate(
+                {
+                    "slug": f"aide-{i}",
+                    "nom": "x",
+                    "organisme": "Org",
+                    "categorie": "region",
+                    "type": "subvention",
+                    "description": "d",
+                    "source": {"url_officielle": u},
+                }
+            )
+            for i, u in enumerate(urls)
+        ]
+
+    def test_deux_aides_sur_la_meme_page(self):
+        from lint_aides_data import check_urls_partagees
+
+        erreurs = check_urls_partagees(self._aides("https://x.fr/a", "https://x.fr/a"))
+        self.assertEqual(len(erreurs), 1, erreurs)
+        self.assertIn("aide-0", erreurs[0])
+        self.assertIn("aide-1", erreurs[0])
+
+    def test_la_pagination_ne_sauve_pas_le_doublon(self):
+        """22 paires du lot venaient de là : `-2` et `-3` d'une liste Typo3."""
+        from lint_aides_data import check_urls_partagees
+
+        erreurs = check_urls_partagees(
+            self._aides(
+                "https://x.fr/d?tx_news_pi1[news]=42",
+                "https://x.fr/d?tx_news_pi1[news]=42&tx_news_pi1[currentPage]=2&cHash=a",
+            )
+        )
+        self.assertEqual(len(erreurs), 1, erreurs)
+
+    def test_deux_ancres_distinctes_sont_deux_dispositifs(self):
+        """Une page qui porte deux dispositifs sous deux ancres est un vrai découpage."""
+        from lint_aides_data import check_urls_partagees
+
+        self.assertEqual(
+            check_urls_partagees(self._aides("https://x.fr/a#toiture", "https://x.fr/a#facade")),
+            [],
+        )
+
+    def test_des_urls_distinctes_ne_sont_pas_signalees(self):
+        from lint_aides_data import check_urls_partagees
+
+        self.assertEqual(check_urls_partagees(self._aides("https://x.fr/a", "https://x.fr/b")), [])
+
+
+class TestFaitsEnAttenteForme(BaseLint):
+    """F3 — la forme des faits proposés. AVERTISSEMENTS, jamais erreurs.
+
+    25 booléens à seuil et 97 questions longues sont déjà dans le fichier : les
+    passer en erreur bloquerait tout travail sur le lot. La porte d'entrée, elle,
+    les REFUSE (`ingestion/faits.py::proposer`), et c'est là qu'il faut être
+    strict — le fait n'existe pas encore, l'agent peut corriger.
+    """
+
+    def _pending(self, contenu: str):
+        self.pending.write_text(contenu, encoding="utf-8")
+        self.ecrire_aide("ex-aide")
+        self.ecrire_snapshot("ex-aide")
+        return self.lint()
+
+    def test_booleen_a_seuil_est_signale(self):
+        rapport = self._pending(
+            "logement_plus_15_ans:\n"
+            "  type: boolean\n"
+            "  scope: monument\n"
+            "  question: Le logement a-t-il plus de 15 ans ?\n"
+        )
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        signales = [a for a in rapport.avertissements if "seuil chiffré" in a]
+        self.assertEqual(len(signales), 1, rapport.avertissements)
+        self.assertIn("logement_plus_15_ans", signales[0])
+
+    def test_question_trop_longue_est_signalee(self):
+        liste = "intermédiation financière, promotion immobilière, " * 10
+        rapport = self._pending(
+            "activite_hors_exclusions:\n"
+            "  type: boolean\n"
+            "  scope: proprietaire\n"
+            f"  question: >-\n    L'activité est-elle hors des catégories exclues : {liste} ?\n"
+        )
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        self.assertTrue(any("caractères" in a for a in rapport.avertissements))
+
+    def test_un_fait_bien_forme_nalerte_pas(self):
+        rapport = self._pending(
+            "age_batiment_ans:\n"
+            "  type: integer\n"
+            "  scope: monument\n"
+            "  unit: ans\n"
+            "  question: Quel âge a le bâtiment ?\n"
+        )
+        self.assertEqual(
+            [a for a in rapport.avertissements if "seuil" in a or "caractères" in a], []
+        )
+
+
+class TestOrphelinsDuRun(BaseLint):
+    """F4 — un brouillon que l'agent vient d'écrire n'est pas celui du voisin.
+
+    37 orphelins dans `facts_pending.yaml` après le lot : l'agent change d'avis
+    et laisse le premier fait derrière lui. Il peut le retirer — celui du
+    voisin, non.
+    """
+
+    ORPHELIN = (
+        "fait_abandonne:\n"
+        "  type: boolean\n"
+        "  scope: monument\n"
+        "  question: Une question à laquelle plus rien ne se réfère ?\n"
+    )
+
+    def setUp(self):
+        super().setUp()
+        self.pending.write_text(self.ORPHELIN, encoding="utf-8")
+        self.ecrire_aide("ex-aide")
+        self.ecrire_snapshot("ex-aide")
+
+    def test_orphelin_du_run_est_une_erreur_en_mono_slug(self):
+        rapport = self.lint("ex-aide", faits_du_run=["fait_abandonne"])
+        self.assertFalse(rapport.ok)
+        self.assertIn("fait_abandonne", rapport.erreurs[0])
+        self.assertIn("retirer_fait", rapport.erreurs[0])
+
+    def test_mono_slug_ne_declare_pas_orphelin_le_fait_dune_autre_aide(self):
+        """Sans `faits_du_run`, l'orphelin du voisin reste un avertissement."""
+        rapport = self.lint("ex-aide")
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        self.assertIn("brouillons à retirer", rapport.texte())
+
+    def test_en_global_le_meme_orphelin_reste_informatif(self):
+        """Le mode global relit un catalogue, il ne juge le geste de personne."""
+        rapport = self.lint(faits_du_run=["fait_abandonne"])
+        self.assertTrue(rapport.ok, rapport.erreurs)
+
+    def test_un_fait_du_run_reference_ne_declenche_rien(self):
+        self.pending.write_text(
+            "fait_utilise:\n"
+            "  type: boolean\n"
+            "  scope: monument\n"
+            "  question: Une question que l'aide cite ?\n",
+            encoding="utf-8",
+        )
+        self.ecrire_aide(
+            "ex-aide",
+            """\
+  - id: cite-le-fait
+    text: Une exigence quelconque.
+    kind: user_fact
+    effect: gate
+    fact: fait_utilise
+    predicate: {eq: true}
+""",
+        )
+        self.assertTrue(self.lint("ex-aide", faits_du_run=["fait_utilise"]).ok)

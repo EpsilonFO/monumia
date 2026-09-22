@@ -43,6 +43,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from ontologie_regles import (
+    MAX_CAR_QUESTION_LINT,
+    booleen_a_seuil,
+    question_trop_longue,
+)
+
 from aides_schema import (
     AIDES_DIR,
     FACTS_FILE,
@@ -57,6 +63,11 @@ from aides_schema import (
     # ici parce que `veille_apply` et `veille_typage` l'importent DU LINT.
     check_fact_predicate,
     evaluate_predicate,
+    # Remontée dans aides_schema pour le MOTEUR : un gate porteur explicite a
+    # précédence sur la dérivation du marqueur, et le moteur ne peut pas
+    # importer `scripts/`. Réimportée ici parce que `proposer_gate_porteur`
+    # l'importe DU LINT.
+    gate_porteur,
     load_aide,
     load_facts,
     load_pending_facts,
@@ -230,46 +241,122 @@ def check_hors_gate(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
     return erreurs
 
 
-def gate_porteur(aide: Aide) -> bool:
-    """L'aide dit-elle QUI peut déposer ?
+def aides_sous_derivation_porteur(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
+    """Les conditions dont le marqueur du fait gaté FAIT le travail, sans gate explicite.
 
-    Un `applies_if` d'aide sur le même fait compte : quatre aides du catalogue
-    cadrent ainsi leur périmètre entier plutôt que condition par condition, et
-    le moteur les traite pareil (`_scoped_conditions`).
-    """
-    if aide.applies_if and aide.applies_if.fact == FAIT_PORTEUR:
-        return True
-    return any(c.effect == "gate" and c.fact == FAIT_PORTEUR for c in aide.conditions)
+    C'était une ERREUR jusqu'au 2026-09-21 : l'aide devait traduire sa puce
+    « Bénéficiaires » en gate `in` sur `statut_juridique_porteur`, faute de quoi
+    le lint sortait rouge. La règle a produit l'inverse de son but — quand la
+    source ne nomme pas ses bénéficiaires, le modèle INVENTAIT le gate pour
+    satisfaire le lint, le vérificateur le contestait à chaque passage, et le
+    modèle le maintenait « parce que le lint l'exige ». 580 aides sur 643 gatent
+    le porteur, 60 conditions le disent dans leurs `notes`, 13 sont étiquetées
+    « NON SOURCÉ », et 8 questions d'entreprise entraient dans le tronc d'un
+    profil association.
 
-
-def check_porteur_entreprise(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
-    """Un gate sur un fait d'entreprise oblige à dire qui peut déposer.
-
-    Sans cela, l'aide reste vivante pour une commune jusqu'à sa PREMIÈRE
-    question d'entreprise — et cette question est posée. Mesuré le 2026-09-17
-    sur un profil « commune, classé, Grand Est, restauration » : 18 questions
-    réellement posées, dont 10 d'entreprise ; 10 questions une fois le gate
-    porteur posé sur les 52 aides muettes. Seul `hard_filters` écarte en
-    silence, et il parle du propriétaire du BIEN, pas du porteur du dossier.
-
-    La correction n'est jamais de retirer le marqueur : c'est de traduire la
-    puce « Bénéficiaires » de la source en gate `in` sur `statut_juridique_porteur`.
+    Le marqueur est désormais EXÉCUTABLE (`conditions_porteur_derivees`) : ces
+    aides sont déjà fermées aux autres porteurs. Il ne reste qu'un relevé.
     """
     if gate_porteur(aide):
         return []
-    erreurs: list[str] = []
+    lignes: list[str] = []
     for cond in aide.conditions:
         if cond.effect != "gate" or not cond.fact:
             continue
         marques = (facts[cond.fact].porteurs_concernes or []) if cond.fact in facts else []
         if not marques:
             continue
-        erreurs.append(
-            f"{aide.slug} / {cond.id}: gate sur « {cond.fact} », réservé aux porteurs "
-            f"{{{', '.join(marques)}}}, sans gate {FAIT_PORTEUR} — typer la puce "
-            "Bénéficiaires de la source en gate `in` (TYPING § bénéficiaires)"
-        )
-    return erreurs
+        lignes.append(f"{aide.slug} / {cond.id} → {cond.fact} {{{', '.join(marques)}}}")
+    return lignes
+
+
+def gate_plus_large_que_le_marqueur(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
+    """Un gate porteur EXPLICITE plus large que le marqueur d'un fait qu'elle gate.
+
+    Avertissement, jamais une erreur — et c'est le point. 138 aides du corpus
+    sont dans ce cas, dont 31 qui admettent `public_commune` sur un fait marqué
+    `[societe, ei]` : la source les admet, et c'est le gate explicite qui a
+    raison. Mais l'écart mérite d'être vu, parce qu'il signifie que la question
+    du fait marqué sera posée à des porteurs pour qui elle n'a pas de sens.
+    """
+    porteur = facts.get(FAIT_PORTEUR)
+    if porteur is None or not gate_porteur(aide):
+        return []
+    admis: set[str] | None = None
+    for cond in aide.conditions:
+        if cond.effect == "gate" and cond.fact == FAIT_PORTEUR:
+            valeurs = {
+                v
+                for op, val in predicate_leaves(cond.predicate.root)
+                for v in _valeurs_de_feuille(op, val)
+            }
+            admis = valeurs if admis is None else admis | valeurs
+    if not admis:
+        return []
+    lignes: list[str] = []
+    for cond in aide.conditions:
+        if cond.effect != "gate" or not cond.fact or cond.fact == FAIT_PORTEUR:
+            continue
+        marques = (facts[cond.fact].porteurs_concernes or []) if cond.fact in facts else []
+        if not marques:
+            continue
+        surplus = sorted(admis - set(marques))
+        if surplus:
+            lignes.append(
+                f"{aide.slug} / {cond.id}: gate porteur admet {{{', '.join(surplus)}}} que "
+                f"« {cond.fact} » ne concerne pas — sa question leur sera posée"
+            )
+    return lignes
+
+
+def check_urls_partagees(aides: Sequence[Aide]) -> list[str]:
+    """Deux aides du catalogue qui pointent la même page. Mode GLOBAL seulement.
+
+    130 groupes d'URL partagées dans le lot du 2026-09-18, dont 51 ré-ingestions
+    d'aides déjà au catalogue sous un slug suffixé `-2` : même URL, même
+    territoire, la base ingérée le 17 et le double le 18. Le dédoublonnage de la
+    collecte n'agissait qu'à l'étage 1, et `lecture.slug_final` résolvait la
+    collision de slug par un suffixe numérique au lieu d'y voir un doublon.
+
+    La clé est `cle_fiche` : elle ignore la pagination, qui a produit 22 paires
+    à elle seule (`16-developpement-local`, `-2`, `-3`). Une ANCRE distincte est
+    en revanche un vrai découpage — une page qui porte deux dispositifs sous
+    deux ancres — et n'est pas signalée.
+
+    **À n'activer qu'une fois le lot dédoublonné** (`scripts/dedoublonner_aides.py`) :
+    rendue bloquante sur 130 groupes, elle interdirait tout travail sur le
+    catalogue avant de l'avoir corrigé.
+    """
+    from prospection.collecte import cle_fiche
+
+    groupes: dict[str, list[str]] = {}
+    for aide in aides:
+        url = aide.source.url_officielle
+        if not url:
+            continue
+        ancre = url.split("#", 1)[1] if "#" in url else ""
+        groupes.setdefault(f"{cle_fiche(url)}#{ancre}", []).append(aide.slug)
+    return [
+        f"{len(slugs)} aides partagent l'URL officielle « {cle} » : {', '.join(sorted(slugs))} "
+        "— un dispositif, une fiche (scripts/dedoublonner_aides.py)"
+        for cle, slugs in sorted(groupes.items())
+        if len(slugs) > 1
+    ]
+
+
+def _valeurs_de_feuille(op: str, val: object) -> list[str]:
+    """Les options d'un fait à choix citées par une feuille de prédicat.
+
+    `neq` et `not_in` sont volontairement IGNORÉS : ils disent qui est exclu,
+    pas qui est admis, et en déduire l'ensemble admis demanderait de connaître
+    toutes les options — ce que ce relevé n'a pas à faire pour un
+    avertissement.
+    """
+    if op in ("in", "contains_any", "contains_all") and isinstance(val, list):
+        return [str(x) for x in val]
+    if op == "eq" and isinstance(val, str):
+        return [val]
+    return []
 
 
 def check_colonnes_non_nulles(aide: Aide) -> list[str]:
@@ -406,14 +493,16 @@ def faits_entreprise_sans_marqueur(facts: dict[str, FactDef]) -> list[str]:
 def check_porteurs_concernes(facts: dict[str, FactDef]) -> list[str]:
     """Les catégories citées par le marqueur existent bien chez le porteur.
 
-    Une option inventée rendrait le marqueur muet à la relecture et le message
-    du lint incompréhensible — il nomme les catégories concernées.
+    Cette erreur est devenue CRITIQUE le 2026-09-21, avec la dérivation : le
+    marqueur ne documente plus une contrainte de lint, il ÉLIMINE. Une option
+    inventée n'est plus une gêne de relecture — `{in: [<option inconnue>]}` est
+    faux pour tout le monde, et l'aide devient inaccessible à tous les porteurs
+    sans qu'aucun test de corpus ne s'en aperçoive.
 
     Si `statut_juridique_porteur` lui-même manque à l'ontologie servie, on se
     TAIT : 207 aides gatent dessus, leur `check_aide` le dira déjà, et une
     ontologie partielle (un test, un script hors ligne) n'a pas à récolter une
-    erreur par fait marqué. Le marqueur ne lie pas le moteur, il ne documente
-    que la contrainte portée par `check_porteur_entreprise`.
+    erreur par fait marqué.
     """
     porteur = facts.get(FAIT_PORTEUR)
     erreurs: list[str] = []
@@ -520,11 +609,19 @@ class RapportLint:
     """Ce que le lint a trouvé. `ok` seul décide du code de sortie."""
 
     erreurs: list[str] = field(default_factory=list)
+    #: Ce qui mérite d'être vu sans bloquer le commit. Le lint DOIT avoir cette
+    #: catégorie : une règle qui ne sait que bloquer se fait contourner, et
+    #: c'est exactement ce qui est arrivé au gate porteur — le modèle inventait
+    #: le gate pour satisfaire le lint plutôt que de lire sa source.
+    avertissements: list[str] = field(default_factory=list)
     lignes: list[str] = field(default_factory=list)
     aides: list[Aide] = field(default_factory=list)
     quotes_absentes: list[Citation] = field(default_factory=list)
     quotes_degradees: list[Citation] = field(default_factory=list)
     quotes_hors_portee: list[Citation] = field(default_factory=list)
+
+    #: Au-delà, les avertissements noient les erreurs qu'il faut lire.
+    MAX_AVERTISSEMENTS_AFFICHES = 15
 
     @property
     def ok(self) -> bool:
@@ -532,6 +629,14 @@ class RapportLint:
 
     def texte(self) -> str:
         sortie = list(self.lignes)
+        if self.avertissements:
+            sortie.append(f"\n⚠ {len(self.avertissements)} avertissement(s) :")
+            sortie.extend(
+                f"  - {a}" for a in self.avertissements[: self.MAX_AVERTISSEMENTS_AFFICHES]
+            )
+            reste = len(self.avertissements) - self.MAX_AVERTISSEMENTS_AFFICHES
+            if reste > 0:
+                sortie.append(f"  … et {reste} autre(s)")
         if self.erreurs:
             sortie.append(f"\n✗ {len(self.erreurs)} erreur(s) :")
             sortie.extend(f"  - {e}" for e in self.erreurs)
@@ -551,6 +656,7 @@ def lint(
     pending_path: Path = FACTS_PENDING_FILE,
     baseline_path: Path = BASELINE_FILE,
     reference_dirs: Sequence[Path] = (),
+    faits_du_run: Sequence[str] = (),
 ) -> RapportLint:
     """Lint du catalogue entier, ou des seuls `slugs` donnés.
 
@@ -558,6 +664,11 @@ def lint(
     l'agent d'ingestion appelle ce lint DANS le même processus, entre deux
     écritures de `facts_pending.yaml` — un fait qu'il vient de proposer doit
     être vu, sinon il se ferait refuser sa propre proposition.
+
+    `faits_du_run` sont les faits que l'ingestion en cours vient de proposer :
+    un orphelin parmi eux est une ERREUR en mono-slug, là où celui du voisin
+    reste un avertissement. La distinction est tout l'intérêt de la règle —
+    l'agent peut retirer le sien, pas celui d'un autre.
     """
     load_facts.cache_clear()
     load_pending_facts.cache_clear()
@@ -585,6 +696,9 @@ def lint(
         if global_mode
         else [aides_dir / f"{s}.yaml" for s in slugs]
     )
+    # Groupés en UN avertissement plutôt qu'un par condition : 271 lignes sur le
+    # corpus noieraient les deux qui portent (cf. `RapportLint.texte`).
+    gates_larges: list[str] = []
     for path in chemins:
         if not path.exists():
             rapport.erreurs.append(f"{path.name}: fichier absent de {aides_dir}")
@@ -598,12 +712,31 @@ def lint(
         rapport.erreurs.extend(check_colonnes_non_nulles(aide))
         rapport.erreurs.extend(check_aide(aide, facts))
         rapport.erreurs.extend(check_hors_gate(aide, facts))
-        rapport.erreurs.extend(check_porteur_entreprise(aide, facts))
+        gates_larges.extend(gate_plus_large_que_le_marqueur(aide, facts))
+
+    if gates_larges:
+        rapport.avertissements.append(
+            f"{len(gates_larges)} gate(s) porteur plus large(s) que le marqueur d'un fait "
+            "gaté — la source a raison, mais la question du fait marqué sera posée à des "
+            "porteurs pour qui elle n'a pas de sens :\n"
+            + "\n".join(f"      {li}" for li in gates_larges[:6])
+            + (f"\n      … et {len(gates_larges) - 6} autre(s)" if len(gates_larges) > 6 else "")
+        )
 
     if global_mode:
         rapport.lignes.extend(_statistiques(rapport.aides, facts))
     else:
         rapport.lignes.append(f"aides   : {len(rapport.aides)} fichier(s) — {', '.join(slugs)}")
+        for aide in rapport.aides:
+            derivees = aides_sous_derivation_porteur(aide, facts)
+            if derivees:
+                rapport.lignes.append(
+                    "gate porteur : le marqueur `porteurs_concernes` fait le travail sur "
+                    f"{len(derivees)} condition(s) — n'en pose un que si la source NOMME ses "
+                    "bénéficiaires. Un gate inventé pour satisfaire le lint est un faux "
+                    "négatif que personne ne verra."
+                )
+                rapport.lignes.extend(f"   {li}" for li in derivees)
         kinds = Counter(c.kind for a in rapport.aides for c in a.conditions)
         if kinds:
             rapport.lignes.append(
@@ -626,6 +759,7 @@ def lint(
             rapport,
             usage_global=usage_global,
             global_mode=global_mode,
+            faits_du_run=faits_du_run,
         )
     )
     if quotes:
@@ -748,6 +882,16 @@ def _statistiques(aides: list[Aide], facts: dict[str, FactDef]) -> list[str]:
     if sans_marqueur:
         lignes.append(f"  {', '.join(sans_marqueur)}")
 
+    # Combien d'aides s'en remettent au MARQUEUR plutôt qu'à un gate explicite.
+    # Le message est mono-slug pour l'agent d'ingestion (cf. `lint`) ; ici, le
+    # compte suffit — et il dit ce que vaut la dérivation sur le corpus.
+    sous_derivation = [a.slug for a in aides if aides_sous_derivation_porteur(a, facts)]
+    if sous_derivation:
+        lignes.append(
+            f"gate porteur dérivé du marqueur : {len(sous_derivation)} aide(s) — "
+            "le marqueur fait le travail, elles n'ont pas de gate explicite"
+        )
+
     sans_raison = sum(1 for a in aides if not a.raison)
     if sans_raison:
         lignes.append(f"raison : {sans_raison} aide(s) sans finalité — valeur en base préservée")
@@ -770,6 +914,7 @@ def _bloc_pending(
     *,
     usage_global: set[str] | None = None,
     global_mode: bool = False,
+    faits_du_run: Sequence[str] = (),
 ) -> list[str]:
     """Les faits en attente, et ceux que plus aucune aide ne référence.
 
@@ -795,6 +940,28 @@ def _bloc_pending(
         f"⏳ faits en attente d'approbation ({len(pending)}) : {', '.join(sorted(pending))}",
         *(f"   {ref}" for ref in refs),
     ]
+    # F3 — la forme des faits proposés. AVERTISSEMENTS et jamais erreurs : 25
+    # booléens à seuil et 97 questions longues sont déjà dans le fichier, et
+    # rendre le lint rouge dessus bloquerait tout travail sur le lot avant de
+    # l'avoir corrigé. La porte d'entrée, elle, les REFUSE (`faits.proposer`).
+    a_seuil = sorted(cle for cle, f in pending.items() if booleen_a_seuil(cle, f))
+    if a_seuil:
+        rapport.avertissements.append(
+            f"{len(a_seuil)} booléen(s) proposé(s) enferment un seuil chiffré dans leur clé "
+            "— le seuil appartient au prédicat, pas au fait (un integer + `gte`) : "
+            + ", ".join(a_seuil[:8])
+            + (" …" if len(a_seuil) > 8 else "")
+        )
+    longues = sorted(
+        cle for cle, f in pending.items() if question_trop_longue(f, maximum=MAX_CAR_QUESTION_LINT)
+    )
+    if longues:
+        rapport.avertissements.append(
+            f"{len(longues)} question(s) proposée(s) dépassent {MAX_CAR_QUESTION_LINT} "
+            "caractères — une question est une phrase, le détail va dans `help` : "
+            + ", ".join(longues[:8])
+            + (" …" if len(longues) > 8 else "")
+        )
     if usage_global is not None:
         orphelins = sorted(set(pending) - usage_global)
         if orphelins:
@@ -810,6 +977,21 @@ def _bloc_pending(
                 rapport.erreurs.append(
                     f"--strict : {len(orphelins)} fait(s) proposé(s) sans aucune référence "
                     f"dans le catalogue — retirer de facts_pending.yaml : {', '.join(orphelins)}"
+                )
+            # F4 — un orphelin que CE RUN vient de proposer est une erreur, même
+            # sans `--strict` : l'agent l'a écrit il y a trois tours, il peut le
+            # retirer d'un `retirer_fait`, et laisser le brouillon derrière lui
+            # est précisément ce qui a produit les 37 orphelins du lot. Ceux du
+            # voisin restent un avertissement (cf.
+            # `test_mono_slug_ne_declare_pas_orphelin_le_fait_dune_autre_aide`).
+            miens = sorted(set(orphelins) & set(faits_du_run))
+            if miens and not global_mode:
+                rapport.erreurs.append(
+                    f"{len(miens)} fait(s) que TU viens de proposer ne sont référencés par "
+                    f"aucune condition : {', '.join(miens)}. Soit une condition les cite "
+                    "(`ecrire_aide`), soit `retirer_fait` les efface — un brouillon laissé "
+                    "derrière soi encombre la relecture humaine sans poser de question à "
+                    "personne."
                 )
     # Les faits que les aides lintées CITENT et qui sentent l'entreprise sans se
     # déclarer. En mono-slug, c'est exactement le fait que l'agent vient de

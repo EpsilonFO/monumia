@@ -26,10 +26,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import providall
+from pipeline.etat import CategorieEcart, Destinataire, Objet
+from pipeline.etat import retenir as test_du_destinataire
 from pipeline.llm import Compteur
 from pipeline.web import Fetcheur
 
-from .collecte import Candidat, liens
+from .collecte import Candidat, est_document, liens
 from .territoires import Territoire
 from .tri import SKILL_PROSPECTION, Famille, doctrine, familles_rendues
 
@@ -47,6 +49,65 @@ rattrapera avant l'ingestion.
 
 `urls_pdf` : uniquement des liens présents dans la liste fournie (règlement,
 cadre d'intervention, formulaire). N'en fabrique aucun.
+"""
+
+
+CONSIGNE_DESTINATAIRE = """\
+# Les deux jugements qui décident de l'entrée au catalogue
+
+Tu ne rends PAS de verdict « retenir » : le code le calcule à partir des deux
+champs ci-dessous. Réponds-y séparément, et descriptivement.
+
+`destinataire` — à qui la source s'adresse-t-elle, et en quelle qualité ?
+  - `proprietaire_gestionnaire` : à celui qui POSSÈDE ou GÈRE un lieu, pris en
+    cette qualité (particulier, commune ou EPCI propriétaire, association
+    gestionnaire, SCI, société qui exploite le lieu).
+  - `activite_tiers` : à quelqu'un POUR SON MÉTIER ou son activité —
+    agriculteur, éleveur, forestier producteur, chef d'entreprise ou PME en
+    général, artisan, commerçant, compagnie, artiste, auteur, association pour
+    sa pratique sportive ou musicale, bailleur social. Même si un propriétaire
+    de monument peut aussi être cela : ce n'est pas son aide, c'est celle du
+    métier.
+  - `personne` : à un individu ou à un ménage pour sa situation (ressources,
+    âge, emploi, formation, santé, logement).
+  - `indetermine` : la page ne permet pas de trancher. C'est une réponse
+    normale — elle renvoie la candidate à un humain, elle ne la perd pas.
+
+`objet` — sur quoi porte la dépense ?
+  - `bien_ou_lieu` : le bien lui-même, son bâti, son domaine, ses abords.
+  - `activite_dans_le_lieu` : ce qui s'y tient et que le propriétaire porte
+    LUI-MÊME (ouvrir, animer, héberger, installer une activité).
+  - `hors_lieu` : ailleurs, ou sans lieu (promotion d'une destination,
+    production d'une œuvre, formation, matériel mobile, réseau public).
+  - `indetermine` : idem.
+
+La question à te poser, et c'est la seule : **un propriétaire de monument
+peut-il déposer cette demande tel qu'il est, pour son monument, sans changer de
+métier ni créer une structure pour l'occasion ?** Si ta réponse commence par
+« s'il est aussi agriculteur », « s'il monte une compagnie », « si l'association
+support… » : le destinataire n'est pas lui.
+
+Mais quand la source liste des bénéficiaires qui couvrent les DEUX — « communes,
+associations et structures culturelles », « collectivités et porteurs de
+projet » — ou qu'elle ne dit pas en quelle qualité, la réponse est
+`indetermine`, PAS `activite_tiers`. Une commune propriétaire d'un jardin
+remarquable qui programme un festival chez elle, une association d'amis d'un
+monument qui organise une manifestation dans le monument : ce sont des
+destinataires légitimes, et le fait qu'une compagnie puisse aussi déposer ne
+leur retire rien. N'écarte sur `activite_tiers` que si la source RÉSERVE l'aide
+au métier : label professionnel exigé, conventionnement, immatriculation,
+numéro de licence d'entrepreneur de spectacles, affiliation MSA, RCS.
+
+Le THÈME, lui, reste large : énergie, eau, jardins, tourisme, accessibilité,
+numérique, spectacles, activité économique, tout ce qui fait vivre le lieu.
+C'est le destinataire qui est strict, pas le sujet.
+
+`categorie_ecart` : à remplir SEULEMENT quand le destinataire n'est pas le bon
+ou que l'objet est hors du lieu. Elle sert à trier la fiche de prospection.
+
+`note` : une à deux phrases, et elle est LUE par l'ingestion — c'est elle qui
+nourrit l'`applies_if` de périmètre que toute aide hors `restauration_bati`
+doit porter. Dis à quelle condition un propriétaire de monument est concerné.
 """
 
 
@@ -69,14 +130,34 @@ def consigne(skill_path: Path = SKILL_PROSPECTION) -> str:
             doctrine(skill_path),
             "# Familles (champ `famille`)\n" + familles_rendues(),
             CONSIGNE_EXTRACTION,
-            "`retenir: true` par défaut. `retenir: false` UNIQUEMENT sur l'un des deux "
-            "constats certains du test d'admission, et la `note` dit lequel.",
+            CONSIGNE_DESTINATAIRE,
         ]
     )
 
 
 class LectureFiche(BaseModel):
-    retenir: bool
+    """Ce qu'une page rend. `retenir` n'en fait PAS partie : il se calcule.
+
+    Le champ `retenir: bool` que le modèle remplissait avait un défaut vrai —
+    la consigne disait « `true` par défaut » — et 57 % des candidates douteuses
+    du tri (497 sur 869) passaient ainsi en retenues, jusqu'à des concours de
+    pâtisserie et des aides à la plantation de kiwis. Deux jugements
+    descriptifs, une décision dérivée : le modèle ne peut plus dire oui par
+    défaut, il faudrait qu'il se trompe deux fois.
+    """
+
+    destinataire: Destinataire = Field(
+        default="indetermine",
+        description="À qui la source s'adresse, et en quelle qualité (cf. consigne)",
+    )
+    objet: Objet = Field(
+        default="indetermine", description="Sur quoi porte la dépense (cf. consigne)"
+    )
+    categorie_ecart: CategorieEcart | None = Field(
+        default=None,
+        description="Quand le destinataire n'est pas le bon : laquelle des sept "
+        "catégories d'écart. Vide sinon.",
+    )
     famille: Famille = "adjacente"
     titre: str = Field(description="Intitulé exact du dispositif, tel qu'il apparaît sur la page")
     montant_taux: str | None = Field(
@@ -103,6 +184,16 @@ class LectureFiche(BaseModel):
         description="Vrai si la page est une présentation sans règlement ni modalités précises",
     )
 
+    @property
+    def retenir(self) -> bool:
+        """Le test du destinataire. Calculé, jamais rendu par le modèle."""
+        return test_du_destinataire(self.destinataire, self.objet)
+
+    @property
+    def indeterminee(self) -> bool:
+        """Ni retenue ni écartée : à trancher par un humain, pas par le pipeline."""
+        return self.destinataire == "indetermine" or self.objet == "indetermine"
+
 
 @dataclass
 class Lecture:
@@ -116,12 +207,27 @@ class Lecture:
     def retenue(self) -> bool:
         return self.fiche is not None and self.fiche.retenir
 
+    @property
+    def indeterminee(self) -> bool:
+        return self.fiche is not None and self.fiche.indeterminee
 
-def _documents_lies(page, territoire: Territoire) -> list[str]:
-    """Les liens de la page qui ressemblent à un règlement téléchargeable."""
-    trouves: list[str] = []
+    @property
+    def ecartee(self) -> bool:
+        """Écartée par le test, et non seulement « pas encore retenue »."""
+        return self.fiche is not None and not self.fiche.retenir and not self.fiche.indeterminee
+
+
+def _documents_lies(page, territoire: Territoire, candidat: Candidat | None = None) -> list[str]:
+    """Les fichiers téléchargeables : ceux vus à la collecte, puis ceux de la page.
+
+    Les deux, et dans cet ordre : la collecte a pu ouvrir cette page avant la
+    lecture (stratégie sitemap) et y voir des documents que le motif de
+    `pdf_probable` ne reconnaît pas — un `.docx` de règlement, par exemple, que
+    l'étage 1 sait désormais nommer (`est_document`) et que celui-ci ignorait.
+    """
+    trouves: list[str] = list(candidat.documents) if candidat else []
     for _titre, url, _contexte in liens(page):
-        if territoire.pdf_probable(url) and url not in trouves:
+        if (est_document(url) or territoire.pdf_probable(url)) and url not in trouves:
             trouves.append(url)
     return trouves[:MAX_LIENS_DOCUMENTS]
 
@@ -148,7 +254,7 @@ def lire(
             erreur=f"page vide ou SPA ({len(markdown.strip())} car.) — source citable à chercher",
         )
 
-    documents = _documents_lies(page, territoire)
+    documents = _documents_lies(page, territoire, candidat)
     prompt = "\n\n".join(
         [
             f"URL : {page.url_finale}",
@@ -246,6 +352,7 @@ def slug_final(territoire: Territoire, propose: str, titre: str, occupes: set[st
 
 
 __all__ = [
+    "CONSIGNE_DESTINATAIRE",
     "CONSIGNE_EXTRACTION",
     "MAX_CAR_PAGE",
     "Lecture",

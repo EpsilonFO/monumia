@@ -26,6 +26,7 @@ from __future__ import annotations
 import signal
 import sys
 import threading
+import time
 from collections.abc import Sequence
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from pathlib import Path
@@ -44,6 +45,71 @@ PARALLELE_DEFAUT = 3
 BUDGET_TOTAL_DEFAUT = 50.0
 
 
+class Disjoncteur:
+    """Coupe le run quand la panne est celle du FOURNISSEUR, pas celle d'une aide.
+
+    Le 2026-09-18, le run a continué à lancer des aides pendant deux heures
+    alors qu'OpenRouter renvoyait `Connection error` puis « credits épuisés » :
+    351 tâches consommées à zéro dollar et à zéro octet, et la reprise
+    n'existait pas. Aucun signal n'existait pour distinguer « cette aide-là est
+    difficile » de « le fournisseur est à terre ».
+
+    Deux salves, et l'asymétrie est volontaire : une première salve de quatre
+    échecs transitoires d'affilée arrête tout pendant une minute, puis remet le
+    compteur à zéro — une coupure de réseau d'une minute ne doit pas tuer un run
+    de six heures. Une SECONDE salve après la pause n'est plus un accident, et
+    le run s'arrête proprement, toutes les aides en vol et restantes rendues à
+    `valide`.
+
+    Un échec FATAL (clé invalide, modèle inconnu) coupe immédiatement, sans
+    pause ni seuil : il n'y a rien à attendre.
+    """
+
+    def __init__(self, *, seuil: int = 4, pause_s: float = 60.0, dormir=None) -> None:
+        self.seuil = seuil
+        self.pause_s = pause_s
+        self._dormir = dormir or time.sleep
+        self.consecutifs = 0
+        self.salves = 0
+        self.motif = ""
+
+    def succes(self) -> None:
+        """Un verdict qui n'est pas une panne du fournisseur : le compteur repart."""
+        self.consecutifs = 0
+
+    def panne(self, resultat: ResultatIngestion) -> bool:
+        """Enregistre un verdict. Rend True quand le run doit s'arrêter."""
+        if resultat.echec_fatal:
+            self.motif = (
+                f"erreur fatale sur {resultat.slug} ({resultat.motif_echec}) — "
+                "clé d'API ou configuration : rejouer n'y changerait rien."
+            )
+            return True
+        if not resultat.echec_transitoire:
+            self.succes()
+            return False
+        self.consecutifs += 1
+        if self.consecutifs < self.seuil:
+            return False
+        self.salves += 1
+        self.consecutifs = 0
+        if self.salves == 1:
+            print(
+                f"\n⚠ {self.seuil} pannes de fournisseur d'affilée — pause de "
+                f"{self.pause_s:.0f} s avant de reprendre. Les aides concernées sont "
+                "rendues à `valide` et repartiront."
+            )
+            self._dormir(self.pause_s)
+            return False
+        self.motif = (
+            f"réseau ou crédits : {self.seuil} pannes d'affilée pour la deuxième fois, "
+            "après une pause. Vérifier le solde OpenRouter "
+            "(https://openrouter.ai/credits) et la connectivité, puis relancer avec "
+            "`ingerer.py --file-attente` — les aides non traitées sont en `valide`."
+        )
+        return True
+
+
 def reprendre(etat_path: Path = FILE_ATTENTE) -> list[str]:
     """Rend `valide` aux aides restées `en_cours` d'un run interrompu.
 
@@ -60,11 +126,25 @@ def reprendre(etat_path: Path = FILE_ATTENTE) -> list[str]:
     return liberes
 
 
+#: Le motif d'échec que `worker.controler` pose quand l'agent n'a rien écrit du
+#: tout. 351 des 369 échecs du 2026-09-18 le portent, tous pour une panne du
+#: fournisseur ; les 18 autres sont de vrais refus (lint rouge, `max_tours`,
+#: source en 503) qu'une relance en masse re-brûlerait pour rien.
+MOTIF_SANS_YAML = "aucun fichier YAML écrit"
+
+
 def relancer_echecs(
-    etat_path: Path = FILE_ATTENTE, *, territoires: Sequence[str] | None = None
+    etat_path: Path = FILE_ATTENTE,
+    *,
+    territoires: Sequence[str] | None = None,
+    seulement_sans_yaml: bool = False,
 ) -> list[str]:
     """Rend `valide` aux aides en `echec`, pour les rejouer — après un correctif du
     harnais, typiquement. Filtrable par territoire.
+
+    `seulement_sans_yaml` ne relance que les tâches dont l'agent n'a rien écrit :
+    c'est la forme qu'a prise la panne du 2026-09-18, et elle épargne les vrais
+    refus, dont le YAML `.echec` est sur disque et attend une relecture.
 
     Le `<slug>.yaml.echec` est laissé en place : il contient le YAML que le
     modèle avait produit, ce qu'il y a de plus utile pour comprendre l'échec, et
@@ -77,6 +157,10 @@ def relancer_echecs(
             continue
         if territoires and tache.territoire not in territoires:
             continue
+        if seulement_sans_yaml:
+            motif = (tache.ingestion.motif_echec if tache.ingestion else None) or ""
+            if MOTIF_SANS_YAML not in motif:
+                continue
         if transition(etat_path, slug, "valide", depuis=("echec",)):
             relances.append(slug)
     return relances
@@ -91,12 +175,18 @@ def executer(
     etat_path: Path = FILE_ATTENTE,
     compteur: Compteur | None = None,
     ingerer=ingerer_aide,
+    disjoncteur: Disjoncteur | None = None,
 ) -> list[ResultatIngestion]:
     """Ingère les slugs donnés, dans la limite du budget. Renvoie leurs verdicts.
 
     `ingerer` est injectable pour les tests : c'est le seul point du module qui
     parle à un modèle, tout le reste est de l'ordonnancement.
+
+    `disjoncteur` arrête le run quand la panne est celle du fournisseur : sans
+    lui, un run continue à lancer des aides pendant deux heures sur un réseau
+    mort ou un solde à zéro, et les consomme toutes à zéro dollar.
     """
+    disjoncteur = disjoncteur if disjoncteur is not None else Disjoncteur()
     etat = charger(etat_path)
     manquants = [s for s in slugs if s not in etat]
     if manquants:
@@ -141,6 +231,9 @@ def executer(
                 print(
                     f"  ← {slug} : {'ok' if resultat.ok else 'ÉCHEC — ' + (resultat.motif_echec or '')}"
                 )
+                if disjoncteur.panne(resultat):
+                    print(f"\n⛔ run arrêté — {disjoncteur.motif}")
+                    arret.set()
 
         if arret.is_set():
             print("\ninterruption demandée — attente des aides en vol…")
@@ -177,12 +270,51 @@ def _budget_epuise(compteur: Compteur, config: ConfigIngestion, budget_total: fl
     return compteur.cout_usd + config.limites.budget_usd > budget_total
 
 
+#: Combien de fois une même aide peut mourir d'une panne transitoire avant
+#: qu'on cesse de la rejouer. Trois, parce qu'une aide qui ne passe pas au bout
+#: de trois coupures n'a probablement pas de problème de réseau.
+MAX_TENTATIVES_TRANSITOIRES = 3
+
+
+def _statut_final(tache: Tache, resultat: ResultatIngestion, tentatives: int) -> str:
+    """`ingere`, `valide` (à rejouer) ou `echec` (à relire).
+
+    Le statut `valide` pour un échec n'est pas une facilité : c'est la
+    différence entre 351 tâches perdues et 351 tâches qui repartent au passage
+    suivant. Une panne réseau ou un solde à zéro ne dit RIEN de l'aide, et la
+    ranger en `echec` la met dans le même sac que les trois lints rouges et les
+    deux `max_tours` qui, eux, demandent une décision humaine.
+
+    Le plafond de tentatives garde le filet honnête : une aide qui échoue trois
+    fois de suite « transitoirement » cache autre chose, et doit se voir.
+    """
+    # Un écart motivé par la SOURCE, pas un échec : la tâche est classée et ne
+    # revient pas au balayage suivant. Testé avant `ok` parce que l'arrêt est
+    # normal — `controler` ne rend aucun échec dans ce cas.
+    if resultat.hors_perimetre is not None:
+        return "ignore"
+    if resultat.ok:
+        return "ingere"
+    if resultat.echec_transitoire and tentatives < MAX_TENTATIVES_TRANSITOIRES:
+        return "valide"
+    return "echec"
+
+
 def _consigner(etat_path: Path, tache: Tache, resultat: ResultatIngestion) -> None:
     tentatives = (tache.ingestion.tentatives if tache.ingestion else 0) + 1
     mettre_a_jour(
         etat_path,
         resultat.slug,
-        statut="ingere" if resultat.ok else "echec",
+        statut=_statut_final(tache, resultat, tentatives),
+        a_relire=resultat.a_relire or tache.a_relire,
+        **(
+            {
+                "categorie_ecart": resultat.hors_perimetre[0],
+                "motif_ignore": f"hors périmètre à l'ingestion : {resultat.hors_perimetre[1]}",
+            }
+            if resultat.hors_perimetre
+            else {}
+        ),
         ingestion={
             "debut": resultat.debut,
             "fin": resultat.fin,

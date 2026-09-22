@@ -67,6 +67,7 @@ organisme: Région d'exemple
 categorie: region
 type: subvention
 description: Une aide pour tester les post-contrôles.
+familles: [restauration_bati]
 source:
   url_officielle: https://example.org/aide
   verified_at: '2026-09-06'
@@ -135,6 +136,59 @@ class TestControles(BaseWorker):
     def test_tout_vert(self):
         self.preparer()
         self.assertEqual(controler(self.atelier, self.resultat(), self.etat()), [])
+
+    def test_trop_de_faits_neufs(self):
+        """563 faits pour 643 aides : le plafond doit aussi se voir en SORTIE."""
+        self.preparer()
+        etat = self.etat()
+        etat.faits_proposes = ["a", "b", "c", "d"]
+        echecs = controler(self.atelier, self.resultat(), etat)
+        self.assertEqual(len(echecs), 1, echecs)
+        self.assertIn("4 faits neufs", echecs[0])
+
+    def test_trois_faits_neufs_passent(self):
+        self.preparer()
+        etat = self.etat()
+        etat.faits_proposes = ["a", "b", "c"]
+        self.assertEqual(controler(self.atelier, self.resultat(), etat), [])
+
+    def test_familles_vide_refuse(self):
+        """114 aides du lot : `familles` vide est FAIL-OPEN, elles sortent partout."""
+        self.preparer()
+        self.atelier.yaml_path.write_text(
+            self.atelier.yaml_path.read_text(encoding="utf-8").replace(
+                "familles: [restauration_bati]\n", ""
+            ),
+            encoding="utf-8",
+        )
+        echecs = controler(self.atelier, self.resultat(), self.etat())
+        self.assertEqual(len(echecs), 1, echecs)
+        self.assertIn("familles", echecs[0])
+        self.assertIn("fail-open", echecs[0])
+
+    def test_hors_perimetre_est_un_arret_normal(self):
+        """Ni YAML ni échec : l'agent a lu la source et l'aide s'adresse à un tiers."""
+        from ingestion.outils import HorsPerimetre
+
+        etat = self.etat()
+        etat.hors_perimetre = HorsPerimetre(
+            categorie="metier_agricole",
+            motif="Réservé aux exploitants agricoles affiliés MSA.",
+            citation="Bénéficiaires : exploitants agricoles",
+        )
+        self.assertEqual(controler(self.atelier, self.resultat(), etat), [])
+
+    def test_hors_perimetre_avec_un_yaml_se_contredit(self):
+        from ingestion.outils import HorsPerimetre
+
+        self.preparer()
+        etat = self.etat()
+        etat.hors_perimetre = HorsPerimetre(
+            categorie="metier_agricole", motif="x" * 50, citation="y"
+        )
+        echecs = controler(self.atelier, self.resultat(), etat)
+        self.assertEqual(len(echecs), 1, echecs)
+        self.assertIn("se contredisent", echecs[0])
 
     def test_sans_yaml(self):
         echecs = controler(self.atelier, self.resultat(), self.etat())
@@ -218,19 +272,37 @@ def tache(**kw) -> Tache:
     return Tache.model_validate({**base, **kw})
 
 
-def verdict(slug: str, *, ok=True, cout=0.2) -> ResultatIngestion:
-    return ResultatIngestion(
-        slug=slug,
-        ok=ok,
-        arret="termine" if ok else "budget",
-        tours=10,
-        cout_usd=cout,
-        cout_inconnu=False,
-        modele="faux",
-        modele_verif="faux",
-        debut="2026-09-06T09:00:00+00:00",
-        fin="2026-09-06T09:05:00+00:00",
-        motif_echec=None if ok else "budget dépassé",
+def verdict(slug: str, *, ok=True, cout=0.2, **kw) -> ResultatIngestion:
+    base = {
+        "slug": slug,
+        "ok": ok,
+        "arret": "termine" if ok else "budget",
+        "tours": 10,
+        "cout_usd": cout,
+        "cout_inconnu": False,
+        "modele": "faux",
+        "modele_verif": "faux",
+        "debut": "2026-09-06T09:00:00+00:00",
+        "fin": "2026-09-06T09:05:00+00:00",
+        "motif_echec": None if ok else "budget dépassé",
+    }
+    return ResultatIngestion(**{**base, **kw})
+
+
+def panne(slug: str, *, tours=1) -> ResultatIngestion:
+    """La forme EXACTE des 351 échecs du 2026-09-18 : rien d'écrit, rien dépensé.
+
+    `tours=1` par défaut, parce que 255 des 351 avaient fait un tour : le
+    critère « 0 tour et 0 $ » en aurait raté 267.
+    """
+    return verdict(
+        slug,
+        ok=False,
+        cout=0.0,
+        arret="erreur_modele",
+        tours=tours,
+        motif_echec="NetworkError: Connection error",
+        echec_transitoire=True,
     )
 
 
@@ -411,6 +483,180 @@ class TestOrchestrateur(unittest.TestCase):
         # `--reprendre` ré-ingérerait, c'est à la main qu'on corrige.
         self.assertTrue(resultats[0].ok)
         self.assertEqual(charger(self.etat_path)["a"].statut, "en_cours")
+
+
+class TestEchecsTransitoires(TestOrchestrateur):
+    """C3 — une panne du fournisseur rend l'aide à la file, elle ne la perd pas."""
+
+    def _executer(self, slug, resultat):
+        return orchestrateur.executer(
+            [slug],
+            self.config,
+            etat_path=self.etat_path,
+            ingerer=lambda s, t, c, *, contexte, compteur=None: resultat,
+            disjoncteur=orchestrateur.Disjoncteur(seuil=99),
+        )
+
+    def test_un_echec_transitoire_revient_en_valide(self):
+        """351 tâches sont passées `echec` définitif pour une coupure réseau."""
+        self.ecrire_etat(a=tache())
+        self._executer("a", panne("a"))
+        tache_a = charger(self.etat_path)["a"]
+        self.assertEqual(tache_a.statut, "valide")
+        assert tache_a.ingestion is not None
+        self.assertEqual(tache_a.ingestion.tentatives, 1)
+        self.assertIn("NetworkError", tache_a.ingestion.motif_echec or "")
+
+    def test_trois_echecs_transitoires_finissent_en_echec(self):
+        """Une aide qui échoue trois fois « transitoirement » cache autre chose."""
+        self.ecrire_etat(a=tache(ingestion=Ingestion(tentatives=2)))
+        self._executer("a", panne("a"))
+        self.assertEqual(charger(self.etat_path)["a"].statut, "echec")
+
+    def test_un_vrai_refus_reste_un_echec(self):
+        """Un lint rouge ne se rejoue pas : il demande une décision humaine."""
+        self.ecrire_etat(a=tache())
+        self._executer("a", verdict("a", ok=False))
+        self.assertEqual(charger(self.etat_path)["a"].statut, "echec")
+
+    def test_a_relire_est_consigne_dans_la_file(self):
+        """132 aides livrées avec un bloquant non résolu, sans que rien le dise."""
+        self.ecrire_etat(a=tache())
+        self._executer("a", verdict("a", a_relire=True))
+        tache_a = charger(self.etat_path)["a"]
+        self.assertEqual(tache_a.statut, "ingere")
+        self.assertTrue(tache_a.a_relire)
+
+    def test_a_relire_deja_pose_survit_a_une_reprise(self):
+        self.ecrire_etat(a=tache(a_relire=True))
+        self._executer("a", verdict("a"))
+        self.assertTrue(charger(self.etat_path)["a"].a_relire)
+
+    def test_un_hors_perimetre_passe_ignore_et_ne_revient_pas(self):
+        """`echec` la ferait revenir au balayage suivant ; `ignore` la classe."""
+        self.ecrire_etat(a=tache())
+        self._executer(
+            "a",
+            verdict(
+                "a",
+                ok=False,
+                arret="termine",
+                motif_echec=None,
+                hors_perimetre=("metier_agricole", "Réservé aux exploitants agricoles."),
+            ),
+        )
+        relu = charger(self.etat_path)["a"]
+        self.assertEqual(relu.statut, "ignore")
+        self.assertEqual(relu.categorie_ecart, "metier_agricole")
+        self.assertIn("exploitants agricoles", relu.motif_ignore or "")
+
+
+class TestDisjoncteur(TestOrchestrateur):
+    """C4 — le run s'arrête quand c'est le FOURNISSEUR qui est à terre."""
+
+    def test_le_disjoncteur_pause_puis_arrete_a_la_seconde_salve(self):
+        self.ecrire_etat(**{f"a{i}": tache() for i in range(12)})
+        pauses: list[float] = []
+        disjoncteur = orchestrateur.Disjoncteur(seuil=2, pause_s=42.0, dormir=pauses.append)
+        resultats = orchestrateur.executer(
+            [f"a{i}" for i in range(12)],
+            self.config,
+            parallele=1,
+            etat_path=self.etat_path,
+            ingerer=lambda s, t, c, *, contexte, compteur=None: panne(s),
+            disjoncteur=disjoncteur,
+        )
+        # Première salve : pause et reprise. Seconde : arrêt.
+        self.assertEqual(pauses, [42.0])
+        self.assertEqual(disjoncteur.salves, 2)
+        self.assertIn("solde OpenRouter", disjoncteur.motif)
+        self.assertLess(len(resultats), 12)
+        # Tout ce qui n'a pas été traité est rendu à `valide` : rien n'est perdu.
+        statuts = {s: t.statut for s, t in charger(self.etat_path).items()}
+        self.assertNotIn("en_cours", statuts.values())
+        self.assertNotIn("echec", statuts.values())
+
+    def test_une_auth_error_arrete_le_run(self):
+        """55 `AuthError` dans les journaux : rejouer une clé invalide 900 fois."""
+        self.ecrire_etat(**{f"a{i}": tache() for i in range(6)})
+        fatal = verdict(
+            "x",
+            ok=False,
+            cout=0.0,
+            arret="erreur_modele",
+            tours=0,
+            motif_echec="AuthError: clé invalide",
+            echec_fatal=True,
+        )
+        disjoncteur = orchestrateur.Disjoncteur()
+        resultats = orchestrateur.executer(
+            [f"a{i}" for i in range(6)],
+            self.config,
+            parallele=1,
+            etat_path=self.etat_path,
+            ingerer=lambda s, t, c, *, contexte, compteur=None: dataclasses.replace(fatal, slug=s),
+            disjoncteur=disjoncteur,
+        )
+        self.assertEqual(len(resultats), 1)
+        self.assertIn("clé d'API", disjoncteur.motif)
+
+    def test_un_echec_ordinaire_ne_declenche_rien(self):
+        """Quatre lints rouges d'affilée ne sont pas une panne de fournisseur."""
+        self.ecrire_etat(**{f"a{i}": tache() for i in range(5)})
+        disjoncteur = orchestrateur.Disjoncteur(seuil=2)
+        resultats = orchestrateur.executer(
+            [f"a{i}" for i in range(5)],
+            self.config,
+            parallele=1,
+            etat_path=self.etat_path,
+            ingerer=lambda s, t, c, *, contexte, compteur=None: verdict(s, ok=False),
+            disjoncteur=disjoncteur,
+        )
+        self.assertEqual(len(resultats), 5)
+        self.assertEqual(disjoncteur.motif, "")
+
+    def test_un_succes_remet_le_compteur_a_zero(self):
+        d = orchestrateur.Disjoncteur(seuil=3)
+        self.assertFalse(d.panne(panne("a")))
+        self.assertFalse(d.panne(panne("b")))
+        self.assertFalse(d.panne(verdict("c")))
+        self.assertFalse(d.panne(panne("d")))
+        self.assertFalse(d.panne(panne("e")))
+        self.assertEqual(d.salves, 0)
+
+
+class TestRelancerEchecs(TestOrchestrateur):
+    """C5 — relancer les pannes sans re-brûler les vrais refus."""
+
+    def test_relancer_echecs_seulement_sans_yaml(self):
+        self.ecrire_etat(
+            panne=tache(
+                statut="echec",
+                ingestion=Ingestion(motif_echec="aucun fichier YAML écrit", tentatives=1),
+            ),
+            lint_rouge=tache(
+                statut="echec",
+                ingestion=Ingestion(motif_echec="lint rouge : quote introuvable", tentatives=1),
+            ),
+        )
+        relances = orchestrateur.relancer_echecs(self.etat_path, seulement_sans_yaml=True)
+        self.assertEqual(relances, ["panne"])
+        statuts = {s: t.statut for s, t in charger(self.etat_path).items()}
+        self.assertEqual(statuts, {"panne": "valide", "lint_rouge": "echec"})
+
+    def test_sans_le_filtre_tout_repart(self):
+        self.ecrire_etat(
+            a=tache(statut="echec", ingestion=Ingestion(motif_echec="lint rouge")),
+            b=tache(statut="echec", ingestion=Ingestion(motif_echec="aucun fichier YAML écrit")),
+        )
+        self.assertEqual(sorted(orchestrateur.relancer_echecs(self.etat_path)), ["a", "b"])
+
+    def test_une_tache_sans_bloc_ingestion_nest_pas_relancee_par_le_filtre(self):
+        """Pas de motif = on ne sait pas : on ne la rejoue pas à l'aveugle."""
+        self.ecrire_etat(a=tache(statut="echec"))
+        self.assertEqual(
+            orchestrateur.relancer_echecs(self.etat_path, seulement_sans_yaml=True), []
+        )
 
 
 class TestBilan(unittest.TestCase):

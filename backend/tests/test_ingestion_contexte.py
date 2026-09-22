@@ -11,18 +11,21 @@ Run from backend/:  uv run pytest tests/test_ingestion_contexte.py
 
 import sys
 import unittest
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import yaml  # noqa: E402
+from ingestion.atelier import atelier_redirige, restaurer_sources  # noqa: E402
 from ingestion.contexte import (  # noqa: E402
     ADAPTATIONS,
     MODELES,
     SKILL_PATH,
     condense_schema,
     index_faits,
+    prompt_initial,
     prompt_systeme,
     sans_front_matter,
     section,
@@ -469,6 +472,74 @@ class TestPromptSysteme(unittest.TestCase):
     def test_stable_dun_appel_a_lautre(self):
         """Le préfixe doit être identique pour que le cache du fournisseur morde."""
         self.assertEqual(self.texte, prompt_systeme(load_facts(), load_pending_facts()))
+
+
+class TestPromptInitial(unittest.TestCase):
+    """B4 et D6 — ce que la prospection savait et que l'ingestion ignorait.
+
+    `worker.ingerer_aide` passait `note=None` : 56 notes de lecture disaient
+    « retenu par défaut » et 48 « doute sérieux », sans que l'agent d'ingestion
+    en sache rien. Les autres champs sont du même ordre — la file les portait,
+    le prompt ne les lisait pas.
+    """
+
+    def setUp(self):
+        import tempfile
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.addCleanup(restaurer_sources)
+        self.atelier = atelier_redirige("ex-aide", Path(self._tmp.name), jour=date(2026, 9, 21))
+
+    def rendre(self, **kw) -> str:
+        base = {"slug": "ex-aide", "url": "https://example.org/aide", "atelier": self.atelier}
+        return prompt_initial(**{**base, **kw})
+
+    def test_la_note_de_prospection_est_transmise(self):
+        texte = self.rendre(note="Mobilisable si le monument accueille un hébergement.")
+        self.assertIn("accueille un hébergement", texte)
+
+    def test_la_note_commande_un_applies_if_de_perimetre(self):
+        """C'est ce qui garde le questionnaire court malgré la largeur thématique."""
+        texte = self.rendre(note="Mobilisable pour un gîte installé dans une dépendance.")
+        self.assertIn("applies_if", texte)
+        self.assertIn("restauration_bati", texte)
+
+    def test_sans_note_aucune_consigne_de_perimetre(self):
+        self.assertNotIn("applies_if", self.rendre())
+
+    def test_departements_couverts_dictes_au_modele(self):
+        """La CeA instruit pour 67 et 68 : 17 dispositifs sont entrés deux fois."""
+        texte = self.rendre(departements=("67", "68"))
+        self.assertIn("hard_filters.departements", texte)
+        self.assertIn("'67', '68'", texte)
+        self.assertIn("pas un par département", texte)
+
+    def test_un_doublon_probable_arrete_plutot_que_decrire(self):
+        texte = self.rendre(doublon_probable="cvl-bovins-lait")
+        self.assertIn("cvl-bovins-lait", texte)
+        self.assertIn("ne crée pas un second fichier", texte)
+        self.assertIn("À trancher", texte)
+
+    def test_une_page_de_vulgarisation_envoie_chercher_le_reglement(self):
+        texte = self.rendre(source_unique_vulgarisation=True)
+        self.assertIn("règlement", texte)
+        self.assertIn("AVANT d'extraire", texte)
+
+    def test_les_faits_du_run_sont_listes(self):
+        """L'index du système est figé au démarrage : deux workers proposaient
+        le même fait à la même minute sans jamais se croiser."""
+        texte = self.rendre(faits_du_run=("gite_installe_dans_dependance", "jardin_remarquable"))
+        self.assertIn("gite_installe_dans_dependance", texte)
+        self.assertIn("jardin_remarquable", texte)
+        self.assertIn("ne les repropose pas", texte)
+
+    def test_les_faits_du_run_ne_touchent_pas_le_prompt_systeme(self):
+        """Le système fait 23 000 jetons : sa stabilité fait tenir le cache."""
+        load_facts.cache_clear()
+        load_pending_facts.cache_clear()
+        systeme = prompt_systeme(load_facts(), load_pending_facts())
+        self.assertNotIn("Faits proposés depuis le début de ce run", systeme)
 
 
 if __name__ == "__main__":

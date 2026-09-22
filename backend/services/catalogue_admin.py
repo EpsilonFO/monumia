@@ -46,6 +46,7 @@ from supabase import Client
 from aides_schema import (
     COMBINATOR_OPS,
     ENUM_FACT_TYPES,
+    FAIT_PORTEUR,
     OPTIONS_BOOLEEN_IMPLICITES,
     TYPES_A_OPTIONS,
     Aide,
@@ -59,8 +60,8 @@ from aides_schema import (
     load_pending_facts,
     predicate_leaves,
 )
+from eligibility_engine import conditions_porteur_derivees, engine_ready_aides
 from eligibility_engine import disponibilite as aide_disponibilite
-from eligibility_engine import engine_ready_aides
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +200,7 @@ class Catalogue:
         l'administration en a besoin, et un diagnostic n'a pas à payer le
         balayage du corpus parce que son tour est venu de rafraîchir le cache.
         Le calcul est ensuite gardé pour toute la durée de vie du catalogue."""
-        return construire_index(self.aides)
+        return construire_index(self.aides, self.facts)
 
 
 # ---------------------------------------------------------------------------
@@ -441,8 +442,20 @@ class IndexFaits:
     aides: dict[str, Aide]
 
 
-def construire_index(aides: Mapping[str, Aide]) -> IndexFaits:
+def construire_index(
+    aides: Mapping[str, Aide], facts: Mapping[str, FactDef] | None = None
+) -> IndexFaits:
+    """Quelles aides gatent quel fait, et lesquelles le CITENT dans un prédicat.
+
+    `facts` sert aux gates porteur DÉRIVÉS : depuis le 2026-09-21, une aide qui
+    gate un fait marqué `porteurs_concernes` est fermée aux autres porteurs sans
+    poser de gate explicite (cf. `eligibility_engine.conditions_porteur_derivees`).
+    Sans eux, `POST /admin/faits/statut_juridique_porteur/simuler` sous-déclare
+    ce que « Commune » écarte — et cet écran sert précisément à décider si l'on
+    peut retirer une réponse.
+    """
     ready = engine_ready_aides(dict(aides))
+    ontologie = dict(facts) if facts is not None else load_facts()
     gates: dict[str, dict[str, list[Condition]]] = {}
     cites: dict[str, dict[str, set[str]]] = {}
 
@@ -459,6 +472,11 @@ def construire_index(aides: Mapping[str, Aide]) -> IndexFaits:
                 conds = _gates_sur_fait(aide, fact_key)
                 if conds:
                     gates.setdefault(fact_key, {})[slug] = conds
+        if slug not in ready:
+            continue
+        derivees = [g for _origine, g in conditions_porteur_derivees(aide, ontologie)]
+        if derivees:
+            gates.setdefault(FAIT_PORTEUR, {}).setdefault(slug, []).extend(derivees)
 
     return IndexFaits(gates=gates, cites=cites, aides=dict(aides))
 

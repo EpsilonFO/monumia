@@ -435,6 +435,10 @@ def prompt_initial(
     famille: str | None = None,
     beneficiaires: str | None = None,
     note: str | None = None,
+    departements: tuple[str, ...] = (),
+    doublon_probable: str | None = None,
+    source_unique_vulgarisation: bool = False,
+    faits_du_run: tuple[str, ...] = (),
     existante: str | None = None,
     aide_reference: str | None = None,
 ) -> str:
@@ -444,6 +448,12 @@ def prompt_initial(
     donner sur une aide neuve inviterait le modèle à le recopier ; l'omettre
     sur une ré-extraction lui ferait perdre les conditions que la source ne
     porte plus mais que la review doit signaler.
+
+    `faits_du_run` est ici et NON dans le prompt système, et c'est délibéré :
+    le système pèse ~23 000 jetons, il est identique pour toutes les aides, et
+    c'est ce qui fait tenir le cache de préfixe du fournisseur — le premier
+    poste de dépense du pipeline. Y mettre une liste qui change à chaque aide
+    invaliderait le cache à chaque appel.
     """
     morceaux = [
         f"Ingère l'aide `{slug}`.",
@@ -461,9 +471,45 @@ def prompt_initial(
             "- Bénéficiaires lus à la prospection (à vérifier sur la source, à typer en gate "
             f"`{FAIT_PORTEUR}`) : {beneficiaires}"
         )
+    if departements:
+        morceaux.append(
+            f"- Départements couverts par ce guichet : {', '.join(departements)} — écris-les "
+            f"tous dans `hard_filters.departements: {list(departements)}`. Un seul fichier "
+            "pour le dispositif, pas un par département."
+        )
     if note:
         morceaux.append(f"- Note de prospection (indicative, à vérifier sur la source) : {note}")
+        morceaux.append(
+            "  Cette note dit À QUELLE CONDITION un propriétaire de monument est concerné. "
+            "Sauf si l'aide relève de `restauration_bati`, TRADUIS-LA en `applies_if` de "
+            "périmètre — une condition, branchée en premier, qui écarte l'aide quand le "
+            "projet n'est pas de ce type. C'est ce qui garde le questionnaire court malgré "
+            "la largeur thématique du catalogue."
+        )
+    if doublon_probable:
+        morceaux.append(
+            f"- ⚠ Doublon probable de `{doublon_probable}`. Si la source décrit bien le MÊME "
+            "dispositif, ne crée pas un second fichier : dis-le en tête de la fiche de "
+            "review sous « ⚠ À trancher », et arrête-toi là."
+        )
+    if source_unique_vulgarisation:
+        morceaux.append(
+            "- ⚠ Page de VULGARISATION : elle présente le dispositif sans en porter le "
+            "règlement. Cherche le règlement d'intervention ou le cadre d'intervention "
+            "(lien « règlement », « cadre d'intervention », « délibération ») et snapshote-le "
+            "AVANT d'extraire. Une condition tirée d'une page de présentation n'est pas "
+            "citable."
+        )
     morceaux.append(f"- Fichier à écrire : {atelier.relatif(atelier.yaml_path)}")
+
+    if faits_du_run:
+        morceaux += [
+            "",
+            "Faits proposés depuis le début de ce run (⏳ non approuvés, mais utilisables",
+            "TELS QUELS dans une condition `user_fact` — ne les repropose pas sous un autre",
+            "nom, c'est exactement comme ça que les doublons `_v2` sont nés) :",
+            *(f"  - {cle}" for cle in faits_du_run),
+        ]
 
     deja = atelier.snapshots()
     if deja:
@@ -590,6 +636,16 @@ def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None
     manière de la rendre évidente au modèle — le lint la refuse désormais, mais
     un refus arrive après coup, un gabarit avant.
 
+    Le MODULATEUR est venu en cinquième, le 2026-09-22, et c'est la cinquième
+    fois la même leçon. Il n'était qu'un bonus pondéré dans
+    `richesse_doctrinale` — exactement le montage qui avait échoué pour
+    `applies_if` — et la prime de préfixe territorial le dépassait : une fois le
+    catalogue réduit de 1079 à 547 aides, les treize slugs du Bas-Rhin ont tous
+    reçu le même gabarit sans un seul `modulateur`, parce qu'il était le plus
+    riche des 67 restants. Un gabarit sans modulateur n'enseigne pas la scission
+    d'un critère composite, et le modèle replie alors onze critères de sélection
+    en deux conditions `info` sans effet sur le diagnostic.
+
     À famille égale, la RICHESSE DOCTRINALE départage, parce qu'un gabarit
     pauvre enseigne la pauvreté (cf. `richesse_doctrinale`), avec une prime au
     même préfixe territorial (une aide du même financeur partage ses
@@ -621,6 +677,7 @@ def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None
             1 if aide.hard_filters.travaux else 0,
             1 if aide.familles else 0,
             1 if any(c.fact == FAIT_PORTEUR and c.effect == "gate" for c in aide.conditions) else 0,
+            1 if any(c.effect == "modulateur" for c in aide.conditions) else 0,
             note,
             autre,
         )

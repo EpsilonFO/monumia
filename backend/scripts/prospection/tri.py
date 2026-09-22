@@ -83,8 +83,11 @@ FAMILLES_DESCRIPTION: dict[str, str] = {
     ),
     "eau_nature_domaine": (
         "eau et sécheresse, cours d'eau et plans d'eau (moulins, douves, étangs), "
-        "biodiversité, Natura 2000, forêt, vergers, haies, agriculture ou viticulture "
-        "du domaine"
+        "biodiversité, Natura 2000, vergers, haies, mares — quand l'aide s'adresse aux "
+        "PROPRIÉTAIRES. Ni production agricole ou viticole, ni élevage, ni filière : ce "
+        "sont les aides d'un métier. NI LA FORÊT, entièrement écartée depuis le "
+        "2026-09-22 (sylviculture, boisement, desserte, filière bois) — le bois ÉNERGIE "
+        "qui chauffe un bâtiment relève d'energie_climat, pas d'ici"
     ),
     "securite_risques": (
         "catastrophes naturelles, inondations, incendie, foudre, sûreté, mise en sécurité"
@@ -96,15 +99,20 @@ FAMILLES_DESCRIPTION: dict[str, str] = {
     ),
     "activite_economique_lieu": (
         "reconversion et nouvel usage, tiers-lieux, commerce, artisanat ou ESS installés "
-        "dans le lieu, création ou reprise d'activité, prêts, garanties et chèques "
-        "mobilisables par l'exploitant du monument"
+        "dans le lieu : l'immobilier, l'aménagement et l'équipement du LIEU. Ni prêt "
+        "d'honneur, ni garantie, ni innovation, ni transmission, ni croissance TPE — un "
+        "château-hôtel est une PME, mais l'aide aux PME est l'aide d'un métier"
     ),
     "spectacles_manifestations": (
-        "festivals, saisons, résidences, manifestations accueillies dans le monument"
+        "le LIEU qui accueille : salle de diffusion, aménagement acoustique, résidence "
+        "dans le lieu, programmation portée par le propriétaire. Ni la compagnie, ni "
+        "l'artiste, ni le festival organisateur, ni la pratique amateur"
     ),
     "vie_locale_associative": (
-        "vie associative, fêtes et initiatives locales, mémoire, langues et cultures "
-        "régionales, coopération, dont une association d'amis du monument peut bénéficier"
+        "une association GESTIONNAIRE pour son lieu (locaux, investissement immobilier, "
+        "événement patrimonial dans le lieu), une commune pour son bâti, la mémoire "
+        "locale qu'elle porte. Ni le fonctionnement ni les activités des associations "
+        "en général, ni la formation des bénévoles, ni le sport"
     ),
     "mediation_numerique_expositions": (
         "signalétique, scénographie, numérique, expositions, publications, inventaire"
@@ -183,16 +191,26 @@ def prompt_systeme(
             "# Ta tâche\n\n"
             "Pour CHAQUE URL de la liste qui suit, rends une décision. Tu ne vois que\n"
             "le titre du lien et sa ligne de contexte : quand cela ne suffit pas pour\n"
-            "trancher, réponds `douteux` — la page sera ouverte et relue à l'étape\n"
-            "suivante. `douteux` est une réponse normale et peu coûteuse ; `ecarter`\n"
-            "à tort fait perdre une aide définitivement.\n\n"
+            "trancher, réponds `douteux` — la page sera ouverte et le test du\n"
+            "destinataire appliqué pour de bon à l'étape suivante. `douteux` est une\n"
+            "réponse normale et peu coûteuse ; `ecarter` à tort fait perdre une aide\n"
+            "définitivement.\n\n"
             "Quand le titre ET le contexte sont vides, tu ne sais RIEN de la page :\n"
             "`ecarter` est alors interdit, réponds `douteux`. Le code convertira de\n"
             "toute façon.\n\n"
-            "`ecarter` est réservé à ce qui n'a ABSOLUMENT rien à voir avec un\n"
-            "monument, son domaine, une activité qui s'y tient ou la structure qui le\n"
-            "porte : c'est une minorité des URL d'un guide régional. Devant un doute,\n"
-            "`douteux` ; devant une aide plausible sous UN cas d'usage, `retenir`.\n"
+            "À ce stade, `ecarter` est réservé à deux cas, et à eux seuls :\n"
+            "  - le titre NOMME un métier ou une activité tierce — « installation des\n"
+            "    jeunes agriculteurs », « aide aux compagnies professionnelles »,\n"
+            "    « prêt d'honneur création d'entreprise », « concours de pâtisserie »,\n"
+            "    « bourse d'écriture », « chorales et fanfares » : l'aide s'adresse à\n"
+            "    ce métier, pas au propriétaire d'un lieu ;\n"
+            "  - le titre montre que l'aide n'a ABSOLUMENT rien à voir avec un\n"
+            "    monument, son domaine, une activité qui s'y tient ou la structure qui\n"
+            "    le porte.\n\n"
+            "Pour tout le reste, `douteux` — y compris quand tu penses que la page\n"
+            "sera finalement écartée : c'est la lecture qui juge le destinataire, pas\n"
+            "toi. Ne réserve `retenir` qu'aux titres où le lieu ou son propriétaire\n"
+            "est manifestement le destinataire.\n"
             "Rends une entrée par URL, avec l'URL RECOPIÉE À L'IDENTIQUE.",
         ]
     )

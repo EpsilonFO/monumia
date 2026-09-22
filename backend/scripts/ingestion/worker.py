@@ -39,10 +39,12 @@ from pipeline.llm import Compteur, client_pour
 from pipeline.web import Fetcheur
 
 from aides_schema import AIDES_DIR, FactDef, load_aide, load_facts, load_pending_facts
+from labels import FAMILLES_LABELS
 
 from .atelier import Atelier, atelier_redirige, atelier_standard
-from .boucle import Journal, JournalMuet, Limites, Resultat, executer
+from .boucle import Journal, JournalMuet, Limites, Resultat, classe_erreur, executer
 from .contexte import choisir_aide_reference, prompt_initial, prompt_systeme
+from .faits import MAX_FAITS_PAR_AIDE
 from .outils import MIN_CAR_REVIEW, EtatOutils, outils_pour
 
 
@@ -91,6 +93,11 @@ class ContextePartage:
     systeme: str
     facts: dict[str, FactDef]
     pending: dict[str, FactDef]
+    #: Les faits proposés AVANT le run. Ce qui s'y ajoute ensuite est le fait
+    #: d'un worker de ce run, et c'est précisément ce que les autres doivent
+    #: voir : l'index du prompt système est figé au démarrage, donc deux workers
+    #: proposaient le même fait à la même minute sans jamais se croiser.
+    pending_initial: frozenset[str] = frozenset()
 
     @classmethod
     def construire(cls, atelier: Atelier) -> ContextePartage:
@@ -98,7 +105,22 @@ class ContextePartage:
         load_pending_facts.cache_clear()
         facts = dict(load_facts(atelier.facts_path))
         pending = dict(load_pending_facts(atelier.pending_path))
-        return cls(systeme=prompt_systeme(facts, pending), facts=facts, pending=pending)
+        return cls(
+            systeme=prompt_systeme(facts, pending),
+            facts=facts,
+            pending=pending,
+            pending_initial=frozenset(pending),
+        )
+
+    def faits_du_run(self) -> tuple[str, ...]:
+        """Les faits nés PENDANT ce run, à rappeler dans le message initial.
+
+        Dans le message initial et non dans le système : celui-ci pèse
+        ~23 000 jetons et sa stabilité fait tenir le cache de préfixe du
+        fournisseur, le premier poste de dépense du pipeline. Une liste qui
+        change à chaque aide l'invaliderait à chaque appel.
+        """
+        return tuple(sorted(set(self.pending) - self.pending_initial))
 
 
 @dataclass
@@ -122,6 +144,21 @@ class ResultatIngestion:
     controles_rates: list[str] = field(default_factory=list)
     #: « +N question(s) de tronc (profil) », vide si l'aide n'en fait entrer aucune.
     cout_questions: str = ""
+    #: Une panne du fournisseur, qui n'a rien écrit et n'a rien coûté : la
+    #: tâche redevient `valide` et repartira au prochain passage. C'est le
+    #: 2026-09-18 qui l'impose — 351 tâches passées `echec` définitif pour une
+    #: coupure réseau et un solde OpenRouter à zéro.
+    echec_transitoire: bool = False
+    #: Une clé invalide, un modèle inconnu : rejouer n'y changerait rien, et le
+    #: run entier doit s'arrêter plutôt que de brûler 900 tâches sur la même
+    #: erreur (55 `AuthError` dans les journaux du 2026-09-18).
+    echec_fatal: bool = False
+    #: Posé par `ecrire_review` quand la fiche a été écrite au plafond de
+    #: vérifications, bloquants non re-vérifiés : c'est la liste de relecture.
+    a_relire: bool = False
+    #: (catégorie, motif) quand l'agent a écarté l'aide après lecture de sa
+    #: source. La tâche passe `ignore` et ne revient plus.
+    hors_perimetre: tuple[str, str] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -215,8 +252,22 @@ def cout_en_questions(atelier: Atelier) -> CoutQuestions:
 
 
 def controler(atelier: Atelier, resultat: Resultat, etat: EtatOutils) -> list[str]:
-    """La liste (vide si tout va bien) de ce qui interdit d'accepter l'ingestion."""
+    """La liste (vide si tout va bien) de ce qui interdit d'accepter l'ingestion.
+
+    Un `declarer_hors_perimetre` n'en fait PAS partie : l'agent a lu la source,
+    constaté qu'elle s'adresse à un tiers, écrit sa fiche et n'a produit aucun
+    YAML. Le traiter comme « aucun fichier écrit » rangerait en `echec` une aide
+    correctement écartée, et le balayage suivant la re-proposerait.
+    """
     echecs: list[str] = []
+
+    if etat.hors_perimetre is not None:
+        if atelier.yaml_path.exists():
+            return [
+                "hors périmètre déclaré MAIS un YAML a été écrit — les deux se "
+                "contredisent ; retirer le fichier ou retirer la déclaration"
+            ]
+        return []
 
     if not atelier.yaml_path.exists():
         return ["aucun fichier YAML écrit"]
@@ -231,6 +282,7 @@ def controler(atelier: Atelier, resultat: Resultat, etat: EtatOutils) -> list[st
         aides_dir=atelier.aides_dir,
         facts_path=atelier.facts_path,
         pending_path=atelier.pending_path,
+        faits_du_run=tuple(etat.faits_proposes),
     )
     if not rapport.ok:
         echecs.append("lint rouge : " + " ; ".join(rapport.erreurs[:5]))
@@ -248,6 +300,31 @@ def controler(atelier: Atelier, resultat: Resultat, etat: EtatOutils) -> list[st
 
     if etat.verification is None:
         echecs.append("vérification adversariale jamais lancée")
+
+    # F1 — deux contrôles de SORTIE, tous deux mesurés sur le lot du 2026-09-18.
+    #
+    # Le plafond de faits est déjà opposé à l'écriture (`faits.proposer`) ; ce
+    # second contrôle attrape le cas où l'agent a proposé sous le plafond puis
+    # contourné, et surtout il rend le plafond visible dans le motif d'échec.
+    if len(etat.faits_proposes) > MAX_FAITS_PAR_AIDE:
+        echecs.append(
+            f"{len(etat.faits_proposes)} faits neufs proposés ({MAX_FAITS_PAR_AIDE} au "
+            f"maximum) : {', '.join(etat.faits_proposes)}"
+        )
+
+    # `familles` vide sur 114 aides du lot : elles sont visibles pour TOUT
+    # projet, parce que le filtrage par famille est fail-open. La liste fermée
+    # est assez large (13 valeurs, dont `adjacente`) pour qu'un vide soit une
+    # omission et non un cas légitime.
+    try:
+        aide = load_aide(atelier.yaml_path)
+    except Exception:  # noqa: BLE001 — déjà signalé plus haut
+        aide = None
+    if aide is not None and not aide.familles:
+        echecs.append(
+            "`familles` vide — fail-open : l'aide serait proposée pour tout projet. "
+            f"Au moins une famille parmi {', '.join(sorted(FAMILLES_LABELS))}"
+        )
 
     return echecs
 
@@ -342,7 +419,11 @@ def ingerer_aide(
             territoire=tache.territoire,
             famille=tache.famille,
             beneficiaires=tache.beneficiaires,
-            note=None,
+            note=tache.note,
+            departements=tuple(tache.departements),
+            doublon_probable=tache.doublon_probable,
+            source_unique_vulgarisation=tache.source_unique_vulgarisation,
+            faits_du_run=contexte.faits_du_run(),
             existante=existante,
             aide_reference=reference[1] if reference else None,
         )
@@ -366,6 +447,16 @@ def ingerer_aide(
         if cout.bloc:
             with atelier.review_path.open("a", encoding="utf-8") as fichier:
                 fichier.write(cout.bloc)
+        # Calculés AVANT `_mettre_en_echec`, qui renomme le YAML : le critère
+        # porte sur « aucun fichier n'a été écrit », et après le renommage la
+        # distinction serait perdue.
+        aide_ecrite = atelier.yaml_path.exists()
+        transitoire = (
+            resultat.arret == "erreur_modele"
+            and resultat.classe_erreur == "transitoire"
+            and not aide_ecrite
+        )
+        fatal = resultat.classe_erreur == "fatal"
         if echecs:
             _mettre_en_echec(atelier, " ; ".join(echecs))
             journal.evenement("ÉCHEC : " + " ; ".join(echecs))
@@ -393,9 +484,22 @@ def ingerer_aide(
             bloquants=bloquants,
             controles_rates=echecs,
             cout_questions=cout.resume,
+            echec_transitoire=transitoire,
+            echec_fatal=fatal,
+            a_relire=etat.a_relire,
+            hors_perimetre=(
+                (etat.hors_perimetre.categorie, etat.hors_perimetre.motif)
+                if etat.hors_perimetre
+                else None
+            ),
         )
     except Exception as exc:  # noqa: BLE001 — un worker ne fait jamais tomber le run
         journal.evenement("EXCEPTION : " + traceback.format_exc())
+        # Une panne réseau peut aussi frapper HORS de la boucle d'agent — au
+        # chargement du contexte, au snapshot d'une source. Le verdict est le
+        # même : la tâche n'a rien écrit, elle repartira.
+        classe = classe_erreur(exc)
+        aide_ecrite = atelier.yaml_path.exists()
         _mettre_en_echec(atelier, f"exception : {exc}")
         return ResultatIngestion(
             slug=slug,
@@ -409,6 +513,8 @@ def ingerer_aide(
             debut=debut,
             fin=datetime.now(UTC).isoformat(timespec="seconds"),
             motif_echec=f"{type(exc).__name__}: {exc}",
+            echec_transitoire=classe == "transitoire" and not aide_ecrite,
+            echec_fatal=classe == "fatal",
         )
     finally:
         if compteur is not None:

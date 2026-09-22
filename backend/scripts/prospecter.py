@@ -47,13 +47,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ingestion import orchestrateur
 from ingestion.boucle import Limites
-from pipeline.etat import FILE_ATTENTE, PROSPECTION_DIR, charger, mettre_a_jour
+from pipeline.etat import (
+    FILE_ATTENTE,
+    PROSPECTION_DIR,
+    charger,
+    mettre_a_jour,
+    motif_non_promotion,
+    promouvables,
+)
 from pipeline.etat import fusionner as fusionner_etat
 from pipeline.llm import Compteur, charger_env, client_pour, resolution_pour
 from pipeline.web import Fetcheur
 from prospection import collecte as collecte_mod
 from prospection import fiche as fiche_mod
 from prospection import lecture as lecture_mod
+from prospection import requalification
 from prospection import tri as tri_mod
 from prospection.annuaire import sites_departementaux
 from prospection.territoires import (
@@ -259,9 +267,77 @@ DEPUIS_NOMME: tuple[str, ...] = ("a_valider", "ignore", "valide")
 DEPUIS_TOUT: tuple[str, ...] = ("a_valider",)
 
 
+def _lister_restantes(etat: dict, territoire: str) -> int:
+    """`valider <territoire>` sans slug : ce qui attend, et pourquoi.
+
+    C'est le point de contrôle humain rendu praticable. Une liste de 140 slugs
+    sans motif ne se relit pas ; avec le motif en face, l'arbitrage se fait à
+    l'œil.
+    """
+    restantes = {
+        slug: motif_non_promotion(t)
+        for slug, t in sorted(etat.items())
+        if t.territoire == territoire and t.statut == "a_valider"
+    }
+    if not restantes:
+        print(f"Aucune candidate `a_valider` pour {territoire}.")
+        return 0
+    pretes = [s for s, m in restantes.items() if m is None]
+    largeur = max(len(s) for s in restantes)
+    print(f"{len(restantes)} candidate(s) `a_valider` pour {territoire} :\n")
+    for slug, motif in restantes.items():
+        tache = etat[slug]
+        marque = "✓" if motif is None else " "
+        print(
+            f"{marque} {slug.ljust(largeur)}  {(tache.famille or '—'):<32} "
+            f"{tache.destinataire:<26} {tache.objet:<22} {tache.titre[:60]}"
+        )
+        if motif is not None:
+            print(f"  {' ' * largeur}  → {motif}")
+        if tache.note:
+            print(f"  {' ' * largeur}    « {tache.note[:140]} »")
+        print(f"  {' ' * largeur}    {tache.url}")
+    print(
+        f"\n{len(pretes)} passerai(en)t le test du destinataire (✓), "
+        f"{len(restantes) - len(pretes)} demande(nt) un arbitrage."
+    )
+    print(
+        f"\n  prospecter.py valider {territoire} --tout        "
+        "(les ✓ seulement)\n"
+        f"  prospecter.py valider {territoire} <slug> [<slug>…]  "
+        "(un arbitrage nommé, quel que soit son motif)"
+    )
+    return 0
+
+
 def _transitionner(args: argparse.Namespace, vers: str) -> int:
     etat = charger(args.etat)
+    if vers == "valide" and not args.slugs and not args.tout:
+        return _lister_restantes(etat, args.territoire)
     depuis = DEPUIS_TOUT if args.tout else DEPUIS_NOMME
+    if args.tout and vers == "valide" and not getattr(args, "sans_filtre", False):
+        # `--tout` applique désormais le test du destinataire : c'est ce qui a
+        # manqué au balayage du 2026-09-18, où 140 candidates `adjacente` et 5
+        # `hors_perimetre` sont passées en `valide` avec les autres. Nommer un
+        # slug reste un geste délibéré et n'est jamais filtré.
+        candidats = [s for s, t in etat.items() if t.territoire == args.territoire]
+        cibles = promouvables(etat, candidats)
+        ecartes = [s for s in candidats if s not in cibles and etat[s].statut == "a_valider"]
+        if ecartes:
+            print(
+                f"  {len(ecartes)} candidate(s) laissée(s) en `a_valider` par le test du "
+                f"destinataire — `prospecter.py valider {args.territoire}` les liste."
+            )
+        for slug in cibles:
+            mettre_a_jour(args.etat, slug, statut=vers)
+            print(f"  {slug} → {vers}")
+        print(f"{len(cibles)} aide(s) passée(s) en `{vers}`.")
+        if cibles:
+            print(
+                "\nIngérer : uv run python scripts/ingerer.py --file-attente "
+                f"--territoire {args.territoire}"
+            )
+        return 0
     cibles = [
         slug
         for slug, t in etat.items()
@@ -500,6 +576,13 @@ def _parseur_transition(verbe: str) -> argparse.ArgumentParser:
         help="toutes les candidates `a_valider` (jamais celles déjà ignorées : "
         "pour revenir sur un `ignorer`, nommer le slug)",
     )
+    if verbe == "valider":
+        p.add_argument(
+            "--sans-filtre",
+            action="store_true",
+            help="avec --tout : promouvoir SANS appliquer le test du destinataire "
+            "(ancien comportement, pour une file relue à la main)",
+        )
     _options_communes(p)
     return p
 
@@ -508,6 +591,127 @@ def _parseur_comparer() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="prospecter.py comparer")
     p.add_argument("territoire")
     p.add_argument("fichier", type=Path, help="liste d'URL externe, une par ligne")
+    _options_communes(p)
+    return p
+
+
+def cmd_requalifier(args: argparse.Namespace) -> int:
+    """Applique le test du destinataire à des aides DÉJÀ ingérées. Écrit une FICHE.
+
+    Ne renomme rien : c'est l'utilisateur qui valide la liste, et les
+    renommages viennent après. 643 aides sont entrées dans la nuit du
+    2026-09-18 sans qu'aucun humain ne s'interpose entre le tri et l'écriture
+    des YAML — refaire la même chose à l'envers n'aurait aucun sens.
+    """
+    from prospection import requalification as requal
+
+    if args.appliquer:
+        ecarts = requal.parser_ecarts(args.appliquer.read_text(encoding="utf-8"))
+        if not ecarts:
+            print(f"Aucun slug à écarter dans {args.appliquer}.")
+            return 0
+        rapport_a = requal.appliquer(ecarts, etat_path=args.etat, ecrire=True)
+        print(rapport_a.texte())
+        if not rapport_a.ok:
+            print("\nRien n'a été écrit.")
+            return 1
+        print("\nLes écartées sont en `.yaml.echec` — rien n'est supprimé, le")
+        print("renommage inverse suffit à en rappeler une.")
+        print("Faits proposés devenus orphelins :")
+        print("  uv run python scripts/retyper_faits.py --retirer-orphelins --dry-run")
+        print("Puis, à la main (cf. « Interdits absolus » de CLAUDE.md) :")
+        print("  uv run python scripts/lint_aides_data.py")
+        print("  git add -A && git commit")
+        print("  uv run python scripts/load_aides_yaml.py")
+        return 0
+
+    aides = load_all_aides()
+    if args.catalogue:
+        vises = dict(aides)
+        nom = "catalogue"
+    elif args.lot:
+        slugs = requal.slugs_du_fichier(args.lot)
+        inconnus = [s for s in slugs if s not in aides]
+        for slug in inconnus:
+            print(f"  slug inconnu du catalogue, ignoré : {slug}")
+        vises = {s: aides[s] for s in slugs if s in aides}
+        nom = args.lot.stem
+    else:
+        etat = charger(args.etat)
+        slugs = [s for s, t in etat.items() if t.territoire in args.territoire and s in aides]
+        vises = {s: aides[s] for s in slugs}
+        nom = "-".join(args.territoire)
+    if not vises:
+        print("Aucune aide à requalifier.")
+        return 0
+
+    compteur = Compteur()
+    # Rôle `lecture` : la requalification EST la lecture, appliquée au YAML
+    # d'une aide déjà ingérée plutôt qu'à sa page. Même consigne, même
+    # jugement, donc même modèle — lui donner un rôle à part obligerait à
+    # régler une septième variable d'environnement pour rien.
+    client = client_pour("lecture", args.model_requalification)
+    # `univers` = tout le catalogue : un slug court ne doit pas hériter de la
+    # fiche d'un slug plus long qui le contient (cf. `reviews_de`).
+    reviews = requal.reviews_de(list(vises), REVIEWS_DIR, univers=list(aides))
+    print(f"{len(vises)} aide(s) à relire, {len(reviews)} fiche(s) de review trouvée(s)")
+    print(f"modèle : {client.model}, {args.parallele} en parallèle\n")
+
+    def progression(i: int, total: int, verdict) -> None:
+        if i % 25 == 0 or i == total:
+            print(f"  [{i}/{total}] {compteur.resume()}", flush=True)
+
+    rapport = requal.requalifier(
+        vises,
+        client,
+        reviews=reviews,
+        compteur=compteur,
+        progression=progression,
+        parallele=args.parallele,
+    )
+    rapport.cout = compteur.resume()
+
+    jour = date.today()
+    cible = args.sortie or (REVIEWS_DIR / f"{jour.isoformat()}-tri-{nom}.md")
+    cible.parent.mkdir(parents=True, exist_ok=True)
+    cible.write_text(requal.rendre_fiche(rapport, nom=nom, jour=jour), encoding="utf-8")
+    for sort, libelle in (
+        ("retenir", "retenues"),
+        ("ecarter", "à écarter"),
+        ("indetermine", "à trancher"),
+        ("erreur", "non jugées"),
+    ):
+        print(f"  {len(rapport.par_sort(sort)):4d} {libelle}")
+    print(f"\nFiche écrite : {cible}")
+    print("RIEN n'a été renommé. Relire et corriger le bloc « Slugs à écarter »")
+    print("(retirer une ligne = garder l'aide), puis :")
+    print(f"  uv run python scripts/prospecter.py requalifier --appliquer {cible}")
+    return 0
+
+
+def _parseur_requalifier() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="prospecter.py requalifier")
+    cible = p.add_mutually_exclusive_group(required=True)
+    cible.add_argument(
+        "--appliquer",
+        type=Path,
+        metavar="FICHE",
+        help="appliquer une fiche relue : renomme les écartées en `.yaml.echec`",
+    )
+    cible.add_argument("--lot", type=Path, help="fichier de slugs, un par ligne")
+    cible.add_argument("--territoire", action="append", default=[], help="tout un territoire")
+    cible.add_argument("--catalogue", action="store_true", help="TOUT le catalogue")
+    p.add_argument("--sortie", type=Path, help="chemin de la fiche produite")
+    p.add_argument(
+        "--model-requalification",
+        help="modèle à utiliser (défaut : LLM_MODEL_LECTURE, le même qu'à la lecture)",
+    )
+    p.add_argument(
+        "--parallele",
+        type=int,
+        default=requalification.PARALLELE_DEFAUT,
+        help=f"aides jugées en même temps (défaut : {requalification.PARALLELE_DEFAUT})",
+    )
     _options_communes(p)
     return p
 
@@ -525,6 +729,7 @@ SOUS_COMMANDES = {
     "valider": (lambda: _parseur_transition("valider"), lambda a: _transitionner(a, "valide")),
     "ignorer": (lambda: _parseur_transition("ignorer"), lambda a: _transitionner(a, "ignore")),
     "comparer": (_parseur_comparer, cmd_comparer),
+    "requalifier": (_parseur_requalifier, cmd_requalifier),
     "deviner-sites": (_parseur_deviner, cmd_deviner_sites),
 }
 
@@ -592,12 +797,18 @@ def _enchainer(args: argparse.Namespace, cles: list[str]) -> int:
     from ingestion.worker import ConfigIngestion
 
     etat = charger(args.etat)
-    a_valider = [
-        slug for slug, t in etat.items() if t.territoire in cles and t.statut == "a_valider"
-    ]
+    candidats = [slug for slug, t in etat.items() if t.territoire in cles]
+    a_valider = promouvables(etat, candidats)
+    laissees = [s for s in candidats if s not in a_valider and etat[s].statut == "a_valider"]
     for slug in a_valider:
         mettre_a_jour(args.etat, slug, statut="valide")
     print(f"\n--auto : {len(a_valider)} candidate(s) validée(s) sans relecture")
+    if laissees:
+        print(
+            f"         {len(laissees)} laissée(s) en `a_valider` par le test du "
+            "destinataire ou faute de famille — elles ne sont pas perdues, "
+            "`prospecter.py valider <territoire>` les liste."
+        )
     if not a_valider:
         return 0
     config = ConfigIngestion(

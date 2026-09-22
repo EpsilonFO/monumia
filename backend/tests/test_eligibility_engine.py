@@ -2960,3 +2960,250 @@ class TestPertinentSi(unittest.TestCase):
             if c.fact == "anciennete_achevement_travaux_ans" and c.applies_if is not None
         )
         self.assertEqual(recopies, [])
+
+
+class TestPorteursConcernesDerive(unittest.TestCase):
+    """Le marqueur `porteurs_concernes` rendu EXÉCUTABLE (2026-09-21).
+
+    Un fait marqué `[societe, entreprise_individuelle]` dit que la question n'a
+    de sens que pour ces porteurs-là. C'était une contrainte de LINT : l'aide
+    devait poser en plus un gate `statut_juridique_porteur`, faute de quoi le
+    lint sortait rouge. La règle a produit l'inverse de son but — quand la
+    source ne nomme pas ses bénéficiaires, le modèle inventait le gate, le
+    vérificateur le contestait, et le modèle le maintenait « parce que le lint
+    l'exige » : 580 aides sur 643 en portaient un, 13 conditions étiquetées
+    « NON SOURCÉ ».
+
+    Le moteur applique désormais le marqueur lui-même. Deux propriétés
+    gouvernent tout ce qui suit :
+
+      - un gate porteur EXPLICITE a précédence sur la dérivation. Mesuré : 138
+        aides du corpus ont un gate plus large que le marqueur d'un fait
+        qu'elles gatent, dont 31 qui admettent `public_commune`. Les cumuler
+        refuserait une commune que la source admet noir sur blanc ;
+      - fail-closed : un porteur INCONNU ne refuse jamais. Il pose sa question,
+        et la condition reste une incertitude.
+    """
+
+    PORTEUR = "statut_juridique_porteur"
+    FAIT = "fixture_effectif_salarie"
+
+    def _facts(self, marqueur=("societe", "entreprise_individuelle")) -> dict[str, FactDef]:
+        return {
+            **FACTS,
+            self.FAIT: FactDef.model_validate(
+                {
+                    "type": "integer",
+                    "scope": "proprietaire",
+                    "unit": "salariés",
+                    "question": "Combien de salariés compte la structure ?",
+                    **({"porteurs_concernes": list(marqueur)} if marqueur else {}),
+                }
+            ),
+        }
+
+    GATE_MARQUE = {
+        "id": "effectif",
+        "text": "La structure compte moins de 250 salariés.",
+        "kind": "user_fact",
+        "effect": "gate",
+        "fact": FAIT,
+        "predicate": {"lte": 250},
+    }
+    GATE_PORTEUR = {
+        "id": "porteur-eligible",
+        "text": "Sont éligibles les sociétés et les communes.",
+        "kind": "user_fact",
+        "effect": "gate",
+        "fact": PORTEUR,
+        "predicate": {"in": ["societe", "public_commune"]},
+    }
+
+    def _run(self, answers=None, conditions=None, facts=None, slug="fx-pme"):
+        aide = _fixture_aide(conditions or [self.GATE_MARQUE], slug=slug)
+        return run_deterministic_diagnostic(
+            {aide.slug: aide}, facts or self._facts(), _monument(), 3000, answers
+        )
+
+    SEAUX = {
+        "eligibles": "aidesEligibles",
+        "potentielles": "aidesPotentiellementEligibles",
+        "atteignables": "aidesAtteignables",
+        "non_eligibles": "aidesNonEligibles",
+    }
+
+    def _verdict(self, res, slug="fx-pme") -> dict:
+        for seau, cle in self.SEAUX.items():
+            for m in res.get(cle, []):
+                if m["aide"]["id"] == slug:
+                    return {**m, "_seau": seau}
+        raise AssertionError(f"{slug} absente des quatre seaux")
+
+    def _questions(self, res) -> list[str]:
+        return [q["id"] for q in res["qcmQuestions"]]
+
+    # --- le refus -----------------------------------------------------------
+
+    def test_une_commune_est_ecartee_sans_que_la_question_soit_posee(self):
+        """Le cœur de la mesure : 10 questions d'entreprise posées à une commune."""
+        res = self._run({self.PORTEUR: "public_commune"})
+        verdict = self._verdict(res)
+        self.assertEqual(verdict["_seau"], "non_eligibles")
+        self.assertNotIn(self.FAIT, self._questions(res))
+
+    def test_le_refus_nomme_les_porteurs_concernes(self):
+        res = self._run({self.PORTEUR: "public_commune"})
+        evaluations = self._verdict(res)["llmEvaluation"]["evaluations"]
+        refus = [e for e in evaluations if e["verdict"] == "non"]
+        self.assertEqual(len(refus), 1, refus)
+        self.assertIn("Réservé aux porteurs", refus[0]["explication"])
+        self.assertIn("societe", refus[0]["explication"])
+
+    def test_une_societe_se_voit_poser_la_question(self):
+        res = self._run({self.PORTEUR: "societe"})
+        self.assertIn(self.FAIT, self._questions(res))
+        self.assertEqual(self._verdict(res)["_seau"], "potentielles")
+
+    # --- le porteur inconnu -------------------------------------------------
+
+    def test_porteur_inconnu_pose_la_question_du_porteur_avant_le_fait(self):
+        res = self._run()
+        questions = self._questions(res)
+        self.assertIn(self.PORTEUR, questions)
+        self.assertLess(questions.index(self.PORTEUR), questions.index(self.FAIT))
+
+    def test_la_question_du_porteur_elimine_exactement(self):
+        """`eliminationsParOption` doit refléter le moteur, sinon le front élague
+        un questionnaire dont l'aide revient avec des critères jamais posés."""
+        res = self._run()
+        question = next(q for q in res["qcmQuestions"] if q["id"] == self.PORTEUR)
+        elim = question["eliminationsParOption"]
+        self.assertIn("fx-pme", elim.get("public_commune", []))
+        self.assertNotIn("fx-pme", elim.get("societe", []))
+
+    def test_le_fait_repondu_mais_le_porteur_inconnu_reste_une_incertitude(self):
+        """Sans quoi une aide d'entreprise serait « éligible » avant qu'on sache
+        si elle s'adresse à ce porteur."""
+        res = self._run({self.FAIT: 12})
+        verdict = self._verdict(res)
+        self.assertEqual(verdict["_seau"], "potentielles")
+        # Le fait est tranché : on ne le repose pas.
+        self.assertNotIn(self.FAIT, self._questions(res))
+        self.assertIn(self.PORTEUR, self._questions(res))
+
+    # --- la précédence du gate explicite ------------------------------------
+
+    def test_un_gate_explicite_plus_large_laisse_passer_la_commune(self):
+        """138 aides du corpus, dont 31 admettant `public_commune`. La source a
+        raison contre le marqueur — un cumul strict refuserait ce qu'elle admet."""
+        res = self._run(
+            {self.PORTEUR: "public_commune"},
+            conditions=[self.GATE_MARQUE, self.GATE_PORTEUR],
+        )
+        self.assertEqual(self._verdict(res)["_seau"], "potentielles")
+        self.assertIn(self.FAIT, self._questions(res))
+
+    def test_un_gate_explicite_refuse_ce_quil_exclut(self):
+        res = self._run(
+            {self.PORTEUR: "association"},
+            conditions=[self.GATE_MARQUE, self.GATE_PORTEUR],
+        )
+        self.assertEqual(self._verdict(res)["_seau"], "non_eligibles")
+
+    def test_un_applies_if_daide_sur_le_porteur_desarme_aussi_la_derivation(self):
+        aide = Aide.model_validate(
+            {
+                "slug": "fx-pme",
+                "nom": "Fixture",
+                "organisme": "Org",
+                "categorie": "region",
+                "type": "subvention",
+                "description": "d",
+                "conditions": [self.GATE_MARQUE],
+                "applies_if": {
+                    "fact": self.PORTEUR,
+                    "predicate": {"in": ["societe", "public_commune"]},
+                },
+            }
+        )
+        res = run_deterministic_diagnostic(
+            {aide.slug: aide},
+            self._facts(),
+            _monument(),
+            3000,
+            {self.PORTEUR: "public_commune"},
+        )
+        self.assertEqual(self._verdict(res)["_seau"], "potentielles")
+
+    # --- ce que la dérivation ne fait PAS ------------------------------------
+
+    def test_un_fait_sans_marqueur_est_inchange(self):
+        res = self._run({self.PORTEUR: "public_commune"}, facts=self._facts(marqueur=()))
+        self.assertEqual(self._verdict(res)["_seau"], "potentielles")
+        self.assertIn(self.FAIT, self._questions(res))
+
+    def test_une_condition_info_sur_un_fait_marque_nelimine_rien(self):
+        """`effect: info` ne trie personne : elle ne doit pas fermer l'aide."""
+        info = {**self.GATE_MARQUE, "effect": "info"}
+        res = self._run({self.PORTEUR: "public_commune"}, conditions=[info])
+        self.assertNotEqual(self._verdict(res)["_seau"], "non_eligibles")
+
+    def test_un_refus_de_porteur_nest_pas_atteignable_meme_avec_un_levier(self):
+        """Un levier dit « faites cette démarche » ; changer de forme juridique
+        pour toucher une aide n'en est pas une."""
+        facts = self._facts()
+        facts[self.FAIT] = FactDef.model_validate(
+            {
+                **facts[self.FAIT].model_dump(exclude_none=True),
+                "levier": {
+                    "resume": "Créer une société d'exploitation",
+                    "demarche": "Voir un notaire",
+                },
+            }
+        )
+        res = self._run({self.PORTEUR: "public_commune"}, facts=facts)
+        self.assertEqual(self._verdict(res)["_seau"], "non_eligibles")
+
+    def test_deux_faits_marques_ne_font_quune_question(self):
+        facts = self._facts()
+        facts["fixture_ca_annuel"] = FactDef.model_validate(
+            {
+                "type": "integer",
+                "scope": "proprietaire",
+                "unit": "€",
+                "question": "Quel est le chiffre d'affaires annuel ?",
+                "porteurs_concernes": ["societe"],
+            }
+        )
+        second = {
+            "id": "ca",
+            "text": "Le chiffre d'affaires est inférieur à 50 M€.",
+            "kind": "user_fact",
+            "effect": "gate",
+            "fact": "fixture_ca_annuel",
+            "predicate": {"lte": 50_000_000},
+        }
+        res = self._run(conditions=[self.GATE_MARQUE, second], facts=facts)
+        self.assertEqual(self._questions(res).count(self.PORTEUR), 1)
+        question = next(q for q in res["qcmQuestions"] if q["id"] == self.PORTEUR)
+        # Élimination = UNION des deux marqueurs : `entreprise_individuelle`
+        # échoue sur le second, `public_commune` sur les deux.
+        self.assertIn("fx-pme", question["eliminationsParOption"].get("public_commune", []))
+        self.assertIn(
+            "fx-pme", question["eliminationsParOption"].get("entreprise_individuelle", [])
+        )
+        self.assertNotIn("fx-pme", question["eliminationsParOption"].get("societe", []))
+
+    # --- le corpus ----------------------------------------------------------
+
+    def test_corpus_aucune_option_de_marqueur_nest_inconnue(self):
+        """Devenu CRITIQUE avec la dérivation : `{in: [<option inconnue>]}` est
+        faux pour tout le monde, et l'aide devient inaccessible à tous."""
+        porteur = FACTS.get(self.PORTEUR)
+        assert porteur is not None
+        connues = {o.id for o in porteur.options or []}
+        for cle, fait in FACTS.items():
+            if not fait.porteurs_concernes:
+                continue
+            with self.subTest(fait=cle):
+                self.assertEqual(set(fait.porteurs_concernes) - connues, set())

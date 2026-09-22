@@ -17,6 +17,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+import unittest.mock
 import zipfile
 from datetime import date
 from pathlib import Path
@@ -27,8 +28,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import veille_collect  # noqa: E402
+from ingestion import outils as outils_module  # noqa: E402
 from ingestion.atelier import atelier_redirige, restaurer_sources  # noqa: E402
-from ingestion.outils import outils_pour, passage_le_plus_proche  # noqa: E402
+from ingestion.outils import (  # noqa: E402
+    MAX_VERIFICATIONS,
+    outils_pour,
+    passage_le_plus_proche,
+)
+from ingestion.verification import Probleme, RapportVerification  # noqa: E402
 from pipeline.web import Fetcheur, reinitialiser_delais  # noqa: E402
 
 from aides_schema import FactDef, load_facts, load_pending_facts  # noqa: E402
@@ -363,7 +370,7 @@ class TestLintEtReview(BaseOutils):
         self.assertIn("Fiche écrite", self.appeler("ecrire_review", markdown=texte))
 
         # Une vérification a eu lieu, puis l'aide a changé : la fiche est refusée.
-        self.etat.verification = object()  # type: ignore[assignment]
+        self.etat.verification = RapportVerification()
         self.appeler("ecrire_aide", yaml_texte=yaml_texte)
         self.assertTrue(self.etat.modifiee_depuis_verification)
         sortie = self.appeler("ecrire_review", markdown=texte)
@@ -392,9 +399,144 @@ class TestLintEtReview(BaseOutils):
         self.assertIn("verification_adversariale", sortie)
         self.assertFalse(etat.review_ecrite)
 
-        etat.verification = object()  # type: ignore[assignment]
+        etat.verification = RapportVerification()
         self.assertIn("Fiche écrite", table["ecrire_review"].run({"markdown": texte}))
         self.assertTrue(etat.review_ecrite)
+
+    def test_la_quatrieme_verification_est_refusee_sans_appel(self):
+        """2 442 passages sur 695 aides, record 14, pour un skill qui dit « UNE fois ».
+
+        Le refus se fait SANS appeler le modèle : compter ce passage-là
+        coûterait précisément ce qu'on veut éviter.
+        """
+        appels = {"n": 0}
+
+        def verifier_factice(atelier, client, *, aide, compteur=None, precedents=()):
+            appels["n"] += 1
+            return RapportVerification(), "rapport"
+
+        self.appeler("snapshotter", url="https://example.org/aide")
+        chemin = self.atelier.relatif(self.atelier.snapshots()[0])
+        outils, etat = outils_pour(
+            self.atelier,
+            facts=dict(self.facts),
+            pending=self.pending,
+            fetcheur=self.fetcheur,
+            client_verif=object(),  # type: ignore[arg-type]
+        )
+        table = {o.name: o for o in outils}
+        table["ecrire_aide"].run(
+            {
+                "yaml_texte": aide_yaml(
+                    "se dérouler dans un parc ou un jardin ouvert au public", snapshot=chemin
+                )
+            }
+        )
+        with unittest.mock.patch.object(outils_module, "verifier", verifier_factice):
+            for _ in range(MAX_VERIFICATIONS):
+                table["verification_adversariale"].run({})
+            self.assertEqual(appels["n"], MAX_VERIFICATIONS)
+            sortie = table["verification_adversariale"].run({})
+        self.assertIn("Plafond atteint", sortie)
+        self.assertEqual(appels["n"], MAX_VERIFICATIONS)
+        self.assertTrue(etat.a_relire)
+
+    def test_les_verdicts_precedents_sont_transmis_au_verificateur(self):
+        """Il ne voyait RIEN de ses passages antérieurs, d'où ses contradictions."""
+        vus: list[tuple[str, ...]] = []
+
+        def verifier_factice(atelier, client, *, aide, compteur=None, precedents=()):
+            vus.append(tuple(precedents))
+            return RapportVerification(
+                problemes=[
+                    Probleme(
+                        axe="typage",
+                        severite="bloquant",
+                        condition_id="porteur-eligible",
+                        description="le gate porteur n'est pas sourcé",
+                        correction_proposee="retirer le gate",
+                    )
+                ]
+            ), "rapport"
+
+        self.appeler("snapshotter", url="https://example.org/aide")
+        chemin = self.atelier.relatif(self.atelier.snapshots()[0])
+        outils, _etat = outils_pour(
+            self.atelier,
+            facts=dict(self.facts),
+            pending=self.pending,
+            fetcheur=self.fetcheur,
+            client_verif=object(),  # type: ignore[arg-type]
+        )
+        table = {o.name: o for o in outils}
+        table["ecrire_aide"].run(
+            {
+                "yaml_texte": aide_yaml(
+                    "se dérouler dans un parc ou un jardin ouvert au public", snapshot=chemin
+                )
+            }
+        )
+        with unittest.mock.patch.object(outils_module, "verifier", verifier_factice):
+            table["verification_adversariale"].run({})
+            table["verification_adversariale"].run({})
+        self.assertEqual(vus[0], ())
+        self.assertEqual(len(vus[1]), 1)
+        self.assertIn("porteur-eligible", vus[1][0])
+        self.assertIn("passage 1", vus[1][0])
+
+    def test_review_acceptee_au_plafond_avec_bloc_a_trancher(self):
+        """Au plafond, refuser la fiche serait une impasse : l'agent ne peut plus
+        re-vérifier, donc il ne pourrait plus jamais terminer."""
+        texte = "## Conditions\n\n" + ("Une ligne de fiche de review. " * 40)
+        self.etat.verification = RapportVerification(
+            problemes=[
+                Probleme(
+                    axe="typage",
+                    severite="bloquant",
+                    condition_id="porteur-eligible",
+                    citation_source="Bénéficiaires : communes et groupements",
+                    description="le gate porteur exclut les communes",
+                    correction_proposee="ajouter public_commune",
+                )
+            ]
+        )
+        self.etat.verifications = MAX_VERIFICATIONS
+        self.etat.modifiee_depuis_verification = True
+        sortie = self.appeler("ecrire_review", markdown=texte)
+        self.assertIn("Fiche écrite", sortie)
+        self.assertTrue(self.etat.a_relire)
+        contenu = self.atelier.review_path.read_text(encoding="utf-8")
+        # EN TÊTE : 132 aides du lot portaient un bloquant non résolu que rien
+        # ne disait dans la fiche.
+        self.assertIn("⚠ À trancher", contenu)
+        self.assertLess(contenu.index("À trancher"), contenu.index("## Conditions"))
+        self.assertIn("le gate porteur exclut les communes", contenu)
+        self.assertIn("Bénéficiaires : communes et groupements", contenu)
+
+    def test_un_bloquant_residuel_marque_a_relire(self):
+        """Même sous le plafond : livrer un bloquant sans le dire est le défaut."""
+        texte = "## Conditions\n\n" + ("Une ligne de fiche de review. " * 40)
+        self.etat.verification = RapportVerification(
+            problemes=[
+                Probleme(
+                    axe="quote_inexacte",
+                    severite="bloquant",
+                    description="la quote ne figure pas dans la source",
+                    correction_proposee="retirer la condition",
+                )
+            ]
+        )
+        self.etat.verifications = 1
+        self.assertIn("Fiche écrite", self.appeler("ecrire_review", markdown=texte))
+        self.assertTrue(self.etat.a_relire)
+
+    def test_une_fiche_sans_bloquant_ne_porte_pas_le_bloc(self):
+        texte = "## Conditions\n\n" + ("Une ligne de fiche de review. " * 40)
+        self.etat.verification = RapportVerification()
+        self.etat.verifications = 1
+        self.appeler("ecrire_review", markdown=texte)
+        self.assertFalse(self.etat.a_relire)
+        self.assertNotIn("À trancher", self.atelier.review_path.read_text(encoding="utf-8"))
 
     def test_review_valide_ecrite_avec_entete(self):
         texte = "## Conditions\n\n" + ("Une ligne de fiche de review. " * 40)
@@ -495,3 +637,66 @@ class TestPassagePlusProche(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHorsPerimetre(BaseOutils):
+    """B8 — la source révèle un destinataire tiers : on s'arrête, sans échouer.
+
+    Le tri et la lecture ne voient qu'un titre et une page de présentation. La
+    source seule dit « réservé aux exploitants agricoles » ou « compagnies
+    professionnelles conventionnées », et c'est à l'ingestion de l'apprendre —
+    140 aides du lot avaient été rangées `adjacente` par le tri, et ingérées.
+    """
+
+    MOTIF = (
+        "Le règlement réserve l'aide aux exploitants agricoles à titre principal, "
+        "affiliés MSA : ce n'est pas l'aide du propriétaire du lieu."
+    )
+    CITATION = "Bénéficiaires : exploitants agricoles à titre principal, affiliés à la MSA"
+
+    def declarer(self, **kw):
+        base = {
+            "categorie": "metier_agricole",
+            "motif": self.MOTIF,
+            "citation": self.CITATION,
+        }
+        return self.appeler("declarer_hors_perimetre", **{**base, **kw})
+
+    def test_lecart_ecrit_une_fiche_et_termine(self):
+        sortie = self.declarer()
+        self.assertIn("Aide écartée", sortie)
+        self.assertIn("réponds maintenant sans appeler d'outil", sortie)
+        self.assertTrue(self.etat.review_ecrite)
+        assert self.etat.hors_perimetre is not None
+        self.assertEqual(self.etat.hors_perimetre.categorie, "metier_agricole")
+        contenu = self.atelier.review_path.read_text(encoding="utf-8")
+        self.assertIn("hors périmètre", contenu)
+        self.assertIn("exploitants agricoles", contenu)
+        self.assertIn(self.CITATION, contenu)
+
+    def test_la_fiche_dit_comment_rouvrir(self):
+        """Un écart ne doit pas être un cul-de-sac : l'humain peut revenir dessus."""
+        self.declarer()
+        self.assertIn("prospecter.py valider", self.atelier.review_path.read_text(encoding="utf-8"))
+
+    def test_aucun_yaml_nest_ecrit(self):
+        self.declarer()
+        self.assertFalse(self.atelier.yaml_path.exists())
+
+    def test_une_categorie_inconnue_est_refusee(self):
+        sortie = self.declarer(categorie="pas_terrible")
+        self.assertTrue(sortie.startswith("ERREUR"))
+        self.assertIn("metier_agricole", sortie)
+        self.assertIsNone(self.etat.hors_perimetre)
+
+    def test_un_motif_trop_court_est_refuse(self):
+        """C'est ce texte que l'humain lira pour confirmer l'écart."""
+        sortie = self.declarer(motif="pas pour nous")
+        self.assertTrue(sortie.startswith("ERREUR"))
+        self.assertIsNone(self.etat.hors_perimetre)
+
+    def test_une_citation_vide_est_refusee(self):
+        """Ce qui distingue un écart motivé d'une impression."""
+        sortie = self.declarer(citation="   ")
+        self.assertTrue(sortie.startswith("ERREUR"))
+        self.assertIsNone(self.etat.hors_perimetre)

@@ -25,7 +25,7 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 from collections import deque
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
@@ -58,6 +58,116 @@ PAGES_STERILES = 2
 # toutes les 25 pages, le balayage paraît bloqué.
 PAS_PROGRESSION = 25
 
+# --- A1 : la clé de fiche --------------------------------------------------
+#
+# `cle_url` normalise déjà le protocole, le `www.`, le slash final et les
+# campagnes `utm_`. Il lui manque la PAGINATION : sur un guide Typo3,
+# `?tx_news_pi1[currentPage]=1&cHash=abc` et `…=2&cHash=def` sont la même fiche
+# vue deux fois, et 22 paires de doublons du lot des quatre régions viennent de
+# là (`16-developpement-local`, `-2`, `-3`).
+#
+# La liste est FERMÉE et le restera. Un site a parfaitement le droit
+# d'identifier ses fiches par `?page=<slug>` — le jour où une fiche disparaît,
+# c'est ici qu'il faudra regarder, et une liste fermée se relit ; une heuristique
+# ne se relit pas. `id`, `dispositif`, `aide`, `node`, `ref` ne sont JAMAIS
+# touchés : ce sont des identifiants, pas de la pagination.
+_PARAMS_PAGINATION = frozenset(
+    {"page", "p", "start", "offset", "no_cache", "chash", "cursor", "from"}
+)
+_PARAM_PAGINATION_RE = re.compile(
+    r"^(?:tx_\w+(?:_pi\d+)?\[(?:currentpage|pointer|page)\]"
+    r"|\w*\[@widget_\d+\]"
+    r"|\w*\[currentpage\])$"
+)
+
+
+def _est_pagination(parametre: str) -> bool:
+    """Le paramètre nomme-t-il une page de liste, et non une fiche ?"""
+    nom = parametre.split("=", 1)[0].strip().lower()
+    return nom in _PARAMS_PAGINATION or bool(_PARAM_PAGINATION_RE.match(nom))
+
+
+def cle_fiche(url: str) -> str:
+    """`cle_url` débarrassée de la pagination : deux pages d'une même fiche, une clé.
+
+    C'est la clé de groupement du dédoublonnage, à l'étage 1 comme sur la file
+    entière (`pipeline.etat.doublons_par_url`). Les deux doivent grouper
+    pareil, sans quoi une paire écartée ici reviendrait par là.
+    """
+    base = cle_url(url)
+    chemin, _, requete = base.partition("?")
+    if not requete:
+        return base
+    gardes = [p for p in requete.split("&") if p and not _est_pagination(p)]
+    return chemin + (f"?{'&'.join(gardes)}" if gardes else "")
+
+
+# --- A2 : un document n'est pas une fiche ----------------------------------
+#
+# 4 paires de doublons du lot viennent d'un `.doc` ou d'un `.zip` pris pour une
+# fiche de dispositif (`54-appui-aux-territoires-54-fonctionnement`). Le motif
+# `pdf_probable` ne connaissait que `.pdf` : un règlement en `.docx` passait
+# donc l'étage 1 comme une page, se faisait lire par un modèle qui n'y
+# comprenait rien, et finissait ingéré à côté de la vraie fiche.
+EXTENSIONS_DOCUMENT = (
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".odt",
+    ".xls",
+    ".xlsx",
+    ".ods",
+    ".ppt",
+    ".pptx",
+    ".zip",
+    ".rtf",
+)
+# Au-delà, ce n'est plus le règlement d'un dispositif mais la médiathèque du
+# site : la lecture applique déjà la même borne, et l'ingestion snapshote
+# chacun de ces fichiers.
+MAX_DOCUMENTS_PAR_PAGE = 25
+
+
+def est_document(url: str) -> bool:
+    """L'URL désigne-t-elle un fichier à télécharger plutôt qu'une page ?"""
+    return url.lower().split("?")[0].split("#")[0].endswith(EXTENSIONS_DOCUMENT)
+
+
+# --- A3 : un chemin qui tourne en rond -------------------------------------
+#
+# Moselle (57), 2026-09-18 : le site rend ses liens relatifs sans `/` initial,
+# que `urljoin` concatène au chemin courant — `jcms/pl_17395/fr/jcms/pl_9352/…`,
+# puis `…/fr/jcms/pl_17395/fr/jcms/…`, et le serveur répond 200 à chaque fois.
+# 24 185 candidates fausses, autant d'appels de tri, 7 704 lectures en erreur,
+# deux heures perdues. Le motif est reconnaissable : un segment qui revient.
+MAX_SEGMENTS_CHEMIN = 12
+MAX_REPETITIONS_SEGMENT = 2
+
+
+def chemin_en_boucle(
+    url: str,
+    *,
+    max_segments: int = MAX_SEGMENTS_CHEMIN,
+    max_repetitions: int = MAX_REPETITIONS_SEGMENT,
+) -> bool:
+    """Le chemin de cette URL trahit-il une concaténation en boucle ?
+
+    Deux signaux, tous deux nécessaires pour éviter les faux positifs : un
+    chemin ANORMALEMENT profond, et un segment qui s'y répète. Un site peut
+    légitimement ranger une fiche à huit niveaux ; aucun ne répète trois fois
+    `jcms` dans une URL valide.
+    """
+    segments = [s for s in urlsplit(url).path.split("/") if s]
+    if len(segments) <= max_segments:
+        return False
+    compte: dict[str, int] = {}
+    for segment in segments:
+        compte[segment] = compte.get(segment, 0) + 1
+        if compte[segment] > max_repetitions:
+            return True
+    return False
+
+
 # Un libellé de lien peut courir sur PLUSIEURS lignes. Sur un guide « en
 # cartes » (Drupal Views, la plupart des sites régionaux récents), le <a>
 # enveloppe l'étiquette thématique, le titre, le résumé, la liste des
@@ -78,9 +188,22 @@ class Candidat:
     titre: str = ""
     extrait: str = ""
     trouve_via: str = ""
+    # Les fichiers téléchargeables liés depuis cette page : règlement, cadre
+    # d'intervention, formulaire. Collectés ICI parce que c'est le seul étage
+    # qui voit tous les liens d'une page, et transmis jusqu'à `urls_pdf` de la
+    # tâche — la lecture les re-cherchait, et un `.docx` lui échappait.
+    documents: tuple[str, ...] = ()
 
     def json(self) -> str:
-        return json.dumps(asdict(self), ensure_ascii=False)
+        donnees = asdict(self)
+        # Un champ vide ne s'écrit pas : les `candidats.jsonl` des balayages
+        # précédents n'ont pas cette clé, et le relire ne doit pas exiger de
+        # les réécrire.
+        if not donnees["documents"]:
+            donnees.pop("documents")
+        else:
+            donnees["documents"] = list(donnees["documents"])
+        return json.dumps(donnees, ensure_ascii=False)
 
 
 @dataclass
@@ -88,6 +211,10 @@ class Collecte:
     """Ce qu'un balayage a produit, et ce qui s'est mal passé en chemin."""
 
     candidats: list[Candidat] = field(default_factory=list)
+    # Vrai quand le balayage s'est arrêté sur le plafond de candidates plutôt
+    # que d'avoir tout vu : la fiche doit le dire en tête, sinon une recette
+    # bancale passe pour un guide pauvre.
+    plafonnee: bool = False
     doublons: list[tuple[str, str]] = field(default_factory=list)
     # (url, slug, statut) des URL déjà connues de la file d'attente. Dans les
     # notes de la fiche, jamais dans candidats.jsonl : ce ne sont pas des
@@ -102,11 +229,14 @@ class Collecte:
 
     @staticmethod
     def lire(chemin: Path) -> list[Candidat]:
-        return [
-            Candidat(**json.loads(ligne))
-            for ligne in chemin.read_text(encoding="utf-8").splitlines()
-            if ligne.strip()
-        ]
+        candidats = []
+        for ligne in chemin.read_text(encoding="utf-8").splitlines():
+            if not ligne.strip():
+                continue
+            donnees = json.loads(ligne)
+            donnees["documents"] = tuple(donnees.get("documents") or ())
+            candidats.append(Candidat(**donnees))
+        return candidats
 
 
 class RubriqueAides(BaseModel):
@@ -195,12 +325,31 @@ def titre_et_chapeau(page: Page) -> tuple[str, str]:
     return titre, chapeau
 
 
+def documents_de_page(page: Page, territoire: Territoire) -> tuple[str, ...]:
+    """Les fichiers téléchargeables liés depuis cette page, dans l'ordre vu.
+
+    Le règlement d'un dispositif pend presque toujours de sa fiche : le
+    ramasser ici évite à la lecture de le re-chercher, et surtout évite qu'un
+    `.docx` — que `pdf_probable` ne reconnaissait pas — soit pris pour une
+    fiche et ingéré à côté de la vraie.
+    """
+    trouves: list[str] = []
+    for _titre, url, _contexte in liens(page):
+        url = url.split("#")[0]
+        if (est_document(url) or territoire.pdf_probable(url)) and url not in trouves:
+            trouves.append(url)
+    return tuple(trouves[:MAX_DOCUMENTS_PAR_PAGE])
+
+
 def _candidats_de_page(page: Page, territoire: Territoire, via: str) -> list[Candidat]:
+    """Les fiches liées depuis cette page. Un document n'en est jamais une (A2)."""
     vus: set[str] = set()
     retenus: list[Candidat] = []
     for titre, url, contexte in liens(page):
         url = url.split("#")[0]
-        if url in vus or not territoire.fiche_probable(url):
+        if est_document(url) or territoire.pdf_probable(url):
+            continue
+        if url in vus or chemin_en_boucle(url) or not territoire.fiche_probable(url):
             continue
         vus.add(url)
         retenus.append(
@@ -264,7 +413,13 @@ def _sitemap(territoire: Territoire, fetcheur: Fetcheur, collecte: Collecte) -> 
         urls += _urls_dun_sitemap(sitemap, fetcheur, collecte)
     # Dédoublonnage AVANT d'ouvrir : deux sitemaps d'un même site se recouvrent
     # volontiers, et chaque fiche ouverte coûte une seconde de délai d'hôte.
-    fiches = [u for u in dict.fromkeys(urls) if territoire.fiche_probable(u)]
+    # Groupement sur `cle_fiche` et non sur l'URL brute : un sitemap Typo3
+    # énumère volontiers les pages paginées d'un même dispositif.
+    par_cle: dict[str, str] = {}
+    for u in urls:
+        if territoire.fiche_probable(u) and not est_document(u) and not chemin_en_boucle(u):
+            par_cle.setdefault(cle_fiche(u), u)
+    fiches = list(par_cle.values())
 
     # Un sitemap ne rend qu'une liste d'URL : sans titre ni chapeau, l'étage 2
     # trierait sur le seul slug — ce qui a coûté 173 pages jamais ouvertes le
@@ -278,7 +433,15 @@ def _sitemap(territoire: Territoire, fetcheur: Fetcheur, collecte: Collecte) -> 
         titre, chapeau = titre_et_chapeau(page)
         if not titre:
             injoignables += 1
-        candidats.append(Candidat(url=u, titre=titre, extrait=chapeau, trouve_via="sitemap"))
+        candidats.append(
+            Candidat(
+                url=u,
+                titre=titre,
+                extrait=chapeau,
+                trouve_via="sitemap",
+                documents=documents_de_page(page, territoire) if page.ok and page.est_html else (),
+            )
+        )
         if i % PAS_PROGRESSION == 0 or i == len(fiches):
             print(f"    [1/3] {i}/{len(fiches)} fiche(s) ouverte(s) pour leur titre", flush=True)
     collecte.notes.append(
@@ -336,20 +499,40 @@ def _decouverte(
     trouves: dict[str, Candidat] = {}
     file: deque[tuple[str, int]] = deque([(accueil.url_finale, 0)])
 
+    boucles = 0
+    documents_ignores = 0
     while file and collecte.pages_visitees < strategie.max_pages:
+        if len(trouves) >= strategie.max_candidats:
+            collecte.plafonnee = True
+            break
         url, profondeur = file.popleft()
         page = accueil if url == accueil.url_finale else fetcheur.get(url)
         if url != accueil.url_finale:
             collecte.pages_visitees += 1
             if not page.ok or page.est_pdf:
                 continue
+        # Les documents de cette page appartiennent à cette page : si elle est
+        # elle-même une candidate, ils la suivent jusqu'à `urls_pdf`.
+        candidat_courant = trouves.get(url)
+        if candidat_courant is not None and not candidat_courant.documents:
+            trouves[url] = replace(candidat_courant, documents=documents_de_page(page, territoire))
         for _titre, lien, contexte in liens(page):
             lien = lien.split("#")[0]
             if urlsplit(lien).netloc != hote or lien in vus:
                 continue
             if any(re.search(m, lien) for m in territoire.exclure):
                 continue
+            # Le piège de la Moselle : `urljoin` concatène un lien relatif sans
+            # `/` au chemin courant, le serveur répond 200, et l'exploration
+            # s'enfonce. Testé AVANT `vus.add` — une URL en boucle ne doit ni
+            # être retenue, ni servir de point de départ.
+            if chemin_en_boucle(lien):
+                boucles += 1
+                continue
             vus.add(lien)
+            if est_document(lien) or territoire.pdf_probable(lien):
+                documents_ignores += 1
+                continue
             if territoire.fiche_probable(lien) and _sous_prefixe(lien, prefixes):
                 trouves.setdefault(
                     lien,
@@ -362,7 +545,22 @@ def _decouverte(
                 )
             if profondeur < strategie.profondeur and _sous_prefixe(lien, prefixes):
                 file.append((lien, profondeur + 1))
-    if collecte.pages_visitees >= strategie.max_pages:
+    if boucles:
+        collecte.notes.append(
+            f"découverte : {boucles} URL à chemin répétitif ignorées (liens relatifs "
+            "concaténés — le serveur répond 200 sur des chemins en boucle)"
+        )
+    if documents_ignores:
+        collecte.notes.append(
+            f"découverte : {documents_ignores} document(s) téléchargeable(s) écarté(s) "
+            "des candidates"
+        )
+    if collecte.plafonnee:
+        collecte.notes.append(
+            f"arrêt propre : plafond de {strategie.max_candidats} candidates atteint — "
+            "recette à préciser dans territoires.yaml"
+        )
+    elif collecte.pages_visitees >= strategie.max_pages:
         collecte.notes.append(
             f"découverte arrêtée au plafond de {strategie.max_pages} pages — "
             "recette à préciser dans territoires.yaml"
@@ -451,9 +649,10 @@ def dedoublonner(
 
     Renvoie (retenus, (url, slug) du catalogue, (url, slug, statut) de la file).
 
-    Le rapprochement se fait sur `cle_url` et jamais sur l'égalité brute : entre
-    l'URL saisie dans une fiche et celle où le téléchargement aboutit, il y a
-    couramment `http`/`https`, un `www.`, un slash final et une campagne `utm_`.
+    Le rapprochement se fait sur `cle_fiche` et jamais sur l'égalité brute :
+    entre l'URL saisie dans une fiche et celle où le téléchargement aboutit, il
+    y a couramment `http`/`https`, un `www.`, un slash final, une campagne
+    `utm_` — et, depuis 2026-09, le numéro de page d'une liste Typo3 (A1).
 
     La file compte TOUS ses statuts, `ignore` en tête. Sans elle, une URL déjà
     écartée à la main revenait au balayage suivant : `attribuer_slugs` lui
@@ -465,16 +664,16 @@ def dedoublonner(
     for slug, aide in corpus.items():
         for url in (aide.source.url_officielle, aide.source.formulaire_url):
             if url:
-                connues.setdefault(cle_url(url), slug)
+                connues.setdefault(cle_fiche(url), slug)
     en_attente: dict[str, tuple[str, str]] = {}
     for slug, tache in (file or {}).items():
         if tache.url:
-            en_attente.setdefault(cle_url(tache.url), (slug, tache.statut))
+            en_attente.setdefault(cle_fiche(tache.url), (slug, tache.statut))
     retenus: list[Candidat] = []
     doublons: list[tuple[str, str]] = []
     en_file: list[tuple[str, str, str]] = []
     for candidat in candidats:
-        cle = cle_url(candidat.url)
+        cle = cle_fiche(candidat.url)
         slug = connues.get(cle)
         if slug:
             doublons.append((candidat.url, slug))
@@ -500,9 +699,18 @@ def collecter(
     file: dict[str, Tache] | None = None,
     client_decouverte: providall.Client | None = None,
     compteur: Compteur | None = None,
+    max_candidats: int | None = None,
 ) -> Collecte:
-    """Balaye un territoire selon sa recette et rend ses candidats dédoublonnés."""
+    """Balaye un territoire selon sa recette et rend ses candidats dédoublonnés.
+
+    `max_candidats` borne ce que le balayage rend, et il borne du même coup le
+    tri et la lecture — les deux étages qui coûtent un modèle n'avaient
+    AUCUN plafond. Moselle, 2026-09-18 : 24 185 candidates, autant d'appels de
+    tri, 7 704 lectures en erreur, deux heures. Un plafond ne corrige pas une
+    mauvaise recette ; il rend son coût fini et le dit dans la fiche.
+    """
     collecte = Collecte()
+    plafond = max_candidats if max_candidats is not None else territoire.strategie.max_candidats
     if not territoire.guides:
         collecte.notes.append(
             "aucun guide renseigné : compléter territoires.yaml "
@@ -522,7 +730,29 @@ def collecter(
                 territoire, fetcheur, collecte, client=client_decouverte, compteur=compteur
             )
 
-    uniques = list({c.url: c for c in bruts}.values())
+    # Dédoublonnage sur `cle_fiche` : trois pages d'une même liste Typo3 ne
+    # font qu'une fiche. À clé égale, on garde l'URL la plus courte en
+    # paramètres — la page de fiche, pas celle qui porte un `cHash` de
+    # navigation.
+    par_cle: dict[str, Candidat] = {}
+    for candidat in bruts:
+        cle = cle_fiche(candidat.url)
+        garde = par_cle.get(cle)
+        if garde is None or len(candidat.url) < len(garde.url):
+            # Les documents survivent au remplacement : c'est la page ouverte
+            # qui les a vus, pas la variante la plus courte.
+            if garde is not None and garde.documents and not candidat.documents:
+                candidat = replace(candidat, documents=garde.documents)
+            par_cle[cle] = candidat
+    uniques = list(par_cle.values())
+    if len(uniques) > plafond:
+        collecte.plafonnee = True
+        collecte.notes.append(
+            f"arrêt propre : plafond de {plafond} candidates — {len(uniques)} trouvées, "
+            "les suivantes ne sont ni triées ni lues ; recette à préciser dans "
+            "territoires.yaml"
+        )
+        uniques = uniques[:plafond]
     collecte.candidats, collecte.doublons, collecte.en_file = dedoublonner(uniques, corpus, file)
     collecte.notes.append(
         f"{len(uniques)} URL de fiche trouvées, {len(collecte.doublons)} déjà au catalogue, "
@@ -533,15 +763,21 @@ def collecter(
 
 
 __all__ = [
+    "EXTENSIONS_DOCUMENT",
     "MAX_CAR_EXTRAIT",
     "MAX_CAR_LIBELLE",
     "PAGES_STERILES",
     "PAS_PROGRESSION",
+    "MAX_DOCUMENTS_PAR_PAGE",
     "Candidat",
     "Collecte",
     "RubriqueAides",
+    "chemin_en_boucle",
+    "cle_fiche",
     "collecter",
     "dedoublonner",
+    "documents_de_page",
+    "est_document",
     "liens",
     "titre_du_libelle",
     "titre_et_chapeau",

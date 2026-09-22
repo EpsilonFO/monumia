@@ -26,13 +26,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import providall  # noqa: E402
-from pipeline.web import Fetcheur, reinitialiser_delais  # noqa: E402
+from pipeline.etat import CATEGORIES_ECART, DESTINATAIRES, OBJETS  # noqa: E402
+from pipeline.web import Fetcheur, Page, reinitialiser_delais  # noqa: E402
 from prospection.annuaire import sites_departementaux  # noqa: E402
 from prospection.collecte import (  # noqa: E402
     Candidat,
     Collecte,
+    _candidats_de_page,
+    chemin_en_boucle,
+    cle_fiche,
     collecter,
     dedoublonner,
+    documents_de_page,
+    est_document,
     liens,
     titre_et_chapeau,
 )
@@ -180,6 +186,22 @@ class TestTerritoiresReels(unittest.TestCase):
             )
         )
 
+    def test_67_couvre_68_et_68_est_sans_point_entree(self):
+        """Un seul point d'entrée pour la Collectivité européenne d'Alsace.
+
+        Les deux clés portaient la même recette « le territoire de chaque aide
+        se tranche à l'ingestion » : il ne s'est rien tranché du tout, 17
+        dispositifs sont entrés deux fois, sous 67-* ET sous 68-*.
+        """
+        bas_rhin, haut_rhin = self.territoires["67"], self.territoires["68"]
+        self.assertEqual(bas_rhin.codes_departements("67"), ["67", "68"])
+        self.assertEqual(haut_rhin.statut, "sans_point_entree")
+        self.assertEqual(haut_rhin.guides, [])
+
+    def test_un_departement_ordinaire_ne_couvre_que_lui_meme(self):
+        self.assertEqual(self.territoires["71"].codes_departements("71"), ["71"])
+        self.assertEqual(self.territoires["normandie"].codes_departements("normandie"), [])
+
     def test_la_corse_na_pas_durl_fabriquee(self):
         corse = self.territoires["corse"]
         self.assertEqual(corse.statut, "sans_point_entree")
@@ -210,6 +232,15 @@ class TestValidation(unittest.TestCase):
     def test_sitemap_liste_vide_refusee(self):
         with self.assertRaises(ValueError):
             Strategie(type="sitemap", url=[])
+
+    def test_max_candidats_positif(self):
+        self.assertEqual(Strategie(type="liste_html").max_candidats, 800)
+        with self.assertRaises(ValueError):
+            Strategie(type="liste_html", max_candidats=0)
+
+    def test_departement_inconnu_refuse(self):
+        with self.assertRaises(ValueError):
+            territoire(departements=["999"])
 
     def test_statut_pret_sans_guide_refuse(self):
         with self.assertRaises(ValueError):
@@ -260,6 +291,29 @@ class TestCollecte(BaseProspection):
                 "https://guide.example/dispositif3",
             },
         )
+
+    def test_le_plafond_de_candidates_arrete_proprement(self):
+        """Moselle : 24 185 candidates, autant d'appels de tri, deux heures perdues.
+
+        L'arrêt ne corrige pas la recette — il rend son coût fini, le DIT dans
+        la fiche, et rend le reste du pipeline borné : le tri et la lecture
+        n'avaient aucun plafond propre.
+        """
+        collecte = collecter(territoire(), self.fetcheur, {}, max_candidats=2)
+        self.assertTrue(collecte.plafonnee)
+        self.assertEqual(len(collecte.candidats), 2)
+        self.assertTrue(any("plafond de 2 candidates" in n for n in collecte.notes))
+
+    def test_sans_plafond_atteint_rien_nest_signale(self):
+        collecte = collecter(territoire(), self.fetcheur, {})
+        self.assertFalse(collecte.plafonnee)
+        self.assertNotIn("plafond", " ".join(collecte.notes))
+
+    def test_le_plafond_apparait_en_tete_de_fiche(self):
+        markdown = rendre_fiche(
+            "ex", territoire(), [], [], Collecte(plafonnee=True), {}, {}, jour=JOUR
+        )
+        self.assertIn("Balayage plafonné", markdown)
 
     def test_le_titre_et_le_contexte_sont_captes(self):
         collecte = collecter(territoire(), self.fetcheur, {})
@@ -462,6 +516,96 @@ class TestTitreEtChapeau(unittest.TestCase):
             self.assertEqual(Collecte.lire(chemin), collecte.candidats)
 
 
+class TestCleDeFiche(unittest.TestCase):
+    """A1 — la pagination n'est pas un identifiant de fiche."""
+
+    def test_currentpage_et_chash_ne_font_pas_trois_fiches(self):
+        """`16-developpement-local`, `-2` et `-3` : trois pages du même dispositif."""
+        base = "https://www.charente.fr/actualites/detail-news"
+        pages = [
+            f"{base}?tx_news_pi1[news]=42",
+            f"{base}?tx_news_pi1[news]=42&tx_news_pi1[currentPage]=2&cHash=abc",
+            f"{base}?tx_news_pi1[news]=42&tx_news_pi1[currentPage]=3&cHash=def",
+        ]
+        self.assertEqual(len({cle_fiche(u) for u in pages}), 1)
+
+    def test_lidentifiant_de_fiche_nest_jamais_retire(self):
+        """La liste est fermée pour ça : `id=` et `dispositif=` identifient."""
+        self.assertNotEqual(
+            cle_fiche("https://x.fr/aide?id=12"), cle_fiche("https://x.fr/aide?id=13")
+        )
+        self.assertNotEqual(
+            cle_fiche("https://x.fr/a?dispositif=toit"), cle_fiche("https://x.fr/a?dispositif=mur")
+        )
+        self.assertNotEqual(cle_fiche("https://x.fr/a?node=1"), cle_fiche("https://x.fr/a?node=2"))
+
+    def test_page_et_offset_disparaissent(self):
+        nue = cle_fiche("https://x.fr/aides")
+        for parametre in ("page=3", "p=3", "start=20", "offset=20", "no_cache=1", "cHash=xyz"):
+            with self.subTest(parametre=parametre):
+                self.assertEqual(cle_fiche(f"https://x.fr/aides?{parametre}"), nue)
+
+    def test_cle_fiche_garde_ce_que_cle_url_garde(self):
+        """Elle raffine `cle_url`, elle ne la remplace pas."""
+        self.assertEqual(
+            cle_fiche("http://www.Guide.example/aide/?utm_source=x"),
+            cle_fiche("https://guide.example/aide"),
+        )
+
+
+class TestDocumentsEtBoucles(unittest.TestCase):
+    """A2 et A3 — ce qui n'est pas une fiche."""
+
+    def test_un_docx_nest_pas_une_fiche_mais_un_document(self):
+        for url in (
+            "https://x.fr/reglement.docx",
+            "https://x.fr/cadre.doc",
+            "https://x.fr/pieces.zip",
+            "https://x.fr/bareme.xlsx",
+            "https://x.fr/reglement.pdf?v=2",
+        ):
+            with self.subTest(url=url):
+                self.assertTrue(est_document(url))
+        self.assertFalse(est_document("https://x.fr/aides/restauration-du-bati"))
+
+    def test_les_documents_ne_sont_plus_des_candidates(self):
+        """Quatre paires de doublons du lot venaient d'un `.doc` ingéré."""
+        page = Page(
+            url="https://guide.example/",
+            url_finale="https://guide.example/",
+            status=200,
+            content_type="text/html",
+            contenu=b"",
+            texte='<a href="/dispositif1">Fiche</a> <a href="/dispositif2.docx">Règlement</a>',
+        )
+        t = territoire(motif_fiche=r"^https://guide\.example/dispositif")
+        urls = [c.url for c in _candidats_de_page(page, t, "test")]
+        self.assertEqual(urls, ["https://guide.example/dispositif1"])
+        self.assertEqual(documents_de_page(page, t), ("https://guide.example/dispositif2.docx",))
+
+    def test_chemin_en_boucle_jcms(self):
+        """L'URL qui a coûté deux heures et 24 185 candidates fausses sur la Moselle."""
+        boucle = (
+            "https://www.moselle.fr/jcms/pl_17395/fr/jcms/dev_8946/fr/jcms/pl_17395/fr/"
+            "jcms/dev_8946/fr/jcms/pl_9352/fr/subventions"
+        )
+        self.assertTrue(chemin_en_boucle(boucle))
+
+    def test_un_chemin_profond_legitime_passe(self):
+        """Un site a le droit de ranger une fiche à huit niveaux."""
+        for url in (
+            "https://x.fr/a/b/c/d/e/f/g/h/fiche",
+            "https://www.alsace.eu/aides-et-services/culture-patrimoine-et-tourisme/restauration/",
+            "https://x.fr/aides/2027/culture/patrimoine/bati/protege/restauration/fiche-42",
+        ):
+            with self.subTest(url=url):
+                self.assertFalse(chemin_en_boucle(url))
+
+    def test_une_repetition_sans_profondeur_ne_suffit_pas(self):
+        """Les deux signaux sont nécessaires, sinon `/aides/.../aides/` alerterait."""
+        self.assertFalse(chemin_en_boucle("https://x.fr/aides/culture/aides/fiche"))
+
+
 class TestDedoublonnage(unittest.TestCase):
     def tache(self, slug: str, url: str, statut: str):
         from pipeline.etat import Tache
@@ -506,6 +650,16 @@ class TestDedoublonnage(unittest.TestCase):
             )
             self.assertEqual(retenus, [], statut)
             self.assertEqual(en_file[0][2], statut)
+
+    def test_pagination_typo3_est_une_seule_fiche(self):
+        """Le doublon que `cle_url` laissait passer et que `cle_fiche` attrape."""
+        base = "https://www.charente.fr/detail?tx_news_pi1[news]=42"
+        corpus = {"deja": aide("deja", base)}
+        retenus, doublons, _en_file = dedoublonner(
+            [Candidat(f"{base}&tx_news_pi1[currentPage]=2&cHash=abc")], corpus
+        )
+        self.assertEqual(retenus, [])
+        self.assertEqual(len(doublons), 1)
 
     def test_le_catalogue_prime_sur_la_file(self):
         corpus = {"ex-deja": aide("ex-deja", "https://guide.example/aide")}
@@ -625,11 +779,53 @@ class TestTri(unittest.TestCase):
         self.assertIn("Le spectre", texte)
         self.assertIn("test d'admission", texte)
         self.assertIn("Ce qu'on écarte", texte)
-        # La doctrine large du 2026-09-11 : si ces phrases disparaissent du
-        # skill, les deux prompts repartent sur un tri étroit sans prévenir.
+        # La doctrine du 2026-09-21 : large sur les THÈMES, strict sur le
+        # DESTINATAIRE. Si ces phrases disparaissent du skill, les deux prompts
+        # repartent sur un autre tri sans que rien ne le dise.
         self.assertIn("faire vivre", texte)
-        self.assertIn("retenir par défaut", texte.lower())
-        self.assertIn("absolument rien", texte.lower())
+        self.assertIn("Large sur les thèmes, strict sur le destinataire", texte)
+        self.assertIn("sans changer de métier ni créer une structure", texte)
+        self.assertIn("proprietaire_gestionnaire", texte)
+        self.assertIn("activite_tiers", texte)
+        # Les quatre valeurs d'`objet` et les sept catégories d'écart doivent
+        # être dans le prompt : le modèle les rend, il ne peut pas les deviner.
+        for valeur in ("bien_ou_lieu", "activite_dans_le_lieu", "hors_lieu", "indetermine"):
+            self.assertIn(valeur, texte)
+        for categorie in CATEGORIES_ECART:
+            self.assertIn(categorie, texte)
+
+    def test_la_doctrine_arbitre_le_doute_sur_faire_vivre_le_lieu(self):
+        """154 aides de festivals et de résidences écartées au passage du 2026-09-22.
+
+        La ligne « Spectacles » retenait pourtant « la programmation portée par le
+        propriétaire du lieu » : le modèle lisait « associations et structures
+        culturelles » et concluait `activite_tiers`. La règle d'arbitrage doit
+        rester dans le prompt, sinon le passage suivant refait la même coupe.
+        """
+        texte = doctrine()
+        self.assertIn("Faire vivre le lieu", texte)
+        self.assertIn("indetermine", texte)
+        self.assertIn("réserve", texte)
+        self.assertIn("sans recours", texte)
+
+    def test_un_prix_au_proprietaire_du_lieu_nest_plus_exclu_en_bloc(self):
+        """Le catalogue garde une trentaine de prix patrimoniaux.
+
+        La liste fermée excluait « les concours et prix individuels », écrite pour
+        les labels de produit, et elle est tombée sur le Prix de la Fondation
+        Stéphane Bern et les Trophées Patrimoine et Tourisme.
+        """
+        texte = doctrine()
+        self.assertNotIn("concours et prix individuels", texte)
+        self.assertIn("se retient", texte)
+
+    def test_la_doctrine_ne_dit_plus_de_retenir_par_defaut(self):
+        """Le défaut « retenir » a fait entrer 497 candidates douteuses sur 869."""
+        texte = doctrine().lower()
+        self.assertNotIn("retenir par défaut", texte)
+        self.assertNotIn("entre les deux, retenir", texte)
+        # Et la phrase qui rouvrait tout après la liste fermée a disparu.
+        self.assertNotIn("ni le financement d'entreprise, ni la vie associative", texte)
 
     def test_familles_coherentes(self):
         from typing import get_args
@@ -768,7 +964,8 @@ class TestTri(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 LECTURE = {
-    "retenir": True,
+    "destinataire": "proprietaire_gestionnaire",
+    "objet": "bien_ou_lieu",
     "famille": "restauration_bati",
     "titre": "Restauration du patrimoine protégé",
     "montant_taux": "40 %, plafond 150 000 €",
@@ -844,8 +1041,56 @@ class TestLecture(BaseProspection):
         self.assertIn("test d'admission", texte)
         self.assertIn("n'invente rien", texte)
         self.assertIn("eau_nature_domaine", texte)
-        self.assertIn("retenir: true", texte)
         self.assertIn(doctrine(), texte)
+
+    def test_la_consigne_porte_le_test_du_destinataire(self):
+        """Et dit explicitement que `retenir` n'est PAS à la main du modèle."""
+        from prospection.lecture import consigne
+
+        texte = consigne()
+        self.assertIn("Tu ne rends PAS de verdict", texte)
+        self.assertIn("le code le calcule", texte)
+        self.assertIn("sans changer de métier ni créer une structure", texte)
+        for valeur in DESTINATAIRES + OBJETS + CATEGORIES_ECART:
+            self.assertIn(valeur, texte)
+
+    def test_retenir_est_derive_du_destinataire_et_de_l_objet(self):
+        """Le seul couple qui retient, et les trois familles qui ne retiennent pas."""
+
+        def fiche(destinataire, objet):
+            return LectureFiche.model_validate(
+                {"titre": "x", "destinataire": destinataire, "objet": objet}
+            )
+
+        self.assertTrue(fiche("proprietaire_gestionnaire", "bien_ou_lieu").retenir)
+        self.assertTrue(fiche("proprietaire_gestionnaire", "activite_dans_le_lieu").retenir)
+        # Le bon destinataire ne suffit pas : la dépense doit porter sur le lieu.
+        self.assertFalse(fiche("proprietaire_gestionnaire", "hors_lieu").retenir)
+        # Le bon objet ne suffit pas non plus : une aide au ravalement réservée
+        # aux bailleurs sociaux porte bien sur du bâti, elle n'est pas la sienne.
+        self.assertFalse(fiche("activite_tiers", "bien_ou_lieu").retenir)
+        self.assertFalse(fiche("personne", "bien_ou_lieu").retenir)
+
+    def test_un_indetermine_nest_ni_retenu_ni_ecarte(self):
+        """La troisième issue : elle renvoie à un humain, elle ne perd rien."""
+        for destinataire, objet in (
+            ("indetermine", "bien_ou_lieu"),
+            ("proprietaire_gestionnaire", "indetermine"),
+            ("indetermine", "indetermine"),
+        ):
+            with self.subTest(destinataire=destinataire, objet=objet):
+                f = LectureFiche.model_validate(
+                    {"titre": "x", "destinataire": destinataire, "objet": objet}
+                )
+                self.assertFalse(f.retenir)
+                self.assertTrue(f.indeterminee)
+
+    def test_le_modele_ne_peut_pas_rendre_retenir(self):
+        """`retenir` est une propriété : un modèle qui l'envoie est ignoré."""
+        f = LectureFiche.model_validate(
+            {"titre": "x", "retenir": True, "destinataire": "activite_tiers", "objet": "hors_lieu"}
+        )
+        self.assertFalse(f.retenir)
 
 
 class TestSlugs(unittest.TestCase):
@@ -925,9 +1170,20 @@ class TestFiche(unittest.TestCase):
                 Candidat("https://guide.example/dispositif3", "Bourse"),
                 LectureFiche.model_validate(
                     {
-                        "retenir": False,
+                        "destinataire": "personne",
+                        "objet": "hors_lieu",
+                        "categorie_ecart": "aide_personne",
                         "titre": "Bourse d'écriture",
                         "note": "Bénéficiaire individuel, aucun lien avec un lieu.",
+                    }
+                ),
+            ),
+            Lecture(
+                Candidat("https://guide.example/dispositif4", "Fonds de soutien"),
+                LectureFiche.model_validate(
+                    {
+                        "titre": "Fonds de soutien aux initiatives",
+                        "note": "La page ne dit pas qui peut déposer.",
                     }
                 ),
             ),
@@ -960,7 +1216,9 @@ class TestFiche(unittest.TestCase):
         for titre in (
             "# Prospection — Région d'exemple — 2026-09-06",
             "## Candidates retenues",
-            "## Écartées (et pourquoi)",
+            "## À trancher à la main (destinataire ou objet indéterminé)",
+            "## Écartées par le test du destinataire",
+            "## Écartées au tri, sans ouvrir la page",
             "## Slugs proposés",
             "## Notes techniques",
         ):
@@ -976,6 +1234,72 @@ class TestFiche(unittest.TestCase):
     def test_les_ecartees_portent_leur_motif(self):
         self.assertIn("Bénéficiaire individuel", self.markdown)
         self.assertIn("hors sujet", self.markdown)
+        self.assertIn("[aide_personne]", self.markdown)
+
+    def test_lindeterminee_a_sa_propre_section(self):
+        """Ni retenue ni écartée : elle attend un humain, elle n'est pas perdue."""
+        section = self.markdown.split("## À trancher à la main", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("Fonds de soutien aux initiatives", section)
+        self.assertNotIn("Bourse d'écriture", section)
+        self.assertNotIn("Restauration du patrimoine protégé", section)
+
+    def test_les_taches_couvrent_les_trois_sorts(self):
+        creees = taches(
+            "ex", territoire(), self.lectures, self.slugs, "data/reviews/x.md", jour=JOUR
+        )
+        par_statut = {slug: t.statut for slug, t in creees.items()}
+        self.assertEqual(par_statut["ex-restauration-patrimoine-protege"], "a_valider")
+        self.assertEqual(par_statut["ex-fonds-de-soutien-aux-initiatives"], "a_valider")
+        self.assertEqual(par_statut["ex-bourse-d-ecriture"], "ignore")
+
+    def test_les_ecartees_entrent_en_ignore_avec_motif(self):
+        """Sans cela, `dedoublonner` les ignore et elles reviennent chaque fois."""
+        creees = taches(
+            "ex", territoire(), self.lectures, self.slugs, "data/reviews/x.md", jour=JOUR
+        )
+        bourse = creees["ex-bourse-d-ecriture"]
+        self.assertEqual(bourse.statut, "ignore")
+        self.assertIn("aide_personne", bourse.motif_ignore or "")
+        self.assertEqual(bourse.categorie_ecart, "aide_personne")
+        self.assertFalse(bourse.retenue)
+
+    def test_la_note_de_lecture_suit_jusqu_a_la_file(self):
+        """Elle nourrit l'`applies_if` de périmètre : `worker` passait `note=None`."""
+        creees = taches(
+            "ex", territoire(), self.lectures, self.slugs, "data/reviews/x.md", jour=JOUR
+        )
+        tache = creees["ex-restauration-patrimoine-protege"]
+        self.assertEqual(tache.note, "Cœur de cible.")
+        self.assertEqual(tache.destinataire, "proprietaire_gestionnaire")
+        self.assertEqual(tache.objet, "bien_ou_lieu")
+
+    def test_les_documents_de_collecte_rejoignent_urls_pdf(self):
+        lectures = [
+            Lecture(
+                Candidat(
+                    "https://guide.example/dispositif1",
+                    "Restauration",
+                    documents=("https://guide.example/documents/reglement.docx",),
+                ),
+                LectureFiche.model_validate({**LECTURE, "urls_pdf": ["https://g/r.pdf"]}),
+            )
+        ]
+        slugs = attribuer_slugs(territoire(), lectures, set())
+        creees = taches("ex", territoire(), lectures, slugs, "x.md", jour=JOUR)
+        tache = next(iter(creees.values()))
+        self.assertEqual(
+            tache.urls_pdf,
+            ["https://g/r.pdf", "https://guide.example/documents/reglement.docx"],
+        )
+
+    def test_les_departements_du_territoire_suivent(self):
+        """La CeA couvre 67 et 68 : sans ce champ, 17 doublons."""
+        cea = territoire(type="departement", prefixe_slug="67", departements=["67", "68"])
+        creees = taches("67", cea, self.lectures, self.slugs, "x.md", jour=JOUR)
+        self.assertEqual(
+            next(iter(creees.values())).departements,
+            ["67", "68"],
+        )
 
     def test_les_notes_techniques_disent_ce_qui_a_rate(self):
         self.assertIn("HTTP 500", self.markdown)
@@ -1015,7 +1339,9 @@ class TestFiche(unittest.TestCase):
         creees = taches(
             "ex", territoire(), self.lectures, self.slugs, "data/reviews/x.md", jour=JOUR
         )
-        self.assertEqual(list(creees), ["ex-restauration-patrimoine-protege"])
+        # La lecture en erreur n'entre pas : on ne sait rien d'elle, pas même
+        # son titre — la poser en `ignore` la perdrait pour de bon.
+        self.assertNotIn("dispositif9", str(creees))
         tache = creees["ex-restauration-patrimoine-protege"]
         self.assertEqual(tache.statut, "a_valider")
         self.assertEqual(tache.priorite, "haute")
@@ -1045,6 +1371,12 @@ class TestTransitions(unittest.TestCase):
         self.addCleanup(self.dossier.cleanup)
         self.etat_path = Path(self.dossier.name) / "file-attente.yaml"
 
+    RETENUE = {
+        "destinataire": "proprietaire_gestionnaire",
+        "objet": "bien_ou_lieu",
+        "famille": "restauration_bati",
+    }
+
     def _poser(self, **statuts):
         from pipeline.etat import Tache, ecrire
 
@@ -1057,6 +1389,7 @@ class TestTransitions(unittest.TestCase):
                     territoire="ex",
                     statut=statut,
                     ajoute_le=JOUR,
+                    **self.RETENUE,
                 )
                 for slug, statut in statuts.items()
             },
@@ -1068,7 +1401,11 @@ class TestTransitions(unittest.TestCase):
         from pipeline.etat import charger
 
         args = argparse.Namespace(
-            territoire="ex", slugs=list(slugs), tout=tout, etat=self.etat_path
+            territoire="ex",
+            slugs=list(slugs),
+            tout=tout,
+            sans_filtre=False,
+            etat=self.etat_path,
         )
         self.prospecter._transitionner(args, "valide" if sous_commande == "valider" else "ignore")
         return {s: t.statut for s, t in charger(self.etat_path).items()}
@@ -1087,6 +1424,95 @@ class TestTransitions(unittest.TestCase):
         self.assertEqual(
             self._lancer("valider", "a", "b", "c"),
             {"a": "ingere", "b": "en_cours", "c": "echec"},
+        )
+
+    def test_tout_napplique_le_test_du_destinataire(self):
+        """140 `adjacente` et 5 `hors_perimetre` sont passées en `valide` sans lui."""
+        from pipeline.etat import Tache, charger, ecrire
+
+        ecrire(
+            self.etat_path,
+            {
+                "retenue": Tache(titre="x", url="https://g/1", territoire="ex", **self.RETENUE),
+                "adjacente": Tache(
+                    titre="x",
+                    url="https://g/2",
+                    territoire="ex",
+                    destinataire="proprietaire_gestionnaire",
+                    objet="bien_ou_lieu",
+                    famille="adjacente",
+                ),
+                "hors-perimetre": Tache(
+                    titre="x",
+                    url="https://g/3",
+                    territoire="ex",
+                    destinataire="activite_tiers",
+                    objet="hors_lieu",
+                    famille="eau_nature_domaine",
+                ),
+            },
+        )
+        self.assertEqual(
+            self._lancer("valider", tout=True),
+            {"retenue": "valide", "adjacente": "a_valider", "hors-perimetre": "a_valider"},
+        )
+        # Rien n'est perdu : `charger` les retrouve en `a_valider`.
+        self.assertEqual(len(charger(self.etat_path)), 3)
+
+    def test_un_slug_nomme_passe_quel_que_soit_son_motif(self):
+        """Nommer un slug est un arbitrage humain : le filtre ne s'y applique pas."""
+        from pipeline.etat import Tache, ecrire
+
+        ecrire(
+            self.etat_path,
+            {
+                "adjacente": Tache(
+                    titre="x", url="https://g/2", territoire="ex", famille="adjacente"
+                )
+            },
+        )
+        self.assertEqual(self._lancer("valider", "adjacente"), {"adjacente": "valide"})
+
+    def test_valider_sans_slug_liste_les_restantes(self):
+        """Le point de contrôle humain : chaque restante avec son motif."""
+        import argparse
+        import io
+        from contextlib import redirect_stdout
+
+        from pipeline.etat import Tache, ecrire
+
+        ecrire(
+            self.etat_path,
+            {
+                "retenue": Tache(
+                    titre="Restauration", url="https://g/1", territoire="ex", **self.RETENUE
+                ),
+                "a-trancher": Tache(
+                    titre="Fonds de soutien",
+                    url="https://g/2",
+                    territoire="ex",
+                    famille="tourisme_hebergement",
+                    note="La page ne dit pas qui peut déposer.",
+                ),
+            },
+        )
+        args = argparse.Namespace(
+            territoire="ex", slugs=[], tout=False, sans_filtre=False, etat=self.etat_path
+        )
+        sortie = io.StringIO()
+        with redirect_stdout(sortie):
+            self.prospecter._transitionner(args, "valide")
+        texte = sortie.getvalue()
+        self.assertIn("retenue", texte)
+        self.assertIn("a-trancher", texte)
+        self.assertIn("indéterminé", texte)
+        self.assertIn("1 passerai(en)t le test", texte)
+        # Lister ne change RIEN : c'est un affichage, pas une transition.
+        from pipeline.etat import charger
+
+        self.assertEqual(
+            {s: t.statut for s, t in charger(self.etat_path).items()},
+            {"retenue": "a_valider", "a-trancher": "a_valider"},
         )
 
 

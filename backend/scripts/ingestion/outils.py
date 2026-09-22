@@ -40,6 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import providall
 from lint_aides_data import lint as lancer_lint
+from pipeline.etat import CATEGORIES_ECART
 from pipeline.llm import Compteur
 from pipeline.verrou import ecrire_atomique
 from pipeline.web import Fetcheur
@@ -64,9 +65,35 @@ MAX_CAR_EXPLORATION = 20_000
 MAX_LIGNES_LECTURE = 600
 LIGNES_PAR_DEFAUT = 400
 MIN_CAR_REVIEW = 800
+
+# --- E1 : le plafond de vérifications ---------------------------------------
+#
+# Le SKILL dit « UNE fois ». La mesure dit 2 442 passages sur 695 aides
+# (médiane 3, record 14), et 44 % des bloquants portaient sur le TYPAGE, pas sur
+# l'exactitude. Le mécanisme était circulaire : `ecrire_review` refuse une fiche
+# écrite après modification du YAML, chaque correction impose donc un passage de
+# plus, et le vérificateur — plus fort que l'extracteur — trouve à chaque fois
+# quelque chose d'autre à dire.
+#
+# Trois passages : un pour découvrir, un pour vérifier la correction, un de
+# marge. Au-delà, ce qui reste va en tête de la fiche sous « ⚠ À trancher », et
+# la tâche est marquée `a_relire`. Un bloquant non résolu qu'un humain voit vaut
+# mieux qu'un quatrième passage payé qui se contredira.
+MAX_VERIFICATIONS = 3
+# Au-delà, le rappel des verdicts précédents cesse d'être lisible.
+MAX_CAR_VERDICT = 200
 # En dessous, une page HTML n'a pas de substance : c'est une SPA dont le corps
 # est monté en JavaScript (mesuré sur aides.hautsdefrance.fr / plateforme Galis).
 SEUIL_SPA = 500
+
+
+@dataclass(frozen=True)
+class HorsPerimetre:
+    """Le verdict de `declarer_hors_perimetre`, remonté jusqu'à la file d'attente."""
+
+    categorie: str
+    motif: str
+    citation: str
 
 
 @dataclass
@@ -83,6 +110,26 @@ class EtatOutils:
     # `ds-pro` relevait encore 9 bloquants sur les fichiers finaux.
     modifiee_depuis_verification: bool = False
     faits_proposes: list[str] = field(default_factory=list)
+    #: Les faits dont l'agent a lu la définition complète (`detail_fait`). Sert
+    #: au garde de proximité : « cite le fait voisin » doit vouloir dire « va le
+    #: LIRE », pas « recopie sa clé dans ta justification ».
+    faits_detailles: set[str] = field(default_factory=set)
+    #: Combien de fois `verification_adversariale` a tourné. 2 442 passages sur
+    #: 695 aides au balayage du 2026-09-18 (médiane 3, une aide à 14), alors que
+    #: le skill dit « UNE fois » : rien ne le bornait, et le vérificateur se
+    #: contredisait d'un passage à l'autre.
+    verifications: int = 0
+    #: Un résumé par passage, renvoyé au vérificateur pour qu'il ne se
+    #: contredise pas : (axe, condition, sévérité, texte court).
+    verdicts_precedents: list[str] = field(default_factory=list)
+    #: La review a été écrite au plafond, bloquants non re-vérifiés — ou avec
+    #: des bloquants résiduels. Remonte jusqu'à la file d'attente : c'est la
+    #: liste de relecture humaine, et elle doit survivre au run.
+    a_relire: bool = False
+    #: L'agent a lu la source et constaté que l'aide s'adresse à un tiers. Un
+    #: ARRÊT NORMAL, pas un échec : le tri et la lecture ne voient qu'une page
+    #: de présentation, la source seule tranche.
+    hors_perimetre: HorsPerimetre | None = None
     appels: Counter[str] = field(default_factory=Counter)
 
 
@@ -192,6 +239,38 @@ def _entete_review_defaut(atelier: Atelier) -> str:
         f"<!-- Fiche générée par scripts/ingerer.py pour {atelier.slug} "
         f"le {atelier.jour.isoformat()}. À relire avant commit. -->\n"
     )
+
+
+def _bloc_a_trancher(etat: EtatOutils) -> str:
+    """Les bloquants qui n'ont pas été résolus, EN TÊTE de la fiche.
+
+    En tête, et pas en annexe : 132 aides du lot du 2026-09-18 ont été livrées
+    avec un bloquant adversarial non résolu (record : 35), sans que rien ne le
+    dise dans la fiche. Ce qui n'est pas lu n'est pas relu.
+    """
+    bloquants = etat.verification.bloquants if etat.verification else []
+    lignes = [
+        "## ⚠ À trancher — bloquants non re-vérifiés",
+        "",
+        f"La vérification adversariale a tourné {etat.verifications} fois "
+        f"(plafond : {MAX_VERIFICATIONS}). Ce qui suit n'a pas été re-vérifié après "
+        "la dernière correction, ou reste contesté :",
+        "",
+    ]
+    if not bloquants:
+        lignes.append(
+            "- l'aide a été modifiée après la dernière vérification : le rapport en main "
+            "ne décrit plus le fichier sur le disque."
+        )
+    for p in bloquants:
+        lignes.append(
+            f"- **{p.axe}** · `{p.condition_id or '(fiche)'}` — {' '.join(p.description.split())}"
+        )
+        if p.citation_source:
+            lignes.append(f"  > {' '.join(p.citation_source.split())}")
+        if p.correction_proposee:
+            lignes.append(f"  correction proposée : {' '.join(p.correction_proposee.split())}")
+    return "\n".join(lignes) + "\n\n"
 
 
 # ---------------------------------------------------------------------------
@@ -465,7 +544,13 @@ def outils_pour(
     ) -> str:
         """Définition complète d'un fait : type, scope, question, options, aide, levier."""
         compter("detail_fait")
-        return faits_mod.detail(facts, pending, fact_id)
+        message = faits_mod.detail(facts, pending, fact_id)
+        if not message.startswith("Fait inconnu"):
+            # C'est cette trace que lit le garde de proximité : « cite le fait
+            # voisin » veut dire « va le LIRE », et recopier une clé dans une
+            # justification ne suffit plus.
+            etat.faits_detailles.add(fact_id)
+        return message
 
     def proposer_fait(
         fact_id: Annotated[
@@ -493,10 +578,17 @@ def outils_pour(
     ) -> str:
         """Propose un fait NOUVEAU dans facts_pending.yaml. Dernier recours.
 
-        À n'appeler qu'après avoir cherché et lu les faits proches. Le fait est
+        À n'appeler qu'après avoir CHERCHÉ (`chercher_faits`) et LU
+        (`detail_fait`) les faits proches — la lecture est vérifiée. Le fait est
         utilisable immédiatement dans une condition `kind: user_fact`, mais
         reste « en attente » : c'est un humain qui l'approuvera en le déplaçant
         vers facts.yaml. Mentionne-le dans la fiche de review.
+
+        **Trois faits neufs au maximum par aide.** Un fait neuf ne se justifie
+        que s'il répond à une question qu'un AUTRE financeur poserait aussi, ou
+        s'il touche le cœur de métier (bâti, protection, propriétaire, travaux).
+        Une exigence propre à cette aide-ci se type `manual_check` +
+        `effect: info` ; un engagement du demandeur se type `info` + `info`.
 
         Si la question ne concerne que certains porteurs (une entreprise, une
         exploitation agricole), déclare `porteurs_concernes` : le lint obligera
@@ -505,7 +597,15 @@ def outils_pour(
         laisse le trou se recreuser lot après lot.
         """
         compter("proposer_fait")
-        message = faits_mod.proposer(atelier, facts, fact_id, definition_yaml, justification)
+        message = faits_mod.proposer(
+            atelier,
+            facts,
+            fact_id,
+            definition_yaml,
+            justification,
+            deja_proposes=tuple(etat.faits_proposes),
+            detailles=tuple(etat.faits_detailles),
+        )
         if not message.startswith("ERREUR"):
             etat.faits_proposes.append(fact_id)
             pending[fact_id] = FactDef.model_validate(yaml.safe_load(definition_yaml))
@@ -679,6 +779,9 @@ def outils_pour(
             # sans lui, les faits proposés par les autres aides passeraient
             # pour orphelins à chaque lint.
             reference_dirs=atelier.dossiers_catalogue,
+            # Les faits que TU viens de proposer : un orphelin parmi eux est une
+            # erreur, là où celui du voisin reste un avertissement.
+            faits_du_run=tuple(etat.faits_proposes),
         )
         etat.dernier_lint_ok = rapport.ok
         return rapport.texte()
@@ -697,16 +800,39 @@ def outils_pour(
             return "Vérification indisponible dans ce run (aucun modèle de vérification)."
         if not atelier.yaml_path.exists():
             return "ERREUR : écris d'abord le fichier avec `ecrire_aide`."
+        if etat.verifications >= MAX_VERIFICATIONS:
+            # Retour SANS appel : c'est le point du plafond. Le compter comme
+            # un passage de plus coûterait précisément ce qu'on veut éviter.
+            etat.a_relire = True
+            return (
+                f"Plafond atteint : {MAX_VERIFICATIONS} vérifications, c'est le maximum. "
+                "Écris maintenant la fiche de review avec `ecrire_review`, en mettant EN "
+                "TÊTE une section « ⚠ À trancher » qui liste les bloquants encore ouverts, "
+                "chacun avec la citation de la source et ta position. Un bloquant qu'un "
+                "humain voit vaut mieux qu'un quatrième passage qui se contredira."
+            )
         try:
             aide = load_aide(atelier.yaml_path)
         except Exception as exc:
             return f"ERREUR : le fichier écrit n'est pas chargeable — {exc}"
-        rapport, rendu = verifier(atelier, client_verif, aide=aide, compteur=compteur)
+        rapport, rendu = verifier(
+            atelier,
+            client_verif,
+            aide=aide,
+            compteur=compteur,
+            precedents=tuple(etat.verdicts_precedents),
+        )
         etat.verification = rapport
+        etat.verifications += 1
         etat.modifiee_depuis_verification = False
+        etat.verdicts_precedents += [
+            f"passage {etat.verifications} · {p.axe} · {p.condition_id or '(fiche)'} · "
+            f"{p.severite} · {' '.join(p.description.split())[:MAX_CAR_VERDICT]}"
+            for p in rapport.problemes
+        ]
         journal.evenement(
-            f"vérification : {len(rapport.problemes)} problème(s), "
-            f"{len(rapport.bloquants)} bloquant(s)"
+            f"vérification {etat.verifications}/{MAX_VERIFICATIONS} : "
+            f"{len(rapport.problemes)} problème(s), {len(rapport.bloquants)} bloquant(s)"
         )
         return rendu
 
@@ -742,7 +868,7 @@ def outils_pour(
                 "`verification_adversariale`. L'étape 4 du skill n'est pas facultative : "
                 "lance-la sur le fichier écrit, puis réécris la fiche avec son verdict."
             )
-        if etat.modifiee_depuis_verification:
+        if etat.modifiee_depuis_verification and etat.verifications < MAX_VERIFICATIONS:
             return (
                 "ERREUR : tu as modifié l'aide depuis la dernière "
                 "`verification_adversariale`. Le rapport que tu as en main ne décrit plus "
@@ -750,7 +876,17 @@ def outils_pour(
                 "problèmes sont traités. Relance `verification_adversariale`, puis réécris "
                 "la fiche avec son verdict réel."
             )
+        # Au plafond, ce refus deviendrait une impasse : l'agent ne peut plus
+        # re-vérifier, donc il ne pourrait plus jamais écrire sa fiche. La
+        # fiche est acceptée, et c'est la TÂCHE qui porte le doute
+        # (`a_relire`), pas l'agent qui tourne en rond à nos frais.
+        if etat.modifiee_depuis_verification:
+            etat.a_relire = True
+        if etat.verification is not None and etat.verification.bloquants:
+            etat.a_relire = True
         entete = entete_review() if entete_review else _entete_review_defaut(atelier)
+        if etat.a_relire:
+            texte = _bloc_a_trancher(etat) + texte
         atelier.review_path.parent.mkdir(parents=True, exist_ok=True)
         ecrire_atomique(atelier.review_path, entete.rstrip() + "\n\n" + texte + "\n")
         etat.review_ecrite = True
@@ -759,9 +895,88 @@ def outils_pour(
             "L'ingestion est terminée — réponds maintenant sans appeler d'outil."
         )
 
+    def declarer_hors_perimetre(
+        categorie: Annotated[
+            str,
+            Field(
+                description="metier_agricole, entreprise_generale, organisateur_artiste, "
+                "pratique_amateur, aide_personne, non_dispositif ou objet_hors_lieu"
+            ),
+        ],
+        motif: Annotated[
+            str,
+            Field(
+                description="Une à deux phrases : à QUI la source s'adresse, et en quelle qualité"
+            ),
+        ],
+        citation: Annotated[
+            str,
+            Field(
+                description="Le passage EXACT de la source qui le dit — « réservé aux "
+                "exploitants agricoles », « compagnies professionnelles conventionnées »"
+            ),
+        ],
+    ) -> str:
+        """Arrête l'ingestion : la source révèle que l'aide s'adresse à un TIERS.
+
+        À appeler dès l'étape 1, quand la lecture de la source montre que le
+        destinataire n'est pas le propriétaire ou le gestionnaire d'un lieu pris
+        en cette qualité, mais quelqu'un POUR SON MÉTIER (agriculteur, éleveur,
+        compagnie, artiste, chef d'entreprise en général) ou pour sa situation
+        personnelle. Le test complet est à l'étape 3 du skill de prospection.
+
+        N'écris AUCUN fichier d'aide dans ce cas, et n'appelle pas
+        `ecrire_review` : cet outil écrit lui-même une fiche courte, la tâche
+        passe `ignore` dans la file avec ton motif, et l'ingestion s'arrête.
+        C'est un résultat NORMAL, pas un échec — la prospection ne voit qu'une
+        page de présentation, la source seule tranche.
+
+        Ne l'appelle pas pour une aide simplement peu prioritaire ou marginale :
+        le thème reste large, c'est le DESTINATAIRE qui est strict.
+        """
+        compter("declarer_hors_perimetre")
+        if categorie not in CATEGORIES_ECART:
+            return (
+                f"ERREUR : catégorie inconnue « {categorie} ». "
+                f"Les sept valeurs possibles : {', '.join(CATEGORIES_ECART)}."
+            )
+        if len(motif.strip()) < 40:
+            return (
+                "ERREUR : motif trop court. Dis à QUI la source s'adresse et en quelle "
+                "qualité — c'est ce texte que l'humain lira pour confirmer l'écart."
+            )
+        if not citation.strip():
+            return (
+                "ERREUR : citation vide. Le passage de la source qui nomme son destinataire "
+                "est ce qui distingue un écart motivé d'une impression."
+            )
+        etat.hors_perimetre = HorsPerimetre(
+            categorie=categorie, motif=" ".join(motif.split()), citation=" ".join(citation.split())
+        )
+        entete = entete_review() if entete_review else _entete_review_defaut(atelier)
+        atelier.review_path.parent.mkdir(parents=True, exist_ok=True)
+        ecrire_atomique(
+            atelier.review_path,
+            entete.rstrip()
+            + "\n\n## Écartée à l'ingestion — hors périmètre\n\n"
+            + f"**Catégorie** : `{categorie}`\n\n"
+            + f"{etat.hors_perimetre.motif}\n\n"
+            + f"> {etat.hors_perimetre.citation}\n\n"
+            + "Aucun YAML n'a été écrit. La tâche passe `ignore` dans la file d'attente : "
+            + "elle ne reviendra pas au balayage suivant. Pour la rouvrir malgré tout : "
+            + f"`prospecter.py valider <territoire> {atelier.slug}`.\n",
+        )
+        etat.review_ecrite = True
+        return (
+            f"Aide écartée : {categorie}. Fiche écrite dans "
+            f"{atelier.relatif(atelier.review_path)}. L'ingestion est terminée — "
+            "réponds maintenant sans appeler d'outil, et n'écris aucun YAML."
+        )
+
     outils = [
         providall.tool(f)
         for f in (
+            declarer_hors_perimetre,
             explorer_url,
             snapshotter,
             lister_snapshots,

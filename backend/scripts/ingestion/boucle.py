@@ -35,7 +35,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import providall
 from pipeline.llm import Compteur
 from providall import Message, Response, ToolCall, Usage
-from providall.errors import EmptyResponseError, ProvidallError
+from providall.errors import (
+    APIError,
+    AuthError,
+    ConfigError,
+    EmptyResponseError,
+    NetworkError,
+    ProvidallError,
+)
 from providall.tools import Tool, as_tools
 
 Arret = Literal["termine", "sans_review", "budget", "max_tours", "erreur_modele", "boucle"]
@@ -77,9 +84,19 @@ class Limites:
     # 32 000 jetons, alors qu'OpenRouter en accepte 131 072 pour ce modèle.
     plafond_sortie_sauvetage: int = 128_000
     # Une erreur TRANSITOIRE du fournisseur (`retryable`), après les relances
-    # internes de providall : on attend un peu et on rejoue le tour, une fois.
-    # Le 2026-09-09, un `finish_reason='error'` répété a tué une aide au tour 5.
+    # internes de providall : on attend et on rejoue le MÊME tour.
+    #
+    # Une seule relance à 2 s jusqu'au 2026-09-18 — et cette nuit-là, 351 des
+    # 1 234 tâches sont mortes ainsi, sans écrire un octet ni coûter un cent :
+    # 251 `NetworkError`, 100 `APIError: credits épuisés`. Les deux se
+    # résolvent d'elles-mêmes, la première en quelques secondes, la seconde
+    # quand le solde remonte. Cinq essais avec une pause qui double
+    # (2, 4, 8, 16, 32 s) couvrent une minute de panne pour un coût nul, et le
+    # compteur repart à zéro dès qu'un appel passe : ce sont des pannes
+    # ponctuelles, pas un quota de run.
+    relances_transitoires: int = 5
     pause_relance_s: float = 2.0
+    pause_relance_max_s: float = 60.0
     # Détection de boucle. Le 2026-09-09, une aide a passé 95 tours à relire les
     # mêmes lignes sans jamais écrire : 12 centimes grâce au cache, donc le
     # budget en dollars n'a rien vu, et seuls les 120 tours l'ont arrêtée, deux
@@ -102,6 +119,12 @@ class Resultat:
     cout_inconnu: bool
     messages: list[Message] = field(default_factory=list)
     motif: str = ""
+    #: `transitoire`, `fatal` ou `""`. Ce que l'orchestrateur lit pour décider
+    #: si la tâche redevient `valide` (à rejouer) ou passe `echec` (à relire).
+    #: Calculé ici parce que c'est ici qu'on tient l'exception ; plus haut, il
+    #: ne reste qu'une chaîne, et le critère « 0 tour et 0 $ » se trompait sur
+    #: 267 des 351 pannes du 2026-09-18 (255 d'entre elles avaient fait 1 tour).
+    classe_erreur: str = ""
 
     @property
     def ok(self) -> bool:
@@ -333,8 +356,14 @@ def executer(
     journal: Journal | None = None,
     compteur: Compteur | None = None,
     review_ecrite: Callable[[], bool] = lambda: True,
+    dormir: Callable[[float], None] = time.sleep,
 ) -> Resultat:
-    """Fait tourner l'agent jusqu'à ce qu'il ait fini, ou qu'on l'arrête."""
+    """Fait tourner l'agent jusqu'à ce qu'il ait fini, ou qu'on l'arrête.
+
+    `dormir` est injectable pour que les tests du backoff mesurent les pauses
+    sans les attendre : cinq relances à 2, 4, 8, 16 et 32 s font une minute
+    par cas de test, et un test d'une minute ne se lance pas.
+    """
     limites = limites or Limites()
     journal = journal or JournalMuet()
     table_outils = as_tools(outils)
@@ -351,7 +380,7 @@ def executer(
     averti = False
     sauvetages = 0
     max_tokens_force: int | None = None
-    relance_transitoire_faite = False
+    relances_transitoires = 0
     signature_precedente = ""
     repetitions = 0
     dernier_tour_progres = 0
@@ -372,17 +401,32 @@ def executer(
                         f"même tour rejoué avec {max_tokens_force} — conservé pour la suite du run"
                     )
                     continue
-            if getattr(exc, "retryable", False) and not relance_transitoire_faite:
-                relance_transitoire_faite = True
-                journal.evenement(
-                    f"erreur transitoire, même tour rejoué dans {limites.pause_relance_s:g} s"
+            classe = classe_erreur(exc)
+            # Un budget de SORTIE épuisé se soigne en doublant les jetons
+            # (juste au-dessus), jamais en rejouant : le même appel rendrait le
+            # même vide. providall le marque pourtant `retryable` quand
+            # l'appelant n'a pas dit le contraire.
+            rejouable = classe == "transitoire" and not _sortie_epuisee(exc)
+            if rejouable and relances_transitoires < limites.relances_transitoires:
+                relances_transitoires += 1
+                pause = min(
+                    limites.pause_relance_s * 2 ** (relances_transitoires - 1),
+                    limites.pause_relance_max_s,
                 )
-                time.sleep(limites.pause_relance_s)
+                journal.evenement(
+                    f"erreur transitoire {relances_transitoires}/"
+                    f"{limites.relances_transitoires}, même tour rejoué dans {pause:g} s"
+                )
+                dormir(pause)
                 continue
             # Une seule tentative de sauvetage : si le contexte a débordé,
             # l'élagage peut suffire à faire repasser l'appel. Au-delà, on
             # rend la main — providall a déjà fait ses propres relances.
-            if sauvetages or not _sauvetage(conversation, limites, journal):
+            #
+            # Une erreur FATALE (clé invalide, modèle inconnu) saute le
+            # sauvetage : élaguer le contexte n'y changera rien, et
+            # l'orchestrateur doit l'apprendre tout de suite pour couper le run.
+            if classe == "fatal" or sauvetages or not _sauvetage(conversation, limites, journal):
                 return Resultat(
                     arret="erreur_modele",
                     tours=tour - 1,
@@ -391,10 +435,15 @@ def executer(
                     cout_inconnu=budget.inconnu,
                     messages=conversation,
                     motif=f"{type(exc).__name__}: {exc}",
+                    classe_erreur=classe,
                 )
             sauvetages += 1
             continue
 
+        # Un appel qui passe remet le compteur à zéro : cinq relances est un
+        # budget de PANNE, pas un quota de run. Une aide de 80 tours qui
+        # traverse deux coupures réseau doit survivre aux deux.
+        relances_transitoires = 0
         usage_cumule = usage_cumule + reponse.usage
         budget.ajouter(reponse)
         if compteur is not None:
@@ -566,6 +615,37 @@ def _signature_tour(appels: Sequence[ToolCall]) -> str:
         f"{a.name}:{json.dumps(getattr(a, 'arguments', None), sort_keys=True, ensure_ascii=False)}"
         for a in appels
     )
+
+
+# Ce qu'un `APIError` dit quand ce n'est pas la faute de l'appel. OpenRouter
+# rend un 402 « credits épuisés » avec `retryable=False` chez providall, ce qui
+# est exact pour un appel isolé et faux pour un run : le solde remonte, et 100
+# tâches sont mortes définitivement le 2026-09-18 pour cette raison. Les
+# messages sont comparés en minuscules, sans accent, sur le texte de l'erreur.
+_MOTIFS_TRANSITOIRES = ("credit", "crédit", "in-flight", "rate limit", "overloaded", "capacity")
+
+
+def classe_erreur(exc: BaseException) -> str:
+    """`transitoire` (rejouable), `fatal` (arrêter le run) ou `""` (ni l'un ni l'autre).
+
+    Trois familles, et la distinction PORTE : une panne transitoire doit
+    rendre la tâche à la file, une erreur d'authentification doit arrêter le
+    run tout de suite — rejouer 900 fois une clé invalide ne fait que remplir
+    un journal.
+    """
+    if isinstance(exc, AuthError | ConfigError):
+        return "fatal"
+    if getattr(exc, "retryable", False):
+        return "transitoire"
+    if isinstance(exc, APIError | NetworkError):
+        texte = str(exc).lower()
+        if any(motif in texte for motif in _MOTIFS_TRANSITOIRES) or isinstance(exc, NetworkError):
+            return "transitoire"
+    return ""
+
+
+def _transitoire(exc: BaseException) -> bool:
+    return classe_erreur(exc) == "transitoire"
 
 
 def _sortie_epuisee(exc: ProvidallError) -> bool:
