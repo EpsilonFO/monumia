@@ -386,6 +386,73 @@ def check_fail_open(aide: Aide) -> list[str]:
     return []
 
 
+_TIRETS_LONGS = ("—", "–")
+
+
+def _textes_de_fiche(aide: Aide) -> list[str]:
+    """Tout ce que la fiche fait lire, dans l'ordre de la page."""
+    f = aide.fiche
+    if f is None:
+        return []
+    textes: list[str | None] = [f.titre, f.financeur, f.chapeau]
+    valeurs = [f.montant, *(getattr(f.essentiel, k) for k in type(f.essentiel).model_fields)]
+    textes += [t for v in valeurs if v for t in (v.valeur, v.detail)]
+    if f.en_bref:
+        textes += [p.texte for p in f.en_bref.puces] + f.en_bref.detail
+    textes += [t for c in f.conseils for t in (c.titre, c.texte)]
+    textes += [t for e in f.etapes for t in (e.titre, e.texte)]
+    textes += [t for p in f.points.values() for t in (p.titre, p.resume)]
+    textes += list(f.pieces.values())
+    return [t for t in textes if t]
+
+
+def check_fiche(aide: Aide) -> list[str]:
+    """Avertissements sur la fiche rédigée. Aucun n'est bloquant : une fiche en
+    retard sur sa source reste plus lisible que le YAML brut, et la page ne
+    s'appuie sur elle pour aucun verdict.
+
+    - rédigée AVANT la dernière vérification de la source : la veille a pu
+      changer une date, un taux ou une condition que la fiche résume encore ;
+    - un point ou un conseil qui cite une condition que le YAML n'a plus, une
+      condition sans point, une pièce renommée qui n'existe plus : la veille a
+      touché aux conditions sans que la fiche suive ;
+    - un tiret cadratin ou demi-cadratin : c'est le premier tic d'écriture
+      automatique que la rédaction doit retirer (skill `ecriture-propre`).
+    """
+    f = aide.fiche
+    if f is None:
+        return []
+    avertissements = []
+    verifiee = aide.source.verified_at
+    if f.redige_le and verifiee and verifiee > f.redige_le:
+        avertissements.append(
+            f"{aide.slug}: fiche rédigée le {f.redige_le}, source revérifiée le {verifiee}, "
+            "à relire"
+        )
+    ids = {c.id for c in aide.conditions}
+    orphelins = sorted(set(f.points) - ids)
+    orphelins += [c.condition for c in f.conseils if c.condition and c.condition not in ids]
+    if orphelins:
+        avertissements.append(
+            f"{aide.slug}: la fiche cite des conditions absentes {orphelins}, à relire"
+        )
+    manquants = [c.id for c in aide.conditions if c.id not in f.points]
+    if manquants:
+        avertissements.append(
+            f"{aide.slug}: {len(manquants)} condition(s) sans point dans la fiche, à relire"
+        )
+    pieces = sorted(set(f.pieces) - {d.nom for d in aide.documents_requis})
+    if pieces:
+        avertissements.append(f"{aide.slug}: la fiche renomme des pièces absentes {pieces}")
+    tirets = [t for t in _textes_de_fiche(aide) if any(c in t for c in _TIRETS_LONGS)]
+    if tirets:
+        avertissements.append(
+            f"{aide.slug}: {len(tirets)} texte(s) de fiche avec un tiret long, "
+            f"ex. « {_extrait(tirets[0], 60)} »"
+        )
+    return avertissements
+
+
 def check_urls_partagees(aides: Sequence[Aide]) -> list[str]:
     """Deux aides du catalogue qui pointent la même page. Mode GLOBAL seulement.
 
@@ -794,6 +861,7 @@ def lint(
         rapport.erreurs.extend(check_famille_faire_vivre(aide))
         fail_open.extend(check_fail_open(aide))
         gates_larges.extend(gate_plus_large_que_le_marqueur(aide, facts))
+        rapport.avertissements.extend(check_fiche(aide))
 
     if fail_open:
         rapport.avertissements.append(

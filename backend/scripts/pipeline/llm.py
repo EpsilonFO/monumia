@@ -31,11 +31,13 @@ from providall.config import resolve as _resolve
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 
-# Les six métiers. `decouverte` sert à trouver la rubrique « aides » d'un site
+# Les métiers. `decouverte` sert à trouver la rubrique « aides » d'un site
 # inconnu, `tri` à classer des URL en lot, `lecture` à qualifier une fiche,
 # `ingestion` à écrire le YAML, `verification` à le réfuter, `audit` à relire
 # l'ontologie en fin de run. Ce dernier ne juge que des paires de faits déjà
-# appariées : un modèle bon marché y suffit, d'où un rôle à lui.
+# appariées : un modèle bon marché y suffit, d'où un rôle à lui. `redaction`
+# écrit le bloc `fiche:` d'une aide déjà ingérée (scripts/rediger_fiches.py) :
+# un travail de style sur un texte fourni, sans recherche ni typage.
 ROLES: tuple[str, ...] = (
     "tri",
     "lecture",
@@ -43,6 +45,7 @@ ROLES: tuple[str, ...] = (
     "ingestion",
     "verification",
     "audit",
+    "redaction",
 )
 
 

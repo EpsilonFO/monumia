@@ -8,7 +8,7 @@ declare global {
     /** Lu par le widget à son démarrage — donc posé AVANT l'insertion du script. */
     ybug_settings?: { id: string; user?: YbugUser } & Record<string, unknown>;
     /** L'API du widget, disponible seulement une fois le script chargé. */
-    Ybug?: { setUser?: (user: YbugUser) => void };
+    Ybug?: { setUser?: (user: YbugUser) => void; open?: () => void };
   }
 }
 

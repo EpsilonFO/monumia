@@ -8,7 +8,7 @@ from supabase import Client
 
 from aides_schema import load_all_aides, load_facts, load_pending_facts
 from db import get_current_user_id, get_supabase
-from eligibility_engine import aide_display_dict, run_deterministic_diagnostic
+from eligibility_engine import aide_fiche_dict, run_deterministic_diagnostic
 from eligibility_engine import disponibilite as aide_disponibilite
 from routers.monuments import enrich_monument_with_population, resolve_code_insee
 from services import catalogue_admin, quotas
@@ -134,6 +134,7 @@ _AIDE_KEY_MAP = {
     "url_officielle": "urlOfficielle",
     "formulaire_url": "formulaireUrl",
     "base_ttc": "baseTTC",
+    "verifie_le": "verifieLe",
     "created_at": "createdAt",
     "updated_at": "updatedAt",
 }
@@ -264,6 +265,12 @@ def retirer_les_modalites(aide: dict) -> dict:
     for field in _REDACTED_AIDE_FIELDS:
         if field in aide:
             aide[field] = None
+    # Le financeur de la carte rédigée est l'organisme en quelques mots : il
+    # part avec lui. Titre, chapeau et montant restent, comme le nom et la
+    # description. Copie : la carte sort du cache YAML du moteur.
+    carte = aide.get("carte")
+    if carte:
+        aide["carte"] = {**carte, "financeur": None}
     aide["locked"] = True
     return aide
 
@@ -458,9 +465,11 @@ def get_aide(
         if result and result.data:
             return _to_camel(result.data)
 
+    # La fiche complète (rédaction, règlement cité) ne part que d'ici : le
+    # diagnostic n'en emporte que la `carte`, pour ne pas alourdir cent aides.
     aide = load_all_aides().get(aide_id)
     if aide:
-        return _to_camel(aide_display_dict(aide))
+        return _to_camel(aide_fiche_dict(aide))
 
     raise HTTPException(status_code=404, detail="Aide introuvable")
 
