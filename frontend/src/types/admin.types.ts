@@ -97,8 +97,9 @@ export interface AdminFait {
 // Prédicats de conditions
 // ---------------------------------------------------------------------------
 
-/** Les quatre opérateurs que l'éditeur sait rendre. Pas de combinateur. */
-export type OperateurPredicat = 'eq' | 'neq' | 'in' | 'not_in';
+/** Les opérateurs que l'éditeur sait rendre. Pas de combinateur. `none_in`
+ *  (exclusion stricte) ne vaut que sur un fait à choix multiple. */
+export type OperateurPredicat = 'eq' | 'neq' | 'in' | 'not_in' | 'none_in';
 
 /** États d'une surcharge de prédicat, miroir de `ETATS_PREDICAT`. */
 export type EtatPredicat =
@@ -139,6 +140,9 @@ export interface AdminCondition {
   factKey: string;
   question: string | null;
   reponses: { id: string; label: string }[];
+  /** Fait à choix multiple : les opérateurs s'y lisent case par case, et
+   *  l'exclusion stricte `none_in` n'est proposée que là. */
+  choixMultiple: boolean;
   /** Opérateur et valeurs SERVIS (surcharge comprise). */
   operateur: OperateurPredicat | '';
   valeurs: string[];

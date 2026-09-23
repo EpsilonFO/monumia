@@ -133,8 +133,10 @@ class SurchargeFait(BaseModel):
 
 
 #: Les seuls opérateurs que l'éditeur de prédicats sait rendre. Un menu plus
-#: des cases à cocher : pas de combinateur, pas de seuil numérique.
-OPERATEURS_PREDICAT = ("eq", "neq", "in", "not_in")
+#: des cases à cocher : pas de combinateur, pas de seuil numérique. `none_in`
+#: (exclusion stricte d'un choix multiple) n'est valide que sur un multi_enum,
+#: ce que `check_fact_predicate` vérifie comme pour le lint.
+OPERATEURS_PREDICAT = ("eq", "neq", "in", "not_in", "none_in")
 
 #: Motif d'une surcharge de prédicat — même borne que celle d'un retrait.
 MOTIF_MAX = 500
@@ -600,7 +602,8 @@ def operateur_et_valeurs(predicate: Mapping) -> tuple[str, list[str]]:
 
 def canoniser_predicat(predicate: Mapping) -> dict:
     """Forme normale d'un prédicat simple : valeurs triées, `in` à une seule
-    valeur ramené à `eq` (et `not_in` à `neq`).
+    valeur ramené à `eq` (et `not_in` à `neq`). `none_in` garde sa liste même à
+    une valeur : il n'a pas de forme scalaire.
 
     Ce n'est pas cosmétique : 27 des 392 gates du corpus sont un `in` à une
     valeur. Sans canonisation, un administrateur qui RECOMPOSE le prédicat
@@ -611,6 +614,8 @@ def canoniser_predicat(predicate: Mapping) -> dict:
     if not operateur or not valeurs:
         return dict(predicate)
     valeurs = sorted(set(valeurs))
+    if operateur == "none_in":
+        return {operateur: valeurs}
     if len(valeurs) == 1:
         if operateur == "in":
             operateur = "eq"
@@ -668,7 +673,7 @@ def valider_predicat(
             "il se corrige dans le YAML de l'aide"
         )
     if operateur not in OPERATEURS_PREDICAT:
-        raise ValueError(f"opérateur « {operateur} » hors des quatre admis")
+        raise ValueError(f"opérateur « {operateur} » hors des opérateurs admis")
     if not valeurs:
         raise ValueError("il faut cocher au moins une réponse")
     try:
@@ -1268,6 +1273,7 @@ def _entree_condition(
         "reponses": [
             {"id": o.id, "label": o.label} for o in (options_editables(fait) if fait else [])
         ],
+        "choixMultiple": bool(fait and fait.type == "multi_enum"),
         "operateur": operateur,
         "valeurs": valeurs,
         "engineReady": aide.slug in ready,

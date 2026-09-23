@@ -17,15 +17,36 @@ import type {
   OperateurPredicat,
 } from '@/types/admin.types';
 
-/** Les quatre opérateurs, dans l'ordre d'affichage du menu. */
-export const OPERATEURS: { valeur: OperateurPredicat; label: string; phrase: string }[] = [
+type Operateur = { valeur: OperateurPredicat; label: string; phrase: string };
+
+/** Les opérateurs, dans l'ordre d'affichage du menu. `none_in` ne vaut que sur
+ *  un choix multiple : cf. `operateursPour`. */
+export const OPERATEURS: Operateur[] = [
   { valeur: 'eq', label: 'est', phrase: 'est' },
   { valeur: 'neq', label: 'n’est pas', phrase: 'n’est pas' },
   { valeur: 'in', label: 'est parmi', phrase: 'est parmi' },
   { valeur: 'not_in', label: 'n’est aucun de', phrase: 'n’est aucun de' },
+  { valeur: 'none_in', label: 'n’a coché aucun de', phrase: 'n’a coché aucun de' },
 ];
 
-const LABEL_PAR_OPERATEUR = new Map(OPERATEURS.map((o) => [o.valeur, o.phrase]));
+/**
+ * Sur un choix multiple, le moteur lit `neq` / `not_in` case par case : il
+ * suffit qu'UNE case cochée soit hors de la liste (une église qui accueille des
+ * concerts « n'est pas cultuelle » à ce compte). Les libellés le disent, pour
+ * qu'on ne pose pas une exclusion stricte par erreur ; l'exclusion stricte est
+ * `none_in`, absent du menu d'un choix simple où `not_in` dit déjà la même chose.
+ */
+const MULTIPLE: Partial<Record<OperateurPredicat, Pick<Operateur, 'label' | 'phrase'>>> = {
+  eq: { label: 'compte', phrase: 'compte' },
+  neq: { label: 'compte autre chose que', phrase: 'compte autre chose que' },
+  in: { label: 'compte l’un de', phrase: 'compte l’un de' },
+  not_in: { label: 'compte autre chose que', phrase: 'compte autre chose que' },
+};
+
+export function operateursPour(choixMultiple: boolean): Operateur[] {
+  if (!choixMultiple) return OPERATEURS.filter((o) => o.valeur !== 'none_in');
+  return OPERATEURS.map((o) => ({ ...o, ...MULTIPLE[o.valeur] }));
+}
 
 /** Ce que dit chaque état d'une surcharge, en une ligne, pour l'inventaire. */
 export const LIBELLE_ETAT: Record<EtatPredicat, string> = {
@@ -54,7 +75,7 @@ const ORDRE_ETAT: Record<EtatPredicat, number> = {
 /**
  * Forme normale d'un prédicat simple. Miroir de `canoniser_predicat` : valeurs
  * triées et dédoublonnées, une seule valeur ramenée à `eq` / `neq`, plusieurs
- * promues en `in` / `not_in`.
+ * promues en `in` / `not_in`. `none_in` garde sa liste, même à une valeur.
  *
  * Ce n'est pas cosmétique : sans elle, recomposer le prédicat d'origine depuis
  * le menu produirait une surcharge qui ne change rien, et figerait le YAML.
@@ -64,6 +85,7 @@ export function canoniser(
   valeurs: string[],
 ): { operateur: OperateurPredicat; valeurs: string[] } {
   const triees = [...new Set(valeurs)].sort();
+  if (operateur === 'none_in') return { operateur, valeurs: triees };
   if (triees.length === 1) {
     if (operateur === 'in') return { operateur: 'eq', valeurs: triees };
     if (operateur === 'not_in') return { operateur: 'neq', valeurs: triees };
@@ -104,11 +126,13 @@ export function phraseLisible(
   operateur: OperateurPredicat | '',
   valeurs: string[],
   reponses: { id: string; label: string }[],
+  choixMultiple = false,
 ): string {
   if (!operateur || valeurs.length === 0) return '—';
   const parId = new Map(reponses.map((r) => [r.id, r.label]));
   const libelles = valeurs.map((v) => parId.get(v) ?? v).join(', ');
-  const verbe = LABEL_PAR_OPERATEUR.get(operateur) ?? operateur;
+  const verbe =
+    operateursPour(choixMultiple).find((o) => o.valeur === operateur)?.phrase ?? operateur;
   return `${question ?? 'la réponse'} ${verbe} ${libelles}`;
 }
 

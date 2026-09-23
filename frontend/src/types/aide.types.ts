@@ -214,6 +214,10 @@ export interface QcmQuestion {
   eliminatingOptionIds: string[];
   /** Fine-grained elimination: optionId -> aideIds eliminated when that option is selected. */
   eliminationsParOption?: Record<string, string[]>;
+  /** Choix multiple : aides qu'une case écarte À ELLE SEULE, quelles que soient
+   *  les autres cases cochées (exclusion stricte `none_in` du moteur). Union sur
+   *  la sélection, là où `eliminationsParOption` s'intersecte. */
+  eliminationsStrictesParOption?: Record<string, string[]>;
   categorie?: string;
   /** Où la réponse vaut : le bien, le projet, ou le propriétaire. Une réponse
    *  de scope `monument` ou `proprietaire` est DURABLE — elle se reprend d'un

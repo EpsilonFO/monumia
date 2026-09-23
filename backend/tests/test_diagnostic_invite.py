@@ -267,6 +267,20 @@ class FormeDeLaReponseTests(unittest.TestCase):
         slugs = {s for q in brut for s in q["aideIds"]}
         self.assertEqual(len(alias), len(slugs))
 
+    def test_pseudonymisation_couvre_les_exclusions_strictes(self) -> None:
+        """La seconde table d'éliminations porte aussi des slugs : sans alias,
+        le visiteur y lirait les noms d'aides."""
+        brut = [
+            {
+                "id": "usage_batiment",
+                "aideIds": ["pdl-tourisme"],
+                "eliminationsParOption": {"cultuel": ["pdl-tourisme"]},
+                "eliminationsStrictesParOption": {"cultuel": ["pdl-tourisme"]},
+            }
+        ]
+        sortie = pseudonymiser_aides(brut)
+        self.assertEqual(sortie[0]["eliminationsStrictesParOption"], {"cultuel": ["a1"]})
+
     def test_pseudonymisation_ne_mute_pas_les_questions(self) -> None:
         """Les questions sortent du moteur, dont les YAML sont en cache."""
         brut = [{"id": "f1", "aideIds": ["drac-x"], "eliminationsParOption": {"non": ["drac-x"]}}]

@@ -236,7 +236,7 @@ def pseudonymiser_aides(questions: list[dict]) -> list[dict]:
     """Remplace les slugs d'aides des questions par des alias « a1, a2… ».
 
     Le front ne fait que des tests d'APPARTENANCE entre `aideIds` et les
-    valeurs d'`eliminationsParOption` (cf. `computeEliminatedAideIds` et
+    valeurs d'`eliminationsParOption` et d'`eliminationsStrictesParOption` (cf. `computeEliminatedAideIds` et
     `isQuestionServingLiveAide` dans frontend/src/lib/qcm.ts) : un alias stable
     à l'intérieur d'une même réponse lui suffit, et le visiteur n'apprend
     aucun nom d'aide au passage.
@@ -258,11 +258,10 @@ def pseudonymiser_aides(questions: list[dict]) -> list[dict]:
     for question in questions:
         q = dict(question)
         q["aideIds"] = [alias_de(s) for s in question.get("aideIds") or []]
-        elim = question.get("eliminationsParOption")
-        if elim:
-            q["eliminationsParOption"] = {
-                option: [alias_de(s) for s in slugs] for option, slugs in elim.items()
-            }
+        for champ in ("eliminationsParOption", "eliminationsStrictesParOption"):
+            elim = question.get(champ)
+            if elim:
+                q[champ] = {option: [alias_de(s) for s in slugs] for option, slugs in elim.items()}
         sorties.append(q)
     return sorties
 

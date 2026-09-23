@@ -558,6 +558,11 @@ class CanonisationTests(unittest.TestCase):
     def test_eq_a_plusieurs_valeurs_devient_in(self) -> None:
         self.assertEqual(ca.predicat_depuis("eq", ["musee", "culte"]), {"in": ["culte", "musee"]})
 
+    def test_none_in_garde_sa_liste_meme_a_une_valeur(self) -> None:
+        """L'exclusion stricte n'a pas de forme scalaire : la ramener à `neq`
+        la rendrait existentielle, c.-à-d. changerait son sens."""
+        self.assertEqual(ca.canoniser_predicat({"none_in": ["culte"]}), {"none_in": ["culte"]})
+
     def test_valeurs_triees_et_dedoublonnees(self) -> None:
         self.assertEqual(
             ca.predicat_depuis("in", ["musee", "culte", "musee"]), {"in": ["culte", "musee"]}
@@ -645,9 +650,14 @@ class ValidationPredicatTests(unittest.TestCase):
             ca.valider_predicat(self._condition(), {"eq": "ferme"}, FACTS)
         self.assertIn("hors options du fait", str(ctx.exception))
 
-    def test_operateur_hors_des_quatre_refuse(self) -> None:
+    def test_operateur_hors_des_admis_refuse(self) -> None:
         with self.assertRaises(ValueError):
             ca.valider_predicat(self._condition(), {"gte": 3}, FACTS)
+
+    def test_none_in_refuse_sur_un_choix_simple(self) -> None:
+        """Même validation que le lint : `none_in` n'existe que sur un multi_enum."""
+        with self.assertRaises(ValueError):
+            ca.valider_predicat(self._condition(), {"none_in": ["culte"]}, FACTS)
 
     def test_validation_contre_lontologie_effective(self) -> None:
         """Un prédicat peut légitimement citer une réponse qui n'existe que dans

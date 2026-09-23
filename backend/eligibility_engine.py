@@ -30,6 +30,7 @@ from datetime import date
 from typing import Literal
 
 from aides_schema import (
+    BLOCK_OPS,
     ENUM_FACT_TYPES,
     FAIT_PORTEUR,
     OPTIONS_BOOLEEN_IMPLICITES,
@@ -412,7 +413,6 @@ def deduire_faits_des_raisons(
 FAITS_DEDUITS_DES_FAMILLES: dict[str, frozenset[str]] = {
     "projet_lieu_diffusion_culturelle": frozenset({"spectacles_manifestations"}),
     "porteur_compagnie_artistique": frozenset({"spectacles_manifestations"}),
-    "porteur_ecole_art": frozenset({"spectacles_manifestations"}),
     "porteur_structure_musicale": frozenset({"spectacles_manifestations"}),
     "projet_hebergement_touristique": frozenset({"hebergement_touristique"}),
     "projet_developpement_touristique": frozenset(
@@ -1646,8 +1646,11 @@ def build_questions(
     Sur une question à choix multiple (`multiple: true`), chaque entrée vaut
     « si c'était la seule case cochée » : cocher une case de plus ne peut que
     LIBÉRER des aides (sémantique existentielle, cf. MultiValue), d'où
-    l'intersection côté front. Le verdict qui compte reste celui du moteur,
-    réévalué avec les réponses complètes.
+    l'intersection côté front. Seule exception, les exclusions strictes
+    (`none_in`) : cocher une case de plus peut écarter une aide, et
+    `eliminationsStrictesParOption` les porte à part pour que le front en
+    fasse l'union. Le verdict qui compte reste celui du moteur, réévalué avec
+    les réponses complètes.
     """
     # fact_key → {aide_slug → [conditions gate sur ce fait]}
     by_fact: dict[str, dict[str, list[Condition]]] = {}
@@ -1745,6 +1748,7 @@ def build_questions(
             continue
 
         elim: dict[str, list[str]] = {}
+        elim_strictes: dict[str, list[str]] = {}
         # Un fait porteur d'un levier n'élimine JAMAIS : son gate en échec rend
         # l'aide « à débloquer » (cf. evaluate_aide), pas refusée.
         fait_dirimant = fact.levier is None
@@ -1753,7 +1757,20 @@ def build_questions(
                 continue  # option « pas encore choisi » : n'élimine jamais
             test_value = opt.get("value", opt.get("repr"))
             eliminated = []
+            strictes = []
             for slug, conds in aides_conds.items():
+                # Exclusion stricte (`none_in`) : cette case écarte l'aide quelles
+                # que soient les autres cases cochées. Elle entre AUSSI dans
+                # `elim` ci-dessous, qui reste exact pour qui ne coche qu'elle
+                # (et pour un onglet dont le front ignore encore la table
+                # stricte : il sous-élimine, il n'élimine jamais à tort).
+                if fait_dirimant and any(
+                    next(iter(c.predicate.root)) in BLOCK_OPS
+                    and evaluate_predicate(c.predicate.root, test_value) is False
+                    and not c.derogation_possible
+                    for c in conds
+                ):
+                    strictes.append(slug)
                 # L'aide est éliminée si AU MOINS un de ses gates DIRIMANTS sur
                 # ce fait devient faux à cette valeur. Les gates synthétiques des
                 # faits passerelles sont exclus : ils libèrent, ils n'éliminent
@@ -1772,6 +1789,8 @@ def build_questions(
                     eliminated.append(slug)
             if eliminated:
                 elim[opt["id"]] = sorted(eliminated)
+            if strictes:
+                elim_strictes[opt["id"]] = sorted(strictes)
 
         slugs = aide_slugs(fact_key)
         multiple = fact.type == "multi_enum"
@@ -1814,6 +1833,11 @@ def build_questions(
             "enjeuMax": sum(montant_by_slug.get(s, 0) for s in slugs),
             "eliminatingOptionIds": [],
             "eliminationsParOption": elim,
+            # Choix multiple seulement, et seulement s'il y a lieu : les aides
+            # qu'une case écarte À ELLE SEULE (exclusion stricte, `none_in`).
+            # Le front en fait l'UNION sur la sélection, là où il intersecte
+            # `eliminationsParOption`.
+            **({"eliminationsStrictesParOption": elim_strictes} if elim_strictes else {}),
             "categorie": fact_key,
             # Où la réponse vaut : le bien, le projet, ou le propriétaire. Sert
             # aux faits DURABLES — une réponse de scope `monument` ou

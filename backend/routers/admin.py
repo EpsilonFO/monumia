@@ -126,7 +126,7 @@ class PredicatRequest(BaseModel):
     """Le point de conception du chantier : on ne transporte JAMAIS un prédicat
     JSON brut sur le fil.
 
-    Un opérateur pris dans quatre littéraux et une liste de chaînes rendent
+    Un opérateur pris dans cinq littéraux et une liste de chaînes rendent
     INEXPRIMABLES la moitié des états invalides — pas de combinateur, pas de
     valeur non-chaîne, pas de liste vide — et `check_fact_predicate` s'occupe du
     reste. La contrainte « impossible de produire un prédicat invalide » est
@@ -135,7 +135,7 @@ class PredicatRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    operateur: Literal["eq", "neq", "in", "not_in"]
+    operateur: Literal["eq", "neq", "in", "not_in", "none_in"]
     valeurs: list[str] = Field(min_length=1, max_length=OPTIONS_MAX)
     #: Pourquoi, pour l'autre fondateur qui verra la ligne.
     motif: str | None = Field(default=None, max_length=MOTIF_MAX)

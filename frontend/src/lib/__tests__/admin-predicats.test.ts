@@ -3,6 +3,7 @@ import {
   canoniser,
   filtrerConditions,
   inventaireSurcharges,
+  operateursPour,
   phraseLisible,
   predicatUtile,
 } from '@/lib/admin-predicats';
@@ -23,6 +24,7 @@ function condition(over: Partial<AdminCondition> = {}): AdminCondition {
     factKey: 'statut_porteur',
     question: 'Quel est le statut du porteur ?',
     reponses: REPONSES,
+    choixMultiple: false,
     operateur: 'in',
     valeurs: ['association', 'commune'],
     engineReady: true,
@@ -57,6 +59,14 @@ describe('canoniser', () => {
 
   it('ramène un `not_in` à une seule valeur vers `neq`', () => {
     expect(canoniser('not_in', ['commune'])).toEqual({ operateur: 'neq', valeurs: ['commune'] });
+  });
+
+  it('garde la liste d’un `none_in`, même à une seule valeur', () => {
+    // Le ramener à `neq` le rendrait existentiel, donc changerait son sens.
+    expect(canoniser('none_in', ['commune'])).toEqual({
+      operateur: 'none_in',
+      valeurs: ['commune'],
+    });
   });
 
   it('promeut un `eq` à plusieurs valeurs en `in`', () => {
@@ -152,5 +162,23 @@ describe('inventaireSurcharges', () => {
       'revoir',
       'ok',
     ]);
+  });
+});
+
+describe('operateursPour', () => {
+  it('ne propose l’exclusion stricte que sur un choix multiple', () => {
+    expect(operateursPour(false).map((o) => o.valeur)).not.toContain('none_in');
+    expect(operateursPour(true).map((o) => o.valeur)).toContain('none_in');
+  });
+
+  it('dit sur un choix multiple que `not_in` se lit case par case', () => {
+    const notIn = operateursPour(true).find((o) => o.valeur === 'not_in');
+    expect(notIn?.label).toBe('compte autre chose que');
+  });
+
+  it('rend la phrase de l’exclusion stricte', () => {
+    expect(
+      phraseLisible('Usages du bâtiment', 'none_in', ['commune'], REPONSES, true),
+    ).toBe('Usages du bâtiment n’a coché aucun de Commune');
   });
 });

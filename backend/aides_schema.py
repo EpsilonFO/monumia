@@ -134,9 +134,15 @@ ROLE_BY_TYPE: dict[str, str] = {
 # Un prédicat est un dict à clé unique : {"gte": 40}, {"eq": true},
 # {"in": ["a", "b"]}, {"contains": "petite_cite_de_caractere"},
 # {"any_of": [{...}, {...}]}. `contains` teste l'appartenance d'une valeur à
-# un champ liste (labels de commune, travaux…).
-COMPARISON_OPS = frozenset({"eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains"})
+# un champ liste (labels de commune, travaux…). `none_in` est l'exclusion
+# STRICTE d'un choix multiple, cf. MultiValue.
+COMPARISON_OPS = frozenset(
+    {"eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "none_in", "contains"}
+)
 COMBINATOR_OPS = frozenset({"any_of", "all_of"})
+# Opérateurs qui lisent la sélection d'un choix multiple EN BLOC plutôt que
+# case par case : ils ne se distribuent pas sur les valeurs cochées.
+BLOCK_OPS = frozenset({"none_in"})
 
 
 class MultiValue(tuple):
@@ -148,6 +154,13 @@ class MultiValue(tuple):
     demande », « le bâtiment a ces usages ». Un règlement réservé aux
     associations reste donc ouvert à qui a coché « association » + « personne
     physique » — le dossier passera par l'association.
+
+    Conséquence : `neq` et `not_in` y disent « au moins une case cochée est
+    hors de la liste », jamais « aucune case cochée n'y est ». Une église qui
+    accueille aussi des concerts (`cultuel` + `activite_culturelle`) satisfait
+    `neq: cultuel`. Quand la source exclut sans appel (« les sites cultuels en
+    activité ne sont pas éligibles »), le prédicat est `none_in` : réfuté dès
+    qu'UNE case cochée figure dans la liste, satisfait si aucune n'y figure.
 
     Le tri de la sélection ne change rien au résultat (any/all), et une
     sélection vide vaut fait inconnu (None), jamais faux.
@@ -189,8 +202,18 @@ class Predicate(RootModel[dict[str, Any]]):
             if not isinstance(val, list) or not val:
                 raise ValueError(f"« {op} » attend une liste non vide de prédicats")
             self.root = {op: [Predicate.model_validate(p).root for p in val]}
+            # `evaluate_predicate` distribue un combinateur sur les cases
+            # cochées AVANT d'en évaluer les branches : un `none_in` y serait lu
+            # case par case, c.-à-d. comme un `not_in`. Une exclusion stricte
+            # s'écrit donc seule, en condition à part.
+            imbriques = [o for o, _ in predicate_leaves(self.root) if o in BLOCK_OPS]
+            if imbriques:
+                raise ValueError(
+                    f"« {imbriques[0]} » ne s'imbrique pas dans « {op} » : "
+                    "poser l'exclusion stricte en condition séparée"
+                )
         elif op in COMPARISON_OPS:
-            if op in ("in", "not_in") and not isinstance(val, list):
+            if op in ("in", "not_in", "none_in") and not isinstance(val, list):
                 raise ValueError(f"« {op} » attend une liste de valeurs")
         else:
             raise ValueError(f"opérateur de prédicat inconnu : « {op} »")
@@ -217,6 +240,17 @@ def evaluate_predicate(predicate: dict[str, Any], value: Any) -> bool | None:
     C'est l'embryon du moteur d'évaluation déterministe : le diagnostic
     remplacera l'appel LLM par cette fonction appliquée aux faits connus.
     """
+    op, ref = next(iter(predicate.items()))
+    # Exclusion stricte : la sélection se lit en bloc. Une case cochée dans la
+    # liste réfute, quelles que soient les autres. Sur une valeur simple, c'est
+    # un `not_in` (cas d'une option testée seule, cf. eliminationsParOption).
+    if op == "none_in":
+        if value is None:
+            return None
+        cochees = value if isinstance(value, MultiValue) else (value,)
+        if not cochees:
+            return None
+        return not any(v in ref for v in cochees)
     # Fait à choix multiple : on distribue le prédicat ENTIER sur chaque valeur
     # cochée (cf. MultiValue). Distribuer avant les combinateurs est équivalent
     # à le faire après — toutes les branches lisent la même valeur — et évite de
@@ -228,7 +262,6 @@ def evaluate_predicate(predicate: dict[str, Any], value: Any) -> bool | None:
         if any(r is True for r in results):
             return True
         return False if all(r is False for r in results) else None
-    op, ref = next(iter(predicate.items()))
     if op in COMBINATOR_OPS:
         # Logique de Kleene à trois valeurs : un seul True établit un any_of et
         # un seul False réfute un all_of, même si d'autres branches restent
@@ -571,8 +604,10 @@ OPS_BY_FACT_TYPE: dict[str, frozenset[str]] = {
     "number": frozenset({"eq", "neq", "gt", "gte", "lt", "lte"}),
     "enum": frozenset({"eq", "neq", "in", "not_in"}),
     # Un multi_enum se compare option par option (cf. MultiValue) : mêmes
-    # opérateurs qu'un enum, `contains` n'a rien à y faire.
-    "multi_enum": frozenset({"eq", "neq", "in", "not_in"}),
+    # opérateurs qu'un enum, `contains` n'a rien à y faire. S'y ajoute
+    # `none_in`, l'exclusion stricte, qui n'a de sens que sur plusieurs cases :
+    # sur un enum, `not_in` dit déjà la même chose.
+    "multi_enum": frozenset({"eq", "neq", "in", "not_in", "none_in"}),
 }
 
 

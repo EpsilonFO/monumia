@@ -469,7 +469,7 @@ class ConditionsTests(_BaseAdmin):
         )
         self.assertEqual(entree["factKey"], COND_FACT)
         self.assertEqual([r["id"] for r in entree["reponses"]], COND_OPTIONS)
-        self.assertIn(entree["operateur"], ("eq", "neq", "in", "not_in"))
+        self.assertIn(entree["operateur"], ("eq", "neq", "in", "not_in", "none_in"))
         self.assertIsNone(entree["surcharge"])
 
     def test_aide_inconnue_est_404(self) -> None:

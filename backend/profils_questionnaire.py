@@ -350,7 +350,8 @@ def aides_eliminees(answers: dict[str, object], questions: list[dict]) -> set[st
     Question à choix multiple : une aide n'est écartée que si CHAQUE case cochée
     l'écarte — cocher une case de plus ne peut que libérer des aides (sémantique
     existentielle du moteur, cf. `MultiValue`). D'où l'INTERSECTION, et non
-    l'union, des éliminations par option.
+    l'union, des éliminations par option. Sauf `eliminationsStrictesParOption`
+    (exclusions `none_in`), où une seule case cochée suffit : union.
 
     Repli sur `eliminatingOptionIds` quand la carte fine ne rend rien, dans le
     même ordre que le front : une carte fine vide ne doit pas court-circuiter la
@@ -369,6 +370,10 @@ def aides_eliminees(answers: dict[str, object], questions: list[dict]) -> set[st
             commun = portee if commun is None else (commun & portee)
             if not commun:
                 break
+        # Exclusions strictes (`none_in`) : une seule case suffit, d'où l'UNION.
+        strictes = question.get("eliminationsStrictesParOption") or {}
+        for identifiant in choisis:
+            eliminees |= set(strictes.get(identifiant) or [])
         if commun:
             eliminees |= commun
             continue

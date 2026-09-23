@@ -37,6 +37,25 @@
       ],
       "aideIds": ["dotation-communale", "prix-prive"],
       "eliminatingOptionIds": ["non"]
+    },
+    {
+      "id": "usage_batiment",
+      "question": "Quels sont les usages du bâtiment ?",
+      "multiple": true,
+      "options": [
+        { "id": "cultuel", "label": "Culte" },
+        { "id": "activite_culturelle", "label": "Activité culturelle" },
+        { "id": "habitation", "label": "Habitation" }
+      ],
+      "aideIds": ["tourisme-hors-culte", "salle-concerts"],
+      "eliminatingOptionIds": [],
+      "eliminationsParOption": {
+        "cultuel": ["tourisme-hors-culte", "salle-concerts"],
+        "habitation": ["salle-concerts"]
+      },
+      "eliminationsStrictesParOption": {
+        "cultuel": ["tourisme-hors-culte"]
+      }
     }
   ],
   "cas_elimination": [
@@ -82,6 +101,21 @@
         "effectif_salaries": "plus_de_50"
       },
       "eliminees": ["dotation-communale", "prix-prive", "pret-pme"]
+    },
+    {
+      "nom": "exclusion stricte : la case exclue écarte l'aide malgré les autres cases",
+      "answers": { "usage_batiment": ["cultuel", "activite_culturelle"] },
+      "eliminees": ["tourisme-hors-culte"]
+    },
+    {
+      "nom": "exclusion stricte : sans la case exclue, rien",
+      "answers": { "usage_batiment": ["activite_culturelle"] },
+      "eliminees": []
+    },
+    {
+      "nom": "exclusion stricte et intersection se cumulent",
+      "answers": { "usage_batiment": ["cultuel", "habitation"] },
+      "eliminees": ["tourisme-hors-culte", "salle-concerts"]
     }
   ],
   "cas_visibilite": [

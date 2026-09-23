@@ -20,6 +20,8 @@ function isSkipId(q: QcmQuestion, id: string): boolean {
  *  Question à choix multiple : la réponse est un tableau d'ids et une aide n'est
  *  écartée que si CHAQUE case cochée l'écarte — cocher une case de plus ne peut
  *  que libérer des aides (sémantique existentielle du moteur, cf. MultiValue).
+ *  Sauf les exclusions strictes (`eliminationsStrictesParOption`) : une seule
+ *  case cochée suffit à écarter l'aide.
  */
 export function computeEliminatedAideIds(
   answers: Record<string, string | string[]>,
@@ -32,6 +34,11 @@ export function computeEliminatedAideIds(
       (id): id is string => !!id && !isSkipId(q, id),
     );
     if (selected.length === 0) continue;
+
+    // Exclusions strictes : union sur la sélection.
+    for (const id of selected) {
+      for (const aideId of q.eliminationsStrictesParOption?.[id] ?? []) eliminated.add(aideId);
+    }
 
     // Fine-grained: per-option elimination map, intersected across the selection.
     let common: string[] | null = null;

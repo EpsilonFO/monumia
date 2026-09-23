@@ -19,9 +19,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { adminService } from '@/services/admin.service';
 import {
   LIBELLE_ETAT,
-  OPERATEURS,
   filtrerConditions,
   inventaireSurcharges,
+  operateursPour,
   phraseLisible,
   predicatUtile,
 } from '@/lib/admin-predicats';
@@ -282,6 +282,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                       condition.operateur,
                       condition.valeurs,
                       condition.reponses,
+                      condition.choixMultiple,
                     )}
                   </span>
                 </div>
@@ -345,7 +346,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {OPERATEURS.map((o) => (
+                    {operateursPour(ouvert.choixMultiple).map((o) => (
                       <SelectItem key={o.valeur} value={o.valeur}>
                         {o.label}
                       </SelectItem>
@@ -375,6 +376,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                     brouillon.operateur,
                     brouillon.valeurs,
                     ouvert.reponses,
+                    ouvert.choixMultiple,
                   )}
                 </p>
                 {brouillon.valeurs.length === 0 && (

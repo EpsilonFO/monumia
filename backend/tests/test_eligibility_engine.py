@@ -16,7 +16,9 @@ from aides_schema import (
     FactDef,
     Financement,
     MultiValue,
+    Predicate,
     RangeValue,
+    check_fact_predicate,
     evaluate_predicate,
     load_all_aides,
     load_facts,
@@ -1463,6 +1465,75 @@ class TestMultiEnum(unittest.TestCase):
         self.assertEqual(unknowns, ["pas_encore_decide"])
         # Une option « pas encore décidé » n'élimine personne.
         self.assertNotIn("pas_encore_decide", q["eliminationsParOption"])
+
+
+class TestExclusionStricte(TestMultiEnum):
+    """`none_in` : l'exclusion sans appel d'un choix multiple. Réfutée dès
+    qu'UNE case cochée est dans la liste, là où `neq` / `not_in` passent dès
+    qu'une case est dehors (« les sites cultuels en activité ne sont pas
+    éligibles », pour une église qui accueille aussi des concerts)."""
+
+    USAGES_MIXTES = ["cultuel", "activite_culturelle"]
+
+    def test_neq_laisse_passer_l_usage_mixte(self):
+        """Le contraste qui motive l'opérateur : `neq` reste existentiel."""
+        self.assertEqual(
+            self._status("usage_batiment", {"neq": "cultuel"}, self.USAGES_MIXTES), "eligible"
+        )
+
+    def test_none_in_refuse_l_usage_mixte(self):
+        self.assertEqual(
+            self._status("usage_batiment", {"none_in": ["cultuel"]}, self.USAGES_MIXTES),
+            "non_eligible",
+        )
+
+    def test_none_in_admet_sans_case_exclue(self):
+        self.assertEqual(
+            self._status(
+                "usage_batiment", {"none_in": ["cultuel"]}, ["activite_culturelle", "habitation"]
+            ),
+            "eligible",
+        )
+
+    def test_none_in_reponse_unique_persistee(self):
+        """Une chaîne d'avant le choix multiple se lit comme une case cochée."""
+        self.assertEqual(
+            self._status("usage_batiment", {"none_in": ["cultuel"]}, "cultuel"), "non_eligible"
+        )
+
+    def test_none_in_selection_vide_ou_inconnue(self):
+        self.assertIsNone(evaluate_predicate({"none_in": ["cultuel"]}, MultiValue([])))
+        self.assertIsNone(evaluate_predicate({"none_in": ["cultuel"]}, None))
+
+    def test_eliminations_strictes_publiees_pour_le_front(self):
+        """La case exclue écarte l'aide À ELLE SEULE : le front en fait l'union.
+        Elle reste aussi dans `eliminationsParOption`, exact quand elle est
+        seule cochée."""
+        q = self._questions("usage_batiment", {"none_in": ["cultuel"]})["usage_batiment"]
+        self.assertEqual(q["eliminationsStrictesParOption"], {"cultuel": ["fixture-aide"]})
+        self.assertEqual(q["eliminationsParOption"], {"cultuel": ["fixture-aide"]})
+
+    def test_pas_de_table_stricte_sans_none_in(self):
+        q = self._questions("usage_batiment", {"neq": "cultuel"})["usage_batiment"]
+        self.assertNotIn("eliminationsStrictesParOption", q)
+
+    def test_none_in_refuse_dans_un_combinateur(self):
+        """Un combinateur se distribue case par case : `none_in` y deviendrait
+        un `not_in`. Le schéma le refuse plutôt que de l'évaluer faux."""
+        with self.assertRaises(ValueError):
+            Predicate.model_validate({"any_of": [{"none_in": ["cultuel"]}, {"eq": "habitation"}]})
+
+    def test_none_in_reserve_au_choix_multiple(self):
+        erreurs = check_fact_predicate(
+            "c", "etat_travaux", Predicate.model_validate({"none_in": ["acheves"]}), FACTS
+        )
+        self.assertTrue(any("none_in" in e for e in erreurs), erreurs)
+        self.assertEqual(
+            check_fact_predicate(
+                "c", "usage_batiment", Predicate.model_validate({"none_in": ["cultuel"]}), FACTS
+            ),
+            [],
+        )
 
 
 class TestDiagnosticShape(unittest.TestCase):
