@@ -33,3 +33,20 @@ export function useOffreMonument(monumentId: string | undefined): Offre {
     useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId)?.offre) ?? OFFRE_GRATUITE
   );
 }
+
+/**
+ * L'offre de ce monument est-elle connue ? Faux pour un monument relu du cache
+ * local (qui ne garde pas son offre) tant que le serveur n'a pas répondu, et
+ * pour un monument pas encore chargé.
+ *
+ * `useOffreMonument` rend alors l'offre gratuite, par prudence : c'est juste
+ * pour masquer un bouton, faux pour poser un paywall ou rediriger vers les
+ * tarifs — un abonné le verrait à chaque rechargement. Les zones que l'offre
+ * gouverne attendent donc ce drapeau avant de trancher.
+ */
+export function useOffreMonumentConnue(monumentId: string | undefined): boolean {
+  return useMonumentStore((s) => {
+    const monument = s.monuments.find((m) => m.id === monumentId);
+    return !!monument && !monument.depuisLeCache;
+  });
+}

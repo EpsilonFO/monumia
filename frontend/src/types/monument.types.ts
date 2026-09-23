@@ -21,6 +21,16 @@ export interface Monument {
    */
   offre?: Offre;
 
+  /**
+   * Posé sur un monument relu depuis le cache local (cf. stores/persistance),
+   * jamais sur une réponse du serveur. Un tel monument n'a ni `offre`, ni
+   * `myRole`, ni `members` — le cache ne les garde pas — et ces absences ne
+   * veulent donc rien dire : ce n'est pas « offre gratuite » ni « accès
+   * restreint », c'est « pas encore connu ». Disparaît dès que le serveur
+   * répond, puisque sa ligne remplace celle du cache.
+   */
+  depuisLeCache?: true;
+
   // Step 1: Identification
   nom: string;
   referenceMerimee?: string;

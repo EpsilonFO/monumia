@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Loader2 } from 'lucide-react';
 import {
   type IconComponent,
   IconProjet, IconEquipe, IconDocuments, IconDepot, IconMonument, IconAjouter,
@@ -35,7 +35,7 @@ import { documentService } from '@/services/document.service';
 import { dossierService } from '@/services/dossier.service';
 import { sharingService } from '@/services/sharing.service';
 import { computeMonumentStats, computeProjectStats, projectStage } from '@/lib/project-stats';
-import { useOffre, useOffreMonument } from '@/hooks/useOffre';
+import { useOffre, useOffreMonument, useOffreMonumentConnue } from '@/hooks/useOffre';
 import { libelleMonuments, sousLePlafond } from '@/lib/offres';
 import { PaywallDialog, PaywallOverlay } from '@/components/shared/Paywall';
 import { C, SERIF } from '@/lib/brand';
@@ -98,6 +98,10 @@ export function MonumentDetailPage() {
   // L'offre qui gouverne CE bien, et non celle du compte : un architecte
   // invité par un client abonné doit pouvoir lancer un chantier de plus.
   const offre = useOffreMonument(monumentId);
+  // Faux tant que le monument vient du cache local, qui ne garde ni son offre
+  // ni le rôle de l'utilisateur : rien de ce qu'ils gouvernent ne se tranche
+  // avant la réponse du serveur.
+  const droitsConnus = useOffreMonumentConnue(monumentId);
   // Le fil d'Ariane remonte à l'espace du COMPTE : c'est son plafond à lui
   // qui décide du singulier, pas l'offre qui gouverne ce monument-ci.
   const offreCompte = useOffre();
@@ -198,8 +202,12 @@ export function MonumentDetailPage() {
   // façon. Même repli pour l'onglet Équipe hors offre — arriver par un lien
   // gardé en favori affiche le monument, là où un clic délibéré mène aux
   // tarifs : on n'éjecte pas quelqu'un qui voulait simplement ouvrir sa fiche.
+  //
+  // Pas de repli tant que les droits sont inconnus : un monument relu du cache
+  // n'a pas de `myRole`, et ce n'est pas un accès restreint. Retomber sur les
+  // Projets pour revenir aussitôt sur l'onglet demandé ferait sauter la page.
   const activeTab =
-    (!monument?.myRole && (requestedTab === 'documents' || requestedTab === 'equipe'))
+    (droitsConnus && !monument?.myRole && (requestedTab === 'documents' || requestedTab === 'equipe'))
       ? 'projets'
       : requestedTab;
 
@@ -221,13 +229,18 @@ export function MonumentDetailPage() {
   // devant quand le plafond est atteint : refermer la modale laisse
   // l'utilisateur là où il était, ce qu'une redirection vers les tarifs ne
   // permet pas.
+  //
+  // Tant que l'offre n'est pas revenue du serveur, le clic ne tranche pas : le
+  // plafond par défaut est celui du gratuit, et un abonné qui clique dans la
+  // première seconde se verrait proposer une offre qu'il a déjà.
   const goNouveauProjet = useCallback(() => {
+    if (!droitsConnus) return;
     if (!peutCreerProjet) {
       setPaywallProjet(true);
       return;
     }
     if (monumentId) navigate(ROUTES.PROJET_NEW(monumentId));
-  }, [peutCreerProjet, monumentId, navigate]);
+  }, [droitsConnus, peutCreerProjet, monumentId, navigate]);
 
   if (notFound || (!monument && !monumentId)) {
     return (
@@ -494,6 +507,11 @@ export function MonumentDetailPage() {
         <TabsContent value="equipe" className="mt-4">
           {equipeAccessible ? (
             equipePanel
+          ) : !droitsConnus ? (
+            // Offre pas encore connue : ni formulaire ni paywall.
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blueLight }} />
+            </div>
           ) : (
             <PaywallOverlay
               offre="Veille"

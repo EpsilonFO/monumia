@@ -1,35 +1,67 @@
+import { lazy, Suspense, type ComponentType, type LazyExoticComponent, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate, useSearchParams } from 'react-router';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { LoginPage } from '@/pages/login/LoginPage';
 import { ResetPasswordPage } from '@/pages/login/ResetPasswordPage';
 import { AuthCallbackPage } from '@/pages/login/AuthCallbackPage';
-import { TarifsPage } from '@/pages/tarifs/TarifsPage';
-import { BlogLayout } from '@/components/blog/BlogLayout';
-import { BlogIndexPage } from '@/pages/blog/BlogIndexPage';
-import { BlogCategoryPage } from '@/pages/blog/BlogCategoryPage';
-import { BlogArticlePage } from '@/pages/blog/BlogArticlePage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { AdminRoute } from '@/components/auth/AdminRoute';
-import { AdminPage } from '@/pages/admin/AdminPage';
-import { AdminStatsPage } from '@/pages/admin/AdminStatsPage';
 import { MonComptePage } from '@/pages/compte/MonComptePage';
 // Owner / Commune pages
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { MonumentsListPage } from '@/pages/monuments/MonumentsListPage';
-import { MonumentWizardPage } from '@/pages/monuments/MonumentWizardPage';
 import { MonumentDetailPage } from '@/pages/monuments/MonumentDetailPage';
-import { ProjetWizardPage } from '@/pages/projets/ProjetWizardPage';
-import { RepriseBrouillonPage } from '@/pages/projets/RepriseBrouillonPage';
 import { ProjetDetailPage } from '@/pages/projets/ProjetDetailPage';
 import { AideProjectPage } from '@/pages/projets/AideProjectPage';
-import { DossierDetailPage } from '@/pages/projets/DossierDetailPage';
 import { DocumentsPage } from '@/pages/documents/DocumentsPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
-import { InvitationLandingPage } from '@/pages/invitation/InvitationLandingPage';
 import { ROUTES } from '@/constants/routes';
 import { useOffre, useOffreChargee } from '@/hooks/useOffre';
 import { PaywallOverlay } from '@/components/shared/Paywall';
+
+/**
+ * Chargées à la demande. Le chemin critique — la coquille, le tableau de bord,
+ * les monuments, la page d'un projet, la connexion — reste dans le paquet
+ * principal : c'est lui que télécharge quelqu'un qui ouvre simplement son
+ * espace, et il n'a aucune raison d'y payer l'administration, le blog ou les
+ * deux wizards. Sur une première visite, ce paquet décide seul du délai avant
+ * la première requête.
+ */
+function differe<N extends string>(
+  charger: () => Promise<Record<N, ComponentType>>,
+  nom: N,
+): LazyExoticComponent<ComponentType> {
+  return lazy(() =>
+    charger().then((module) =>
+      // `undefined` : le morceau manquait et `rechargerSurMorceauPerdu` a
+      // relancé la page. On reste en attente (le repli de `EnDiffere`) plutôt
+      // que de lever sur `module[nom]` le temps que le rechargement parte.
+      module
+        ? { default: module[nom] as ComponentType }
+        : new Promise<never>(() => {}),
+    ),
+  );
+}
+
+const TarifsPage = differe(() => import('@/pages/tarifs/TarifsPage'), 'TarifsPage');
+const BlogLayout = differe(() => import('@/components/blog/BlogLayout'), 'BlogLayout');
+const BlogIndexPage = differe(() => import('@/pages/blog/BlogIndexPage'), 'BlogIndexPage');
+const BlogCategoryPage = differe(() => import('@/pages/blog/BlogCategoryPage'), 'BlogCategoryPage');
+const BlogArticlePage = differe(() => import('@/pages/blog/BlogArticlePage'), 'BlogArticlePage');
+const AdminPage = differe(() => import('@/pages/admin/AdminPage'), 'AdminPage');
+const AdminStatsPage = differe(() => import('@/pages/admin/AdminStatsPage'), 'AdminStatsPage');
+const MonumentWizardPage = differe(() => import('@/pages/monuments/MonumentWizardPage'), 'MonumentWizardPage');
+const ProjetWizardPage = differe(() => import('@/pages/projets/ProjetWizardPage'), 'ProjetWizardPage');
+const RepriseBrouillonPage = differe(() => import('@/pages/projets/RepriseBrouillonPage'), 'RepriseBrouillonPage');
+const DossierDetailPage = differe(() => import('@/pages/projets/DossierDetailPage'), 'DossierDetailPage');
+const InvitationLandingPage = differe(() => import('@/pages/invitation/InvitationLandingPage'), 'InvitationLandingPage');
+
+/** Le temps que le morceau arrive : une zone vide, comme le reste des gardes. */
+// eslint-disable-next-line react-refresh/only-export-components
+function EnDiffere({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<div className="min-h-[40vh]" />}>{children}</Suspense>;
+}
 
 /**
  * Ancien wizard unifié : `/app/projets/nouveau`, avec `?monument=<id>` pour
@@ -60,19 +92,24 @@ function LegacyWizardRedirect() {
  * `GET /dashboard` sert la même réponse à tout le monde, c'est aussi elle qui
  * alimente « Mes monuments ».
  *
- * On ATTEND la réponse du serveur avant de trancher. L'état initial est l'offre
- * gratuite (par prudence, cf. useOffre), et flouter dessus montrerait un
- * paywall à un abonné à chaque rechargement — le temps que /billing/access
- * revienne.
+ * La page se monte TOUT DE SUITE, et seul le paywall attend la réponse du
+ * serveur. L'état initial est l'offre gratuite (par prudence, cf. useOffre), et
+ * flouter dessus montrerait un paywall à un abonné à chaque rechargement — le
+ * temps que /billing/access revienne. Mais attendre en rendant un bloc vide
+ * retardait aussi `GET /dashboard`, que la page déclenche à son montage : les
+ * deux requêtes partaient l'une après l'autre au lieu d'ensemble. Le contenu
+ * est le même pour tous, et le flou se pose par-dessus sans rien retirer.
  */
 // eslint-disable-next-line react-refresh/only-export-components
 function DashboardRoute() {
   const offre = useOffre();
   const charge = useOffreChargee();
-  if (!charge) return <div className="min-h-[40vh]" />;
-  if (offre.dashboard) return <DashboardPage />;
+  // UN seul arbre, paywall actif ou non : basculer de `<DashboardPage />` à
+  // `<PaywallOverlay><DashboardPage /></PaywallOverlay>` démontait la page à
+  // l'arrivée de l'offre, et la remontée relançait `GET /dashboard`.
   return (
     <PaywallOverlay
+      actif={charge && !offre.dashboard}
       offre="Multi-monuments"
       titre="Tous vos monuments, sur un seul écran"
       description="Le tableau de bord réunit vos biens, l'avancement de chaque chantier et les échéances qui approchent. Il prend son sens à partir de deux monuments."
@@ -132,24 +169,24 @@ export const router = createBrowserRouter([
   // Tarifs page (public)
   {
     path: '/tarifs',
-    element: <TarifsPage />,
+    element: <EnDiffere><TarifsPage /></EnDiffere>,
   },
 
   // Blog (public)
   {
     path: '/blog',
-    element: <BlogLayout />,
+    element: <EnDiffere><BlogLayout /></EnDiffere>,
     children: [
-      { index: true, element: <BlogIndexPage /> },
-      { path: 'categorie/:categorySlug', element: <BlogCategoryPage /> },
-      { path: 'article/:slug', element: <BlogArticlePage /> },
+      { index: true, element: <EnDiffere><BlogIndexPage /></EnDiffere> },
+      { path: 'categorie/:categorySlug', element: <EnDiffere><BlogCategoryPage /></EnDiffere> },
+      { path: 'article/:slug', element: <EnDiffere><BlogArticlePage /></EnDiffere> },
     ],
   },
 
   // Invitation acceptance page (public — no auth required)
   {
     path: '/invitation/:token',
-    element: <InvitationLandingPage />,
+    element: <EnDiffere><InvitationLandingPage /></EnDiffere>,
   },
 
   // Les deux wizards — plein écran immersif, hors du shell AppLayout.
@@ -161,7 +198,7 @@ export const router = createBrowserRouter([
   // `ProtectedRoute` lui-même ne change pas : les autres routes le gardent.
   {
     path: '/app/monuments/nouveau',
-    element: <MonumentWizardPage />,
+    element: <EnDiffere><MonumentWizardPage /></EnDiffere>,
   },
   // Suite du parcours découverte : le cadrage et le questionnaire, sans
   // monument en base. Sans paramètre d'URL, et c'est ce qui distingue le mode
@@ -170,14 +207,14 @@ export const router = createBrowserRouter([
   // manque.
   {
     path: '/app/monuments/nouveau/projet',
-    element: <ProjetWizardPage />,
+    element: <EnDiffere><ProjetWizardPage /></EnDiffere>,
   },
   {
     // `?projet=<id>` : « Refaire le questionnaire » d'un projet existant.
     path: '/app/monuments/:monumentId/projets/nouveau',
     element: (
       <ProtectedRoute>
-        <ProjetWizardPage />
+        <EnDiffere><ProjetWizardPage /></EnDiffere>
       </ProtectedRoute>
     ),
   },
@@ -198,7 +235,7 @@ export const router = createBrowserRouter([
     path: '/app/reprise',
     element: (
       <ProtectedRoute>
-        <RepriseBrouillonPage />
+        <EnDiffere><RepriseBrouillonPage /></EnDiffere>
       </ProtectedRoute>
     ),
   },
@@ -223,7 +260,7 @@ export const router = createBrowserRouter([
       // notifications) : ProjetDetailPage le résout à l'exécution et redirige.
       { path: 'projets/:projetId', element: <ProjetDetailPage /> },
       { path: 'projets/:projetId/aides/:aideId', element: <AideProjectPage /> },
-      { path: 'projets/:projetId/dossiers/:dossierId', element: <DossierDetailPage /> },
+      { path: 'projets/:projetId/dossiers/:dossierId', element: <EnDiffere><DossierDetailPage /></EnDiffere> },
       { path: 'documents', element: <DocumentsPage /> },
       { path: 'profil', element: <ProfilePage /> },
       // Redirections legacy → liste des monuments
@@ -247,8 +284,8 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <AdminPage /> },
-      { path: 'statistiques', element: <AdminStatsPage /> },
+      { index: true, element: <EnDiffere><AdminPage /></EnDiffere> },
+      { path: 'statistiques', element: <EnDiffere><AdminStatsPage /></EnDiffere> },
     ],
   },
 

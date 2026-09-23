@@ -18,7 +18,8 @@ from routers.aides import (
     merge_projet_into_monument,
 )
 from routers.monuments import fetch_user_monuments, sign_photos
-from services.project_access import projet_ids_membre
+from services.parallele import en_parallele
+from services.project_access import projet_role_depuis
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -82,10 +83,7 @@ def get_dashboard(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    monuments, population_by_code = fetch_user_monuments(supabase, user_id)
-    # Les photos vivent dans un bucket privé : sans lien signé, les vignettes de
-    # « Mes monuments » et du tableau de bord seraient cassées.
-    sign_photos(supabase, monuments)
+    monuments, population_by_code, roles_propres = fetch_user_monuments(supabase, user_id)
     if not monuments:
         return {
             "monuments": [],
@@ -98,52 +96,64 @@ def get_dashboard(
     monument_ids = [m["id"] for m in monuments]
     monuments_by_id = {m["id"]: m for m in monuments}
 
-    # Les projets visibles. Sur un monument dont l'utilisateur est membre, tous ;
-    # sur un monument atteint par un seul chantier (`my_role` None), ce chantier
-    # et lui seul — c'est ici que se joue le « ils ne voient pas le reste ».
-    equipe_monument = {m["id"] for m in monuments if m.get("my_role")}
-    mes_projets = set(projet_ids_membre(supabase, user_id))
-    projets = [
-        p
-        for p in (
+    # Une seule vague une fois les monuments connus : les photos à signer, les
+    # projets, les dossiers et les suivis ne dépendent que de `monument_ids`.
+    # Les filtres de visibilité s'appliquent APRÈS, en mémoire.
+    #
+    # Les photos vivent dans un bucket privé : sans lien signé, les vignettes de
+    # « Mes monuments » et du tableau de bord seraient cassées.
+    _, projet_rows, dossier_rows, suivi_rows = en_parallele(
+        lambda: sign_photos(supabase, monuments),
+        lambda: (
             supabase.table("projets")
             .select("*")
             .in_("monument_id", monument_ids)
             .order("created_at", desc=True)
             .execute()
             .data
-        )
-        or []
-        if p["monument_id"] in equipe_monument or p["id"] in mes_projets
-    ]
-    projets_visibles = {p["id"] for p in projets}
-
-    dossiers = [
-        d
-        for d in (
+        ),
+        lambda: (
             supabase.table("dossiers")
             .select("*")
             .in_("monument_id", monument_ids)
             .order("date_derniere_modification", desc=True)
             .execute()
             .data
-        )
-        or []
-        if d["projet_id"] in projets_visibles
-    ]
+        ),
+        # Les suivis restent filtrés par utilisateur, comme /projets/{id}/aide-suivis.
+        lambda: (
+            supabase.table("aide_suivis")
+            .select("*")
+            .in_("monument_id", monument_ids)
+            .eq("user_id", user_id)
+            .execute()
+            .data
+        ),
+    )
 
-    # Les suivis restent filtrés par utilisateur, comme /projets/{id}/aide-suivis.
-    suivi_rows = (
-        supabase.table("aide_suivis")
-        .select("*")
-        .in_("monument_id", monument_ids)
-        .eq("user_id", user_id)
-        .execute()
-        .data
-    ) or []
+    # Les projets visibles. Sur un monument dont l'utilisateur est membre, tous ;
+    # sur un monument atteint par un seul chantier (`my_role` None), ce chantier
+    # et lui seul — c'est ici que se joue le « ils ne voient pas le reste ».
+    equipe_monument = {m["id"] for m in monuments if m.get("my_role")}
+    projets = [
+        p
+        for p in projet_rows or []
+        if p["monument_id"] in equipe_monument or p["id"] in roles_propres
+    ]
+    # Le rôle EFFECTIF sur chaque projet, comme toute réponse de routers/projets :
+    # le front lit les droits d'une page projet sur `Projet.myRole`, et ce payload
+    # remplace les projets du store — sans ce champ, il effacerait le rôle posé
+    # par `GET /projets/{id}` et retirerait l'onglet Aides à son chef de projet.
+    for p in projets:
+        monument_role = (monuments_by_id.get(p["monument_id"]) or {}).get("my_role")
+        p["my_role"] = projet_role_depuis(p, monument_role, roles_propres, user_id)
+    projets_visibles = {p["id"] for p in projets}
+
+    dossiers = [d for d in dossier_rows or [] if d["projet_id"] in projets_visibles]
+
     # Les lignes PostgREST ne sont pas typées : on resserre la clé en str.
     suivis: dict[str, list[dict]] = {str(p["id"]): [] for p in projets}
-    for row in suivi_rows:
+    for row in suivi_rows or []:
         if row["projet_id"] in projets_visibles:
             suivis.setdefault(row["projet_id"], []).append(row)
 

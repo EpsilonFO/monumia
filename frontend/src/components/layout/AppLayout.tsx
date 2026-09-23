@@ -3,14 +3,12 @@ import { Outlet, useNavigate, useLocation } from 'react-router';
 import { TopBar } from './TopBar';
 import { BottomNav } from './BottomNav';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useBillingStore } from '@/stores/useBillingStore';
-import { monumentService } from '@/services/monument.service';
+import { dashboardService } from '@/services/dashboard.service';
 
 export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
-  const setMonuments = useMonumentStore((s) => s.setMonuments);
   const loadAccess = useBillingStore((s) => s.loadAccess);
   const navigate = useNavigate();
 
@@ -20,11 +18,16 @@ export function AppLayout() {
     }
   }, [user, navigate]);
 
-  // La liste des projets, dont toutes les pages de cet espace ont besoin.
+  // Monuments, projets, dossiers, digests et suivis : toutes les pages de cet
+  // espace en ont besoin, et `GET /dashboard` les sert en un seul appel. C'est
+  // la source unique — un `GET /monuments` en parallèle refaisait tout le
+  // travail de `fetch_user_monuments` côté serveur, et les deux réponses se
+  // couraient après dans le store. Les pages qui l'appellent aussi à leur
+  // montage rejoignent la requête en vol (cf. dashboardService.load).
   useEffect(() => {
     if (!token) return;
-    monumentService.getAll().then(setMonuments).catch(console.error);
-  }, [token, setMonuments]);
+    dashboardService.load().catch(console.error);
+  }, [token]);
 
   // Droits de facturation : quels projets sont débloqués. Non persistés, donc
   // rechargés à chaque ouverture de session.

@@ -56,6 +56,17 @@ export const aideService = {
   },
 
   /**
+   * Le même diagnostic, sur le questionnaire ENREGISTRÉ du projet, que le
+   * serveur relit lui-même (`answers` absent du corps, cf. routers/aides.py).
+   * Sert à partir avant d'avoir le projet en main : la page d'un projet n'a
+   * plus à attendre `GET /projets/{id}` pour lancer le plus lourd de ses appels.
+   * Le résultat porte les réponses utilisées dans `qcmAnswers`.
+   */
+  async runProjectDiagnosticEnregistre(projetId: string): Promise<AideDiagnosticResult> {
+    return this.runDeterministicDiagnostic(projetId, undefined);
+  },
+
+  /**
    * Diagnostic d'un monument DÉCRIT SUR PLACE, sans compte : le parcours
    * découverte, de la landing à l'inscription.
    *

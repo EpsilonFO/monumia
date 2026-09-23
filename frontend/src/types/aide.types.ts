@@ -167,6 +167,12 @@ export interface AideMatchResult {
   elimineParReponse?: boolean;
   /** Plans d'action des critères à débloquer (statut « atteignable »). */
   leviers?: AideLevier[];
+  /** Entrée RÉSUMÉE par le serveur : une aide non éligible que le front
+   *  n'affiche pas (elle n'a pas été écartée par une réponse). Elle ne porte ni
+   *  `llmEvaluation` ni le détail de l'aide (pièces, démarche, conditions) —
+   *  de quoi la retrouver par son id, pas l'afficher. La fiche complète se
+   *  demande à `GET /aides/{id}`. */
+  resume?: boolean;
   /** Nom vestigial : ce sont les verdicts déterministes, condition par
    *  condition. Rien de LLM ici. */
   llmEvaluation?: {

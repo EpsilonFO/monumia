@@ -127,6 +127,13 @@ interface PaywallOverlayProps extends PaywallContenu {
    * est celui posé sur GET /aides/{id}.
    */
   flou?: string;
+  /**
+   * Faux : le contenu s'affiche net, sans carte, mais dans le MÊME arbre. C'est
+   * ce qui permet à un garde de poser le paywall une fois l'offre connue sans
+   * démonter la page derrière — la remonter relançait ses chargements et
+   * remettait ses squelettes (cf. `DashboardRoute`). Défaut : vrai.
+   */
+  actif?: boolean;
 }
 
 /**
@@ -147,8 +154,18 @@ export function PaywallOverlay({
   children,
   hauteur = 'min(82vh, 50rem)',
   flou = '2.5px',
+  actif = true,
   ...contenu
 }: PaywallOverlayProps) {
+  if (!actif) {
+    // Même structure que ci-dessous (grille > cellule > contenu), pour que
+    // React garde l'instance des enfants quand le paywall s'active.
+    return (
+      <div className="grid">
+        <div style={{ gridArea: '1 / 1' }}>{children}</div>
+      </div>
+    );
+  }
   return (
     // Une seule cellule de grille, où l'aperçu et la carte se superposent : la
     // hauteur du bloc suit le PLUS GRAND des deux. Avec un calque en position

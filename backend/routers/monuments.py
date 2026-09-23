@@ -12,9 +12,10 @@ from supabase import Client
 from db import get_current_user_id, get_supabase
 from services import quotas
 from services.offres import as_dict
+from services.parallele import en_parallele
 from services.project_access import (
     monument_ids_via_projets,
-    projet_ids_membre,
+    projet_roles_propres,
     require_monument_read,
     require_project_access,
 )
@@ -367,8 +368,14 @@ def _enrich_monument(supabase: Client, monument: dict, user_id: str) -> dict:
     présence sur TOUTE réponse portant un monument, et pas seulement sur la
     liste : une fiche fraîchement créée doit déjà savoir ce qu'elle permet.
     """
-    monument, _ = enrich_monument_with_population(supabase, monument)
-    monument["offre"] = as_dict(quotas.offre_du_monument(supabase, monument["id"], user_id))
+    proprietaire = monument.get("user_id")
+    (monument, _), offre = en_parallele(
+        lambda: enrich_monument_with_population(supabase, monument),
+        lambda: quotas.offre_du_monument(
+            supabase, monument["id"], user_id, proprietaire=proprietaire
+        ),
+    )
+    monument["offre"] = as_dict(offre)
     return monument
 
 
@@ -443,59 +450,110 @@ def build_members_index(
 
 def fetch_user_monuments(
     supabase: Client, user_id: str
-) -> tuple[list[dict], dict[str, int | None]]:
-    """Tous les projets accessibles à l'utilisateur, enrichis et prêts à servir.
+) -> tuple[list[dict], dict[str, int | None], dict[str, str]]:
+    """Tous les monuments accessibles à l'utilisateur, enrichis et prêts à servir.
 
     Renvoie aussi la population par code_insee, récupérée dans la même requête
     `communes` : le dashboard en a besoin pour le moteur déterministe, et la
-    rechercher séparément coûtait un aller-retour par monument.
+    rechercher séparément coûtait un aller-retour par monument. Et les projets où
+    l'utilisateur a une appartenance PROPRE, avec son rôle (`projet_roles_propres`),
+    lus ici de toute façon : le dashboard les relisait juste après, et en tire le
+    rôle effectif de chaque projet.
+
+    Quatre vagues d'allers-retours, quel que soit le nombre de monuments (cf.
+    services/parallele) :
+      A. les appartenances de l'utilisateur (équipes de monument, monuments
+         possédés, équipes de projet) ;
+      B. les monuments atteints par un projet, et la composition des équipes ;
+      C. les lignes des monuments, et les profils des membres ;
+      D. les communes, et l'offre qui gouverne chaque bien.
     """
-    # Tous les monuments où l'utilisateur est membre de l'ÉQUIPE DU MONUMENT.
-    memberships = (
-        supabase.table("project_members")
-        .select("monument_id, role")
-        .eq("user_id", user_id)
-        .execute()
-        .data
+    # ── Vague A ──────────────────────────────────────────────────────────────
+    memberships, owned, roles_propres = en_parallele(
+        lambda: (
+            supabase.table("project_members")
+            .select("monument_id, role")
+            .eq("user_id", user_id)
+            .execute()
+            .data
+        ),
+        lambda: supabase.table("monuments").select("id").eq("user_id", user_id).execute().data,
+        lambda: projet_roles_propres(supabase, user_id),
     )
-    role_by_id = {m["monument_id"]: m["role"] for m in memberships}
+    mes_projets = list(roles_propres)
+    role_by_id = {m["monument_id"]: m["role"] for m in memberships or []}
 
     # Défense en profondeur : un propriétaire voit toujours SES monuments, même si
     # la ligne d'appartenance 'owner' manque (cf. get_project_role). user_id =
     # propriétaire authoritatif et immuable du monument.
-    owned = (supabase.table("monuments").select("id").eq("user_id", user_id).execute().data) or []
-    for o in owned:
+    for o in owned or []:
         role_by_id.setdefault(o["id"], "owner")
+
+    # ── Vague B ──────────────────────────────────────────────────────────────
+    # Aperçu des membres par monument (avatars + compteur côté liste, sans une
+    # requête par carte). Restreint aux monuments dont l'utilisateur est membre :
+    # un accès par projet ne donne pas droit à la composition de l'équipe du bien.
+    equipe_visible = list(role_by_id.keys())
+    via_projets, all_members = en_parallele(
+        lambda: monument_ids_via_projets(supabase, mes_projets),
+        lambda: (
+            (
+                supabase.table("project_members")
+                .select("monument_id, user_id, role")
+                .in_("monument_id", equipe_visible)
+                .execute()
+                .data
+            )
+            or []
+            if equipe_visible
+            else []
+        ),
+    )
 
     # Monuments atteints par un PROJET seulement : l'utilisateur y a besoin d'une
     # porte d'entrée pour rejoindre son chantier, mais n'a aucun rôle sur le bien.
     # `my_role` restera None — le front y lit « fiche sanitaire en lecture, et
     # rien d'autre » (cf. require_monument_read).
-    acces_restreint: set[str] = set()
-    mes_projets = projet_ids_membre(supabase, user_id)
-    if mes_projets:
-        for monument_id in monument_ids_via_projets(supabase, mes_projets).values():
-            if monument_id not in role_by_id:
-                acces_restreint.add(monument_id)
+    acces_restreint = {mid for mid in via_projets.values() if mid not in role_by_id}
 
     monument_ids = [*role_by_id.keys(), *acces_restreint]
     if not monument_ids:
-        return [], {}
+        return [], {}, roles_propres
 
-    monuments = (
-        supabase.table("monuments")
-        .select(COLUMNS)
-        .in_("id", monument_ids)
-        .order("created_at", desc=True)
-        .execute()
-        .data
-    ) or []
+    # ── Vague C ──────────────────────────────────────────────────────────────
+    member_user_ids = list({m["user_id"] for m in all_members})
+    monuments, prows = en_parallele(
+        lambda: (
+            supabase.table("monuments")
+            .select(COLUMNS)
+            .in_("id", monument_ids)
+            .order("created_at", desc=True)
+            .execute()
+            .data
+        ),
+        lambda: (
+            supabase.table("users")
+            .select("id, prenom, nom")
+            .in_("id", member_user_ids)
+            .execute()
+            .data
+            if member_user_ids
+            else []
+        ),
+    )
+    monuments = monuments or []
+    profiles = cast("dict[str, dict]", {r["id"]: r for r in prows or []})
+    members_by_monument = build_members_index(all_members, profiles)
 
-    # Batch-enrich with commune data (préservé de la version d'origine)
-    population_by_code: dict[str, int | None] = {}
+    # ── Vague D ──────────────────────────────────────────────────────────────
+    # L'offre qui gouverne chaque bien, en une requête pour toute la liste : le
+    # propriétaire est déjà sur les lignes lues. Le frontend s'en sert pour
+    # décider quels boutons afficher sur chaque monument, et /dashboard pour
+    # masquer les aides encore à venir.
     code_insees = list({m["code_insee"] for m in monuments if m.get("code_insee")})
-    if code_insees:
-        communes_result = (
+    proprietaires = {m["id"]: m["user_id"] for m in monuments if m.get("user_id")}
+    communes_rows, offres = en_parallele(
+        lambda: (
             supabase.table("communes")
             .select(
                 "code_insee, nom_commune, departement, departement_num, region, region_code, "
@@ -503,56 +561,32 @@ def fetch_user_monuments(
             )
             .in_("code_insee", code_insees)
             .execute()
-        )
-        communes_by_code = {c["code_insee"]: c for c in (communes_result.data or [])}
-        # Les lignes PostgREST ne sont pas typées : on resserre explicitement en
-        # {str: int | None} plutôt que de propager du JSON quelconque.
-        for code, row in communes_by_code.items():
-            pop = row.get("population")
-            population_by_code[str(code)] = pop if isinstance(pop, int) else None
-        for m in monuments:
-            commune_data = communes_by_code.get(m.get("code_insee"))
-            if commune_data:
-                m["commune"] = commune_data["nom_commune"]
-                m["departement"] = commune_data["departement"]
-                m["departement_num"] = commune_data["departement_num"]
-                m["region"] = commune_data.get("region_code")
-                m["region_label"] = commune_data.get("region")
-                _attach_epci(m, commune_data)
-
-    # Aperçu des membres par monument (avatars + compteur côté liste, sans une
-    # requête par carte). Restreint aux monuments dont l'utilisateur est membre :
-    # un accès par projet ne donne pas droit à la composition de l'équipe du bien.
-    equipe_visible = list(role_by_id.keys())
-    all_members = (
-        (
-            supabase.table("project_members")
-            .select("monument_id, user_id, role")
-            .in_("monument_id", equipe_visible)
-            .execute()
             .data
-        )
-        or []
-        if equipe_visible
-        else []
+            if code_insees
+            else []
+        ),
+        lambda: quotas.offres_des_monuments(
+            supabase, [m["id"] for m in monuments], user_id, proprietaires=proprietaires
+        ),
     )
-    member_user_ids = list({m["user_id"] for m in all_members})
-    profiles: dict[str, dict] = {}
-    if member_user_ids:
-        prows = (
-            supabase.table("users")
-            .select("id, prenom, nom")
-            .in_("id", member_user_ids)
-            .execute()
-            .data
-        ) or []
-        profiles = cast("dict[str, dict]", {r["id"]: r for r in prows})
-    members_by_monument = build_members_index(all_members, profiles)
 
-    # L'offre qui gouverne chaque bien, en deux requêtes pour toute la liste.
-    # Le frontend s'en sert pour décider quels boutons afficher sur chaque
-    # monument, et /dashboard pour masquer les aides encore à venir.
-    offres = quotas.offres_des_monuments(supabase, [m["id"] for m in monuments], user_id)
+    # Batch-enrich with commune data (préservé de la version d'origine)
+    population_by_code: dict[str, int | None] = {}
+    communes_by_code = {c["code_insee"]: c for c in communes_rows or []}
+    # Les lignes PostgREST ne sont pas typées : on resserre explicitement en
+    # {str: int | None} plutôt que de propager du JSON quelconque.
+    for code, row in communes_by_code.items():
+        pop = row.get("population")
+        population_by_code[str(code)] = pop if isinstance(pop, int) else None
+    for m in monuments:
+        commune_data = communes_by_code.get(m.get("code_insee"))
+        if commune_data:
+            m["commune"] = commune_data["nom_commune"]
+            m["departement"] = commune_data["departement"]
+            m["departement_num"] = commune_data["departement_num"]
+            m["region"] = commune_data.get("region_code")
+            m["region_label"] = commune_data.get("region")
+            _attach_epci(m, commune_data)
 
     for m in monuments:
         m["my_role"] = role_by_id.get(m["id"])
@@ -560,7 +594,7 @@ def fetch_user_monuments(
         m["members"] = preview
         m["member_count"] = len(preview)
         m["offre"] = as_dict(offres[m["id"]])
-    return monuments, population_by_code
+    return monuments, population_by_code, roles_propres
 
 
 @router.get("")
@@ -568,7 +602,7 @@ def list_monuments(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    monuments, _ = fetch_user_monuments(supabase, user_id)
+    monuments, _, _ = fetch_user_monuments(supabase, user_id)
     sign_photos(supabase, monuments)
     return monuments
 
