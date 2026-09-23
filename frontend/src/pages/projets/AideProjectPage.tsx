@@ -10,7 +10,10 @@ import { useProjetStore } from '@/stores/useProjetStore';
 import { useAideStore } from '@/stores/useAideStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { projectPermissions } from '@/lib/project-permissions';
-import { useOffre, useOffreMonument, useOffreChargee } from '@/hooks/useOffre';
+import { isAccessLostError } from '@/lib/api-error';
+import {
+  useOffre, useOffreMonument, useOffreChargee, useOffreMonumentConnue,
+} from '@/hooks/useOffre';
 import { libelleMonuments } from '@/lib/offres';
 import { monumentService } from '@/services/monument.service';
 import { projetService } from '@/services/projet.service';
@@ -66,7 +69,11 @@ export function AideProjectPage() {
   // et à son adjoint. Le rôle se lit sur le PROJET : un collaborateur invité sur
   // le seul chantier n'en a aucun sur le monument. Un collaborateur qui
   // atteindrait cette page (lien direct) est renvoyé vers le projet.
-  const canAccessAides = projet ? projectPermissions(projet.myRole ?? null).canAccessAides : true;
+  // Un projet relu du cache local n'a pas de rôle (cf. `projetPourLeCache`) :
+  // inconnu n'est pas nul, et on ne renvoie personne avant la réponse du serveur.
+  const canAccessAides = projet && !projet.depuisLeCache
+    ? projectPermissions(projet.myRole ?? null).canAccessAides
+    : true;
 
   // Le détail d'une aide est gratuit — sauf tant que son guichet n'est pas
   // ouvert : savoir à l'avance quelle aide va ouvrir est ce que l'offre Veille
@@ -75,19 +82,36 @@ export function AideProjectPage() {
   const offre = useOffreMonument(monumentId);
   const offreCompte = useOffre();
   const offreChargee = useOffreChargee();
+  // L'offre qui décide est celle du MONUMENT : un monument relu du cache local
+  // ne la porte pas, et rediriger sur l'offre gratuite par défaut enverrait un
+  // abonné aux tarifs à chaque rechargement.
+  const offreMonumentConnue = useOffreMonumentConnue(monumentId);
   const locked =
     !offre.aidesBientot && !!matchResult && getDisponibilite(matchResult) === 'bientot';
 
+  // Relu aussi quand il vient du cache local : c'est la réponse du serveur qui
+  // porte le rôle, donc l'accès à cette fiche et le droit d'y répondre.
+  const projetARelire = !projet || !!projet.depuisLeCache;
   useEffect(() => {
-    if (projet || !projetId || projetFetchedRef.current) return;
+    if (!projetARelire || !projetId || projetFetchedRef.current) return;
     projetFetchedRef.current = true;
-    projetService.getById(projetId).then(upsertProjet).catch(() => setNotFound(true));
-  }, [projet, projetId, upsertProjet]);
+    projetService.getById(projetId).then(upsertProjet).catch((err) => {
+      const enStore = useProjetStore.getState().projets.some((p) => p.id === projetId);
+      if (!enStore || isAccessLostError(err)) setNotFound(true);
+    });
+  }, [projetARelire, projetId, upsertProjet]);
 
+  // Relu aussi quand il vient du cache local, qui ne garde pas son offre : la
+  // redirection des aides à venir attendrait sinon `GET /dashboard`. Une panne
+  // passagère ne dit « introuvable » que s'il n'y a rien à montrer.
+  const monumentARelire = !monument || !!monument.depuisLeCache;
   useEffect(() => {
-    if (!monumentId || monument) return;
-    monumentService.getById(monumentId).then(upsertMonument).catch(() => setNotFound(true));
-  }, [monumentId, monument, upsertMonument]);
+    if (!monumentId || !monumentARelire) return;
+    monumentService.getById(monumentId).then(upsertMonument).catch((err) => {
+      const enStore = useMonumentStore.getState().monuments.some((m) => m.id === monumentId);
+      if (!enStore || isAccessLostError(err)) setNotFound(true);
+    });
+  }, [monumentId, monumentARelire, upsertMonument]);
 
   useEffect(() => {
     if (projet && !canAccessAides && projetId) {
@@ -98,9 +122,9 @@ export function AideProjectPage() {
   useEffect(() => {
     // On attend la réponse du serveur : rediriger sur l'état initial (offre
     // gratuite par prudence) éjecterait un abonné à chaque rechargement.
-    if (!offreChargee || !locked || !monumentId) return;
+    if (!offreChargee || !offreMonumentConnue || !locked || !monumentId) return;
     navigate(ROUTES.TARIFS(monumentId), { replace: true });
-  }, [offreChargee, locked, monumentId, navigate]);
+  }, [offreChargee, offreMonumentConnue, locked, monumentId, navigate]);
 
   // Le diagnostic complet porte les critères remplis / à débloquer affichés ici.
   // On l'obtient sur place quand il manque : le dashboard ne charge plus qu'un
@@ -122,9 +146,13 @@ export function AideProjectPage() {
     return () => { cancelled = true; };
   }, [projetId, questionnaireKey, setDiagnostic]);
 
+  // L'aide telle que le diagnostic la rapporte — sauf quand il n'en rapporte
+  // qu'un RÉSUMÉ : une non éligible que la liste n'affiche pas arrive sans ses
+  // pièces ni sa démarche (cf. `resumer_non_eligibles` côté serveur), et la
+  // fiche complète se demande alors à part.
   useEffect(() => {
     if (!aideId) return;
-    const fromDiagnostic = matchResult?.aide;
+    const fromDiagnostic = matchResult && !matchResult.resume ? matchResult.aide : null;
     if (fromDiagnostic) { setAide(fromDiagnostic); return; }
     aideService.getById(aideId).then(setAide).catch(() => setNotFound(true));
   }, [aideId, matchResult]);

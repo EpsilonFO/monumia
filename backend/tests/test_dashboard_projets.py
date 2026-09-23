@@ -72,18 +72,20 @@ def _dashboard(
     tables: dict,
     *,
     monuments: list[dict] | None = None,
-    mes_projets: list[str] | None = None,
+    mes_projets: dict[str, str] | None = None,
 ):
     supabase = _FakeSupabase(tables)
     with (
         patch(
             "routers.dashboard.fetch_user_monuments",
+            # Les appartenances propres aux projets (et leur rôle) sortent de
+            # `fetch_user_monuments`, qui les lit de toute façon.
             return_value=(
                 monuments if monuments is not None else [M_AVEC, M_SANS],
                 {"75056": 2_100_000},
+                mes_projets or {},
             ),
         ),
-        patch("routers.dashboard.projet_ids_membre", return_value=mes_projets or []),
         patch("routers.dashboard.deterministic_diagnostic_for", return_value={}),
     ):
         return get_dashboard(user_id="u1", supabase=supabase)
@@ -138,7 +140,7 @@ class DashboardPayloadTests(unittest.TestCase):
                 ],
             },
             monuments=[restreint],
-            mes_projets=["p2"],
+            mes_projets={"p2": "member"},
         )
         self.assertEqual([p["id"] for p in payload["projets"]], ["p2"])
         self.assertEqual(list(payload["digests"]), ["p2"])
@@ -147,12 +149,20 @@ class DashboardPayloadTests(unittest.TestCase):
         # Le monument reste servi : c'est la porte d'entrée vers le chantier.
         self.assertEqual([m["id"] for m in payload["monuments"]], ["m1"])
 
+    def test_chaque_projet_porte_son_role_effectif(self) -> None:
+        """Le payload remplace les projets du store : sans `my_role`, il
+        effacerait le rôle posé par `GET /projets/{id}`."""
+        restreint = {**M_AVEC, "my_role": None}
+        payload = _dashboard({"projets": [P2]}, monuments=[restreint], mes_projets={"p2": "member"})
+        self.assertEqual(payload["projets"][0]["my_role"], "member")
+
+        # Équipe du monument : le rôle se transmet à tous ses chantiers.
+        payload = _dashboard({"projets": [P1, P2]})
+        self.assertEqual([p["my_role"] for p in payload["projets"]], ["owner", "owner"])
+
     def test_sans_monument_le_payload_reste_complet(self) -> None:
         supabase = _FakeSupabase({})
-        with (
-            patch("routers.dashboard.fetch_user_monuments", return_value=([], {})),
-            patch("routers.dashboard.projet_ids_membre", return_value=[]),
-        ):
+        with patch("routers.dashboard.fetch_user_monuments", return_value=([], {}, {})):
             payload = get_dashboard(user_id="u1", supabase=supabase)
         self.assertEqual(payload["projets"], [])
         self.assertEqual(payload["digests"], {})

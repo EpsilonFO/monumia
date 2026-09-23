@@ -16,23 +16,36 @@ import { dashboardService } from '@/services/dashboard.service';
  *
  * Rafraîchir au montage reste voulu : revenir sur l'onglet reflète les
  * changements (projets, dossiers) faits par les autres membres, sans recharger
- * la page. Les stores déjà garnis restent affichés pendant ce rafraîchissement.
+ * la page. Au démarrage, la requête est déjà partie de `AppLayout` : celle-ci la
+ * rejoint au lieu d'en envoyer une seconde.
+ *
+ * Le squelette ne s'affiche que s'il n'y a RIEN à montrer : des monuments déjà
+ * en store — relus du cache local ou chargés par une page précédente —
+ * s'affichent pendant le rafraîchissement.
  */
 export function useProjectsData(): { loading: boolean } {
   const token = useAuthStore((s) => s.token);
-  const monuments = useMonumentStore((s) => s.monuments);
+  // Lu à chaque rendu, et non figé au premier : au démarrage à froid, les
+  // monuments arrivent souvent AVANT que cet appel-ci ne soit réglé.
+  const aDesDonnees = useMonumentStore((s) => s.monuments.length > 0);
 
   // « Réglé » = l'appel est terminé, succès OU échec. Sans ce suivi, un appel en
   // échec laisserait le squelette affiché pour toujours.
-  const [settled, setSettled] = useState(monuments.length > 0);
+  const [settled, setSettled] = useState(false);
 
   useEffect(() => {
     if (!token) return;
+    let actif = true;
     dashboardService
       .load()
       .catch(console.error)
-      .finally(() => setSettled(true));
+      .finally(() => {
+        if (actif) setSettled(true);
+      });
+    return () => {
+      actif = false;
+    };
   }, [token]);
 
-  return { loading: !settled };
+  return { loading: !settled && !aDesDonnees };
 }

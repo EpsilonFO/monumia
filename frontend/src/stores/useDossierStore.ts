@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { enregistrerCache, optionsDeCache } from './persistance';
 import type {
   Dossier,
   DossierStatus,
@@ -31,7 +33,7 @@ function updateDossierInList(
   );
 }
 
-export const useDossierStore = create<DossierState>()((set, get) => ({
+export const useDossierStore = create<DossierState>()(persist((set, get) => ({
   dossiers: [],
   loaded: false,
 
@@ -66,4 +68,12 @@ export const useDossierStore = create<DossierState>()((set, get) => ({
     set((state) => ({
       dossiers: state.dossiers.filter((d) => d.id !== id),
     })),
-}));
+}), optionsDeCache<DossierState, { dossiers: Dossier[] }>({
+  domaine: 'dossiers',
+  version: 1,
+  // `loaded` reste hors du cache : la garde anti-doublon de l'ouverture d'un
+  // dossier (AideProjectPage) relit le serveur tant qu'il est faux.
+  partialize: (state) => ({ dossiers: state.dossiers }),
+})));
+
+enregistrerCache(useDossierStore, () => useDossierStore.setState({ dossiers: [], loaded: false }));

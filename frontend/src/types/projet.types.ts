@@ -24,6 +24,14 @@ export interface Projet {
    */
   myRole?: import('./sharing.types').ProjectRole;
 
+  /**
+   * Posé sur un projet relu depuis le cache local (cf. stores/persistance),
+   * jamais sur une réponse du serveur : son questionnaire peut dater, et rien
+   * ne doit s'écrire par-dessus (cf. `repondreFait`). Disparaît dès que le
+   * serveur répond, puisque sa ligne remplace celle du cache.
+   */
+  depuisLeCache?: true;
+
   /** Nullable en base : dérivable des raisons / travaux quand il manque. */
   titre?: string;
 

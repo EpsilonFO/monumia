@@ -74,7 +74,11 @@ def _proprietaires(supabase: Client, monument_ids: list[str]) -> dict[str, str]:
 
 
 def offres_des_monuments(
-    supabase: Client, monument_ids: list[str], user_id: str
+    supabase: Client,
+    monument_ids: list[str],
+    user_id: str,
+    *,
+    proprietaires: dict[str, str] | None = None,
 ) -> dict[str, Offre]:
     """L'offre qui gouverne chacun de ces biens, en deux requêtes au total.
 
@@ -82,8 +86,13 @@ def offres_des_monuments(
     « Mes monuments » et le tableau de bord renvoient cette offre au frontend,
     qui décide quels boutons montrer. Un aller-retour par monument se paierait
     sinon à chaque ouverture de la liste.
+
+    `proprietaires` ({monument_id: user_id}) épargne la première requête à
+    l'appelant qui vient de lire les lignes `monuments` : relire leur `user_id`
+    serait un aller-retour pour une donnée déjà en main.
     """
-    proprietaires = _proprietaires(supabase, monument_ids)
+    if proprietaires is None:
+        proprietaires = _proprietaires(supabase, monument_ids)
     # Le compte de l'appelant est toujours interrogé : c'est l'autre moitié de
     # l'union, et il couvre aussi le cas d'un monument dont le propriétaire a
     # disparu entre-temps.
@@ -96,9 +105,15 @@ def offres_des_monuments(
     }
 
 
-def offre_du_monument(supabase: Client, monument_id: str, user_id: str) -> Offre:
-    """Version unitaire de `offres_des_monuments`, pour les routes d'écriture."""
-    return offres_des_monuments(supabase, [monument_id], user_id)[monument_id]
+def offre_du_monument(
+    supabase: Client, monument_id: str, user_id: str, *, proprietaire: str | None = None
+) -> Offre:
+    """Version unitaire de `offres_des_monuments`, pour les routes d'écriture.
+
+    `proprietaire` : le `user_id` du monument quand l'appelant a déjà sa ligne.
+    """
+    connus = {monument_id: proprietaire} if proprietaire else None
+    return offres_des_monuments(supabase, [monument_id], user_id, proprietaires=connus)[monument_id]
 
 
 # ---------------------------------------------------------------------------

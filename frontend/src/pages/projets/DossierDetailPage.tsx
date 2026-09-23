@@ -35,6 +35,7 @@ import { suiviService } from '@/services/suivi.service';
 import { projetTitre } from '@/lib/projet-titre';
 import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
+import { isAccessLostError } from '@/lib/api-error';
 import { toast } from 'sonner';
 import type { Aide, ChecklistItem, Document, Dossier } from '@/types';
 
@@ -55,11 +56,14 @@ export function DossierDetailPage() {
 
   const projet = useProjetStore((s) => s.projets.find((p) => p.id === projetId));
   const upsertProjet = useProjetStore((s) => s.upsertProjet);
-  const monumentId = projet?.monumentId;
+  const dossier = useDossierStore((s) => s.dossiers.find((d) => d.id === dossierId));
+  // Le dossier porte aussi l'id du monument (dénormalisé côté serveur) : on
+  // n'attend pas le projet pour aller chercher le monument, les deux partent
+  // ensemble.
+  const monumentId = projet?.monumentId ?? dossier?.monumentId;
   const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId));
   const upsertMonument = useMonumentStore((s) => s.upsertMonument);
 
-  const dossier = useDossierStore((s) => s.dossiers.find((d) => d.id === dossierId));
   const dossierLoaded = useDossierStore((s) => s.loaded);
   const setDossiers = useDossierStore((s) => s.setDossiers);
 
@@ -100,17 +104,30 @@ export function DossierDetailPage() {
   const projetFetchedRef = useRef(false);
   const autoVerifRef = useRef(false);
 
+  // Relu aussi quand il vient du cache local, qui ne garde pas le rôle : c'est
+  // lui qui ouvre la gestion du dossier et de ses pièces.
+  const projetARelire = !projet || !!projet.depuisLeCache;
   useEffect(() => {
-    if (projet || !projetId || projetFetchedRef.current) return;
+    if (!projetARelire || !projetId || projetFetchedRef.current) return;
     projetFetchedRef.current = true;
-    projetService.getById(projetId).then(upsertProjet).catch(() => setNotFound(true));
-  }, [projet, projetId, upsertProjet]);
+    projetService.getById(projetId).then(upsertProjet).catch((err) => {
+      const enStore = useProjetStore.getState().projets.some((p) => p.id === projetId);
+      if (!enStore || isAccessLostError(err)) setNotFound(true);
+    });
+  }, [projetARelire, projetId, upsertProjet]);
 
   // Monument parent : nom du fil d'Ariane, rôle, rattachement des documents.
+  // Relu aussi quand il vient du cache local, qui ne garde ni son offre ni le
+  // rôle : une panne passagère ne dit « introuvable » que s'il n'y a rien à
+  // montrer.
+  const monumentARelire = !monument || !!monument.depuisLeCache;
   useEffect(() => {
-    if (!monumentId || monument) return;
-    monumentService.getById(monumentId).then(upsertMonument).catch(() => setNotFound(true));
-  }, [monumentId, monument, upsertMonument]);
+    if (!monumentId || !monumentARelire) return;
+    monumentService.getById(monumentId).then(upsertMonument).catch((err) => {
+      const enStore = useMonumentStore.getState().monuments.some((m) => m.id === monumentId);
+      if (!enStore || isAccessLostError(err)) setNotFound(true);
+    });
+  }, [monumentId, monumentARelire, upsertMonument]);
 
   // Rafraîchir les dossiers au montage (deep link + freshness inter-comptes).
   useEffect(() => {
