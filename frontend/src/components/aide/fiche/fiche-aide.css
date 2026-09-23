@@ -228,6 +228,17 @@
 .fa .levier dt { color: var(--fa-muted); display: inline; }
 .fa .levier dd { display: inline; margin: 0 0 0 6px; }
 
+/* avant de déposer */
+.fa .avant { margin-top: 18px; border-radius: 20px; background: var(--fa-paper); border: 1px solid var(--fa-orange-line); padding: 22px 24px 10px; }
+.fa .avant-h { display: flex; align-items: center; gap: 12px; }
+.fa .avant-h h2 { font-size: 21px; line-height: 1.2; }
+.fa .avant-h p { font-size: 13px; color: var(--fa-orange-ink); margin-top: 2px; }
+.fa .avant ul { list-style: none; margin: 14px 0 0; padding: 0; }
+.fa .avant li { padding: 14px 0; border-top: 1px solid var(--fa-line); }
+.fa .avant li > b { display: block; font-size: 15px; font-weight: 600; line-height: 1.35; }
+.fa .avant li > p { font-size: 14px; color: var(--fa-body); margin-top: 3px; line-height: 1.5; }
+.fa .avant .levier { margin-top: 10px; }
+
 /* conseils */
 .fa .tips { margin-top: 18px; border-radius: 20px; background: var(--fa-orange-soft); border: 1px solid var(--fa-orange-line); padding: 22px 24px 8px; }
 .fa .tips-h, .fa .reg-h { display: flex; align-items: center; gap: 12px; }
@@ -394,7 +405,7 @@
   .fa-sticky .sticky-in .btn { margin-left: auto; }
 }
 @media (max-width: 640px) {
-  .fa .elig, .fa .tips { padding: 20px 18px 18px; }
+  .fa .elig, .fa .tips, .fa .avant { padding: 20px 18px 18px; }
   .fa .tips { padding-bottom: 6px; }
   .fa .elig-head { flex-direction: column-reverse; gap: 10px; }
   .fa .q { flex-direction: column; align-items: stretch; }

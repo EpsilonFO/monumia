@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { Loader2 } from 'lucide-react';
+import { PlanLevier } from './FicheAvantDepot';
 import { FicheQuestion } from './FicheQuestion';
 import { Ico } from './Ico';
 import { getEligibilityStatus } from '@/components/aide/eligibility-status';
@@ -29,6 +30,8 @@ interface Props {
   ouverture: boolean;
   onDossier: () => void;
   lienAutres: string;
+  /** Démarches affichées sous ce bloc (« Avant de déposer ») : le verdict y renvoie. */
+  nbDemarches?: number;
 }
 
 type Etat = 'ok' | 'no' | 'info' | 'todo';
@@ -54,6 +57,7 @@ export function FicheEligibilite({
   ouverture,
   onDossier,
   lienAutres,
+  nbDemarches = 0,
 }: Props) {
   const aideId = match.aide.id;
   const restantes = questionsPourAide(aideId, questions, answers);
@@ -90,7 +94,11 @@ export function FicheEligibilite({
   let pastille: string;
   if (etat === 'ok') {
     titre = 'Vous remplissez ces conditions.';
-    aide = 'Vérifiez les autres points dans le règlement complet.';
+    aide = nbDemarches === 0
+      ? 'Vérifiez les autres points dans le règlement complet.'
+      : nbDemarches === 1
+        ? 'Il reste un point à régler avant le dépôt, juste en dessous.'
+        : `Il reste ${nbDemarches} points à régler avant le dépôt, juste en dessous.`;
     pastille = 'Éligible';
   } else if (etat === 'no') {
     titre = 'Cette aide ne correspond pas à votre projet.';
@@ -145,25 +153,7 @@ export function FicheEligibilite({
 
       {etat === 'info' && leviers.length > 0 && (
         <div className="qs">
-          {leviers.map((l, i) => (
-            <div key={i} className="levier">
-              <b>{l.resume}</b>
-              {l.ecart && <p>{l.ecart}</p>}
-              {l.demarche && <p>{l.demarche}</p>}
-              {(l.organisme || l.cout || l.delai) && (
-                <dl>
-                  {l.organisme && <div><dt>Auprès de</dt><dd>{l.organisme}</dd></div>}
-                  {l.cout && <div><dt>Coût</dt><dd>{l.cout}</dd></div>}
-                  {l.delai && <div><dt>Délai</dt><dd>{l.delai}</dd></div>}
-                </dl>
-              )}
-              {l.url && (
-                <a className="plink" href={l.url} target="_blank" rel="noopener noreferrer">
-                  Ouvrir la démarche<Ico nom="fleche" />
-                </a>
-              )}
-            </div>
-          ))}
+          {leviers.map((l, i) => <PlanLevier key={i} levier={l} />)}
         </div>
       )}
 
@@ -216,11 +206,6 @@ export function FicheEligibilite({
           <Link className="btn btn-line" to={lienAutres}>Voir les autres aides</Link>
         </div>
       )}
-
-      <p className="elig-foot">
-        Éligible veut dire que vos réponses correspondent aux conditions publiées. La décision finale revient au
-        financeur.
-      </p>
     </div>
   );
 }

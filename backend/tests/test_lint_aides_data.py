@@ -1256,3 +1256,44 @@ audit_realise:
         d'action serait annoncé orphelin, et retiré."""
         self.ecrire_aide("aide-audit", self.DEMARCHE.format(fait="audit_realise"))
         self.assertIn("audit_realise", faits_references_dans(self.aides_dir))
+
+
+class TestPourquoi(unittest.TestCase):
+    """`pourquoi` : chaque clé nomme une réponse du fait, ou vaut « * ».
+
+    Contrôle de LINT et non de modèle : une réponse retirée depuis /admin ne
+    doit pas invalider la surcharge du fait entière.
+    """
+
+    @staticmethod
+    def _fait(**champs):
+        from aides_schema import FactDef
+
+        return FactDef.model_validate({"scope": "projet", "question": "Q ?", **champs})
+
+    def test_booleen_implicite_admet_oui_non_et_repli(self):
+        fait = self._fait(type="boolean", pourquoi={"non": "Parce que.", "*": "Repli."})
+        self.assertEqual(lint_aides_data.check_pourquoi({"f": fait}), [])
+
+    def test_cle_inconnue_signalee(self):
+        fait = self._fait(
+            type="enum",
+            options=[{"id": "a", "label": "A"}, {"id": "b", "label": "B"}],
+            pourquoi={"c": "Réponse disparue."},
+        )
+        erreurs = lint_aides_data.check_pourquoi({"f": fait})
+        self.assertEqual(len(erreurs), 1)
+        self.assertIn("pourquoi.c", erreurs[0])
+
+    def test_lien_d_auteur_signale(self):
+        fait = self._fait(type="boolean", pourquoi={"non": "Voir [[autre_fait]]."})
+        self.assertIn("lien d'auteur", lint_aides_data.check_pourquoi({"f": fait})[0])
+
+    def test_modele_refuse_une_cle_d_option_sur_un_fait_numerique(self):
+        with self.assertRaises(ValueError):
+            self._fait(type="integer", pourquoi={"lt10": "Tranche recalculée."})
+        self._fait(type="integer", pourquoi={"*": "Seuil minimal."})
+
+    def test_modele_refuse_un_texte_vide(self):
+        with self.assertRaises(ValueError):
+            self._fait(type="boolean", pourquoi={"non": "  "})

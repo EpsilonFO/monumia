@@ -302,6 +302,10 @@ export interface QcmQuestion {
   dependsOn?: QcmDependsOn;
   /** Montants max cumulés des aides suspendues à cette question (0 si aucune chiffrée). */
   enjeuMax?: number;
+  /** Pourquoi une réponse écarte des aides (`pourquoi` du fait dans facts.yaml) :
+   *  id de réponse → texte, et `'*'` pour le repli. Absent quand le fait n'a
+   *  rien à dire ou qu'aucune réponse n'écarte d'aide. Cf. `ecartParReponse`. */
+  pourquoiEcarte?: Record<string, string>;
 }
 
 export interface AideDiagnosticResult {

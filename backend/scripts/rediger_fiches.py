@@ -155,7 +155,9 @@ def controler(aide: Aide, fiche: Fiche) -> list[str]:
     ]
     if sans_theme:
         erreurs.append(f"points sans rubrique : {sans_theme}")
-    texte = bloc_yaml(fiche)
+    # Les clés de `pieces` sont le `nom` du YAML, tiret compris : c'est justement
+    # ce que la fiche renomme. Seuls les libellés affichés comptent.
+    texte = bloc_yaml(fiche.model_copy(update={"pieces": {}})) + "\n".join(fiche.pieces.values())
     if any(t in texte for t in _TIRETS_LONGS):
         erreurs.append("tiret cadratin ou demi-cadratin dans la fiche")
     if fiche.titre and len(fiche.titre) > 80:

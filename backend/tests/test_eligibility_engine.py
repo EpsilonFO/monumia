@@ -653,6 +653,34 @@ class TestQuestionGeneration(unittest.TestCase):
         q_travaux = {q["id"]: q for q in self._questions([souple, ferme])}["etat_travaux"]
         self.assertEqual(q_travaux["eliminationsParOption"]["en_cours"], ["fx-ferme"])
 
+    def _facts_avec_pourquoi(self, pourquoi: dict[str, str]) -> dict:
+        return {
+            **FACTS,
+            "etat_travaux": FACTS["etat_travaux"].model_copy(update={"pourquoi": pourquoi}),
+        }
+
+    def test_pourquoi_publie_pour_le_front(self):
+        """Les textes des réponses offertes et le repli ; pas la clé orpheline
+        d'une réponse que l'administration aurait retirée."""
+        aide = _fixture_aide([self._gate("etat_travaux", {"eq": "non_commences"})])
+        facts = self._facts_avec_pourquoi(
+            {"en_cours": "Chantier démarré.", "*": "Repli.", "disparue": "Orpheline."}
+        )
+        res = run_deterministic_diagnostic({aide.slug: aide}, facts, _monument(), 3000)
+        q = {q["id"]: q for q in res["qcmQuestions"]}["etat_travaux"]
+        self.assertEqual(q["pourquoiEcarte"], {"en_cours": "Chantier démarré.", "*": "Repli."})
+
+    def test_pourquoi_absent_sans_elimination(self):
+        """Aucune réponse n'écarte l'aide (gate à dérogation) : l'encart ne
+        s'ouvrirait jamais, rien à envoyer."""
+        aide = _fixture_aide(
+            [self._gate("etat_travaux", {"eq": "non_commences"}, derogation_possible=True)]
+        )
+        facts = self._facts_avec_pourquoi({"en_cours": "Chantier démarré."})
+        res = run_deterministic_diagnostic({aide.slug: aide}, facts, _monument(), 3000)
+        q = {q["id"]: q for q in res["qcmQuestions"]}["etat_travaux"]
+        self.assertNotIn("pourquoiEcarte", q)
+
     def test_skip_never_eliminates(self):
         m = _monument()
         res = run_deterministic_diagnostic(AIDES, FACTS, m, 3000)

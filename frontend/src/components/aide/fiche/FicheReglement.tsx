@@ -3,10 +3,11 @@ import { Ico, type NomIco } from './Ico';
 import { signalerPoint } from './useFiche';
 import { aplatir, type PointReglement, type Reglement, type Rubrique } from '@/lib/fiche-aide';
 
-/** Au-delà, les conditions suivantes se replient sous « Voir les N autres ». */
-const CONDITIONS_VISIBLES = 5;
+/** Au-delà, les démarches suivantes se replient sous « Voir les N autres ». */
+const DEMARCHES_VISIBLES = 5;
 
 const RUBRIQUE: Record<Rubrique, { ico: NomIco; teinte: string }> = {
+  criteres: { ico: 'coche', teinte: 't-green' },
   candidater: { ico: 'maison', teinte: 't-blue' },
   projet: { ico: 'document', teinte: 't-gold' },
   montant: { ico: 'montant', teinte: 't-orange' },
@@ -44,15 +45,15 @@ export function FicheReglement({
   ref?: Ref<FicheReglementHandle>;
 }) {
   // Ce qu'il faut déplier pour voir un point : lui, sa rubrique, et la suite
-  // des conditions s'il est au-delà des premières.
+  // des démarches s'il est au-delà des premières.
   const clesPour = useCallback(
     (id: string): string[] | null => {
-      const iCondition = reglement.conditions.findIndex((p) => p.id === id);
+      const iDemarche = reglement.demarches.findIndex((p) => p.id === id);
       const rubrique = reglement.rubriques.find((r) => r.points.some((p) => p.id === id));
-      if (iCondition < 0 && !rubrique) return null;
+      if (iDemarche < 0 && !rubrique) return null;
       return [
         `p:${id}`,
-        ...(iCondition >= CONDITIONS_VISIBLES ? ['reste'] : []),
+        ...(iDemarche >= DEMARCHES_VISIBLES ? ['reste'] : []),
         ...(rubrique ? [`th:${rubrique.cle}`] : []),
       ];
     },
@@ -106,8 +107,8 @@ export function FicheReglement({
       .catch(() => setCopie({ id, ok: false }));
   };
 
-  // La recherche ne porte que sur « le reste du règlement » : les conditions à
-  // respecter restent lisibles quoi qu'on tape.
+  // La recherche ne porte que sur « le reste du règlement » : les démarches
+  // restent lisibles quoi qu'on tape.
   const point = (p: PointReglement, filtrable = false) => (
     <details
       key={p.id}
@@ -139,8 +140,8 @@ export function FicheReglement({
   );
 
   if (reglement.total === 0 && !sources.length) return null;
-  const { conditions, rubriques } = reglement;
-  const nc = conditions.length;
+  const { demarches, rubriques } = reglement;
+  const nd = demarches.length;
   const trouves = rubriques.reduce((n, r) => n + r.points.filter(visible).length, 0);
 
   return (
@@ -149,36 +150,36 @@ export function FicheReglement({
         <span className="chip t-solid"><Ico nom="livre" /></span>
         <div>
           <h2>Le règlement complet</h2>
-          <p>Pas besoin de tout lire. Commencez par les conditions à respecter ; le reste se consulte au besoin.</p>
+          <p>Pas besoin de tout lire. Commencez par ce qu’il faut faire avant le dépôt ; le reste se consulte au besoin.</p>
         </div>
       </div>
 
-      {nc > 0 && (
+      {nd > 0 && (
         <div className="must">
           <div className="must-h">
-            <span className="chip sm t-solid-orange"><Ico nom="coche" /></span>
+            <span className="chip sm t-solid-orange"><Ico nom="delai" /></span>
             <div>
-              <h3>{nc === 1 ? 'La condition à respecter' : `Les ${nc} conditions à respecter`}</h3>
+              <h3>{nd === 1 ? 'Le point à régler avant le dépôt' : `Les ${nd} points à régler avant le dépôt`}</h3>
               <p>
-                {nc === 1
-                  ? "Si elle n'est pas remplie, le dossier est refusé."
-                  : "Si l'une d'elles n'est pas remplie, le dossier est refusé."}
+                {nd === 1
+                  ? "Le questionnaire ne le vérifie pas. S'il manque, le dossier est refusé."
+                  : "Le questionnaire ne les vérifie pas. S'il en manque un, le dossier est refusé."}
               </p>
             </div>
           </div>
-          {conditions.slice(0, CONDITIONS_VISIBLES).map((p) => point(p))}
-          {nc > CONDITIONS_VISIBLES && (
+          {demarches.slice(0, DEMARCHES_VISIBLES).map((p) => point(p))}
+          {nd > DEMARCHES_VISIBLES && (
             <details
               className="must-rest"
               open={ouverts.has('reste')}
               onToggle={(e) => basculer('reste', e.currentTarget.open)}
             >
               <summary>
-                {nc - CONDITIONS_VISIBLES === 1
-                  ? "Voir l'autre condition"
-                  : `Voir les ${nc - CONDITIONS_VISIBLES} autres conditions`}
+                {nd - DEMARCHES_VISIBLES === 1
+                  ? "Voir l'autre point"
+                  : `Voir les ${nd - DEMARCHES_VISIBLES} autres points`}
               </summary>
-              {conditions.slice(CONDITIONS_VISIBLES).map((p) => point(p))}
+              {demarches.slice(DEMARCHES_VISIBLES).map((p) => point(p))}
             </details>
           )}
         </div>
@@ -187,7 +188,7 @@ export function FicheReglement({
       {rubriques.length > 0 && (
         <div className="reg-more">
           <div className="reg-more-h">
-            <h3>{nc > 0 ? 'Le reste du règlement, par thème' : 'Le règlement, par thème'}</h3>
+            <h3>{nd > 0 ? 'Le reste du règlement, par thème' : 'Le règlement, par thème'}</h3>
             <label className="search">
               <Ico nom="loupe" />
               <input

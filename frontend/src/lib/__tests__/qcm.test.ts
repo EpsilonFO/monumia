@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeEliminatedAideIds,
   countLiveAides,
+  ecartParReponse,
   isQuestionPartagee,
   isQuestionServingLiveAide,
   isVisible,
@@ -294,5 +295,67 @@ describe('miroir Python de l’élimination (fixture partagée)', () => {
     const q = fixture.questions.find((question) => question.id === cas.question);
     expect(q).toBeDefined();
     expect(isVisible(q!, cas.answers)).toBe(cas.visible);
+  });
+});
+
+describe('ecartParReponse', () => {
+  const travaux = (over: Partial<QcmQuestion> = {}): QcmQuestion =>
+    question({
+      id: 'etat_travaux',
+      multiple: false,
+      options: [
+        { id: 'non_commences', label: 'Pas commencés' },
+        { id: 'en_cours', label: 'En cours' },
+        { id: 'aucun', label: 'Aucun' },
+        { id: 'skip', label: 'Passer cette question' },
+      ],
+      aideIds: ['aide-travaux', 'aide-prix'],
+      eliminationsParOption: { non_commences: ['aide-prix'], en_cours: ['aide-travaux'], aucun: ['aide-travaux', 'aide-prix'] },
+      pourquoiEcarte: { en_cours: 'Chantier démarré.', '*': 'Repli.' },
+      ...over,
+    });
+
+  it('rend le texte propre à la réponse, sinon le repli', () => {
+    const q = travaux();
+    expect(ecartParReponse(q, { etat_travaux: 'en_cours' }, [q])).toEqual({ nbAides: 1, pourquoi: 'Chantier démarré.' });
+    expect(ecartParReponse(q, { etat_travaux: 'aucun' }, [q])).toEqual({ nbAides: 2, pourquoi: 'Repli.' });
+  });
+
+  it('garde le compte quand le fait n’a rien à dire', () => {
+    const q = travaux({ pourquoiEcarte: undefined });
+    expect(ecartParReponse(q, { etat_travaux: 'en_cours' }, [q])).toEqual({ nbAides: 1, pourquoi: null });
+  });
+
+  it('ne compte pas les aides déjà écartées par une autre réponse', () => {
+    const q = travaux();
+    const porteur = question({
+      multiple: false,
+      aideIds: ['aide-travaux'],
+      eliminationsParOption: { association: ['aide-travaux'] },
+    });
+    const answers = { etat_travaux: 'en_cours', statut_juridique_porteur: 'association' };
+    expect(ecartParReponse(q, answers, [porteur, q])).toBeNull();
+    expect(ecartParReponse(q, { ...answers, etat_travaux: 'aucun' }, [porteur, q])?.nbAides).toBe(1);
+  });
+
+  it('se tait sans réponse, sur « passer » et sur une réponse qui n’écarte rien', () => {
+    const q = travaux({ eliminationsParOption: { en_cours: ['aide-travaux'] } });
+    expect(ecartParReponse(q, {}, [q])).toBeNull();
+    expect(ecartParReponse(q, { etat_travaux: 'skip' }, [q])).toBeNull();
+    expect(ecartParReponse(q, { etat_travaux: 'non_commences' }, [q])).toBeNull();
+  });
+
+  it('choix multiple : le texte d’une case ne vaut que si elle est seule cochée', () => {
+    const q = question({
+      pourquoiEcarte: { prive_personne_physique: 'Réservées aux structures.', '*': 'Aucune entité cochée ne convient.' },
+    });
+    expect(ecartParReponse(q, { statut_juridique_porteur: ['prive_personne_physique'] }, [q])).toEqual({
+      nbAides: 2,
+      pourquoi: 'Réservées aux structures.',
+    });
+    // Particulier + association : seule l'aide « commune » reste écartée, par les deux cases.
+    expect(
+      ecartParReponse(q, { statut_juridique_porteur: ['prive_personne_physique', 'association'] }, [q]),
+    ).toEqual({ nbAides: 1, pourquoi: 'Aucune entité cochée ne convient.' });
   });
 });

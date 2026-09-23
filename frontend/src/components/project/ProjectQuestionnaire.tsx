@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
 import { AllClear } from '@/components/illustrations';
 import { QuestionOptions } from '@/components/project/wizard/QuestionOptions';
+import { IconAttention } from '@/components/icons';
 import {
   computeEliminatedAideIds,
+  ecartParReponse,
   isQuestionServingLiveAide,
   isVisible,
   partitionnerQuestions,
@@ -68,9 +70,6 @@ interface ProjectQuestionnaireProps {
    */
   reprises?: RepriseDurable[];
 }
-
-/** Délai avant l'auto-avance : laisse voir sa réponse se cocher. */
-const ADVANCE_MS = 420;
 
 /**
  * Bandeau des réponses reprises d'un autre projet du même monument.
@@ -221,21 +220,42 @@ function BilanTronc({
   );
 }
 
-function prefersReducedMotion(): boolean {
+/**
+ * L'encart qui suit une réponse écartante : combien d'aides encore en lice elle
+ * ferme, et pourquoi (le `pourquoi` du fait). Même geste que le motif de refus
+ * sur la fiche d'une aide, à l'échelle de la question.
+ *
+ * C'est lui qui a fait abandonner l'auto-avance : un texte qui glisse hors de
+ * l'écran une demi-seconde après être apparu ne se lit pas. Il informe sans
+ * alarmer, ni rouge ni bouton : l'utilisateur corrige sa réponse s'il s'est
+ * trompé, ou continue.
+ */
+function EncartEcart({ nbAides, pourquoi }: { nbAides: number; pourquoi: string | null }) {
   return (
-    typeof window !== 'undefined' &&
-    !!window.matchMedia &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    <div
+      className="animate-fade-in mt-4 flex max-w-[62ch] gap-2.5 rounded-xl border-l-[3px] py-2.5 pl-3 pr-3.5"
+      style={{ borderColor: C.orange, background: C.paleOrange }}
+    >
+      <IconAttention className="mt-[3px] h-4 w-4 shrink-0" style={{ color: C.orange }} />
+      <div className="min-w-0 text-[14px] leading-relaxed">
+        <p className="font-semibold" style={{ color: C.ink }}>
+          Cette réponse écarte {nbAides} aide{nbAides > 1 ? 's' : ''}.
+        </p>
+        {pourquoi && <p style={{ color: C.grayFg }}>{pourquoi}</p>}
+      </div>
+    </div>
   );
 }
 
 /**
  * Questionnaire du moteur d'aides, posé **une question à la fois** (style Doctolib).
- * On clique une réponse → elle se coche → la question suivante glisse automatiquement.
+ * On clique une réponse → elle se coche → si elle écarte des aides, un encart dit
+ * pourquoi → « Continuer » mène à la question suivante. Jamais d'auto-avance :
+ * l'encart doit pouvoir se lire, et une réponse se corriger avant de partir.
  * La dernière mène à un écran de fin avec le bouton final (jamais de lancement par accident).
  * `value` mappe id de question → id d'option, ou → liste d'ids sur une question à
- * choix multiple (`multiple`), qui attend alors un « Continuer » explicite. Une
- * question passée n'a simplement pas de clé : le moteur la traite comme inconnue.
+ * choix multiple (`multiple`). Une question passée n'a simplement pas de clé : le
+ * moteur la traite comme inconnue.
  */
 export function ProjectQuestionnaire({
   questions: allQuestions,
@@ -304,7 +324,6 @@ export function ProjectQuestionnaire({
   const restantes = propres.filter((q) => !seenRef.current.ids.has(q.id)).length;
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
-  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Plus haute progression atteinte À CET ÉCRAN (cf. le calcul de `pct`).
   const progressHighWater = useRef({ index: 0, pct: 0 });
   const finishRef = useRef<HTMLHeadingElement | null>(null);
@@ -312,20 +331,10 @@ export function ProjectQuestionnaire({
   const onFinish = index >= total;
   const q = onFinish ? null : questions[index];
 
-  const clearTimer = () => {
-    if (advanceTimer.current) {
-      clearTimeout(advanceTimer.current);
-      advanceTimer.current = null;
-    }
-  };
-
-  useEffect(() => clearTimer, []);
-
   // Changement d'écran : on note la question comme VUE et on donne le focus.
   // Celui des réponses appartient à `QuestionOptions` (`autoFocus`), qui possède
   // les refs de ses boutons ; ici il ne reste que l'écran de fin.
   useEffect(() => {
-    clearTimer();
     if (onFinish) {
       finishRef.current?.focus();
       return;
@@ -346,23 +355,18 @@ export function ProjectQuestionnaire({
   }, [onFinish, finTroncActif, cleReponses]);
 
   const goNext = () => {
-    clearTimer();
     setDir('fwd');
     setIndex((i) => Math.min(i + 1, total));
   };
 
   const goBack = () => {
-    clearTimer();
     setDir('back');
     setIndex((i) => Math.max(i - 1, 0));
   };
 
   /**
-   * Une réponse du bloc de question. Le composant ne connaît que la réponse ;
-   * c'est ici qu'on décide d'avancer — et la règle n'a pas bougé : en choix
-   * simple, cocher fait glisser à la question suivante après un court délai
-   * (le temps de voir sa réponse se cocher) ; en choix multiple, rien ne bouge
-   * tant que « Continuer » n'est pas cliqué.
+   * Une réponse du bloc de question. Elle s'enregistre et rien ne bouge : on
+   * n'avance qu'au « Continuer », en choix simple comme en choix multiple.
    */
   const repondre = (answer: string | string[] | undefined) => {
     if (!q) return;
@@ -370,9 +374,6 @@ export function ProjectQuestionnaire({
     if (answer === undefined) delete answers[q.id];
     else answers[q.id] = answer;
     onChange(answers);
-    if (q.multiple) return;
-    clearTimer();
-    advanceTimer.current = setTimeout(goNext, prefersReducedMotion() ? 180 : ADVANCE_MS);
   };
 
   /** « Passer cette question » : on efface l'éventuelle réponse et on avance (le moteur gère). */
@@ -557,11 +558,12 @@ export function ProjectQuestionnaire({
   }
 
   // ─── Une question à la fois ───
-  // Choix multiple : pas d'auto-avance possible (l'utilisateur n'a pas fini de
-  // cocher), donc un bouton « Continuer » explicite dans la barre du bas.
   const multiple = !!q!.multiple;
   const chosen = selectedIds(q!, value);
   const contexte = contexteAide?.(q!) ?? null;
+  // Sur toutes les questions, pas seulement le parcours : les aides déjà
+  // écartées par une question masquée comptent aussi, comme dans `questions`.
+  const ecart = ecartParReponse(q!, value, allQuestions);
 
   return (
     <div>
@@ -602,6 +604,9 @@ export function ProjectQuestionnaire({
           onSkip={skip}
           autoFocus
         />
+        {/* Annoncé poliment : l'encart arrive après le clic, et le lecteur
+            d'écran doit l'entendre sans perdre le focus de la réponse. */}
+        <div aria-live="polite">{ecart && <EncartEcart {...ecart} />}</div>
       </div>
 
       {/* Navigation bas */}
@@ -619,34 +624,31 @@ export function ProjectQuestionnaire({
           <ArrowLeft className="h-4 w-4" />
           Précédent
         </button>
-        {multiple ? (
-          /* « Continuer » n'avance qu'une fois quelque chose de coché : en choix
-             multiple, rien de coché ne veut pas dire « aucune de ces réponses »
-             mais « je n'ai pas répondu », et l'échappatoire porte son propre
-             libellé — « Passer cette question », ou le « je ne sais pas » du
-             moteur juste au-dessus. */
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            {chosen.length === 0 && (
-              <span className="text-[13px]" style={{ color: C.grayMuted }}>
-                Choisissez au moins une réponse.
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={goNext}
-              disabled={chosen.length === 0}
-              className="group inline-flex min-h-11 items-center gap-2 rounded-xl px-5 py-2.5 text-[15px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:shadow-none"
-              style={{ background: C.orange }}
-            >
-              Continuer
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </button>
-          </div>
-        ) : (
-          <span className="hidden text-[12px] sm:block" style={{ color: C.grayMuted }}>
-            Vous pourrez refaire ce questionnaire plus tard
-          </span>
-        )}
+        {/* « Continuer » n'avance qu'une fois une réponse donnée : rien de
+            coché ne veut pas dire « aucune de ces réponses » mais « je n'ai pas
+            répondu », et l'échappatoire porte son propre libellé — « Passer
+            cette question », ou le « je ne sais pas » du moteur juste au-dessus. */}
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {chosen.length === 0 ? (
+            <span className="text-[13px]" style={{ color: C.grayMuted }}>
+              {multiple ? 'Choisissez au moins une réponse.' : 'Choisissez une réponse.'}
+            </span>
+          ) : (
+            <span className="hidden text-[12px] sm:block" style={{ color: C.grayMuted }}>
+              Vous pourrez refaire ce questionnaire plus tard
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={goNext}
+            disabled={chosen.length === 0}
+            className="group inline-flex min-h-11 items-center gap-2 rounded-xl px-5 py-2.5 text-[15px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:shadow-none"
+            style={{ background: C.orange }}
+          >
+            Continuer
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </button>
+        </div>
       </div>
     </div>
   );

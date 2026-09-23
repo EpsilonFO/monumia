@@ -60,6 +60,40 @@ export function computeEliminatedAideIds(
   return [...eliminated];
 }
 
+/**
+ * Ce que la réponse à CETTE question écarte de plus que les autres réponses,
+ * et pourquoi : le contenu de l'encart affiché sous les réponses du
+ * questionnaire, avant que l'utilisateur ne clique sur « Continuer ».
+ *
+ * On ne compte que les aides encore en lice : dire « cette réponse écarte
+ * 12 aides » quand dix l'étaient déjà par le porteur serait faux, et
+ * l'utilisateur chercherait en vain à les récupérer en changeant sa réponse.
+ *
+ * Le texte vient du fait (`pourquoiEcarte`) : celui de la réponse choisie,
+ * sinon le repli `'*'`. En choix multiple, une aide ne tombe que si AUCUNE
+ * case cochée ne lui convient, si bien que le texte d'une case ne vaut que si
+ * elle est seule cochée ; au-delà, seul le repli dit vrai. `pourquoi` vaut
+ * `null` quand le fait n'a rien à dire : l'encart garde alors son compte.
+ */
+export function ecartParReponse(
+  question: QcmQuestion,
+  answers: Record<string, string | string[]>,
+  questions: QcmQuestion[],
+): { nbAides: number; pourquoi: string | null } | null {
+  const selection = selectedIds(question, answers).filter((id) => !isSkipId(question, id));
+  if (selection.length === 0) return null;
+  const autres = { ...answers };
+  delete autres[question.id];
+  const deja = new Set(computeEliminatedAideIds(autres, questions));
+  const nouvelles = computeEliminatedAideIds({ [question.id]: selection }, [question]).filter(
+    (id) => !deja.has(id),
+  );
+  if (nouvelles.length === 0) return null;
+  const textes = question.pourquoiEcarte ?? {};
+  const propre = selection.length === 1 ? textes[selection[0]] : undefined;
+  return { nbAides: nouvelles.length, pourquoi: propre ?? textes['*'] ?? null };
+}
+
 /** Une question ne sert plus à rien quand TOUTES les aides qu'elle débloque sont
  *  déjà écartées par les réponses précédentes : la poser ferait perdre du temps
  *  sans rien changer au résultat (« durée d'engagement de location » alors que

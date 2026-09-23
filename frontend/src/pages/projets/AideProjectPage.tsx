@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import { getDisponibilite, getEligibilityStatus } from '@/components/aide/eligibility-status';
+import { FicheAvantDepot } from '@/components/aide/fiche/FicheAvantDepot';
 import { FicheBarre, type ActionBarre } from '@/components/aide/fiche/FicheBarre';
 import { FicheConseils, FicheEtapes } from '@/components/aide/fiche/FicheConseils';
 import { FicheBandeauGuichet, FicheEnBref } from '@/components/aide/fiche/FicheEnBref';
@@ -296,13 +297,20 @@ export function AideProjectPage() {
   const g = guichetDe(aide);
   const titre = titreAide(aide);
   const reglement = reglementDe(aide);
-  const tousLesPoints = [...reglement.conditions, ...reglement.rubriques.flatMap((r) => r.points)];
+  const tousLesPoints = [...reglement.demarches, ...reglement.rubriques.flatMap((r) => r.points)];
   const numeros = new Map(tousLesPoints.map((p) => [p.id, p.n]));
   const titres = new Map(tousLesPoints.map((p) => [p.id, p.titre]));
   const resumes = new Map((aide.reglement ?? []).map((c) => [c.text, aide.fiche?.points[c.id]?.resume || c.text]));
   const pieces = piecesAide(aide, existingDossier);
-  const lienProjet = ROUTES.PROJET_DETAIL(projet.id);
   const statut = matchResult ? getEligibilityStatus(matchResult) : null;
+  // Une aide écartée n'a rien à préparer : le bloc se tait.
+  const avecDemarches = reglement.demarches.length > 0 && statut !== 'non-eligible';
+  const plansDemarche = new Map(
+    (matchResult?.llmEvaluation?.evaluations ?? []).flatMap((e) =>
+      e.conditionId && e.demarche ? [[e.conditionId, e.demarche] as const] : [],
+    ),
+  );
+  const lienProjet = ROUTES.PROJET_DETAIL(projet.id);
   const sources = [
     ...(aide.urlOfficielle ? [{ libelle: 'Page officielle', url: aide.urlOfficielle, ico: 'externe' as const }] : []),
     ...(aide.formulaireUrl ? [{ libelle: 'Formulaire', url: aide.formulaireUrl, ico: 'formulaire' as const }] : []),
@@ -368,6 +376,14 @@ export function AideProjectPage() {
               ouverture={opening}
               onDossier={handleOpenOrView}
               lienAutres={lienProjet}
+              nbDemarches={avecDemarches ? reglement.demarches.length : 0}
+            />
+          )}
+          {avecDemarches && (
+            <FicheAvantDepot
+              demarches={reglement.demarches}
+              plans={plansDemarche}
+              onOuvrirPoint={(id) => reglementRef.current?.ouvrirPoint(id)}
             />
           )}
           <FicheConseils

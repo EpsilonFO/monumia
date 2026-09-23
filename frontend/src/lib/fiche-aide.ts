@@ -187,11 +187,13 @@ export function montantAide(aide: AideAffichable): AideTexteValeur | null {
 /* Règlement complet                                                   */
 /* ------------------------------------------------------------------ */
 
-/** `autres` n'existe que pour les aides sans fiche : leurs points n'ont pas de
+/** `criteres` range les gates, que la fiche rédigée ne classe dans aucun thème.
+ *  `autres` n'existe que pour les aides sans fiche : leurs points n'ont pas de
  *  rubrique rédigée, et deviner la rubrique d'une condition serait un faux ami. */
-export type Rubrique = ThemeReglement | 'autres';
+export type Rubrique = 'criteres' | ThemeReglement | 'autres';
 
 export const RUBRIQUES: { cle: Rubrique; titre: string }[] = [
+  { cle: 'criteres', titre: "Critères d'éligibilité" },
   { cle: 'candidater', titre: 'Qui peut candidater' },
   { cle: 'projet', titre: 'Projets et dépenses' },
   { cle: 'montant', titre: 'Montant et cumul' },
@@ -216,10 +218,17 @@ export interface PointReglement {
 }
 
 export interface Reglement {
-  conditions: PointReglement[];
+  /** Les démarches à mener avant le dépôt, en tête de page. */
+  demarches: PointReglement[];
   rubriques: { cle: Rubrique; titre: string; points: PointReglement[] }[];
   total: number;
 }
+
+/** Une démarche : un point que le questionnaire ne tranche pas (`manual_check`
+ *  sans effet sur le verdict), à régler par le porteur avant de déposer. Les
+ *  gates, eux, sont des critères : le questionnaire les a déjà posés. */
+export const estDemarche = (c: Pick<AideConditionReglement, 'kind' | 'effect'>): boolean =>
+  c.kind === 'manual_check' && c.effect === 'info';
 
 /** Aplatit pour une recherche insensible à la casse et aux accents. */
 export const aplatir = (texte: string): string =>
@@ -234,16 +243,19 @@ function titreDeRepli(texte: string, max = 90): string {
 }
 
 function rubriqueDeRepli(c: AideConditionReglement): Rubrique {
+  if (c.effect === 'gate') return 'criteres';
   if (c.effect === 'modulateur') return 'montant';
   if (c.kind === 'discretionary') return 'dossier';
   return 'autres';
 }
 
 /**
- * Le règlement tel que la page le range : d'abord les conditions à respecter
- * (les gates, dont l'échec refuse le dossier), puis les rubriques dans leur
- * ordre fixe. La numérotation suit cet ordre d'affichage, pas celui du YAML :
- * « point 5 » doit désigner le cinquième point qu'on lit.
+ * Le règlement tel que la page le range : d'abord les démarches à mener avant
+ * le dépôt, puis les rubriques dans leur ordre fixe, les critères en tête. Les
+ * critères ne remontent pas : le questionnaire les a posés, alors qu'une
+ * démarche oubliée n'apparaît nulle part ailleurs et fait refuser le dossier.
+ * La numérotation suit l'ordre d'affichage, pas celui du YAML : « point 5 »
+ * doit désigner le cinquième point qu'on lit.
  */
 export function reglementDe(aide: Pick<Aide, 'reglement' | 'fiche'>): Reglement {
   const points = aide.fiche?.points ?? {};
@@ -258,25 +270,30 @@ export function reglementDe(aide: Pick<Aide, 'reglement' | 'fiche'>): Reglement 
       resume,
       quote: c.quote ?? null,
       derogation: c.derogationPossible,
+      // En tête, « À vérifier » redirait le titre du bloc.
       pastille:
-        c.effect === 'gate' ? null : c.kind === 'manual_check' ? 'verifier' : c.kind === 'discretionary' ? 'choix' : null,
+        c.effect === 'gate' || estDemarche(c)
+          ? null
+          : c.kind === 'manual_check' ? 'verifier' : c.kind === 'discretionary' ? 'choix' : null,
       cherche: aplatir([titre, resume, c.quote ?? ''].join(' ')),
     };
   };
 
   let n = 0;
   const numeroter = (p: Omit<PointReglement, 'n'>): PointReglement => ({ ...p, n: ++n });
-  const gates = conditions.filter((c) => c.effect === 'gate').map(versPoint).map(numeroter);
+  const demarches = conditions.filter(estDemarche).map(versPoint).map(numeroter);
+  // Un gate n'a pas de thème rédigé (skill rediger-fiche) : il va aux critères,
+  // même si une fiche ancienne lui en donnait un.
+  const rubriqueDe = (c: AideConditionReglement): Rubrique =>
+    c.effect === 'gate' ? 'criteres' : (points[c.id]?.theme ?? rubriqueDeRepli(c));
   const rubriques = RUBRIQUES.map(({ cle, titre }) => ({
     cle,
     titre,
-    points: conditions
-      .filter((c) => c.effect !== 'gate' && (points[c.id]?.theme ?? rubriqueDeRepli(c)) === cle)
-      .map(versPoint),
+    points: conditions.filter((c) => !estDemarche(c) && rubriqueDe(c) === cle).map(versPoint),
   }))
     .filter((r) => r.points.length > 0)
     .map((r) => ({ ...r, points: r.points.map(numeroter) }));
-  return { conditions: gates, rubriques, total: n };
+  return { demarches, rubriques, total: n };
 }
 
 /* ------------------------------------------------------------------ */

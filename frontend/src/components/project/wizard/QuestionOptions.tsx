@@ -40,8 +40,8 @@ interface QuestionOptionsProps {
  * qui ne servent qu'une aide se posent là où l'utilisateur regarde cette aide.
  * Le composant POSSÈDE les refs de ses boutons, le parcours au clavier et le
  * focus initial — des refs sur des boutons ne peuvent pas rester chez le
- * parent. Ce qui reste au parent : l'auto-avance et le « Continuer » du choix
- * multiple, qui relèvent de la navigation, pas de la question.
+ * parent. Ce qui reste au parent : le « Continuer » et l'encart d'une réponse
+ * écartante, qui relèvent du parcours, pas de la question.
  */
 export function QuestionOptions({
   question,

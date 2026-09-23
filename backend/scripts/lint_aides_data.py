@@ -57,6 +57,7 @@ from aides_schema import (
     FAIT_PORTEUR,
     FIELD_REGISTRY,
     OPS_BY_FIELD_TYPE,
+    OPTIONS_BOOLEEN_IMPLICITES,
     Aide,
     FactDef,
     Predicate,
@@ -580,6 +581,36 @@ def check_facts(facts: dict[str, FactDef]) -> list[str]:
     ]
     erreurs.extend(check_pertinent_si(facts))
     erreurs.extend(check_porteurs_concernes(facts))
+    erreurs.extend(check_pourquoi(facts))
+    return erreurs
+
+
+def check_pourquoi(facts: dict[str, FactDef]) -> list[str]:
+    """Chaque clé de `pourquoi` nomme une réponse du fait, ou vaut « * ».
+
+    Vérifié ici et non dans `FactDef` : l'administration peut retirer une
+    réponse (`faits_surcharges`), et un modèle qui refuserait la clé orpheline
+    ferait ignorer la surcharge entière. Le moteur, lui, ne sert que les clés
+    des réponses encore offertes.
+    """
+    erreurs: list[str] = []
+    for key, f in facts.items():
+        if not f.pourquoi:
+            continue
+        if f.type == "boolean":
+            ids = {o.id for o in f.options or OPTIONS_BOOLEEN_IMPLICITES}
+        else:
+            ids = {o.id for o in f.options or []}
+        for cle, texte in f.pourquoi.items():
+            if cle != "*" and cle not in ids:
+                erreurs.append(
+                    f"facts.yaml / {key}: `pourquoi.{cle}` ne nomme aucune réponse du fait "
+                    f"(réponses : {', '.join(sorted(ids)) or 'aucune'}, ou « * »)"
+                )
+            if LIEN_AUTEUR in texte:
+                erreurs.append(
+                    f"facts.yaml / {key}: `pourquoi.{cle}` contient un lien d'auteur `[[…]]`"
+                )
     return erreurs
 
 

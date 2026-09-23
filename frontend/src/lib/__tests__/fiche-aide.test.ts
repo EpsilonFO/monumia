@@ -118,7 +118,7 @@ describe('reglementDe', () => {
     condition({ id: 'apport', text: 'Apport de 20 %.', kind: 'manual_check' }),
   ];
 
-  it("les gates d'abord, puis les rubriques ; la numérotation suit l'affichage", () => {
+  it("les démarches d'abord, puis les rubriques, critères en tête ; la numérotation suit l'affichage", () => {
     const r = reglementDe({
       reglement,
       fiche: {
@@ -132,26 +132,46 @@ describe('reglementDe', () => {
         },
       },
     });
-    expect(r.conditions.map((p) => [p.id, p.n])).toEqual([['non-commences', 1]]);
-    expect(r.rubriques.map((x) => x.cle)).toEqual(['candidater', 'montant']);
+    expect(r.demarches.map((p) => [p.id, p.n])).toEqual([['apport', 1]]);
+    expect(r.rubriques.map((x) => x.cle)).toEqual(['criteres', 'montant']);
+    expect(r.rubriques[0].points.map((p) => [p.id, p.n])).toEqual([['non-commences', 2]]);
     expect(r.rubriques[1].points.map((p) => [p.id, p.n])).toEqual([['taux', 3], ['modulation', 4]]);
     expect(r.total).toBe(4);
   });
 
-  it('pastilles : à vérifier (manual_check), au choix du financeur (discretionary)', () => {
-    const r = reglementDe({ reglement, fiche: null });
-    const tous = [...r.conditions, ...r.rubriques.flatMap((x) => x.points)];
+  it('un manual_check modulateur reste dans sa rubrique, un gate ne remonte pas', () => {
+    const r = reglementDe({
+      reglement: [
+        condition({ id: 'plafond', text: 'Plafond vérifié.', kind: 'manual_check', effect: 'modulateur' }),
+        condition({ id: 'classe', text: 'Monument classé.', kind: 'user_fact', effect: 'gate' }),
+      ],
+      fiche: null,
+    });
+    expect(r.demarches).toEqual([]);
+    expect(r.rubriques.map((x) => [x.cle, x.points.map((p) => p.id)])).toEqual([
+      ['criteres', ['classe']],
+      ['montant', ['plafond']],
+    ]);
+  });
+
+  it('pastilles : à vérifier (manual_check hors démarche), au choix du financeur (discretionary)', () => {
+    const r = reglementDe({
+      reglement: [...reglement, condition({ id: 'plafond', text: 'Plafond.', kind: 'manual_check', effect: 'modulateur' })],
+      fiche: null,
+    });
+    const tous = [...r.demarches, ...r.rubriques.flatMap((x) => x.points)];
     const pastille = (id: string) => tous.find((p) => p.id === id)?.pastille;
-    expect(pastille('apport')).toBe('verifier');
+    expect(pastille('apport')).toBeNull();
+    expect(pastille('plafond')).toBe('verifier');
     expect(pastille('modulation')).toBe('choix');
     expect(pastille('non-commences')).toBeNull();
   });
 
   it('sans fiche : titre tiré du texte, rubriques de repli', () => {
     const r = reglementDe({ reglement, fiche: null });
-    expect(r.rubriques.map((x) => x.cle)).toEqual(['montant', 'autres']);
-    expect(r.conditions[0].titre).toBe('Ne pas commencer');
-    expect(r.conditions[0].resume).toBe('Ne pas commencer.');
+    expect(r.rubriques.map((x) => x.cle)).toEqual(['criteres', 'montant', 'autres']);
+    expect(r.rubriques[0].points[0].titre).toBe('Ne pas commencer');
+    expect(r.rubriques[0].points[0].resume).toBe('Ne pas commencer.');
   });
 
   it('la recherche ignore accents et casse', () => {

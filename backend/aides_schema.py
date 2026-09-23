@@ -508,6 +508,39 @@ class FactDef(BaseModel):
     # de sa cible. C'est une ERREUR CRITIQUE : une option inconnue dans le
     # marqueur refuserait désormais l'aide à tout le monde.
     porteurs_concernes: list[str] | None = None
+    # POURQUOI une réponse écarte des aides, dit à l'utilisateur dans le
+    # questionnaire : sous les réponses, l'encart « Cette réponse écarte N
+    # aides » affiche ce texte, et c'est lui qui clique sur « Continuer ». Même
+    # geste que le motif de refus de la fiche d'une aide, mais à l'échelle du
+    # FAIT, puisque la question est posée pour toutes les aides à la fois (d'où
+    # la règle du `help` : ni financeur ni territoire sur un fait partagé).
+    #
+    # Clé = id de réponse ; `"*"` = repli pour toute réponse écartante sans
+    # texte propre, et seule clé permise sur un fait numérique, dont les
+    # tranches se recalculent avec les seuils du catalogue. En choix multiple,
+    # le front ne lit une clé d'option que si cette case est seule cochée.
+    #
+    # Que chaque clé nomme une réponse existante, c'est le LINT qui le vérifie
+    # (`check_facts`), pas ce modèle : une réponse retirée depuis /admin
+    # invaliderait sinon la surcharge du fait entière, qui serait ignorée.
+    pourquoi: dict[str, str] | None = None
+
+    @model_validator(mode="after")
+    def _pourquoi_bien_forme(self) -> FactDef:
+        """Des textes non vides, et rien que `"*"` sur un fait numérique."""
+        if self.pourquoi is None:
+            return self
+        if not self.pourquoi:
+            raise ValueError("`pourquoi` vide : omettre le champ plutôt que le vider")
+        for cle, texte in self.pourquoi.items():
+            if not texte.strip():
+                raise ValueError(f"`pourquoi.{cle}` : texte vide")
+        if self.type not in TYPES_A_OPTIONS and set(self.pourquoi) != {"*"}:
+            raise ValueError(
+                "`pourquoi` d'un fait numérique n'admet que la clé « * » : "
+                "ses tranches changent avec les seuils des aides"
+            )
+        return self
 
     @model_validator(mode="after")
     def _porteurs_concernes_non_vide(self) -> FactDef:

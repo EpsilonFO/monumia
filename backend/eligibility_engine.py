@@ -1635,6 +1635,24 @@ def _depends_on_deduction(
     return {"questionId": source_key, "showForOptionIds": show_for}
 
 
+def _pourquoi_servi(
+    fact: FactDef, options: list[dict], eliminations: dict[str, list[str]]
+) -> dict[str, str] | None:
+    """Les textes `pourquoi` du fait que le front peut avoir à afficher.
+
+    Rien quand aucune réponse n'écarte d'aide dans ce diagnostic : l'encart ne
+    s'ouvrirait jamais. Sinon, les clés des réponses encore offertes, plus le
+    repli `"*"` : une réponse retirée depuis /admin laisse sa clé orpheline
+    dans le YAML, et le front n'a pas à la recevoir. La décision d'afficher
+    reste au front, qui connaît les aides déjà écartées par les autres réponses.
+    """
+    if not fact.pourquoi or not eliminations:
+        return None
+    offertes = {o["id"] for o in options}
+    servi = {cle: texte for cle, texte in fact.pourquoi.items() if cle == "*" or cle in offertes}
+    return servi or None
+
+
 def build_questions(
     verdicts: list[AideVerdict],
     facts: dict[str, FactDef],
@@ -1854,6 +1872,9 @@ def build_questions(
             # (cf. services/faits_durables.py).
             "scope": fact.scope,
         }
+        pourquoi = _pourquoi_servi(fact, options, elim or elim_strictes)
+        if pourquoi:
+            question["pourquoiEcarte"] = pourquoi
         depends_on = (
             _depends_on_pertinence(fact, built, options_by_fact)
             or _depends_on(all_conds, built, options_by_fact)
