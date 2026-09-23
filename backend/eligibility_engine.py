@@ -38,6 +38,7 @@ from aides_schema import (
     AppliesIf,
     Condition,
     FactDef,
+    Fiche,
     MultiValue,
     RangeValue,
     evaluate_predicate,
@@ -837,6 +838,7 @@ def _levier_plan(cond: Condition, fact: FactDef, value) -> dict:
     plan = {
         "factId": cond.fact,
         "critere": cond.text,
+        "conditionId": cond.id,
         "resume": levier.resume,
         "demarche": levier.demarche,
         "organisme": levier.organisme,
@@ -1204,6 +1206,7 @@ def evaluate_aide(
             verdict.evaluations.append(
                 {
                     "critere": cond.text,
+                    "conditionId": cond.id,
                     "verdict": INFO,
                     "explication": explication,
                     "nature": nature,
@@ -1241,6 +1244,7 @@ def evaluate_aide(
                 verdict.evaluations.append(
                     {
                         "critere": cond.text,
+                        "conditionId": cond.id,
                         "verdict": NON,
                         "explication": f"Réservé aux porteurs : {marques}.",
                         "nature": nature,
@@ -1280,6 +1284,7 @@ def evaluate_aide(
             verdict.evaluations.append(
                 {
                     "critere": cond.text,
+                    "conditionId": cond.id,
                     "verdict": OUI,
                     "explication": "Critère satisfait.",
                     "nature": nature,
@@ -1293,6 +1298,7 @@ def evaluate_aide(
             verdict.evaluations.append(
                 {
                     "critere": cond.text,
+                    "conditionId": cond.id,
                     "verdict": INCERTITUDE,
                     "explication": "Non satisfait, mais une dérogation est possible — "
                     "à vérifier auprès du financeur.",
@@ -1312,6 +1318,7 @@ def evaluate_aide(
             verdict.evaluations.append(
                 {
                     "critere": cond.text,
+                    "conditionId": cond.id,
                     "verdict": NON,
                     "explication": plan["resume"],
                     "nature": nature,
@@ -1325,6 +1332,7 @@ def evaluate_aide(
             verdict.evaluations.append(
                 {
                     "critere": cond.text,
+                    "conditionId": cond.id,
                     "verdict": NON,
                     "explication": "Critère non satisfait.",
                     "nature": nature,
@@ -1335,6 +1343,7 @@ def evaluate_aide(
             has_incertitude = True
             ev = {
                 "critere": cond.text,
+                "conditionId": cond.id,
                 "verdict": INCERTITUDE,
                 "explication": (
                     "À vérifier auprès du financeur."
@@ -1898,7 +1907,68 @@ def aide_display_dict(aide: Aide) -> dict:
         "url_officielle": aide.source.url_officielle,
         "formulaire_url": aide.source.formulaire_url,
         "tags": aide.tags,
+        "carte": _carte_editoriale(aide.fiche),
     }
+
+
+def _carte_editoriale(fiche: Fiche | None) -> dict | None:
+    """Ce que la carte d'une aide emprunte à sa fiche rédigée.
+
+    Quatre champs courts, et rien de plus : ce dict part avec chaque aide du
+    diagnostic, une centaine par projet. Le reste de la fiche ne sert qu'à sa
+    page et passe par `GET /aides/{id}` (cf. `aide_fiche_dict`).
+    """
+    if fiche is None:
+        return None
+    carte = {
+        "titre": fiche.titre,
+        "financeur": fiche.financeur,
+        "chapeau": fiche.chapeau,
+        "montant": fiche.montant.model_dump() if fiche.montant else None,
+    }
+    return carte if any(carte.values()) else None
+
+
+def aide_fiche_dict(aide: Aide) -> dict:
+    """La forme d'affichage, plus ce que seule la page de l'aide consomme.
+
+    `reglement` porte les conditions telles que le règlement les énonce (texte,
+    citation, nature) pour la rubrique « Le règlement complet » : les
+    évaluations du diagnostic n'en disent que le verdict, et pas pour les
+    conditions écartées d'un profil par `applies_if`. `fiche` est la rédaction
+    en langue claire, en camelCase comme le reste de la réponse.
+    """
+    d = aide_display_dict(aide)
+    d["verifie_le"] = aide.source.verified_at.isoformat() if aide.source.verified_at else None
+    d["reglement"] = [
+        {
+            "id": c.id,
+            "text": c.text,
+            "quote": c.quote,
+            "kind": c.kind,
+            "effect": c.effect,
+            "derogationPossible": c.derogation_possible,
+        }
+        for c in aide.conditions
+    ]
+    f = aide.fiche
+    if f is None:
+        d["fiche"] = None
+        return d
+    d["fiche"] = {
+        "redigeLe": f.redige_le.isoformat() if f.redige_le else None,
+        "titre": f.titre,
+        "financeur": f.financeur,
+        "chapeau": f.chapeau,
+        "montant": f.montant.model_dump() if f.montant else None,
+        "essentiel": f.essentiel.model_dump(exclude_none=True),
+        "enBref": f.en_bref.model_dump() if f.en_bref else None,
+        "conseils": [c.model_dump() for c in f.conseils],
+        "etapes": [e.model_dump() for e in f.etapes],
+        "points": {k: p.model_dump() for k, p in f.points.items()},
+        "pieces": dict(f.pieces),
+    }
+    return d
 
 
 # Rôles de financement qui allègent réellement la facture de chantier. Le taux
