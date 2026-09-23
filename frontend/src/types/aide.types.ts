@@ -118,6 +118,9 @@ export interface AideEvaluation {
   /** Échec sur un critère ACTIONNABLE : à afficher comme démarche à engager,
    *  jamais comme motif de refus. Le plan détaillé est dans `AideMatchResult.leviers`. */
   levier?: boolean;
+  /** Condition `manual_check` qui cite un levier : la démarche à accomplir avant
+   *  le dépôt, sans question posée ni effet sur le statut. */
+  demarche?: AideLevier;
 }
 
 /** Statut d'éligibilité rendu par le moteur. */

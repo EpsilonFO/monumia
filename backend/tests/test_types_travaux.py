@@ -54,6 +54,7 @@ class TableDesTypesTravauxTest(unittest.TestCase):
         "foret": "Forêt et desserte forestière",
         "eau_milieux_aquatiques": "Eau et milieux aquatiques (cours d'eau, étang, captage)",
         "equipement_professionnel": "Équipement professionnel (matériel, véhicule)",
+        "equipement_numerique": "Équipement numérique (informatique, outils de médiation, affichage, réseau)",
     }
 
     def test_les_types_et_leurs_libelles(self) -> None:

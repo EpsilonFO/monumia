@@ -75,10 +75,11 @@ import type {
  * Trois entrées :
  *  - sans paramètre : nouveau projet, créé par POST à la fin de l'étape travaux ;
  *  - `?projet=<id>` : « Refaire le questionnaire » d'un projet existant —
- *    intentions et travaux préremplis, PATCH au lieu de POST. Avec
- *    `&reprendre=passees`, les réponses déjà données sont conservées et seules
- *    celles restées sans réponse sont reposées (on démarre alors directement
- *    sur le questionnaire) ;
+ *    PATCH au lieu de POST. « Tout refaire » démarre sur les travaux, sans
+ *    retour possible vers l'intention ni les activités (cf.
+ *    `intentionVerrouillee`). Avec `&reprendre=passees`, les réponses déjà
+ *    données sont conservées et seules celles restées sans réponse sont
+ *    reposées (on démarre alors directement sur le questionnaire) ;
  *  - route INVITÉE (`ROUTES.PROJET_NEW_INVITE`, sans `:monumentId`) : le
  *    parcours découverte. Rien ne s'écrit en base, tout va dans le brouillon
  *    `localStorage`, le questionnaire vient de l'endpoint public, et une étape
@@ -109,6 +110,23 @@ export function ProjetWizardPage() {
    */
   const reprendrePassees =
     existingProjetId !== null && searchParams.get('reprendre') === 'passees';
+  /**
+   * « Tout refaire » garde l'INTENTION du projet (et ses activités) : on repart
+   * de l'étape des travaux, sans retour possible. Sinon un seul projet se
+   * recyclerait indéfiniment d'une intention à l'autre, et le plafond de
+   * projets par monument de l'offre gratuite ne tiendrait plus.
+   *
+   * Levé si le projet n'a plus aucune intention proposée (cadré sur une tuile
+   * retirée depuis) : il n'y a alors rien à garder, et l'étape doit la
+   * redemander. Le serveur ne tient pas cette règle : un PATCH direct sur le
+   * questionnaire passe toujours.
+   */
+  const [intentionVerrouillee, setIntentionVerrouillee] = useState(
+    existingProjetId !== null && !reprendrePassees,
+  );
+  // Tant que le projet repris n'est pas chargé, l'intention est encore vide :
+  // valider les travaux à ce moment-là l'effacerait du projet.
+  const [cadrageCharge, setCadrageCharge] = useState(existingProjetId === null);
 
   const upsertProjet = useProjetStore((s) => s.upsertProjet);
   const updateMonument = useMonumentStore((s) => s.updateMonument);
@@ -150,7 +168,10 @@ export function ProjetWizardPage() {
   // « Seulement les questions passées » démarre sur le questionnaire : le
   // cadrage n'est pas en cause, le repasser ferait perdre du temps.
   const [step, setStep] = useState<WizardStepKey>(() => {
-    if (!modeInvite) return reprendrePassees ? 'questionnaire' : 'intention';
+    if (!modeInvite) {
+      if (reprendrePassees) return 'questionnaire';
+      return existingProjetId ? 'travaux' : 'intention';
+    }
     // Brouillon laissé sur l'étape des travaux alors que le cadrage ne la
     // prévoit plus : « Faire vivre » la remplace par les activités, et ne la
     // rouvre que si la famille des travaux y est cochée. On reprend à
@@ -265,7 +286,10 @@ export function ProjetWizardPage() {
   // juste après qu'on l'a franchie (un refus vide `reprises`).
   const etapeReprises =
     reprises.length > 0 || step === 'reprises' || reprendreDurables !== null;
-  const sauterTravaux = etapeFamilles && !(familles ?? []).includes(FAMILLE_TRAVAUX);
+  // « Tout refaire » passe TOUJOURS par les travaux : c'est la seule étape du
+  // cadrage qui reste ouverte (cf. `intentionVerrouillee`).
+  const sauterTravaux =
+    !intentionVerrouillee && etapeFamilles && !(familles ?? []).includes(FAMILLE_TRAVAUX);
   const steps = useMemo(() => {
     const base = modeInvite
       ? PROJET_WIZARD_STEPS_INVITE
@@ -338,7 +362,12 @@ export function ProjetWizardPage() {
         // décochées et un « Continuer » actif. Rien ne reste ⇒ l'étape
         // redemande l'intention.
         const previous = readRaisons(p.questionnaire).filter(raisonProposee);
-        if (previous.length > 0) setRaisons(previous);
+        if (previous.length > 0) {
+          setRaisons(previous);
+        } else {
+          setIntentionVerrouillee(false);
+          setStep((s) => (s === 'travaux' ? 'intention' : s));
+        }
         // Même filtrage pour les familles, et même raison : une famille qui
         // n'est plus proposée rouvrirait sur une tuile décochée. `null` reste
         // `null` — la question n'avait pas été posée, l'étape la posera.
@@ -351,6 +380,7 @@ export function ProjetWizardPage() {
         // réponses existantes — sans les clés réservées, qui voyagent à part
         // et sont recomposées à l'enregistrement.
         if (reprendrePassees) setAnswers(sansClesReservees(p.questionnaire));
+        setCadrageCharge(true);
       })
       .catch(() => {
         toast.error('Ce projet est introuvable.');
@@ -511,7 +541,7 @@ export function ProjetWizardPage() {
     } finally {
       setSaving(false);
     }
-    setStep('intention');
+    setStep(intentionVerrouillee ? 'travaux' : 'intention');
   };
 
   /** Le cadrage a changé : le questionnaire est régénéré, on repart du tronc. */
@@ -949,8 +979,12 @@ export function ProjetWizardPage() {
           value={travaux}
           onChange={setTravaux}
           onNext={() => void handleTravauxNext()}
-          onBack={() => setStep(etapeFamilles ? 'familles' : 'intention')}
-          saving={saving}
+          onBack={
+            intentionVerrouillee
+              ? undefined
+              : () => setStep(etapeFamilles ? 'familles' : 'intention')
+          }
+          saving={saving || !cadrageCharge}
         />
       )}
 

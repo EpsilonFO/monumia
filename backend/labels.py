@@ -59,6 +59,10 @@ TRAVAUX_LABELS = {
     "foret": "Forêt et desserte forestière",
     "eau_milieux_aquatiques": "Eau et milieux aquatiques (cours d'eau, étang, captage)",
     "equipement_professionnel": "Équipement professionnel (matériel, véhicule)",
+    # Ajouté le 2026-09-23 : le numérique était une question posée à tous
+    # (`projet_composante_numerique`) alors que c'est l'OBJET du projet. Les
+    # aides qui ne financent que cela se cadrent par `hard_filters.travaux`.
+    "equipement_numerique": "Équipement numérique (informatique, outils de médiation, affichage, réseau)",
 }
 
 # ── Familles thématiques d'une aide ────────────────────────────────────────────

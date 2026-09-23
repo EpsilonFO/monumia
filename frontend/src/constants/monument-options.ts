@@ -66,6 +66,7 @@ export const WORK_TYPES = [
     label: 'Eau et milieux aquatiques (cours d’eau, étang, captage)',
   },
   { value: 'equipement_professionnel', label: 'Équipement professionnel (matériel, véhicule)' },
+  { value: 'equipement_numerique', label: 'Équipement numérique (informatique, outils de médiation, affichage, réseau)' },
 ] as const;
 
 export const MATERIAUX = [

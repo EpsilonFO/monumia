@@ -1168,3 +1168,91 @@ class TestFailOpen(BaseLint):
             any("sans rien à vérifier" in a for a in rapport.avertissements),
             rapport.avertissements,
         )
+
+
+class TestLevierDeDemarche(BaseLint):
+    """Critère ou démarche (TYPING, 2026-09-23) : une démarche faisable avant le
+    dépôt s'annonce par un `manual_check` qui cite le levier d'un fait, elle ne
+    se demande pas ; un gate posé sur un fait à levier est signalé."""
+
+    FACTS_LEVIER = (
+        FACTS
+        + """\
+audit_realise:
+  type: boolean
+  scope: monument
+  question: Un audit énergétique a-t-il été réalisé ?
+  levier:
+    resume: Faire réaliser un audit énergétique.
+"""
+    )
+
+    DEMARCHE = """\
+  - id: audit
+    text: Le porteur réalise un audit énergétique.
+    kind: manual_check
+    effect: info
+    levier: {fait}
+    notes: Démarche faisable avant le dépôt.
+"""
+
+    def setUp(self):
+        super().setUp()
+        self.facts.write_text(self.FACTS_LEVIER, encoding="utf-8")
+
+    def test_levier_cite_un_fait_qui_en_porte_un(self):
+        self.ecrire_aide("aide-audit", self.DEMARCHE.format(fait="audit_realise"))
+        rapport = self.lint()
+        self.assertEqual(rapport.erreurs, [])
+        self.assertEqual([a for a in rapport.avertissements if "levier" in a], [])
+
+    def test_levier_sur_un_fait_sans_levier_est_une_erreur(self):
+        self.ecrire_aide("aide-audit", self.DEMARCHE.format(fait="monument_ouvert_au_public"))
+        erreurs = [e for e in self.lint().erreurs if "levier" in e]
+        self.assertEqual(len(erreurs), 1, erreurs)
+        self.assertIn("monument_ouvert_au_public", erreurs[0])
+
+    def test_levier_sur_un_fait_inconnu_est_une_erreur(self):
+        self.ecrire_aide("aide-audit", self.DEMARCHE.format(fait="fait_inexistant"))
+        erreurs = [e for e in self.lint().erreurs if "fait_inexistant" in e]
+        self.assertEqual(len(erreurs), 1, erreurs)
+
+    def test_gate_sur_un_fait_a_levier_est_une_erreur(self):
+        self.ecrire_aide(
+            "aide-audit",
+            """\
+  - id: audit
+    text: Le porteur réalise un audit énergétique.
+    kind: user_fact
+    effect: gate
+    fact: audit_realise
+    predicate: {eq: true}
+""",
+        )
+        rapport = self.lint()
+        erreurs = [e for e in rapport.erreurs if "fait à levier" in e]
+        self.assertEqual(len(erreurs), 1, rapport.erreurs)
+        self.assertIn("aide-audit / audit", erreurs[0])
+
+    def test_une_question_maintenue_nest_pas_signalee(self):
+        self.facts.write_text(
+            self.FACTS_LEVIER + "    question_maintenue: true\n", encoding="utf-8"
+        )
+        self.ecrire_aide(
+            "aide-audit",
+            """\
+  - id: audit
+    text: Le porteur réalise un audit énergétique.
+    kind: user_fact
+    effect: gate
+    fact: audit_realise
+    predicate: {eq: true}
+""",
+        )
+        self.assertEqual([e for e in self.lint().erreurs if "fait à levier" in e], [])
+
+    def test_un_fait_cite_par_levier_compte_comme_reference(self):
+        """Sans quoi un fait proposé qui ne sert plus qu'à porter le plan
+        d'action serait annoncé orphelin, et retiré."""
+        self.ecrire_aide("aide-audit", self.DEMARCHE.format(fait="audit_realise"))
+        self.assertIn("audit_realise", faits_references_dans(self.aides_dir))

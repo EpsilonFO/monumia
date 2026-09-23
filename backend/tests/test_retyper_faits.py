@@ -657,3 +657,118 @@ class TestLotsReels(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDemarcheALevier(BaseRetypage):
+    """Critère ou démarche (TYPING, 2026-09-23) : une démarche dont le fait porte
+    un levier ne se demande plus, mais son plan d'action reste affiché. La
+    condition cite le levier et le fait RESTE dans l'ontologie."""
+
+    PENDING_LEVIER = (
+        PENDING
+        + """
+# --- ex-aide ---
+audit_realise:
+  type: boolean
+  scope: monument
+  question: Un audit énergétique a-t-il été réalisé ?
+  levier:
+    resume: Faire réaliser un audit énergétique.
+"""
+    )
+    GATE_AUDIT = {
+        "id": "audit",
+        "text": "Le porteur réalise un audit énergétique.",
+        "kind": "user_fact",
+        "effect": "gate",
+        "fact": "audit_realise",
+        "predicate": {"eq": True},
+        "derogation_possible": True,
+        "quote": "réaliser un audit énergétique",
+    }
+    LIGNE = Retypage("audit_realise", "Démarche faisable avant le dépôt.")
+
+    def setUp(self):
+        super().setUp()
+        self.pending.write_text(self.PENDING_LEVIER, encoding="utf-8")
+
+    def test_la_condition_cite_le_levier(self):
+        self.ecrire("ex-aide", [self.GATE_AUDIT])
+        rapport = self.appliquer([self.LIGNE])
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        cond = self.relire("ex-aide")["conditions"][0]
+        self.assertEqual(cond["kind"], "manual_check")
+        self.assertEqual(cond["effect"], "info")
+        self.assertEqual(cond["levier"], "audit_realise")
+        for cle in ("fact", "predicate", "derogation_possible"):
+            self.assertNotIn(cle, cond)
+
+    def test_le_fait_a_levier_reste_dans_lontologie(self):
+        self.ecrire("ex-aide", [self.GATE_AUDIT])
+        rapport = self.appliquer([self.LIGNE])
+        self.assertEqual(rapport.gardes, ["audit_realise"])
+        self.assertEqual(rapport.retires, [])
+        load_pending_facts.cache_clear()
+        self.assertIn("audit_realise", load_pending_facts(self.pending))
+
+    def test_un_fait_approuve_a_levier_se_garde_sans_source(self):
+        """Rien n'est retiré de facts.yaml : aucune décision de retrait à écrire."""
+        self.facts.write_text(
+            FACTS
+            + "audit_approuve:\n  type: boolean\n  scope: monument\n"
+            + "  question: Un audit a-t-il été réalisé ?\n"
+            + "  levier:\n    resume: Faire réaliser un audit.\n",
+            encoding="utf-8",
+        )
+        self.ecrire("ex-aide", [{**self.GATE_AUDIT, "fact": "audit_approuve"}])
+        rapport = self.appliquer([Retypage("audit_approuve", "Démarche.")])
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        self.assertEqual(self.relire("ex-aide")["conditions"][0]["levier"], "audit_approuve")
+        load_facts.cache_clear()
+        self.assertIn("audit_approuve", load_facts(self.facts))
+
+    def test_une_promesse_ne_cite_pas_le_levier_et_part(self):
+        self.ecrire("ex-aide", [self.GATE_AUDIT])
+        rapport = self.appliquer([Retypage("audit_realise", "Promesse.", kind_declare="info")])
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        cond = self.relire("ex-aide")["conditions"][0]
+        self.assertEqual(cond["kind"], "info")
+        self.assertNotIn("levier", cond)
+        self.assertEqual(rapport.retires, ["audit_realise"])
+
+    def test_un_modulateur_reste_un_modulateur(self):
+        bonus = {**self.GATE_AUDIT, "effect": "modulateur", "id": "bonus"}
+        del bonus["derogation_possible"]  # réservé aux gates
+        self.ecrire("ex-aide", [bonus])
+        rapport = self.appliquer([self.LIGNE])
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        cond = self.relire("ex-aide")["conditions"][0]
+        self.assertEqual((cond["kind"], cond["effect"]), ("manual_check", "modulateur"))
+        self.assertNotIn("levier", cond)
+
+    def test_fichier_commente_levier_insere_textuellement(self):
+        chemin = self.ecrire("ex-aide", [self.GATE_AUDIT, GATE_EXCLUSIONS])
+        chemin.write_text("# annotation de relecture\n" + chemin.read_text(encoding="utf-8"))
+        rapport = self.appliquer([self.LIGNE])
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        texte = chemin.read_text(encoding="utf-8")
+        self.assertTrue(texte.startswith("# annotation de relecture\n"))
+        conds = self.relire("ex-aide")["conditions"]
+        self.assertEqual(conds[0]["levier"], "audit_realise")
+        self.assertEqual(conds[1], GATE_EXCLUSIONS)
+
+    def test_un_applies_if_sur_un_fait_garde_nest_pas_refuse(self):
+        """Le fait reste dans l'ontologie : la clause se résout comme avant."""
+        passerelle = {
+            "id": "si-audit",
+            "text": "Si un audit a été fait, joindre ses préconisations.",
+            "kind": "info",
+            "effect": "info",
+            "applies_if": {"fact": "audit_realise", "predicate": {"eq": True}},
+        }
+        self.ecrire("ex-aide", [self.GATE_AUDIT, passerelle])
+        rapport = self.appliquer([self.LIGNE])
+        self.assertTrue(rapport.ok, rapport.erreurs)
+        conds = self.relire("ex-aide")["conditions"]
+        self.assertEqual(conds[0]["levier"], "audit_realise")
+        self.assertEqual(conds[1], passerelle)

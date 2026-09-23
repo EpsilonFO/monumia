@@ -623,7 +623,7 @@ class TestQuestionGeneration(unittest.TestCase):
         aide = _fixture_aide(
             [
                 self._gate("ouverture_public", {"not_in": ["aucune"]}),
-                self._gate("porteur_est_proprietaire", {"eq": True}),
+                self._gate("titre_occupation_porteur", {"eq": "proprietaire"}),
             ]
         )
         questions = {q["id"]: q for q in self._questions([aide])}
@@ -635,7 +635,7 @@ class TestQuestionGeneration(unittest.TestCase):
             {aide.slug: aide}, FACTS, _monument(), 3000, {"ouverture_public": ["aucune"]}
         )
         self.assertEqual([m["aide"]["id"] for m in res["aidesAtteignables"]], [aide.slug])
-        self.assertIn("porteur_est_proprietaire", [q["id"] for q in res["qcmQuestions"]])
+        self.assertIn("titre_occupation_porteur", [q["id"] for q in res["qcmQuestions"]])
 
     def test_gate_a_derogation_n_elimine_jamais(self):
         """`derogation_possible` dégrade l'échec en incertitude : l'aide reste
@@ -688,7 +688,11 @@ class TestQuestionGeneration(unittest.TestCase):
         aides = [
             _fixture_aide(
                 [self._gate("etat_travaux", {"eq": "non_commences"})]
-                + ([self._gate("porteur_est_proprietaire", {"eq": True})] if i < 2 else [])
+                + (
+                    [self._gate("titre_occupation_porteur", {"eq": "proprietaire"})]
+                    if i < 2
+                    else []
+                )
                 + ([self._gate("visible_voie_publique", {"eq": True})] if i < 1 else []),
                 slug=f"fx-{i}",
             )
@@ -978,7 +982,32 @@ class TestConditionsNonBloquantes(unittest.TestCase):
         evaluation = res["aidesEligibles"][0]["llmEvaluation"]["evaluations"][0]
         self.assertEqual(evaluation["nature"], "manual_check")
         self.assertEqual(evaluation["verdict"], "info")
-        self.assertIn("sans incidence", evaluation["explication"])
+        self.assertIn("avant le dépôt", evaluation["explication"])
+        self.assertNotIn("sans incidence", evaluation["explication"])
+
+    def test_demarche_affiche_le_levier_sans_poser_de_question(self):
+        """Doctrine du 2026-09-23 : une démarche faisable avant le dépôt ne se
+        demande pas. Le `manual_check` qui cite un levier garde l'aide éligible,
+        ne pose aucune question et porte le plan d'action du fait."""
+        res = self._run(
+            [
+                {
+                    "id": "audit",
+                    "text": "Le porteur doit réaliser un audit énergétique du bâtiment.",
+                    "kind": "manual_check",
+                    "effect": "info",
+                    "levier": "audit_energetique_realise",
+                }
+            ]
+        )
+        self.assertEqual(len(res["aidesEligibles"]), 1)
+        self.assertEqual(res["qcmQuestions"], [])
+        evaluation = res["aidesEligibles"][0]["llmEvaluation"]["evaluations"][0]
+        levier = FACTS["audit_energetique_realise"].levier
+        assert levier is not None
+        self.assertEqual(evaluation["demarche"]["resume"], levier.resume)
+        self.assertEqual(evaluation["demarche"]["factId"], "audit_energetique_realise")
+        self.assertEqual(evaluation["explication"], levier.resume)
 
     def test_manual_check_gate_reste_bloquant(self):
         """Contraste : le manual_check par défaut (effect gate) maintient bien
@@ -2004,7 +2033,10 @@ class TestAnneeConstructionDeduiteDuSiecle(unittest.TestCase):
                     "effect": "gate",
                     "fact": "annee_construction",
                     "predicate": {"lt": 1800},
-                    "applies_if": {"fact": "porteur_est_proprietaire", "predicate": {"eq": True}},
+                    "applies_if": {
+                        "fact": "titre_occupation_porteur",
+                        "predicate": {"eq": "proprietaire"},
+                    },
                 }
             ]
         )
@@ -2013,7 +2045,7 @@ class TestAnneeConstructionDeduiteDuSiecle(unittest.TestCase):
         verdict = evaluate_aide(aide, monument, None, ctx, FACTS)
         self.assertEqual(verdict.status, "potentiel")
         self.assertNotIn("annee_construction", verdict.missing_facts)
-        self.assertIn("porteur_est_proprietaire", verdict.gateway_facts)
+        self.assertIn("titre_occupation_porteur", verdict.gateway_facts)
 
 
 class TestEgliseDeduiteDuNom(unittest.TestCase):
@@ -2115,11 +2147,14 @@ class TestOrdreDesQuestions(unittest.TestCase):
         "fact": "age_orgue_ans",
         "predicate": {"gte": 50},
     }
-    MANIFESTATIONS = {
-        "id": "manifestations",
-        "text": "Manifestations culturelles publiques",
+    # Un fait dont la clé tombe, dans l'alphabet, ENTRE les deux de fx-a.
+    # (L'ancien, `manifestations_culturelles_publiques_orgue`, était une
+    # promesse retirée du questionnaire le 2026-09-23.)
+    EVENEMENT = {
+        "id": "evenement",
+        "text": "Événement inscrit au calendrier national",
         "kind": "user_fact",
-        "fact": "manifestations_culturelles_publiques_orgue",
+        "fact": "evenement_inscrit_calendrier_national",
         "predicate": {"eq": True},
     }
 
@@ -2132,16 +2167,16 @@ class TestOrdreDesQuestions(unittest.TestCase):
         self.assertEqual(self._ids({aide.slug: aide}), ["possede_orgue_a_tuyaux", "age_orgue_ans"])
 
     def test_les_questions_d_une_meme_aide_se_suivent(self):
-        # Alphabet : age (fx-a), manifestations (fx-b), possede (fx-a) — fx-a
+        # Alphabet : age (fx-a), evenement (fx-b), possede (fx-a) : fx-a
         # dispersée autour de fx-b. Attendu : fx-a entière, puis fx-b.
         a = _fixture_aide([self.ORGUE, self.AGE], slug="fx-a")
-        b = _fixture_aide([self.MANIFESTATIONS], slug="fx-b")
+        b = _fixture_aide([self.EVENEMENT], slug="fx-b")
         self.assertEqual(
             self._ids({a.slug: a, b.slug: b}),
             [
                 "possede_orgue_a_tuyaux",
                 "age_orgue_ans",
-                "manifestations_culturelles_publiques_orgue",
+                "evenement_inscrit_calendrier_national",
             ],
         )
 
@@ -2237,9 +2272,32 @@ class TestProjetSansTravaux(unittest.TestCase):
         "predicate": {"gte": 10000},
     }
 
-    def _run(self, conditions: list[dict], answers=None, slug="fx-travaux"):
+    # Le fait qui porte la porte `pertinent_si: etat_travaux`, recréé ici tel
+    # qu'il était au catalogue : la repasse critère / démarche du 2026-09-23 l'a
+    # retiré (choix d'énergie après travaux = promesse), mais c'est le MÉCANISME
+    # que ces tests fixent, pas ce fait-là.
+    FIOUL = "chauffage_fioul_apres_travaux"
+    FACTS_FIOUL = {
+        **FACTS,
+        FIOUL: FactDef.model_validate(
+            {
+                "type": "boolean",
+                "scope": "projet",
+                "pertinent_si": {
+                    "fact": "etat_travaux",
+                    "predicate": {"in": ["non_commences", "en_cours", "acheves"]},
+                },
+                "question": "Après les travaux, la principale source d'énergie sera-t-elle "
+                "encore le fioul ?",
+            }
+        ),
+    }
+
+    def _run(self, conditions: list[dict], answers=None, slug="fx-travaux", facts=None):
         aide = _fixture_aide(conditions, slug=slug)
-        return run_deterministic_diagnostic({slug: aide}, FACTS, _monument(), 3000, answers)
+        return run_deterministic_diagnostic(
+            {slug: aide}, facts or FACTS, _monument(), 3000, answers
+        )
 
     def _questions(self, res) -> list[str]:
         return [q["id"] for q in res["qcmQuestions"]]
@@ -2327,7 +2385,7 @@ class TestProjetSansTravaux(unittest.TestCase):
             "fact": "chauffage_fioul_apres_travaux",
             "predicate": {"eq": False},
         }
-        res = self._run([exclusion], {self.FACT: "aucun"})
+        res = self._run([exclusion], {self.FACT: "aucun"}, facts=self.FACTS_FIOUL)
         self.assertNotIn("chauffage_fioul_apres_travaux", self._questions(res))
         self.assertEqual(res["aidesNonEligibles"], [])
         self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-travaux"])
@@ -2343,7 +2401,7 @@ class TestProjetSansTravaux(unittest.TestCase):
                     "fact": "chauffage_fioul_apres_travaux",
                     "predicate": {"eq": False},
                 }
-                res = self._run([exclusion], {self.FACT: reponse})
+                res = self._run([exclusion], {self.FACT: reponse}, facts=self.FACTS_FIOUL)
                 self.assertIn("chauffage_fioul_apres_travaux", self._questions(res))
 
     def test_corpus_le_fioul_ne_survit_pas_a_aucun_travaux(self):
@@ -2471,79 +2529,6 @@ class TestProjetSansTravaux(unittest.TestCase):
         )
 
 
-class TestProgrammeValorisationDeduitDesRaisons(unittest.TestCase):
-    """Cocher « Faire vivre et ouvrir le lieu » EST un programme de
-    valorisation : demander « prévoyez-vous des actions de valorisation après
-    les travaux ? » juste après se lit comme une panne, et la question n'a de
-    surcroît aucun sens pour un projet sans chantier.
-
-    Déduction POSITIVE, la seule de la table : elle n'est tenable que parce
-    qu'aucun gate du corpus ne porte `eq: false` sur ce fait (cf. le test de
-    corpus ci-dessous), donc elle ne peut écarter personne.
-    """
-
-    FACT = "prevoit_programme_valorisation"
-    GATE = {
-        "id": "programme-de-valorisation",
-        "text": "Le porteur doit prévoir un programme de valorisation du bien restauré.",
-        "kind": "user_fact",
-        "effect": "gate",
-        "fact": FACT,
-        "predicate": {"eq": True},
-    }
-    AIDE = _fixture_aide(
-        [GATE],
-        slug="fx-valorisation",
-        raison=["restauration_travaux", "valorisation_rayonnement"],
-    )
-
-    def _run(self, answers=None):
-        return run_deterministic_diagnostic(
-            {self.AIDE.slug: self.AIDE}, FACTS, _monument(), 3000, answers
-        )
-
-    def _questions(self, res) -> set[str]:
-        return {q["id"] for q in res["qcmQuestions"]}
-
-    def test_faire_vivre_repond_oui_sans_poser_la_question(self):
-        res = self._run({"_raisons": ["valorisation_rayonnement"]})
-        self.assertNotIn(self.FACT, self._questions(res))
-        self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-valorisation"])
-
-    def test_un_pur_chantier_garde_la_question(self):
-        """L'inverse ne se déduit pas : un projet de restauration peut très bien
-        prévoir un programme de valorisation, que plusieurs aides exigent."""
-        res = self._run({"_raisons": ["restauration_travaux"]})
-        self.assertIn(self.FACT, self._questions(res))
-        self.assertEqual(len(res["aidesPotentiellementEligibles"]), 1)
-
-    def test_sans_raisons_comportement_inchange(self):
-        for answers in (None, {}, {"_raisons": []}):
-            self.assertIn(self.FACT, self._questions(self._run(answers)), answers)
-
-    def test_reponse_de_l_utilisateur_prime_sur_la_deduction(self):
-        """Un « non » explicite survit à la déduction. L'aide tombe
-        « atteignable » et non « non éligible » : le fait porte un levier
-        (prévoir des actions de valorisation est un choix de conduite de
-        projet), donc aucun de ses gates n'est dirimant."""
-        res = self._run({"_raisons": ["valorisation_rayonnement"], self.FACT: "non"})
-        self.assertEqual([m["aide"]["id"] for m in res["aidesAtteignables"]], ["fx-valorisation"])
-
-    def test_corpus_aucun_gate_negatif_sur_le_fait_deduit(self):
-        """Ce qui autorise la déduction positive. Un `eq: false` futur ferait
-        « écartée par vos réponses » sans que l'utilisateur ait répondu."""
-        fautifs = sorted(
-            f"{slug} / {c.id}"
-            for slug, aide in AIDES.items()
-            for c in aide.conditions
-            if c.fact == self.FACT
-            and c.effect == "gate"
-            and c.predicate is not None
-            and evaluate_predicate(c.predicate.root, True) is False
-        )
-        self.assertEqual(fautifs, [])
-
-
 class TestEntretienCourantEtRenovationFondamentale(unittest.TestCase):
     """Deux questions qui se contredisaient en se suivant (retour de test).
 
@@ -2612,11 +2597,13 @@ class TestEntretienCourantEtRenovationFondamentale(unittest.TestCase):
             )
 
     def test_la_question_disparait_et_le_critere_est_refuse(self):
-        """Refusé, pas ignoré : le fait porte un levier, l'aide part donc « à
-        débloquer » avec la démarche qui la rouvrirait."""
+        """Refusé, pas ignoré. Depuis la repasse critère / démarche du
+        2026-09-23, l'ampleur du programme est un CRITÈRE (le recentrer revient à
+        changer de projet) : le fait n'a plus de levier, l'aide est écartée et
+        non plus « à débloquer »."""
         res = self._run([self.GATE_RENOVATION], {self.ENTRETIEN: "oui"})
         self.assertNotIn(self.RENOVATION, self._questions(res))
-        self.assertEqual([m["aide"]["id"] for m in res["aidesAtteignables"]], ["fx-renov"])
+        self.assertEqual([m["aide"]["id"] for m in res["aidesNonEligibles"]], ["fx-renov"])
 
     def test_la_source_se_pose_avant_sa_cible_et_la_branche(self):
         res = self._run([self.GATE_ENTRETIEN, self.GATE_RENOVATION])

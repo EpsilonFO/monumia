@@ -349,24 +349,6 @@ def _faire_vivre_depuis_raisons(raisons: set[str]) -> bool | None:
     return None if "valorisation_rayonnement" in raisons else False
 
 
-def _valorisation_prevue_depuis_raisons(raisons: set[str]) -> bool | None:
-    """Miroir de `_faire_vivre_depuis_raisons`, dans l'autre sens : cocher
-    « Faire vivre et ouvrir le lieu » EST un programme de valorisation.
-
-    Demander « prévoyez-vous des actions de valorisation après les travaux ? »
-    à qui vient de déclarer que son projet est de faire vivre le lieu se lit
-    comme une panne, et la question n'a de surcroît aucun sens pour un projet
-    sans chantier. L'inverse ne se déduit pas — un projet purement de
-    restauration peut très bien prévoir un programme de valorisation, que
-    plusieurs aides exigent —, d'où le None qui laisse la question posée.
-
-    Les 16 conditions du corpus qui gatent ce fait sont toutes `eq: true` : la
-    déduction ne peut écarter aucune aide (cf. le commentaire de la table, et
-    le test de corpus qui fige cette propriété).
-    """
-    return True if "valorisation_rayonnement" in raisons else None
-
-
 # Faits que l'étape « Votre projet » répond d'avance, par déduction des
 # intentions cochées. Pendant de AUTO_SOURCE_DERIVERS : même principe (ne pas
 # demander ce que l'on sait déjà), mais la source est l'intention déclarée et
@@ -380,9 +362,10 @@ FAITS_DEDUITS_DES_RAISONS: dict[str, Callable[[set[str]], object]] = {
     # Cohérent avec le `help` du fait : « répondez non si votre projet porte
     # uniquement sur des travaux sur le bâtiment ».
     "projet_artistique_ou_culturel": _faire_vivre_depuis_raisons,
-    # Déduction POSITIVE (la seule) : cf. _valorisation_prevue_depuis_raisons,
-    # admise parce qu'aucun gate du corpus ne porte `eq: false` sur ce fait.
-    "prevoit_programme_valorisation": _valorisation_prevue_depuis_raisons,
+    # `prevoit_programme_valorisation` y avait une déduction positive (cocher
+    # « Faire vivre le lieu » EST un programme de valorisation). Le fait est
+    # devenu une promesse le 2026-09-23 et ne se demande plus : la déduction
+    # est partie avec lui.
 }
 
 
@@ -453,9 +436,8 @@ FAITS_DEDUITS_DES_FAMILLES: dict[str, frozenset[str]] = {
 # famille COCHÉE ne rend pas seulement plausibles mais certains, parce qu'ils
 # redisent ce que la famille déclare déjà. Cocher « Spectacles et
 # manifestations » puis s'entendre demander « votre projet est-il une action
-# artistique ou culturelle ? » se lit comme une panne — c'est le même argument
-# que `_valorisation_prevue_depuis_raisons`, et il est soumis à la même
-# condition : la déduction ne doit pouvoir écarter AUCUNE aide.
+# artistique ou culturelle ? » se lit comme une panne. Même condition que pour
+# toute déduction positive : elle ne doit pouvoir écarter AUCUNE aide.
 #
 # Trois entrées, et la garde de `_retournerait_contre` les revérifie à chaque
 # diagnostic plutôt que de faire confiance à cette liste. Mesuré sur le corpus
@@ -831,11 +813,12 @@ def _numeric_gap(predicate: dict, value, fact: FactDef) -> str | None:
 
 
 def _levier_plan(cond: Condition, fact: FactDef, value) -> dict:
-    """Plan d'action affichable pour un gate en échec sur un fait à levier."""
+    """Plan d'action d'un fait à levier : gate en échec, ou démarche d'un
+    `manual_check` qui cite ce levier (`cond.levier`)."""
     levier = fact.levier
     assert levier is not None  # garanti par l'appelant
     plan = {
-        "factId": cond.fact,
+        "factId": cond.fact or cond.levier,
         "critere": cond.text,
         "resume": levier.resume,
         "demarche": levier.demarche,
@@ -1191,24 +1174,29 @@ def evaluate_aide(
             elif nature == "modulateur":
                 explication = "Peut moduler le taux ou le montant (n'affecte pas l'éligibilité)."
             elif nature == "manual_check":
-                # Vraie condition, mais dont la vérification n'a de sens qu'au
-                # montage du dossier (plan de financement, pièces justificatives).
-                # La poser en amont ne renseignerait personne et éliminerait à
-                # tort ; on l'affiche à confirmer avec l'organisme, sans gater.
+                # Vraie condition, qu'on ne demande pas : soit une démarche à
+                # faire avant le dépôt (audit, architecte, adhésion), soit une
+                # exigence que le propriétaire ne peut pas trancher seul (avis
+                # d'un comité, liste fermée de sites). Elle ne gate pas, mais
+                # elle n'est pas « sans incidence » pour autant.
                 explication = (
-                    "À confirmer avec l'organisme au moment du dossier "
-                    "(sans incidence sur votre éligibilité)."
+                    "À faire ou à faire confirmer par l'organisme avant le dépôt du dossier."
                 )
             else:
                 explication = "Information sur l'aide."
-            verdict.evaluations.append(
-                {
-                    "critere": cond.text,
-                    "verdict": INFO,
-                    "explication": explication,
-                    "nature": nature,
-                }
-            )
+            evaluation = {
+                "critere": cond.text,
+                "verdict": INFO,
+                "explication": explication,
+                "nature": nature,
+            }
+            # Démarche à accomplir : le plan d'action vient du levier du fait
+            # cité, écrit une fois dans facts.yaml pour toutes les aides.
+            fait_levier = facts.get(cond.levier) if cond.levier else None
+            if fait_levier is not None and fait_levier.levier is not None:
+                evaluation["demarche"] = _levier_plan(cond, fait_levier, None)
+                evaluation["explication"] = fait_levier.levier.resume
+            verdict.evaluations.append(evaluation)
             continue
 
         fact: FactDef | None = None

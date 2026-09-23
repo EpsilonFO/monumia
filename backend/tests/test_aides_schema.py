@@ -188,7 +188,7 @@ class TestCorpus(unittest.TestCase):
     def test_facts_load(self):
         facts = load_facts()
         self.assertIn("jours_ouverture_public_par_an", facts)
-        self.assertEqual(facts["maitrise_oeuvre"].type, "enum")
+        self.assertEqual(facts["etat_travaux"].type, "enum")
 
     def test_all_aides_load(self):
         aides = load_all_aides()

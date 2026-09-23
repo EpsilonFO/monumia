@@ -200,6 +200,15 @@ def check_aide(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
         elif cond.kind == "auto":
             assert cond.predicate is not None  # garanti par le schéma
             errors.extend(check_field_predicate(where, cond.field, cond.predicate))
+        if cond.levier:
+            fait = facts.get(cond.levier)
+            if fait is None:
+                errors.append(f"{where}: levier « {cond.levier} » absent de facts.yaml")
+            elif fait.levier is None:
+                errors.append(
+                    f"{where}: le fait « {cond.levier} » ne porte pas de `levier`, "
+                    "rien à afficher : en écrire un dans facts.yaml ou retirer la référence"
+                )
         if cond.applies_if:
             w = f"{where} (applies_if)"
             if cond.applies_if.fact:
@@ -241,6 +250,26 @@ def check_hors_gate(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
                 f"{where}: applies_if sur le fait « {cond.applies_if.fact} » hors_gate — {conseil}"
             )
     return erreurs
+
+
+def gates_sur_fait_a_levier(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
+    """Gates posés sur un fait porteur d'un `levier` (doctrine du 2026-09-23).
+
+    Un fait qu'une démarche rend favorable n'est plus une question : il coûte une
+    ligne au questionnaire de tous sans écarter personne. Sa place est un
+    `manual_check` + `info` qui cite le levier (TYPING, « Critère ou démarche »).
+    Erreur depuis que la repasse du 2026-09-23 a ramené le catalogue à zéro. Un
+    levier `question_maintenue` garde la question par décision écrite.
+    """
+    return [
+        f"{aide.slug} / {cond.id} → {cond.fact}"
+        for cond in aide.conditions
+        if cond.kind == "user_fact"
+        and cond.effect == "gate"
+        and cond.fact in facts
+        and (levier := facts[cond.fact].levier) is not None
+        and not levier.question_maintenue
+    ]
 
 
 def aides_sous_derivation_porteur(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
@@ -777,6 +806,7 @@ def lint(
     # corpus noieraient les deux qui portent (cf. `RapportLint.texte`).
     gates_larges: list[str] = []
     fail_open: list[str] = []
+    gates_levier: list[str] = []
     for path in chemins:
         if not path.exists():
             rapport.erreurs.append(f"{path.name}: fichier absent de {aides_dir}")
@@ -793,6 +823,7 @@ def lint(
         rapport.erreurs.extend(check_portee_geographique(aide))
         rapport.erreurs.extend(check_famille_faire_vivre(aide))
         fail_open.extend(check_fail_open(aide))
+        gates_levier.extend(gates_sur_fait_a_levier(aide, facts))
         gates_larges.extend(gate_plus_large_que_le_marqueur(aide, facts))
 
     if fail_open:
@@ -801,6 +832,15 @@ def lint(
             "`applies_if` — donc annoncées « potentiellement éligibles » partout :\n"
             + "\n".join(f"      {li}" for li in fail_open[:6])
             + (f"\n      … et {len(fail_open) - 6} autre(s)" if len(fail_open) > 6 else "")
+        )
+
+    if gates_levier:
+        rapport.erreurs.extend(
+            f"{li} : gate sur un fait à levier. Une démarche faisable avant le dépôt ne "
+            "se demande pas, elle s'annonce en `manual_check` + `info` avec `levier: <fait>` ; "
+            "si la question doit rester, `question_maintenue: true` dans le levier "
+            "(TYPING, « Critère ou démarche »)"
+            for li in gates_levier
         )
 
     if gates_larges:
@@ -875,7 +915,7 @@ def lint(
 # (`applies_if: {fact: x}`), et jusqu'à une mention en commentaire. Sur-détecter
 # fait dire « encore référencé » d'un fait qui ne l'est plus — un orphelin
 # annoncé à tort, lui, ferait retirer un fait dont une aide dépend.
-_REF_FAIT_RE = re.compile(r"\bfact:\s*['\"]?([A-Za-z0-9_]+)")
+_REF_FAIT_RE = re.compile(r"\b(?:fact|levier):\s*['\"]?([A-Za-z0-9_]+)")
 
 
 def faits_references_dans(*aides_dirs: Path) -> set[str]:
@@ -914,7 +954,7 @@ def compter_usage_faits(aides: list[Aide]) -> Counter[str]:
         ref
         for a in aides
         for c in a.conditions
-        for ref in [c.fact, c.applies_if.fact if c.applies_if else None]
+        for ref in [c.fact, c.levier, c.applies_if.fact if c.applies_if else None]
         if ref
     )
     usage.update(a.applies_if.fact for a in aides if a.applies_if and a.applies_if.fact)
@@ -1022,7 +1062,7 @@ def _bloc_pending(
         f"{a.slug} / {c.id} → {ref}"
         for a in aides
         for c in a.conditions
-        for ref in [c.fact, c.applies_if.fact if c.applies_if else None]
+        for ref in [c.fact, c.levier, c.applies_if.fact if c.applies_if else None]
         if ref in pending
     ]
     lignes = [

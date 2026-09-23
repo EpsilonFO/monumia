@@ -363,6 +363,13 @@ class Levier(BaseModel):
     cout: str | None = None
     delai: str | None = None
     url: str | None = None
+    # Le fait reste une QUESTION malgré son levier (décision du 2026-09-23).
+    # Par défaut, une démarche ne se demande pas : elle s'annonce par un
+    # `manual_check` qui cite le levier. Ce drapeau garde la question quand la
+    # réponse compte (beaucoup l'ont déjà, et l'issue dépend d'un tiers qui
+    # décide : accord de la DRAC, cofinancement d'une collectivité). Le gate en
+    # échec rend alors l'aide « à débloquer », et le lint ne le signale plus.
+    question_maintenue: bool = False
 
 
 class AppliesIf(BaseModel):
@@ -689,6 +696,11 @@ class Condition(BaseModel):
     # commencés » valide, « commencés » n'élimine pas (un démarrage anticipé
     # motivé reste possible). N'a de sens que sur un gate auto/user_fact.
     derogation_possible: bool = False
+    # kind=manual_check : clé d'un fait de facts.yaml dont le `levier` décrit la
+    # démarche à accomplir avant le dépôt (audit, architecte, adhésion…). La
+    # condition ne pose AUCUNE question : elle affiche le plan d'action sur la
+    # fiche, sans toucher au statut de l'aide (TYPING, « Critère ou démarche »).
+    levier: str | None = None
     # Citation verbatim du règlement source (remplie à l'ingestion, étape 2).
     quote: str | None = None
     notes: str | None = None
@@ -734,6 +746,11 @@ class Condition(BaseModel):
         ):
             raise ValueError(
                 f"[{self.id}] derogation_possible n'a de sens que sur un gate auto/user_fact"
+            )
+        if self.levier and self.kind != "manual_check":
+            raise ValueError(
+                f"[{self.id}] `levier` est réservé à kind=manual_check (une démarche à faire "
+                "avant le dépôt) : un gate ne porte pas de levier"
             )
         return self
 

@@ -113,6 +113,7 @@ ORDRE_CHAMPS_CONDITION = (
     "predicate",
     "applies_if",
     "derogation_possible",
+    "levier",
     "quote",
     "notes",
 )

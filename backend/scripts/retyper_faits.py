@@ -71,7 +71,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from pathlib import Path
 
@@ -120,6 +120,11 @@ class Retypage:
     #: (`demande_deposee_avant_demarrage` est une promesse sans être un
     #: `s_engage_*`).
     kind_declare: str = ""
+    #: Posé par `appliquer`, jamais par la table : le retypage produit un
+    #: `manual_check` et le fait porte un `levier`. La condition CITE alors ce
+    #: levier (`levier: <fait>`, TYPING « Critère ou démarche ») et le fait
+    #: RESTE dans l'ontologie, puisque c'est lui qui porte le plan d'action.
+    levier: bool = False
 
     @property
     def approuve(self) -> bool:
@@ -146,6 +151,9 @@ class Rapport:
     #: fait → [slug/condition] retypés
     retypages: dict[str, list[str]] = field(default_factory=dict)
     retires: list[str] = field(default_factory=list)
+    #: Faits gardés dans l'ontologie parce que les conditions retypées citent
+    #: leur levier.
+    gardes: list[str] = field(default_factory=list)
     fichiers_touches: list[str] = field(default_factory=list)
 
     @property
@@ -163,7 +171,8 @@ class Rapport:
         lignes.append(
             f"  TOTAL : {self.conditions} condition(s) retypée(s), "
             f"{len(self.fichiers_touches)} fichier(s) d'aide, "
-            f"{len(self.retires)} fait(s) retiré(s)"
+            f"{len(self.retires)} fait(s) retiré(s), "
+            f"{len(self.gardes)} gardé(s) pour leur levier"
         )
         for e in self.erreurs:
             lignes.append(f"  ERREUR : {e}")
@@ -266,18 +275,21 @@ def verifier(
                     f"« {r.fait} » porte `source: {SOURCE_APPROUVE}` mais n'y est pas — "
                     "ligne à corriger avant de retirer quoi que ce soit."
                 )
-        elif r.fait in facts:
+        elif r.fait in facts and not r.levier:
             erreurs.append(
                 f"« {r.fait} » est APPROUVÉ (facts.yaml) — le retirer est une décision "
                 f"humaine : l'écrire dans la table (`source: {SOURCE_APPROUVE}`)."
             )
-        elif r.fait not in pending:
+        elif r.fait not in pending and r.fait not in facts:
             erreurs.append(f"« {r.fait} » n'est pas dans facts_pending.yaml — déjà retypé ?")
         if r.fait in vus:
             erreurs.append(f"« {r.fait} » apparaît deux fois dans la table")
         vus.add(r.fait)
 
-    cles = {r.fait for r in retypages}
+    # Un fait GARDÉ pour son levier reste dans l'ontologie : un `applies_if` qui
+    # le cite continue de se résoudre, rien ne change de portée. Le refus ne
+    # vaut que pour les faits que la migration retire.
+    cles = {r.fait for r in retypages if not r.levier}
     for chemin in sorted(aides_dir.glob("*.yaml")):
         try:
             aide = Aide.model_validate(yaml.safe_load(chemin.read_text(encoding="utf-8")))
@@ -314,6 +326,18 @@ def _conditions_visees(aide: Aide, cles: set[str]) -> list[str]:
 CLES_EFFACEES = ("fact", "predicate", "derogation_possible")
 
 
+def _cible(brut: dict, r: Retypage) -> tuple[str, str, bool]:
+    """(kind, effect, cite le levier ?) de la condition retypée.
+
+    Un MODULATEUR reste un modulateur : « bonus si vous faites X » ne devient
+    pas une exigence, et `info` ne peut pas moduler (schéma). Il passe donc en
+    `manual_check` + `modulateur`, sans levier (le front ne l'affiche pas là).
+    """
+    if brut.get("effect") == "modulateur":
+        return "manual_check", "modulateur", False
+    return r.kind, "info", r.levier and r.kind == "manual_check"
+
+
 def _notes_retypees(brut: dict, r: Retypage, jour: date) -> str:
     """Les `notes` de la condition retypée : celles d'avant, plus la provenance."""
     notes = str(brut.get("notes") or "").strip()
@@ -337,15 +361,18 @@ def _retyper_condition(brut: dict, r: Retypage, jour: date) -> dict:
     sortie = {
         cle: val
         for cle, val in brut.items()
-        if cle not in (*CLES_EFFACEES, "kind", "effect", "notes")
+        if cle not in (*CLES_EFFACEES, "kind", "effect", "levier", "notes")
     }
+    kind, effet, cite_levier = _cible(brut, r)
     # L'ordre des clés suit celui d'`ecrire_aide` : id, text, kind, effect, …
     ordonne: dict = {}
     for cle in ("id", "text"):
         if cle in sortie:
             ordonne[cle] = sortie.pop(cle)
-    ordonne["kind"] = r.kind
-    ordonne["effect"] = "info"
+    ordonne["kind"] = kind
+    ordonne["effect"] = effet
+    if cite_levier:
+        ordonne["levier"] = r.fait
     ordonne["notes"] = _notes_retypees(brut, r, jour)
     ordonne.update(sortie)
     return ordonne
@@ -454,20 +481,23 @@ def _reecrire_condition(
         return None
     debut, fin, indent_cle = trouve
     marge = " " * indent_cle
+    kind, effet, cite_levier = _cible(brut_cond, r)
+    ligne_levier = [f"{marge}levier: {r.fait}\n"] if cite_levier else []
     sortie: list[str] = [lignes[debut]]
     vues: set[str] = set()
     queue: list[str] = []
     for cle, brut_segment in _segments(lignes[debut + 1 : fin], indent_cle):
         corps, queue = _detacher_queue(brut_segment, indent_cle)
-        if cle in CLES_EFFACEES:
+        if cle in (*CLES_EFFACEES, "levier"):
             sortie.extend(queue)  # le segment part, ce qui le suivait reste
             continue
         if cle in ("kind", "effect", "notes"):
             vues.add(cle)
             if cle == "kind":
-                sortie.append(f"{marge}kind: {r.kind}\n")
+                sortie.append(f"{marge}kind: {kind}\n")
             elif cle == "effect":
-                sortie.append(f"{marge}effect: info\n")
+                sortie.append(f"{marge}effect: {effet}\n")
+                sortie.extend(ligne_levier)
             else:
                 sortie.extend(
                     _bloc_scalaire("notes", _notes_retypees(brut_cond, r, jour), indent_cle)
@@ -481,9 +511,10 @@ def _reecrire_condition(
     # Elles s'insèrent AVANT la queue du dernier segment, qui annonce la suite.
     ajouts: list[str] = []
     if "kind" not in vues:
-        ajouts.append(f"{marge}kind: {r.kind}\n")
+        ajouts.append(f"{marge}kind: {kind}\n")
     if "effect" not in vues:
-        ajouts.append(f"{marge}effect: info\n")
+        ajouts.append(f"{marge}effect: {effet}\n")
+        ajouts.extend(ligne_levier)
     if "notes" not in vues:
         ajouts.extend(_bloc_scalaire("notes", _notes_retypees(brut_cond, r, jour), indent_cle))
     if ajouts and queue and sortie[-len(queue) :] == queue:
@@ -521,6 +552,15 @@ def appliquer(
     load_pending_facts.cache_clear()
     facts = load_facts(facts_path)
     pending = load_pending_facts(pending_path)
+    ontologie = {**facts, **pending}
+    retypages = [
+        replace(r, levier=True)
+        if r.kind == "manual_check"
+        and r.fait in ontologie
+        and getattr(ontologie[r.fait], "levier", None) is not None
+        else r
+        for r in retypages
+    ]
     rapport = Rapport(erreurs=verifier(retypages, facts, pending, aides_dir=aides_dir))
     if not rapport.ok:
         return rapport
@@ -572,9 +612,13 @@ def appliquer(
 
     # Chaque fait part de SON fichier : `facts_pending.yaml` par défaut,
     # `facts.yaml` pour ceux dont la table porte la décision de retrait.
+    rapport.gardes = [r.fait for r in retypages if r.levier]
     ontologies = {
-        pending_path: (pending, [r.fait for r in retypages if not r.approuve]),
-        facts_path: (facts, [r.fait for r in retypages if r.approuve]),
+        pending_path: (
+            pending,
+            [r.fait for r in retypages if not r.approuve and not r.levier and r.fait in pending],
+        ),
+        facts_path: (facts, [r.fait for r in retypages if r.approuve and not r.levier]),
     }
     textes: dict[Path, str] = {}
     for chemin, (avant, cles) in ontologies.items():
