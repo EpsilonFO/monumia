@@ -1,6 +1,25 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { projetService } from '@/services/projet.service';
 import type { Projet } from '@/types';
+import { enregistrerCache, optionsDeCache } from './persistance';
+
+/**
+ * Ce que le cache garde d'un projet : tout, SAUF le rôle de l'utilisateur.
+ * Même règle que `monumentPourLeCache` : `myRole` gouverne l'onglet Aides,
+ * l'édition et la suppression du chantier, et ce qui ouvre un droit attend la
+ * réponse du serveur. Un projet relu du cache a donc un rôle INCONNU, pas nul :
+ * les pages lisent `depuisLeCache` avant d'en tirer un repli.
+ */
+export function projetPourLeCache(projet: Projet): Projet {
+  const reste = { ...projet };
+  delete reste.myRole;
+  return reste;
+}
+
+interface ProjetCache {
+  projets: Projet[];
+}
 
 /**
  * Une chaîne de promesses PAR PROJET : les réponses envoyées depuis deux cartes
@@ -35,7 +54,7 @@ interface ProjetState {
   ) => Promise<void>;
 }
 
-export const useProjetStore = create<ProjetState>()((set, get) => ({
+export const useProjetStore = create<ProjetState>()(persist((set, get) => ({
   projets: [],
   loaded: false,
 
@@ -63,9 +82,13 @@ export const useProjetStore = create<ProjetState>()((set, get) => ({
       // Lecture du questionnaire AU MOMENT DE PARTIR, pas à la création du
       // callback : la réponse précédente de la file est déjà enregistrée, et
       // c'est sur elle qu'il faut bâtir. Store non hydraté (arrivée directe par
-      // URL) : on relit le projet plutôt que d'écrire par-dessus un vide.
+      // URL) : on relit le projet plutôt que d'écrire par-dessus un vide. Même
+      // chose pour un projet relu du cache local : son questionnaire peut avoir
+      // bougé depuis (autre onglet, autre membre), et le remplacer en bloc
+      // effacerait ces réponses-là.
       const connu = get().getProjet(projetId);
-      const projet = connu ?? (await projetService.getById(projetId));
+      const projet =
+        connu && !connu.depuisLeCache ? connu : await projetService.getById(projetId);
       const questionnaire = { ...(projet.questionnaire ?? {}) };
       if (value === undefined) delete questionnaire[factKey];
       else questionnaire[factKey] = value;
@@ -81,4 +104,20 @@ export const useProjetStore = create<ProjetState>()((set, get) => ({
     );
     return travail;
   },
-}));
+}), optionsDeCache<ProjetState, ProjetCache>({
+  domaine: 'projets',
+  // v2 : le rôle ne s'écrit plus. Les entrées v1, qui le portaient, sont jetées.
+  version: 2,
+  // `loaded` reste hors du cache : il dit « le serveur a répondu », et les
+  // gardes anti-doublon s'y fient.
+  partialize: (state) => ({ projets: state.projets.map(projetPourLeCache) }),
+  relire: (persiste, courant) => ({
+    ...courant,
+    projets: (persiste.projets ?? []).map((p) => ({
+      ...projetPourLeCache(p),
+      depuisLeCache: true,
+    })),
+  }),
+})));
+
+enregistrerCache(useProjetStore, () => useProjetStore.setState({ projets: [], loaded: false }));

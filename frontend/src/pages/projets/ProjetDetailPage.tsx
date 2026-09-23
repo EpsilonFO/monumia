@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate, useSearchParams, Navigate } from 'react-router';
 import { ChevronLeft, ChevronDown, Loader2 } from 'lucide-react';
 import {
@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { InfoBulle } from '@/components/shared/InfoBulle';
-import { AideCard } from '@/components/aide/AideCard';
+import { AideCarte } from '@/components/aide/AideCarte';
+import '@/components/aide/fiche/fiche-aide.css';
 import { AideFamilleBar } from '@/components/aide/AideFamilleBar';
 import { AideFiltreBar } from '@/components/aide/AideFiltreBar';
 import { DossierCard } from '@/components/dossier/DossierCard';
@@ -24,7 +25,7 @@ import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDial
 import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
 import { TeamPanel } from '@/components/sharing/TeamPanel';
 import { projectPermissions } from '@/lib/project-permissions';
-import { useOffre, useOffreMonument } from '@/hooks/useOffre';
+import { useOffre, useOffreMonument, useOffreMonumentConnue } from '@/hooks/useOffre';
 import { estOffreGratuite, libelleMonuments } from '@/lib/offres';
 import { PaywallOverlay } from '@/components/shared/Paywall';
 import { formatCurrency } from '@/lib/format-utils';
@@ -51,13 +52,13 @@ import { questionsPourAide } from '@/lib/diagnostic-bilan';
 import { sanitizeQcmQuestions } from '@/lib/qcm';
 import { daysUntil } from '@/lib/date-utils';
 import { C, SERIF } from '@/lib/brand';
-import { aideGridSpans } from '@/lib/aide-grid';
 import { getDisponibilite } from '@/components/aide/eligibility-status';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
 import { isAccessLostError } from '@/lib/api-error';
 import type {
-  AideMatchResult, Document, ProjectInvitation, ProjectMember, ProjectQuestionnaireAnswers,
+  AideDiagnosticResult, AideMatchResult, Document, ProjectInvitation, ProjectMember,
+  ProjectQuestionnaireAnswers,
 } from '@/types';
 
 /** Tri : aides avec une échéance à venir d'abord (de la plus proche à la plus lointaine),
@@ -108,7 +109,6 @@ export function ProjetDetailPage() {
   const projet = useProjetStore((s) => s.projets.find((p) => p.id === projetId));
   const upsertProjet = useProjetStore((s) => s.upsertProjet);
   const deleteProjetLocal = useProjetStore((s) => s.deleteProjet);
-  const repondreFait = useProjetStore((s) => s.repondreFait);
 
   const monumentId = projet?.monumentId;
   const monument = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId));
@@ -161,12 +161,18 @@ export function ProjetDetailPage() {
   const perms = projectPermissions(projet?.myRole ?? null);
   // L'onglet « Aides » est réservé au chef de projet et à son adjoint. Pour un
   // collaborateur, on retombe sur « Dossiers ».
-  const canAccessAides = perms.canAccessAides;
+  //
+  // Pas de repli tant que le rôle est inconnu : un projet relu du cache local
+  // n'a pas de `myRole` (cf. `projetPourLeCache`), et ce n'est pas un rôle nul.
+  // Retomber sur « Dossiers » pour revenir sur « Aides » à la réponse de
+  // `GET /projets/{id}` ferait sauter la page.
+  const canAccessAides = perms.canAccessAides || !!projet?.depuisLeCache;
   // L'offre qui gouverne le BIEN, et non le compte : un collaborateur invité
   // par un client abonné voit le même calendrier que son client. Elle décide
   // ici de trois choses — l'échéancier, les aides encore à venir, et la
   // suppression du chantier.
   const offre = useOffreMonument(monumentId);
+  const offreConnue = useOffreMonumentConnue(monumentId);
   const offreCompte = useOffre();
   // Travailler à plusieurs est un service de l'offre Veille. L'onglet Équipe
   // reste VISIBLE au gratuit — c'est une porte, pas un vide — mais il mène aux
@@ -223,11 +229,15 @@ export function ProjetDetailPage() {
     return () => { cancelled = true; };
   }, [projetId, upsertProjet]);
 
-  // Monument parent : entête, fil d'Ariane, rôle et paywall.
+  // Monument parent : entête, fil d'Ariane, rôle et paywall. Relu aussi quand il
+  // vient du cache local, qui ne garde pas son offre : sans cela, l'onglet Aides
+  // attendait que `GET /dashboard`, la plus lente des requêtes, la rapporte — et
+  // restait en squelette pour de bon si elle échouait.
+  const monumentARelire = !monument || !!monument.depuisLeCache;
   useEffect(() => {
-    if (!monumentId || monument) return;
+    if (!monumentId || !monumentARelire) return;
     monumentService.getById(monumentId).then(upsertMonument).catch(console.error);
-  }, [monumentId, monument, upsertMonument]);
+  }, [monumentId, monumentARelire, upsertMonument]);
 
   // Diagnostic déterministe : recalculé à l'arrivée (et quand les réponses du
   // questionnaire changent). Le moteur est pur et rapide — pas de persistance ;
@@ -239,12 +249,38 @@ export function ProjetDetailPage() {
   // ce booléen serait encore faux au premier rendu qui suit l'arrivée du
   // projet, et l'invitation à lancer le moteur clignoterait avant le squelette.
   const [diagnosticTente, setDiagnosticTente] = useState<string | null>(null);
+  // Le diagnostic est le plus lourd des appels de la page : il part TOUT DE
+  // SUITE, sans attendre `GET /projets/{id}`. Sans projet en main, le serveur
+  // relit lui-même le questionnaire enregistré, et le résultat dit lequel
+  // (`qcmAnswers`). Quand le projet arrive ensuite, on ne relance le moteur que
+  // si ses réponses diffèrent de celles-là — sinon la page paierait deux fois
+  // le même diagnostic à chaque ouverture.
+  const diagnosticEnregistre = useRef<{
+    projetId: string;
+    promesse: Promise<AideDiagnosticResult | null>;
+  } | null>(null);
   useEffect(() => {
-    if (!projetId || !questionnaireKey) return;
+    if (!projetId) return;
     let cancelled = false;
-    const answers: ProjectQuestionnaireAnswers = JSON.parse(questionnaireKey);
-    aideService.runProjectDiagnostic(projetId, answers)
-      .then((result) => { if (!cancelled) setDiagnostic(projetId, result); })
+    let promesse: Promise<AideDiagnosticResult | null>;
+    const enVol =
+      diagnosticEnregistre.current?.projetId === projetId ? diagnosticEnregistre.current.promesse : null;
+    if (!questionnaireKey) {
+      promesse = aideService.runProjectDiagnosticEnregistre(projetId);
+      // Un échec se relance avec les réponses du projet, une fois qu'il est là.
+      diagnosticEnregistre.current = { projetId, promesse: promesse.catch(() => null) };
+    } else {
+      const answers: ProjectQuestionnaireAnswers = JSON.parse(questionnaireKey);
+      const relancer = () => aideService.runProjectDiagnostic(projetId, answers);
+      diagnosticEnregistre.current = null;
+      promesse = enVol
+        ? enVol.then((r) =>
+            r && JSON.stringify(r.qcmAnswers ?? {}) === questionnaireKey ? r : relancer(),
+          )
+        : relancer();
+    }
+    promesse
+      .then((result) => { if (!cancelled && result) setDiagnostic(projetId, result); })
       .catch(console.error)
       .finally(() => { if (!cancelled) setDiagnosticTente(projetId); });
     return () => { cancelled = true; };
@@ -324,41 +360,13 @@ export function ProjetDetailPage() {
   // `qcmQuestions`. Ce compteur dit s'il y a matière à ne refaire que celles-là.
   const questionsRestantes = diagnostic?.qcmQuestions?.length ?? 0;
 
-  // Les questions du diagnostic, telles que les cartes et la fiche d'une aide
-  // les reposent. Mémorisées sur l'objet `diagnostic` : sans ça, chaque rendu
-  // rendrait un nouveau tableau et ferait remonter les cartes.
+  // Les questions du diagnostic, dont les cartes comptent celles qui restent
+  // par aide (elles se posent sur la fiche). Mémorisées sur l'objet
+  // `diagnostic` : sans ça, chaque rendu rendrait un nouveau tableau et ferait
+  // remonter les cartes.
   const questionsDiagnostic = useMemo(
     () => sanitizeQcmQuestions(diagnostic?.qcmQuestions),
     [diagnostic],
-  );
-
-  /**
-   * Répondre à une question depuis la carte d'une aide.
-   *
-   * Le droit est `canEditProject` (= co_owner), miroir exact de ce qu'exige
-   * `update_projet` côté serveur (routers/projets.py) : afficher des réponses
-   * qu'un 403 refuserait serait le pire des deux mondes. L'écriture est
-   * sérialisée par le store — `questionnaire` est remplacé en bloc.
-   *
-   * Pas de relance explicite du diagnostic : le projet mis à jour change
-   * `questionnaireKey`, et l'effet ci-dessus recalcule tout seul.
-   */
-  const [envoiReponse, setEnvoiReponse] = useState(false);
-  const handleRepondre = useCallback(
-    async (factKey: string, value: string | string[] | undefined) => {
-      if (!projetId) return;
-      setEnvoiReponse(true);
-      try {
-        await repondreFait(projetId, factKey, value);
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Votre réponse n'a pas pu être enregistrée",
-        );
-      } finally {
-        setEnvoiReponse(false);
-      }
-    },
-    [projetId, repondreFait],
   );
 
   /** Renommage en place depuis l'en-tête. On relaie l'erreur : l'en-tête garde
@@ -413,7 +421,12 @@ export function ProjetDetailPage() {
   // Le moteur tourne : on dessine le gabarit de l'onglet plutôt que l'invitation
   // à le lancer, qui donnait à croire qu'il restait un geste à faire. Le bloc
   // « Lancer le moteur » ne reste que pour une tentative retombée sans résultat.
-  const chargementDiagnostic = !diagnostic && diagnosticTente !== projetId;
+  //
+  // Même gabarit tant que l'offre du monument n'est pas connue (monument relu
+  // du cache local) : l'échéancier et les aides « bientôt » se floutent ou non
+  // selon elle, et trancher sur l'offre gratuite par défaut poserait un paywall
+  // qu'un abonné verrait clignoter à chaque rechargement.
+  const chargementDiagnostic = (!diagnostic && diagnosticTente !== projetId) || !offreConnue;
 
   // Une aide déjà passée en dossier disparaît de la liste des aides : elle vit
   // désormais dans l'onglet « Dossiers ». Supprimer le dossier l'y fait réapparaître.
@@ -474,55 +487,30 @@ export function ProjetDetailPage() {
     .filter((m) => !ouvertAujourdhui(m))
     .sort(byBientot);
 
-  // L'affichage des aides s'adapte au nombre : 1 → bandeau pleine largeur, sinon
-  // grille 6 colonnes où chaque carte s'étale (rangées de deux ou de trois) pour
-  // que chaque rangée soit pleine — jamais de case vide (voir aideGridSpans).
+  // Les cartes sont celles de l'index des fiches de la maquette, en grille qui
+  // se remplit d'elle-même (`.fa.grid`, colonnes de 320 px au moins).
   // Les cartes ne portent plus de verrou : le paywall des aides à venir vit au
   // niveau de la SECTION, qui les floute et les rend inertes d'un bloc. Un
   // cadenas par carte, derrière ce flou, n'aurait fait que brouiller l'aperçu.
-  // Le bandeau chiffré des cartes, lui, ne s'affiche qu'à partir de Veille —
-  // c'est l'offre du MONUMENT qui décide, comme pour ses projets et son
-  // calendrier. Rien n'est retenu pour autant : montant, taux et échéance
-  // restent sur la fiche de l'aide, qui est gratuite.
+  // Le montant des cartes, lui, ne s'affiche qu'à partir de Veille — c'est
+  // l'offre du MONUMENT qui décide, comme pour ses projets et son calendrier.
+  // Rien n'est retenu pour autant : montant, taux et échéance restent sur la
+  // fiche de l'aide, qui est gratuite.
   const chiffresAides = !estOffreGratuite(offre);
-  // Répondre depuis une carte suppose le droit d'écrire sur le projet ; sinon
-  // les cartes restent en lecture seule et renvoient à la fiche.
-  const propsReponse = perms.canEditProject
-    ? {
-        questions: questionsDiagnostic,
-        answers: projet.questionnaire ?? {},
-        onRepondre: handleRepondre,
-        envoiEnCours: envoiReponse,
-      }
-    : {};
-  const renderAideList = (list: AideMatchResult[]) => {
-    if (list.length === 1)
-      return (
-        <AideCard
-          match={list[0]}
+  const renderAideList = (list: AideMatchResult[]) => (
+    <div className="fa grid">
+      {list.map((match) => (
+        <AideCarte
+          key={match.aide.id}
+          match={match}
           projetId={projet.id}
-          layout="hero"
-          showChiffres={chiffresAides}
-          {...propsReponse}
+          showMontant={chiffresAides}
+          questions={questionsDiagnostic}
+          answers={projet.questionnaire ?? {}}
         />
-      );
-    const spans = aideGridSpans(list.length);
-    return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
-        {list.map((match, i) => (
-          <div key={match.aide.id} className={spans[i]}>
-            <AideCard
-              match={match}
-              projetId={projet.id}
-              layout="grid"
-              showChiffres={chiffresAides}
-              {...propsReponse}
-            />
-          </div>
-        ))}
-      </div>
-    );
-  };
+      ))}
+    </div>
+  );
 
   const aidesAPortee = [...toutesEligibles, ...toutesAtteignables, ...toutesPotentiels];
   // Enjeu chiffré du paywall : la somme des plafonds des SEULES aides encore à
@@ -763,12 +751,12 @@ export function ProjetDetailPage() {
                   <>
                     {/* Le chiffre qui compte n'est pas le nombre d'aides mais ce
                         qu'il en coûte de trancher : les plus proches d'un
-                        verdict sont en tête, et celles à une seule question se
-                        répondent sans quitter la page. */}
+                        verdict sont en tête. Les questions se posent sur la
+                        fiche de chaque aide. */}
                     {potentielsUneQuestion > 0 && perms.canEditProject && (
                       <p className="text-[13px] text-muted-foreground">
-                        Dont {potentielsUneQuestion} à une seule question&nbsp;: répondez
-                        directement sur la carte.
+                        Dont {potentielsUneQuestion} à une seule question&nbsp;: ouvrez la fiche
+                        pour y répondre.
                       </p>
                     )}
                     {renderAideList(potentielsMaintenant)}
@@ -835,8 +823,10 @@ export function ProjetDetailPage() {
                         : `Aucune aide écartée par vos réponses chez « ${filtre.label} ».`}
                     </p>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                      {nonEligibles.map((match) => (<AideCard key={match.aide.id} match={match} projetId={projet.id} />))}
+                    <div className="fa grid">
+                      {nonEligibles.map((match) => (
+                        <AideCarte key={match.aide.id} match={match} projetId={projet.id} showMontant={chiffresAides} />
+                      ))}
                     </div>
                   )
                 )}
@@ -907,6 +897,11 @@ export function ProjetDetailPage() {
         <TabsContent value="equipe" className="mt-4">
           {equipeAccessible ? (
             equipePanel
+          ) : !offreConnue ? (
+            // Offre pas encore connue : ni formulaire ni paywall, cf. plus haut.
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blueLight }} />
+            </div>
           ) : (
             <PaywallOverlay
               offre="Veille"

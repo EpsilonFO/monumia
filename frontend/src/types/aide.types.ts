@@ -76,6 +76,72 @@ export interface Aide {
    *  Vide ou absente = l'aide concerne tout projet (fail-open). Sert au cadrage
    *  « faire vivre le lieu » côté serveur, et aux facettes de la page projet. */
   familles?: string[];
+
+  /** Ce que la carte emprunte à la fiche rédigée. Part avec chaque aide du
+   *  diagnostic ; `null` quand l'aide n'a pas encore de fiche. Le financeur est
+   *  retiré d'une aide à venir hors offre, comme l'organisme. */
+  carte?: AideCarteRedigee | null;
+  /** Fiche rédigée complète : servie par `GET /aides/{id}` seulement. */
+  fiche?: AideFicheRedigee | null;
+  /** Les conditions telles que le règlement les énonce, pour « Le règlement
+   *  complet ». Servies par `GET /aides/{id}` seulement. */
+  reglement?: AideConditionReglement[];
+  /** Dernière vérification de la source par Monumia (ISO). */
+  verifieLe?: string | null;
+}
+
+/** Une ligne rédigée : la valeur en gras, sa précision dessous. */
+export interface AideTexteValeur {
+  valeur?: string | null;
+  detail?: string | null;
+}
+
+export interface AideCarteRedigee {
+  titre?: string | null;
+  financeur?: string | null;
+  chapeau?: string | null;
+  montant?: AideTexteValeur | null;
+}
+
+/** Rubriques du règlement complet. Miroir de `THEMES_REGLEMENT` (aides_schema.py). */
+export type ThemeReglement = 'candidater' | 'projet' | 'montant' | 'dossier' | 'apres';
+
+/** Pastilles des puces « En bref ». Miroir de `TONS_EN_BREF` (aides_schema.py). */
+export type TonEnBref = 'couvert' | 'montant' | 'exclu' | 'calendrier' | 'info';
+
+export type LigneEssentiel =
+  | 'financeur'
+  | 'beneficiaires'
+  | 'type'
+  | 'calendrier'
+  | 'delai'
+  | 'depot'
+  | 'cumul'
+  | 'contact';
+
+/** Le bloc `fiche:` du YAML de l'aide, en camelCase (cf. `aide_fiche_dict`). */
+export interface AideFicheRedigee extends AideCarteRedigee {
+  redigeLe?: string | null;
+  essentiel: Partial<Record<LigneEssentiel, AideTexteValeur>>;
+  enBref?: { puces: { ton: TonEnBref; texte: string }[]; detail: string[] } | null;
+  conseils: { titre: string; texte: string; condition?: string | null }[];
+  etapes: { titre: string; texte?: string | null }[];
+  /** Clé = id de condition. */
+  points: Record<string, { titre: string; resume?: string | null; theme?: ThemeReglement | null }>;
+  /** Libellé affiché d'une pièce. Clé = son `nom` dans `documentsRequis`,
+   *  qui reste celui des checklists de dossier. */
+  pieces?: Record<string, string>;
+}
+
+export interface AideConditionReglement {
+  id: string;
+  /** Texte de la condition, fidèle à la source. */
+  text: string;
+  /** Citation verbatim du règlement. */
+  quote?: string | null;
+  kind: 'untyped' | 'auto' | 'user_fact' | 'discretionary' | 'info' | 'manual_check';
+  effect: 'gate' | 'modulateur' | 'info';
+  derogationPossible: boolean;
 }
 
 export interface AideEligibilityCriteria {
@@ -103,6 +169,9 @@ export interface AideEligibilityCriteria {
 export type EvaluationVerdict = 'oui' | 'non' | 'incertitude' | 'info';
 
 export interface AideEvaluation {
+  /** Id de la condition évaluée : relie le verdict à son point du règlement.
+   *  Absent sur la condition synthétique de périmètre de l'aide. */
+  conditionId?: string;
   critere: string;
   verdict: EvaluationVerdict;
   explication: string;
@@ -170,6 +239,12 @@ export interface AideMatchResult {
   elimineParReponse?: boolean;
   /** Plans d'action des critères à débloquer (statut « atteignable »). */
   leviers?: AideLevier[];
+  /** Entrée RÉSUMÉE par le serveur : une aide non éligible que le front
+   *  n'affiche pas (elle n'a pas été écartée par une réponse). Elle ne porte ni
+   *  `llmEvaluation` ni le détail de l'aide (pièces, démarche, conditions) —
+   *  de quoi la retrouver par son id, pas l'afficher. La fiche complète se
+   *  demande à `GET /aides/{id}`. */
+  resume?: boolean;
   /** Nom vestigial : ce sont les verdicts déterministes, condition par
    *  condition. Rien de LLM ici. */
   llmEvaluation?: {

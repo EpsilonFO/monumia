@@ -8,13 +8,14 @@ from supabase import Client
 
 from aides_schema import load_all_aides, load_facts, load_pending_facts
 from db import get_current_user_id, get_supabase
-from eligibility_engine import aide_display_dict, run_deterministic_diagnostic
+from eligibility_engine import aide_fiche_dict, run_deterministic_diagnostic
 from eligibility_engine import disponibilite as aide_disponibilite
 from routers.monuments import enrich_monument_with_population, resolve_code_insee
 from services import catalogue_admin, quotas
 from services import stripe_billing as billing
 from services.offres import GRATUIT, Offre
-from services.project_access import require_project_access, require_projet_access
+from services.parallele import en_parallele
+from services.project_access import require_project_access, require_projet_access_et_monument
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +134,7 @@ _AIDE_KEY_MAP = {
     "url_officielle": "urlOfficielle",
     "formulaire_url": "formulaireUrl",
     "base_ttc": "baseTTC",
+    "verifie_le": "verifieLe",
     "created_at": "createdAt",
     "updated_at": "updatedAt",
 }
@@ -159,6 +161,65 @@ def _camelise_diagnostic(result: dict) -> dict:
     for bucket in _DIAGNOSTIC_BUCKETS:
         for match in result.get(bucket, []):
             match["aide"] = _to_camel(match["aide"])
+    return result
+
+
+# Ce qu'une aide non éligible garde quand elle n'a PAS été écartée par une
+# réponse. Le front n'affiche que les `elimineParReponse` (ProjetDetailPage,
+# diagnostic-bilan) ; les autres ne servent qu'à retrouver une aide par son id
+# (fiche atteinte par lien direct, contexte des questions du wizard). Relevé
+# champ par champ chez les lecteurs : c'était 9,9 Mo sur 10,1 d'un diagnostic
+# complet, pour 8 entrées affichées sur près de 300.
+_CHAMPS_MATCH_RESUME = (
+    "statut",
+    "disponibilite",
+    "eligible",
+    "elimineParReponse",
+    "criteresRemplis",
+    "criteresNonRemplis",
+)
+_CHAMPS_AIDE_RESUME = (
+    "id",
+    "nom",
+    "nomCourt",
+    "description",
+    "organisme",
+    "categorie",
+    "familles",
+    "montantMax",
+    "tauxMax",
+    "baseTTC",
+    "permanent",
+    "dateLimite",
+    "dateOuverture",
+    "urlOfficielle",
+)
+
+
+def resumer_non_eligibles(result: dict) -> dict:
+    """Réduit à un résumé les non éligibles que le front n'affiche jamais.
+
+    Une entrée écartée par une réponse garde tout son détail : c'est la section
+    « Écartées par vos réponses », avec son analyse critère par critère. Les
+    autres perdent `llmEvaluation` et les champs longs de l'aide, et portent
+    `resume: true` — c'est ce drapeau qui dit au front d'aller chercher la fiche
+    complète sur `GET /aides/{id}` plutôt que de se contenter du résumé.
+
+    Rien d'autre ne dépend de ces entrées : `totalAidesAnalysees` compte les
+    aides traitées, le QCM se bâtit sur les verdicts du moteur, et aucun montant
+    n'agrège les non éligibles.
+    """
+    resumes = []
+    for match in result.get("aidesNonEligibles", []):
+        if match.get("elimineParReponse"):
+            resumes.append(match)
+            continue
+        aide = match.get("aide") or {}
+        resume = {k: match[k] for k in _CHAMPS_MATCH_RESUME if k in match}
+        resume["aide"] = {k: aide[k] for k in _CHAMPS_AIDE_RESUME if k in aide}
+        resume["resume"] = True
+        resumes.append(resume)
+    result["aidesNonEligibles"] = resumes
     return result
 
 
@@ -204,6 +265,12 @@ def retirer_les_modalites(aide: dict) -> dict:
     for field in _REDACTED_AIDE_FIELDS:
         if field in aide:
             aide[field] = None
+    # Le financeur de la carte rédigée est l'organisme en quelques mots : il
+    # part avec lui. Titre, chapeau et montant restent, comme le nom et la
+    # description. Copie : la carte sort du cache YAML du moteur.
+    carte = aide.get("carte")
+    if carte:
+        aide["carte"] = {**carte, "financeur": None}
     aide["locked"] = True
     return aide
 
@@ -397,9 +464,11 @@ def get_aide(
         if result and result.data:
             return _to_camel(result.data)
 
+    # La fiche complète (rédaction, règlement cité) ne part que d'ici : le
+    # diagnostic n'en emporte que la `carte`, pour ne pas alourdir cent aides.
     aide = load_all_aides().get(aide_id)
     if aide:
-        return _to_camel(aide_display_dict(aide))
+        return _to_camel(aide_fiche_dict(aide))
 
     raise HTTPException(status_code=404, detail="Aide introuvable")
 
@@ -447,7 +516,7 @@ def deterministic_diagnostic_for(
         raise HTTPException(status_code=500, detail=f"Erreur moteur déterministe : {exc}") from exc
 
     result["qcmAnswers"] = answers or {}
-    return _camelise_diagnostic(result)
+    return resumer_non_eligibles(_camelise_diagnostic(result))
 
 
 def merge_projet_into_monument(monument: dict, projet: dict | None) -> dict:
@@ -496,23 +565,43 @@ def diagnostic_deterministe(
     `monument_id` seul (compat SPA non rechargée, on retombe sur le projet
     ouvert le plus récent). Le paywall reste clé MONUMENT dans les deux cas.
     """
+    # Trois vagues d'allers-retours Supabase au lieu de sept en série : le
+    # projet, puis ses appartenances avec la ligne du monument, puis la commune
+    # avec l'offre. Le contrôle d'accès passe toujours en premier dans chaque
+    # vague, pour que ce soit SON refus qui sorte (cf. services/parallele).
     if body.projet_id:
         # Accès projet partagé : un collaborateur (membre) doit pouvoir lancer le
         # diagnostic, pas seulement le propriétaire — d'où require_projet_access
         # plutôt qu'un filtre user_id (qui renverrait 404 aux collaborateurs).
-        projet, _ = require_projet_access(supabase, body.projet_id, user_id, "member")
+        projet, _, monument_row = require_projet_access_et_monument(
+            supabase, body.projet_id, user_id, "member"
+        )
         monument_id = projet["monument_id"]
     else:
         monument_id = body.monument_id or ""
-        require_project_access(supabase, monument_id, user_id, "member")
-        projet = _latest_open_projet(supabase, monument_id)
+        _, projet, monument_result = en_parallele(
+            lambda: require_project_access(supabase, monument_id, user_id, "member"),
+            lambda: _latest_open_projet(supabase, monument_id),
+            lambda: (
+                supabase.table("monuments")
+                .select("*")
+                .eq("id", monument_id)
+                .maybe_single()
+                .execute()
+            ),
+        )
+        monument_row = monument_result.data if monument_result else None
+        if not monument_row:
+            raise HTTPException(status_code=404, detail="Monument introuvable")
 
-    monument_result = (
-        supabase.table("monuments").select("*").eq("id", monument_id).single().execute()
+    # L'offre qui gouverne le BIEN, pas seulement le compte qui regarde :
+    # l'architecte invité sur le chantier d'un client abonné voit le même
+    # calendrier que son client. Le propriétaire est déjà sur la ligne lue.
+    proprietaire = monument_row.get("user_id")
+    (monument, population), offre = en_parallele(
+        lambda: enrich_monument_with_population(supabase, monument_row),
+        lambda: quotas.offre_du_monument(supabase, monument_id, user_id, proprietaire=proprietaire),
     )
-    if not monument_result.data:
-        raise HTTPException(status_code=404, detail="Monument introuvable")
-    monument, population = enrich_monument_with_population(supabase, monument_result.data)
 
     # Remplacement entier, jamais de fusion profonde : le front envoie le
     # questionnaire complet (réponses + clés réservées). `answers` absent =
@@ -527,11 +616,6 @@ def diagnostic_deterministe(
     # Le moteur ne connaît que le monument : on stampe le projet à la frontière,
     # c'est lui qui clé le store de diagnostics et les liens d'échéance du front.
     result["projetId"] = projet["id"] if projet else None
-
-    # L'offre qui gouverne le BIEN, pas seulement le compte qui regarde :
-    # l'architecte invité sur le chantier d'un client abonné voit le même
-    # calendrier que son client.
-    offre = quotas.offre_du_monument(supabase, monument_id, user_id)
     return redact_bientot_hors_offre(result, offre)
 
 

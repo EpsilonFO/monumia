@@ -131,4 +131,21 @@ describe('repondreFait', () => {
       questionnaire: { deja: 'la', fait_a: 'oui' },
     });
   });
+
+  it('projet relu du cache local : on relit le serveur, son questionnaire peut dater', async () => {
+    // Une réponse donnée depuis un autre onglet après l'écriture du cache : la
+    // remplacer en bloc par la version du cache l'effacerait.
+    useProjetStore.setState({
+      projets: [projet({ questionnaire: { perimee: 'oui' }, depuisLeCache: true })],
+    });
+    getById.mockResolvedValue(projet({ questionnaire: { perimee: 'oui', autre_onglet: 'non' } }));
+    update.mockImplementation((id, input) => Promise.resolve(projet({ ...input, id })));
+
+    await useProjetStore.getState().repondreFait(pid, 'fait_a', 'oui');
+
+    expect(getById).toHaveBeenCalledWith(pid);
+    expect(update).toHaveBeenCalledWith(pid, {
+      questionnaire: { perimee: 'oui', autre_onglet: 'non', fait_a: 'oui' },
+    });
+  });
 });

@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { enregistrerCache, optionsDeCache } from './persistance';
 import type { AideDiagnosticResult, ProjectDigest } from '@/types';
 
 /**
@@ -21,7 +23,7 @@ interface AideState {
   clearDiagnostic: (projetId?: string) => void;
 }
 
-export const useAideStore = create<AideState>()((set, get) => ({
+export const useAideStore = create<AideState>()(persist((set, get) => ({
   diagnosticsByProjet: {},
   digestsByProjet: {},
 
@@ -45,4 +47,15 @@ export const useAideStore = create<AideState>()((set, get) => ({
       }
       return { diagnosticsByProjet: {} };
     }),
-}));
+}), optionsDeCache<AideState, { digestsByProjet: Record<string, ProjectDigest> }>({
+  domaine: 'aides',
+  version: 1,
+  // Les digests seulement. Un diagnostic complet pèse encore un mégaoctet, et
+  // se recalcule en un aller-retour à l'ouverture du projet : le cache n'y
+  // gagnerait rien que de la place.
+  partialize: (state) => ({ digestsByProjet: state.digestsByProjet }),
+})));
+
+enregistrerCache(useAideStore, () =>
+  useAideStore.setState({ diagnosticsByProjet: {}, digestsByProjet: {} }),
+);

@@ -927,6 +927,132 @@ class Document(BaseModel):
         return v
 
 
+# ---------------------------------------------------------------------------
+# Fiche : la couche éditoriale de la page d'une aide
+# ---------------------------------------------------------------------------
+#
+# Tout ce qui précède est la TRANSCRIPTION de la source : `text` et `quote` ne
+# se reformulent pas. Le bloc `fiche` est l'inverse, une rédaction en langue
+# claire pour la page de l'aide (titre court, chapeau, « En bref », conseils,
+# titre et résumé de chaque point du règlement). Il ne décide de rien : le
+# moteur ne le lit pas, et une aide sans fiche s'affiche avec ses champs bruts.
+# Doctrine et gabarit : skill `rediger-fiche`.
+
+#: Les rubriques du règlement complet, dans leur ordre d'affichage. Les gates
+#: n'en ont pas besoin : ils forment la rubrique « conditions à respecter ».
+THEMES_REGLEMENT = ("candidater", "projet", "montant", "dossier", "apres")
+
+#: Pastilles des puces « En bref » : ce qui est couvert, ce que ça rapporte, ce
+#: qui est exclu, une contrainte de calendrier, et une information neutre.
+TONS_EN_BREF = ("couvert", "montant", "exclu", "calendrier", "info")
+
+
+class FicheValeur(BaseModel):
+    """Une ligne de « L'essentiel » : la valeur en gras, sa précision dessous."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    valeur: str | None = None
+    detail: str | None = None
+
+
+class FicheEssentiel(BaseModel):
+    """Les lignes de « L'essentiel », toutes facultatives.
+
+    La valeur de `calendrier` n'est jamais rédigée : elle se calcule des dates
+    (une veille qui décale une date limite ne doit pas laisser « Ouvert toute
+    l'année » en tête de page). Seul son `detail` se rédige, et la page ignore
+    une `valeur` posée là. Sans `valeur`, `type` affiche le libellé du type de
+    l'aide ; en rédiger une sert quand ce libellé trompe (un accompagnement
+    classé `subvention` faute de mieux).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    financeur: FicheValeur | None = None
+    beneficiaires: FicheValeur | None = None
+    type: FicheValeur | None = None
+    calendrier: FicheValeur | None = None
+    delai: FicheValeur | None = None
+    depot: FicheValeur | None = None
+    cumul: FicheValeur | None = None
+    contact: FicheValeur | None = None
+
+
+class FichePuce(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ton: Literal[TONS_EN_BREF]  # type: ignore[valid-type]
+    texte: str
+
+
+class FicheEnBref(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    puces: list[FichePuce] = []
+    # « Lire le détail » : un paragraphe par élément.
+    detail: list[str] = []
+
+
+class FicheConseil(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    titre: str
+    texte: str
+    # Id de la condition qui fonde le conseil : la page y renvoie (« Voir le
+    # point 3 du règlement »).
+    condition: str | None = None
+
+
+class FicheEtape(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    titre: str
+    texte: str | None = None
+
+
+class FichePoint(BaseModel):
+    """Un point du règlement, tel que la page le présente.
+
+    `resume` redit `text` en langue claire, sans rien y ajouter ; la citation
+    reste `quote`, affichée dessous sous « Texte officiel ».
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    titre: str
+    resume: str | None = None
+    theme: Literal[THEMES_REGLEMENT] | None = None  # type: ignore[valid-type]
+
+
+class Fiche(BaseModel):
+    """La fiche peut citer une condition ou une pièce que le YAML n'a plus : la
+    veille retire des conditions sans toucher à la fiche. Ce n'est PAS une erreur
+    de schéma (l'aide doit continuer de se charger, la page ignore ce qui ne
+    correspond à rien) mais une fiche à relire, que signale le lint."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Date de rédaction. Une source revérifiée après (`source.verified_at`) met
+    # la fiche en relecture : le lint le signale.
+    redige_le: date | None = None
+    titre: str | None = None
+    # Financeur en quelques mots (« DRAC · ministère de la Culture »).
+    financeur: str | None = None
+    chapeau: str | None = None
+    # En tête de « L'essentiel » et au pied de la carte d'aide.
+    montant: FicheValeur | None = None
+    essentiel: FicheEssentiel = FicheEssentiel()
+    en_bref: FicheEnBref | None = None
+    conseils: list[FicheConseil] = []
+    etapes: list[FicheEtape] = []
+    # Clé = id de condition.
+    points: dict[str, FichePoint] = {}
+    # Libellé affiché d'une pièce. Clé = son `nom` dans `documents_requis`, qui
+    # reste celui des checklists de dossier : seul l'affichage change.
+    pieces: dict[str, str] = {}
+
+
 class Aide(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -986,6 +1112,7 @@ class Aide(BaseModel):
     # Pièces du dossier — chaque pièce porte idéalement son lien (cf. Document).
     documents_requis: list[Document] = []
     tags: list[str] = []
+    fiche: Fiche | None = None
 
     _v_raison = field_validator("raison")(_codes_validator(RAISONS, "raison"))
     _v_familles = field_validator("familles")(_codes_validator(FAMILLES, "famille"))
