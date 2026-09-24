@@ -2581,9 +2581,6 @@ class TestProjetSansTravaux(unittest.TestCase):
         "`budget_travaux_estime` alors que l'assiette couvre aussi l'équipement",
         # Lot du 2026-09-18 (Charente, Landes), même motif : un plancher de
         # dépenses de l'OPÉRATION typé comme un budget de travaux.
-        "16-restauration-patrimoine-protege-prive": "plancher de 3 000 € sur "
-        "`budget_travaux_estime` alors qu'il porte sur les études ET les travaux, et que "
-        "l'aide finance aussi la valorisation des restaurations (visite, exposition)",
         "40-appui-attractivite-touristique": "plancher de 50 000 € sur "
         "`budget_travaux_estime` alors que la source l'applique aux dépenses éligibles, "
         "études, aménagements et équipements inclus",

@@ -875,10 +875,14 @@ class Source(BaseModel):
 class Financement(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    # Bornes de l'AIDE versée.
     montant_min: float | None = None
     montant_max: float | None = None
     taux_min: float | None = None
     taux_max: float | None = None
+    # Seuil minimal de DÉPENSES éligibles en deçà duquel le projet n'est pas
+    # aidé (« plancher de dépenses subventionnables : 5 000 € HT »). Le minimum
+    # de l'aide elle-même est `montant_min`, pas ce champ.
     plancher: float | None = None
     base_ttc: bool = False
     # PLAN DE FINANCEMENT (MVP) : assiette des dépenses éligibles — le taux ne
