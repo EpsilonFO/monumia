@@ -127,6 +127,13 @@
 .qz .opts.trois { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .qz .opts.trois .opt { padding: 10px 13px; gap: 11px; }
 .qz .opts.trois .opt b { font-size: 13.5px; }
+/* Très longues listes (les travaux) : quatre par ligne, et la zone de la
+   question s'élargit, barre du haut comprise, pour que tout tienne. */
+.qz .opts.quatre { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.qz .qz-main:has(.opts.quatre) .qz-scene, .qz .qz-main:has(.opts.quatre) .qz-top { max-width: 1000px; }
+@media (max-width: 1200px) {
+  .qz .opts.quatre { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 /* réponse à part, sur toute la largeur (« Pas encore déterminé »…) */
 .qz .opt.large { grid-column: 1 / -1; }
 /* longues listes sans précision (les vingt types de travaux) : cartes serrées */

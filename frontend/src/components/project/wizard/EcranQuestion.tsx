@@ -128,9 +128,10 @@ interface EcranQuestionProps {
   titreRef?: Ref<HTMLHeadingElement>;
 }
 
-/** À partir de ce nombre de réponses, trois par ligne : la question doit tenir
- *  sur un écran sans défiler. */
+/** À partir de ces nombres de réponses, trois puis quatre par ligne : la
+ *  question doit tenir sur un écran sans défiler. */
 const TROIS_COLONNES = 5;
+const QUATRE_COLONNES = 13;
 
 /**
  * Une question du wizard, au dessin de la maquette : rubrique, question en
@@ -176,7 +177,13 @@ export function EcranQuestion({
         {pourquoi && <Pourquoi texte={pourquoi} />}
         {avantReponses}
         <div
-          className={cn('opts', Children.count(children) >= TROIS_COLONNES && 'trois', serre && 'serre')}
+          className={cn(
+            'opts',
+            Children.count(children) >= QUATRE_COLONNES
+              ? 'trois quatre'
+              : Children.count(children) >= TROIS_COLONNES && 'trois',
+            serre && 'serre',
+          )}
           role={multiple ? 'group' : 'radiogroup'}
           aria-labelledby={titreId}
           aria-disabled={gele || undefined}
