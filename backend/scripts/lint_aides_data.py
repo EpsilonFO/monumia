@@ -574,10 +574,11 @@ def check_facts(facts: dict[str, FactDef]) -> list[str]:
         if LIEN_AUTEUR in (getattr(f, champ, None) or "")
     ]
     erreurs += [
-        f"facts.yaml / {key} / option {o.id}: `label` contient un lien d'auteur `[[…]]`"
+        f"facts.yaml / {key} / option {o.id}: `{champ}` contient un lien d'auteur `[[…]]`"
         for key, f in facts.items()
         for o in f.options or []
-        if LIEN_AUTEUR in o.label
+        for champ in ("label", "description")
+        if LIEN_AUTEUR in (getattr(o, champ, None) or "")
     ]
     erreurs.extend(check_pertinent_si(facts))
     erreurs.extend(check_porteurs_concernes(facts))

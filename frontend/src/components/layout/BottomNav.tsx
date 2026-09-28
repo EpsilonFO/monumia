@@ -2,6 +2,7 @@ import { NavLink } from 'react-router';
 import { cn } from '@/lib/utils';
 import { C } from '@/lib/brand';
 import { navItemsPour } from './nav-items';
+import { Picto } from '@/components/shared/ecrans/Picto';
 import { useOffre } from '@/hooks/useOffre';
 
 /**
@@ -29,7 +30,6 @@ export function BottomNav() {
         style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
       >
         {items.map((item) => {
-          const Icon = item.icon;
           return (
             <NavLink
               key={item.to}
@@ -48,7 +48,7 @@ export function BottomNav() {
                     className="flex h-8 w-16 items-center justify-center rounded-full transition-colors"
                     style={{ background: isActive ? C.paleBlue : 'transparent' }}
                   >
-                    <Icon size={22} className="shrink-0" />
+                    <Picto nom={item.picto} className="h-[22px] w-[22px] shrink-0" />
                   </span>
                   {item.label}
                 </>

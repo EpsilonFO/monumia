@@ -10,7 +10,7 @@ import { FicheEligibilite } from '@/components/aide/fiche/FicheEligibilite';
 import { FicheEssentiel } from '@/components/aide/fiche/FicheEssentiel';
 import { FichePieces } from '@/components/aide/fiche/FichePieces';
 import { FicheReglement, type FicheReglementHandle } from '@/components/aide/fiche/FicheReglement';
-import { useApparition } from '@/components/aide/fiche/useFiche';
+import { ouvrirSection, signalerPoint } from '@/components/aide/fiche/useFiche';
 import '@/components/aide/fiche/fiche-aide.css';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useProjetStore } from '@/stores/useProjetStore';
@@ -80,7 +80,6 @@ export function AideProjectPage() {
   const projetFetchedRef = useRef(false);
   const titreRef = useRef<HTMLHeadingElement>(null);
   const reglementRef = useRef<FicheReglementHandle>(null);
-  const apparition = useApparition<HTMLElement>();
 
   const diagnostic = projetId ? diagnosticsByProjet[projetId] ?? null : null;
   const matchResult: AideMatchResult | null = useMemo(() => {
@@ -325,6 +324,15 @@ export function AideProjectPage() {
         : matchResult
           ? { libelle: 'Vérifier mon éligibilité', ancre: 'eligibilite' }
           : { libelle: 'Lire le règlement', ancre: 'reglement' };
+  // Un point du règlement, ou une démarche : celles-ci vivent dans « Avant de
+  // déposer », qu'il faut alors déplier avant d'y défiler.
+  const idsDemarches = new Set(reglement.demarches.map((p) => p.id));
+  const ouvrirPoint = (id: string) => {
+    if (idsDemarches.has(id)) {
+      ouvrirSection('avant-depot');
+      signalerPoint(id);
+    } else reglementRef.current?.ouvrirPoint(id);
+  };
   const signaler = idProjetYbug() ? () => window.Ybug?.open?.() : undefined;
 
   return (
@@ -379,37 +387,22 @@ export function AideProjectPage() {
               nbDemarches={avecDemarches ? reglement.demarches.length : 0}
             />
           )}
-          {avecDemarches && (
-            <FicheAvantDepot
-              demarches={reglement.demarches}
-              plans={plansDemarche}
-              onOuvrirPoint={(id) => reglementRef.current?.ouvrirPoint(id)}
-            />
-          )}
+          {avecDemarches && <FicheAvantDepot demarches={reglement.demarches} plans={plansDemarche} />}
           <FicheConseils
             conseils={aide.fiche?.conseils ?? []}
             numeroDe={(id) => numeros.get(id)}
-            onOuvrirPoint={(id) => reglementRef.current?.ouvrirPoint(id)}
+            onOuvrirPoint={ouvrirPoint}
           />
-          {etapesAide(aide).length > 0 && (
-            <section className="block reveal" ref={apparition}>
-              <FicheEtapes etapes={etapesAide(aide)} />
-            </section>
-          )}
-          {pieces.length > 0 && (
-            <section className="block reveal" id="pieces" ref={apparition}>
-              <FichePieces pieces={pieces} onAjouter={handleOpenOrView} ouverture={opening} />
-            </section>
-          )}
+          <FicheEtapes etapes={etapesAide(aide)} />
+          <FichePieces pieces={pieces} onAjouter={handleOpenOrView} ouverture={opening} />
           <FicheReglement key={aide.id} reglement={reglement} sources={sources} ref={reglementRef} />
           <nav className="pager" aria-label="Autres aides">
             {voisines.avant
               ? <Link to={ROUTES.PROJET_AIDE(projet.id, voisines.avant)}>← Aide précédente</Link>
               : <span className="vide">← Aide précédente</span>}
             <Link to={lienProjet}>Toutes les aides</Link>
-            {voisines.apres
-              ? <Link to={ROUTES.PROJET_AIDE(projet.id, voisines.apres)}>Aide suivante →</Link>
-              : <span className="vide">Aide suivante →</span>}
+            {/* « Aide suivante » retirée (décision du 2026-09-28) : la place reste vide. */}
+            <span className="vide" aria-hidden="true" />
           </nav>
         </div>
       </div>

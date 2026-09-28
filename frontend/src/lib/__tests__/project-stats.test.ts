@@ -172,7 +172,7 @@ describe('mergeProjectDeadlines', () => {
     expect(merged.some((d) => d.id.includes('e2'))).toBe(true);
   });
 
-  it('drops past aides but keeps past dossier echeances as urgency "past"', () => {
+  it('drops past aides and past dossier echeances alike', () => {
     const pastAide = makeAide({ id: 'aPast', dateLimite: PAST, permanent: false });
     const diagnostic = makeDiagnostic('p1', [makeMatch(pastAide)], [], 0);
     const dossier = makeDossier({
@@ -184,10 +184,7 @@ describe('mergeProjectDeadlines', () => {
     const merged = mergeProjectDeadlines(diagnostic, [dossier]);
 
     expect(merged.find((d) => d.aideId === 'aPast')).toBeUndefined();
-    const pastDossier = merged.find((d) => d.dossierId === 'd1');
-    expect(pastDossier).toBeDefined();
-    expect(pastDossier?.urgency).toBe('past');
-    expect(pastDossier?.joursRestants).toBeLessThan(0);
+    expect(merged.find((d) => d.dossierId === 'd1')).toBeUndefined();
   });
 
   it('returns empty array when diagnostic is null and no dossiers', () => {

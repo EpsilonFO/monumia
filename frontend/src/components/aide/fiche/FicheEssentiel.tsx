@@ -1,4 +1,5 @@
 import { Ico, type NomIco } from './Ico';
+import { useDefilementAuto } from './useFiche';
 import {
   CLASSE_GUICHET,
   dateLongue,
@@ -74,6 +75,7 @@ export function FicheEssentiel({
 }) {
   const montant = montantAide(aide);
   const lignes = lignesDe(aide, g);
+  const defilement = useDefilementAuto<HTMLDivElement>();
 
   return (
     <>
@@ -86,7 +88,7 @@ export function FicheEssentiel({
           <p className="ess-amt">{montant?.valeur ?? 'Montant non publié'}</p>
           {montant?.detail && <p className="ess-amt-s">{montant.detail}</p>}
         </div>
-        <div className="ess-b">
+        <div className="ess-b" ref={defilement} tabIndex={0} aria-labelledby="ess-t">
           {LIGNES.map(({ cle, libelle, ico, teinte }) => {
             const ligne = lignes[cle];
             if (!ligne?.valeur) return null;

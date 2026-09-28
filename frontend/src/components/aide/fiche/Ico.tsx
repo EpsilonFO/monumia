@@ -76,6 +76,7 @@ const TRACES = {
     </>
   ),
   cloche: <path d="M12 4a5.5 5.5 0 0 0-5.5 5.5v3.2L5 15.5h14l-1.5-2.8V9.5A5.5 5.5 0 0 0 12 4Zm-2 13.5a2 2 0 0 0 4 0" />,
+  chevron: <path d="m6 9 6 6 6-6" />,
   info: (
     <>
       <circle cx="12" cy="12" r="8.5" />

@@ -5,6 +5,7 @@ import { BottomNav } from './BottomNav';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useBillingStore } from '@/stores/useBillingStore';
 import { dashboardService } from '@/services/dashboard.service';
+import '@/components/shared/ecrans/ecrans.css';
 
 export function AppLayout() {
   const user = useAuthStore((s) => s.user);
@@ -44,10 +45,11 @@ export function AppLayout() {
   }, [pathname]);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-app-bg">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
       <TopBar />
       <main ref={mainRef} className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[1200px] px-4 pt-4 pb-8 md:px-6 md:py-6 lg:px-8">
+        {/* La largeur des maquettes d'écran : 1180 px, 16 px de marge en deçà. */}
+        <div className="mx-auto w-[min(1180px,100%-32px)] pt-[23px] pb-[79px]">
           <Outlet />
         </div>
       </main>

@@ -336,6 +336,12 @@ class FactOption(BaseModel):
 
     id: str = Field(pattern=r"^[a-z0-9_]+$")
     label: str
+    # Précision facultative, affichée SOUS le libellé dans la carte de réponse
+    # du questionnaire (« Toutes les aides publiques restent possibles. »). Le
+    # libellé reste la réponse ; la description aide à choisir, elle ne change
+    # rien à ce que la réponse vaut pour les prédicats. Absente par défaut, et
+    # l'écran n'affiche alors que le libellé.
+    description: str | None = None
     # True pour les réponses du type « pas encore choisi » : le moteur traite
     # alors le fait comme inconnu (None) — la condition reste une incertitude
     # au lieu d'éliminer l'aide. Fail-closed, jamais fail-open.

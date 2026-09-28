@@ -101,7 +101,9 @@ export function DossierCard({ dossier }: DossierCardProps) {
   const accent = STATUT_ACCENT[statut];
   const tint = STATUT_TINT[statut];
 
-  const nextDeadline = dossier.echeances.find((e) => !e.accomplie);
+  // Une échéance passée ne s'affiche plus (décision du 2026-09-28) : seule la
+  // prochaine à venir compte.
+  const nextDeadline = dossier.echeances.find((e) => !e.accomplie && daysUntil(e.date) >= 0);
   const urgent = nextDeadline ? isUrgent(nextDeadline.date) : false;
   const fournis = dossier.checklist.filter((c) => c.statut === 'fourni').length;
   const manquants = dossier.checklist.filter((c) => c.statut === 'manquant').length;
@@ -208,7 +210,8 @@ export function DossierCard({ dossier }: DossierCardProps) {
         <div className="mt-auto px-5 pb-5">
           <span
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[15px] font-semibold text-white transition-shadow duration-200 group-hover:shadow-md"
-            style={{ background: C.blue }}
+            // Le bleu adouci des écrans (ecrans.css), comme les autres boutons de la page.
+            style={{ background: 'var(--ecran-bleu, var(--primary))' }}
           >
             Ouvrir le dossier
             <ArrowRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-0.5" />

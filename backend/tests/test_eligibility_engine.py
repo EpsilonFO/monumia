@@ -1985,6 +1985,80 @@ class TestBooleenAReponsesDeclarees(unittest.TestCase):
         self.assertNotIn("non", dependante["dependsOn"]["showForOptionIds"])
 
 
+class TestDescriptionDesReponses(unittest.TestCase):
+    """La précision facultative sous le libellé d'une réponse (`description`).
+
+    Elle voyage du fait jusqu'à l'option du QCM, et seulement quand elle est
+    déclarée : une clé absente plutôt qu'un `null`. Elle ne change rien aux
+    éliminations, qui ne lisent que l'identifiant et la valeur.
+    """
+
+    FACT_KEY = "fixture_enum_decrit"
+
+    def _fact(self) -> FactDef:
+        return FactDef.model_validate(
+            {
+                "type": "enum",
+                "scope": "projet",
+                "question": "Où en sont les travaux ?",
+                "options": [
+                    {
+                        "id": "non_commences",
+                        "label": "Pas encore commencés",
+                        "description": "Toutes les aides publiques restent possibles.",
+                    },
+                    {"id": "acheves", "label": "Achevés"},
+                ],
+            }
+        )
+
+    def _question(self) -> dict:
+        aide = _fixture_aide(
+            [
+                {
+                    "id": "gate-travaux",
+                    "text": "Les travaux ne sont pas commencés.",
+                    "kind": "user_fact",
+                    "effect": "gate",
+                    "fact": self.FACT_KEY,
+                    "predicate": {"eq": "non_commences"},
+                }
+            ]
+        )
+        res = run_deterministic_diagnostic(
+            {"fixture-aide": aide},
+            {**FACTS, self.FACT_KEY: self._fact()},
+            _monument(),
+            3000,
+            today=date(2026, 2, 14),
+        )
+        return next(q for q in res["qcmQuestions"] if q["id"] == self.FACT_KEY)
+
+    def test_description_transmise_quand_declaree(self):
+        options = {o["id"]: o for o in self._question()["options"]}
+        self.assertEqual(
+            options["non_commences"]["description"],
+            "Toutes les aides publiques restent possibles.",
+        )
+
+    def test_description_absente_sans_declaration(self):
+        options = {o["id"]: o for o in self._question()["options"]}
+        self.assertNotIn("description", options["acheves"])
+        self.assertNotIn("description", options["skip"])
+
+    def test_description_sans_effet_sur_les_eliminations(self):
+        self.assertEqual(self._question()["eliminationsParOption"], {"acheves": ["fixture-aide"]})
+
+    def test_aucune_description_dans_lontologie_reelle(self):
+        """Choix du 2026-09-28 : le champ existe, aucune réponse n'en a encore.
+        Ce test tombera le jour où la première sera rédigée : c'est voulu, il
+        suffira alors de le supprimer."""
+        decrites = [
+            f"{key}.{o.id}" for key, f in FACTS.items() for o in f.options or [] if o.description
+        ]
+        self.assertEqual(decrites, [])
+
+
 class TestBooleenSansOptions(unittest.TestCase):
     """Le cas de 562 faits : rien ne change, le couple implicite fait foi."""
 

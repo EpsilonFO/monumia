@@ -262,6 +262,9 @@ export interface QcmOption {
   /** Réponse « je ne sais pas / pas encore décidé » : le fait reste inconnu.
    *  N'élimine aucune aide, et exclut les autres cases en choix multiple. */
   unknown?: boolean;
+  /** Précision facultative affichée sous le libellé (`description` de l'option
+   *  dans facts.yaml). Absente tant que le fait n'en déclare pas. */
+  description?: string;
 }
 
 /**
@@ -376,6 +379,19 @@ export interface AideDigest {
   permanent: boolean;
   dateLimite?: string;
   montantMax?: number;
+  /** De quoi rédiger l'aide comme sa carte (titre, chapeau, montant écrit).
+   *  Absents d'une aide à venir hors offre, comme son nom. */
+  nomCourt?: string;
+  carte?: AideCarteRedigee | null;
+  tauxMax?: number;
+}
+
+/** Une aide à portée dans un digest : sa fenêtre du jour et, pour une aide à
+ *  confirmer, le nombre de questions qui la séparent d'un verdict. */
+export interface AideDigestMatch {
+  aide: AideDigest;
+  disponibilite?: AideDisponibilite;
+  questionsRestantes?: number;
 }
 
 /**
@@ -394,10 +410,28 @@ export interface ProjectDigest {
   projetId?: ID;
   /** Monument parent — clé du paywall et de l'agrégation par monument. */
   monumentId: ID;
-  aidesEligibles: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
-  aidesPotentiellementEligibles: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
-  aidesAtteignables?: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
+  aidesEligibles: AideDigestMatch[];
+  aidesPotentiellementEligibles: AideDigestMatch[];
+  aidesAtteignables?: AideDigestMatch[];
   montantPotentielTotal?: number;
   montantAtteignableTotal?: number;
   tauxTravauxMaxPct?: number;
+  /** Les pièces que demandent ses aides à portée (« À déposer pour vos aides »,
+   *  cf. backend/services/pieces_demandees.py). Absent d'un digest en cache
+   *  antérieur au champ. */
+  piecesDemandees?: PieceDemandee[];
+}
+
+/** Une pièce du référentiel demandée par au moins une aide à portée d'un projet. */
+export interface PieceDemandee {
+  pieceId: string;
+  nom: string;
+  description?: string | null;
+  typeDocument: import('./document.types').DocumentType;
+  /** `porteur` : propre au demandeur (RIB, statuts), réutilisable partout ;
+   *  `monument` / `operation` : bornée au bien et à ses chantiers. */
+  portee: 'porteur' | 'monument' | 'operation';
+  /** Les aides à portée qui la citent : le front fait l'union sur les projets
+   *  ouverts d'un monument, où la même aide peut revenir. */
+  aideIds: string[];
 }

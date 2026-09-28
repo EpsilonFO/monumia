@@ -46,3 +46,27 @@ export function toggleMulti(
   const rang = (id: string) => question.options.findIndex((o) => o.id === id);
   return [...next].sort((a, b) => rang(a) - rang(b));
 }
+
+/**
+ * Le pseudo-choix « Passer cette question » que le moteur ajoute à toute
+ * question à choix simple. Le wizard le remplace par le lien « Je ne sais pas,
+ * passer » de sa barre de navigation : même effet (le fait reste inconnu),
+ * sans une carte de plus. Les « je ne sais pas » déclarés par l'ontologie
+ * (`unknown: true`), eux, restent des réponses à part entière.
+ */
+export const PSEUDO_PASSER = 'skip';
+
+/** Les réponses du wizard, dans l'ordre de l'écran et du clavier. */
+export function reponsesAffichees(question: QcmQuestion): QcmOption[] {
+  return displayOrder(question).filter((o) => o.id !== PSEUDO_PASSER);
+}
+
+/**
+ * Les réponses cochées, hors pseudo-choix « passer » : une réponse `skip` déjà
+ * enregistrée ne coche aucune carte, et ne vaut pas réponse donnée pour
+ * « Continuer ».
+ */
+export function reponsesChoisies(value: string | string[] | undefined): string[] {
+  const ids = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
+  return ids.filter((id) => id !== PSEUDO_PASSER);
+}

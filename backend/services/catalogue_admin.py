@@ -233,7 +233,14 @@ def surcharger_fait(original: FactDef, surcharge: SurchargeFait) -> FactDef:
     if surcharge.help is not None:
         donnees["help"] = surcharge.help
     if surcharge.options is not None:
-        donnees["options"] = [o.model_dump() for o in surcharge.options]
+        # L'administration n'édite pas la `description` d'une réponse : une
+        # surcharge d'options la reprend donc du YAML, par identifiant (les ids
+        # sont figés). Sans ce report, reformuler un seul libellé effacerait
+        # toutes les descriptions du fait. Une réponse NOUVELLE n'en a pas.
+        decrites = {o.id: o.description for o in original.options or [] if o.description}
+        donnees["options"] = [
+            {**o.model_dump(), "description": decrites.get(o.id)} for o in surcharge.options
+        ]
     return FactDef.model_validate(donnees)
 
 

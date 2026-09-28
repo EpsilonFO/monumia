@@ -44,6 +44,10 @@ type Etat = 'ok' | 'no' | 'info' | 'todo';
  * Une question répondue sort du QCM au diagnostic suivant. On la garde à
  * l'écran le temps de la visite, avec sa réponse, pour qu'une erreur de clic
  * se corrige sur place : c'est ce que fait la maquette.
+ *
+ * Une fois éligible, le panneau se replie en douceur (`.elig-pli`, de 1fr à
+ * 0fr) : il ne reste que son verdict et « Commencer mon dossier ». « Revoir mes
+ * réponses » le rouvre, pour corriger un clic.
  */
 export function FicheEligibilite({
   match,
@@ -74,6 +78,7 @@ export function FicheEligibilite({
   }, [cleRestantes]);
 
   const statut = getEligibilityStatus(match);
+  const [deplie, setDeplie] = useState(false);
   const evals: AideEvaluation[] = match.llmEvaluation?.evaluations ?? [];
   const libelle = (e: AideEvaluation) => (e.conditionId && titres.get(e.conditionId)) || e.critere;
   const idsPoses = new Set(restantes.map((q) => q.id));
@@ -88,6 +93,7 @@ export function FicheEligibilite({
     statut === 'eligible' ? 'ok' : statut === 'non-eligible' ? 'no' : statut === 'atteignable' ? 'info' : 'todo';
   const repondues = vues.length - restantes.length;
   const n = restantes.length;
+  const replie = etat === 'ok' && !deplie;
 
   let titre: string;
   let aide: string;
@@ -125,75 +131,95 @@ export function FicheEligibilite({
   }
 
   return (
-    <div className={`elig${etat === 'todo' ? '' : ` ${etat}`}`} id="eligibilite">
+    <div className={`elig${etat === 'todo' ? '' : ` ${etat}`}${replie ? ' replie' : ''}`} id="eligibilite">
       <div className="elig-head">
         <div>
           <h2>{titre}</h2>
-          <p className="hint">{aide}</p>
+          <div className="elig-pli">
+            <div inert={replie}>
+              <p className="hint">{aide}</p>
+            </div>
+          </div>
         </div>
         <span className={`pill${etat === 'todo' ? '' : ` ${etat}`}`}><i />{pastille}</span>
       </div>
 
-      {vues.length > 0 && (
-        <div className="qs">
-          {vues.map((q) => (
-            <FicheQuestion
-              key={q.id}
-              question={q}
-              value={answers[q.id] as string | string[] | undefined}
-              onAnswer={onRepondre ? (v) => onRepondre(q.id, v) : undefined}
-              disabled={envoiEnCours}
-            />
-          ))}
-          {!onRepondre && n > 0 && (
-            <p className="elig-foot">Seuls le chef de projet et son adjoint peuvent répondre à ces questions.</p>
+      <div className="elig-pli">
+        <div inert={replie}>
+
+          {vues.length > 0 && (
+            <div className="qs">
+              {vues.map((q) => (
+                <FicheQuestion
+                  key={q.id}
+                  question={q}
+                  value={answers[q.id] as string | string[] | undefined}
+                  onAnswer={onRepondre ? (v) => onRepondre(q.id, v) : undefined}
+                  disabled={envoiEnCours}
+                />
+              ))}
+              {!onRepondre && n > 0 && (
+                <p className="elig-foot">Seuls le chef de projet et son adjoint peuvent répondre à ces questions.</p>
+              )}
+            </div>
+          )}
+
+          {etat === 'info' && leviers.length > 0 && (
+            <div className="qs">
+              {leviers.map((l, i) => <PlanLevier key={i} levier={l} />)}
+            </div>
+          )}
+
+          {etat !== 'no' && aConfirmer.length > 0 && (
+            <div className="qs">
+              {aConfirmer.map((e, i) => (
+                <div key={i} className="q answered">
+                  <span className="q-ok">
+                    <span className="chip t-sand"><Ico nom="info" /></span>
+                    <p>{libelle(e)}<small>À confirmer avec le financeur au moment du dossier.</small></p>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {remplies.length > 0 && (
+            <details className="more">
+              <summary>
+                {remplies.length} condition{remplies.length > 1 ? 's' : ''} déjà remplie{remplies.length > 1 ? 's' : ''}
+              </summary>
+              <div className="qs">
+                {remplies.map((e, i) => (
+                  <div key={i} className="q answered">
+                    <span className="q-ok">
+                      <span className="chip t-green"><Ico nom="coche" /></span>
+                      <p>{libelle(e)}</p>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
         </div>
-      )}
-
-      {etat === 'info' && leviers.length > 0 && (
-        <div className="qs">
-          {leviers.map((l, i) => <PlanLevier key={i} levier={l} />)}
-        </div>
-      )}
-
-      {etat !== 'no' && aConfirmer.length > 0 && (
-        <div className="qs">
-          {aConfirmer.map((e, i) => (
-            <div key={i} className="q answered">
-              <span className="q-ok">
-                <span className="chip t-sand"><Ico nom="info" /></span>
-                <p>{libelle(e)}<small>À confirmer avec le financeur au moment du dossier.</small></p>
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {remplies.length > 0 && (
-        <details className="more">
-          <summary>
-            {remplies.length} condition{remplies.length > 1 ? 's' : ''} déjà remplie{remplies.length > 1 ? 's' : ''}
-          </summary>
-          <div className="qs">
-            {remplies.map((e, i) => (
-              <div key={i} className="q answered">
-                <span className="q-ok">
-                  <span className="chip t-green"><Ico nom="coche" /></span>
-                  <p>{libelle(e)}</p>
-                </span>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
+      </div>
 
       {etat === 'ok' && (
         <div className="result" aria-live="polite">
-          <p>
-            {dossierOuvert ? 'Votre dossier est ouvert.' : 'Prochaine étape : réunir les pièces du dossier.'}
-            <small>La décision finale revient au financeur.</small>
-          </p>
+          {replie ? (
+            <button type="button" className="revoir" onClick={() => setDeplie(true)}>
+              Revoir mes réponses
+            </button>
+          ) : (
+            <p>
+              {dossierOuvert ? 'Votre dossier est ouvert.' : 'Prochaine étape : réunir les pièces du dossier.'}
+              <small>
+                La décision finale revient au financeur.{' '}
+                <button type="button" className="revoir" onClick={() => setDeplie(false)}>
+                  Replier
+                </button>
+              </small>
+            </p>
+          )}
           <button type="button" className="btn btn-main" onClick={onDossier} disabled={ouverture}>
             {ouverture && <Loader2 className="i animate-spin" />}
             {dossierOuvert ? 'Voir le dossier' : 'Commencer mon dossier'}

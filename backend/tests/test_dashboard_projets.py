@@ -195,6 +195,65 @@ class BuildDigestTests(unittest.TestCase):
         digest = build_digest(result, "m1", "p1", masquer_bientot=False)
         self.assertEqual(digest["aidesEligibles"][0]["aide"]["nom"], "DRAC MH")
 
+    def test_porte_la_carte_redigee(self) -> None:
+        """« À faire maintenant » rédige l'aide comme sa carte : titre, chapeau, montant."""
+        carte = {
+            "titre": "Subvention DRAC",
+            "chapeau": "Pour les travaux.",
+            "montant": {"valeur": "40 %"},
+        }
+        aide = {
+            "id": "a1",
+            "nom": "DRAC MH",
+            "categorie": "etat_drac",
+            "carte": carte,
+            "tauxMax": 40,
+        }
+        result = {"aidesEligibles": [{"aide": aide, "disponibilite": "maintenant"}]}
+        entree = build_digest(result, "m1", "p1")["aidesEligibles"][0]["aide"]
+        self.assertEqual(entree["carte"], carte)
+        self.assertEqual(entree["tauxMax"], 40)
+
+    def test_retient_la_carte_des_aides_encore_a_venir(self) -> None:
+        """La carte redirait ce que le nom masqué tait."""
+        aide = {
+            "id": "a1",
+            "nom": "DRAC MH",
+            "categorie": "etat_drac",
+            "carte": {"titre": "Subvention DRAC"},
+        }
+        result = {"aidesEligibles": [{"aide": aide, "disponibilite": "bientot"}]}
+        entree = build_digest(result, "m1", "p1", masquer_bientot=True)["aidesEligibles"][0]["aide"]
+        self.assertNotIn("carte", entree)
+        self.assertNotIn("nomCourt", entree)
+
+    def test_compte_les_questions_restantes(self) -> None:
+        """Une question tranchée ne compte plus ; « passer » ou une réponse
+        inconnue du moteur ne tranchent pas."""
+        options = [{"id": "oui"}, {"id": "nsp", "unknown": True}]
+        result = {
+            "aidesPotentiellementEligibles": [
+                {
+                    "aide": {"id": "a1", "nom": "A", "categorie": "region"},
+                    "disponibilite": "maintenant",
+                },
+                {
+                    "aide": {"id": "a2", "nom": "B", "categorie": "region"},
+                    "disponibilite": "maintenant",
+                },
+            ],
+            "qcmQuestions": [
+                {"id": "q1", "aideIds": ["a1", "a2"], "options": options},
+                {"id": "q2", "aideIds": ["a1"], "options": options},
+                {"id": "q3", "aideIds": ["a1"], "options": options},
+                {"id": "q4", "aideIds": ["a2"], "options": options},
+            ],
+            "qcmAnswers": {"q2": "skip", "q3": "nsp", "q4": "oui"},
+        }
+        digest = build_digest(result, "m1", "p1")
+        restantes = [m["questionsRestantes"] for m in digest["aidesPotentiellementEligibles"]]
+        self.assertEqual(restantes, [3, 1])
+
 
 if __name__ == "__main__":
     unittest.main()

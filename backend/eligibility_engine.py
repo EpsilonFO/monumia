@@ -1513,12 +1513,24 @@ def _options_for_fact(fact: FactDef, gate_conds: list[Condition]) -> list[dict]:
         # valeur qu'elle envoie aux prédicats (cf. FactOption.valeur). Sans
         # déclaration, le couple implicite — même liste que `_normalize_answer`.
         return [
-            {"id": o.id, "label": o.label, "value": o.valeur, "unknown": o.unknown}
+            {
+                "id": o.id,
+                "label": o.label,
+                "value": o.valeur,
+                "unknown": o.unknown,
+                "description": o.description,
+            }
             for o in fact.options or OPTIONS_BOOLEEN_IMPLICITES
         ]
     if fact.type in ENUM_FACT_TYPES:
         return [
-            {"id": o.id, "label": o.label, "value": o.id, "unknown": o.unknown}
+            {
+                "id": o.id,
+                "label": o.label,
+                "value": o.id,
+                "unknown": o.unknown,
+                "description": o.description,
+            }
             for o in fact.options or []
         ]
     # integer / number : tranches à partir des seuils des prédicats des gates.
@@ -1840,6 +1852,10 @@ def build_questions(
                     if declare
                     else ({"unknown": True} if o.get("unknown") else {})
                 ),
+                # La précision sous le libellé ne part que si le fait la déclare :
+                # une clé absente plutôt qu'un `null`, comme `unknown` ci-dessus
+                # pour les options fabriquées.
+                **({"description": o["description"]} if o.get("description") else {}),
             }
             for o in options
         ]

@@ -3,9 +3,6 @@ import { Ico, type NomIco } from './Ico';
 import { signalerPoint } from './useFiche';
 import { aplatir, type PointReglement, type Reglement, type Rubrique } from '@/lib/fiche-aide';
 
-/** Au-delà, les démarches suivantes se replient sous « Voir les N autres ». */
-const DEMARCHES_VISIBLES = 5;
-
 const RUBRIQUE: Record<Rubrique, { ico: NomIco; teinte: string }> = {
   criteres: { ico: 'coche', teinte: 't-green' },
   candidater: { ico: 'maison', teinte: 't-blue' },
@@ -44,18 +41,14 @@ export function FicheReglement({
   sources: Source[];
   ref?: Ref<FicheReglementHandle>;
 }) {
-  // Ce qu'il faut déplier pour voir un point : lui, sa rubrique, et la suite
-  // des démarches s'il est au-delà des premières.
+  // Ce qu'il faut déplier pour voir un point : lui et sa rubrique. Les
+  // démarches n'y sont plus : elles vivent dans « Avant de déposer »
+  // (FicheAvantDepot), qui porte leur ancre.
   const clesPour = useCallback(
     (id: string): string[] | null => {
-      const iDemarche = reglement.demarches.findIndex((p) => p.id === id);
       const rubrique = reglement.rubriques.find((r) => r.points.some((p) => p.id === id));
-      if (iDemarche < 0 && !rubrique) return null;
-      return [
-        `p:${id}`,
-        ...(iDemarche >= DEMARCHES_VISIBLES ? ['reste'] : []),
-        ...(rubrique ? [`th:${rubrique.cle}`] : []),
-      ];
+      if (!rubrique) return null;
+      return [`p:${id}`, `th:${rubrique.cle}`];
     },
     [reglement],
   );
@@ -107,8 +100,6 @@ export function FicheReglement({
       .catch(() => setCopie({ id, ok: false }));
   };
 
-  // La recherche ne porte que sur « le reste du règlement » : les démarches
-  // restent lisibles quoi qu'on tape.
   const point = (p: PointReglement, filtrable = false) => (
     <details
       key={p.id}
@@ -139,9 +130,9 @@ export function FicheReglement({
     </details>
   );
 
-  if (reglement.total === 0 && !sources.length) return null;
-  const { demarches, rubriques } = reglement;
-  const nd = demarches.length;
+  // Les démarches sont dans « Avant de déposer » : sans rubrique ni source, rien à montrer ici.
+  if (reglement.rubriques.length === 0 && !sources.length) return null;
+  const { rubriques } = reglement;
   const trouves = rubriques.reduce((n, r) => n + r.points.filter(visible).length, 0);
 
   return (
@@ -150,45 +141,14 @@ export function FicheReglement({
         <span className="chip t-solid"><Ico nom="livre" /></span>
         <div>
           <h2>Le règlement complet</h2>
-          <p>Pas besoin de tout lire. Commencez par ce qu’il faut faire avant le dépôt ; le reste se consulte au besoin.</p>
+          <p>Pas besoin de tout lire : chaque point se consulte au besoin, par thème.</p>
         </div>
       </div>
-
-      {nd > 0 && (
-        <div className="must">
-          <div className="must-h">
-            <span className="chip sm t-solid-orange"><Ico nom="delai" /></span>
-            <div>
-              <h3>{nd === 1 ? 'Le point à régler avant le dépôt' : `Les ${nd} points à régler avant le dépôt`}</h3>
-              <p>
-                {nd === 1
-                  ? "Le questionnaire ne le vérifie pas. S'il manque, le dossier est refusé."
-                  : "Le questionnaire ne les vérifie pas. S'il en manque un, le dossier est refusé."}
-              </p>
-            </div>
-          </div>
-          {demarches.slice(0, DEMARCHES_VISIBLES).map((p) => point(p))}
-          {nd > DEMARCHES_VISIBLES && (
-            <details
-              className="must-rest"
-              open={ouverts.has('reste')}
-              onToggle={(e) => basculer('reste', e.currentTarget.open)}
-            >
-              <summary>
-                {nd - DEMARCHES_VISIBLES === 1
-                  ? "Voir l'autre point"
-                  : `Voir les ${nd - DEMARCHES_VISIBLES} autres points`}
-              </summary>
-              {demarches.slice(DEMARCHES_VISIBLES).map((p) => point(p))}
-            </details>
-          )}
-        </div>
-      )}
 
       {rubriques.length > 0 && (
         <div className="reg-more">
           <div className="reg-more-h">
-            <h3>{nd > 0 ? 'Le reste du règlement, par thème' : 'Le règlement, par thème'}</h3>
+            <h3>Le règlement, par thème</h3>
             <label className="search">
               <Ico nom="loupe" />
               <input

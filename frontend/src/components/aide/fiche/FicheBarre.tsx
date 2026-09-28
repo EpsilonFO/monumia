@@ -1,5 +1,6 @@
 import { useEffect, useState, type RefObject } from 'react';
 import { Link } from 'react-router';
+import { ouvrirSection } from './useFiche';
 
 export type EtapeFiche = 'elig' | 'pieces' | 'depot';
 
@@ -50,7 +51,11 @@ export function FicheBarre({
       <button
         type="button"
         className="btn btn-main btn-sm"
-        onClick={() => document.getElementById(action.ancre)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        onClick={() => {
+          // La section visée est peut-être repliée (« Ce qu'il faut réunir ») : on la déplie d'abord.
+          ouvrirSection(action.ancre);
+          document.getElementById(action.ancre)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }}
       >
         {action.libelle}
       </button>

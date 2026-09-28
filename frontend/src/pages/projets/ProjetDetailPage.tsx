@@ -1,32 +1,27 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate, useSearchParams, Navigate } from 'react-router';
-import { ChevronLeft, ChevronDown, Loader2 } from 'lucide-react';
-import {
-  type IconComponent,
-  IconDiagnostic, IconSucces, IconHelp, IconErreur, IconCle, IconCalendrier,
-  IconAide, IconDossier, IconDocuments, IconDepot, IconEquipe, IconSupprimer,
-} from '@/components/icons';
+import { ChevronLeft, Loader2 } from 'lucide-react';
+import { IconAide, IconDossier, IconSupprimer } from '@/components/icons';
+import { Onglets, type Onglet } from '@/components/shared/ecrans/Onglets';
+import { Picto, type NomPicto } from '@/components/shared/ecrans/Picto';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { InfoBulle } from '@/components/shared/InfoBulle';
 import { AideCarte } from '@/components/aide/AideCarte';
-import '@/components/aide/fiche/fiche-aide.css';
+import './projet.css';
 import { AideFamilleBar } from '@/components/aide/AideFamilleBar';
 import { AideFiltreBar } from '@/components/aide/AideFiltreBar';
 import { DossierCard } from '@/components/dossier/DossierCard';
-import { DocumentCard } from '@/components/document/DocumentCard';
-import { DocumentGrid } from '@/components/document/DocumentGrid';
-import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
-import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
-import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
+import { OngletDocuments } from '@/components/document/OngletDocuments';
+import { projetTitre } from '@/lib/projet-titre';
 import { TeamPanel } from '@/components/sharing/TeamPanel';
 import { projectPermissions } from '@/lib/project-permissions';
-import { useOffre, useOffreMonument, useOffreMonumentConnue } from '@/hooks/useOffre';
-import { estOffreGratuite, libelleMonuments } from '@/lib/offres';
+import { useOffreMonument, useOffreMonumentConnue } from '@/hooks/useOffre';
+import { estOffreGratuite } from '@/lib/offres';
+import { montantAide, titreAide } from '@/lib/fiche-aide';
 import { PaywallOverlay } from '@/components/shared/Paywall';
 import { formatCurrency } from '@/lib/format-utils';
 import { ProjetSummaryBar } from '@/components/projet/ProjetSummaryBar';
@@ -91,6 +86,39 @@ function byBientot(a: AideMatchResult, b: AideMatchResult): number {
   );
 }
 
+/** Au-delà, « À confirmer » se déplie sur demande : c'est la section la plus
+ *  longue, et ses premières cartes sont les plus proches d'un verdict. */
+const A_CONFIRMER_VISIBLES = 12;
+
+/** Une section d'aides de la maquette : pastille ronde, titre serif, phrase
+ *  d'explication, puis la grille de cartes. */
+function Groupe({
+  ton,
+  picto,
+  titre,
+  sous,
+  children,
+}: {
+  ton: 'ok' | 'ck' | 'db' | 'bt';
+  picto: NomPicto;
+  titre: string;
+  sous: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grp">
+      <div className="grp-h">
+        <span className={`gi ${ton}`}>
+          <Picto nom={picto} />
+        </span>
+        <h3>{titre}</h3>
+      </div>
+      <p className="grp-sub">{sous}</p>
+      {children}
+    </div>
+  );
+}
+
 /**
  * Page d'un PROJET de travaux : ses aides et ses dossiers.
  *
@@ -135,6 +163,7 @@ export function ProjetDetailPage() {
   const [resolution, setResolution] = useState<'projet' | 'monument' | 'introuvable' | null>(null);
   const [running, setRunning] = useState(false);
   const [showNonEligibles, setShowNonEligibles] = useState(false);
+  const [toutAConfirmer, setToutAConfirmer] = useState(false);
   const [confirmRefaireOpen, setConfirmRefaireOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -149,9 +178,6 @@ export function ProjetDetailPage() {
   // l'équipe du monument voit en plus des siens, et qu'un collaborateur invité
   // ici est le seul à voir avec elle.
   const [projetDocuments, setProjetDocuments] = useState<Document[]>([]);
-  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
-  const [accessDoc, setAccessDoc] = useState<Document | null>(null);
-  const [addDocOpen, setAddDocOpen] = useState(false);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
 
@@ -173,7 +199,6 @@ export function ProjetDetailPage() {
   // suppression du chantier.
   const offre = useOffreMonument(monumentId);
   const offreConnue = useOffreMonumentConnue(monumentId);
-  const offreCompte = useOffre();
   // Travailler à plusieurs est un service de l'offre Veille. L'onglet Équipe
   // reste VISIBLE au gratuit — c'est une porte, pas un vide — mais il mène aux
   // tarifs plutôt qu'à un formulaire que le serveur refuserait (402).
@@ -440,7 +465,6 @@ export function ProjetDetailPage() {
   const toutesPotentiels = [...(diagnostic?.aidesPotentiellementEligibles ?? [])]
     .filter((m) => !dossierAideIds.has(m.aide.id))
     .sort((a, b) => reste(a) - reste(b) || byDeadline(a, b));
-  const potentielsUneQuestion = toutesPotentiels.filter((m) => reste(m) === 1).length;
   // « À débloquer » : ordre du backend conservé (enjeu décroissant) — c'est le
   // montant en jeu qui décide si la démarche vaut la peine, pas l'échéance.
   const toutesAtteignables = (diagnostic?.aidesAtteignables ?? []).filter((m) => !dossierAideIds.has(m.aide.id));
@@ -498,7 +522,7 @@ export function ProjetDetailPage() {
   // fiche de l'aide, qui est gratuite.
   const chiffresAides = !estOffreGratuite(offre);
   const renderAideList = (list: AideMatchResult[]) => (
-    <div className="fa grid">
+    <div className="cartes">
       {list.map((match) => (
         <AideCarte
           key={match.aide.id}
@@ -533,32 +557,7 @@ export function ProjetDetailPage() {
   ];
 
   const dossierNames = Object.fromEntries(allDossiers.map((d) => [d.id, d.titre]));
-  const monumentNames = { [monument.id]: monument.nom };
 
-  const handleRenameDoc = async (id: string, newName: string) => {
-    try { await documentService.update(id, { nom: newName }); reloadProjetDocuments(); toast.success('Document renommé'); }
-    catch (err) { toast.error(err instanceof Error ? err.message : 'Erreur lors du renommage'); }
-  };
-  const handleDeleteDoc = async (id: string) => {
-    try { await documentService.delete(id); reloadProjetDocuments(); toast.success('Document supprimé'); }
-    catch (err) { toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression'); }
-  };
-  // Ajouter un document au PROJET : tout membre du chantier peut déposer. Le
-  // document est rattaché au projet — pas au monument : le déposer ici ne doit
-  // pas l'exposer à l'équipe du bien au-delà de ce qu'elle voit déjà.
-  const handleAddDocument = async (doc: Document) => {
-    if (!projetId) return;
-    try {
-      if (!doc.projetIds.includes(projetId)) {
-        await documentService.addToProjects(doc.id, [], [projetId]);
-      }
-      reloadProjetDocuments();
-      toast.success('Document ajouté au projet');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout");
-      throw err;
-    }
-  };
 
   // Monté une seule fois, que l'offre l'ouvre ou non : c'est le même panneau,
   // seul son habillage change.
@@ -575,268 +574,211 @@ export function ProjetDetailPage() {
     />
   );
 
-  const projectTabs: { value: string; label: string; icon: IconComponent; count: number | null }[] = [
+  const projectTabs: Onglet<string>[] = [
     // Les aides à débloquer comptent : ce sont des pistes vivantes, pas des refus.
-    ...(canAccessAides ? [{ value: 'aides', label: 'Aides', icon: IconAide, count: aidesAPortee.length }] : []),
-    { value: 'dossiers', label: 'Dossiers', icon: IconDossier, count: dossiers.length },
-    { value: 'documents', label: 'Documents', icon: IconDocuments, count: projetDocuments.length },
-    { value: 'equipe', label: 'Équipe', icon: IconEquipe, count: members.length },
+    ...(canAccessAides ? [{ value: 'aides', label: 'Aides', picto: 'main' as const, count: aidesAPortee.length }] : []),
+    { value: 'dossiers', label: 'Dossiers', picto: 'dossier', count: dossiers.length },
+    { value: 'documents', label: 'Documents', picto: 'doc', count: projetDocuments.length },
+    { value: 'equipe', label: 'Équipe', picto: 'equipe', count: members.length },
   ];
 
+  // Titre et montant écrits de chaque aide à portée, pour les cartes de
+  // l'échéancier : il ne connaît que les dates.
+  const redaction = new Map(
+    aidesAPortee.map((m) => [m.aide.id, { titre: titreAide(m.aide), montant: montantAide(m.aide)?.valeur ?? null }]),
+  );
+  const potentielsVisibles = toutAConfirmer ? potentielsMaintenant : potentielsMaintenant.slice(0, A_CONFIRMER_VISIBLES);
+  const chezFiltre = filtre.key === 'toutes' ? '' : ` chez « ${filtre.label} »`;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 overflow-hidden text-[13px] text-muted-foreground">
-        <Link to={ROUTES.MONUMENTS} className="shrink-0 hover:opacity-70 transition-opacity">{libelleMonuments(offreCompte)}</Link>
-        <span>/</span>
-        <Link
-          to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`}
-          className="truncate hover:opacity-70 transition-opacity"
-        >
-          {monument.nom}
-        </Link>
-      </div>
+    <div className="ec pproj">
+      <Link
+        className="back"
+        to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`}
+        aria-label={`Retour à ${monument.nom}`}
+        title={`Retour à ${monument.nom}`}
+      >
+        <Picto nom="retour" />
+      </Link>
 
       <ProjetSummaryBar
         projet={projet}
         monument={monument}
         onRefaireQuestionnaire={() => setConfirmRefaireOpen(true)}
+        questionsPassees={questionsRestantes}
         onRenommer={handleRenommerProjet}
       />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <div role="tablist" aria-label="Sections du projet" className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          {projectTabs.map(({ value, label, icon: Icon, count }) => {
-            const active = activeTab === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => handleTabChange(value)}
-                className={`relative flex items-center justify-center gap-2 overflow-hidden rounded-xl px-4 py-3.5 text-[15px] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                  active
-                    ? 'bg-primary text-primary-foreground shadow-pop'
-                    : 'border border-border bg-card text-foreground hover:-translate-y-0.5 hover:border-primary hover:shadow-md'
-                }`}
-              >
-                <Icon className={`h-5 w-5 shrink-0 ${active ? 'text-primary-foreground' : 'text-primary'}`} strokeWidth={2} />
-                <span className="truncate">{label}</span>
-                {count !== null && (
-                  <span
-                    className={`inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[12px] font-bold tabular-nums ${
-                      active ? 'bg-white/25 text-primary-foreground' : 'bg-secondary text-primary'
-                    }`}
-                  >
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <Onglets onglets={projectTabs} actif={activeTab} onChange={handleTabChange} label="Rubriques du projet" />
 
         {/* AIDES */}
-        <TabsContent value="aides" className="mt-4 space-y-6">
+        <TabsContent value="aides">
           {chargementDiagnostic ? (
-            <AidesTabSkeleton />
+            <div className="onglet">
+              <AidesTabSkeleton />
+            </div>
           ) : !diagnostic ? (
-            <div className="rounded-2xl border py-10 text-center space-y-4" style={{ background: C.paleBlue, borderColor: C.border }}>
-              <div className="mx-auto w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#fff' }}>
-                <IconDiagnostic className="h-7 w-7" style={{ color: C.blue }} />
-              </div>
-              <div>
-                <h2 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                  Découvrez les aides pour <em className="italic" style={{ color: C.orange }}>{monument.nom}</em>
-                </h2>
-                <p className="text-[14px] mt-1 text-muted-foreground">Notre moteur analyse les aides publiques et privées applicables à ce projet.</p>
-              </div>
+            <div className="vide onglet" style={{ textAlign: 'center' }}>
+              <h2 style={{ fontSize: 23 }}>Découvrez les aides de ce projet</h2>
+              <p style={{ marginTop: 8 }}>
+                Notre moteur analyse les aides publiques et privées applicables à {monument.nom}.
+              </p>
               <button
+                className="btn b-orange"
+                type="button"
                 onClick={handleRunDiagnostic}
                 disabled={running}
-                className="inline-flex items-center gap-2 px-6 py-3 text-[13px] font-semibold text-white rounded-lg transition-all duration-300 hover:shadow-md disabled:opacity-60"
-                style={{ background: C.orange }}
+                style={{ marginTop: 16 }}
               >
-                {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconDiagnostic className="h-4 w-4" strokeWidth={1.8} />}
+                {running && <Loader2 className="h-4 w-4 animate-spin" />}
                 Lancer le moteur
               </button>
             </div>
           ) : (
-            <div className="space-y-8">
-              {offre.echeancier ? (
-                <ProjectEcheancier deadlines={deadlines} />
-              ) : (
-                <PaywallOverlay
-                  offre="Veille"
-                  titre="Ne laissez plus passer une date limite"
-                  description="L'échéancier réunit les dates limites de vos aides et de vos dossiers, de la plus proche à la plus lointaine. L'offre Veille vous les rappelle aussi par email."
-                  monumentId={monument.id}
-                  chiffres={
-                    deadlines.length > 0
-                      ? [
-                          {
-                            valeur: String(deadlines.length),
-                            libelle: `échéance${deadlines.length > 1 ? 's' : ''} sur ce chantier`,
-                          },
-                        ]
-                      : undefined
-                  }
-                >
-                  <ProjectEcheancier deadlines={deadlines} />
-                </PaywallOverlay>
-              )}
-
-              <AideFiltreBar options={filtreOptions} value={filtreKey} onChange={setFiltreKey} />
-
-              <AideFamilleBar
-                options={familleOptions}
-                value={familleFacette}
-                onChange={setFamilleFacette}
-              />
-
-              <section className="space-y-3">
-                <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                  <IconSucces className="h-4 w-4 text-success" />Disponibles maintenant ({eligiblesMaintenant.length})
-                  <InfoBulle libelle="Disponibles maintenant">
-                    Nous passons en revue, une par une, toutes les conditions publiées par
-                    chaque aide et nous les confrontons à la fiche de votre monument et à vos
-                    réponses. Ici&nbsp;: aucune condition ne manque et aucune n'est contredite,
-                    et le guichet est ouvert aujourd'hui.
-                  </InfoBulle>
-                </h3>
-                {eligiblesMaintenant.length === 0 ? (
-                  <p className="text-[13px] text-muted-foreground">
-                    {filtre.key === 'toutes'
-                      ? 'Aucune aide pleinement éligible pour le moment.'
-                      : `Aucune aide pleinement éligible chez « ${filtre.label} ».`}
-                  </p>
-                ) : renderAideList(eligiblesMaintenant)}
-              </section>
-
-              {atteignablesMaintenant.length > 0 && (
-                <section className="space-y-3">
-                  <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                    <IconCle className="h-4 w-4 text-info" />À débloquer ({atteignablesMaintenant.length})
-                    <InfoBulle libelle="À débloquer">
-                      Une condition n'est pas remplie, mais elle dépend d'une démarche que vous
-                      pouvez engager (une protection, un label, un accord, une adhésion). Ce
-                      n'est donc pas un refus&nbsp;: c'est une étape.
-                    </InfoBulle>
-                  </h3>
-                  <p className="text-[13px] text-muted-foreground">
-                    Une démarche vous sépare de ces aides. Ouvrez la fiche pour voir laquelle,
-                    auprès de qui et en combien de temps.
-                  </p>
-                  {renderAideList(atteignablesMaintenant)}
-                </section>
-              )}
-
-              <section className="space-y-3">
-                <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                  <IconHelp className="h-4 w-4" style={{ color: C.orangeVif }} />À confirmer ({potentielsMaintenant.length})
-                  <InfoBulle libelle="À confirmer">
-                    Rien ne les écarte, mais vos réponses ne suffisent pas encore à trancher&nbsp;:
-                    une ou plusieurs conditions restent en suspens. Nous ne les éliminons jamais
-                    dans le doute. Complétez le questionnaire, ou ouvrez la fiche pour voir ce
-                    qu'il reste à vérifier auprès de l'organisme.
-                  </InfoBulle>
-                </h3>
-                {potentielsMaintenant.length === 0 ? (
-                  <p className="text-[13px] text-muted-foreground">
-                    {filtre.key === 'toutes'
-                      ? 'Aucune aide à confirmer.'
-                      : `Aucune aide à confirmer chez « ${filtre.label} ».`}
-                  </p>
+            <>
+              {deadlines.length > 0 &&
+                (offre.echeancier ? (
+                  <ProjectEcheancier deadlines={deadlines} aide={(id) => redaction.get(id) ?? null} />
                 ) : (
-                  <>
-                    {/* Le chiffre qui compte n'est pas le nombre d'aides mais ce
-                        qu'il en coûte de trancher : les plus proches d'un
-                        verdict sont en tête. Les questions se posent sur la
-                        fiche de chaque aide. */}
-                    {potentielsUneQuestion > 0 && perms.canEditProject && (
-                      <p className="text-[13px] text-muted-foreground">
-                        Dont {potentielsUneQuestion} à une seule question&nbsp;: ouvrez la fiche
-                        pour y répondre.
-                      </p>
+                  <div style={{ marginTop: 23 }}>
+                    <PaywallOverlay
+                      offre="Veille"
+                      titre="Ne laissez plus passer une date limite"
+                      description="L'échéancier réunit les dates limites de vos aides et de vos dossiers, de la plus proche à la plus lointaine. L'offre Veille vous les rappelle aussi par email."
+                      monumentId={monument.id}
+                      chiffres={[
+                        {
+                          valeur: String(deadlines.length),
+                          libelle: `échéance${deadlines.length > 1 ? 's' : ''} sur ce chantier`,
+                        },
+                      ]}
+                    >
+                      <ProjectEcheancier deadlines={deadlines} aide={(id) => redaction.get(id) ?? null} />
+                    </PaywallOverlay>
+                  </div>
+                ))}
+
+              <section className="sec" aria-labelledby="at">
+                <div className="sec-h">
+                  <h2 id="at">Toutes vos aides</h2>
+                  <p>
+                    {aidesAPortee.length} aide{aidesAPortee.length > 1 ? 's' : ''} repérée
+                    {aidesAPortee.length > 1 ? 's' : ''} pour ce projet
+                  </p>
+                </div>
+
+                <AideFiltreBar options={filtreOptions} value={filtreKey} onChange={setFiltreKey} />
+                <AideFamilleBar options={familleOptions} value={familleFacette} onChange={setFamilleFacette} />
+
+                <Groupe
+                  ton="ok"
+                  picto="coche"
+                  titre="Disponibles maintenant"
+                  sous="Votre projet remplit les conditions publiées par le financeur, et le guichet est ouvert. Vous pouvez monter le dossier."
+                >
+                  {eligiblesMaintenant.length === 0 ? (
+                    <p className="empty">Aucune aide pleinement éligible pour le moment{chezFiltre}.</p>
+                  ) : (
+                    renderAideList(eligiblesMaintenant)
+                  )}
+                </Groupe>
+
+                {atteignablesMaintenant.length > 0 && (
+                  <Groupe
+                    ton="db"
+                    picto="cadenas"
+                    titre="À débloquer"
+                    sous="Une démarche vous sépare de ces aides : une protection, un label, un accord ou une adhésion. Ouvrez la fiche pour voir laquelle, auprès de qui et en combien de temps."
+                  >
+                    {renderAideList(atteignablesMaintenant)}
+                  </Groupe>
+                )}
+
+                <Groupe
+                  ton="ck"
+                  picto="question"
+                  titre="À confirmer"
+                  sous="Il nous manque une ou plusieurs réponses pour savoir si votre projet est éligible. Elles se posent dans la fiche de chaque aide."
+                >
+                  {potentielsMaintenant.length === 0 ? (
+                    <p className="empty">Aucune aide à confirmer{chezFiltre}.</p>
+                  ) : (
+                    <>
+                      {/* Le chiffre qui compte n'est pas le nombre d'aides mais ce
+                          qu'il en coûte de trancher : les plus proches d'un
+                          verdict sont en tête. */}
+                      {renderAideList(potentielsVisibles)}
+                      {potentielsMaintenant.length > A_CONFIRMER_VISIBLES && (
+                        <div className="more">
+                          <button className="btn b-line" type="button" onClick={() => setToutAConfirmer((v) => !v)}>
+                            {toutAConfirmer
+                              ? "Ne montrer que les plus proches d'un verdict"
+                              : `Voir les ${potentielsMaintenant.length - A_CONFIRMER_VISIBLES} autres aides à confirmer`}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </Groupe>
+
+                {bientot.length > 0 && (
+                  <Groupe
+                    ton="bt"
+                    picto="cloche"
+                    titre="Disponibles bientôt"
+                    sous="La fenêtre de candidature est fermée ou pas encore ouverte. Préparez votre dossier pour la prochaine session : la pastille de chaque aide indique où vous en êtes sur ses critères."
+                  >
+                    {offre.aidesBientot ? (
+                      renderAideList(bientot)
+                    ) : (
+                      <PaywallOverlay
+                        offre="Veille"
+                        titre="Soyez prévenu le jour où le guichet ouvre"
+                        description="Ces aides ne sont pas encore déposables. L'offre Veille vous envoie un email dès que l'une d'elles ouvre, et donne accès à sa fiche : son organisme, ses critères et les pièces à fournir."
+                        monumentId={monument.id}
+                        chiffres={chiffresBientot}
+                        flou="10px"
+                      >
+                        {renderAideList(bientot)}
+                      </PaywallOverlay>
                     )}
-                    {renderAideList(potentielsMaintenant)}
+                  </Groupe>
+                )}
+
+                {nonEligibles.length > 0 && (
+                  <>
+                    <div className="ko">
+                      <span className="gi">
+                        <Picto nom="croix" />
+                      </span>
+                      <span>
+                        <b>
+                          {nonEligibles.length} aide{nonEligibles.length > 1 ? 's' : ''} écartée
+                          {nonEligibles.length > 1 ? 's' : ''}
+                        </b>{' '}
+                        par vos réponses, avec la raison pour chacune.
+                      </span>
+                      <button type="button" aria-expanded={showNonEligibles} onClick={() => setShowNonEligibles((v) => !v)}>
+                        {showNonEligibles ? 'Masquer' : 'Voir pourquoi'}
+                      </button>
+                    </div>
+                    {showNonEligibles && (
+                      <div className="cartes ko-liste">
+                        {nonEligibles.map((match) => (
+                          <AideCarte key={match.aide.id} match={match} projetId={projet.id} showMontant={chiffresAides} />
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
               </section>
-
-              {bientot.length > 0 && (
-                <section className="space-y-3">
-                  <h3 className="flex items-center gap-2 text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                    <IconCalendrier className="h-4 w-4 text-info" />Disponibles bientôt ({bientot.length})
-                    <InfoBulle libelle="Disponibles bientôt">
-                      Leurs conditions sont examinées exactement comme celles des autres&nbsp;:
-                      c'est leur calendrier qui les met à part, pas votre dossier. La fenêtre de
-                      candidature est fermée, ou pas encore ouverte.
-                    </InfoBulle>
-                  </h3>
-                  <p className="text-[13px] text-muted-foreground">
-                    La fenêtre de candidature est fermée ou pas encore ouverte. Préparez votre
-                    dossier pour la prochaine session : la pastille de chaque aide indique où vous
-                    en êtes sur ses critères.
-                  </p>
-                  {offre.aidesBientot ? (
-                    renderAideList(bientot)
-                  ) : (
-                    <PaywallOverlay
-                      offre="Veille"
-                      titre="Soyez prévenu le jour où le guichet ouvre"
-                      description="Ces aides ne sont pas encore déposables. L'offre Veille vous envoie un email dès que l'une d'elles ouvre, et donne accès à sa fiche : son organisme, ses critères et les pièces à fournir."
-                      monumentId={monument.id}
-                      chiffres={chiffresBientot}
-                      flou="10px"
-                    >
-                      {renderAideList(bientot)}
-                    </PaywallOverlay>
-                  )}
-                </section>
-              )}
-
-              <section className="space-y-3">
-                {/* Le « i » est HORS du bouton : imbriqué dedans, il replierait
-                    la section au moment même où on lui demande une explication. */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowNonEligibles((v) => !v)}
-                    className="flex items-center gap-2 text-[15px]"
-                    style={{ fontFamily: SERIF, color: C.ink }}
-                  >
-                    <IconErreur className="h-4 w-4 text-destructive" />Non éligibles ({nonEligibles.length})
-                    <ChevronDown className={`h-4 w-4 transition-transform ${showNonEligibles ? 'rotate-180' : ''}`} />
-                  </button>
-                  <InfoBulle libelle="Non éligibles">
-                    Au moins une condition est ici contredite par la fiche du monument ou par vos
-                    réponses — un critère de protection, de propriétaire, de territoire. Nous les
-                    laissons visibles pour que vous puissiez voir ce qui bloque, et parce qu'une
-                    réponse corrigée peut faire revenir une aide dans les autres listes.
-                  </InfoBulle>
-                </div>
-                {showNonEligibles && (
-                  nonEligibles.length === 0 ? (
-                    <p className="text-[13px] text-muted-foreground">
-                      {filtre.key === 'toutes'
-                        ? 'Aucune aide écartée par vos réponses.'
-                        : `Aucune aide écartée par vos réponses chez « ${filtre.label} ».`}
-                    </p>
-                  ) : (
-                    <div className="fa grid">
-                      {nonEligibles.map((match) => (
-                        <AideCarte key={match.aide.id} match={match} projetId={projet.id} showMontant={chiffresAides} />
-                      ))}
-                    </div>
-                  )
-                )}
-              </section>
-            </div>
+            </>
           )}
         </TabsContent>
 
         {/* DOSSIERS */}
-        <TabsContent value="dossiers" className="mt-4 space-y-4">
+        <TabsContent value="dossiers" className="onglet space-y-4">
           {dossiers.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {dossiers.map((dossier) => (<DossierCard key={dossier.id} dossier={dossier} monumentColor={C.blue} />))}
@@ -847,7 +789,7 @@ export function ProjetDetailPage() {
               title="Aucun dossier pour ce projet"
               description="Ouvrez une aide depuis l'onglet « Aides » pour démarrer une candidature."
               action={
-                <button onClick={() => handleTabChange('aides')} className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
+                <button onClick={() => handleTabChange('aides')} className="btn b-blue b-sm">
                   <IconAide className="h-4 w-4" strokeWidth={1.8} />Voir les aides
                 </button>
               }
@@ -856,45 +798,24 @@ export function ProjetDetailPage() {
         </TabsContent>
 
         {/* DOCUMENTS DU CHANTIER */}
-        <TabsContent value="documents" className="mt-4 space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-[13px] text-muted-foreground">
-              Les pièces de CE chantier. Celles qui décrivent le monument (arrêté de
-              protection, cadastre, photos) restent sur sa fiche.
-            </p>
-            <button onClick={() => setAddDocOpen(true)} className="inline-flex shrink-0 items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
-              <IconDepot className="h-3.5 w-3.5" strokeWidth={1.8} />Ajouter un document
-            </button>
-          </div>
-          {projetDocuments.length > 0 ? (
-            <DocumentGrid
-              items={projetDocuments}
-              keyOf={(doc) => doc.id}
-              renderItem={(doc) => (
-                <DocumentCard
-                  document={doc}
-                  dossierNames={dossierNames}
-                  monumentNames={monumentNames}
-                  onClick={() => setPreviewDoc(doc)}
-                  onRename={handleRenameDoc}
-                  onDelete={handleDeleteDoc}
-                  myRole={projet.myRole ?? null}
-                  uploaderName={uploaderNames[doc.userId]}
-                  onDocumentUpdated={reloadProjetDocuments}
-                />
-              )}
-            />
-          ) : (
-            <EmptyState
-              icon={IconDocuments}
-              title="Aucun document sur ce projet"
-              description="Devis, plans, photos du chantier : déposez ici les pièces propres à ce projet de travaux."
-            />
-          )}
+        <TabsContent value="documents" className="onglet">
+          {/* Les pièces de CE chantier, lues sur `documentService.getAll({ projetId })` ;
+              un dépôt ici pend au projet, pas au monument. Droits : `projet.myRole`. */}
+          <OngletDocuments
+            ici={{ type: 'projet', id: projet.id, nom: projetTitre(projet) }}
+            monumentId={monument.id}
+            documents={projetDocuments}
+            onChange={reloadProjetDocuments}
+            role={projet.myRole ?? null}
+            auteurs={uploaderNames}
+            dossierNames={dossierNames}
+            intro="Les pièces de ce chantier. Celles qui décrivent le monument (arrêté de protection, cadastre, photos) restent sur sa fiche."
+            vide="Devis, plans, photos du chantier : déposez ici les pièces propres à ce projet de travaux."
+          />
         </TabsContent>
 
         {/* ÉQUIPE DU CHANTIER */}
-        <TabsContent value="equipe" className="mt-4">
+        <TabsContent value="equipe" className="onglet">
           {equipeAccessible ? (
             equipePanel
           ) : !offreConnue ? (
@@ -915,27 +836,6 @@ export function ProjetDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <DocumentPreviewDialog
-        document={previewDoc}
-        open={!!previewDoc}
-        onOpenChange={(open) => { if (!open) setPreviewDoc(null); }}
-      />
-      <AttachDocumentDialog
-        open={addDocOpen}
-        onOpenChange={setAddDocOpen}
-        projetId={projet.id}
-        onAttach={handleAddDocument}
-        onUploaded={(doc) => setAccessDoc(doc)}
-      />
-      {accessDoc && (
-        <ManageDocumentAccessDialog
-          document={accessDoc}
-          myRole={projet.myRole ?? null}
-          open={!!accessDoc}
-          onOpenChange={(open) => { if (!open) setAccessDoc(null); }}
-          onSaved={reloadProjetDocuments}
-        />
-      )}
 
       {/* Deux conditions distinctes : le rôle dit « ce compte a-t-il le droit »,
           l'offre dit « ce produit le permet-il ». Un plafond de deux projets

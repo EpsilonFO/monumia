@@ -139,10 +139,10 @@ export const CLASSE_GUICHET: Record<EtatGuichet, string> = {
 /* Identité de l'aide                                                  */
 /* ------------------------------------------------------------------ */
 
-type AideAffichable = Pick<
-  Aide,
-  'nom' | 'nomCourt' | 'description' | 'organisme' | 'categorie' | 'type' | 'montantMax' | 'tauxMax' | 'carte' | 'fiche'
->;
+/** Ce que les libellés d'une aide lisent. Seuls le nom et la catégorie sont
+ *  exigés : le digest du tableau de bord (`AideDigest`) n'emporte que la carte. */
+type AideAffichable = Pick<Aide, 'nom' | 'categorie'> &
+  Partial<Pick<Aide, 'nomCourt' | 'description' | 'organisme' | 'type' | 'montantMax' | 'tauxMax' | 'carte' | 'fiche'>>;
 
 const redige = (aide: AideAffichable) => ({ ...aide.carte, ...aide.fiche });
 
@@ -162,7 +162,7 @@ export function financeurAide(aide: AideAffichable): string {
 }
 
 export function chapeauAide(aide: AideAffichable): string {
-  return redige(aide).chapeau || aide.description;
+  return redige(aide).chapeau || aide.description || '';
 }
 
 export function libelleType(aide: Pick<Aide, 'type' | 'fiche'>): string {

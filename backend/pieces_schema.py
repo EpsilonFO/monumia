@@ -59,6 +59,14 @@ TYPE_DOCUMENTS = (
     "rapport",
     "correspondance",
     "autre",
+    # Ajoutés par la migration 20260928143556 : des pièces que les aides
+    # demandent souvent et que les douze types d'origine rangeaient mal.
+    "autorisation_urbanisme",
+    "rib",
+    "titre_propriete",
+    "deliberation",
+    "statuts",
+    "plan_financement",
 )
 
 

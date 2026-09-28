@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { ProjectQuestionnaire } from '@/components/project/ProjectQuestionnaire';
 import { ProjectFamillesStep } from '@/components/project/wizard/ProjectFamillesStep';
 import { ProjectReprisesStep } from '@/components/project/wizard/ProjectReprisesStep';
@@ -8,7 +8,7 @@ import { ProjectIntentStep } from '@/components/project/wizard/ProjectIntentStep
 import { ProjectTravauxStep } from '@/components/project/wizard/ProjectTravauxStep';
 import { PerilStep } from '@/components/project/wizard/PerilStep';
 import { InscriptionStep } from '@/components/project/wizard/InscriptionStep';
-import { WizardShell } from '@/components/project/wizard/WizardShell';
+import { WizardShell, type NoteEnregistrement } from '@/components/project/wizard/WizardShell';
 import { DiagnosticLoader } from '@/components/project/wizard/DiagnosticLoader';
 import {
   FAMILLES_STEP,
@@ -17,9 +17,10 @@ import {
   PROJET_WIZARD_STEPS,
   PROJET_WIZARD_STEPS_INVITE,
   type WizardStepKey,
-} from '@/components/project/wizard/WizardRail';
+} from '@/components/project/wizard/etapes';
 import { AllClear } from '@/components/illustrations';
 import { IconAttention, IconRafraichir } from '@/components/icons';
+import { Picto } from '@/components/shared/ecrans/Picto';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useProjetStore } from '@/stores/useProjetStore';
 import { useAideStore } from '@/stores/useAideStore';
@@ -54,7 +55,6 @@ import {
 } from '@/constants/familles';
 import type { EtatConservation } from '@/constants/monument-options';
 import { ROUTES } from '@/constants/routes';
-import { C, SERIF } from '@/lib/brand';
 import { toast } from 'sonner';
 import type {
   AideDiagnosticResult,
@@ -310,8 +310,6 @@ export function ProjetWizardPage() {
       ? avecTravaux.flatMap((s) => (s.key === 'questionnaire' ? [REPRISES_STEP, s] : [s]))
       : avecTravaux;
   }, [modeInvite, besoinPeril, etapeFamilles, sauterTravaux, etapeReprises]);
-
-  const eyebrow = existingProjetId ? 'Questionnaire' : 'Nouveau projet';
 
   // Le rail montre le bien : la fiche chargée, ou le brouillon en invité.
   const monumentAffiche = modeInvite
@@ -870,6 +868,32 @@ export function ProjetWizardPage() {
   // de fin avec ce que les réponses déjà données ont trouvé.
   const quitterVersInscription = modeInvite && step === 'questionnaire';
 
+  // Avancement du questionnaire, remonté par `ProjectQuestionnaire` pour la
+  // barre de tête et la jauge de la colonne. Ne vaut que pendant les questions.
+  const [progression, setProgression] = useState(0);
+  const enQuestionnaire =
+    step === 'questionnaire' && !loadingQuestions && !loadError && questions.length > 0;
+
+  /**
+   * Le pied de colonne ne dit que ce qui est vrai.
+   *
+   * En invité, chaque réponse du questionnaire part dans le brouillon
+   * `localStorage` au moment du clic, et le cadrage à chaque « Continuer » : la
+   * phrase de la maquette est exacte, à l'appareil près. Connecté, rien ne
+   * s'écrit à la réponse : le projet naît à la fin du cadrage, et les réponses
+   * ne partent qu'en fin de tronc commun et à la fin du questionnaire (la
+   * confirmation de sortie le dit aussi). On le dit tel quel pendant les
+   * questions, et on se tait sur les étapes de cadrage.
+   */
+  const noteEnregistrement: NoteEnregistrement | null =
+    step === 'diagnostic'
+      ? null
+      : modeInvite
+        ? { texte: 'Vos réponses sont enregistrées au fur et à mesure, sur cet appareil.', auFil: true }
+        : step === 'questionnaire'
+          ? { texte: 'Vos réponses seront enregistrées à la fin du questionnaire.', auFil: false }
+          : null;
+
   // Arrivée directe sur la route invitée sans brouillon (favori, lien
   // partagé) : le prérequis est le monument, on renvoie le décrire.
   if (modeInvite && !brouillon.monument) {
@@ -894,13 +918,14 @@ export function ProjetWizardPage() {
           ? 'Votre brouillon reste sur cet appareil : vous pourrez reprendre ici.'
           : undefined
       }
-      // L'étape « Votre compte » est entièrement centrée sur son chiffre : le
-      // trèfle en filigrane venait s'y poser juste à côté.
-      sansFiligrane={step === 'inscription'}
+      progression={enQuestionnaire ? progression : null}
+      noteEnregistrement={noteEnregistrement}
+      // « Votre compte » et l'attente du diagnostic gardent leur dessin : la
+      // maquette ne les couvre pas.
+      sceneLibre={step === 'inscription' || step === 'diagnostic'}
     >
       {step === 'peril' && (
         <PerilStep
-          eyebrow={eyebrow}
           value={etatConservation}
           onChange={setEtatConservation}
           onNext={handlePerilNext}
@@ -933,13 +958,11 @@ export function ProjetWizardPage() {
             }
             setStep('travaux');
           }}
-          retake={!!existingProjetId}
         />
       )}
 
       {step === 'familles' && (
         <ProjectFamillesStep
-          eyebrow={eyebrow}
           value={familles}
           onChange={setFamilles}
           onNext={() => {
@@ -964,7 +987,6 @@ export function ProjetWizardPage() {
 
       {step === 'reprises' && (
         <ProjectReprisesStep
-          eyebrow={eyebrow}
           reprises={reprises}
           value={reprendreDurables}
           onChange={setReprendreDurables}
@@ -975,7 +997,6 @@ export function ProjetWizardPage() {
 
       {step === 'travaux' && (
         <ProjectTravauxStep
-          eyebrow={eyebrow}
           value={travaux}
           onChange={setTravaux}
           onNext={() => void handleTravauxNext()}
@@ -988,119 +1009,76 @@ export function ProjetWizardPage() {
         />
       )}
 
-      {step === 'questionnaire' && (
-        <div className="space-y-5">
-          {/* Pendant le questionnaire lui-même, pas d'en-tête : la question est
-              la vedette et tout doit tenir à l'écran — le rail situe déjà
-              l'étape. L'en-tête ne sert que les états d'attente/erreur/vide. */}
-          {(loadingQuestions || loadError || questions.length === 0) && (
-            <div className="space-y-1.5">
-              <div
-                className="text-[12px] font-semibold uppercase tracking-[0.2em]"
-                style={{ color: C.orange }}
-              >
-                {eyebrow}
-              </div>
-              <h1
-                className="text-[clamp(1.4rem,3vw,1.8rem)] leading-tight"
-                style={{ fontFamily: SERIF, color: C.ink }}
-              >
-                Précisons votre projet
-              </h1>
-              <p className="max-w-lg text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
-                Vos réponses affinent la liste des aides. Répondez librement&nbsp;—
-                passer une question est tout à fait valable.
+      {step === 'questionnaire' &&
+        (loadingQuestions ? (
+          <div className="attente">
+            <Loader2 className="spin" aria-hidden="true" />
+            Analyse de votre monument…
+          </div>
+        ) : loadError ? (
+          <div className="erreur">
+            <span className="ic">
+              <IconAttention className="h-5 w-5" />
+            </span>
+            <div>
+              <b>Le questionnaire n&rsquo;a pas pu être chargé.</b>
+              <p>
+                {modeInvite
+                  ? 'Vérifiez votre connexion puis réessayez : vos réponses restent sur cet appareil.'
+                  : 'Vérifiez votre connexion puis réessayez : votre projet est bien enregistré.'}
               </p>
             </div>
-          )}
-
-          {loadingQuestions ? (
-            <div
-              className="flex items-center gap-3 py-10 text-[14px]"
-              style={{ color: C.grayMuted }}
-            >
-              <Loader2 className="h-4 w-4 animate-spin" style={{ color: C.blueLight }} />
-              Analyse de votre monument…
-            </div>
-          ) : loadError ? (
-            <div
-              className="flex flex-col items-start gap-4 rounded-2xl border p-6"
-              style={{ borderColor: C.border, background: C.card }}
-            >
-              <span
-                className="flex h-11 w-11 items-center justify-center rounded-xl"
-                style={{ background: 'var(--destructive-muted)', color: 'var(--destructive)' }}
-              >
-                <IconAttention className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="text-[15px] font-semibold" style={{ color: C.ink }}>
-                  Le questionnaire n&rsquo;a pas pu être chargé.
-                </p>
-                <p className="mt-1 text-[14px]" style={{ color: C.grayFg }}>
-                  {modeInvite
-                    ? 'Vérifiez votre connexion puis réessayez — vos réponses restent sur cet appareil.'
-                    : 'Vérifiez votre connexion puis réessayez — votre projet est bien enregistré.'}
-                </p>
-              </div>
+            <button type="button" className="btn b-orange" onClick={() => setLoadError(false)}>
+              <IconRafraichir className="h-4 w-4" />
+              Réessayer
+            </button>
+          </div>
+        ) : questions.length === 0 ? (
+          <div className="fin entre">
+            <AllClear />
+            <h2>Précisons votre projet</h2>
+            <p>
+              Aucune précision supplémentaire n&rsquo;est nécessaire pour ce projet. Lancez le
+              diagnostic pour découvrir les aides mobilisables.
+            </p>
+            <div className="actions">
               <button
                 type="button"
-                onClick={() => setLoadError(false)}
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[14px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)]"
-                style={{ background: C.orange }}
-              >
-                <IconRafraichir className="h-4 w-4" />
-                Réessayer
-              </button>
-            </div>
-          ) : questions.length === 0 ? (
-            <div className="flex flex-col items-center gap-5 py-8 text-center">
-              <AllClear />
-              <p
-                className="max-w-md text-[15px] leading-relaxed"
-                style={{ color: C.grayFg }}
-              >
-                Aucune précision supplémentaire n&rsquo;est nécessaire pour ce projet.
-                Lancez le diagnostic pour découvrir les aides mobilisables.
-              </p>
-              <button
-                type="button"
+                className="btn b-orange"
                 disabled={saving}
                 onClick={handleQuestionnaireNext}
-                className="group inline-flex items-center gap-2 rounded-2xl px-7 py-3.5 text-[16px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
-                style={{ background: C.orange }}
               >
                 {modeInvite ? 'Découvrir mes financements' : 'Voir les aides'}
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                <Picto nom="fleche" />
               </button>
             </div>
-          ) : (
-            <ProjectQuestionnaire
-              key={phase}
-              questions={questions}
-              value={answers}
-              portee={portee}
-              finTronc={{
-                bilan,
-                onDecouvrir: handleQuestionnaireNext,
-                onContinuer: () => void handleContinuerComplement(),
-              }}
-              onFinTronc={handleFinTronc}
-              reprises={reprises}
-              contexteAide={phase === 'complement' ? contexteAide : undefined}
-              // En invité, chaque réponse part aussi dans le brouillon : un F5
-              // au milieu du questionnaire ne perd rien.
-              onChange={(a) => {
-                setAnswers(a);
-                if (modeInvite) brouillon.setAnswers(a);
-              }}
-              onComplete={handleQuestionnaireNext}
-              submitting={saving}
-              completeLabel={modeInvite ? 'Découvrir mes financements' : undefined}
-            />
-          )}
-        </div>
-      )}
+          </div>
+        ) : (
+          <ProjectQuestionnaire
+            key={phase}
+            questions={questions}
+            value={answers}
+            portee={portee}
+            finTronc={{
+              bilan,
+              onDecouvrir: handleQuestionnaireNext,
+              onContinuer: () => void handleContinuerComplement(),
+            }}
+            onFinTronc={handleFinTronc}
+            reprises={reprises}
+            contexteAide={phase === 'complement' ? contexteAide : undefined}
+            // En invité, chaque réponse part aussi dans le brouillon : un F5
+            // au milieu du questionnaire ne perd rien.
+            onChange={(a) => {
+              setAnswers(a);
+              if (modeInvite) brouillon.setAnswers(a);
+            }}
+            onComplete={handleQuestionnaireNext}
+            submitting={saving}
+            completeLabel={modeInvite ? 'Découvrir mes financements' : undefined}
+            onProgression={setProgression}
+          />
+        ))}
 
       {step === 'inscription' && (
         <InscriptionStep synthese={synthese} onRetour={revenirAuQuestionnaire} />

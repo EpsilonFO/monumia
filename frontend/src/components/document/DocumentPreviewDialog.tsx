@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatFileSize } from '@/lib/format-utils';
+import { typeLabel } from '@/lib/document-type-meta';
 import { documentService } from '@/services/document.service';
 import type { Document } from '@/types';
 
@@ -14,21 +15,6 @@ interface DocumentPreviewDialogProps {
   onOpenChange: (open: boolean) => void;
   onAddToProject?: (document: Document) => void;
 }
-
-const typeLabels: Record<string, string> = {
-  photo: 'Photo',
-  plan: 'Plan',
-  devis: 'Devis',
-  facture: 'Facture',
-  attestation: 'Attestation',
-  extrait_cadastral: 'Extrait cadastral',
-  cerfa: 'CERFA',
-  arrete: 'Arrêté',
-  diagnostic: 'Diagnostic',
-  rapport: 'Rapport',
-  correspondance: 'Correspondance',
-  autre: 'Autre',
-};
 
 // HEIC/HEIF are not natively supported by any browser — exclude them from 'image'.
 const BROWSER_IMAGE_MIME = new Set([
@@ -286,7 +272,7 @@ export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToPro
               <DialogTitle className="truncate">{document.nom}</DialogTitle>
               <div className="flex items-center gap-2 mt-1.5">
                 <Badge variant="outline" className="text-xs">
-                  {typeLabels[document.type] ?? document.type}
+                  {typeLabel(document.type)}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
                   {formatFileSize(document.tailleFichier)}

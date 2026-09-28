@@ -3,10 +3,11 @@ import json
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
+from pieces_schema import TYPE_DOCUMENTS, load_pieces
 from services.project_access import (
     allowed_visibilities,
     best_document_role,
@@ -65,6 +66,32 @@ class CreateDocumentRequest(BaseModel):
     description: str | None = None
     visibility: str | None = None
     allowed_user_ids: list[str] = []
+    # La pièce du référentiel (data/pieces.yaml) que ce fichier incarne, quand
+    # il est déposé depuis « À déposer pour vos aides ». C'est l'étiquette qui
+    # le fait reprendre dans chaque dossier qui la demande (services/piece_reuse).
+    piece_id: str | None = None
+
+    @field_validator("type")
+    @classmethod
+    def _type_connu(cls, v: str) -> str:
+        return _valider_type(v)
+
+    @field_validator("piece_id")
+    @classmethod
+    def _piece_connue(cls, v: str | None) -> str | None:
+        # Une étiquette inconnue ne serait reprise par aucun dossier : mieux vaut
+        # un refus net qu'un document qui ne sert à rien sans le dire.
+        if v is not None and v not in load_pieces():
+            raise ValueError(f"pièce inconnue « {v} »")
+        return v
+
+
+def _valider_type(v: str) -> str:
+    """Le type doit exister dans l'enum `document_type` : sans ce contrôle, la
+    base refuse l'insertion et la route répond 500 au lieu de 422."""
+    if v not in TYPE_DOCUMENTS:
+        raise ValueError(f"type de document inconnu « {v} »")
+    return v
 
 
 class UpdateDocumentRequest(BaseModel):
@@ -75,6 +102,11 @@ class UpdateDocumentRequest(BaseModel):
     description: str | None = None
     visibility: str | None = None
     allowed_user_ids: list[str] | None = None
+
+    @field_validator("type")
+    @classmethod
+    def _type_connu(cls, v: str | None) -> str | None:
+        return None if v is None else _valider_type(v)
 
 
 class AddToProjectsRequest(BaseModel):

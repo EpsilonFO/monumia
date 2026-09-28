@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { displayOrder, toggleMulti } from '../question-reponse';
+import {
+  displayOrder,
+  reponsesAffichees,
+  reponsesChoisies,
+  toggleMulti,
+} from '../question-reponse';
 import type { QcmQuestion } from '@/types';
 
 function question(over: Partial<QcmQuestion> = {}): QcmQuestion {
@@ -71,5 +76,28 @@ describe('toggleMulti', () => {
     const current = ['public_commune'];
     toggleMulti(q, current, opt(q, 'prive_personne_physique'));
     expect(current).toEqual(['public_commune']);
+  });
+});
+
+describe('reponsesAffichees', () => {
+  it('retire le pseudo-choix « passer » du moteur, garde les « je ne sais pas » déclarés', () => {
+    const q = question({
+      multiple: false,
+      options: [
+        { id: 'a', label: 'Oui' },
+        { id: 'nsp', label: 'Pas encore décidé', unknown: true },
+        { id: 'skip', label: 'Passer cette question' },
+      ],
+    });
+    expect(reponsesAffichees(q).map((o) => o.id)).toEqual(['a', 'nsp']);
+  });
+});
+
+describe('reponsesChoisies', () => {
+  it('ignore une réponse « skip » déjà enregistrée', () => {
+    expect(reponsesChoisies('skip')).toEqual([]);
+    expect(reponsesChoisies(undefined)).toEqual([]);
+    expect(reponsesChoisies('a')).toEqual(['a']);
+    expect(reponsesChoisies(['a', 'b'])).toEqual(['a', 'b']);
   });
 });

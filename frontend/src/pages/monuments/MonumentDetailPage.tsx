@@ -1,26 +1,18 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import { ChevronLeft, Loader2 } from 'lucide-react';
-import {
-  type IconComponent,
-  IconProjet, IconEquipe, IconDocuments, IconDepot, IconMonument, IconAjouter,
-} from '@/components/icons';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { EmptyState } from '@/components/shared/EmptyState';
 import { MonumentForm } from '@/components/monument/MonumentForm';
 import { MonumentFiche } from '@/components/monument/MonumentFiche';
-import { MonumentSummaryBar } from '@/components/monument/MonumentSummaryBar';
+import { EnTeteMonument } from '@/components/monument/EnTeteMonument';
+import { Onglets, type Onglet } from '@/components/shared/ecrans/Onglets';
+import { Picto } from '@/components/shared/ecrans/Picto';
 import { ProjetCard } from '@/components/projet/ProjetCard';
-import { DocumentCard } from '@/components/document/DocumentCard';
-import { DocumentGrid } from '@/components/document/DocumentGrid';
-import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
-import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
-import { AddToProjectDialog } from '@/components/document/AddToProjectDialog';
-import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
+import { OngletDocuments } from '@/components/document/OngletDocuments';
 import { TeamPanel } from '@/components/sharing/TeamPanel';
 import { projectPermissions } from '@/lib/project-permissions';
 import { ProjectDetailSkeleton } from '@/components/skeletons';
@@ -35,6 +27,7 @@ import { documentService } from '@/services/document.service';
 import { dossierService } from '@/services/dossier.service';
 import { sharingService } from '@/services/sharing.service';
 import { computeMonumentStats, computeProjectStats, projectStage } from '@/lib/project-stats';
+import './monument.css';
 import { useOffre, useOffreMonument, useOffreMonumentConnue } from '@/hooks/useOffre';
 import { libelleMonuments, sousLePlafond } from '@/lib/offres';
 import { PaywallDialog, PaywallOverlay } from '@/components/shared/Paywall';
@@ -87,10 +80,6 @@ export function MonumentDetailPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
-  const [addToProjectDoc, setAddToProjectDoc] = useState<Document | null>(null);
-  const [addDocOpen, setAddDocOpen] = useState(false);
-  const [accessDoc, setAccessDoc] = useState<Document | null>(null);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
   const [paywallProjet, setPaywallProjet] = useState(false);
@@ -220,10 +209,6 @@ export function MonumentDetailPage() {
     () => Object.fromEntries(allDossiers.map((d) => [d.id, d.titre])),
     [allDossiers],
   );
-  const monumentNames = useMemo(
-    () => (monument ? { [monument.id]: monument.nom } : {}),
-    [monument],
-  );
 
   // Le bouton garde son libellé et son geste, et c'est le paywall qui se pose
   // devant quand le plafond est atteint : refermer la modale laisse
@@ -283,30 +268,6 @@ export function MonumentDetailPage() {
     finally { setDeleting(false); }
   };
 
-  const handleRename = async (id: string, newName: string) => {
-    try { await documentService.update(id, { nom: newName }); reloadMonumentDocuments(); toast.success('Document renommé'); }
-    catch (err) { toast.error(err instanceof Error ? err.message : 'Erreur lors du renommage'); }
-  };
-  const handleDeleteDocument = async (id: string) => {
-    try { await documentService.delete(id); reloadMonumentDocuments(); toast.success('Document supprimé'); }
-    catch (err) { toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression'); }
-  };
-  // Ajout d'un document au monument (onglet Documents) : tout membre peut déposer.
-  // Le document est associé au monument (s'il ne l'est pas déjà), sans rattachement
-  // à un dossier précis. Un document fraîchement téléversé l'est déjà.
-  const handleAddDocument = async (doc: Document) => {
-    if (!monumentId) return;
-    try {
-      if (!doc.monumentIds.includes(monumentId)) {
-        await documentService.addToProjects(doc.id, [monumentId]);
-      }
-      reloadMonumentDocuments();
-      toast.success('Document ajouté au monument');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout");
-      throw err;
-    }
-  };
 
   if (isEditing) {
     return (
@@ -327,7 +288,11 @@ export function MonumentDetailPage() {
   // lisible, le reste du monument non (cf. require_monument_read côté serveur).
   // L'onglet Projets ne liste alors que les chantiers de la personne, filtrés
   // par l'API — on masque simplement ce qui n'a pas de contenu pour elle.
-  const equipeDuMonument = !!monument.myRole;
+  // Tant que les droits ne sont pas revenus du serveur (monument relu du cache
+  // local, sans `myRole`), on ne sait pas encore : les onglets restent, comme
+  // le repli de `activeTab` plus haut. Les masquer puis les faire réapparaître
+  // faisait sauter la barre, et ils manquaient si la relecture échouait.
+  const equipeDuMonument = !droitsConnus || !!monument.myRole;
 
   // Monté une seule fois, que l'offre l'ouvre ou non : c'est le même panneau,
   // seul son habillage change.
@@ -344,66 +309,39 @@ export function MonumentDetailPage() {
     />
   );
 
-  const tabs: { value: string; label: string; icon: IconComponent; count: number | null }[] = [
-    { value: 'sanitaire', label: 'Fiche monument', icon: IconMonument, count: null },
-    { value: 'projets', label: 'Projets', icon: IconProjet, count: projets.length },
+  const tabs: Onglet<string>[] = [
+    { value: 'sanitaire', label: 'Fiche monument', picto: 'maison', count: null },
+    { value: 'projets', label: 'Projets', picto: 'dossier', count: projets.length },
     ...(equipeDuMonument
       ? [
-          { value: 'documents', label: 'Documents', icon: IconDocuments, count: monumentDocuments.length },
-          { value: 'equipe', label: 'Équipe', icon: IconEquipe, count: members.length },
+          { value: 'documents', label: 'Documents', picto: 'doc' as const, count: monumentDocuments.length },
+          { value: 'equipe', label: 'Équipe', picto: 'equipe' as const, count: members.length },
         ]
       : []),
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-        <Link to={ROUTES.MONUMENTS} className="hover:opacity-70 transition-opacity">{libelleMonuments(offreCompte)}</Link>
-        <span>/</span>
-        <span style={{ color: C.ink }}>{monument.nom}</span>
-      </div>
+    <div className="ec pmon">
+      <Link
+        className="back"
+        to={ROUTES.MONUMENTS}
+        aria-label={`Retour à ${libelleMonuments(offreCompte).toLowerCase()}`}
+        title={`Retour à ${libelleMonuments(offreCompte).toLowerCase()}`}
+      >
+        <Picto nom="retour" />
+      </Link>
 
-      <MonumentSummaryBar
+      <EnTeteMonument
         monument={monument}
         members={members}
-        onNouveauProjet={goNouveauProjet}
+        onModifier={canEdit ? () => setIsEditing(true) : undefined}
       />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <div role="tablist" aria-label="Sections du monument" className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          {tabs.map(({ value, label, icon: Icon, count }) => {
-            const active = activeTab === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => handleTabChange(value)}
-                className={`relative flex items-center justify-center gap-2 overflow-hidden rounded-xl px-4 py-3.5 text-[15px] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                  active
-                    ? 'bg-primary text-primary-foreground shadow-pop'
-                    : 'border border-border bg-card text-foreground hover:-translate-y-0.5 hover:border-primary hover:shadow-md'
-                }`}
-              >
-                <Icon className={`h-5 w-5 shrink-0 ${active ? 'text-primary-foreground' : 'text-primary'}`} strokeWidth={2} />
-                <span className="truncate">{label}</span>
-                {count !== null && (
-                  <span
-                    className={`inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[12px] font-bold tabular-nums ${
-                      active ? 'bg-white/25 text-primary-foreground' : 'bg-secondary text-primary'
-                    }`}
-                  >
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <Onglets onglets={tabs} actif={activeTab} onChange={handleTabChange} label="Rubriques du monument" />
 
         {/* FICHE SANITAIRE */}
-        <TabsContent value="sanitaire" className="mt-4">
+        <TabsContent value="sanitaire" className="onglet">
           <MonumentFiche
             monument={monument}
             canEdit={canEdit}
@@ -421,90 +359,70 @@ export function MonumentDetailPage() {
         </TabsContent>
 
         {/* PROJETS */}
-        <TabsContent value="projets" className="mt-4 space-y-4">
-          {projets.length > 0 ? (
+        <TabsContent value="projets">
+          {projets.length > 0 && (
             <>
-              {canEdit && (
-                <div className="flex justify-end">
-                  <button
-                    onClick={goNouveauProjet}
-                    className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white transition-all duration-200 hover:shadow-md"
-                    style={{ background: C.orange }}
-                  >
-                    <IconAjouter className="h-3.5 w-3.5" strokeWidth={2} />
-                    Nouveau projet
-                  </button>
+              <div className="sec-h">
+                <div>
+                  <h2>Vos projets</h2>
+                  <p>Chaque projet a ses propres aides et son propre dossier.</p>
                 </div>
-              )}
-              <div className="space-y-4">
-                {projets.map((projet) => (
-                  <ProjetCard
-                    key={projet.id}
-                    projet={projet}
-                    stats={computeProjectStats(projet, digestsByProjet[projet.id] ?? null, dossiers)}
-                    stage={projectStage(
-                      digestsByProjet[projet.id] ?? null,
-                      dossiers.filter((d) => d.projetId === projet.id),
-                      suivis.filter((s) => s.projetId === projet.id),
-                    )}
-                  />
-                ))}
               </div>
+              {projets.map((projet) => (
+                <ProjetCard
+                  key={projet.id}
+                  projet={projet}
+                  stats={computeProjectStats(projet, digestsByProjet[projet.id] ?? null, dossiers)}
+                  stage={projectStage(
+                    digestsByProjet[projet.id] ?? null,
+                    dossiers.filter((d) => d.projetId === projet.id),
+                    suivis.filter((s) => s.projetId === projet.id),
+                  )}
+                />
+              ))}
             </>
+          )}
+          {canEdit ? (
+            <div className="new" style={projets.length === 0 ? { marginTop: 35 } : undefined}>
+              <div>
+                <b>{projets.length === 0 ? 'Votre premier projet' : 'Un autre chantier ou une autre activité ?'}</b>
+                <p>
+                  Un projet correspond à un chantier. Reprendre la couverture, c'en est un. Accueillir une
+                  compagnie en résidence, c'en est un autre. Les financeurs ne sont pas les mêmes.
+                </p>
+              </div>
+              <button className="btn b-orange" type="button" onClick={goNouveauProjet}>
+                <Picto nom="plus" />
+                Nouveau projet
+              </button>
+            </div>
           ) : (
-            <EmptyState
-              icon={IconProjet}
-              title="Aucun projet de travaux"
-              description="Un projet, c'est un chantier : sa description, son questionnaire et les aides qui lui correspondent. Vous pouvez en mener plusieurs de front sur un même monument."
-              action={
-                canEdit ? (
-                  <button
-                    onClick={goNouveauProjet}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md"
-                    style={{ background: C.orange }}
-                  >
-                    <IconAjouter className="h-4 w-4" strokeWidth={2} />
-                    Lancer un projet de travaux
-                  </button>
-                ) : undefined
-              }
-            />
+            projets.length === 0 && (
+              <p className="vide" style={{ marginTop: 35 }}>
+                Aucun projet de travaux sur ce monument pour l'instant.
+              </p>
+            )
           )}
         </TabsContent>
 
         {/* DOCUMENTS */}
-        <TabsContent value="documents" className="mt-4 space-y-4">
-          <div className="flex justify-end">
-            <button onClick={() => setAddDocOpen(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md" style={{ background: C.blue }}>
-              <IconDepot className="h-3.5 w-3.5" strokeWidth={1.8} />Ajouter un document
-            </button>
-          </div>
-          {monumentDocuments.length > 0 ? (
-            <DocumentGrid
-              items={monumentDocuments}
-              keyOf={(doc) => doc.id}
-              renderItem={(doc) => (
-                <DocumentCard
-                  document={doc}
-                  dossierNames={dossierNames}
-                  monumentNames={monumentNames}
-                  onClick={() => setPreviewDoc(doc)}
-                  onRename={handleRename}
-                  onDelete={handleDeleteDocument}
-                  onAddToProject={(doc) => { setPreviewDoc(null); setAddToProjectDoc(doc); }}
-                  myRole={monument.myRole ?? null}
-                  uploaderName={uploaderNames[doc.userId]}
-                  onDocumentUpdated={reloadMonumentDocuments}
-                />
-              )}
-            />
-          ) : (
-            <EmptyState icon={IconDocuments} title="Aucun document" description="Les documents rattachés à ce monument apparaîtront ici." />
-          )}
+        <TabsContent value="documents" className="onglet">
+          {/* Réservé à l'équipe du monument (cf. `activeTab`) : la liste vient de
+              `documentService.getAll({ monumentId })`, tous membres confondus. */}
+          <OngletDocuments
+            ici={{ type: 'monument', id: monument.id, nom: monument.nom }}
+            monumentId={monument.id}
+            documents={monumentDocuments}
+            onChange={reloadMonumentDocuments}
+            role={monument.myRole ?? null}
+            auteurs={uploaderNames}
+            dossierNames={dossierNames}
+            vide="Les documents rattachés à ce monument apparaîtront ici."
+          />
         </TabsContent>
 
         {/* ÉQUIPE */}
-        <TabsContent value="equipe" className="mt-4">
+        <TabsContent value="equipe" className="onglet">
           {equipeAccessible ? (
             equipePanel
           ) : !droitsConnus ? (
@@ -525,28 +443,6 @@ export function MonumentDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <DocumentPreviewDialog document={previewDoc} open={!!previewDoc} onOpenChange={(open) => { if (!open) setPreviewDoc(null); }} onAddToProject={(doc) => { setPreviewDoc(null); setAddToProjectDoc(doc); }} />
-      <AddToProjectDialog
-        document={addToProjectDoc}
-        open={!!addToProjectDoc}
-        onOpenChange={(open) => { if (!open) { setAddToProjectDoc(null); reloadMonumentDocuments(); } }}
-      />
-      <AttachDocumentDialog
-        open={addDocOpen}
-        onOpenChange={setAddDocOpen}
-        monumentId={monument.id}
-        onAttach={handleAddDocument}
-        onUploaded={(doc) => setAccessDoc(doc)}
-      />
-      {accessDoc && (
-        <ManageDocumentAccessDialog
-          document={accessDoc}
-          myRole={monument.myRole ?? null}
-          open={!!accessDoc}
-          onOpenChange={(open) => { if (!open) setAccessDoc(null); }}
-          onSaved={reloadMonumentDocuments}
-        />
-      )}
 
       <PaywallDialog
         open={paywallProjet}

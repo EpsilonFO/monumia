@@ -5,6 +5,7 @@ import {
   type Famille,
 } from '@/constants/familles';
 import { CadrageStep, CadrageTile } from './CadrageStep';
+import { FAMILLES_STEP } from './etapes';
 
 interface ProjectFamillesStepProps {
   /**
@@ -16,8 +17,6 @@ interface ProjectFamillesStepProps {
   onChange: (familles: Famille[] | null) => void;
   onNext: () => void;
   onBack?: () => void;
-  /** Surtitre : « Nouveau projet » ou « Questionnaire » selon le parcours. */
-  eyebrow: string;
   saving?: boolean;
 }
 
@@ -52,7 +51,6 @@ export function ProjectFamillesStep({
   onChange,
   onNext,
   onBack,
-  eyebrow,
   saving,
 }: ProjectFamillesStepProps) {
   const selected = value ?? [];
@@ -70,40 +68,36 @@ export function ProjectFamillesStep({
 
   return (
     <CadrageStep
-      eyebrow={eyebrow}
-      title="Que voulez-vous faire vivre&nbsp;?"
-      intro="Plusieurs réponses possibles. Les aides ne financent pas les mêmes activités, et nous ne vous poserons que les questions de celles que vous cochez."
+      rubrique={FAMILLES_STEP.label}
+      title="Que voulez-vous faire vivre ?"
+      consigne="Plusieurs réponses possibles."
+      pourquoi="Les aides ne financent pas les mêmes activités, et nous ne vous poserons que les questions de celles que vous cochez."
+      multiple
       onNext={onNext}
       onBack={onBack}
       nextDisabled={value === null}
       nextHint="Cochez au moins une activité, ou « Je ne sais pas encore »."
       saving={saving}
     >
-      <div
-        role="group"
-        aria-label="Activités envisagées"
-        className="grid grid-cols-1 gap-2.5 sm:grid-cols-2"
-      >
-        {FAMILLES_CHOIX.map((famille) => {
-          const option = LIBELLES.get(famille);
-          return (
-            <CadrageTile
-              key={famille}
-              label={option?.label ?? famille}
-              hint={option?.hint}
-              multiple
-              compact
-              selected={selected.includes(famille)}
-              onSelect={() => toggle(famille)}
-            />
-          );
-        })}
-      </div>
+      {FAMILLES_CHOIX.map((famille) => {
+        const option = LIBELLES.get(famille);
+        return (
+          <CadrageTile
+            key={famille}
+            label={option?.label ?? famille}
+            hint={option?.hint}
+            multiple
+            selected={selected.includes(famille)}
+            onSelect={() => toggle(famille)}
+          />
+        );
+      })}
 
       <CadrageTile
         label="Des travaux sont nécessaires"
         hint="Aménagement, mise aux normes, restauration : nous vous demanderons sur quoi ils portent."
         multiple
+        large
         selected={avecTravaux}
         onSelect={() => toggle(FAMILLE_TRAVAUX)}
       />
@@ -111,6 +105,7 @@ export function ProjectFamillesStep({
       <CadrageTile
         label="Je ne sais pas encore, montrez-moi tout"
         hint="Nous vous montrerons toutes les aides à portée du monument, sans filtrer sur l'activité."
+        large
         selected={toutMontrer}
         onSelect={() => onChange(toutMontrer ? null : [])}
       />

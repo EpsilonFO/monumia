@@ -25,23 +25,9 @@ import { formatFileSize } from '@/lib/format-utils';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { ACCEPT_ATTR, MAX_FILE_SIZE_MB, validateFile } from '@/constants/file-types';
+import { TYPES_DOCUMENT, typeLabel } from '@/lib/document-type-meta';
 import { toast } from 'sonner';
 import type { Document, DocumentType } from '@/types';
-
-const TYPE_LABELS: Record<DocumentType, string> = {
-  photo: 'Photo',
-  plan: 'Plan',
-  devis: 'Devis',
-  facture: 'Facture',
-  attestation: 'Attestation',
-  extrait_cadastral: 'Extrait cadastral',
-  cerfa: 'CERFA',
-  arrete: 'Arrêté',
-  diagnostic: 'Diagnostic',
-  rapport: 'Rapport',
-  correspondance: 'Correspondance',
-  autre: 'Autre',
-};
 
 interface AttachDocumentDialogProps {
   open: boolean;
@@ -258,9 +244,9 @@ export function AttachDocumentDialog({
                         <SelectValue placeholder="Choisir..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {(Object.entries(TYPE_LABELS) as [DocumentType, string][]).map(([value, label]) => (
+                        {TYPES_DOCUMENT.map((value) => (
                           <SelectItem key={value} value={value}>
-                            {label}
+                            {typeLabel(value)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -368,7 +354,7 @@ export function AttachDocumentDialog({
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium truncate">{doc.nom}</span>
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
-                                {TYPE_LABELS[doc.type] ?? doc.type}
+                                {typeLabel(doc.type)}
                               </Badge>
                             </div>
                             <p className="text-xs text-muted-foreground truncate">

@@ -1,6 +1,5 @@
 import { NavLink } from 'react-router';
 import { IconAccount } from '@/components/icons';
-import { C } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -17,21 +16,15 @@ export function OwnerAccountMenu() {
     <NavLink
       to={ROUTES.PROFIL}
       className={({ isActive }) =>
-        `flex items-center gap-2 rounded-full p-1 pr-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:pr-2.5 ${
-          isActive ? 'bg-[var(--secondary)]' : 'hover:bg-[var(--secondary)]'
+        `flex items-center gap-2.5 rounded-full p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:pr-3 ${
+          isActive ? 'bg-secondary' : 'hover:bg-muted'
         }`
       }
     >
-      <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold"
-        style={{ background: C.paleBlue, color: C.blue }}
-      >
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-primary">
         {initials || <IconAccount size={18} />}
       </span>
-      <span
-        className="hidden max-w-[120px] truncate text-[13.5px] font-medium sm:block"
-        style={{ color: C.ink }}
-      >
+      <span className="hidden max-w-[140px] truncate text-[13.5px] font-semibold text-foreground sm:block">
         {user?.prenom ?? 'Mon compte'}
       </span>
     </NavLink>

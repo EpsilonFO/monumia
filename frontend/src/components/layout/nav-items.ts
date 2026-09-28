@@ -1,11 +1,10 @@
-import type { ComponentType } from 'react';
-import { IconDashboard, IconMonument, IconDocuments } from '@/components/icons';
+import type { NomPicto } from '@/components/shared/ecrans/Picto';
 import { ROUTES } from '@/constants/routes';
 import { libelleMonuments, type Offre } from '@/lib/offres';
 
 export interface NavItem {
   to: string;
-  icon: ComponentType<{ size?: number; className?: string }>;
+  picto: NomPicto;
   label: string;
   end?: boolean;
 }
@@ -25,8 +24,8 @@ export interface NavItem {
  */
 export function navItemsPour(offre: Offre): NavItem[] {
   return [
-    { to: ROUTES.DASHBOARD, icon: IconDashboard, label: 'Tableau de bord', end: true },
-    { to: ROUTES.MONUMENTS, icon: IconMonument, label: libelleMonuments(offre) },
-    { to: ROUTES.DOCUMENTS, icon: IconDocuments, label: 'Mes documents' },
+    { to: ROUTES.DASHBOARD, picto: 'grille', label: 'Tableau de bord', end: true },
+    { to: ROUTES.MONUMENTS, picto: 'maison', label: libelleMonuments(offre) },
+    { to: ROUTES.DOCUMENTS, picto: 'doc', label: 'Mes documents' },
   ];
 }

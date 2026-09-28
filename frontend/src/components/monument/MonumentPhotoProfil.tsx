@@ -9,6 +9,7 @@ import { monumentService } from '@/services/monument.service';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { C } from '@/lib/brand';
+import { Picto } from '@/components/shared/ecrans/Picto';
 import type { Monument } from '@/types';
 
 /** 5 Mo : au-delà, c'est une photo brute d'appareil, inutile pour une vignette. */
@@ -28,6 +29,13 @@ interface MonumentPhotoProfilProps {
   /** Rayon des angles. La fiche monument la veut en planche (angles courts),
    *  proche des photos de sa galerie ; ailleurs, la vignette reste arrondie. */
   radius?: string;
+  /** Hauteur / largeur du cadre. 9/16 par défaut (le héros du tableau de bord) ;
+   *  l'en-tête de la page monument prend le 16/10 de la maquette. */
+  ratio?: number;
+  /** Sans photo et avec le droit d'en mettre une : le cadre devient l'invite
+   *  de la maquette (pointillé bleu, appareil photo, « Ajouter une photo »)
+   *  plutôt que la fleur sur bleu profond. */
+  invite?: boolean;
 }
 
 /**
@@ -43,6 +51,8 @@ export function MonumentPhotoProfil({
   canEdit,
   width = 148,
   radius = '1.125rem',
+  ratio = RATIO,
+  invite = false,
 }: MonumentPhotoProfilProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -108,9 +118,39 @@ export function MonumentPhotoProfil({
   // ici : elle appartient à la galerie de la fiche.
   const removable = canEdit && photo?.type === 'profil';
 
+  const choisir = () => (url ? setARecadrer(url) : inputRef.current?.click());
+
+  if (invite && canEdit && !url) {
+    return (
+      <>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          onChange={(e) => handleFile(e.target.files?.[0])}
+        />
+        <button type="button" className="photo-invite" onClick={choisir} disabled={busy}>
+          <span>{busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Picto nom="photo" />}</span>
+          <b>Ajouter une photo</b>
+        </button>
+        <PhotoCropDialog
+          open={aRecadrer !== null}
+          onOpenChange={(o) => {
+            if (!o && !busy) setARecadrer(null);
+          }}
+          source={aRecadrer}
+          busy={busy}
+          onCropped={handleCropped}
+          onChooseAnother={() => inputRef.current?.click()}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="group/photo flex w-full shrink-0 flex-col items-center gap-1" style={{ maxWidth: width }}>
-      <div className="relative w-full" style={{ aspectRatio: `1 / ${RATIO}` }}>
+      <div className="relative w-full" style={{ aspectRatio: `1 / ${ratio}` }}>
         <div
           className="h-full w-full overflow-hidden"
           style={{
@@ -143,7 +183,7 @@ export function MonumentPhotoProfil({
             />
             <button
               type="button"
-              onClick={() => (url ? setARecadrer(url) : inputRef.current?.click())}
+              onClick={choisir}
               disabled={busy}
               aria-label={url ? 'Recadrer la photo du monument' : 'Ajouter une photo du monument'}
               className="absolute inset-0 flex items-center justify-center text-white opacity-0 transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-100"
@@ -178,7 +218,7 @@ export function MonumentPhotoProfil({
       {canEdit && (
         <button
           type="button"
-          onClick={() => (url ? setARecadrer(url) : inputRef.current?.click())}
+          onClick={choisir}
           disabled={busy}
           className="inline-flex items-center gap-1 text-[11px] font-medium transition-colors hover:underline disabled:cursor-wait"
           style={{ color: C.grayMuted }}

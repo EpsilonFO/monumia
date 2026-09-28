@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router';
 import { ArrowRight } from 'lucide-react';
 import { WizardShell } from '@/components/project/wizard/WizardShell';
 import { DiagnosticLoader } from '@/components/project/wizard/DiagnosticLoader';
-import { PROJET_WIZARD_STEPS_INVITE } from '@/components/project/wizard/WizardRail';
+import { PROJET_WIZARD_STEPS_INVITE } from '@/components/project/wizard/etapes';
 import { IconAttention, IconRafraichir } from '@/components/icons';
 import { useBrouillonInviteStore } from '@/stores/useBrouillonInviteStore';
 import {
@@ -138,6 +138,8 @@ export function RepriseBrouillonPage() {
       confirmQuit={false}
       quitDisabled
       exitTo={ROUTES.MONUMENTS}
+      // L'attente et les échecs gardent leur dessin : la maquette ne les couvre pas.
+      sceneLibre
     >
       {echec === null ? (
         <DiagnosticLoader />

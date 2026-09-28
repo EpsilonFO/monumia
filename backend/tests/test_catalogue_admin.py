@@ -129,6 +129,36 @@ class SurchargeFaitTests(unittest.TestCase):
             [(o.id, o.label) for o in effectif.options or []], [("culte", "Église ou chapelle")]
         )
 
+    def test_surcharge_doptions_garde_les_descriptions_du_yaml(self) -> None:
+        """L'administration n'édite pas `description` : reformuler un libellé
+        ne doit ni l'effacer ni faire échouer la surcharge. Une réponse
+        nouvelle n'en a pas."""
+        original = _fact_enum(
+            options=[
+                {"id": "culte", "label": "Lieu de culte", "description": "Église, temple."},
+                {"id": "musee", "label": "Musée"},
+            ]
+        )
+        effectif = ca.surcharger_fait(
+            original,
+            SurchargeFait(
+                fact_key="k",
+                options=[
+                    OptionSurchargee(id="culte", label="Église ou chapelle"),
+                    OptionSurchargee(id="musee", label="Musée"),
+                    OptionSurchargee(id="autre", label="Autre usage"),
+                ],
+            ),
+        )
+        self.assertEqual(
+            [(o.id, o.label, o.description) for o in effectif.options or []],
+            [
+                ("culte", "Église ou chapelle", "Église, temple."),
+                ("musee", "Musée", None),
+                ("autre", "Autre usage", None),
+            ],
+        )
+
     def test_surcharge_invalide_conserve_le_fait_yaml(self) -> None:
         """Une liste vide sur un enum viole `_options_iff_enum` : la validation
         doit se relancer (d'où model_validate, et non model_copy)."""

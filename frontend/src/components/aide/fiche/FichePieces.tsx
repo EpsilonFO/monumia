@@ -1,10 +1,12 @@
 import { Ico } from './Ico';
+import { Repli } from './Repli';
 import type { PieceAffichee } from '@/lib/fiche-aide';
 
 /**
  * « Ce qu'il faut réunir ». Le bouton « Ajouter » mène au dossier, où se font
  * les dépôts : ouvert s'il existe, créé sinon. Un dossier est une ligne en base,
  * c'est pour cela qu'il ne se crée qu'à ce geste, et pas à l'arrivée sur la page.
+ * Repliée par défaut ; la barre collante (« Réunir les pièces ») la déplie.
  */
 export function FichePieces({
   pieces,
@@ -45,16 +47,22 @@ export function FichePieces({
   );
 
   return (
-    <>
-      <div className="block-head">
-        <h2>Ce qu'il faut réunir</h2>
-        {obligatoires.length > 0 && (
-          <span className="meta">
-            {faites} sur {obligatoires.length} pièce{obligatoires.length > 1 ? 's' : ''} obligatoire
-            {obligatoires.length > 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
+    <Repli
+      id="pieces"
+      className="repli-bloc"
+      titre="Ce qu'il faut réunir"
+      entete={
+        <div className="block-head">
+          <h2>Ce qu'il faut réunir</h2>
+          {obligatoires.length > 0 && (
+            <span className="meta">
+              {faites} sur {obligatoires.length} pièce{obligatoires.length > 1 ? 's' : ''} obligatoire
+              {obligatoires.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      }
+    >
       <div className="card">
         {obligatoires.length > 0 && <div className="pieces">{obligatoires.map(ligne)}</div>}
         {selonCas.length > 0 && (
@@ -70,6 +78,6 @@ export function FichePieces({
         )}
         <div className="pieces-foot"><span>Une pièce déposée une fois sert à tous vos dossiers.</span></div>
       </div>
-    </>
+    </Repli>
   );
 }

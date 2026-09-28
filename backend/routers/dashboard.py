@@ -19,6 +19,7 @@ from routers.aides import (
 )
 from routers.monuments import fetch_user_monuments, sign_photos
 from services.parallele import en_parallele
+from services.pieces_demandees import pieces_demandees
 from services.project_access import projet_role_depuis
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -27,6 +28,33 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 # les aides identifiées et lisent leurs dates limites. Les non éligibles ne sont
 # affichées que sur la page d'un projet, qui recalcule son diagnostic complet.
 _DIGEST_BUCKETS = ("aidesEligibles", "aidesPotentiellementEligibles", "aidesAtteignables")
+
+
+def _est_resolue(question: dict, answers: dict) -> bool:
+    """Miroir d'`estResolue` (frontend/src/lib/diagnostic-bilan.ts) : une
+    question est tranchée dès qu'une réponse autre que « passer » ou qu'une
+    option inconnue du moteur a été donnée."""
+    answer = answers.get(question.get("id"))
+    given = [
+        a
+        for a in (answer if isinstance(answer, list) else [answer])
+        if isinstance(a, str) and a != "skip"
+    ]
+    inconnues = {o.get("id") for o in question.get("options") or [] if o.get("unknown")}
+    return any(a not in inconnues for a in given)
+
+
+def questions_restantes_par_aide(result: dict) -> dict[str, int]:
+    """Nombre de questions encore ouvertes, par aide (source : `aideIds` des
+    questions du moteur, comme `questionsPourAide` côté front)."""
+    answers = result.get("qcmAnswers") or {}
+    compte: dict[str, int] = {}
+    for question in result.get("qcmQuestions") or []:
+        if _est_resolue(question, answers):
+            continue
+        for aide_id in question.get("aideIds") or []:
+            compte[aide_id] = compte.get(aide_id, 0) + 1
+    return compte
 
 
 def build_digest(
@@ -48,7 +76,11 @@ def build_digest(
         "montantPotentielTotal": result.get("montantPotentielTotal"),
         "montantAtteignableTotal": result.get("montantAtteignableTotal"),
         "tauxTravauxMaxPct": result.get("tauxTravauxMaxPct"),
+        # Les pièces que demandent ses aides à portée : la liste « À déposer
+        # pour vos aides » de Mes documents (cf. services/pieces_demandees).
+        "piecesDemandees": pieces_demandees(result, masquer_bientot=masquer_bientot),
     }
+    restantes = questions_restantes_par_aide(result)
     for bucket in _DIGEST_BUCKETS:
         digest[bucket] = [
             {
@@ -67,7 +99,23 @@ def build_digest(
                     "permanent": match["aide"].get("permanent", False),
                     "dateLimite": match["aide"].get("dateLimite"),
                     "montantMax": match["aide"].get("montantMax"),
+                    # De quoi rédiger « À faire maintenant » sur le tableau de
+                    # bord : la carte (titre, chapeau, montant écrit) et le taux
+                    # qui sert de repli au montant. Retenus avec le nom quand
+                    # le guichet n'est pas ouvert et l'offre ne le couvre pas.
+                    **(
+                        {}
+                        if masquer_bientot and match.get("disponibilite") == "bientot"
+                        else {
+                            "nomCourt": match["aide"].get("nomCourt"),
+                            "carte": match["aide"].get("carte"),
+                            "tauxMax": match["aide"].get("tauxMax"),
+                        }
+                    ),
                 },
+                # Questions qui séparent encore l'aide d'un verdict : elles se
+                # posent sur sa fiche, le tableau de bord n'en donne que le nombre.
+                "questionsRestantes": restantes.get(match["aide"]["id"], 0),
                 # Fenêtre de candidature du jour : le digest reste un
                 # sous-ensemble structurel du diagnostic complet, que les
                 # fonctions de project-stats consomment indifféremment.

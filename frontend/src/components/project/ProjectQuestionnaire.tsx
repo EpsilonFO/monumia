@@ -1,21 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { AllClear } from '@/components/illustrations';
-import { QuestionOptions } from '@/components/project/wizard/QuestionOptions';
-import { IconAttention } from '@/components/icons';
+import { EcranQuestion } from '@/components/project/wizard/EcranQuestion';
+import { ReponsesQuestion } from '@/components/project/wizard/ReponsesQuestion';
+import { Picto } from '@/components/shared/ecrans/Picto';
 import {
   computeEliminatedAideIds,
-  ecartParReponse,
   isQuestionServingLiveAide,
   isVisible,
   partitionnerQuestions,
-  selectedIds,
 } from '@/lib/qcm';
+import { reponsesChoisies } from '@/lib/question-reponse';
 import type { RepriseDurable } from '@/services/projet.service';
 import type { BilanDiagnostic } from '@/lib/diagnostic-bilan';
-import { C, SERIF } from '@/lib/brand';
 import { formatCurrency } from '@/lib/format-utils';
-import { cn } from '@/lib/utils';
 import type { ProjectQuestionnaireAnswers, QcmQuestion } from '@/types';
 
 interface ProjectQuestionnaireProps {
@@ -69,7 +67,24 @@ interface ProjectQuestionnaireProps {
    * lui. Liste vide ⇒ rien n'est affiché.
    */
   reprises?: RepriseDurable[];
+  /**
+   * Avancement du questionnaire (0 à 100), remonté à la coquille du wizard qui
+   * le dessine en tête de page et sous l'étape de la colonne. Appelé à chaque
+   * changement.
+   */
+  onProgression?: (pct: number) => void;
 }
+
+/**
+ * La rubrique d'une question, lue sur le `scope` de son fait : le bien, le
+ * chantier ou celui qui dépose. C'est la seule classification que l'ontologie
+ * porte (`categorie` n'est que la clé du fait) ; sans scope, pas de rubrique.
+ */
+const RUBRIQUE_PAR_SCOPE: Record<NonNullable<QcmQuestion['scope']>, string> = {
+  monument: 'Le monument',
+  projet: 'Le projet',
+  proprietaire: 'Le porteur',
+};
 
 /**
  * Bandeau des réponses reprises d'un autre projet du même monument.
@@ -93,64 +108,29 @@ function BandeauReprises({ reprises }: { reprises: RepriseDurable[] }) {
   const titres = [...new Set(reprises.map((r) => r.projetTitre).filter(Boolean))];
   const provenance = titres.length === 1 ? ` « ${titres[0]} »` : ' vos autres projets';
   return (
-    <details className="mb-3 text-[12.5px]" style={{ color: C.grayMuted }}>
-      <summary className="cursor-pointer">
-        {n} réponse{n > 1 ? 's' : ''} reprise{n > 1 ? 's' : ''} de{provenance} sur ce monument
-        {' '}— voir {n > 1 ? 'lesquelles' : 'laquelle'}
+    <details className="reprises">
+      <summary>
+        {n} réponse{n > 1 ? 's' : ''} reprise{n > 1 ? 's' : ''} de{provenance} sur ce monument :
+        voir {n > 1 ? 'lesquelles' : 'laquelle'}
       </summary>
-      <ul className="mt-1.5 space-y-1 border-l pl-3" style={{ borderColor: C.border }}>
+      <ul>
         {reprises.map((r) => (
           <li key={r.fact}>
             {r.question}
             {r.reponse && (
               <>
                 {' '}
-                <span style={{ color: C.ink }}>— {r.reponse}</span>
+                <b>{r.reponse}</b>
               </>
             )}
           </li>
         ))}
       </ul>
-      <p className="mt-1.5">
+      <p>
         Vous avez accepté de les reprendre&nbsp;: elles ne vous sont donc pas reposées.
         Pour les corriger, refaites le questionnaire depuis la page du projet.
       </p>
     </details>
-  );
-}
-
-/**
- * Barre de progression du questionnaire — une jauge, et RIEN d'écrit.
- *
- * Le nombre de questions dépend des aides encore candidates et peut dépasser
- * cinquante : l'annoncer (« Question 3 sur 52 ») décourage avant la première
- * réponse. Une barre dit la même chose sans le chiffre, et elle dit vrai —
- * son dénominateur fond à mesure que les réponses écartent des aides, donc
- * elle avance plus vite que le rang de la question.
- */
-function Progression({ pct }: { pct: number }) {
-  return (
-    <div
-      role="progressbar"
-      aria-label="Progression du questionnaire"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={pct}
-      aria-valuetext={`${pct}\u00a0% du questionnaire parcouru`}
-      className="mb-5 h-1.5 w-full overflow-hidden rounded-full"
-      style={{ background: `color-mix(in srgb, ${C.blue} 12%, transparent)` }}
-    >
-      {/* Un plancher visible : à la première question d'une longue liste, le
-          ratio réel ne ferait qu'un ou deux pixels, qu'on lirait comme une
-          barre vide. `aria-valuenow` reste, lui, la valeur exacte. */}
-      <div
-        className="h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none"
-        style={{
-          width: `${Math.max(pct, 3)}%`,
-          background: `linear-gradient(90deg, ${C.orange}, ${C.orangeVif})`,
-        }}
-      />
-    </div>
   );
 }
 
@@ -175,26 +155,16 @@ function BilanTronc({
     { valeur: complet.ecarteesParReponses, libelle: 'écartées par vos réponses' },
   ];
   return (
-    <div
-      className="w-full max-w-md rounded-2xl border p-4"
-      style={{ borderColor: C.border, background: C.card }}
-    >
-      <div className="grid grid-cols-3 gap-2 text-center">
+    <div className="bilan">
+      <div className="chiffres">
         {chiffres.map((c) => (
           <div key={c.libelle}>
-            <div
-              className="text-[22px] font-semibold tabular-nums leading-none"
-              style={{ color: C.ink }}
-            >
-              {c.valeur}
-            </div>
-            <div className="mt-1 text-[12px] leading-snug" style={{ color: C.grayFg }}>
-              {c.libelle}
-            </div>
+            <strong>{c.valeur}</strong>
+            <span>{c.libelle}</span>
           </div>
         ))}
       </div>
-      <p className="mt-3 border-t pt-2.5 text-[12.5px]" style={{ borderColor: C.border, color: C.grayMuted }}>
+      <p>
         sur {complet.aPortee} aide{complet.aPortee > 1 ? 's' : ''} à portée de votre monument
         {complet.aConfirmerUneQuestion > 0 && (
           <>
@@ -221,33 +191,6 @@ function BilanTronc({
 }
 
 /**
- * L'encart qui suit une réponse écartante : combien d'aides encore en lice elle
- * ferme, et pourquoi (le `pourquoi` du fait). Même geste que le motif de refus
- * sur la fiche d'une aide, à l'échelle de la question.
- *
- * C'est lui qui a fait abandonner l'auto-avance : un texte qui glisse hors de
- * l'écran une demi-seconde après être apparu ne se lit pas. Il informe sans
- * alarmer, ni rouge ni bouton : l'utilisateur corrige sa réponse s'il s'est
- * trompé, ou continue.
- */
-function EncartEcart({ nbAides, pourquoi }: { nbAides: number; pourquoi: string | null }) {
-  return (
-    <div
-      className="animate-fade-in mt-4 flex max-w-[62ch] gap-2.5 rounded-xl border-l-[3px] py-2.5 pl-3 pr-3.5"
-      style={{ borderColor: C.orange, background: C.paleOrange }}
-    >
-      <IconAttention className="mt-[3px] h-4 w-4 shrink-0" style={{ color: C.orange }} />
-      <div className="min-w-0 text-[14px] leading-relaxed">
-        <p className="font-semibold" style={{ color: C.ink }}>
-          Cette réponse écarte {nbAides} aide{nbAides > 1 ? 's' : ''}.
-        </p>
-        {pourquoi && <p style={{ color: C.grayFg }}>{pourquoi}</p>}
-      </div>
-    </div>
-  );
-}
-
-/**
  * Questionnaire du moteur d'aides, posé **une question à la fois** (style Doctolib).
  * On clique une réponse → elle se coche → si elle écarte des aides, un encart dit
  * pourquoi → « Continuer » mène à la question suivante. Jamais d'auto-avance :
@@ -269,6 +212,7 @@ export function ProjectQuestionnaire({
   onFinTronc,
   contexteAide,
   reprises = [],
+  onProgression,
 }: ProjectQuestionnaireProps) {
   // Questions déjà affichées, par id. Une question que le curseur a dépassée ne
   // doit plus jamais disparaître, même passée : le parcours se repère à un
@@ -332,7 +276,7 @@ export function ProjectQuestionnaire({
   const q = onFinish ? null : questions[index];
 
   // Changement d'écran : on note la question comme VUE et on donne le focus.
-  // Celui des réponses appartient à `QuestionOptions` (`autoFocus`), qui possède
+  // Celui des réponses appartient à `ReponsesQuestion` (`autoFocus`), qui possède
   // les refs de ses boutons ; ici il ne reste que l'écran de fin.
   useEffect(() => {
     if (onFinish) {
@@ -406,6 +350,11 @@ export function ProjectQuestionnaire({
   }
   const pct = highWater.pct;
 
+  // La barre est dessinée par la coquille (tête de page et colonne).
+  useEffect(() => {
+    onProgression?.(pct);
+  }, [pct, onProgression]);
+
   // ─── Écran de fin du TRONC COMMUN ───
   // Il reste des questions, mais elles ne concernent chacune qu'une seule aide :
   // les poser ici serait le tunnel qu'on cherche à éviter. Deux options de même
@@ -414,85 +363,65 @@ export function ProjectQuestionnaire({
     const bilan = finTronc.bilan;
     const r = bilan?.questionsRestantes ?? restantes;
     return (
-      <div>
-        <Progression pct={pct} />
-        <div className={cn('flex flex-col items-center gap-5 py-8 text-center', slideClass)}>
-          <AllClear />
-          <h2
-            ref={finishRef}
-            tabIndex={-1}
-            className="text-[clamp(1.4rem,3.2vw,1.9rem)] leading-tight outline-none"
-            style={{ fontFamily: SERIF, color: C.ink }}
-          >
-            Le tronc commun est terminé
-          </h2>
-          <p className="max-w-md text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
-            Les questions suivantes ne concernent plus qu&rsquo;une aide chacune. Vous
-            pouvez les garder pour plus tard&nbsp;: elles vous seront reposées sur la
-            carte de l&rsquo;aide concernée.
-          </p>
-          <BandeauReprises reprises={reprises} />
+      <div className={`fin ${slideClass}`}>
+        <AllClear />
+        <h2 ref={finishRef} tabIndex={-1}>
+          Le tronc commun est terminé
+        </h2>
+        <p>
+          Les questions suivantes ne concernent plus qu&rsquo;une aide chacune. Vous pouvez les
+          garder pour plus tard&nbsp;: elles vous seront reposées sur la carte de l&rsquo;aide
+          concernée.
+        </p>
+        <BandeauReprises reprises={reprises} />
 
-          {bilan === null ? (
-            <div
-              className="flex items-center gap-2 py-2 text-[13.5px]"
-              style={{ color: C.grayMuted }}
-            >
-              <Loader2 className="h-4 w-4 animate-spin" style={{ color: C.blueLight }} />
-              Calcul de votre diagnostic…
-            </div>
-          ) : (
-            <BilanTronc bilan={bilan} />
-          )}
-
-          {/* Deux boutons de même poids : ce sont deux intentions, pas une
-              action et son annulation. */}
-          <div className="flex w-full max-w-md flex-col gap-2.5">
-            <button
-              type="button"
-              onClick={finTronc.onDecouvrir}
-              disabled={submitting}
-              className="group inline-flex min-h-[3.25rem] items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-[16px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
-              style={{ background: C.orange }}
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Analyse des aides en cours…
-                </>
-              ) : (
-                <>
-                  Découvrir mon diagnostic
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={finTronc.onContinuer}
-              disabled={submitting || bilan === null}
-              className="rounded-2xl border-[1.5px] px-5 py-3 text-[15px] font-semibold transition-colors hover:bg-warning-muted disabled:opacity-50"
-              style={{ borderColor: C.orange, color: C.ink, background: C.card }}
-            >
-              Répondre aux {r} question{r > 1 ? 's' : ''} restante{r > 1 ? 's' : ''}
-              <span className="ml-1.5 font-normal tabular-nums" style={{ color: C.orange }}>
-                (≈ {bilan?.minutesEstimees ?? 0} min)
-              </span>
-            </button>
+        {bilan === null ? (
+          <div className="attente">
+            <Loader2 className="spin" aria-hidden="true" />
+            Calcul de votre diagnostic…
           </div>
+        ) : (
+          <BilanTronc bilan={bilan} />
+        )}
 
-          {!submitting && (
-            <button
-              type="button"
-              onClick={goBack}
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium underline-offset-2 hover:underline"
-              style={{ color: C.grayMuted }}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Revoir mes réponses
-            </button>
-          )}
+        {/* Deux boutons de même poids : ce sont deux intentions, pas une
+            action et son annulation. */}
+        <div className="actions">
+          <button
+            type="button"
+            className="btn b-orange"
+            onClick={finTronc.onDecouvrir}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="spin" aria-hidden="true" />
+                Analyse des aides en cours…
+              </>
+            ) : (
+              <>
+                Découvrir mon diagnostic
+                <Picto nom="fleche" />
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            className="btn b-line"
+            onClick={finTronc.onContinuer}
+            disabled={submitting || bilan === null}
+          >
+            Répondre aux {r} question{r > 1 ? 's' : ''} restante{r > 1 ? 's' : ''}
+            <em>(≈ {bilan?.minutesEstimees ?? 0} min)</em>
+          </button>
         </div>
+
+        {!submitting && (
+          <button type="button" className="retour" onClick={goBack}>
+            <Picto nom="retour" />
+            Revoir mes réponses
+          </button>
+        )}
       </div>
     );
   }
@@ -501,155 +430,104 @@ export function ProjectQuestionnaire({
   if (onFinish) {
     const answered = questions.filter((qq) => value[qq.id] !== undefined).length;
     return (
-      <div>
-        <Progression pct={pct} />
-        <div className={cn('flex flex-col items-center gap-5 py-10 text-center', slideClass)}>
-          <AllClear />
-          <h2
-            ref={finishRef}
-            tabIndex={-1}
-            className="text-[clamp(1.5rem,3.4vw,2rem)] leading-tight outline-none"
-            style={{ fontFamily: SERIF, color: C.ink }}
-          >
-            C&rsquo;est tout&nbsp;!
-          </h2>
-          <p className="max-w-sm text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
-            {answered > 0
-              ? `Vous avez répondu à ${answered} question${answered > 1 ? 's' : ''}. `
-              : total === 0
-                ? 'Aucune précision supplémentaire n’était nécessaire. '
-                : 'Pas de souci si vous avez passé des questions. '}
-            On met à jour vos aides.
-          </p>
-          <BandeauReprises reprises={reprises} />
-          <button
-            type="button"
-            onClick={onComplete}
-            disabled={submitting}
-            className="group mt-1 inline-flex min-h-[3.25rem] items-center gap-2 rounded-2xl px-7 py-3.5 text-[16px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
-            style={{ background: C.orange }}
-          >
+      <div className={`fin ${slideClass}`}>
+        <AllClear />
+        <h2 ref={finishRef} tabIndex={-1}>
+          C&rsquo;est tout&nbsp;!
+        </h2>
+        <p>
+          {answered > 0
+            ? `Vous avez répondu à ${answered} question${answered > 1 ? 's' : ''}. `
+            : total === 0
+              ? 'Aucune précision supplémentaire n’était nécessaire. '
+              : 'Pas de souci si vous avez passé des questions. '}
+          On met à jour vos aides.
+        </p>
+        <BandeauReprises reprises={reprises} />
+        <div className="actions">
+          <button type="button" className="btn b-orange" onClick={onComplete} disabled={submitting}>
             {submitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="spin" aria-hidden="true" />
                 Analyse des aides en cours…
               </>
             ) : (
               <>
                 {completeLabel}
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                <Picto nom="fleche" />
               </>
             )}
           </button>
-          {!submitting && (
-            <button
-              type="button"
-              onClick={goBack}
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium underline-offset-2 hover:underline"
-              style={{ color: C.grayMuted }}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Revoir mes réponses
-            </button>
-          )}
         </div>
+        {!submitting && (
+          <button type="button" className="retour" onClick={goBack}>
+            <Picto nom="retour" />
+            Revoir mes réponses
+          </button>
+        )}
       </div>
     );
   }
 
   // ─── Une question à la fois ───
   const multiple = !!q!.multiple;
-  const chosen = selectedIds(q!, value);
+  // Hors pseudo-choix « passer » : une réponse `skip` déjà enregistrée ne
+  // coche rien et n'ouvre pas « Continuer ».
+  const chosen = reponsesChoisies(value[q!.id]);
   const contexte = contexteAide?.(q!) ?? null;
-  // Sur toutes les questions, pas seulement le parcours : les aides déjà
-  // écartées par une question masquée comptent aussi, comme dans `questions`.
-  const ecart = ecartParReponse(q!, value, allQuestions);
+  const rubrique = q!.scope ? RUBRIQUE_PAR_SCOPE[q!.scope] : null;
 
   return (
-    <div>
-      {/* Une barre, mais jamais de compteur « Question N sur M » : le nombre
-          de questions dépend des aides candidates et peut dépasser cinquante,
-          ce qui décourage avant même la première réponse. Le rail annonce
-          « Quelques minutes », et les questions sans objet tombent au fil
-          des réponses — d'où une barre qui accélère. */}
-      <Progression pct={pct} />
-
-      {/* Question (glisse à chaque changement) */}
-      <div key={q!.id} className={cn(slideClass, 'pb-1')}>
-        {/* Sur la PREMIÈRE question seulement : dire ce qui a été repris des
-            autres projets. Le répéter à chaque question serait du bruit. */}
-        {index === 0 && <BandeauReprises reprises={reprises} />}
-        {/* Hors tronc commun, chaque question ne sert plus qu'une aide ou deux :
-            on dit laquelle, et ce qu'elle pèse. Sans ce contexte, la question
-            paraît sortie de nulle part — c'est exactement le hors-sujet que le
-            tronc commun vient d'écarter. */}
-        {contexte && (
-          <p
-            className="mb-2 text-[12.5px] font-medium uppercase tracking-[0.12em]"
-            style={{ color: C.orange }}
-          >
-            Pour {contexte.nom}
-            {contexte.nbAides > 1 && ` et ${contexte.nbAides - 1} autre${contexte.nbAides > 2 ? 's' : ''} aide${contexte.nbAides > 2 ? 's' : ''}`}
-            {typeof contexte.montantMax === 'number' && contexte.montantMax > 0 && (
-              <span className="normal-case tracking-normal" style={{ color: C.grayFg }}>
-                {' '}&middot; jusqu&rsquo;à {formatCurrency(contexte.montantMax)}
+    <EcranQuestion
+      // Chaque question glisse à son arrivée, et son encart « Pourquoi »
+      // repart replié.
+      key={q!.id}
+      className={slideClass}
+      // Hors tronc commun, chaque question ne sert plus qu'une aide ou deux :
+      // on dit laquelle, et ce qu'elle pèse. Sans ce contexte, la question
+      // paraît sortie de nulle part.
+      rubrique={
+        rubrique || contexte ? (
+          <>
+            {rubrique}
+            {rubrique && contexte && ' · '}
+            {contexte && (
+              <span className="pour">
+                Pour {contexte.nom}
+                {contexte.nbAides > 1 &&
+                  ` et ${contexte.nbAides - 1} autre${contexte.nbAides > 2 ? 's' : ''} aide${contexte.nbAides > 2 ? 's' : ''}`}
+                {typeof contexte.montantMax === 'number' &&
+                  contexte.montantMax > 0 &&
+                  `, jusqu’à ${formatCurrency(contexte.montantMax)}`}
               </span>
             )}
-          </p>
-        )}
-        <QuestionOptions
-          question={q!}
-          value={value[q!.id]}
-          onAnswer={repondre}
-          onSkip={skip}
-          autoFocus
-        />
-        {/* Annoncé poliment : l'encart arrive après le clic, et le lecteur
-            d'écran doit l'entendre sans perdre le focus de la réponse. */}
-        <div aria-live="polite">{ecart && <EncartEcart {...ecart} />}</div>
-      </div>
-
-      {/* Navigation bas */}
-      <div
-        className="mt-3 flex items-center justify-between border-t py-3"
-        style={{ borderColor: C.border }}
-      >
-        <button
-          type="button"
-          onClick={goBack}
-          disabled={index === 0}
-          className="inline-flex min-h-11 items-center gap-1.5 text-[14px] font-medium transition-opacity disabled:pointer-events-none disabled:opacity-0"
-          style={{ color: C.grayFg }}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Précédent
-        </button>
-        {/* « Continuer » n'avance qu'une fois une réponse donnée : rien de
-            coché ne veut pas dire « aucune de ces réponses » mais « je n'ai pas
-            répondu », et l'échappatoire porte son propre libellé — « Passer
-            cette question », ou le « je ne sais pas » du moteur juste au-dessus. */}
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          {chosen.length === 0 ? (
-            <span className="text-[13px]" style={{ color: C.grayMuted }}>
-              {multiple ? 'Choisissez au moins une réponse.' : 'Choisissez une réponse.'}
-            </span>
-          ) : (
-            <span className="hidden text-[12px] sm:block" style={{ color: C.grayMuted }}>
-              Vous pourrez refaire ce questionnaire plus tard
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={goNext}
-            disabled={chosen.length === 0}
-            className="group inline-flex min-h-11 items-center gap-2 rounded-xl px-5 py-2.5 text-[15px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:shadow-none"
-            style={{ background: C.orange }}
-          >
-            Continuer
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </button>
-        </div>
-      </div>
-    </div>
+          </>
+        ) : null
+      }
+      titre={q!.question}
+      // La consigne doit être lue AVANT de cliquer : la forme carrée des cases
+      // ne suffit pas à dire qu'on peut en cocher plusieurs.
+      consigne={multiple ? 'Plusieurs réponses possibles.' : null}
+      pourquoi={q!.help}
+      // Sur la PREMIÈRE question seulement : dire ce qui a été repris des
+      // autres projets. Le répéter à chaque question serait du bruit.
+      enTete={index === 0 ? <BandeauReprises reprises={reprises} /> : null}
+      multiple={multiple}
+      onPrecedent={index > 0 ? goBack : undefined}
+      // « Passer » efface la réponse : en choix multiple, il effacerait des
+      // cases cochées, d'où son retrait dès qu'il y en a (« Continuer » prend
+      // le relais). En choix simple, il reste offert sur une question déjà
+      // répondue où l'on revient : c'est le seul moyen de se dédire.
+      onPasser={multiple && chosen.length > 0 ? undefined : skip}
+      // « Continuer » n'avance qu'une fois une réponse donnée : rien de coché
+      // ne veut pas dire « aucune de ces réponses » mais « je n'ai pas
+      // répondu », et l'échappatoire porte son propre libellé.
+      onContinuer={goNext}
+      continuerDesactive={chosen.length === 0}
+      continuerIndice={multiple ? 'Choisissez au moins une réponse.' : 'Choisissez une réponse.'}
+      modifiablePlusTard
+    >
+      <ReponsesQuestion question={q!} value={value[q!.id]} onAnswer={repondre} autoFocus />
+    </EcranQuestion>
   );
 }

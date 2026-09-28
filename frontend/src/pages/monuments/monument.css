@@ -1,0 +1,62 @@
+/*
+ * Page d'un monument : maquette `monumia-page-monument.html` (yaml paul),
+ * géométrie reprise telle quelle, couleurs par les tokens `--e-*` (ecrans.css).
+ * L'en-tête et la carte projet servent aussi hors de la page (`.pmon` en racine).
+ */
+
+/* 1. en-tête du monument */
+.pmon .head { margin-top: 16px; background: var(--e-paper); border: 1px solid var(--e-line); border-radius: 21px; box-shadow: var(--e-sh-card); padding: 24.5px; display: grid; grid-template-columns: 227.5px minmax(0, 1fr); gap: 28px; align-items: center; }
+.pmon .photo-invite { width: 100%; aspect-ratio: 16 / 10; border-radius: 14px; border: 1.5px dashed var(--e-blue-line); background: var(--e-blue-soft); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; color: var(--e-blue); text-align: center; padding: 14px; transition: border-color .15s; }
+.pmon .photo-invite:hover { border-color: var(--e-blue); }
+.pmon .photo-invite span { width: 38.5px; height: 38.5px; border-radius: 50%; background: var(--e-blue); color: #fff; display: grid; place-items: center; }
+.pmon .photo-invite span .i { width: 19px; height: 19px; }
+.pmon .photo-invite b { font-weight: 600; font-size: 13px; }
+.pmon .id h1 { font-size: clamp(28px, 4vw, 40px); }
+.pmon .id .loc { margin-top: 9px; font-size: 15px; color: var(--e-body); }
+.pmon .id .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 14px; }
+.pmon .id .edit { margin-top: 14px; display: inline-flex; align-items: center; gap: 7px; background: none; border: 0; padding: 0; font-size: 13px; font-weight: 600; color: var(--e-blue); text-decoration: underline; text-underline-offset: 3.5px; text-decoration-color: color-mix(in srgb, var(--primary) 30%, transparent); }
+.pmon .id .edit .i { width: 14px; height: 14px; }
+
+.pmon .tabs { margin-top: 19px; }
+
+/* 3. projets */
+.pmon .sec-h { margin: 35px 0 16px; }
+.pmon .sec-h p { max-width: 60ch; }
+
+.pmon .proj { position: relative; background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: var(--e-r); overflow: hidden; }
+.pmon .proj + .proj { margin-top: 16px; }
+.pmon .proj.clos { opacity: .75; }
+.pmon .proj-top { padding: 23px 24.5px 21px; display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.pmon .proj-top h3 { font: 700 23px/1.2 var(--e-serif); }
+.pmon .proj-top .st { font-size: 13px; margin-top: 5px; }
+.pmon .proj-top .st b { color: var(--e-orange-ink); font-weight: 600; }
+.pmon .proj-top .marques { display: flex; flex-wrap: wrap; gap: 7px; }
+.pmon .proj-top .marque { font-size: 12px; font-weight: 600; border-radius: var(--e-pill); padding: 4.5px 11.5px; background: var(--e-sand); color: var(--e-body); }
+.pmon .proj-top .marque.urgent { background: var(--e-orange-soft); color: var(--e-orange-ink); }
+.pmon .proj-top .marque.retard { background: var(--e-red-soft); color: var(--e-red); }
+.pmon .proj .steps { padding: 0 24.5px 24.5px; }
+
+.pmon .proj-foot { background: var(--e-blue); color: #fff; padding: 17.5px 24.5px; display: flex; align-items: center; gap: 14px 21px; flex-wrap: wrap; }
+.pmon .proj-foot .num { display: flex; align-items: baseline; gap: 10.5px; }
+.pmon .proj-foot .num b { font: 700 30px/1 var(--e-serif); }
+.pmon .proj-foot .num span { font-size: 14px; color: var(--e-on-blue); }
+.pmon .proj-lien::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.pmon .proj-foot .b-ghost { position: relative; z-index: 1; }
+.pmon .proj:hover { box-shadow: var(--e-sh-card); }
+.pmon .proj:hover h3 { color: var(--e-blue); }
+.pmon .proj-foot .act { margin-left: auto; display: flex; gap: 9px; flex-wrap: wrap; }
+
+.pmon .new { margin-top: 16px; display: flex; align-items: center; gap: 17.5px; flex-wrap: wrap; border: 1.5px dashed var(--e-blue-line); border-radius: var(--e-r); padding: 19px 23px; background: color-mix(in srgb, var(--card) 60%, transparent); }
+.pmon .new div { flex: 1; min-width: 227.5px; }
+.pmon .new b { display: block; font: 700 16.5px/1.3 var(--e-serif); color: var(--e-ink); }
+.pmon .new p { font-size: 13.5px; margin-top: 3.5px; max-width: 70ch; }
+
+.pmon .onglet { margin-top: 24.5px; }
+
+@media (max-width: 760px) {
+  .pmon .head { grid-template-columns: 1fr; padding: 17.5px; gap: 17.5px; }
+  .pmon .proj-top, .pmon .proj-foot { padding-inline: 17.5px; }
+  .pmon .proj .steps { padding-inline: 10.5px; }
+  .pmon .proj-foot .act { margin-left: 0; width: 100%; }
+  .pmon .proj-foot .act .btn { flex: 1; }
+}

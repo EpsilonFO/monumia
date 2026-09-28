@@ -217,7 +217,7 @@ export function PaywallOverlay({
             le voile masque tout l'aperçu. */}
         <div
           aria-hidden
-          className="absolute inset-0 rounded-2xl bg-app-bg"
+          className="absolute inset-0 rounded-2xl bg-background"
           style={{ opacity: 0.3 }}
         />
 
@@ -226,7 +226,7 @@ export function PaywallOverlay({
         <div
           aria-hidden
           className="pointer-events-none absolute inset-x-0 bottom-0 h-24 rounded-b-2xl"
-          style={{ background: 'linear-gradient(to top, var(--app-bg), transparent)' }}
+          style={{ background: 'linear-gradient(to top, var(--background), transparent)' }}
         />
 
         <div className="relative">
