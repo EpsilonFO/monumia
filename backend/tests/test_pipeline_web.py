@@ -15,10 +15,12 @@ import zipfile
 from pathlib import Path
 
 import httpx
+import truststore
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from pipeline.web import Fetcheur, reinitialiser_delais  # noqa: E402
+from pipeline import web  # noqa: E402
+from pipeline.web import Fetcheur, Page, reinitialiser_delais  # noqa: E402
 
 HTML = "<html><body><h1>Aide</h1><p>Taux de 30 %</p></body></html>"
 
@@ -209,6 +211,103 @@ class TestFetcheur(unittest.TestCase):
     def test_entetes_inconnus_refuses(self):
         with self.assertRaises(ValueError):
             Fetcheur(entetes="furtif")
+
+
+class TestRepli(unittest.TestCase):
+    """Le repli `curl_cffi`, remplacé ici par un faux : aucun test ne sort sur le réseau."""
+
+    def setUp(self):
+        reinitialiser_delais()
+        self.appels: list[str] = []
+
+    def repli(self, status: int = 200, erreur: str | None = None):
+        def telecharger(url: str, timeout: float) -> Page:
+            self.appels.append(url)
+            return Page(
+                url=url,
+                url_finale=url,
+                status=status,
+                content_type="text/html",
+                contenu=HTML.encode(),
+                texte=HTML,
+                erreur=erreur,
+            )
+
+        return telecharger
+
+    def fetcheur(self, handler, repli) -> Fetcheur:
+        return Fetcheur(transport=httpx.MockTransport(handler), delai_s=0.0, repli=repli)
+
+    def test_reponse_malformee_passe_par_le_repli(self):
+        # dordogne.fr : deux `Transfer-Encoding`, que httpx refuse.
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.RemoteProtocolError("multiple Transfer-Encoding headers", request=request)
+
+        with self.fetcheur(handler, self.repli()) as f:
+            page = f.get("https://www.dordogne.fr/aides")
+        self.assertTrue(page.ok)
+        self.assertIn("Taux de 30 %", page.markdown())
+        self.assertEqual(self.appels, ["https://www.dordogne.fr/aides"])
+
+    def test_403_persistant_passe_par_le_repli(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(403, text="interdit")
+
+        with self.fetcheur(handler, self.repli()) as f:
+            page = f.get("https://example.org/mur")
+        self.assertTrue(page.ok)
+        self.assertEqual(len(self.appels), 1)
+
+    def test_repli_en_echec_rend_le_403_dorigine(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(403, text="interdit")
+
+        with self.fetcheur(handler, self.repli(status=403)) as f:
+            page = f.get("https://example.org/mur")
+        self.assertEqual(page.status, 403)
+        self.assertEqual(page.texte, "interdit")
+
+    def test_repli_en_echec_ajoute_sa_cause_a_lerreur(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.RemoteProtocolError("malformé", request=request)
+
+        with self.fetcheur(handler, self.repli(status=0, erreur="curl_cffi: refus")) as f:
+            page = f.get("https://example.org/x")
+        self.assertFalse(page.ok)
+        assert page.erreur is not None
+        self.assertIn("RemoteProtocolError", page.erreur)
+        self.assertIn("curl_cffi: refus", page.erreur)
+
+    def test_panne_reseau_ne_declenche_pas_le_repli(self):
+        # DNS, délai, certificat : changer de client n'y ferait rien.
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("DNS", request=request)
+
+        with self.fetcheur(handler, self.repli()) as f:
+            page = f.get("https://inexistant.example/aide")
+        self.assertFalse(page.ok)
+        self.assertEqual(self.appels, [])
+
+    def test_page_ordinaire_ne_declenche_pas_le_repli(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, text=HTML, headers={"content-type": "text/html"})
+
+        with self.fetcheur(handler, self.repli()) as f:
+            f.get("https://example.org/a")
+        self.assertEqual(self.appels, [])
+
+    def test_transport_injecte_sans_repli_ne_sort_pas_sur_le_reseau(self):
+        # Les autres suites construisent `Fetcheur(transport=...)` et renvoient
+        # parfois 403 : le repli par défaut les ferait sortir sur le réseau.
+        f = Fetcheur(transport=httpx.MockTransport(lambda r: httpx.Response(200)))
+        self.assertIsNone(f._repli)
+        f.close()
+
+    def test_client_reel_certificats_du_systeme_et_repli_chrome(self):
+        # eurelien.fr : chaîne incomplète, que certifi seul ne complète pas.
+        self.assertIsInstance(web._CONTEXTE_TLS, truststore.SSLContext)
+        with Fetcheur() as f:
+            self.assertIs(f._repli, web.telecharger_comme_chrome)
 
 
 if __name__ == "__main__":

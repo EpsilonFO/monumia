@@ -30,11 +30,9 @@ import time
 import zipfile
 from datetime import UTC, date, datetime
 from pathlib import Path
-from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
 import html2text
-import httpx
 import yaml
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -377,25 +375,23 @@ def snapshot(slug: str, source: str, label: str | None = None) -> Path:
     # aller-retour réseau, ni sortir sur une erreur httpx qui masque la cause.
     _validate_names(slug, label)
     if source.startswith(("http://", "https://")):
-        # Client plutôt que `httpx.get` : franchir le shield exige de conserver
-        # un cookie entre deux requêtes.
-        with httpx.Client(headers={"User-Agent": UA}, follow_redirects=True, timeout=30) as client:
-            resp = client.get(source)
-            if resp.status_code == 403:
-                # WAF anti-bot : un 403 est déterministe, seul un changement
-                # d'identité a une chance de passer (cf. HEADERS_NAVIGATEUR).
-                resp = client.get(source, headers=HEADERS_NAVIGATEUR)
-            if (defi := resoudre_shield(resp.content)) is not None:
-                nom, valeur = defi
-                client.cookies.set(nom, valeur, domain=urlsplit(str(resp.url)).netloc)
-                resp = client.get(source, headers=HEADERS_NAVIGATEUR)
-            resp.raise_for_status()
-        content_type = resp.headers.get("content-type", "")
-        if "pdf" in content_type or source.lower().endswith(".pdf"):
-            return write_pdf_snapshot(slug, resp.content, url=str(resp.url), label=label)
-        if est_docx(resp.content):
-            return write_docx_snapshot(slug, resp.content, url=str(resp.url), label=label)[0]
-        return write_md_snapshot(slug, str(resp.url), resp.text, label=label)
+        # Le téléchargement passe par le fetcheur du pipeline : 403 → en-têtes de
+        # navigateur, shield, certificats du système et repli `curl_cffi`. Le
+        # skill et le pipeline franchissent ainsi les mêmes sites. Import local :
+        # `pipeline.web` importe ce module.
+        from pipeline.web import Fetcheur
+
+        with Fetcheur() as fetcheur:
+            page = fetcheur.get(source)
+        if not page.ok:
+            raise SystemExit(
+                f"téléchargement impossible : {source} → {page.erreur or f'HTTP {page.status}'}"
+            )
+        if page.est_pdf or source.lower().endswith(".pdf"):
+            return write_pdf_snapshot(slug, page.contenu, url=page.url_finale, label=label)
+        if page.est_docx:
+            return write_docx_snapshot(slug, page.contenu, url=page.url_finale, label=label)[0]
+        return write_md_snapshot(slug, page.url_finale, page.texte, label=label)
 
     src = Path(source).expanduser()
     if not src.exists():

@@ -12,20 +12,33 @@ Ce que ce module ajoute, et que `snapshot()` n'avait pas besoin d'avoir :
     fait fermer une porte plus vite qu'une rafale parallèle ;
   - un cache mémoire, parce qu'une même page est souvent visitée deux fois
     (exploration puis snapshot) ;
-  - un `transport` injectable, pour tester sans réseau.
+  - un `transport` injectable, pour tester sans réseau ;
+  - la vérification des certificats par le magasin du SYSTÈME (`truststore`) et
+    non par le seul bundle `certifi` : eurelien.fr sert une chaîne incomplète
+    que curl et le navigateur complètent, pas certifi ;
+  - un repli par `curl_cffi`, qui se présente avec l'empreinte TLS de Chrome,
+    quand httpx refuse une réponse malformée (dordogne.fr et ses deux en-têtes
+    `Transfer-Encoding`) ou qu'un 403 résiste aux en-têtes de navigateur.
+
+Le repli ne franchit PAS un challenge Cloudflare (« Just a moment… » :
+bretagne.bzh, haute-vienne.fr, sondés le 2026-09-28) : il y faudrait un vrai
+navigateur, ce que ce module ne pilote pas.
 """
 
 from __future__ import annotations
 
+import ssl
 import sys
 import threading
 import time
 from collections import OrderedDict, defaultdict
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
+import truststore
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -53,6 +66,10 @@ _dernier_appel: dict[str, float] = {}
 _garde = threading.Lock()
 
 TYPES_HTML = ("text/html", "application/xhtml")
+
+# Un seul contexte pour tous les clients : un `SSLContext` se partage entre
+# threads, et le construire relit le magasin de certificats du système.
+_CONTEXTE_TLS = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
 
 @dataclass(frozen=True)
@@ -105,6 +122,44 @@ class Page:
         return to_markdown(self.texte) if self.est_html else self.texte
 
 
+Repli = Callable[[str, float], Page]
+
+
+def _page_en_erreur(url: str, erreur: str) -> Page:
+    return Page(
+        url=url, url_finale=url, status=0, content_type="", contenu=b"", texte="", erreur=erreur
+    )
+
+
+def telecharger_comme_chrome(url: str, timeout: float) -> Page:
+    """Le repli : une requête dont la poignée de main TLS est celle de Chrome.
+
+    Import local : `curl_cffi` embarque sa propre libcurl, et la plupart des runs
+    n'en ont jamais besoin.
+    """
+    from curl_cffi import requests as curl_requests
+
+    try:
+        resp = curl_requests.get(
+            url,
+            impersonate="chrome",
+            headers={"Accept-Language": HEADERS_NAVIGATEUR["Accept-Language"]},
+            timeout=timeout,
+            allow_redirects=True,
+        )
+    except curl_requests.RequestsError as exc:
+        return _page_en_erreur(url, f"curl_cffi {type(exc).__name__}: {exc}")
+    contenu = resp.content
+    return Page(
+        url=url,
+        url_finale=str(resp.url),
+        status=resp.status_code,
+        content_type=resp.headers.get("content-type", "").split(";")[0].strip().lower(),
+        contenu=contenu,
+        texte="" if contenu[:5] == b"%PDF-" else resp.text,
+    )
+
+
 def _hote(url: str) -> str:
     return urlsplit(url).netloc.lower()
 
@@ -122,7 +177,12 @@ def _attendre_son_tour(hote: str, delai_s: float) -> None:
 
 
 class Fetcheur:
-    """Client HTTP réutilisable. Un par worker ; les verrous d'hôte sont communs."""
+    """Client HTTP réutilisable. Un par worker ; les verrous d'hôte sont communs.
+
+    `repli` vaut `telecharger_comme_chrome` par défaut, SAUF quand un `transport`
+    est injecté : un transport de test coupe le réseau, repli compris. Un test
+    qui veut exercer le repli passe le sien.
+    """
 
     def __init__(
         self,
@@ -132,17 +192,21 @@ class Fetcheur:
         transport: httpx.BaseTransport | None = None,
         delai_s: float = DELAI_HOTE_S,
         taille_cache: int = TAILLE_CACHE,
+        repli: Repli | None = None,
     ) -> None:
         if entetes not in ("standard", "navigateur"):
             raise ValueError(f"entetes inconnu : {entetes!r} (standard | navigateur)")
         self.entetes = entetes
         self.delai_s = delai_s
+        self.timeout = timeout
         self.taille_cache = taille_cache
+        self._repli = repli if repli is not None or transport else telecharger_comme_chrome
         self._client = httpx.Client(
             headers=self._entetes_de_depart(),
             follow_redirects=True,
             timeout=timeout,
             transport=transport,
+            verify=_CONTEXTE_TLS,
         )
         self._cache: OrderedDict[str, Page] = OrderedDict()
         self._cache_lock = threading.Lock()
@@ -188,17 +252,14 @@ class Fetcheur:
                 nom, valeur = defi
                 self._client.cookies.set(nom, valeur, domain=_hote(str(resp.url)))
                 resp = self._client.get(url, headers=HEADERS_NAVIGATEUR)
+        except httpx.RemoteProtocolError as exc:
+            # Le serveur a bien répondu, mais d'une façon que httpx refuse
+            # (dordogne.fr : deux `Transfer-Encoding`) ; libcurl est plus tolérant.
+            return self._par_le_repli(url, _page_en_erreur(url, f"{type(exc).__name__}: {exc}"))
         except httpx.HTTPError as exc:
-            return Page(
-                url=url,
-                url_finale=url,
-                status=0,
-                content_type="",
-                contenu=b"",
-                texte="",
-                erreur=f"{type(exc).__name__}: {exc}",
-            )
-        return Page(
+            # DNS, délai, certificat : changer de client n'y ferait rien.
+            return _page_en_erreur(url, f"{type(exc).__name__}: {exc}")
+        page = Page(
             url=url,
             url_finale=str(resp.url),
             status=resp.status_code,
@@ -207,6 +268,22 @@ class Fetcheur:
             # `resp.text` sur un PDF produirait des méga-octets de mojibake :
             # le texte n'a de sens que pour les réponses textuelles.
             texte="" if resp.content[:5] == b"%PDF-" else resp.text,
+        )
+        # Les en-têtes de navigateur ont déjà été essayés : si le 403 tient,
+        # c'est l'empreinte TLS de httpx qui est reconnue, pas ses en-têtes.
+        return self._par_le_repli(url, page) if page.status == 403 else page
+
+    def _par_le_repli(self, url: str, echec: Page) -> Page:
+        """La page du repli si elle aboutit ; sinon l'échec d'origine, qui dit mieux la cause."""
+        if self._repli is None:
+            return echec
+        page = self._repli(url, self.timeout)
+        if page.ok:
+            return page
+        if echec.erreur is None:
+            return echec
+        return replace(
+            echec, erreur=f"{echec.erreur} ; repli : {page.erreur or f'HTTP {page.status}'}"
         )
 
     def _du_cache(self, url: str) -> Page | None:
@@ -234,4 +311,12 @@ def reinitialiser_delais() -> None:
         _dernier_appel.clear()
 
 
-__all__ = ["DELAI_HOTE_S", "TAILLE_CACHE", "Fetcheur", "Page", "reinitialiser_delais"]
+__all__ = [
+    "DELAI_HOTE_S",
+    "TAILLE_CACHE",
+    "Fetcheur",
+    "Page",
+    "Repli",
+    "reinitialiser_delais",
+    "telecharger_comme_chrome",
+]

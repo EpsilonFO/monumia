@@ -45,7 +45,9 @@ dev = [
 # La CI fait de même, avec une clé de déploiement en lecture seule
 # (secret PROVIDALL_DEPLOY_KEY, cf. .github/workflows/ci.yml).
 pipeline = [
+    "curl-cffi>=0.16.3",
     "providall",
+    "truststore>=0.10.4",
 ]
 
 [tool.ruff]
