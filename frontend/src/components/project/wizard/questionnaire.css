@@ -130,16 +130,20 @@
 /* Très longues listes (les travaux) : quatre par ligne, et la zone de la
    question s'élargit, barre du haut comprise, pour que tout tienne. */
 .qz .opts.quatre { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.qz .qz-main:has(.opts.quatre) .qz-scene, .qz .qz-main:has(.opts.quatre) .qz-top { max-width: 1000px; }
+.qz .qz-main:has(.opts.quatre) .qz-scene, .qz .qz-main:has(.opts.quatre) .qz-top, .qz .qz-main:has(.opts.quatre) .later { max-width: 1000px; }
+.qz .qz-main:has(.opts.quatre) { padding-top: 18px; }
+.qz .qz-main:has(.opts.quatre) .qz-scene { margin-top: 14px; }
+.qz .qz-main:has(.opts.quatre) .why { margin-top: 10px; padding-block: 10px; }
 @media (max-width: 1200px) {
   .qz .opts.quatre { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 /* réponse à part, sur toute la largeur (« Pas encore déterminé »…) */
 .qz .opt.large { grid-column: 1 / -1; }
 /* longues listes sans précision (les vingt types de travaux) : cartes serrées */
-.qz .opts.serre .opt { min-height: 0; padding: 9px 12px; align-items: center; }
-.qz .opts.serre .opt .rd { margin-top: 0; width: 18px; height: 18px; }
-.qz .opts.serre .opt b { font-size: 13px; }
+.qz .opts.serre { gap: 6px; margin-top: 12px; }
+.qz .opts.serre .opt { min-height: 0; padding: 7px 11px; gap: 9px; align-items: center; border-radius: 11px; }
+.qz .opts.serre .opt .rd { margin-top: 0; width: 17px; height: 17px; }
+.qz .opts.serre .opt b { font-size: 12.5px; line-height: 1.3; }
 .qz .opts:disabled, .qz .opts[aria-disabled="true"] { opacity: .6; }
 
 .qz .liste-reprises { margin-top: 19px; padding: 16px 17.5px; border: 1.5px solid var(--e-line); border-radius: 14px; background: var(--e-paper); list-style: none; display: grid; gap: 7px; font-size: 13px; line-height: 1.45; }

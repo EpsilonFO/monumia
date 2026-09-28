@@ -120,7 +120,15 @@ def condition_rows(aide: Aide, aide_id: str) -> list[dict]:
     return rows
 
 
+# Aides par lot de conditions. Borné par la longueur d'URL du `delete ... in`
+# (un UUID fait 36 caractères), pas par la base.
+LOT = 50
+
+
 def main() -> int:
+    # Sous `docker exec` sans TTY, la sortie est bufferisée par blocs : rien ne
+    # s'affichait avant la fin du script. Ligne par ligne, on voit où il en est.
+    sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
     dry_run = "--dry-run" in sys.argv
     ready_only = "--ready-only" in sys.argv
 
@@ -168,28 +176,38 @@ def main() -> int:
     by_slug = {r["slug"]: r["id"] for r in existing if r.get("slug")}
     by_nom = {r["nom"]: r["id"] for r in existing}
 
+    # Les aides partent une par une (l'index unique sur `slug` est partiel,
+    # PostgREST ne sait pas s'en servir pour un upsert groupé), mais leurs
+    # conditions par lot : trois requêtes par aide, c'était ~1 400 allers-retours
+    # sans un mot à l'écran, que beta.sh semblait attendre indéfiniment.
     created, updated = 0, 0
-    for slug, aide in aides.items():
-        row = aide_to_row(aide)
-        # `raison` (NOT NULL en base) — asymétrie transitoire : tant que les
-        # YAML ne portent pas la finalité, un update ne doit pas écraser la
-        # valeur déjà en base avec [] ; un insert doit en fournir une.
-        if aide.raison:
-            row["raison"] = aide.raison
-        aide_id = by_slug.get(slug) or by_nom.get(aide.nom)
-        if aide_id:
-            supabase.table("aides_v3").update(row).eq("id", aide_id).execute()
-            updated += 1
-        else:
-            row.setdefault("raison", [])
-            result = supabase.table("aides_v3").insert(row).execute()
-            aide_id = result.data[0]["id"]
-            created += 1
+    items = list(aides.items())
+    for start in range(0, len(items), LOT):
+        lot_ids: list[str] = []
+        lot_conditions: list[dict] = []
+        for slug, aide in items[start : start + LOT]:
+            row = aide_to_row(aide)
+            # `raison` (NOT NULL en base) — asymétrie transitoire : tant que les
+            # YAML ne portent pas la finalité, un update ne doit pas écraser la
+            # valeur déjà en base avec [] ; un insert doit en fournir une.
+            if aide.raison:
+                row["raison"] = aide.raison
+            aide_id = by_slug.get(slug) or by_nom.get(aide.nom)
+            if aide_id:
+                supabase.table("aides_v3").update(row).eq("id", aide_id).execute()
+                updated += 1
+            else:
+                row.setdefault("raison", [])
+                result = supabase.table("aides_v3").insert(row).execute()
+                aide_id = result.data[0]["id"]
+                created += 1
+            lot_ids.append(aide_id)
+            lot_conditions.extend(condition_rows(aide, aide_id))
 
-        supabase.table("aide_conditions").delete().eq("aide_id", aide_id).execute()
-        rows = condition_rows(aide, aide_id)
-        if rows:
-            supabase.table("aide_conditions").insert(rows).execute()
+        supabase.table("aide_conditions").delete().in_("aide_id", lot_ids).execute()
+        if lot_conditions:
+            supabase.table("aide_conditions").insert(lot_conditions).execute()
+        print(f"  {min(start + LOT, len(items))}/{len(items)} aides")
 
     print(f"✓ aides : {updated} mises à jour, {created} créées")
     print(
