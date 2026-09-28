@@ -95,7 +95,7 @@ Le lanceur ([scripts/dev/](scripts/dev/)) prépare d'abord le dépôt, puis ouvr
 - vérifie que les ports 8000, 3000 et 3001 sont libres, et propose de libérer ceux
   qui ne le sont pas.
 
-Dans l'écran : `↑↓` (ou `1`-`4`, ou un clic) change de panneau, `r` relance le
+Dans l'écran : `↑↓` (ou `&` `é` `"` `'` sur AZERTY, `1`-`4` sur QWERTY, ou un clic) change de panneau, `r` relance le
 serveur affiché, `x` l'arrête, `R` relance tout, `o` ouvre son URL. Glisser à la
 souris sélectionne du texte (double-clic : une ligne), `c` le copie, `C` copie tout
 le journal. `r` sur le panneau « préparation » arrête les serveurs, refait la

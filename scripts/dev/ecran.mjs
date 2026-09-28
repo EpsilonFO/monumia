@@ -11,6 +11,11 @@ import { ajuster, largeurTexte, style as S } from './ansi.mjs'
 
 const LARGEUR_LISTE = 26
 
+// Rangée des chiffres d'un clavier AZERTY, sans Maj : la liste affiche le
+// chiffre gravé sur la touche, la touche envoie le caractère. Les chiffres
+// eux-mêmes (Maj sur AZERTY, direct sur QWERTY) marchent aussi.
+const TOUCHES_PANNEAUX = ['&', 'é', '"', "'", '(', '-', 'è', '_', 'ç']
+
 const ETATS = {
   arrete: { puce: '○', couleur: S.gris, libelle: 'arrêté' },
   demarrage: { puce: '◌', couleur: S.jaune, libelle: 'démarrage…' },
@@ -386,6 +391,7 @@ export class Ecran {
         this.selection = null
         return this.planifierRendu()
       default:
+        if (TOUCHES_PANNEAUX.includes(k)) return this.choisir(TOUCHES_PANNEAUX.indexOf(k))
         if (/^[1-9]$/.test(k)) return this.choisir(Number(k) - 1)
     }
   }
