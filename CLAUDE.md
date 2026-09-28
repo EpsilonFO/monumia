@@ -9,13 +9,15 @@ Le code, les commentaires et les échanges se font en français dans ce dépôt.
 Ces actions appartiennent à l'utilisateur, **jamais** à Claude :
 
 - **`supabase db reset` : JAMAIS**, sous aucun prétexte, y compris en local — la commande détruit toutes les données de la base. Aucune situation ne justifie que Claude la lance ; s'il faut repartir d'un schéma propre, c'est l'utilisateur qui décide et qui exécute.
-- **Migrations** : ne jamais lancer `supabase db push`, `supabase migration up`, ni `deploy.sh`/`beta.sh` (qui poussent les migrations). Écrire une migration est permis, l'appliquer non.
+- **Migrations** : ne jamais lancer `supabase db push`, `supabase migration up`, ni `deploy.sh`/`beta.sh` (qui poussent les migrations). Le lanceur de dev (`npm run monumia`, `monumia`) pousse lui aussi les migrations locales : Claude ne le lance qu'avec `--sans-db`. Écrire une migration est permis, l'appliquer non.
   - Créer le fichier **obligatoirement** avec `supabase migration new <nom>`, jamais avec `touch` ni en écrivant directement dans `supabase/migrations/` : le CLI horodate le nom au format attendu, un fichier créé à la main casse l'ordre d'application. Écrire le SQL dans le fichier rendu par la commande.
 - **Git** : ne jamais lancer `git commit`, `git add`, `git rm` (ni `git push`, `git reset`, `git checkout` destructif). Modifier les fichiers du working tree est le travail attendu ; les mettre à l'index ou les committer revient à l'utilisateur.
 
 Dans les deux cas : préparer le changement, puis dire à l'utilisateur quelle commande lancer.
 
 ## Commandes
+
+Tout le dev local en une commande, depuis la racine du dépôt ou d'un worktree : `npm run monumia` ([scripts/dev/](scripts/dev/), Node sans dépendance). Il prépare le dépôt (git fetch, Supabase local, `.env` copiés du dépôt principal, migrations locales, `uv sync`, `npm ci` si le lockfile a changé, ports) puis ouvre un écran plein terminal avec backend, frontend et landing. `--sans-db` saute les migrations, `--prep` s'arrête après la préparation.
 
 Backend (toujours depuis `backend/`, via `uv`) :
 

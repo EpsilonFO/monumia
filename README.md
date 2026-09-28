@@ -74,7 +74,42 @@ présente en YAML mais absente de la base renvoie « Aide introuvable ».
 
 ### 4. Lancer l'application
 
-Deux terminaux :
+En une commande, depuis la racine du dépôt ou de n'importe quel worktree :
+
+```bash
+npm run monumia
+```
+
+Le lanceur ([scripts/dev/](scripts/dev/)) prépare d'abord le dépôt, puis ouvre un
+écran plein terminal qui fait tourner backend, frontend et landing. La préparation :
+
+- `git fetch`, puis signale un retard sur la branche amont ;
+- démarre Supabase local s'il est arrêté ;
+- dans un worktree, copie les `.env` et `.env.local` du dépôt principal qui manquent,
+  et génère ceux qui manquent encore avec `scripts/setup-env-local.sh` ;
+- applique les migrations à la base **locale** (`supabase db push --local --include-all`) ;
+- `uv sync --group dev --group pipeline` ;
+- `npm ci` dans `frontend/` et `landing/` quand `package-lock.json` a changé depuis
+  la dernière installation. Dans un worktree neuf, `node_modules` est cloné depuis
+  le dépôt principal (clone APFS, instantané) si les deux lockfiles sont identiques ;
+- vérifie que les ports 8000, 3000 et 3001 sont libres, et propose de libérer ceux
+  qui ne le sont pas.
+
+Dans l'écran : `↑↓` (ou `1`-`4`, ou un clic) change de panneau, `r` relance le
+serveur affiché, `x` l'arrête, `R` relance tout, `o` ouvre son URL. Glisser à la
+souris sélectionne du texte (double-clic : une ligne), `c` le copie, `C` copie tout
+le journal. `r` sur le panneau « préparation » arrête les serveurs, refait la
+préparation (après un `git pull`, par exemple) et relance ceux qui tournaient. Pour
+la sélection native du terminal, garder Option (⌥) enfoncé.
+
+Options : `--sans-prep` (lancer tout de suite), `--sans-db` (pas de migrations),
+`--seulement backend,frontend`, `--prep` (préparation seule). Détails :
+`npm run monumia -- --aide`.
+
+Pour avoir la commande `monumia` partout, un `npm link` à la racine du dépôt
+principal suffit : elle lance toujours le dépôt ou le worktree du dossier courant.
+
+À la main, deux terminaux :
 
 ```bash
 # Terminal 1 — backend

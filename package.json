@@ -1,1 +1,10 @@
-{}
+{
+  "name": "monumia",
+  "private": true,
+  "scripts": {
+    "monumia": "node scripts/dev/monumia.mjs"
+  },
+  "bin": {
+    "monumia": "scripts/dev/bin.mjs"
+  }
+}
