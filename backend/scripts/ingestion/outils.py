@@ -788,6 +788,9 @@ def outils_pour(
             # Les faits que TU viens de proposer : un orphelin parmi eux est une
             # erreur, là où celui du voisin reste un avertissement.
             faits_du_run=tuple(etat.faits_proposes),
+            # Les contrôles d'une aide qu'on écrit : vus ici, pendant la boucle,
+            # plutôt qu'à `controler`, où ils ne laisseraient qu'un `.yaml.echec`.
+            ecriture=True,
         )
         etat.dernier_lint_ok = rapport.ok
         return rapport.texte()

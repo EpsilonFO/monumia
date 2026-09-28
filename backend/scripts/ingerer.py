@@ -38,7 +38,7 @@ from ingestion import ontologie, orchestrateur
 from ingestion.boucle import Limites
 from ingestion.contexte import apercu, estimer_jetons
 from ingestion.worker import ConfigIngestion, ContextePartage, ingerer_aide
-from pipeline.etat import FILE_ATTENTE, Tache, charger, selectionner
+from pipeline.etat import FILE_ATTENTE, Tache, charger, echecs_a_relire, selectionner
 from pipeline.llm import (
     Compteur,
     charger_env,
@@ -117,6 +117,10 @@ def construire_parser() -> argparse.ArgumentParser:
     reglages.add_argument("--model", help="modèle d'extraction (défaut : LLM_MODEL_INGESTION)")
     reglages.add_argument(
         "--model-verif", help="modèle de vérification (défaut : LLM_MODEL_VERIFICATION)"
+    )
+    reglages.add_argument(
+        "--model-audit",
+        help="modèle de l'audit d'ontologie de fin de run (défaut : LLM_MODEL_AUDIT)",
     )
     reglages.add_argument(
         "--tarif", help="tarif $/M jetons du modèle d'extraction, « entrée,sortie »"
@@ -218,6 +222,13 @@ def main(argv: list[str] | None = None) -> int:
             f"relance des échecs{cadre} : {len(relances)} aide(s) remise(s) en `valide`"
             f"{': ' + ', '.join(relances) if relances else ''}"
         )
+        a_relire = echecs_a_relire(charger(args.etat))
+        if a_relire:
+            print(
+                f"  {len(a_relire)} échec(s) de panne laissé(s) de côté : lus avant le test "
+                "du destinataire, ils repassent d'abord par "
+                "`prospecter.py relire` (ou `balayage.py --rattraper-echecs`)."
+            )
 
     config = ConfigIngestion(
         modele=args.model,
@@ -319,7 +330,7 @@ def _auditer_ontologie(
         pending = load_pending_facts(atelier.pending_path)
         if not pending:
             return None
-        client = None if args.sans_audit else client_pour("audit")
+        client = None if args.sans_audit else client_pour("audit", args.model_audit)
         return ontologie.auditer(atelier, facts, pending, client, compteur=compteur)
     except Exception as exc:  # noqa: BLE001 — un audit raté ne casse pas un run réussi
         return ontologie.RapportOntologie(degrade=f"audit d'ontologie impossible : {exc}")

@@ -258,6 +258,87 @@ PROFILS: dict[str, Profil] = {
             "statut_juridique_porteur": ["association"],
         },
     ),
+    # Les profils des régions balayées à partir du 2026-09-28 : même cadrage que
+    # « commune, classé, … , restauration » ci-dessus, un département par région.
+    # Sans eux, le bilan de fin de balayage lançait le ratchet sur six régions
+    # seulement et ne pouvait rien dire d'un lot qui gonfle le tronc ailleurs.
+    # La Bourgogne-Franche-Comté avait déjà ses profils en Saône-et-Loire et dans
+    # la Nièvre ; le Doubs y ajoute un département de l'est, balayé lui aussi.
+    "commune, classé, Auvergne-Rhône-Alpes (63), restauration": Profil(
+        monument=dict(
+            protection="classe",
+            proprietaire="public_commune",
+            region="auvergne-rhone-alpes",
+            departement_num="63",
+            etat_conservation="mauvais",
+            travaux_envisages=["toiture", "charpente", "maconnerie"],
+        ),
+        population=1200,
+        answers={
+            "_raisons": ["restauration_travaux"],
+            "statut_juridique_porteur": ["public_commune"],
+        },
+    ),
+    "commune, classé, BFC (25), restauration": Profil(
+        monument=dict(
+            protection="classe",
+            proprietaire="public_commune",
+            region="bourgogne-franche-comte",
+            departement_num="25",
+            etat_conservation="mauvais",
+            travaux_envisages=["toiture", "charpente", "maconnerie"],
+        ),
+        population=1200,
+        answers={
+            "_raisons": ["restauration_travaux"],
+            "statut_juridique_porteur": ["public_commune"],
+        },
+    ),
+    "commune, classé, Bretagne (35), restauration": Profil(
+        monument=dict(
+            protection="classe",
+            proprietaire="public_commune",
+            region="bretagne",
+            departement_num="35",
+            etat_conservation="mauvais",
+            travaux_envisages=["toiture", "charpente", "maconnerie"],
+        ),
+        population=1200,
+        answers={
+            "_raisons": ["restauration_travaux"],
+            "statut_juridique_porteur": ["public_commune"],
+        },
+    ),
+    "commune, classé, Occitanie (12), restauration": Profil(
+        monument=dict(
+            protection="classe",
+            proprietaire="public_commune",
+            region="occitanie",
+            departement_num="12",
+            etat_conservation="mauvais",
+            travaux_envisages=["toiture", "charpente", "maconnerie"],
+        ),
+        population=1200,
+        answers={
+            "_raisons": ["restauration_travaux"],
+            "statut_juridique_porteur": ["public_commune"],
+        },
+    ),
+    "commune, classé, PACA (84), restauration": Profil(
+        monument=dict(
+            protection="classe",
+            proprietaire="public_commune",
+            region="provence-alpes-cote-d-azur",
+            departement_num="84",
+            etat_conservation="mauvais",
+            travaux_envisages=["toiture", "charpente", "maconnerie"],
+        ),
+        population=1200,
+        answers={
+            "_raisons": ["restauration_travaux"],
+            "statut_juridique_porteur": ["public_commune"],
+        },
+    ),
 }
 
 

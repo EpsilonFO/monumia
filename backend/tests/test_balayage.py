@@ -193,6 +193,9 @@ class TestPhaseIngestion(BaseBalayage):
             "budget_total": 10.0,
             "model_ingestion": "ds-v41",
             "model_verif": "ds-v41",
+            "model_audit": "ds-v41",
+            "relances_ingestion": 0,
+            "pause_relance": 0,
         }
         return argparse.Namespace(**{**base, **kw})
 
@@ -213,6 +216,61 @@ class TestPhaseIngestion(BaseBalayage):
         ingerer.assert_called_once()
         self.assertEqual(self.statuts(), {"ok": "valide"})
 
+    def test_une_coupure_du_fournisseur_est_relancee(self):
+        """Code 3 : les aides non traitées sont en `valide`, on repart après la pause."""
+        self.poser({"ok": tache("ok", **RETENUE)})
+        with (
+            mock.patch.object(balayage, "DOSSIER_LOGS", Path(self.tmp.name) / "logs"),
+            mock.patch.object(
+                balayage, "ingerer", side_effect=[balayage.CODE_FOURNISSEUR, 0]
+            ) as ingerer,
+            mock.patch.object(balayage.time, "sleep") as dormir,
+            redirect_stdout(io.StringIO()),
+        ):
+            code = balayage.phase_ingestion(
+                ["ex"], self.args(relances_ingestion=2, pause_relance=5), "2026-09-18-0152"
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(ingerer.call_count, 2)
+        dormir.assert_called_once_with(5)
+
+    def test_une_erreur_fatale_nest_pas_relancee(self):
+        """Clé invalide : attendre un quart d'heure n'y changerait rien."""
+        self.poser({"ok": tache("ok", **RETENUE)})
+
+        def ingerer(args, journal):
+            journal.parent.mkdir(parents=True, exist_ok=True)
+            journal.write_text("⛔ erreur fatale sur ok (AuthError)", encoding="utf-8")
+            return balayage.CODE_FOURNISSEUR
+
+        with (
+            mock.patch.object(balayage, "DOSSIER_LOGS", Path(self.tmp.name) / "logs"),
+            mock.patch.object(balayage, "ingerer", side_effect=ingerer) as appel,
+            mock.patch.object(balayage.time, "sleep") as dormir,
+            redirect_stdout(io.StringIO()),
+        ):
+            code = balayage.phase_ingestion(
+                ["ex"], self.args(relances_ingestion=2), "2026-09-18-0152"
+            )
+        self.assertEqual(code, balayage.CODE_FOURNISSEUR)
+        self.assertEqual(appel.call_count, 1)
+        dormir.assert_not_called()
+
+    def test_les_echecs_rattrapes_sont_promus_hors_territoire(self):
+        """Un ancien échec relu d'un autre territoire entre dans la promotion du run."""
+        self.poser(
+            {
+                "ok": tache("ok", **RETENUE),
+                "ancien": tache("ancien", territoire="ailleurs", **RETENUE),
+            }
+        )
+        with (
+            mock.patch.object(balayage, "ingerer", return_value=0),
+            redirect_stdout(io.StringIO()),
+        ):
+            balayage.phase_ingestion(["ex"], self.args(), "2026-09-18-0152", en_plus=["ancien"])
+        self.assertEqual(self.statuts(), {"ok": "valide", "ancien": "valide"})
+
     def test_reprendre_ingestion_saute_la_prospection(self):
         """Les 351 tâches perdues en panne réseau ne doivent pas coûter un rebalayage."""
         self.poser({"ok": tache("ok", **RETENUE)})
@@ -227,6 +285,9 @@ class TestPhaseIngestion(BaseBalayage):
             mock.patch.object(balayage, "prospecter", jamais),
             mock.patch.object(balayage, "ingerer", return_value=0) as ingerer,
             mock.patch.object(balayage, "runs_en_cours", return_value=[]),
+            mock.patch.object(balayage, "verifier_modeles", return_value=[]),
+            mock.patch.object(balayage, "_ecrire_bilan", return_value=Path("bilan.md")),
+            mock.patch.object(balayage, "rediger_fiches") as fiches,
             mock.patch.object(
                 balayage,
                 "territoires_a_balayer",
@@ -241,6 +302,7 @@ class TestPhaseIngestion(BaseBalayage):
         self.assertEqual(code, 0)
         self.assertEqual(appels["prospecter"], 0)
         ingerer.assert_called_once()
+        fiches.assert_called_once()
 
 
 class TestBilan(BaseBalayage):

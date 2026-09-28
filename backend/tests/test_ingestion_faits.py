@@ -175,6 +175,29 @@ class TestPlafondEtForme(BaseFaits):
         self.assertIn("ERREUR", sortie)
         self.assertIn("polarité", sortie.lower())
 
+    def test_promesse_refusee(self):
+        """43 faits `s_engage_*` retypés à la main le 2026-09-22 : ils ne renaissent plus."""
+        for fact_id, question in (
+            ("s_engage_ouverture_journees_patrimoine", "Ouvrirez-vous le lieu ?"),
+            ("ouverture_journees_patrimoine", "Vous engagez-vous à ouvrir le lieu aux JEP ?"),
+            ("mention_financeur", "Acceptez-vous de mentionner le soutien du Département ?"),
+        ):
+            with self.subTest(fact_id=fact_id):
+                sortie = self.proposer(
+                    fact_id=fact_id,
+                    definition=f"type: boolean\nscope: projet\nquestion: {question}\n",
+                )
+                self.assertIn("ERREUR", sortie)
+                self.assertIn("PROMESSE", sortie)
+                self.assertIn("effect: info", sortie)
+
+    def test_un_critere_nest_pas_une_promesse(self):
+        sortie = self.proposer(
+            fact_id="monument_accueille_visiteurs",
+            definition="type: boolean\nscope: monument\nquestion: Le lieu est-il ouvert au public ?\n",
+        )
+        self.assertNotIn("PROMESSE", sortie)
+
     def test_aucun_refus_de_forme_nest_muet(self):
         """Un refus qui ne dit pas quoi écrire pousse à contourner le libellé."""
         for fact_id, definition in (

@@ -19,14 +19,16 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest import mock
 
 import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
+import prospection.lecture as lecture_mod  # noqa: E402
 import providall  # noqa: E402
-from pipeline.etat import CATEGORIES_ECART, DESTINATAIRES, OBJETS  # noqa: E402
+from pipeline.etat import CATEGORIES_ECART, DESTINATAIRES, OBJETS, Ingestion, Tache  # noqa: E402
 from pipeline.web import Fetcheur, Page, reinitialiser_delais  # noqa: E402
 from prospection.annuaire import sites_departementaux  # noqa: E402
 from prospection.collecte import (  # noqa: E402
@@ -42,8 +44,21 @@ from prospection.collecte import (  # noqa: E402
     liens,
     titre_et_chapeau,
 )
-from prospection.fiche import attribuer_slugs, parser_slugs, rendre_fiche, taches  # noqa: E402
-from prospection.lecture import Lecture, LectureFiche, kebab, lire, slug_final  # noqa: E402
+from prospection.fiche import (  # noqa: E402
+    attribuer_slugs,
+    parser_slugs,
+    rendre_fiche,
+    requalifier,
+    taches,
+)
+from prospection.lecture import (  # noqa: E402
+    MAX_CAR_PAGE,
+    Lecture,
+    LectureFiche,
+    kebab,
+    lire,
+    slug_final,
+)
 from prospection.territoires import (  # noqa: E402
     Strategie,
     Territoire,
@@ -568,6 +583,23 @@ class TestDocumentsEtBoucles(unittest.TestCase):
                 self.assertTrue(est_document(url))
         self.assertFalse(est_document("https://x.fr/aides/restauration-du-bati"))
 
+    def test_le_premier_libelle_non_vide_donne_le_titre(self):
+        """mesdemarches.cantal.fr : un lien image vide précède le titre de la carte."""
+        page = Page(
+            url="https://guide.example/",
+            url_finale="https://guide.example/",
+            status=200,
+            content_type="text/html",
+            contenu=b"",
+            texte='<a href="/dispositif1"><img src="a.png"></a> <a href="/dispositif1">Monuments</a>',
+        )
+        t = territoire(motif_fiche=r"^https://guide\.example/dispositif")
+        candidats = _candidats_de_page(page, t, "test")
+        self.assertEqual(
+            [(c.url, c.titre) for c in candidats],
+            [("https://guide.example/dispositif1", "Monuments")],
+        )
+
     def test_les_documents_ne_sont_plus_des_candidates(self):
         """Quatre paires de doublons du lot venaient d'un `.doc` ingéré."""
         page = Page(
@@ -683,6 +715,28 @@ class TestLiens(unittest.TestCase):
             contenu=b"",
             texte=html,
         )
+
+    def test_base_href_sert_a_resoudre_les_liens_relatifs(self):
+        """JCMS (loire.fr, rhone.fr) : sans `<base>`, les liens sortaient concaténés."""
+        html = '<html><head><base href="https://x/"></head><a href="jcms/lw_2/fr/aide">A</a></html>'
+        page = self.page(html)
+        page = page.__class__(**{**page.__dict__, "url_finale": "https://x/jcms/lw_1/fr/accueil"})
+        self.assertEqual([u for _t, u, _c in liens(page)], ["https://x/jcms/lw_2/fr/aide"])
+
+    def test_un_libelle_qui_contient_des_crochets_nest_pas_perdu(self):
+        """herault.fr, 2026-09-28 : l'extrait des cartes finit par « [...] »."""
+        html = (
+            '<a href="/aideProjet/1/321-truc.htm"><h3>Titre</h3><p>Un extrait [...]</p></a> '
+            '<a href="/b">B</a>'
+        )
+        urls = [url for _t, url, _c in liens(self.page(html))]
+        self.assertEqual(urls, ["https://x/aideProjet/1/321-truc.htm", "https://x/b"])
+
+    def test_un_lien_mal_forme_est_ignore_sans_tout_faire_tomber(self):
+        """tarn.fr, 2026-09-28 : `http://[` fait lever urljoin (« Invalid IPv6 URL »)."""
+        html = '<a href="http://[cassé/x">Cassé</a> <a href="/aides/patrimoine">Patrimoine</a>'
+        urls = [url for _t, url, _c in liens(self.page(html))]
+        self.assertEqual(urls, ["https://x/aides/patrimoine"])
 
     def test_un_lien_qui_enveloppe_une_carte_entiere_nest_pas_perdu(self):
         """paysdelaloire.fr, 2026-09-11 : 14 liens perdus sur 187, dont les 12 fiches.
@@ -1033,6 +1087,66 @@ class TestLecture(BaseProspection):
         self.assertFalse(lecture.retenue)
         self.assertIn("lecture impossible", lecture.erreur or "")
 
+    # --- PDF -----------------------------------------------------------------
+    #
+    # `pdf_bytes_to_text` est remplacé dans le module de lecture : ni `pdftotext`
+    # ni le cache disque ne doivent décider du résultat d'un test.
+
+    REGLEMENT = (
+        "Règlement d'intervention. Restauration du patrimoine protégé. "
+        "Bénéficiaires : communes, EPCI, personnes privées propriétaires. "
+    ) * 30
+
+    def _lire_pdf(self, texte: str | None, *reponses):
+        with (
+            mock.patch.object(lecture_mod, "pdf_bytes_to_text", lambda _octets: texte),
+            fake_provider(*(reponses or (json_reply(LECTURE),))) as faux,
+        ):
+            lecture = lire(
+                Candidat("https://guide.example/documents/reglement-2027.pdf"),
+                territoire(),
+                self.fetcheur,
+                client(),
+            )
+        return lecture, faux
+
+    def _prompt(self, faux) -> str:
+        return faux.bodies[0]["messages"][-1]["content"]
+
+    def test_un_pdf_se_lit_comme_une_page(self):
+        """124 candidates perdues au 2026-09-18, dont toute la Haute-Marne et la Creuse."""
+        lecture, faux = self._lire_pdf(self.REGLEMENT)
+        self.assertIsNone(lecture.erreur)
+        self.assertTrue(lecture.retenue)
+        self.assertEqual(faux.calls, 1)
+        prompt = self._prompt(faux)
+        self.assertIn("Texte du document PDF", prompt)
+        self.assertIn("Bénéficiaires : communes, EPCI", prompt)
+
+    def test_un_pdf_ne_peut_citer_que_ses_documents_vus(self):
+        """Un PDF n'a pas de liens : sans document de collecte, `urls_pdf` reste vide."""
+        lecture, _ = self._lire_pdf(self.REGLEMENT)
+        assert lecture.fiche is not None
+        self.assertEqual(lecture.fiche.urls_pdf, [])
+
+    def test_le_texte_d_un_pdf_est_borne_comme_une_page(self):
+        _, faux = self._lire_pdf("x" * (MAX_CAR_PAGE * 3))
+        prompt = self._prompt(faux)
+        self.assertIn("x" * MAX_CAR_PAGE, prompt)
+        self.assertNotIn("x" * (MAX_CAR_PAGE + 1), prompt)
+
+    def test_pdf_scanne_signale_sans_appel_de_modele(self):
+        lecture, faux = self._lire_pdf("Région   \n  page 1")
+        self.assertIn("PDF scanné", lecture.erreur or "")
+        self.assertIsNone(lecture.fiche)
+        self.assertEqual(faux.calls, 0)
+
+    def test_pdftotext_absent_signale_sans_appel_de_modele(self):
+        lecture, faux = self._lire_pdf(None)
+        self.assertIn("pdftotext", lecture.erreur or "")
+        self.assertIsNone(lecture.fiche)
+        self.assertEqual(faux.calls, 0)
+
     def test_la_lecture_charge_la_meme_doctrine_que_le_tri(self):
         """Une doctrine écrite en dur ici recalerait ce que le tri a laissé passer."""
         from prospection.lecture import consigne
@@ -1358,6 +1472,51 @@ class TestFiche(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Point de contrôle humain (valider / ignorer)
 # ---------------------------------------------------------------------------
+
+
+class TestRequalifier(unittest.TestCase):
+    """Un échec de panne lu avant le test du destinataire, repassé par la lecture."""
+
+    def setUp(self):
+        self.ancienne = Tache(
+            titre="Restauration",
+            url="https://guide.example/dispositif1",
+            urls_pdf=["https://guide.example/documents/ancien.pdf"],
+            territoire="ex",
+            statut="echec",
+            fiche="data/reviews/2026-09-17-prospection-ex.md",
+            ingestion=Ingestion(motif_echec="aucun fichier YAML écrit", tentatives=1),
+        )
+
+    def lecture(self, **champs) -> Lecture:
+        return Lecture(
+            Candidat(self.ancienne.url, self.ancienne.titre),
+            LectureFiche.model_validate({**LECTURE, **champs}),
+        )
+
+    def test_retenue_passe_en_a_valider_et_garde_son_histoire(self):
+        maj = requalifier(self.ancienne, self.lecture())
+        assert maj is not None
+        self.assertEqual(maj.statut, "a_valider")
+        self.assertTrue(maj.retenue)
+        self.assertEqual(maj.fiche, self.ancienne.fiche)
+        self.assertEqual(maj.ingestion, self.ancienne.ingestion)
+        self.assertIn("https://guide.example/documents/ancien.pdf", maj.urls_pdf)
+
+    def test_ecartee_passe_en_ignore_avec_son_motif(self):
+        maj = requalifier(
+            self.ancienne,
+            self.lecture(
+                destinataire="personne", objet="hors_lieu", categorie_ecart="aide_personne"
+            ),
+        )
+        assert maj is not None
+        self.assertEqual(maj.statut, "ignore")
+        self.assertIn("aide_personne", maj.motif_ignore or "")
+
+    def test_lecture_en_erreur_ne_touche_a_rien(self):
+        erreur = Lecture(Candidat(self.ancienne.url), erreur="HTTP 500")
+        self.assertIsNone(requalifier(self.ancienne, erreur))
 
 
 class TestTransitions(unittest.TestCase):

@@ -140,6 +140,20 @@ class TestPrompt(BaseVerification):
     def test_dit_quil_ny_a_pas_doutil(self):
         self.assertIn("ni outil ni accès au système de fichiers", self.prompt)
 
+    def test_le_stable_precede_ce_qui_change(self):
+        """Sources avant YAML et verdicts : sinon le cache de préfixe ne mord jamais."""
+        prompt = construire_prompt(
+            self.aide,
+            self.atelier,
+            skill_md=SKILL_PATH.read_text(encoding="utf-8"),
+            precedents=["passage 1 : taux-faux bloquant"],
+        )
+        sources = prompt.index("## Sources archivées")
+        self.assertLess(prompt.index("Schéma exact"), sources)
+        self.assertLess(sources, prompt.index("## Tes verdicts précédents"))
+        self.assertLess(sources, prompt.index("AUDIT DES CITATIONS"))
+        self.assertLess(sources, prompt.index("## Fichier extrait"))
+
     def test_troncature_des_documents(self):
         court = construire_prompt(
             self.aide,

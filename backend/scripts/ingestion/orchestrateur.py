@@ -34,7 +34,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pipeline.etat import FILE_ATTENTE, Tache, charger, mettre_a_jour, transition
+from pipeline.etat import (
+    FILE_ATTENTE,
+    MOTIF_SANS_YAML,
+    Tache,
+    charger,
+    echecs_a_relire,
+    mettre_a_jour,
+    transition,
+)
 from pipeline.llm import Compteur
 
 from .ontologie import RapportOntologie
@@ -126,13 +134,6 @@ def reprendre(etat_path: Path = FILE_ATTENTE) -> list[str]:
     return liberes
 
 
-#: Le motif d'échec que `worker.controler` pose quand l'agent n'a rien écrit du
-#: tout. 351 des 369 échecs du 2026-09-18 le portent, tous pour une panne du
-#: fournisseur ; les 18 autres sont de vrais refus (lint rouge, `max_tours`,
-#: source en 503) qu'une relance en masse re-brûlerait pour rien.
-MOTIF_SANS_YAML = "aucun fichier YAML écrit"
-
-
 def relancer_echecs(
     etat_path: Path = FILE_ATTENTE,
     *,
@@ -150,10 +151,16 @@ def relancer_echecs(
     modèle avait produit, ce qu'il y a de plus utile pour comprendre l'échec, et
     il vit hors du glob `*.yaml`. La relance écrira son propre `<slug>.yaml` à
     côté ; c'est à la relecture de trancher lequel garder.
+
+    Les échecs de panne qui n'ont jamais passé le test du destinataire
+    (`echecs_a_relire`) sont laissés de côté : `prospecter.py relire` les
+    requalifie d'abord, sans quoi ils seraient ingérés sans aucun filtre.
     """
     relances = []
-    for slug, tache in charger(etat_path).items():
-        if tache.statut != "echec":
+    etat = charger(etat_path)
+    sans_lecture = set(echecs_a_relire(etat))
+    for slug, tache in etat.items():
+        if tache.statut != "echec" or slug in sans_lecture:
             continue
         if territoires and tache.territoire not in territoires:
             continue

@@ -325,7 +325,17 @@ def index_faits(facts: dict[str, FactDef], pending: dict[str, FactDef]) -> str:
             ids = [o.id + ("*" if o.unknown else "") for o in fait.options]
             options = "  [" + ", ".join(ids) + "]"
         unite = f" ({fait.unit})" if fait.unit else ""
-        levier = "  ⚡levier" if fait.levier else ""
+        # Deux marques distinctes : le SKILL interdit de gater un fait à levier,
+        # SAUF quand le levier garde la question. Une marque unique faisait
+        # renoncer l'agent à gater `ouverture_public` et les autres critères
+        # maintenus le 2026-09-23.
+        levier = ""
+        if fait.levier:
+            levier = (
+                "  ⚡levier, question maintenue (gate permis)"
+                if fait.levier.question_maintenue
+                else "  ⚡levier (jamais de gate)"
+            )
         lignes.append(
             f"{marque}{cle}  {fait.type}{unite}  {fait.scope}  "
             f"« {' '.join(fait.question.split())} »{options}{levier}"
@@ -408,6 +418,13 @@ def prompt_systeme(
         "`effect`",
         "`applies_if`",
         "`applies_if` au niveau de l'AIDE",
+        # Le SKILL renvoie à ces trois sections et l'agent n'a pas le droit de
+        # lire un fichier : sans elles, `raison`, `familles` et
+        # `hard_filters.travaux` se remplissaient au jugé (18 `raison` de
+        # valorisation incohérentes, 409 aides sur 475 sans cadrage des travaux).
+        "`raison`",
+        "`familles`",
+        "Les critères structurés",
         "Puces composites",
         "Proposer un nouveau fait",
         "`levier`",
@@ -638,6 +655,28 @@ def tronquer_gabarit(texte: str) -> str:
     return texte[:TAILLE_MAX_GABARIT]
 
 
+def sans_bloc_fiche(texte: str) -> str:
+    """Le YAML d'une aide sans son bloc `fiche:` ni l'en-tête commenté qui le précède.
+
+    La fiche est rédigée APRÈS l'ingestion, par `rediger_fiches.py` et le skill
+    `rediger-fiche`. Servie dans le gabarit (12 000 caractères sur 31 000 au
+    2026-09-28), elle apprenait à l'agent à en improviser une, sans le skill
+    d'écriture, et `rediger_fiches` refuse ensuite de réécrire une fiche qui
+    n'est pas le dernier bloc du fichier.
+    """
+    lignes = texte.splitlines(keepends=True)
+    debut = next((i for i, li in enumerate(lignes) if li.startswith("fiche:")), None)
+    if debut is None:
+        return texte
+    fin = next(
+        (j for j in range(debut + 1, len(lignes)) if re.match(r"[A-Za-z_]", lignes[j])),
+        len(lignes),
+    )
+    while debut > 0 and lignes[debut - 1].startswith("#"):
+        debut -= 1
+    return "".join(lignes[:debut] + lignes[fin:]).rstrip() + "\n"
+
+
 def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None:
     """(slug, YAML) du meilleur gabarit disponible pour ce slug.
 
@@ -686,6 +725,11 @@ def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None
     d'un critère composite, et le modèle replie alors onze critères de sélection
     en deux conditions `info` sans effet sur le diagnostic.
 
+    Le LEVIER est venu en sixième, le 2026-09-28 : la repasse critère /
+    démarche du 2026-09-23 a retypé à la main 340 conditions posées en question
+    sur une démarche faisable avant le dépôt. Un gabarit qui montre un
+    `manual_check` + `info` citant son `levier` est la forme à imiter.
+
     À famille égale, la RICHESSE DOCTRINALE départage, parce qu'un gabarit
     pauvre enseigne la pauvreté (cf. `richesse_doctrinale`), avec une prime au
     même préfixe territorial (une aide du même financeur partage ses
@@ -718,6 +762,7 @@ def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None
             1 if aide.familles else 0,
             1 if any(c.fact == FAIT_PORTEUR and c.effect == "gate" for c in aide.conditions) else 0,
             1 if any(c.effect == "modulateur" for c in aide.conditions) else 0,
+            1 if any(c.levier for c in aide.conditions) else 0,
             note,
             autre,
         )
@@ -726,7 +771,7 @@ def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None
     if meilleur is None:
         return None
     chemin = aides_dir / f"{meilleur[1]}.yaml"
-    texte = chemin.read_text(encoding="utf-8")
+    texte = sans_bloc_fiche(chemin.read_text(encoding="utf-8"))
     # Un gabarit énorme mangerait la fenêtre de contexte pour rien ; à ce
     # stade il n'en reste qu'un à mesurer, la troncature est donc gratuite.
     return meilleur[1], tronquer_gabarit(texte)

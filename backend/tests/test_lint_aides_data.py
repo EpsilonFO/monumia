@@ -1297,3 +1297,65 @@ class TestPourquoi(unittest.TestCase):
     def test_modele_refuse_un_texte_vide(self):
         with self.assertRaises(ValueError):
             self._fait(type="boolean", pourquoi={"non": "  "})
+
+
+class TestModeEcriture(BaseLint):
+    """Ce que l'ingestion corrigeait à la main après coup, refusé pendant la boucle."""
+
+    def test_untyped_bloque_en_ecriture_seulement(self):
+        cond = COND_OK + "  - id: a-typer\n    text: Une exigence.\n    kind: untyped\n"
+        self.ecrire_aide("ex-aide", cond)
+        self.assertTrue(self.lint("ex-aide").ok)
+        rapport = self.lint("ex-aide", ecriture=True)
+        self.assertFalse(rapport.ok)
+        self.assertTrue(any("untyped" in e for e in rapport.erreurs))
+
+    def test_calendrier_permanent_avec_date_limite(self):
+        from lint_aides_data import check_ecriture
+
+        from aides_schema import Aide
+
+        aide = Aide.model_validate(
+            {
+                "slug": "x-truc",
+                "nom": "x",
+                "organisme": "Fondation",
+                "categorie": "fondation",
+                "type": "subvention",
+                "description": "d",
+                "calendrier": {"permanent": True, "date_limite": "2027-01-31"},
+            }
+        )
+        erreurs = check_ecriture(aide, {})
+        self.assertEqual(len(erreurs), 1)
+        self.assertIn("permanent: false", erreurs[0])
+
+    def test_page_sans_rien_a_trancher_avertit(self):
+        self.ecrire_aide("ex-page", "  []")
+        rapport = self.lint("ex-page", ecriture=True)
+        self.assertTrue(any("non_dispositif" in a for a in rapport.avertissements))
+
+
+class TestPredicatNumerique(unittest.TestCase):
+    """`gte: true` sur un entier passait le lint : le moteur comparait un nombre à un booléen."""
+
+    def test_valeur_non_numerique_refusee(self):
+        from aides_schema import FactDef, Predicate, check_fact_predicate
+
+        facts = {
+            "age_batiment_ans": FactDef.model_validate(
+                {"type": "integer", "scope": "monument", "question": "Quel âge a le bâtiment ?"}
+            )
+        }
+        for valeur in (True, "abc", [1, "deux"]):
+            with self.subTest(valeur=valeur):
+                pred = Predicate.model_validate(
+                    {"in" if isinstance(valeur, list) else "gte": valeur}
+                )
+                self.assertTrue(check_fact_predicate("c", "age_batiment_ans", pred, facts))
+        self.assertEqual(
+            check_fact_predicate(
+                "c", "age_batiment_ans", Predicate.model_validate({"gte": 15}), facts
+            ),
+            [],
+        )

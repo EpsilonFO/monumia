@@ -240,10 +240,7 @@ def taches(
             continue
         documents = list(dict.fromkeys([*f.urls_pdf, *lecture.candidat.documents]))
         ecartee = lecture.ecartee
-        motif = None
-        if ecartee:
-            categorie = f.categorie_ecart or "objet_hors_lieu"
-            motif = f"hors périmètre : {categorie} (destinataire {f.destinataire}, objet {f.objet})"
+        motif = _motif_ecart(lecture)
         sortie[slug] = Tache(
             titre=f.titre or lecture.candidat.titre or slug,
             url=lecture.candidat.url,
@@ -265,6 +262,48 @@ def taches(
             fiche=chemin_fiche,
         )
     return sortie
+
+
+def _motif_ecart(lecture: Lecture) -> str | None:
+    """Le `motif_ignore` d'une lecture écartée par le test, None sinon."""
+    f = lecture.fiche
+    if f is None or not lecture.ecartee:
+        return None
+    categorie = f.categorie_ecart or "objet_hors_lieu"
+    return f"hors périmètre : {categorie} (destinataire {f.destinataire}, objet {f.objet})"
+
+
+def requalifier(tache: Tache, lecture: Lecture) -> Tache | None:
+    """Une tâche existante, repassée par la lecture : le verdict remplace l'ancien.
+
+    Sert aux échecs de panne lus avant le test du destinataire
+    (`pipeline.etat.echecs_a_relire`). Mêmes trois sorts qu'à la prospection :
+    écartée → `ignore` avec son motif, retenue ou indéterminée → `a_valider`, où
+    `promouvables` fait le tri. Le slug, la fiche d'origine et l'historique
+    d'ingestion sont gardés. Une lecture en erreur rend None : la tâche reste
+    en `echec` et repassera à la relecture suivante.
+    """
+    f = lecture.fiche
+    if f is None:
+        return None
+    motif = _motif_ecart(lecture)
+    return tache.model_copy(
+        update={
+            "urls_pdf": list(
+                dict.fromkeys([*tache.urls_pdf, *f.urls_pdf, *lecture.candidat.documents])
+            ),
+            "famille": f.famille,
+            "beneficiaires": f.beneficiaires or tache.beneficiaires,
+            "destinataire": f.destinataire,
+            "objet": f.objet,
+            "categorie_ecart": f.categorie_ecart,
+            "note": f.note or tache.note,
+            "doublon_probable": f.doublon_probable,
+            "source_unique_vulgarisation": f.source_unique_vulgarisation,
+            "statut": "ignore" if motif else "a_valider",
+            "motif_ignore": motif,
+        }
+    )
 
 
 def attribuer_slugs(
@@ -290,4 +329,11 @@ def attribuer_slugs(
     return attribue
 
 
-__all__ = ["LIGNE_SLUG_RE", "attribuer_slugs", "parser_slugs", "rendre_fiche", "taches"]
+__all__ = [
+    "LIGNE_SLUG_RE",
+    "attribuer_slugs",
+    "parser_slugs",
+    "rendre_fiche",
+    "requalifier",
+    "taches",
+]

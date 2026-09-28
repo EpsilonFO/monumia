@@ -686,6 +686,15 @@ def check_fact_predicate(
                 errors.append(f"{where}: valeur(s) hors options du fait : {bad}")
         if fact.type == "boolean" and not isinstance(val, bool):
             errors.append(f"{where}: un fait boolean se compare à true/false, reçu {val!r}")
+        # `gte: true` ou `gte: "abc"` sur un entier passaient : le moteur compare
+        # alors un nombre à un booléen ou à un texte, et la condition ne tranche
+        # jamais comme la source le dit. Un booléen est un `int` pour Python,
+        # d'où le test explicite.
+        if fact.type in ("integer", "number"):
+            vals = val if isinstance(val, list) else [val]
+            bad = [v for v in vals if isinstance(v, bool) or not isinstance(v, int | float)]
+            if bad:
+                errors.append(f"{where}: un fait {fact.type} se compare à un nombre, reçu {bad!r}")
     return errors
 
 

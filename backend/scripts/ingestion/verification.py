@@ -199,19 +199,25 @@ def construire_prompt(
         if illisibles
         else ""
     )
+    # L'ordre sert le cache de préfixe du fournisseur : ce qui ne bouge pas d'un
+    # passage à l'autre (consigne, schéma, sources) d'abord, ce qui change
+    # ensuite (verdicts précédents, audit des citations, YAML). Les sources
+    # venaient en dernier, derrière le YAML : elles n'étaient jamais servies du
+    # cache, alors que la vérification pesait 47 % du coût du run du 2026-09-18
+    # (2 271 passages, trois par aide en médiane).
     return "\n\n".join(
         bloc
         for bloc in [
             prompt_verificateur(skill_md),
             "Tu n'as ni outil ni accès au système de fichiers : tout ce qu'il te faut "
             "est ci-dessous. Réponds UNIQUEMENT par le JSON demandé.",
+            condense_schema(),
+            "## Sources archivées" + avertissement + "\n\n" + (corpus or "(aucun snapshot)"),
             _bloc_precedents(precedents),
             _audit_quotes(aide, atelier),
-            condense_schema(),
             f"## Fichier extrait — {atelier.slug}.yaml\n\n```yaml\n"
             + atelier.yaml_path.read_text(encoding="utf-8").rstrip()
             + "\n```",
-            "## Sources archivées" + avertissement + "\n\n" + (corpus or "(aucun snapshot)"),
         ]
         if bloc
     )

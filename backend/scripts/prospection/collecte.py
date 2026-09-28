@@ -177,8 +177,16 @@ def chemin_en_boucle(
 # liens perdus sur 187. `]` reste exclu du libellé, donc un lien ne peut
 # toujours pas déborder sur le suivant ; la borne évite qu'un `]` manquant
 # fasse avaler la moitié de la page.
+#
+# Un niveau de crochets ÉQUILIBRÉS est admis dans le libellé : les cartes de
+# herault.fr finissent leur extrait par « [...] », et html2text le recopie tel
+# quel. Le premier `]` fermait alors le libellé, et 29 liens sur 34 du guide
+# disparaissaient (2026-09-28).
 MAX_CAR_LIBELLE = 2000
-_LIEN_MD_RE = re.compile(rf"\[([^\]]{{0,{MAX_CAR_LIBELLE}}}?)\]\(\s*(<[^>]*>|[^)\s]+)[^)]*\)")
+_LIEN_MD_RE = re.compile(
+    rf"\[((?:[^\[\]]|\[[^\[\]]{{0,200}}\]){{0,{MAX_CAR_LIBELLE}}}?)\]"
+    r"\(\s*(<[^>]*>|[^)\s]+)[^)]*\)"
+)
 _PUCES = ("*", "-", "+")
 
 
@@ -270,6 +278,26 @@ def titre_du_libelle(libelle: str) -> str:
     return max(sans_puce or lignes, key=len)
 
 
+_BASE_RE = re.compile(r"""<base\s[^>]*href\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
+
+
+def _base_des_liens(page: Page) -> str:
+    """L'URL contre laquelle résoudre les liens relatifs : `<base href>` s'il y en a un.
+
+    Les sites JCMS (loire.fr, rhone.fr, moselle.fr) écrivent des liens relatifs
+    à la racine du site et déclarent `<base href="https://…/">` : résolus
+    contre l'URL de la page, ils sortaient concaténés
+    (`/jcms/lw_1/fr/jcms/lw_2/…`), et c'est ce qui faisait boucler la Moselle.
+    """
+    m = _BASE_RE.search((page.texte or "")[:50_000])
+    if not m:
+        return page.url_finale
+    try:
+        return urljoin(page.url_finale, m.group(1).strip())
+    except ValueError:
+        return page.url_finale
+
+
 def liens(page: Page) -> list[tuple[str, str, str]]:
     """(titre, URL absolue, bloc de contexte) de chaque lien d'une page.
 
@@ -281,21 +309,23 @@ def liens(page: Page) -> list[tuple[str, str, str]]:
     seule ligne — le cas courant — c'est exactement la ligne, comme avant.
     """
     md = page.markdown()
+    base = _base_des_liens(page)
     sortie: list[tuple[str, str, str]] = []
     for m in _LIEN_MD_RE.finditer(md):
         cible = m.group(2).strip().strip("<>")
         if not cible or cible.startswith(("#", "mailto:", "javascript:", "tel:")):
             continue
+        try:
+            absolue = urljoin(base, cible)
+        except ValueError:
+            # `href="http://[…"` : urljoin y voit une adresse IPv6 mal formée et
+            # lève. Vu le 2026-09-28 sur tarn.fr, où un seul lien cassé faisait
+            # tomber la collecte du territoire et de tous ceux qui suivaient.
+            continue
         debut = md.rfind("\n", 0, m.start()) + 1
         fin = md.find("\n", m.end())
         bloc = md[debut:] if fin == -1 else md[debut:fin]
-        sortie.append(
-            (
-                titre_du_libelle(m.group(1)),
-                urljoin(page.url_finale, cible),
-                " ".join(bloc.split()),
-            )
-        )
+        sortie.append((titre_du_libelle(m.group(1)), absolue, " ".join(bloc.split())))
     return sortie
 
 
@@ -342,16 +372,26 @@ def documents_de_page(page: Page, territoire: Territoire) -> tuple[str, ...]:
 
 
 def _candidats_de_page(page: Page, territoire: Territoire, via: str) -> list[Candidat]:
-    """Les fiches liées depuis cette page. Un document n'en est jamais une (A2)."""
-    vus: set[str] = set()
+    """Les fiches liées depuis cette page. Un document n'en est jamais une (A2).
+
+    Une URL liée deux fois garde le premier libellé NON VIDE : une carte qui
+    commence par un lien image vers la même fiche donnait un titre vide
+    (mesdemarches.cantal.fr, 2026-09-28), et le tri jugeait l'URL seule.
+    """
+    vus: dict[str, int] = {}
     retenus: list[Candidat] = []
     for titre, url, contexte in liens(page):
         url = url.split("#")[0]
         if est_document(url) or territoire.pdf_probable(url):
             continue
-        if url in vus or chemin_en_boucle(url) or not territoire.fiche_probable(url):
+        if url in vus:
+            i = vus[url]
+            if not retenus[i].titre and titre:
+                retenus[i] = replace(retenus[i], titre=titre, extrait=contexte[:MAX_CAR_EXTRAIT])
             continue
-        vus.add(url)
+        if chemin_en_boucle(url) or not territoire.fiche_probable(url):
+            continue
+        vus[url] = len(retenus)
         retenus.append(
             Candidat(
                 url=url,

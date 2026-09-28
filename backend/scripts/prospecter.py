@@ -21,6 +21,9 @@ payé à l'API.
     # départements sans point d'entrée : proposer une URL de guide à coller
     uv run python scripts/prospecter.py deviner-sites 44 49 85
 
+    # repasser par la lecture les échecs de panne lus avant le test du destinataire
+    uv run python scripts/prospecter.py relire --dry-run
+
     # confronter une liste d'URL externe à ce qu'on a (et dire pourquoi ça manque)
     uv run python scripts/prospecter.py comparer grand-est /tmp/urls-du-collegue.txt
 
@@ -724,6 +727,98 @@ def _parseur_deviner() -> argparse.ArgumentParser:
     return p
 
 
+def cmd_relire(args: argparse.Namespace) -> int:
+    """Repasse par la lecture les échecs de panne qui n'ont jamais vu le test.
+
+    Les 351 tâches perdues le 2026-09-18 ont été lues avant que la lecture ne
+    rende `destinataire` et `objet` : relancées telles quelles, elles seraient
+    ingérées sans filtre. Une lecture coûte un appel (≈ 0,004 $) là où une
+    ingestion en coûte vingt ; sur le lot suivant, 29 % seulement des aides
+    écrites ont survécu au tri.
+
+    Rien n'est ingéré ici : les retenues passent en `a_valider`, les écartées
+    en `ignore` avec leur motif. `balayage.py --rattraper-echecs` enchaîne la
+    promotion et l'ingestion.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from pipeline.etat import echecs_a_relire, ecrire
+    from pipeline.verrou import verrou_fichier
+
+    etat = charger(args.etat)
+    slugs = [
+        s
+        for s in echecs_a_relire(etat)
+        if not args.territoire or etat[s].territoire in args.territoire
+    ]
+    if not slugs:
+        print("Aucun échec à relire.")
+        return 0
+    territoires = charger_territoires(args.territoires)
+    print(f"{len(slugs)} échec(s) de panne à relire, {args.parallele} en parallèle")
+    if args.dry_run:
+        for slug in slugs:
+            print(f"  {slug:<60} {etat[slug].territoire}")
+        return 0
+
+    compteur = Compteur()
+    client = client_pour("lecture", args.model_lecture)
+
+    def relire_une(slug: str) -> tuple[str, lecture_mod.Lecture | None, str | None]:
+        tache = etat[slug]
+        territoire = territoires.get(tache.territoire)
+        if territoire is None:
+            return slug, None, f"territoire inconnu : {tache.territoire}"
+        candidat = collecte_mod.Candidat(
+            url=tache.url, titre=tache.titre, documents=tuple(tache.urls_pdf)
+        )
+        fetcheur = Fetcheur(entetes=territoire.entetes)
+        try:
+            return (
+                slug,
+                lecture_mod.lire(candidat, territoire, fetcheur, client, compteur=compteur),
+                None,
+            )
+        finally:
+            fetcheur.close()
+
+    with ThreadPoolExecutor(max_workers=args.parallele) as pool:
+        resultats = list(pool.map(relire_une, slugs))
+
+    sorts: dict[str, list[str]] = {"a_valider": [], "ignore": [], "erreur": []}
+    with verrou_fichier(args.etat):
+        courant = charger(args.etat)
+        for slug, lecture, erreur in resultats:
+            tache = courant.get(slug)
+            maj = fiche_mod.requalifier(tache, lecture) if tache and lecture else None
+            # La tâche a pu bouger pendant la lecture : on ne touche qu'un échec.
+            if maj is None or tache is None or tache.statut != "echec":
+                sorts["erreur"].append(f"{slug} : {erreur or (lecture.erreur if lecture else '?')}")
+                continue
+            courant[slug] = maj
+            sorts[maj.statut].append(slug)
+        ecrire(args.etat, courant)
+
+    promus = promouvables(charger(args.etat), sorts["a_valider"])
+    print(f"  {len(sorts['a_valider']):4d} en `a_valider`, dont {len(promus)} promouvable(s)")
+    print(f"  {len(sorts['ignore']):4d} écartée(s) par le test du destinataire (`ignore`)")
+    print(f"  {len(sorts['erreur']):4d} non relue(s), restées en `echec`")
+    for ligne in sorts["erreur"][:10]:
+        print(f"         {ligne[:130]}")
+    print(f"\n{compteur.resume()}")
+    return 0
+
+
+def _parseur_relire() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="prospecter.py relire")
+    p.add_argument("--territoire", action="append", default=[], help="borner à un territoire")
+    p.add_argument("--model-lecture")
+    p.add_argument("--parallele", type=int, default=8, help="lectures simultanées (défaut : 8)")
+    p.add_argument("--dry-run", action="store_true", help="lister, ne rien lire")
+    _options_communes(p)
+    return p
+
+
 SOUS_COMMANDES = {
     "etat": (_parseur_etat, cmd_etat),
     "valider": (lambda: _parseur_transition("valider"), lambda a: _transitionner(a, "valide")),
@@ -731,6 +826,7 @@ SOUS_COMMANDES = {
     "comparer": (_parseur_comparer, cmd_comparer),
     "requalifier": (_parseur_requalifier, cmd_requalifier),
     "deviner-sites": (_parseur_deviner, cmd_deviner_sites),
+    "relire": (_parseur_relire, cmd_relire),
 }
 
 

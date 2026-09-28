@@ -25,6 +25,18 @@ D'où l'asymétrie : la prospection se parallélise librement
 (`--parallele-prospection`, chaque territoire ayant son propre dossier), mais
 l'ingestion reste un run unique, dont `--parallele` règle le débit interne.
 
+Le déroulé
+----------
+1. vérification des modèles : un appel minuscule par modèle distinct, et rien
+   ne part si l'un ne répond pas (clé expirée, solde nul) ;
+2. prospection des territoires ;
+3. avec `--rattraper-echecs`, relecture des échecs de panne lus avant le test
+   du destinataire (`prospecter.py relire`) ;
+4. promotion filtrée, puis ingestion unique, relancée après une pause si le
+   disjoncteur coupe sur une panne du fournisseur ;
+5. rédaction du bloc `fiche:` des aides nouvelles (`rediger_fiches.py`) ;
+6. bilan.
+
 Reprise
 -------
 Le script note les territoires terminés dans `data/prospection/balayage.json`.
@@ -58,6 +70,7 @@ from pipeline.etat import (  # noqa: E402
     FILE_ATTENTE,
     charger,
     doublons_par_url,
+    echecs_a_relire,
     ecrire,
     motif_non_promotion,
     promouvables,
@@ -129,6 +142,49 @@ def runs_en_cours() -> list[str]:
     return lignes
 
 
+def verifier_modeles(args) -> list[str]:
+    """Un appel minuscule par modèle distinct, avant de lancer quoi que ce soit.
+
+    Le 2026-09-28, la clé OpenRouter avait expiré la veille alors que la
+    découverte et l'audit d'ontologie y passaient encore : la découverte aurait
+    rendu zéro candidat sur presque toutes les régions restantes, et l'audit,
+    raison d'être de l'ingestion unique, serait parti en « audit impossible »
+    après six heures de run. Rend la liste des pannes, vide si tout répond.
+    """
+    from pipeline.llm import charger_env, client_pour, resolution_pour
+
+    charger_env()
+    roles = {
+        "decouverte": args.model_decouverte,
+        "tri": args.model_tri,
+        "lecture": args.model_lecture,
+        "ingestion": args.model_ingestion,
+        "verification": args.model_verif,
+        "audit": args.model_audit,
+    }
+    if not getattr(args, "sans_fiches", True):
+        roles["redaction"] = args.model_redaction
+    essayes: dict[str, str | None] = {}
+    pannes: list[str] = []
+    for role, modele in roles.items():
+        try:
+            alias = resolution_pour(role, modele).spec.alias
+        except Exception as exc:  # noqa: BLE001 — un alias inconnu est une panne à dire
+            pannes.append(f"{role} : modèle introuvable ({exc})")
+            continue
+        if alias not in essayes:
+            try:
+                reponse = client_pour(role, modele, max_tokens=512, timeout=90).try_complete(
+                    "Réponds par le seul mot : ok"
+                )
+                essayes[alias] = reponse.error
+            except Exception as exc:  # noqa: BLE001
+                essayes[alias] = str(exc)
+        if essayes[alias]:
+            pannes.append(f"{role} ({alias}) : {str(essayes[alias])[:160]}")
+    return pannes
+
+
 def charger_etat() -> dict:
     if ETAT_BALAYAGE.exists():
         return json.loads(ETAT_BALAYAGE.read_text(encoding="utf-8"))
@@ -153,6 +209,8 @@ def prospecter(cle: str, args, journal: Path) -> int:
         args.model_tri,
         "--model-lecture",
         args.model_lecture,
+        "--model-decouverte",
+        args.model_decouverte,
     ]
     if args.rejouer:
         cmd.append("--rejouer")
@@ -192,7 +250,44 @@ class Promotion:
         return "\n".join(lignes)
 
 
-def valider_en_attente(cles: list[str], *, tout: bool = False) -> Promotion:
+def rattraper_echecs(args, horodatage: str) -> list[str]:
+    """Repasse par la lecture les échecs de panne lus avant le test du destinataire.
+
+    Rend les slugs visés : `valider_en_attente` les ajoute aux candidates du
+    run, qu'ils viennent ou non des territoires balayés. Ceux que la lecture
+    retient passent la même promotion que les autres ; les écartés sont déjà
+    en `ignore` à la sortie de `prospecter.py relire`.
+    """
+    slugs = echecs_a_relire(charger(FILE_ATTENTE))
+    if not slugs:
+        return []
+    journal = DOSSIER_LOGS / f"{horodatage}-relecture-echecs.log"
+    print(
+        f"\n=== relecture de {len(slugs)} ancien(s) échec(s) de panne — {journal.name}", flush=True
+    )
+    cmd = [
+        sys.executable,
+        "scripts/prospecter.py",
+        "relire",
+        "--model-lecture",
+        args.model_lecture,
+        "--parallele",
+        str(args.parallele_relecture),
+    ]
+    journal.parent.mkdir(parents=True, exist_ok=True)
+    with journal.open("w", encoding="utf-8") as sortie:
+        proc = subprocess.run(cmd, cwd=RACINE, stdout=sortie, stderr=subprocess.STDOUT)
+    for ligne in journal.read_text(encoding="utf-8").splitlines():
+        if ligne.startswith("  ") and ligne.strip()[:1].isdigit():
+            print(f"  {ligne}")
+    if proc.returncode != 0:
+        print(f"    relecture en échec (code {proc.returncode}), voir {journal.name}")
+    return slugs
+
+
+def valider_en_attente(
+    cles: list[str], *, tout: bool = False, en_plus: list[str] | None = None
+) -> Promotion:
     """Passe en `valide` les `a_valider` des territoires balayés QUI PASSENT LE TEST.
 
     Deux filtres, dans cet ordre, et ils sont le point de contrôle qui
@@ -233,7 +328,8 @@ def valider_en_attente(cles: list[str], *, tout: bool = False) -> Promotion:
                     "motif_ignore": f"doublon d'URL de {survivant}",
                 }
             )
-        candidats = [s for s, t in taches.items() if t.territoire in cles]
+        hors_territoire = set(en_plus or ())
+        candidats = [s for s, t in taches.items() if t.territoire in cles or s in hors_territoire]
         resultat.promus = promouvables(taches, candidats, tout=tout)
         for slug in resultat.promus:
             taches[slug] = taches[slug].model_copy(update={"statut": "valide"})
@@ -251,31 +347,67 @@ def valider_en_attente(cles: list[str], *, tout: bool = False) -> Promotion:
 #: `phase_ingestion` n'a rien trouvé à promouvoir — ce n'est pas une erreur.
 RIEN_A_INGERER = -1
 
+#: Le code que rend `ingerer.py` quand son disjoncteur a coupé : le
+#: fournisseur est à terre, les aides non traitées sont rendues à `valide`.
+CODE_FOURNISSEUR = 3
 
-def phase_ingestion(cles: list[str], args, horodatage: str) -> int:
+
+def _panne_fatale(journal: Path) -> bool:
+    """Le disjoncteur a coupé sur une clé ou une configuration : relancer n'y changerait rien."""
+    try:
+        return "erreur fatale" in journal.read_text(encoding="utf-8")[-4000:]
+    except OSError:
+        return False
+
+
+def phase_ingestion(
+    cles: list[str], args, horodatage: str, en_plus: list[str] | None = None
+) -> int:
     """Promotion filtrée puis ingestion unique. Extraite pour `--reprendre-ingestion`.
 
     Les 351 tâches perdues en panne réseau le 2026-09-18 n'avaient aucun moyen
     de repartir sans rebalayer les quatre régions : la prospection et
     l'ingestion étaient soudées dans `main`.
+
+    Quand le disjoncteur coupe (code 3), les aides non traitées sont en
+    `valide` : on relance après une pause, `--relances-ingestion` fois au plus.
+    La salve de 21 h à 23 h UTC du 2026-09-18 a duré deux heures ; un run de
+    nuit qui s'arrête à la première coupure attend le matin pour rien.
     """
-    promotion = valider_en_attente(cles, tout=args.promouvoir_tout)
+    promotion = valider_en_attente(cles, tout=args.promouvoir_tout, en_plus=en_plus)
     print("\n=== promotion")
     print("    " + promotion.rendre().replace("\n", "\n    "))
     if not promotion.promus:
         print("    rien à ingérer.")
         return RIEN_A_INGERER
 
-    journal = DOSSIER_LOGS / f"{horodatage}-ingestion.log"
-    print(f"=== ingestion unique, {args.parallele} en parallèle — {journal.name}", flush=True)
-    t0 = time.monotonic()
-    try:
-        code = ingerer(args, journal)
-    except KeyboardInterrupt:
-        print("\n  interrompu — relancer `ingerer.py --reprendre` APRÈS avoir vérifié qu'aucun")
-        print("  processus ne tourne, puis `ingerer.py --file-attente`.")
-        return 130
-    print(f"    ingestion terminée (code {code}) en {(time.monotonic() - t0) / 60:.1f} min")
+    code = 0
+    for essai in range(args.relances_ingestion + 1):
+        suffixe = f"-relance{essai}" if essai else ""
+        journal = DOSSIER_LOGS / f"{horodatage}-ingestion{suffixe}.log"
+        print(f"=== ingestion unique, {args.parallele} en parallèle — {journal.name}", flush=True)
+        t0 = time.monotonic()
+        try:
+            code = ingerer(args, journal)
+        except KeyboardInterrupt:
+            print("\n  interrompu — relancer `ingerer.py --reprendre` APRÈS avoir vérifié qu'aucun")
+            print("  processus ne tourne, puis `ingerer.py --file-attente`.")
+            return 130
+        print(f"    ingestion terminée (code {code}) en {(time.monotonic() - t0) / 60:.1f} min")
+        if code != CODE_FOURNISSEUR or essai == args.relances_ingestion:
+            break
+        if _panne_fatale(journal):
+            print("    disjoncteur sur une erreur FATALE (clé, modèle) : pas de relance.")
+            break
+        print(
+            f"    fournisseur à terre : nouvelle tentative dans {args.pause_relance / 60:.0f} min "
+            f"({essai + 1}/{args.relances_ingestion}), les aides non traitées sont en `valide`.",
+            flush=True,
+        )
+        try:
+            time.sleep(args.pause_relance)
+        except KeyboardInterrupt:
+            return 130
     return code
 
 
@@ -295,11 +427,45 @@ def ingerer(args, journal: Path) -> int:
         args.model_ingestion,
         "--model-verif",
         args.model_verif,
+        "--model-audit",
+        args.model_audit,
     ]
     journal.parent.mkdir(parents=True, exist_ok=True)
     with journal.open("w", encoding="utf-8") as sortie:
         proc = subprocess.run(cmd, cwd=RACINE, stdout=sortie, stderr=subprocess.STDOUT)
     return proc.returncode
+
+
+def rediger_fiches(args, horodatage: str) -> None:
+    """Le bloc `fiche:` des aides que le run vient d'écrire.
+
+    L'ingestion n'en écrit plus (le gabarit ne la montre plus, le SKILL
+    l'interdit) : la page de l'aide se rédige avec le skill `rediger-fiche`. Au
+    2026-09-28 tout le catalogue en a une, donc `--sans-fiche` vise exactement
+    les aides nouvelles. Un échec ici ne touche pas au run : les YAML sont
+    écrits, `rediger_fiches.py --sans-fiche` se relance à la main.
+    """
+    journal = DOSSIER_LOGS / f"{horodatage}-fiches.log"
+    print(f"\n=== rédaction des fiches — {journal.name}", flush=True)
+    cmd = [
+        sys.executable,
+        "scripts/rediger_fiches.py",
+        "--sans-fiche",
+        "--parallele",
+        str(args.parallele_fiches),
+        "--budget-total",
+        str(args.budget_fiches),
+        "--model",
+        args.model_redaction,
+    ]
+    journal.parent.mkdir(parents=True, exist_ok=True)
+    with journal.open("w", encoding="utf-8") as sortie:
+        proc = subprocess.run(cmd, cwd=RACINE, stdout=sortie, stderr=subprocess.STDOUT)
+    fin = journal.read_text(encoding="utf-8").strip().splitlines()[-3:]
+    for ligne in fin:
+        print(f"    {ligne[:140]}")
+    if proc.returncode != 0:
+        print(f"    rédaction en échec (code {proc.returncode}) : le run n'en est pas affecté.")
 
 
 # --------------------------------------------------------------------------- #
@@ -315,6 +481,7 @@ def bilan_balayage(
     audit=None,
     etat_path: Path | None = None,
     sortie: Path | None = None,
+    en_plus: list[str] | None = None,
 ) -> Path:
     """Écrit `data/reviews/<date>-bilan-balayage.md` : ce qu'un run a produit.
 
@@ -334,7 +501,8 @@ def bilan_balayage(
     jour = _date.today()
     cible = sortie or (RACINE / "data" / "reviews" / f"{jour.isoformat()}-bilan-balayage.md")
     etat = charger(etat_path or FILE_ATTENTE)
-    concernes = {s: t for s, t in etat.items() if t.territoire in cles}
+    rattrapes = set(en_plus or ())
+    concernes = {s: t for s, t in etat.items() if t.territoire in cles or s in rattrapes}
     par_statut: dict[str, int] = {}
     for tache in concernes.values():
         par_statut[tache.statut] = par_statut.get(tache.statut, 0) + 1
@@ -349,6 +517,11 @@ def bilan_balayage(
         f"# Bilan de balayage — {jour.isoformat()} ({horodatage})",
         "",
         f"Territoires : {', '.join(cles)}",
+        *(
+            [f"Plus {len(rattrapes)} ancien(s) échec(s) de panne repassé(s) par la lecture."]
+            if rattrapes
+            else []
+        ),
         "",
         "## Ce que le run a produit",
         "",
@@ -449,7 +622,9 @@ def _doublons_du_catalogue() -> list[str]:
         return [f"(mesure indisponible : {exc})"]
 
 
-def _ecrire_bilan(horodatage: str, cles: list[str], avant: dict) -> Path:
+def _ecrire_bilan(
+    horodatage: str, cles: list[str], avant: dict, en_plus: list[str] | None = None
+) -> Path:
     """Le bilan avec ses trois mesures réelles. Ne lève jamais.
 
     Chacune peut échouer pour une raison qui n'a rien à voir avec le run (une
@@ -507,6 +682,7 @@ def _ecrire_bilan(horodatage: str, cles: list[str], avant: dict) -> Path:
         lint=_sur(_lint),
         tronc=_sur(_tronc),
         audit=_sur(_audit),
+        en_plus=en_plus,
     )
 
 
@@ -569,13 +745,54 @@ def main() -> int:
         default=4,
         help="territoires prospectés en même temps (défaut : 4)",
     )
-    p.add_argument("--parallele", type=int, default=6, help="ingestions simultanées (défaut : 6)")
+    p.add_argument(
+        "--rattraper-echecs",
+        action="store_true",
+        help="repasser par la lecture les échecs de panne lus avant le test du "
+        "destinataire, puis les promouvoir et les ingérer avec le reste",
+    )
+    p.add_argument(
+        "--parallele-relecture",
+        type=int,
+        default=8,
+        help="lectures simultanées pour --rattraper-echecs (défaut : 8)",
+    )
+    # 10 et non plus 6 : le run du 2026-09-18 a tenu 10 workers sans un seul
+    # 429, et le disjoncteur coupe désormais sur une panne du fournisseur.
+    p.add_argument("--parallele", type=int, default=10, help="ingestions simultanées (défaut : 10)")
+    p.add_argument(
+        "--relances-ingestion",
+        type=int,
+        default=2,
+        help="relances après une coupure du disjoncteur (défaut : 2)",
+    )
+    p.add_argument(
+        "--pause-relance",
+        type=float,
+        default=900,
+        help="secondes d'attente avant chaque relance (défaut : 900)",
+    )
     p.add_argument("--budget-aide", type=float, default=1.50, help="plafond $ par aide")
     p.add_argument("--budget-total", type=float, default=60.0, help="plafond $ pour l'ingestion")
     p.add_argument("--model-tri", default="ds-v41")
     p.add_argument("--model-lecture", default="ds-v41")
     p.add_argument("--model-ingestion", default="ds-v41")
     p.add_argument("--model-verif", default="ds-v41")
+    # Découverte et audit passaient par l'environnement (`LLM_MODEL_DECOUVERTE`,
+    # `LLM_MODEL_AUDIT`), donc par OpenRouter, alors que tout le reste du run
+    # était épinglé ici : une clé expirée ne touchait qu'eux, en silence.
+    p.add_argument("--model-decouverte", default="ds-v41")
+    p.add_argument("--model-redaction", default="ds-v41")
+    p.add_argument(
+        "--sans-fiches",
+        action="store_true",
+        help="ne pas rédiger le bloc `fiche:` des aides ingérées",
+    )
+    p.add_argument("--parallele-fiches", type=int, default=6, help="rédactions simultanées")
+    p.add_argument(
+        "--budget-fiches", type=float, default=10.0, help="plafond $ de la rédaction des fiches"
+    )
+    p.add_argument("--model-audit", default="ds-v41")
     args = p.parse_args()
 
     if not args.territoires:
@@ -598,7 +815,7 @@ def main() -> int:
     a_faire = [c for c in retenus if c not in deja]
 
     horodatage = datetime.now().strftime("%Y-%m-%d-%H%M")
-    print(f"=== balayage séquentiel — {len(a_faire)} territoire(s)")
+    print(f"=== balayage — {len(a_faire)} territoire(s)")
     for c in a_faire:
         print(f"    · {c}")
     if deja:
@@ -613,6 +830,12 @@ def main() -> int:
         f"\n    ingestion finale : {'SAUTÉE' if args.sans_ingestion else ''}"
         f"{'' if args.sans_ingestion else f'{args.parallele} en parallèle, ${args.budget_total:.0f} max'}"
     )
+    anciens = echecs_a_relire(charger(FILE_ATTENTE))
+    if anciens:
+        print(
+            f"    anciens échecs de panne jamais passés au test : {len(anciens)} "
+            + ("(relus puis ingérés, --rattraper-echecs)" if args.rattraper_echecs else "(laissés)")
+        )
     print(f"    journaux : {DOSSIER_LOGS.relative_to(RACINE)}/")
 
     if args.dry_run:
@@ -627,6 +850,15 @@ def main() -> int:
         print("  Attends sa fin, ou tue-le, puis relance avec --reprendre.")
         return 1
 
+    print("\n=== vérification des modèles", flush=True)
+    pannes = verifier_modeles(args)
+    if pannes:
+        print("⚠ un modèle ne répond pas — rien n'a été lancé :")
+        for panne in pannes:
+            print(f"    {panne}")
+        return 1
+    print("    tous les modèles répondent.")
+
     if etat["debut"] is None:
         etat["debut"] = horodatage
     debut = time.monotonic()
@@ -636,14 +868,56 @@ def main() -> int:
 
     if args.reprendre_ingestion:
         print("\n=== --reprendre-ingestion : prospection sautée")
-        code = phase_ingestion(retenus, args, horodatage)
-        return 0 if code in (0, RIEN_A_INGERER) else code
+    else:
+        code = phase_prospection(a_faire, args, horodatage, etat)
+        if code:
+            return code
+        if args.sans_ingestion:
+            print("\n--sans-ingestion : la file reste en `a_valider`, rien n'a été ingéré.")
+            return 0
 
-    # --- phase 1 : prospection ----------------------------------------------
-    # Parallélisable sans risque : chaque territoire écrit dans son propre
-    # `data/prospection/<clé>/`, et les deux fichiers partagés qu'il touche —
-    # `file-attente.yaml` et la fiche de prospection — passent par le `flock`
-    # de `pipeline/verrou.py`, qui est inter-processus.
+    # --- phase 2 : validation puis ingestion unique -------------------------
+    en_plus = rattraper_echecs(args, horodatage) if args.rattraper_echecs else []
+    code = phase_ingestion(retenus, args, horodatage, en_plus=en_plus)
+    if code == 130:
+        return 130
+    if code == RIEN_A_INGERER:
+        return 0
+
+    if not args.sans_fiches:
+        rediger_fiches(args, horodatage)
+
+    total = (time.monotonic() - debut) / 60
+    if not args.sans_bilan:
+        print("\n=== bilan (lint, tronc commun, audit d'ontologie)…", flush=True)
+        cible = _ecrire_bilan(horodatage, retenus, avant, en_plus=en_plus)
+        print(f"    {cible}")
+    print(f"\n=== balayage terminé en {total / 60:.1f} h")
+    print(f"    journaux : {DOSSIER_LOGS.relative_to(RACINE)}/{horodatage}-*.log")
+    # Le code de l'ingestion remonte : un « terminé » qui sort en 0 après un
+    # disjoncteur laissait croire à un run complet.
+    if code == CODE_FOURNISSEUR:
+        print("\n⛔ ingestion arrêtée par le disjoncteur, relances épuisées. Les aides non")
+        print("   traitées sont en `valide` : vérifier le solde et le réseau, puis")
+        print("   uv run python scripts/balayage.py <mêmes territoires> --reprendre-ingestion")
+    elif code:
+        print("\n⚠ des aides ont échoué : voir la section « Échecs » du bilan.")
+    print("\nCe qu'il reste à faire à la main :")
+    print("    uv run python scripts/lint_aides_data.py")
+    print("    # relire les fiches de review, puis :")
+    print("    git add -A && git commit")
+    print("    uv run python scripts/load_aides_yaml.py")
+    return code
+
+
+def phase_prospection(a_faire: list[str], args, horodatage: str, etat: dict) -> int:
+    """Prospection des territoires, plusieurs à la fois. Rend 130 sur Ctrl-C, 0 sinon.
+
+    Parallélisable sans risque : chaque territoire écrit dans son propre
+    `data/prospection/<clé>/`, et les deux fichiers partagés qu'il touche,
+    `file-attente.yaml` et la fiche de prospection, passent par le `flock` de
+    `pipeline/verrou.py`, qui est inter-processus.
+    """
     verrou_etat = threading.Lock()
 
     def un_territoire(indice_cle: tuple[int, str]) -> tuple[str, int, float]:
@@ -679,30 +953,6 @@ def main() -> int:
         print(
             f"\n  {len(echecs)} territoire(s) en échec, retentés par --reprendre : {', '.join(echecs)}"
         )
-
-    # --- phase 2 : validation puis ingestion unique -------------------------
-    if args.sans_ingestion:
-        print("\n--sans-ingestion : la file reste en `a_valider`, rien n'a été ingéré.")
-        return 0
-
-    code = phase_ingestion(retenus, args, horodatage)
-    if code == 130:
-        return 130
-    if code == RIEN_A_INGERER:
-        return 0
-
-    total = (time.monotonic() - debut) / 60
-    if not args.sans_bilan:
-        print("\n=== bilan (lint, tronc commun, audit d'ontologie)…", flush=True)
-        cible = _ecrire_bilan(horodatage, retenus, avant)
-        print(f"    {cible}")
-    print(f"\n=== balayage terminé en {total / 60:.1f} h")
-    print(f"    journaux : {DOSSIER_LOGS.relative_to(RACINE)}/{horodatage}-*.log")
-    print("\nCe qu'il reste à faire à la main :")
-    print("    uv run python scripts/lint_aides_data.py")
-    print("    # relire les fiches de review, puis :")
-    print("    git add -A && git commit")
-    print("    uv run python scripts/load_aides_yaml.py")
     return 0
 
 

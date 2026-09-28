@@ -202,6 +202,42 @@ class TestGabarit(unittest.TestCase):
                 sans.append(slug)
         self.assertEqual(sans, [], "slugs dont le gabarit ne montre pas le périmètre")
 
+    def test_le_gabarit_ne_montre_jamais_de_fiche(self):
+        """La fiche se rédige après l'ingestion : servie, l'agent en improvisait une."""
+        from ingestion.contexte import choisir_aide_reference
+
+        from aides_schema import AIDES_DIR
+
+        choix = choisir_aide_reference("zz-nouvelle-aide", AIDES_DIR)
+        assert choix is not None
+        self.assertNotIn("fiche", yaml.safe_load(choix[1]))
+
+    def test_sans_bloc_fiche_garde_le_reste(self):
+        from ingestion.contexte import sans_bloc_fiche
+
+        texte = (
+            "slug: x\nconditions:\n- id: a\n# Rédaction de la page\n"
+            "fiche:\n  titre: X\n  points:\n    a: {titre: A}\n"
+        )
+        self.assertEqual(
+            yaml.safe_load(sans_bloc_fiche(texte)), {"slug": "x", "conditions": [{"id": "a"}]}
+        )
+        self.assertNotIn("Rédaction", sans_bloc_fiche(texte))
+        self.assertEqual(sans_bloc_fiche("slug: x\n"), "slug: x\n")
+
+    def test_le_gabarit_montre_un_levier(self):
+        """La forme d'une démarche : `manual_check` + `info` qui cite son levier."""
+        from ingestion.contexte import choisir_aide_reference
+
+        from aides_schema import AIDES_DIR
+
+        choix = choisir_aide_reference("zz-nouvelle-aide", AIDES_DIR)
+        assert choix is not None
+        conditions = yaml.safe_load(choix[1]).get("conditions") or []
+        self.assertTrue(
+            any(c.get("levier") and c.get("kind") == "manual_check" for c in conditions)
+        )
+
     def test_le_gabarit_montre_toujours_un_modulateur(self):
         """L'autre mécanisme que les runs réels ratent systématiquement.
 

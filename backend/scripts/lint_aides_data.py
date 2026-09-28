@@ -393,6 +393,93 @@ def check_portee_geographique(aide: Aide) -> list[str]:
     return []
 
 
+def gates_refutes_sans_travaux(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
+    """Les gates d'une aide `valorisation_rayonnement` qu'un projet SANS travaux réfute.
+
+    Une telle aide finance une action sans chantier (TYPING, § `raison`) : si
+    « ce projet ne comporte pas de travaux » la ferme, le tag ou la condition est
+    faux. Vide pour une aide sans ce tag.
+    """
+    if "valorisation_rayonnement" not in aide.raison:
+        return []
+    sans_travaux = deduire_faits_des_faits({"etat_travaux": "aucun"}, facts)
+    return sorted(
+        {
+            f"{c.id} ({c.fact})"
+            for c in aide.conditions
+            if c.kind == "user_fact"
+            and c.effect == "gate"
+            and c.fact in sans_travaux
+            and c.predicate is not None
+            and evaluate_predicate(
+                c.predicate.root,
+                _normalize_answer(facts.get(c.fact), sans_travaux[c.fact]),
+            )
+            is False
+        }
+    )
+
+
+def check_ecriture(aide: Aide, facts: dict[str, FactDef]) -> list[str]:
+    """Erreurs propres à une aide qu'on ÉCRIT : outil `lint` de l'agent et `controler`.
+
+    Chacune a été corrigée à la main sur le lot du 2026-09-18, et le lint global
+    ne peut pas les rendre bloquantes sans rougir sur le stock existant (13
+    calendriers contradictoires, 18 `raison` incohérentes au 2026-09-28). En
+    mode écriture, l'agent les voit pendant sa boucle et peut les corriger ;
+    `controler` refuse ensuite ce qui reste.
+    """
+    erreurs: list[str] = []
+    for c in aide.conditions:
+        if c.kind == "untyped":
+            erreurs.append(
+                f"{aide.slug} / {c.id} : condition `untyped` — le moteur ignore toute l'aide "
+                "tant qu'une seule reste non typée. La typer (TYPING, arbre de décision)."
+            )
+    cal = aide.calendrier
+    if cal is not None and cal.permanent and cal.date_limite is not None:
+        erreurs.append(
+            f"{aide.slug} : `calendrier.permanent: true` avec une `date_limite` "
+            f"({cal.date_limite}) — les deux se contredisent. Une date limite dans la source "
+            "→ `permanent: false`."
+        )
+    refutes = gates_refutes_sans_travaux(aide, facts)
+    if refutes:
+        erreurs.append(
+            f"{aide.slug} : `raison: valorisation_rayonnement` mais un projet SANS travaux est "
+            f"écarté par {', '.join(refutes)}. Soit l'aide finance des travaux (retirer le "
+            "tag), soit la condition est trop large (TYPING, § `raison`)."
+        )
+    return erreurs
+
+
+def page_sans_rien_a_trancher(aide: Aide) -> list[str]:
+    """Avertissement : ni gate, ni modulateur, ni périmètre, ni critère structuré hors géographie.
+
+    Forme typique d'une page-programme (stratégie, observatoire, page de liens)
+    ingérée comme un dispositif : 18 retirées à la main le 2026-09-24. Pas une
+    erreur, un prix ouvert à tous a légitimement cette forme.
+    """
+    hf = aide.hard_filters
+    if (
+        aide.applies_if is None
+        and not any(c.effect in ("gate", "modulateur") for c in aide.conditions)
+        and not (
+            hf.protections
+            or hf.proprietaires
+            or hf.travaux
+            or hf.etats_conservation
+            or hf.commune_max_population
+        )
+    ):
+        return [
+            f"{aide.slug} : rien à trancher hors la géographie. Si la page ne présente aucun "
+            "dispositif demandable (stratégie, observatoire, page de liens), "
+            "`declarer_hors_perimetre` avec la catégorie `non_dispositif`."
+        ]
+    return []
+
+
 def check_fail_open(aide: Aide) -> list[str]:
     """Aucun gate vérifiable ET aucun hard_filter : l'aide est éligible partout.
 
@@ -862,6 +949,7 @@ def lint(
     baseline_path: Path = BASELINE_FILE,
     reference_dirs: Sequence[Path] = (),
     faits_du_run: Sequence[str] = (),
+    ecriture: bool = False,
 ) -> RapportLint:
     """Lint du catalogue entier, ou des seuls `slugs` donnés.
 
@@ -874,6 +962,9 @@ def lint(
     un orphelin parmi eux est une ERREUR en mono-slug, là où celui du voisin
     reste un avertissement. La distinction est tout l'intérêt de la règle —
     l'agent peut retirer le sien, pas celui d'un autre.
+
+    `ecriture` ajoute les contrôles d'une aide qu'on écrit (`check_ecriture`,
+    `page_sans_rien_a_trancher`) : l'ingestion les active, le lint du stock non.
     """
     load_facts.cache_clear()
     load_pending_facts.cache_clear()
@@ -921,6 +1012,9 @@ def lint(
         rapport.erreurs.extend(check_hors_gate(aide, facts))
         rapport.erreurs.extend(check_portee_geographique(aide))
         rapport.erreurs.extend(check_famille_faire_vivre(aide))
+        if ecriture:
+            rapport.erreurs.extend(check_ecriture(aide, facts))
+            rapport.avertissements.extend(page_sans_rien_a_trancher(aide))
         fail_open.extend(check_fail_open(aide))
         gates_levier.extend(gates_sur_fait_a_levier(aide, facts))
         gates_larges.extend(gate_plus_large_que_le_marqueur(aide, facts))
@@ -1361,26 +1455,9 @@ def _bloc_dettes_editoriales(aides: list[Aide], facts: dict[str, FactDef]) -> li
     # appliqué à un prix d'action), qui se corrige en rouvrant la source. Le
     # ratchet, lui, vit dans
     # `tests/test_eligibility_engine.py::TestProjetSansTravaux`.
-    sans_travaux = deduire_faits_des_faits({"etat_travaux": "aucun"}, facts)
     incoherentes = []
     for aide in aides:
-        if "valorisation_rayonnement" not in aide.raison:
-            continue
-        refutes = sorted(
-            {
-                f"{c.id} ({c.fact})"
-                for c in aide.conditions
-                if c.kind == "user_fact"
-                and c.effect == "gate"
-                and c.fact in sans_travaux
-                and c.predicate is not None
-                and evaluate_predicate(
-                    c.predicate.root,
-                    _normalize_answer(facts.get(c.fact), sans_travaux[c.fact]),
-                )
-                is False
-            }
-        )
+        refutes = gates_refutes_sans_travaux(aide, facts)
         if refutes:
             incoherentes.append(f"{aide.slug} — {', '.join(refutes)}")
     if incoherentes:

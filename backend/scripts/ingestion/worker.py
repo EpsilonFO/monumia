@@ -283,6 +283,7 @@ def controler(atelier: Atelier, resultat: Resultat, etat: EtatOutils) -> list[st
         facts_path=atelier.facts_path,
         pending_path=atelier.pending_path,
         faits_du_run=tuple(etat.faits_proposes),
+        ecriture=True,
     )
     if not rapport.ok:
         echecs.append("lint rouge : " + " ; ".join(rapport.erreurs[:5]))

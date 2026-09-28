@@ -29,13 +29,18 @@ import providall
 from pipeline.etat import CategorieEcart, Destinataire, Objet
 from pipeline.etat import retenir as test_du_destinataire
 from pipeline.llm import Compteur
-from pipeline.web import Fetcheur
+from pipeline.web import Fetcheur, Page
+from veille_collect import pdf_bytes_to_text, pdf_lisible
 
 from .collecte import Candidat, est_document, liens
 from .territoires import Territoire
 from .tri import SKILL_PROSPECTION, Famille, doctrine, familles_rendues
 
 MAX_CAR_PAGE = 25_000
+# En dessous, une page HTML n'a pas de substance (SPA, page vide). Un PDF a son
+# propre seuil, `veille_collect.PDF_MIN_TEXT` via `pdf_lisible` : c'est la
+# définition d'un scan que partagent déjà la veille et l'ingestion.
+SEUIL_SPA = 500
 MAX_LIENS_DOCUMENTS = 25
 MAX_CAR_NOTE = 600
 
@@ -232,6 +237,31 @@ def _documents_lies(page, territoire: Territoire, candidat: Candidat | None = No
     return trouves[:MAX_LIENS_DOCUMENTS]
 
 
+def _texte_a_juger(page: Page) -> tuple[str, str | None]:
+    """Le texte que lit le modèle, ou pourquoi il n'y en a pas.
+
+    Un PDF se lit comme une page : jusqu'au 2026-09-18, il était abandonné ici
+    avec « à traiter directement à l'ingestion », et 124 candidates du balayage
+    sont ainsi sorties de la fiche sans jugement, dont toute la Haute-Marne (52)
+    et toute la Creuse (23) : leurs guides renvoient à des PDF. Même
+    extraction que la veille et l'ingestion (`pdf_bytes_to_text`, cache par
+    sha256), même définition du scan (`pdf_lisible`).
+    """
+    if page.est_pdf:
+        texte = pdf_bytes_to_text(page.contenu)
+        if texte is None:
+            return "", "PDF illisible : `pdftotext` indisponible ou en échec"
+        if not pdf_lisible(texte):
+            return "", (
+                f"PDF scanné ({len(texte.strip())} car. extraits) : source citable à chercher"
+            )
+        return texte, None
+    markdown = page.markdown()
+    if len(markdown.strip()) < SEUIL_SPA:
+        return "", f"page vide ou SPA ({len(markdown.strip())} car.) — source citable à chercher"
+    return markdown, None
+
+
 def lire(
     candidat: Candidat,
     territoire: Territoire,
@@ -245,14 +275,9 @@ def lire(
     page = fetcheur.get(candidat.url)
     if not page.ok:
         return Lecture(candidat, erreur=f"{page.erreur or f'HTTP {page.status}'}")
-    if page.est_pdf:
-        return Lecture(candidat, erreur="PDF — à traiter directement à l'ingestion")
-    markdown = page.markdown()
-    if len(markdown.strip()) < 500:
-        return Lecture(
-            candidat,
-            erreur=f"page vide ou SPA ({len(markdown.strip())} car.) — source citable à chercher",
-        )
+    texte, erreur = _texte_a_juger(page)
+    if erreur is not None:
+        return Lecture(candidat, erreur=erreur)
 
     documents = _documents_lies(page, territoire, candidat)
     prompt = "\n\n".join(
@@ -260,8 +285,8 @@ def lire(
             f"URL : {page.url_finale}",
             "Documents liés depuis cette page (les seuls que tu peux citer dans `urls_pdf`) :\n"
             + ("\n".join(f"  {u}" for u in documents) or "  (aucun)"),
-            "--- Contenu de la page ---",
-            markdown[:MAX_CAR_PAGE],
+            "--- Texte du document PDF ---" if page.est_pdf else "--- Contenu de la page ---",
+            texte[:MAX_CAR_PAGE],
         ]
     )
     essai = client.try_complete_json(LectureFiche, prompt, system=consigne(skill_path))
@@ -355,6 +380,7 @@ __all__ = [
     "CONSIGNE_DESTINATAIRE",
     "CONSIGNE_EXTRACTION",
     "MAX_CAR_PAGE",
+    "SEUIL_SPA",
     "Lecture",
     "LectureFiche",
     "LONGUEUR_MAX_SLUG",

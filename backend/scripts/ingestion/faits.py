@@ -161,11 +161,15 @@ def detail(facts: dict[str, FactDef], pending: dict[str, FactDef], fact_id: str)
             "en gardant `text` et `quote` (TYPING, « manual_check + effect: info »).\n"
         )
     if fait.porteurs_concernes:
+        # Le message disait encore « l'aide DOIT aussi gater le porteur, le lint le
+        # refuse sinon », règle abandonnée le 2026-09-21 : il produisait les gates
+        # porteur devinés (EPCI et syndicats mixtes oubliés) retirés à la main
+        # sur 61 aides la semaine suivante.
         avertissement += (
-            f"\n⚠ RÉSERVÉ AUX PORTEURS : {', '.join(fait.porteurs_concernes)}. Si tu gates sur "
-            f"ce fait, l'aide DOIT aussi gater `{FAIT_PORTEUR}` (gate `in` traduisant la puce "
-            "« Bénéficiaires » de la source) — le lint le refuse sinon. Sans ce gate, l'aide "
-            "pose sa question d'entreprise à toutes les communes (TYPING § bénéficiaires).\n"
+            f"\n⚠ RÉSERVÉ AUX PORTEURS : {', '.join(fait.porteurs_concernes)}. Le moteur ferme "
+            "déjà ce fait aux autres porteurs. Gate `in` sur "
+            f"`{FAIT_PORTEUR}` SEULEMENT si la source nomme ses bénéficiaires, en traduisant "
+            "sa liste telle quelle ; sinon aucun gate porteur (SKILL, « Bénéficiaires »).\n"
         )
     return f"{entete}\n{corps}{avertissement}"
 
@@ -266,13 +270,44 @@ def _message_proximite(
     return "\n".join(lignes)
 
 
+#: Une question que tout demandeur accepte : « acceptez-vous de… »,
+#: « vous engagez-vous à… ». Elle ne trie personne et entre au questionnaire de
+#: tous les propriétaires.
+_PROMESSE_RE = re.compile(
+    r"^\W*(acceptez|vous\s+(vous\s+)?engag|vous-engag|vous\s+engager|"
+    r"(le\s+porteur|la\s+structure|le\s+b[ée]n[ée]ficiaire)\s+s['’]\s*engag)",
+    re.IGNORECASE,
+)
+
+
+def promesse(fact_id: str, fait: FactDef) -> bool:
+    """Vrai si le fait proposé est une promesse : clé `s_engage_*` ou question d'engagement.
+
+    La famille entière (43 faits, 143 conditions) a été retypée le 2026-09-22 ;
+    la consigne du SKILL n'avait pas suffi à l'empêcher de naître. Le refus
+    vit ici, au seul endroit où le fait n'existe pas encore.
+    """
+    return fact_id.startswith("s_engage") or bool(_PROMESSE_RE.search(fait.question))
+
+
 def _refus_de_forme(fact_id: str, fait: FactDef) -> str | None:
-    """Les trois refus de FORME, ou `None`. Chacun oriente vers ce qu'il faut écrire.
+    """Les refus de FORME, ou `None`. Chacun oriente vers ce qu'il faut écrire.
 
     Ils se posent à l'ÉCRITURE et pas au lint, parce qu'ici le fait n'existe pas
     encore : l'agent peut corriger et reproposer, sans qu'aucun prédicat ne cite
     déjà la clé. Le lint, lui, ne peut qu'avertir sur un stock déjà écrit.
     """
+    if promesse(fact_id, fait):
+        return (
+            f"ERREUR : « {fact_id} » est une PROMESSE (« acceptez-vous… », « vous "
+            "engagez-vous à… ») : tout demandeur répond oui, la question ne trie personne et "
+            "elle entrerait au questionnaire de TOUS les propriétaires.\n"
+            "Type la condition `kind: info` + `effect: info`, avec le `text` et la `quote` de "
+            "la source : l'exigence reste affichée sur la fiche, sans devenir une question. "
+            "Si la promesse cache un critère réel (des travaux pas encore commencés, par "
+            "exemple), gate sur le fait qui porte ce critère (`etat_travaux`), déjà posé "
+            "pour tout le monde."
+        )
     seuil = booleen_a_seuil(fact_id, fait) or (
         seuil_chiffre(fact_id, fait.question) if fait.type == "boolean" else None
     )

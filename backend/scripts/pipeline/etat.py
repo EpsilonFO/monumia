@@ -36,6 +36,12 @@ STATUTS: tuple[str, ...] = ("a_valider", "valide", "ignore", "en_cours", "ingere
 
 Priorite = Literal["haute", "normale", "basse"]
 
+#: Le motif d'échec que `worker.controler` pose quand l'agent n'a rien écrit du
+#: tout. 351 des 369 échecs du 2026-09-18 le portent, tous pour une panne du
+#: fournisseur ; les 18 autres sont de vrais refus (lint rouge, `max_tours`,
+#: source en 503) qu'une relance en masse re-brûlerait pour rien.
+MOTIF_SANS_YAML = "aucun fichier YAML écrit"
+
 # --- Le test du destinataire (SKILL prospecter, Étape 3) -------------------
 #
 # À qui la source s'adresse-t-elle, et en quelle qualité ? C'est ce couple, et
@@ -356,6 +362,24 @@ def promouvables(taches: dict[str, Tache], cles: Iterable[str], *, tout: bool = 
     return sorted(c for c in voulus if motif_non_promotion(taches[c]) is None)
 
 
+def echecs_a_relire(taches: dict[str, Tache]) -> list[str]:
+    """Les échecs de panne jamais passés par le test du destinataire.
+
+    Les 351 tâches perdues le 2026-09-18 avaient été lues AVANT que la lecture
+    ne rende `destinataire` et `objet` (2026-09-21) : elles portent les deux à
+    `indetermine`. Les remettre en `valide` (`ingerer.py --relancer-echecs`)
+    les ferait ingérer sans le test qui a écarté 57 % des candidates douteuses
+    du lot suivant. `prospecter.py relire` les repasse d'abord par la lecture.
+    """
+    return sorted(
+        slug
+        for slug, t in taches.items()
+        if t.statut == "echec"
+        and MOTIF_SANS_YAML in ((t.ingestion.motif_echec if t.ingestion else None) or "")
+        and (t.destinataire == "indetermine" or t.objet == "indetermine")
+    )
+
+
 # ---------------------------------------------------------------------------
 # Doublons d'URL
 # ---------------------------------------------------------------------------
@@ -413,6 +437,7 @@ __all__ = [
     "DESTINATAIRES",
     "FAMILLES_NON_PROMOUVABLES",
     "FILE_ATTENTE",
+    "MOTIF_SANS_YAML",
     "OBJETS",
     "OBJETS_RETENUS",
     "PROSPECTION_DIR",
@@ -426,6 +451,7 @@ __all__ = [
     "Tache",
     "charger",
     "doublons_par_url",
+    "echecs_a_relire",
     "ecrire",
     "fusionner",
     "mettre_a_jour",

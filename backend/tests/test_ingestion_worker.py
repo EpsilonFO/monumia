@@ -30,7 +30,7 @@ from ingestion.boucle import Resultat  # noqa: E402
 from ingestion.outils import EtatOutils  # noqa: E402
 from ingestion.verification import RapportVerification  # noqa: E402
 from ingestion.worker import ConfigIngestion, ResultatIngestion, controler  # noqa: E402
-from pipeline.etat import Ingestion, Tache, charger, ecrire  # noqa: E402
+from pipeline.etat import Ingestion, Tache, charger, echecs_a_relire, ecrire  # noqa: E402
 from pipeline.llm import Compteur  # noqa: E402
 from providall import Usage  # noqa: E402
 
@@ -630,6 +630,10 @@ class TestDisjoncteur(TestOrchestrateur):
         self.assertEqual(d.salves, 0)
 
 
+#: Le verdict de lecture d'une tâche qui passe le test du destinataire.
+LUE = {"destinataire": "proprietaire_gestionnaire", "objet": "bien_ou_lieu"}
+
+
 class TestRelancerEchecs(TestOrchestrateur):
     """C5 — relancer les pannes sans re-brûler les vrais refus."""
 
@@ -638,10 +642,12 @@ class TestRelancerEchecs(TestOrchestrateur):
             panne=tache(
                 statut="echec",
                 ingestion=Ingestion(motif_echec="aucun fichier YAML écrit", tentatives=1),
+                **LUE,
             ),
             lint_rouge=tache(
                 statut="echec",
                 ingestion=Ingestion(motif_echec="lint rouge : quote introuvable", tentatives=1),
+                **LUE,
             ),
         )
         relances = orchestrateur.relancer_echecs(self.etat_path, seulement_sans_yaml=True)
@@ -652,9 +658,25 @@ class TestRelancerEchecs(TestOrchestrateur):
     def test_sans_le_filtre_tout_repart(self):
         self.ecrire_etat(
             a=tache(statut="echec", ingestion=Ingestion(motif_echec="lint rouge")),
-            b=tache(statut="echec", ingestion=Ingestion(motif_echec="aucun fichier YAML écrit")),
+            b=tache(
+                statut="echec", ingestion=Ingestion(motif_echec="aucun fichier YAML écrit"), **LUE
+            ),
         )
         self.assertEqual(sorted(orchestrateur.relancer_echecs(self.etat_path)), ["a", "b"])
+
+    def test_une_panne_jamais_lue_attend_la_relecture(self):
+        """Lue avant le test du destinataire : la relancer l'ingérerait sans filtre."""
+        self.ecrire_etat(
+            ancienne=tache(
+                statut="echec", ingestion=Ingestion(motif_echec="aucun fichier YAML écrit")
+            ),
+            lue=tache(
+                statut="echec", ingestion=Ingestion(motif_echec="aucun fichier YAML écrit"), **LUE
+            ),
+        )
+        self.assertEqual(echecs_a_relire(charger(self.etat_path)), ["ancienne"])
+        self.assertEqual(orchestrateur.relancer_echecs(self.etat_path), ["lue"])
+        self.assertEqual(charger(self.etat_path)["ancienne"].statut, "echec")
 
     def test_une_tache_sans_bloc_ingestion_nest_pas_relancee_par_le_filtre(self):
         """Pas de motif = on ne sait pas : on ne la rejoue pas à l'aveugle."""
