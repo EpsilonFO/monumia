@@ -71,7 +71,10 @@ interface Depot {
  *  - côté PROJET, un document déposé pend au chantier et à lui seul (pas de
  *    choix de monument dans la fenêtre d'ajout) : le déposer ici ne doit pas
  *    l'exposer à l'équipe du bien au-delà de ce qu'elle voit déjà ;
- *  - côté MONUMENT, il pend au monument, coché par défaut.
+ *  - côté MONUMENT, il pend au monument, coché par défaut. La liste y montre
+ *    aussi les pièces de ses projets (le serveur les ajoute), avec la pastille
+ *    du chantier. « Retirer de ce monument » ne leur est pas proposé
+ *    (`droitsDocument`) : elles ne pendent qu'au projet.
  */
 export function OngletDocuments({
   ici, monumentId, documents, onChange, role, auteurs = {}, dossierNames = {}, intro, vide,
@@ -98,8 +101,8 @@ export function OngletDocuments({
   const pieceEnAttente = useRef<PieceAPreremplir | null>(null);
 
   // Le store « mes documents » sert à savoir quelles pièces sont déjà là : la
-  // liste de l'onglet ne voit que son périmètre (celle d'un monument n'a pas
-  // les pièces de ses projets).
+  // liste de l'onglet ne voit que son périmètre (celle d'un projet n'a pas les
+  // pièces du monument, ni une pièce `porteur` déposée ailleurs).
   useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
 
   useEffect(() => {

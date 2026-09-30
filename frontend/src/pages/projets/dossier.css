@@ -1,0 +1,61 @@
+/*
+ * Page d'un dossier de candidature. Elle porte `.ec .pproj .pdos` : l'en-tête
+ * (`.phead`), les pastilles et les pictos ronds sont ceux de la page projet
+ * (projet.css), les pièces sont les emplacements de l'espace documents
+ * (`.desp .req .slot`, documents.css). Ne vit ici que ce que le dossier ajoute.
+ */
+
+.pdos .pdos-lieu { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; font: 400 20px/1.2 var(--e-serif); color: var(--e-faint); }
+.pdos .phead .pdos-lieu .lieu { font-size: 20px; }
+.pdos .pdos-sous { margin-top: 8px; font-size: 15px; color: var(--e-faint); }
+
+/* pièces reprises d'un autre dossier, à vérifier */
+.pdos .pdos-rep { margin-top: 26px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 18px 22px; border: 1.5px solid var(--e-blue-line); border-radius: var(--e-r); background: var(--e-blue-soft); }
+.pdos .pdos-rep .gi { background: var(--e-blue); }
+.pdos .pdos-rep > div { flex: 1; min-width: 239px; }
+.pdos .pdos-rep b { display: block; color: var(--e-ink); font-weight: 600; font-size: 16px; }
+.pdos .pdos-rep p { font-size: 15px; margin-top: 2px; }
+
+/* les pièces */
+.pdos .pdos-pieces { margin-top: 30px; }
+.pdos .pdos-pieces .bar { margin-top: 0; }
+.pdos .desp .slot.rep { border-style: solid; border-color: var(--e-blue-line); background: var(--e-blue-soft); }
+.pdos .desp .slot.rep small { color: var(--e-blue); font-weight: 600; }
+.pdos .desp .slot.rep.vieux { border-color: var(--e-orange-line); background: var(--e-orange-soft); }
+.pdos .desp .slot.rep.vieux small { color: var(--e-orange-ink); }
+.pdos .pdos-acts { margin-top: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
+.pdos .pdos-acts .lnk { font-size: 14.5px; }
+.pdos .pdos-acts .lnk:disabled { opacity: .55; }
+.pdos .pdos-acts .lnk.del { color: var(--e-red); text-decoration-color: color-mix(in srgb, var(--destructive) 30%, transparent); }
+
+/* rappel : le dépôt se fait hors de Monumia */
+.pdos .pdos-manuel { margin-top: 30px; display: flex; align-items: flex-start; gap: 14px; padding: 16px 20px; border: 1.5px dashed var(--e-orange-line); border-radius: var(--e-r); font-size: 15px; }
+.pdos .pdos-manuel .gi { background: var(--e-orange); }
+.pdos .pdos-manuel b { color: var(--e-ink); font-weight: 600; }
+
+/* l'aide, résumée en une carte qui mène à sa fiche */
+.pdos .pdos-aide { display: flex; flex-direction: column; gap: 11.5px; max-width: 760px; background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: var(--e-r); padding: 22px 22px 0; overflow: hidden; text-decoration: none; color: inherit; transition: box-shadow .25s, transform .2s; }
+.pdos .pdos-aide:hover { box-shadow: var(--e-sh-card); transform: translateY(-2px); }
+.pdos .pdos-aide h3 { font: 700 21px/1.28 var(--e-serif); color: var(--e-ink); letter-spacing: -.01em; }
+.pdos .pdos-aide:hover h3 { color: var(--e-blue); }
+.pdos .pdos-aide .desc { font-size: 15px; line-height: 1.55; color: var(--e-body); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.pdos .pdos-aide-f { margin: 6px -22px 0; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; gap: 11.5px; flex-wrap: wrap; background: var(--e-blue); color: #fff; }
+.pdos .pdos-aide-f b { font-size: 15.5px; font-weight: 400; color: #fff; }
+.pdos .pdos-aide-f .q-l { color: #fff; margin-left: auto; }
+.pdos .pdos-aide:hover .q-l { text-decoration: underline; text-underline-offset: 4px; }
+
+.pdos .pdos-introuvable { margin-top: 22px; }
+.pdos .pdos-introuvable h1 { font-size: 28px; }
+.pdos .pdos-introuvable p { margin-top: 6px; }
+
+/* « Modèles suggérés » (portail : `.ec.dmenu` sur le contenu du popover) */
+.ec.dmenu.pdos-modeles { width: 300px; }
+.ec.dmenu .pdos-modeles-t { padding: 6px 10px 4px; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--e-faint); }
+.ec.dmenu.pdos-modeles button { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; border-radius: 8px; padding: 9px 10px; text-align: left; font-size: 15px; color: var(--e-ink); }
+.ec.dmenu.pdos-modeles button:hover { background: var(--e-blue-soft); }
+.ec.dmenu.pdos-modeles .fmt { flex: none; font-size: 12px; font-weight: 700; border-radius: 6px; padding: 2.5px 7px; }
+
+@media (max-width: 760px) {
+  .pdos .pdos-rep { padding: 16px; }
+}
+.pdos .pdos-acts .lnk { text-align: left; }

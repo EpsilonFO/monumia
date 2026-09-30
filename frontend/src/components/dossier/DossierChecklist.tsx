@@ -1,25 +1,14 @@
-import { Loader2 } from 'lucide-react';
-import {
-  IconSucces, IconTelecharger, IconVoir, IconVerrou, IconAjouter, IconRafraichir, IconSupprimer, IconLienExterne, IconAttention,
-} from '@/components/icons';
-import { useParams } from 'react-router';
-import { toast } from 'sonner';
-import { Badge } from '@/components/ui/badge';
+import { useEffect, useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
-import { dossierService } from '@/services/dossier.service';
+import { Picto } from '@/components/shared/ecrans/Picto';
+import { PictoDoc } from '@/components/document/PictosDocuments';
+import { BarreSection } from '@/components/document/EspaceDocuments';
+import { documentService } from '@/services/document.service';
 import { templateService } from '@/services/template.service';
 import { formatBadge } from '@/lib/template-format';
-import type { ChecklistItem, Template } from '@/types';
-import { useEffect, useState } from 'react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { documentService } from '@/services/document.service';
 import { compterChecklist } from '@/lib/checklist-progress';
+import type { ChecklistItem, Template } from '@/types';
+import '@/components/document/documents.css';
 
 /** Défense : un label malformé (dossier stocké avec un objet document
  *  {nom, …} au lieu d'une chaîne) ne doit pas faire planter le rendu React. */
@@ -33,10 +22,19 @@ function labelText(label: unknown): string {
 
 interface DossierChecklistProps {
   items: ChecklistItem[];
+  /** Projet du dossier : c'est sa liste de documents qui dit ce que l'on peut ouvrir. */
+  projetId: string;
   /** Modèles de la bibliothèque correspondant à chaque pièce (par id de pièce). */
   templatesByItemId?: Record<string, Template[]>;
   /** Lien de téléchargement officiel de la pièce (Cerfa / formulaire), par id de pièce. */
   documentUrlByItemId?: Record<string, string>;
+  /** Le libellé affiché d'une pièce (celui de la fiche rédigée de l'aide, s'il existe). */
+  libelle?: (label: string) => string;
+  /** Le nom du document qui remplit la pièce, s'il est connu. */
+  nomDocument?: (documentId: string) => string | undefined;
+  /** « Déposer » : un nouveau fichier pour cette pièce. */
+  onRequestDeposer?: (item: ChecklistItem) => void;
+  /** « Choisir un document » / « Remplacer ». */
   onRequestAttach?: (item: ChecklistItem) => void;
   onPreview?: (documentId: string) => void;
   onRequestDelete?: (item: ChecklistItem) => void;
@@ -46,23 +44,30 @@ interface DossierChecklistProps {
   onReject?: (item: ChecklistItem) => void;
   /** Vrai si l'utilisateur peut remplacer/supprimer la pièce (= il en est l'auteur). */
   canModifyItem?: (item: ChecklistItem) => boolean;
-  /** Nom du fichier zip proposé au téléchargement de l'ensemble des pièces. */
-  archiveName?: string;
   busyItemId?: string | null;
   readOnly?: boolean;
 }
 
+/**
+ * Les pièces d'un dossier, avec les emplacements de l'espace documents
+ * (`.req` / `.slot`, cf. PiecesADeposer) : en pointillé tant qu'une pièce
+ * manque, en vert une fois fournie, en bleu quand un fichier déjà envoyé a été
+ * repris et attend d'être vérifié.
+ */
 export function DossierChecklist({
   items,
+  projetId,
   templatesByItemId,
   documentUrlByItemId,
+  libelle = (l) => l,
+  nomDocument,
+  onRequestDeposer,
   onRequestAttach,
   onPreview,
   onRequestDelete,
   onConfirm,
   onReject,
   canModifyItem,
-  archiveName,
   busyItemId,
   readOnly,
 }: DossierChecklistProps) {
@@ -71,9 +76,7 @@ export function DossierChecklist({
 
   // Documents que l'utilisateur a le DROIT de voir (le backend filtre déjà selon
   // la visibilité). Une pièce dont le documentId n'y est pas est masquée pour lui
-  // → cadenas au lieu de « Voir ». La page dossier expose l'id projet via la
-  // route (/projets/:projetId/...), pas besoin d'y toucher.
-  const { projetId, dossierId } = useParams();
+  // → cadenas au lieu de « Voir ».
   const [viewableDocIds, setViewableDocIds] = useState<Set<string> | null>(null);
 
   // Re-fetch quand l'ensemble des pièces fournies change (dépôt/remplacement) :
@@ -86,12 +89,11 @@ export function DossierChecklist({
     .join(',');
 
   useEffect(() => {
-    if (!projetId) { setViewableDocIds(null); return; }
     let cancelled = false;
     (async () => {
       let visibles: Set<string>;
       try {
-        const docs = await documentService.getAll({ monumentId: projetId });
+        const docs = await documentService.getAll({ projetId });
         visibles = new Set(docs.map((d) => d.id));
       } catch {
         if (!cancelled) setViewableDocIds(null);
@@ -114,83 +116,65 @@ export function DossierChecklist({
     return () => { cancelled = true; };
   }, [projetId, fourniKey]);
 
-  // Téléchargement de l'ensemble des pièces en un zip. Le backend n'y met que
-  // les documents que l'appelant a le droit de consulter : une pièce « Réservé »
-  // est absente de l'archive, sans erreur.
-  const [downloading, setDownloading] = useState(false);
-  const hasUploaded = items.some((i) => i.documentId);
-
-  const handleDownloadAll = async () => {
-    if (!dossierId) return;
-    setDownloading(true);
-    try {
-      await dossierService.downloadArchive(dossierId, archiveName ?? 'dossier');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Téléchargement impossible');
-    } finally {
-      setDownloading(false);
-    }
-  };
-
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm" style={{ color: 'var(--color-gray-muted)' }}>
-          <span className="font-medium" style={{ color: 'var(--color-foreground)' }}>{confirmees}/{total}</span> documents confirmés
-          {aVerifier > 0 && <span> · {aVerifier} à vérifier</span>}
-        </p>
-        {hasUploaded && dossierId && (
-          <button
-            type="button"
-            onClick={handleDownloadAll}
-            disabled={downloading}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-secondary/50 disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{ color: 'var(--color-primary)' }}
-            title="Télécharger toutes les pièces téléversées dans une archive zip"
-          >
-            {downloading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <IconTelecharger className="h-3.5 w-3.5" />
-            )}
-            {downloading ? 'Préparation…' : 'Télécharger le dossier'}
-          </button>
+    <section className="desp pdos-pieces" aria-label="Pièces du dossier">
+      <BarreSection
+        titre="Pièces du dossier"
+        droite={total > 0 && (
+          <div className="pdep-prog">
+            <span>
+              {confirmees} sur {total} confirmée{confirmees > 1 ? 's' : ''}
+              {aVerifier > 0 && ` · ${aVerifier} à vérifier`}
+            </span>
+            <span className="track"><i style={{ width: `${(confirmees / total) * 100}%` }} /></span>
+          </div>
         )}
-      </div>
+      />
 
-      <div className="space-y-1.5">
-        {sorted.map((item) => (
-          <DocumentRow
-            key={item.id}
-            item={item}
-            templates={templatesByItemId?.[item.id] ?? []}
-            documentUrl={documentUrlByItemId?.[item.id]}
-            readOnly={readOnly}
-            canModify={canModifyItem ? canModifyItem(item) : true}
-            busy={busyItemId === item.id}
-            hidden={
-              !!item.documentId && viewableDocIds !== null && !viewableDocIds.has(item.documentId)
-            }
-            onRequestAttach={onRequestAttach}
-            onPreview={onPreview}
-            onRequestDelete={onRequestDelete}
-            onConfirm={onConfirm}
-            onReject={onReject}
-          />
-        ))}
-      </div>
-    </div>
+      {sorted.length === 0 ? (
+        <div className="empty">
+          <b>Aucune pièce</b>
+          <p>Ce dossier ne comporte aucune pièce à fournir.</p>
+        </div>
+      ) : (
+        <div className="req">
+          {sorted.map((item) => (
+            <SlotPiece
+              key={item.id}
+              item={item}
+              nom={libelle(labelText(item.label))}
+              nomDocument={item.documentId ? nomDocument?.(item.documentId) : undefined}
+              templates={templatesByItemId?.[item.id] ?? []}
+              documentUrl={documentUrlByItemId?.[item.id]}
+              readOnly={readOnly}
+              canModify={canModifyItem ? canModifyItem(item) : true}
+              busy={busyItemId === item.id}
+              hidden={!!item.documentId && viewableDocIds !== null && !viewableDocIds.has(item.documentId)}
+              onRequestDeposer={onRequestDeposer}
+              onRequestAttach={onRequestAttach}
+              onPreview={onPreview}
+              onRequestDelete={onRequestDelete}
+              onConfirm={onConfirm}
+              onReject={onReject}
+            />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
-function DocumentRow({
+function SlotPiece({
   item,
+  nom,
+  nomDocument,
   templates,
   documentUrl,
   readOnly,
-  canModify = true,
+  canModify,
   busy,
-  hidden = false,
+  hidden,
+  onRequestDeposer,
   onRequestAttach,
   onPreview,
   onRequestDelete,
@@ -198,194 +182,118 @@ function DocumentRow({
   onReject,
 }: {
   item: ChecklistItem;
+  nom: string;
+  nomDocument?: string;
   templates: Template[];
   documentUrl?: string;
   readOnly?: boolean;
-  canModify?: boolean;
-  busy?: boolean;
-  hidden?: boolean;
-  onRequestAttach?: (item: ChecklistItem) => void;
-  onPreview?: (documentId: string) => void;
-  onRequestDelete?: (item: ChecklistItem) => void;
-  onConfirm?: (item: ChecklistItem) => void;
-  onReject?: (item: ChecklistItem) => void;
-}) {
+  canModify: boolean;
+  busy: boolean;
+  hidden: boolean;
+} & Pick<
+  DossierChecklistProps,
+  'onRequestDeposer' | 'onRequestAttach' | 'onPreview' | 'onRequestDelete' | 'onConfirm' | 'onReject'
+>) {
   const isFourni = item.statut === 'fourni';
   const isRepris = item.statut === 'repris';
+  const classe = isFourni ? 'slot ok' : isRepris ? `slot rep${item.perime ? ' vieux' : ''}` : 'slot';
+  const voir = (isFourni || isRepris) && item.documentId && !hidden && onPreview
+    ? () => onPreview(item.documentId!)
+    : undefined;
 
   return (
-    <div
-      className={cn(
-        'flex items-center gap-3 py-2.5 px-3 rounded-lg border transition-colors',
-        isFourni && 'bg-success-muted/60 border-success/30',
-        isRepris && !item.perime && 'bg-secondary/40 border-primary/30',
-        isRepris && item.perime && 'bg-warning-muted/50 border-accent/40',
-        !isFourni && !isRepris && 'border-border hover:border-border/70',
-      )}
-    >
-      {isFourni ? (
-        <IconSucces className="h-4 w-4 shrink-0 text-success" />
-      ) : isRepris ? (
-        <IconRafraichir className="h-4 w-4 shrink-0" style={{ color: 'var(--color-primary)' }} />
-      ) : (
-        <div className="w-4 h-4 shrink-0 rounded-full border-2 border-border" />
-      )}
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={cn('text-sm font-medium', isFourni && 'text-success')}>
-            {labelText(item.label)}
-          </span>
-          {item.obligatoire && (
-            <Badge variant="outline" className="text-[12px] px-1 py-0 h-4">
-              Requis
-            </Badge>
-          )}
-          {isRepris && !item.perime && (
-            <Badge variant="outline" className="text-[12px] px-1 py-0 h-4 border-primary/40 text-primary">
-              Repris — à vérifier
-            </Badge>
-          )}
-          {isRepris && item.perime && (
-            <Badge variant="outline" className="text-[12px] px-1 py-0 h-4 border-accent/50 text-warning">
-              <IconAttention className="h-2.5 w-2.5 mr-0.5" />
-              Repris — document ancien
-            </Badge>
-          )}
-        </div>
-        {item.description && (
-          <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+    <div className={classe}>
+      <b>{nom}</b>
+      <small>
+        {isFourni && hidden ? (
+          <><Picto nom="cadenas" />Fourni · accès réservé</>
+        ) : isFourni ? (
+          <><Picto nom="coche" />Fourni</>
+        ) : isRepris ? (
+          <><Picto nom="refaire" />{item.perime ? 'Repris, document ancien : à vérifier' : 'Repris d’un autre dossier : à vérifier'}</>
+        ) : (
+          <>{item.obligatoire ? 'Obligatoire' : 'Facultative'} · à fournir</>
         )}
-      </div>
+      </small>
+      {item.description && <p className="where">{item.description}</p>}
+      {/* Le nom du fichier, s'il dit autre chose que la pièce (un dépôt depuis
+          « Déposer » prend le nom de la pièce). */}
+      {(isFourni || isRepris) && nomDocument && nomDocument !== nom && !hidden && (
+        <p className="where">{isRepris ? 'Fichier proposé : ' : 'Fichier : '}{nomDocument}</p>
+      )}
 
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="pdos-acts">
         {/* Confirmer une pièce qu'on ne peut pas ouvrir serait confirmer à
-            l'aveugle : le bouton disparaît avec « Voir », il ne reste que le
-            cadenas. Le rejet, lui, ne demande pas de consulter le document — il
-            reste offert pour ne pas laisser la pièce dans une impasse. */}
+            l'aveugle : le bouton disparaît avec « Voir ». Le rejet, lui, ne
+            demande pas de consulter le document : il reste offert pour ne pas
+            laisser la pièce dans une impasse. */}
         {!readOnly && isRepris && !hidden && onConfirm && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onConfirm(item)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-success/30 text-success hover:bg-success-muted transition-colors"
-          >
-            <IconSucces className="h-3 w-3" />
-            C’est bien ça
+          <button className="btn b-blue b-sm" type="button" disabled={busy} onClick={() => onConfirm(item)}>
+            <Picto nom="coche" />C’est bien ça
           </button>
         )}
         {!readOnly && isRepris && onReject && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onReject(item)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors"
-          >
+          <button className="btn b-line b-sm" type="button" disabled={busy} onClick={() => onReject(item)}>
             Ce n’est pas ça
           </button>
         )}
-        <ModelButton templates={templates} />
-        {(isFourni || isRepris) && item.documentId && hidden && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground cursor-default"
-                  aria-label="Accès réservé"
-                >
-                  <IconVerrou className="h-3 w-3" />
-                  Réservé
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>Accès réservé&nbsp;: vous n'avez pas accès à ce document.</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-        {(isFourni || isRepris) && item.documentId && !hidden && onPreview && (
-          <button
-            type="button"
-            onClick={() => onPreview(item.documentId!)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-success/30 text-success hover:bg-success-muted transition-colors"
-          >
-            <IconVoir className="h-3 w-3" />
-            Voir
+        {!readOnly && !isFourni && !isRepris && onRequestDeposer && (
+          <button className="btn b-blue b-sm" type="button" disabled={busy} onClick={() => onRequestDeposer(item)}>
+            <Picto nom="envoyer" />{busy ? 'Envoi…' : 'Déposer'}
           </button>
         )}
-        {!readOnly && isFourni && item.documentId && onRequestDelete && canModify && !hidden && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onRequestDelete(item)}
-            aria-label="Supprimer"
-            className={cn(
-              'inline-flex items-center justify-center h-[34px] w-[34px] rounded-lg border border-destructive/20 text-destructive hover:bg-destructive-muted transition-colors',
-              busy && 'opacity-60 cursor-not-allowed',
-            )}
-          >
-            <IconSupprimer className="h-3.5 w-3.5" />
+        {voir && (
+          isFourni ? (
+            <button className="btn b-line b-sm" type="button" onClick={voir}>
+              <PictoDoc nom="oeil" />Voir
+            </button>
+          ) : (
+            <button className="lnk" type="button" onClick={voir}>Voir le fichier</button>
+          )
+        )}
+        {!readOnly && !isFourni && !isRepris && onRequestAttach && (
+          <button className="lnk" type="button" disabled={busy} onClick={() => onRequestAttach(item)}>
+            Choisir un document
           </button>
         )}
+        {!readOnly && isFourni && canModify && !hidden && onRequestAttach && (
+          <button className="lnk" type="button" disabled={busy} onClick={() => onRequestAttach(item)}>
+            Remplacer
+          </button>
+        )}
+        {!readOnly && isFourni && item.documentId && canModify && !hidden && onRequestDelete && (
+          <button className="lnk del" type="button" disabled={busy} onClick={() => onRequestDelete(item)}>
+            Retirer
+          </button>
+        )}
+        <BoutonModele templates={templates} />
         {documentUrl && (
           <a
+            className="lnk"
             href={documentUrl}
             target="_blank"
             rel="noopener noreferrer"
-            title="Télécharger le document (formulaire / Cerfa / modèle officiel)"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-primary/20 text-primary hover:bg-secondary/50 transition-colors"
+            title="Le formulaire, Cerfa ou modèle officiel de la pièce"
           >
-            <IconTelecharger className="h-3 w-3" />
-            Télécharger
-            <IconLienExterne className="h-3 w-3" />
+            <Picto nom="telecharger" />Formulaire officiel
           </a>
-        )}
-        {!readOnly && onRequestAttach && (!isFourni || canModify) && !hidden && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onRequestAttach(item)}
-            className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors',
-              busy && 'opacity-60 cursor-not-allowed',
-              isFourni
-                ? 'border-border text-muted-foreground hover:bg-muted'
-                : 'border-primary/20 text-primary hover:bg-secondary/50',
-            )}
-          >
-            {busy ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : isFourni ? (
-              <IconRafraichir className="h-3 w-3" />
-            ) : (
-              <IconAjouter className="h-3 w-3" />
-            )}
-            {busy ? 'Envoi…' : isFourni ? 'Remplacer' : 'Ajouter'}
-          </button>
         )}
       </div>
     </div>
   );
 }
 
-// Pastille « Modèle » : présente quand au moins un modèle de la bibliothèque
-// correspond à la pièce. Un seul modèle → téléchargement direct ; plusieurs →
-// liste dans un popover. Aucun modèle → rien (cas fréquent, assumé).
-function ModelButton({ templates }: { templates: Template[] }) {
+// « Modèle » : présent quand au moins un modèle de la bibliothèque correspond à
+// la pièce. Un seul modèle → téléchargement direct ; plusieurs → liste dans un
+// popover. Aucun modèle → rien (cas fréquent, assumé).
+function BoutonModele({ templates }: { templates: Template[] }) {
   if (templates.length === 0) return null;
-
-  const pill =
-    'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors border-accent/30 text-warning bg-warning-muted/50 hover:bg-warning-muted';
 
   if (templates.length === 1) {
     const t = templates[0];
     return (
-      <button
-        type="button"
-        onClick={() => templateService.download(t)}
-        className={pill}
-        title={`Télécharger le modèle : ${t.nom}`}
-      >
-        <IconTelecharger className="h-3 w-3" />
-        Modèle
+      <button className="lnk" type="button" onClick={() => templateService.download(t)} title={`Télécharger le modèle : ${t.nom}`}>
+        <Picto nom="telecharger" />Modèle
       </button>
     );
   }
@@ -393,34 +301,21 @@ function ModelButton({ templates }: { templates: Template[] }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" className={pill}>
-          <IconTelecharger className="h-3 w-3" />
-          Modèles ({templates.length})
+        <button className="lnk" type="button">
+          <Picto nom="telecharger" />Modèles ({templates.length})
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 p-1.5">
-        <p className="px-2 py-1.5 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Modèles suggérés
-        </p>
-        <div className="space-y-0.5">
-          {templates.map((t) => {
-            const badge = formatBadge(t.extension);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => templateService.download(t)}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-muted"
-              >
-                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[12px] font-bold ${badge.className}`}>
-                  {badge.label}
-                </span>
-                <span className="flex-1 truncate text-[15px] text-foreground">{t.nom}</span>
-                <IconTelecharger className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              </button>
-            );
-          })}
-        </div>
+      <PopoverContent align="start" className="ec dmenu pdos-modeles">
+        <p className="pdos-modeles-t">Modèles suggérés</p>
+        {templates.map((t) => {
+          const badge = formatBadge(t.extension);
+          return (
+            <button key={t.id} type="button" onClick={() => templateService.download(t)}>
+              <span className={`fmt ${badge.className}`}>{badge.label}</span>
+              <span className="nomlieu">{t.nom}</span>
+            </button>
+          );
+        })}
       </PopoverContent>
     </Popover>
   );

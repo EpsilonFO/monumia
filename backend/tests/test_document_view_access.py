@@ -137,5 +137,75 @@ class ListDocumentsFilterTests(unittest.TestCase):
         self.assertEqual([d["id"] for d in result], ["d1"])
 
 
+class _OrQuery(_Query):
+    """Comme `_Query`, en gardant les clauses `or_` posées sur la table."""
+
+    def __init__(self, response, journal):
+        super().__init__(response)
+        self._journal = journal
+
+    def or_(self, clauses):
+        self._journal.append(clauses)
+        return self
+
+
+class _OrFakeSupabase(_FakeSupabase):
+    def __init__(self, responses):
+        super().__init__(responses)
+        self.or_clauses: list[str] = []
+
+    def table(self, name):
+        return _OrQuery(self._responses.get(name, _Resp(None)), self.or_clauses)
+
+
+def _chantier_doc(doc_id, visibility):
+    """Un document déposé sur le seul chantier p1, pas sur le monument."""
+    return {
+        "id": doc_id,
+        "user_id": "u2",
+        "monument_ids": [],
+        "projet_ids": ["p1"],
+        "visibility": visibility,
+        "allowed_user_ids": [],
+    }
+
+
+class ListMonumentDocumentsIncludesProjetsTests(unittest.TestCase):
+    """L'onglet Documents d'un monument montre aussi les pièces de ses chantiers."""
+
+    def _fake(self, *, caller_role, propres):
+        return _OrFakeSupabase(
+            {
+                "documents": _Resp(
+                    [_chantier_doc("d-team", "team"), _chantier_doc("d-resp", "responsables")]
+                ),
+                "project_members": _Resp({"monument_id": "m1", "role": caller_role}),
+                "monuments": _Resp(None),
+                "projets": _Resp([{"id": "p1", "user_id": "u9"}]),
+                "projet_members": _Resp(propres),
+            }
+        )
+
+    def test_query_covers_monument_and_its_projets(self):
+        fake = self._fake(caller_role="member", propres=[])
+        list_documents(monument_id="m1", projet_id=None, type=None, user_id="u1", supabase=fake)
+        self.assertEqual(fake.or_clauses, ["monument_ids.cs.{m1},projet_ids.ov.{p1}"])
+
+    def test_member_sees_team_projet_doc_not_responsables(self):
+        fake = self._fake(caller_role="member", propres=[])
+        result = list_documents(
+            monument_id="m1", projet_id=None, type=None, user_id="u1", supabase=fake
+        )
+        self.assertEqual([d["id"] for d in result], ["d-team"])
+
+    def test_co_owner_of_the_projet_sees_responsables_doc(self):
+        """Le rôle effectif sur le chantier est le max des deux appartenances."""
+        fake = self._fake(caller_role="member", propres=[{"projet_id": "p1", "role": "co_owner"}])
+        result = list_documents(
+            monument_id="m1", projet_id=None, type=None, user_id="u1", supabase=fake
+        )
+        self.assertEqual([d["id"] for d in result], ["d-team", "d-resp"])
+
+
 if __name__ == "__main__":
     unittest.main()

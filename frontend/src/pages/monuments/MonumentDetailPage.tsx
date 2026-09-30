@@ -403,7 +403,8 @@ export function MonumentDetailPage() {
         {/* DOCUMENTS */}
         <TabsContent value="documents" className="onglet">
           {/* Réservé à l'équipe du monument (cf. `activeTab`) : la liste vient de
-              `documentService.getAll({ monumentId })`, tous membres confondus. */}
+              `documentService.getAll({ monumentId })`, tous membres confondus,
+              et porte aussi les pièces de ses projets (pastille du chantier). */}
           <OngletDocuments
             ici={{ type: 'monument', id: monument.id, nom: monument.nom }}
             monumentId={monument.id}
@@ -412,7 +413,8 @@ export function MonumentDetailPage() {
             role={monument.myRole ?? null}
             auteurs={uploaderNames}
             dossierNames={dossierNames}
-            vide="Les documents rattachés à ce monument apparaîtront ici."
+            intro="Les pièces du monument et celles de ses projets de travaux."
+            vide="Les documents du monument et de ses projets apparaîtront ici."
           />
         </TabsContent>
 

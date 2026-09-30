@@ -15,6 +15,8 @@ from services.project_access import (
     can_view_document,
     max_role,
     my_scope_roles,
+    projet_role_depuis,
+    projet_roles_propres,
     require_project_access,
     require_projet_access,
 )
@@ -262,10 +264,10 @@ def list_documents(
 ):
     """Documents d'un monument, d'un projet, ou tout ce que je peux voir.
 
-    Les deux périmètres sont volontairement DISJOINTS : `?monument_id=` ne rend
-    que les pièces du bien (arrêté, cadastre, photos), `?projet_id=` que celles
-    du chantier. Un onglet qui mélangerait les deux montrerait à l'équipe d'un
-    projet des documents du monument auxquels elle n'a pas droit.
+    Les deux périmètres suivent les deux niveaux de partage, et ne sont donc pas
+    symétriques : `?projet_id=` ne rend que les pièces du chantier, jamais celles
+    du bien (l'équipe d'un projet n'y a pas droit) ; `?monument_id=` rend les
+    pièces du bien ET celles de tous ses chantiers, que son équipe voit déjà.
     """
     if projet_id:
         _, role = require_projet_access(supabase, projet_id, user_id, "member")
@@ -295,26 +297,38 @@ def list_documents(
         # Réservé à l'équipe du MONUMENT : un membre d'un seul de ses projets
         # n'a rien à faire dans les pièces du bien.
         role = require_project_access(supabase, monument_id, user_id, "member")
+        # Les pièces des chantiers y figurent aussi, SANS être rattachées au
+        # monument : les retirer du projet les retire d'ici, et l'équipe d'un
+        # projet ne les voit pas pour autant pendre au bien.
+        projets = (
+            supabase.table("projets")
+            .select("id, user_id")
+            .eq("monument_id", monument_id)
+            .execute()
+            .data
+        ) or []
+        clauses = [f"monument_ids.cs.{{{monument_id}}}"]
+        if projets:
+            clauses.append(f"projet_ids.ov.{{{','.join(str(p['id']) for p in projets)}}}")
         query = (
             supabase.table("documents")
             .select(COLUMNS)
-            .contains("monument_ids", [monument_id])
+            .or_(",".join(clauses))
+            .is_("trashed_at", "null")
             .order("date_upload", desc=True)
         )
         if type:
             query = query.eq("type", type)
         rows = query.execute().data or []
-        return [
-            r
-            for r in rows
-            if can_view_document(
-                visibility=r.get("visibility") or "team",
-                allowed_user_ids=r.get("allowed_user_ids") or [],
-                uploader_id=r.get("user_id"),
-                viewer_id=user_id,
-                viewer_role=role,
-            )
-        ]
+        # Rôle EFFECTIF sur chaque chantier : celui du monument, relevé au besoin
+        # par une appartenance propre au projet (même règle que `max_role`).
+        propres = projet_roles_propres(supabase, user_id) if projets else {}
+        projet_roles = {
+            str(p["id"]): r
+            for p in projets
+            if (r := projet_role_depuis(p, role, propres, user_id)) is not None
+        }
+        return _filter_visible(rows, user_id, {monument_id: role}, projet_roles)
 
     # Vue « Mes documents » : tout ce que je peux voir (mes uploads + les pièces
     # des monuments et des projets où je suis membre), filtré par les droits de

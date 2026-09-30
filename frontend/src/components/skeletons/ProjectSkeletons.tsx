@@ -85,37 +85,32 @@ export function ProjectDetailSkeleton() {
   );
 }
 
-/** Page détail dossier : fil d'Ariane, titre, statut, checklist des pièces. */
+/** Page détail dossier : retour, en-tête, emplacements des pièces (maquette des écrans). */
 export function DossierDetailSkeleton() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-4 w-64" />
-      <Skeleton className="h-8 w-2/3 max-w-[546.5px]" />
-      <Skeleton className="h-10 w-56 rounded-lg" />
+      <Skeleton className="h-[43.5px] w-[43.5px] rounded-[11.5px]" />
 
-      {/* Bloc « Pièces du dossier » */}
+      {/* En-tête (`.phead`) : lieu, titre, actions */}
       <div
-        className="overflow-hidden rounded-2xl border"
+        className="flex flex-wrap items-start justify-between gap-6 rounded-[24px] border px-9 py-8"
         style={{ background: C.card, borderColor: C.border }}
       >
-        <div className="border-b px-5 py-3" style={{ borderColor: C.border }}>
-          <Skeleton className="h-5 w-40" />
+        <div className="min-w-0 flex-1 space-y-3">
+          <Skeleton className="h-5 w-72 max-w-full" />
+          <Skeleton className="h-10 w-2/3 max-w-[546.5px]" />
         </div>
-        <div className="space-y-3 px-5 py-4">
-          {Array.from({ length: 4 }, (_, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <Skeleton className="h-5 w-5 shrink-0 rounded-md" />
-              <Skeleton className="h-4 flex-1 max-w-[478px]" />
-              <Skeleton className="h-8 w-28 shrink-0 rounded-lg" />
-            </div>
-          ))}
-        </div>
+        <Skeleton className="h-12 w-56 rounded-full" />
       </div>
 
-      {/* Section « À propos de l'aide » */}
-      <div className="space-y-3 pt-2">
-        <Skeleton className="h-5 w-44" />
-        <Skeleton className="h-36 rounded-2xl" />
+      {/* Pièces du dossier : intertitre, puis les emplacements */}
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-40" />
+        <div className="grid grid-cols-1 gap-[14px] sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} className="h-[139px] rounded-[14px]" />
+          ))}
+        </div>
       </div>
     </div>
   );

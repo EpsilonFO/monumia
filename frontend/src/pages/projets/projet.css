@@ -42,9 +42,11 @@
 .pproj .dl .dl-f { margin-top: auto; display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--e-blue); }
 .pproj .dl .dl-f .i { width: 15px; height: 15px; }
 .pproj .dl.urgent { outline: 2px solid var(--e-orange-2); outline-offset: -2px; }
-.pproj .bar { position: relative; height: 6px; border-radius: 3px; background: var(--e-sand); overflow: hidden; }
-.pproj .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--e-orange); }
-.pproj .bar.calm i { background: var(--e-blue-line); }
+/* rangée sous `.dl` : `.bar` est aussi l'intertitre de l'espace documents
+   (onglet Documents, pièces d'un dossier), qu'elle écrasait à 6 px de haut */
+.pproj .dl .bar { position: relative; height: 6px; border-radius: 3px; background: var(--e-sand); overflow: hidden; }
+.pproj .dl .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--e-orange); }
+.pproj .dl .bar.calm i { background: var(--e-blue-line); }
 .pproj .ech-all { margin-top: 18px; background: none; border: 0; padding: 4px 0; color: #fff; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 6px; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgba(255, 255, 255, .4); }
 
 /* 4. filtres */
@@ -93,7 +95,9 @@
 .pproj .card { position: relative; display: flex; flex-direction: column; gap: 11.5px; background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: var(--e-r); padding: 22px 22px 0; transition: box-shadow .25s, transform .2s; overflow: hidden; cursor: pointer; text-align: left; }
 .pproj .card:hover { box-shadow: var(--e-sh-card); transform: translateY(-2px); }
 .pproj .card.no { border-color: var(--e-line); }
-.pproj .c-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+/* le financeur, puis le guichet toujours dessous : deux lignes sur chaque
+   carte, les titres d'une même rangée partent à la même hauteur */
+.pproj .c-tags { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .pproj .c-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; border-radius: var(--e-pill); padding: 4px 10.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pproj .c-tag.f { background: var(--e-blue-soft); color: var(--e-blue); }
 .pproj .c-tag.o { background: var(--e-green-soft); color: var(--e-green); }

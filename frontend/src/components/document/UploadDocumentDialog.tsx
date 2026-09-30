@@ -14,11 +14,13 @@ import { toast } from 'sonner';
 import type { Document, DocumentType } from '@/types';
 import './documents.css';
 
-/** La pièce du référentiel qu'on dépose depuis « Pièces demandées ». */
+/** La pièce qu'on dépose : une pièce du référentiel (« Pièces demandées »), ou
+ *  une pièce d'un dossier, qui n'a pas toujours de `pieceId` ni de dossier
+ *  connu (l'utilisateur le choisit alors). */
 export interface PieceAPreremplir {
-  pieceId: string;
+  pieceId?: string;
   nom: string;
-  typeDocument: DocumentType;
+  typeDocument?: DocumentType;
   nbAides?: number;
 }
 

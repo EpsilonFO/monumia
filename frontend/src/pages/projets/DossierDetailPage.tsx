@@ -1,19 +1,20 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
-import { ChevronLeft, Loader2 } from 'lucide-react';
-import { IconDocument, IconAttention, IconSupprimer, IconLivre, IconRafraichir } from '@/components/icons';
+import { Loader2 } from 'lucide-react';
+import { IconSupprimer } from '@/components/icons';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { EmptyState } from '@/components/shared/EmptyState';
-import { AideDetails } from '@/components/aide/AideDetails';
 import { AideStatutSelect } from '@/components/aide/AideStatutSelect';
 import { DossierChecklist } from '@/components/dossier/DossierChecklist';
 import { ReprisesReviewDialog } from '@/components/dossier/ReprisesReviewDialog';
 import { AttachDocumentDialog } from '@/components/dossier/AttachDocumentDialog';
+import { UploadDocumentDialog, type PieceAPreremplir } from '@/components/document/UploadDocumentDialog';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
+import { BoutonRetour } from '@/components/shared/ecrans/BoutonRetour';
+import { Picto } from '@/components/shared/ecrans/Picto';
 import { DossierDetailSkeleton } from '@/components/skeletons';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useProjetStore } from '@/stores/useProjetStore';
@@ -22,10 +23,10 @@ import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useTemplateStore } from '@/stores/useTemplateStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSuiviStore } from '@/stores/useSuiviStore';
-import { useOffre } from '@/hooks/useOffre';
-import { libelleMonuments } from '@/lib/offres';
+import { useAideStore } from '@/stores/useAideStore';
 import { matchTemplates } from '@/lib/template-matching';
 import { projectPermissions } from '@/lib/project-permissions';
+import { chapeauAide, financeurAide, guichet, montantAide, titreAide } from '@/lib/fiche-aide';
 import { monumentService } from '@/services/monument.service';
 import { projetService } from '@/services/projet.service';
 import { aideService } from '@/services/aide.service';
@@ -33,12 +34,14 @@ import { dossierService } from '@/services/dossier.service';
 import { documentService } from '@/services/document.service';
 import { suiviService } from '@/services/suivi.service';
 import { projetTitre } from '@/lib/projet-titre';
-import { C, SERIF } from '@/lib/brand';
+import { C } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
+import { ACCEPT_ATTR } from '@/constants/file-types';
 import { isAccessLostError } from '@/lib/api-error';
 import { toast } from 'sonner';
-import type { Aide, ChecklistItem, Document, Dossier } from '@/types';
-import { BoutonRetour } from '@/components/shared/ecrans/BoutonRetour';
+import type { Aide, ChecklistItem, Document, DocumentType, Dossier } from '@/types';
+import './projet.css';
+import './dossier.css';
 
 /**
  * Le sélecteur d'avancement (« À faire », « En préparation », « Déposé »…) est
@@ -50,10 +53,14 @@ import { BoutonRetour } from '@/components/shared/ecrans/BoutonRetour';
  */
 const AVANCEMENT_MODIFIABLE = false;
 
+/**
+ * Un dossier de candidature ouvert, avec l'habillage des écrans (`.ec`) : même
+ * en-tête que la page du projet, les pièces en emplacements comme dans
+ * l'onglet Documents, et l'aide résumée en une carte qui mène à sa fiche.
+ */
 export function DossierDetailPage() {
   const { projetId, dossierId } = useParams();
   const navigate = useNavigate();
-  const offreCompte = useOffre();
 
   const projet = useProjetStore((s) => s.projets.find((p) => p.id === projetId));
   const upsertProjet = useProjetStore((s) => s.upsertProjet);
@@ -78,6 +85,10 @@ export function DossierDetailPage() {
   const unlinkFromDossierStore = useDocumentStore((s) => s.unlinkFromDossier);
   const addToProjectsStore = useDocumentStore((s) => s.addToProjects);
 
+  // Les pièces que citent les aides du projet (digest du tableau de bord) :
+  // c'est d'elles qu'on tire le dossier où ranger un fichier déposé ici.
+  const digest = useAideStore((s) => (projetId ? s.digestsByProjet[projetId] : undefined));
+
   const currentUserId = useAuthStore((s) => s.user?.id);
 
   // Avancement (statut / montant obtenu / motif de refus) du dossier. Le suivi est
@@ -92,11 +103,13 @@ export function DossierDetailPage() {
   const [aide, setAide] = useState<Aide | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [attachingItem, setAttachingItem] = useState<ChecklistItem | null>(null);
+  const [depot, setDepot] = useState<{ item: ChecklistItem; fichiers: File[] } | null>(null);
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [accessDoc, setAccessDoc] = useState<Document | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   // Pièces en cours de vérification guidée (null = fenêtre fermée). Le tableau
   // est figé à l'ouverture pour que l'ordre des étapes ne bouge pas pendant
   // que les confirmations modifient la checklist.
@@ -104,6 +117,10 @@ export function DossierDetailPage() {
 
   const projetFetchedRef = useRef(false);
   const autoVerifRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // La pièce pour laquelle le sélecteur de fichiers est ouvert : gardée hors de
+  // l'état, la fenêtre d'ajout se referme AVANT de rendre le document déposé.
+  const itemADeposer = useRef<ChecklistItem | null>(null);
 
   // Relu aussi quand il vient du cache local, qui ne garde pas le rôle : c'est
   // lui qui ouvre la gestion du dossier et de ses pièces.
@@ -117,7 +134,7 @@ export function DossierDetailPage() {
     });
   }, [projetARelire, projetId, upsertProjet]);
 
-  // Monument parent : nom du fil d'Ariane, rôle, rattachement des documents.
+  // Monument parent : nom de l'en-tête, rôle, rattachement des documents.
   // Relu aussi quand il vient du cache local, qui ne garde ni son offre ni le
   // rôle : une panne passagère ne dit « introuvable » que s'il n'y a rien à
   // montrer.
@@ -177,27 +194,63 @@ export function DossierDetailPage() {
     return map;
   }, [dossier, aide]);
 
-  const handleAttach = async (document: Document) => {
-    if (!attachingItem || !dossier || !projet) return;
-    const itemId = attachingItem.id;
-    setBusyItemId(itemId);
+  // Le nom brut reste la clé de la checklist ; seul le libellé affiché vient de
+  // la fiche rédigée (même règle que `piecesAide`).
+  const libellePiece = useCallback(
+    (label: string) => aide?.fiche?.pieces?.[label] || label,
+    [aide],
+  );
+  const nomDocument = useCallback(
+    (id: string) => documents.find((d) => d.id === id)?.nom,
+    [documents],
+  );
+
+  /** Le dossier où ranger le fichier d'une pièce, quand on le sait. */
+  const typeDePiece = (item: ChecklistItem): DocumentType | undefined => {
+    const duReferentiel = item.pieceId
+      ? digest?.piecesDemandees?.find((p) => p.pieceId === item.pieceId)?.typeDocument
+      : undefined;
+    return duReferentiel ?? (item.categorie === 'photographique' ? 'photo' : undefined);
+  };
+  const pieceDe = (item: ChecklistItem): PieceAPreremplir => ({
+    pieceId: item.pieceId,
+    nom: libellePiece(item.label),
+    typeDocument: typeDePiece(item),
+  });
+
+  /**
+   * Joindre un document à une pièce. Lève en cas d'échec : la fenêtre de choix
+   * s'en sert pour rester ouverte.
+   */
+  const attacher = async (item: ChecklistItem, document: Document) => {
+    if (!dossier || !projet) return;
+    setBusyItemId(item.id);
     try {
       // Rattacher une pièce au dossier l'associe aussi au PROJET : elle apparaît
-      // dans l'onglet « Documents » du chantier, pour son équipe — et pas au-delà.
+      // dans l'onglet « Documents » du chantier (et donc dans celui du monument,
+      // pour son équipe) — et pas au-delà.
       if (!document.projetIds.includes(projet.id)) {
         await addToProjectsStore(document.id, [], [projet.id]);
       }
       if (!document.dossiersUtilises.includes(dossier.id)) {
         await linkToDossierStore(document.id, dossier.id);
       }
-      await dossierService.updateChecklistItem(dossier.id, itemId, 'fourni', document.id);
-      toast.success('Document rattaché');
+      await dossierService.updateChecklistItem(dossier.id, item.id, 'fourni', document.id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors du rattachement');
       throw err;
     } finally {
       setBusyItemId(null);
     }
+  };
+
+  /** « Déposer » : le sélecteur de fichiers d'abord, puis la fenêtre d'ajout. */
+  const deposer = (item: ChecklistItem) => {
+    itemADeposer.current = item;
+    const input = inputRef.current;
+    if (!input) return;
+    input.value = '';
+    input.click();
   };
 
   const handleDeleteItem = async (item: ChecklistItem) => {
@@ -227,7 +280,7 @@ export function DossierDetailPage() {
   // du projet (le backend l'exempte de la garde « auteur du document »).
   //
   // La confirmation reproduit les DEUX associations du rattachement manuel (cf.
-  // handleAttach) : le document rejoint le projet et le dossier. C'est fait ici,
+  // attacher) : le document rejoint le projet et le dossier. C'est fait ici,
   // et non au moment de la reprise, à dessein — associer automatiquement le
   // document au projet rendrait un document « équipe » visible par toute
   // l'équipe sans que personne ne l'ait décidé. À la confirmation, l'utilisateur
@@ -242,7 +295,7 @@ export function DossierDetailPage() {
       const doc = documents.find((d) => d.id === documentId)
         ?? await documentService.getById(documentId);
       // Au PROJET, pas au monument : même périmètre que le rattachement manuel
-      // (handleAttach) — la pièce apparaît pour l'équipe du chantier, pas au-delà.
+      // (attacher) — la pièce apparaît pour l'équipe du chantier, pas au-delà.
       if (!doc.projetIds.includes(projet.id)) {
         await addToProjectsStore(doc.id, [], [projet.id]);
       }
@@ -347,13 +400,32 @@ export function DossierDetailPage() {
     }
   };
 
+  // Téléchargement de l'ensemble des pièces en un zip. Le backend n'y met que
+  // les documents que l'appelant a le droit de consulter : une pièce « Réservé »
+  // est absente de l'archive, sans erreur.
+  const handleDownloadAll = async () => {
+    if (!dossier) return;
+    setDownloading(true);
+    try {
+      await dossierService.downloadArchive(dossier.id, dossier.titre);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Téléchargement impossible');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (notFound) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-[23px]" style={{ fontFamily: SERIF, color: C.ink }}>Dossier introuvable</h1>
-        <Link to={projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[15px] font-medium" style={{ color: C.blue }}>
-          <ChevronLeft className="h-3.5 w-3.5" /> Retour au projet
-        </Link>
+      <div className="ec pproj pdos">
+        <BoutonRetour
+          to={projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.MONUMENTS}
+          libelle={projetId ? 'Retour au projet' : 'Retour à mes monuments'}
+        />
+        <div className="vide pdos-introuvable">
+          <h1>Dossier introuvable</h1>
+          <p>Il a peut-être été supprimé, ou vous n'avez plus accès à ce projet.</p>
+        </div>
       </div>
     );
   }
@@ -361,114 +433,142 @@ export function DossierDetailPage() {
   if (!dossier || !projet || !monument) return <DossierDetailSkeleton />;
 
   const [aideName] = dossier.titre.split(' — ');
+  const nomProjet = projetTitre(projet, monument.nom);
+  const aRepris = dossier.checklist.filter((i) => i.statut === 'repris').length;
+  const aDesPieces = dossier.checklist.some((i) => i.documentId);
+  const lienAide = dossier.aideId ? ROUTES.PROJET_AIDE(projet.id, dossier.aideId) : null;
+  const montant = aide ? montantAide(aide) : null;
+  const chapeau = aide ? chapeauAide(aide) : '';
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <BoutonRetour to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`} libelle={`Retour à ${projetTitre(projet, monument.nom)}`} />
-        <div className="flex items-center gap-2 overflow-hidden text-[15px] text-muted-foreground">
-          <Link to={ROUTES.MONUMENTS} className="shrink-0 hover:opacity-70 transition-opacity">{libelleMonuments(offreCompte)}</Link>
-          <span>/</span>
-          <Link to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`} className="truncate hover:opacity-70 transition-opacity">{monument.nom}</Link>
-          <span>/</span>
-          <Link to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`} className="truncate hover:opacity-70 transition-opacity">{projetTitre(projet, monument.nom)}</Link>
-          <span>/</span>
-          <span className="truncate" style={{ color: C.ink }}>{aideName}</span>
-        </div>
-      </div>
+    <div className="ec pproj pdos">
+      <BoutonRetour to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`} libelle={`Retour à ${nomProjet}`} />
 
-      <h1 className="text-[clamp(1.4rem,3vw,1.9rem)] leading-tight" style={{ fontFamily: SERIF, color: C.ink }}>{dossier.titre}</h1>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPT_ATTR}
+        className="sr"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          const fichier = e.target.files?.[0];
+          const item = itemADeposer.current;
+          if (fichier && item) setDepot({ item, fichiers: [fichier] });
+        }}
+      />
+
+      <section className="phead" aria-labelledby="dt">
+        <div>
+          <p className="pdos-lieu">
+            <Link className="lieu" to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`}>{monument.nom}</Link>
+            <span aria-hidden="true">/</span>
+            <Link className="lieu" to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`}>{nomProjet}</Link>
+          </p>
+          <h1 id="dt">
+            {aideName}
+            {dossier.statut === 'soumis' && <span className="clos">Déposé</span>}
+          </h1>
+          <p className="pdos-sous">Dossier de candidature</p>
+        </div>
+        <div className="proj-act">
+          {aDesPieces && (
+            <button className="btn b-blue" type="button" onClick={handleDownloadAll} disabled={downloading}>
+              {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Picto nom="telecharger" />}
+              {downloading ? 'Préparation…' : 'Télécharger le dossier'}
+            </button>
+          )}
+          {lienAide && (
+            <Link className="btn b-line" to={lienAide}>
+              <Picto nom="livre" />Voir la fiche de l'aide
+            </Link>
+          )}
+        </div>
+      </section>
 
       {AVANCEMENT_MODIFIABLE && projetId && dossier.aideId && (
         <AideStatutSelect projetId={projetId} aideId={dossier.aideId} suivi={suivi} />
       )}
 
-      <div className="space-y-6">
-        {dossier.checklist.some((i) => i.statut === 'repris') && (
-          <div className="flex flex-wrap items-center gap-4 p-4 sm:p-5 rounded-xl border" style={{ borderColor: C.border, background: C.paleBlue }}>
-            <IconRafraichir className="h-5 w-5 shrink-0" style={{ color: C.blue }} />
-            <div className="min-w-0 flex-1 text-[16px]">
-              <p className="font-semibold" style={{ color: C.ink }}>
-                {(() => {
-                  const n = dossier.checklist.filter((i) => i.statut === 'repris').length;
-                  return n === 1
-                    ? 'Une pièce a été remplie avec un fichier déjà envoyé'
-                    : `${n} pièces ont été remplies avec des fichiers déjà envoyés`;
-                })()}
-              </p>
-              <p className="mt-0.5" style={{ color: C.grayFg }}>
-                Vérifiez que ce sont les bons — tant qu’ils ne sont pas confirmés, ces pièces ne comptent pas dans votre dossier.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => ouvrirVerification(dossier)}
-              className="inline-flex shrink-0 items-center gap-2 rounded-xl px-5 py-3 text-[17px] font-semibold text-white transition-opacity hover:opacity-90"
-              style={{ background: C.blue }}
-            >
-              Vérifier maintenant
-            </button>
+      {aRepris > 0 && (
+        <div className="pdos-rep">
+          <span className="gi"><Picto nom="refaire" /></span>
+          <div>
+            <b>
+              {aRepris === 1
+                ? 'Une pièce a été remplie avec un fichier déjà envoyé'
+                : `${aRepris} pièces ont été remplies avec des fichiers déjà envoyés`}
+            </b>
+            <p>Vérifiez que ce sont les bons : tant qu’ils ne sont pas confirmés, ces pièces ne comptent pas dans votre dossier.</p>
           </div>
-        )}
-
-        <div className="rounded-2xl border overflow-hidden" style={{ background: C.card, borderColor: C.border }}>
-          <div className="px-5 py-3 border-b" style={{ borderColor: C.border }}>
-            <h3 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>Pièces du dossier</h3>
-          </div>
-          <div className="px-5 py-4">
-            {dossier.checklist.length === 0 ? (
-              <EmptyState icon={IconDocument} title="Aucune pièce" description="Ce dossier ne comporte aucune pièce à fournir." />
-            ) : (
-              <DossierChecklist
-                items={dossier.checklist}
-                templatesByItemId={templatesByItemId}
-                documentUrlByItemId={documentUrlByItemId}
-                onRequestAttach={(item) => setAttachingItem(item)}
-                onPreview={handlePreview}
-                onRequestDelete={handleDeleteItem}
-                onConfirm={handleConfirmItem}
-                onReject={handleRejectItem}
-                canModifyItem={canModifyItem}
-                archiveName={dossier.titre}
-                busyItemId={busyItemId}
-                readOnly={dossier.statut === 'soumis'}
-              />
-            )}
-          </div>
+          <button className="btn b-blue b-sm" type="button" onClick={() => ouvrirVerification(dossier)}>
+            Vérifier maintenant
+          </button>
         </div>
+      )}
 
-        <div className="flex items-start gap-3 p-4 rounded-xl border" style={{ borderColor: C.orangeVif, background: C.paleOrange }}>
-          <IconAttention className="h-5 w-5 shrink-0 mt-0.5" style={{ color: C.orange }} />
-          <div className="text-[15px]">
-            <p className="font-semibold" style={{ color: C.ink }}>Dépôt manuel obligatoire</p>
-            <p className="mt-0.5 text-muted-foreground">Monumia vous aide à préparer votre dossier, mais le dépôt auprès de l'organisme doit être effectué par vos soins.</p>
-          </div>
-        </div>
+      <DossierChecklist
+        items={dossier.checklist}
+        projetId={projet.id}
+        templatesByItemId={templatesByItemId}
+        documentUrlByItemId={documentUrlByItemId}
+        libelle={libellePiece}
+        nomDocument={nomDocument}
+        onRequestDeposer={deposer}
+        onRequestAttach={(item) => setAttachingItem(item)}
+        onPreview={handlePreview}
+        onRequestDelete={handleDeleteItem}
+        onConfirm={handleConfirmItem}
+        onReject={handleRejectItem}
+        canModifyItem={canModifyItem}
+        busyItemId={busyItemId}
+        readOnly={dossier.statut === 'soumis'}
+      />
 
-        {aide && (
-          <div className="space-y-3 pt-2">
-            <h3 className="flex items-center gap-2 text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
-              <IconLivre className="h-4 w-4" style={{ color: C.blue }} />À propos de l'aide
-            </h3>
-            <AideDetails
-              aide={aide}
-              monumentName={monument.nom}
-              showHeader={false}
-              showDocumentsRequis={false}
-              aside={canManageDossier ? (
-                <button
-                  onClick={() => setConfirmDeleteOpen(true)}
-                  disabled={deleting}
-                  className="inline-flex w-full items-center justify-center gap-2 px-4 py-2 text-[15px] font-semibold rounded-lg border transition-colors hover:bg-destructive-muted disabled:opacity-60 text-destructive border-destructive/30"
-                >
-                  {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconSupprimer className="h-4 w-4" strokeWidth={1.8} />}
-                  Supprimer le dossier
-                </button>
-              ) : undefined}
-            />
-          </div>
-        )}
+      <div className="pdos-manuel">
+        <span className="gi"><Picto nom="main" /></span>
+        <p>
+          <b>Le dépôt reste à faire par vos soins.</b> Monumia vous aide à préparer le dossier ;
+          c'est à vous de l'envoyer à l'organisme, par son guichet ou par courrier.
+        </p>
       </div>
+
+      {aide && lienAide && (
+        <section className="sec" aria-labelledby="pdos-aide">
+          <div className="sec-h">
+            <div>
+              <h2 id="pdos-aide">L'aide</h2>
+              <p>Ses conditions, son montant et la marche à suivre sont sur sa fiche.</p>
+            </div>
+          </div>
+          <Link className="pdos-aide" to={lienAide}>
+            <div className="c-tags">
+              {financeurAide(aide) && <span className="c-tag f">{financeurAide(aide)}</span>}
+              <span className="c-tag d">{guichet(aide).libelle}</span>
+            </div>
+            <h3>{titreAide(aide)}</h3>
+            {chapeau && <p className="desc">{chapeau}</p>}
+            <span className="pdos-aide-f">
+              {montant?.valeur && <b>{montant.valeur}</b>}
+              <span className="q-l">Ouvrir la fiche<Picto nom="fleche" /></span>
+            </span>
+          </Link>
+        </section>
+      )}
+
+      {canManageDossier && (
+        <div className="flex justify-end pt-8">
+          <button
+            onClick={() => setConfirmDeleteOpen(true)}
+            disabled={deleting}
+            className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[15px] font-semibold transition-colors hover:bg-destructive-muted disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            style={{ borderColor: C.border, color: C.danger }}
+          >
+            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconSupprimer className="h-4 w-4" strokeWidth={1.8} />}
+            Supprimer le dossier
+          </button>
+        </div>
+      )}
 
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>
@@ -487,12 +587,36 @@ export function DossierDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* « Déposer » : la pièce déposée pend au chantier et à lui seul, comme
+          depuis l'onglet Documents du projet, et porte la pièce du référentiel. */}
+      <UploadDocumentDialog
+        open={!!depot}
+        onOpenChange={(o) => { if (!o) setDepot(null); }}
+        fichiers={depot?.fichiers}
+        piece={depot ? pieceDe(depot.item) : null}
+        projetIds={[projet.id]}
+        choixMonuments={false}
+        onUploaded={(docs) => {
+          const item = itemADeposer.current;
+          const doc = docs[0];
+          if (!item || !doc) return;
+          // Créé avec un défaut sûr (chef + adjoints) : « Gérer l'accès » s'ouvre
+          // aussitôt pour que l'auteur choisisse qui peut le voir.
+          attacher(item, doc).then(() => setAccessDoc(doc)).catch(() => {});
+        }}
+      />
       <AttachDocumentDialog
         open={!!attachingItem}
         onOpenChange={(open) => { if (!open) setAttachingItem(null); }}
         projetId={projet.id}
-        defaultName={attachingItem?.label}
-        onAttach={handleAttach}
+        defaultName={attachingItem ? libellePiece(attachingItem.label) : undefined}
+        pieceId={attachingItem?.pieceId}
+        typeParDefaut={attachingItem ? typeDePiece(attachingItem) : null}
+        onAttach={async (doc) => {
+          if (!attachingItem) return;
+          await attacher(attachingItem, doc);
+          toast.success('Document joint au dossier');
+        }}
         onUploaded={(doc) => setAccessDoc(doc)}
       />
       {accessDoc && (

@@ -228,6 +228,24 @@
 .ec .dmodal .m-f .hint { font-size: 14px; color: var(--e-faint); margin-right: auto; }
 .ec .dmodal .m-f .ghost { background: none; border: 0; padding: 10px 6px; font-weight: 600; color: var(--e-body); }
 
+/* « Joindre un document » : la liste de ses documents, puis un nouveau fichier */
+.ec .dmodal .jsearch { position: relative; display: block; }
+.ec .dmodal .jsearch .i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--e-faint); width: 17px; height: 17px; }
+.ec .dmodal .jsearch input { width: 100%; height: 46px; border: 1.5px solid var(--e-line); border-radius: var(--e-pill); background: var(--e-cream); padding: 0 18px 0 44px; font: inherit; font-size: 15.5px; color: var(--e-ink); }
+.ec .dmodal .jsearch input:focus { border-color: var(--e-blue); outline: none; background: var(--e-paper); }
+.ec .dmodal .jscope { margin-top: 10px; }
+.ec .dmodal .jlist { margin-top: 11.5px; max-height: 264px; overflow-y: auto; border: 1.5px solid var(--e-line); border-radius: 14px; }
+.ec .dmodal .jrow { display: flex; align-items: center; gap: 11.5px; width: 100%; background: none; border: 0; border-bottom: 1px solid var(--e-line-soft); padding: 10px 14px; text-align: left; }
+.ec .dmodal .jrow:last-child { border-bottom: 0; }
+.ec .dmodal .jrow:hover:not(:disabled) { background: var(--e-blue-soft); }
+.ec .dmodal .jrow:disabled { opacity: .55; }
+.ec .dmodal .jnom { min-width: 0; flex: 1; }
+.ec .dmodal .jnom b { display: block; font-weight: 600; font-size: 15px; color: var(--e-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ec .dmodal .jnom small { display: block; font-size: 13.5px; color: var(--e-faint); }
+.ec .dmodal .jgo { flex: none; font-size: 14.5px; font-weight: 600; color: var(--e-blue); }
+.ec .dmodal .jvide { padding: 22px 16px; text-align: center; font-size: 15px; color: var(--e-faint); }
+.ec .dmodal .jdz { margin-top: 0; }
+
 @media (max-width: 860px) {
   .docs-page .drive { grid-template-columns: 1fr; }
   .docs-page .side { position: static; }
