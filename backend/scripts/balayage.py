@@ -133,13 +133,43 @@ def runs_en_cours() -> list[str]:
         ).stdout
     except FileNotFoundError:
         return []
-    moi = str(os.getpid())
+    # Soi-même ET ses ancêtres : `caffeinate -ims uv run python scripts/balayage.py`
+    # porte le nom du script dans la ligne de commande de deux parents, et le
+    # garde-fou refusait le run qu'il était censé protéger (2026-09-29).
+    moi = _ancetres(os.getpid())
     lignes = [
         li
         for li in sortie.splitlines()
-        if li.strip() and not li.startswith(moi + " ") and "pgrep" not in li
+        if li.strip()
+        and li.split(" ", 1)[0] not in moi
+        and "pgrep" not in li
+        # `caffeinate` n'est pas un run : sous macOS il tourne À CÔTÉ de la
+        # commande qu'il enveloppe, pas au-dessus. Un vrai run concurrent se
+        # voit par ses propres processus `python`, enveloppés ou non.
+        and li.split(" ", 2)[1:2] != ["caffeinate"]
     ]
     return lignes
+
+
+def _ancetres(pid: int) -> set[str]:
+    """Ce processus et toute sa lignée de parents, en PID texte."""
+    lignee = {str(pid)}
+    courant = pid
+    for _ in range(32):
+        try:
+            parent = subprocess.run(
+                ["ps", "-o", "ppid=", "-p", str(courant)],
+                capture_output=True,
+                text=True,
+                check=False,
+            ).stdout.strip()
+        except FileNotFoundError:
+            break
+        if not parent.isdigit() or int(parent) <= 1:
+            break
+        courant = int(parent)
+        lignee.add(parent)
+    return lignee
 
 
 def verifier_modeles(args) -> list[str]:

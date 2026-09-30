@@ -104,6 +104,29 @@ def retenir(destinataire: str, objet: str) -> bool:
     return destinataire == "proprietaire_gestionnaire" and objet in OBJETS_RETENUS
 
 
+def indetermine(destinataire: str, objet: str, categorie_ecart: str | None = None) -> bool:
+    """Vrai si l'issue du test dépend encore d'un champ `indetermine`.
+
+    Un seul champ connu peut suffire à trancher : un destinataire tiers ou un
+    objet `hors_lieu` fait échouer `retenir` quel que soit l'autre. La règle
+    précédente (« l'un des deux est `indetermine` ») laissait ces candidates en
+    `a_valider` : 342 sur 454 au balayage du 2026-09-29, typiquement une page
+    lue `non_dispositif` / `hors_lieu` dont le modèle ne nommait pas le
+    destinataire, puisqu'il n'y en avait aucun.
+
+    `non_dispositif` tranche aussi : une page-portail n'a pas de destinataire à
+    nommer, et le tableau des cas frontière l'écarte (« rien à demander »). 208
+    pages de ce genre restaient en attente le même jour.
+    """
+    if categorie_ecart == "non_dispositif":
+        return False
+    if destinataire not in ("indetermine", "proprietaire_gestionnaire"):
+        return False
+    if objet != "indetermine" and objet not in OBJETS_RETENUS:
+        return False
+    return destinataire == "indetermine" or objet == "indetermine"
+
+
 class Ingestion(BaseModel):
     """Ce que le dernier passage d'ingestion a produit pour ce slug.
 
@@ -181,8 +204,8 @@ class Tache(BaseModel):
 
     @property
     def retenue(self) -> bool:
-        """Le test du destinataire appliqué à cette tâche."""
-        return retenir(self.destinataire, self.objet)
+        """Le test du destinataire appliqué à cette tâche (une page-portail n'est jamais retenue)."""
+        return retenir(self.destinataire, self.objet) and self.categorie_ecart != "non_dispositif"
 
 
 def _en_yaml(taches: dict[str, Tache]) -> str:
@@ -333,7 +356,7 @@ def motif_non_promotion(tache: Tache) -> str | None:
     """
     if tache.statut != "a_valider":
         return f"statut {tache.statut}"
-    if tache.destinataire == "indetermine" or tache.objet == "indetermine":
+    if indetermine(tache.destinataire, tache.objet, tache.categorie_ecart):
         return "destinataire ou objet indéterminé — à trancher à la main"
     if not tache.retenue:
         categorie = f" ({tache.categorie_ecart})" if tache.categorie_ecart else ""
@@ -452,6 +475,7 @@ __all__ = [
     "charger",
     "doublons_par_url",
     "echecs_a_relire",
+    "indetermine",
     "ecrire",
     "fusionner",
     "mettre_a_jour",

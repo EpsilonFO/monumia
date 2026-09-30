@@ -52,6 +52,7 @@ from pipeline.etat import (
     charger,
     mettre_a_jour,
 )
+from pipeline.etat import indetermine as issue_indeterminee
 from pipeline.etat import retenir as test_du_destinataire
 from pipeline.llm import Compteur
 
@@ -87,11 +88,14 @@ class Requalification(BaseModel):
 
     @property
     def retenir(self) -> bool:
-        return test_du_destinataire(self.destinataire, self.objet)
+        return (
+            test_du_destinataire(self.destinataire, self.objet)
+            and self.categorie_ecart != "non_dispositif"
+        )
 
     @property
     def indeterminee(self) -> bool:
-        return self.destinataire == "indetermine" or self.objet == "indetermine"
+        return issue_indeterminee(self.destinataire, self.objet, self.categorie_ecart)
 
 
 @dataclass

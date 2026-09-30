@@ -128,6 +128,28 @@ def _meta_header(url: str, content_sha256: str) -> str:
     )
 
 
+# Jeton de session glissé par certains portails de démarches dans TOUS leurs
+# liens (`?__CSRFTOKEN__=<uuid>` sur mesdemarches.herault.fr, 2026-09-29). Il
+# change à chaque visite, ne porte rien de la source, et gitleaks le prend pour
+# une clé d'API : le commit de l'archive était refusé. Un paramètre de requête
+# dont le nom contient « csrf » est retiré des URL du markdown.
+_URL_RE = re.compile(r"https?://[^\s)\"'<>]+")
+_PARAM_CSRF_RE = re.compile(r"[^=]*csrf[^=]*(=.*)?", re.IGNORECASE)
+
+
+def _sans_jeton_csrf(url: str) -> str:
+    base, sep, reste = url.partition("?")
+    if not sep:
+        return url
+    requete, diese, ancre = reste.partition("#")
+    gardes = [p for p in requete.split("&") if p and not _PARAM_CSRF_RE.fullmatch(p)]
+    return base + ("?" + "&".join(gardes) if gardes else "") + diese + ancre
+
+
+def retirer_jetons_csrf(md: str) -> str:
+    return _URL_RE.sub(lambda m: _sans_jeton_csrf(m.group(0)), md)
+
+
 def to_markdown(html: str) -> str:
     h = html2text.HTML2Text()
     h.body_width = 0  # pas de re-wrap : les quotes doivent rester cherchables
@@ -140,7 +162,7 @@ def to_markdown(html: str) -> str:
     # france.fr le 2026-09-04. Le sha256 de l'en-tête porte sur le HTML brut,
     # pas sur ce markdown : aucune baseline de veille n'en dépend.
     h.unicode_snob = True
-    return h.handle(html)
+    return retirer_jetons_csrf(h.handle(html))
 
 
 def _validate_names(slug: str, label: str | None) -> None:

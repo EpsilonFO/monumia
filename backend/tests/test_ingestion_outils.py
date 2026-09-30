@@ -116,6 +116,10 @@ class BaseOutils(unittest.TestCase):
         self.atelier = dataclasses.replace(
             atelier_redirige("ex-aide", self.racine, jour=JOUR), facts_path=facts_path
         )
+        # `atelier_redirige` copie le VRAI facts_pending.yaml : avec une ontologie
+        # factice à côté, ses `pertinent_si` visent des faits inconnus et le lint
+        # rougit dès que le fichier n'est plus vide (113 faits le 2026-09-29).
+        self.atelier.pending_path.write_text("", encoding="utf-8")
         veille_collect.pdf_to_text.cache_clear()
         load_facts.cache_clear()
         load_pending_facts.cache_clear()

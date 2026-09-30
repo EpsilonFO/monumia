@@ -1759,11 +1759,19 @@ def build_questions(
     # pose avant elle), puis ceux qui débloquent le plus d'aides, puis l'ordre de
     # la source. Le graphe d'applicabilité n'a qu'un niveau dans le corpus : pas
     # de tri topologique.
+    #
+    # Parmi les passerelles, les PORTES passent devant : un fait peut être à la
+    # fois passerelle (périmètre d'une aide) et dépendant d'une porte. C'était
+    # `type_hebergement_touristique` (périmètre des villages de vacances, porte
+    # `projet_hebergement_touristique`) : à égalité de rang, il était construit
+    # le premier, `_depends_on_pertinence` ne trouvait pas sa porte, et le type
+    # d'hébergement se posait à tout le monde, avant même la question d'hébergement.
     ordered = sorted(
         candidats,
         key=lambda k: (
             not (porteur_derive and k == FAIT_PORTEUR),
             k not in gateway_by_fact and k not in sources_deduction and k not in portes,
+            k not in portes,
             -len(aide_slugs(k)),
             *ordre_source(k),
             k,

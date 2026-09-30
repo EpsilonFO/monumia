@@ -313,7 +313,10 @@ def liens(page: Page) -> list[tuple[str, str, str]]:
     sortie: list[tuple[str, str, str]] = []
     for m in _LIEN_MD_RE.finditer(md):
         cible = m.group(2).strip().strip("<>")
-        if not cible or cible.startswith(("#", "mailto:", "javascript:", "tel:")):
+        # `[Vous êtes ici]( "Vous êtes ici")` : un lien sans adresse, dont seul le
+        # titre subsiste. La cible capturée est alors le début du titre, et
+        # yonne.fr donnait 116 candidates en `…/"Vous`, toutes en 404 (2026-09-29).
+        if not cible or cible.startswith(("#", "mailto:", "javascript:", "tel:", '"', "'")):
             continue
         try:
             absolue = urljoin(base, cible)

@@ -79,6 +79,20 @@ class TestToMarkdown(SnapshotTestCase):
         self.assertIn("[Règlement](https://ex.fr/r.pdf)", md)
         self.assertNotIn("l.png", md)
 
+    def test_jeton_csrf_retire_des_liens(self):
+        # gitleaks refusait le commit d'une archive dont chaque lien portait
+        # le jeton de session du portail (`?__CSRFTOKEN__=<uuid>`).
+        jeton = "f749bd59-7a77-4b1b-88e1-b001f02a541e"
+        md = to_markdown(
+            f'<a href="https://ex.fr/arbres/?__CSRFTOKEN__={jeton}">Accueil</a> '
+            f'<a href="https://ex.fr/d?page=2&amp;csrf_token={jeton}#haut">Suite</a> '
+            f'<a href="https://ex.fr/d?__CSRFTOKEN__={jeton}&amp;page=3">Fin</a>'
+        )
+        self.assertNotIn(jeton, md)
+        self.assertIn("(https://ex.fr/arbres/)", md)
+        self.assertIn("(https://ex.fr/d?page=2#haut)", md)
+        self.assertIn("(https://ex.fr/d?page=3)", md)
+
 
 class TestWriteMdSnapshot(SnapshotTestCase):
     HTML = "<html><body><p>Les édifices antérieurs à 1800.</p></body></html>"

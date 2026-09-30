@@ -732,6 +732,15 @@ class TestLiens(unittest.TestCase):
         urls = [url for _t, url, _c in liens(self.page(html))]
         self.assertEqual(urls, ["https://x/aideProjet/1/321-truc.htm", "https://x/b"])
 
+    def test_un_lien_sans_adresse_ne_devient_pas_une_url(self):
+        """yonne.fr, 2026-09-29 : le titre du fil d'Ariane était pris pour l'URL."""
+        html = '<a title="Vous êtes ici">Vous êtes ici</a> <a href="/aides/x">X</a>'
+        page = self.page(html)
+        md = '[Vous êtes ici]( "Vous êtes ici") [X](/aides/x)'
+        with mock.patch.object(page.__class__, "markdown", lambda _self: md):
+            urls = [url for _t, url, _c in liens(page)]
+        self.assertEqual(urls, ["https://x/aides/x"])
+
     def test_un_lien_mal_forme_est_ignore_sans_tout_faire_tomber(self):
         """tarn.fr, 2026-09-28 : `http://[` fait lever urljoin (« Invalid IPv6 URL »)."""
         html = '<a href="http://[cassé/x">Cassé</a> <a href="/aides/patrimoine">Patrimoine</a>'
@@ -1198,6 +1207,46 @@ class TestLecture(BaseProspection):
                 )
                 self.assertFalse(f.retenir)
                 self.assertTrue(f.indeterminee)
+
+    def test_un_seul_champ_qui_exclut_suffit_a_ecarter(self):
+        """342 candidates sur 454 restaient `a_valider` le 2026-09-29 : objet
+        `hors_lieu` ou destinataire tiers, l'autre champ laissé `indetermine`."""
+        for destinataire, objet in (
+            ("indetermine", "hors_lieu"),
+            ("activite_tiers", "indetermine"),
+            ("personne", "indetermine"),
+        ):
+            with self.subTest(destinataire=destinataire, objet=objet):
+                lecture = Lecture(
+                    Candidat("https://guide.example/dispositif1"),
+                    LectureFiche.model_validate(
+                        {"titre": "x", "destinataire": destinataire, "objet": objet}
+                    ),
+                )
+                self.assertFalse(lecture.indeterminee)
+                self.assertTrue(lecture.ecartee)
+
+    def test_une_page_portail_est_ecartee_sans_destinataire(self):
+        """208 pages `non_dispositif` restaient en attente le 2026-09-29."""
+        for destinataire, objet in (
+            ("indetermine", "indetermine"),
+            ("proprietaire_gestionnaire", "bien_ou_lieu"),
+        ):
+            with self.subTest(destinataire=destinataire, objet=objet):
+                lecture = Lecture(
+                    Candidat("https://guide.example/dispositif1"),
+                    LectureFiche.model_validate(
+                        {
+                            "titre": "x",
+                            "destinataire": destinataire,
+                            "objet": objet,
+                            "categorie_ecart": "non_dispositif",
+                        }
+                    ),
+                )
+                self.assertFalse(lecture.retenue)
+                self.assertFalse(lecture.indeterminee)
+                self.assertTrue(lecture.ecartee)
 
     def test_le_modele_ne_peut_pas_rendre_retenir(self):
         """`retenir` est une propriété : un modèle qui l'envoie est ignoré."""

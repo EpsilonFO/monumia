@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import providall
 from pipeline.etat import CategorieEcart, Destinataire, Objet
+from pipeline.etat import indetermine as issue_indeterminee
 from pipeline.etat import retenir as test_du_destinataire
 from pipeline.llm import Compteur
 from pipeline.web import Fetcheur, Page
@@ -191,13 +192,20 @@ class LectureFiche(BaseModel):
 
     @property
     def retenir(self) -> bool:
-        """Le test du destinataire. Calculé, jamais rendu par le modèle."""
-        return test_du_destinataire(self.destinataire, self.objet)
+        """Le test du destinataire. Calculé, jamais rendu par le modèle.
+
+        Une page `non_dispositif` n'est jamais retenue, même si le modèle lui
+        prête un destinataire : il n'y a rien à y demander.
+        """
+        return (
+            test_du_destinataire(self.destinataire, self.objet)
+            and self.categorie_ecart != "non_dispositif"
+        )
 
     @property
     def indeterminee(self) -> bool:
         """Ni retenue ni écartée : à trancher par un humain, pas par le pipeline."""
-        return self.destinataire == "indetermine" or self.objet == "indetermine"
+        return issue_indeterminee(self.destinataire, self.objet, self.categorie_ecart)
 
 
 @dataclass
