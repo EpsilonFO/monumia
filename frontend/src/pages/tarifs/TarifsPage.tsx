@@ -165,7 +165,7 @@ export function TarifsPage() {
       <div className="mx-auto w-full max-w-6xl px-5 py-10 lg:px-8 lg:py-14">
         <Link
           to={backTo}
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-opacity hover:opacity-70"
+          className="inline-flex items-center gap-1.5 text-[15px] font-medium transition-opacity hover:opacity-70"
           style={{ color: C.blue }}
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -186,7 +186,7 @@ export function TarifsPage() {
             style={{ background: C.paleBlue, borderColor: C.border }}
           >
             <IconConseil className="mt-0.5 h-5 w-5 shrink-0" style={{ color: C.blue }} />
-            <p className="text-[14px]" style={{ color: C.ink }}>
+            <p className="text-[16px]" style={{ color: C.ink }}>
               Paiement abandonné, rien n’a été débité. Votre offre actuelle est intacte.
             </p>
           </div>
@@ -198,7 +198,7 @@ export function TarifsPage() {
           <div className="flex items-center justify-center gap-3">
             <span className="h-px w-7" style={{ background: C.orange, opacity: 0.65 }} />
             <span
-              className="text-[12.5px] font-semibold uppercase tracking-[0.18em]"
+              className="text-[14.5px] font-semibold uppercase tracking-[0.18em]"
               style={{ color: C.orange }}
             >
               Tarifs
@@ -219,7 +219,7 @@ export function TarifsPage() {
           </h1>
           <div className="mx-auto mt-5 h-[3px] w-12 rounded-full" style={{ background: C.orange }} />
           <p
-            className="mx-auto mt-5 max-w-2xl text-[16.5px] font-medium leading-[1.65]"
+            className="mx-auto mt-5 max-w-2xl text-[18.5px] font-medium leading-[1.65]"
             style={{ color: C.grayFg }}
           >
             Identifier vos aides et lire leur détail est gratuit, pour toujours. Ce qui se paie,
@@ -368,7 +368,7 @@ function PlanCard({
     <div className={shell} style={shellStyle}>
       {badge && !current && (
         <span
-          className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3.5 py-1 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-white"
+          className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3.5 py-1 text-[13.5px] font-semibold uppercase tracking-[0.08em] text-white"
           style={{ background: accent }}
         >
           {badge}
@@ -386,7 +386,7 @@ function PlanCard({
           {name}
         </h2>
       </div>
-      <p className="mt-2 text-[13.5px] leading-snug" style={{ color: faintColor }}>
+      <p className="mt-2 text-[15.5px] leading-snug" style={{ color: faintColor }}>
         {tagline}
       </p>
 
@@ -396,13 +396,13 @@ function PlanCard({
       >
         {price}
       </p>
-      <p className="mt-1.5 text-[12.5px]" style={{ color: faintColor }}>
+      <p className="mt-1.5 text-[14.5px]" style={{ color: faintColor }}>
         {priceNote}
       </p>
 
       {featuresIntro && (
         <p
-          className="mt-6 text-[12px] font-semibold uppercase tracking-[0.08em]"
+          className="mt-6 text-[14px] font-semibold uppercase tracking-[0.08em]"
           style={{ color: accent }}
         >
           {featuresIntro}
@@ -412,7 +412,7 @@ function PlanCard({
         {features.map((feature) => (
           <li
             key={feature}
-            className="flex items-start gap-2.5 text-[14px] leading-snug"
+            className="flex items-start gap-2.5 text-[16px] leading-snug"
             style={{ color: bodyColor }}
           >
             <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: accent }} strokeWidth={2.4} />
@@ -424,7 +424,7 @@ function PlanCard({
       <div className="mt-7">
         {current ? (
           <div
-            className="flex items-center justify-center gap-2 rounded-full px-5 py-3 text-[14px] font-semibold"
+            className="flex items-center justify-center gap-2 rounded-full px-5 py-3 text-[16px] font-semibold"
             style={{
               background: dark ? 'rgba(255,255,255,0.14)' : C.successMuted,
               color: dark ? '#fff' : C.success,
@@ -438,7 +438,7 @@ function PlanCard({
           // doit se comporter comme une adresse (clic milieu, copier le lien).
           <a
             href={cta.href}
-            className="group inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[14.5px] font-semibold transition-all duration-300 hover:-translate-y-0.5"
+            className="group inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[16.5px] font-semibold transition-all duration-300 hover:-translate-y-0.5"
             style={dark ? { background: '#fff', color: C.blue } : { background: accent, color: '#fff' }}
           >
             {cta.label}
@@ -449,7 +449,7 @@ function PlanCard({
             type="button"
             onClick={cta.onClick}
             disabled={waiting || loading}
-            className="group inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[14.5px] font-semibold transition-all duration-300 hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-progress disabled:opacity-55"
+            className="group inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[16.5px] font-semibold transition-all duration-300 hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-progress disabled:opacity-55"
             style={
               dark ? { background: '#fff', color: C.blue } : { background: accent, color: '#fff' }
             }
@@ -520,10 +520,10 @@ function PaymentSuccess({
         )}
       </div>
       <div className="flex-1">
-        <h2 className="text-[17px] font-semibold" style={{ fontFamily: SERIF, color: C.ink }}>
+        <h2 className="text-[19px] font-semibold" style={{ fontFamily: SERIF, color: C.ink }}>
           {titre}
         </h2>
-        <p className="mt-1 text-[14px]" style={{ color: C.grayFg }}>
+        <p className="mt-1 text-[16px]" style={{ color: C.grayFg }}>
           {texte}
         </p>
       </div>
@@ -531,7 +531,7 @@ function PaymentSuccess({
         <button
           type="button"
           onClick={onGoToProject}
-          className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
+          className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[16px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
           style={{ background: C.success }}
         >
           Retour à mon monument
@@ -572,7 +572,7 @@ function Reassurance({
         ].map((item) => (
           <span
             key={item}
-            className="inline-flex items-center gap-2 text-[13px] font-medium"
+            className="inline-flex items-center gap-2 text-[15px] font-medium"
             style={{ color: C.grayFg }}
           >
             <IconSucces className="h-3.5 w-3.5 shrink-0" style={{ color: C.success }} />
@@ -582,7 +582,7 @@ function Reassurance({
       </div>
 
       {(subscription || onOpenPortal) && (
-        <p className="text-center text-[13px]" style={{ color: C.grayMuted }}>
+        <p className="text-center text-[15px]" style={{ color: C.grayMuted }}>
           {subscription?.cancelAtPeriodEnd && periodEnd
             ? `Votre abonnement prend fin le ${periodEnd}. Votre offre reste active jusque-là.`
             : subscription && periodEnd

@@ -110,7 +110,7 @@ export function QuestionOptions({
         <span
           className={cn(
             'block leading-snug',
-            compact ? 'text-[15px] font-semibold' : 'text-[clamp(1.25rem,2.8vw,1.6rem)]',
+            compact ? 'text-[17px] font-semibold' : 'text-[clamp(1.25rem,2.8vw,1.6rem)]',
           )}
           style={compact ? { color: C.ink } : { fontFamily: SERIF, color: C.ink }}
         >
@@ -120,7 +120,7 @@ export function QuestionOptions({
             cases ne suffit pas à dire qu'on peut en cocher plusieurs. */}
         {multiple && (
           <span
-            className={cn('block font-semibold', compact ? 'mt-1 text-[12px]' : 'mt-1.5 text-[13px]')}
+            className={cn('block font-semibold', compact ? 'mt-1 text-[14px]' : 'mt-1.5 text-[15px]')}
             style={{ color: C.orange }}
           >
             Plusieurs réponses possibles

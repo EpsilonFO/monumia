@@ -1,8 +1,8 @@
 import { MemberAvatar, type AvatarPerson } from './MemberAvatar';
 
 const SIZES = {
-  sm: { box: 'h-7 w-7', text: 'text-[10px]' },
-  md: { box: 'h-9 w-9', text: 'text-[12px]' },
+  sm: { box: 'h-7 w-7', text: 'text-[12px]' },
+  md: { box: 'h-9 w-9', text: 'text-[14px]' },
 } as const;
 
 export function MemberAvatarStack({

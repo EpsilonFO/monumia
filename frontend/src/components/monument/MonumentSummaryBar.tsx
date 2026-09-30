@@ -51,7 +51,7 @@ export function MonumentSummaryBar({
               (pleine largeur sur un téléphone), et sans cette borne il
               réclamerait toute la ligne — le nom du monument se replierait
               alors en trois lignes contre la photo. */}
-          <div className="w-full shrink-0 sm:w-[212px]">
+          <div className="w-full shrink-0 sm:w-[241px]">
             <MonumentPhotoProfil monument={monument} canEdit={canEdit} width={212} radius="0.75rem" />
           </div>
           <div className="min-w-0 flex-1 space-y-2.5">
@@ -62,7 +62,7 @@ export function MonumentSummaryBar({
               {monument.nom}
             </h1>
             {location && (
-              <p className="flex items-center gap-1.5 text-[14.5px]" style={{ color: C.grayFg }}>
+              <p className="flex items-center gap-1.5 text-[16.5px]" style={{ color: C.grayFg }}>
                 <IconLocalisation className="h-4 w-4 shrink-0" style={{ color: C.blueLight }} />
                 {location}
               </p>
@@ -80,7 +80,7 @@ export function MonumentSummaryBar({
         {canEdit && onNouveauProjet && (
           <button
             onClick={onNouveauProjet}
-            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg px-5 py-2.5 text-[13px] font-semibold text-white transition-all duration-200 hover:shadow-md sm:self-auto"
+            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg px-5 py-2.5 text-[15px] font-semibold text-white transition-all duration-200 hover:shadow-md sm:self-auto"
             style={{ background: C.orange }}
           >
             <IconAjouter className="h-4 w-4" strokeWidth={2} />

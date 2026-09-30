@@ -18,7 +18,7 @@ const LIGHT = 'var(--muted-foreground)';
 const SUCCESS = 'var(--success)';
 
 export const inputCls =
-  'h-11 text-[14px] bg-card border-border focus:border-primary focus:ring-primary/10';
+  'h-11 text-[16px] bg-card border-border focus:border-primary focus:ring-primary/10';
 
 // Pages légales, servies par la landing (monumia.fr). Internes : la case CGU
 // de ce formulaire est le seul endroit qui les consomme. (`InvitationLandingPage`
@@ -175,7 +175,7 @@ export function RegisterForm({
         {/* ── Colonne gauche : identifiants de connexion ── */}
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="reg-email" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Email</Label>
+            <Label htmlFor="reg-email" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Email</Label>
             <Input
               id="reg-email"
               type="email"
@@ -187,13 +187,13 @@ export function RegisterForm({
               className={inputCls}
             />
             {dejaInscrit && (
-              <p className="text-[12.5px] leading-[1.5]" style={{ color: C.danger }}>
+              <p className="text-[14.5px] leading-[1.5]" style={{ color: C.danger }}>
                 Un compte existe déjà avec cette adresse. {recoursConnexion}
               </p>
             )}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="reg-password" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Mot de passe</Label>
+            <Label htmlFor="reg-password" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Mot de passe</Label>
             <div className="relative">
               <Input
                 id="reg-password"
@@ -217,7 +217,7 @@ export function RegisterForm({
             {registerForm.password && (
               <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 pt-0.5">
                 {PASSWORD_RULES.map(({ key, label }) => (
-                  <div key={key} className="flex items-center gap-1.5 text-[12px]" style={{ color: pwdChecks[key] ? SUCCESS : LIGHT }}>
+                  <div key={key} className="flex items-center gap-1.5 text-[14px]" style={{ color: pwdChecks[key] ? SUCCESS : LIGHT }}>
                     {pwdChecks[key] ? <Check className="h-3 w-3 flex-shrink-0" /> : <X className="h-3 w-3 flex-shrink-0" />}
                     {label}
                   </div>
@@ -226,7 +226,7 @@ export function RegisterForm({
             )}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="reg-confirm" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Confirmer le mot de passe</Label>
+            <Label htmlFor="reg-confirm" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Confirmer le mot de passe</Label>
             <Input
               id="reg-confirm"
               type="password"
@@ -243,7 +243,7 @@ export function RegisterForm({
         {/* ── Colonne droite : votre identité ── */}
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="reg-nom" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Nom</Label>
+            <Label htmlFor="reg-nom" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Nom</Label>
             <Input
               id="reg-nom"
               autoComplete="family-name"
@@ -255,7 +255,7 @@ export function RegisterForm({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="reg-prenom" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Prénom</Label>
+            <Label htmlFor="reg-prenom" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Prénom</Label>
             <Input
               id="reg-prenom"
               autoComplete="given-name"
@@ -267,7 +267,7 @@ export function RegisterForm({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="reg-tel" className="text-[13.5px] font-medium" style={{ color: C.ink }}>
+            <Label htmlFor="reg-tel" className="text-[15.5px] font-medium" style={{ color: C.ink }}>
               Téléphone <span className="font-normal" style={{ color: LIGHT }}>(optionnel)</span>
             </Label>
             <Input
@@ -279,7 +279,7 @@ export function RegisterForm({
               onChange={(e) => handlePhoneChange(e.target.value)}
               className={`${inputCls}${phoneError ? ' border-destructive focus:border-destructive' : ''}`}
             />
-            {phoneError && <p className="text-[12px] text-destructive">{phoneError}</p>}
+            {phoneError && <p className="text-[14px] text-destructive">{phoneError}</p>}
           </div>
         </div>
       </div>
@@ -292,7 +292,7 @@ export function RegisterForm({
           onCheckedChange={(v) => setAcceptCgu(v === true)}
           className="mt-[3px]"
         />
-        <span className="text-[13px] leading-[1.55]" style={{ color: MUTED }}>
+        <span className="text-[15px] leading-[1.55]" style={{ color: MUTED }}>
           J'ai lu et j'accepte les <LegalLink href={CGU_URL}>conditions générales d'utilisation</LegalLink>{' '}
           et la <LegalLink href={PRIVACY_URL}>politique de confidentialité</LegalLink>.
         </span>
@@ -301,7 +301,7 @@ export function RegisterForm({
       <button
         type="submit"
         disabled={!registerReady || registerLoading}
-        className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
+        className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg text-[16px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
         style={{ background: C.orange }}
       >
         {registerLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (

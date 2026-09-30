@@ -162,7 +162,8 @@ def main() -> int:
             "options": [o.model_dump() for o in f.options] if f.options else None,
             "unit": f.unit,
             "help": f.help,
-            "auto_source": f.auto_source,
+            # Colonne `text` : plusieurs sources s'y écrivent séparées par une virgule.
+            "auto_source": ", ".join(f.auto_sources) or None,
         }
         for key, f in facts.items()
     ]

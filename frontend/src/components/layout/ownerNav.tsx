@@ -21,10 +21,10 @@ export function OwnerAccountMenu() {
         }`
       }
     >
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-primary">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-secondary text-[13px] font-bold text-primary">
         {initials || <IconAccount size={18} />}
       </span>
-      <span className="hidden max-w-[140px] truncate text-[13.5px] font-semibold text-foreground sm:block">
+      <span className="hidden max-w-[159.5px] truncate text-[15.5px] font-semibold text-foreground sm:block">
         {user?.prenom ?? 'Mon compte'}
       </span>
     </NavLink>

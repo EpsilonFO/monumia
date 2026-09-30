@@ -49,20 +49,20 @@ function PaywallCard({
       style={{ background: C.card, borderColor: C.orange, boxShadow: 'var(--shadow-pop)' }}
     >
       <span
-        className="inline-flex items-center rounded-full px-2.5 py-1 text-[11.5px] font-bold uppercase tracking-[0.08em]"
+        className="inline-flex items-center rounded-full px-2.5 py-1 text-[13.5px] font-bold uppercase tracking-[0.08em]"
         style={{ background: C.paleOrange, color: C.orange }}
       >
         {`Offre ${offre}`}
       </span>
 
       <Titre
-        className="mt-3 block text-[19px] leading-snug"
+        className="mt-3 block text-[22px] leading-snug"
         style={{ fontFamily: SERIF, color: C.ink }}
       >
         {titre}
       </Titre>
 
-      <p className="mt-2 text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
+      <p className="mt-2 text-[16px] leading-relaxed" style={{ color: C.grayFg }}>
         {description}
       </p>
 
@@ -77,12 +77,12 @@ function PaywallCard({
           {chiffres.map(({ valeur, libelle }) => (
             <div key={libelle} className="flex min-w-0 flex-col items-center gap-0.5">
               <span
-                className="text-[17px] font-bold leading-tight tabular-nums"
+                className="text-[19px] font-bold leading-tight tabular-nums"
                 style={{ color: C.ink }}
               >
                 {valeur}
               </span>
-              <span className="text-[11px] leading-tight" style={{ color: C.grayMuted }}>
+              <span className="text-[13px] leading-tight" style={{ color: C.grayMuted }}>
                 {libelle}
               </span>
             </div>
@@ -92,7 +92,7 @@ function PaywallCard({
 
       <Link
         to={ROUTES.TARIFS(monumentId)}
-        className="group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[14.5px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
+        className="group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[16.5px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
         style={{ background: C.orange }}
       >
         {`Découvrir l'offre ${offre}`}

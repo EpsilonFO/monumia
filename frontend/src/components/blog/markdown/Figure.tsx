@@ -13,7 +13,7 @@ export function Figure({ node, children }: BlockProps) {
     <figure className="my-6 rounded-2xl border p-4 text-center" style={{ background: C.card, borderColor: C.border }}>
       <div className="[&_img]:mx-auto [&_img]:rounded-xl">{children}</div>
       {caption && (
-        <figcaption className="mt-3 text-[13px] italic" style={{ color: '#6a7180' }}>
+        <figcaption className="mt-3 text-[15px] italic" style={{ color: '#6a7180' }}>
           {caption}
         </figcaption>
       )}

@@ -237,17 +237,17 @@ function DocumentRow({
             {labelText(item.label)}
           </span>
           {item.obligatoire && (
-            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+            <Badge variant="outline" className="text-[12px] px-1 py-0 h-4">
               Requis
             </Badge>
           )}
           {isRepris && !item.perime && (
-            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-primary/40 text-primary">
+            <Badge variant="outline" className="text-[12px] px-1 py-0 h-4 border-primary/40 text-primary">
               Repris — à vérifier
             </Badge>
           )}
           {isRepris && item.perime && (
-            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-accent/50 text-warning">
+            <Badge variant="outline" className="text-[12px] px-1 py-0 h-4 border-accent/50 text-warning">
               <IconAttention className="h-2.5 w-2.5 mr-0.5" />
               Repris — document ancien
             </Badge>
@@ -318,7 +318,7 @@ function DocumentRow({
             onClick={() => onRequestDelete(item)}
             aria-label="Supprimer"
             className={cn(
-              'inline-flex items-center justify-center h-[30px] w-[30px] rounded-lg border border-destructive/20 text-destructive hover:bg-destructive-muted transition-colors',
+              'inline-flex items-center justify-center h-[34px] w-[34px] rounded-lg border border-destructive/20 text-destructive hover:bg-destructive-muted transition-colors',
               busy && 'opacity-60 cursor-not-allowed',
             )}
           >
@@ -399,7 +399,7 @@ function ModelButton({ templates }: { templates: Template[] }) {
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-1.5">
-        <p className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="px-2 py-1.5 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
           Modèles suggérés
         </p>
         <div className="space-y-0.5">
@@ -412,10 +412,10 @@ function ModelButton({ templates }: { templates: Template[] }) {
                 onClick={() => templateService.download(t)}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-muted"
               >
-                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${badge.className}`}>
+                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[12px] font-bold ${badge.className}`}>
                   {badge.label}
                 </span>
-                <span className="flex-1 truncate text-[13px] text-foreground">{t.nom}</span>
+                <span className="flex-1 truncate text-[15px] text-foreground">{t.nom}</span>
                 <IconTelecharger className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               </button>
             );

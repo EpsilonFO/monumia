@@ -61,10 +61,10 @@ function CarteEchec({
         <IconAttention className="h-5 w-5" />
       </span>
       <div>
-        <p className="text-[16px] leading-snug" style={{ fontFamily: SERIF, color: C.ink }}>
+        <p className="text-[18px] leading-snug" style={{ fontFamily: SERIF, color: C.ink }}>
           {titre}
         </p>
-        <p className="mt-1.5 text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
+        <p className="mt-1.5 text-[16px] leading-relaxed" style={{ color: C.grayFg }}>
           {description}
         </p>
       </div>
@@ -74,8 +74,8 @@ function CarteEchec({
 }
 
 const BOUTON_PLEIN =
-  'inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[14px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)]';
-const LIEN_DISCRET = 'text-[14px] font-medium underline underline-offset-2';
+  'inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[16px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)]';
+const LIEN_DISCRET = 'text-[16px] font-medium underline underline-offset-2';
 
 /**
  * Rejeu du brouillon découverte : le monument et le projet sont créés pour de

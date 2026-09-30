@@ -11,13 +11,13 @@ export function Quote({ node, children }: { node?: any; children?: ReactNode }) 
         <IconRegle className="mt-1 h-5 w-5 shrink-0" style={{ color: C.blue }} aria-hidden />
         <div className="min-w-0">
           <blockquote
-            className="text-[15px] italic leading-relaxed [&_p]:mt-2 [&_p:first-child]:mt-0"
+            className="text-[17px] italic leading-relaxed [&_p]:mt-2 [&_p:first-child]:mt-0"
             style={{ color: C.ink, fontFamily: 'var(--font-serif)' }}
           >
             {children}
           </blockquote>
           {source && (
-            <figcaption className="mt-3 text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: C.blue, opacity: 0.7 }}>
+            <figcaption className="mt-3 text-[14px] font-semibold uppercase tracking-[0.12em]" style={{ color: C.blue, opacity: 0.7 }}>
               {source}
             </figcaption>
           )}

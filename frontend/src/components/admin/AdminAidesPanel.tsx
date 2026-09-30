@@ -91,10 +91,10 @@ export function AdminAidesPanel({ onErreur }: Props) {
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Rechercher une aide (nom, organisme, slug)…"
-            className="h-10 pl-9 text-[14px]"
+            className="h-10 pl-9 text-[16px]"
           />
         </div>
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-[15px] text-muted-foreground">
           {aides.length} aides · {nbRetirees} retirée{nbRetirees > 1 ? 's' : ''}
         </p>
       </div>
@@ -102,9 +102,9 @@ export function AdminAidesPanel({ onErreur }: Props) {
       <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           {chargement ? (
-            <p className="px-4 py-8 text-center text-[14px] text-muted-foreground">Chargement…</p>
+            <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">Chargement…</p>
           ) : visibles.length === 0 ? (
-            <p className="px-4 py-8 text-center text-[14px] text-muted-foreground">
+            <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">
               Aucune aide ne correspond à votre recherche.
             </p>
           ) : (
@@ -125,9 +125,9 @@ export function AdminAidesPanel({ onErreur }: Props) {
                   >
                     <TableCell>
                       <p className="font-medium text-foreground">{aide.nom}</p>
-                      <p className="font-mono text-[11.5px] text-muted-foreground">{aide.slug}</p>
+                      <p className="font-mono text-[13.5px] text-muted-foreground">{aide.slug}</p>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-[13px] text-muted-foreground">
+                    <TableCell className="hidden md:table-cell text-[15px] text-muted-foreground">
                       {aide.organisme}
                     </TableCell>
                     <TableCell>
@@ -146,23 +146,23 @@ export function AdminAidesPanel({ onErreur }: Props) {
 
         <aside className="h-fit rounded-xl border border-border bg-card p-5">
           {!ouverte ? (
-            <p className="text-[14px] text-muted-foreground">
+            <p className="text-[16px] text-muted-foreground">
               Sélectionnez une aide pour la retirer du catalogue ou la republier.
             </p>
           ) : (
             <div className="space-y-4">
               <div>
-                <h2 className="text-[17px]" style={{ fontFamily: SERIF, color: C.ink }}>
+                <h2 className="text-[19px]" style={{ fontFamily: SERIF, color: C.ink }}>
                   {ouverte.nom}
                 </h2>
-                <p className="font-mono text-[11.5px] text-muted-foreground">{ouverte.slug}</p>
+                <p className="font-mono text-[13.5px] text-muted-foreground">{ouverte.slug}</p>
               </div>
 
               <label className="flex items-start gap-3">
                 <Switch checked={retiree} onCheckedChange={setRetiree} className="mt-0.5" />
-                <span className="text-[14px]">
+                <span className="text-[16px]">
                   <span className="font-medium text-foreground">Retirée du catalogue</span>
-                  <span className="block text-[12.5px] text-muted-foreground">
+                  <span className="block text-[14.5px] text-muted-foreground">
                     L’aide disparaît des diagnostics, sa fiche devient introuvable et aucun dossier
                     ne peut plus être ouvert dessus.
                   </span>
@@ -170,7 +170,7 @@ export function AdminAidesPanel({ onErreur }: Props) {
               </label>
 
               <div className="space-y-1.5">
-                <label htmlFor="motif-retrait" className="text-[13px] font-medium text-foreground">
+                <label htmlFor="motif-retrait" className="text-[15px] font-medium text-foreground">
                   Motif
                 </label>
                 <Textarea
@@ -181,10 +181,10 @@ export function AdminAidesPanel({ onErreur }: Props) {
                   rows={3}
                   maxLength={500}
                   placeholder="Dispositif supprimé par la région, doublon de…"
-                  className="text-[14px]"
+                  className="text-[16px]"
                 />
                 {ouverte.retiree && ouverte.retireeLe && (
-                  <p className="text-[12px] text-muted-foreground">
+                  <p className="text-[14px] text-muted-foreground">
                     Retirée le {new Date(ouverte.retireeLe).toLocaleDateString('fr-FR')}
                   </p>
                 )}
@@ -193,7 +193,7 @@ export function AdminAidesPanel({ onErreur }: Props) {
               <button
                 onClick={enregistrer}
                 disabled={enregistrement || !modifie}
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[16px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                 style={{ background: C.blue }}
               >
                 {enregistrement ? 'Enregistrement…' : 'Enregistrer'}

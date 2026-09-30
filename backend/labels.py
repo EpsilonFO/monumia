@@ -2,7 +2,8 @@
 Référentiels de libellés humains pour les codes utilisés en DB.
 
 Mappings code → libellé pour : protection MH, type de propriétaire, type de
-travaux, état de conservation, région (kebab-case) et département (INSEE).
+travaux, état de conservation, type d'édifice, région (kebab-case) et
+département (INSEE).
 Les codes doivent rester alignés avec les valeurs stockées dans les tables
 `aides_v3` et `communes`, et avec les YAML de `data/aides/`.
 """
@@ -178,6 +179,78 @@ ETAT_LABELS = {
     "mauvais": "Mauvais état",
     "peril": "En péril",
 }
+
+# ── Type d'édifice (colonne `monuments.type_edifice`) ──────────────────────────
+#
+# Ajouté le 2026-09-30. Le questionnaire demandait à un propriétaire de lavoir
+# « votre édifice est-il une église ? », à celui d'une église « le bien est-il
+# représentatif de l'histoire et de la culture juives ? » : une quinzaine de
+# faits constatifs de `facts.yaml` décrivent la NATURE du bien, et chacun se
+# posait à part. Le type, saisi une fois sur la fiche, y répond d'avance par
+# `auto_source` (table `eligibility_engine.DEDUCTIONS_TYPE_EDIFICE`).
+#
+# CHOIX MULTIPLE (même jour, migration 20260930082523) : un domaine réunit un
+# château, sa chapelle, son pigeonnier. Un fait n'est alors déduit qu'à
+# l'unanimité des types cochés.
+#
+# Liste FERMÉE en quatre endroits, qui doivent rester d'accord : ce dict, le
+# CHECK de la migration qui pose la colonne, `TYPES_EDIFICE` côté front
+# (`frontend/src/constants/monument-options.ts`) et ses regroupements
+# (`GROUPES_TYPE_EDIFICE`, `lib/fiche-monument.ts`). `tests/test_type_edifice.py`
+# le vérifie. Les codes sont figés : les tables de déduction les citent.
+#
+# L'ordre est celui des regroupements du menu (religieux, demeures, civils,
+# rural, ouvrages et mémoire). Il n'y a pas de « je ne sais pas » : laisser le
+# champ vide le dit, et `autre` ne déduit rien non plus (fail-closed).
+TYPE_EDIFICE_LABELS = {
+    "eglise": "Église, cathédrale, basilique",
+    "chapelle": "Chapelle",
+    "abbaye_couvent": "Abbaye, prieuré, couvent",
+    "temple": "Temple protestant",
+    "synagogue": "Synagogue",
+    "croix_calvaire": "Croix, calvaire",
+    "autre_religieux": "Autre édifice religieux",
+    "chateau": "Château, château fort",
+    "manoir_demeure": "Manoir, demeure",
+    "hotel_particulier": "Hôtel particulier",
+    "maison": "Maison",
+    "edifice_public": "Édifice public",
+    "hopital": "Hôpital, hospice, Hôtel-Dieu",
+    "halle": "Halle, marché couvert",
+    "patrimoine_industriel": "Patrimoine industriel",
+    "ferme": "Ferme, grange, bâtiment agricole",
+    "moulin": "Moulin",
+    "lavoir_fontaine": "Lavoir, fontaine",
+    "pigeonnier": "Pigeonnier, colombier",
+    "petit_patrimoine": "Four, puits, petit patrimoine",
+    "fortification": "Fortification, rempart, porte de ville",
+    "pont": "Pont, aqueduc, ouvrage d'art",
+    "jardin": "Parc, jardin",
+    "site_archeologique": "Site archéologique, mégalithe",
+    "monument_aux_morts": "Monument aux morts",
+    "monument_commemoratif": "Statue, monument commémoratif",
+    "autre": "Autre",
+}
+
+# Les deux PRÉCISIONS de la fiche, et les types où elles ont un sens. Chacune
+# répond à un fait existant : `edifice_toujours_affecte_culte` et
+# `edifice_architecture_romane`. Elle est proposée dès qu'AU MOINS un type
+# coché l'admet ; quand plus aucun ne l'admet, elle n'est ni proposée (front),
+# ni conservée (router), ni lue (`build_context`) : une réponse « affecté au
+# culte » restée d'un premier choix « église » ne doit pas suivre la fiche
+# devenue « château ». Elle ne nourrit que son propre fait : château + chapelle
+# « affectée au culte » ne font pas un édifice cultuel.
+#
+# L'architecture romane n'est proposée que là où elle est courante : un
+# programme roman vise « toutes les catégories d'édifices », mais demander le
+# style d'un lavoir alourdit la fiche pour rien. Ailleurs, la question reste
+# posée au questionnaire si une aide la cite.
+TYPES_AVEC_AFFECTATION_CULTE = frozenset(
+    {"eglise", "chapelle", "abbaye_couvent", "temple", "synagogue", "autre_religieux"}
+)
+TYPES_AVEC_ARCHITECTURE_ROMANE = frozenset(
+    {"eglise", "chapelle", "abbaye_couvent", "chateau", "fortification"}
+)
 
 REGION_LABELS = {
     "auvergne-rhone-alpes": "Auvergne-Rhône-Alpes",

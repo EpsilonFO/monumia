@@ -7,7 +7,8 @@ Vérifie :
   - les `field` (kind: auto, applies_if) existent dans FIELD_REGISTRY
   - l'opérateur du prédicat est compatible avec le type du fait / du champ
   - pour les faits enum et les champs à référentiel : valeurs du prédicat valides
-  - les `auto_source` de l'ontologie pointent vers un champ du registre
+  - les `auto_source` de l'ontologie pointent vers un champ du registre, et
+    chaque source d'un autre type que le fait a sa dérivation dans le moteur
   - statistiques de couverture du typage (untyped restants) et dette de quotes
   - avec `--quotes`, que chaque citation se retrouve dans un snapshot archivé
   - ratchet des `manual_check` : aucune aide ne peut dépasser son compte de
@@ -76,7 +77,11 @@ from aides_schema import (
     predicate_leaves,
     sans_rien_a_verifier,
 )
-from eligibility_engine import _normalize_answer, deduire_faits_des_faits
+from eligibility_engine import (
+    _normalize_answer,
+    auto_sources_sans_derivation,
+    deduire_faits_des_faits,
+)
 from labels import DEPARTEMENT_LABELS, REGION_LABELS
 
 # `help` NOMINATIF : marqueurs de financeur et de territoire. Un fait cité par
@@ -649,10 +654,16 @@ LIEN_AUTEUR = "[["
 
 def check_facts(facts: dict[str, FactDef]) -> list[str]:
     erreurs = [
-        f"facts.yaml / {key}: auto_source « {f.auto_source} » absent de FIELD_REGISTRY"
+        f"facts.yaml / {key}: auto_source « {source} » absent de FIELD_REGISTRY"
         for key, f in facts.items()
-        if f.auto_source and f.auto_source not in FIELD_REGISTRY
+        for source in f.auto_sources
+        if source not in FIELD_REGISTRY
     ]
+    # Une source d'un autre type que le fait (un nom pour un booléen, un type
+    # d'édifice pour un booléen) sans dérivation serait reprise TELLE QUELLE :
+    # « eglise » comparé à `eq: true` vaut False, et l'aide serait écartée sur
+    # une valeur que personne n'a donnée.
+    erreurs += [f"facts.yaml / {msg}" for msg in auto_sources_sans_derivation(facts)]
     erreurs += [
         f"facts.yaml / {key}: `{champ}` contient un lien d'auteur `[[…]]`, rendu brut à "
         f"l'écran — le réécrire en français"

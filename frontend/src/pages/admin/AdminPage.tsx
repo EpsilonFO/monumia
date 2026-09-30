@@ -58,7 +58,7 @@ export function AdminPage() {
              quatrième onglet — ce n'est pas un geste d'administration de plus. */
           <Link
             to={ROUTES.ADMIN_STATS}
-            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[14px] font-medium transition-colors hover:bg-[var(--secondary)]"
+            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[16px] font-medium transition-colors hover:bg-[var(--secondary)]"
             style={{ borderColor: C.border, color: C.blue }}
           >
             <IconTendance className="h-4 w-4" />

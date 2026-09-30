@@ -35,7 +35,7 @@ export function BlogCategoryPage() {
 
   return (
     <div className="space-y-8">
-      <Link to="/blog" className="text-[13px] hover:underline" style={{ color: C.grayFg }}>
+      <Link to="/blog" className="text-[15px] hover:underline" style={{ color: C.grayFg }}>
         ← Tous les articles
       </Link>
 
@@ -48,7 +48,7 @@ export function BlogCategoryPage() {
           <Icon className="h-7 w-7" />
         </span>
         <div>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: tone.fg }}>
+          <span className="text-[13px] font-semibold uppercase tracking-[0.16em]" style={{ color: tone.fg }}>
             {category.stepLabel}
           </span>
           <h1
@@ -57,7 +57,7 @@ export function BlogCategoryPage() {
           >
             {category.label}
           </h1>
-          <p className="mt-2 max-w-2xl text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
+          <p className="mt-2 max-w-2xl text-[17px] leading-relaxed" style={{ color: C.grayFg }}>
             {category.description}
           </p>
         </div>
@@ -75,7 +75,7 @@ export function BlogCategoryPage() {
 
       {/* Explorer les autres thèmes */}
       <div className="border-t pt-6" style={{ borderColor: C.border }}>
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.blue, opacity: 0.7 }}>
+        <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.blue, opacity: 0.7 }}>
           Explorer les autres thèmes
         </p>
         <div className="flex flex-wrap gap-2.5">
@@ -86,7 +86,7 @@ export function BlogCategoryPage() {
               <Link
                 key={c.slug}
                 to={`/blog/categorie/${c.slug}`}
-                className="inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--muted)]"
+                className="inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[15px] font-medium transition-colors hover:bg-[var(--muted)]"
                 style={{ borderColor: C.border, color: C.ink }}
               >
                 <span className="flex h-5 w-5 items-center justify-center rounded-md" style={{ background: t.soft, color: t.fg }}>

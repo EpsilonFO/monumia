@@ -33,6 +33,7 @@ from aides_schema import (
     BLOCK_OPS,
     ENUM_FACT_TYPES,
     FAIT_PORTEUR,
+    FIELD_REGISTRY,
     OPTIONS_BOOLEEN_IMPLICITES,
     ROLE_BY_TYPE,
     Aide,
@@ -53,6 +54,8 @@ from labels import (
     PROTECTION_LABELS,
     REGION_LABELS,
     TRAVAUX_LABELS,
+    TYPES_AVEC_AFFECTATION_CULTE,
+    TYPES_AVEC_ARCHITECTURE_ROMANE,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,15 +101,37 @@ def build_context(
     SIREN d'EPCI : absent pour une commune isolée, ce qui laisse les aides
     intercommunales en incertitude plutôt que de les déclarer non éligibles.
     """
+    types_edifice = types_coches(monument.get("type_edifice"))
     ctx: dict[str, object] = {
         "monument.nom": monument.get("nom"),
         "monument.protection": monument.get("protection"),
-        "monument.proprietaire": monument.get("proprietaire"),
+        # UN propriétaire : le diagnostic évalue une fiche par propriétaire
+        # coché (`profils_par_proprietaire`). Appelé directement sur une fiche
+        # qui en coche plusieurs, le contexte n'en retient aucun (fail-closed).
+        "monument.proprietaire": proprietaire_unique(monument),
         "monument.etat_conservation": monument.get("etat_conservation"),
         "monument.region": monument.get("region"),
         "monument.departement_num": monument.get("departement_num"),
         "monument.travaux_envisages": monument.get("travaux_envisages") or [],
         "monument.siecle_construction": monument.get("siecle_construction"),
+        # Choix multiple : la liste des types cochés, None si aucun.
+        "monument.type_edifice": list(types_edifice) or None,
+        # Une précision ne vaut que si AU MOINS un type coché l'admet : restée
+        # d'un premier choix « église », « affecté au culte » ne doit pas
+        # suivre une fiche devenue « château » seul (le router la vide aussi).
+        # Château + chapelle la garde : elle décrit alors la chapelle, et ne
+        # nourrit que le fait qu'elle alimente, jamais `edifice_cultuel` (cf.
+        # DEDUCTIONS_TYPE_EDIFICE, où l'unanimité des types s'applique seule).
+        "monument.affecte_au_culte": (
+            monument.get("affecte_au_culte")
+            if TYPES_AVEC_AFFECTATION_CULTE.intersection(types_edifice)
+            else None
+        ),
+        "monument.architecture_romane": (
+            monument.get("architecture_romane")
+            if TYPES_AVEC_ARCHITECTURE_ROMANE.intersection(types_edifice)
+            else None
+        ),
         "commune.population": population,
     }
     # Champs d'enrichissement commune : présents seulement si la donnée existe.
@@ -150,6 +175,12 @@ class AideVerdict:
     # personne ne les pose. Sans eux, une condition dont l'applicabilité est
     # indéterminée reste éternellement en incertitude (cf. _gateway_condition).
     gateway_facts: dict[str, list[Condition]] = field(default_factory=dict)
+    # Plusieurs propriétaires cochés (2026-09-30) : les verdicts ENCORE VIVANTS
+    # de l'aide (potentiel ou atteignable), un par propriétaire, celui-ci
+    # compris, quand il y en a plus d'un. Vide dans le cas courant d'un seul
+    # propriétaire. `build_questions` en tire l'union des questions et
+    # l'intersection des éliminations (cf. `_meilleur_verdict`).
+    profils_vivants: list[AideVerdict] = field(default_factory=list)
 
 
 def _tranche_repr(option_id: str):
@@ -329,15 +360,277 @@ def _eglise_ou_chapelle_depuis_nom(brut: object) -> bool | None:
     return True if _TETE_RELIGIEUSE_RE.match(_sans_accents(brut)) else None
 
 
-# Comment un fait lit son `auto_source` quand la valeur brute de la fiche n'a
-# pas son type (un siècle n'est pas une année, un nom n'est pas un booléen).
-# Sans entrée ici, la valeur du contexte est reprise telle quelle.
-AUTO_SOURCE_DERIVERS = {
-    "annee_construction": _annee_depuis_siecle,
-    "edifice_eglise_ou_chapelle": _eglise_ou_chapelle_depuis_nom,
-    # Une église ou une chapelle est, par construction, un édifice cultuel.
-    "edifice_cultuel": _eglise_ou_chapelle_depuis_nom,
+# ---------------------------------------------------------------------------
+# Faits déduits du type d'édifice (2026-09-30)
+# ---------------------------------------------------------------------------
+#
+# Ce que CHAQUE type d'édifice de la fiche (`monuments.type_edifice`, codes de
+# `labels.TYPE_EDIFICE_LABELS`) répond d'avance : fait → {type → valeur}. Un
+# type ABSENT de la table d'un fait ne déduit rien (None) et la question reste
+# posée ; `autre` n'apparaît dans aucune table, par construction.
+#
+# La règle d'écriture est celle de toute déduction qui peut ÉCARTER une aide :
+# une valeur n'entre ici que si elle est CERTAINE pour tout bien de ce type.
+# « Un lavoir n'est pas une église » l'est ; « une église n'est pas romane »
+# ne l'est pas (d'où la précision `architecture_romane`, qui seule y répond), et
+# « un château n'a pas de jardin » encore moins. Dans le doute, on s'abstient :
+# la question posée coûte une ligne, l'aide écartée à tort disparaît.
+#
+# Plusieurs types se cochent (choix multiple, 2026-09-30) : un domaine réunit
+# un château, sa chapelle, son pigeonnier. Le fait se déduit alors à
+# l'UNANIMITÉ des types cochés (`_depuis_type_edifice`) : château + chapelle ne
+# répondent ni oui ni non à « est-ce une église ou une chapelle ? », et la
+# question reste posée, puisque le projet peut porter sur l'un comme sur
+# l'autre. Le fait décrit toujours LE BIEN de la fiche ; la réponse du
+# questionnaire prime, et un nom qui contredit les types rend la question (cf.
+# `_auto_fact_value`).
+
+# Les édifices religieux BÂTIS, dont le culte est certain (une croix n'est pas
+# un « édifice », « autre édifice religieux » couvre l'oratoire et le cimetière).
+_CULTUELS = frozenset({"eglise", "chapelle", "abbaye_couvent", "temple", "synagogue"})
+# Ce qui n'est à coup sûr ni une église, ni un édifice affecté au culte. Hors de
+# la liste : l'hôpital (une chapelle d'Hôtel-Dieu se déclare souvent ainsi), le
+# site archéologique (vestiges d'abbaye), la croix, l'autre religieux, l'autre.
+_NON_CULTUELS = frozenset(
+    {
+        "chateau",
+        "manoir_demeure",
+        "hotel_particulier",
+        "maison",
+        "edifice_public",
+        "halle",
+        "patrimoine_industriel",
+        "ferme",
+        "moulin",
+        "lavoir_fontaine",
+        "pigeonnier",
+        "petit_patrimoine",
+        "fortification",
+        "pont",
+        "jardin",
+        "monument_aux_morts",
+        "monument_commemoratif",
+    }
+)
+# Les petits ouvrages : ni habitables, ni équipés d'un orgue, ni maisons
+# d'artiste. `jardin` et `site_archeologique` ne sont pas des bâtiments.
+_PETITS_OUVRAGES = frozenset(
+    {
+        "croix_calvaire",
+        "lavoir_fontaine",
+        "pigeonnier",
+        "petit_patrimoine",
+        "pont",
+        "monument_aux_morts",
+        "monument_commemoratif",
+    }
+)
+
+
+def _vrai_faux(
+    vrai: frozenset[str] | set[str] = frozenset(),
+    faux: frozenset[str] | set[str] = frozenset(),
+) -> dict[str, object]:
+    """Table d'un fait booléen. Un type ne peut pas être dans les deux listes."""
+    assert not (set(vrai) & set(faux)), set(vrai) & set(faux)
+    return {**dict.fromkeys(faux, False), **dict.fromkeys(vrai, True)}
+
+
+DEDUCTIONS_TYPE_EDIFICE: dict[str, dict[str, object]] = {
+    # « Église Saint-Martin » ou « Chapelle » : oui. Un temple ou une synagogue
+    # n'est ni l'un ni l'autre (le legs Maillé les exclut, et la note de
+    # pdl-edifices-religieux range ces cas en « non » + dérogation). L'abbaye
+    # ne tranche pas : son abbatiale est une église, son cloître non.
+    "edifice_eglise_ou_chapelle": _vrai_faux(
+        vrai={"eglise", "chapelle"},
+        faux=_NON_CULTUELS | {"temple", "synagogue", "croix_calvaire"},
+    ),
+    # La question énumère elle-même « église, chapelle, temple, synagogue,
+    # bâtiment conventuel ».
+    "edifice_cultuel": _vrai_faux(vrai=_CULTUELS, faux=_NON_CULTUELS),
+    # Le type ne dit que le « non » des biens civils ; pour un édifice
+    # religieux, c'est la précision `affecte_au_culte` de la fiche qui répond.
+    "edifice_toujours_affecte_culte": _vrai_faux(faux=_NON_CULTUELS),
+    # Une synagogue l'est par définition. Un édifice chrétien ne l'est pas, un
+    # lavoir, un four ou un pont non plus. Une demeure, une maison, une ferme
+    # peuvent l'être (un immeuble et un cimetière figurent parmi les lauréats,
+    # l'hôtel Camondo est un hôtel particulier), un monument commémoratif aussi :
+    # la question reste posée pour eux.
+    "bien_representatif_histoire_culture_juives": _vrai_faux(
+        vrai={"synagogue"},
+        faux={
+            "eglise",
+            "chapelle",
+            "abbaye_couvent",
+            "temple",
+            "croix_calvaire",
+            "lavoir_fontaine",
+            "pigeonnier",
+            "petit_patrimoine",
+            "pont",
+        },
+    ),
+    # L'énumération du fait : cultuel, vernaculaire (lavoir, fontaine…) ou petit
+    # patrimoine de proximité (puits, halles, fours, pigeonniers, croix,
+    # monuments aux morts ou de personnages illustres). Son `pourquoi` exclut
+    # « un château, une demeure ou un bâtiment civil ». Maison, ferme, moulin,
+    # pont : ni l'un ni l'autre avec certitude.
+    "patrimoine_cultuel_vernaculaire_public": _vrai_faux(
+        vrai=_CULTUELS
+        | {
+            "croix_calvaire",
+            "autre_religieux",
+            "lavoir_fontaine",
+            "pigeonnier",
+            "petit_patrimoine",
+            "halle",
+            "monument_aux_morts",
+            "monument_commemoratif",
+        },
+        faux={
+            "chateau",
+            "manoir_demeure",
+            "hotel_particulier",
+            "edifice_public",
+            "patrimoine_industriel",
+        },
+    ),
+    # Les exemples des trois options du fait. La maison (de village ou de
+    # ville), le manoir et l'édifice public (urbain ou non) ne tranchent pas.
+    "patrimoine_bati_rural_ou_cultuel": {
+        **dict.fromkeys(_CULTUELS | {"croix_calvaire", "autre_religieux"}, "cultuel"),
+        **dict.fromkeys(
+            {"ferme", "moulin", "lavoir_fontaine", "pigeonnier", "petit_patrimoine"},
+            "bati_rural",
+        ),
+        **dict.fromkeys(
+            {"chateau", "hotel_particulier", "patrimoine_industriel"}, "ni_l_un_ni_l_autre"
+        ),
+    },
+    # Le « rural » ne se lit pas sur le type : seul le « non » des biens qui ne
+    # sont ni de culte ni de croyance. Le lavoir (fontaine de dévotion) et le
+    # petit patrimoine (puits sacré) ne tranchent pas.
+    "lieu_rural_culte_ou_croyance": _vrai_faux(
+        faux=_NON_CULTUELS - {"lavoir_fontaine", "petit_patrimoine"},
+    ),
+    # Un calvaire peut être le monument aux morts de la commune, et un
+    # « monument commémoratif » aussi : ni l'un ni l'autre ne tranchent.
+    "edifice_monument_aux_morts": _vrai_faux(
+        vrai={"monument_aux_morts"},
+        faux=(_CULTUELS | _NON_CULTUELS | {"hopital", "site_archeologique"})
+        - {"monument_aux_morts", "monument_commemoratif"},
+    ),
+    # Les exemples du `help` (chapelle, pigeonnier, lavoir, fontaine) et les
+    # autres ouvrages. Le moulin, cité par le `help`, est souvent devenu une
+    # maison : il ne tranche pas, pas plus que la ferme ou le château en ruine.
+    "batiment_habitable": _vrai_faux(
+        vrai={"maison", "manoir_demeure"},
+        faux=_PETITS_OUVRAGES
+        | {"eglise", "chapelle", "temple", "synagogue", "halle", "jardin", "site_archeologique"},
+    ),
+    "possede_orgue_a_tuyaux": _vrai_faux(
+        faux=_PETITS_OUVRAGES | {"jardin", "site_archeologique", "moulin", "ferme", "halle"},
+    ),
+    # Un parc ou un jardin, oui ; tout le reste peut en avoir un.
+    "bien_parc_jardin_ou_arboretum": _vrai_faux(vrai={"jardin"}),
+    "est_maison_atelier_artiste": _vrai_faux(
+        faux=_PETITS_OUVRAGES | _CULTUELS | {"site_archeologique", "hopital", "halle"},
+    ),
+    # Une gare se déclare en patrimoine industriel ; une halle de marchandises,
+    # une maison ou un édifice public peuvent en être une ancienne.
+    "edifice_batiment_ferroviaire_ferme": _vrai_faux(
+        faux=(_CULTUELS | _NON_CULTUELS | _PETITS_OUVRAGES | {"autre_religieux", "hopital"})
+        - {"maison", "edifice_public", "halle", "patrimoine_industriel", "pont"},
+    ),
+    # Un hôpital est lié à un établissement de santé par sa construction même.
+    # Une chapelle peut l'être par sa situation : elle ne tranche pas.
+    "patrimoine_lie_etablissement_sante_ou_ordre_malte": _vrai_faux(vrai={"hopital"}),
+    # Le théâtre est rangé dans « édifice public » ; une halle ou une usine
+    # reconvertie, un théâtre antique peuvent en être un.
+    "est_theatre_de_ville": _vrai_faux(
+        faux=(_CULTUELS | _NON_CULTUELS | _PETITS_OUVRAGES | {"autre_religieux", "hopital"})
+        - {"edifice_public", "halle", "patrimoine_industriel"},
+    ),
 }
+
+
+def valeurs_cochees(brut: object) -> tuple[str, ...]:
+    """Les codes d'un champ à choix multiple de la fiche, dédoublonnés, dans
+    l'ordre (vide si aucun). Une chaîne seule vaut un code : colonne d'avant le
+    passage en tableau, brouillon invité ou cache d'avant.
+
+    Sert au type d'édifice (`text[]`, migration 20260930082523) et au
+    propriétaire (`ownership_type[]`, migration 20260930084241).
+    """
+    if isinstance(brut, str):
+        brut = [brut]
+    if not isinstance(brut, (list, tuple)):
+        return ()
+    return tuple(dict.fromkeys(t for t in brut if isinstance(t, str) and t))
+
+
+types_coches = valeurs_cochees
+proprietaires_coches = valeurs_cochees
+
+
+def _depuis_type_edifice(fact_key: str) -> Callable[[object], object]:
+    """Dérivation `monument.type_edifice` → valeur du fait, à l'UNANIMITÉ.
+
+    Chaque type coché rend son verdict dans la table du fait (absent = None).
+    La valeur n'est retenue que si TOUS rendent la même, non nulle : château +
+    chapelle ne sont pas « une église », château + pigeonnier ne sont pas « un
+    édifice cultuel » pour autant qu'aucun des deux ne l'est. Un seul type qui
+    ne tranche pas (dont « autre ») laisse la question posée.
+    """
+    table = DEDUCTIONS_TYPE_EDIFICE[fact_key]
+
+    def deriver(brut: object) -> object:
+        verdicts = [table.get(t) for t in types_coches(brut)]
+        if not verdicts or verdicts[0] is None:
+            return None
+        premier = verdicts[0]
+        return premier if all(_meme_valeur(v, premier) for v in verdicts[1:]) else None
+
+    return deriver
+
+
+# Comment un fait lit une source de son `auto_source` quand la valeur brute de
+# la fiche n'a pas son type (un siècle n'est pas une année, un nom ou un type
+# d'édifice n'est pas un booléen). Clé : (fait, source). Sans entrée, la valeur
+# du contexte est reprise telle quelle, ce que le lint n'admet que si la source
+# a le type du fait (`auto_sources_sans_derivation`).
+AUTO_SOURCE_DERIVERS: dict[tuple[str, str], Callable[[object], object]] = {
+    ("annee_construction", "monument.siecle_construction"): _annee_depuis_siecle,
+    ("edifice_eglise_ou_chapelle", "monument.nom"): _eglise_ou_chapelle_depuis_nom,
+    # Une église ou une chapelle est, par construction, un édifice cultuel.
+    ("edifice_cultuel", "monument.nom"): _eglise_ou_chapelle_depuis_nom,
+    **{
+        (fact_key, "monument.type_edifice"): _depuis_type_edifice(fact_key)
+        for fact_key in DEDUCTIONS_TYPE_EDIFICE
+    },
+}
+
+
+def auto_sources_sans_derivation(facts: dict[str, FactDef]) -> list[str]:
+    """Les sources d'`auto_source` qui seraient reprises telles quelles à tort.
+
+    Une source hors registre est signalée ailleurs (lint). Ici : une source d'un
+    AUTRE type que le fait, sans dérivation — un type d'édifice « eglise »
+    comparé à `eq: true` vaudrait False, et l'aide serait écartée sur une
+    valeur que personne n'a donnée.
+    """
+    erreurs = []
+    for key, fact in facts.items():
+        for source in fact.auto_sources:
+            champ = FIELD_REGISTRY.get(source)
+            if champ is None or (key, source) in AUTO_SOURCE_DERIVERS:
+                continue
+            if champ["type"] != fact.type:
+                erreurs.append(
+                    f"{key}: auto_source « {source} » ({champ['type']}) sans dérivation "
+                    f"vers un fait {fact.type} (eligibility_engine.AUTO_SOURCE_DERIVERS)"
+                )
+    return erreurs
 
 
 def _faire_vivre_depuis_raisons(raisons: set[str]) -> bool | None:
@@ -647,13 +940,24 @@ def _auto_fact_value(fact_key: str, fact: FactDef | None, ctx: dict):
     notice donne déjà le siècle. La réponse de l'utilisateur, elle, prime
     toujours : elle est plus précise que la déduction.
     """
-    if fact is None or not fact.auto_source:
+    if fact is None:
         return None
-    brut = ctx.get(fact.auto_source)
-    if brut is None:
+    valeurs = []
+    for source in fact.auto_sources:
+        brut = ctx.get(source)
+        if brut is None:
+            continue
+        deriver = AUTO_SOURCE_DERIVERS.get((fact_key, source))
+        valeur = deriver(brut) if deriver else brut
+        if valeur is not None:
+            valeurs.append(valeur)
+    if not valeurs:
         return None
-    deriver = AUTO_SOURCE_DERIVERS.get(fact_key)
-    return deriver(brut) if deriver else brut
+    # Plusieurs sources (le type d'édifice, puis le nom) : on ne retient que ce
+    # sur quoi elles s'accordent. Un « Château » nommé « Chapelle du château »
+    # désigne sans doute la chapelle du domaine, et la question se pose.
+    premiere = valeurs[0]
+    return premiere if all(_meme_valeur(v, premiere) for v in valeurs[1:]) else None
 
 
 def _resolve_fact_value(ctx: dict, fact_key: str, facts: dict[str, FactDef]):
@@ -1021,7 +1325,7 @@ def _evaluate_hard_filters(
         ),
         (
             hf.proprietaires,
-            monument.get("proprietaire"),
+            proprietaire_unique(monument),
             OWNERSHIP_LABELS,
             "Type de propriétaire",
             "Propriétaire éligible",
@@ -1697,14 +2001,29 @@ def build_questions(
     montant_by_slug: dict[str, float] = {}
     # (slug, fait) → rang de la PREMIÈRE condition de l'aide portant ce fait.
     rang_source: dict[tuple[str, str], int] = {}
+    # slug → faits manquants de CHAQUE profil vivant, pour une aide évaluée par
+    # propriétaire (plusieurs cochés) : une réponse ne l'élimine que si elle
+    # élimine tous ces profils (cf. `_meilleur_verdict`). Absent du cas courant.
+    profils_by_slug: dict[str, list[dict[str, list[Condition]]]] = {}
     for v in verdicts:
         if v.status not in ("potentiel", "atteignable"):
             continue
         montant_by_slug[v.aide.slug] = v.aide.financement.montant_max or 0
-        for fact_key, conds in v.missing_facts.items():
-            by_fact.setdefault(fact_key, {})[v.aide.slug] = conds
-        for fact_key, conds in v.gateway_facts.items():
-            gateway_by_fact.setdefault(fact_key, {})[v.aide.slug] = conds
+        if not v.profils_vivants:
+            for fact_key, conds in v.missing_facts.items():
+                by_fact.setdefault(fact_key, {})[v.aide.slug] = conds
+            for fact_key, conds in v.gateway_facts.items():
+                gateway_by_fact.setdefault(fact_key, {})[v.aide.slug] = conds
+        else:
+            profils_by_slug[v.aide.slug] = [p.missing_facts for p in v.profils_vivants]
+            # Union des questions des profils vivants, chaque condition une fois.
+            for p in v.profils_vivants:
+                for fact_key, conds in p.missing_facts.items():
+                    deja = by_fact.setdefault(fact_key, {}).setdefault(v.aide.slug, [])
+                    deja.extend(c for c in conds if all(c is not d for d in deja))
+                for fact_key, conds in p.gateway_facts.items():
+                    deja = gateway_by_fact.setdefault(fact_key, {}).setdefault(v.aide.slug, [])
+                    deja.extend(c for c in conds if all(c is not d for d in deja))
         for rang, cond in enumerate(v.aide.conditions):
             if cond.fact:
                 rang_source.setdefault((v.aide.slug, cond.fact), rang)
@@ -1806,16 +2125,27 @@ def build_questions(
             eliminated = []
             strictes = []
             for slug, conds in aides_conds.items():
+                # Plusieurs profils vivants (plusieurs propriétaires) : chacun
+                # doit être éliminé pour que l'aide le soit. Un profil qui ne
+                # pose pas cette question survit à toute réponse.
+                groupes = (
+                    [p.get(fact_key, []) for p in profils_by_slug[slug]]
+                    if slug in profils_by_slug
+                    else [conds]
+                )
                 # Exclusion stricte (`none_in`) : cette case écarte l'aide quelles
                 # que soient les autres cases cochées. Elle entre AUSSI dans
                 # `elim` ci-dessous, qui reste exact pour qui ne coche qu'elle
                 # (et pour un onglet dont le front ignore encore la table
                 # stricte : il sous-élimine, il n'élimine jamais à tort).
-                if fait_dirimant and any(
-                    next(iter(c.predicate.root)) in BLOCK_OPS
-                    and evaluate_predicate(c.predicate.root, test_value) is False
-                    and not c.derogation_possible
-                    for c in conds
+                if fait_dirimant and all(
+                    any(
+                        next(iter(c.predicate.root)) in BLOCK_OPS
+                        and evaluate_predicate(c.predicate.root, test_value) is False
+                        and not c.derogation_possible
+                        for c in groupe
+                    )
+                    for groupe in groupes
                 ):
                     strictes.append(slug)
                 # L'aide est éliminée si AU MOINS un de ses gates DIRIMANTS sur
@@ -1828,10 +2158,13 @@ def build_questions(
                 # coûte cher : le front élague le questionnaire sur cette liste
                 # (`isQuestionServingLiveAide`), et l'aide, toujours vivante,
                 # revient avec des critères jamais posés.
-                if fait_dirimant and any(
-                    evaluate_predicate(c.predicate.root, test_value) is False
-                    and not c.derogation_possible
-                    for c in conds
+                if fait_dirimant and all(
+                    any(
+                        evaluate_predicate(c.predicate.root, test_value) is False
+                        and not c.derogation_possible
+                        for c in groupe
+                    )
+                    for groupe in groupes
                 ):
                     eliminated.append(slug)
             if eliminated:
@@ -2256,6 +2589,76 @@ def disponibilite(aide: Aide, today: date | None = None) -> Disponibilite:
     return "maintenant"
 
 
+# ---------------------------------------------------------------------------
+# Plusieurs propriétaires (2026-09-30)
+# ---------------------------------------------------------------------------
+#
+# « Il suffit d'un seul » : quand la fiche coche plusieurs propriétaires (une
+# commune et une association, une SCI et un particulier), une aide est proposée
+# dès qu'UN d'eux peut la déposer. Une évaluation « existentielle » condition
+# par condition serait fausse : 70 clauses `applies_if` lisent le propriétaire
+# (« si privé, alors … »), et la clause « privé » s'appliquerait à un monument
+# commune + privé, jusqu'à écarter une aide que la commune dépose. On évalue
+# donc l'aide une fois par propriétaire, sur une fiche où `proprietaire` vaut
+# ce seul code, et on garde le MEILLEUR verdict. Les prédicats des aides restent
+# écrits sur une valeur (`eq`, `in`…) : c'est l'évaluation par profil qui les
+# rend justes, et `FIELD_REGISTRY` garde `monument.proprietaire` en enum.
+
+#: Du meilleur au pire, dans l'ordre même où `evaluate_aide` fait primer un
+#: refus sur un levier, et un levier sur une incertitude : éligible, « à
+#: confirmer » (à portée sans démarche), « à débloquer », non éligible.
+RANG_STATUT = {"eligible": 0, "potentiel": 1, "atteignable": 2, "non_eligible": 3}
+
+
+def proprietaire_unique(monument: dict) -> str | None:
+    """Le propriétaire d'une fiche qui n'en coche qu'un, sinon None."""
+    codes = proprietaires_coches(monument.get("proprietaire"))
+    return codes[0] if len(codes) == 1 else None
+
+
+def profils_par_proprietaire(monument: dict) -> list[dict]:
+    """La fiche déclinée par propriétaire coché (au moins une fiche).
+
+    Un seul propriétaire, ou une chaîne seule (fiche d'avant le choix
+    multiple) : une fiche où `proprietaire` est ce code, rien d'autre ne change.
+    Aucun : la fiche telle quelle, `proprietaire` à None, et les critères qui
+    le lisent restent inconnus (fail-closed).
+    """
+    codes = proprietaires_coches(monument.get("proprietaire"))
+    if not codes:
+        return [{**monument, "proprietaire": None}]
+    return [{**monument, "proprietaire": code} for code in codes]
+
+
+def _meilleur_verdict(verdicts: list[AideVerdict]) -> AideVerdict:
+    """Le verdict retenu pour une aide évaluée une fois par propriétaire.
+
+    Le meilleur statut l'emporte (`RANG_STATUT`). À statut égal, le profil qui
+    laisse le moins de questions : c'est lui qu'on affiche, ses critères et son
+    explication. En cas d'égalité encore, l'ordre des propriétaires cochés.
+
+    Les QUESTIONS, elles, ne se réduisent pas au profil affiché. Tant que
+    plusieurs profils restent vivants (potentiel ou atteignable), l'aide peut
+    aboutir par l'un comme par l'autre : le questionnaire pose l'union de leurs
+    questions, et une réponse n'élimine l'aide que si elle élimine TOUS les
+    profils vivants (`build_questions`). Garder seulement le profil qui pose le
+    moins de questions serait plus court mais faux : le front élague sur
+    `eliminationsParOption`, et une réponse qui écarte ce profil déclarerait
+    morte une aide que l'autre propriétaire peut encore déposer.
+    """
+    if len(verdicts) == 1:
+        return verdicts[0]
+    retenu = min(
+        verdicts,
+        key=lambda v: (RANG_STATUT[v.status], len(v.missing_facts) + len(v.gateway_facts)),
+    )
+    if retenu.status in ("potentiel", "atteignable"):
+        vivants = [v for v in verdicts if v.status in ("potentiel", "atteignable")]
+        if len(vivants) > 1:
+            retenu.profils_vivants = vivants
+    return retenu
+
+
 def run_deterministic_diagnostic(
     aides: dict[str, Aide],
     facts: dict[str, FactDef],
@@ -2314,15 +2717,28 @@ def run_deterministic_diagnostic(
         ),
         facts,
     )
-    ctx = build_context(monument, population, reponses)
+    # Un PROFIL par propriétaire coché : la fiche où `proprietaire` vaut ce seul
+    # propriétaire. Un seul coché (le cas courant) donne un seul profil, et le
+    # diagnostic est exactement celui d'avant le choix multiple.
+    profils = [
+        (m, build_context(m, population, reponses)) for m in profils_par_proprietaire(monument)
+    ]
     # Exclure les aides dont l'utilisateur a déclaré qu'elles ne le concernent
     # pas (périmètre de l'aide : festivals, compagnies, écoles d'art…). Même
     # traitement que les aides hors projet : elles n'ont jamais été candidates.
+    # Avec plusieurs propriétaires, l'aide n'est hors périmètre que pour TOUS.
     ready_avant_perimetre = len(ready)
-    ready = {slug: a for slug, a in ready.items() if not hors_perimetre(a, ctx, facts)}
+    ready = {
+        slug: a
+        for slug, a in ready.items()
+        if not all(hors_perimetre(a, ctx, facts) for _, ctx in profils)
+    }
     hors_sujet += ready_avant_perimetre - len(ready)
 
-    verdicts = [evaluate_aide(a, monument, population, ctx, facts) for a in ready.values()]
+    verdicts = [
+        _meilleur_verdict([evaluate_aide(a, m, population, ctx, facts) for m, ctx in profils])
+        for a in ready.values()
+    ]
 
     eligibles = [v for v in verdicts if v.status == "eligible"]
     potentiels = [v for v in verdicts if v.status == "potentiel"]

@@ -82,7 +82,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
         <DialogHeader>
           <DialogTitle>Ajouter à un autre monument</DialogTitle>
           {document && (
-            <p className="text-[13px] truncate text-muted-foreground">{document.nom}</p>
+            <p className="text-[15px] truncate text-muted-foreground">{document.nom}</p>
           )}
         </DialogHeader>
 
@@ -100,7 +100,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
               <div className="relative">
                 <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  className="pl-9 h-10 text-[14px]"
+                  className="pl-9 h-10 text-[16px]"
                   style={{ background: C.card, borderColor: C.border }}
                   aria-label="Rechercher un monument"
                   placeholder="Rechercher un monument..."
@@ -126,9 +126,9 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
                       <IconProjet className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-medium truncate" style={{ color: C.ink }}>{m.nom}</p>
+                      <p className="text-[15px] font-medium truncate" style={{ color: C.ink }}>{m.nom}</p>
                       {m.commune && (
-                        <p className="text-[11px] truncate text-muted-foreground">{m.commune}</p>
+                        <p className="text-[13px] truncate text-muted-foreground">{m.commune}</p>
                       )}
                     </div>
                     <div
@@ -148,7 +148,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
               )}
             </div>
 
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[13px] text-muted-foreground">
               Le même document sera rattaché à chaque monument sélectionné, sans créer de copie.
             </p>
           </>
@@ -159,7 +159,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
             type="button"
             onClick={() => onOpenChange(false)}
             disabled={submitting}
-            className="px-4 py-2 text-[13px] font-medium rounded-lg transition-colors text-muted-foreground"
+            className="px-4 py-2 text-[15px] font-medium rounded-lg transition-colors text-muted-foreground"
             style={{ border: `1px solid ${C.border}` }}
           >
             Annuler
@@ -169,7 +169,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
               type="button"
               onClick={handleAdd}
               disabled={selected.size === 0 || submitting}
-              className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg disabled:opacity-50 hover:shadow-md transition-all"
+              className="inline-flex items-center gap-2 px-4 py-2 text-[15px] font-semibold text-white rounded-lg disabled:opacity-50 hover:shadow-md transition-all"
               style={{ background: C.orange }}
             >
               {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

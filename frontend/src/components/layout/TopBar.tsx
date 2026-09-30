@@ -21,12 +21,12 @@ export function TopBar() {
 
   return (
     <header className="z-30 shrink-0 border-b border-border bg-[var(--card)]/70 backdrop-blur-xl">
-      <div className="mx-auto flex h-[62px] w-[min(1180px,100%-32px)] items-center gap-[30px]">
+      <div className="mx-auto flex h-[70.5px] w-[min(1343.5px,100%-36.5px)] items-center gap-[34px]">
         {/* Marque */}
         <a href={landingUrl()} className="flex shrink-0 items-center gap-2.5">
-          <LogoMonumia className="h-[23px] w-[23px]" />
+          <LogoMonumia className="h-[26px] w-[26px]" />
           <span
-            className="hidden text-[18.5px] font-bold leading-none text-foreground sm:block"
+            className="hidden text-[21px] font-bold leading-none text-foreground sm:block"
             style={{ fontFamily: SERIF }}
           >
             Monumia
@@ -34,7 +34,7 @@ export function TopBar() {
         </a>
 
         {/* Onglets — visibles en bureau, repliés en bas sur mobile (voir BottomNav) */}
-        <nav aria-label="Navigation principale" className="hidden gap-1 text-[13.5px] md:flex">
+        <nav aria-label="Navigation principale" className="hidden gap-1 text-[15.5px] md:flex">
           {topBarNavItems.map((item) => (
             <NavLink
               key={item.to}

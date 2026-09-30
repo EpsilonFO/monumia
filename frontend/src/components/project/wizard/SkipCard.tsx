@@ -41,7 +41,7 @@ export function SkipCard({
       onClick={onSelect}
       onKeyDown={onKeyDown}
       className={cn(
-        'w-full rounded-2xl border border-dashed px-5 py-3 text-[14px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'w-full rounded-2xl border border-dashed px-5 py-3 text-[16px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         selected ? 'border-accent bg-warning-muted' : 'hover:border-warning hover:bg-warning-muted',
       )}
       style={selected ? { color: C.ink } : { borderColor: C.border, color: C.grayFg }}

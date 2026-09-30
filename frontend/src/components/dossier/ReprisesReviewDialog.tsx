@@ -108,10 +108,10 @@ export function ReprisesReviewDialog({ open, onOpenChange, items, onConfirm, onR
         {item && (
           <div className="flex min-h-0 flex-col overflow-y-auto">
             <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0 text-left">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {total > 1 ? `Pièce ${etape + 1} sur ${total} · demandée par ce dossier` : 'Pièce demandée par ce dossier'}
               </p>
-              <DialogTitle className="text-[19px] leading-snug font-normal" style={{ fontFamily: SERIF, color: C.ink }}>
+              <DialogTitle className="text-[22px] leading-snug font-normal" style={{ fontFamily: SERIF, color: C.ink }}>
                 {item.label}
               </DialogTitle>
             </DialogHeader>
@@ -119,7 +119,7 @@ export function ReprisesReviewDialog({ open, onOpenChange, items, onConfirm, onR
             {etape === 0 && (
               <div className="mx-6 mt-4 flex items-start gap-3 p-4 rounded-xl border" style={{ borderColor: C.border, background: C.paleBlue }}>
                 <IconRafraichir className="h-5 w-5 shrink-0 mt-0.5" style={{ color: C.blue }} />
-                <p className="text-[13px]" style={{ color: C.ink }}>
+                <p className="text-[15px]" style={{ color: C.ink }}>
                   {total === 1
                     ? 'Cette pièce du dossier a été remplie automatiquement avec un fichier que vous nous aviez déjà envoyé. Vérifiez que c’est le bon.'
                     : `${total} pièces de ce dossier ont été remplies automatiquement avec des fichiers que vous nous aviez déjà envoyés. Vérifiez, une par une, que ce sont les bons.`}
@@ -134,21 +134,21 @@ export function ReprisesReviewDialog({ open, onOpenChange, items, onConfirm, onR
                 <IconDocument className="h-5 w-5 shrink-0" style={{ color: C.blue }} />
                 {docCourant ? (
                   <div className="min-w-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
                       Le fichier utilisé pour cette pièce
                     </p>
-                    <p className="truncate text-[15px] font-semibold" style={{ color: C.ink }}>
+                    <p className="truncate text-[17px] font-semibold" style={{ color: C.ink }}>
                       {docCourant.nom}
                     </p>
-                    <p className="truncate text-[12.5px] text-muted-foreground">
+                    <p className="truncate text-[14.5px] text-muted-foreground">
                       {docCourant.nomFichier} · envoyé le {formatDate(docCourant.dateUpload)}
                     </p>
                   </div>
                 ) : (
-                  <p className="text-[13px] text-muted-foreground">Recherche de votre fichier…</p>
+                  <p className="text-[15px] text-muted-foreground">Recherche de votre fichier…</p>
                 )}
               </div>
-              <div className="h-[34vh] min-h-[200px] bg-muted/30">
+              <div className="h-[34vh] min-h-[228px] bg-muted/30">
                 {item.documentId && (
                   <ApercuDocument key={item.id} documentId={item.documentId} onDocument={setDocCourant} />
                 )}
@@ -158,21 +158,21 @@ export function ReprisesReviewDialog({ open, onOpenChange, items, onConfirm, onR
             {item.perime && (
               <div className="mx-6 mt-4 flex items-start gap-3 p-4 rounded-xl border" style={{ borderColor: C.orangeVif, background: C.paleOrange }}>
                 <IconAttention className="h-5 w-5 shrink-0 mt-0.5" style={{ color: C.orange }} />
-                <p className="text-[13px]" style={{ color: C.ink }}>
+                <p className="text-[15px]" style={{ color: C.ink }}>
                   Ce fichier a plus d’un an. Vérifiez qu’il est encore à jour avant de l’utiliser.
                 </p>
               </div>
             )}
 
             <div className="px-6 py-5 space-y-2.5">
-              <p className="text-center text-[15px] font-medium" style={{ color: C.ink }}>
+              <p className="text-center text-[17px] font-medium" style={{ color: C.ink }}>
                 Est-ce le bon fichier pour cette pièce&nbsp;?
               </p>
               <Button
                 size="lg"
                 disabled={!!action}
                 onClick={() => repondre('confirm')}
-                className="w-full h-11 text-[15px]"
+                className="w-full h-11 text-[17px]"
               >
                 {action === 'confirm' ? <Loader2 className="animate-spin" /> : <IconSucces />}
                 Oui, utiliser ce fichier
@@ -182,7 +182,7 @@ export function ReprisesReviewDialog({ open, onOpenChange, items, onConfirm, onR
                 size="lg"
                 disabled={!!action}
                 onClick={() => repondre('reject')}
-                className="w-full h-11 text-[15px]"
+                className="w-full h-11 text-[17px]"
               >
                 {action === 'reject' && <Loader2 className="animate-spin" />}
                 Non, retirer ce fichier
@@ -205,10 +205,10 @@ export function ReprisesReviewDialog({ open, onOpenChange, items, onConfirm, onR
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-success-muted">
               <IconSucces className="h-7 w-7 text-success" />
             </span>
-            <DialogTitle className="mt-5 text-[22px] font-normal" style={{ fontFamily: SERIF, color: C.ink }}>
+            <DialogTitle className="mt-5 text-[25px] font-normal" style={{ fontFamily: SERIF, color: C.ink }}>
               Vérification terminée
             </DialogTitle>
-            <p className="mt-3 max-w-md text-[14.5px] leading-relaxed text-muted-foreground">
+            <p className="mt-3 max-w-md text-[16.5px] leading-relaxed text-muted-foreground">
               {confirmees === 0
                 ? 'Aucune pièce n’a été confirmée pour l’instant.'
                 : confirmees === 1
@@ -218,7 +218,7 @@ export function ReprisesReviewDialog({ open, onOpenChange, items, onConfirm, onR
                 <> Les autres restent marquées «&nbsp;à vérifier&nbsp;» dans la liste des pièces — vous pourrez y revenir quand vous voudrez.</>
               )}
             </p>
-            <Button size="lg" onClick={() => onOpenChange(false)} className="mt-7 h-11 px-8 text-[15px]">
+            <Button size="lg" onClick={() => onOpenChange(false)} className="mt-7 h-11 px-8 text-[17px]">
               Revenir au dossier
             </Button>
           </div>

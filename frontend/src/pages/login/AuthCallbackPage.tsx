@@ -190,7 +190,7 @@ export function AuthCallbackPage() {
             </>
           )}
         </h1>
-        <p className="text-[15px]" style={{ color: MUTED }}>
+        <p className="text-[17px]" style={{ color: MUTED }}>
           {error
             ? lienEmail
               ? 'Ce lien n’a pas pu être utilisé.'
@@ -201,12 +201,12 @@ export function AuthCallbackPage() {
 
       {error ? (
         <div className="space-y-4">
-          <div className="rounded-xl p-4 text-[14px]" style={{ background: C.paleDanger, color: C.danger }}>
+          <div className="rounded-xl p-4 text-[16px]" style={{ background: C.paleDanger, color: C.danger }}>
             {error}
           </div>
           <button
             onClick={() => navigate('/login')}
-            className="flex h-12 w-full items-center justify-center rounded-lg text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="flex h-12 w-full items-center justify-center rounded-lg text-[16px] font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: C.orange }}
           >
             Retour à la connexion
@@ -214,7 +214,7 @@ export function AuthCallbackPage() {
         </div>
       ) : (
         <div
-          className="flex items-center justify-center gap-3 rounded-xl p-6 text-[15px]"
+          className="flex items-center justify-center gap-3 rounded-xl p-6 text-[17px]"
           style={{ background: C.paleBlue, color: C.ink }}
         >
           <Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blue }} />

@@ -85,7 +85,7 @@ export function ManageDocumentAccessDialog({ document, myRole, open, onOpenChang
 
         {members.length > 0 && (
           <div className="rounded-lg border px-3 py-2.5 border-border">
-            <p className="flex items-center gap-1.5 text-[12px] font-semibold text-foreground">
+            <p className="flex items-center gap-1.5 text-[14px] font-semibold text-foreground">
               <IconVoir className="h-3.5 w-3.5" strokeWidth={1.8} />
               Peuvent voir ce document ({viewers.length})
             </p>
@@ -93,7 +93,7 @@ export function ManageDocumentAccessDialog({ document, myRole, open, onOpenChang
               {viewers.map((m, i) => (
                 <span
                   key={m.userId}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border px-1.5 py-0.5 text-[12px] text-foreground"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border px-1.5 py-0.5 text-[14px] text-foreground"
                 >
                   <MemberAvatar person={m} size="sm" colorIndex={i} />
                   {m.prenom} {m.nom}

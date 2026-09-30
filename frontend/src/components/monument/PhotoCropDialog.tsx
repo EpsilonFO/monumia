@@ -219,14 +219,14 @@ function Recadreur({ source, busy, onCropped, onChooseAnother, onCancel }: Recad
               }}
             />
           ) : (
-            <span className="flex h-full w-full items-center justify-center text-[13px] text-muted-foreground">
+            <span className="flex h-full w-full items-center justify-center text-[15px] text-muted-foreground">
               {erreur ?? <Loader2 className="h-5 w-5 animate-spin" />}
             </span>
           )}
         </div>
 
         <label className="flex w-full items-center gap-3" style={{ maxWidth: VUE_L }}>
-          <span className="text-[12.5px]" style={{ color: C.grayFg }}>
+          <span className="text-[14.5px]" style={{ color: C.grayFg }}>
             Zoom
           </span>
           <input

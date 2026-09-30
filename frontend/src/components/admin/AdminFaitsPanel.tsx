@@ -224,16 +224,16 @@ export function AdminFaitsPanel({ onErreur }: Props) {
           value={recherche}
           onChange={(e) => setRecherche(e.target.value)}
           placeholder="Rechercher une question (clé, texte, réponse)…"
-          className="h-10 pl-9 text-[14px]"
+          className="h-10 pl-9 text-[16px]"
         />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_480px]">
         <div className="max-h-[70vh] space-y-2 overflow-y-auto rounded-xl border border-border bg-card p-2">
           {chargement ? (
-            <p className="px-2 py-8 text-center text-[14px] text-muted-foreground">Chargement…</p>
+            <p className="px-2 py-8 text-center text-[16px] text-muted-foreground">Chargement…</p>
           ) : visibles.length === 0 ? (
-            <p className="px-2 py-8 text-center text-[14px] text-muted-foreground">
+            <p className="px-2 py-8 text-center text-[16px] text-muted-foreground">
               Aucune question ne correspond à votre recherche.
             </p>
           ) : (
@@ -246,14 +246,14 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                   fait.key === keyOuverte ? 'bg-secondary' : ''
                 }`}
               >
-                <p className="font-mono text-[11.5px] text-muted-foreground">{fait.key}</p>
-                <p className="mt-0.5 line-clamp-2 text-[14px] text-foreground">
+                <p className="font-mono text-[13.5px] text-muted-foreground">{fait.key}</p>
+                <p className="mt-0.5 line-clamp-2 text-[16px] text-foreground">
                   {faitEffectif(fait).question}
                 </p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   {fait.surcharge && <Badge>Surchargée</Badge>}
                   {fait.pending && <Badge variant="outline">En attente</Badge>}
-                  <span className="text-[11.5px] text-muted-foreground">
+                  <span className="text-[13.5px] text-muted-foreground">
                     {fait.nbAides} aide{fait.nbAides > 1 ? 's' : ''}
                   </span>
                 </div>
@@ -264,16 +264,16 @@ export function AdminFaitsPanel({ onErreur }: Props) {
 
         <aside className="h-fit space-y-4 rounded-xl border border-border bg-card p-5">
           {!ouvert || !brouillon ? (
-            <p className="text-[14px] text-muted-foreground">
+            <p className="text-[16px] text-muted-foreground">
               Sélectionnez une question pour reformuler son texte ou ses réponses.
             </p>
           ) : (
             <>
               <div>
-                <h2 className="text-[17px]" style={{ fontFamily: SERIF, color: C.ink }}>
+                <h2 className="text-[19px]" style={{ fontFamily: SERIF, color: C.ink }}>
                   Reformuler la question
                 </h2>
-                <p className="font-mono text-[11.5px] text-muted-foreground">{ouvert.key}</p>
+                <p className="font-mono text-[13.5px] text-muted-foreground">{ouvert.key}</p>
               </div>
 
               {/* Dépendance intrinsèque du fait, en LECTURE SEULE : elle vaut
@@ -282,7 +282,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                   pourquoi une question ne se pose « jamais ». */}
               {ouvert.pertinentSi && (
                 <p
-                  className="rounded-lg px-3 py-2 text-[12.5px]"
+                  className="rounded-lg px-3 py-2 text-[14.5px]"
                   style={{ background: C.paleBlue, color: C.blue }}
                 >
                   Posée seulement si{' '}
@@ -296,7 +296,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
               )}
 
               <div className="space-y-1.5">
-                <label htmlFor="question-fait" className="text-[13px] font-medium text-foreground">
+                <label htmlFor="question-fait" className="text-[15px] font-medium text-foreground">
                   Question posée
                 </label>
                 <Textarea
@@ -304,17 +304,17 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                   value={brouillon.question}
                   onChange={(e) => setBrouillon({ ...brouillon, question: e.target.value })}
                   rows={2}
-                  className="text-[14px]"
+                  className="text-[16px]"
                 />
                 {brouillon.question.trim() !== ouvert.original.question && (
-                  <p className="text-[11.5px] text-muted-foreground">
+                  <p className="text-[13.5px] text-muted-foreground">
                     Original&nbsp;: {ouvert.original.question}
                   </p>
                 )}
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="help-fait" className="text-[13px] font-medium text-foreground">
+                <label htmlFor="help-fait" className="text-[15px] font-medium text-foreground">
                   Aide contextuelle
                 </label>
                 <Textarea
@@ -323,13 +323,13 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                   onChange={(e) => setBrouillon({ ...brouillon, help: e.target.value })}
                   rows={2}
                   placeholder="Facultative — affichée sous la question."
-                  className="text-[14px]"
+                  className="text-[16px]"
                 />
               </div>
 
               {editable ? (
                 <div className="space-y-2">
-                  <p className="text-[13px] font-medium text-foreground">Réponses possibles</p>
+                  <p className="text-[15px] font-medium text-foreground">Réponses possibles</p>
                   {brouillon.options.map((option, index) => {
                     const originale = labelOriginal(option.id);
                     const nouvelle = originale === undefined;
@@ -344,15 +344,15 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                               onChange={(e) => majOption(index, { id: e.target.value })}
                               placeholder="identifiant_technique"
                               aria-label="Identifiant de la réponse"
-                              className="h-8 w-44 font-mono text-[12px]"
+                              className="h-8 w-44 font-mono text-[14px]"
                             />
                           ) : (
-                            <Badge variant="outline" className="font-mono text-[11px]">
+                            <Badge variant="outline" className="font-mono text-[13px]">
                               {option.id}
                             </Badge>
                           )}
                           {figee ? (
-                            <span className="ml-auto text-[11.5px] text-muted-foreground">
+                            <span className="ml-auto text-[13.5px] text-muted-foreground">
                               Non supprimable&nbsp;: les réponses déjà enregistrées s’appuient
                               dessus.
                             </span>
@@ -376,15 +376,15 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                           value={option.label}
                           onChange={(e) => majOption(index, { label: e.target.value })}
                           aria-label="Libellé de la réponse"
-                          className="h-9 text-[14px]"
+                          className="h-9 text-[16px]"
                         />
                         {originale !== undefined && originale !== option.label && (
-                          <p className="text-[11.5px] text-muted-foreground">
+                          <p className="text-[13.5px] text-muted-foreground">
                             Original&nbsp;: {originale}
                           </p>
                         )}
                         {booleen && (
-                          <label className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+                          <label className="flex items-center gap-2 text-[14.5px] text-muted-foreground">
                             <span className="shrink-0">Valeur envoyée au moteur</span>
                             <Select
                               value={cleValeur(option.valeur)}
@@ -398,7 +398,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                               }
                             >
                               <SelectTrigger
-                                className="h-8 w-44 text-[13px]"
+                                className="h-8 w-44 text-[15px]"
                                 aria-label={`Valeur envoyée au moteur pour la réponse ${option.label || option.id}`}
                               >
                                 <SelectValue />
@@ -413,7 +413,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                             </Select>
                           </label>
                         )}
-                        <label className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+                        <label className="flex items-center gap-2 text-[14.5px] text-muted-foreground">
                           <Checkbox
                             checked={option.unknown}
                             // Une réponse qui envoie une valeur au moteur n'est
@@ -441,7 +441,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                         ],
                       })
                     }
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-secondary"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[15px] font-medium transition-colors hover:bg-secondary"
                     style={{ color: C.blue }}
                   >
                     <IconAjouter className="h-3.5 w-3.5" />
@@ -449,13 +449,13 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                   </button>
 
                   {idsInvalides.length > 0 && (
-                    <p className="text-[12.5px]" style={{ color: C.danger }}>
+                    <p className="text-[14.5px]" style={{ color: C.danger }}>
                       Un identifiant ne contient que des minuscules, des chiffres et des tirets bas.
                     </p>
                   )}
                 </div>
               ) : (
-                <p className="rounded-lg bg-secondary px-3 py-2.5 text-[12.5px] text-muted-foreground">
+                <p className="rounded-lg bg-secondary px-3 py-2.5 text-[14.5px] text-muted-foreground">
                   Les tranches d’un fait <span className="font-mono">{ouvert.type}</span> sont
                   calculées par le moteur à partir des seuils des aides&nbsp;: seuls la question et
                   son aide contextuelle se modifient ici.
@@ -465,12 +465,12 @@ export function AdminFaitsPanel({ onErreur }: Props) {
               {editable && (
                 <div className="space-y-2 rounded-lg border border-border p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[13px] font-medium text-foreground">Impact sur les aides</p>
+                    <p className="text-[15px] font-medium text-foreground">Impact sur les aides</p>
                     <button
                       type="button"
                       onClick={simuler}
                       disabled={simulation}
-                      className="text-[12.5px] font-medium underline disabled:opacity-50"
+                      className="text-[14.5px] font-medium underline disabled:opacity-50"
                       style={{ color: C.blue }}
                     >
                       {simulation ? 'Calcul…' : 'Vérifier l’impact'}
@@ -478,13 +478,13 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                   </div>
 
                   {impact?.parOption.map((ligne) => (
-                    <div key={ligne.id} className="text-[12.5px]">
+                    <div key={ligne.id} className="text-[14.5px]">
                       <button
                         type="button"
                         onClick={() => deplier(ligne.id)}
                         className="w-full text-left text-muted-foreground hover:text-foreground"
                       >
-                        <span className="font-mono text-[11px]">{ligne.id}</span>{' '}
+                        <span className="font-mono text-[13px]">{ligne.id}</span>{' '}
                         {ligne.unknown
                           ? '— réponse neutre, n’écarte aucune aide'
                           : ouvert.type === 'boolean' && (ligne.valeur ?? null) === null
@@ -504,11 +504,11 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                   {impact?.supprimees.map((ligne) => (
                     <div
                       key={ligne.id}
-                      className="rounded-md px-2 py-1.5 text-[12.5px]"
+                      className="rounded-md px-2 py-1.5 text-[14.5px]"
                       style={{ background: C.paleOrange, color: C.ink }}
                     >
                       <button type="button" onClick={() => deplier(ligne.id)} className="text-left">
-                        <span className="font-mono text-[11px]">{ligne.id}</span> supprimée —
+                        <span className="font-mono text-[13px]">{ligne.id}</span> supprimée —
                         référencée par {ligne.referenceePar.length} aide
                         {ligne.referenceePar.length > 1 ? 's' : ''}
                         {ligne.referenceePar.length > 0 &&
@@ -530,7 +530,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                 <button
                   onClick={enregistrer}
                   disabled={!enregistrable}
-                  className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[16px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: C.blue }}
                 >
                   {enregistrement ? 'Enregistrement…' : 'Enregistrer'}
@@ -539,7 +539,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                   <button
                     type="button"
                     onClick={() => setConfirmRetablir(true)}
-                    className="text-[13px] font-medium underline"
+                    className="text-[15px] font-medium underline"
                     style={{ color: C.grayFg }}
                   >
                     Rétablir l’original

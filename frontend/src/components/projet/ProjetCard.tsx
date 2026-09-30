@@ -11,6 +11,8 @@ import type { Projet } from '@/types';
 
 interface ProjetCardProps {
   projet: Projet;
+  /** Nom du monument, pour le titre par défaut (« Restaurer le Château de… »). */
+  monumentNom?: string;
   stats?: ProjectStats;
   stage?: ProjectStage;
 }
@@ -45,7 +47,7 @@ function action(projetId: string, reachedIndex: number): { label: string; to: st
  * où mène le bouton orange (`.proj-lien::after`) ; « Voir les aides » passe
  * au-dessus.
  */
-export function ProjetCard({ projet, stats, stage }: ProjetCardProps) {
+export function ProjetCard({ projet, monumentNom, stats, stage }: ProjetCardProps) {
   const etape = stage ?? projectStage(null, [], []);
   const { rang, action: quoi } = libelleEtape(etape);
   const cta = action(projet.id, etape.reachedIndex);
@@ -61,7 +63,7 @@ export function ProjetCard({ projet, stats, stage }: ProjetCardProps) {
     <article className={cloture ? 'proj clos' : 'proj'}>
       <div className="proj-top">
         <div>
-          <h3>{projetTitre(projet)}</h3>
+          <h3>{projetTitre(projet, monumentNom)}</h3>
           <p className="st">
             {rang} : <b>{quoi}</b>
           </p>

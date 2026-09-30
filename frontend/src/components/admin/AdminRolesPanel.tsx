@@ -57,7 +57,7 @@ function Bascule({
       // grisé sans explication est une impasse.
       title={etat.raison ?? undefined}
       aria-pressed={etat.actif}
-      className="w-36 shrink-0 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-45"
+      className="w-36 shrink-0 rounded-lg border px-3 py-1.5 text-[15px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-45"
       style={
         etat.actif
           ? { background: teinte, borderColor: teinte, color: '#fff' }
@@ -165,10 +165,10 @@ export function AdminRolesPanel({ onErreur }: Props) {
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Rechercher un compte (nom, email)…"
-            className="h-10 pl-9 text-[14px]"
+            className="h-10 pl-9 text-[16px]"
           />
         </div>
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-[15px] text-muted-foreground">
           {utilisateurs.length} compte{utilisateurs.length > 1 ? 's' : ''}
           {compteurs.map(({ role, nb }) => (
             <span key={role}> · {nb} {LIBELLE_ROLE[role].toLowerCase()}{nb > 1 ? 's' : ''}</span>
@@ -176,7 +176,7 @@ export function AdminRolesPanel({ onErreur }: Props) {
         </p>
       </div>
 
-      <p className="text-[12.5px] text-muted-foreground">
+      <p className="text-[14.5px] text-muted-foreground">
         Un clic donne ou reprend le rôle immédiatement, il n’y a rien à enregistrer.{' '}
         <span className="font-medium text-foreground">Bêta-testeur</span> ouvre{' '}
         {BASCULES[0].ouvre} ; <span className="font-medium text-foreground">Administrateur</span>{' '}
@@ -185,9 +185,9 @@ export function AdminRolesPanel({ onErreur }: Props) {
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         {chargement ? (
-          <p className="px-4 py-8 text-center text-[14px] text-muted-foreground">Chargement…</p>
+          <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">Chargement…</p>
         ) : visibles.length === 0 ? (
-          <p className="px-4 py-8 text-center text-[14px] text-muted-foreground">
+          <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">
             Aucun compte ne correspond à votre recherche.
           </p>
         ) : (
@@ -207,12 +207,12 @@ export function AdminRolesPanel({ onErreur }: Props) {
                       <p className="font-medium text-foreground">
                         {intitule(compte)}
                         {compte.userId === moi && (
-                          <span className="ml-2 text-[12px] font-normal text-muted-foreground">
+                          <span className="ml-2 text-[14px] font-normal text-muted-foreground">
                             (vous)
                           </span>
                         )}
                       </p>
-                      <p className="text-[12.5px] text-muted-foreground">
+                      <p className="text-[14.5px] text-muted-foreground">
                         {compte.email ?? <span className="font-mono">{compte.userId}</span>}
                       </p>
                       {(compte.compteIntrouvable || compte.roles.admin.source === 'socle') && (
@@ -228,7 +228,7 @@ export function AdminRolesPanel({ onErreur }: Props) {
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell text-[13px] text-muted-foreground">
+                    <TableCell className="hidden lg:table-cell text-[15px] text-muted-foreground">
                       {compte.createdAt
                         ? new Date(compte.createdAt).toLocaleDateString('fr-FR')
                         : '—'}
@@ -258,13 +258,13 @@ export function AdminRolesPanel({ onErreur }: Props) {
       </div>
 
       {tronquee && (
-        <p className="text-[12.5px]" style={{ color: C.orange }}>
+        <p className="text-[14.5px]" style={{ color: C.orange }}>
           Seuls les comptes les plus récents sont listés. Les porteurs d’un rôle apparaissent
           toujours, où qu’ils soient dans la liste.
         </p>
       )}
 
-      <p className="text-[12.5px] text-muted-foreground">
+      <p className="text-[14.5px] text-muted-foreground">
         Les comptes marqués <span className="font-mono">ADMIN_USER_IDS</span> tiennent leur
         administration de la configuration du serveur : elle amorce l’accès sur un environnement
         neuf et se retire en modifiant le <span className="font-mono">.env</span>, puis en

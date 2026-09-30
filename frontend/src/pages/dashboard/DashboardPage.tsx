@@ -128,13 +128,13 @@ export function DashboardPage() {
       {loading ? (
         <div className="now" aria-hidden="true">
           <div className="now-in">
-            <span className="sk" style={{ width: 80, height: 88, borderRadius: 14 }} />
-            <div style={{ display: 'grid', gap: 10 }}>
-              <span className="sk" style={{ width: 192, height: 11 }} />
-              <span className="sk" style={{ width: '70%', height: 21 }} />
-              <span className="sk" style={{ width: '55%', height: 14 }} />
+            <span className="sk" style={{ width: 91, height: 100.5, borderRadius: 16 }} />
+            <div style={{ display: 'grid', gap: 11 }}>
+              <span className="sk" style={{ width: 218.5, height: 13 }} />
+              <span className="sk" style={{ width: '70%', height: 24 }} />
+              <span className="sk" style={{ width: '55%', height: 16 }} />
             </div>
-            <span className="sk" style={{ width: 184, height: 42, borderRadius: 999 }} />
+            <span className="sk" style={{ width: 209.5, height: 48, borderRadius: 999 }} />
           </div>
         </div>
       ) : (
@@ -152,11 +152,11 @@ export function DashboardPage() {
           <div className="cmons" aria-hidden="true">
             {[0, 1].map((i) => (
               <div key={i} className="cmon">
-                <div className="cmon-h" style={{ height: 91 }} />
+                <div className="cmon-h" style={{ height: 103.5 }} />
                 <div className="cmon-b">
-                  <span className="sk" style={{ width: '60%', height: 18 }} />
-                  <span className="sk" style={{ width: '100%', height: 49 }} />
-                  <span className="sk" style={{ width: '40%', height: 14 }} />
+                  <span className="sk" style={{ width: '60%', height: 20.5 }} />
+                  <span className="sk" style={{ width: '100%', height: 56 }} />
+                  <span className="sk" style={{ width: '40%', height: 16 }} />
                 </div>
               </div>
             ))}

@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Picto } from '@/components/shared/ecrans/Picto';
+import { BarreSection } from '@/components/document/EspaceDocuments';
 import { usePiecesADeposer } from '@/hooks/usePiecesADeposer';
-import { typeLabel } from '@/lib/document-type-meta';
+import { dossierLabel } from '@/lib/document-type-meta';
 import type { PieceADeposer } from '@/lib/pieces-a-deposer';
 import { projetTitre } from '@/lib/projet-titre';
+import { useMonumentStore } from '@/stores/useMonumentStore';
 import type { Document } from '@/types';
 import './documents.css';
 
@@ -14,66 +16,63 @@ export interface PiecesADeposerProps {
   monumentId: string;
   /** Restreint aux aides de ces projets (par défaut : les projets ouverts). */
   projetIds?: string[];
-  /** « Déposer » : ouvrir la fenêtre d'ajout pré-remplie pour cette pièce. */
+  /** « Déposer » : ouvrir le dépôt pré-rempli pour cette pièce. */
   onDeposer: (piece: PieceADeposer) => void;
   /** Masquer « Déposer » (lecture seule : pas le droit de déposer ici). */
   lectureSeule?: boolean;
   /** Documents chargés à part par l'onglet, en plus de ceux du store. */
   documents?: Document[];
+  /** Replier au-delà de six pièces (l'onglet d'un monument ou d'un projet, où
+   *  la liste des documents suit). Faux sur la section dédiée de Mes documents. */
+  replier?: boolean;
 }
 
 /**
- * « À déposer pour vos aides » (maquette `.need` / `.piece`) : une carte par
- * pièce, bordure orange tant qu'elle manque, verte une fois déposée, avec la
- * jauge « N sur M ». Absente s'il n'y a aucun projet ou aucune pièce.
+ * « Demandées par les aides de votre projet » (maquette `.req` / `.slot`) : un
+ * emplacement par pièce, en pointillé tant qu'elle manque, en vert une fois
+ * déposée. Absente s'il n'y a aucun projet ou aucune pièce.
  */
-export function PiecesADeposer({ monumentId, projetIds, onDeposer, lectureSeule, documents }: PiecesADeposerProps) {
+export function PiecesADeposer({
+  monumentId, projetIds, onDeposer, lectureSeule, documents, replier = true,
+}: PiecesADeposerProps) {
   const { pieces, projets } = usePiecesADeposer(monumentId, projetIds, documents);
+  const monumentNom = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId)?.nom);
   const [tout, setTout] = useState(false);
 
   if (projets.length === 0 || pieces.length === 0) return null;
 
   const deposees = pieces.filter((p) => p.deposee).length;
-  const visibles = tout ? pieces : pieces.slice(0, PIECES_VISIBLES);
+  const visibles = tout || !replier ? pieces : pieces.slice(0, PIECES_VISIBLES);
   const reste = pieces.length - visibles.length;
-  const sousTitre = projets.length === 1
-    ? `Les pièces que demandent les aides de votre projet ${projetTitre(projets[0])}.`
-    : 'Les pièces que demandent les aides de vos projets sur ce monument.';
+  const titre = projets.length === 1
+    ? `Demandées par les aides de votre projet ${projetTitre(projets[0], monumentNom)}`
+    : 'Demandées par les aides de vos projets';
 
   return (
-    <section className="pdep" aria-labelledby="pdep-titre">
-      <div className="sec-h">
-        <div>
-          <h2 id="pdep-titre">À déposer pour vos aides</h2>
-          <p>{sousTitre}</p>
-        </div>
-        <div className="pdep-prog">
-          <span>{deposees} sur {pieces.length}</span>
-          <span className="track"><i style={{ width: `${(deposees / pieces.length) * 100}%` }} /></span>
-        </div>
-      </div>
+    <section className="pdep" aria-label="Pièces demandées par vos aides">
+      <BarreSection
+        titre={titre}
+        droite={(
+          <div className="pdep-prog">
+            <span>{deposees} sur {pieces.length} déposée{deposees > 1 ? 's' : ''}</span>
+            <span className="track"><i style={{ width: `${(deposees / pieces.length) * 100}%` }} /></span>
+          </div>
+        )}
+      />
 
-      <div className="pdep-need">
+      <div className="req">
         {visibles.map((p) =>
           p.deposee ? (
-            <div key={p.pieceId} className="pdep-piece done">
-              <div className="hd">
-                <div>
-                  <b>{p.nom}</b>
-                  <div className="ty">{typeLabel(p.typeDocument)}</div>
-                </div>
-                <span className="ok"><Picto nom="coche" />Déposé</span>
-              </div>
+            <div key={p.pieceId} className="slot ok">
+              <b>{p.nom}</b>
+              <small><Picto nom="coche" />Déposé · dossier {dossierLabel(p.typeDocument)}</small>
             </div>
           ) : (
-            <div key={p.pieceId} className="pdep-piece">
-              <div className="hd">
-                <div>
-                  <b>{p.nom}</b>
-                  <div className="ty">Type : {typeLabel(p.typeDocument)}</div>
-                </div>
-              </div>
-              <span className="for">Demandé par {p.nbAides} de vos aides</span>
+            <div key={p.pieceId} className="slot">
+              <b>{p.nom}</b>
+              <small>
+                Dossier {dossierLabel(p.typeDocument)} · demandée par {p.nbAides} aide{p.nbAides > 1 ? 's' : ''}
+              </small>
               {p.description && <p className="where">{p.description}</p>}
               {!lectureSeule && (
                 <button className="btn b-blue b-sm" type="button" onClick={() => onDeposer(p)}>

@@ -4,17 +4,17 @@
  * projet et ses quatre étapes. Couleurs par les tokens `--e-*` (ecrans.css).
  */
 
-.ec .cmons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.ec .cmons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .ec .cmon { position: relative; background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: var(--e-r); overflow: hidden; display: flex; flex-direction: column; }
-.ec .cmon-h { background: linear-gradient(160deg, var(--e-blue-2) 0%, var(--e-blue) 50%, var(--e-blue-ink) 100%); color: #fff; padding: 23px 21px 19px; text-decoration: none; display: block; }
+.ec .cmon-h { background: linear-gradient(160deg, var(--e-blue-2) 0%, var(--e-blue) 50%, var(--e-blue-ink) 100%); color: #fff; padding: 26px 24px 22px; text-decoration: none; display: block; }
 /* la photo en bannière, voilée par le bas pour que le nom reste lisible */
-.ec .cmon-h.photo { --cmon-voile: linear-gradient(to top, rgba(8, 22, 58, .82) 0%, rgba(8, 22, 58, .35) 55%, rgba(8, 22, 58, .05) 100%); background-size: cover; background-position: center; min-height: 150px; display: flex; flex-direction: column; justify-content: flex-end; }
-.ec .cmon-h h3 { font-size: 23px; color: #fff; }
-.ec .cmon-h p { font-size: 13px; color: var(--e-on-blue); margin-top: 5px; }
-.ec .cmon-b { padding: 17.5px 21px 19px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
-.ec .cmon-b .proj { font-size: 13px; }
-.ec .cmon-b .proj b { display: block; font: 700 16px/1.3 var(--e-serif); color: var(--e-ink); }
-.ec .cmon-f { display: flex; align-items: center; justify-content: space-between; gap: 10.5px; flex-wrap: wrap; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--e-line-soft); font-size: 13px; }
+.ec .cmon-h.photo { --cmon-voile: linear-gradient(to top, rgba(8, 22, 58, .82) 0%, rgba(8, 22, 58, .35) 55%, rgba(8, 22, 58, .05) 100%); background-size: cover; background-position: center; min-height: 170.5px; display: flex; flex-direction: column; justify-content: flex-end; }
+.ec .cmon-h h3 { font-size: 26px; color: #fff; }
+.ec .cmon-h p { font-size: 15px; color: var(--e-on-blue); margin-top: 6px; }
+.ec .cmon-b { padding: 20px 24px 22px; display: flex; flex-direction: column; gap: 16px; flex: 1; }
+.ec .cmon-b .proj { font-size: 15px; }
+.ec .cmon-b .proj b { display: block; font: 700 18px/1.3 var(--e-serif); color: var(--e-ink); }
+.ec .cmon-f { display: flex; align-items: center; justify-content: space-between; gap: 11.5px; flex-wrap: wrap; margin-top: auto; padding-top: 14px; border-top: 1px solid var(--e-line-soft); font-size: 15px; }
 .ec .cmon-f b { color: var(--e-ink); }
 
 /* toute la carte est cliquable : le lien du bouton la recouvre */

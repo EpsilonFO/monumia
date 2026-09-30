@@ -29,7 +29,7 @@ function Chiffre({ valeur, libelle }: { valeur: string; libelle: string }) {
       style={{ background: C.card, borderColor: C.border }}
     >
       <span
-        className="text-[11px] font-semibold uppercase tracking-[0.12em]"
+        className="text-[13px] font-semibold uppercase tracking-[0.12em]"
         style={{ color: C.grayMuted }}
       >
         jusqu&rsquo;à
@@ -40,7 +40,7 @@ function Chiffre({ valeur, libelle }: { valeur: string; libelle: string }) {
       >
         {valeur}
       </span>
-      <span className="mt-0.5 text-[12.5px] leading-snug" style={{ color: C.grayFg }}>
+      <span className="mt-0.5 text-[14.5px] leading-snug" style={{ color: C.grayFg }}>
         {libelle}
       </span>
     </div>
@@ -100,7 +100,7 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
     <div className="flex min-h-[calc(100dvh-7rem)] flex-col items-center justify-center gap-7 text-center sm:min-h-[calc(100dvh-9rem)] lg:min-h-[calc(100dvh-5rem)]">
       <div className="flex flex-col items-center gap-3">
         <div
-          className="text-[12px] font-semibold uppercase tracking-[0.2em]"
+          className="text-[14px] font-semibold uppercase tracking-[0.2em]"
           style={{ color: C.orange }}
         >
           {synthese === null ? 'Dernière étape' : 'Votre diagnostic est prêt'}
@@ -118,7 +118,7 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
             >
               Il ne manque qu&rsquo;un compte
             </h1>
-            <p className="max-w-md text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
+            <p className="max-w-md text-[16px] leading-relaxed" style={{ color: C.grayFg }}>
               Vos réponses sont enregistrées sur cet appareil. Connectez-vous&nbsp;: votre
               monument et votre projet rejoignent votre espace, et le diagnostic s&rsquo;ouvre.
             </p>
@@ -140,7 +140,7 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
               travaux.
             </h1>
             {synthese && synthese.totalAnalysees > 0 && (
-              <p className="max-w-md text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
+              <p className="max-w-md text-[16px] leading-relaxed" style={{ color: C.grayFg }}>
                 Nous avons comparé votre projet à{' '}
                 <span className="font-semibold tabular-nums" style={{ color: C.ink }}>
                   {synthese.totalAnalysees}
@@ -160,7 +160,7 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
             >
               Aucun financement ne ressort de ce premier passage
             </h1>
-            <p className="max-w-md text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
+            <p className="max-w-md text-[16px] leading-relaxed" style={{ color: C.grayFg }}>
               Le détail vous dira sur quel critère chaque aide s&rsquo;est arrêtée&nbsp;— et ce
               qui suffirait, parfois, à la faire basculer.
             </p>
@@ -177,7 +177,7 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
             <Fragment key={c.libelle}>
               {i > 0 && (
                 <span
-                  className="shrink-0 text-[12px] font-semibold uppercase tracking-[0.14em]"
+                  className="shrink-0 text-[14px] font-semibold uppercase tracking-[0.14em]"
                   style={{ color: C.grayMuted }}
                 >
                   ou
@@ -192,7 +192,7 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
       <div className="relative flex flex-col items-center gap-3">
         <Link
           to={LIEN_CONNEXION}
-          className="group inline-flex items-center gap-2 rounded-2xl px-7 py-4 text-[16px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-pop)]"
+          className="group inline-flex items-center gap-2 rounded-2xl px-7 py-4 text-[18px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-pop)]"
           style={{ background: C.orange }}
         >
           Se connecter pour découvrir mon diagnostic
@@ -206,7 +206,7 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
           <button
             type="button"
             onClick={onRetour}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium underline-offset-2 hover:underline"
+            className="inline-flex items-center gap-1.5 text-[15px] font-medium underline-offset-2 hover:underline"
             style={{ color: C.grayMuted }}
           >
             <ArrowLeft className="h-3.5 w-3.5" />

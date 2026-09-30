@@ -36,6 +36,7 @@ import { isAccessLostError } from '@/lib/api-error';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
 import type { Monument, Document, ProjectMember, ProjectInvitation } from '@/types';
+import { BoutonRetour } from '@/components/shared/ecrans/BoutonRetour';
 
 /**
  * Page d'un MONUMENT : la fiche du bien et tout ce qui s'y rattache
@@ -230,9 +231,9 @@ export function MonumentDetailPage() {
   if (notFound || (!monument && !monumentId)) {
     return (
       <div className="space-y-4">
-        <h1 className="text-[20px]" style={{ fontFamily: SERIF, color: C.ink }}>Monument introuvable</h1>
-        <p className="text-[14px] text-muted-foreground">Ce monument n'existe pas ou a été supprimé.</p>
-        <Link to={ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.blue }}>
+        <h1 className="text-[23px]" style={{ fontFamily: SERIF, color: C.ink }}>Monument introuvable</h1>
+        <p className="text-[16px] text-muted-foreground">Ce monument n'existe pas ou a été supprimé.</p>
+        <Link to={ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[15px] font-medium" style={{ color: C.blue }}>
           <ChevronLeft className="h-3.5 w-3.5" /> Retour à mes monuments
         </Link>
       </div>
@@ -273,10 +274,10 @@ export function MonumentDetailPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-2">
-          <button onClick={() => setIsEditing(false)} className="inline-flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.blue }}>
+          <button onClick={() => setIsEditing(false)} className="inline-flex items-center gap-1.5 text-[15px] font-medium" style={{ color: C.blue }}>
             <ChevronLeft className="h-3.5 w-3.5" /> Retour
           </button>
-          <h1 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>Modifier — {monument.nom}</h1>
+          <h1 className="text-[20.5px]" style={{ fontFamily: SERIF, color: C.ink }}>Modifier — {monument.nom}</h1>
         </div>
         <MonumentForm initialData={monument} onSubmit={handleSave} isEditing saving={saving} />
       </div>
@@ -322,14 +323,7 @@ export function MonumentDetailPage() {
 
   return (
     <div className="ec pmon">
-      <Link
-        className="back"
-        to={ROUTES.MONUMENTS}
-        aria-label={`Retour à ${libelleMonuments(offreCompte).toLowerCase()}`}
-        title={`Retour à ${libelleMonuments(offreCompte).toLowerCase()}`}
-      >
-        <Picto nom="retour" />
-      </Link>
+      <BoutonRetour to={ROUTES.MONUMENTS} libelle={`Retour à ${libelleMonuments(offreCompte).toLowerCase()}`} />
 
       <EnTeteMonument
         monument={monument}
@@ -341,7 +335,7 @@ export function MonumentDetailPage() {
         <Onglets onglets={tabs} actif={activeTab} onChange={handleTabChange} label="Rubriques du monument" />
 
         {/* FICHE SANITAIRE */}
-        <TabsContent value="sanitaire" className="onglet">
+        <TabsContent value="sanitaire">
           <MonumentFiche
             monument={monument}
             canEdit={canEdit}
@@ -372,6 +366,7 @@ export function MonumentDetailPage() {
                 <ProjetCard
                   key={projet.id}
                   projet={projet}
+                  monumentNom={monument.nom}
                   stats={computeProjectStats(projet, digestsByProjet[projet.id] ?? null, dossiers)}
                   stage={projectStage(
                     digestsByProjet[projet.id] ?? null,
@@ -398,7 +393,7 @@ export function MonumentDetailPage() {
             </div>
           ) : (
             projets.length === 0 && (
-              <p className="vide" style={{ marginTop: 35 }}>
+              <p className="vide" style={{ marginTop: 40 }}>
                 Aucun projet de travaux sur ce monument pour l'instant.
               </p>
             )

@@ -121,7 +121,7 @@ function makeMonument(partial: Partial<Monument> & { id: string }): Monument {
     nom: partial.nom ?? `Monument ${partial.id}`,
     codeInsee: '00000',
     protection: 'classe',
-    proprietaire: 'public_commune',
+    proprietaire: ['public_commune'],
     etatConservation: 'moyen',
     photos: [],
     completionPercentage: partial.completionPercentage ?? 60,

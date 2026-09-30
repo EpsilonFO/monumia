@@ -37,7 +37,7 @@ export function BottomNav() {
               end={item.end}
               className={({ isActive }) =>
                 cn(
-                  'flex flex-col items-center gap-1 pb-2 pt-2 text-[11px] font-medium transition-colors',
+                  'flex flex-col items-center gap-1 pb-2 pt-2 text-[13px] font-medium transition-colors',
                   isActive ? 'text-[color:var(--primary)]' : 'text-[color:var(--gray-muted)]',
                 )
               }
@@ -48,7 +48,7 @@ export function BottomNav() {
                     className="flex h-8 w-16 items-center justify-center rounded-full transition-colors"
                     style={{ background: isActive ? C.paleBlue : 'transparent' }}
                   >
-                    <Picto nom={item.picto} className="h-[22px] w-[22px] shrink-0" />
+                    <Picto nom={item.picto} className="h-[25px] w-[25px] shrink-0" />
                   </span>
                   {item.label}
                 </>

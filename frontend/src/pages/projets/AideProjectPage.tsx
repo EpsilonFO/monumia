@@ -43,6 +43,7 @@ import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
 import type { Aide, AideMatchResult } from '@/types';
+import { BoutonRetour } from '@/components/shared/ecrans/BoutonRetour';
 
 /**
  * Fiche d'une aide, vue depuis un PROJET de travaux : c'est le projet qui donne
@@ -277,8 +278,8 @@ export function AideProjectPage() {
   if (notFound) {
     return (
       <div className="space-y-4">
-        <h1 className="text-[20px]" style={{ fontFamily: SERIF, color: C.ink }}>Aide introuvable</h1>
-        <Link to={projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.blue }}>
+        <h1 className="text-[23px]" style={{ fontFamily: SERIF, color: C.ink }}>Aide introuvable</h1>
+        <Link to={projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[15px] font-medium" style={{ color: C.blue }}>
           <ChevronLeft className="h-3.5 w-3.5" /> Retour au projet
         </Link>
       </div>
@@ -344,12 +345,13 @@ export function AideProjectPage() {
         action={action}
         repere={titreRef}
       />
+      <BoutonRetour className="retour" to={lienProjet} libelle={`Retour à ${projetTitre(projet, monument.nom)}`} />
       <div className="page">
         <div className="head">
           <p className="crumbs">
             <Link to={ROUTES.MONUMENTS}>{libelleMonuments(offreCompte)}</Link><span>/</span>
             <Link to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`}>{monument.nom}</Link><span>/</span>
-            <Link to={lienProjet}>{projetTitre(projet)}</Link><span>/</span>
+            <Link to={lienProjet}>{projetTitre(projet, monument.nom)}</Link><span>/</span>
             {titre}
           </p>
           <section className="top">

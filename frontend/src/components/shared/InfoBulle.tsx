@@ -42,7 +42,7 @@ export function InfoBulle({ libelle, children }: InfoBulleProps) {
         <TooltipContent
           align="start"
           sideOffset={6}
-          className="max-w-80 text-[12.5px] font-normal leading-relaxed text-balance"
+          className="max-w-80 text-[14.5px] font-normal leading-relaxed text-balance"
         >
           {children}
         </TooltipContent>

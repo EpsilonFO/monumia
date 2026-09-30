@@ -18,7 +18,7 @@ export function BarChart({ node }: { node?: any }) {
         const pct = Math.max(0, Math.min(100, (b.value / denom) * 100));
         return (
           <div key={i}>
-            <div className="flex items-baseline justify-between text-[13px]">
+            <div className="flex items-baseline justify-between text-[15px]">
               <span style={{ color: C.ink }}>{b.label}</span>
               <span className="font-bold tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: C.orange }}>
                 {b.value}

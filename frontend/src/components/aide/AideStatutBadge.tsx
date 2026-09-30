@@ -20,7 +20,7 @@ export function AideStatutBadge({
 }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap ${AIDE_STATUT_STYLES[statut]} ${className}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[13px] font-semibold whitespace-nowrap ${AIDE_STATUT_STYLES[statut]} ${className}`}
     >
       {AIDE_SUIVI_STATUT_LABELS[statut]}
     </span>

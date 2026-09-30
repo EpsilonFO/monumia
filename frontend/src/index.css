@@ -17,13 +17,13 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --radius-sm: calc(var(--radius) - 4px);
+    --radius-sm: calc(var(--radius) - 5px);
     --radius-md: calc(var(--radius) - 2px);
     --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) + 4px);
-    --radius-2xl: calc(var(--radius) + 8px);
-    --radius-3xl: calc(var(--radius) + 12px);
-    --radius-4xl: calc(var(--radius) + 16px);
+    --radius-xl: calc(var(--radius) + 5px);
+    --radius-2xl: calc(var(--radius) + 9px);
+    --radius-3xl: calc(var(--radius) + 14px);
+    --radius-4xl: calc(var(--radius) + 18px);
     --color-background: var(--background);
     --color-app-bg: var(--app-bg);
     --color-foreground: var(--foreground);
@@ -166,9 +166,9 @@
     /* Couche identité « confiance chaleureuse » (refonte 2026-06) */
     --gray-fg: #4a5160;   /* texte secondaire lisible sur crème (AA) */
     --gray-muted: #6a7180; /* texte tertiaire / hint */
-    --shadow-card: 0 1px 2px rgba(7, 42, 114, 0.04), 0 8px 20px -10px rgba(7, 42, 114, 0.12);
-    --shadow-pop: 0 10px 34px -14px rgba(7, 42, 114, 0.30);
-    --shadow-nav: 1px 0 0 rgba(7, 42, 114, 0.05), 10px 0 30px -22px rgba(7, 42, 114, 0.18);
+    --shadow-card: 0 1px 2px rgba(7, 42, 114, 0.04), 0 9px 23px -11px rgba(7, 42, 114, 0.12);
+    --shadow-pop: 0 11px 39px -16px rgba(7, 42, 114, 0.30);
+    --shadow-nav: 1px 0 0 rgba(7, 42, 114, 0.05), 11px 0 34px -25px rgba(7, 42, 114, 0.18);
 }
 
 .dark {
@@ -235,12 +235,18 @@
     --sidebar-ring: #5c95ff;
     --gray-fg: #b3bccd;
     --gray-muted: #9aa3b5;
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 20px -10px rgba(0, 0, 0, 0.5);
-    --shadow-pop: 0 10px 34px -14px rgba(0, 0, 0, 0.6);
-    --shadow-nav: 1px 0 0 rgba(255, 255, 255, 0.04), 10px 0 30px -22px rgba(0, 0, 0, 0.5);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 9px 23px -11px rgba(0, 0, 0, 0.5);
+    --shadow-pop: 0 11px 39px -16px rgba(0, 0, 0, 0.6);
+    --shadow-nav: 1px 0 0 rgba(255, 255, 255, 0.04), 11px 0 34px -25px rgba(0, 0, 0, 0.5);
 }
 
 @layer base {
+  /* Taille de base de l'app : 17 px au lieu des 16 du navigateur (zoom du
+     2026-09-30). En pourcentage, pour respecter un réglage de police choisi
+     par l'utilisateur. Toutes les classes Tailwind en rem suivent. */
+  html {
+    font-size: 106.25%;
+  }
   * {
     @apply border-border outline-ring/50;
   }
@@ -269,17 +275,17 @@
 }
 
 @keyframes ticker-in-kf {
-  0% { opacity: 0; transform: translateY(8px); }
+  0% { opacity: 0; transform: translateY(9px); }
   20% { opacity: 1; transform: translateY(0); }
   80% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-8px); }
+  100% { opacity: 0; transform: translateY(-9px); }
 }
 .ticker-in {
   animation: ticker-in-kf 1.1s ease-in-out forwards;
 }
 
 @keyframes factoid-in-kf {
-  0% { opacity: 0; transform: translateY(6px); }
+  0% { opacity: 0; transform: translateY(7px); }
   100% { opacity: 1; transform: translateY(0); }
 }
 .factoid-in {
@@ -303,11 +309,11 @@
 
 /* ─── Questionnaire « une question à la fois » : glissé entrant ─── */
 @keyframes q-in-fwd-kf {
-  from { opacity: 0; transform: translateX(28px); }
+  from { opacity: 0; transform: translateX(32px); }
   to   { opacity: 1; transform: translateX(0); }
 }
 @keyframes q-in-back-kf {
-  from { opacity: 0; transform: translateX(-28px); }
+  from { opacity: 0; transform: translateX(-32px); }
   to   { opacity: 1; transform: translateX(0); }
 }
 .q-in-fwd { animation: q-in-fwd-kf 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }

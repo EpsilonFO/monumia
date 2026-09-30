@@ -38,6 +38,7 @@ import { ROUTES } from '@/constants/routes';
 import { isAccessLostError } from '@/lib/api-error';
 import { toast } from 'sonner';
 import type { Aide, ChecklistItem, Document, Dossier } from '@/types';
+import { BoutonRetour } from '@/components/shared/ecrans/BoutonRetour';
 
 /**
  * Le sélecteur d'avancement (« À faire », « En préparation », « Déposé »…) est
@@ -349,8 +350,8 @@ export function DossierDetailPage() {
   if (notFound) {
     return (
       <div className="space-y-4">
-        <h1 className="text-[20px]" style={{ fontFamily: SERIF, color: C.ink }}>Dossier introuvable</h1>
-        <Link to={projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.blue }}>
+        <h1 className="text-[23px]" style={{ fontFamily: SERIF, color: C.ink }}>Dossier introuvable</h1>
+        <Link to={projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[15px] font-medium" style={{ color: C.blue }}>
           <ChevronLeft className="h-3.5 w-3.5" /> Retour au projet
         </Link>
       </div>
@@ -363,14 +364,17 @@ export function DossierDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 overflow-hidden text-[13px] text-muted-foreground">
-        <Link to={ROUTES.MONUMENTS} className="shrink-0 hover:opacity-70 transition-opacity">{libelleMonuments(offreCompte)}</Link>
-        <span>/</span>
-        <Link to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`} className="truncate hover:opacity-70 transition-opacity">{monument.nom}</Link>
-        <span>/</span>
-        <Link to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`} className="truncate hover:opacity-70 transition-opacity">{projetTitre(projet)}</Link>
-        <span>/</span>
-        <span className="truncate" style={{ color: C.ink }}>{aideName}</span>
+      <div className="space-y-3">
+        <BoutonRetour to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`} libelle={`Retour à ${projetTitre(projet, monument.nom)}`} />
+        <div className="flex items-center gap-2 overflow-hidden text-[15px] text-muted-foreground">
+          <Link to={ROUTES.MONUMENTS} className="shrink-0 hover:opacity-70 transition-opacity">{libelleMonuments(offreCompte)}</Link>
+          <span>/</span>
+          <Link to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`} className="truncate hover:opacity-70 transition-opacity">{monument.nom}</Link>
+          <span>/</span>
+          <Link to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`} className="truncate hover:opacity-70 transition-opacity">{projetTitre(projet, monument.nom)}</Link>
+          <span>/</span>
+          <span className="truncate" style={{ color: C.ink }}>{aideName}</span>
+        </div>
       </div>
 
       <h1 className="text-[clamp(1.4rem,3vw,1.9rem)] leading-tight" style={{ fontFamily: SERIF, color: C.ink }}>{dossier.titre}</h1>
@@ -383,7 +387,7 @@ export function DossierDetailPage() {
         {dossier.checklist.some((i) => i.statut === 'repris') && (
           <div className="flex flex-wrap items-center gap-4 p-4 sm:p-5 rounded-xl border" style={{ borderColor: C.border, background: C.paleBlue }}>
             <IconRafraichir className="h-5 w-5 shrink-0" style={{ color: C.blue }} />
-            <div className="min-w-0 flex-1 text-[14px]">
+            <div className="min-w-0 flex-1 text-[16px]">
               <p className="font-semibold" style={{ color: C.ink }}>
                 {(() => {
                   const n = dossier.checklist.filter((i) => i.statut === 'repris').length;
@@ -399,7 +403,7 @@ export function DossierDetailPage() {
             <button
               type="button"
               onClick={() => ouvrirVerification(dossier)}
-              className="inline-flex shrink-0 items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold text-white transition-opacity hover:opacity-90"
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl px-5 py-3 text-[17px] font-semibold text-white transition-opacity hover:opacity-90"
               style={{ background: C.blue }}
             >
               Vérifier maintenant
@@ -409,7 +413,7 @@ export function DossierDetailPage() {
 
         <div className="rounded-2xl border overflow-hidden" style={{ background: C.card, borderColor: C.border }}>
           <div className="px-5 py-3 border-b" style={{ borderColor: C.border }}>
-            <h3 className="text-[16px]" style={{ fontFamily: SERIF, color: C.ink }}>Pièces du dossier</h3>
+            <h3 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>Pièces du dossier</h3>
           </div>
           <div className="px-5 py-4">
             {dossier.checklist.length === 0 ? (
@@ -435,7 +439,7 @@ export function DossierDetailPage() {
 
         <div className="flex items-start gap-3 p-4 rounded-xl border" style={{ borderColor: C.orangeVif, background: C.paleOrange }}>
           <IconAttention className="h-5 w-5 shrink-0 mt-0.5" style={{ color: C.orange }} />
-          <div className="text-[13px]">
+          <div className="text-[15px]">
             <p className="font-semibold" style={{ color: C.ink }}>Dépôt manuel obligatoire</p>
             <p className="mt-0.5 text-muted-foreground">Monumia vous aide à préparer votre dossier, mais le dépôt auprès de l'organisme doit être effectué par vos soins.</p>
           </div>
@@ -443,7 +447,7 @@ export function DossierDetailPage() {
 
         {aide && (
           <div className="space-y-3 pt-2">
-            <h3 className="flex items-center gap-2 text-[16px]" style={{ fontFamily: SERIF, color: C.ink }}>
+            <h3 className="flex items-center gap-2 text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
               <IconLivre className="h-4 w-4" style={{ color: C.blue }} />À propos de l'aide
             </h3>
             <AideDetails
@@ -455,7 +459,7 @@ export function DossierDetailPage() {
                 <button
                   onClick={() => setConfirmDeleteOpen(true)}
                   disabled={deleting}
-                  className="inline-flex w-full items-center justify-center gap-2 px-4 py-2 text-[13px] font-semibold rounded-lg border transition-colors hover:bg-destructive-muted disabled:opacity-60 text-destructive border-destructive/30"
+                  className="inline-flex w-full items-center justify-center gap-2 px-4 py-2 text-[15px] font-semibold rounded-lg border transition-colors hover:bg-destructive-muted disabled:opacity-60 text-destructive border-destructive/30"
                 >
                   {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconSupprimer className="h-4 w-4" strokeWidth={1.8} />}
                   Supprimer le dossier

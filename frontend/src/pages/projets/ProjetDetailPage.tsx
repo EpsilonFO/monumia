@@ -51,6 +51,7 @@ import { getDisponibilite } from '@/components/aide/eligibility-status';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
 import { isAccessLostError } from '@/lib/api-error';
+import { BoutonRetour } from '@/components/shared/ecrans/BoutonRetour';
 import type {
   AideDiagnosticResult, AideMatchResult, Document, ProjectInvitation, ProjectMember,
   ProjectQuestionnaireAnswers,
@@ -432,9 +433,9 @@ export function ProjetDetailPage() {
   if (resolution === 'introuvable') {
     return (
       <div className="space-y-4">
-        <h1 className="text-[20px]" style={{ fontFamily: SERIF, color: C.ink }}>Projet introuvable</h1>
-        <p className="text-[14px] text-muted-foreground">Ce projet n'existe pas ou a été supprimé.</p>
-        <Link to={ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[13px] font-medium" style={{ color: C.blue }}>
+        <h1 className="text-[23px]" style={{ fontFamily: SERIF, color: C.ink }}>Projet introuvable</h1>
+        <p className="text-[16px] text-muted-foreground">Ce projet n'existe pas ou a été supprimé.</p>
+        <Link to={ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[15px] font-medium" style={{ color: C.blue }}>
           <ChevronLeft className="h-3.5 w-3.5" /> Retour à mes monuments
         </Link>
       </div>
@@ -592,14 +593,7 @@ export function ProjetDetailPage() {
 
   return (
     <div className="ec pproj">
-      <Link
-        className="back"
-        to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`}
-        aria-label={`Retour à ${monument.nom}`}
-        title={`Retour à ${monument.nom}`}
-      >
-        <Picto nom="retour" />
-      </Link>
+      <BoutonRetour to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`} libelle={`Retour à ${monument.nom}`} />
 
       <ProjetSummaryBar
         projet={projet}
@@ -620,8 +614,8 @@ export function ProjetDetailPage() {
             </div>
           ) : !diagnostic ? (
             <div className="vide onglet" style={{ textAlign: 'center' }}>
-              <h2 style={{ fontSize: 23 }}>Découvrez les aides de ce projet</h2>
-              <p style={{ marginTop: 8 }}>
+              <h2 style={{ fontSize: 26 }}>Découvrez les aides de ce projet</h2>
+              <p style={{ marginTop: 9 }}>
                 Notre moteur analyse les aides publiques et privées applicables à {monument.nom}.
               </p>
               <button
@@ -629,7 +623,7 @@ export function ProjetDetailPage() {
                 type="button"
                 onClick={handleRunDiagnostic}
                 disabled={running}
-                style={{ marginTop: 16 }}
+                style={{ marginTop: 18 }}
               >
                 {running && <Loader2 className="h-4 w-4 animate-spin" />}
                 Lancer le moteur
@@ -641,7 +635,7 @@ export function ProjetDetailPage() {
                 (offre.echeancier ? (
                   <ProjectEcheancier deadlines={deadlines} aide={(id) => redaction.get(id) ?? null} />
                 ) : (
-                  <div style={{ marginTop: 23 }}>
+                  <div style={{ marginTop: 26 }}>
                     <PaywallOverlay
                       offre="Veille"
                       titre="Ne laissez plus passer une date limite"
@@ -738,7 +732,7 @@ export function ProjetDetailPage() {
                         description="Ces aides ne sont pas encore déposables. L'offre Veille vous envoie un email dès que l'une d'elles ouvre, et donne accès à sa fiche : son organisme, ses critères et les pièces à fournir."
                         monumentId={monument.id}
                         chiffres={chiffresBientot}
-                        flou="10px"
+                        flou="11px"
                       >
                         {renderAideList(bientot)}
                       </PaywallOverlay>
@@ -802,7 +796,7 @@ export function ProjetDetailPage() {
           {/* Les pièces de CE chantier, lues sur `documentService.getAll({ projetId })` ;
               un dépôt ici pend au projet, pas au monument. Droits : `projet.myRole`. */}
           <OngletDocuments
-            ici={{ type: 'projet', id: projet.id, nom: projetTitre(projet) }}
+            ici={{ type: 'projet', id: projet.id, nom: projetTitre(projet, monument.nom) }}
             monumentId={monument.id}
             documents={projetDocuments}
             onChange={reloadProjetDocuments}
@@ -845,7 +839,7 @@ export function ProjetDetailPage() {
           <button
             onClick={() => setConfirmDeleteOpen(true)}
             disabled={deleting}
-            className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[13px] font-semibold transition-colors hover:bg-destructive-muted disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[15px] font-semibold transition-colors hover:bg-destructive-muted disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             style={{ borderColor: C.border, color: C.danger }}
           >
             {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconSupprimer className="h-4 w-4" strokeWidth={1.8} />}
@@ -876,13 +870,13 @@ export function ProjetDetailPage() {
                 className="rounded-xl border-[1.5px] px-4 py-3 text-left transition-colors hover:bg-warning-muted"
                 style={{ borderColor: C.orange, background: C.card }}
               >
-                <span className="block text-[14.5px] font-semibold" style={{ color: C.ink }}>
+                <span className="block text-[16.5px] font-semibold" style={{ color: C.ink }}>
                   Seulement les questions passées
                   <span className="ml-1.5 font-normal tabular-nums" style={{ color: C.orange }}>
                     ({questionsRestantes})
                   </span>
                 </span>
-                <span className="mt-0.5 block text-[13px]" style={{ color: C.grayFg }}>
+                <span className="mt-0.5 block text-[15px]" style={{ color: C.grayFg }}>
                   Vos réponses actuelles sont conservées&nbsp;: on ne repose que celles
                   restées sans réponse.
                 </span>
@@ -894,10 +888,10 @@ export function ProjetDetailPage() {
               className="rounded-xl border px-4 py-3 text-left transition-colors hover:bg-muted"
               style={{ borderColor: C.border, background: C.card }}
             >
-              <span className="block text-[14.5px] font-semibold" style={{ color: C.ink }}>
+              <span className="block text-[16.5px] font-semibold" style={{ color: C.ink }}>
                 Tout refaire depuis le début
               </span>
-              <span className="mt-0.5 block text-[13px]" style={{ color: C.grayFg }}>
+              <span className="mt-0.5 block text-[15px]" style={{ color: C.grayFg }}>
                 Le questionnaire repart vierge&nbsp;: vos réponses actuelles seront
                 remplacées.
               </span>

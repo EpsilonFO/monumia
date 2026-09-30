@@ -1,5 +1,6 @@
 import type { ID, ProtectionLevel, OwnershipType, Region } from './common.types';
 import type { Offre } from '@/lib/offres';
+import type { TypeEdifice } from '@/constants/monument-options';
 
 export interface Monument {
   id: ID;
@@ -44,11 +45,31 @@ export interface Monument {
   protection: ProtectionLevel;
   dateProtection?: string;
   typeProtection?: string;
-  proprietaire: OwnershipType;
+  /**
+   * Un ou plusieurs propriétaires (choix multiple, migration 20260930084241) :
+   * une aide est proposée dès qu'UN d'eux peut la déposer. Lire par
+   * `proprietairesCoches` (lib/fiche-monument), qui accepte aussi la chaîne
+   * seule d'un cache ou d'un brouillon d'avant.
+   */
+  proprietaire: OwnershipType[];
 
   // Step 3: Physical Description
   siecleConstruction?: string;
   descriptionGenerale?: string;
+
+  /**
+   * Natures du bien, en choix multiple (migrations 20260930072800 puis
+   * 20260930082523), et leurs deux précisions. Le moteur en déduit, à
+   * l'unanimité des types cochés, les réponses aux questions sur la nature de
+   * l'édifice, qui ne sont alors plus posées. `null` EFFACE la valeur en base sur un PATCH
+   * (`undefined` n'envoie rien). Les précisions n'ont de sens que pour certains
+   * types (`TYPES_AVEC_AFFECTATION_CULTE`, `TYPES_AVEC_ARCHITECTURE_ROMANE`).
+   */
+  typeEdifice?: TypeEdifice[] | null;
+  /** Édifice religieux toujours affecté au culte (true) ou désaffecté (false). */
+  affecteAuCulte?: boolean | null;
+  /** Architecture romane, en tout ou en partie (true), ou non (false). */
+  architectureRomane?: boolean | null;
 
   // État sanitaire — décrit le BIEN, pas un chantier : tous les projets du
   // monument le partagent. Absent tant que la question « le monument est-il en

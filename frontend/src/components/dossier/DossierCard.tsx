@@ -75,9 +75,9 @@ function ProgressRing({ value, color }: { value: number; color: string }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[19px] font-bold leading-none tabular-nums" style={{ color: C.ink }}>
+        <span className="text-[22px] font-bold leading-none tabular-nums" style={{ color: C.ink }}>
           {clamped}
-          <span className="text-[12px] font-semibold">%</span>
+          <span className="text-[14px] font-semibold">%</span>
         </span>
       </div>
     </div>
@@ -126,7 +126,7 @@ export function DossierCard({ dossier }: DossierCardProps) {
             <div className="min-w-0 flex-1 space-y-1.5">
               {monument && (
                 <span
-                  className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-semibold uppercase tracking-wide"
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[14px] font-semibold uppercase tracking-wide"
                   style={{ background: tint, color: accent }}
                 >
                   <IconLocalisation className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
@@ -134,20 +134,20 @@ export function DossierCard({ dossier }: DossierCardProps) {
                 </span>
               )}
               <h3
-                className="line-clamp-2 text-[18px] font-normal leading-tight text-foreground"
+                className="line-clamp-2 text-[20.5px] font-normal leading-tight text-foreground"
                 style={{ fontFamily: SERIF }}
               >
                 {aideName}
               </h3>
               {monument?.commune && (
-                <div className="truncate text-[13px] text-muted-foreground">{monument.commune}</div>
+                <div className="truncate text-[15px] text-muted-foreground">{monument.commune}</div>
               )}
             </div>
           </div>
 
           {/* Statut — pastille franche à point coloré */}
           <span
-            className="inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[13.5px] font-semibold"
+            className="inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[15.5px] font-semibold"
             style={{ background: tint, color: accent }}
           >
             <span className="h-2 w-2 rounded-full" style={{ background: accent }} />
@@ -156,7 +156,7 @@ export function DossierCard({ dossier }: DossierCardProps) {
 
           {/* Pièces — chips lisibles */}
           {piecesTotal > 0 && (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px]">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[15px]">
               {fournis > 0 && (
                 <span className="flex items-center gap-1.5 font-medium text-success">
                   <IconSucces className="h-4 w-4 shrink-0" strokeWidth={2} />
@@ -187,7 +187,7 @@ export function DossierCard({ dossier }: DossierCardProps) {
           {/* Échéance */}
           {nextDeadline && (
             <div
-              className={`flex items-center gap-2 text-[13px] ${urgent ? 'font-semibold text-destructive' : 'text-muted-foreground'}`}
+              className={`flex items-center gap-2 text-[15px] ${urgent ? 'font-semibold text-destructive' : 'text-muted-foreground'}`}
             >
               {urgent ? (
                 <IconTemps className="h-4 w-4 shrink-0" strokeWidth={2} />
@@ -198,7 +198,7 @@ export function DossierCard({ dossier }: DossierCardProps) {
                 {nextDeadline.label} · {formatDate(nextDeadline.date)}
               </span>
               {urgent && (
-                <span className="ml-auto shrink-0 rounded-md bg-destructive px-2 py-0.5 text-[12px] font-bold text-destructive-foreground">
+                <span className="ml-auto shrink-0 rounded-md bg-destructive px-2 py-0.5 text-[14px] font-bold text-destructive-foreground">
                   J-{daysUntil(nextDeadline.date)}
                 </span>
               )}
@@ -209,7 +209,7 @@ export function DossierCard({ dossier }: DossierCardProps) {
         {/* Action franche — invitation claire à ouvrir le dossier */}
         <div className="mt-auto px-5 pb-5">
           <span
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[15px] font-semibold text-white transition-shadow duration-200 group-hover:shadow-md"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[17px] font-semibold text-white transition-shadow duration-200 group-hover:shadow-md"
             // Le bleu adouci des écrans (ecrans.css), comme les autres boutons de la page.
             style={{ background: 'var(--ecran-bleu, var(--primary))' }}
           >

@@ -15,8 +15,14 @@ import { aideService } from '@/services/aide.service';
 import { ApiError } from '@/lib/api-error';
 import {
   appliquerMerimee,
+  avecTypesEdifice,
+  champsARemplir,
   champsManquants,
   ficheDepuisMerimee,
+  proprietairesCoches,
+  typesCoches,
+  typesEdificeDepuisDenomination,
+  typesEdificeDepuisNom,
   type FicheMonument,
 } from '@/lib/fiche-monument';
 import { ROUTES } from '@/constants/routes';
@@ -34,9 +40,13 @@ type Source = 'recherche' | 'merimee' | 'manuel';
  * les travaux, les intentions et le questionnaire appartiennent au projet et se
  * saisissent dans le wizard projet, une fois le monument décrit.
  *
- * La recherche Mérimée ouvre la section 1 et pré-remplit les champs ; « Mon
- * monument n'est pas dans la liste » la replie. Le formulaire est visible dès
- * l'arrivée, dans les deux cas.
+ * À l'arrivée, la recherche Mérimée est seule à l'écran. Choisir une notice
+ * déplie tout le formulaire, déjà pré-rempli, et encadre en orange ce qui reste
+ * à dire (l'état du bâtiment toujours, que Mérimée ignore) ; « Mon monument
+ * n'est pas dans la liste » le déplie vide. Un brouillon repris arrive déplié.
+ *
+ * Le type d'édifice suit le NOM tant que l'utilisateur ne l'a pas choisi
+ * lui-même : « Château de Paley » coche « Château » (`typesEdificeDepuisNom`).
  *
  * Page PUBLIQUE, et c'est le pivot du parcours découverte : un visiteur y
  * décrit son bien sans compte, le brouillon partant dans le `localStorage`
@@ -67,11 +77,27 @@ export function MonumentWizardPage() {
   const [source, setSource] = useState<Source>(() =>
     brouillonMonument ? (brouillonMonument.referenceMerimee ? 'merimee' : 'manuel') : 'recherche',
   );
+  const [deplie, setDeplie] = useState(() => Boolean(brouillonMonument));
+  // Vrai tant que le type d'édifice n'a été ni choisi à la main, ni donné par
+  // la dénomination d'une notice : il se déduit alors du nom, à chaque frappe.
+  const [typesDepuisNom, setTypesDepuisNom] = useState(
+    () => typesCoches(brouillonMonument ?? {}).length === 0,
+  );
   const [chargementNotice, setChargementNotice] = useState(false);
   const [saving, setSaving] = useState(false);
   const [paywallOuvert, setPaywallOuvert] = useState(false);
 
-  const update = (maj: FicheMonument) => setFiche((prev) => ({ ...prev, ...maj }));
+  const update = (maj: FicheMonument) => {
+    // Le menu du type d'édifice est la seule écriture de `typeEdifice` sans le
+    // nom : l'utilisateur a choisi, le nom ne décide plus.
+    const typesChoisis = 'typeEdifice' in maj && !('nom' in maj);
+    if (typesChoisis) setTypesDepuisNom(false);
+    setFiche((prev) => {
+      const suivante = { ...prev, ...maj };
+      if (typesChoisis || !('nom' in maj) || !typesDepuisNom) return suivante;
+      return { ...suivante, ...avecTypesEdifice(suivante, typesEdificeDepuisNom(maj.nom)) };
+    });
+  };
 
   const handleMerimeeSelect = async (searchRecord: MerimeeRecord) => {
     setChargementNotice(true);
@@ -79,7 +105,12 @@ export function MonumentWizardPage() {
       const fullRecord = await merimeeService.getByReference(searchRecord.reference);
       const notice = ficheDepuisMerimee(fullRecord ?? searchRecord);
       setFiche((prev) => appliquerMerimee(prev, notice));
+      // Types tirés du thésaurus : ils font foi. Tirés du nom (ou aucun) : le
+      // nom continue de les piloter si on le corrige.
+      const record = fullRecord ?? searchRecord;
+      setTypesDepuisNom(typesEdificeDepuisDenomination(record.denomination_de_l_edifice).length === 0);
       setSource('merimee');
+      setDeplie(true);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : 'Erreur lors de la récupération de la fiche Mérimée',
@@ -94,6 +125,7 @@ export function MonumentWizardPage() {
     // la fiche. Le reste (déjà saisi ou pré-rempli) se corrige à la main.
     update({ referenceMerimee: undefined });
     setSource('manuel');
+    setDeplie(true);
     requestAnimationFrame(() => document.getElementById('nm-nom')?.focus());
   };
 
@@ -109,13 +141,20 @@ export function MonumentWizardPage() {
       protection: data.protection ?? 'non_protege',
       // Le formulaire impose le type de propriétaire (champ requis) : ce
       // repli ne sert qu'à satisfaire le type.
-      proprietaire: data.proprietaire ?? 'prive_personne_physique',
+      proprietaire: proprietairesCoches(data).length
+        ? proprietairesCoches(data)
+        : ['prive_personne_physique'],
       referenceMerimee: data.referenceMerimee,
       dateProtection: data.dateProtection,
       typeProtection: data.typeProtection,
       siecleConstruction: data.siecleConstruction,
       descriptionGenerale: data.descriptionGenerale,
       etatConservation: data.etatConservation,
+      // `?? undefined` : une fiche sans type n'envoie aucune de ces clés (le
+      // `null` d'une désélection ne sert qu'à effacer sur une fiche existante).
+      typeEdifice: typesCoches(data).length > 0 ? typesCoches(data) : undefined,
+      affecteAuCulte: data.affecteAuCulte ?? undefined,
+      architectureRomane: data.architectureRomane ?? undefined,
     };
 
     setSaving(true);
@@ -226,12 +265,25 @@ export function MonumentWizardPage() {
           </p>
         </div>
 
-        <div className="grid">
-          <form noValidate onSubmit={(e) => e.preventDefault()}>
-            <FicheMonumentSections fiche={fiche} onChange={update} merimee={blocMerimee} />
-          </form>
-          <ApercuFiche fiche={fiche} saving={saving} onValider={handleFormSubmit} />
-        </div>
+        {deplie ? (
+          <div className="grid deplie">
+            <form noValidate onSubmit={(e) => e.preventDefault()}>
+              <FicheMonumentSections
+                fiche={fiche}
+                onChange={update}
+                merimee={blocMerimee}
+                // Les encadrés ne viennent qu'après un pré-remplissage : sur une
+                // fiche vide, tout serait orange et plus rien ne se verrait.
+                aRemplir={source === 'merimee' ? champsARemplir(fiche) : undefined}
+              />
+            </form>
+            <ApercuFiche fiche={fiche} saving={saving} onValider={handleFormSubmit} />
+          </div>
+        ) : (
+          <section className="sec seul" aria-label="Recherche dans la base Mérimée">
+            {blocMerimee}
+          </section>
+        )}
       </main>
 
       {/* Le compte a déjà son monument gratuit. En MODALE et non en toast :

@@ -6,10 +6,16 @@ from datetime import date
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
+from labels import (
+    OWNERSHIP_LABELS,
+    TYPE_EDIFICE_LABELS,
+    TYPES_AVEC_AFFECTATION_CULTE,
+    TYPES_AVEC_ARCHITECTURE_ROMANE,
+)
 from services import quotas
 from services.offres import as_dict
 from services.parallele import en_parallele
@@ -219,6 +225,108 @@ def resolve_code_insee(
 
 
 # ---------------------------------------------------------------------------
+# Type d'édifice (2026-09-30)
+# ---------------------------------------------------------------------------
+
+#: Champs de la fiche qu'on peut EFFACER par un `null` explicite. Les autres
+#: passent par `model_dump(exclude_none=True)`, où un `null` ne fait rien : sans
+#: cette liste, désélectionner le type d'édifice laisserait l'ancien en base.
+CHAMPS_EFFACABLES = ("typeEdifice", "affecteAuCulte", "architectureRomane")
+
+
+#: Plafond de la liste des types : il y en a vingt-sept, au-delà c'est un
+#: client qui déraille (la route invitée est publique).
+MAX_TYPES_EDIFICE = len(TYPE_EDIFICE_LABELS)
+
+
+def valider_type_edifice(valeur: object) -> list[str] | None:
+    """Des codes de `labels.TYPE_EDIFICE_LABELS`, ou rien : 422 plutôt que le
+    500 du CHECK SQL.
+
+    Choix multiple depuis le 2026-09-30 (migration 20260930082523). La liste
+    est dédoublonnée dans l'ordre ; vide, elle vaut « pas de type », comme la
+    chaîne vide (patron des dates), et part en NULL : la base refuse un tableau
+    vide. Une chaîne seule vaut un type (brouillon invité d'avant le passage
+    en liste).
+    """
+    if valeur is None or valeur == "":
+        return None
+    if isinstance(valeur, str):
+        valeur = [valeur]
+    if not isinstance(valeur, list) or not all(isinstance(v, str) for v in valeur):
+        raise ValueError("type d'édifice : une liste de codes est attendue")
+    types = list(dict.fromkeys(v for v in valeur if v))
+    if len(types) > MAX_TYPES_EDIFICE:
+        raise ValueError("type d'édifice : trop de valeurs")
+    inconnus = [v for v in types if v not in TYPE_EDIFICE_LABELS]
+    if inconnus:
+        raise ValueError(f"type d'édifice inconnu : {', '.join(inconnus)}")
+    return types or None
+
+
+def valider_proprietaires(valeur: object) -> list[str] | None:
+    """Des codes de `labels.OWNERSHIP_LABELS`, au moins un : 422 plutôt que le
+    500 du type SQL.
+
+    Choix multiple depuis le 2026-09-30 (migration 20260930084241) : une aide
+    est proposée dès qu'UN des propriétaires peut la déposer. Liste dédoublonnée
+    dans l'ordre ; une chaîne seule vaut un propriétaire (brouillon invité ou
+    onglet d'avant le choix multiple). Une liste vide est refusée : un monument
+    a toujours un propriétaire, et la base refuse le tableau vide. `None` passe
+    (champ absent d'un PATCH) ; c'est le modèle qui le rend obligatoire.
+    """
+    if valeur is None:
+        return None
+    if isinstance(valeur, str):
+        valeur = [valeur]
+    if not isinstance(valeur, list) or not all(isinstance(v, str) for v in valeur):
+        raise ValueError("propriétaire : une liste de codes est attendue")
+    codes = list(dict.fromkeys(v for v in valeur if v))
+    if not codes:
+        raise ValueError("propriétaire : au moins un propriétaire est attendu")
+    if len(codes) > len(OWNERSHIP_LABELS):
+        raise ValueError("propriétaire : trop de valeurs")
+    inconnus = [v for v in codes if v not in OWNERSHIP_LABELS]
+    if inconnus:
+        raise ValueError(f"propriétaire inconnu : {', '.join(inconnus)}")
+    return codes
+
+
+def _champs_de_la_fiche(body: BaseModel) -> dict:
+    """Le corps en snake_case, `null` explicites des champs effaçables compris."""
+    data = _snake_row(body.model_dump(exclude_none=True))
+    for champ in CHAMPS_EFFACABLES:
+        if champ in body.model_fields_set and getattr(body, champ) is None:
+            data[_to_snake(champ)] = None
+    return data
+
+
+def _precisions_coherentes(data: dict, *, creation: bool = False) -> dict:
+    """Vide les précisions qu'aucun des types cochés n'admet.
+
+    Une fiche passée d'« église » à « château » seul ne doit pas garder
+    « affecté au culte » : le moteur ne la lirait plus (`build_context`), mais la base la
+    montrerait encore. Seulement quand le type fait partie de l'écriture : un
+    PATCH qui ne touche pas au type ne touche pas non plus à ses précisions. À
+    la création, une précision sans type est simplement retirée (aucune clé
+    ajoutée : une fiche sans type ne doit rien écrire de ces colonnes).
+    """
+    if creation and data.get("type_edifice") is None:
+        for colonne in ("type_edifice", "affecte_au_culte", "architecture_romane"):
+            data.pop(colonne, None)
+        return data
+    if "type_edifice" not in data:
+        return data
+    # Une précision reste tant qu'AU MOINS un type coché l'admet.
+    types = set(data["type_edifice"] or ())
+    if not types & TYPES_AVEC_AFFECTATION_CULTE:
+        data["affecte_au_culte"] = None
+    if not types & TYPES_AVEC_ARCHITECTURE_ROMANE:
+        data["architecture_romane"] = None
+    return data
+
+
+# ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
 
@@ -249,7 +357,8 @@ class CreateMonumentRequest(BaseModel):
     protection: str
     dateProtection: str | None = None
     typeProtection: str | None = None
-    proprietaire: str
+    # Un ou plusieurs (choix multiple, migration 20260930084241).
+    proprietaire: list[str]
 
     siecleConstruction: str | None = None
     descriptionGenerale: str | None = None
@@ -259,6 +368,15 @@ class CreateMonumentRequest(BaseModel):
     # colonne RESTE sur le monument : elle décrit le bien, pas un chantier, et
     # tous ses projets la partagent.
     etatConservation: str | None = None
+
+    # Nature du bien et ses précisions (migration 20260930072800). Facultatifs :
+    # sans type, les faits de typologie restent posés au questionnaire.
+    typeEdifice: list[str] | None = None
+    affecteAuCulte: bool | None = None
+    architectureRomane: bool | None = None
+
+    _v_type = field_validator("typeEdifice", mode="before")(valider_type_edifice)
+    _v_proprietaire = field_validator("proprietaire", mode="before")(valider_proprietaires)
 
 
 class UpdateMonumentRequest(BaseModel):
@@ -273,13 +391,22 @@ class UpdateMonumentRequest(BaseModel):
     protection: str | None = None
     dateProtection: str | None = None
     typeProtection: str | None = None
-    proprietaire: str | None = None
+    proprietaire: list[str] | None = None
 
     siecleConstruction: str | None = None
     descriptionGenerale: str | None = None
 
     etatConservation: str | None = None
     completionPercentage: int | None = None
+
+    # Cf. CreateMonumentRequest. Un `null` explicite les efface
+    # (CHAMPS_EFFACABLES).
+    typeEdifice: list[str] | None = None
+    affecteAuCulte: bool | None = None
+    architectureRomane: bool | None = None
+
+    _v_type = field_validator("typeEdifice", mode="before")(valider_type_edifice)
+    _v_proprietaire = field_validator("proprietaire", mode="before")(valider_proprietaires)
 
 
 class AddPhotoRequest(BaseModel):
@@ -617,7 +744,7 @@ def create_monument(
     # et la ligne créée puis refusée laisserait un bien orphelin.
     quotas.verifier_creation_monument(supabase, user_id)
 
-    data = _normalize_dates(_snake_row(body.model_dump(exclude_none=True)))
+    data = _precisions_coherentes(_normalize_dates(_champs_de_la_fiche(body)), creation=True)
 
     # Resolve code_insee from commune name, falling back to the historical INSEE
     # code (e.g. Mérimée's cog_insee_lors_de_la_protection) via communes_historique.
@@ -686,7 +813,7 @@ def update_monument(
 ):
     require_project_access(supabase, monument_id, user_id, "co_owner")
 
-    updates = _normalize_dates(_snake_row(body.model_dump(exclude_none=True)))
+    updates = _precisions_coherentes(_normalize_dates(_champs_de_la_fiche(body)))
 
     # Re-resolve code_insee when commune changes
     if body.commune is not None:

@@ -47,9 +47,13 @@ export function AppLayout() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
       <TopBar />
-      <main ref={mainRef} className="flex-1 overflow-y-auto">
-        {/* La largeur des maquettes d'écran : 1180 px, 16 px de marge en deçà. */}
-        <div className="mx-auto w-[min(1180px,100%-32px)] pt-[23px] pb-[79px]">
+      {/* `scrollbar-gutter: stable` : la place de la barre de défilement est
+          toujours réservée. Sans elle, passer d'un onglet court (fiche) à un
+          onglet long (projets, documents) la faisait apparaître, et toute la
+          colonne centrée sautait de sa largeur vers la gauche. */}
+      <main ref={mainRef} className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+        {/* La largeur des maquettes d'écran (1180 px), agrandie par les deux zooms du 2026-09-30. */}
+        <div className="mx-auto w-[min(1343.5px,100%-36.5px)] pt-[26px] pb-[90px]">
           <Outlet />
         </div>
       </main>

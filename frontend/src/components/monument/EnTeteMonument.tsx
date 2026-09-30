@@ -43,7 +43,7 @@ export function EnTeteMonument({
 
   return (
     <section className="head" aria-labelledby="mt">
-      <MonumentPhotoProfil monument={monument} canEdit={canEdit} width={260} radius="16px" ratio={10 / 16} invite />
+      <MonumentPhotoProfil monument={monument} canEdit={canEdit} width={295} radius="18px" ratio={10 / 16} invite />
       <div className="id">
         <h1 id="mt">{monument.nom}</h1>
         {lieu && <p className="loc">{lieu}</p>}

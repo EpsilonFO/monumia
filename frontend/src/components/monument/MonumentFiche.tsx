@@ -1,11 +1,13 @@
-import type { ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
-import { IconModifier, IconSupprimer } from '@/components/icons';
-import { C, SERIF } from '@/lib/brand';
+import { IconSupprimer } from '@/components/icons';
+import { Picto } from '@/components/shared/ecrans/Picto';
 import { formatDate } from '@/lib/date-utils';
 import {
-  PROTECTION_LABELS, isEnPeril, perilLabel, OWNERSHIP_TYPES,
+  PROTECTION_LABELS, isEnPeril, perilLabel,
 } from '@/constants/monument-options';
+import {
+  affectationApplicable, architectureRomaneApplicable, libellesProprietaires, libellesTypesEdifice,
+} from '@/lib/fiche-monument';
 import type { Monument } from '@/types';
 
 /* ------------------------------------------------------------------ */
@@ -50,48 +52,46 @@ const PHOTO_TYPE_LABELS: Record<string, string> = {
 /* Briques                                                             */
 /* ------------------------------------------------------------------ */
 
-/** Un fait d'identification : l'étiquette au-dessus, la valeur en serif juste
- *  en dessous. Les deux se touchent — une étiquette à gauche et sa valeur au
- *  bout d'une ligne de 500 px obligent l'œil à faire l'aller-retour. */
-function Fait({ label, value }: { label: string; value: string }) {
+/** Un fait d'identification : l'étiquette au-dessus, la valeur juste dessous.
+ *  Une liste (types, propriétaires) se lit en pastilles, comme dans l'en-tête. */
+function Fait({ label, value }: { label: string; value: string | string[] }) {
   return (
-    <div className="min-w-0">
-      <dt className="text-[13px] leading-snug" style={{ color: C.grayMuted }}>{label}</dt>
-      <dd className="mt-1 text-[17px] leading-snug" style={{ fontFamily: SERIF, color: C.ink }}>{value}</dd>
+    <div className="fm-fait">
+      <dt>{label}</dt>
+      {Array.isArray(value) ? (
+        <dd className="fm-tags">
+          {value.map((v) => (
+            <span key={v} className="tag">{v}</span>
+          ))}
+        </dd>
+      ) : (
+        <dd>{value}</dd>
+      )}
     </div>
   );
 }
 
-/** Titre de section, dans la feuille : une étiquette discrète, pas un titre qui
- *  concurrence son propre contenu — la description s'ouvre sur du serif 21 px,
- *  un intertitre plus gros lui passerait devant. Pas de pastille d'icône non
- *  plus : le mot suffit. */
-function Titre({ children }: { children: ReactNode }) {
-  return (
-    <h3 className="mb-3.5 text-[13.5px] font-medium leading-snug" style={{ color: C.grayMuted }}>
-      {children}
-    </h3>
-  );
-}
-
-/** Un statut de l'en-tête : l'énoncé en grand, puis ce qu'il change. */
-function Statut({ enonce, phrase, note, pastille }: {
+/** Un statut qui ouvre ou ferme des aides : l'énoncé en serif, puis ce qu'il
+ *  change. Une colonne du bloc bleu, pas une carte à part : les deux statuts se
+ *  lisent ensemble, et restent alignés en haut. */
+function Statut({ titre, enonce, phrase, note, ton }: {
+  titre: string;
   enonce: string;
   phrase: string;
   /** Sous l'énoncé : la date de l'arrêté, quand il y en a une. */
   note?: string;
-  pastille?: string;
+  /** Pastille de couleur devant l'énoncé (état sanitaire). */
+  ton?: 'ok' | 'alerte' | 'inconnu';
 }) {
   return (
-    <div>
-      <p className="flex items-baseline gap-2.5 text-[22px] leading-[1.3]" style={{ fontFamily: SERIF, color: C.ink }}>
-        {pastille && (
-          <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: pastille }} />
-        )}
+    <div className="fm-statut">
+      <p className="fm-lb">{titre}</p>
+      <h3>
+        {ton && <i aria-hidden className={`fm-pt ${ton}`} />}
         {enonce}
-      </p>
-      {note && <p className="mt-1 text-[13.5px]" style={{ color: C.grayMuted }}>{note}</p>}
-      <p className="mt-2.5 max-w-[60ch] text-[14.5px] leading-[1.65]" style={{ color: C.grayFg }}>{phrase}</p>
+      </h3>
+      {note && <p className="fm-note">{note}</p>}
+      <p className="fm-phrase">{phrase}</p>
     </div>
   );
 }
@@ -107,13 +107,9 @@ function Description({ text }: { text: string }) {
   const lead = head && balanced && !abbrev ? head : '';
   const body = lead ? text.slice(cut + 1).trim() : text;
   return (
-    <div className="max-w-[74ch] space-y-4">
-      {lead && (
-        <p className="text-[21px] leading-[1.55]" style={{ fontFamily: SERIF, color: C.ink }}>{lead}</p>
-      )}
-      {body && (
-        <p className="whitespace-pre-line text-[16.5px] leading-[1.8]" style={{ color: C.grayFg }}>{body}</p>
-      )}
+    <div className="fm-desc">
+      {lead && <p className="fm-lead">{lead}</p>}
+      {body && <p className="fm-corps">{body}</p>}
     </div>
   );
 }
@@ -133,20 +129,19 @@ interface MonumentFicheProps {
 
 /**
  * Fiche sanitaire du monument : ce qui décrit le BIEN et ne bouge pas d'un
- * chantier à l'autre. Les travaux envisagés n'y figurent plus — ils cadrent un
+ * chantier à l'autre. Les travaux envisagés n'y figurent plus : ils cadrent un
  * projet, et vivent sur sa propre page.
  *
- * Une SEULE feuille pleine largeur, découpée par des filets, plutôt qu'une pile
- * d'encadrés de largeurs différentes : la fiche est un document, pas un
- * assemblage de vignettes. Elle s'ouvre sur les deux statuts qui gouvernent
- * l'éligibilité aux aides (protection, état sanitaire) ; viennent ensuite
- * l'identification, la description, les photos.
+ * Même dessin que les autres onglets de la page (maquettes d'écran, `.ec`) :
+ * un intertitre, puis des cartes au filet bleu. Elle s'ouvre sur les deux
+ * statuts qui gouvernent l'éligibilité aux aides (protection, état sanitaire) ;
+ * viennent ensuite l'identification, la description, les photos.
  */
 export function MonumentFiche({
   monument, canEdit, onEdit, canDelete, deleting, onDelete,
 }: MonumentFicheProps) {
   // La photo de profil illustre déjà l'en-tête : pas de doublon dans la galerie.
-  // Sans lien signé, l'image serait cassée (bucket privé) — on l'écarte.
+  // Sans lien signé, l'image serait cassée (bucket privé) : on l'écarte.
   const galerie = (monument.photos ?? []).filter((p) => p.type !== 'profil' && p.signedUrl);
   const enPeril = isEnPeril(monument.etatConservation);
 
@@ -155,130 +150,116 @@ export function MonumentFiche({
     ? `Arrêté du ${formatDate(monument.dateProtection)}`
     : undefined;
 
+  const typesLibelles = libellesTypesEdifice(monument);
+  const proprietairesLibelles = libellesProprietaires(monument);
+
   // Identification : seuls les champs renseignés apparaissent.
-  const faits = [
+  type FaitFiche = { label: string; value: string | string[] };
+  const faits = ([
     monument.referenceMerimee && { label: 'Référence Mérimée', value: monument.referenceMerimee },
     monument.commune && { label: 'Commune', value: monument.commune },
     monument.departement && { label: 'Département', value: monument.departement },
+    typesLibelles.length > 0 && {
+      label: typesLibelles.length > 1 ? "Types d'édifice" : "Type d'édifice",
+      value: typesLibelles,
+    },
+    // Une précision ne s'affiche que sous un type où elle a un sens : le
+    // serveur l'efface quand le type change, le moteur ne la lit pas ailleurs.
+    affectationApplicable(monument) && typeof monument.affecteAuCulte === 'boolean' && {
+      label: 'Affectation au culte',
+      value: monument.affecteAuCulte ? 'Toujours affecté au culte' : 'Désaffecté',
+    },
+    architectureRomaneApplicable(monument) && typeof monument.architectureRomane === 'boolean' && {
+      label: 'Architecture romane',
+      value: monument.architectureRomane ? 'Oui, en tout ou en partie' : 'Non',
+    },
     monument.siecleConstruction && {
       label: 'Siècle de construction',
       // Les données Mérimée arrivent parfois sous la forme « 12e s.;13e s. ».
       value: monument.siecleConstruction.split(';').map((s) => s.trim()).filter(Boolean).join(' · '),
     },
-    monument.proprietaire && {
-      label: 'Propriétaire',
-      value: OWNERSHIP_TYPES.find((o) => o.value === monument.proprietaire)?.label ?? monument.proprietaire,
+    proprietairesLibelles.length > 0 && {
+      label: proprietairesLibelles.length > 1 ? 'Propriétaires' : 'Propriétaire',
+      value: proprietairesLibelles,
     },
-  ].filter((f): f is { label: string; value: string } => Boolean(f));
+  ] as (FaitFiche | false | '' | undefined)[]).filter((f): f is FaitFiche => Boolean(f));
 
   return (
-    <div className="space-y-3 animate-fade-in">
-      {canEdit && (
-        <div className="flex justify-end">
-          <button
-            onClick={onEdit}
-            className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold text-white transition-all duration-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            style={{ background: C.blue }}
-          >
-            <IconModifier className="h-3.5 w-3.5" strokeWidth={2} />
+    <div className="fm">
+      <div className="sec-h">
+        <div>
+          <h2>La fiche du monument</h2>
+          <p>Ce qui décrit le bien. Elle vaut pour tous vos projets sur ce monument.</p>
+        </div>
+        {canEdit && (
+          <button type="button" className="btn b-line b-sm" onClick={onEdit}>
+            <Picto nom="crayon" />
             Modifier la fiche
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
-      <article
-        className="overflow-hidden rounded-2xl border"
-        style={{ borderColor: C.border, background: C.card, boxShadow: 'var(--shadow-card)' }}
-      >
-        {/* En-tête de la feuille : les deux faits qui ouvrent ou ferment les
-            aides. Le fond teinté les distingue du corps de la fiche sans avoir
-            à les enfermer chacun dans un encadré de plus. */}
-        <div
-          className="grid gap-7 p-6 sm:p-8 md:grid-cols-2 md:gap-10"
-          style={{ background: 'var(--secondary)' }}
-        >
-          <Statut
-            enonce={PROTECTION_ENONCE[monument.protection]
-              ?? PROTECTION_LABELS[monument.protection]
-              ?? monument.protection}
-            note={dateArrete}
-            phrase={PROTECTION_PHRASE[monument.protection] ?? ''}
-          />
-          <div
-            className="md:border-l md:pl-10"
-            style={{ borderColor: 'color-mix(in srgb, var(--primary) 18%, transparent)' }}
-          >
-            <Statut
-              enonce={enPeril === null ? 'État non renseigné' : (perilLabel(monument.etatConservation) ?? '')}
-              phrase={enPeril === null ? PERIL_PHRASE.inconnu : enPeril ? PERIL_PHRASE.oui : PERIL_PHRASE.non}
-              pastille={enPeril === null ? C.grayMuted : enPeril ? C.danger : C.success}
-            />
-          </div>
-        </div>
+      <section className="fm-statuts" aria-label="Protection et état sanitaire">
+        <Statut
+          titre="Protection"
+          enonce={PROTECTION_ENONCE[monument.protection]
+            ?? PROTECTION_LABELS[monument.protection]
+            ?? monument.protection}
+          note={dateArrete}
+          phrase={PROTECTION_PHRASE[monument.protection] ?? ''}
+        />
+        <Statut
+          titre="État sanitaire"
+          enonce={enPeril === null ? 'État non renseigné' : (perilLabel(monument.etatConservation) ?? '')}
+          phrase={enPeril === null ? PERIL_PHRASE.inconnu : enPeril ? PERIL_PHRASE.oui : PERIL_PHRASE.non}
+          ton={enPeril === null ? 'inconnu' : enPeril ? 'alerte' : 'ok'}
+        />
+      </section>
 
-        {faits.length > 0 && (
-          <dl
-            className="grid gap-x-10 gap-y-7 border-t p-6 sm:grid-cols-2 sm:p-8 lg:grid-cols-3"
-            style={{ borderColor: C.border }}
-          >
+      {faits.length > 0 && (
+        <section className="fm-carte" aria-labelledby="fm-id">
+          <h3 id="fm-id">Identification</h3>
+          <dl className="fm-faits">
             {faits.map((f) => <Fait key={f.label} label={f.label} value={f.value} />)}
           </dl>
-        )}
+        </section>
+      )}
 
-        {monument.descriptionGenerale && (
-          <section className="border-t p-6 sm:p-8" style={{ borderColor: C.border }}>
-            <Titre>Description</Titre>
-            <Description text={monument.descriptionGenerale} />
-          </section>
-        )}
+      {monument.descriptionGenerale && (
+        <section className="fm-carte" aria-labelledby="fm-desc">
+          <h3 id="fm-desc">Description</h3>
+          <Description text={monument.descriptionGenerale} />
+        </section>
+      )}
 
-        {galerie.length > 0 && (
-          <section className="border-t p-6 sm:p-8" style={{ borderColor: C.border }}>
-            <Titre>Photos</Titre>
-            <div className="grid grid-cols-2 gap-x-5 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
-              {galerie.map((p) => (
-                <figure key={p.url} className="min-w-0 space-y-2">
-                  <div className="aspect-[4/3] overflow-hidden rounded-lg border" style={{ borderColor: C.border }}>
-                    <img
-                      src={p.signedUrl}
-                      alt={p.legende || monument.nom}
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  {(p.legende || PHOTO_TYPE_LABELS[p.type]) && (
-                    <figcaption className="text-[13px] leading-snug">
-                      {PHOTO_TYPE_LABELS[p.type] && (
-                        <span style={{ color: C.ink }}>{PHOTO_TYPE_LABELS[p.type]}</span>
-                      )}
-                      {p.legende && (
-                        <span style={{ color: C.grayMuted }}>
-                          {PHOTO_TYPE_LABELS[p.type] ? ', ' : ''}{p.legende}
-                        </span>
-                      )}
-                    </figcaption>
-                  )}
-                </figure>
-              ))}
-            </div>
-          </section>
-        )}
-      </article>
+      {galerie.length > 0 && (
+        <section className="fm-carte" aria-labelledby="fm-photos">
+          <h3 id="fm-photos">Photos</h3>
+          <div className="fm-galerie">
+            {galerie.map((p) => (
+              <figure key={p.url}>
+                <div className="fm-img">
+                  <img src={p.signedUrl} alt={p.legende || monument.nom} loading="lazy" />
+                </div>
+                {(p.legende || PHOTO_TYPE_LABELS[p.type]) && (
+                  <figcaption>
+                    {PHOTO_TYPE_LABELS[p.type] && <b>{PHOTO_TYPE_LABELS[p.type]}</b>}
+                    {p.legende && <span>{PHOTO_TYPE_LABELS[p.type] ? ', ' : ''}{p.legende}</span>}
+                  </figcaption>
+                )}
+              </figure>
+            ))}
+          </div>
+        </section>
+      )}
 
-      <div className="flex flex-col gap-3 px-1 pt-1 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-[13px]" style={{ color: C.grayMuted }}>
+      <div className="fm-pied">
+        <p>
           Fiche créée le {formatDate(monument.createdAt)}, modifiée le {formatDate(monument.updatedAt)}.
         </p>
         {canDelete && (
-          <button
-            onClick={onDelete}
-            disabled={deleting}
-            className="inline-flex items-center gap-2 self-start rounded-full border px-4 py-2 text-[13px] font-semibold transition-colors hover:bg-destructive-muted disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:self-auto"
-            style={{ borderColor: C.border, color: C.danger }}
-          >
-            {deleting
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <IconSupprimer className="h-4 w-4" strokeWidth={1.8} />}
+          <button type="button" className="btn b-sm fm-suppr" onClick={onDelete} disabled={deleting}>
+            {deleting ? <Loader2 className="i animate-spin" /> : <IconSupprimer className="i" strokeWidth={1.8} />}
             Supprimer le monument
           </button>
         )}

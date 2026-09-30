@@ -76,38 +76,38 @@ export function ConfirmerEmail({
           <IconCourrier className="h-6 w-6" style={{ color: C.blue }} />
         </div>
         <h2
-          className="mt-4 text-[22px] leading-[1.2]"
+          className="mt-4 text-[25px] leading-[1.2]"
           style={{ fontFamily: SERIF, color: C.ink }}
         >
           Vérifiez votre boîte mail
         </h2>
-        <p className="mt-2.5 text-[14px] leading-[1.6]" style={{ color: C.grayFg }}>
+        <p className="mt-2.5 text-[16px] leading-[1.6]" style={{ color: C.grayFg }}>
           {variante === 'inscription'
             ? 'Votre compte est créé. Un lien de confirmation vient de partir vers'
             : 'Votre adresse n’est pas encore confirmée. Un lien vient de partir vers'}
         </p>
-        <p className="mt-1 text-[15px] font-semibold break-all" style={{ color: C.ink }}>
+        <p className="mt-1 text-[17px] font-semibold break-all" style={{ color: C.ink }}>
           {email}
         </p>
-        <p className="mt-3 text-[14px] leading-[1.6]" style={{ color: C.grayFg }}>
+        <p className="mt-3 text-[16px] leading-[1.6]" style={{ color: C.grayFg }}>
           Ouvrez-le pour activer votre compte : vous serez connecté directement.
         </p>
       </div>
 
       {renvoi === 'envoye' ? (
-        <p className="text-center text-[13.5px]" style={{ color: C.grayFg }}>
+        <p className="text-center text-[15.5px]" style={{ color: C.grayFg }}>
           Un nouvel email vient de partir. Il peut mettre quelques minutes à arriver.
         </p>
       ) : (
         <div className="space-y-2.5">
-          <p className="text-center text-[13.5px]" style={{ color: C.grayMuted }}>
+          <p className="text-center text-[15.5px]" style={{ color: C.grayMuted }}>
             Rien reçu ? Pensez à regarder dans les indésirables.
           </p>
           <button
             type="button"
             onClick={renvoyer}
             disabled={renvoi === 'envoi'}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border text-[14px] font-semibold transition-colors hover:bg-secondary disabled:opacity-60"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border text-[16px] font-semibold transition-colors hover:bg-secondary disabled:opacity-60"
             style={{ borderColor: C.border, color: C.ink, background: C.card }}
           >
             {renvoi === 'envoi' && <Loader2 className="h-4 w-4 animate-spin" />}

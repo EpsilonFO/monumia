@@ -93,7 +93,7 @@ export function DocumentCardView({
       <div className="flex items-center gap-4 min-w-0 flex-1">
         {/* Grand aperçu rectangulaire (168×112) : photo/PDF réel, sinon aplat couleur */}
         <div
-          className="relative shrink-0 overflow-hidden rounded-2xl flex flex-col items-center justify-center gap-1 w-[112px] h-[76px] sm:w-[168px] sm:h-[112px]"
+          className="relative shrink-0 overflow-hidden rounded-2xl flex flex-col items-center justify-center gap-1 w-[127.5px] h-[86.5px] sm:w-[191px] sm:h-[127.5px]"
           style={{ background: preview?.kind === 'image' ? C.blueDark : (preview?.kind === 'text' || preview?.kind === 'grid') ? '#fff' : tone.band }}
         >
           {preview?.kind === 'image' ? (
@@ -106,7 +106,7 @@ export function DocumentCardView({
             <>
               <span className="absolute inset-x-0 top-0 h-1.5" style={{ background: tone.band }} />
               <p
-                className="absolute inset-0 mt-1.5 px-2.5 py-2 sm:px-3 sm:py-2.5 text-[8px] sm:text-[9px] leading-[1.5] whitespace-pre-wrap break-words overflow-hidden text-left"
+                className="absolute inset-0 mt-1.5 px-2.5 py-2 sm:px-3 sm:py-2.5 text-[12px] sm:text-[12px] leading-[1.5] whitespace-pre-wrap break-words overflow-hidden text-left"
                 style={{ color: '#3a3f47' }}
               >
                 {preview.text}
@@ -125,7 +125,7 @@ export function DocumentCardView({
                     Array.from({ length: gridCols }).map((_, c) => (
                       <div
                         key={`${r}-${c}`}
-                        className="truncate bg-white px-1 py-[2px] text-[6.5px] sm:text-[8px] leading-tight text-left"
+                        className="truncate bg-white px-1 py-[2px] text-[12px] sm:text-[12px] leading-tight text-left"
                         style={{ color: '#3a3f47', fontWeight: r === 0 ? 600 : 400 }}
                       >
                         {row[c] ?? ''}
@@ -140,7 +140,7 @@ export function DocumentCardView({
             <>
               <Icon className="h-8 w-8 sm:h-10 sm:w-10 text-white" weight="bold" />
               <span
-                className="text-[11px] sm:text-[12px] font-bold uppercase tracking-wide text-white"
+                className="text-[13px] sm:text-[14px] font-bold uppercase tracking-wide text-white"
                 style={{ fontFamily: "'PT Serif', Georgia, serif" }}
               >
                 {typeLabel(document.type)}
@@ -157,17 +157,17 @@ export function DocumentCardView({
         {/* Titre + repères */}
         <div className="min-w-0 flex-1 flex flex-col gap-1.5">
           <h3
-            className="text-[16px] sm:text-[17px] font-semibold leading-snug line-clamp-2"
+            className="text-[18px] sm:text-[19px] font-semibold leading-snug line-clamp-2"
             style={{ fontFamily: "'PT Serif', Georgia, serif", color: C.ink }}
             title={document.nom}
           >
             {document.nom}
           </h3>
 
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14.5px] text-muted-foreground">
             {preview && (
               <span
-                className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
+                className="inline-flex items-center rounded-md px-2 py-0.5 text-[13px] font-semibold"
                 style={{ background: tone.soft, color: tone.ink }}
               >
                 {typeLabel(document.type)}
@@ -179,7 +179,7 @@ export function DocumentCardView({
             {docDate && (<><span aria-hidden>·</span><span>{formatShortDate(docDate)}</span></>)}
             {restricted && (
               <span
-                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold"
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[13px] font-semibold"
                 style={{ background: C.paleBlue, color: C.blue }}
                 title={VISIBILITY_META[document.visibility].help}
               >
@@ -190,7 +190,7 @@ export function DocumentCardView({
           </div>
 
           {provenance && (
-            <div className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-[14.5px] text-muted-foreground">
               {provenance}
             </div>
           )}
@@ -201,7 +201,7 @@ export function DocumentCardView({
       <div className="flex items-center gap-2 sm:shrink-0" onClick={stop}>
         <button
           onClick={(e) => { stop(e); onPreview(); }}
-          className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-[13px] font-semibold text-white transition-all hover:brightness-110"
+          className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-[15px] font-semibold text-white transition-all hover:brightness-110"
           style={{ background: C.blue }}
           title="Voir le document"
         >
@@ -211,7 +211,7 @@ export function DocumentCardView({
           <button
             onClick={handleDownload}
             disabled={downloading}
-            className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-[13px] font-semibold transition-colors disabled:opacity-60 hover:bg-black/[0.04]"
+            className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-[15px] font-semibold transition-colors disabled:opacity-60 hover:bg-black/[0.04]"
             style={{ background: 'transparent', color: C.ink, border: `1px solid ${C.border}` }}
             title="Télécharger"
           >

@@ -10,8 +10,8 @@ export function Toc({ body }: { body: string }) {
   const activeIdx = Math.max(0, headings.findIndex((h) => h.id === active));
 
   return (
-    <nav aria-label="Sommaire" className="text-[13px]">
-      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.blue, opacity: 0.55 }}>
+    <nav aria-label="Sommaire" className="text-[15px]">
+      <p className="mb-3 text-[13px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.blue, opacity: 0.55 }}>
         Sommaire
       </p>
       <ol className="flex flex-col">

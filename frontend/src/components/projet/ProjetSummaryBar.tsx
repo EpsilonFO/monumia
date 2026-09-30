@@ -41,7 +41,7 @@ export function ProjetSummaryBar({
   // Renommage EN PLACE : le champ prend exactement la place du titre, sans
   // fenêtre par-dessus. On part de ce qui est affiché — titre saisi ou libellé
   // déduit des travaux — pour que l'on édite bien ce que l'on voit.
-  const titreAffiche = projetTitre(projet);
+  const titreAffiche = projetTitre(projet, monument.nom);
   const [edition, setEdition] = useState(false);
   const [saisie, setSaisie] = useState(titreAffiche);
   const [enregistrement, setEnregistrement] = useState(false);

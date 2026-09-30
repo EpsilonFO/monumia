@@ -80,13 +80,13 @@ export function MonumentCard({ monument, stats }: MonumentCardProps) {
         <div className="flex min-w-0 flex-col justify-center gap-3 p-5 sm:p-6">
           <div className="min-w-0">
             <h3
-              className="line-clamp-3 text-[21px] font-bold leading-snug"
+              className="line-clamp-3 text-[24px] font-bold leading-snug"
               style={{ fontFamily: SERIF, color: C.ink }}
             >
               {monument.nom}
             </h3>
             {(monument.commune || monument.departement) && (
-              <p className="mt-1 flex items-center gap-1.5 text-[13.5px]" style={{ color: C.grayFg }}>
+              <p className="mt-1 flex items-center gap-1.5 text-[15.5px]" style={{ color: C.grayFg }}>
                 <IconLocalisation className="h-4 w-4 shrink-0" strokeWidth={1.8} aria-hidden />
                 <span className="truncate">
                   {monument.commune ?? '—'}
@@ -98,7 +98,7 @@ export function MonumentCard({ monument, stats }: MonumentCardProps) {
 
           <div className="flex min-w-0 flex-col gap-2">
             <span
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium"
+              className="inline-flex items-center gap-1.5 text-[15px] font-medium"
               style={{ color: C.grayFg }}
             >
               <IconProjet className="h-4 w-4 shrink-0" aria-hidden />
@@ -108,7 +108,7 @@ export function MonumentCard({ monument, stats }: MonumentCardProps) {
             </span>
             {dossiersActifs > 0 && (
               <span
-                className="inline-flex items-center gap-1.5 text-[13px] font-medium"
+                className="inline-flex items-center gap-1.5 text-[15px] font-medium"
                 style={{ color: C.grayFg }}
               >
                 <IconDossier className="h-4 w-4 shrink-0" aria-hidden />
@@ -117,7 +117,7 @@ export function MonumentCard({ monument, stats }: MonumentCardProps) {
             )}
             {pressing && nextLabel && tone && (
               <span
-                className="inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold"
+                className="inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-[15px] font-semibold"
                 style={{ color: tone.fg, background: tone.tint }}
               >
                 <IconEcheance className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />

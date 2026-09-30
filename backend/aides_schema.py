@@ -63,6 +63,7 @@ from labels import (
     PROTECTION_LABELS,
     REGION_LABELS,
     TRAVAUX_LABELS,
+    TYPE_EDIFICE_LABELS,
 )
 from pieces_schema import load_pieces
 
@@ -456,7 +457,14 @@ class FactDef(BaseModel):
     help: str | None = None
     # Champ de donnée permettant de pré-remplir la réponse sans question
     # (ex : merimee.siecle_construction pour annee_construction).
-    auto_source: str | None = None
+    #
+    # Une LISTE depuis le 2026-09-30 : `edifice_eglise_ou_chapelle` se déduit du
+    # type d'édifice de la fiche, et à défaut de la tête de son nom. Le moteur
+    # lit toutes les sources et ne retient une valeur que si celles qui parlent
+    # sont d'accord (cf. `eligibility_engine._auto_fact_value`) : un « Château »
+    # nommé « Chapelle du château » laisse la question posée. Lire la propriété
+    # `auto_sources` plutôt que ce champ, qui a deux formes.
+    auto_source: str | list[str] | None = None
     # Fait ACTIONNABLE : une démarche permet de le rendre favorable. Les aides
     # bloquées uniquement là-dessus passent en statut « atteignable » au lieu
     # d'être refusées (cf. Levier).
@@ -581,6 +589,13 @@ class FactDef(BaseModel):
         if set(clause.predicate.root) & COMBINATOR_OPS:
             raise ValueError("`pertinent_si` attend un prédicat simple, sans combinateur")
         return self
+
+    @property
+    def auto_sources(self) -> list[str]:
+        """Les sources de `auto_source`, toujours sous forme de liste (vide si aucune)."""
+        if self.auto_source is None:
+            return []
+        return [self.auto_source] if isinstance(self.auto_source, str) else list(self.auto_source)
 
     @model_validator(mode="after")
     def _options_coherentes(self) -> FactDef:
@@ -718,6 +733,13 @@ FIELD_REGISTRY: dict[str, dict] = {
     # rien à lui seul.
     "monument.nom": {"type": "string"},
     "monument.protection": {"type": "enum", "values": frozenset(PROTECTION_LABELS)},
+    # Choix multiple sur la fiche depuis le 2026-09-30 (`ownership_type[]`),
+    # mais UNE valeur au moment d'évaluer : le moteur évalue l'aide une fois par
+    # propriétaire coché et garde le meilleur verdict
+    # (`eligibility_engine.profils_par_proprietaire`). Le champ reste donc un
+    # enum ici, et les prédicats des aides (`eq`, `in`, `neq`, `not_in`) restent
+    # écrits sur une valeur. Le passer en `list` n'admettrait plus que
+    # `contains`, et obligerait à réécrire 125 conditions.
     "monument.proprietaire": {"type": "enum", "values": frozenset(OWNERSHIP_LABELS)},
     "monument.etat_conservation": {"type": "enum", "values": frozenset(ETAT_LABELS)},
     "monument.region": {"type": "enum", "values": frozenset(REGION_LABELS)},
@@ -727,6 +749,18 @@ FIELD_REGISTRY: dict[str, dict] = {
     # `annee_construction`, converti en intervalle d'années par le moteur
     # (cf. eligibility_engine._annee_depuis_siecle).
     "monument.siecle_construction": {"type": "string"},
+    # Natures du bien, saisies sur la fiche (2026-09-30), en CHOIX MULTIPLE : un
+    # domaine réunit château, chapelle, pigeonnier. Sert d'auto_source aux
+    # faits constatifs de typologie (est-ce une église ? un monument aux
+    # morts ?), convertie fait par fait, à l'unanimité des types cochés, par
+    # `DEDUCTIONS_TYPE_EDIFICE`. Une aide peut la citer en `kind: auto`
+    # (`contains`), mais le fait reste la voie normale : la réponse de
+    # l'utilisateur ne prime que sur un fait.
+    "monument.type_edifice": {"type": "list", "values": frozenset(TYPE_EDIFICE_LABELS)},
+    # Précisions de la fiche pour certains types (cf. labels.TYPES_AVEC_*) :
+    # `build_context` les rend None hors de ces types.
+    "monument.affecte_au_culte": {"type": "boolean"},
+    "monument.architecture_romane": {"type": "boolean"},
     "commune.population": {"type": "integer"},
     "commune.programmes": {"type": "list"},
     "commune.eligible_detr": {"type": "boolean"},

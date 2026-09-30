@@ -116,7 +116,7 @@ export function LoginPage() {
         <button
           type="button"
           onClick={() => setEmailAConfirmer(null)}
-          className="flex items-center gap-1.5 text-[13.5px] font-medium transition-opacity hover:opacity-70"
+          className="flex items-center gap-1.5 text-[15.5px] font-medium transition-opacity hover:opacity-70"
           style={{ color: MUTED }}
         >
           <ArrowLeft className="h-4 w-4" />
@@ -150,7 +150,7 @@ export function LoginPage() {
             <>Créer un <span style={{ color: C.blue }}>compte</span></>
           )}
         </h1>
-        <p className="text-[14px]" style={{ color: MUTED }}>
+        <p className="text-[16px]" style={{ color: MUTED }}>
           {reprise
             ? 'Créez votre compte gratuit — ou connectez-vous si vous en avez déjà un : votre diagnostic s’ouvre juste après.'
             : tab === 'login'
@@ -165,7 +165,7 @@ export function LoginPage() {
           <button
             key={t}
             onClick={() => { setTab(t); setEmailAConfirmer(null); }}
-            className="flex-1 rounded-lg py-2 text-[13.5px] font-semibold transition-all duration-200"
+            className="flex-1 rounded-lg py-2 text-[15.5px] font-semibold transition-all duration-200"
             style={{
               background: tab === t ? C.blue : 'transparent',
               color: tab === t ? 'white' : C.blue,
@@ -194,7 +194,7 @@ export function LoginPage() {
           </div>
           <div className="flex items-center gap-3" aria-hidden="true">
             <span className="h-px flex-1" style={{ background: 'var(--border)' }} />
-            <span className="text-[13px] whitespace-nowrap" style={{ color: MUTED }}>
+            <span className="text-[15px] whitespace-nowrap" style={{ color: MUTED }}>
               ou avec votre adresse email
             </span>
             <span className="h-px flex-1" style={{ background: 'var(--border)' }} />
@@ -206,7 +206,7 @@ export function LoginPage() {
       {tab === 'login' && (
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="login-email" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Email</Label>
+            <Label htmlFor="login-email" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Email</Label>
             <Input
               id="login-email"
               type="email"
@@ -219,7 +219,7 @@ export function LoginPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="login-password" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Mot de passe</Label>
+            <Label htmlFor="login-password" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Mot de passe</Label>
             <div className="relative">
               <Input
                 id="login-password"
@@ -245,7 +245,7 @@ export function LoginPage() {
             <button
               type="button"
               onClick={() => { setForgotEmail(loginForm.email); setForgotState('idle'); setTab('forgot'); }}
-              className="text-[13px] font-medium underline underline-offset-2"
+              className="text-[15px] font-medium underline underline-offset-2"
               style={{ color: C.blue }}
             >
               Mot de passe oublié ?
@@ -254,7 +254,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={loginLoading}
-            className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
+            className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg text-[16px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
             style={{ background: C.orange }}
           >
             {loginLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
@@ -290,12 +290,12 @@ export function LoginPage() {
       {tab === 'forgot' && (
         forgotState === 'sent' ? (
           <div className="space-y-4">
-            <div className="rounded-xl p-4 text-[14px]" style={{ background: C.paleBlue, color: C.ink }}>
+            <div className="rounded-xl p-4 text-[16px]" style={{ background: C.paleBlue, color: C.ink }}>
               Si un compte existe pour <span className="font-semibold">{forgotEmail || 'cette adresse'}</span>, un email vient d'être envoyé avec un lien pour choisir un nouveau mot de passe. Pensez à vérifier vos courriers indésirables.
             </div>
             <button
               onClick={() => setTab('login')}
-              className="flex h-11 w-full items-center justify-center rounded-lg text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
+              className="flex h-11 w-full items-center justify-center rounded-lg text-[16px] font-semibold text-white transition-opacity hover:opacity-90"
               style={{ background: C.orange }}
             >
               Retour à la connexion
@@ -303,11 +303,11 @@ export function LoginPage() {
           </div>
         ) : (
           <form onSubmit={handleForgot} className="space-y-4">
-            <p className="text-[14px]" style={{ color: MUTED }}>
+            <p className="text-[16px]" style={{ color: MUTED }}>
               Indiquez votre email : nous vous enverrons un lien pour choisir un nouveau mot de passe. Rien à retenir.
             </p>
             <div className="space-y-1.5">
-              <Label htmlFor="forgot-email" className="text-[13.5px] font-medium" style={{ color: C.ink }}>Email</Label>
+              <Label htmlFor="forgot-email" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Email</Label>
               <Input
                 id="forgot-email"
                 type="email"
@@ -322,12 +322,12 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={forgotState === 'sending' || !forgotEmail}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg text-[16px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               style={{ background: C.orange }}
             >
               {forgotState === 'sending' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Recevoir le lien'}
             </button>
-            <p className="text-center text-[13px]" style={{ color: MUTED }}>
+            <p className="text-center text-[15px]" style={{ color: MUTED }}>
               <button type="button" onClick={() => setTab('login')} className="font-semibold underline underline-offset-2" style={{ color: C.orange }}>
                 Retour à la connexion
               </button>
@@ -337,7 +337,7 @@ export function LoginPage() {
       )}
 
       {/* footer note */}
-      <p className="text-center text-[13px]" style={{ color: LIGHT }}>
+      <p className="text-center text-[15px]" style={{ color: LIGHT }}>
         {tab === 'login' ? (
           <>
             Pas encore de compte ?{' '}

@@ -34,12 +34,12 @@ export function OffreUpsell({ action, offre, monumentId }: OffreUpsellProps) {
     >
       {/* Pas de cadenas : le bandeau annonce ce qui s'ouvre, pas ce qui est
           fermé. Sa flèche est portée une seule fois, par le bouton. */}
-      <p className="text-[13.5px] leading-relaxed" style={{ color: C.grayFg }}>
+      <p className="text-[15.5px] leading-relaxed" style={{ color: C.grayFg }}>
         {`L'offre ${offre} permet de ${action}.`}
       </p>
       <Link
         to={ROUTES.TARIFS(monumentId)}
-        className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[13.5px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
+        className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[15.5px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
         style={{ background: C.orange }}
       >
         {`Découvrir l'offre ${offre}`}

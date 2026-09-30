@@ -46,30 +46,30 @@ export function ArticleCard({ article }: { article: BlogArticle }) {
         <div className="flex flex-wrap items-center gap-2.5">
           {category && <CategoryBadge category={category} />}
           {article.publishedAt && (
-            <span className="text-[11px] font-medium" style={{ color: C.grayMuted }}>
+            <span className="text-[13px] font-medium" style={{ color: C.grayMuted }}>
               {formatDate(article.publishedAt)}
             </span>
           )}
         </div>
         <h3
-          className="mt-3 text-[19px] font-normal leading-snug"
+          className="mt-3 text-[22px] font-normal leading-snug"
           style={{ fontFamily: 'var(--font-serif)', color: C.ink }}
         >
           {article.title}
         </h3>
-        <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed" style={{ color: C.grayFg }}>
+        <p className="mt-2 line-clamp-2 text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
           {article.excerpt}
         </p>
         <div className="mt-auto flex items-center gap-3 pt-4">
           <span
-            className="text-[13px] font-semibold group-hover:underline"
+            className="text-[15px] font-semibold group-hover:underline"
             style={{ color: C.orange }}
           >
             Lire l’article →
           </span>
           {article.readingTimeMin && (
             <span
-              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-medium"
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[13px] font-medium"
               style={{ color: C.grayMuted }}
             >
               <IconTemps className="h-3.5 w-3.5" /> {article.readingTimeMin} min

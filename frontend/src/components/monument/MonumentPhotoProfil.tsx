@@ -220,7 +220,7 @@ export function MonumentPhotoProfil({
           type="button"
           onClick={choisir}
           disabled={busy}
-          className="inline-flex items-center gap-1 text-[11px] font-medium transition-colors hover:underline disabled:cursor-wait"
+          className="inline-flex items-center gap-1 text-[13px] font-medium transition-colors hover:underline disabled:cursor-wait"
           style={{ color: C.grayMuted }}
         >
           <IconModifier className="h-3 w-3" strokeWidth={2} aria-hidden />

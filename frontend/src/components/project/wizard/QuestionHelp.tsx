@@ -32,7 +32,7 @@ export function QuestionHelp({ text, compact }: { text: string; compact?: boolea
         <p
           className={cn(
             'leading-relaxed',
-            compact ? 'text-[13px]' : 'text-[14px]',
+            compact ? 'text-[15px]' : 'text-[16px]',
             !open && long && 'line-clamp-3',
           )}
           style={{ color: C.grayFg }}
@@ -43,7 +43,7 @@ export function QuestionHelp({ text, compact }: { text: string; compact?: boolea
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
-            className="mt-1 text-[13px] font-semibold underline-offset-2 hover:underline"
+            className="mt-1 text-[15px] font-semibold underline-offset-2 hover:underline"
             style={{ color: C.blue }}
           >
             {open ? 'Réduire' : 'Lire la suite'}

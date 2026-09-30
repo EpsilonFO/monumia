@@ -76,7 +76,7 @@ const MONUMENT: MonumentInput = {
   commune: 'Rouen',
   codeInsee: '76540',
   protection: 'classe',
-  proprietaire: 'prive_personne_physique',
+  proprietaire: ['prive_personne_physique'],
   etatConservation: 'peril',
 };
 

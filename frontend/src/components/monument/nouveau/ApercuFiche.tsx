@@ -2,9 +2,10 @@ import { Loader2 } from 'lucide-react';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { ETAT_LABELS } from '@/constants/monument-options';
 import {
-  GROUPES_PROPRIETAIRE,
   GROUPES_PROTECTION,
   libelleChoix,
+  libellesProprietaires,
+  libellesTypesEdifice,
   phraseManquants,
   pourcentageRempli,
   type FicheMonument,
@@ -30,6 +31,7 @@ export function ApercuFiche({ fiche, saving, onValider }: ApercuFicheProps) {
   const commune = fiche.commune?.trim();
 
   const lignes: { titre: string; valeur: React.ReactNode }[] = [
+    { titre: 'Type', valeur: libellesTypesEdifice(fiche).join(', ') || null },
     { titre: 'Construit au', valeur: fiche.siecleConstruction?.trim() || null },
     { titre: 'État', valeur: fiche.etatConservation ? ETAT_LABELS[fiche.etatConservation] : null },
     {
@@ -40,8 +42,8 @@ export function ApercuFiche({ fiche, saving, onValider }: ApercuFicheProps) {
     },
     {
       titre: 'Propriétaire',
-      valeur: fiche.proprietaire ? (
-        <span className="pl">{libelleChoix(GROUPES_PROPRIETAIRE, fiche.proprietaire)}</span>
+      valeur: libellesProprietaires(fiche).length ? (
+        <span className="pl">{libellesProprietaires(fiche).join(', ')}</span>
       ) : null,
     },
   ];

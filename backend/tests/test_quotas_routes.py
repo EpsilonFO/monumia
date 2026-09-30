@@ -142,7 +142,7 @@ def _refus(test: unittest.TestCase, fn, *args, **kwargs) -> HTTPException:
 
 class CreationMonumentTest(unittest.TestCase):
     BODY = monuments_router.CreateMonumentRequest(
-        nom="Chapelle", commune="Rouen", protection="classe", proprietaire="prive_particulier"
+        nom="Chapelle", commune="Rouen", protection="classe", proprietaire="prive_personne_physique"
     )
 
     def test_second_monument_refuse_au_gratuit_et_rien_ecrit(self):

@@ -59,7 +59,7 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
         />
         <input
           type="search"
-          className="h-14 w-full rounded-2xl border pl-12 pr-4 text-[16px] outline-none transition-shadow placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+          className="h-14 w-full rounded-2xl border pl-12 pr-4 text-[18px] outline-none transition-shadow placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
           style={{ borderColor: C.border, background: C.card, boxShadow: 'var(--shadow-card)', color: C.ink }}
           placeholder="Nom du monument, commune ou référence…"
           value={query}
@@ -74,7 +74,7 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
       )}
 
       {query.length >= 2 && !loading && results.length === 0 && (
-        <p className="py-4 text-center text-[14px]" style={{ color: C.grayMuted }}>
+        <p className="py-4 text-center text-[16px]" style={{ color: C.grayMuted }}>
           Aucun résultat pour «&nbsp;{query}&nbsp;». Vous pourrez décrire votre monument
           vous-même juste en dessous.
         </p>
@@ -97,13 +97,13 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p
-                        className="text-[16px] leading-snug"
+                        className="text-[18px] leading-snug"
                         style={{ fontFamily: SERIF, color: C.ink }}
                       >
                         {record.titre_editorial_de_la_notice}
                       </p>
                       <p
-                        className="mt-1.5 flex items-center gap-1.5 text-[13px]"
+                        className="mt-1.5 flex items-center gap-1.5 text-[15px]"
                         style={{ color: C.grayFg }}
                       >
                         <IconLocalisation className="h-3.5 w-3.5 shrink-0" />
@@ -114,14 +114,14 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
                         </span>
                       </p>
                       <span
-                        className="mt-2 inline-flex rounded-full px-2.5 py-0.5 text-[12px] font-semibold"
+                        className="mt-2 inline-flex rounded-full px-2.5 py-0.5 text-[14px] font-semibold"
                         style={{ background: tone.bg, color: tone.fg }}
                       >
                         {tone.label}
                       </span>
                     </div>
                     <span
-                      className="shrink-0 rounded-md border px-1.5 py-0.5 font-mono text-[11px]"
+                      className="shrink-0 rounded-md border px-1.5 py-0.5 font-mono text-[13px]"
                       style={{ borderColor: C.border, color: C.grayMuted }}
                     >
                       {record.reference}

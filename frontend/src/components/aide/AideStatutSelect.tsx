@@ -54,7 +54,7 @@ export function AideStatutSelect({ projetId, aideId, suivi }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-3 text-[13px]">
+    <div className="flex flex-col gap-3 text-[15px]">
       <div className="flex items-center gap-2.5 flex-wrap">
         <span className="font-semibold" style={{ color: C.ink }}>
           Avancement&nbsp;:
@@ -64,7 +64,7 @@ export function AideStatutSelect({ projetId, aideId, suivi }: Props) {
             value={statut}
             disabled={saving}
             onChange={(e) => save({ statut: e.target.value as AideSuiviStatut })}
-            className={`appearance-none rounded-lg pl-4 pr-10 py-2 text-[14px] font-semibold border cursor-pointer shadow-sm transition-shadow hover:shadow focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-60 ${AIDE_STATUT_STYLES[statut]}`}
+            className={`appearance-none rounded-lg pl-4 pr-10 py-2 text-[16px] font-semibold border cursor-pointer shadow-sm transition-shadow hover:shadow focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-60 ${AIDE_STATUT_STYLES[statut]}`}
           >
             {AIDE_SUIVI_STATUTS.map((s) => (
               <option key={s} value={s}>

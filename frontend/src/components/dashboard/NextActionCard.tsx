@@ -40,10 +40,10 @@ export function NextActionCard({ deadlines, upcoming }: NextActionCardProps) {
       >
         <AllClear />
         <div>
-          <p className="text-[15px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
+          <p className="text-[17px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
             Tout est à jour
           </p>
-          <p className="text-[13px]" style={{ color: C.grayMuted }}>
+          <p className="text-[15px]" style={{ color: C.grayMuted }}>
             Aucune échéance ne réclame votre attention pour le moment.
           </p>
         </div>
@@ -84,26 +84,26 @@ function MainAction({ deadlines }: { deadlines: ProjectDeadline[] }) {
         style={{ background: tone.tint, color: tone.fg }}
         aria-hidden
       >
-        <span className="text-[22px] font-bold leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)' }}>
+        <span className="text-[25px] font-bold leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)' }}>
           {format(date, 'd')}
         </span>
-        <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em]">{month}</span>
+        <span className="mt-1 text-[12px] font-semibold uppercase tracking-[0.12em]">{month}</span>
       </span>
       <div className="min-w-0 flex-1">
-        <p className="inline-flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.18em]" style={{ color: tone.fg }}>
-          <span aria-hidden style={{ width: 18, height: 2, borderRadius: 2, background: tone.node }} />
+        <p className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.18em]" style={{ color: tone.fg }}>
+          <span aria-hidden style={{ width: 20.5, height: 2, borderRadius: 2, background: tone.node }} />
           À faire maintenant · {text}
         </p>
-        <p className="mt-1 truncate text-[17px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
+        <p className="mt-1 truncate text-[19px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
           {first.label}
         </p>
-        <p className="text-[12.5px]" style={{ color: C.grayMuted }}>
+        <p className="text-[14.5px]" style={{ color: C.grayMuted }}>
           {first.source === 'aide' ? 'Demande d’aide' : 'Dossier'}
           {rest.length > 0 ? ` · et ${rest.length} autre${rest.length > 1 ? 's' : ''} ce jour-là` : ''}
         </p>
       </div>
       <span
-        className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-xl px-4 py-2.5 text-[13px] font-semibold text-white sm:self-center"
+        className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-xl px-4 py-2.5 text-[15px] font-semibold text-white sm:self-center"
         style={{ background: C.orange }}
       >
         Je m'en occupe
@@ -124,7 +124,7 @@ function UpcomingList({ rows, standalone }: { rows: FeedRow[]; standalone: boole
       className="px-6 pb-4 pt-4"
       style={standalone ? undefined : { borderTop: `1px dashed ${C.border}` }}
     >
-      <h3 className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.grayMuted }}>
+      <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.grayMuted }}>
         {standalone ? 'À noter' : 'Ensuite'}
       </h3>
       <ul>
@@ -133,15 +133,15 @@ function UpcomingList({ rows, standalone }: { rows: FeedRow[]; standalone: boole
           const inner = (
             <div className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-muted/60">
               <span
-                className="inline-flex min-w-16 shrink-0 justify-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums"
+                className="inline-flex min-w-16 shrink-0 justify-center whitespace-nowrap rounded-full px-2 py-0.5 text-[13px] font-semibold tabular-nums"
                 style={{ background: accent.tint, color: accent.fg }}
               >
                 {row.badge}
               </span>
-              <p className="min-w-0 flex-1 truncate text-[13px] font-medium" style={{ color: C.ink }}>
+              <p className="min-w-0 flex-1 truncate text-[15px] font-medium" style={{ color: C.ink }}>
                 {row.label}
               </p>
-              <span className="hidden shrink-0 text-[11.5px] sm:inline" style={{ color: C.grayMuted }}>
+              <span className="hidden shrink-0 text-[13.5px] sm:inline" style={{ color: C.grayMuted }}>
                 {row.sub}
               </span>
               {row.to && (
@@ -160,7 +160,7 @@ function UpcomingList({ rows, standalone }: { rows: FeedRow[]; standalone: boole
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-1 px-2 text-[12px] font-semibold transition-opacity hover:opacity-70"
+          className="mt-1 px-2 text-[14px] font-semibold transition-opacity hover:opacity-70"
           style={{ color: C.blue }}
         >
           {expanded ? 'Réduire' : `+ ${hidden} autre${hidden > 1 ? 's' : ''}`}

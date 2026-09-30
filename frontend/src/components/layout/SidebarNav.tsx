@@ -34,10 +34,10 @@ export function SidebarNav({ brand, sections, account, onNavigate }: SidebarNavP
           ? <img src={brand.logoSrc} alt="" className="h-8 w-8" aria-hidden />
           : <LogoMonumia className="h-8 w-8" />}
         <div className="leading-tight">
-          <span className="block text-[18px] font-bold tracking-[-0.01em]" style={{ fontFamily: SERIF, color: C.ink }}>
+          <span className="block text-[20.5px] font-bold tracking-[-0.01em]" style={{ fontFamily: SERIF, color: C.ink }}>
             {brand.name}
           </span>
-          <span className="block text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: C.orange }}>
+          <span className="block text-[12px] font-bold uppercase tracking-[0.15em]" style={{ color: C.orange }}>
             {brand.tagline}
           </span>
         </div>
@@ -49,7 +49,7 @@ export function SidebarNav({ brand, sections, account, onNavigate }: SidebarNavP
           <div key={section.title ?? si} className={si > 0 ? 'mt-5' : ''}>
             {section.title && (
               <p
-                className="px-3 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.16em]"
+                className="px-3 pb-1.5 text-[12px] font-semibold uppercase tracking-[0.16em]"
                 style={{ color: C.grayMuted }}
               >
                 {section.title}
@@ -64,7 +64,7 @@ export function SidebarNav({ brand, sections, account, onNavigate }: SidebarNavP
                     to={item.to}
                     end={item.end}
                     onClick={onNavigate}
-                    className="group relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="group relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-[16px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     style={({ isActive }) => ({
                       background: isActive ? C.paleBlue : 'transparent',
                       color: isActive ? C.blue : C.grayFg,

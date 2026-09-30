@@ -30,6 +30,31 @@ export const FAMILLES_TYPES: FamilleTypes[] = [
 /** Tous les types, dans l'ordre des familles. */
 export const TYPES_DOCUMENT: DocumentType[] = FAMILLES_TYPES.flatMap((f) => f.types);
 
+/**
+ * Les dossiers de « Mes documents » : un par type, dans l'ordre de la maquette
+ * `monumia-documents.html` (les douze types d'origine, les six du 2026-09-28,
+ * « Autres » en dernier). Un dossier N'EST QU'UN type : on ne crée pas de
+ * dossier libre, la base n'en a pas la notion.
+ */
+export const TYPES_DOSSIERS: DocumentType[] = [
+  'photo', 'plan', 'devis', 'facture', 'attestation', 'extrait_cadastral', 'cerfa', 'arrete',
+  'diagnostic', 'rapport', 'correspondance', 'autorisation_urbanisme', 'rib', 'titre_propriete',
+  'deliberation', 'statuts', 'plan_financement', 'autre',
+];
+
+const DOSSIERS: Record<DocumentType, string> = {
+  photo: 'Photos', plan: 'Plans', devis: 'Devis', facture: 'Factures', attestation: 'Attestations',
+  extrait_cadastral: 'Extraits cadastraux', cerfa: 'CERFA', arrete: 'Arrêtés', diagnostic: 'Diagnostics',
+  rapport: 'Rapports', correspondance: 'Correspondance', autorisation_urbanisme: "Autorisations d'urbanisme",
+  rib: 'RIB', titre_propriete: 'Titres de propriété', deliberation: 'Délibérations', statuts: 'Statuts',
+  plan_financement: 'Plans de financement', autre: 'Autres',
+};
+
+/** Le nom du dossier d'un type, au pluriel (« Photos », « Titres de propriété »). */
+export function dossierLabel(type: DocumentType): string {
+  return DOSSIERS[type] ?? typeLabel(type);
+}
+
 const LABELS: Record<DocumentType, string> = {
   photo: 'Photo', plan: 'Plan', devis: 'Devis', facture: 'Facture',
   attestation: 'Attestation', extrait_cadastral: 'Extrait cadastral', cerfa: 'CERFA',

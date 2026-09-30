@@ -26,7 +26,7 @@ type Mode = 'choice' | 'signup' | 'login' | 'oauth';
 
 const MUTED = 'var(--muted-foreground)';
 const LIGHT = 'var(--muted-foreground)';
-const INPUT_CLS = 'h-12 text-[15px] bg-card border-border focus:border-primary focus:ring-primary/10';
+const INPUT_CLS = 'h-12 text-[17px] bg-card border-border focus:border-primary focus:ring-primary/10';
 
 // Pages légales, servies par la landing (monumia.fr).
 const CGU_URL = 'https://monumia.fr/cgu';
@@ -39,7 +39,7 @@ function CguConsent({ checked, onChange }: { checked: boolean; onChange: (v: boo
   return (
     <label className="flex cursor-pointer items-start gap-2.5">
       <Checkbox checked={checked} onCheckedChange={(v) => onChange(v === true)} className="mt-[3px]" />
-      <span className="text-[13px] leading-[1.55]" style={{ color: MUTED }}>
+      <span className="text-[15px] leading-[1.55]" style={{ color: MUTED }}>
         J'ai lu et j'accepte les{' '}
         <a href={CGU_URL} target="_blank" rel="noopener noreferrer" className={linkCls} style={{ color: C.blue }}>
           conditions générales d'utilisation
@@ -231,7 +231,7 @@ export function InvitationLandingPage() {
           intention={{ invitation: token }}
           variante={emailAConfirmer.variante}
         >
-          <p className="text-center text-[13px] leading-[1.6]" style={{ color: C.grayMuted }}>
+          <p className="text-center text-[15px] leading-[1.6]" style={{ color: C.grayMuted }}>
             L&rsquo;invitation reste valable : le lien vous ramènera ici, et il n&rsquo;y aura plus
             qu&rsquo;à rejoindre {preview ? `« ${preview.monumentNom} »` : 'le monument'}.
           </p>
@@ -243,8 +243,8 @@ export function InvitationLandingPage() {
     return (
       <AuthLayout panelEyebrow="Invitation">
         <Heading>Invitation introuvable</Heading>
-        <p className="text-[15px]" style={{ color: C.danger }}>{error}</p>
-        <p className="text-[14px]" style={{ color: LIGHT }}>
+        <p className="text-[17px]" style={{ color: C.danger }}>{error}</p>
+        <p className="text-[16px]" style={{ color: LIGHT }}>
           Demandez un nouveau lien à la personne qui vous a invité.
         </p>
       </AuthLayout>
@@ -263,8 +263,8 @@ export function InvitationLandingPage() {
     return (
       <AuthLayout panelEyebrow="Invitation">
         <Heading>Invitation expirée</Heading>
-        <p className="text-[15px]" style={{ color: C.danger }}>Cette invitation n'est plus valide.</p>
-        <p className="text-[14px]" style={{ color: LIGHT }}>
+        <p className="text-[17px]" style={{ color: C.danger }}>Cette invitation n'est plus valide.</p>
+        <p className="text-[16px]" style={{ color: LIGHT }}>
           Elle a peut-être déjà été utilisée, annulée ou expirée. Demandez un nouveau lien à la
           personne qui vous a invité.
         </p>
@@ -290,19 +290,19 @@ export function InvitationLandingPage() {
     <AuthLayout panelEyebrow="Invitation à collaborer" panelHeadline={panelHeadline} panelDescription={panelDescription}>
       {/* contexte (visible aussi sur mobile, où le panneau bleu est masqué) */}
       <div className="space-y-3">
-        <p className="text-[15px]" style={{ color: MUTED }}>
+        <p className="text-[17px]" style={{ color: MUTED }}>
           <strong style={{ color: C.ink }}>{preview.inviterNom}</strong> vous invite à collaborer sur
         </p>
-        <h1 className="text-[26px] leading-[1.15]" style={{ fontFamily: SERIF, color: C.ink }}>
+        <h1 className="text-[30px] leading-[1.15]" style={{ fontFamily: SERIF, color: C.ink }}>
           «&nbsp;{preview.monumentNom}&nbsp;»
         </h1>
         {preview.projetTitre && (
-          <p className="text-[14px]" style={{ color: MUTED }}>
+          <p className="text-[16px]" style={{ color: MUTED }}>
             Sur le projet de travaux{' '}
             <strong style={{ color: C.orange }}>{preview.projetTitre}</strong>, et lui seul.
           </p>
         )}
-        <p className="text-[14px]" style={{ color: LIGHT }}>
+        <p className="text-[16px]" style={{ color: LIGHT }}>
           Vous rejoignez en tant que <strong style={{ color: C.blue }}>collaborateur</strong>.
         </p>
       </div>
@@ -317,7 +317,7 @@ export function InvitationLandingPage() {
       ) : mode === 'oauth' ? (
         <div className="flex flex-col gap-4">
           <div
-            className="flex items-start gap-2.5 rounded-xl p-4 text-[14px] leading-[1.55]"
+            className="flex items-start gap-2.5 rounded-xl p-4 text-[16px] leading-[1.55]"
             style={{ background: 'var(--secondary)', color: C.ink }}
           >
             <Check className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: SUCCESS }} />
@@ -357,7 +357,7 @@ export function InvitationLandingPage() {
           />
           <div className="flex items-center gap-3" aria-hidden="true">
             <span className="h-px flex-1" style={{ background: C.border }} />
-            <span className="text-[13px] whitespace-nowrap" style={{ color: LIGHT }}>
+            <span className="text-[15px] whitespace-nowrap" style={{ color: LIGHT }}>
               ou avec votre adresse email
             </span>
             <span className="h-px flex-1" style={{ background: C.border }} />
@@ -380,7 +380,7 @@ export function InvitationLandingPage() {
                 {PASSWORD_RULES.map(({ key, label }) => {
                   const ok = passwordChecks(form.password)[key];
                   return (
-                    <div key={key} className="flex items-center gap-1.5 text-[12px]" style={{ color: ok ? SUCCESS : LIGHT }}>
+                    <div key={key} className="flex items-center gap-1.5 text-[14px]" style={{ color: ok ? SUCCESS : LIGHT }}>
                       {ok ? <Check className="h-3 w-3 flex-shrink-0" /> : <X className="h-3 w-3 flex-shrink-0" />}
                       {label}
                     </div>
@@ -412,14 +412,14 @@ export function InvitationLandingPage() {
         </div>
       )}
 
-      <p className="text-[12px]" style={{ color: LIGHT }}>Invitation valable jusqu'au {expires}.</p>
+      <p className="text-[14px]" style={{ color: LIGHT }}>Invitation valable jusqu'au {expires}.</p>
     </AuthLayout>
   );
 }
 
 function Heading({ children }: { children: React.ReactNode }) {
   return (
-    <h1 className="text-[26px] leading-[1.15]" style={{ fontFamily: SERIF, color: C.ink }}>
+    <h1 className="text-[30px] leading-[1.15]" style={{ fontFamily: SERIF, color: C.ink }}>
       {children}
     </h1>
   );
@@ -428,7 +428,7 @@ function Heading({ children }: { children: React.ReactNode }) {
 function FormField({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={htmlFor} className="text-[14px] font-medium" style={{ color: C.ink }}>{label}</Label>
+      <Label htmlFor={htmlFor} className="text-[16px] font-medium" style={{ color: C.ink }}>{label}</Label>
       {children}
     </div>
   );
@@ -440,7 +440,7 @@ function PrimaryButton({ onClick, busy, children }: { onClick: () => void; busy?
       type="button"
       onClick={onClick}
       disabled={busy}
-      className="group flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
+      className="group flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[16px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
       style={{ background: C.orange }}
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : (
@@ -458,7 +458,7 @@ function SecondaryButton({ onClick, children }: { onClick: () => void; children:
     <button
       type="button"
       onClick={onClick}
-      className="h-12 w-full rounded-lg border text-[14px] font-medium transition-colors hover:bg-card"
+      className="h-12 w-full rounded-lg border text-[16px] font-medium transition-colors hover:bg-card"
       style={{ borderColor: C.border, color: C.blue }}
     >
       {children}
@@ -468,7 +468,7 @@ function SecondaryButton({ onClick, children }: { onClick: () => void; children:
 
 function BackLink({ onClick }: { onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="self-center text-[13px] underline underline-offset-2" style={{ color: C.orange }}>
+    <button type="button" onClick={onClick} className="self-center text-[15px] underline underline-offset-2" style={{ color: C.orange }}>
       Retour
     </button>
   );

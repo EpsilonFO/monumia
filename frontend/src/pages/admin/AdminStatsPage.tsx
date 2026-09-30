@@ -115,11 +115,11 @@ function EnTete<T>({
 function Vignette({ valeur, libelle, note }: { valeur: number; libelle: string; note?: string }) {
   return (
     <div className="rounded-xl border border-border bg-card px-4 py-3">
-      <p className="text-[26px] leading-none tabular-nums" style={{ fontFamily: SERIF }}>
+      <p className="text-[30px] leading-none tabular-nums" style={{ fontFamily: SERIF }}>
         {valeur}
       </p>
-      <p className="mt-1.5 text-[13px] font-medium text-foreground">{libelle}</p>
-      {note && <p className="text-[12px] text-muted-foreground">{note}</p>}
+      <p className="mt-1.5 text-[15px] font-medium text-foreground">{libelle}</p>
+      {note && <p className="text-[14px] text-muted-foreground">{note}</p>}
     </div>
   );
 }
@@ -135,7 +135,7 @@ function Vignette({ valeur, libelle, note }: { valeur: number; libelle: string; 
  *  implémentation : les dépliants et les deux onglets de liste s'en servent. */
 function ListeAides({ slugs, aides }: { slugs: string[]; aides: Record<string, string> }) {
   return (
-    <ul className="space-y-1 text-[13px] leading-snug text-foreground">
+    <ul className="space-y-1 text-[15px] leading-snug text-foreground">
       {slugs.map((slug) => {
         const nom = aides[slug];
         // Un slug sans nom ne peut venir que d'une réponse tronquée : on saute
@@ -150,7 +150,7 @@ function ListeAides({ slugs, aides }: { slugs: string[]; aides: Record<string, s
 /** La ligne de chiffrage d'un groupe : ce qui reste des colonnes d'argent. */
 function Chiffrage({ groupe }: { groupe: GroupeStats }) {
   return (
-    <p className="text-[12.5px] text-muted-foreground">
+    <p className="text-[14.5px] text-muted-foreground">
       Taux : <span className="text-foreground">{formaterTaux(groupe)}</span> · Plafond médian :{' '}
       <span className="text-foreground">{formaterMontant(groupe.montantMedian)}</span> · chiffrées :{' '}
       {formaterCouverture(groupe.nbAvecMontant, groupe.nb)}
@@ -171,7 +171,7 @@ function Depliant({
     <TableRow className="hover:bg-transparent">
       <TableCell colSpan={colonnes} className="bg-secondary/40 px-4 py-3">
         {groupe.nb === 0 ? (
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-[15px] text-muted-foreground">
             Aucune aide de cette collectivité dans le catalogue.
           </p>
         ) : (
@@ -216,7 +216,7 @@ function TableauTerritoires({
 
   if (visibles.length === 0) {
     return (
-      <p className="px-4 py-8 text-center text-[14px] text-muted-foreground">
+      <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">
         Aucun territoire ne correspond à votre recherche.
       </p>
     );
@@ -251,14 +251,14 @@ function TableauTerritoires({
                   {ouvert === ligne.code ? '▾' : '▸'}
                 </span>
                 {avecRegion && (
-                  <span className="mr-2 font-mono text-[11.5px] text-muted-foreground">
+                  <span className="mr-2 font-mono text-[13.5px] text-muted-foreground">
                     {ligne.code}
                   </span>
                 )}
                 {ligne.label}
               </TableCell>
               {avecRegion && (
-                <TableCell className="text-[13px] text-muted-foreground whitespace-nowrap">
+                <TableCell className="text-[15px] text-muted-foreground whitespace-nowrap">
                   {ligne.regionLabel}
                 </TableCell>
               )}
@@ -296,7 +296,7 @@ function TableauNature({
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <p className="border-b border-border px-4 py-3 text-[14px] font-semibold text-foreground">
+      <p className="border-b border-border px-4 py-3 text-[16px] font-semibold text-foreground">
         {titre}
       </p>
       <Table>
@@ -353,7 +353,7 @@ function Synchronisation({ stats }: { stats: StatistiquesCatalogue }) {
       style={{ borderColor: C.danger, background: C.paleDanger }}
     >
       <IconAttention className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: C.danger }} />
-      <div className="text-[13.5px]">
+      <div className="text-[15.5px]">
         <p className="font-semibold text-foreground">
           {sync.nbManquantes} aide{sync.nbManquantes > 1 ? 's' : ''} absente
           {sync.nbManquantes > 1 ? 's' : ''} de la base
@@ -362,7 +362,7 @@ function Synchronisation({ stats }: { stats: StatistiquesCatalogue }) {
           Le diagnostic les propose, mais la création de dossier répondra « Aide introuvable ».
           Relancer <code className="font-mono">scripts/load_aides_yaml.py</code> pour les pousser.
         </p>
-        <p className="mt-1 font-mono text-[11.5px] text-muted-foreground">
+        <p className="mt-1 font-mono text-[13.5px] text-muted-foreground">
           {sync.manquantes.join(', ')}
           {sync.nbManquantes > sync.manquantes.length && '…'}
         </p>
@@ -441,14 +441,14 @@ export function AdminStatsPage() {
         action={
           <div className="flex items-center gap-3">
             {stats && (
-              <span className="text-[12.5px] text-muted-foreground">
+              <span className="text-[14.5px] text-muted-foreground">
                 à jour à {formaterHeure(stats.genereLe)}
               </span>
             )}
             <button
               type="button"
               onClick={() => void charger(false)}
-              className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[14px] font-medium transition-colors hover:bg-[var(--secondary)]"
+              className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[16px] font-medium transition-colors hover:bg-[var(--secondary)]"
               style={{ borderColor: C.border, color: C.blue }}
             >
               <IconRafraichir className="h-4 w-4" />
@@ -458,14 +458,14 @@ export function AdminStatsPage() {
         }
       />
 
-      <Link to={ROUTES.ADMIN} className="inline-block text-[13.5px]" style={{ color: C.blue }}>
+      <Link to={ROUTES.ADMIN} className="inline-block text-[15.5px]" style={{ color: C.blue }}>
         ← Administration du catalogue
       </Link>
 
       {chargement && !stats ? (
-        <p className="px-4 py-8 text-center text-[14px] text-muted-foreground">Chargement…</p>
+        <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">Chargement…</p>
       ) : !stats ? (
-        <p className="px-4 py-8 text-center text-[14px] text-muted-foreground">
+        <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">
           Statistiques indisponibles.
         </p>
       ) : (
@@ -514,10 +514,10 @@ export function AdminStatsPage() {
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
                 placeholder="Filtrer un territoire (nom, code INSEE, région)…"
-                className="h-10 pl-9 text-[14px]"
+                className="h-10 pl-9 text-[16px]"
               />
             </div>
-            <label className="flex items-center gap-2 text-[13px] text-muted-foreground">
+            <label className="flex items-center gap-2 text-[15px] text-muted-foreground">
               <Switch checked={masquerVidesActif} onCheckedChange={setMasquerVidesActif} />
               Masquer les territoires sans aide
             </label>
@@ -541,7 +541,7 @@ export function AdminStatsPage() {
                   aides={stats.aides}
                 />
               </div>
-              <p className="text-[12.5px] text-muted-foreground">
+              <p className="text-[14.5px] text-muted-foreground">
                 Les aides financées par chaque Conseil régional, y compris celles qu’il limite à
                 quelques départements. Ce que la Région finance, pas ce qui s’applique sur son
                 territoire : les aides de l’État et des Départements sont sur leurs propres
@@ -559,7 +559,7 @@ export function AdminStatsPage() {
                   aides={stats.aides}
                 />
               </div>
-              <p className="text-[12.5px] text-muted-foreground">
+              <p className="text-[14.5px] text-muted-foreground">
                 Les aides financées par chaque Conseil départemental. Un zéro ne veut pas dire
                 qu’un monument du département n’a droit à rien : il voit aussi les aides de sa
                 région, les nationales et celles des autres financeurs. Il veut dire qu’il reste un
@@ -569,7 +569,7 @@ export function AdminStatsPage() {
 
             <TabsContent value="national" className="mt-4 space-y-2">
               <div className="overflow-hidden rounded-xl border border-border bg-card px-4 py-4">
-                <p className="text-[14px] font-medium text-foreground">
+                <p className="text-[16px] font-medium text-foreground">
                   {stats.corpus.nationales} aides sans filtre géographique
                 </p>
                 <div className="mt-0.5 mb-3">
@@ -581,7 +581,7 @@ export function AdminStatsPage() {
 
             <TabsContent value="autres" className="mt-4 space-y-2">
               <div className="overflow-hidden rounded-xl border border-border bg-card px-4 py-4">
-                <p className="text-[14px] font-medium text-foreground">
+                <p className="text-[16px] font-medium text-foreground">
                   {stats.corpus.autres} aides d’un financeur sans échelon territorial
                 </p>
                 <div className="mt-0.5 mb-3">
@@ -589,7 +589,7 @@ export function AdminStatsPage() {
                 </div>
                 <ListeAides slugs={stats.autres.slugs} aides={stats.aides} />
               </div>
-              <p className="text-[12.5px] text-muted-foreground">
+              <p className="text-[14.5px] text-muted-foreground">
                 Fondations, Europe, mécénat : leur périmètre est local sans qu’un euro vienne d’une
                 collectivité. Les compter comme des aides de Département serait faux, les cacher
                 les ferait disparaître de la page.
@@ -612,7 +612,7 @@ export function AdminStatsPage() {
             </TabsContent>
           </Tabs>
 
-          <p className="text-[12.5px] text-muted-foreground">
+          <p className="text-[14.5px] text-muted-foreground">
             Les quatre chiffres de tête s’additionnent : une aide est comptée une seule fois, sur
             l’échelon qui la finance. {NON_CHIFFRE} = la source n’annonce ni taux ni montant : rien
             n’est déduit, rien n’est additionné. Les aides retirées du catalogue ne sont ni

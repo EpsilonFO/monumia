@@ -2,15 +2,22 @@ import type { ReactNode } from 'react';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { ETATS_CONSERVATION } from '@/constants/monument-options';
 import {
-  GROUPES_PROPRIETAIRE,
   GROUPES_PROTECTION,
   GROUPES_SIECLE,
+  GROUPES_TYPE_EDIFICE,
   SIECLES_EXCLUSIFS,
+  affectationApplicable,
+  architectureRomaneApplicable,
   avecProtection,
+  avecTypesEdifice,
   formaterSiecles,
+  groupesProprietaire,
   lireSiecles,
   protectionApplicable,
   sectionsRemplies,
+  proprietairesCoches,
+  typesCoches,
+  type ChampFiche,
   type FicheMonument,
 } from '@/lib/fiche-monument';
 import type { Monument, ProtectionLevel } from '@/types';
@@ -22,6 +29,55 @@ interface FicheMonumentSectionsProps {
   onChange: (maj: FicheMonument) => void;
   /** La recherche Mérimée et ses liens, en tête de la section 1. */
   merimee: ReactNode;
+  /** Champs encadrés en orange : ce qui reste à remplir après Mérimée. */
+  aRemplir?: ReadonlySet<ChampFiche>;
+}
+
+/**
+ * Une précision oui/non du type d'édifice, en deux boutons. Recliquer la
+ * réponse choisie la retire : « je ne sais pas » n'est pas un bouton de plus,
+ * c'est l'absence de réponse, et la question reste alors posée au
+ * questionnaire.
+ */
+function Precision({
+  id,
+  titre,
+  pourquoi,
+  oui,
+  non,
+  valeur,
+  onChange,
+  className,
+}: {
+  id: string;
+  titre: string;
+  pourquoi: string;
+  oui: string;
+  non: string;
+  valeur: boolean | null | undefined;
+  onChange: (v: boolean | null) => void;
+  className: string;
+}) {
+  return (
+    <div className={className}>
+      <span className="lb" id={id}>
+        {titre} <span className="opt">facultatif</span>
+      </span>
+      <p className="why">{pourquoi}</p>
+      <div className="seg seg-2" role="group" aria-labelledby={id}>
+        {([true, false] as const).map((v) => (
+          <button
+            key={String(v)}
+            type="button"
+            aria-pressed={valeur === v}
+            onClick={() => onChange(valeur === v ? null : v)}
+          >
+            {v ? oui : non}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function Section({
@@ -52,16 +108,17 @@ function Section({
  * champs du produit. Pas de quatrième section « Votre projet » : travaux et
  * montant appartiennent au projet, et se saisissent dans son wizard.
  */
-export function FicheMonumentSections({ fiche, onChange, merimee }: FicheMonumentSectionsProps) {
+export function FicheMonumentSections({ fiche, onChange, merimee, aRemplir }: FicheMonumentSectionsProps) {
   const [s1, s2, s3] = sectionsRemplies(fiche);
   const siecles = lireSiecles(fiche.siecleConstruction);
+  const fld = (champ: ChampFiche) => (aRemplir?.has(champ) ? 'fld a-remplir' : 'fld');
 
   return (
     <>
       <Section n={1} titre="Le monument" remplie={s1}>
         {merimee}
         <div className="row2">
-          <div className="fld">
+          <div className={fld('nom')}>
             <label htmlFor="nm-nom">Nom du bâtiment</label>
             <input
               className="txt"
@@ -72,7 +129,7 @@ export function FicheMonumentSections({ fiche, onChange, merimee }: FicheMonumen
               onChange={(e) => onChange({ nom: e.target.value })}
             />
           </div>
-          <div className="fld">
+          <div className={fld('commune')}>
             <label htmlFor="nm-commune">Commune</label>
             <ChampCommune
               id="nm-commune"
@@ -85,6 +142,53 @@ export function FicheMonumentSections({ fiche, onChange, merimee }: FicheMonumen
             />
           </div>
         </div>
+
+        <div className={fld('typeEdifice')}>
+          <span className="lb">
+            Type d&rsquo;édifice <span className="opt">plusieurs choix possibles</span>
+          </span>
+          <p className="why">
+            Il répond d&rsquo;avance aux questions sur la nature du bien (église, lavoir,
+            monument aux morts&hellip;). Un domaine peut en réunir plusieurs&nbsp;: château,
+            chapelle, pigeonnier.
+          </p>
+          <MenuChoix
+            label="Type d'édifice"
+            placeholder="Choisir un ou plusieurs types"
+            groupes={GROUPES_TYPE_EDIFICE}
+            multiple
+            recherche
+            valeurs={typesCoches(fiche)}
+            onChange={(v) => onChange(avecTypesEdifice(fiche, v))}
+          />
+        </div>
+
+        {/* Les précisions n'apparaissent que si au moins un type coché les
+            admet (`TYPES_AVEC_*`), et sont vidées quand plus aucun ne le fait. */}
+        {affectationApplicable(fiche) && (
+          <Precision
+            id="nm-l-culte"
+            titre="Affectation au culte"
+            pourquoi="Certaines aides excluent les édifices encore affectés au culte, d’autres leur sont réservées."
+            oui="Toujours affecté au culte"
+            non="Désaffecté"
+            valeur={fiche.affecteAuCulte}
+            className={fld('affecteAuCulte')}
+            onChange={(v) => onChange({ affecteAuCulte: v })}
+          />
+        )}
+        {architectureRomaneApplicable(fiche) && (
+          <Precision
+            id="nm-l-roman"
+            titre="Architecture romane"
+            pourquoi="Des programmes sont réservés au patrimoine roman, même s’il n’en reste que des éléments."
+            oui="Oui, en tout ou en partie"
+            non="Non"
+            valeur={fiche.architectureRomane}
+            className={fld('architectureRomane')}
+            onChange={(v) => onChange({ architectureRomane: v })}
+          />
+        )}
 
         <div className="fld">
           <span className="lb" id="nm-l-siecle">
@@ -110,7 +214,7 @@ export function FicheMonumentSections({ fiche, onChange, merimee }: FicheMonumen
           />
         </div>
 
-        <div className="fld">
+        <div className={fld('etatConservation')}>
           <span className="lb" id="nm-l-etat">
             État du bâtiment
           </span>
@@ -152,7 +256,7 @@ export function FicheMonumentSections({ fiche, onChange, merimee }: FicheMonumen
       </Section>
 
       <Section n={2} titre="Sa protection" remplie={s2}>
-        <div className="fld">
+        <div className={fld('protection')}>
           <span className="lb">Protection</span>
           <MenuChoix
             label="Protection"
@@ -193,16 +297,25 @@ export function FicheMonumentSections({ fiche, onChange, merimee }: FicheMonumen
       </Section>
 
       <Section n={3} titre="Le propriétaire" remplie={s3}>
-        <div className="fld">
-          <span className="lb">Type de propriétaire</span>
+        <div className={fld('proprietaire')}>
+          <span className="lb">
+            Type de propriétaire <span className="opt">plusieurs choix possibles</span>
+          </span>
+          <p className="why">
+            Un bien peut avoir plusieurs propriétaires. Une aide vous est proposée dès que
+            l&rsquo;un d&rsquo;eux peut la demander.
+          </p>
           <MenuChoix
             label="Type de propriétaire"
-            placeholder="Choisir le type de propriétaire"
-            groupes={GROUPES_PROPRIETAIRE}
+            placeholder="Choisir un ou plusieurs propriétaires"
+            groupes={groupesProprietaire(fiche)}
+            multiple
             recherche
-            valeurs={fiche.proprietaire ? [fiche.proprietaire] : []}
+            valeurs={proprietairesCoches(fiche)}
             onChange={(v) =>
-              onChange({ proprietaire: v[0] as Monument['proprietaire'] | undefined })
+              onChange({
+                proprietaire: proprietairesCoches({ proprietaire: v as Monument['proprietaire'] }),
+              })
             }
           />
         </div>

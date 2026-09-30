@@ -33,13 +33,20 @@ function textSourceOf(mimeType: string, fileName: string): TextSource | null {
  * Le travail n'est déclenché qu'à l'approche du viewport. `preview = null` pour
  * tout ce qui n'a pas d'aperçu → la carte retombe sur le bandeau coloré.
  */
-export function useDocumentThumbnail(documentId: string, mimeType: string, fileName = '') {
+export function useDocumentThumbnail(
+  documentId: string,
+  mimeType: string,
+  fileName = '',
+  /** Faux : images et PDF seulement (les cartes de Mes documents, où un
+   *  aperçu texte ne se lirait pas et coûterait un téléchargement complet). */
+  { texte = true }: { texte?: boolean } = {},
+) {
   const ref = useRef<HTMLElement>(null);
   const [preview, setPreview] = useState<DocPreview>(null);
 
   const isImage = BROWSER_IMAGE_MIME.has(mimeType);
   const isPdf = mimeType === 'application/pdf' || /\.pdf$/i.test(fileName);
-  const textSource = textSourceOf(mimeType, fileName);
+  const textSource = texte ? textSourceOf(mimeType, fileName) : null;
   const previewable = isImage || isPdf || textSource !== null;
 
   useEffect(() => {
@@ -74,7 +81,7 @@ export function useDocumentThumbnail(documentId: string, mimeType: string, fileN
           (e) => { console.warn('[thumbnail] URL signée impossible', e); },
         );
       },
-      { rootMargin: '250px' },
+      { rootMargin: '285px' },
     );
     io.observe(el);
     return () => { cancelled = true; io.disconnect(); };

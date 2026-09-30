@@ -120,13 +120,13 @@ export function MonumentsListPage() {
       </div>
 
       {loading ? (
-        <div style={{ marginTop: 23 }}>
+        <div style={{ marginTop: 26 }}>
           <ProjectListSkeleton />
         </div>
       ) : monuments.length === 0 ? (
         <div className="vide" style={{ textAlign: 'center' }}>
-          <h2 style={{ fontSize: 21 }}>Aucun monument pour le moment</h2>
-          <p style={{ margin: '8px auto 18px', maxWidth: '52ch' }}>
+          <h2 style={{ fontSize: 24 }}>Aucun monument pour le moment</h2>
+          <p style={{ margin: '9px auto 20.5px', maxWidth: '52ch' }}>
             Décrivez votre monument, puis lancez autant de projets de travaux que nécessaire pour identifier les
             aides mobilisables.
           </p>

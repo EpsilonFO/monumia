@@ -55,7 +55,7 @@ export function BlogArticlePage() {
   return (
     <article>
       {/* Fil d'ariane */}
-      <nav className="text-[12.5px]" style={{ color: C.grayFg }} aria-label="Fil d’ariane">
+      <nav className="text-[14.5px]" style={{ color: C.grayFg }} aria-label="Fil d’ariane">
         <Link to="/blog" className="hover:underline">
           Blog
         </Link>
@@ -75,7 +75,7 @@ export function BlogArticlePage() {
           {category && <CategoryBadge category={category} asLink />}
           {article.readingTimeMin && (
             <span
-              className="inline-flex items-center gap-1 text-[12px] font-semibold"
+              className="inline-flex items-center gap-1 text-[14px] font-semibold"
               style={{ color: C.grayFg }}
             >
               <IconTemps className="h-3.5 w-3.5" /> {article.readingTimeMin} min de lecture
@@ -88,7 +88,7 @@ export function BlogArticlePage() {
         >
           {article.title}
         </h1>
-        <p className="mt-3 text-[16px] leading-relaxed" style={{ color: C.grayFg }}>
+        <p className="mt-3 text-[18px] leading-relaxed" style={{ color: C.grayFg }}>
           {article.excerpt}
         </p>
         <div className="mt-5 h-px w-full" style={{ background: C.border }} />
@@ -109,7 +109,7 @@ export function BlogArticlePage() {
           <div className="sticky top-24 flex flex-col gap-6">
             {related.length > 0 && (
               <section>
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.blue, opacity: 0.55 }}>
+                <p className="mb-3 text-[13px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.blue, opacity: 0.55 }}>
                   À lire aussi
                 </p>
                 <div className="flex flex-col gap-3">
@@ -123,14 +123,14 @@ export function BlogArticlePage() {
                         style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
                       >
                         {cat && (
-                          <span className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: C.orange }}>
+                          <span className="text-[12px] font-semibold uppercase tracking-[0.14em]" style={{ color: C.orange }}>
                             {cat.label}
                           </span>
                         )}
-                        <span className="mt-1.5 block text-[14.5px] font-medium leading-snug" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
+                        <span className="mt-1.5 block text-[16.5px] font-medium leading-snug" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
                           {a.title}
                         </span>
-                        <span className="mt-2.5 inline-flex items-center gap-1 text-[12px] font-semibold" style={{ color: C.orange }}>
+                        <span className="mt-2.5 inline-flex items-center gap-1 text-[14px] font-semibold" style={{ color: C.orange }}>
                           Lire
                           <span className="transition-transform duration-300 group-hover:translate-x-0.5">→</span>
                         </span>

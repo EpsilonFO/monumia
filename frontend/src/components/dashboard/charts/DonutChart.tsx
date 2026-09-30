@@ -22,7 +22,7 @@ export function DonutChart({ data, size = 168 }: DonutChartProps) {
   if (total === 0) {
     return (
       <div
-        className="flex items-center justify-center rounded-full text-[12px]"
+        className="flex items-center justify-center rounded-full text-[14px]"
         style={{ width: size, height: size, color: C.ink, opacity: 0.5 }}
         role="img"
         aria-label="Aucune donnée à afficher"
@@ -103,12 +103,12 @@ export function DonutChart({ data, size = 168 }: DonutChartProps) {
           </svg>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
             <span
-              className="text-[26px] font-bold leading-none"
+              className="text-[30px] font-bold leading-none"
               style={{ fontFamily: 'var(--font-serif)', color: C.blue }}
             >
               {total}
             </span>
-            <span className="mt-1 text-[10px] uppercase tracking-[0.12em]" style={{ color: C.ink, opacity: 0.5 }}>
+            <span className="mt-1 text-[12px] uppercase tracking-[0.12em]" style={{ color: C.ink, opacity: 0.5 }}>
               total
             </span>
           </div>
@@ -116,7 +116,7 @@ export function DonutChart({ data, size = 168 }: DonutChartProps) {
 
         <ul className="flex w-full min-w-0 flex-col gap-1.5 @md:flex-1">
           {segments.map((s) => (
-            <li key={s.label} className="flex items-center gap-2 text-[12px]">
+            <li key={s.label} className="flex items-center gap-2 text-[14px]">
               <span
                 className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
                 style={{ background: s.color }}

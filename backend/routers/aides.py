@@ -10,7 +10,12 @@ from aides_schema import load_all_aides, load_facts, load_pending_facts
 from db import get_current_user_id, get_supabase
 from eligibility_engine import aide_fiche_dict, run_deterministic_diagnostic
 from eligibility_engine import disponibilite as aide_disponibilite
-from routers.monuments import enrich_monument_with_population, resolve_code_insee
+from routers.monuments import (
+    enrich_monument_with_population,
+    resolve_code_insee,
+    valider_proprietaires,
+    valider_type_edifice,
+)
 from services import catalogue_admin, quotas
 from services import stripe_billing as billing
 from services.offres import GRATUIT, Offre
@@ -70,9 +75,20 @@ class MonumentInvite(BaseModel):
     #: `resolve_code_insee` vers la commune actuelle.
     codeInsee: str | None = Field(default=None, max_length=10)
     protection: str = Field(max_length=40)
-    proprietaire: str = Field(max_length=60)
+    #: Un ou plusieurs (choix multiple) ; une chaîne seule vaut un propriétaire.
+    proprietaire: list[str]
     etatConservation: str | None = Field(default=None, max_length=20)
     siecleConstruction: str | None = Field(default=None, max_length=40)
+    #: Natures du bien (choix multiple) et leurs précisions : elles répondent
+    #: d'avance aux faits de typologie (cf. DEDUCTIONS_TYPE_EDIFICE). Un code
+    #: inconnu est refusé ici, comme à la création du monument, et la liste est
+    #: plafonnée au nombre de types.
+    typeEdifice: list[str] | None = None
+    affecteAuCulte: bool | None = None
+    architectureRomane: bool | None = None
+
+    _v_type = field_validator("typeEdifice", mode="before")(valider_type_edifice)
+    _v_proprietaire = field_validator("proprietaire", mode="before")(valider_proprietaires)
 
 
 #: Plafonds du diagnostic invité. Rien de métier : le corpus compte quelques
@@ -659,6 +675,9 @@ def diagnostic_invite(
         "proprietaire": m.proprietaire,
         "etat_conservation": m.etatConservation,
         "siecle_construction": m.siecleConstruction,
+        "type_edifice": m.typeEdifice,
+        "affecte_au_culte": m.affecteAuCulte,
+        "architecture_romane": m.architectureRomane,
         "travaux_envisages": body.travaux_envisages,
     }
     monument, population = enrich_monument_with_population(supabase, monument)

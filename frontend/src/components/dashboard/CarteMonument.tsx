@@ -53,7 +53,7 @@ export function CarteMonument({
       </div>
       <div className="cmon-b">
         <div className="proj">
-          <b>{projets.length === 0 ? 'Pas encore de projet' : seul ? projetTitre(seul) : pluriel(projets.length, 'projet')}</b>
+          <b>{projets.length === 0 ? 'Pas encore de projet' : seul ? projetTitre(seul, monument.nom) : pluriel(projets.length, 'projet')}</b>
           {projets.length > 0 && `${rang} : ${action}`}
         </div>
         <Avancement stage={stage} />

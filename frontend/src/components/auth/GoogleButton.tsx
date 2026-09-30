@@ -73,7 +73,7 @@ export function GoogleButton({ label = 'Continuer avec Google', beforeRedirect }
       type="button"
       onClick={handleClick}
       disabled={loading}
-      className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border text-[14px] font-semibold transition-colors duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
+      className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border text-[16px] font-semibold transition-colors duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
       style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
     >
       {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <GoogleLogo />}

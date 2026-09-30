@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 
 const MUTED = 'var(--muted-foreground)';
 const SUCCESS = 'var(--success)';
-const inputCls = 'h-12 text-[15px] bg-card border-border focus:border-primary focus:ring-primary/10';
+const inputCls = 'h-12 text-[17px] bg-card border-border focus:border-primary focus:ring-primary/10';
 
 /**
  * Atterrissage du lien de réinitialisation de mot de passe. Supabase redirige
@@ -93,7 +93,7 @@ export function ResetPasswordPage() {
         <h1 className="text-[clamp(1.9rem,4vw,2.5rem)] leading-[1.1]" style={{ fontFamily: SERIF, color: C.ink }}>
           Nouveau <span style={{ color: C.blue }}>mot de passe</span>
         </h1>
-        <p className="text-[15px]" style={{ color: MUTED }}>
+        <p className="text-[17px]" style={{ color: MUTED }}>
           {linkError
             ? 'Le lien ne fonctionne plus.'
             : 'Choisissez un nouveau mot de passe pour votre compte.'}
@@ -102,24 +102,24 @@ export function ResetPasswordPage() {
 
       {linkError ? (
         <div className="space-y-4">
-          <div className="rounded-xl p-4 text-[14px]" style={{ background: C.paleDanger, color: C.danger }}>
+          <div className="rounded-xl p-4 text-[16px]" style={{ background: C.paleDanger, color: C.danger }}>
             {linkError}
           </div>
           <button
             onClick={() => navigate('/login')}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[16px] font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: C.orange }}
           >
             Retour à la connexion
           </button>
-          <p className="text-center text-[13px]" style={{ color: MUTED }}>
+          <p className="text-center text-[15px]" style={{ color: MUTED }}>
             Vous pourrez redemander un lien depuis « Mot de passe oublié ? ».
           </p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-1.5">
-            <Label htmlFor="new-password" className="text-[14px] font-medium" style={{ color: C.ink }}>
+            <Label htmlFor="new-password" className="text-[16px] font-medium" style={{ color: C.ink }}>
               Nouveau mot de passe
             </Label>
             <div className="relative">
@@ -147,7 +147,7 @@ export function ResetPasswordPage() {
             {password && (
               <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 pt-0.5">
                 {PASSWORD_RULES.map(({ key, label }) => (
-                  <div key={key} className="flex items-center gap-1.5 text-[12px]" style={{ color: checks[key] ? SUCCESS : MUTED }}>
+                  <div key={key} className="flex items-center gap-1.5 text-[14px]" style={{ color: checks[key] ? SUCCESS : MUTED }}>
                     {checks[key] ? <Check className="h-3 w-3 flex-shrink-0" /> : <X className="h-3 w-3 flex-shrink-0" />}
                     {label}
                   </div>
@@ -157,7 +157,7 @@ export function ResetPasswordPage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="confirm-password" className="text-[14px] font-medium" style={{ color: C.ink }}>
+            <Label htmlFor="confirm-password" className="text-[16px] font-medium" style={{ color: C.ink }}>
               Confirmer le mot de passe
             </Label>
             <Input
@@ -176,7 +176,7 @@ export function ResetPasswordPage() {
           <button
             type="submit"
             disabled={!ready || saving || !valid || !confirm}
-            className="group flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="group flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[16px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             style={{ background: C.orange }}
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (

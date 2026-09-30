@@ -35,10 +35,10 @@ export function BlogIndexPage() {
       {/* ─── EN-TÊTE (sobre, à la manière du tableau de bord) ─── */}
       <header>
         <span
-          className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em]"
+          className="inline-flex items-center gap-2 text-[13px] font-semibold uppercase tracking-[0.2em]"
           style={{ color: C.blue }}
         >
-          <span aria-hidden style={{ width: 22, height: 2, borderRadius: 2, background: C.orange }} />
+          <span aria-hidden style={{ width: 25, height: 2, borderRadius: 2, background: C.orange }} />
           Le guide du patrimoine
         </span>
         <h1
@@ -47,7 +47,7 @@ export function BlogIndexPage() {
         >
           Comprendre le patrimoine, simplement
         </h1>
-        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
+        <p className="mt-3 max-w-2xl text-[17px] leading-relaxed" style={{ color: C.grayFg }}>
           Des articles clairs pour les propriétaires de monuments et les communes :
           statuts, aides, démarches et travaux — sans jargon, à lire quand vous voulez.
         </p>
@@ -90,7 +90,7 @@ export function BlogIndexPage() {
                     action={
                       <Link
                         to={`/blog/categorie/${category.slug}`}
-                        className="shrink-0 text-[13px] font-semibold hover:underline"
+                        className="shrink-0 text-[15px] font-semibold hover:underline"
                         style={{ color: C.orange }}
                       >
                         Tout voir →
@@ -123,10 +123,10 @@ export function BlogIndexPage() {
                 style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-card)' }}
               >
                 <p
-                  className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em]"
+                  className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.18em]"
                   style={{ color: C.blue }}
                 >
-                  <span aria-hidden style={{ width: 18, height: 2, borderRadius: 2, background: C.orange }} />
+                  <span aria-hidden style={{ width: 20.5, height: 2, borderRadius: 2, background: C.orange }} />
                   À lire en priorité
                 </p>
                 <ol className="mt-3.5 space-y-3.5">
@@ -137,7 +137,7 @@ export function BlogIndexPage() {
                       <li key={a.slug}>
                         <Link to={`/blog/article/${a.slug}`} className="group flex items-start gap-3">
                           <span
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[15px] font-bold"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[17px] font-bold"
                             style={{
                               fontFamily: 'var(--font-serif)',
                               background: tone?.soft ?? C.paleBlue,
@@ -149,12 +149,12 @@ export function BlogIndexPage() {
                           </span>
                           <span className="min-w-0">
                             <span
-                              className="block text-[13.5px] font-medium leading-snug group-hover:underline"
+                              className="block text-[15.5px] font-medium leading-snug group-hover:underline"
                               style={{ fontFamily: 'var(--font-serif)', color: C.ink }}
                             >
                               {a.title}
                             </span>
-                            <span className="mt-0.5 block text-[11px]" style={{ color: C.grayMuted }}>
+                            <span className="mt-0.5 block text-[13px]" style={{ color: C.grayMuted }}>
                               {cat?.shortLabel}
                               {a.readingTimeMin ? ` · ${a.readingTimeMin} min` : ''}
                             </span>
@@ -179,11 +179,11 @@ export function BlogIndexPage() {
                 >
                   <IconSubvention className="h-5 w-5" />
                 </span>
-                <p className="text-[26px] font-bold leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: C.orange }}>
+                <p className="text-[30px] font-bold leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: C.orange }}>
                   150+
                 </p>
               </div>
-              <p className="mt-2.5 text-[12.5px] leading-relaxed" style={{ color: C.grayFg }}>
+              <p className="mt-2.5 text-[14.5px] leading-relaxed" style={{ color: C.grayFg }}>
                 aides au patrimoine référencées — nos articles vous aident à comprendre
                 lesquelles vous concernent.
               </p>
@@ -212,7 +212,7 @@ function FeaturedArticle({ article }: { article: BlogArticle }) {
       <div className="flex flex-col justify-center p-7 sm:p-9">
         <div className="flex flex-wrap items-center gap-3">
           {category && <CategoryBadge category={category} />}
-          <span className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: C.orange }}>
+          <span className="text-[13px] font-semibold uppercase tracking-[0.16em]" style={{ color: C.orange }}>
             À la une
           </span>
         </div>
@@ -222,15 +222,15 @@ function FeaturedArticle({ article }: { article: BlogArticle }) {
         >
           {article.title}
         </h2>
-        <p className="mt-3 max-w-xl text-[14px] leading-relaxed" style={{ color: C.grayFg }}>
+        <p className="mt-3 max-w-xl text-[16px] leading-relaxed" style={{ color: C.grayFg }}>
           {article.excerpt}
         </p>
         <div className="mt-5 flex items-center gap-4">
-          <span className="text-[13px] font-semibold group-hover:underline" style={{ color: C.orange }}>
+          <span className="text-[15px] font-semibold group-hover:underline" style={{ color: C.orange }}>
             Lire l’article →
           </span>
           {article.readingTimeMin && (
-            <span className="inline-flex items-center gap-1 text-[12px] font-medium" style={{ color: C.grayMuted }}>
+            <span className="inline-flex items-center gap-1 text-[14px] font-medium" style={{ color: C.grayMuted }}>
               <IconTemps className="h-3.5 w-3.5" /> {article.readingTimeMin} min
             </span>
           )}

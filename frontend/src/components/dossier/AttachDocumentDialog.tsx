@@ -182,7 +182,7 @@ export function AttachDocumentDialog({
         <div className="flex-1 min-h-0 overflow-y-auto space-y-5 pr-1">
           {/* 1 — Téléverser un nouveau document */}
           <section className="space-y-3">
-            <h3 className="text-[13px] font-semibold text-foreground">Téléverser un nouveau document</h3>
+            <h3 className="text-[15px] font-semibold text-foreground">Téléverser un nouveau document</h3>
             <form onSubmit={handleUpload} className="space-y-3">
               <div
                 onClick={() => fileInputRef.current?.click()}
@@ -217,7 +217,7 @@ export function AttachDocumentDialog({
                     <p className="text-sm text-muted-foreground">
                       Glissez un fichier ici ou <span className="text-primary font-medium">parcourez</span>
                     </p>
-                    <p className="text-[11px] text-muted-foreground/70">
+                    <p className="text-[13px] text-muted-foreground/70">
                       PDF, images, Word, Excel, CSV · max {MAX_FILE_SIZE_MB} Mo
                     </p>
                   </div>
@@ -289,7 +289,7 @@ export function AttachDocumentDialog({
           {/* Séparation claire entre « téléverser » et « choisir un existant ». */}
           <div className="flex items-center gap-3">
             <span className="h-px flex-1 bg-border" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <span className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               ou choisir parmi mes documents
             </span>
             <span className="h-px flex-1 bg-border" />
@@ -353,7 +353,7 @@ export function AttachDocumentDialog({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium truncate">{doc.nom}</span>
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                              <Badge variant="outline" className="text-[12px] px-1.5 py-0 h-4 shrink-0">
                                 {typeLabel(doc.type)}
                               </Badge>
                             </div>
