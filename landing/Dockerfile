@@ -20,7 +20,11 @@ ENV VITE_API_URL=$VITE_API_URL
 ARG VITE_BASE=/
 ENV VITE_BASE=$VITE_BASE
 
-RUN npm run build
+# `vite build` seul, pas `npm run build` (= `tsc -b && vite build`) : le
+# type-check a déjà tourné au pre-commit, au pre-push et en CI, et le refaire
+# ici coûtait autant que le bundle lui-même, deux fois par déploiement (app et
+# beta, ou landing et landing-beta) sur les processeurs du VPS.
+RUN npx vite build
 
 # Output stage — built files copied by docker-compose into nginx
 FROM alpine:3.19 AS output

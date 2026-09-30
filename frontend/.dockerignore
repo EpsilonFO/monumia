@@ -1,0 +1,4 @@
+# L'image fait son propre `npm ci` : un node_modules de l'hôte copié par
+# `COPY . .` écraserait celui du build.
+node_modules
+dist

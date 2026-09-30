@@ -73,3 +73,6 @@ backend/data/reviews/logs/
 
 # Verrous du pipeline de prospection/ingestion (scripts/pipeline/verrou.py)
 *.yaml.lock
+
+# Empreintes des étapes de déploiement déjà faites (scripts/lib-deploy.sh).
+.deploy-state/

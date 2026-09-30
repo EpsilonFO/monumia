@@ -13,6 +13,11 @@ git pull
 # (un argument beta|prod|all) reste à faire.
 source scripts/lib-migrations.sh
 source scripts/lib-release.sh
+source scripts/lib-deploy.sh
+
+# Les étapes dont l'entrée n'a pas bougé depuis leur dernier succès sont
+# sautées (migrations, sync des aides, redémarrage des backends) : voir
+# scripts/lib-deploy.sh. `FORCE=1 ./deploy.sh` refait tout.
 
 # ── Tout déployer sauf la landing de PROD ─────────────
 #
@@ -26,10 +31,19 @@ source scripts/lib-release.sh
 # drapeau, remet monumia.fr au niveau du dépôt.
 SKIP_LANDING_PROD="${SKIP_LANDING_PROD:-}"
 
-push_migrations "beta" backend/.env.beta
-push_migrations "prod" backend/.env
-
 SHA=$(git rev-parse --short HEAD)
+
+# ── Migrations, en parallèle du build ─────────────────
+# Les builds n'ont pas besoin de la base, ni les migrations des images : les
+# deux tournent ensemble. Rien n'est publié ni redémarré avant la fin des
+# migrations, donc vu de l'extérieur l'ordre reste le même : schéma d'abord,
+# code ensuite. Beta puis prod, et la prod n'est pas tentée si la beta échoue.
+echo "Migrations (beta puis prod), en parallèle du build..."
+(
+  migrer_si_besoin "beta" backend/.env.beta || exit 1
+  migrer_si_besoin "prod" backend/.env || exit 1
+) > >(prefixer migrations) 2>&1 &
+migrations_pid=$!
 
 # ── Build ─────────────────────────────────────────────
 # Toute la construction se fait pendant que nginx et les backends servent
@@ -47,7 +61,16 @@ if [ -z "$SKIP_LANDING_PROD" ]; then
 fi
 
 echo "Building images ($SHA)..."
-sudo docker compose build "${build_targets[@]}"
+if ! sudo docker compose build "${build_targets[@]}"; then
+  wait "$migrations_pid" || true
+  echo "❌ Build en échec : rien n'est publié, les backends n'ont pas été touchés."
+  exit 1
+fi
+
+if ! wait "$migrations_pid"; then
+  echo "❌ Migrations en échec : rien n'est publié, les backends n'ont pas été touchés."
+  exit 1
+fi
 
 # ── Publication du statique ───────────────────────────
 # Extraction de /dist hors des images vers /srv/monumia/<cible>/releases/<sha>,
@@ -65,11 +88,10 @@ fi
 # ── Backends ──────────────────────────────────────────
 # Seul point de coupure restant : la recréation des conteneurs backend, soit
 # 2 à 4 s de 502 sur /api/ pendant le démarrage de uvicorn. Le statique continue
-# d'être servi. Si l'image n'a pas changé, compose ne recrée rien et il n'y a
-# aucune coupure du tout (le code Python vient du bind mount ./backend:/app,
-# donc `git pull` suffit à le mettre à jour).
+# d'être servi. Elle n'a lieu que si le code backend a changé depuis le dernier
+# redémarrage (ou l'image, ou le .env) : voir redemarrer_backends.
 echo "Restarting backends..."
-sudo docker compose up -d --no-deps app-backend beta-backend
+redemarrer_backends app-backend beta-backend
 
 # ── nginx ─────────────────────────────────────────────
 # `up -d` est un no-op s'il tourne déjà avec la bonne config. Il ne recrée le
@@ -79,28 +101,18 @@ sudo docker compose up -d nginx
 reload_nginx || nginx_reload_failed="oui"
 
 # ── Sync aides YAML → aides_v3 ────────────────────────
-# Git est la source de vérité des aides ; le moteur déterministe les sert depuis
-# les YAML (id = slug) mais la création de dossier (POST /api/dossiers) résout le
-# slug dans aides_v3. Sans ce sync, toute aide ajoutée en YAML mais absente de
-# aides_v3 renvoie « Aide introuvable » à la création. Idempotent (upsert par slug).
+# Voir sync_aides (scripts/lib-deploy.sh). Beta et prod sont deux bases
+# distinctes : les deux syncs tournent en parallèle, et le ménage des releases
+# et du cache Docker se fait pendant qu'ils attendent le réseau.
 #
 # Un échec ici n'interrompt pas le déploiement (on veut rendre la main à nginx
 # dans tous les cas), mais il est mémorisé et ressort en code de sortie non nul,
 # pour ne pas se perdre dans le défilement des logs Docker.
-sync_failures=""
-sync_aides() {
-  local label="$1" container="$2"
-  if sudo docker exec "$container" uv run python scripts/load_aides_yaml.py; then
-    echo "   sync aides $label : OK"
-  else
-    echo "   sync aides $label : ÉCHEC"
-    sync_failures="$sync_failures $label"
-  fi
-}
-
-echo "Syncing aides YAML → aides_v3 (beta + prod)..."
-sync_aides beta monumia-beta-backend
-sync_aides prod monumia-app-backend
+echo "Syncing aides YAML → aides_v3 (beta + prod, en parallèle)..."
+sync_aides beta monumia-beta-backend > >(prefixer "aides beta") 2>&1 &
+sync_beta_pid=$!
+sync_aides prod monumia-app-backend > >(prefixer "aides prod") 2>&1 &
+sync_prod_pid=$!
 
 # ── Nettoyage des anciennes releases ──────────────────
 # On en garde 3 par cible, plus celle en ligne : de quoi revenir en arrière
@@ -110,22 +122,27 @@ for target in app beta landing landing-beta; do
 done
 
 # ── Nettoyage du cache de build Docker ────────────────
-# Chaque déploiement reconstruit quatre bundles vite plus l'image backend, et
-# rien ne purgeait jamais : 503 entrées et 33 Go de cache s'étaient accumulés,
-# sur un disque de 72 Go. On garde 7 jours, de quoi servir les déploiements de
-# la semaine sans laisser la place se remplir indéfiniment.
+# Chaque déploiement reconstruisait quatre bundles vite plus une image backend
+# qui embarquait tout backend/, et rien ne purgeait jamais : 503 entrées et
+# 33 Go de cache s'étaient accumulés, sur un disque de 72 Go. On garde 7 jours,
+# de quoi servir les déploiements de la semaine sans laisser la place se
+# remplir indéfiniment.
 echo "Pruning Docker build cache (>7j)..."
 sudo docker builder prune -f --filter until=168h 2>&1 | tail -1
+
+sync_failures=""
+wait "$sync_beta_pid" || sync_failures="$sync_failures beta"
+wait "$sync_prod_pid" || sync_failures="$sync_failures prod"
+
 # ── Récapitulatif ─────────────────────────────────────
 echo
 echo "─────────────────────────────────────"
 echo "  release         : $SHA"
-echo "  migrations beta : OK"
-echo "  migrations prod : OK"
+echo "  migrations      : à jour (beta + prod)"
 if [ -n "$SKIP_LANDING_PROD" ]; then
   echo "  landing prod    : INCHANGÉE (SKIP_LANDING_PROD)"
 fi
-[ -n "$sync_failures" ] && echo "  sync aides      : ÉCHEC ($sync_failures)" || echo "  sync aides      : OK"
+[ -n "$sync_failures" ] && echo "  sync aides      : ÉCHEC ($sync_failures)" || echo "  sync aides      : à jour"
 [ -n "$nginx_reload_failed" ] && echo "  nginx           : reload REFUSÉ" || echo "  nginx           : OK"
 echo "─────────────────────────────────────"
 

@@ -1,0 +1,7 @@
+# Liste blanche : l'image ne contient que l'environnement Python, construit
+# depuis ces deux fichiers. Le code est monté par docker-compose
+# (./backend:/app) et n'a rien à faire dans le contexte de build, qui pesait
+# sinon plus de 2 Go (data/sources) à chaque déploiement.
+*
+!pyproject.toml
+!uv.lock

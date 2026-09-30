@@ -20,6 +20,7 @@ Run:
 
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
@@ -123,6 +124,9 @@ def condition_rows(aide: Aide, aide_id: str) -> list[dict]:
 # Aides par lot de conditions. Borné par la longueur d'URL du `delete ... in`
 # (un UUID fait 36 caractères), pas par la base.
 LOT = 50
+# Écritures d'aides simultanées au sein d'un lot. Assez pour masquer la latence
+# réseau, assez peu pour ne pas ressembler à une rafale côté Supabase.
+ECRITURES_PARALLELES = 8
 
 
 def main() -> int:
@@ -181,34 +185,46 @@ def main() -> int:
     # PostgREST ne sait pas s'en servir pour un upsert groupé), mais leurs
     # conditions par lot : trois requêtes par aide, c'était ~1 400 allers-retours
     # sans un mot à l'écran, que beta.sh semblait attendre indéfiniment.
+    #
+    # Au sein d'un lot, les écritures d'aides partent en parallèle : ~600
+    # requêtes à la suite, c'était une minute d'attente réseau par environnement
+    # à chaque déploiement. Chaque aide est une ligne distincte, l'ordre est
+    # indifférent ; le client HTTP sous-jacent (httpx) se partage entre threads.
+    def pousser(slug: str, aide: Aide) -> tuple[str, bool]:
+        """Écrit une aide, rend (id, créée ?)."""
+        row = aide_to_row(aide)
+        # `raison` (NOT NULL en base) — asymétrie transitoire : tant que les
+        # YAML ne portent pas la finalité, un update ne doit pas écraser la
+        # valeur déjà en base avec [] ; un insert doit en fournir une.
+        if aide.raison:
+            row["raison"] = aide.raison
+        aide_id = by_slug.get(slug) or by_nom.get(aide.nom)
+        if aide_id:
+            supabase.table("aides_v3").update(row).eq("id", aide_id).execute()
+            return aide_id, False
+        row.setdefault("raison", [])
+        result = supabase.table("aides_v3").insert(row).execute()
+        return result.data[0]["id"], True
+
     created, updated = 0, 0
     items = list(aides.items())
-    for start in range(0, len(items), LOT):
-        lot_ids: list[str] = []
-        lot_conditions: list[dict] = []
-        for slug, aide in items[start : start + LOT]:
-            row = aide_to_row(aide)
-            # `raison` (NOT NULL en base) — asymétrie transitoire : tant que les
-            # YAML ne portent pas la finalité, un update ne doit pas écraser la
-            # valeur déjà en base avec [] ; un insert doit en fournir une.
-            if aide.raison:
-                row["raison"] = aide.raison
-            aide_id = by_slug.get(slug) or by_nom.get(aide.nom)
-            if aide_id:
-                supabase.table("aides_v3").update(row).eq("id", aide_id).execute()
-                updated += 1
-            else:
-                row.setdefault("raison", [])
-                result = supabase.table("aides_v3").insert(row).execute()
-                aide_id = result.data[0]["id"]
-                created += 1
-            lot_ids.append(aide_id)
-            lot_conditions.extend(condition_rows(aide, aide_id))
+    with ThreadPoolExecutor(max_workers=ECRITURES_PARALLELES) as pool:
+        for start in range(0, len(items), LOT):
+            lot = items[start : start + LOT]
+            ecrites = list(pool.map(lambda item: pousser(*item), lot))
+            lot_ids = [aide_id for aide_id, _ in ecrites]
+            created += sum(1 for _, cree in ecrites if cree)
+            updated += sum(1 for _, cree in ecrites if not cree)
+            lot_conditions = [
+                row
+                for (_, aide), aide_id in zip(lot, lot_ids, strict=True)
+                for row in condition_rows(aide, aide_id)
+            ]
 
-        supabase.table("aide_conditions").delete().in_("aide_id", lot_ids).execute()
-        if lot_conditions:
-            supabase.table("aide_conditions").insert(lot_conditions).execute()
-        print(f"  {min(start + LOT, len(items))}/{len(items)} aides")
+            supabase.table("aide_conditions").delete().in_("aide_id", lot_ids).execute()
+            if lot_conditions:
+                supabase.table("aide_conditions").insert(lot_conditions).execute()
+            print(f"  {min(start + LOT, len(items))}/{len(items)} aides")
 
     print(f"✓ aides : {updated} mises à jour, {created} créées")
     print(
