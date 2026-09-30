@@ -44,7 +44,7 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from aides_schema import AIDES_DIR, DATA_DIR
+from aides_schema import AIDES_DIR, DATA_DIR, charger_yaml
 from pieces_schema import load_pieces
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -70,7 +70,7 @@ def collecter_libelles(aides_dir: Path = AIDES_DIR) -> dict[str, list[str]]:
     """Libellé normalisé → slugs des aides qui le demandent, du plus fréquent au moins."""
     index: dict[str, list[str]] = {}
     for chemin in sorted(aides_dir.glob("*.yaml")):
-        brut = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
+        brut = charger_yaml(chemin.read_text(encoding="utf-8")) or {}
         for doc in brut.get("documents_requis") or []:
             nom = doc.get("nom") if isinstance(doc, dict) else doc
             if not isinstance(nom, str) or not nom.strip():
@@ -344,7 +344,7 @@ def main() -> int:
             )
             print(f"✗ mapping introuvable : {chemin}{indice}")
             return 1
-        mapping = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
+        mapping = charger_yaml(chemin.read_text(encoding="utf-8")) or {}
         inconnus = set(mapping.values()) - set(load_pieces())
         if inconnus:
             print(f"✗ pièces inconnues dans le mapping : {sorted(inconnus)}")

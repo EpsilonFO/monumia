@@ -35,7 +35,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from aides_schema import AIDES_DIR, DATA_DIR, Aide, load_aide
+from aides_schema import AIDES_DIR, DATA_DIR, Aide, charger_yaml, load_aide
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -171,7 +171,7 @@ def traiter_acquittements(
 def load_manifest(path: Path = MANIFEST_PATH) -> dict:
     if not path.exists():
         return {}
-    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return charger_yaml(path.read_text(encoding="utf-8")) or {}
 
 
 def anciennete(aide: Aide, manifest: dict) -> date:

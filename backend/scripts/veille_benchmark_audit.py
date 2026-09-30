@@ -33,11 +33,9 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-import yaml
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from aides_schema import AIDES_DIR, DATA_DIR, Aide, load_aide
+from aides_schema import AIDES_DIR, DATA_DIR, Aide, charger_yaml, load_aide
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -84,7 +82,7 @@ class Gold:
 
 
 def charger_golds(chemin: Path = GOLDS_PATH) -> list[Gold]:
-    brut = yaml.safe_load(chemin.read_text(encoding="utf-8")) or []
+    brut = charger_yaml(chemin.read_text(encoding="utf-8")) or []
     golds = [Gold(**cas) for cas in brut]
     for g in golds:
         if g.type not in ("intacte", "retrait"):
@@ -142,7 +140,7 @@ def preparer(gold: Gold) -> Cas:
         if fin < len(lignes) and not lignes[fin].strip():
             fin += 1
         texte = "\n".join(lignes[:debut] + lignes[fin:])
-        aide = Aide.model_validate(yaml.safe_load(texte))
+        aide = Aide.model_validate(charger_yaml(texte))
         retiree = cible.model_dump(mode="json")
 
     corpus = construire_corpus(aide, col)

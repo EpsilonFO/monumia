@@ -54,7 +54,7 @@ from veille_text import (
     parse_front_matter,
 )
 
-from aides_schema import Aide, FactDef, load_aide
+from aides_schema import Aide, FactDef, charger_yaml, load_aide
 
 from . import faits as faits_mod
 from .atelier import Atelier
@@ -161,7 +161,7 @@ def _provenance(chemin: Path) -> str:
     if chemin.suffix.lower() == ".pdf":
         sidecar = chemin.with_name(chemin.name + ".meta.yaml")
         if sidecar.is_file():
-            meta = yaml.safe_load(sidecar.read_text(encoding="utf-8")) or {}
+            meta = charger_yaml(sidecar.read_text(encoding="utf-8")) or {}
             return str(meta.get("url", "")) or "(provenance inconnue)"
         return "(provenance inconnue)"
     meta, _ = parse_front_matter(chemin.read_text(encoding="utf-8", errors="replace"))
@@ -614,7 +614,7 @@ def outils_pour(
         )
         if not message.startswith("ERREUR"):
             etat.faits_proposes.append(fact_id)
-            pending[fact_id] = FactDef.model_validate(yaml.safe_load(definition_yaml))
+            pending[fact_id] = FactDef.model_validate(charger_yaml(definition_yaml))
             journal.evenement(f"fait proposé : {fact_id}")
         return message
 
@@ -667,7 +667,7 @@ def outils_pour(
         """
         compter("ecrire_aide")
         try:
-            brut = yaml.safe_load(yaml_texte)
+            brut = charger_yaml(yaml_texte)
         except yaml.YAMLError as exc:
             return f"ERREUR : YAML invalide, rien n'a été écrit — {exc}"
         if not isinstance(brut, dict):

@@ -31,11 +31,10 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 import httpx
-import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from aides_schema import DATA_DIR, Aide
+from aides_schema import DATA_DIR, Aide, charger_yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -225,7 +224,7 @@ def load_baselines(slug: str) -> tuple[list[tuple[str, str, str]], list[str], di
             # source a été revisitée, faute de savoir laquelle c'est.
             sidecar = path.with_name(path.name + ".meta.yaml")
             if sidecar.is_file():
-                meta = yaml.safe_load(sidecar.read_text(encoding="utf-8")) or {}
+                meta = charger_yaml(sidecar.read_text(encoding="utf-8")) or {}
                 if (url := meta.get("url")) and url.startswith(("http://", "https://")):
                     provenance[path.name] = url
     return docs, illisibles, provenance
@@ -281,7 +280,7 @@ def _snapshot_baselines(slug: str) -> dict[str, MonitoredUrl]:
                     baseline_body=body,
                 )
         elif path.name.endswith(".pdf.meta.yaml"):
-            meta = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            meta = charger_yaml(path.read_text(encoding="utf-8")) or {}
             if (url := meta.get("url")) and url.startswith(("http://", "https://")):
                 pdf = path.with_name(path.name.removesuffix(".meta.yaml"))
                 # Le texte du PDF archivé est le terme de gauche du diff quand la

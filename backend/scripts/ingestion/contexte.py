@@ -59,6 +59,7 @@ from aides_schema import (
     HardFilters,
     Levier,
     Source,
+    charger_yaml,
     load_all_aides,
 )
 from aides_schema import FIELD_REGISTRY as _FIELD_REGISTRY
@@ -648,7 +649,7 @@ def tronquer_gabarit(texte: str) -> str:
     for coupe in reversed(frontieres):
         morceau = texte[:coupe]
         try:
-            yaml.safe_load(morceau)
+            charger_yaml(morceau)
         except yaml.YAMLError:
             continue
         return morceau
@@ -675,6 +676,46 @@ def sans_bloc_fiche(texte: str) -> str:
     while debut > 0 and lignes[debut - 1].startswith("#"):
         debut -= 1
     return "".join(lignes[:debut] + lignes[fin:]).rstrip() + "\n"
+
+
+# Ce qui, dans le choix d'un gabarit, ne dépend pas de l'aide en cours : les
+# mécanismes que chaque aide démontre et sa richesse doctrinale. Seule la prime
+# de préfixe en dépend. Le recalculer à chaque appel coûtait 596 × 596
+# évaluations de `richesse_doctrinale` pour un passage sur tout le catalogue
+# (7 s pour chacun des tests de gabarit). Mis de côté par dossier, avec le
+# catalogue dont il vient : si `load_all_aides` rend un autre objet (cache
+# vidé), on recalcule.
+_CLASSEMENTS: dict[Path, tuple[dict[str, Aide], list[tuple[tuple[int, ...], int, str]]]] = {}
+
+
+def _classement(aides_dir: Path) -> list[tuple[tuple[int, ...], int, str]]:
+    """[(mécanismes démontrés, richesse, slug)] pour chaque aide du catalogue."""
+    # `load_all_aides` est mis en cache par `aides_schema` : sans lui, chaque
+    # appel reparsait les 215 fichiers du catalogue, soit 21 500 lectures pour
+    # un lot de cent aides (et 4 minutes pour un seul test).
+    catalogue = load_all_aides(aides_dir)
+    connu = _CLASSEMENTS.get(aides_dir)
+    if connu is not None and connu[0] is catalogue:
+        return connu[1]
+    lignes = [
+        (
+            (
+                1 if aide.applies_if else 0,
+                1 if aide.hard_filters.travaux else 0,
+                1 if aide.familles else 0,
+                1
+                if any(c.fact == FAIT_PORTEUR and c.effect == "gate" for c in aide.conditions)
+                else 0,
+                1 if any(c.effect == "modulateur" for c in aide.conditions) else 0,
+                1 if any(c.levier for c in aide.conditions) else 0,
+            ),
+            richesse_doctrinale(aide),
+            autre,
+        )
+        for autre, aide in catalogue.items()
+    ]
+    _CLASSEMENTS[aides_dir] = (catalogue, lignes)
+    return lignes
 
 
 def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None:
@@ -743,29 +784,14 @@ def choisir_aide_reference(slug: str, aides_dir: Path) -> tuple[str, str] | None
     Le fichier de l'aide en cours est évidemment exclu.
     """
     prefixe = slug.split("-")[0]
-    # `load_all_aides` est mis en cache par `aides_schema` : sans lui, chaque
-    # appel reparsait les 215 fichiers du catalogue, soit 21 500 lectures pour
-    # un lot de cent aides (et 4 minutes pour un seul test).
-    catalogue = load_all_aides(aides_dir)
-    meilleur: tuple[tuple[int, int, int, int, int, str], str] | None = None
-    for autre, aide in catalogue.items():
+    meilleur: tuple[tuple[int | str, ...], str] | None = None
+    for criteres, richesse, autre in _classement(aides_dir):
         if autre == slug:
             continue
-        note = richesse_doctrinale(aide) + (
-            PRIME_MEME_PREFIXE if autre.startswith(f"{prefixe}-") else 0
-        )
+        note = richesse + (PRIME_MEME_PREFIXE if autre.startswith(f"{prefixe}-") else 0)
         # Le slug termine la clé : à note égale, le choix doit être le MÊME
         # d'un passage à l'autre, sinon le préfixe de cache ne mord plus.
-        cle = (
-            1 if aide.applies_if else 0,
-            1 if aide.hard_filters.travaux else 0,
-            1 if aide.familles else 0,
-            1 if any(c.fact == FAIT_PORTEUR and c.effect == "gate" for c in aide.conditions) else 0,
-            1 if any(c.effect == "modulateur" for c in aide.conditions) else 0,
-            1 if any(c.levier for c in aide.conditions) else 0,
-            note,
-            autre,
-        )
+        cle = (*criteres, note, autre)
         if meilleur is None or cle > meilleur[0]:
             meilleur = (cle, autre)
     if meilleur is None:

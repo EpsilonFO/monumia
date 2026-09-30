@@ -76,13 +76,19 @@ FACTS_PENDING_FILE = DATA_DIR / "facts_pending.yaml"
 
 # Chargeur libyaml (C) quand il est compilé, soit ~9 fois plus rapide que le
 # SafeLoader en Python pur sur le catalogue (6 s → 0,7 s pour 600 fiches) :
-# démarrage du backend, sync des aides au déploiement, tests. Même résultat,
-# vérifié fiche par fiche.
+# démarrage du backend, sync des aides au déploiement, scripts, tests. Même
+# résultat, vérifié fiche par fiche. Les scripts et les tests lisent leur YAML
+# par `charger_yaml` plutôt que par `yaml.safe_load`.
 _YamlLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 
+def charger_yaml(texte: str) -> Any:
+    """`yaml.safe_load`, en C quand libyaml est disponible."""
+    return yaml.load(texte, Loader=_YamlLoader)
+
+
 def _lire_yaml(path: Path) -> Any:
-    return yaml.load(path.read_text(encoding="utf-8"), Loader=_YamlLoader)
+    return charger_yaml(path.read_text(encoding="utf-8"))
 
 
 # Alignés sur les CHECK constraints d'aides_v3.

@@ -24,8 +24,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import yaml
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
@@ -37,7 +35,7 @@ from fusionner_faits import (  # noqa: E402
     main,
 )
 
-from aides_schema import load_facts, load_pending_facts  # noqa: E402
+from aides_schema import charger_yaml, load_facts, load_pending_facts  # noqa: E402
 
 FACTS = """\
 manifestation_but_non_lucratif:
@@ -150,7 +148,7 @@ class BaseFusion(unittest.TestCase):
         )
 
     def cles_pending(self) -> set[str]:
-        return set(yaml.safe_load(self.pending.read_text(encoding="utf-8")) or {})
+        return set(charger_yaml(self.pending.read_text(encoding="utf-8")) or {})
 
 
 class TestTable(unittest.TestCase):
@@ -375,7 +373,7 @@ class TestLotsReels(unittest.TestCase):
         for chemin in sorted(
             (Path(__file__).resolve().parent.parent / "data" / "fusions").glob("*.yaml")
         )
-        if "fusions" in (yaml.safe_load(chemin.read_text(encoding="utf-8")) or {})
+        if "fusions" in (charger_yaml(chemin.read_text(encoding="utf-8")) or {})
     ]
 
     def test_toutes_les_tables_sont_bien_formees(self):

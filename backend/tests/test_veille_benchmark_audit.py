@@ -26,7 +26,7 @@ from veille_benchmark_audit import (  # noqa: E402
     recoupe,
 )
 
-from aides_schema import AIDES_DIR, Aide  # noqa: E402
+from aides_schema import AIDES_DIR, Aide, charger_yaml  # noqa: E402
 
 SOURCE = (
     "Les édifices antérieurs à 1800 sont éligibles. Le propriétaire doit s'engager à "
@@ -48,8 +48,8 @@ class TestGolds(unittest.TestCase):
             self.assertFalse(cas.corpus.vide, gold.id)
             # La fiche soumise est valide et, en retrait, amputée de la SEULE
             # condition visée.
-            Aide.model_validate(yaml.safe_load(cas.texte_fiche))
-            originale = yaml.safe_load((AIDES_DIR / f"{gold.slug}.yaml").read_text("utf-8"))
+            Aide.model_validate(charger_yaml(cas.texte_fiche))
+            originale = charger_yaml((AIDES_DIR / f"{gold.slug}.yaml").read_text("utf-8"))
             ids = {c["id"] for c in originale["conditions"]}
             restants = {c.id for c in cas.aide.conditions}
             if gold.retrait:

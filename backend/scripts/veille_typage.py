@@ -64,6 +64,7 @@ from aides_schema import (
     Aide,
     FactDef,
     Predicate,
+    charger_yaml,
     load_aide,
     load_facts,
     load_pending_facts,
@@ -534,7 +535,7 @@ def ecrire_faits_pending(nouveaux: list[NouveauFait]) -> list[str]:
 
 def _valider_pending(texte: str) -> None:
     """Refuse d'écrire un `facts_pending.yaml` que le lint ne pourrait pas lire."""
-    brut = yaml.safe_load(texte) or {}
+    brut = charger_yaml(texte) or {}
     if not isinstance(brut, dict):
         raise ValueError("facts_pending.yaml doit être un dictionnaire de faits")
     for cle, valeur in brut.items():

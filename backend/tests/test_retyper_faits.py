@@ -42,7 +42,7 @@ from retyper_faits import (  # noqa: E402
     verifier,
 )
 
-from aides_schema import load_facts, load_pending_facts  # noqa: E402
+from aides_schema import charger_yaml, load_facts, load_pending_facts  # noqa: E402
 
 JOUR = date(2026, 9, 21)
 
@@ -151,7 +151,7 @@ class BaseRetypage(unittest.TestCase):
         )
 
     def relire(self, slug: str) -> dict:
-        return yaml.safe_load((self.aides_dir / f"{slug}.yaml").read_text(encoding="utf-8"))
+        return charger_yaml((self.aides_dir / f"{slug}.yaml").read_text(encoding="utf-8"))
 
 
 class TestNominal(BaseRetypage):
@@ -348,7 +348,7 @@ class TestReecritureTextuelle(BaseRetypage):
     def test_la_condition_visee_est_bien_retypee(self):
         self.ecrire_annotee()
         self.appliquer([Retypage("s_engage_charte_qualite", "Engagement du demandeur.")])
-        cond = yaml.safe_load((self.aides_dir / "ex-annotee.yaml").read_text(encoding="utf-8"))[
+        cond = charger_yaml((self.aides_dir / "ex-annotee.yaml").read_text(encoding="utf-8"))[
             "conditions"
         ][0]
         self.assertEqual(cond["kind"], "info")
@@ -626,7 +626,7 @@ class TestLotsReels(unittest.TestCase):
         for chemin in sorted(
             (Path(__file__).resolve().parent.parent / "data" / "fusions").glob("*.yaml")
         )
-        if "retypages" in (yaml.safe_load(chemin.read_text(encoding="utf-8")) or {})
+        if "retypages" in (charger_yaml(chemin.read_text(encoding="utf-8")) or {})
     ]
 
     def test_toutes_les_tables_sont_bien_formees(self):

@@ -26,6 +26,8 @@ from pydantic import BaseModel, ConfigDict
 
 from .verrou import ecrire_atomique, verrou_fichier
 
+_YamlLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BACKEND_DIR / "data"
 PROSPECTION_DIR = DATA_DIR / "prospection"
@@ -234,7 +236,10 @@ def charger(chemin: Path = FILE_ATTENTE) -> dict[str, Tache]:
     """Fichier absent ou vide ⇒ file vide (premier run)."""
     if not chemin.exists():
         return {}
-    brut = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
+    # Chargeur C, comme `aides_schema.charger_yaml` : la file fait plusieurs Mo
+    # et se relit à chaque consignation. Le paquet `pipeline` n'importe pas
+    # aides_schema, d'où l'idiome répété ici plutôt qu'importé.
+    brut = yaml.load(chemin.read_text(encoding="utf-8"), Loader=_YamlLoader) or {}
     return {slug: Tache.model_validate(valeur) for slug, valeur in brut.items()}
 
 

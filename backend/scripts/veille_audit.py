@@ -56,12 +56,11 @@ from datetime import date
 from pathlib import Path
 from typing import Literal
 
-import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from aides_schema import AIDES_DIR, DATA_DIR, Aide, load_aide
+from aides_schema import AIDES_DIR, DATA_DIR, Aide, charger_yaml, load_aide
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -324,7 +323,7 @@ def _sha_baseline(slug: str, nom: str) -> str:
             return sha
     sidecar = chemin.with_name(chemin.name + ".meta.yaml")
     if sidecar.is_file():
-        meta = yaml.safe_load(sidecar.read_text(encoding="utf-8")) or {}
+        meta = charger_yaml(sidecar.read_text(encoding="utf-8")) or {}
         if sha := meta.get("sha256"):
             return str(sha)
     return hashlib.sha256(chemin.read_bytes()).hexdigest()

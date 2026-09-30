@@ -16,15 +16,13 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-import yaml
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from ingestion import faits  # noqa: E402
 from ingestion.atelier import atelier_redirige, restaurer_sources  # noqa: E402
 
-from aides_schema import FactDef, load_pending_facts  # noqa: E402
+from aides_schema import FactDef, charger_yaml, load_pending_facts  # noqa: E402
 
 JOUR = date(2026, 9, 6)
 
@@ -263,7 +261,7 @@ class TestProposition(BaseFaits):
         self.assertIn("# --- ex-aide ---", contenu)
         self.assertIn("Proposé par ingerer.py ex-aide (2026-09-06)", contenu)
         self.assertIn("Jardin remarquable", contenu)
-        brut = yaml.safe_load(contenu)
+        brut = charger_yaml(contenu)
         self.assertEqual(set(brut), {"jardin_remarquable"})
 
     def test_le_fait_est_visible_immediatement(self):
@@ -429,7 +427,7 @@ class TestRetrait(BaseFaits):
         sortie = self.retirer()
         self.assertNotIn("ERREUR", sortie)
         contenu = self.pending_path.read_text(encoding="utf-8")
-        self.assertEqual(set(yaml.safe_load(contenu)), {"jardin_labellise_ens"})
+        self.assertEqual(set(charger_yaml(contenu)), {"jardin_labellise_ens"})
         # La justification commentée du voisin est ce que la relecture humaine
         # arbitre : un `safe_dump` l'aurait effacée sans bruit.
         self.assertIn("# --- ex-aide ---", contenu)

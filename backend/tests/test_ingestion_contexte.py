@@ -39,6 +39,7 @@ from aides_schema import (  # noqa: E402
     TYPES,
     Aide,
     Condition,
+    charger_yaml,
     load_facts,
     load_pending_facts,
 )
@@ -198,7 +199,7 @@ class TestGabarit(unittest.TestCase):
         sans: list[str] = []
         for slug in load_all_aides():
             choix = choisir_aide_reference(slug, AIDES_DIR)
-            if choix is None or not yaml.safe_load(choix[1]).get("applies_if"):
+            if choix is None or not charger_yaml(choix[1]).get("applies_if"):
                 sans.append(slug)
         self.assertEqual(sans, [], "slugs dont le gabarit ne montre pas le périmètre")
 
@@ -210,7 +211,7 @@ class TestGabarit(unittest.TestCase):
 
         choix = choisir_aide_reference("zz-nouvelle-aide", AIDES_DIR)
         assert choix is not None
-        self.assertNotIn("fiche", yaml.safe_load(choix[1]))
+        self.assertNotIn("fiche", charger_yaml(choix[1]))
 
     def test_sans_bloc_fiche_garde_le_reste(self):
         from ingestion.contexte import sans_bloc_fiche
@@ -220,7 +221,7 @@ class TestGabarit(unittest.TestCase):
             "fiche:\n  titre: X\n  points:\n    a: {titre: A}\n"
         )
         self.assertEqual(
-            yaml.safe_load(sans_bloc_fiche(texte)), {"slug": "x", "conditions": [{"id": "a"}]}
+            charger_yaml(sans_bloc_fiche(texte)), {"slug": "x", "conditions": [{"id": "a"}]}
         )
         self.assertNotIn("Rédaction", sans_bloc_fiche(texte))
         self.assertEqual(sans_bloc_fiche("slug: x\n"), "slug: x\n")
@@ -233,7 +234,7 @@ class TestGabarit(unittest.TestCase):
 
         choix = choisir_aide_reference("zz-nouvelle-aide", AIDES_DIR)
         assert choix is not None
-        conditions = yaml.safe_load(choix[1]).get("conditions") or []
+        conditions = charger_yaml(choix[1]).get("conditions") or []
         self.assertTrue(
             any(c.get("levier") and c.get("kind") == "manual_check" for c in conditions)
         )
@@ -253,7 +254,7 @@ class TestGabarit(unittest.TestCase):
         sans: list[str] = []
         for slug in load_all_aides():
             choix = choisir_aide_reference(slug, AIDES_DIR)
-            conditions = (yaml.safe_load(choix[1]) or {}).get("conditions") or []
+            conditions = (charger_yaml(choix[1]) or {}).get("conditions") or []
             if not any(c.get("effect") == "modulateur" for c in conditions):
                 sans.append(slug)
         self.assertEqual(sans, [], "slugs dont le gabarit ne montre aucun modulateur")
@@ -274,7 +275,7 @@ class TestGabarit(unittest.TestCase):
         sans: list[str] = []
         for slug in load_all_aides():
             choix = choisir_aide_reference(slug, AIDES_DIR)
-            hf = (yaml.safe_load(choix[1]) or {}).get("hard_filters") or {} if choix else {}
+            hf = (charger_yaml(choix[1]) or {}).get("hard_filters") or {} if choix else {}
             if not hf.get("travaux"):
                 sans.append(slug)
         self.assertEqual(sans, [], "slugs dont le gabarit ne montre pas le cadrage des travaux")
@@ -295,7 +296,7 @@ class TestGabarit(unittest.TestCase):
         sans: list[str] = []
         for slug in load_all_aides():
             choix = choisir_aide_reference(slug, AIDES_DIR)
-            if choix is None or not (yaml.safe_load(choix[1]) or {}).get("familles"):
+            if choix is None or not (charger_yaml(choix[1]) or {}).get("familles"):
                 sans.append(slug)
         self.assertEqual(sans, [], "slugs dont le gabarit ne montre pas de famille")
 
@@ -316,7 +317,7 @@ class TestGabarit(unittest.TestCase):
         sans: list[str] = []
         for slug in load_all_aides():
             choix = choisir_aide_reference(slug, AIDES_DIR)
-            conditions = (yaml.safe_load(choix[1]) or {}).get("conditions") or [] if choix else []
+            conditions = (charger_yaml(choix[1]) or {}).get("conditions") or [] if choix else []
             if not any(
                 c.get("fact") == FAIT_PORTEUR and c.get("effect") == "gate" for c in conditions
             ):

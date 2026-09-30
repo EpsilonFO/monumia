@@ -88,6 +88,7 @@ from aides_schema import (
     FACTS_FILE,
     FACTS_PENDING_FILE,
     Aide,
+    charger_yaml,
     load_facts,
     load_pending_facts,
 )
@@ -187,7 +188,7 @@ class Rapport:
 def charger_table(chemin: Path) -> tuple[list[Retypage], list[str]]:
     """Lit la table YAML. Rend (retypages, erreurs de forme)."""
     try:
-        brut = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
+        brut = charger_yaml(chemin.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError) as exc:
         return [], [f"table illisible : {exc}"]
     if not isinstance(brut, dict) or not isinstance(brut.get("retypages"), list):
@@ -247,7 +248,7 @@ def _round_trip_stable(chemin: Path) -> bool:
     """
     texte = chemin.read_text(encoding="utf-8")
     try:
-        charge = yaml.safe_load(texte)
+        charge = charger_yaml(texte)
     except yaml.YAMLError:
         return False
     return yaml.safe_dump(charge, allow_unicode=True, sort_keys=False, width=100) == texte
@@ -292,7 +293,7 @@ def verifier(
     cles = {r.fait for r in retypages if not r.levier}
     for chemin in sorted(aides_dir.glob("*.yaml")):
         try:
-            aide = Aide.model_validate(yaml.safe_load(chemin.read_text(encoding="utf-8")))
+            aide = Aide.model_validate(charger_yaml(chemin.read_text(encoding="utf-8")))
         except Exception as exc:  # noqa: BLE001 — le lint le dira mieux
             erreurs.append(f"{chemin.stem} : illisible ({exc})")
             continue
@@ -569,7 +570,7 @@ def appliquer(
     nouveaux: dict[Path, str] = {}
     for chemin in sorted(aides_dir.glob("*.yaml")):
         texte = chemin.read_text(encoding="utf-8")
-        brut = yaml.safe_load(texte)
+        brut = charger_yaml(texte)
         conditions = brut.get("conditions") or []
         cibles = [c for c in conditions if (c.get("fact") or "") in par_cle]
         if not cibles:
@@ -596,7 +597,7 @@ def appliquer(
             # découpage qui aurait mordu sur un voisin se voit ici, avant
             # l'écriture, et le fichier entier est refusé plutôt que réparé.
             contenu = _reecrire_textuellement(texte, cibles, par_cle, jour)
-            if contenu is None or yaml.safe_load(contenu) != attendu:
+            if contenu is None or charger_yaml(contenu) != attendu:
                 rapport.erreurs.append(
                     f"{chemin.stem} : la réécriture textuelle ne rend pas le retypage attendu. "
                     f"Conditions visées : {', '.join(c['id'] for c in cibles)}. "
@@ -667,7 +668,7 @@ def _retirer_faits(chemin: Path, cles: list[str], avant: set[str]) -> tuple[str,
         return texte, erreurs
 
     attendu = avant - set(cles)
-    obtenu = set(yaml.safe_load(texte) or {})
+    obtenu = set(charger_yaml(texte) or {})
     if obtenu != attendu:
         erreurs.append(
             f"{chemin.name} : le retrait aurait emporté d'autres faits (perdus : "

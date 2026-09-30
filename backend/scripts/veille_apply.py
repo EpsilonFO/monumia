@@ -43,7 +43,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from aides_schema import Aide, Predicate, load_facts, load_pending_facts
+from aides_schema import Aide, Predicate, charger_yaml, load_facts, load_pending_facts
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -625,7 +625,7 @@ def _emit_chaine(cle: str, texte: str, indent: int) -> list[str]:
 def _relit_identique(lignes: list[str], cle: str, attendu: str, indent: int) -> bool:
     fragment = "\n".join(ligne[indent:] for ligne in lignes)
     try:
-        recharge = yaml.safe_load(fragment)
+        recharge = charger_yaml(fragment)
     except yaml.YAMLError:
         return False
     return isinstance(recharge, dict) and recharge.get(cle) == attendu
@@ -1208,11 +1208,11 @@ def appliquer(
     # Étape 6 : le filet. Un splice qui produit autre chose que le dictionnaire
     # attendu est annulé — mieux vaut une escalade qu'un YAML abîmé.
     try:
-        obtenu = yaml.safe_load(nouveau)
+        obtenu = charger_yaml(nouveau)
     except yaml.YAMLError as exc:
         res.erreurs, res.etape = [f"YAML invalide après édition : {exc}"], "edition"
         return res
-    ancien_dict = yaml.safe_load(ancien_texte)
+    ancien_dict = charger_yaml(ancien_texte)
     if ecarts := deep_diff(attendu_apres(ancien_dict, out, aujourd_hui, origine), obtenu):
         res.erreurs, res.etape = ecarts, "deep_diff"
         return res

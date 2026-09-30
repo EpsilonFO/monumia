@@ -56,7 +56,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pipeline.etat import FILE_ATTENTE, charger, mettre_a_jour
 from prospection.collecte import cle_fiche
 
-from aides_schema import AIDES_DIR, DATA_DIR, Aide, load_all_aides
+from aides_schema import AIDES_DIR, DATA_DIR, Aide, charger_yaml, load_all_aides
 
 #: PAS `data/fusions/`, qui tient les tables de fusion de FAITS et dont un test
 #: vérifie que chaque fichier porte une clé `fusions` : deux schémas dans un
@@ -238,7 +238,7 @@ def rendre_table(groupes: list[Groupe], *, jour: date) -> str:
 def charger_table(chemin: Path) -> tuple[list[Groupe], list[str]]:
     """Relit une table corrigée à la main."""
     try:
-        brut = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
+        brut = charger_yaml(chemin.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError) as exc:
         return [], [f"table illisible : {exc}"]
     if not isinstance(brut, dict) or not isinstance(brut.get("doublons"), list):

@@ -28,12 +28,11 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Literal
 
-import yaml
 from pydantic import BaseModel, ConfigDict, model_validator
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from aides_schema import DATA_DIR, Aide
+from aides_schema import DATA_DIR, Aide, charger_yaml
 from labels import DEPARTEMENT_LABELS, REGION_LABELS
 
 TERRITOIRES_FILE = DATA_DIR / "prospection" / "territoires.yaml"
@@ -172,7 +171,7 @@ def charger_territoires(chemin: Path = TERRITOIRES_FILE) -> dict[str, Territoire
     """
     if not chemin.exists():
         return {}
-    brut = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
+    brut = charger_yaml(chemin.read_text(encoding="utf-8")) or {}
     territoires: dict[str, Territoire] = {}
     for cle, valeur in brut.items():
         cle = str(cle)

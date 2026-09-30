@@ -22,7 +22,14 @@ from rediger_fiches import (  # noqa: E402
     retirer_fiche,
 )
 
-from aides_schema import Aide, Fiche, load_all_aides, load_facts, load_pending_facts  # noqa: E402
+from aides_schema import (  # noqa: E402
+    Aide,
+    Fiche,
+    charger_yaml,
+    load_all_aides,
+    load_facts,
+    load_pending_facts,
+)
 from eligibility_engine import (  # noqa: E402
     aide_display_dict,
     aide_fiche_dict,
@@ -275,9 +282,8 @@ class TestScriptRedaction(unittest.TestCase):
         self.assertEqual(controler(_aide(), self._fiche()), [])
 
     def test_bloc_yaml_relu_donne_la_meme_fiche(self):
-        import yaml
 
-        relu = yaml.safe_load(bloc_yaml(self._fiche()))["fiche"]
+        relu = charger_yaml(bloc_yaml(self._fiche()))["fiche"]
         self.assertEqual(Fiche.model_validate(relu), self._fiche())
 
 

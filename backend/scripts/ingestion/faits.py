@@ -38,7 +38,7 @@ from ontologie_regles import (
 from pipeline.verrou import ajouter_sous_verrou, reecrire_sous_verrou
 from veille_text import normalize
 
-from aides_schema import FAIT_PORTEUR, FactDef, load_pending_facts
+from aides_schema import FAIT_PORTEUR, FactDef, charger_yaml, load_pending_facts
 
 from .atelier import Atelier
 
@@ -355,7 +355,7 @@ def _validateur(fact_id: str, facts: dict[str, FactDef]):
     """
 
     def valider(texte: str) -> None:
-        brut = yaml.safe_load(texte) or {}
+        brut = charger_yaml(texte) or {}
         if not isinstance(brut, dict):
             raise ValueError("facts_pending.yaml doit être un dictionnaire de faits")
         for cle, valeur in brut.items():
@@ -420,7 +420,7 @@ def proposer(
         return _message_plafond(deja_proposes)
 
     try:
-        brut = yaml.safe_load(definition_yaml)
+        brut = charger_yaml(definition_yaml)
     except yaml.YAMLError as exc:
         return f"ERREUR : YAML invalide — {exc}"
     # Le modèle envoie tantôt la définition nue, tantôt `{id: définition}` :
@@ -544,7 +544,7 @@ def _validateur_retrait(fact_id: str, avant: set[str]):
     """
 
     def valider(texte: str) -> None:
-        brut = yaml.safe_load(texte) or {}
+        brut = charger_yaml(texte) or {}
         if not isinstance(brut, dict):
             raise ValueError("facts_pending.yaml doit être un dictionnaire de faits")
         attendu = avant - {fact_id}

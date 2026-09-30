@@ -50,6 +50,7 @@ from aides_schema import (
     AIDES_DIR,
     FACTS_FILE,
     FACTS_PENDING_FILE,
+    charger_yaml,
     load_facts,
     load_pending_facts,
 )
@@ -106,7 +107,7 @@ class Rapport:
 def charger_table(chemin: Path) -> tuple[list[Fusion], list[str]]:
     """Lit la table YAML. Rend (fusions, erreurs de forme)."""
     try:
-        brut = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
+        brut = charger_yaml(chemin.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError) as exc:
         return [], [f"table illisible : {exc}"]
     if not isinstance(brut, dict) or not isinstance(brut.get("fusions"), list):
@@ -304,7 +305,7 @@ def appliquer(
     # exactement les faits d'avant, moins ceux qu'on retire. Un découpage
     # textuel qui aurait mordu sur un voisin se voit ici, avant l'écriture.
     attendu = set(pending) - {f.retirer for f in fusions}
-    obtenu = set(yaml.safe_load(texte_pending) or {})
+    obtenu = set(charger_yaml(texte_pending) or {})
     if obtenu != attendu:
         rapport.erreurs.append(
             f"le retrait aurait emporté d'autres faits (perdus : "

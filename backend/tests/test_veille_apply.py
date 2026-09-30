@@ -18,8 +18,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import yaml
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
@@ -35,7 +33,7 @@ from veille_apply import (  # noqa: E402
     parse_output,
 )
 
-from aides_schema import AIDES_DIR, Aide, load_aide  # noqa: E402
+from aides_schema import AIDES_DIR, Aide, charger_yaml, load_aide  # noqa: E402
 
 AUJOURD_HUI = "2026-08-06"
 
@@ -168,7 +166,7 @@ class TestLocalisationConditions(unittest.TestCase):
         for chemin in chemins:
             lignes = chemin.read_text(encoding="utf-8").split("\n")
             attendues = {
-                c["id"]: c for c in (yaml.safe_load("\n".join(lignes)).get("conditions") or [])
+                c["id"]: c for c in (charger_yaml("\n".join(lignes)).get("conditions") or [])
             }
             for cond_id, attendue in attendues.items():
                 span = _localiser_condition(lignes, cond_id)
@@ -177,7 +175,7 @@ class TestLocalisationConditions(unittest.TestCase):
                     continue
                 bloc = lignes[span[0] : span[1]]
                 marge = len(bloc[0]) - len(bloc[0].lstrip())
-                relu = yaml.safe_load("\n".join(ligne[marge:] for ligne in bloc))
+                relu = charger_yaml("\n".join(ligne[marge:] for ligne in bloc))
                 # La plage doit couvrir l'item ENTIER et rien d'autre : un span
                 # trop court tronquerait la condition à la réécriture, un span
                 # trop long avalerait la suivante.
@@ -262,7 +260,7 @@ class TestApplicationReelle(unittest.TestCase):
                 aujourd_hui=AUJOURD_HUI,
             )
             self.assertTrue(res.ok, res.erreurs)
-            recharge = yaml.safe_load(res.texte)
+            recharge = charger_yaml(res.texte)
             self.assertEqual(str(recharge["calendrier"]["date_limite"]), "2026-11-30")
             self.assertEqual(recharge["financement"]["taux_max"], 40.0)
             # `permanent: false` n'était pas visé : il ne bouge pas.
@@ -284,7 +282,7 @@ class TestApplicationReelle(unittest.TestCase):
                 aujourd_hui=AUJOURD_HUI,
             )
             self.assertTrue(res.ok, res.erreurs)
-            recharge = yaml.safe_load(res.texte)
+            recharge = charger_yaml(res.texte)
             self.assertEqual(recharge["financement"]["montant_max"], 8000.0)
             self.assertEqual(recharge["financement"]["taux_max"], 30.0)
 
@@ -312,7 +310,7 @@ class TestApplicationReelle(unittest.TestCase):
                 aujourd_hui=AUJOURD_HUI,
             )
             self.assertTrue(res.ok, res.erreurs)
-            recharge = yaml.safe_load(res.texte)
+            recharge = charger_yaml(res.texte)
             ids = [c["id"] for c in recharge["conditions"]]
             self.assertEqual(ids, ["edifice-anterieur-1800", "architecte-requis", "montant-moyen"])
             ajoutee = recharge["conditions"][1]
@@ -356,7 +354,7 @@ class TestApplicationReelle(unittest.TestCase):
                 aujourd_hui=AUJOURD_HUI,
             )
             self.assertTrue(res.ok, res.erreurs)
-            ids = [c["id"] for c in yaml.safe_load(res.texte)["conditions"]]
+            ids = [c["id"] for c in charger_yaml(res.texte)["conditions"]]
             self.assertEqual(ids[-2:], ["premiere-ajoutee", "seconde-ajoutee"])
 
     def test_condition_disparue_est_annotee_jamais_supprimee(self):
@@ -370,7 +368,7 @@ class TestApplicationReelle(unittest.TestCase):
                 aujourd_hui=AUJOURD_HUI,
             )
             self.assertTrue(res.ok, res.erreurs)
-            recharge = yaml.safe_load(res.texte)
+            recharge = charger_yaml(res.texte)
             cond = next(c for c in recharge["conditions"] if c["id"] == "montant-moyen")
             self.assertIn("non retrouvée dans la source du 2026-08-06", cond["notes"])
             # La note d'origine survit, et la condition aussi.
@@ -535,8 +533,8 @@ class TestDeepDiff(unittest.TestCase):
             )
             res = appliquer(out.model_dump_json(), aide, chemin, DOCS, aujourd_hui=AUJOURD_HUI)
             self.assertTrue(res.ok, res.erreurs)
-            attendu = attendu_apres(yaml.safe_load(chemin.read_text()), out, AUJOURD_HUI)
-            self.assertEqual(deep_diff(attendu, yaml.safe_load(res.texte)), [])
+            attendu = attendu_apres(charger_yaml(chemin.read_text()), out, AUJOURD_HUI)
+            self.assertEqual(deep_diff(attendu, charger_yaml(res.texte)), [])
 
     def test_ecart_detecte(self):
         self.assertTrue(deep_diff({"a": 1}, {"a": 2}))
@@ -571,13 +569,13 @@ class TestEmitField(unittest.TestCase):
         # Aucune ligne sur-indentée : dans un `>-`, elle serait prise au pied
         # de la lettre et injecterait un saut de ligne.
         self.assertTrue(all(not ligne[6:7].isspace() for ligne in lignes[1:]))
-        self.assertEqual(yaml.safe_load("\n".join(lignes).strip())["text"], texte.strip())
+        self.assertEqual(charger_yaml("\n".join(lignes).strip())["text"], texte.strip())
 
     def test_sauts_de_ligne_significatifs_en_litteral(self):
         lignes = emit_field("quote", "Première ligne.\n\nSeconde ligne.", 4)
         self.assertEqual(lignes[0], "    quote: |-")
         self.assertEqual(
-            yaml.safe_load("\n".join(lignes).strip())["quote"],
+            charger_yaml("\n".join(lignes).strip())["quote"],
             "Première ligne.\n\nSeconde ligne.",
         )
 
@@ -585,12 +583,12 @@ class TestEmitField(unittest.TestCase):
         # « oui: non » serait un mapping ; « true » un booléen ; « 40 » un entier.
         for valeur in ("oui: non", "true", "40", "- tiret", "#commentaire", "a  "):
             rendu = "\n".join(emit_field("quote", valeur, 0))
-            self.assertEqual(yaml.safe_load(rendu)["quote"], valeur, f"valeur : {valeur!r}")
+            self.assertEqual(charger_yaml(rendu)["quote"], valeur, f"valeur : {valeur!r}")
 
     def test_liste(self):
         lignes = emit_field("exclusions", ["maprimerenov", "DETR"], 2)
         self.assertEqual(
-            yaml.safe_load("\n".join(lignes).strip())["exclusions"], ["maprimerenov", "DETR"]
+            charger_yaml("\n".join(lignes).strip())["exclusions"], ["maprimerenov", "DETR"]
         )
 
 

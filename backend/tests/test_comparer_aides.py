@@ -17,7 +17,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-import yaml  # noqa: E402
 from comparer_aides import (  # noqa: E402
     Journal,
     Ligne,
@@ -27,7 +26,7 @@ from comparer_aides import (  # noqa: E402
     tableau,
 )
 
-from aides_schema import Aide  # noqa: E402
+from aides_schema import Aide, charger_yaml  # noqa: E402
 
 BASE = {
     "slug": "ex-aide",
@@ -400,7 +399,7 @@ class TestYamlDuDepot(unittest.TestCase):
             with self.subTest(slug=slug):
                 chemin = dossier / f"{slug}.yaml"
                 self.assertTrue(chemin.exists(), f"{slug}.yaml manque au dépôt")
-                reelle = Aide.model_validate(yaml.safe_load(chemin.read_text(encoding="utf-8")))
+                reelle = Aide.model_validate(charger_yaml(chemin.read_text(encoding="utf-8")))
                 self.assertEqual(comparer(reelle, reelle).score, 100.0)
 
 
