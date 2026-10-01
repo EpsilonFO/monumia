@@ -1,4 +1,5 @@
 import contextlib
+import logging
 import os
 from typing import Any
 from urllib.parse import quote
@@ -11,6 +12,8 @@ from supabase import Client
 from db import get_anon_supabase, get_current_auth_user, get_current_user_id, get_supabase
 from services import stripe_billing as billing
 from services.roles import est_admin
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -438,9 +441,24 @@ def login(
         # renvoyer l'email, le 401 reste « email ou mot de passe incorrect ».
         if _email_non_confirme(e):
             raise HTTPException(status_code=403, detail=DETAIL_NON_CONFIRME) from e
+        # Le 401 rendu au front ne distingue rien (mot de passe faux, clé API
+        # invalide, Supabase injoignable) : la cause réelle n'est lisible qu'ici.
+        # Jamais le mot de passe, seulement de quoi repérer une saisie altérée.
+        logger.warning(
+            "Connexion refusée par Supabase (%s, status=%s, code=%s) : %s | email=%r, mdp=%d car.",
+            type(e).__name__,
+            getattr(e, "status", None),
+            getattr(e, "code", None),
+            e,
+            body.email,
+            len(body.password),
+        )
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect") from e
 
     if not auth_response.user or not auth_response.session:
+        logger.warning(
+            "Connexion sans session ni utilisateur rendus par Supabase : email=%r", body.email
+        )
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
 
     user_id = auth_response.user.id
