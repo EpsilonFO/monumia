@@ -590,6 +590,8 @@ export function ProjetDetailPage() {
   );
   const potentielsVisibles = toutAConfirmer ? potentielsMaintenant : potentielsMaintenant.slice(0, A_CONFIRMER_VISIBLES);
   const chezFiltre = filtre.key === 'toutes' ? '' : ` chez « ${filtre.label} »`;
+  const aucuneSection =
+    eligiblesMaintenant.length + atteignablesMaintenant.length + potentielsMaintenant.length + bientot.length === 0;
 
   return (
     <div className="ec pproj">
@@ -665,18 +667,21 @@ export function ProjetDetailPage() {
                 <AideFiltreBar options={filtreOptions} value={filtreKey} onChange={setFiltreKey} />
                 <AideFamilleBar options={familleOptions} value={familleFacette} onChange={setFamilleFacette} />
 
-                <Groupe
-                  ton="ok"
-                  picto="coche"
-                  titre="Disponibles maintenant"
-                  sous="Votre projet remplit les conditions publiées par le financeur, et le guichet est ouvert. Vous pouvez monter le dossier."
-                >
-                  {eligiblesMaintenant.length === 0 ? (
-                    <p className="empty">Aucune aide pleinement éligible pour le moment{chezFiltre}.</p>
-                  ) : (
-                    renderAideList(eligiblesMaintenant)
-                  )}
-                </Groupe>
+                {/* Une section vide se tait, comme « À débloquer » et « Disponibles
+                    bientôt » : un titre suivi de « Aucune aide » n'apprend rien.
+                    Si les quatre se taisent, une seule phrase le dit. */}
+                {aucuneSection && <p className="empty">Aucune aide à proposer pour le moment{chezFiltre}.</p>}
+
+                {eligiblesMaintenant.length > 0 && (
+                  <Groupe
+                    ton="ok"
+                    picto="coche"
+                    titre="Disponibles maintenant"
+                    sous="Votre projet remplit les conditions publiées par le financeur, et le guichet est ouvert. Vous pouvez monter le dossier."
+                  >
+                    {renderAideList(eligiblesMaintenant)}
+                  </Groupe>
+                )}
 
                 {atteignablesMaintenant.length > 0 && (
                   <Groupe
@@ -689,32 +694,28 @@ export function ProjetDetailPage() {
                   </Groupe>
                 )}
 
-                <Groupe
-                  ton="ck"
-                  picto="question"
-                  titre="À confirmer"
-                  sous="Il nous manque une ou plusieurs réponses pour savoir si votre projet est éligible. Elles se posent dans la fiche de chaque aide."
-                >
-                  {potentielsMaintenant.length === 0 ? (
-                    <p className="empty">Aucune aide à confirmer{chezFiltre}.</p>
-                  ) : (
-                    <>
-                      {/* Le chiffre qui compte n'est pas le nombre d'aides mais ce
-                          qu'il en coûte de trancher : les plus proches d'un
-                          verdict sont en tête. */}
-                      {renderAideList(potentielsVisibles)}
-                      {potentielsMaintenant.length > A_CONFIRMER_VISIBLES && (
-                        <div className="more">
-                          <button className="btn b-line" type="button" onClick={() => setToutAConfirmer((v) => !v)}>
-                            {toutAConfirmer
-                              ? "Ne montrer que les plus proches d'un verdict"
-                              : `Voir les ${potentielsMaintenant.length - A_CONFIRMER_VISIBLES} autres aides à confirmer`}
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </Groupe>
+                {potentielsMaintenant.length > 0 && (
+                  <Groupe
+                    ton="ck"
+                    picto="question"
+                    titre="À confirmer"
+                    sous="Il nous manque une ou plusieurs réponses pour savoir si votre projet est éligible. Elles se posent dans la fiche de chaque aide."
+                  >
+                    {/* Le chiffre qui compte n'est pas le nombre d'aides mais ce
+                        qu'il en coûte de trancher : les plus proches d'un
+                        verdict sont en tête. */}
+                    {renderAideList(potentielsVisibles)}
+                    {potentielsMaintenant.length > A_CONFIRMER_VISIBLES && (
+                      <div className="more">
+                        <button className="btn b-line" type="button" onClick={() => setToutAConfirmer((v) => !v)}>
+                          {toutAConfirmer
+                            ? "Ne montrer que les plus proches d'un verdict"
+                            : `Voir les ${potentielsMaintenant.length - A_CONFIRMER_VISIBLES} autres aides à confirmer`}
+                        </button>
+                      </div>
+                    )}
+                  </Groupe>
+                )}
 
                 {bientot.length > 0 && (
                   <Groupe
