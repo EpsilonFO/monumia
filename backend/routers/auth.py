@@ -582,7 +582,7 @@ def resend_confirmation(
     ni son état de confirmation ne se déduisent d'ici. Supabase applique en
     outre sa propre limite de fréquence, qui remonterait en erreur.
     """
-    with contextlib.suppress(Exception):
+    try:
         anon.auth.resend(
             {
                 "type": "signup",
@@ -593,6 +593,15 @@ def resend_confirmation(
                     )
                 },
             }
+        )
+    except Exception as e:
+        logger.warning(
+            "Renvoi de confirmation refusé par Supabase (%s, status=%s, code=%s) : %s | email=%r",
+            type(e).__name__,
+            getattr(e, "status", None),
+            getattr(e, "code", None),
+            e,
+            body.email,
         )
     return {
         "message": "Si une confirmation est en attente pour cette adresse, un email a été envoyé."
@@ -611,11 +620,22 @@ def forgot_password(
     import os
 
     frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-    # On n'expose jamais l'erreur au client (ne pas révéler si l'adresse existe).
-    with contextlib.suppress(Exception):
+    # On n'expose jamais l'erreur au client (ne pas révéler si l'adresse existe),
+    # mais on la garde dans les logs : un SMTP refusé, une limite d'envoi
+    # atteinte ou une clé invalide ne se voyaient nulle part.
+    try:
         anon.auth.reset_password_for_email(
             body.email,
             {"redirect_to": f"{frontend_url}/reset-password"},
+        )
+    except Exception as e:
+        logger.warning(
+            "Email de réinitialisation refusé par Supabase (%s, status=%s, code=%s) : %s | email=%r",
+            type(e).__name__,
+            getattr(e, "status", None),
+            getattr(e, "code", None),
+            e,
+            body.email,
         )
     return {"message": "Si un compte existe pour cette adresse, un email a été envoyé."}
 

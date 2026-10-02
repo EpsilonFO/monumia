@@ -250,6 +250,12 @@ subject = "Confirmez votre adresse pour activer votre compte Monumia"
 # depuis ce fichier — même convention que l'exemple `invite` ci-dessus.
 content_path = "./supabase/templates/confirmation.html"
 
+# Réinitialisation du mot de passe, même charte. À coller dans Dashboard →
+# Authentication → Email Templates → « Reset Password ».
+[auth.email.template.recovery]
+subject = "Réinitialisez votre mot de passe Monumia"
+content_path = "./supabase/templates/recovery.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true
