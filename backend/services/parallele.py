@@ -20,10 +20,13 @@ Trois règles tiennent ce module :
     le pool est plein.
 
 Sûr pour le client service-role : `supabase.table(...)` construit un query
-builder neuf à chaque appel et seule la session httpx est partagée, laquelle
-est thread-safe. Les opérations d'authentification, qui mutent l'état du
-client, passent par `get_anon_supabase()`, créé par requête — ne jamais en
-faire passer une ici sur le client partagé.
+builder neuf à chaque appel et seule la session httpx est partagée. Elle est
+thread-safe parce qu'elle parle HTTP/1.1 (une connexion du pool par requête),
+cf. `db._service_client`. En HTTP/2, le défaut de postgrest, les 16 threads se
+partageaient une seule connexion multiplexée, qui lâchait par rafales et
+emportait toutes les requêtes en vol. Les opérations d'authentification, qui
+mutent l'état du client, passent par `get_anon_supabase()`, créé par requête —
+ne jamais en faire passer une ici sur le client partagé.
 """
 
 import threading

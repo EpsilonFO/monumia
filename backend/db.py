@@ -1,6 +1,7 @@
 import os
 from functools import lru_cache
 
+import httpx
 import jwt
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
@@ -31,12 +32,26 @@ def _service_client() -> Client:
     nouveau query builder à chaque appel, et aucun code ne mute l'état du
     client (pas de `postgrest.auth()`, pas de `sign_in` : les opérations
     d'authentification passent par le client anon, créé par requête).
+
+    La session httpx est la nôtre, en HTTP/1.1. Celle que créent postgrest et
+    storage3 par défaut parle HTTP/2 : une seule connexion multiplexée, que se
+    partagent les 40 threads d'anyio et les 16 de `services.parallele`. En
+    prod, elle lâchait par rafales (`ConnectionTerminated error_code:1`,
+    `Server disconnected`, `deque mutated during iteration` dans l'état de la
+    connexion), et chaque coupure emportait toutes les requêtes en vol : sept
+    500 dans la même milliseconde sur une page projet le 2026-10-01. En
+    HTTP/1.1, chaque requête a sa connexion dans le pool, et une coupure n'en
+    emporte qu'une. Ne pas remettre `http2=True` ici.
     """
     url = os.environ["SUPABASE_URL"]
     key = os.environ["SUPABASE_SECRET_KEY"]
+    # Postgrest, storage et auth envoient l'URL complète et leurs en-têtes à
+    # chaque requête : un client sans `base_url` ni `headers` leur convient. Le
+    # timeout reprend celui que postgrest posait (DEFAULT_POSTGREST_CLIENT_TIMEOUT).
+    session = httpx.Client(http2=False, follow_redirects=True, timeout=120)
     # Pas de timer d'auto-refresh sur un client à durée de vie infinie : la clé
     # service-role n'a pas de session à rafraîchir.
-    options = ClientOptions(auto_refresh_token=False, persist_session=False)
+    options = ClientOptions(auto_refresh_token=False, persist_session=False, httpx_client=session)
     return create_client(url, key, options)
 
 
