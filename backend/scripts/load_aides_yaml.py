@@ -20,12 +20,15 @@ Run:
 
 import os
 import sys
+import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import httpx
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -127,6 +130,31 @@ LOT = 50
 # Écritures d'aides simultanées au sein d'un lot. Assez pour masquer la latence
 # réseau, assez peu pour ne pas ressembler à une rafale côté Supabase.
 ECRITURES_PARALLELES = 8
+# Le client PostgREST parle HTTP/2 : les huit écritures partagent UNE connexion,
+# et quand la passerelle Supabase la referme (GOAWAY, coupure réseau), toutes les
+# requêtes en vol tombent en `RemoteProtocolError: Server disconnected`. Vu au
+# déploiement du 2026-10-02 sur la beta, deux fois de suite, à 50 puis à 350
+# aides : rien dans les données, une connexion à rouvrir. httpx la rouvre seul à
+# la requête suivante ; il suffit de rejouer celle qui a échoué.
+ESSAIS = 4
+
+
+def _reprendre[T](action: Callable[[], T], quoi: str) -> T:
+    """Exécute `action`, la rejoue sur une erreur de transport (attente 1, 2, 4 s).
+
+    Ne rejouer que des actions IDEMPOTENTES : une requête dont la réponse s'est
+    perdue a pu s'appliquer en base.
+    """
+    for essai in range(ESSAIS):
+        try:
+            return action()
+        except httpx.TransportError as exc:
+            if essai == ESSAIS - 1:
+                raise
+            attente = 2**essai
+            print(f"  ↻ {quoi} : {type(exc).__name__}, nouvel essai dans {attente} s")
+            time.sleep(attente)
+    raise AssertionError("inatteignable")
 
 
 def main() -> int:
@@ -171,13 +199,21 @@ def main() -> int:
         }
         for key, f in facts.items()
     ]
-    supabase.table("facts").upsert(fact_rows, on_conflict="key").execute()
+    _reprendre(
+        lambda: supabase.table("facts").upsert(fact_rows, on_conflict="key").execute(),
+        "faits",
+    )
     print(f"✓ {len(fact_rows)} faits upsertés")
 
     # ── Aides ───────────────────────────────────────────────────────────
     # Index des lignes existantes pour rattacher par slug, sinon par nom
     # (backfill des lignes créées par les anciens seeds, sans slug).
-    existing = (supabase.table("aides_v3").select("id, nom, slug").execute()).data or []
+    existing = (
+        _reprendre(
+            lambda: supabase.table("aides_v3").select("id, nom, slug").execute(),
+            "index des aides",
+        )
+    ).data or []
     by_slug = {r["slug"]: r["id"] for r in existing if r.get("slug")}
     by_nom = {r["nom"]: r["id"] for r in existing}
 
@@ -200,11 +236,22 @@ def main() -> int:
             row["raison"] = aide.raison
         aide_id = by_slug.get(slug) or by_nom.get(aide.nom)
         if aide_id:
-            supabase.table("aides_v3").update(row).eq("id", aide_id).execute()
+            _reprendre(
+                lambda: supabase.table("aides_v3").update(row).eq("id", aide_id).execute(),
+                slug,
+            )
             return aide_id, False
         row.setdefault("raison", [])
-        result = supabase.table("aides_v3").insert(row).execute()
-        return result.data[0]["id"], True
+
+        def inserer() -> str:
+            # Un insert n'est pas idempotent : si la réponse d'un premier essai
+            # s'est perdue, la ligne existe déjà. On la cherche avant d'écrire.
+            deja = supabase.table("aides_v3").select("id").eq("slug", slug).execute().data
+            if deja:
+                return deja[0]["id"]
+            return supabase.table("aides_v3").insert(row).execute().data[0]["id"]
+
+        return _reprendre(inserer, slug), True
 
     created, updated = 0, 0
     items = list(aides.items())
@@ -221,9 +268,14 @@ def main() -> int:
                 for row in condition_rows(aide, aide_id)
             ]
 
-            supabase.table("aide_conditions").delete().in_("aide_id", lot_ids).execute()
-            if lot_conditions:
-                supabase.table("aide_conditions").insert(lot_conditions).execute()
+            # Effacer puis réinsérer, rejoués ENSEMBLE : la paire est idempotente,
+            # l'insert seul ne l'est pas (il doublerait les conditions).
+            def remplacer_conditions(ids: list[str] = lot_ids, rows: list = lot_conditions) -> None:
+                supabase.table("aide_conditions").delete().in_("aide_id", ids).execute()
+                if rows:
+                    supabase.table("aide_conditions").insert(rows).execute()
+
+            _reprendre(remplacer_conditions, f"conditions du lot {start // LOT + 1}")
             print(f"  {min(start + LOT, len(items))}/{len(items)} aides")
 
     print(f"✓ aides : {updated} mises à jour, {created} créées")
