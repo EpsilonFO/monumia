@@ -20,6 +20,7 @@ Run:
 
 import os
 import sys
+import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -34,7 +35,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 load_dotenv(Path(__file__).resolve().parent.parent / ".env.local", override=True)
 
-from supabase import create_client
+from supabase import Client, create_client
 
 from aides_schema import Aide, load_all_aides, load_facts, load_pending_facts
 from eligibility_engine import engine_ready_aides
@@ -130,12 +131,17 @@ LOT = 50
 # Écritures d'aides simultanées au sein d'un lot. Assez pour masquer la latence
 # réseau, assez peu pour ne pas ressembler à une rafale côté Supabase.
 ECRITURES_PARALLELES = 8
-# Le client PostgREST parle HTTP/2 : les huit écritures partagent UNE connexion,
-# et quand la passerelle Supabase la referme (GOAWAY, coupure réseau), toutes les
-# requêtes en vol tombent en `RemoteProtocolError: Server disconnected`. Vu au
-# déploiement du 2026-10-02 sur la beta, deux fois de suite, à 50 puis à 350
-# aides : rien dans les données, une connexion à rouvrir. httpx la rouvre seul à
-# la requête suivante ; il suffit de rejouer celle qui a échoué.
+#
+# CHAQUE THREAD A SON PROPRE CLIENT (`client_du_thread`). Le client PostgREST
+# parle HTTP/2, et un client partagé faisait passer les huit threads sur UNE
+# connexion multiplexée, ce que le transport synchrone de httpcore ne tient pas :
+# trames entremêlées, Cloudflare qui referme la connexion (`RemoteProtocolError:
+# Server disconnected`, toutes les requêtes en vol d'un coup) ou rejette une
+# requête mal formée (400 HTML « cloudflare », que PostgREST ne sait pas lire).
+# Vu à chaque déploiement depuis la parallélisation du 2026-09-30, beta comme
+# prod, jamais avant. Un client par thread = une connexion par thread.
+#
+# Les reprises restent, en filet : une connexion peut aussi tomber pour de vrai.
 ESSAIS = 4
 
 
@@ -182,7 +188,8 @@ def main() -> int:
         print("--dry-run : validation OK, aucune écriture")
         return 0
 
-    supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SECRET_KEY"])
+    url, cle = os.environ["SUPABASE_URL"], os.environ["SUPABASE_SECRET_KEY"]
+    supabase = create_client(url, cle)
 
     # ── Faits ───────────────────────────────────────────────────────────
     fact_rows = [
@@ -225,9 +232,17 @@ def main() -> int:
     # Au sein d'un lot, les écritures d'aides partent en parallèle : ~600
     # requêtes à la suite, c'était une minute d'attente réseau par environnement
     # à chaque déploiement. Chaque aide est une ligne distincte, l'ordre est
-    # indifférent ; le client HTTP sous-jacent (httpx) se partage entre threads.
+    # indifférent. Le client, lui, ne se partage PAS (cf. ECRITURES_PARALLELES).
+    local = threading.local()
+
+    def client_du_thread() -> Client:
+        if not hasattr(local, "client"):
+            local.client = create_client(url, cle)
+        return local.client
+
     def pousser(slug: str, aide: Aide) -> tuple[str, bool]:
         """Écrit une aide, rend (id, créée ?)."""
+        db = client_du_thread()
         row = aide_to_row(aide)
         # `raison` (NOT NULL en base) — asymétrie transitoire : tant que les
         # YAML ne portent pas la finalité, un update ne doit pas écraser la
@@ -237,7 +252,7 @@ def main() -> int:
         aide_id = by_slug.get(slug) or by_nom.get(aide.nom)
         if aide_id:
             _reprendre(
-                lambda: supabase.table("aides_v3").update(row).eq("id", aide_id).execute(),
+                lambda: db.table("aides_v3").update(row).eq("id", aide_id).execute(),
                 slug,
             )
             return aide_id, False
@@ -246,10 +261,10 @@ def main() -> int:
         def inserer() -> str:
             # Un insert n'est pas idempotent : si la réponse d'un premier essai
             # s'est perdue, la ligne existe déjà. On la cherche avant d'écrire.
-            deja = supabase.table("aides_v3").select("id").eq("slug", slug).execute().data
+            deja = db.table("aides_v3").select("id").eq("slug", slug).execute().data
             if deja:
                 return deja[0]["id"]
-            return supabase.table("aides_v3").insert(row).execute().data[0]["id"]
+            return db.table("aides_v3").insert(row).execute().data[0]["id"]
 
         return _reprendre(inserer, slug), True
 
