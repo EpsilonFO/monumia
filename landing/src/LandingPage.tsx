@@ -561,17 +561,21 @@ function Hero() {
       />
 
       <div className="relative mx-auto grid max-w-6xl items-center gap-16 lg:grid-cols-[1.22fr_0.78fr] lg:items-start lg:gap-12">
+        {/* Le texte du héros s'affiche d'emblée, sans fondu : parti d'une
+            opacité nulle, il laissait un écran vide tant que le téléphone,
+            occupé par ailleurs, n'avait pas démarré l'animation. Le fondu reste
+            sur la colonne de l'image, qui n'est pas ce qu'on lit en premier. */}
         <div>
           <p
-            className="fade-up text-[11.5px] font-semibold uppercase tracking-[0.16em]"
-            style={{ color: C.orange, animationDelay: '0.05s' }}
+            className="text-[11.5px] font-semibold uppercase tracking-[0.16em]"
+            style={{ color: C.orange }}
           >
             Le moteur de recherche des aides au patrimoine
           </p>
 
           <h1
-            className="fade-up mt-4 font-serif text-[clamp(1.85rem,4.2vw,2.7rem)] leading-[1.13] tracking-[-0.015em]"
-            style={{ color: C.ink, animationDelay: '0.15s' }}
+            className="mt-4 font-serif text-[clamp(1.85rem,4.2vw,2.7rem)] leading-[1.13] tracking-[-0.015em]"
+            style={{ color: C.ink }}
           >
             L’argent pour restaurer et faire vivre votre monument{' '}
             <span style={{ color: C.blue }}>existe</span>. Nous vous aidons à le{' '}
@@ -579,15 +583,15 @@ function Hero() {
           </h1>
 
           <p
-            className="fade-up mt-7 max-w-[41rem] text-[16px] font-medium leading-[1.7] sm:text-[17px]"
-            style={{ color: C.inkSoft, animationDelay: '0.3s' }}
+            className="mt-7 max-w-[41rem] text-[16px] font-medium leading-[1.7] sm:text-[17px]"
+            style={{ color: C.inkSoft }}
           >
             À quelles aides votre monument est-il éligible ? Pour quel montant ? Comment les
             obtenir ? Monumia croise votre projet de restauration, d’ouverture ou d’animation
             avec plus de 2000 aides, de la DRAC aux fondations.
           </p>
 
-          <div className="fade-up mt-9 flex flex-wrap items-center gap-4" style={{ animationDelay: '0.45s' }}>
+          <div className="mt-9 flex flex-wrap items-center gap-4">
             <CtaButton variant="blue" onClick={entrerDansMonumia}>
               Trouver les aides pour mon monument
             </CtaButton>
@@ -607,16 +611,13 @@ function Hero() {
           </div>
 
           {/* Ce qu'engage le clic : rien. Dit avant le clic, pas après. */}
-          <p
-            className="fade-up mt-5 text-[13px]"
-            style={{ color: C.inkFaint, animationDelay: '0.6s' }}
-          >
+          <p className="mt-5 text-[13px]" style={{ color: C.inkFaint }}>
             En quelques minutes · Gratuit, sans engagement · Monument protégé ou non
           </p>
 
           {/* Ceux qui nous accompagnent, dits tout de suite : la confiance se
               gagne avant le clic, pas en bas de page. */}
-          <Partenaires className="fade-up mt-8" style={{ animationDelay: '0.7s' }} />
+          <Partenaires className="mt-8" />
         </div>
 
         <div
@@ -628,12 +629,24 @@ function Hero() {
             className="overflow-hidden rounded-b-2xl rounded-t-[10rem] border shadow-[0_30px_70px_-32px_rgba(34,43,53,0.4)]"
             style={{ borderColor: C.border }}
           >
-            <img
-              src={`${BASE}img/paley.jpg`}
-              alt="Le château de Paley, en Seine-et-Marne, sélectionné par la Mission Patrimoine 2026, vu depuis son parc."
-              className="aspect-[4/5] w-full object-cover"
-              style={{ objectPosition: '50% 0%' }}
-            />
+            {/* Recadrée en 4:5 à l'avance et déclinée en trois largeurs :
+                l'original (6000 × 4000, 4,4 Mo) coûtait 96 Mo de mémoire à
+                décoder sur un téléphone, pour une colonne de 460 px au plus. */}
+            <picture>
+              <source
+                type="image/webp"
+                srcSet={`${BASE}img/paley-480.webp 480w, ${BASE}img/paley-800.webp 800w, ${BASE}img/paley-1200.webp 1200w`}
+                sizes="(min-width: 1024px) 420px, min(460px, calc(100vw - 40px))"
+              />
+              <img
+                src={`${BASE}img/paley-800.jpg`}
+                width={800}
+                height={1000}
+                fetchPriority="high"
+                alt="Le château de Paley, en Seine-et-Marne, sélectionné par la Mission Patrimoine 2026, vu depuis son parc."
+                className="aspect-[4/5] h-auto w-full object-cover"
+              />
+            </picture>
           </div>
 
           {/* Les chiffres, posés devant le monument */}
