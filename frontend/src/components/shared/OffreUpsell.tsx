@@ -6,7 +6,7 @@ import { ROUTES } from '@/constants/routes';
 interface OffreUpsellProps {
   /**
    * Ce que l'offre débloquerait, à l'infinitif et sans majuscule : la phrase se
-   * lit « L'offre Veille permet de {action}. »
+   * lit « L'offre Veille permet de {action}. », avec l'élision (« d'inviter »).
    */
   action: string;
   /** Nom de l'offre à prendre — « Veille » ou « Multi-monuments ». */
@@ -35,7 +35,7 @@ export function OffreUpsell({ action, offre, monumentId }: OffreUpsellProps) {
       {/* Pas de cadenas : le bandeau annonce ce qui s'ouvre, pas ce qui est
           fermé. Sa flèche est portée une seule fois, par le bouton. */}
       <p className="text-[15.5px] leading-relaxed" style={{ color: C.grayFg }}>
-        {`L'offre ${offre} permet de ${action}.`}
+        {`L'offre ${offre} permet ${elider(action)}.`}
       </p>
       <Link
         to={ROUTES.TARIFS(monumentId)}
@@ -49,3 +49,7 @@ export function OffreUpsell({ action, offre, monumentId }: OffreUpsellProps) {
   );
 }
 
+/** « de » devant une consonne, « d' » devant une voyelle : « permet d'inviter ». */
+function elider(action: string): string {
+  return /^[aeiouyàâéèêëîïôûü]/i.test(action) ? `d'${action}` : `de ${action}`;
+}

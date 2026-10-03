@@ -27,3 +27,16 @@ def is_invitation_acceptable(status: str, expires_at_iso: str) -> bool:
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=UTC)
     return datetime.now(UTC) < expires_at
+
+
+def invitation_destinee_a(email_invite: str | None, email_compte: str | None) -> bool:
+    """True si le compte connecté est bien le destinataire de l'invitation.
+
+    Le jeton seul ne suffit pas : un lien transféré ou affiché ailleurs
+    ouvrirait l'équipe à n'importe quel compte. Comparaison à la casse et aux
+    espaces près, l'invitation stockant l'adresse en minuscules. Une adresse
+    absente d'un côté ou de l'autre ne correspond à rien (fail-closed).
+    """
+    invite = (email_invite or "").strip().lower()
+    compte = (email_compte or "").strip().lower()
+    return bool(invite) and invite == compte

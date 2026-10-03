@@ -36,3 +36,9 @@ export function navItemsPour(offre: Offre): NavItem[] {
     { to: ROUTES.DOCUMENTS, picto: 'doc', label: 'Mes documents', court: 'Documents' },
   ];
 }
+
+/**
+ * Le Blog, public (ressources) : ajouté après la nav privée, dans la barre
+ * haute comme dans la barre du bas, pour que le mobile ne le perde pas.
+ */
+export const NAV_BLOG: NavItem = { to: '/blog', picto: 'livre', label: 'Blog' };

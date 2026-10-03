@@ -73,3 +73,17 @@ def compute_etat_projet(cloture_at: str | None, suivis: list[dict]) -> str:
     if suivis and all(s.get("statut") in TERMINAUX for s in suivis):
         return "pret_a_cloturer"
     return "ouvert"
+
+
+def statut_suivi_au_depot(actuel: str | None, *, depose: bool) -> str | None:
+    """Statut que prend le suivi d'une aide quand son dossier est marqué déposé
+    (`depose=True`) ou rouvert (`depose=False`) ; None = ne pas y toucher.
+
+    Le dépôt fait avancer un suivi resté en amont (« À faire », « En
+    préparation », ou absent) jusqu'à « Déposé ». La réouverture ne défait que
+    ce que le dépôt a posé : un suivi « Déposé » revient « En préparation », une
+    décision (accordé, refusé) n'est jamais effacée.
+    """
+    if depose:
+        return "depose" if actuel in (None, "a_faire", "en_preparation") else None
+    return "en_preparation" if actuel == "depose" else None

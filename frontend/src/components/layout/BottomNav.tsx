@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router';
 import { cn } from '@/lib/utils';
 import { C } from '@/lib/brand';
-import { navItemsPour } from './nav-items';
+import { NAV_BLOG, navItemsPour } from './nav-items';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { useOffre } from '@/hooks/useOffre';
 
@@ -10,19 +10,18 @@ import { useOffre } from '@/hooks/useOffre';
  * applications mobiles grand public : grandes cibles, icône + libellé, pastille
  * bleue derrière l'onglet actif. Pensée pour un public peu à l'aise avec le numérique.
  *
+ * Mêmes onglets que la barre haute, Blog compris. La grille suit leur nombre
+ * plutôt qu'un nombre de colonnes figé.
+ *
  * Libellés courts (`court`) : à quatre onglets sur un iPhone, « Tableau de
  * bord » et « Mes monuments » se chevauchaient. Le libellé complet reste le nom
  * accessible du lien.
  *
  * `data-barre-bas` : repère lu par index.css pour remonter le bouton Ybug et
  * les toasts au-dessus de la barre.
- *
- * La grille suit le nombre d'onglets : le tableau de bord n'apparaît qu'avec
- * l'offre Multi-monuments, et une grille figée à trois colonnes laisserait un
- * trou à droite.
  */
 export function BottomNav() {
-  const items = navItemsPour(useOffre());
+  const items = [...navItemsPour(useOffre()), NAV_BLOG];
 
   return (
     <nav
@@ -46,7 +45,8 @@ export function BottomNav() {
               aria-label={item.label}
               className={({ isActive }) =>
                 cn(
-                  'flex min-w-0 flex-col items-center gap-1 pb-2 pt-2 text-[13px] font-medium transition-colors',
+                  // 12 px sous 340 px de large (iPhone SE) : « Monuments » y était tronqué.
+                  'flex min-w-0 flex-col items-center gap-1 pb-2 pt-2 text-[13px] font-medium transition-colors max-[340px]:text-[12px]',
                   isActive ? 'text-[color:var(--primary)]' : 'text-[color:var(--gray-muted)]',
                 )
               }

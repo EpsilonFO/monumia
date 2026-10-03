@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
-from services.invitations import is_invitation_acceptable
+from services.invitations import invitation_destinee_a, is_invitation_acceptable
 
 router = APIRouter(prefix="/invitations", tags=["invitations"])
 
@@ -114,6 +114,20 @@ def accept_invitation(
 
     if not is_invitation_acceptable(inv["status"], inv["expires_at"]):
         raise HTTPException(status_code=410, detail="Cette invitation n'est plus valide")
+
+    # Le jeton ne suffit pas : l'invitation n'ouvre l'équipe qu'au compte dont
+    # l'adresse est celle à qui elle a été envoyée. Le front prévient avant le
+    # clic (même comparaison), ce refus tient la porte s'il est contourné.
+    compte = supabase.table("users").select("email").eq("id", user_id).maybe_single().execute()
+    email_compte = compte.data.get("email") if compte and compte.data else None
+    if not invitation_destinee_a(inv["email"], email_compte):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Cette invitation a été envoyée à {inv['email']}. "
+                "Connectez-vous avec cette adresse pour la rejoindre."
+            ),
+        )
 
     if projet_id:
         supabase.table("projet_members").insert(

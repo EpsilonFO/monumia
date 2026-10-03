@@ -5,7 +5,7 @@ import { SERIF } from '@/lib/brand';
 import { LogoMonumia } from '@/components/icons';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { OwnerAccountMenu } from './ownerNav';
-import { navItemsPour, type NavItem } from './nav-items';
+import { NAV_BLOG, navItemsPour, type NavItem } from './nav-items';
 import { useOffre } from '@/hooks/useOffre';
 import { useRetourStore } from '@/stores/useRetourStore';
 
@@ -24,7 +24,7 @@ export function TopBar() {
   // Onglets de la barre haute = nav privée (variable selon l'offre) + le Blog
   // public (ressources).
   const offre = useOffre();
-  const topBarNavItems: NavItem[] = [...navItemsPour(offre), { to: '/blog', picto: 'livre', label: 'Blog' }];
+  const topBarNavItems: NavItem[] = [...navItemsPour(offre), NAV_BLOG];
   const retour = useRetourStore((s) => s.retour);
 
   return (

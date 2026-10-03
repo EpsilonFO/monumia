@@ -7,7 +7,7 @@ import { MemberAvatar } from '@/components/sharing/MemberAvatar';
 import { DocumentVisibilityField, type DocumentVisibilityValue } from './DocumentVisibilityField';
 import { whoCanView } from '@/lib/document-visibility';
 import { useDocumentStore } from '@/stores/useDocumentStore';
-import { sharingService } from '@/services/sharing.service';
+import { projetSharingService, sharingService } from '@/services/sharing.service';
 import { toast } from 'sonner';
 import type { Document, ProjectMember, ProjectRole } from '@/types';
 
@@ -22,8 +22,12 @@ interface Props {
 
 export function ManageDocumentAccessDialog({ document, myRole, open, onOpenChange, onSaved }: Props) {
   const updateDocument = useDocumentStore((s) => s.updateDocument);
-  // Visibilité scopée au monument principal du document (v1 : monumentIds[0]).
+  // Personnes proposées : l'équipe du monument principal et celle du projet
+  // principal (v1 : le premier de chaque). Un document rattaché au seul
+  // chantier n'a pas de monument : sans l'équipe du projet, la liste
+  // « Personnes choisies » restait vide.
   const monumentId = document.monumentIds[0];
+  const projetId = document.projetIds[0];
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [value, setValue] = useState<DocumentVisibilityValue>({
     visibility: document.visibility,
@@ -43,14 +47,26 @@ export function ManageDocumentAccessDialog({ document, myRole, open, onOpenChang
     // intentionnel pour ne pas écraser la sélection en cours si le store se met à jour.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     setValue({ visibility: document.visibility, allowedUserIds: document.allowedUserIds });
-    if (!monumentId) { setMembers([]); return; }
+    if (!monumentId && !projetId) { setMembers([]); return; }
     let cancelled = false;
-    sharingService
-      .getMembers(monumentId)
-      .then((r) => { if (!cancelled) setMembers(r.members); })
-      .catch(() => { if (!cancelled) setMembers([]); });
+    // allSettled : un membre du seul chantier n'a pas accès à l'équipe du
+    // monument (403), ce qui ne doit pas vider la liste du projet.
+    Promise.allSettled([
+      monumentId ? sharingService.getMembers(monumentId) : Promise.reject(),
+      projetId ? projetSharingService.getMembers(projetId) : Promise.reject(),
+    ]).then((resultats) => {
+      if (cancelled) return;
+      // L'équipe du projet reprend déjà celle du monument : le premier vu
+      // l'emporte, le rôle hérité étant le plus large.
+      const parId = new Map<string, ProjectMember>();
+      for (const r of resultats) {
+        if (r.status !== 'fulfilled') continue;
+        for (const m of r.value.members) if (!parId.has(m.userId)) parId.set(m.userId, m);
+      }
+      setMembers([...parId.values()]);
+    });
     return () => { cancelled = true; };
-  }, [open, monumentId]);
+  }, [open, monumentId, projetId]);
 
   const handleSave = async () => {
     setSaving(true);

@@ -1569,6 +1569,16 @@ def evaluate_aide(
         # → si on n'a pas pu trancher le gate, on reste en incertitude. Même
         # geste pour un porteur inconnu : tant qu'on ignore si l'aide s'adresse
         # à lui, un critère satisfait ne la rend pas éligible.
+        #
+        # Le critère reste pourtant REMPLI sur le fait, et seule l'applicabilité
+        # manque (« Qui peut porter le projet » quand le porteur répond déjà au
+        # critère, mais que le périmètre de l'aide attend sa question) : il est
+        # marqué `clarified`, pour que le front le range avec les conditions
+        # remplies plutôt qu'avec celles « à confirmer avec le financeur ». Une
+        # applicabilité qui se révèle fausse retire la condition, elle ne la
+        # fait jamais échouer. Pas pour le porteur inconnu : un porteur non
+        # admis la ferait passer en refus.
+        rempli_si_applicable = applies is None and not porteur_inconnu and result is True
         if (applies is None or porteur_inconnu) and result is True:
             result = None
 
@@ -1643,7 +1653,7 @@ def evaluate_aide(
                     else "Information manquante."
                 ),
                 "detail": cond.text,
-                "clarified": False,
+                "clarified": rempli_si_applicable,
                 "nature": nature,
             }
             if cat and not fait_tranche:
@@ -2727,13 +2737,18 @@ def run_deterministic_diagnostic(
     # pas (périmètre de l'aide : festivals, compagnies, écoles d'art…). Même
     # traitement que les aides hors projet : elles n'ont jamais été candidates.
     # Avec plusieurs propriétaires, l'aide n'est hors périmètre que pour TOUS.
-    ready_avant_perimetre = len(ready)
-    ready = {
-        slug: a
+    #
+    # À la différence des aides hors projet, on garde trace de ces aides-là :
+    # c'est une RÉPONSE qui les écarte, et la fiche d'une aide doit pouvoir le
+    # dire (« ne correspond pas à votre projet ») et laisser changer la réponse,
+    # au lieu de perdre son verdict. Le motif est la question de périmètre.
+    ecartees_perimetre = {
+        slug: _perimetre_texte(facts.get((a.applies_if.fact if a.applies_if else None) or ""))
         for slug, a in ready.items()
-        if not all(hors_perimetre(a, ctx, facts) for _, ctx in profils)
+        if all(hors_perimetre(a, ctx, facts) for _, ctx in profils)
     }
-    hors_sujet += ready_avant_perimetre - len(ready)
+    ready = {slug: a for slug, a in ready.items() if slug not in ecartees_perimetre}
+    hors_sujet += len(ecartees_perimetre)
 
     verdicts = [
         _meilleur_verdict([evaluate_aide(a, m, population, ctx, facts) for m, ctx in profils])
@@ -2791,4 +2806,6 @@ def run_deterministic_diagnostic(
         "montantAtteignableTotal": montant_atteignable if montant_atteignable > 0 else None,
         "tauxTravauxMaxPct": taux_travaux,
         "qcmQuestions": questions,
+        # slug → la question de périmètre dont la réponse a écarté l'aide.
+        "aidesHorsPerimetre": ecartees_perimetre,
     }

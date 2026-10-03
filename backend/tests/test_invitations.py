@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from services.invitations import (
     INVITATION_TTL_DAYS,
     generate_invite_token,
+    invitation_destinee_a,
     invitation_expiry_iso,
     is_invitation_acceptable,
 )
@@ -44,6 +45,19 @@ class AcceptableTests(unittest.TestCase):
     def test_non_pending_status_rejected(self) -> None:
         self.assertFalse(is_invitation_acceptable("accepted", self._future()))
         self.assertFalse(is_invitation_acceptable("revoked", self._future()))
+
+
+class DestinataireTests(unittest.TestCase):
+    def test_meme_adresse_a_la_casse_pres(self) -> None:
+        self.assertTrue(invitation_destinee_a("marie@exemple.fr", " Marie@Exemple.FR "))
+
+    def test_autre_adresse_refusee(self) -> None:
+        self.assertFalse(invitation_destinee_a("marie@exemple.fr", "paul@exemple.fr"))
+
+    def test_adresse_absente_refusee(self) -> None:
+        self.assertFalse(invitation_destinee_a("marie@exemple.fr", None))
+        self.assertFalse(invitation_destinee_a("", ""))
+        self.assertFalse(invitation_destinee_a(None, None))
 
 
 if __name__ == "__main__":

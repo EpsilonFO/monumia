@@ -107,13 +107,57 @@ prune_releases() {
 #
 # Retourne non zéro si la config est invalide, pour que l'appelant le signale.
 # nginx continue alors de tourner avec sa config précédente.
+#
+# LE PIÈGE DU MONTAGE D'UN FICHIER SEUL
+# docker-compose.yml monte `nginx/nginx.conf` comme un fichier, pas comme un
+# dossier : Docker lie alors l'INODE, pas le chemin. `git pull` remplace le
+# fichier par un nouveau (nouvel inode), et le conteneur continue de voir
+# l'ancien jusqu'à sa recréation. Un `nginx -t` puis un reload relisaient donc
+# la vieille config, en annonçant un succès. Vu le 2026-10-03 : les en-têtes de
+# cache du 2026-08-26 n'avaient jamais atteint la prod, le conteneur datait du
+# 2026-08-02.
+#
+# D'où deux temps : la config de l'HÔTE est testée dans le conteneur (copiée à
+# part, incluse par un nginx.conf de test), puis, si le conteneur voit un autre
+# fichier que l'hôte, il est recréé (1 à 2 s de coupure, seulement quand
+# nginx.conf a changé). Sinon, simple reload sans coupure.
+NGINX_CONF_HOTE="nginx/nginx.conf"
+NGINX_CONF_CONTENEUR="/etc/nginx/conf.d/default.conf"
+
 reload_nginx() {
-  if sudo docker exec monumia-nginx nginx -t >/dev/null 2>&1; then
-    sudo docker exec monumia-nginx nginx -s reload
-    echo "   nginx rechargé"
-  else
+  local test_conf='/tmp/nginx-test.conf'
+  sudo docker cp "$NGINX_CONF_HOTE" monumia-nginx:/tmp/default.conf
+  # Le nginx.conf principal de l'image inclut conf.d/*.conf : on le réécrit pour
+  # inclure la copie. Si l'image change de structure et que la substitution
+  # échoue, on refuse plutôt que de tester l'ancien fichier sans le savoir.
+  if ! sudo docker exec monumia-nginx sh -c \
+      "sed 's#/etc/nginx/conf.d/\*.conf#/tmp/default.conf#' /etc/nginx/nginx.conf > $test_conf \
+       && grep -q '/tmp/default.conf' $test_conf \
+       && nginx -t -q -c $test_conf" >/dev/null 2>&1; then
     echo "❌ config nginx invalide, rechargement refusé :"
-    sudo docker exec monumia-nginx nginx -t 2>&1 | sed 's/^/     /' || true
+    sudo docker exec monumia-nginx nginx -t -c "$test_conf" 2>&1 | sed 's/^/     /' || true
     return 1
   fi
+
+  local empreinte_hote empreinte_conteneur
+  empreinte_hote=$(md5sum < "$NGINX_CONF_HOTE" | cut -d' ' -f1)
+  empreinte_conteneur=$(sudo docker exec monumia-nginx md5sum "$NGINX_CONF_CONTENEUR" | cut -d' ' -f1)
+
+  if [ "$empreinte_hote" = "$empreinte_conteneur" ]; then
+    sudo docker exec monumia-nginx nginx -s reload
+    echo "   nginx rechargé"
+    return 0
+  fi
+
+  echo "   nginx voit une ancienne version de nginx.conf (montage d'un fichier seul) :"
+  echo "   recréation du conteneur"
+  # --no-deps : sans lui, --force-recreate recréerait aussi les backends dont
+  # nginx dépend (depends_on), avec leurs secondes de 502.
+  sudo docker compose up -d --no-deps --force-recreate nginx
+  empreinte_conteneur=$(sudo docker exec monumia-nginx md5sum "$NGINX_CONF_CONTENEUR" | cut -d' ' -f1)
+  if [ "$empreinte_hote" != "$empreinte_conteneur" ]; then
+    echo "❌ nginx recréé mais voit toujours une autre config que l'hôte"
+    return 1
+  fi
+  echo "   nginx recréé avec la config à jour"
 }
