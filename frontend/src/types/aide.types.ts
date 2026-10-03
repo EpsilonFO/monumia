@@ -335,6 +335,11 @@ export interface AideDiagnosticResult {
    *  Malraux…), prêts et labels en sont exclus. */
   tauxTravauxMaxPct?: number;
   qcmQuestions?: QcmQuestion[];
+  /** Aides écartées par une réponse à leur question de PÉRIMÈTRE (« votre projet
+   *  porte-t-il sur… ? » → non) : slug → texte de cette question. Le moteur les
+   *  retire des quatre seaux, comme les aides hors projet ; ce relevé permet à
+   *  leur fiche de dire pourquoi, et de laisser changer la réponse. */
+  aidesHorsPerimetre?: Record<string, string>;
   /** Réponses renvoyées telles quelles par le moteur : un id d'option, ou un
    *  tableau d'ids sur une question à choix multiple. */
   qcmAnswers?: Record<string, string | string[]>;

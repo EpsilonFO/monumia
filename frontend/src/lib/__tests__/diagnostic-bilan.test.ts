@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { bilanDiagnostic, bilanInvite, minutesPourQuestions, questionsPourAide } from '../diagnostic-bilan';
+import {
+  bilanDiagnostic,
+  bilanInvite,
+  matchPourAide,
+  minutesPourQuestions,
+  questionsPourAide,
+} from '../diagnostic-bilan';
 import type { Aide, AideDiagnosticResult, AideMatchResult, QcmQuestion } from '@/types';
 
 /** Aide réduite à ce que le bilan lit. */
@@ -144,5 +150,37 @@ describe('bilanInvite', () => {
         },
       }),
     ).toEqual({ questionsRestantes: 2, minutesEstimees: 5 });
+  });
+});
+
+describe('matchPourAide', () => {
+  const diagnostic = (over: Partial<AideDiagnosticResult> = {}): AideDiagnosticResult => ({
+    monumentId: 'm',
+    timestamp: '',
+    totalAidesAnalysees: 1,
+    aidesEligibles: [],
+    aidesPotentiellementEligibles: [],
+    aidesNonEligibles: [],
+    ...over,
+  });
+
+  it('rend le verdict du moteur quand l’aide est dans un seau', () => {
+    const m = match('ilots', { statut: 'potentiel', eligible: true });
+    expect(matchPourAide(diagnostic({ aidesPotentiellementEligibles: [m] }), aide('ilots'), 'ilots')).toBe(m);
+  });
+
+  it('une aide écartée par sa question de périmètre est un refus dû à la réponse', () => {
+    const d = diagnostic({ aidesHorsPerimetre: { ilots: 'Votre projet porte-t-il sur la végétalisation ?' } });
+    const m = matchPourAide(d, aide('ilots'), 'ilots');
+    expect(m?.statut).toBe('non_eligible');
+    expect(m?.elimineParReponse).toBe(true);
+    expect(m?.criteresNonRemplis[0]).toContain('Votre projet porte-t-il sur la végétalisation ?');
+  });
+
+  it('sans l’aide chargée, ou absente de partout, pas de verdict', () => {
+    const d = diagnostic({ aidesHorsPerimetre: { ilots: 'Q ?' } });
+    expect(matchPourAide(d, null, 'ilots')).toBeNull();
+    expect(matchPourAide(d, aide('autre'), 'ilots')).toBeNull();
+    expect(matchPourAide(diagnostic(), aide('ilots'), 'ilots')).toBeNull();
   });
 });

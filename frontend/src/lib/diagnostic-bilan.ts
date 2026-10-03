@@ -1,5 +1,7 @@
 import type {
+  Aide,
   AideDiagnosticResult,
+  AideMatchResult,
   DiagnosticInviteResult,
   ProjectQuestionnaireAnswers,
   QcmQuestion,
@@ -79,6 +81,40 @@ export function questionsPourAide(
     (q) =>
       Array.isArray(q.aideIds) && q.aideIds.includes(aideId) && !estResolue(q, answers),
   );
+}
+
+/**
+ * Le verdict d'une aide dans un diagnostic, pour sa fiche.
+ *
+ * Une aide écartée par sa question de périmètre ne figure dans aucun seau : le
+ * moteur la traite comme une aide hors projet. Sa fiche perdait alors tout
+ * verdict, et la réponse qui l'avait écartée ne se corrigeait plus. On rend à
+ * la place un refus imputable à la réponse, motivé par la question elle-même.
+ */
+export function matchPourAide(
+  diagnostic: AideDiagnosticResult,
+  aide: Aide | null,
+  aideId: string,
+): AideMatchResult | null {
+  const trouve = [
+    ...diagnostic.aidesEligibles,
+    ...(diagnostic.aidesAtteignables ?? []),
+    ...diagnostic.aidesPotentiellementEligibles,
+    ...diagnostic.aidesNonEligibles,
+  ].find((m) => m.aide.id === aideId);
+  if (trouve) return trouve;
+  const question = diagnostic.aidesHorsPerimetre?.[aideId];
+  if (question === undefined || !aide || aide.id !== aideId) return null;
+  const motif = `D'après votre réponse, votre projet n'entre pas dans le champ de cette aide : « ${question} »`;
+  return {
+    aide,
+    statut: 'non_eligible',
+    eligible: false,
+    elimineParReponse: true,
+    criteresRemplis: [],
+    criteresNonRemplis: [motif],
+    raisonIneligibilite: motif,
+  };
 }
 
 export function bilanDiagnostic(result: AideDiagnosticResult): BilanDiagnostic {

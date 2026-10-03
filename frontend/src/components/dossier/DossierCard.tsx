@@ -5,6 +5,7 @@ import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useSuiviStore } from '@/stores/useSuiviStore';
 import { ROUTES } from '@/constants/routes';
 import { formatDate, isUrgent, daysUntil } from '@/lib/date-utils';
+import { progressionDossier } from '@/lib/checklist-progress';
 import { AIDE_SUIVI_STATUT_LABELS } from '@/types';
 import type { Dossier, AideSuiviStatut } from '@/types';
 import { C, SERIF } from '@/lib/brand';
@@ -113,6 +114,7 @@ export function DossierCard({ dossier }: DossierCardProps) {
   // avant d'ouvrir le dossier.
   const repris = dossier.checklist.filter((c) => c.statut === 'repris').length;
   const piecesTotal = dossier.checklist.length;
+  const progression = progressionDossier(dossier);
 
   const [aideName] = dossier.titre.split(' — ');
 
@@ -122,7 +124,7 @@ export function DossierCard({ dossier }: DossierCardProps) {
         <div className="flex flex-col gap-4 p-5">
           {/* En-tête : anneau + identité */}
           <div className="flex items-start gap-4">
-            <ProgressRing value={dossier.progressionPourcentage} color={progressColor(dossier.progressionPourcentage)} />
+            <ProgressRing value={progression} color={progressColor(progression)} />
             <div className="min-w-0 flex-1 space-y-1.5">
               {monument && (
                 <span

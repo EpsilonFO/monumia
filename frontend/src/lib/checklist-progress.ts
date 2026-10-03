@@ -1,4 +1,4 @@
-import type { ChecklistItem } from '@/types';
+import type { ChecklistItem, Dossier } from '@/types';
 
 /**
  * Deux chiffres distincts : une pièce « reprise » est rattachée mais pas
@@ -16,4 +16,17 @@ export function compterChecklist(items: ChecklistItem[]): {
     aVerifier: items.filter((i) => i.statut === 'repris').length,
     total: items.length,
   };
+}
+
+/**
+ * L'anneau de la carte d'un dossier : la part des pièces confirmées sur toutes
+ * les pièces, le même compte que la page du dossier. Calculé ici plutôt que lu
+ * sur `progressionPourcentage`, que le serveur n'écrit qu'au fil des dépôts :
+ * un dossier qui n'a pas bougé depuis un changement de règle garderait son
+ * ancien chiffre. Un dossier déposé est à 100 %, comme le serveur l'enregistre.
+ */
+export function progressionDossier(dossier: Pick<Dossier, 'statut' | 'checklist'>): number {
+  if (dossier.statut === 'soumis') return 100;
+  const { confirmees, total } = compterChecklist(dossier.checklist);
+  return total > 0 ? Math.round((confirmees / total) * 100) : 0;
 }

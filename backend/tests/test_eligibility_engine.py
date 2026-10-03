@@ -893,6 +893,31 @@ class TestPerimetreAide(unittest.TestCase):
         res = self._run([self._aide()], {self.PERIMETRE: True, "duree_manifestation_jours": 5})
         self.assertEqual(len(res["aidesEligibles"]), 1)
 
+    def test_perimetre_refuse_est_releve_avec_sa_question(self):
+        """Écartée des seaux, l'aide reste nommée avec sa question de périmètre :
+        sa fiche dit pourquoi au lieu de perdre son verdict."""
+        res = self._run([self._aide()], {self.PERIMETRE: False})
+        self.assertEqual(res["aidesHorsPerimetre"], {"fx-festival": FACTS[self.PERIMETRE].question})
+        self.assertEqual(self._run([self._aide()])["aidesHorsPerimetre"], {})
+
+    def test_critere_rempli_en_attente_du_perimetre_est_clarifie(self):
+        """Le fait satisfait déjà le critère, seul le périmètre manque : la
+        condition reste une incertitude (le statut ne bouge pas), mais marquée
+        `clarified` pour ne pas se lire « à confirmer avec le financeur »."""
+        res = self._run([self._aide()], {"duree_manifestation_jours": 5})
+        evals = res["aidesPotentiellementEligibles"][0]["llmEvaluation"]["evaluations"]
+        duree = next(e for e in evals if e.get("conditionId") == "duree")
+        self.assertEqual(duree["verdict"], "incertitude")
+        self.assertTrue(duree["clarified"])
+        perimetre = next(e for e in evals if e.get("categorie") == self.PERIMETRE)
+        self.assertFalse(perimetre["clarified"])
+
+    def test_critere_inconnu_en_attente_du_perimetre_reste_a_clarifier(self):
+        res = self._run([self._aide()])
+        evals = res["aidesPotentiellementEligibles"][0]["llmEvaluation"]["evaluations"]
+        duree = next(e for e in evals if e.get("conditionId") == "duree")
+        self.assertFalse(duree["clarified"])
+
     def test_condition_avec_sa_propre_clause_garde_la_sienne(self):
         """La clause de la condition est plus spécifique : elle l'emporte, et le
         branchement se désactive (fail-closed, la question reste posée)."""

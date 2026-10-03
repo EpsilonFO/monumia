@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
 import { Loader2 } from 'lucide-react';
 import { PlanLevier } from './FicheAvantDepot';
 import { FicheQuestion } from './FicheQuestion';
@@ -19,6 +18,13 @@ interface Props {
   match: AideMatchResult;
   questions: QcmQuestion[];
   answers: ProjectQuestionnaireAnswers;
+  /** Les réponses sur lesquelles le diagnostic a été calculé (`qcmAnswers`).
+   *  Entre un clic et le diagnostic suivant, `answers` a déjà la nouvelle
+   *  réponse mais `match` et `questions` sont encore les anciens : croiser les
+   *  deux faisait passer la question tout juste répondue dans les points « à
+   *  confirmer avec le financeur ». Le décompte des questions se fait donc sur
+   *  ces réponses-ci, et l'affichage des boutons sur `answers`. */
+  answersDiagnostic?: ProjectQuestionnaireAnswers;
   /** Absent sans droit d'écriture sur le projet : les questions restent lisibles. */
   onRepondre?: (factKey: string, value: string | string[] | undefined) => void;
   envoiEnCours?: boolean;
@@ -29,7 +35,6 @@ interface Props {
   dossierOuvert: boolean;
   ouverture: boolean;
   onDossier: () => void;
-  lienAutres: string;
   /** Démarches affichées sous ce bloc (« Avant de déposer ») : le verdict y renvoie. */
   nbDemarches?: number;
 }
@@ -53,6 +58,7 @@ export function FicheEligibilite({
   match,
   questions,
   answers,
+  answersDiagnostic,
   onRepondre,
   envoiEnCours,
   titres,
@@ -60,11 +66,10 @@ export function FicheEligibilite({
   dossierOuvert,
   ouverture,
   onDossier,
-  lienAutres,
   nbDemarches = 0,
 }: Props) {
   const aideId = match.aide.id;
-  const restantes = questionsPourAide(aideId, questions, answers);
+  const restantes = questionsPourAide(aideId, questions, answersDiagnostic ?? answers);
   const [vues, setVues] = useState<QcmQuestion[]>(restantes);
   const cleRestantes = restantes.map((q) => q.id).join('|');
   useEffect(() => {
@@ -81,7 +86,9 @@ export function FicheEligibilite({
   const [deplie, setDeplie] = useState(false);
   const evals: AideEvaluation[] = match.llmEvaluation?.evaluations ?? [];
   const libelle = (e: AideEvaluation) => (e.conditionId && titres.get(e.conditionId)) || e.critere;
-  const idsPoses = new Set(restantes.map((q) => q.id));
+  // Une condition dont la question est à l'écran ne se répète pas en dessous,
+  // qu'elle attende encore sa réponse ou qu'on vienne d'y répondre.
+  const idsPoses = new Set([...vues, ...restantes].map((q) => q.id));
   const remplies = evals.filter((e) => e.verdict === 'oui' || (e.verdict === 'incertitude' && e.clarified));
   const aConfirmer = evals.filter(
     (e) => e.verdict === 'incertitude' && !e.clarified && !(e.categorie && idsPoses.has(e.categorie)),
@@ -229,7 +236,6 @@ export function FicheEligibilite({
       {etat === 'no' && (
         <div className="result" aria-live="polite">
           <p>{refus[0] ?? 'Une condition de cette aide n’est pas remplie.'}</p>
-          <Link className="btn btn-line" to={lienAutres}>Voir les autres aides</Link>
         </div>
       )}
     </div>

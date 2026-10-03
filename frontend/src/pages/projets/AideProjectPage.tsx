@@ -38,6 +38,7 @@ import { monumentService } from '@/services/monument.service';
 import { projetService } from '@/services/projet.service';
 import { aideService } from '@/services/aide.service';
 import { dossierService } from '@/services/dossier.service';
+import { matchPourAide } from '@/lib/diagnostic-bilan';
 import { projetTitre } from '@/lib/projet-titre';
 import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
@@ -83,14 +84,11 @@ export function AideProjectPage() {
   const reglementRef = useRef<FicheReglementHandle>(null);
 
   const diagnostic = projetId ? diagnosticsByProjet[projetId] ?? null : null;
+  const aide = charge && charge.id === aideId ? charge.aide : null;
   const matchResult: AideMatchResult | null = useMemo(() => {
     if (!diagnostic || !aideId) return null;
-    return diagnostic.aidesEligibles.find((m) => m.aide.id === aideId)
-      ?? diagnostic.aidesAtteignables?.find((m) => m.aide.id === aideId)
-      ?? diagnostic.aidesPotentiellementEligibles.find((m) => m.aide.id === aideId)
-      ?? diagnostic.aidesNonEligibles.find((m) => m.aide.id === aideId)
-      ?? null;
-  }, [diagnostic, aideId]);
+    return matchPourAide(diagnostic, aide, aideId);
+  }, [diagnostic, aideId, aide]);
 
   // L'onglet « Aides » et l'ouverture d'un dossier sont réservés au chef de projet
   // et à son adjoint. Le rôle se lit sur le PROJET : un collaborateur invité sur
@@ -197,7 +195,6 @@ export function AideProjectPage() {
     });
     return () => { cancelled = true; };
   }, [aideId, projetId]);
-  const aide = charge && charge.id === aideId ? charge.aide : null;
 
   useEffect(() => {
     dossierService.fetchAll().then(setDossiers).catch(console.error);
@@ -378,6 +375,7 @@ export function AideProjectPage() {
               match={matchResult}
               questions={diagnostic?.qcmQuestions ?? []}
               answers={projet.questionnaire ?? {}}
+              answersDiagnostic={diagnostic?.qcmAnswers}
               onRepondre={handleRepondre}
               envoiEnCours={envoiReponse}
               titres={titres}
@@ -385,7 +383,6 @@ export function AideProjectPage() {
               dossierOuvert={!!existingDossier}
               ouverture={opening}
               onDossier={handleOpenOrView}
-              lienAutres={lienProjet}
               nbDemarches={avecDemarches ? reglement.demarches.length : 0}
             />
           )}

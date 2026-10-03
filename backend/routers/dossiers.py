@@ -358,12 +358,18 @@ def _estampiller_pieces_fournies(supabase: Client, checklist: list[dict], user_i
 
 
 def _recalculate_progression(dossier: dict) -> int:
+    """Part des pièces fournies, sur TOUTES les pièces de la checklist.
+
+    Même compte que la page du dossier (« 4 / 12 ») : ne compter que les pièces
+    obligatoires affichait 100 % sur la carte d'un dossier dont les trois
+    obligatoires étaient là mais neuf pièces sur douze encore à réunir. Une pièce
+    « reprise » ne compte qu'une fois confirmée.
+    """
     checklist: list = dossier.get("checklist") or []
-    obligatoires = [c for c in checklist if c.get("obligatoire")]
-    if not obligatoires:
+    if not checklist:
         return 0
-    fournis = [c for c in obligatoires if c.get("statut") == "fourni"]
-    return round(len(fournis) / len(obligatoires) * 100)
+    fournis = [c for c in checklist if c.get("statut") == "fourni"]
+    return round(len(fournis) / len(checklist) * 100)
 
 
 def _ascii_filename(value: str, fallback: str) -> str:
