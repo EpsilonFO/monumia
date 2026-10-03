@@ -13,6 +13,9 @@ const UTILISATEUR: User = {
     newAidesMatched: true,
     dossierUpdates: true,
     emailNotifications: true,
+    rappelsEcheances: true,
+    rappelsOuvertures: true,
+    rappelDelaisJours: [30],
   },
   createdAt: '2026-09-01T00:00:00Z',
 };
