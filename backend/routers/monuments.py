@@ -2,16 +2,26 @@ import contextlib
 import re
 import unicodedata
 import uuid
+from datetime import date
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
+from labels import (
+    OWNERSHIP_LABELS,
+    TYPE_EDIFICE_LABELS,
+    TYPES_AVEC_AFFECTATION_CULTE,
+    TYPES_AVEC_ARCHITECTURE_ROMANE,
+)
+from services import quotas
+from services.offres import as_dict
+from services.parallele import en_parallele
 from services.project_access import (
     monument_ids_via_projets,
-    projet_ids_membre,
+    projet_roles_propres,
     require_monument_read,
     require_project_access,
 )
@@ -38,6 +48,41 @@ def _to_snake(name: str) -> str:
 def _snake_row(data: dict) -> dict:
     """Recursively convert all dict keys from camelCase to snake_case."""
     return {_to_snake(k): v for k, v in data.items()}
+
+
+# Colonnes `date` de `monuments`. Le formulaire envoie `""` pour dire « pas de
+# date » — notamment quand on choisit « non protégé », qui vide date et détail
+# de protection. PostgreSQL, lui, refuse la chaîne vide sur une colonne `date`
+# (« invalid input syntax for type date »), et l'erreur PostgREST remontait en
+# 500 à la dernière étape du wizard : c'est le cas typique d'un monument absent
+# de Mérimée, saisi à la main et non protégé.
+DATE_COLUMNS = ("date_protection",)
+
+
+def _normalize_dates(row: dict) -> dict:
+    """Chaîne vide → NULL SQL, date mal formée → 400 plutôt que 500.
+
+    La clé est CONSERVÉE à None au lieu d'être retirée : sur un PATCH, la
+    retirer laisserait l'ancienne date en base, et effacer une date deviendrait
+    impossible.
+    """
+    for column in DATE_COLUMNS:
+        value = row.get(column)
+        if not isinstance(value, str):
+            continue
+        cleaned = value.strip()
+        if not cleaned:
+            row[column] = None
+            continue
+        try:
+            date.fromisoformat(cleaned)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Date invalide : '{value}' (format attendu AAAA-MM-JJ)",
+            ) from None
+        row[column] = cleaned
+    return row
 
 
 def _normalize_commune(name: str) -> str:
@@ -157,12 +202,19 @@ def _try_resolve_code_insee(
     return None
 
 
-def _resolve_code_insee(
+def resolve_code_insee(
     supabase: Client,
     commune_name: str,
     historical_code: str | None = None,
 ) -> str:
-    """Resolve a commune name to a current code_insee, or raise 400."""
+    """Resolve a commune name to a current code_insee, or raise 400.
+
+    Publique (et pas seulement pour ce routeur) : le diagnostic invité
+    (`routers/aides.py`) la réutilise telle quelle, parce qu'elle est la seule
+    à gérer le code INSEE historique de Mérimée via `communes_historique`.
+    `enrich_monument_with_population` fait un `eq("code_insee")` direct et
+    raterait une commune fusionnée.
+    """
     code = _try_resolve_code_insee(supabase, commune_name, historical_code)
     if code is None:
         raise HTTPException(
@@ -170,6 +222,108 @@ def _resolve_code_insee(
             detail=f"Commune introuvable : '{commune_name}'",
         )
     return code
+
+
+# ---------------------------------------------------------------------------
+# Type d'édifice (2026-09-30)
+# ---------------------------------------------------------------------------
+
+#: Champs de la fiche qu'on peut EFFACER par un `null` explicite. Les autres
+#: passent par `model_dump(exclude_none=True)`, où un `null` ne fait rien : sans
+#: cette liste, désélectionner le type d'édifice laisserait l'ancien en base.
+CHAMPS_EFFACABLES = ("typeEdifice", "affecteAuCulte", "architectureRomane")
+
+
+#: Plafond de la liste des types : il y en a vingt-sept, au-delà c'est un
+#: client qui déraille (la route invitée est publique).
+MAX_TYPES_EDIFICE = len(TYPE_EDIFICE_LABELS)
+
+
+def valider_type_edifice(valeur: object) -> list[str] | None:
+    """Des codes de `labels.TYPE_EDIFICE_LABELS`, ou rien : 422 plutôt que le
+    500 du CHECK SQL.
+
+    Choix multiple depuis le 2026-09-30 (migration 20260930082523). La liste
+    est dédoublonnée dans l'ordre ; vide, elle vaut « pas de type », comme la
+    chaîne vide (patron des dates), et part en NULL : la base refuse un tableau
+    vide. Une chaîne seule vaut un type (brouillon invité d'avant le passage
+    en liste).
+    """
+    if valeur is None or valeur == "":
+        return None
+    if isinstance(valeur, str):
+        valeur = [valeur]
+    if not isinstance(valeur, list) or not all(isinstance(v, str) for v in valeur):
+        raise ValueError("type d'édifice : une liste de codes est attendue")
+    types = list(dict.fromkeys(v for v in valeur if v))
+    if len(types) > MAX_TYPES_EDIFICE:
+        raise ValueError("type d'édifice : trop de valeurs")
+    inconnus = [v for v in types if v not in TYPE_EDIFICE_LABELS]
+    if inconnus:
+        raise ValueError(f"type d'édifice inconnu : {', '.join(inconnus)}")
+    return types or None
+
+
+def valider_proprietaires(valeur: object) -> list[str] | None:
+    """Des codes de `labels.OWNERSHIP_LABELS`, au moins un : 422 plutôt que le
+    500 du type SQL.
+
+    Choix multiple depuis le 2026-09-30 (migration 20260930084241) : une aide
+    est proposée dès qu'UN des propriétaires peut la déposer. Liste dédoublonnée
+    dans l'ordre ; une chaîne seule vaut un propriétaire (brouillon invité ou
+    onglet d'avant le choix multiple). Une liste vide est refusée : un monument
+    a toujours un propriétaire, et la base refuse le tableau vide. `None` passe
+    (champ absent d'un PATCH) ; c'est le modèle qui le rend obligatoire.
+    """
+    if valeur is None:
+        return None
+    if isinstance(valeur, str):
+        valeur = [valeur]
+    if not isinstance(valeur, list) or not all(isinstance(v, str) for v in valeur):
+        raise ValueError("propriétaire : une liste de codes est attendue")
+    codes = list(dict.fromkeys(v for v in valeur if v))
+    if not codes:
+        raise ValueError("propriétaire : au moins un propriétaire est attendu")
+    if len(codes) > len(OWNERSHIP_LABELS):
+        raise ValueError("propriétaire : trop de valeurs")
+    inconnus = [v for v in codes if v not in OWNERSHIP_LABELS]
+    if inconnus:
+        raise ValueError(f"propriétaire inconnu : {', '.join(inconnus)}")
+    return codes
+
+
+def _champs_de_la_fiche(body: BaseModel) -> dict:
+    """Le corps en snake_case, `null` explicites des champs effaçables compris."""
+    data = _snake_row(body.model_dump(exclude_none=True))
+    for champ in CHAMPS_EFFACABLES:
+        if champ in body.model_fields_set and getattr(body, champ) is None:
+            data[_to_snake(champ)] = None
+    return data
+
+
+def _precisions_coherentes(data: dict, *, creation: bool = False) -> dict:
+    """Vide les précisions qu'aucun des types cochés n'admet.
+
+    Une fiche passée d'« église » à « château » seul ne doit pas garder
+    « affecté au culte » : le moteur ne la lirait plus (`build_context`), mais la base la
+    montrerait encore. Seulement quand le type fait partie de l'écriture : un
+    PATCH qui ne touche pas au type ne touche pas non plus à ses précisions. À
+    la création, une précision sans type est simplement retirée (aucune clé
+    ajoutée : une fiche sans type ne doit rien écrire de ces colonnes).
+    """
+    if creation and data.get("type_edifice") is None:
+        for colonne in ("type_edifice", "affecte_au_culte", "architecture_romane"):
+            data.pop(colonne, None)
+        return data
+    if "type_edifice" not in data:
+        return data
+    # Une précision reste tant qu'AU MOINS un type coché l'admet.
+    types = set(data["type_edifice"] or ())
+    if not types & TYPES_AVEC_AFFECTATION_CULTE:
+        data["affecte_au_culte"] = None
+    if not types & TYPES_AVEC_ARCHITECTURE_ROMANE:
+        data["architecture_romane"] = None
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +357,8 @@ class CreateMonumentRequest(BaseModel):
     protection: str
     dateProtection: str | None = None
     typeProtection: str | None = None
-    proprietaire: str
+    # Un ou plusieurs (choix multiple, migration 20260930084241).
+    proprietaire: list[str]
 
     siecleConstruction: str | None = None
     descriptionGenerale: str | None = None
@@ -213,6 +368,15 @@ class CreateMonumentRequest(BaseModel):
     # colonne RESTE sur le monument : elle décrit le bien, pas un chantier, et
     # tous ses projets la partagent.
     etatConservation: str | None = None
+
+    # Nature du bien et ses précisions (migration 20260930072800). Facultatifs :
+    # sans type, les faits de typologie restent posés au questionnaire.
+    typeEdifice: list[str] | None = None
+    affecteAuCulte: bool | None = None
+    architectureRomane: bool | None = None
+
+    _v_type = field_validator("typeEdifice", mode="before")(valider_type_edifice)
+    _v_proprietaire = field_validator("proprietaire", mode="before")(valider_proprietaires)
 
 
 class UpdateMonumentRequest(BaseModel):
@@ -227,13 +391,22 @@ class UpdateMonumentRequest(BaseModel):
     protection: str | None = None
     dateProtection: str | None = None
     typeProtection: str | None = None
-    proprietaire: str | None = None
+    proprietaire: list[str] | None = None
 
     siecleConstruction: str | None = None
     descriptionGenerale: str | None = None
 
     etatConservation: str | None = None
     completionPercentage: int | None = None
+
+    # Cf. CreateMonumentRequest. Un `null` explicite les efface
+    # (CHAMPS_EFFACABLES).
+    typeEdifice: list[str] | None = None
+    affecteAuCulte: bool | None = None
+    architectureRomane: bool | None = None
+
+    _v_type = field_validator("typeEdifice", mode="before")(valider_type_edifice)
+    _v_proprietaire = field_validator("proprietaire", mode="before")(valider_proprietaires)
 
 
 class AddPhotoRequest(BaseModel):
@@ -313,9 +486,23 @@ def enrich_monument_with_population(supabase: Client, monument: dict) -> tuple[d
     return monument, row.get("population")
 
 
-def _enrich_monument(supabase: Client, monument: dict) -> dict:
-    """Voir enrich_monument_with_population — variante sans la population."""
-    monument, _ = enrich_monument_with_population(supabase, monument)
+def _enrich_monument(supabase: Client, monument: dict, user_id: str) -> dict:
+    """Voir enrich_monument_with_population — variante sans la population.
+
+    Pose aussi `offre` : l'offre qui gouverne ce bien (celle de son propriétaire
+    unie à celle de l'appelant, cf. services/quotas.py). Le frontend en tire les
+    boutons qu'il affiche sur la fiche et sur les projets du monument — d'où sa
+    présence sur TOUTE réponse portant un monument, et pas seulement sur la
+    liste : une fiche fraîchement créée doit déjà savoir ce qu'elle permet.
+    """
+    proprietaire = monument.get("user_id")
+    (monument, _), offre = en_parallele(
+        lambda: enrich_monument_with_population(supabase, monument),
+        lambda: quotas.offre_du_monument(
+            supabase, monument["id"], user_id, proprietaire=proprietaire
+        ),
+    )
+    monument["offre"] = as_dict(offre)
     return monument
 
 
@@ -330,7 +517,7 @@ def _get_monument_or_404(supabase: Client, monument_id: str, user_id: str) -> di
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
-    return _enrich_monument(supabase, result.data)
+    return _enrich_monument(supabase, result.data, user_id)
 
 
 def _compute_completion(monument: dict) -> int:
@@ -390,59 +577,110 @@ def build_members_index(
 
 def fetch_user_monuments(
     supabase: Client, user_id: str
-) -> tuple[list[dict], dict[str, int | None]]:
-    """Tous les projets accessibles à l'utilisateur, enrichis et prêts à servir.
+) -> tuple[list[dict], dict[str, int | None], dict[str, str]]:
+    """Tous les monuments accessibles à l'utilisateur, enrichis et prêts à servir.
 
     Renvoie aussi la population par code_insee, récupérée dans la même requête
     `communes` : le dashboard en a besoin pour le moteur déterministe, et la
-    rechercher séparément coûtait un aller-retour par monument.
+    rechercher séparément coûtait un aller-retour par monument. Et les projets où
+    l'utilisateur a une appartenance PROPRE, avec son rôle (`projet_roles_propres`),
+    lus ici de toute façon : le dashboard les relisait juste après, et en tire le
+    rôle effectif de chaque projet.
+
+    Quatre vagues d'allers-retours, quel que soit le nombre de monuments (cf.
+    services/parallele) :
+      A. les appartenances de l'utilisateur (équipes de monument, monuments
+         possédés, équipes de projet) ;
+      B. les monuments atteints par un projet, et la composition des équipes ;
+      C. les lignes des monuments, et les profils des membres ;
+      D. les communes, et l'offre qui gouverne chaque bien.
     """
-    # Tous les monuments où l'utilisateur est membre de l'ÉQUIPE DU MONUMENT.
-    memberships = (
-        supabase.table("project_members")
-        .select("monument_id, role")
-        .eq("user_id", user_id)
-        .execute()
-        .data
+    # ── Vague A ──────────────────────────────────────────────────────────────
+    memberships, owned, roles_propres = en_parallele(
+        lambda: (
+            supabase.table("project_members")
+            .select("monument_id, role")
+            .eq("user_id", user_id)
+            .execute()
+            .data
+        ),
+        lambda: supabase.table("monuments").select("id").eq("user_id", user_id).execute().data,
+        lambda: projet_roles_propres(supabase, user_id),
     )
-    role_by_id = {m["monument_id"]: m["role"] for m in memberships}
+    mes_projets = list(roles_propres)
+    role_by_id = {m["monument_id"]: m["role"] for m in memberships or []}
 
     # Défense en profondeur : un propriétaire voit toujours SES monuments, même si
     # la ligne d'appartenance 'owner' manque (cf. get_project_role). user_id =
     # propriétaire authoritatif et immuable du monument.
-    owned = (supabase.table("monuments").select("id").eq("user_id", user_id).execute().data) or []
-    for o in owned:
+    for o in owned or []:
         role_by_id.setdefault(o["id"], "owner")
+
+    # ── Vague B ──────────────────────────────────────────────────────────────
+    # Aperçu des membres par monument (avatars + compteur côté liste, sans une
+    # requête par carte). Restreint aux monuments dont l'utilisateur est membre :
+    # un accès par projet ne donne pas droit à la composition de l'équipe du bien.
+    equipe_visible = list(role_by_id.keys())
+    via_projets, all_members = en_parallele(
+        lambda: monument_ids_via_projets(supabase, mes_projets),
+        lambda: (
+            (
+                supabase.table("project_members")
+                .select("monument_id, user_id, role")
+                .in_("monument_id", equipe_visible)
+                .execute()
+                .data
+            )
+            or []
+            if equipe_visible
+            else []
+        ),
+    )
 
     # Monuments atteints par un PROJET seulement : l'utilisateur y a besoin d'une
     # porte d'entrée pour rejoindre son chantier, mais n'a aucun rôle sur le bien.
     # `my_role` restera None — le front y lit « fiche sanitaire en lecture, et
     # rien d'autre » (cf. require_monument_read).
-    acces_restreint: set[str] = set()
-    mes_projets = projet_ids_membre(supabase, user_id)
-    if mes_projets:
-        for monument_id in monument_ids_via_projets(supabase, mes_projets).values():
-            if monument_id not in role_by_id:
-                acces_restreint.add(monument_id)
+    acces_restreint = {mid for mid in via_projets.values() if mid not in role_by_id}
 
     monument_ids = [*role_by_id.keys(), *acces_restreint]
     if not monument_ids:
-        return [], {}
+        return [], {}, roles_propres
 
-    monuments = (
-        supabase.table("monuments")
-        .select(COLUMNS)
-        .in_("id", monument_ids)
-        .order("created_at", desc=True)
-        .execute()
-        .data
-    ) or []
+    # ── Vague C ──────────────────────────────────────────────────────────────
+    member_user_ids = list({m["user_id"] for m in all_members})
+    monuments, prows = en_parallele(
+        lambda: (
+            supabase.table("monuments")
+            .select(COLUMNS)
+            .in_("id", monument_ids)
+            .order("created_at", desc=True)
+            .execute()
+            .data
+        ),
+        lambda: (
+            supabase.table("users")
+            .select("id, prenom, nom")
+            .in_("id", member_user_ids)
+            .execute()
+            .data
+            if member_user_ids
+            else []
+        ),
+    )
+    monuments = monuments or []
+    profiles = cast("dict[str, dict]", {r["id"]: r for r in prows or []})
+    members_by_monument = build_members_index(all_members, profiles)
 
-    # Batch-enrich with commune data (préservé de la version d'origine)
-    population_by_code: dict[str, int | None] = {}
+    # ── Vague D ──────────────────────────────────────────────────────────────
+    # L'offre qui gouverne chaque bien, en une requête pour toute la liste : le
+    # propriétaire est déjà sur les lignes lues. Le frontend s'en sert pour
+    # décider quels boutons afficher sur chaque monument, et /dashboard pour
+    # masquer les aides encore à venir.
     code_insees = list({m["code_insee"] for m in monuments if m.get("code_insee")})
-    if code_insees:
-        communes_result = (
+    proprietaires = {m["id"]: m["user_id"] for m in monuments if m.get("user_id")}
+    communes_rows, offres = en_parallele(
+        lambda: (
             supabase.table("communes")
             .select(
                 "code_insee, nom_commune, departement, departement_num, region, region_code, "
@@ -450,58 +688,40 @@ def fetch_user_monuments(
             )
             .in_("code_insee", code_insees)
             .execute()
-        )
-        communes_by_code = {c["code_insee"]: c for c in (communes_result.data or [])}
-        # Les lignes PostgREST ne sont pas typées : on resserre explicitement en
-        # {str: int | None} plutôt que de propager du JSON quelconque.
-        for code, row in communes_by_code.items():
-            pop = row.get("population")
-            population_by_code[str(code)] = pop if isinstance(pop, int) else None
-        for m in monuments:
-            commune_data = communes_by_code.get(m.get("code_insee"))
-            if commune_data:
-                m["commune"] = commune_data["nom_commune"]
-                m["departement"] = commune_data["departement"]
-                m["departement_num"] = commune_data["departement_num"]
-                m["region"] = commune_data.get("region_code")
-                m["region_label"] = commune_data.get("region")
-                _attach_epci(m, commune_data)
-
-    # Aperçu des membres par monument (avatars + compteur côté liste, sans une
-    # requête par carte). Restreint aux monuments dont l'utilisateur est membre :
-    # un accès par projet ne donne pas droit à la composition de l'équipe du bien.
-    equipe_visible = list(role_by_id.keys())
-    all_members = (
-        (
-            supabase.table("project_members")
-            .select("monument_id, user_id, role")
-            .in_("monument_id", equipe_visible)
-            .execute()
             .data
-        )
-        or []
-        if equipe_visible
-        else []
+            if code_insees
+            else []
+        ),
+        lambda: quotas.offres_des_monuments(
+            supabase, [m["id"] for m in monuments], user_id, proprietaires=proprietaires
+        ),
     )
-    member_user_ids = list({m["user_id"] for m in all_members})
-    profiles: dict[str, dict] = {}
-    if member_user_ids:
-        prows = (
-            supabase.table("users")
-            .select("id, prenom, nom")
-            .in_("id", member_user_ids)
-            .execute()
-            .data
-        ) or []
-        profiles = cast("dict[str, dict]", {r["id"]: r for r in prows})
-    members_by_monument = build_members_index(all_members, profiles)
+
+    # Batch-enrich with commune data (préservé de la version d'origine)
+    population_by_code: dict[str, int | None] = {}
+    communes_by_code = {c["code_insee"]: c for c in communes_rows or []}
+    # Les lignes PostgREST ne sont pas typées : on resserre explicitement en
+    # {str: int | None} plutôt que de propager du JSON quelconque.
+    for code, row in communes_by_code.items():
+        pop = row.get("population")
+        population_by_code[str(code)] = pop if isinstance(pop, int) else None
+    for m in monuments:
+        commune_data = communes_by_code.get(m.get("code_insee"))
+        if commune_data:
+            m["commune"] = commune_data["nom_commune"]
+            m["departement"] = commune_data["departement"]
+            m["departement_num"] = commune_data["departement_num"]
+            m["region"] = commune_data.get("region_code")
+            m["region_label"] = commune_data.get("region")
+            _attach_epci(m, commune_data)
 
     for m in monuments:
         m["my_role"] = role_by_id.get(m["id"])
         preview = members_by_monument.get(m["id"], [])
         m["members"] = preview
         m["member_count"] = len(preview)
-    return monuments, population_by_code
+        m["offre"] = as_dict(offres[m["id"]])
+    return monuments, population_by_code, roles_propres
 
 
 @router.get("")
@@ -509,7 +729,7 @@ def list_monuments(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    monuments, _ = fetch_user_monuments(supabase, user_id)
+    monuments, _, _ = fetch_user_monuments(supabase, user_id)
     sign_photos(supabase, monuments)
     return monuments
 
@@ -520,11 +740,15 @@ def create_monument(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    data = _snake_row(body.model_dump(exclude_none=True))
+    # Plafond de l'offre AVANT toute écriture : le monument gratuit est unique,
+    # et la ligne créée puis refusée laisserait un bien orphelin.
+    quotas.verifier_creation_monument(supabase, user_id)
+
+    data = _precisions_coherentes(_normalize_dates(_champs_de_la_fiche(body)), creation=True)
 
     # Resolve code_insee from commune name, falling back to the historical INSEE
     # code (e.g. Mérimée's cog_insee_lors_de_la_protection) via communes_historique.
-    data["code_insee"] = _resolve_code_insee(supabase, body.commune, historical_code=body.codeInsee)
+    data["code_insee"] = resolve_code_insee(supabase, body.commune, historical_code=body.codeInsee)
 
     # Remove fields not stored in monuments table
     for key in ("commune", "departement", "region", "coordonnees"):
@@ -555,7 +779,7 @@ def create_monument(
     # Le créateur est chef de projet : renvoyer le rôle et le nombre de membres
     # dès la création, pour que l'UI propose immédiatement l'invitation d'équipe
     # (sinon `my_role` n'est peuplé qu'au prochain GET).
-    enriched = _enrich_monument(supabase, monument)
+    enriched = _enrich_monument(supabase, monument, user_id)
     enriched["my_role"] = "owner"
     enriched["member_count"] = 1
     return enriched
@@ -574,7 +798,7 @@ def get_monument(
     result = supabase.table("monuments").select(COLUMNS).eq("id", monument_id).single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Monument introuvable")
-    monument = _enrich_monument(supabase, result.data)
+    monument = _enrich_monument(supabase, result.data, user_id)
     monument["my_role"] = role
     sign_photos(supabase, [monument])
     return monument
@@ -589,11 +813,11 @@ def update_monument(
 ):
     require_project_access(supabase, monument_id, user_id, "co_owner")
 
-    updates = _snake_row(body.model_dump(exclude_none=True))
+    updates = _precisions_coherentes(_normalize_dates(_champs_de_la_fiche(body)))
 
     # Re-resolve code_insee when commune changes
     if body.commune is not None:
-        updates["code_insee"] = _resolve_code_insee(
+        updates["code_insee"] = resolve_code_insee(
             supabase, body.commune, historical_code=body.codeInsee
         )
 
@@ -605,7 +829,7 @@ def update_monument(
         result = (
             supabase.table("monuments").select(COLUMNS).eq("id", monument_id).single().execute()
         )
-        return _enrich_monument(supabase, result.data)
+        return _enrich_monument(supabase, result.data, user_id)
 
     result = supabase.table("monuments").update(updates).eq("id", monument_id).execute()
     monument = result.data[0]
@@ -617,7 +841,7 @@ def update_monument(
     ).execute()
     monument["completion_percentage"] = pct
 
-    return _enrich_monument(supabase, monument)
+    return _enrich_monument(supabase, monument, user_id)
 
 
 @router.delete("/{monument_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -627,6 +851,7 @@ def delete_monument(
     supabase: Client = Depends(get_supabase),
 ):
     require_project_access(supabase, monument_id, user_id, "owner")
+    quotas.verifier_suppression_monument(supabase, monument_id, user_id)
     supabase.table("monuments").delete().eq("id", monument_id).execute()
 
 

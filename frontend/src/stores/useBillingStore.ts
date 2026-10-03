@@ -13,13 +13,13 @@ interface BillingState {
 }
 
 /**
- * Droits de facturation du compte, servis par le backend.
+ * Offres détenues par le compte, servies par le backend.
  *
  * Volontairement NON persisté : contrairement au profil, ces droits ouvrent du
  * contenu payant. Les garder dans le localStorage laisserait n'importe qui
- * s'accorder `allAccess: true` depuis la console du navigateur. Ils sont donc
- * rechargés à chaque ouverture de session — et le serveur reste de toute façon
- * le seul à décider ce qu'il envoie.
+ * s'accorder l'offre Multi-monuments depuis la console du navigateur. Ils sont
+ * donc rechargés à chaque ouverture de session — et le serveur reste de toute
+ * façon le seul à décider ce qu'il envoie, comme ce qu'il accepte.
  */
 export const useBillingStore = create<BillingState>()((set) => ({
   access: null,
@@ -31,8 +31,8 @@ export const useBillingStore = create<BillingState>()((set) => ({
     try {
       set({ access: await billingService.getAccess(), loaded: true });
     } catch (err) {
-      // Un échec ne doit pas ouvrir l'accès par accident : on garde l'état
-      // verrouillé (access reste null → locked).
+      // Un échec ne doit pas ouvrir l'accès par accident : `access` reste null,
+      // et les hooks retombent sur l'offre gratuite (cf. useOffre).
       console.error('Chargement des droits de facturation impossible', err);
       set({ loaded: true });
     } finally {

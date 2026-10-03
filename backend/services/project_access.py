@@ -20,6 +20,8 @@ Les fonctions `role_at_least`, `max_role` et `can_delete_document` sont PURES
 from fastapi import HTTPException
 from supabase import Client
 
+from services.parallele import en_parallele
+
 Role = str  # "owner" | "co_owner" | "member"
 
 _ROLE_RANK: dict[str, int] = {"member": 1, "co_owner": 2, "owner": 3}
@@ -218,6 +220,67 @@ def require_projet_access(
     return projet, role
 
 
+def require_projet_access_et_monument(
+    supabase: Client, projet_id: str, user_id: str, minimum: Role = "member"
+) -> tuple[dict, Role, dict]:
+    """`require_projet_access`, plus la ligne complète du monument parent.
+
+    Pour les routes qui ont de toute façon besoin du monument (le diagnostic) :
+    la ligne est lue EN MÊME TEMPS que les deux appartenances, et son `user_id`
+    tient lieu du contrôle « propriétaire » que `get_project_role` refait par une
+    requête à part. Deux vagues au lieu de cinq requêtes en série.
+
+    Même règle, mêmes refus : 404 si le projet ou son monument n'existe pas, ou
+    si l'utilisateur n'a de rôle ni sur l'un ni sur l'autre ; 403 si son rôle
+    est insuffisant. La ligne du monument n'est rendue qu'une fois l'accès
+    tranché.
+    """
+    result = supabase.table("projets").select("*").eq("id", projet_id).maybe_single().execute()
+    if not result or not result.data:
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+    projet = result.data
+    monument_id = projet["monument_id"]
+
+    membre, propre, monument_res = en_parallele(
+        lambda: (
+            supabase.table("project_members")
+            .select("role")
+            .eq("monument_id", monument_id)
+            .eq("user_id", user_id)
+            .maybe_single()
+            .execute()
+        ),
+        lambda: (
+            supabase.table("projet_members")
+            .select("role")
+            .eq("projet_id", projet["id"])
+            .eq("user_id", user_id)
+            .maybe_single()
+            .execute()
+        ),
+        lambda: (
+            supabase.table("monuments").select("*").eq("id", monument_id).maybe_single().execute()
+        ),
+    )
+    monument = (monument_res.data if monument_res else None) or None
+
+    monument_role: Role | None = str(membre.data["role"]) if membre and membre.data else None
+    # Défense en profondeur, comme get_project_role : le propriétaire
+    # authoritatif du bien ne perd jamais l'accès, ligne d'équipe ou non.
+    if monument_role is None and monument and monument.get("user_id") == user_id:
+        monument_role = "owner"
+    roles_propres = {str(projet["id"]): str(propre.data["role"])} if propre and propre.data else {}
+
+    role = projet_role_depuis(projet, monument_role, roles_propres, user_id)
+    if role is None:
+        raise HTTPException(status_code=404, detail="Projet introuvable ou accès refusé")
+    if not role_at_least(role, minimum):
+        raise HTTPException(status_code=403, detail="Action non autorisée pour votre rôle")
+    if monument is None:
+        raise HTTPException(status_code=404, detail="Monument introuvable")
+    return projet, role, monument
+
+
 def projet_roles_propres(supabase: Client, user_id: str) -> dict[str, Role]:
     """{projet_id: rôle} des appartenances PROPRES de l'utilisateur (projet_members).
 
@@ -277,22 +340,27 @@ def my_scope_roles(supabase: Client, user_id: str) -> tuple[dict[str, Role], dic
 
     Les rôles de projets sont EFFECTIFS : ceux hérités des monuments dont
     l'utilisateur est membre, écrasés au besoin par une appartenance propre plus
-    élevée. Quatre requêtes, quel que soit le nombre d'objets — les appelants
+    élevée. Quatre requêtes en deux vagues, quel que soit le nombre d'objets — les appelants
     qui filtrent une liste de documents ne peuvent pas se permettre une lecture
     par ligne.
     """
+    # Deux vagues : les trois lectures clés utilisateur partent ensemble, seuls
+    # les projets hérités attendent de connaître les monuments.
+    members, owned, propres = en_parallele(
+        lambda: (
+            supabase.table("project_members")
+            .select("monument_id, role")
+            .eq("user_id", user_id)
+            .execute()
+            .data
+        ),
+        lambda: supabase.table("monuments").select("id").eq("user_id", user_id).execute().data,
+        lambda: projet_roles_propres(supabase, user_id),
+    )
     monument_roles: dict[str, Role] = {}
-    members = (
-        supabase.table("project_members")
-        .select("monument_id, role")
-        .eq("user_id", user_id)
-        .execute()
-        .data
-    ) or []
-    for m in members:
+    for m in members or []:
         monument_roles[str(m["monument_id"])] = str(m["role"])
-    owned = supabase.table("monuments").select("id").eq("user_id", user_id).execute().data or []
-    for o in owned:
+    for o in owned or []:
         monument_roles[str(o["id"])] = "owner"
 
     projet_roles: dict[str, Role] = {}
@@ -307,7 +375,7 @@ def my_scope_roles(supabase: Client, user_id: str) -> tuple[dict[str, Role], dic
         for p in herites:
             projet_roles[str(p["id"])] = monument_roles[str(p["monument_id"])]
 
-    for projet_id, role in projet_roles_propres(supabase, user_id).items():
+    for projet_id, role in propres.items():
         projet_roles[projet_id] = max_role(projet_roles.get(projet_id), role) or role
 
     return monument_roles, projet_roles
@@ -357,3 +425,32 @@ def require_monument_read(supabase: Client, monument_id: str, user_id: str) -> R
             return None
 
     raise HTTPException(status_code=404, detail="Monument introuvable ou accès refusé")
+
+
+def filter_visible_documents(
+    rows: list[dict],
+    user_id: str,
+    monument_roles: dict[str, Role],
+    projet_roles: dict[str, Role],
+) -> list[dict]:
+    """Ne garde que les documents que `user_id` a le droit de voir.
+
+    Point de passage unique de la règle de visibilité sur une LISTE : la reprise
+    des pièces (services/piece_reuse) propose des documents à l'utilisateur et
+    doit voir exactement ce que la liste des documents lui montrerait — ni plus,
+    ni moins. Construit sur `best_document_role`, donc sur les DEUX périmètres
+    (pièces du bien et pièces du chantier).
+    """
+    return [
+        r
+        for r in rows
+        if can_view_document(
+            visibility=r.get("visibility") or "team",
+            allowed_user_ids=r.get("allowed_user_ids") or [],
+            uploader_id=r.get("user_id"),
+            viewer_id=user_id,
+            viewer_role=best_document_role(
+                r.get("monument_ids"), r.get("projet_ids"), monument_roles, projet_roles
+            ),
+        )
+    ]

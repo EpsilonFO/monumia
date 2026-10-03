@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
   IconEnregistrer,
@@ -9,6 +9,7 @@ import {
   IconProtection,
   IconSucces,
   IconDeconnexion,
+  IconReglages,
   IconEcheance,
 } from '@/components/icons';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,7 @@ import { computeProfileCompletion } from '@/lib/profile-completion';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { isValidPhone } from '@/lib/phone';
+import { ROUTES } from '@/constants/routes';
 import { RAPPEL_DELAIS_DEFAUT, type NotificationPreferences } from '@/types';
 
 export function ProfilePage() {
@@ -88,7 +90,7 @@ export function ProfilePage() {
   const complete = completion.percent >= 100;
 
   const inputCls =
-    'h-11 text-[15px] bg-card border-border focus:border-primary focus:ring-primary/10 font-sans';
+    'h-11 text-[17px] bg-card border-border focus:border-primary focus:ring-primary/10 font-sans';
 
   return (
     <div className="flex flex-col gap-5">
@@ -100,7 +102,7 @@ export function ProfilePage() {
           style={{ background: 'linear-gradient(120deg, var(--secondary) 0%, var(--card) 62%)' }}
         >
           <span
-            className="flex h-[88px] w-[88px] shrink-0 items-center justify-center rounded-full text-[26px] font-semibold"
+            className="flex h-[100.5px] w-[100.5px] shrink-0 items-center justify-center rounded-full text-[30px] font-semibold"
             style={{ background: C.paleBlue, color: C.blue, fontFamily: SERIF }}
           >
             {initials || <IconCompte className="h-9 w-9" />}
@@ -108,10 +110,10 @@ export function ProfilePage() {
 
           <div className="min-w-0 flex-1">
             <span
-              className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em]"
+              className="inline-flex items-center gap-2 text-[13px] font-semibold uppercase tracking-[0.2em]"
               style={{ color: C.blue }}
             >
-              <span aria-hidden style={{ width: 22, height: 2, borderRadius: 2, background: C.orange }} />
+              <span aria-hidden style={{ width: 25, height: 2, borderRadius: 2, background: C.orange }} />
               Mon espace
             </span>
             <h1
@@ -122,7 +124,7 @@ export function ProfilePage() {
             </h1>
 
             <div className="mt-3 flex flex-wrap items-center gap-2.5">
-              <span className="inline-flex items-center gap-1.5 text-[12.5px]" style={{ color: C.grayMuted }}>
+              <span className="inline-flex items-center gap-1.5 text-[14.5px]" style={{ color: C.grayMuted }}>
                 <IconSucces className="h-3.5 w-3.5" style={{ color: complete ? C.orange : C.grayMuted }} />
                 {complete ? 'Profil complet' : 'Profil presque complet'}
               </span>
@@ -147,15 +149,15 @@ export function ProfilePage() {
                 placeholder="06 12 34 56 78"
                 className={`${inputCls}${phoneError ? ' border-destructive focus:border-destructive focus:ring-destructive/10' : ''}`}
               />
-              {phoneError && <p className="mt-1 text-[12px] text-destructive">{phoneError}</p>}
+              {phoneError && <p className="mt-1 text-[14px] text-destructive">{phoneError}</p>}
               {!form.telephone && !phoneError && (
-                <p className="mt-1 text-[12px]" style={{ color: C.grayMuted }}>
+                <p className="mt-1 text-[14px]" style={{ color: C.grayMuted }}>
                   Recommandé pour être joignable sur vos dossiers.
                 </p>
               )}
             </Field>
             <Field id="email" label="Adresse email" icon={<IconContact className="h-4 w-4" />} hint="Non modifiable">
-              <div className="flex h-11 items-center rounded-md border border-dashed border-border bg-[var(--secondary)]/40 px-3 text-[15px] text-muted-foreground">
+              <div className="flex h-11 items-center rounded-md border border-dashed border-border bg-[var(--secondary)]/40 px-3 text-[17px] text-muted-foreground">
                 <span className="truncate">{currentUser.email}</span>
               </div>
             </Field>
@@ -165,13 +167,13 @@ export function ProfilePage() {
             <button
               onClick={handleSave}
               disabled={saving || !!phoneError}
-              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-[16px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               style={{ background: C.blue }}
             >
               <IconEnregistrer className="h-4 w-4" strokeWidth={1.8} />
               {saving ? 'Enregistrement…' : 'Enregistrer mes informations'}
             </button>
-            <span className="text-[12.5px]" style={{ color: C.grayMuted }}>
+            <span className="text-[14.5px]" style={{ color: C.grayMuted }}>
               Vos informations restent privées et servent à préremplir vos dossiers.
             </span>
           </div>
@@ -189,26 +191,26 @@ export function ProfilePage() {
           {resetState === 'sent' ? (
             <div className="flex items-start gap-3 rounded-xl p-4" style={{ background: C.paleBlue }}>
               <IconSucces className="mt-0.5 h-5 w-5 shrink-0" style={{ color: C.blue }} />
-              <div className="text-[14px]" style={{ color: C.ink }}>
+              <div className="text-[16px]" style={{ color: C.ink }}>
                 <p className="font-medium">Un email vient d'être envoyé à {currentUser.email}.</p>
                 <p className="mt-1" style={{ color: C.grayFg }}>
                   Ouvrez-le et cliquez sur le lien pour choisir un nouveau mot de passe. Pensez à vérifier vos courriers indésirables.
                 </p>
-                <button onClick={handleReset} className="mt-2 text-[13px] font-medium underline" style={{ color: C.blue }}>
+                <button onClick={handleReset} className="mt-2 text-[15px] font-medium underline" style={{ color: C.blue }}>
                   Renvoyer l'email
                 </button>
               </div>
             </div>
           ) : (
             <>
-              <p className="text-[14px]" style={{ color: C.grayFg }}>
+              <p className="text-[16px]" style={{ color: C.grayFg }}>
                 Votre compte est protégé. Pour changer votre mot de passe, nous vous envoyons un lien
                 sécurisé par email — rien à retenir.
               </p>
               <button
                 onClick={handleReset}
                 disabled={resetState === 'sending'}
-                className="mt-3 inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-[14px] font-semibold transition-colors hover:bg-[var(--secondary)] disabled:opacity-50"
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-[16px] font-semibold transition-colors hover:bg-[var(--secondary)] disabled:opacity-50"
                 style={{ borderColor: C.border, color: C.blue }}
               >
                 <IconContact className="h-4 w-4" />
@@ -219,11 +221,38 @@ export function ProfilePage() {
         </div>
       </Panel>
 
+      {/* ═════════ ADMINISTRATION ═════════
+          Discrète et réservée : la seule porte vers `/admin`, qui ne figure
+          dans aucune navigation. Les onglets de l'application sont les mêmes
+          pour tout le monde, une page d'exploitation n'a rien à y faire. */}
+      {currentUser.estAdmin && (
+        <Panel>
+          <PanelHeader
+            icon={<IconReglages className="h-4 w-4 text-primary" strokeWidth={1.8} />}
+            title="Administration du catalogue"
+          />
+          <div className="px-6 py-5">
+            <p className="text-[16px]" style={{ color: C.grayFg }}>
+              Retirer une aide du catalogue, reformuler une question du questionnaire. Les
+              modifications s'appliquent au prochain chargement de page des utilisateurs.
+            </p>
+            <Link
+              to={ROUTES.ADMIN}
+              className="mt-3 inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-[16px] font-semibold transition-colors hover:bg-[var(--secondary)]"
+              style={{ borderColor: C.border, color: C.blue }}
+            >
+              <IconReglages className="h-4 w-4" />
+              Ouvrir l'administration
+            </Link>
+          </div>
+        </Panel>
+      )}
+
       {/* ═════════ DÉCONNEXION ═════════ */}
       <div className="pb-2">
         <button
           onClick={handleLogout}
-          className="inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-[14px] font-medium transition-colors hover:bg-[var(--destructive-muted)]"
+          className="inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-[16px] font-medium transition-colors hover:bg-[var(--destructive-muted)]"
           style={{ borderColor: C.border, color: C.danger }}
         >
           <IconDeconnexion className="h-4 w-4" />
@@ -358,11 +387,11 @@ function Field({ id, label, icon, hint, children }: {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <Label htmlFor={id} className="flex items-center gap-1.5 text-[13px] font-medium text-foreground">
+        <Label htmlFor={id} className="flex items-center gap-1.5 text-[15px] font-medium text-foreground">
           <span style={{ color: C.blue }}>{icon}</span>
           {label}
         </Label>
-        {hint && <span className="text-[11.5px]" style={{ color: C.grayMuted }}>{hint}</span>}
+        {hint && <span className="text-[13.5px]" style={{ color: C.grayMuted }}>{hint}</span>}
       </div>
       {children}
     </div>
@@ -381,7 +410,7 @@ function PanelHeader({ icon, title, tint = 'blue' }: { icon: React.ReactNode; ti
       >
         {icon}
       </span>
-      <h3 className="text-[17px]" style={{ fontFamily: SERIF, color: C.ink }}>{title}</h3>
+      <h3 className="text-[19px]" style={{ fontFamily: SERIF, color: C.ink }}>{title}</h3>
     </div>
   );
 }

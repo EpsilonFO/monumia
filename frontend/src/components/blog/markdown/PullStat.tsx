@@ -10,7 +10,7 @@ export function PullStat({ node, children }: { node?: any; children?: ReactNode 
         {value}
       </p>
       <div
-        className="max-w-md text-[14.5px] leading-relaxed [&_a]:font-medium [&_a]:text-[#f17105] [&_a]:underline [&_p:first-child]:mt-0"
+        className="max-w-md text-[16.5px] leading-relaxed [&_a]:font-medium [&_a]:text-[#f17105] [&_a]:underline [&_p:first-child]:mt-0"
         style={{ color: C.ink, opacity: 0.78 }}
       >
         {children}

@@ -37,7 +37,7 @@ Trois circuits de sortie, et un seul écrit :
                            reformule JAMAIS automatiquement (règle du dépôt) :
                            l'humain tranche, correction manuelle ou
                            /ingest-aide.
-  - fiche trop incomplète → escalade vers `ingest_aides_batch.py`, zéro écriture
+  - fiche trop incomplète → escalade vers `ingerer.py --slug …`, zéro écriture
 
 Codes de sortie : 0 terminé ; 1 erreur fatale ; 2 au moins une escalade, un
 échec de validation ou une aide inauditable.
@@ -56,12 +56,11 @@ from datetime import date
 from pathlib import Path
 from typing import Literal
 
-import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from aides_schema import AIDES_DIR, DATA_DIR, Aide, load_aide
+from aides_schema import AIDES_DIR, DATA_DIR, Aide, charger_yaml, load_aide
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -92,7 +91,7 @@ from veille_llm import (
     resoudre_modele,
     system_pour,
 )
-from veille_text import normalize, parse_front_matter
+from veille_text import find_quote_in_any, normalize, parse_front_matter
 from veille_typage import TypageResult, section_typage, typer_toutes
 from veille_update import MAX_AJOUTS_CONDITIONS, prompt_correction
 
@@ -324,7 +323,7 @@ def _sha_baseline(slug: str, nom: str) -> str:
             return sha
     sidecar = chemin.with_name(chemin.name + ".meta.yaml")
     if sidecar.is_file():
-        meta = yaml.safe_load(sidecar.read_text(encoding="utf-8")) or {}
+        meta = charger_yaml(sidecar.read_text(encoding="utf-8")) or {}
         if sha := meta.get("sha256"):
             return str(sha)
     return hashlib.sha256(chemin.read_bytes()).hexdigest()
@@ -352,19 +351,22 @@ def construire_corpus(aide: Aide, col: AideCollect) -> Corpus:
     règlement.
     """
     corpus = Corpus()
-    # Quel snapshot archive quelle page : `monitored_urls` l'a déjà résolu à la
-    # collecte. Le relire du système de fichiers ici ferait un second chemin
+    # Quel snapshot archive quelle page : la provenance lue dans les en-têtes et
+    # sidecars (`baseline_urls`) couvre TOUS les snapshots d'une URL ;
+    # `baseline_path` de `monitored_urls` n'en désigne que le plus récent, et
+    # reste le repli pour les archives sans provenance. Les deux sont résolus à
+    # la collecte : relire le système de fichiers ici ferait un second chemin
     # d'accès aux sources, donc une seconde occasion de diverger.
     remplacables = {m.url: m.baseline_path.name for m in col.urls if m.baseline_path is not None}
     remplacees: set[str] = set()
 
-    for url, contenu, _kind in col.fresh_docs():
+    for url, contenu, kind in col.fresh_docs():
         res = col.fetched.get(url)
         corpus.docs.append(
             DocAudit(
                 nom=url,
                 contenu=contenu,
-                kind="text",
+                kind="pdf" if kind == "pdf" else "text",
                 provenance="frais",
                 sha256=(res.sha256 or "") if res else "",
                 url=url,
@@ -372,9 +374,22 @@ def construire_corpus(aide: Aide, col: AideCollect) -> Corpus:
         )
         if nom_archive := remplacables.get(url):
             remplacees.add(nom_archive)
+        remplacees.update(nom for nom, u in col.baseline_urls.items() if u == url)
+
+    # Une seule version archivée par URL : la plus récente (les noms commencent
+    # par la date). Soumettre l'ancienne ET la nouvelle version d'une même page
+    # ferait compter deux fois chaque critère et inviterait le modèle à juger la
+    # fiche sur un règlement remplacé — 16 aides du dépôt gardent déjà plusieurs
+    # snapshots d'une même URL, et chaque ré-archivage en ajoute.
+    derniere_par_url: dict[str, str] = {}
+    for nom, _contenu, _kind in col.baseline_docs:
+        if url := col.baseline_urls.get(nom):
+            derniere_par_url[url] = nom
 
     for nom, contenu, kind in col.baseline_docs:
         if nom in remplacees:
+            continue
+        if (url := col.baseline_urls.get(nom)) and derniere_par_url[url] != nom:
             continue
         corpus.docs.append(
             DocAudit(
@@ -629,6 +644,35 @@ def check_referentiel_audit(out: AuditLLMOutput, aide: Aide) -> list[str]:
     return erreurs
 
 
+def check_releve_non_vide(out: AuditLLMOutput, aide: Aide, corpus: Corpus) -> list[str]:
+    """Un relevé vide face à une fiche dont les citations sont dans le corpus est un survol.
+
+    L'énumération forcée des `conforme` est LE dispositif anti-paresse de
+    l'audit : un modèle qui rend `criteres: []` n'a pas lu, et son silence
+    passait pour un `a_jour` — mesuré le 2026-09-01 sur `sauvegarde-art-francais`
+    avec glm-5.3-flash à effort réduit : zéro critère en 5,8 s, verdict « fiche
+    à jour ». La preuve que la lecture était possible : au moins une condition
+    de la fiche est citée mot pour mot dans les documents fournis, donc au moins
+    un `conforme` était dû. Rattrapable par une relance, comme une citation
+    approximative.
+    """
+    if out.criteres:
+        return []
+    documents = corpus.documents()
+    citees = [
+        c.id
+        for c in aide.conditions
+        if c.quote and find_quote_in_any(c.quote, documents)[1].found  # type: ignore[arg-type]
+    ]
+    if not citees:
+        return []
+    return [
+        f"relevé vide alors que {len(citees)} condition(s) de la fiche sont citées dans les "
+        f"documents ({', '.join(citees[:4])}…) : énumérer CHAQUE critère de la source, "
+        "`conforme` compris — un relevé vide n'est pas un « rien à signaler »"
+    ]
+
+
 def check_quotes_audit(
     out: AuditLLMOutput, documents: list[tuple[str, str, str]]
 ) -> tuple[list[str], list[int]]:
@@ -735,6 +779,8 @@ def valider(
     if out.fiche_incomplete:
         return out, [], None, 0
     if erreurs := check_referentiel_audit(out, aide):
+        return out, erreurs, "referentiel", 0
+    if erreurs := check_releve_non_vide(out, aide, corpus):
         return out, erreurs, "referentiel", 0
 
     erreurs, ecartes = check_quotes_audit(out, corpus.documents())
@@ -1214,13 +1260,13 @@ def _section_escalades(escalades: list[AuditResult]) -> list[str]:
                 f"  - citation : {cellule(quote, 200)}",
             ]
         out.append("")
-    slugs = " ".join(sorted(r.slug for r in escalades))
+    slugs = " ".join(f"--slug {slug}" for slug in sorted(r.slug for r in escalades))
     out += [
         "",
         "Commande prête :",
         "",
         "```",
-        f"uv run python scripts/ingest_aides_batch.py {slugs}",
+        f"uv run python scripts/ingerer.py {slugs}",
         "```",
         "",
     ]
@@ -1542,7 +1588,7 @@ def _typer_ajouts(
     if not slugs:
         return {}
     aides = [load_aide(AIDES_DIR / f"{slug}.yaml") for slug in slugs]
-    return typer_toutes(
+    typages = typer_toutes(
         aides,
         resoudre_modele(args.model),
         aujourd_hui=today,
@@ -1550,6 +1596,17 @@ def _typer_ajouts(
         max_llm=args.max_llm,
         log=log,
     )
+    # Le typage vient de réécrire la fiche : l'empreinte relevée par l'audit
+    # avant lui est périmée. L'inscrire telle quelle au manifeste ferait
+    # ressortir chaque aide typée en « fiche modifiée depuis le dernier audit »
+    # au passage suivant — un audit repayé pour un changement qu'on a fait
+    # nous-mêmes.
+    if not args.dry_run:
+        for slug, typage in typages.items():
+            chemin = AIDES_DIR / f"{slug}.yaml"
+            if typage.etat == "type" and slug in resultats and chemin.is_file():
+                resultats[slug].sha_fiche = sha_fiche(chemin)
+    return typages
 
 
 def _recap(resultats: dict[str, AuditResult], log: Journal, *, detaille: bool = True) -> None:

@@ -51,8 +51,8 @@ export function AuthLayout({
       >
         {/* Atmosphère : halos diffus (repris du héros du dashboard) */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
-          <div className="absolute -right-20 -top-24 h-80 w-80 rounded-full blur-[130px]" style={{ background: 'rgba(92,149,255,0.40)' }} />
-          <div className="absolute -bottom-28 -left-16 h-72 w-72 rounded-full blur-[130px]" style={{ background: 'rgba(241,113,5,0.18)' }} />
+          <div className="absolute -right-20 -top-24 h-80 w-80 rounded-full blur-[148px]" style={{ background: 'rgba(92,149,255,0.40)' }} />
+          <div className="absolute -bottom-28 -left-16 h-72 w-72 rounded-full blur-[148px]" style={{ background: 'rgba(241,113,5,0.18)' }} />
         </div>
 
         {/* Logo */}
@@ -60,10 +60,10 @@ export function AuthLayout({
           <button onClick={() => navigate('/')} className="group flex items-center gap-2.5">
             <LogoMonumia className="h-8 w-8" label="Monumia" />
             <div className="text-left">
-              <span className="block text-[19px] font-bold leading-none tracking-[-0.01em]" style={{ fontFamily: SERIF, color: C.cream }}>
+              <span className="block text-[22px] font-bold leading-none tracking-[-0.01em]" style={{ fontFamily: SERIF, color: C.cream }}>
                 Monumia
               </span>
-              <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: C.orange }}>
+              <span className="mt-1 block text-[12px] font-bold uppercase tracking-[0.18em]" style={{ color: C.orange }}>
                 {panelEyebrow}
               </span>
             </div>
@@ -85,7 +85,7 @@ export function AuthLayout({
               </>
             )}
           </h2>
-          <p className="max-w-sm text-[15px] leading-[1.7]" style={{ color: C.blueLight }}>
+          <p className="max-w-sm text-[17px] leading-[1.7]" style={{ color: C.blueLight }}>
             {panelDescription ?? 'Identifiez les subventions, déductions fiscales et dispositifs de mécénat disponibles pour vos monuments historiques.'}
           </p>
         </div>
@@ -93,12 +93,12 @@ export function AuthLayout({
         {/* Réassurance */}
         <div className="relative z-10 flex flex-col gap-3.5">
           {REASSURANCE.map(({ icon: Icon, label }) => (
-            <div key={label} className="flex items-center gap-3 text-[13px] font-medium" style={{ color: C.cream }}>
+            <div key={label} className="flex items-center gap-3 text-[15px] font-medium" style={{ color: C.cream }}>
               <span
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
                 style={{ background: 'rgba(255,255,255,0.08)', color: C.orange }}
               >
-                <Icon className="h-[15px] w-[15px]" strokeWidth={1.9} aria-hidden />
+                <Icon className="h-[17px] w-[17px]" strokeWidth={1.9} aria-hidden />
               </span>
               {label}
             </div>
@@ -112,7 +112,7 @@ export function AuthLayout({
         <div className="flex items-center justify-between px-6 py-5 lg:hidden" style={{ borderBottom: `1px solid ${C.border}` }}>
           <button onClick={() => navigate('/')} className="flex items-center gap-2">
             <LogoMonumia className="h-7 w-7" label="Monumia" />
-            <span className="text-[16px] font-bold" style={{ fontFamily: SERIF, color: C.ink }}>Monumia</span>
+            <span className="text-[18px] font-bold" style={{ fontFamily: SERIF, color: C.ink }}>Monumia</span>
           </button>
         </div>
 
@@ -127,8 +127,8 @@ export function AuthLayout({
 /** Surtitre éditorial réutilisable : tiret orange + petites capitales bleues (motif du dashboard). */
 export function AuthEyebrow({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.blue }}>
-      <span aria-hidden style={{ width: 22, height: 2, borderRadius: 2, background: C.orange }} />
+    <span className="inline-flex items-center gap-2.5 text-[13px] font-semibold uppercase tracking-[0.2em]" style={{ color: C.blue }}>
+      <span aria-hidden style={{ width: 25, height: 2, borderRadius: 2, background: C.orange }} />
       {children}
     </span>
   );

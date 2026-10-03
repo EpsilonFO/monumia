@@ -1,0 +1,202 @@
+/*
+ * Le wizard d'un projet (cadrage puis questionnaire) : la maquette du designer
+ * `monumia-questionnaire.html` (septembre 2026), portée presque ligne à ligne,
+ * comme `fiche-aide.css` l'a été pour la fiche d'une aide.
+ *
+ * Mêmes deux écarts que `ecrans.css`, dont cette feuille reprend les tokens :
+ *  - les couleurs sont celles de la charte (`--e-*`), jamais celles de la
+ *    maquette : le mode sombre suit ;
+ *  - tout est rangé sous `.qz`, la racine du wizard, pour ne rien laisser
+ *    déborder sur le reste de l'application. Les noms évitent aussi ceux de
+ *    `ecrans.css` (`.steps` y est la frise horizontale d'un projet, ici c'est
+ *    `.qz-etapes`).
+ *
+ * La racine `.qz` ne porte PAS `.ec` : seules la colonne, la barre de tête et
+ * la scène le portent (d'où les tokens `--e-*`). Les écrans pas encore portés
+ * sur la maquette (l'étape « Votre compte », l'attente du diagnostic, les
+ * échecs de reprise) sont posés dans une scène sans `.ec`, dont les règles de
+ * base (`.ec a`, `.ec button`…), hors couche, écraseraient leurs utilitaires
+ * Tailwind.
+ *
+ * Le wizard vit HORS de `AppLayout` : `ecrans.css` n'y est pas chargée d'office,
+ * `WizardShell` l'importe.
+ *
+ * La géométrie (tailles, rayons, espacements, graisses) est celle de la
+ * maquette : la retoucher ici, c'est s'écarter du dessin.
+ */
+
+.qz {
+  display: grid;
+  grid-template-columns: 358.5px minmax(0, 1fr);
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--background);
+}
+/* le cercle vide d'une réponse, un cran plus soutenu que le filet des cartes */
+.qz .qz-scene { --q-rd: color-mix(in srgb, var(--e-line) 55%, var(--e-faint)); }
+/* `.ec` pose `tabular-nums` partout ; avec Inter, cela élargit aussi le trait
+   d'union (« montrez - moi », « tiers - lieu »). La maquette ne l'a pas : on le
+   retire ici, et on ne le garde que sur les chiffres du bilan. */
+.qz .qz-side, .qz .qz-scene { font-variant-numeric: normal; }
+.qz .bilan strong { font-variant-numeric: tabular-nums; }
+
+/* ── colonne des étapes ─────────────────────────────────────────────── */
+.qz .qz-side { background: var(--e-paper); border-right: 1px solid var(--e-line); padding: 30px 27.5px; display: flex; flex-direction: column; gap: 34px; overflow-y: auto; }
+.qz .qz-logo { display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 0; width: max-content; text-decoration: none; }
+.qz .qz-logo .fleur { width: 27.5px; height: 27.5px; }
+.qz .qz-logo .nom { font: 700 22px/1 var(--e-serif); color: var(--e-ink); }
+
+.qz .qz-etapes { list-style: none; margin: 0; padding: 0; }
+.qz .qz-etape { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 16px; position: relative; padding-bottom: 26px; }
+.qz .qz-etape:last-child { padding-bottom: 0; }
+.qz .qz-etape::before { content: ""; position: absolute; left: 18.5px; top: 43.5px; bottom: 4px; width: 2px; background: var(--e-line); }
+.qz .qz-etape:last-child::before { display: none; }
+.qz .qz-etape.done::before { background: var(--e-green); }
+.qz .qz-dot { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--e-line); background: var(--e-paper); color: var(--e-faint); font: 600 15px/1 var(--e-sans); }
+.qz .qz-dot .i { width: 18px; height: 18px; }
+.qz .done .qz-dot { background: var(--e-green); border-color: var(--e-green); color: #fff; }
+.qz .cur .qz-dot { background: var(--e-orange); border-color: var(--e-orange); color: #fff; }
+.qz .qz-etape b { display: block; font-weight: 600; font-size: 16px; color: var(--e-ink); margin-top: 2px; }
+.qz .qz-etape small { display: block; font-size: 14px; line-height: 1.45; color: var(--e-faint); margin-top: 2px; }
+.qz .done b { color: var(--e-body); font-weight: 500; }
+.qz .cur small { color: var(--e-body); }
+.qz .qz-sub { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+.qz .qz-sub .track { flex: 1; height: 6px; border-radius: 3px; background: var(--e-sand); overflow: hidden; }
+.qz .qz-sub .track i { display: block; height: 100%; background: var(--e-orange); border-radius: 3px; transition: width .4s ease; }
+
+.qz .qz-mon { border: 1.5px solid var(--e-blue); border-radius: var(--e-r); padding: 20px 20px 18px; background: var(--e-paper); }
+.qz .qz-mon .k { display: block; font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--e-faint); }
+.qz .qz-mon h3 { font-size: 21px; line-height: 1.25; margin-top: 8px; color: var(--e-blue); }
+.qz .qz-mon p { font-size: 15px; margin-top: 4px; }
+.qz .qz-mon .tag { margin-top: 11.5px; font-size: 13.5px; padding: 4px 11.5px; }
+.qz .qz-save { margin-top: auto; font-size: 14px; color: var(--e-faint); display: flex; gap: 8px; align-items: center; }
+.qz .qz-save .i { width: 17px; height: 17px; color: var(--e-green); }
+
+/* ── zone de la question ────────────────────────────────────────────── */
+.qz .qz-main { position: relative; padding: 27px 48px 34px; display: flex; flex-direction: column; min-width: 0; overflow-y: auto; }
+.qz .qz-top { display: flex; align-items: center; gap: 24px; max-width: 856.5px; width: 100%; margin: 0 auto; min-height: 40px; }
+.qz .qz-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--e-sand); overflow: hidden; }
+.qz .qz-bar i { display: block; height: 100%; border-radius: 4px; background: var(--e-orange); transition: width .45s ease; }
+.qz .qz-quit { background: none; border: 0; display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 500; color: var(--e-body); padding: 8px 4px; white-space: nowrap; margin-left: auto; }
+.qz .qz-quit:hover { color: var(--e-ink); }
+.qz .qz-quit .i { width: 17px; height: 17px; }
+.qz .qz-scene { max-width: 856.5px; width: 100%; margin: 27px auto 0; }
+
+.qz .q.entre { animation: qz-in .45s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes qz-in { from { opacity: .2; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.qz .theme { display: block; font-size: 14px; font-weight: 600; color: var(--e-blue); }
+.qz .theme .pour { color: var(--e-orange-ink); }
+.qz .q h1 { font-size: clamp(27.5px, 3.2vw, 37.5px); line-height: 1.2; margin-top: 8px; }
+.qz .q h1:focus { outline: none; }
+.qz .q .hint { font-size: 16.5px; margin-top: 10px; max-width: 62ch; }
+
+.qz .why { margin-top: 16px; background: var(--e-blue-soft); border-radius: 14px; padding: 16px 20px; display: flex; gap: 14px; align-items: flex-start; }
+.qz .why .ic { width: 32px; height: 32px; border-radius: 50%; background: var(--e-blue); color: #fff; display: grid; place-items: center; flex: none; font: 700 15px/1 var(--e-serif); }
+.qz .why b { display: block; font-size: 15px; color: var(--e-blue-ink); font-weight: 600; }
+.qz .why p { font-size: 15.5px; line-height: 1.55; color: var(--e-ink); margin-top: 4px; }
+.qz .why p.replie { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.qz .why button { background: none; border: 0; padding: 0; margin-top: 6px; color: var(--e-blue); font-weight: 600; font-size: 15px; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: color-mix(in srgb, var(--primary) 30%, transparent); }
+
+/* réponses reprises d'un autre projet, sur la première question */
+.qz .reprises { margin-bottom: 14px; font-size: 14px; color: var(--e-faint); }
+.qz .reprises summary { cursor: pointer; }
+.qz .reprises ul { margin: 8px 0 0; padding-left: 14px; border-left: 1px solid var(--e-line); list-style: none; display: grid; gap: 4px; }
+.qz .reprises ul b { font-weight: 500; color: var(--e-ink); }
+.qz .reprises p { margin-top: 8px; }
+
+.qz .opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; margin-top: 18px; }
+.qz .opt { position: relative; display: flex; gap: 16px; align-items: center; text-align: left; background: var(--e-paper); border: 1.5px solid var(--e-line); border-radius: 16px; padding: 14px 17px; min-height: 0; transition: border-color .15s, background .15s; }
+.qz .opt:hover { border-color: var(--e-blue-line); }
+.qz .opt .rd { width: 23px; height: 23px; border-radius: 50%; border: 2px solid var(--q-rd); flex: none; margin-top: 0; display: grid; place-items: center; transition: border-color .15s, background .15s; }
+.qz .opt.multi .rd { border-radius: 7px; }
+.qz .opt .rd .i { width: 14px; height: 14px; color: #fff; opacity: 0; }
+.qz .opt b { display: block; font-size: 16px; font-weight: 600; color: var(--e-ink); line-height: 1.35; }
+.qz .opt small { display: block; font-size: 14.5px; line-height: 1.45; color: var(--e-body); margin-top: 4px; }
+.qz .opt[aria-checked="true"] { border-color: var(--e-blue); background: var(--e-blue-soft); }
+.qz .opt[aria-checked="true"] .rd { border-color: var(--e-blue); background: var(--e-blue); }
+.qz .opt[aria-checked="true"] .rd .i { opacity: 1; }
+/* « je ne sais pas » du moteur : une vraie réponse, au libellé moins appuyé */
+.qz .opt.nsp b { font-weight: 500; color: var(--e-body); }
+/* Sans description (le cas de toutes les réponses pour l'instant), la carte est
+   basse et son libellé centré face au rond ; une description la rallonge et
+   ramène le rond en haut. */
+.qz .opt:has(small) { align-items: flex-start; padding-block: 16px; }
+.qz .opt:has(small) .rd { margin-top: 1px; }
+/* Beaucoup de réponses : trois par ligne, pour que la question tienne sur un
+   écran sans défiler (classe posée par EcranQuestion selon leur nombre). */
+.qz .opts.trois { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.qz .opts.trois .opt { padding: 11px 15px; gap: 13px; }
+.qz .opts.trois .opt b { font-size: 15.5px; }
+/* Très longues listes (les travaux) : quatre par ligne, et la zone de la
+   question s'élargit, barre du haut comprise, pour que tout tienne. */
+.qz .opts.quatre { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.qz .qz-main:has(.opts.quatre) .qz-scene, .qz .qz-main:has(.opts.quatre) .qz-top, .qz .qz-main:has(.opts.quatre) .later { max-width: 1138.5px; }
+.qz .qz-main:has(.opts.quatre) { padding-top: 20.5px; }
+.qz .qz-main:has(.opts.quatre) .qz-scene { margin-top: 16px; }
+.qz .qz-main:has(.opts.quatre) .why { margin-top: 11px; padding-block: 11px; }
+@media (max-width: 1200px) {
+  .qz .opts.quatre { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* réponse à part, sur toute la largeur (« Pas encore déterminé »…) */
+.qz .opt.large { grid-column: 1 / -1; }
+/* longues listes sans précision (les vingt types de travaux) : cartes serrées */
+.qz .opts.serre { gap: 7px; margin-top: 14px; }
+.qz .opts.serre .opt { min-height: 0; padding: 8px 13px; gap: 10px; align-items: center; border-radius: 13px; }
+.qz .opts.serre .opt .rd { margin-top: 0; width: 19px; height: 19px; }
+.qz .opts.serre .opt b { font-size: 14.5px; line-height: 1.3; }
+.qz .opts:disabled, .qz .opts[aria-disabled="true"] { opacity: .6; }
+
+.qz .liste-reprises { margin-top: 22px; padding: 18px 20px; border: 1.5px solid var(--e-line); border-radius: 16px; background: var(--e-paper); list-style: none; display: grid; gap: 8px; font-size: 15px; line-height: 1.45; }
+.qz .liste-reprises b { font-weight: 600; color: var(--e-ink); }
+.qz .liste-reprises em { font-style: normal; color: var(--e-faint); }
+
+.qz .qz-nav { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 27.5px; padding-top: 24px; border-top: 1px solid var(--e-line); }
+.qz .qz-nav .btn { font-size: 16px; padding: 14px 26px; min-height: 52px; }
+.qz .qz-nav .b-orange { margin-left: auto; }
+.qz .qz-nav .b-orange .spin { width: 18px; height: 18px; animation: qz-spin 1s linear infinite; }
+@keyframes qz-spin { to { transform: rotate(360deg); } }
+.qz .skip { background: none; border: 0; padding: 8px 4px; font-size: 15.5px; font-weight: 500; color: var(--e-body); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--e-line); }
+.qz .skip:hover { color: var(--e-ink); }
+.qz .later { max-width: 856.5px; width: 100%; margin: 18px auto 0; font-size: 14px; color: var(--e-faint); text-align: right; }
+
+/* ── écrans de fin, d'attente et d'erreur, dans la même scène ───────── */
+.qz .fin { display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center; padding: 20px 0 8px; }
+.qz .fin h2 { font-size: clamp(27.5px, 3.2vw, 37.5px); line-height: 1.2; }
+.qz .fin h2:focus { outline: none; }
+.qz .fin > p { font-size: 16.5px; max-width: 52ch; }
+.qz .fin .actions { display: flex; flex-direction: column; gap: 11.5px; width: 100%; max-width: 438.5px; }
+.qz .fin .actions .btn { width: 100%; font-size: 16px; min-height: 52px; white-space: normal; }
+.qz .fin .actions .btn em { font-style: normal; font-weight: 500; color: var(--e-orange-ink); }
+.qz .fin .retour { background: none; border: 0; display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 500; color: var(--e-body); padding: 6px 4px; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--e-line); }
+.qz .fin .retour .i { width: 16px; height: 16px; }
+.qz .attente { display: flex; align-items: center; gap: 11.5px; color: var(--e-faint); font-size: 15.5px; }
+.qz .attente .spin { width: 18px; height: 18px; color: var(--e-blue); animation: qz-spin 1s linear infinite; }
+
+.qz .bilan { width: 100%; max-width: 438.5px; border: 1.5px solid var(--e-line); border-radius: 16px; background: var(--e-paper); padding: 18px 20px; }
+.qz .bilan .chiffres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.qz .bilan strong { display: block; font: 400 30px/1 var(--e-serif); color: var(--e-ink); }
+.qz .bilan span { display: block; font-size: 14px; line-height: 1.35; margin-top: 6px; }
+.qz .bilan p { margin-top: 14px; padding-top: 11.5px; border-top: 1px solid var(--e-line); font-size: 14px; color: var(--e-faint); }
+
+.qz .erreur { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; padding: 24px; border: 1.5px solid var(--e-line); border-radius: var(--e-r); background: var(--e-paper); }
+.qz .erreur .ic { width: 43.5px; height: 43.5px; border-radius: 11.5px; display: grid; place-items: center; background: var(--e-red-soft); color: var(--e-red); }
+.qz .erreur b { display: block; font-size: 16px; color: var(--e-ink); }
+.qz .erreur p { font-size: 15px; margin-top: 4px; }
+
+/* ── mobile : la colonne se replie sur le logo ──────────────────────── */
+@media (max-width: 980px) {
+  .qz { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .qz .qz-side { border-right: 0; border-bottom: 1px solid var(--e-line); padding: 18px 16px; gap: 16px; overflow: visible; }
+  .qz .qz-etapes, .qz .qz-mon, .qz .qz-save { display: none; }
+  .qz .qz-main { padding: 22px 16px 40px; }
+  .qz .qz-scene { margin-top: 23px; }
+  .qz .opts.trois { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .qz .opts, .qz .opts.trois { grid-template-columns: 1fr; }
+  .qz .qz-nav .b-orange { width: 100%; order: -1; margin-left: 0; }
+  .qz .later { text-align: left; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qz *, .qz *::before { animation: none !important; transition: none !important; }
+}

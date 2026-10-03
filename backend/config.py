@@ -64,3 +64,31 @@ def request_app_origin(request: Request, fallback: str | None = None) -> str:
             if parsed.scheme and parsed.netloc:
                 origin = f"{parsed.scheme}://{parsed.netloc}"
     return resolve_app_origin(origin, fallback or default_app_url())
+
+
+# ---------------------------------------------------------------------------
+# Administration du catalogue
+# ---------------------------------------------------------------------------
+
+#: SOCLE d'amorçage de l'administration du catalogue. Liste d'UUID Supabase
+#: séparés par des virgules, PROPRE À CHAQUE ENVIRONNEMENT : prod et beta ont
+#: chacun leur projet Supabase, donc des identifiants différents pour les mêmes
+#: personnes.
+#:
+#: La liste des administrateurs vit désormais en base (`services/roles.py`,
+#: table `comptes_roles`, rôle `admin`), où elle se lit avec un email à côté et
+#: se gère depuis `/admin`. Cette variable reste lue pour deux raisons, et deux
+#: seulement : ouvrir la porte quand la table est vide (environnement neuf,
+#: migration fraîchement appliquée), et donner une liste que l'application ne
+#: peut pas vider — on ne peut donc pas se verrouiller dehors. Elle peut être
+#: vidée du `.env` une fois les mêmes comptes inscrits en base.
+_ADMIN_ENV = "ADMIN_USER_IDS"
+
+
+def admin_user_ids() -> frozenset[str]:
+    """Le socle configuré. Lu à CHAQUE appel, pas mis en cache : les tests le
+    remplacent par `patch.dict(os.environ, ...)`, et le coût d'un split sur deux
+    UUID est nul. C'est `services.roles.est_admin` qui tranche, en unissant ce
+    socle aux lignes de la base."""
+    brut = os.environ.get(_ADMIN_ENV, "")
+    return frozenset(part.strip() for part in brut.split(",") if part.strip())

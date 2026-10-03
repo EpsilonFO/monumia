@@ -38,14 +38,14 @@ export function DiagnosticLoader() {
         </h2>
         <p
           key={i}
-          className="q-in-fwd text-[15px] font-medium"
+          className="q-in-fwd text-[17px] font-medium"
           style={{ color: C.grayFg }}
           aria-live="polite"
         >
           {MESSAGES[i]}
         </p>
       </div>
-      <p className="text-[13px]" style={{ color: C.grayMuted }}>
+      <p className="text-[15px]" style={{ color: C.grayMuted }}>
         Quelques secondes suffisent.
       </p>
     </div>

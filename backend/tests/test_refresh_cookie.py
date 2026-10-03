@@ -44,7 +44,6 @@ PROFILE_ROW = {
     "onboarding_complete": True,
     "notification_preferences": {},
     "created_at": "2026-01-01T00:00:00Z",
-    "has_aides_access": False,
     "account_type": "proprietaire",
     "metier": None,
 }
@@ -72,6 +71,9 @@ class _UsersQuery:
         return self
 
     def insert(self, *a, **k):
+        return self
+
+    def limit(self, *a, **k):
         return self
 
     def execute(self):
@@ -156,9 +158,10 @@ class RefreshCookieTest(unittest.TestCase):
         self.assertIn("SameSite=lax", cookie)
 
     def test_register_pose_le_cookie_et_ne_renvoie_plus_le_refresh_token(self):
-        # insert du profil puis _get_profile : deux réponses users
+        # _profil_existe (aucune ligne), insert du profil, puis _get_profile :
+        # trois réponses users
         app.dependency_overrides[get_supabase] = lambda: _FakeSupabase(
-            [_Resp(None), _Resp(dict(PROFILE_ROW))]
+            [_Resp([]), _Resp(None), _Resp(dict(PROFILE_ROW))]
         )
         res = self.client.post(
             "/auth/register",

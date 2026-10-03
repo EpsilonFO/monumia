@@ -1,38 +1,38 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { IconAjouter, IconMonument, IconRecherche } from '@/components/icons';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { MonumentCard } from '@/components/monument/MonumentCard';
+import { CarteMonument } from '@/components/dashboard/CarteMonument';
+import { Picto } from '@/components/shared/ecrans/Picto';
 import { ProjectListSkeleton } from '@/components/skeletons';
+import { useSuiviStore } from '@/stores/useSuiviStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useProjetStore } from '@/stores/useProjetStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
-import { computeMonumentStats } from '@/lib/project-stats';
+import { computeMonumentStats, projectStage } from '@/lib/project-stats';
 import { useProjectsData } from '@/hooks/useProjectsData';
+import { useOffre } from '@/hooks/useOffre';
+import { libelleMonuments, sousLePlafond } from '@/lib/offres';
+import { PaywallDialog } from '@/components/shared/Paywall';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { ROUTES } from '@/constants/routes';
-import { C, SERIF } from '@/lib/brand';
+import './liste-monuments.css';
 
 type MonumentSortKey = 'recent' | 'oldest' | 'name' | 'modified';
 
 export function MonumentsListPage() {
+  const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const projets = useProjetStore((s) => s.projets);
   const dossiers = useDossierStore((s) => s.dossiers);
   const digestsByProjet = useAideStore((s) => s.digestsByProjet);
+  const suivis = useSuiviStore((s) => s.suivis);
 
   // Charge monuments, projets, dossiers, diagnostics et suivis ; `loading` ne
   // retombe qu'une fois TOUT arrivé, pour que le squelette couvre aussi le
   // nombre d'aides (sinon les cartes s'affichent vides puis sautent).
   const { loading } = useProjectsData();
 
+  const [paywallMonument, setPaywallMonument] = useState(false);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<MonumentSortKey>('recent');
 
@@ -70,50 +70,66 @@ export function MonumentsListPage() {
     return sorted;
   }, [monuments, search, sortKey]);
 
-  const newMonumentButton = (
-    <Link
-      to={ROUTES.MONUMENT_NEW}
-      className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[13px] font-semibold text-white transition-all hover:shadow-md"
-      style={{ background: C.orange }}
-    >
-      <IconAjouter className="h-3.5 w-3.5" strokeWidth={2} />
+  // Plafond de l'offre : le bouton de création laisse place à la porte de
+  // sortie quand le compte a déjà son quota de monuments. Le comptage porte sur
+  // les monuments POSSÉDÉS — un bien partagé par quelqu'un d'autre ne consomme
+  // rien, exactement comme côté serveur (services/quotas.py).
+  const offre = useOffre();
+  const mesMonuments = user ? monuments.filter((m) => m.userId === user.id).length : 0;
+  const peutCreer = sousLePlafond(offre.monumentsMax, mesMonuments);
+
+  // Le bouton garde son libellé et son geste, et c'est le paywall qui se pose
+  // devant quand le plafond est atteint : refermer la modale laisse
+  // l'utilisateur sur sa liste, ce qu'une redirection vers les tarifs ne
+  // permet pas. `Link` quand l'action est ouverte, `button` sinon — un lien
+  // qui n'emmène nulle part mentirait au survol comme au clic milieu.
+  const newMonumentButton = peutCreer ? (
+    <Link className="btn b-orange" to={ROUTES.MONUMENT_NEW}>
+      <Picto nom="plus" />
       Nouveau monument
     </Link>
+  ) : (
+    <button className="btn b-orange" type="button" onClick={() => setPaywallMonument(true)}>
+      <Picto nom="plus" />
+      Nouveau monument
+    </button>
   );
 
+  // Avancement d'un monument : celui de son projet le PLUS avancé, comme sur le
+  // tableau de bord.
+  const etapeDe = (monumentId: string) =>
+    projets
+      .filter((p) => p.monumentId === monumentId)
+      .map((p) =>
+        projectStage(
+          digestsByProjet[p.id] ?? null,
+          dossiers.filter((d) => d.projetId === p.id),
+          suivis.filter((x) => x.projetId === p.id),
+        ),
+      )
+      .sort((a, b) => b.reachedIndex - a.reachedIndex)[0] ?? projectStage(null, [], []);
+
   return (
-    /* Colonne resserrée et centrée : une carte par monument, tenue à une largeur
-       de lecture confortable plutôt qu'étirée sur les 1200 px du gabarit. */
-    <div className="mx-auto w-full max-w-3xl space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-[28px]" style={{ fontFamily: SERIF, color: C.ink }}>
-            Mes monuments
-          </h1>
-          <p className="text-[14px] text-muted-foreground">
-            Chaque monument, ses projets de travaux et les aides qui vont avec.
-          </p>
+    <div className="ec mlist">
+      <div className="top">
+        <div>
+          <h1>{libelleMonuments(offre)}</h1>
+          <p>Chaque monument, ses projets de travaux et les aides qui vont avec.</p>
         </div>
         {newMonumentButton}
       </div>
 
       {loading ? (
-        <ProjectListSkeleton />
+        <div style={{ marginTop: 26 }}>
+          <ProjectListSkeleton />
+        </div>
       ) : monuments.length === 0 ? (
-        <div
-          className="flex flex-col items-center justify-center gap-4 rounded-xl border py-16 text-center"
-          style={{ background: C.card, borderColor: C.border }}
-        >
-          <IconMonument className="h-8 w-8" style={{ color: C.blueLight }} strokeWidth={1.5} />
-          <div className="space-y-1">
-            <h2 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
-              Aucun monument pour le moment
-            </h2>
-            <p className="max-w-md text-[14px] text-muted-foreground">
-              Décrivez votre monument, puis lancez autant de projets de travaux que
-              nécessaire pour identifier les aides mobilisables.
-            </p>
-          </div>
+        <div className="vide" style={{ textAlign: 'center' }}>
+          <h2 style={{ fontSize: 24 }}>Aucun monument pour le moment</h2>
+          <p style={{ margin: '9px auto 20.5px', maxWidth: '52ch' }}>
+            Décrivez votre monument, puis lancez autant de projets de travaux que nécessaire pour identifier les
+            aides mobilisables.
+          </p>
           {newMonumentButton}
         </div>
       ) : (
@@ -121,60 +137,60 @@ export function MonumentsListPage() {
           {/* Recherche et tri : utiles seulement quand la liste devient longue.
               La plupart des comptes ont 1-2 monuments — on leur épargne ce bruit. */}
           {monuments.length > 3 && (
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="relative flex-1 sm:max-w-md">
-                <IconRecherche
-                  className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-                  strokeWidth={1.8}
-                />
-                <Input
+            <div className="tools">
+              <label className="search">
+                <span className="sr">Rechercher un monument</span>
+                <Picto nom="loupe" />
+                <input
+                  type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Rechercher un monument..."
-                  className="h-10 pl-9 text-[14px]"
-                  style={{ background: C.card, borderColor: C.border }}
+                  placeholder="Rechercher un monument"
                 />
-              </div>
-
-              <Select value={sortKey} onValueChange={(v) => setSortKey(v as MonumentSortKey)}>
-                <SelectTrigger
-                  className="h-10 w-full text-[14px] sm:w-56"
-                  style={{ background: C.card, borderColor: C.border }}
+              </label>
+              <div className="sel">
+                <label className="sr" htmlFor="tri-monuments">
+                  Trier les monuments
+                </label>
+                <select
+                  id="tri-monuments"
+                  value={sortKey}
+                  onChange={(e) => setSortKey(e.target.value as MonumentSortKey)}
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="recent">Créés récemment</SelectItem>
-                  <SelectItem value="oldest">Plus anciens</SelectItem>
-                  <SelectItem value="modified">Récemment modifiés</SelectItem>
-                  <SelectItem value="name">Nom (A → Z)</SelectItem>
-                </SelectContent>
-              </Select>
+                  <option value="recent">Créés récemment</option>
+                  <option value="oldest">Plus anciens</option>
+                  <option value="modified">Récemment modifiés</option>
+                  <option value="name">Nom (A → Z)</option>
+                </select>
+              </div>
             </div>
           )}
 
           {visibleMonuments.length === 0 ? (
-            <div
-              className="rounded-xl border py-12 text-center text-[14px] text-muted-foreground"
-              style={{ background: C.card, borderColor: C.border }}
-            >
-              Aucun monument ne correspond à votre recherche.
-            </div>
+            <p className="vide">Aucun monument ne correspond à votre recherche.</p>
           ) : (
-            /* Liste verticale (façon Doctolib) : une carte horizontale par
-               monument, lisible de haut en bas — même rendu avec 1, 2 ou 20. */
-            <div className="space-y-4">
+            <div className="cmons">
               {visibleMonuments.map((monument) => (
-                <MonumentCard
+                <CarteMonument
                   key={monument.id}
                   monument={monument}
+                  projets={projets.filter((p) => p.monumentId === monument.id)}
                   stats={computeMonumentStats(monument, projets, digestsByProjet, dossiers)}
+                  stage={etapeDe(monument.id)}
                 />
               ))}
             </div>
           )}
         </>
       )}
+
+      <PaywallDialog
+        open={paywallMonument}
+        onOpenChange={setPaywallMonument}
+        offre="Multi-monuments"
+        titre="Gérez tout votre parc au même endroit"
+        description="L'offre gratuite couvre un monument. Multi-monuments les rend illimités et ouvre le tableau de bord, qui réunit leurs chantiers et leurs échéances."
+      />
     </div>
   );
 }

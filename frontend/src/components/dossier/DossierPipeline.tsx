@@ -25,7 +25,7 @@ export function DossierPipeline({ dossiers }: DossierPipelineProps) {
           </div>
           <div
             className={cn(
-              'rounded-lg border-t-2 p-2 min-h-[120px] space-y-2',
+              'rounded-lg border-t-2 p-2 min-h-[136.5px] space-y-2',
               col.step <= 2 && 'border-t-info bg-info-muted/30',
               col.step === 3 && 'border-t-warning bg-warning-muted/30',
               col.step === 4 && 'border-t-success bg-success-muted/30',

@@ -1,3 +1,5 @@
+import type { ChecklistItemStatus } from '@/types';
+
 export const DOSSIER_STEPS = [
   {
     step: 1 as const,
@@ -34,8 +36,14 @@ export const DOSSIER_STATUS_LABELS: Record<string, { label: string; color: strin
   soumis: { label: 'Soumis', color: 'bg-cat-violet-soft text-cat-violet' },
 };
 
-export const CHECKLIST_STATUS_CONFIG = {
+// Typé sur ChecklistItemStatus (et non `as const` nu) : l'ajout d'un statut au
+// type doit casser la compilation ici, pas produire un trou silencieux.
+export const CHECKLIST_STATUS_CONFIG: Record<
+  ChecklistItemStatus,
+  { label: string; color: string; bgColor: string }
+> = {
   fourni: { label: 'Fourni', color: 'text-success', bgColor: 'bg-success-muted' },
+  repris: { label: 'Repris — à vérifier', color: 'text-primary', bgColor: 'bg-secondary' },
   en_attente: { label: 'En attente', color: 'text-warning', bgColor: 'bg-warning-muted' },
   manquant: { label: 'Manquant', color: 'text-destructive', bgColor: 'bg-destructive-muted' },
-} as const;
+};

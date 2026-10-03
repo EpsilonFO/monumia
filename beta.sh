@@ -8,38 +8,56 @@ git pull
 # le .env ou la connection string manquent.
 source scripts/lib-migrations.sh
 source scripts/lib-release.sh
+source scripts/lib-deploy.sh
 
-push_migrations "beta" backend/.env.beta
+# Les étapes dont l'entrée n'a pas bougé depuis leur dernier succès sont
+# sautées : voir scripts/lib-deploy.sh. `FORCE=1 ./beta.sh` refait tout.
 
 SHA=$(git rev-parse --short HEAD)
+
+# Migrations en parallèle du build, attendues avant toute publication : même
+# raisonnement que dans deploy.sh.
+echo "Migrations beta, en parallèle du build..."
+migrer_si_besoin "beta" backend/.env.beta > >(prefixer migrations) 2>&1 &
+migrations_pid=$!
 
 # Build à côté, nginx et la prod continuent de servir. Voir scripts/lib-release.sh
 # pour le détail de la bascule sans coupure.
 echo "Building beta images ($SHA)..."
-sudo docker compose build beta-frontend-build landing-beta-build beta-backend
+if ! sudo docker compose build beta-frontend-build landing-beta-build beta-backend; then
+  wait "$migrations_pid" || true
+  echo "❌ Build en échec : rien n'est publié, le backend beta n'a pas été touché."
+  exit 1
+fi
+
+if ! wait "$migrations_pid"; then
+  echo "❌ Migrations beta en échec : rien n'est publié, le backend beta n'a pas été touché."
+  exit 1
+fi
 
 echo "Publishing static releases..."
 publish_dist beta         monumia-beta-frontend-build "$SHA"
 publish_dist landing-beta monumia-landing-beta-build  "$SHA"
 
 echo "Restarting beta backend..."
-sudo docker compose up -d --no-deps beta-backend
+redemarrer_backends beta-backend
 
 nginx_reload_failed=""
 sudo docker compose up -d nginx
 reload_nginx || nginx_reload_failed="oui"
 
 # ── Sync aides YAML → aides_v3 (beta) ─────────────────
-# Même raison que dans deploy.sh : sans ce sync, une aide ajoutée en YAML mais
-# absente de aides_v3 renvoie « Aide introuvable » à la création de dossier.
-# Ce script ne le faisait pas, donc un déploiement beta seul laissait la table
-# en retard sur les YAML. Idempotent (upsert par slug).
+# Voir sync_aides (scripts/lib-deploy.sh). Le ménage des releases se fait
+# pendant qu'il attend le réseau.
 echo "Syncing aides YAML → aides_v3 (beta)..."
-sync_ok=1
-sudo docker exec monumia-beta-backend uv run python scripts/load_aides_yaml.py || sync_ok=0
+sync_aides beta monumia-beta-backend > >(prefixer "aides beta") 2>&1 &
+sync_pid=$!
 
 prune_releases beta 3
 prune_releases landing-beta 3
+
+sync_ok=1
+wait "$sync_pid" || sync_ok=0
 
 if [ "$sync_ok" -eq 0 ]; then
   echo "❌ Beta déployée, mais le sync des aides a ÉCHOUÉ."

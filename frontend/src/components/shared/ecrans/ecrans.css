@@ -1,0 +1,181 @@
+/*
+ * Les écrans de l'application (tableau de bord, monument, projet, documents,
+ * wizards) : les maquettes du designer de septembre 2026 (« yaml paul »),
+ * portées presque ligne à ligne, comme `fiche-aide.css` l'a été pour la fiche
+ * d'une aide.
+ *
+ * Deux écarts, et seulement deux :
+ *  - les couleurs sont les tokens de la charte (index.css), jamais celles de la
+ *    maquette : le mode sombre suit, et un changement de charte aussi ;
+ *  - tout est rangé sous `.ec`, pour que `.btn`, `.tag` ou `.steps` ne
+ *    débordent pas sur les composants shadcn du reste de l'application.
+ *
+ * Ce fichier ne porte que ce que TOUS les écrans partagent (boutons, onglets,
+ * retour, avancement, intertitres). Chaque écran a sa feuille à côté de sa page.
+ * La géométrie (tailles, rayons, espacements, graisses) est celle de la
+ * maquette : la retoucher ici, c'est s'écarter du dessin.
+ */
+
+/*
+ * La palette des écrans, adoucie par rapport aux jetons de la charte : posés
+ * en grands aplats (bandes, pieds de carte, onglets), le bleu #0a369d paraissait
+ * très sombre et l'orange #f17105 fluo. Le bleu est éclairci, l'orange et le
+ * rouge désaturés vers un gris chaud. Définie ici une fois, lue par `.ec` et
+ * par la fiche d'aide (`fiche-aide.css`). Recalculée sous `.dark`, où la
+ * charte redéfinit ses jetons.
+ */
+:root, .dark {
+  --ecran-bleu: color-mix(in srgb, var(--primary) 85%, white);
+  --ecran-bleu-fonce: var(--primary);
+  --ecran-orange: color-mix(in srgb, var(--accent) 78%, #9a8f86);
+  --ecran-orange-vif: color-mix(in srgb, var(--orange-vif) 78%, #9a8f86);
+  --ecran-rouge: color-mix(in srgb, var(--destructive) 72%, #9a8f86);
+}
+
+.ec {
+  --e-cream: var(--background);
+  --e-paper: var(--card);
+  --e-sand: var(--muted);
+  --e-line: var(--border);
+  --e-line-soft: color-mix(in srgb, var(--border) 55%, var(--card));
+  --e-ink: var(--foreground);
+  --e-body: var(--gray-fg);
+  --e-faint: var(--gray-muted);
+  --e-blue: var(--ecran-bleu);
+  --e-blue-2: color-mix(in srgb, var(--ecran-bleu) 84%, var(--blue-light));
+  --e-blue-ink: var(--ecran-bleu-fonce);
+  --e-blue-soft: var(--secondary);
+  --e-blue-line: color-mix(in srgb, var(--primary) 22%, var(--card));
+  --e-orange: var(--ecran-orange);
+  --e-orange-2: var(--ecran-orange-vif);
+  --e-orange-hover: color-mix(in srgb, var(--ecran-orange) 88%, black);
+  --e-orange-ink: var(--warning);
+  --e-orange-soft: var(--warning-muted);
+  --e-orange-line: color-mix(in srgb, var(--ecran-orange) 30%, var(--card));
+  --e-green: var(--success);
+  --e-green-soft: var(--success-muted);
+  --e-green-line: color-mix(in srgb, var(--success) 28%, var(--card));
+  --e-red: var(--ecran-rouge);
+  --e-red-soft: var(--destructive-muted);
+  /* texte clair posé sur le bleu (bandes, pieds de carte) */
+  --e-on-blue: color-mix(in srgb, #fff 80%, var(--primary));
+  --e-on-blue-faint: color-mix(in srgb, #fff 68%, var(--primary));
+  --e-disabled: color-mix(in srgb, var(--muted) 70%, var(--border));
+  --e-disabled-ink: color-mix(in srgb, var(--gray-muted) 80%, var(--muted));
+  --e-serif: var(--font-serif);
+  --e-sans: var(--font-sans);
+  --e-sh-card: 0 27.5px 59.5px -30px color-mix(in srgb, var(--primary) 22%, transparent);
+  --e-sh-soft: 0 18px 40px -27px color-mix(in srgb, var(--foreground) 22%, transparent);
+  --e-r: 18px;
+  --e-pill: 995px;
+
+  color: var(--e-body);
+  font: 400 16px/1.55 var(--e-sans);
+  -webkit-font-smoothing: antialiased;
+}
+/* Chiffres à chasse fixe là seulement où ils s'alignent (compteurs, dates,
+   montants). Posé sur tout l'écran, `tabular-nums` élargit aussi les traits
+   d'union d'Inter : « Courcelles - sur - Viosne ». */
+.ec .tabs em, .ec .steps .n, .ec .num { font-variant-numeric: tabular-nums; }
+/* Les réglages d'éléments nus vont dans la couche `base` de Tailwind, et non
+   hors couche : les utilitaires (`text-white`, `text-[15px]`…) des composants
+   shadcn posés dans ces écrans doivent l'emporter. Hors couche, `.ec button`
+   repeignait en gris le texte blanc des boutons bleus. */
+@layer base {
+  .ec h1, .ec h2, .ec h3, .ec h4 { font-family: var(--e-serif); font-weight: 400; color: var(--e-ink); letter-spacing: -.015em; margin: 0; line-height: 1.16; text-wrap: balance; }
+  .ec p { margin: 0; }
+  .ec a { color: var(--e-blue); text-underline-offset: 3px; }
+  .ec button { font: inherit; color: inherit; cursor: pointer; }
+  .ec button:disabled { cursor: not-allowed; }
+  .ec :focus-visible { outline: 2px solid var(--e-blue); outline-offset: 3px; border-radius: 8px; }
+}
+.ec .i { width: 20px; height: 20px; flex: none; }
+.ec .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* petit intitulé en capitales, filet orange devant */
+.ec .eyebrow { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--e-blue); }
+.ec .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--e-orange); }
+.ec .eyebrow.nu::before { display: none; }
+/* la variante orange, seule au-dessus d'un titre centré (création d'un monument) */
+.ec .eyebrow.o { color: var(--e-orange); }
+
+/* boutons pilules */
+.ec .btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; font: 600 15.5px/1 var(--e-sans); padding: 13.5px 22px; min-height: 48px; border-radius: var(--e-pill); border: 1.5px solid transparent; text-decoration: none; white-space: nowrap; transition: background .15s, border-color .15s, transform .15s; }
+.ec .btn .i { width: 18px; height: 18px; }
+.ec .b-orange { background: var(--e-orange); color: #fff; }
+.ec .b-orange:hover { background: var(--e-orange-hover); }
+.ec .b-orange:disabled { background: var(--e-disabled); color: var(--e-disabled-ink); }
+.ec .b-blue { background: var(--e-blue); color: #fff; }
+.ec .b-blue:hover { background: var(--e-blue-ink); }
+.ec .b-line { background: var(--e-paper); color: var(--e-blue); border-color: var(--e-blue-line); }
+.ec .b-line:hover { border-color: var(--e-blue); }
+.ec .b-oline { background: var(--e-paper); color: var(--e-orange-ink); border-color: var(--e-orange-line); }
+.ec .b-oline:hover { border-color: var(--e-orange); }
+.ec .b-ghost { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .45); }
+.ec .b-ghost:hover { border-color: #fff; }
+.ec .b-sm { min-height: 42px; padding: 9px 16px; font-size: 15px; }
+.ec .ico { width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--e-blue-line); background: var(--e-blue-soft); display: inline-grid; place-items: center; color: var(--e-blue); padding: 0; }
+.ec .ico:hover { border-color: var(--e-blue); }
+.ec .ico .i { width: 18px; height: 18px; }
+.ec .lnk { background: none; border: 0; padding: 4px 0; color: var(--e-blue); font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 6px; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: color-mix(in srgb, var(--primary) 30%, transparent); }
+.ec .lnk .i { width: 16px; height: 16px; }
+
+/* retour : un carré bleu, seul en tête de page */
+.ec .back { width: 43.5px; height: 43.5px; border-radius: 11.5px; background: var(--e-blue); color: #fff; display: inline-grid; place-items: center; text-decoration: none; transition: background .15s, transform .15s; }
+.ec .back:hover { background: var(--e-blue-ink); transform: translateX(-2px); }
+.ec .back .i { width: 20px; height: 20px; }
+
+/* intitulé de section */
+.ec .sec-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px 20px; flex-wrap: wrap; margin-bottom: 16px; }
+.ec .sec-h h2 { font-size: 30px; }
+.ec .sec-h p { font-size: 15.5px; margin-top: 6px; max-width: 64ch; }
+
+/* pastille bleue (protection, travaux…) */
+.ec .tag { display: inline-flex; align-items: center; font-size: 14px; font-weight: 600; color: var(--e-blue); background: var(--e-blue-soft); border-radius: var(--e-pill); padding: 5.5px 13.5px; }
+
+/* onglets en pilule, l'actif en orange (page monument, page projet) */
+.ec .tabs { display: flex; gap: 6px; padding: 6px; background: var(--e-paper); border: 1px solid var(--e-line); border-radius: var(--e-pill); width: max-content; max-width: 100%; overflow-x: auto; }
+.ec .tabs button { display: flex; align-items: center; gap: 9px; padding: 10.5px 20px; border: 0; background: none; border-radius: var(--e-pill); font-weight: 600; font-size: 15.5px; color: var(--e-ink); white-space: nowrap; }
+.ec .tabs button:hover { background: var(--e-sand); }
+.ec .tabs button .i { width: 18px; height: 18px; color: var(--e-faint); }
+.ec .tabs button em { font-style: normal; font-size: 13px; font-weight: 700; min-width: 24px; text-align: center; padding: 2px 8px; border-radius: var(--e-pill); background: var(--e-blue-soft); color: var(--e-blue); }
+.ec .tabs button em.zero { background: var(--e-sand); color: var(--e-faint); }
+.ec .tabs button[aria-selected="true"] { background: var(--e-orange); color: #fff; }
+.ec .tabs button[aria-selected="true"] .i { color: #fff; }
+.ec .tabs button[aria-selected="true"] em { background: rgba(255, 255, 255, .2); color: #fff; }
+
+/* avancement d'un projet en quatre étapes : faites en vert, l'actuelle en orange */
+.ec .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ec .steps li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 14px; font-weight: 600; color: var(--e-faint); }
+.ec .steps li::before { content: ""; position: absolute; top: 15px; left: calc(-50% + 20px); right: calc(50% + 20px); height: 2px; background: var(--e-line); }
+.ec .steps li:first-child::before { display: none; }
+.ec .steps .n { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--e-line); background: var(--e-paper); display: grid; place-items: center; font-size: 14px; position: relative; }
+.ec .steps .n .i { width: 15px; height: 15px; }
+.ec .steps .ok { color: var(--e-green); }
+.ec .steps .ok .n { background: var(--e-green); border-color: var(--e-green); color: #fff; }
+.ec .steps .ok::before, .ec .steps .cur::before { background: var(--e-green); }
+.ec .steps .cur { color: var(--e-ink); }
+.ec .steps .cur .n { background: var(--e-orange); border-color: var(--e-orange); color: #fff; }
+.ec .steps small { font-size: 14px; color: var(--e-orange-ink); font-weight: 600; margin-top: -7px; }
+/* la grande version, pleine largeur d'une carte projet */
+.ec .steps.lg li { gap: 10px; }
+.ec .steps.lg li::before { top: 18.5px; left: calc(-50% + 26px); right: calc(50% + 26px); }
+.ec .steps.lg .n { width: 40px; height: 40px; font: 600 15px/1 var(--e-sans); color: var(--e-faint); }
+.ec .steps.lg .ok .n, .ec .steps.lg .cur .n { color: #fff; }
+.ec .steps.lg b { font-size: 15.5px; font-weight: 600; color: var(--e-faint); }
+.ec .steps.lg .cur b { color: var(--e-ink); }
+.ec .steps.lg .ok b { color: var(--e-green); }
+
+/* bloc vide, en pointillé */
+.ec .vide { padding: 22px; border: 1.5px dashed var(--e-line); border-radius: var(--e-r); font-size: 15.5px; background: color-mix(in srgb, var(--card) 60%, transparent); }
+
+/* squelettes : les gabarits des vraies cartes, en sable */
+.ec .sk { display: block; background: var(--e-sand); border-radius: 8px; animation: ec-pulse 1.4s ease-in-out infinite; }
+@keyframes ec-pulse { 50% { opacity: .55; } }
+
+@media (max-width: 760px) {
+  .ec .steps.lg b { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ec *, .ec *::before { transition: none !important; animation: none !important; }
+}

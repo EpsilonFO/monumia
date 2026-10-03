@@ -25,10 +25,10 @@ export function BlogSectionHeading({
     <div className="mb-4 flex items-end justify-between gap-4">
       <div>
         <span
-          className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em]"
+          className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.18em]"
           style={{ color: accent ?? C.blue }}
         >
-          <span aria-hidden style={{ width: 18, height: 2, borderRadius: 2, background: accent ?? C.orange }} />
+          <span aria-hidden style={{ width: 20.5, height: 2, borderRadius: 2, background: accent ?? C.orange }} />
           {eyebrow}
         </span>
         <h2

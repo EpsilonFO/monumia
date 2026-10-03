@@ -135,6 +135,11 @@ class _Query:
     def eq(self, *a, **k):
         return self
 
+    def contains(self, *a, **k):
+        # Le balayage des checklists (détachement à la suppression) interroge
+        # les dossiers par `contains` ; ces fakes n'en fournissent aucun → no-op.
+        return self
+
     def in_(self, *a, **k):
         return self
 
@@ -335,6 +340,11 @@ class _ListQuery:
     def eq(self, *a, **k):
         return self
 
+    def contains(self, *a, **k):
+        # Le balayage des checklists (détachement à la suppression) interroge
+        # les dossiers par `contains` ; ces fakes n'en fournissent aucun → no-op.
+        return self
+
     def order(self, *a, **k):
         return self
 
@@ -345,9 +355,6 @@ class _ListQuery:
         return self
 
     def or_(self, *a, **k):
-        return self
-
-    def contains(self, *a, **k):
         return self
 
     def maybe_single(self, *a, **k):

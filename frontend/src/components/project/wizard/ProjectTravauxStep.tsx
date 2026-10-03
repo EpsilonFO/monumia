@@ -1,6 +1,7 @@
 import { WORK_TYPES } from '@/constants/monument-options';
 import type { WorkType } from '@/types';
 import { CadrageStep, CadrageTile } from './CadrageStep';
+import { TRAVAUX_STEP } from './etapes';
 
 interface ProjectTravauxStepProps {
   /**
@@ -11,8 +12,6 @@ interface ProjectTravauxStepProps {
   onChange: (travaux: WorkType[] | null) => void;
   onNext: () => void;
   onBack?: () => void;
-  /** Surtitre : « Nouveau projet » ou « Questionnaire » selon le parcours. */
-  eyebrow: string;
   saving?: boolean;
 }
 
@@ -36,7 +35,6 @@ export function ProjectTravauxStep({
   onChange,
   onNext,
   onBack,
-  eyebrow,
   saving,
 }: ProjectTravauxStepProps) {
   const selected = value ?? [];
@@ -53,35 +51,35 @@ export function ProjectTravauxStep({
 
   return (
     <CadrageStep
-      eyebrow={eyebrow}
+      rubrique={TRAVAUX_STEP.label}
       title="Sur quoi portent les travaux envisagés ?"
-      intro="Plusieurs réponses possibles. Certaines aides ne financent qu'un type d'ouvrage précis."
+      consigne="Plusieurs réponses possibles."
+      pourquoi="Certaines aides ne financent qu'un type d'ouvrage précis."
+      multiple
+      // Une vingtaine de types, sans précision : des cartes serrées.
+      serre
       onNext={onNext}
       onBack={onBack}
       nextDisabled={value === null}
       nextHint="Cochez au moins un type de travaux, ou « Pas encore déterminé »."
       saving={saving}
+      // « Tout refaire » depuis la page du projet repasse par cette étape.
+      modifiablePlusTard
     >
-      <div
-        role="group"
-        aria-label="Types de travaux envisagés"
-        className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3"
-      >
-        {WORK_TYPES.map((type) => (
-          <CadrageTile
-            key={type.value}
-            label={type.label}
-            multiple
-            compact
-            selected={selected.includes(type.value as WorkType)}
-            onSelect={() => toggle(type.value as WorkType)}
-          />
-        ))}
-      </div>
+      {WORK_TYPES.map((type) => (
+        <CadrageTile
+          key={type.value}
+          label={type.label}
+          multiple
+          selected={selected.includes(type.value as WorkType)}
+          onSelect={() => toggle(type.value as WorkType)}
+        />
+      ))}
 
       <CadrageTile
         label="Pas encore déterminé"
         hint="Nous vous montrerons toutes les aides, sans filtrer sur le type de travaux."
+        large
         selected={indetermine}
         onSelect={() => onChange(indetermine ? null : [])}
       />

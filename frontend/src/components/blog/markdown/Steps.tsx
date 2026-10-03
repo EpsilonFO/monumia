@@ -17,20 +17,20 @@ function Frise({ steps }: { steps: Step[] }) {
           <li key={i} className="relative flex gap-3.5 pb-5 last:pb-0">
             {!last && (
               <span
-                className="frise-draw absolute left-[13px] top-[14px] bottom-0 w-0.5"
+                className="frise-draw absolute left-[15px] top-[16px] bottom-0 w-0.5"
                 style={{ background: C.orange, animationDelay: `${i * 80 + 40}ms` }}
                 aria-hidden
               />
             )}
             <div className="relative z-10 flex w-7 shrink-0 justify-center">
               <span
-                className="frise-pop flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold text-white"
+                className="frise-pop flex h-7 w-7 items-center justify-center rounded-full text-[15px] font-bold text-white"
                 style={{ background: C.orange, fontFamily: 'var(--font-serif)', boxShadow: `0 0 0 3px ${C.card}`, animationDelay: `${i * 80}ms` }}
               >
                 {i + 1}
               </span>
             </div>
-            <div className="pt-0.5 text-[14.5px] leading-relaxed">
+            <div className="pt-0.5 text-[16.5px] leading-relaxed">
               {s.title && (
                 <span className="font-semibold" style={{ color: C.ink }}>
                   {s.title}
@@ -52,18 +52,18 @@ function Colonnes({ steps }: { steps: Step[] }) {
       {steps.map((s, i) => (
         <div key={i} className="rounded-2xl border p-4" style={{ background: C.card, borderColor: C.border }}>
           <span
-            className="text-[13px] font-bold tabular-nums"
+            className="text-[15px] font-bold tabular-nums"
             style={{ fontFamily: 'var(--font-serif)', color: C.orange }}
           >
             {String(i + 1).padStart(2, '0')}
           </span>
           {s.title && (
-            <p className="mt-1.5 text-[14.5px] font-semibold leading-snug" style={{ color: C.ink }}>
+            <p className="mt-1.5 text-[16.5px] font-semibold leading-snug" style={{ color: C.ink }}>
               {s.title}
             </p>
           )}
           {s.description && (
-            <p className="mt-1 text-[13px] leading-snug" style={{ color: C.ink, opacity: 0.7 }}>
+            <p className="mt-1 text-[15px] leading-snug" style={{ color: C.ink, opacity: 0.7 }}>
               {s.description}
             </p>
           )}
@@ -77,9 +77,9 @@ function ChecklistView({ steps }: { steps: Step[] }) {
   return (
     <ul className="my-6 flex flex-col gap-2.5 rounded-2xl border p-5" style={{ background: C.card, borderColor: C.border }}>
       {steps.map((s, i) => (
-        <li key={i} className="flex items-start gap-3 text-[14.5px] leading-snug">
+        <li key={i} className="flex items-start gap-3 text-[16.5px] leading-snug">
           <span
-            className="mt-[2px] flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full"
+            className="mt-[2px] flex h-[20.5px] w-[20.5px] shrink-0 items-center justify-center rounded-full"
             style={{ background: C.paleOrange }}
             aria-hidden
           >

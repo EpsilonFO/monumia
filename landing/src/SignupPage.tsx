@@ -96,9 +96,6 @@ export function SignupPage() {
             </div>
           ) : (
             <>
-              <span className="text-[12.5px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.orange }}>
-                Lancement en Septembre 2026
-              </span>
               <h1
                 className="mt-4 font-serif text-[clamp(1.7rem,3.6vw,2.3rem)] leading-[1.18] tracking-[-0.01em]"
                 style={{ color: C.ink }}

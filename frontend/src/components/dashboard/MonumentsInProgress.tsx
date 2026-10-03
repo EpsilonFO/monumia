@@ -37,12 +37,12 @@ const PHOTO_SCRIM =
 function GlassBadge({ children }: { children: React.ReactNode }) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white"
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold text-white"
       style={{
         background: 'rgba(255,255,255,0.16)',
         border: '1px solid rgba(255,255,255,0.30)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
+        backdropFilter: 'blur(9px)',
+        WebkitBackdropFilter: 'blur(9px)',
       }}
     >
       {children}
@@ -107,7 +107,7 @@ function MonumentTile({
         <div className="absolute inset-x-0 bottom-0 p-5">
           <p
             className={`line-clamp-2 font-bold leading-tight text-white ${
-              featured ? 'text-[clamp(1.6rem,3vw,2.4rem)]' : 'text-[20px]'
+              featured ? 'text-[clamp(1.6rem,3vw,2.4rem)]' : 'text-[23px]'
             }`}
             style={{ fontFamily: 'var(--font-serif)' }}
           >
@@ -115,7 +115,7 @@ function MonumentTile({
           </p>
           {(monument.commune || monument.departement) && (
             <p
-              className="mt-1.5 inline-flex items-center gap-1.5 text-[12px]"
+              className="mt-1.5 inline-flex items-center gap-1.5 text-[14px]"
               style={{ color: 'rgba(255,255,255,0.78)' }}
             >
               <IconLocalisation className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden />
@@ -137,7 +137,7 @@ function MonumentTile({
         )}
         <div className="flex items-end justify-between gap-4">
           <div
-            className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-foreground/70"
+            className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[14px] text-foreground/70"
           >
             <span className="inline-flex items-center gap-1.5">
               <IconDossier className="h-3.5 w-3.5" aria-hidden />
@@ -158,7 +158,7 @@ function MonumentTile({
           </div>
 
           <span
-            className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold"
+            className="inline-flex shrink-0 items-center gap-1 text-[14px] font-semibold"
             style={{ color: C.orange }}
           >
             Voir le monument
@@ -184,16 +184,16 @@ export function MonumentsInProgress({ monuments, statsByMonument, stageByMonumen
           <Clover size={70} className="pointer-events-none absolute -right-4 -top-5 text-white" style={{ opacity: 0.12 }} />
           <IconProjet className="relative h-6 w-6 text-white" aria-hidden />
         </div>
-        <p className="text-[15px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
+        <p className="text-[17px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
           Aucun monument enregistré
         </p>
-        <p className="max-w-xs text-[12px]" style={{ color: C.ink, opacity: 0.55 }}>
+        <p className="max-w-xs text-[14px]" style={{ color: C.ink, opacity: 0.55 }}>
           Décrivez votre monument, puis lancez un projet de travaux pour estimer vos
           aides et suivre vos dossiers au même endroit.
         </p>
         <Link
           to={ROUTES.MONUMENT_NEW}
-          className="mt-1 inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
+          className="mt-1 inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
           style={{ background: C.orange }}
         >
           Nouveau monument

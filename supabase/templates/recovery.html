@@ -1,0 +1,56 @@
+<!--
+  Email de réinitialisation du mot de passe (template Supabase « Reset Password »).
+
+  Même charte que la confirmation d'inscription (`confirmation.html`), et donc
+  que l'email d'invitation : mêmes contraintes d'email (styles inline, 520 px,
+  aucune image distante), mêmes couleurs, même pied.
+
+  Variables disponibles ici : {{ .ConfirmationURL }} (le lien, qui atterrit sur
+  /reset-password via le `redirect_to` posé par `forgot_password`), {{ .Email }},
+  {{ .SiteURL }}, {{ .Token }}. Comme pour la confirmation, aucune durée n'est
+  annoncée : elle se règle dans le Dashboard. Le recours en cas de lien périmé
+  reprend ce que dit l'application (cf. ResetPasswordPage).
+-->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">
+  Choisissez un nouveau mot de passe pour votre compte Monumia.
+</div>
+<div style="background:#fdf9f0;padding:32px 0;font-family:Inter,Arial,sans-serif;color:#222b35">
+  <div style="max-width:520px;margin:0 auto;background:#fffefb;border:1px solid #ece3d2;border-radius:12px;overflow:hidden">
+    <div style="background:#0a369d;color:#fff;padding:18px 28px;font-size:18px;font-weight:700">Monumia</div>
+    <div style="padding:28px">
+      <h1 style="margin:0 0 18px;font-family:'PT Serif',Georgia,'Times New Roman',serif;font-size:23px;line-height:1.25;font-weight:400;color:#222b35">
+        Choisir un nouveau mot de passe
+      </h1>
+      <p style="margin:0 0 8px;font-size:15px;line-height:1.6">
+        Une réinitialisation du mot de passe a été demandée pour le compte Monumia associé à cette adresse&nbsp;:
+      </p>
+      <div style="background:#eef3ff;border-radius:8px;padding:12px 18px;margin:12px 0 20px;font-size:15px;font-weight:600;color:#072a72;word-break:break-all">
+        {{ .Email }}
+      </div>
+      <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#f17105;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:8px">
+        Choisir mon nouveau mot de passe &rarr;
+      </a>
+      <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#4a5561">
+        Votre mot de passe actuel reste valable tant que vous n&rsquo;en avez pas choisi un nouveau.
+      </p>
+
+      <div style="height:1px;background:#ece3d2;margin:24px 0"></div>
+
+      <p style="margin:0 0 14px;font-size:12.5px;line-height:1.6;color:#8a8a8a">
+        Le bouton ne fonctionne pas&nbsp;? Copiez ce lien dans votre navigateur&nbsp;:<br />
+        <a href="{{ .ConfirmationURL }}" style="color:#0a369d;word-break:break-all">{{ .ConfirmationURL }}</a>
+      </p>
+      <p style="margin:0 0 14px;font-size:12.5px;line-height:1.6;color:#8a8a8a">
+        Lien expiré&nbsp;? Redemandez-en un depuis « Mot de passe oublié&nbsp;? » sur
+        <a href="{{ .SiteURL }}" style="color:#0a369d;text-decoration:none">Monumia</a>.
+      </p>
+      <p style="margin:0;font-size:12.5px;line-height:1.6;color:#8a8a8a">
+        Si vous n&rsquo;êtes pas à l&rsquo;origine de cette demande, ignorez simplement cet email&nbsp;:
+        votre mot de passe ne sera pas modifié.
+      </p>
+    </div>
+  </div>
+  <p style="max-width:520px;margin:16px auto 0;font-size:11.5px;line-height:1.5;color:#a89f8f;text-align:center">
+    Monumia — les financements de la restauration du patrimoine
+  </p>
+</div>

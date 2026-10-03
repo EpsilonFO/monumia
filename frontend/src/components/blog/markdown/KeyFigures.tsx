@@ -21,10 +21,10 @@ function Cartes({ figures }: { figures: Figure[] }) {
     <div className="my-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
       {figures.map((f, i) => (
         <div key={i} className="rounded-2xl border px-5 py-4" style={{ background: C.card, borderColor: C.border }}>
-          <p className="text-[30px] font-bold leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: C.orange }}>
+          <p className="text-[34px] font-bold leading-none tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: C.orange }}>
             {f.value}
           </p>
-          <p className="mt-2 text-[13px] leading-snug" style={{ color: C.ink, opacity: 0.7 }}>
+          <p className="mt-2 text-[15px] leading-snug" style={{ color: C.ink, opacity: 0.7 }}>
             {f.label}
           </p>
         </div>
@@ -45,13 +45,13 @@ function Jauges({ figures }: { figures: Figure[] }) {
             style={{ background: C.card, borderColor: C.border }}
           >
             {n === null ? (
-              <span className="text-[26px] font-bold tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: C.orange }}>
+              <span className="text-[30px] font-bold tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: C.orange }}>
                 {f.value}
               </span>
             ) : (
               <ProgressRing value={n} size={84} color={C.orange} label={f.label} />
             )}
-            <p className="text-[13px] leading-snug" style={{ color: C.ink, opacity: 0.7 }}>
+            <p className="text-[15px] leading-snug" style={{ color: C.ink, opacity: 0.7 }}>
               {f.label}
             </p>
           </div>

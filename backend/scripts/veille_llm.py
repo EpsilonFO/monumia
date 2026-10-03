@@ -1,15 +1,15 @@
 """
 Étage C, première moitié : registre de modèles, adaptateurs, prompt.
 
-UN appel par aide, jamais de boucle agentique. L'outil d'ingestion existant
-(`ingest_aide_agent.py`) tourne cinq minutes et brûle des jetons pour UNE
+UN appel par aide, jamais de boucle agentique. L'agent d'ingestion
+(`scripts/ingerer.py`) tourne plusieurs minutes et brûle des jetons pour UNE
 aide ; la veille repasse sur 142 fiches et doit rester bon marché. Tout ce que
 le modèle a besoin de savoir est donc mis dans un seul prompt, et sa réponse
 est un objet JSON que `veille_apply` valide avant de toucher au moindre
 fichier.
 
 Trois niveaux, du plus stable au plus volatil :
-  - `FOURNISSEURS` : protocole, base_url, nom de la clé. Huit entrées, qui ne
+  - `FOURNISSEURS` : protocole, base_url, nom de la clé. Neuf entrées, qui ne
                      bougent pas d'une année sur l'autre.
   - `REGISTRE`     : un modèle = une ligne (alias, fournisseur, identifiant).
   - `MODELE_DEFAUT`: le modèle utilisé partout, réglable sans toucher au code
@@ -24,9 +24,10 @@ Deux familles d'adaptateurs :
   - `anthropic`      : SDK natif. Jamais via une couche compatible OpenAI —
                        elle masque les sorties structurées et le paramétrage
                        du raisonnement, qui diffèrent d'un modèle à l'autre.
-  - `openai_compat`  : SDK `openai` pointé sur une autre base_url. Les sept
+  - `openai_compat`  : SDK `openai` pointé sur une autre base_url. Les huit
                        autres fournisseurs (OpenAI, Gemini, Grok, Kimi, GLM,
-                       Mistral, DeepSeek) exposent le protocole d'OpenAI.
+                       Mistral, DeepSeek, OpenRouter) exposent le protocole
+                       d'OpenAI.
 """
 
 from __future__ import annotations
@@ -51,7 +52,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from veille_apply import VeilleLLMOutput
 
-# Les clés vivent dans backend/.env, comme pour `ingest_aide_agent.py`, et
+# Les clés vivent dans backend/.env, comme pour le pipeline d'ingestion, et
 # `.env.local` (gitignoré) prime — même ordre que db.py et les autres scripts.
 # Ne charger que `.env.local` masquait toutes les clés de `.env` : le registre
 # annonçait `DEEPSEEK_API_KEY` absente alors qu'elle était posée.
@@ -137,7 +138,7 @@ class Fournisseur:
     demander qu'un identifiant — pas de recopier une base_url qu'on se trompera
     à saisir, ni de retrouver le nom exact de la variable d'environnement.
 
-    Les huit fournisseurs parlent le protocole d'OpenAI, sauf Anthropic : son
+    Les neuf fournisseurs parlent le protocole d'OpenAI, sauf Anthropic : son
     SDK natif est le seul à exposer les sorties structurées et le réglage du
     raisonnement, que la couche de compatibilité masque.
     """
@@ -151,6 +152,10 @@ class Fournisseur:
     supports_temperature: bool = True
     budget_sortie_param: str = "max_tokens"
     max_tokens: int = 16_000
+    # Effort de raisonnement (`low`/`medium`/`high`), quand le fournisseur sait le
+    # régler. Anthropic : `output_config.effort`. OpenRouter : `reasoning.effort`,
+    # transmis au modèle routé. Ailleurs : ignoré.
+    effort: str | None = None
     note: str = ""
 
 
@@ -181,6 +186,35 @@ FOURNISSEURS: dict[str, Fournisseur] = {
         # avant d'écrire, et rendait un contenu VIDE.
         max_tokens=32_000,
     ),
+    # Passerelle, pas éditeur : une seule clé pour joindre les modèles des
+    # autres. Utile pour essayer un fournisseur sans ouvrir un compte chez lui,
+    # au prix d'un identifiant préfixé de l'éditeur (`z-ai/…`, `moonshotai/…`).
+    "openrouter": Fournisseur(
+        "openai_compat",
+        "OPENROUTER_API_KEY",
+        "https://openrouter.ai/api/v1",
+        # `response_format` est transmis tel quel au modèle routé, et ceux qui
+        # ne le connaissent pas répondent 400. On ne le pose donc pas : pour
+        # tout `openai_compat`, `system_pour` met de toute façon le schéma dans
+        # le prompt système, seule la contrainte dure est perdue.
+        structured=False,
+        # Même raison que DeepSeek : la passerelle sert surtout des modèles à
+        # raisonnement, qui consomment leur budget de sortie avant d'écrire.
+        max_tokens=32_000,
+        # Mesuré le 2026-09-01 sur l'audit de `sauvegarde-art-francais` (7 000
+        # tokens de prompt) avec glm-5.3-flash. Sans réglage : 25 270 tokens de
+        # sortie et 405 s par appel — un benchmark de dix appels passait pour
+        # bloqué. Avec un effort explicite, sur la fiche intacte puis amputée
+        # d'une condition (`veille_benchmark_audit.py`) :
+        #   low     10-12 s   11 critères relevés, 0 faux, retrait retrouvé
+        #   medium  10-19 s   12 critères relevés, 0 faux, retrait retrouvé
+        #   high    31-62 s   14 critères relevés, 2 FAUX manquants (modalités)
+        # `medium` : même rappel que `low` pour un relevé un peu plus fourni,
+        # sans la sur-lecture de `high`. Désactiver le raisonnement est refusé
+        # par le fournisseur (400).
+        effort="medium",
+        note="passerelle : identifiant préfixé de l'éditeur, tarif propre à chaque modèle",
+    ),
 }
 
 
@@ -195,6 +229,7 @@ def _spec(alias: str, fournisseur: str, model_id: str, **surcharges: Any) -> Mod
         "supports_temperature": f.supports_temperature,
         "budget_sortie_param": f.budget_sortie_param,
         "max_tokens": f.max_tokens,
+        "effort": f.effort,
         "note": f.note,
     }
     champs.update(surcharges)
@@ -237,7 +272,7 @@ REGISTRE: dict[str, ModelSpec] = {
         "deepseek-v4-flash",
         prix_in=0.28,
         prix_out=0.42,
-        note="id confirmé : déjà utilisé par ingest_aide_agent.py",
+        note="id confirmé : utilisé en production sur le catalogue",
     ),
     "ds-pro": _spec(
         "ds-pro",
@@ -245,7 +280,7 @@ REGISTRE: dict[str, ModelSpec] = {
         "deepseek-v4-pro",
         prix_in=0.55,
         prix_out=2.20,
-        note="id confirmé : défaut de ingest_aide_agent.py (contexte 1M)",
+        note="id confirmé : modèle de vérification adversariale (contexte 1M)",
     ),
     # --- OpenAI ------------------------------------------------------------
     "gpt-luna": _spec(
@@ -294,6 +329,29 @@ REGISTRE: dict[str, ModelSpec] = {
         "mistral-medium-latest",
         id_verifie=False,
         note="tarif à renseigner",
+    ),
+    # --- OpenRouter (mêmes modèles, une seule clé) -------------------------
+    # Deux exemples, pas une liste à tenir à jour : la passerelle en sert des
+    # centaines, et `VEILLE_MODEL=openrouter:<éditeur>/<modèle>` en atteint
+    # n'importe lequel sans écrire une ligne ici. Les identifiants exacts se
+    # relèvent sur openrouter.ai/models.
+    "or-glm": _spec(
+        "or-glm",
+        "openrouter",
+        "z-ai/glm-5.3-flash",
+        prix_in=0.07,
+        prix_out=0.25,
+        structured=True,
+        note="id, tarif et response_format relevés sur /api/v1/models le 2026-08-28",
+    ),
+    "or-kimi": _spec(
+        "or-kimi",
+        "openrouter",
+        "moonshotai/kimi-k2.6",
+        prix_in=0.95,
+        prix_out=4.00,
+        structured=True,
+        note="k2.7 n'existe pas chez OpenRouter (seul k2.7-code) ; relevé le 2026-08-28",
     ),
 }
 
@@ -595,7 +653,10 @@ def _call_anthropic(
 ) -> LLMCall:
     import anthropic
 
-    client = anthropic.Anthropic(api_key=os.environ[spec.env_key], timeout=timeout)
+    # `max_retries=1` et non le défaut du SDK (2) : un appel qui expire est
+    # rejoué en silence par le client, et trois délais de cinq minutes bout à
+    # bout passent pour un blocage. Les étages gèrent déjà leur propre relance.
+    client = anthropic.Anthropic(api_key=os.environ[spec.env_key], timeout=timeout, max_retries=1)
     kwargs: dict[str, Any] = {
         "model": spec.model_id,
         "max_tokens": max_tokens,
@@ -634,12 +695,10 @@ def _call_anthropic(
     )
 
 
-def _call_openai_compat(
-    spec: ModelSpec, system: str, user: str, *, max_tokens: int, timeout: float
-) -> LLMCall:
-    from openai import OpenAI
-
-    client = OpenAI(api_key=os.environ[spec.env_key], base_url=spec.base_url, timeout=timeout)
+def kwargs_openai_compat(
+    spec: ModelSpec, system: str, user: str, max_tokens: int
+) -> dict[str, Any]:
+    """Arguments de `chat.completions.create`, isolés pour être testables sans réseau."""
     kwargs: dict[str, Any] = {
         "model": spec.model_id,
         spec.budget_sortie_param: max_tokens,
@@ -652,8 +711,24 @@ def _call_openai_compat(
         kwargs["response_format"] = {"type": "json_object"}
     if spec.supports_temperature:
         kwargs["temperature"] = 0
+    if spec.effort and spec.fournisseur == "openrouter":
+        # Paramètre unifié d'OpenRouter, hors schéma OpenAI : passe par
+        # `extra_body`. Sans lui, un modèle à raisonnement dépense son budget de
+        # sortie en chaîne de pensée : 400 s par appel, mesuré (voir le registre).
+        kwargs["extra_body"] = {"reasoning": {"effort": spec.effort}}
+    return kwargs
 
-    resp = client.chat.completions.create(**kwargs)
+
+def _call_openai_compat(
+    spec: ModelSpec, system: str, user: str, *, max_tokens: int, timeout: float
+) -> LLMCall:
+    from openai import OpenAI
+
+    # Même règle que côté Anthropic : une seule relance du SDK, pas deux.
+    client = OpenAI(
+        api_key=os.environ[spec.env_key], base_url=spec.base_url, timeout=timeout, max_retries=1
+    )
+    resp = client.chat.completions.create(**kwargs_openai_compat(spec, system, user, max_tokens))
     choix = resp.choices[0]
     usage = resp.usage
     texte = choix.message.content or ""
@@ -715,7 +790,8 @@ def table_registre() -> str:
         "",
         "Changer de modèle : VEILLE_MODEL=<alias> dans backend/.env, ou",
         "VEILLE_MODEL=<fournisseur>:<identifiant> pour un modèle hors registre",
-        "(ex. VEILLE_MODEL=glm:glm-5.4-flash).",
+        "(ex. VEILLE_MODEL=glm:glm-5.4-flash, ou VEILLE_MODEL=openrouter:z-ai/glm-4.6",
+        "pour passer par la passerelle).",
     ]
     return "\n".join(lignes)
 

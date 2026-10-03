@@ -1,0 +1,173 @@
+/*
+ * Création d'un monument : la maquette du designer (monumia-nouveau-monument,
+ * septembre 2026), portée presque ligne à ligne.
+ *
+ * Les couleurs sont les tokens `--e-*` d'ecrans.css (donc la charte, mode
+ * sombre compris), jamais celles de la maquette. Une feuille importée par Vite
+ * est globale : toutes les règles sont rangées sous `.nm-page`, la racine de la
+ * page, et rien de ce qu'ecrans.css définit (.btn, .eyebrow, .sec-h, .tag…) n'y
+ * est redéfini. D'où `.sec-t` pour l'intitulé de section, que la maquette
+ * appelait `.sec-h`.
+ *
+ * La géométrie (tailles, rayons, espacements, graisses) est celle de la
+ * maquette : la retoucher ici, c'est s'écarter du dessin.
+ */
+
+.nm-page { min-height: 100dvh; background: var(--e-cream); }
+.nm-page input, .nm-page textarea, .nm-page select { font: inherit; color: inherit; }
+.nm-page [hidden] { display: none !important; }
+.nm-page .w { width: min(1343.5px, 100% - 36.5px); margin-inline: auto; }
+
+/* en-tête : logo, Quitter */
+.nm-page .bar { display: flex; align-items: center; justify-content: space-between; height: 71.5px; }
+.nm-page .logo { display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 0; }
+.nm-page .logo .logo-m { width: 27.5px; height: 27.5px; }
+.nm-page .logo .logo-t { font: 700 22px/1 var(--e-serif); color: var(--e-ink); }
+.nm-page .quit { background: none; border: 0; display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 500; color: var(--e-body); padding: 8px 4px; }
+.nm-page .quit .i { width: 17px; height: 17px; }
+
+.nm-page main { padding-block: 18px 90px; }
+.nm-page .head { text-align: center; max-width: 757px; margin: 0 auto; }
+.nm-page .head .eyebrow { justify-content: center; }
+.nm-page .head h1 { font-size: clamp(34px, 4.4vw, 50px); margin-top: 11.5px; }
+.nm-page .head p { font-size: 18px; margin-top: 14px; }
+.nm-page .head p b { color: var(--e-ink); font-weight: 600; }
+
+.nm-page .grid { display: grid; grid-template-columns: minmax(0, 1fr) 378px; gap: 32px; align-items: start; margin-top: 37.5px; }
+
+/* sections du formulaire */
+.nm-page .sec { background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: var(--e-r); padding: 26px 27.5px 10px; margin-bottom: 18px; }
+.nm-page .sec-t { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.nm-page .num { width: 34px; height: 34px; border-radius: 50%; background: var(--e-orange); color: #fff; display: grid; place-items: center; font: 600 15px/1 var(--e-sans); flex: none; transition: background .2s; }
+.nm-page .num .i { width: 16px; height: 16px; }
+.nm-page .sec.full .num { background: var(--e-green); }
+.nm-page .sec-t h2 { font-size: 24px; }
+.nm-page .fld { padding: 18px 0; border-top: 1px solid var(--e-line-soft); }
+.nm-page .sec-t + .fld { border-top: 0; }
+.nm-page .fld > label, .nm-page .fld > .lb { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-weight: 600; font-size: 16.5px; color: var(--e-ink); margin-bottom: 11.5px; }
+.nm-page .fld .opt { font-weight: 400; font-size: 14px; color: var(--e-faint); }
+.nm-page .why { font-size: 14.5px; color: var(--e-body); margin: 4px 0 11.5px; }
+.nm-page .fld > .lb + .why { margin-top: -9px; }
+.nm-page .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+.nm-page .row2 .fld { border-top: 0; }
+/* la recherche Mérimée ouvre la section : un filet la sépare de la ligne nom / commune */
+.nm-page .fld + .row2 { border-top: 1px solid var(--e-line-soft); }
+.nm-page .txt { width: 100%; height: 53.5px; border: 1.5px solid var(--e-line); border-radius: 14px; background: var(--e-paper); padding: 0 18px; font-size: 16.5px; color: var(--e-ink); transition: border-color .15s; }
+.nm-page .txt::placeholder { color: var(--e-faint); }
+.nm-page .txt:hover { border-color: var(--e-blue-line); }
+.nm-page .txt:focus { border-color: var(--e-orange); outline: none; }
+.nm-page textarea.txt { height: auto; min-height: 119.5px; padding: 14px 18px; line-height: 1.5; resize: vertical; }
+
+/* recherche (Mérimée, commune) */
+.nm-page .ac { position: relative; }
+.nm-page .ac .txt.srch-in { padding-left: 48px; }
+.nm-page .ac > .i { position: absolute; left: 17px; top: 17px; width: 20px; height: 20px; color: var(--e-faint); pointer-events: none; }
+.nm-page .ac .spin { position: absolute; right: 18px; top: 18px; width: 18px; height: 18px; color: var(--e-faint); }
+.nm-page .ac-list { list-style: none; margin: 0; padding: 6px; position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 30; background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: 16px; box-shadow: 0 24px 50px -23px color-mix(in srgb, var(--primary) 35%, transparent); max-height: 339px; overflow-y: auto; }
+.nm-page .ac-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 11.5px; padding: 10.5px 11.5px; border-radius: 10px; cursor: pointer; font-size: 16px; color: var(--e-ink); }
+.nm-page .ac-list li small { font-size: 14px; color: var(--e-faint); white-space: nowrap; }
+.nm-page .ac-list li .sub { display: block; white-space: normal; margin-top: 2px; }
+.nm-page .ac-list li[aria-selected="true"], .nm-page .ac-list li:hover { background: var(--e-orange-soft); }
+.nm-page .ac-list li mark { background: none; color: var(--e-orange-ink); font-weight: 700; }
+.nm-page .ac-list .none { cursor: default; }
+.nm-page .ac-list .none:hover { background: none; }
+.nm-page .ac-ok { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 14px; font-weight: 600; color: var(--e-green); }
+.nm-page .ac-ok .i { width: 16px; height: 16px; }
+.nm-page .ac-alt { display: flex; align-items: center; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; margin-top: 10px; }
+.nm-page .ac-alt p { font-size: 15px; }
+
+/* menu déroulant à choix */
+.nm-page .ms { position: relative; }
+.nm-page .ms-btn { width: 100%; min-height: 53.5px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; text-align: left; background: var(--e-paper); border: 1.5px solid var(--e-line); border-radius: 14px; padding: 8px 48px 8px 14px; position: relative; transition: border-color .15s; }
+.nm-page .ms-btn:hover { border-color: var(--e-blue-line); }
+.nm-page .ms-btn[aria-expanded="true"] { border-color: var(--e-orange); }
+.nm-page .ms-btn::after { content: ""; position: absolute; right: 20px; top: 50%; width: 9px; height: 9px; border-right: 2px solid var(--e-blue); border-bottom: 2px solid var(--e-blue); transform: translateY(-70%) rotate(45deg); transition: transform .2s; }
+.nm-page .ms-btn[aria-expanded="true"]::after { transform: translateY(-25%) rotate(-135deg); }
+.nm-page .ph { color: var(--e-faint); font-size: 16px; padding-left: 4px; }
+.nm-page .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--e-blue); color: #fff; border-radius: var(--e-pill); padding: 6px 8px 6px 13.5px; font-size: 14.5px; font-weight: 600; line-height: 1.2; }
+.nm-page .chip i { font-style: normal; width: 20px; height: 20px; border-radius: 50%; background: rgba(255, 255, 255, .2); display: grid; place-items: center; font-size: 13.5px; }
+.nm-page .chip.more { background: var(--e-blue-soft); color: var(--e-blue); padding-right: 13.5px; }
+/* texte libre (Mérimée, saisie ancienne) : conservé tel quel, en pastille claire */
+.nm-page .chip.libre { background: var(--e-blue-soft); color: var(--e-blue); }
+.nm-page .chip.libre i { background: color-mix(in srgb, var(--primary) 14%, transparent); }
+.nm-page .panel { position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 30; background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: 16px; box-shadow: 0 24px 50px -23px color-mix(in srgb, var(--primary) 35%, transparent); overflow: hidden; }
+.nm-page .panel .srch { padding: 11.5px 11.5px 6px; }
+.nm-page .panel .srch input { width: 100%; height: 43.5px; border: 1.5px solid var(--e-line); border-radius: var(--e-pill); padding: 0 16px; font-size: 15.5px; background: var(--e-cream); }
+.nm-page .panel .srch input:focus { border-color: var(--e-blue); outline: none; }
+.nm-page .panel .pnote { padding: 11.5px 18px 4px; font-size: 14px; color: var(--e-body); }
+.nm-page .opts { max-height: 319px; overflow-y: auto; padding: 6px; }
+.nm-page .grp { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--e-faint); padding: 11.5px 11.5px 6px; }
+.nm-page .o { width: 100%; display: flex; align-items: center; gap: 11.5px; background: none; border: 0; border-radius: 10px; padding: 10.5px 11.5px; text-align: left; font-size: 16px; color: var(--e-ink); }
+.nm-page .o:hover, .nm-page .o:focus-visible { background: var(--e-blue-soft); }
+.nm-page .o .bx { width: 22px; height: 22px; border-radius: 6px; border: 2px solid color-mix(in srgb, var(--e-line) 45%, var(--e-faint)); display: grid; place-items: center; flex: none; transition: background .12s, border-color .12s; }
+.nm-page .o.single .bx { border-radius: 50%; }
+.nm-page .o .bx svg { width: 13.5px; height: 13.5px; color: #fff; opacity: 0; }
+.nm-page .o[aria-checked="true"] { font-weight: 600; }
+.nm-page .o[aria-checked="true"] .bx { background: var(--e-blue); border-color: var(--e-blue); }
+.nm-page .o[aria-checked="true"] .bx svg { opacity: 1; }
+.nm-page .o small { display: block; font-weight: 400; font-size: 14px; color: var(--e-faint); }
+.nm-page .panel-f { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 11.5px; border-top: 1px solid var(--e-line-soft); background: var(--e-cream); }
+.nm-page .panel-f span { font-size: 14px; color: var(--e-faint); }
+.nm-page .panel-f button { background: var(--e-orange); color: #fff; border: 0; border-radius: var(--e-pill); padding: 9px 18px; font-weight: 600; font-size: 15px; }
+.nm-page .none { padding: 14px; font-size: 15px; color: var(--e-faint); }
+
+/* choix en pastilles (une seule réponse, peu d'options) */
+.nm-page .seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.nm-page .seg button { border: 1.5px solid var(--e-line); background: var(--e-paper); border-radius: 14px; padding: 11.5px 10px; font-size: 15.5px; font-weight: 600; color: var(--e-ink); text-align: center; min-height: 53.5px; line-height: 1.25; }
+.nm-page .seg button:hover { border-color: var(--e-blue-line); }
+.nm-page .seg button[aria-pressed="true"] { background: var(--e-blue); border-color: var(--e-blue); color: #fff; }
+/* Précisions oui/non du type d'édifice : deux réponses, deux colonnes. */
+.nm-page .seg.seg-2 { grid-template-columns: 1fr 1fr; }
+
+/* aperçu de la fiche */
+.nm-page .side { position: sticky; top: 20px; display: flex; flex-direction: column; gap: 14px; }
+.nm-page .pass { background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: 22px; overflow: hidden; box-shadow: var(--e-sh-card); }
+.nm-page .pass-h { background: linear-gradient(160deg, var(--e-blue-2) 0%, var(--e-blue) 50%, var(--e-blue-ink) 100%); color: #fff; padding: 22px 24px 20px; }
+.nm-page .pass-h .k { font-size: 12px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--e-orange); }
+.nm-page .pass-h h3 { font: 400 26px/1.2 var(--e-serif); color: #fff; margin-top: 10px; min-height: 31px; }
+.nm-page .pass-h h3.empty { color: rgba(255, 255, 255, .5); }
+.nm-page .pass-h p { font-size: 15px; color: var(--e-on-blue); margin-top: 4px; min-height: 23px; }
+.nm-page .meter { margin-top: 16px; }
+.nm-page .meter .t { display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; color: var(--e-on-blue); }
+.nm-page .meter .tr { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .18); overflow: hidden; margin-top: 8px; }
+.nm-page .meter .tr i { display: block; height: 100%; border-radius: 4px; background: var(--e-orange); transition: width .4s ease; }
+.nm-page .pass dl { margin: 0; padding: 6px 24px 10px; }
+.nm-page .pass dl > div { padding: 11.5px 0; border-top: 1px solid var(--e-line-soft); }
+.nm-page .pass dl > div:first-child { border-top: 0; }
+.nm-page .pass dt { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--e-faint); }
+.nm-page .pass dd { margin: 4px 0 0; font-size: 15.5px; color: var(--e-ink); font-weight: 600; line-height: 1.4; }
+.nm-page .pass dd.no { color: var(--e-faint); font-weight: 400; }
+.nm-page .pass dd .pl { display: inline-block; background: var(--e-blue-soft); color: var(--e-blue); border-radius: var(--e-pill); padding: 2px 10px; font-size: 14px; margin: 2px 4px 2px 0; }
+.nm-page .pass-f { padding: 4px 24px 22px; }
+.nm-page .pass-f .btn { width: 100%; }
+.nm-page .pass-f small { display: block; text-align: center; font-size: 14px; color: var(--e-faint); margin-top: 10px; }
+.nm-page .note { font-size: 14px; color: var(--e-faint); text-align: center; padding-inline: 10px; }
+
+@media (max-width: 1000px) {
+  .nm-page .grid { grid-template-columns: 1fr; }
+  .nm-page .side { position: static; order: -1; }
+}
+@media (max-width: 640px) {
+  .nm-page .row2 { grid-template-columns: 1fr; }
+  .nm-page .row2 .fld + .fld { border-top: 1px solid var(--e-line-soft); }
+  .nm-page .seg { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 641px) and (max-width: 1180px) {
+  .nm-page .sec { padding: 20px 18px 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nm-page * { transition: none !important; }
+}
+
+/* À l'arrivée : la recherche Mérimée seule, dans la largeur de l'en-tête.
+   Choisir une notice (ou « pas dans la liste ») déplie le formulaire. */
+.nm-page .sec.seul { max-width: 757px; margin: 37.5px auto 0; padding: 26px 27.5px 22px; }
+.nm-page .sec.seul .fld { border-top: 0; padding: 0; }
+.nm-page .grid.deplie { animation: nm-deplie .35s cubic-bezier(.2, .7, .2, 1); }
+@keyframes nm-deplie { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .nm-page .grid.deplie { animation: none; } }
+
+/* Ce qui reste à remplir après le pré-remplissage Mérimée : encadré orange. */
+.nm-page .fld.a-remplir { border: 1.5px solid var(--e-orange); border-radius: 14px; background: color-mix(in srgb, var(--e-orange-soft) 45%, var(--e-paper)); padding: 16px 18px; margin: 8px -18px; }
+.nm-page .fld.a-remplir + .fld { border-top: 0; }
+.nm-page .row2 .fld.a-remplir { margin-inline: 0; }

@@ -28,18 +28,18 @@ export function BlogParcoursNav() {
               </span>
               <span className="min-w-0">
                 <span
-                  className="block text-[10px] font-semibold uppercase tracking-[0.16em]"
+                  className="block text-[12px] font-semibold uppercase tracking-[0.16em]"
                   style={{ color: tone.fg }}
                 >
                   Étape {i + 1}
                 </span>
                 <span
-                  className="block whitespace-nowrap text-[13.5px] font-medium leading-tight"
+                  className="block whitespace-nowrap text-[15.5px] font-medium leading-tight"
                   style={{ color: C.ink }}
                 >
                   {category.stepLabel}
                 </span>
-                <span className="block text-[11px]" style={{ color: C.grayMuted }}>
+                <span className="block text-[13px]" style={{ color: C.grayMuted }}>
                   {count > 0 ? `${count} article${count > 1 ? 's' : ''}` : 'Bientôt'}
                 </span>
               </span>

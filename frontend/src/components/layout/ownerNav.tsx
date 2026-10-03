@@ -1,23 +1,7 @@
-import type { ComponentType } from 'react';
 import { NavLink } from 'react-router';
-import { IconDashboard, IconMonument, IconDocuments, IconAccount } from '@/components/icons';
-import { C } from '@/lib/brand';
+import { IconAccount } from '@/components/icons';
 import { ROUTES } from '@/constants/routes';
 import { useAuthStore } from '@/stores/useAuthStore';
-
-export interface NavItem {
-  to: string;
-  icon: ComponentType<{ size?: number; className?: string }>;
-  label: string;
-  end?: boolean;
-}
-
-/** Navigation principale du propriétaire — peu d'entrées, présentées en barre haute. */
-export const ownerNavItems: NavItem[] = [
-  { to: ROUTES.DASHBOARD, icon: IconDashboard, label: 'Tableau de bord', end: true },
-  { to: ROUTES.MONUMENTS, icon: IconMonument, label: 'Mes monuments' },
-  { to: ROUTES.DOCUMENTS, icon: IconDocuments, label: 'Mes documents' },
-];
 
 /** Avatar de compte ancré à droite de la barre haute — mène directement au profil. */
 export function OwnerAccountMenu() {
@@ -32,21 +16,15 @@ export function OwnerAccountMenu() {
     <NavLink
       to={ROUTES.PROFIL}
       className={({ isActive }) =>
-        `flex items-center gap-2 rounded-full p-1 pr-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:pr-2.5 ${
-          isActive ? 'bg-[var(--secondary)]' : 'hover:bg-[var(--secondary)]'
+        `flex items-center gap-2.5 rounded-full p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:pr-3 ${
+          isActive ? 'bg-secondary' : 'hover:bg-muted'
         }`
       }
     >
-      <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold"
-        style={{ background: C.paleBlue, color: C.blue }}
-      >
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-secondary text-[13px] font-bold text-primary">
         {initials || <IconAccount size={18} />}
       </span>
-      <span
-        className="hidden max-w-[120px] truncate text-[13.5px] font-medium sm:block"
-        style={{ color: C.ink }}
-      >
+      <span className="hidden max-w-[159.5px] truncate text-[15.5px] font-semibold text-foreground sm:block">
         {user?.prenom ?? 'Mon compte'}
       </span>
     </NavLink>

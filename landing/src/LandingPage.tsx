@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
-  ArrowDown,
   ArrowRight,
   Bell,
   BellRing,
@@ -12,13 +11,13 @@ import {
   FileText,
   FolderOpen,
   HeartHandshake,
+  Info,
   Lock,
   Mail,
-  Radar,
   Search,
   Sparkles,
-  TrendingUp,
 } from 'lucide-react';
+import { sessionActive } from './session';
 
 const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.monumia.fr';
 
@@ -79,42 +78,6 @@ export function Clover({
         WebkitMaskSize: 'contain',
         maskSize: 'contain',
         ...style,
-      }}
-    />
-  );
-}
-
-/* Semis de fleurs Monumia en filigrane — réservé aux fonds bleus */
-function Tracery({
-  color,
-  opacity = 0.035,
-  size = 200,
-  className = '',
-}: {
-  color: string;
-  opacity?: number;
-  size?: number;
-  className?: string;
-}) {
-  return (
-    <div
-      aria-hidden="true"
-      className={`pointer-events-none absolute inset-0 h-full w-full ${className}`}
-      style={{
-        backgroundColor: color,
-        opacity,
-        WebkitMaskImage: LOGO_URL,
-        maskImage: LOGO_URL,
-        /* `round repeat` = round en X, repeat en Y. En X, les tuiles sont
-           ajustées pour qu'un nombre entier de fleurs tienne sur la largeur :
-           aucune fleur coupée sur les côtés. En Y, taille figée et ancrée en
-           haut : la hauteur d'un bloc peut changer (ex. changement d'onglet de
-           la démo) sans étirer les quadrilobes. La largeur ne variant qu'au
-           redimensionnement de la fenêtre, le motif reste stable à l'usage. */
-        WebkitMaskRepeat: 'round repeat',
-        maskRepeat: 'round repeat',
-        WebkitMaskSize: `${size}px ${size}px`,
-        maskSize: `${size}px ${size}px`,
       }}
     />
   );
@@ -248,28 +211,25 @@ function CountUp({
   return <>{val.toLocaleString('fr-FR')}</>;
 }
 
-function Kicker({
-  children,
-  color = C.orange,
-  align = 'center',
-}: {
-  children: ReactNode;
-  color?: string;
-  align?: 'center' | 'left';
-}) {
-  return (
-    <div className={`flex items-center gap-3 ${align === 'center' ? 'justify-center' : ''}`}>
-      <span className="h-px w-7" style={{ background: color, opacity: 0.65 }} />
-      <span className="text-[12.5px] font-semibold uppercase tracking-[0.18em]" style={{ color }}>
-        {children}
-      </span>
-      {align === 'center' && <span className="h-px w-7" style={{ background: color, opacity: 0.65 }} />}
-    </div>
-  );
-}
-
 function goToApp() {
   window.location.href = APP_URL;
+}
+
+/* Parcours DÉCOUVERTE : le visiteur décrit son monument et obtient son
+   diagnostic AVANT d'avoir un compte — le wizard monument de l'app est
+   désormais public, et l'inscription n'arrive qu'à la fin. C'est la
+   destination des CTA « Trouver les aides pour mon monument », qui menaient
+   jusqu'ici à la liste d'attente. */
+function goToDecouverte() {
+  window.location.href = `${APP_URL}/app/monuments/nouveau`;
+}
+
+/* Espace du compte. La landing ne sait QUE qu'une session existe : c'est
+   l'application qui choisit entre tableau de bord, fiche du monument et
+   wizard d'enregistrement (elle seule connaît l'offre et les biens du
+   compte). D'où cet aiguillage plutôt qu'une destination fixe. */
+function goToCompte() {
+  window.location.href = `${APP_URL}/mon-compte`;
 }
 
 /* Page d'inscription à la liste d'attente : route servie par le fallback SPA de
@@ -279,6 +239,25 @@ function goToSignup() {
   window.location.href = SIGNUP_PATH;
 }
 
+/* Tout CTA d'ENTRÉE dans le produit passe par ici. Connecté, ni le parcours
+   découverte ni la liste d'attente n'ont de sens : le premier redemanderait de
+   décrire un monument déjà enregistré, la seconde un compte déjà ouvert. Le
+   cookie est relu à CHAQUE clic, et non au montage : entre-temps on a pu se
+   déconnecter dans l'onglet d'à côté.
+
+   Les boutons qui ne sont pas une entrée gardent leur destination : « Nous
+   contacter » de l'offre Multi-monuments reste un courrier. */
+function siConnecte(sinon: () => void): () => void {
+  return () => (sessionActive() ? goToCompte() : sinon());
+}
+
+const entrerDansMonumia = siConnecte(goToDecouverte);
+
+/* Offre multi-monuments : pas d'auto-inscription, on passe par un échange. */
+function goToContact() {
+  window.location.href = 'mailto:contact@monumia.fr';
+}
+
 function CtaButton({
   children,
   variant = 'primary',
@@ -286,7 +265,7 @@ function CtaButton({
   className = '',
 }: {
   children: ReactNode;
-  variant?: 'primary' | 'ghost' | 'white';
+  variant?: 'primary' | 'blue' | 'ghost' | 'white';
   onClick?: () => void;
   className?: string;
 }) {
@@ -294,11 +273,13 @@ function CtaButton({
     'group inline-flex items-center justify-center gap-2.5 rounded-full px-7 py-3.5 text-[15px] font-semibold transition-all duration-300';
   const styles: Record<string, CSSProperties> = {
     primary: { background: C.orange, color: '#fff' },
+    blue: { background: C.blue, color: '#fff' },
     ghost: { background: 'transparent', color: C.blue, border: `1.5px solid ${C.blue}40` },
     white: { background: '#fff', color: C.blue },
   };
   const hover: Record<string, string> = {
     primary: 'hover:shadow-[0_10px_30px_-8px_rgba(241,113,5,0.55)] hover:-translate-y-0.5',
+    blue: 'hover:shadow-[0_10px_30px_-8px_rgba(10,54,157,0.5)] hover:-translate-y-0.5',
     ghost: 'hover:border-[#0a369d] hover:bg-[#0a369d]/5',
     white: 'hover:shadow-[0_10px_30px_-8px_rgba(0,0,0,0.35)] hover:-translate-y-0.5',
   };
@@ -310,34 +291,37 @@ function CtaButton({
   );
 }
 
-/* Titre de section : kicker, titre serif, filet orange */
+/* Titre de section : titre serif, filet orange */
 function SectionTitle({
-  kicker,
   title,
   sub,
   dark = false,
+  filet = true,
 }: {
-  kicker: string;
   title: ReactNode;
   sub?: ReactNode;
   dark?: boolean;
+  /* Le filet orange sous le titre. Sans lui, le sous-titre remonte contre le
+     titre plutôt que de garder l'écart que le filet occupait. */
+  filet?: boolean;
 }) {
   return (
     <div className="mx-auto max-w-3xl text-center">
-      <Kicker color={dark ? C.orangeVif : C.orange}>{kicker}</Kicker>
       <h2
-        className="mt-5 font-serif text-[clamp(1.9rem,3.4vw,2.4rem)] leading-[1.2] tracking-[-0.01em]"
+        className="font-serif text-[clamp(1.9rem,3.4vw,2.4rem)] leading-[1.2] tracking-[-0.01em]"
         style={{ color: dark ? '#fff' : C.ink }}
       >
         {title}
       </h2>
-      <div
-        className="mx-auto mt-5 h-[3px] w-12 rounded-full"
-        style={{ background: dark ? C.orangeVif : C.orange }}
-      />
+      {filet && (
+        <div
+          className="mx-auto mt-5 h-[3px] w-12 rounded-full"
+          style={{ background: dark ? C.orangeVif : C.orange }}
+        />
+      )}
       {sub && (
         <p
-          className="mx-auto mt-5 max-w-2xl text-[17px] font-medium leading-[1.65]"
+          className={`mx-auto ${filet ? 'mt-5' : 'mt-3'} max-w-2xl text-[17px] font-medium leading-[1.65]`}
           style={{ color: dark ? 'rgba(255,255,255,0.7)' : C.inkSoft }}
         >
           {sub}
@@ -353,6 +337,11 @@ function SectionTitle({
 
 function Header() {
   const [scrolled, setScrolled] = useState(false);
+  // Le seul endroit où la session change un LIBELLÉ, et non seulement une
+  // destination : proposer « Trouver mes aides » à qui en a déjà une liste le
+  // renverrait refaire son diagnostic. Lu au montage — la barre est rendue une
+  // fois, et le clic relit le cookie de toute façon.
+  const [connecte] = useState(sessionActive);
   const barRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let raf = 0;
@@ -373,6 +362,7 @@ function Header() {
 
   const links = [
     { href: '#methode', label: 'Comment ça marche' },
+    { href: '#exemple', label: 'Exemple' },
     { href: '#tarifs', label: 'Tarifs' },
     { href: '#faq', label: 'Questions' },
   ];
@@ -411,11 +401,11 @@ function Header() {
 
         <div className="flex items-center gap-5">
           <button
-            onClick={goToSignup}
-            className="rounded-full px-5 py-2.5 text-[14px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_20px_-6px_rgba(241,113,5,0.55)]"
+            onClick={entrerDansMonumia}
+            className="whitespace-nowrap rounded-full px-5 py-2.5 text-[14px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_20px_-6px_rgba(241,113,5,0.55)]"
             style={{ background: C.orange }}
           >
-            Me tenir informé
+            {connecte ? 'Mon compte' : 'Trouver mes aides'}
           </button>
         </div>
       </div>
@@ -431,6 +421,67 @@ function Header() {
 }
 
 /* ────────────────────────────────────────────
+   Les partenaires — sous la promesse du héros. Le logo est tenté, et son
+   absence retombe sur le nom en texte : une image cassée dirait moins que le
+   nom. Déposer le fichier dans public/img/ suffit à le faire apparaître.
+   ──────────────────────────────────────────── */
+
+const HAUTEUR_LOGO = 'h-20 sm:h-32';
+
+const PARTENAIRES: Array<{ nom: string; fichier: string; hauteur?: string }> = [
+  { nom: 'La Demeure Historique', fichier: 'dh.png' },
+  { nom: 'French Tech', fichier: 'frenchtech.png' },
+  /* Mot-symbole très large : à hauteur égale il écrase les deux autres. */
+  { nom: 'Incubateur emlyon', fichier: 'emlyon.png', hauteur: 'h-12 sm:h-20' },
+];
+
+function LogoPartenaire({
+  nom,
+  fichier,
+  hauteur = HAUTEUR_LOGO,
+}: {
+  nom: string;
+  fichier: string;
+  hauteur?: string;
+}) {
+  const [absent, setAbsent] = useState(false);
+  if (absent) {
+    return (
+      <span className="font-serif text-[19px] font-bold" style={{ color: C.blue }}>
+        {nom}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={`${BASE}img/${fichier}`}
+      alt={nom}
+      loading="lazy"
+      className={`${hauteur} w-auto opacity-90 transition-opacity duration-300 hover:opacity-100`}
+      onError={() => setAbsent(true)}
+    />
+  );
+}
+
+function Partenaires({ className = '', style }: { className?: string; style?: CSSProperties }) {
+  return (
+    <div className={className} style={style}>
+      <p
+        className="text-[11px] font-semibold uppercase tracking-[0.16em]"
+        style={{ color: C.inkFaint }}
+      >
+        Référencé par
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-5 sm:mt-5 sm:gap-x-8">
+        {PARTENAIRES.map((p) => (
+          <LogoPartenaire key={p.nom} {...p} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────
    Héros — la promesse + le trésor
    ──────────────────────────────────────────── */
 
@@ -440,7 +491,7 @@ function EstimationCard() {
   return (
     <div
       ref={ref}
-      className="rounded-2xl border p-5 shadow-[0_28px_60px_-22px_rgba(10,54,157,0.38)] sm:p-6"
+      className="flex flex-col rounded-2xl border p-5 shadow-[0_28px_60px_-22px_rgba(10,54,157,0.38)] sm:p-6"
       style={{ background: C.card, borderColor: C.border }}
     >
       <div className="flex items-center justify-between">
@@ -463,7 +514,7 @@ function EstimationCard() {
       </p>
 
       <p className="mt-4 text-[11.5px] font-medium uppercase tracking-[0.1em]" style={{ color: C.inkFaint }}>
-        Aides mobilisables estimées
+        Aides estimées
       </p>
       <p className="mt-1.5 font-serif text-[1.6rem] font-bold leading-none" style={{ color: C.blue }}>
         {inView ? <CountUp to={420000} /> : '0'} €{' '}
@@ -481,12 +532,6 @@ function EstimationCard() {
           }}
         />
       </div>
-      <div className="mt-3 flex items-center gap-1.5">
-        <TrendingUp className="h-3.5 w-3.5" style={{ color: C.orange }} strokeWidth={2} />
-        <span className="text-[12.5px] font-semibold" style={{ color: C.orange }}>
-          Vos chances : élevées
-        </span>
-      </div>
 
       <p
         className="mt-4 flex items-center gap-2 border-t pt-3.5 text-[12.5px] leading-snug"
@@ -495,106 +540,110 @@ function EstimationCard() {
         <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: C.blueLight }} strokeWidth={1.8} />
         12 aides identifiées · DRAC, Région, Fondation du patrimoine
       </p>
+
+      <button
+        onClick={entrerDansMonumia}
+        className="mt-3 self-start text-[12.5px] font-semibold transition-opacity duration-200 hover:opacity-75"
+        style={{ color: C.orange }}
+      >
+        Et pour votre monument ? →
+      </button>
     </div>
   );
 }
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden px-5 pb-24 pt-28 sm:pt-32 lg:px-8 lg:pb-28 lg:pt-32">
+    <section className="relative overflow-hidden px-5 pb-24 pt-24 sm:pt-28 lg:px-8 lg:pb-28 lg:pt-32">
       <div
         className="pointer-events-none absolute -top-32 right-[-12%] h-[460px] w-[460px] rounded-full blur-[130px]"
         style={{ background: 'rgba(241, 113, 5, 0.1)' }}
       />
 
-      <div className="relative mx-auto grid max-w-6xl items-center gap-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12">
+      <div className="relative mx-auto grid max-w-6xl items-center gap-16 lg:grid-cols-[1.22fr_0.78fr] lg:items-start lg:gap-12">
         <div>
-          <div className="fade-up" style={{ animationDelay: '0.05s' }}>
-            <span
-              className="text-[12.5px] font-semibold uppercase tracking-[0.18em]"
-              style={{ color: C.orange }}
-            >
-              Lancement en Septembre 2026
-            </span>
-          </div>
+          <p
+            className="fade-up text-[11.5px] font-semibold uppercase tracking-[0.16em]"
+            style={{ color: C.orange, animationDelay: '0.05s' }}
+          >
+            Le moteur de recherche des aides au patrimoine
+          </p>
 
           <h1
-            className="fade-up mt-6 text-center font-serif text-[clamp(1.85rem,4.2vw,2.7rem)] leading-[1.13] tracking-[-0.015em]"
+            className="fade-up mt-4 font-serif text-[clamp(1.85rem,4.2vw,2.7rem)] leading-[1.13] tracking-[-0.015em]"
             style={{ color: C.ink, animationDelay: '0.15s' }}
           >
-           
-            <span className="block">Au service de celles et ceux qui</span> 
-              <span className="relative inline-block whitespace-nowrap" style={{ color: C.blue }}>
-                font vivre 
-                <svg
-                  viewBox="0 0 230 12"
-                  className="absolute -bottom-1.5 left-0 w-full"
-                  aria-hidden="true"
-                  preserveAspectRatio="none"
-                >
-                  <path
-                    d="M4 8.5 C 60 2.5, 160 2.5, 226 7"
-                    fill="none"
-                    stroke={C.orange}
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    style={{
-                      strokeDasharray: 240,
-                      strokeDashoffset: 240,
-                      animation: 'draw-stroke 1s 1.3s ease forwards',
-                    }}
-                  />
-                </svg>
-              </span>{' '}
-             le patrimoine bâti
+            L’argent pour restaurer et faire vivre votre monument{' '}
+            <span style={{ color: C.blue }}>existe</span>. Nous vous aidons à le{' '}
+            <span style={{ color: C.orange }}>trouver</span>.
           </h1>
 
           <p
-            className="fade-up mt-7 max-w-xl text-[17px] font-medium leading-[1.7] sm:text-[18px]"
+            className="fade-up mt-7 max-w-[41rem] text-[16px] font-medium leading-[1.7] sm:text-[17px]"
             style={{ color: C.inkSoft, animationDelay: '0.3s' }}
           >
-            Monumia facilite l’identification et la qualification de l’ensemble des financements
-            mobilisables pour les projets de restauration, d’ouverture et d’animation d’un monument.
+            À quelles aides votre monument est-il éligible ? Pour quel montant ? Comment les
+            obtenir ? Monumia croise votre projet de restauration, d’ouverture ou d’animation
+            avec plus de 2000 aides, de la DRAC aux fondations.
           </p>
 
           <div className="fade-up mt-9 flex flex-wrap items-center gap-4" style={{ animationDelay: '0.45s' }}>
-            <CtaButton onClick={goToSignup}>Me tenir informé du lancement</CtaButton>
+            <CtaButton variant="blue" onClick={entrerDansMonumia}>
+              Trouver les aides pour mon monument
+            </CtaButton>
             <a
-              href="#methode"
-              className="group inline-flex items-center gap-2 px-2 py-3 text-[15px] font-semibold transition-colors duration-200 hover:text-[#0a369d]"
-              style={{ color: C.inkSoft }}
+              href="#exemple"
+              className="group inline-flex items-center gap-2.5 rounded-full py-2 pl-2 pr-6 text-[15px] font-semibold transition-all duration-300 hover:-translate-y-0.5 hover:border-[#0a369d] hover:shadow-[0_10px_28px_-14px_rgba(10,54,157,0.45)]"
+              style={{ border: `1.5px solid ${C.blue}33`, color: C.blue, background: C.card }}
             >
-              Voir Monumia en action
-              <ArrowDown className="h-4 w-4 transition-transform duration-300 group-hover:translate-y-0.5" />
+              <span
+                className="flex h-9 w-9 items-center justify-center rounded-full"
+                style={{ background: C.paleBlue }}
+              >
+                <Search className="h-4 w-4 transition-transform duration-300 group-hover:-rotate-6" strokeWidth={1.8} />
+              </span>
+              Voir un exemple chiffré
             </a>
           </div>
+
+          {/* Ce qu'engage le clic : rien. Dit avant le clic, pas après. */}
+          <p
+            className="fade-up mt-5 text-[13px]"
+            style={{ color: C.inkFaint, animationDelay: '0.6s' }}
+          >
+            En quelques minutes · Gratuit, sans engagement · Monument protégé ou non
+          </p>
+
+          {/* Ceux qui nous accompagnent, dits tout de suite : la confiance se
+              gagne avant le clic, pas en bas de page. */}
+          <Partenaires className="fade-up mt-8" style={{ animationDelay: '0.7s' }} />
         </div>
 
         <div
           className="fade-up relative mx-auto mt-12 w-full max-w-[460px] lg:mt-0 lg:max-w-none"
           style={{ animationDelay: '0.4s' }}
         >
-          {/* Trévarez sous son arche, pleine colonne : ce pour quoi l’on travaille */}
+          {/* Paley sous son arche, pleine colonne : ce pour quoi l’on travaille */}
           <div
             className="overflow-hidden rounded-b-2xl rounded-t-[10rem] border shadow-[0_30px_70px_-32px_rgba(34,43,53,0.4)]"
             style={{ borderColor: C.border }}
           >
             <img
               src={`${BASE}img/paley.jpg`}
-              alt="Le château de Trévarez, en Finistère, monument historique en cours de rénovation, au bout de son allée d’arbres"
+              alt="Le château de Paley, en Seine-et-Marne, sélectionné par la Mission Patrimoine 2026, vu depuis son parc."
               className="aspect-[4/5] w-full object-cover"
               style={{ objectPosition: '50% 0%' }}
             />
           </div>
 
           {/* Les chiffres, posés devant le monument */}
-          <div className="relative z-10 mx-auto -mt-20 w-[92%] sm:absolute sm:-bottom-10 sm:-left-6 sm:mx-0 sm:mt-0 sm:w-[min(350px,76%)] lg:-left-10">
+          <div className="relative z-10 mx-auto -mt-20 w-[92%] sm:absolute sm:-bottom-10 sm:-left-6 sm:mx-0 sm:mt-0 sm:w-[312px] sm:max-w-[88%] lg:-left-9">
             <EstimationCard />
           </div>
 
           {/* Mini-carte d’alerte flottante : la veille incarnée */}
           <div
-            className="absolute -bottom-5 -right-2 hidden w-[240px] items-start gap-3 rounded-xl border p-3.5 pl-5 shadow-[0_18px_40px_-16px_rgba(34,43,53,0.3)] [animation:floaty_7s_ease-in-out_infinite] sm:flex"
+            className="absolute -bottom-5 -right-2 lg:-right-8 xl:-right-12 hidden w-[220px] items-start gap-3 rounded-xl border p-3.5 pl-4 shadow-[0_18px_40px_-16px_rgba(34,43,53,0.3)] [animation:floaty_7s_ease-in-out_infinite] sm:flex"
             style={{ background: C.card, borderColor: C.border }}
           >
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: C.paleOrange }}>
@@ -616,6 +665,199 @@ function Hero() {
 }
 
 /* ────────────────────────────────────────────
+   Le constat — l’état du patrimoine et l’éparpillement des guichets.
+   Un chiffre, une source : le lien est en bas de section, et la phrase
+   d’origine reste en commentaire à côté du chiffre, mot pour mot, comme les
+   `quote` des fiches d’aides. Un chiffre sans sa source ne se corrige pas.
+   ──────────────────────────────────────────── */
+
+/* Les guichets qu’un propriétaire doit démarcher un par un, chacun avec ses
+   règles et son calendrier. */
+const GUICHETS = [
+  'État · DRAC',
+  'Europe',
+  'Région',
+  'Département',
+  'Intercommunalité',
+  'Préfecture',
+  'Fondations',
+  'Mécénat d’entreprise',
+];
+
+/* Le rapport du Sénat : cité dans le constat, et consultable d’un clic. */
+const RAPPORT_SENAT = 'https://www.senat.fr/rap/r25-865/r25-8651.pdf';
+
+const SOURCES_CONSTAT: Array<[string, string]> = [
+  [
+    'Ministère de la Culture, État de conservation des monuments historiques immeubles, bilan 2019-2024 (mai 2025)',
+    'https://www.culture.gouv.fr/mc/content/download/372748/pdf_file/MHI_EtatConservation_2019-2024_BL_20250527.pdf',
+  ],
+  [
+    'Fondation du patrimoine, Observatoire du patrimoine non protégé (septembre 2025)',
+    'https://strapi-upload.cdn.fondation-patrimoine.org/CP_Chiffres_cles_2025_du_patrimoine_non_protege_55dcc186a8.pdf',
+  ],
+];
+
+/* Un chiffre du constat : pas de cadre, pas de carte — le chiffre en grand
+   serif bleu, et sous lui ce qu’il désigne. Deux chiffres, posés à nu. */
+function ConstatChiffre({
+  chiffre,
+  children,
+}: {
+  chiffre: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="text-center">
+      <p
+        className="font-serif text-[clamp(2.6rem,6.5vw,4.2rem)] font-bold leading-[1.05] tracking-[-0.02em]"
+        style={{ color: C.blue }}
+      >
+        {chiffre}
+      </p>
+      <p className="mx-auto mt-4 max-w-sm text-[15.5px] leading-[1.7]" style={{ color: C.inkSoft }}>
+        {children}
+      </p>
+    </div>
+  );
+}
+
+function Constat() {
+  /* Le compteur ne part qu’une fois le chiffre à l’écran : un chiffre qui a
+     fini de défiler avant qu’on le regarde ne se lit pas. */
+  const { ref, inView } = useInView(0.2);
+  return (
+    <section id="constat" className="scroll-mt-20 px-5 py-20 lg:px-8 lg:py-24">
+      <div className="mx-auto max-w-6xl">
+        {/* Les deux chiffres, sans cadre : l’état du patrimoine, d’un coup d’œil */}
+        <div ref={ref} className="grid items-start gap-14 sm:grid-cols-2 sm:gap-10">
+          <Reveal>
+            {/* 17,88 % mauvais état + 4,90 % péril = 22,78 % sur 36 512 MH */}
+            <ConstatChiffre chiffre="Près d’un sur quatre">
+              monuments historiques en mauvais état ou en péril.
+            </ConstatChiffre>
+          </Reveal>
+
+          <Reveal delay={120}>
+            {/* 67 400 sur 295 800, Fondation du patrimoine, Observatoire du
+                patrimoine non protégé, 19/09/2025 */}
+            <ConstatChiffre chiffre={inView ? <CountUp to={67400} /> : '0'}>
+              monuments non protégés en état critique : églises, abbayes, châteaux, manoirs…
+            </ConstatChiffre>
+          </Reveal>
+        </div>
+
+        <ul className="mx-auto mt-10 max-w-3xl space-y-1.5 text-center text-[12px] leading-[1.6]">
+          {SOURCES_CONSTAT.map(([label, href]) => (
+            <li key={href} style={{ color: C.inkFaint }}>
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 transition-colors duration-200 hover:text-[#0a369d]"
+              >
+                {label}
+              </a>
+            </li>
+          ))}
+        </ul>
+
+        {/* Le maquis : le titre, puis les guichets qu’il faut démarcher un par un */}
+        <Reveal>
+          <div className="mt-24">
+            <SectionTitle
+              title="Un maquis d'aides qui complique la recherche de financements."
+              sub="Des dizaines de guichets, de l’Europe à la DRAC en passant par les préfectures, les Régions, les Départements, les fondations, les prix-concours… Chacun a ses propres critères d’éligibilité, montants, calendriers… Aujourd’hui, la recherche est complexe et fastidieuse."
+            />
+            <div className="mx-auto mt-9 flex max-w-2xl flex-wrap justify-center gap-2">
+              {GUICHETS.map((g) => (
+                <span
+                  key={g}
+                  className="rounded-full border px-3.5 py-1.5 text-[13px] font-medium"
+                  style={{ background: C.card, borderColor: C.border, color: C.inkSoft }}
+                >
+                  {g}
+                </span>
+              ))}
+            </div>
+          </div>
+        </Reveal>
+
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────
+   Le Sénat dit la même chose que nous, et nous l’avons construit. Posé après
+   la démonstration : la recommandation se lit mieux une fois la plateforme vue.
+   ──────────────────────────────────────────── */
+
+function RapportSenat() {
+  return (
+    <section className="px-5 pb-6 pt-20 lg:px-8 lg:pb-8 lg:pt-24">
+      <Reveal>
+        <div
+          className="mx-auto grid max-w-6xl items-center gap-10 rounded-2xl border p-7 sm:p-10 md:grid-cols-[200px_minmax(0,1fr)] md:gap-12"
+          style={{ background: C.card, borderColor: C.border }}
+        >
+          <a
+            href={RAPPORT_SENAT}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group mx-auto block w-[200px] transition-transform duration-300 hover:-translate-y-1"
+          >
+            {/* La couverture du rapport, telle qu’elle est publiée : la première
+                page du PDF du Sénat, rendue en image */}
+            <span
+              className="block overflow-hidden rounded-lg border shadow-[0_18px_40px_-22px_rgba(34,43,53,0.5)]"
+              style={{ background: '#fff', borderColor: C.border }}
+            >
+              <img
+                src={`${BASE}img/rapport-senat.jpg`}
+                alt="Couverture du rapport d’information n° 865 du Sénat, 7 juillet 2026"
+                loading="lazy"
+                width={396}
+                height={560}
+                className="block w-full"
+              />
+            </span>
+            <span
+              className="mt-3.5 flex items-center justify-center gap-1.5 text-[13.5px] font-semibold underline-offset-2 group-hover:underline"
+              style={{ color: C.blue }}
+            >
+              <FileText className="h-4 w-4" strokeWidth={1.8} />
+              Consulter le rapport
+            </span>
+          </a>
+
+          <div>
+            {/* Un vrai titre de section, et non l'exergue en petites capitales
+                qui tenait ici : c'est l'argument le plus fort de la page, il
+                doit se lire à la hauteur des autres. Le filet orange reprend
+                l'idiome de `SectionTitle`, aligné à gauche — le bloc est en
+                deux colonnes, un titre centré flotterait à côté de sa
+                couverture. */}
+            <h2
+              className="font-serif text-[clamp(1.55rem,2.9vw,2.05rem)] leading-[1.2] tracking-[-0.01em]"
+              style={{ color: C.ink }}
+            >
+              Le Sénat partage notre constat
+            </h2>
+            <div className="mt-4 h-[3px] w-12 rounded-full" style={{ background: C.orange }} />
+            <p className="mt-5 text-[16.5px] leading-[1.75]" style={{ color: C.inkSoft }}>
+              En juillet 2026, le Sénat recommande un guichet unique des subventions, « assorti
+              d’un portail d’information recensant l’ensemble des dispositifs de soutien
+              disponibles ».
+            </p>
+          </div>
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────
    Les trois missions — démonstration guidée, souris comprise
    ──────────────────────────────────────────── */
 
@@ -626,6 +868,42 @@ const SCENE_TROUVER_DURATION = 15500;
 /* La scène 3 enchaîne aussi deux écrans : le tableau de bord des projets,
    puis le détail du projet choisi (documents et téléchargement). */
 const SCENE_DOSSIERS_DURATION = 14500;
+
+/* Vitesse de lecture des démonstrations. Les scènes restent écrites à
+   l'échelle 1 — les délais des animations CSS et les `at` du curseur sont des
+   secondes de scène, lisibles telles quelles — et c'est la lecture qu'on
+   ralentit, d'un seul réglage : un visiteur qui découvre la plateforme a besoin
+   de lire chaque écran avant que la souris ne reparte. */
+const DEMO_SPEED: number = 0.62;
+
+/** Durée réelle (ms) d'un délai écrit en temps de scène. */
+const demoMs = (sceneMs: number) => Math.round(sceneMs / DEMO_SPEED);
+
+/* Cadre d'une scène : applique la vitesse de lecture à TOUTES ses animations.
+   Régler le `playbackRate` étire d'un coup les délais et les durées, sans
+   toucher aux temps écrits dans les scènes — ce que ne permettrait aucune
+   propriété CSS. Seuls les comptes à rebours en JS (CountUp) restent à
+   convertir à la main, via `demoMs`. */
+function SceneStage({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    /* Mouvement réduit : la feuille de style écrase déjà les durées, mais pas
+       les délais — les ralentir ne ferait qu'allonger l'attente. */
+    if (!el || DEMO_SPEED === 1 || prefersReducedMotion()) return;
+    /* getAnimations() force le recalcul de style : les animations CSS encore
+       en phase de délai sont déjà là. Celle du curseur aussi — son effet est
+       un effet enfant, donc joué avant celui-ci. */
+    el.getAnimations({ subtree: true }).forEach((a) => {
+      a.playbackRate = DEMO_SPEED;
+    });
+  }, []);
+  return (
+    <div ref={ref} className="h-full">
+      {children}
+    </div>
+  );
+}
 
 function DemoChip({
   children,
@@ -762,21 +1040,25 @@ function Cursor({ steps, duration = DEMO_DURATION }: { steps: CursorStep[]; dura
   );
 }
 
-/* Scène 1 — trouver ses financements : questionnaire, puis résultats du moteur */
+/* Les aides du château de Paley, partagées par la scène 1 de la
+   démonstration et par la section « Exemple » : la page ne montre qu’un seul
+   exemple chiffré, et les deux écrans qui l’affichent lisent la même liste. */
+const RESULTATS_PALEY: Array<[string, string]> = [
+  ['Aide de l’État (DRAC) · restauration', '15 à 40 %'],
+  ['Aide de la Région · patrimoine', 'jusqu’à 25 000 €'],
+  ['Fondation du patrimoine', 'Réduction d’impôt'],
+  ['Mécénat d’entreprise', 'Sur dossier'],
+];
+
+/* Scène 1 — trouver ses aides : questionnaire, puis résultats du moteur */
 function SceneTrouver() {
-  const rows: Array<[string, string]> = [
-    ['Aide de l’État (DRAC) · restauration', '15 à 40 %'],
-    ['Aide de la Région · patrimoine', 'jusqu’à 25 000 €'],
-    ['Fondation du patrimoine', 'Réduction d’impôt'],
-    ['Mécénat d’entreprise', 'Sur dossier'],
-  ];
   return (
     <div className="relative h-full">
       {/* Écran 1 : le questionnaire de qualification */}
       <div className="absolute inset-0 flex flex-col" style={{ animation: 'screen-out 0.45s 5.8s ease forwards' }}>
         <div className="demo-pop flex items-center justify-between" style={{ animationDelay: '0.1s' }}>
-          <span className="text-[11.5px] font-semibold uppercase tracking-[0.1em]" style={{ color: C.inkFaint }}>
-            Votre projet · Question 5 sur 12
+          <span className="text-[11.5px] font-semibold uppercase tracking-[0.16em]" style={{ color: C.orange }}>
+            Question 5 <span style={{ color: C.inkFaint }}>sur 12</span>
           </span>
           <span className="flex gap-1">
             {[...Array(5)].map((_, i) => (
@@ -793,32 +1075,33 @@ function SceneTrouver() {
           className="demo-pop mt-4 font-serif text-[1.1rem] font-bold leading-snug sm:text-[1.2rem]"
           style={{ color: C.ink, animationDelay: '0.3s' }}
         >
-          Votre bâtiment est-il classé ou inscrit aux Monuments historiques ?
+          Quelles entités, autour du monument, pourraient déposer une demande d’aide ?
         </h4>
         <p
-          className="demo-pop mt-3 rounded-lg border-l-2 bg-white p-3 text-[12.5px] italic leading-relaxed"
-          style={{ borderColor: C.orange, color: C.inkSoft, animationDelay: '0.7s' }}
+          className="demo-pop mt-3 flex gap-2 rounded-lg border-l-2 bg-white p-3 text-[12.5px] leading-snug"
+          style={{ borderColor: C.blueLight, color: C.inkSoft, animationDelay: '0.7s' }}
         >
-          Pas sûr de la réponse ? Choisissez « je ne sais pas » : nous vérifions pour vous.
+          <Info className="mt-[2px] h-3.5 w-3.5 shrink-0" style={{ color: C.blue }} strokeWidth={2} />
+          <span>Le porteur n’est pas forcément le propriétaire du monument.</span>
         </p>
         <div className="mt-3.5 flex flex-wrap gap-2">
-          <DemoChip appear={1.1}>Oui</DemoChip>
-          <DemoChip appear={1.25}>Non</DemoChip>
-          <DemoChip appear={1.4} select={2.4} demoId="chip-sais-pas">
-            Je ne sais pas
+          <DemoChip appear={1.1}>Particulier (personne physique)</DemoChip>
+          <DemoChip appear={1.25}>SCI</DemoChip>
+          <DemoChip appear={1.4} select={2.4} demoId="chip-association">
+            Association loi 1901
           </DemoChip>
         </div>
 
         <div className="demo-pop mt-6" style={{ animationDelay: '3s' }}>
           <h4 className="font-serif text-[1.1rem] font-bold leading-snug sm:text-[1.2rem]" style={{ color: C.ink }}>
-            Que souhaitez-vous faire ?
+            Les travaux portent-ils sur les parties protégées du monument (celles visées par le
+            classement ou l’inscription) ?
           </h4>
           <div className="mt-3 flex flex-wrap gap-2">
-            <DemoChip appear={3.3} select={4.5} demoId="chip-toiture">
-              Restaurer la toiture
+            <DemoChip appear={3.3} select={4.5} demoId="chip-parties-protegees">
+              Oui
             </DemoChip>
-            <DemoChip appear={3.45}>Refaire la façade</DemoChip>
-            <DemoChip appear={3.6}>Autre projet</DemoChip>
+            <DemoChip appear={3.45}>Non</DemoChip>
           </div>
         </div>
 
@@ -849,7 +1132,7 @@ function SceneTrouver() {
       >
         <div className="demo-pop flex items-center justify-between" style={{ animationDelay: '6.4s' }}>
           <span className="font-serif text-[1.05rem] font-bold" style={{ color: C.ink }}>
-            11 aides correspondent à votre projet
+            12 aides correspondent à votre projet
           </span>
           <span
             className="rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em]"
@@ -860,7 +1143,7 @@ function SceneTrouver() {
         </div>
 
         <div className="mt-4 space-y-2.5">
-          {rows.map(([name, amount], i) => (
+          {RESULTATS_PALEY.map(([name, amount], i) => (
             <div
               key={name}
               data-demo={i === 0 ? 'resultat' : undefined}
@@ -913,7 +1196,8 @@ function SceneTrouver() {
             Aides estimées
           </span>
           <span className="font-serif text-[1.2rem] font-bold leading-none" style={{ color: C.orange }}>
-            <CountUp to={92000} delay={8700} /> – <CountUp to={140000} delay={8700} duration={1700} /> €
+            <CountUp to={92000} delay={demoMs(8700)} duration={demoMs(1300)} /> –{' '}
+            <CountUp to={140000} delay={demoMs(8700)} duration={demoMs(1700)} /> €
           </span>
         </div>
 
@@ -939,8 +1223,8 @@ function SceneTrouver() {
       <Cursor
         duration={SCENE_TROUVER_DURATION}
         steps={[
-          { at: 2.15, target: 'chip-sais-pas', click: true },
-          { at: 4.3, target: 'chip-toiture', click: true },
+          { at: 2.15, target: 'chip-association', click: true },
+          { at: 4.3, target: 'chip-parties-protegees', click: true },
           { at: 10.0, target: 'resultat', click: true },
         ]}
       />
@@ -1007,16 +1291,8 @@ function SceneVeille() {
         style={{ color: C.orange, animationDelay: '3.4s' }}
       >
         <CheckCircle2 className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-        Alerte activée — vous serez prévenu à temps
+        Alerte activée : vous serez prévenu à temps
       </p>
-
-      <div
-        className="demo-pop mt-4 flex items-start gap-2.5 rounded-xl p-3.5 text-[12.5px] leading-snug"
-        style={{ background: C.paleOrange, color: C.ink, animationDelay: '5.2s' }}
-      >
-        <Radar className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.orange }} strokeWidth={1.8} />
-        Notre conseil : isoler votre manoir débloquerait de nouvelles aides de la Région.
-      </div>
 
       <div
         className="toast-in mt-auto flex items-start gap-2.5 rounded-xl border bg-white p-3 shadow-[0_12px_28px_-14px_rgba(34,43,53,0.35)]"
@@ -1232,17 +1508,16 @@ const CATEGORIES: Array<{
   tab: string;
   icon: typeof Search;
   title: string;
-  sub: string;
+  sub?: string;
   features: Feature[];
   scene: () => ReactNode;
   duration: number;
 }> = [
   {
     key: 'trouver',
-    tab: 'Trouver vos financements',
+    tab: 'Trouver mes aides',
     icon: Search,
-    title: 'Trouvez tous vos financements',
-    sub: 'Le premier moteur de recherche dédié au financement du patrimoine.',
+    title: 'Trouvez toutes vos aides',
     duration: SCENE_TROUVER_DURATION,
     features: [
       [
@@ -1254,10 +1529,6 @@ const CATEGORIES: Array<{
         'Vos réponses sont croisées avec l’ensemble des financements existants, pour ne remonter que les aides auxquelles vous êtes réellement éligible.',
       ],
       [
-        'Une estimation de vos aides',
-        'Une fourchette de ce que vous pouvez obtenir et de votre niveau d’éligibilité, évaluée prudemment.',
-      ],
-      [
         'Une fiche claire pour chaque aide',
         'Conditions, montants, documents à fournir et personne à contacter : le mode d’emploi de chaque financement.',
       ],
@@ -1265,45 +1536,13 @@ const CATEGORIES: Array<{
     scene: SceneTrouver,
   },
   {
-    key: 'veille',
-    tab: 'Ne rien rater',
-    icon: BellRing,
-    title: 'Ne ratez plus jamais une opportunité',
-    sub: 'Une veille permanente sur tous les financements de votre patrimoine.',
-    features: [
-      [
-        'Des alertes avant chaque échéance',
-        'Monumia vous prévient à l’approche de chaque date limite qui vous concerne, à temps pour déposer.',
-      ],
-      [
-        'Une veille sur vos financements',
-        'Au-delà de vos projets en cours, Monumia identifie en continu les aides auxquelles votre lieu donne droit.',
-      ],
-      [
-        'Les financements liés à vos travaux',
-        'Pour chaque projet, Monumia vous indique les aides associées, y compris celles que vous ne connaissez pas encore.',
-      ],
-      [
-        'Toutes vos échéances réunies',
-        'Vos dates clés rassemblées dans un seul calendrier, visibles d’un coup d’œil.',
-      ],
-      [
-        'L’annuaire des fondations et mécènes',
-        'La fiche complète de chaque fondation : dates, modalités, contacts.',
-      ],
-    ],
-    scene: SceneVeille,
-    duration: DEMO_DURATION,
-  },
-  {
     key: 'dossiers',
-    tab: 'Monter vos dossiers',
+    tab: 'Monter mon dossier',
     icon: FolderOpen,
     title: 'Montez et pilotez vos dossiers',
-    sub: 'De la première pièce au dossier déposé, sans rien oublier.',
     features: [
       [
-        'Tous vos documents au même endroit',
+        'Cloud pour stocker vos documents',
         'Devis, photos, plans : tout est rangé, classé et partageable. Invitez votre architecte ou vos artisans à y travailler avec vous.',
       ],
       [
@@ -1311,18 +1550,41 @@ const CATEGORIES: Array<{
         'Pour chaque aide, Monumia vous donne la liste précise des pièces demandées. Une fois tout réuni, téléchargez le dossier complet, prêt à envoyer.',
       ],
       [
-        'Le suivi de chaque demande',
-        'Suivez l’état de chaque demande, de « à préparer » à « accordé ». Vous savez toujours où vous en êtes.',
+        'Assurer un suivi de vos démarches',
+        'Pilotez l’état d’avancement de vos demandes, de « en cours de préparation » à « accordée ».',
       ],
       [
-        'Tous vos projets d’un seul regard',
-        'Une vue d’ensemble de vos projets et de leur avancement. Menez plusieurs restaurations de front sans rien perdre de vue.',
+        'Un tableau de bord de suivi',
+        'Une vue d’ensemble de tous vos projets. Menez plusieurs projets de front sans rien perdre de vue.',
       ],
     ],
     scene: SceneDossiers,
     duration: SCENE_DOSSIERS_DURATION,
   },
+  {
+    key: 'veille',
+    tab: 'Ne rien rater',
+    icon: BellRing,
+    title: 'Ne ratez plus jamais une opportunité',
+    features: [
+      [
+        'Des alertes avant chaque échéance',
+        'Monumia vous prévient à l’approche de chaque date limite qui vous concerne, à temps pour déposer.',
+      ],
+      [
+        'Une veille sur vos financements',
+        'Au-delà de vos projets en cours, Monumia identifie en continu les aides auxquelles votre monument est éligible.',
+      ],
+    ],
+    scene: SceneVeille,
+    duration: DEMO_DURATION,
+  },
 ];
+
+/* L’arête haute et basse de la section « L’application » : un filet orange qui
+   s’éteint vers les bords, pour que la limite ne coupe pas la page en deux. */
+const ARETE =
+  'linear-gradient(to right, rgba(241,113,5,0) 0%, rgba(241,113,5,0.65) 28%, rgba(241,113,5,0.65) 72%, rgba(241,113,5,0) 100%)';
 
 function Demo() {
   const { ref, inView } = useInView(0.2);
@@ -1337,7 +1599,7 @@ function Demo() {
   // La scène active rejoue en boucle sur place ; elle ne change qu'au clic d'un onglet.
   useEffect(() => {
     if (!inView || !loop) return;
-    const t = setTimeout(() => setCycle((c) => c + 1), CATEGORIES[active].duration);
+    const t = setTimeout(() => setCycle((c) => c + 1), demoMs(CATEGORIES[active].duration));
     return () => clearTimeout(t);
   }, [inView, loop, active, cycle]);
 
@@ -1359,7 +1621,6 @@ function Demo() {
 
   const cat = CATEGORIES[active];
   const Scene = cat.scene;
-  const finale = useInView(0.3);
 
   return (
     <section
@@ -1368,15 +1629,50 @@ function Demo() {
       className="relative scroll-mt-20 overflow-hidden"
       style={{ background: C.blue }}
     >
-      <Tracery color="#ffffff" opacity={0.03} size={220} />
-      <div className="relative z-10 mx-auto max-w-6xl px-5 pt-20 lg:px-8 lg:pt-24">
+      {/* Une salle éclairée : deux nappes de bleu clair, au plafond et au sol, et
+          une lumière blanche qui pose le titre. Le halo du haut est bleu et non
+          orange : sur ce bleu profond, un orange diffus tourne au mauve terne. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-[560px]"
+        style={{
+          background:
+            'radial-gradient(62% 100% at 50% -12%, rgba(92,149,255,0.34), rgba(92,149,255,0) 70%)',
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-[420px]"
+        style={{
+          background:
+            'radial-gradient(44% 100% at 50% 8%, rgba(255,255,255,0.12), rgba(255,255,255,0) 72%)',
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[460px]"
+        style={{
+          background:
+            'radial-gradient(74% 100% at 50% 110%, rgba(92,149,255,0.32), rgba(92,149,255,0) 70%)',
+        }}
+      />
+
+      {/* Les deux arêtes : un trait orange d’un cheveu d’épaisseur, éteint sur les
+          côtés. La limite avec le crème est nette, mais elle est dessinée. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px"
+        style={{ background: ARETE }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-px"
+        style={{ background: ARETE }}
+      />
+
+      <div className="relative z-10 mx-auto max-w-6xl px-5 py-24 lg:px-8 lg:py-32">
         <Reveal>
-          <SectionTitle
-            dark
-            kicker="L’application"
-            title="Tout ce que Monumia fait pour votre patrimoine"
-            sub="Trois missions, un seul outil. Choisissez un onglet : l’application déroule un exemple sous vos yeux, comme si vous y étiez."
-          />
+          <SectionTitle dark title="Monumia en action" />
         </Reveal>
 
         {/* Les trois missions, en onglets */}
@@ -1429,9 +1725,11 @@ function Demo() {
               <h3 className="font-serif text-[clamp(1.65rem,3vw,2.1rem)] leading-[1.2] tracking-[-0.01em] text-white">
                 {cat.title}
               </h3>
-              <p className="mt-3 text-[16px] font-medium leading-[1.6] text-white/75">
-                {cat.sub}
-              </p>
+              {cat.sub && (
+                <p className="mt-3 text-[16px] font-medium leading-[1.6] text-white/75">
+                  {cat.sub}
+                </p>
+              )}
               <ul className="mt-7 space-y-4">
                 {cat.features.map(([name, desc]) => (
                   <li key={name} className="flex items-start gap-3">
@@ -1452,13 +1750,34 @@ function Demo() {
                   </li>
                 ))}
               </ul>
-              <CtaButton variant="white" onClick={goToSignup} className="mt-9">
-                Me tenir informé du lancement
+              <CtaButton variant="white" onClick={entrerDansMonumia} className="mt-9">
+                Trouver les aides pour mon monument
               </CtaButton>
             </div>
 
             {/* L’écran de l’application, posé sur un panneau teinté */}
             <div className="rounded-[2rem] p-3 sm:p-6 lg:p-8" style={{ background: C.paleOrange }}>
+              {/* L’écoulement de la démonstration, comme la barre de lecture
+                  d’une vidéo : elle repart à chaque tour de boucle (clé). */}
+              <div
+                aria-hidden="true"
+                className="mb-3 h-1.5 overflow-hidden rounded-full sm:mb-4"
+                style={{ background: 'rgba(34,43,53,0.12)' }}
+              >
+                {inView && (
+                  <div
+                    key={`${active}-${cycle}`}
+                    className="h-full rounded-full"
+                    style={{
+                      width: 0,
+                      ['--bar-w' as string]: '100%',
+                      animation: `grow-bar ${demoMs(cat.duration)}ms linear forwards`,
+                      background: `linear-gradient(90deg, ${C.orange}, ${C.orangeVif})`,
+                    }}
+                  />
+                )}
+              </div>
+
               <div
                 className="overflow-hidden rounded-2xl border shadow-[0_30px_70px_-30px_rgba(10,54,157,0.35)]"
                 style={{ background: '#fff', borderColor: C.border }}
@@ -1479,9 +1798,9 @@ function Demo() {
                 </div>
                 <div className="h-[440px] p-5 sm:h-[450px] sm:p-7" style={{ background: C.cream }}>
                   {inView && (
-                    <div key={`${active}-${cycle}`} className="h-full">
+                    <SceneStage key={`${active}-${cycle}`}>
                       <Scene />
-                    </div>
+                    </SceneStage>
                   )}
                 </div>
               </div>
@@ -1489,204 +1808,142 @@ function Demo() {
           </div>
         </Reveal>
       </div>
+    </section>
+  );
+}
 
-      {/* L'arrivée : la frise des bâtiments, au sol */}
-      <div ref={finale.ref} className="relative mt-16 h-[230px] sm:h-[270px] lg:mt-20">
-        <ParallaxLandscape lit={finale.inView} />
+/* ────────────────────────────────────────────
+   L’exemple — un monument, ses aides, son chiffre. Le même que le héros et la
+   démonstration : la page ne montre qu’un seul exemple chiffré, sinon le
+   visiteur compare des montants qui ne parlent pas du même chantier.
+   ──────────────────────────────────────────── */
+
+function Exemple() {
+  return (
+    <section id="exemple" className="scroll-mt-20 px-5 py-20 lg:px-8 lg:py-24">
+      <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-16">
+        <Reveal>
+          <div>
+            <p
+              className="text-[11.5px] font-semibold uppercase tracking-[0.16em]"
+              style={{ color: C.orange }}
+            >
+              L’exemple du château de Paley
+            </p>
+            <h2
+              className="mt-4 font-serif text-[clamp(1.7rem,3vw,2.2rem)] leading-[1.2] tracking-[-0.01em]"
+              style={{ color: C.ink }}
+            >
+              Ce que Monumia trouve pour un château de Seine-et-Marne
+            </h2>
+            <p className="mt-6 text-[16px] leading-[1.75]" style={{ color: C.inkSoft }}>
+              Le château de Paley, sélectionné par la Mission Patrimoine 2026, prépare la
+              restauration de sa façade. Monumia identifie douze aides mobilisables, entre 420 000
+              et 680 000 € estimés avec prudence : État, Région, Département, Fondation du
+              patrimoine, mécénat d’entreprise.
+            </p>
+
+            {/* PROVISOIRE : phrase inventée, à remplacer par la citation d’Ismaël */}
+            <blockquote
+              className="mt-8 border-l-2 pl-5 text-[15.5px] italic leading-[1.75]"
+              style={{ borderColor: C.orange, color: C.ink }}
+            >
+              « J’ai cherché seul pendant des mois. En cinq minutes, Monumia m’a donné une liste
+              que je n’avais jamais eue en entier, avec les personnes à appeler. »
+              <footer className="mt-3 text-[13px] not-italic" style={{ color: C.inkFaint }}>
+                Ismaël Murat El Hakim, propriétaire-gestionnaire du château de Paley
+              </footer>
+            </blockquote>
+
+            <CtaButton onClick={entrerDansMonumia} className="mt-9">
+              Et pour mon monument ?
+            </CtaButton>
+          </div>
+        </Reveal>
+
+        {/* L’écran de résultats, arrêté sur image : mêmes lignes que la scène 1,
+            sans curseur ni animation — on vient ici pour lire, pas pour voir
+            jouer une démonstration. */}
+        <Reveal delay={140}>
+          <div className="rounded-[1.75rem] p-3 sm:p-5" style={{ background: C.paleOrange }}>
+            <div
+              className="rounded-2xl border p-5 shadow-[0_30px_70px_-30px_rgba(10,54,157,0.35)] sm:p-6"
+              style={{ background: C.cream, borderColor: C.border }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-serif text-[1.05rem] font-bold" style={{ color: C.ink }}>
+                  12 aides correspondent à votre projet
+                </span>
+                <span
+                  className="shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em]"
+                  style={{ background: C.paleBlue, color: C.blueLight }}
+                >
+                  Exemple
+                </span>
+              </div>
+
+              <div className="mt-4 space-y-2.5">
+                {RESULTATS_PALEY.map(([name, amount]) => (
+                  <div
+                    key={name}
+                    className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2.5"
+                  >
+                    <span className="flex min-w-0 items-center gap-2 text-[12.5px]" style={{ color: C.ink }}>
+                      <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: C.blueLight }} strokeWidth={1.8} />
+                      {name}
+                    </span>
+                    <span className="shrink-0 text-[12px] font-semibold" style={{ color: C.inkSoft }}>
+                      {amount}
+                    </span>
+                  </div>
+                ))}
+                <p className="px-3 pt-1 text-[12px]" style={{ color: C.inkFaint }}>
+                  et 8 autres aides, avec fiche, contact et pièces à fournir
+                </p>
+              </div>
+
+              <div className="mt-5">
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="font-medium" style={{ color: C.inkSoft }}>
+                    Vos chances d’obtenir ces aides
+                  </span>
+                  <span className="font-semibold" style={{ color: C.orange }}>
+                    élevées
+                  </span>
+                </div>
+                <div className="mt-1.5 h-2 overflow-hidden rounded-full" style={{ background: C.paleBlue }}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: '78%', background: `linear-gradient(90deg, ${C.orange}, ${C.orangeVif})` }}
+                  />
+                </div>
+              </div>
+
+              <div
+                className="mt-5 flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3.5"
+                style={{ background: C.paleOrange }}
+              >
+                <span
+                  className="text-[11.5px] font-semibold uppercase tracking-[0.08em]"
+                  style={{ color: C.ink }}
+                >
+                  Aides estimées
+                </span>
+                <span className="font-serif text-[1.2rem] font-bold leading-none" style={{ color: C.orange }}>
+                  420 000 – 680 000 €
+                </span>
+              </div>
+            </div>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
 }
 
 /* ────────────────────────────────────────────
-   La frise de patrimoine — décor de la section « L’application »
-   ──────────────────────────────────────────── */
-
-/* La frise de patrimoine dessinée à la main ferme la section #methode : elle
-   défile en parallaxe sur plusieurs plans à vitesses distinctes (les plus
-   proches plus vite, le soleil à contre-sens) ; les monuments-repères
-   s'embrasent à l'heure dorée quand la section arrive. Tout est piloté en
-   transform (GPU) ; ParallaxItem se met au repos pour les visiteurs qui
-   préfèrent réduire les animations. */
-
-const FRIEZE_FRONT_W = 3700;
-const FRIEZE_MID_W = 3000;
-const FRIEZE_FAR_TILE = 1300;
-/* Abscisses des quatre monuments-repères dans la frise de premier plan */
-const LANDMARK_X = [642, 1311, 1980, 2649];
-
-/* Premier plan crème (3700×150) : village, château fort, moulin à vent,
-   église au clocher ajouré (sa cloche pend dans l’ouverture), halle aux
-   piliers, puis le village qui s’éloigne. Le sol est la bande y134-150. */
-const FRIEZE_FRONT =
-  'M0 134 H3700 V150 H0 Z ' +
-  'M40 150 C40 122 50 108 70 108 C90 108 100 122 100 150 Z ' +
-  'M120 150 V112 L150 94 L180 112 V150 Z M190 150 V120 L216 104 L242 120 V150 Z ' +
-  'M250 150 V126 H330 V150 Z ' +
-  'M350 150 C350 126 360 114 378 114 C396 114 406 126 406 150 Z ' +
-  'M452 150 V60 H500 V150 Z M444 62 H508 L476 16 Z M474 16 V6 H478 V16 Z M478 6 L496 10 L478 14 Z ' +
-  'M500 150 V84 h14 v-10 h14 v10 h16 v-10 h14 v10 h16 v-10 h14 v10 h12 V150 Z ' +
-  'M598 84 H666 V104 Q632 124 598 104 Z ' +
-  'M664 150 V84 h12 v-10 h14 v10 h16 v-10 h14 v10 h16 v-10 h14 v10 h12 V150 Z ' +
-  'M762 150 V56 h12 v-10 h12 v10 h12 v-10 h12 v10 h12 v-10 h12 v10 h8 V150 Z ' +
-  'M842 150 V126 H922 V150 Z ' +
-  'M940 150 C940 124 950 110 970 110 C990 110 1000 124 1000 150 Z ' +
-  'M1030 150 V114 L1066 96 L1102 114 V150 Z M1086 107 V88 H1096 V107 Z ' +
-  'M1130 150 C1130 130 1138 120 1152 120 C1166 120 1174 130 1174 150 Z ' +
-  'M1221 150 Q1311 122 1401 150 Z ' +
-  'M1273 150 L1283 64 H1339 L1349 150 Z ' +
-  'M1267 66 C1267 48 1285 40 1311 40 C1337 40 1355 48 1355 66 Z ' +
-  'M1259 6 L1265 0 L1363 102 L1357 108 Z M1357 0 L1363 6 L1265 108 L1259 102 Z ' +
-  'M1450 150 V128 H1486 V150 Z M1454 128 V112 H1460 V128 Z M1476 128 V112 H1482 V128 Z M1448 112 H1488 L1468 98 Z ' +
-  'M1530 150 C1530 126 1540 112 1560 112 C1580 112 1590 126 1590 150 Z ' +
-  'M1640 150 V92 H1684 V150 Z M1634 94 H1690 L1662 58 Z M1660 58 V48 H1664 V58 Z ' +
-  'M1684 150 V128 H1770 V150 Z ' +
-  'M1790 150 C1790 128 1800 116 1818 116 C1836 116 1846 128 1846 150 Z ' +
-  'M1877 150 V104 H1987 V150 Z M1871 106 L1932 80 L1993 106 Z ' +
-  'M1930 80 V66 H1934 V80 Z M1924 70 H1940 V74 H1924 Z ' +
-  'M1987 150 V70 H2047 V150 Z ' +
-  'M1987 70 V38 H1999 V70 Z M2035 70 V38 H2047 V70 Z ' +
-  'M1983 38 H2051 V30 H1983 Z ' +
-  'M1979 30 H2055 L2017 6 Z M2015 6 V0 H2019 V6 Z ' +
-  'M2009 44 C2009 38 2025 38 2025 44 L2027 52 H2007 Z M2015 52 H2019 V56 H2015 Z ' +
-  'M2110 150 V118 L2138 102 L2166 118 V150 Z ' +
-  'M2200 150 C2200 124 2212 110 2232 110 C2252 110 2264 124 2264 150 Z ' +
-  'M2310 150 V112 H2370 V150 Z M2304 114 L2340 92 L2376 114 Z M2332 92 V78 H2348 V92 Z M2328 78 H2352 L2340 64 Z ' +
-  'M2370 150 V130 H2460 V150 Z ' +
-  'M2512 100 L2649 56 L2786 100 L2786 110 H2512 Z ' +
-  'M2642 56 V46 H2656 V56 Z M2638 46 H2660 L2649 36 Z ' +
-  'M2526 150 V110 H2538 V150 Z M2584 150 V110 H2596 V150 Z M2643 150 V110 H2655 V150 Z M2702 150 V110 H2714 V150 Z M2760 150 V110 H2772 V150 Z ' +
-  'M2820 150 V116 L2850 100 L2880 116 V150 Z ' +
-  'M2920 150 C2920 124 2932 110 2952 110 C2972 110 2984 124 2984 150 Z ' +
-  'M3040 150 V92 H3080 V150 Z M3034 94 H3086 L3060 60 Z ' +
-  'M3080 150 V128 H3180 V150 Z ' +
-  'M3240 150 V118 L3268 102 L3296 118 V150 Z M3310 150 V124 L3334 110 L3358 124 V150 Z ' +
-  'M3420 150 C3420 126 3430 112 3450 112 C3470 112 3480 126 3480 150 Z ' +
-  'M3560 150 C3560 132 3568 122 3582 122 C3596 122 3604 132 3604 150 Z ' +
-  'M3650 150 V122 L3676 108 L3700 122 V150 Z';
-
-/* Les mêmes monuments, isolés : surimprimés en teinte chaude quand leur
-   halte est active, comme frappés par la lumière du soir. */
-const LIT_LANDMARKS = [
-  'M452 150 V60 H500 V150 Z M444 62 H508 L476 16 Z M474 16 V6 H478 V16 Z M478 6 L496 10 L478 14 Z ' +
-    'M500 150 V84 h14 v-10 h14 v10 h16 v-10 h14 v10 h16 v-10 h14 v10 h12 V150 Z ' +
-    'M598 84 H666 V104 Q632 124 598 104 Z ' +
-    'M664 150 V84 h12 v-10 h14 v10 h16 v-10 h14 v10 h16 v-10 h14 v10 h12 V150 Z ' +
-    'M762 150 V56 h12 v-10 h12 v10 h12 v-10 h12 v10 h12 v-10 h12 v10 h8 V150 Z',
-  'M1273 150 L1283 64 H1339 L1349 150 Z ' +
-    'M1267 66 C1267 48 1285 40 1311 40 C1337 40 1355 48 1355 66 Z ' +
-    'M1259 6 L1265 0 L1363 102 L1357 108 Z M1357 0 L1363 6 L1265 108 L1259 102 Z',
-  'M1877 150 V104 H1987 V150 Z M1871 106 L1932 80 L1993 106 Z ' +
-    'M1930 80 V66 H1934 V80 Z M1924 70 H1940 V74 H1924 Z ' +
-    'M1987 150 V70 H2047 V150 Z M1987 70 V38 H1999 V70 Z M2035 70 V38 H2047 V70 Z ' +
-    'M1983 38 H2051 V30 H1983 Z M1979 30 H2055 L2017 6 Z M2015 6 V0 H2019 V6 Z ' +
-    'M2009 44 C2009 38 2025 38 2025 44 L2027 52 H2007 Z M2015 52 H2019 V56 H2015 Z',
-  'M2512 100 L2649 56 L2786 100 L2786 110 H2512 Z ' +
-    'M2642 56 V46 H2656 V56 Z M2638 46 H2660 L2649 36 Z ' +
-    'M2526 150 V110 H2538 V150 Z M2584 150 V110 H2596 V150 Z M2643 150 V110 H2655 V150 Z ' +
-    'M2702 150 V110 H2714 V150 Z M2760 150 V110 H2772 V150 Z',
-];
-
-/* Plan moyen (3000×190) : fort, cathédrale, donjon, abbaye, grand château
-   et masses de forêt, dans l’ombre du soir. */
-const FRIEZE_MID =
-  'M0 190 V158 C200 152 400 150 600 154 C800 158 1000 160 1200 156 C1400 152 1600 154 1800 158 C2000 162 2200 158 2400 154 C2600 150 2800 154 3000 158 V190 Z ' +
-  'M300 190 V84 H344 V190 Z M293 86 H351 L322 48 Z ' +
-  'M344 190 V120 H470 V190 Z ' +
-  'M470 190 V96 H510 V190 Z M464 98 H516 L490 62 Z ' +
-  'M620 190 C620 150 640 130 680 130 C720 130 740 150 740 190 Z ' +
-  'M730 190 C730 162 744 148 770 148 C796 148 810 162 810 190 Z ' +
-  'M940 190 V64 H982 V190 Z M934 66 H988 L961 38 Z ' +
-  'M982 190 V104 H1090 V190 Z M976 106 L1036 80 L1096 106 Z ' +
-  'M1090 190 V64 H1132 V190 Z M1084 66 H1138 L1111 38 Z ' +
-  'M1250 190 C1250 154 1268 136 1304 136 C1340 136 1358 154 1358 190 Z ' +
-  'M1510 190 V92 h10 v-12 h12 v12 h14 v-12 h12 v12 h14 v-12 h12 v12 h10 V190 Z ' +
-  'M1594 190 V120 H1620 V190 Z ' +
-  'M1840 190 V120 H2010 V190 Z M1834 122 L1925 88 L2016 122 Z ' +
-  'M2010 190 V100 H2040 V190 Z M2005 102 H2045 L2025 76 Z ' +
-  'M2150 190 C2150 156 2166 140 2198 140 C2230 140 2246 156 2246 190 Z ' +
-  'M2440 190 V80 H2486 V190 Z M2433 82 H2493 L2463 44 Z ' +
-  'M2486 190 V112 H2600 V190 Z M2479 114 L2543 86 L2607 114 Z ' +
-  'M2600 190 V92 H2642 V190 Z M2594 94 H2648 L2621 58 Z ' +
-  'M2780 190 C2780 158 2794 144 2820 144 C2846 144 2860 158 2860 190 Z';
-
-/* Lointain (tuile 1300×110, répétée) : collines voilées, fort perché,
-   flèche dans la brume. */
-const FRIEZE_FAR =
-  'M0 110 V72 C160 60 300 56 460 64 C620 72 700 76 860 70 C1020 64 1160 62 1300 72 V110 Z ' +
-  'M480 64 V40 H500 V64 Z M476 42 H504 L490 26 Z M500 62 V50 H540 V62 Z ' +
-  'M1040 60 V34 H1052 V60 Z M1036 36 H1056 L1046 18 Z';
-
-/* Le paysage de patrimoine : un premier plan crème qui glisse en douceur au
-   défilement (toujours au sol, prolongé d'un bloc crème pour ne jamais
-   décoller), devant des plans fixes — donc rien ne flotte. Les
-   monuments-repères s'embrasent à l'heure dorée quand la section arrive. */
-function ParallaxLandscape({ lit }: { lit: boolean }) {
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      <div
-        className="absolute inset-x-0 bottom-0 h-[170px]"
-        style={{ background: 'linear-gradient(to top, rgba(92,149,255,0.2), rgba(92,149,255,0))' }}
-      />
-
-      {/* Plan lointain : collines en brume (fixe) */}
-      <div className="absolute bottom-[34px] left-[calc(50%-720px)] sm:bottom-[40px] sm:left-[calc(50%-1300px)]">
-        <svg width={FRIEZE_FAR_TILE * 3} height="110" viewBox={`0 0 ${FRIEZE_FAR_TILE * 3} 110`} aria-hidden="true">
-          <path d={FRIEZE_FAR} fill="rgba(255,255,255,0.09)" />
-          <path d={FRIEZE_FAR} fill="rgba(255,255,255,0.09)" transform={`translate(${FRIEZE_FAR_TILE} 0)`} />
-          <path d={FRIEZE_FAR} fill="rgba(255,255,255,0.09)" transform={`translate(${FRIEZE_FAR_TILE * 2} 0)`} />
-        </svg>
-      </div>
-
-      {/* Plan moyen : grands monuments dans l'ombre (fixe, ancré derrière) */}
-      <div className="absolute bottom-[-6px] left-[calc(50%-600px)] sm:left-[calc(50%-1180px)]">
-        <svg width={FRIEZE_MID_W} height="190" viewBox={`0 0 ${FRIEZE_MID_W} 190`} aria-hidden="true">
-          <path d={FRIEZE_MID} fill="#072a72" />
-        </svg>
-      </div>
-
-      {/* Premier plan : la frise crème, au sol, qui glisse doucement */}
-      <ParallaxItem factor={0.07} className="absolute bottom-0 left-[calc(50%-680px)] sm:left-[calc(50%-1311px)]">
-        <div className="relative">
-          {LANDMARK_X.map((x, i) => (
-            <div
-              key={x}
-              className="absolute bottom-0 transition-opacity duration-[1000ms]"
-              style={{ left: x, opacity: lit ? 1 : 0, transitionDelay: `${i * 140}ms` }}
-            >
-              <div
-                className="absolute -translate-x-1/2 rounded-full blur-3xl"
-                style={{ bottom: -24, width: 320, height: 170, background: 'radial-gradient(closest-side, rgba(252,137,5,0.38), rgba(252,137,5,0))' }}
-              />
-              <div
-                className="absolute -translate-x-1/2 rounded-full blur-xl"
-                style={{ bottom: 8, width: 170, height: 100, background: 'radial-gradient(closest-side, rgba(253,176,74,0.5), rgba(252,137,5,0))' }}
-              />
-            </div>
-          ))}
-          <svg width={FRIEZE_FRONT_W} height="150" viewBox={`0 0 ${FRIEZE_FRONT_W} 150`} className="relative block" aria-hidden="true">
-            <path d={FRIEZE_FRONT} fill={C.card} />
-            {LIT_LANDMARKS.map((d, i) => (
-              <path
-                key={i}
-                d={d}
-                fill="#fcd9a0"
-                className="transition-opacity duration-[1000ms]"
-                style={{ opacity: lit ? 1 : 0, transitionDelay: `${i * 140}ms` }}
-              />
-            ))}
-          </svg>
-          {/* Sol crème prolongé vers le bas (hors champ) */}
-          <div className="absolute left-0 top-full h-[320px]" style={{ width: FRIEZE_FRONT_W, background: C.card }} />
-        </div>
-      </ParallaxItem>
-    </div>
-  );
-}
-
-/* ────────────────────────────────────────────
-   L’équipe — une arcade de cloître : trois niches
-   en plein cintre qui s’éclairent au passage.
+   L’équipe — quatre cadres rectangulaires qui
+   s’éclairent au passage.
    Règle du survol : rien ne se déplace sous le
    curseur (lumière, filtres et couleurs seulement),
    la zone de hover reste parfaitement stable.
@@ -1699,95 +1956,100 @@ const TEAM: Array<{
   desc: string;
   lift: string;
   factor: number;
+  /* Recadrage propre au portrait : les sources sont carrées, le cadre est en 9/10.
+     Un `scale` remonte les plans large à la même échelle de visage que les autres. */
+  imgStyle?: CSSProperties;
 }> = [
   {
-    name: 'Paul',
+    name: 'Paul VACHERET',
     img: `${BASE}img/team-paul.jpg`,
     alt: 'Portrait de Paul, cofondateur de Monumia',
-    desc: 'Chargé de la vision et du développement commercial.',
+    desc: 'Cofondateur, vision et développement commercial. À l’origine de Monumia.',
     lift: 'md:mt-0',
     factor: 0.025,
   },
   {
-    name: 'Félix',
+    name: 'Félix OLLIVIER',
     img: `${BASE}img/team-felix.jpg`,
     alt: 'Portrait de Félix, cofondateur de Monumia',
-    desc: 'Chargé de la conception et du développement de la plateforme.',
+    desc: 'Cofondateur, conception et développement. Expert en intelligence artificielle. Il a construit la plateforme.',
     lift: 'md:mt-0',
     factor: 0.025,
+  },
+  {
+    name: 'Ismaël MURAT EL HAKIM',
+    img: `${BASE}img/team-ismael.jpg`,
+    alt: 'Portrait d’Ismaël, propriétaire gestionnaire du château de Paley',
+    desc: 'Associé. Propriétaire-gestionnaire du château de Paley, sélectionné par la Mission Patrimoine 2026.',
+    lift: 'md:mt-0',
+    factor: 0.025,
+    /* Plan large et sujet décentré à gauche : `objectPosition` colle la fenêtre
+       sur le bord gauche de la source, `transformOrigin` la resserre autour de
+       lui, `scale` remonte son visage à l’échelle des deux autres portraits. */
+    imgStyle: {
+      objectPosition: '0% 50%',
+      transform: 'scale(1.42)',
+      transformOrigin: '25% 32%',
+    },
+  },
+  {
+    name: 'Henri d’ANSELME',
+    img: `${BASE}img/team-henri.jpg`,
+    alt: 'Portrait d’Henri d’Anselme, ambassadeur de Monumia',
+    desc: 'Ambassadeur. Auteur, producteur et présentateur des « Chemins du Patrimoine » (Canal+ / CNews).',
+    lift: 'md:mt-0',
+    factor: 0.025,
+    /* Source en 16/9, sujet à droite : la fenêtre 9/10 se cale sur lui, et le
+       `scale` remonte son visage à l’échelle des trois autres portraits. */
+    imgStyle: {
+      objectPosition: '86% 50%',
+      transform: 'scale(1.3)',
+      transformOrigin: '72% 34%',
+    },
   },
 ];
 
 function Team() {
   return (
     <section id="equipe" className="scroll-mt-20 px-5 py-20 lg:px-8 lg:py-24">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <Reveal>
           <SectionTitle
-            kicker="L’équipe"
-            title="Les visages derrière Monumia"
-            sub="Notre conviction : le patrimoine mérite des outils à la hauteur de son histoire et de ceux qui le font vivre."
-          />
+            filet={false}
+            title="Car nous avons décidé de ne plus attendre."
+            sub="Ensemble, nous portons Monumia."
+          /> 
         </Reveal>
 
-        <div className="mx-auto mt-14 grid max-w-2xl gap-14 md:grid-cols-2 md:gap-10">
+        <div className="mx-auto mt-14 grid max-w-2xl gap-14 md:max-w-4xl md:grid-cols-2 md:gap-10 lg:max-w-6xl lg:grid-cols-4 lg:gap-8">
           {TEAM.map((m, i) => (
             <ParallaxItem key={m.name} factor={m.factor}>
               <Reveal delay={i * 130}>
-                <figure className={`group relative mx-auto max-w-[280px] ${m.lift}`}>
-                  {/* La niche en plein cintre : pierre crème, filet orange, portrait dans l’ouverture */}
-                  <div
-                    className="relative rounded-t-[9999px] border p-3 shadow-[0_26px_50px_-30px_rgba(34,43,53,0.45)] transition-shadow duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:shadow-[0_36px_70px_-30px_rgba(241,113,5,0.4)]"
-                    style={{ background: C.card, borderColor: C.border }}
-                  >
-                    {/* La clé de voûte, qui s’embrase au passage */}
-                    <span
-                      aria-hidden="true"
-                      className="absolute left-1/2 top-[-7px] z-10 h-3.5 w-3.5 -translate-x-1/2 rotate-45 border transition-colors duration-[700ms] ease-out [background:#fdf9f0] [border-color:#ece3d2] group-hover:[background:#f17105] group-hover:[border-color:#f17105]"
+                <figure className={`group relative mx-auto max-w-[320px] ${m.lift}`}>
+                  {/* Le portrait à nu : ni cadre crème ni lueur orange, la photo
+                      occupe toute la largeur de la carte */}
+                  <div className="relative overflow-hidden rounded-2xl shadow-[0_26px_50px_-30px_rgba(34,43,53,0.45)] transition-shadow duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:shadow-[0_36px_70px_-30px_rgba(34,43,53,0.45)]">
+                    <img
+                      src={m.img}
+                      alt={m.alt}
+                      loading="lazy"
+                      className="aspect-[9/10] w-full object-cover"
+                      style={m.imgStyle}
                     />
-
-                    <div className="rounded-t-[9999px] border-[1.5px] p-[3px] transition-colors duration-[900ms] ease-out [border-color:rgba(241,113,5,0.4)] group-hover:[border-color:#f17105]">
-                      <div className="relative overflow-hidden rounded-t-[9999px]">
-                        <img
-                          src={m.img}
-                          alt={m.alt}
-                          loading="lazy"
-                          className="aspect-[3/4.4] w-full object-cover transition-[scale] duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]"
-                        />
-                        {/* L’ombre de l’intrados : la niche a de la profondeur */}
-                        <span
-                          aria-hidden="true"
-                          className="pointer-events-none absolute inset-0 rounded-t-[9999px]"
-                          style={{
-                            boxShadow:
-                              'inset 0 24px 32px -20px rgba(34,43,53,0.42), inset 0 -16px 24px -18px rgba(34,43,53,0.3)',
-                          }}
-                        />
-                        {/* La lueur de bougie qui monte du seuil */}
-                        <span
-                          aria-hidden="true"
-                          className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-[1100ms] ease-out group-hover:opacity-100"
-                          style={{
-                            background:
-                              'radial-gradient(120% 78% at 50% 102%, rgba(252,137,5,0.3), rgba(252,137,5,0.1) 45%, rgba(252,137,5,0) 72%)',
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* La plaque gravée sur le socle, sous le portrait */}
-                    <figcaption
-                      className="mx-auto mt-3 w-fit whitespace-nowrap rounded-[5px] border px-4 py-1 font-serif text-[14px] font-bold transition-[border-color,box-shadow] duration-[700ms] ease-out group-hover:shadow-[0_10px_18px_-10px_rgba(241,113,5,0.5)] group-hover:[border-color:#f17105]"
-                      style={{ background: C.paleOrange, borderColor: 'rgba(241,113,5,0.45)', color: C.ink }}
-                    >
-                      {m.name}
-                    </figcaption>
                   </div>
+
+                  {/* Le nom gravé sur le socle, sous le portrait */}
+                  <figcaption
+                    className="mt-3.5 text-center font-serif text-[15px] font-bold leading-snug"
+                    style={{ color: C.blue }}
+                  >
+                    {m.name}
+                  </figcaption>
 
                   {/* Le cartel, comme au musée */}
                   <div className="mt-6 text-center">
                     <p
-                      className="mx-auto max-w-[260px] text-[13.5px] italic leading-[1.6]"
+                      className="mx-auto max-w-[300px] text-[13.5px] leading-[1.6]"
                       style={{ color: C.inkSoft }}
                     >
                       {m.desc}
@@ -1798,168 +2060,234 @@ function Team() {
             </ParallaxItem>
           ))}
         </div>
+
       </div>
     </section>
   );
 }
 
 /* ────────────────────────────────────────────
-   Tarifs — trois portes, aucune surprise
+   Tarifs — trois offres, aucune surprise
    ──────────────────────────────────────────── */
+
+type PlanFeature = { lead: string; detail?: string };
+
+type Plan = {
+  name: string;
+  audience: string;
+  punchline: string;
+  intro: string[];
+  features: PlanFeature[];
+  footer: string;
+  note?: string;
+  cta: string;
+  badge?: string;
+  tone: 'cream' | 'highlight' | 'blue';
+  /* Où mène le bouton. Découverte et Veille passent par la liste d’attente,
+     Multi-monuments par un courrier : rien ne s’achète en libre-service. */
+  onClick: () => void;
+};
+
+const PLANS: Plan[] = [
+  {
+    name: 'Découverte',
+    audience: 'gratuit',
+    tone: 'cream',
+    // « Trouver mes aides » : même règle que les autres CTA d'entrée, à ceci
+    // près que le chemin du visiteur est ici la liste d'attente.
+    onClick: siConnecte(goToSignup),
+    punchline: 'Trouvez toutes les aides de votre monument.',
+    intro: [
+      'Vous répondez à quelques questions sur votre monument, sa protection et votre projet. Nous croisons vos réponses avec plus de 400 aides, de l’État aux fondations, et vous rendons celles auxquelles votre projet peut prétendre, avec le taux et le plafond annoncés par chaque financeur.',
+    ],
+    features: [
+      { lead: '1 monument, 2 projets' },
+      {
+        lead: 'Pour chaque aide : critères, taux et plafond, calendrier, pièces exigées, service instructeur',
+      },
+      { lead: 'Les prix et appels à projets, cherchés au même titre que les subventions' },
+      { lead: 'La checklist des pièces réclamées par chaque financeur' },
+      {
+        lead: 'Un espace documents, classé par type, où vos pièces déposées une fois servent tous vos dossiers',
+      },
+    ],
+    footer: 'Sans carte bancaire, sans engagement.',
+    note: 'Un projet correspond à un chantier. Reprendre la couverture, c’en est un. Accueillir une compagnie en résidence, c’en est un autre. Les financeurs ne sont pas les mêmes.',
+    cta: 'Trouver mes aides',
+  },
+  {
+    name: 'Veille',
+    audience: 'pour un monument en activité',
+    tone: 'highlight',
+    badge: 'Le plus choisi',
+    onClick: goToSignup,
+    punchline: 'Vous ne cherchez plus vos aides. Elles vous sont signalées.',
+    intro: [
+      'Découverte vous donne une photo à un instant donné, pour un projet. Veille suit vos projets toute l’année et vous prévient à chaque ouverture de guichet.',
+      'Vous remplissez le questionnaire une fois. Votre profil reste actif toute l’année. Dès qu’une aide s’ouvre et que l’un de vos projets y est éligible, vous recevez l’alerte avec la date de clôture et les pièces à réunir.',
+    ],
+    features: [
+      { lead: 'Projets illimités : chaque chantier a ses propres financeurs' },
+      {
+        lead: 'L’échéancier et les rappels par e-mail, envoyés à plusieurs intervalles avant chaque clôture',
+      },
+      {
+        lead: 'Les aides à venir dévoilées dès leur annonce, pour préparer le dossier avant l’ouverture du guichet',
+      },
+      { lead: 'Invitez votre architecte, vos artisans ou un assistant sur un projet' },
+    ],
+    footer: 'Tout Découverte, plus les projets illimités, l’échéancier, les alertes et l’équipe.',
+    cta: 'Activer la veille',
+  },
+  {
+    name: 'Multi-monuments',
+    audience:
+      'pour les propriétaires de plusieurs monuments, les communes et les associations',
+    tone: 'blue',
+    badge: 'Le plus complet',
+    onClick: goToContact,
+    punchline: 'Tous vos monuments sur un seul tableau de bord.',
+    intro: [
+      'Veille couvre un monument. Multi-monuments les réunit tous.',
+      'Plusieurs monuments, autant de calendriers de dépôt et d’intervenants à coordonner. Ils tiennent dans une seule vue.',
+    ],
+    features: [
+      { lead: 'Monuments illimités, chacun avec ses projets, ses documents et son équipe' },
+      {
+        lead: 'Le tableau de bord consolidé : tous les projets, toutes les échéances, sur un seul calendrier',
+      },
+      { lead: 'Un espace documents distinct par monument, sans confusion entre deux dossiers' },
+    ],
+    footer: 'Tout Veille sur chacun de vos monuments, plus le tableau de bord consolidé.',
+    cta: 'Nous contacter',
+  },
+];
+
+/* Une carte d’offre. Trois traitements visuels (crème, mise en avant, bleu),
+   une seule structure : nom, punchline, mise en situation, bénéfices, résumé. */
+function PlanCard({ plan }: { plan: Plan }) {
+  const dark = plan.tone === 'blue';
+  const highlight = plan.tone === 'highlight';
+
+  const shell = dark
+    ? 'relative flex h-full flex-col overflow-hidden rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_30px_66px_-28px_rgba(0,0,0,0.5)]'
+    : highlight
+      ? 'relative flex h-full flex-col rounded-2xl border-[1.5px] p-8 shadow-[0_24px_60px_-28px_rgba(241,113,5,0.45)] transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_34px_72px_-26px_rgba(241,113,5,0.6)]'
+      : 'relative flex h-full flex-col rounded-2xl border p-8 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.25)]';
+
+  const shellStyle: CSSProperties = dark
+    ? { background: C.blue }
+    : highlight
+      ? { background: '#fff', borderColor: C.orange }
+      : { background: C.cream, borderColor: C.border };
+
+  const accent = dark ? C.orangeVif : highlight ? C.orange : C.blueLight;
+  const titleColor = dark ? '#fff' : C.ink;
+  const audienceColor = dark ? 'rgba(255,255,255,0.6)' : C.inkFaint;
+  const punchColor = dark ? '#fff' : C.blue;
+  const bodyColor = dark ? 'rgba(255,255,255,0.72)' : C.inkSoft;
+  const leadColor = dark ? 'rgba(255,255,255,0.95)' : C.ink;
+  const ruleColor = dark ? 'rgba(255,255,255,0.18)' : C.border;
+
+  return (
+    <div className={shell} style={shellStyle}>
+      {plan.badge && (
+        <span
+          className={
+            highlight
+              ? 'absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-4 py-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-white'
+              : 'absolute right-6 top-6 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white'
+          }
+          style={{ background: dark ? C.orangeVif : C.orange }}
+        >
+          {plan.badge}
+        </span>
+      )}
+
+      <div className="relative flex h-full flex-col">
+        <h3 className="font-serif text-[1.3rem] font-bold" style={{ color: titleColor }}>
+          {plan.name}
+        </h3>
+        <p className="mt-1 text-[13.5px]" style={{ color: audienceColor }}>
+          {plan.audience}
+        </p>
+
+        <p
+          className="mt-6 font-serif text-[1.15rem] font-bold leading-[1.35]"
+          style={{ color: punchColor }}
+        >
+          {plan.punchline}
+        </p>
+
+        {plan.intro.map((p) => (
+          <p key={p} className="mt-4 text-[14.5px] leading-[1.7]" style={{ color: bodyColor }}>
+            {p}
+          </p>
+        ))}
+
+        <ul
+          className="mt-7 flex-1 space-y-4 border-t pt-7"
+          style={{ borderColor: ruleColor }}
+        >
+          {plan.features.map((f) => (
+            <li key={f.lead} className="flex items-start gap-2.5">
+              <Check className="mt-1 h-4 w-4 shrink-0" style={{ color: accent }} strokeWidth={2.2} />
+              <span className="text-[14.5px] leading-[1.6]">
+                <span className="font-semibold" style={{ color: leadColor }}>
+                  {f.lead}
+                </span>
+                {f.detail && (
+                  <span style={{ color: bodyColor }}> {f.detail}</span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <p
+          className="mt-7 border-t pt-5 text-[13.5px] font-semibold leading-[1.6]"
+          style={{ borderColor: ruleColor, color: accent }}
+        >
+          {plan.footer}
+        </p>
+
+        {plan.note && (
+          <p className="mt-3 text-[13px] italic leading-[1.6]" style={{ color: audienceColor }}>
+            {plan.note}
+          </p>
+        )}
+
+        <CtaButton
+          variant={dark ? 'white' : highlight ? 'primary' : 'ghost'}
+          onClick={plan.onClick}
+          className="mt-7 w-full"
+        >
+          {plan.cta}
+        </CtaButton>
+      </div>
+    </div>
+  );
+}
 
 function Pricing() {
   return (
     <section
       id="tarifs"
-      className="scroll-mt-20 border-b px-5 py-20 lg:px-8 lg:py-24"
+      className="scroll-mt-20 border-y px-5 py-20 lg:px-8 lg:py-24"
       style={{ background: C.card, borderColor: C.border }}
     >
       <div className="mx-auto max-w-6xl">
         <Reveal>
-          <SectionTitle
-            kicker="Tarifs"
-            title="Commencez gratuitement, payez quand vous êtes prêt"
-            sub="L’estimation ne coûte rien. Le reste est à votre rythme : un dossier quand vous en avez un, un abonnement si vous ne voulez rien rater."
-          />
+          <SectionTitle filet={false} title="Des offres adaptées à vos besoins" />
         </Reveal>
 
         <div className="mt-14 grid items-stretch gap-6 lg:grid-cols-3">
-          {/* Découverte */}
-          <Reveal>
-            <div
-              className="flex h-full flex-col rounded-2xl border p-8 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.25)]"
-              style={{ background: C.cream, borderColor: C.border }}
-            >
-              <h3 className="font-serif text-[1.3rem] font-bold" style={{ color: C.ink }}>
-                Découverte
-              </h3>
-              <p className="mt-1 text-[14px]" style={{ color: C.inkFaint }}>
-                Pour savoir ce que votre lieu peut espérer.
-              </p>
-              <p className="mt-6 font-serif text-[2.1rem] font-bold leading-none" style={{ color: C.blue }}>
-                0 €
-              </p>
-              <p className="mt-1.5 text-[13px]" style={{ color: C.inkFaint }}>
-                pour toujours
-              </p>
-              <ul className="mt-7 flex-1 space-y-3">
-                {[
-                  'Description guidée de votre lieu et de votre projet',
-                  'Recherche parmi toutes les aides recensées',
-                  'Estimation de vos aides',
-                  'Vos chances d’obtenir ces aides',
-                  'Termes expliqués et guides pratiques',
-                ].map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-[14.5px] leading-snug" style={{ color: C.inkSoft }}>
-                    <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.blueLight }} strokeWidth={2.2} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <CtaButton variant="ghost" onClick={goToSignup} className="mt-8 w-full">
-                Estimer mes aides
-              </CtaButton>
-            </div>
-          </Reveal>
-
-          {/* Dossier */}
-          <Reveal delay={120}>
-            <div
-              className="relative flex h-full flex-col rounded-2xl border-[1.5px] p-8 shadow-[0_24px_60px_-28px_rgba(241,113,5,0.45)] transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_34px_72px_-26px_rgba(241,113,5,0.6)]"
-              style={{ background: '#fff', borderColor: C.orange }}
-            >
-              <span
-                className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-4 py-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-white"
-                style={{ background: C.orange }}
-              >
-                Pour votre projet
-              </span>
-              <h3 className="font-serif text-[1.3rem] font-bold" style={{ color: C.ink }}>
-                Dossier
-              </h3>
-              <p className="mt-1 text-[14px]" style={{ color: C.inkFaint }}>
-                Pour monter un projet solide, facilement.
-              </p>
-              <p className="mt-6 font-serif text-[1.6rem] font-bold leading-none" style={{ color: C.blue }}>
-                Paiement unique
-              </p>
-              <p className="mt-1.5 text-[13px]" style={{ color: C.inkFaint }}>
-                par projet, sans abonnement
-              </p>
-              <p className="mt-7 text-[13px] font-semibold uppercase tracking-[0.08em]" style={{ color: C.orange }}>
-                Tout Découverte, plus :
-              </p>
-              <ul className="mt-3 flex-1 space-y-3">
-                {[
-                  'Le détail de chaque aide : critères, montants, contacts',
-                  'Les dates clés de votre projet à ne pas manquer',
-                  'Un espace en ligne pour ranger vos pièces',
-                  'La checklist des pièces demandées par les financeurs',
-                  'Le téléchargement du dossier complet, prêt à transmettre',
-                ].map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-[14.5px] leading-snug" style={{ color: C.inkSoft }}>
-                    <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.orange }} strokeWidth={2.2} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <CtaButton onClick={goToSignup} className="mt-8 w-full">Monter mon dossier</CtaButton>
-            </div>
-          </Reveal>
-
-          {/* Abonnement */}
-          <Reveal delay={240}>
-            <div
-              className="relative flex h-full flex-col overflow-hidden rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_30px_66px_-28px_rgba(0,0,0,0.5)]"
-              style={{ background: C.blue }}
-            >
-              <Tracery color="#ffffff" opacity={0.03} size={160} />
-              <span
-                className="absolute right-6 top-6 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white"
-                style={{ background: C.orangeVif }}
-              >
-                Le plus complet
-              </span>
-              <div className="relative">
-                <h3 className="font-serif text-[1.3rem] font-bold text-white">Abonnement</h3>
-                <p className="mt-1 text-[14px] text-white/60">
-                  Pour piloter votre patrimoine dans la durée.
-                </p>
-                <p className="mt-6 font-serif text-[1.6rem] font-bold leading-none text-white">
-                  Mensuel
-                </p>
-                <p className="mt-1.5 text-[13px] text-white/60">tous vos projets, toute l’année</p>
-                <p className="mt-7 text-[13px] font-semibold uppercase tracking-[0.08em]" style={{ color: C.orangeVif }}>
-                  Tout Dossier, plus :
-                </p>
-                <ul className="mt-3 space-y-3">
-                  {[
-                    'La veille et les alertes : nouvelles aides, ouvertures de fondations',
-                    'Les suggestions de projets que votre lieu pourrait financer',
-                    'Le suivi d’avancement de chaque demande',
-                    'La recherche libre des mécènes et fondations',
-                    'Un espace partagé avec votre architecte ou vos artisans',
-                  ].map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-[14.5px] leading-snug text-white/80">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.orangeVif }} strokeWidth={2.2} />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <CtaButton variant="white" onClick={goToSignup} className="mt-8 w-full">
-                  Choisir l’abonnement
-                </CtaButton>
-              </div>
-            </div>
-          </Reveal>
+          {PLANS.map((p, i) => (
+            <Reveal key={p.name} delay={i * 120} className="h-full">
+              <PlanCard plan={p} />
+            </Reveal>
+          ))}
         </div>
-
-        <Reveal delay={300}>
-          <p className="mt-10 text-center text-[13.5px]" style={{ color: C.inkFaint }}>
-            Les tarifs définitifs seront annoncés au lancement. L’estimation reste gratuite, sans
-            carte bancaire.
-          </p>
-        </Reveal>
       </div>
     </section>
   );
@@ -2016,19 +2344,19 @@ function Faq() {
   const items = [
     {
       q: 'À qui s’adresse Monumia ?',
-      a: 'À tous ceux qui ont un lieu à entretenir ou à faire vivre : propriétaires privés d’un château, d’un manoir, d’un moulin ou d’une maison ancienne, associations, fondations, communes et collectivités. Si votre lieu a une histoire, Monumia peut chercher les aides qui lui correspondent.',
+      a: 'À tous ceux qui ont un lieu à entretenir ou à faire vivre : propriétaires privés, communes et collectivités.',
     },
     {
       q: 'Mon lieu n’est ni classé, ni inscrit. Ai-je quand même droit à des aides ?',
-      a: 'Très souvent, oui. Les Monuments historiques ne sont qu’une partie du paysage : les collectivités et les fondations soutiennent aussi le patrimoine non protégé, comme les églises rurales, les moulins, les lavoirs ou les maisons de caractère. Le questionnaire tient compte de la situation exacte de votre lieu.',
+      a: 'Très souvent, oui. Les Monuments historiques ne représentent qu’une petite partie du patrimoine : les monuments non protégés peuvent eux aussi bénéficier d’aides financières. Le questionnaire tient compte de la situation exacte de votre lieu.',
     },
     {
       q: 'Quels types de financements trouvez-vous ?',
-      a: 'Les aides publiques (État et DRAC, régions, départements, communes), les fondations et le mécénat d’entreprise (Fondation du patrimoine, Dassault, Crédit Agricole, French Heritage Society…), ainsi que certains dispositifs européens.',
+      a: 'Les aides publiques (État et DRAC, régions, départements, communes), les fondations et le mécénat d’entreprise (Fondation du patrimoine, Dassault, Crédit Agricole, French Heritage Society…), ainsi que certaines aides européennes.',
     },
     {
       q: 'Je ne suis pas à l’aise avec l’informatique. Est-ce pour moi ?',
-      a: 'C’est précisément pour vous que Monumia est conçu. Les questions sont posées en français courant, chaque terme technique est expliqué d’un simple survol, et le parcours avance pas à pas. Et si vous bloquez, une vraie personne vous répond par e-mail.',
+      a: 'Oui, Monumia a été pensé pour vous. Le parcours avance pas à pas, les questions sont posées en langage simple et chaque terme technique est expliqué. Et si vous êtes bloqué, nous vous répondons par e-mail.',
     },
     {
       q: 'Monumia dépose-t-il les demandes à ma place ?',
@@ -2036,11 +2364,11 @@ function Faq() {
     },
     {
       q: 'Combien ça coûte ?',
-      a: 'L’estimation est gratuite, sans carte bancaire. Pour aller au bout d’un projet, le Dossier s’achète une seule fois. Et si vous gérez votre lieu dans la durée, l’abonnement ajoute la veille, les alertes et le suivi de tous vos projets.',
+      a: 'Découverte est gratuite, sans carte bancaire : un monument, deux projets, le détail de chaque aide, l’espace documents et l’aide au montage des dossiers. Veille ajoute les projets illimités, l’échéancier, les alertes avant chaque clôture et l’invitation de collaborateurs. Multi-monuments comprend tout ce que propose Veille et réunit plusieurs monuments sur un seul tableau de bord. Pour les offres payantes, prenez rendez-vous via notre lien Calendly ou écrivez-nous par e-mail : nous en discutons ensemble et vous proposons un devis adapté.',
     },
     {
       q: 'D’où viennent vos informations ?',
-      a: 'Notre base est construite à partir des publications officielles des financeurs (administrations, collectivités, fondations) et tenue à jour en continu. Chaque fiche indique ses sources et les contacts utiles.',
+      a: 'Notre base de données est construite à partir des publications officielles des financeurs (administrations, collectivités, fondations) et tenue à jour en continu. Chaque fiche indique ses sources et les contacts utiles.',
     },
   ];
   return (
@@ -2048,9 +2376,19 @@ function Faq() {
       <div className="mx-auto max-w-3xl">
         <Reveal>
           <SectionTitle
-            kicker="Questions fréquentes"
             title="Vos questions, nos réponses"
-            sub="Et s’il en reste une, écrivez-nous : une vraie personne vous répondra."
+            sub={
+              <>
+                Pour toutes vos questions supplémentaires, merci de nous contacter :{' '}
+                <a
+                  href="mailto:contact@monumia.fr"
+                  className="underline underline-offset-4 transition-colors duration-200 hover:text-[#0a369d]"
+                  style={{ color: C.orange }}
+                >
+                  contact@monumia.fr
+                </a>
+              </>
+            }
           />
         </Reveal>
         <div className="mt-12 space-y-4">
@@ -2077,31 +2415,15 @@ function FinalCta() {
           className="relative mx-auto max-w-4xl overflow-hidden rounded-3xl px-7 py-16 text-center shadow-[0_30px_70px_-35px_rgba(10,54,157,0.55)] sm:px-16 sm:py-20"
           style={{ background: C.blue }}
         >
-          <Tracery color="#ffffff" opacity={0.03} size={180} />
-          <Clover
-            className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 opacity-[0.07] [animation:spin-slow_90s_linear_infinite]"
-            strokeWidth={4}
-            style={{ color: C.orange }}
-          />
-          <Clover
-            className="pointer-events-none absolute -bottom-20 -left-16 h-48 w-48 opacity-[0.06]"
-            strokeWidth={4}
-            style={{ color: C.blueLight }}
-          />
-
           <div className="relative">
-            <h2 className="mx-auto max-w-2xl font-serif text-[clamp(1.9rem,3.6vw,2.5rem)] leading-[1.2] text-white">
-              Et si votre monument pouvait être financé bien au-delà de ce que vous imaginez ?
+            <h2 className="mx-auto max-w-3xl font-serif text-[clamp(1.9rem,3.6vw,2.5rem)] leading-[1.2] text-white">
+              Mobilisez enfin toutes les aides pour restaurer, ouvrir ou animer votre monument.
             </h2>
-            <p className="mx-auto mt-5 max-w-md text-[16px] leading-[1.7] text-white/75">
-              Décrivez votre lieu, découvrez votre estimation. C’est gratuit, et cela ne prend que
-              quelques minutes.
-            </p>
             <div className="mt-9">
-              <CtaButton onClick={goToSignup}>Me tenir informé du lancement</CtaButton>
+              <CtaButton onClick={entrerDansMonumia}>Trouver les aides pour mon monument</CtaButton>
             </div>
             <p className="mt-5 text-[13px] uppercase tracking-[0.12em] text-white/60">
-              Sans carte bancaire · Sans engagement
+              Gratuit · Sans engagement
             </p>
           </div>
         </div>
@@ -2122,12 +2444,14 @@ function Footer() {
                 Monumia
               </span>
             </div>
-            <p className="mt-4 font-serif text-[15px] italic" style={{ color: C.inkSoft }}>
-              « Au service de celles et ceux qui font vivre le patrimoine bâti»
+            <p className="mt-4 font-serif text-[15px]" style={{ color: C.ink }}>
+              Toutes les aides au patrimoine. Un seul endroit.
             </p>
-            <p className="mt-3 max-w-xs text-[14px] leading-[1.7]" style={{ color: C.inkFaint }}>
-              Des outils simples pour trouver les financements de votre patrimoine et le faire
-              vivre. Conçu en France.
+            <p className="mt-3 max-w-xs font-serif text-[14px] italic leading-[1.7]" style={{ color: C.inkSoft }}>
+              « Au service de celles et ceux qui font vivre le patrimoine bâti. »
+            </p>
+            <p className="mt-3 text-[14px]" style={{ color: C.inkFaint }}>
+              Conçu en France.
             </p>
           </div>
 
@@ -2138,6 +2462,7 @@ function Footer() {
             <ul className="mt-4 space-y-2.5">
               {[
                 ['#methode', 'Comment ça marche'],
+                ['#exemple', 'Exemple'],
                 ['#equipe', 'L’équipe'],
                 ['#tarifs', 'Tarifs'],
                 ['#faq', 'Questions fréquentes'],
@@ -2209,14 +2534,14 @@ function Footer() {
             © {new Date().getFullYear()} Monumia. Tous droits réservés.
           </p>
           <p className="text-[12.5px]" style={{ color: C.inkFaint }}>
-            Photo du château de Trévarez :{' '}
+            Photo du château de Paley :{' '}
             <a
-              href="https://commons.wikimedia.org/wiki/File:Ch%C3%A2teau_de_Tr%C3%A9varez_aile_Ouest,_Saint-Goazec_(29).jpg"
+              href="https://www.fondation-patrimoine.org/les-projets/chateau-de-paley/105079"
               target="_blank"
               rel="noopener noreferrer"
               className="underline transition-colors duration-200 hover:text-[#0a369d]"
             >
-              DomFelga
+              Fondation Patrimoine
             </a>
             {', '}
             <a
@@ -2251,9 +2576,12 @@ export function LandingPage() {
       <Header />
       <main id="contenu">
         <Hero />
+        <Constat />
         <Demo />
-        <Pricing />
+        <RapportSenat />
+        <Exemple />
         <Team />
+        <Pricing />
         <Faq />
         <FinalCta />
       </main>

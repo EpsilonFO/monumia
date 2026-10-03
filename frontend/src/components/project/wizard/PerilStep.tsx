@@ -1,4 +1,5 @@
 import { CadrageStep, CadrageTile } from './CadrageStep';
+import { PERIL_RATTRAPAGE_STEP } from './etapes';
 import { ETATS_CONSERVATION, type EtatConservation } from '@/constants/monument-options';
 
 const HINTS: Record<EtatConservation, string> = {
@@ -15,8 +16,6 @@ interface PerilStepProps {
   onNext: () => void;
   /** Absent quand l'écran ouvre le parcours : il n'y a rien derrière. */
   onBack?: () => void;
-  /** Surtitre : « Nouveau monument », « Nouveau projet »… selon le parcours. */
-  eyebrow: string;
   saving?: boolean;
 }
 
@@ -40,35 +39,28 @@ export function PerilStep({
   onChange,
   onNext,
   onBack,
-  eyebrow,
   saving,
 }: PerilStepProps) {
   return (
     <CadrageStep
-      eyebrow={eyebrow}
+      rubrique={PERIL_RATTRAPAGE_STEP.label}
       title="Quel est l'état du monument ?"
-      intro="En péril ou en mauvais état général : structure fragilisée, hors d'eau non assuré, effondrement partiel, désordres qui s'aggravent. Plusieurs dispositifs d'urgence ne s'adressent qu'à ces situations."
+      pourquoi="En péril ou en mauvais état général : structure fragilisée, hors d'eau non assuré, effondrement partiel, désordres qui s'aggravent. Plusieurs dispositifs d'urgence ne s'adressent qu'à ces situations."
       onNext={onNext}
       onBack={onBack}
       nextDisabled={value === null}
       nextHint="Choisissez une réponse."
       saving={saving}
     >
-      <div
-        role="radiogroup"
-        aria-label="Quel est l'état du monument ?"
-        className="grid grid-cols-1 gap-2.5 sm:grid-cols-2"
-      >
-        {ETATS_CONSERVATION.map((etat) => (
-          <CadrageTile
-            key={etat.value}
-            label={etat.label}
-            hint={HINTS[etat.value]}
-            selected={value === etat.value}
-            onSelect={() => onChange(etat.value)}
-          />
-        ))}
-      </div>
+      {ETATS_CONSERVATION.map((etat) => (
+        <CadrageTile
+          key={etat.value}
+          label={etat.label}
+          hint={HINTS[etat.value]}
+          selected={value === etat.value}
+          onSelect={() => onChange(etat.value)}
+        />
+      ))}
     </CadrageStep>
   );
 }

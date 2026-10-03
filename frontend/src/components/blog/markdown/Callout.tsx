@@ -30,14 +30,14 @@ export function Callout({ node, children }: BlockProps) {
       <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: t.node }} aria-hidden />
       <div className="flex gap-3.5 px-5 py-4 pl-6">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: t.tint, color: t.fg }}>
-          <Icon className="h-[18px] w-[18px]" aria-hidden />
+          <Icon className="h-[20.5px] w-[20.5px]" aria-hidden />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: t.fg }}>
+          <p className="text-[13px] font-semibold uppercase tracking-[0.18em]" style={{ color: t.fg }}>
             {title}
           </p>
           <div
-            className="mt-1.5 text-[14.5px] leading-relaxed [&_a]:font-medium [&_a]:text-[#f17105] [&_a]:underline [&_p]:mt-2 [&_p:first-child]:mt-0 [&_strong]:font-semibold [&_strong]:text-[#222b35] [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5"
+            className="mt-1.5 text-[16.5px] leading-relaxed [&_a]:font-medium [&_a]:text-[#f17105] [&_a]:underline [&_p]:mt-2 [&_p:first-child]:mt-0 [&_strong]:font-semibold [&_strong]:text-[#222b35] [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5"
             style={{ color: C.ink }}
           >
             {children}

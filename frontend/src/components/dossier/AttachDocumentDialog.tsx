@@ -1,47 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Loader2, X } from 'lucide-react';
-import { IconDocument, IconRecherche, IconDepot, IconTelechargementMonumia } from '@/components/icons';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { cn } from '@/lib/utils';
-import { formatFileSize } from '@/lib/format-utils';
+import { Dialog as DialogPrimitive } from 'radix-ui';
+import { Picto } from '@/components/shared/ecrans/Picto';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { ACCEPT_ATTR, MAX_FILE_SIZE_MB, validateFile } from '@/constants/file-types';
+import { TYPES_DOSSIERS, dossierLabel } from '@/lib/document-type-meta';
+import { formatFichier, tailleFichier } from '@/lib/document-fichier';
+import { estImage, nomDepuisFichier } from '@/lib/documents-espace';
 import { toast } from 'sonner';
 import type { Document, DocumentType } from '@/types';
-
-const TYPE_LABELS: Record<DocumentType, string> = {
-  photo: 'Photo',
-  plan: 'Plan',
-  devis: 'Devis',
-  facture: 'Facture',
-  attestation: 'Attestation',
-  extrait_cadastral: 'Extrait cadastral',
-  cerfa: 'CERFA',
-  arrete: 'Arrêté',
-  diagnostic: 'Diagnostic',
-  rapport: 'Rapport',
-  correspondance: 'Correspondance',
-  autre: 'Autre',
-};
+import '@/components/document/documents.css';
 
 interface AttachDocumentDialogProps {
   open: boolean;
@@ -53,8 +21,14 @@ interface AttachDocumentDialogProps {
    *  déposée appartient au chantier, pas au monument — c'est ce qui la garde
    *  hors de vue de qui n'est pas sur ce chantier. */
   projetId?: string;
-  /** Default name suggested when uploading (the checklist item label). */
+  /** Nom proposé pour un nouveau fichier (le libellé de la pièce du dossier).
+   *  Il sert aussi de sous-titre : « Pour la pièce … ». */
   defaultName?: string;
+  /** Pièce du référentiel que le nouveau fichier incarne : il la porte, et les
+   *  autres dossiers pourront le reprendre. */
+  pieceId?: string;
+  /** Dossier présélectionné pour un nouveau fichier. */
+  typeParDefaut?: DocumentType | null;
   /** Called with the chosen document (either existing or freshly uploaded). */
   onAttach: (document: Document) => Promise<void> | void;
   /** Called only after a FRESH upload (pas la sélection d'un doc existant) —
@@ -62,12 +36,19 @@ interface AttachDocumentDialogProps {
   onUploaded?: (document: Document) => void;
 }
 
+/**
+ * « Joindre un document » : choisir parmi ceux qu'on voit déjà (Mes documents),
+ * ou importer un nouveau fichier. Même habillage que la fenêtre d'ajout
+ * (`UploadDocumentDialog`, `.dmodal`) ; le métier est celui d'avant.
+ */
 export function AttachDocumentDialog({
   open,
   onOpenChange,
   monumentId,
   projetId,
   defaultName,
+  pieceId,
+  typeParDefaut,
   onAttach,
   onUploaded,
 }: AttachDocumentDialogProps) {
@@ -80,15 +61,15 @@ export function AttachDocumentDialog({
   const [scope, setScope] = useState<'monument' | 'all'>('all');
   const [attachingId, setAttachingId] = useState<string | null>(null);
 
-  // Upload form state
+  // Nouveau fichier
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [nom, setNom] = useState('');
   const [type, setType] = useState<DocumentType | ''>('');
   const [description, setDescription] = useState('');
+  const [survol, setSurvol] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // Reset on open
   useEffect(() => {
     if (open) {
       fetchDocuments();
@@ -96,10 +77,14 @@ export function AttachDocumentDialog({
       setScope('all');
       setFile(null);
       setNom(defaultName ?? '');
-      setType('');
+      setType(typeParDefaut ?? '');
       setDescription('');
+      setSurvol(false);
     }
-  }, [open, monumentId, defaultName, fetchDocuments]);
+    // Lus à l'ouverture seulement : une mise à jour du store pendant la saisie
+    // ne doit pas écraser ce qui est en cours.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const filtered = useMemo(() => {
     let docs = documents;
@@ -120,6 +105,8 @@ export function AttachDocumentDialog({
     return docs;
   }, [documents, scope, monumentId, projetId, search]);
 
+  const occupe = uploading || !!attachingId;
+
   const handleSelectExisting = async (doc: Document) => {
     setAttachingId(doc.id);
     try {
@@ -139,9 +126,7 @@ export function AttachDocumentDialog({
       return;
     }
     setFile(candidate);
-    if (!nom) {
-      setNom(candidate.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' '));
-    }
+    if (!nom.trim()) setNom(nomDepuisFichier(candidate.name));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,27 +137,27 @@ export function AttachDocumentDialog({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    setSurvol(false);
     const dropped = e.dataTransfer.files[0];
     if (dropped) acceptFile(dropped);
   };
 
-  const handleUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleUpload = async () => {
     if (!file || !nom.trim() || !type || !user) return;
-
     setUploading(true);
     try {
       const doc = await uploadDocument(
         {
           file,
           nom: nom.trim(),
-          type: type as DocumentType,
+          type,
           // Le projet prime : déposer une pièce depuis un chantier ne doit pas
           // la rattacher au monument, où toute son équipe la verrait.
           monumentIds: projetId ? undefined : monumentId ? [monumentId] : undefined,
           projetIds: projetId ? [projetId] : undefined,
           description: description.trim() || undefined,
           tags: [],
+          pieceId,
         },
         user.id,
       );
@@ -186,221 +171,169 @@ export function AttachDocumentDialog({
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Ajouter un document</DialogTitle>
-        </DialogHeader>
+  const manque = [!type && 'le dossier', !nom.trim() && 'le nom'].filter(Boolean);
+  const format = file ? formatFichier(file.name) : '';
 
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-5 pr-1">
-          {/* 1 — Téléverser un nouveau document */}
-          <section className="space-y-3">
-            <h3 className="text-[13px] font-semibold text-foreground">Téléverser un nouveau document</h3>
-            <form onSubmit={handleUpload} className="space-y-3">
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                onDrop={handleDrop}
-                onDragOver={(e) => e.preventDefault()}
-                className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
-              >
-                <input ref={fileInputRef} type="file" accept={ACCEPT_ATTR} className="hidden" onChange={handleFileChange} />
-                {file ? (
-                  <div className="flex items-center justify-between gap-3 text-left">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <IconDocument className="h-8 w-8 text-primary shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{file.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFile(null);
-                      }}
-                      className="text-muted-foreground hover:text-foreground shrink-0"
-                    >
-                      <X className="h-4 w-4" />
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o && !occupe) onOpenChange(false); }}>
+      <DialogPrimitive.Portal>
+        <div className="ec">
+          <DialogPrimitive.Overlay className="dov">
+            <DialogPrimitive.Content className="dmodal" aria-describedby={undefined}>
+              <div className="m-h">
+                <div>
+                  <DialogPrimitive.Title asChild><h2>Joindre un document</h2></DialogPrimitive.Title>
+                  <p className="m-sub">
+                    {defaultName ? `Pour la pièce « ${defaultName} ». ` : ''}
+                    Choisissez parmi vos documents, ou importez un nouveau fichier.
+                  </p>
+                </div>
+                <DialogPrimitive.Close asChild>
+                  <button className="x" type="button" aria-label="Fermer" disabled={occupe}>
+                    <Picto nom="croix" />
+                  </button>
+                </DialogPrimitive.Close>
+              </div>
+
+              <div className="fld">
+                <span className="lb">Vos documents</span>
+                <label className="jsearch">
+                  <span className="sr">Rechercher dans vos documents</span>
+                  <Picto nom="loupe" />
+                  <input
+                    type="search"
+                    placeholder="Rechercher dans vos documents"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </label>
+                {(projetId || monumentId) && (
+                  <div className="tps jscope">
+                    <button type="button" className="tp" aria-pressed={scope === 'all'} onClick={() => setScope('all')}>
+                      Tous mes documents
+                    </button>
+                    <button type="button" className="tp" aria-pressed={scope === 'monument'} onClick={() => setScope('monument')}>
+                      {projetId ? 'Ce projet uniquement' : 'Ce monument uniquement'}
                     </button>
                   </div>
+                )}
+                <div className="jlist">
+                  {loading ? (
+                    <p className="jvide">Chargement de vos documents…</p>
+                  ) : filtered.length === 0 ? (
+                    <p className="jvide">
+                      {search.trim() ? 'Aucun document trouvé. Essayez un autre mot.' : 'Aucun document pour l’instant : importez-en un ci-dessous.'}
+                    </p>
+                  ) : (
+                    filtered.map((doc) => {
+                      const fmt = formatFichier(doc.nomFichier);
+                      return (
+                        <button
+                          key={doc.id}
+                          type="button"
+                          className="jrow"
+                          disabled={occupe}
+                          onClick={() => handleSelectExisting(doc)}
+                        >
+                          <span className={`ext${estImage(fmt, doc.mimeType) ? ' img' : ''}`}>{fmt}</span>
+                          <span className="jnom">
+                            <b>{doc.nom}</b>
+                            <small>{dossierLabel(doc.type)} · {tailleFichier(doc.tailleFichier)}</small>
+                          </span>
+                          <span className="jgo">{attachingId === doc.id ? 'Ajout…' : 'Choisir'}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="fld">
+                <span className="lb">Ou un nouveau fichier</span>
+                <input ref={fileInputRef} type="file" accept={ACCEPT_ATTR} hidden onChange={handleFileChange} />
+                {file ? (
+                  <>
+                    <div className="fchip">
+                      <span className={`ext${estImage(format, file.type) ? ' img' : ''}`}>{format}</span>
+                      <div>
+                        <b>{file.name}</b>
+                        <small>{tailleFichier(file.size)}</small>
+                      </div>
+                      <button type="button" onClick={() => fileInputRef.current?.click()} disabled={occupe}>Changer</button>
+                    </div>
+                    <div className="fld">
+                      <span className="lb">Dans quel dossier le ranger ?</span>
+                      <div className="tps">
+                        {TYPES_DOSSIERS.map((t) => (
+                          <button key={t} type="button" className="tp" aria-pressed={type === t} onClick={() => setType(t)}>
+                            {dossierLabel(t)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="fld">
+                      <label htmlFor="joindre-nom">Nom du document</label>
+                      <input
+                        id="joindre-nom"
+                        className="txt"
+                        placeholder="Ex. : Devis restauration toiture"
+                        autoComplete="off"
+                        value={nom}
+                        onChange={(e) => setNom(e.target.value)}
+                      />
+                    </div>
+                    <div className="fld">
+                      <details className="note">
+                        <summary><Picto nom="plus" />Ajouter une note</summary>
+                        <textarea
+                          className="area"
+                          aria-label="Note"
+                          placeholder="Ex. : devis de l'entreprise Martin, reçu le 12 septembre"
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                        />
+                      </details>
+                    </div>
+                  </>
                 ) : (
-                  <div className="space-y-2">
-                    <IconTelechargementMonumia className="h-8 w-8 text-muted-foreground mx-auto" />
-                    <p className="text-sm text-muted-foreground">
-                      Glissez un fichier ici ou <span className="text-primary font-medium">parcourez</span>
-                    </p>
-                    <p className="text-[11px] text-muted-foreground/70">
-                      PDF, images, Word, Excel, CSV · max {MAX_FILE_SIZE_MB} Mo
-                    </p>
+                  <div
+                    className={`dz jdz${survol ? ' over' : ''}`}
+                    onDragEnter={(e) => { e.preventDefault(); setSurvol(true); }}
+                    onDragOver={(e) => { e.preventDefault(); setSurvol(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); setSurvol(false); }}
+                    onDrop={handleDrop}
+                  >
+                    <p>Glissez le fichier ici</p>
+                    <small>PDF, photo, Word, Excel ou CSV, jusqu'à {MAX_FILE_SIZE_MB} Mo</small>
+                    <button className="btn b-line b-sm" type="button" onClick={() => fileInputRef.current?.click()}>
+                      Choisir sur l'ordinateur
+                    </button>
                   </div>
                 )}
               </div>
 
-              {/* Détails + bouton d'import : seulement une fois un fichier choisi. */}
-              {file && (
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="attach-nom">Nom du document *</Label>
-                    <Input
-                      id="attach-nom"
-                      placeholder="Ex : Devis restauration toiture"
-                      value={nom}
-                      onChange={(e) => setNom(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label>Type *</Label>
-                    <Select value={type} onValueChange={(v) => setType(v as DocumentType)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choisir..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.entries(TYPE_LABELS) as [DocumentType, string][]).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="attach-description">
-                      Description <span className="text-muted-foreground font-normal">(optionnel)</span>
-                    </Label>
-                    <Textarea
-                      id="attach-description"
-                      placeholder="Courte description…"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      rows={2}
-                    />
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button type="submit" disabled={!file || !nom.trim() || !type || uploading}>
-                      {uploading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Import en cours…
-                        </>
-                      ) : (
-                        <>
-                          <IconDepot className="h-4 w-4 mr-2" />
-                          Importer et rattacher
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </form>
-          </section>
-
-          {/* Séparation claire entre « téléverser » et « choisir un existant ». */}
-          <div className="flex items-center gap-3">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              ou choisir parmi mes documents
-            </span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
-          {/* 2 — Choisir un document existant (« Mes documents ») */}
-          <section className="space-y-3">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="pl-9"
-                  placeholder="Rechercher dans mes documents..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+              <div className="m-f">
+                <span className="hint">
+                  {uploading ? 'Import en cours…' : file && manque.length ? `Il manque ${manque.join(' et ')}.` : ''}
+                </span>
+                <button className="ghost" type="button" onClick={() => onOpenChange(false)} disabled={occupe}>
+                  {file ? 'Annuler' : 'Fermer'}
+                </button>
+                {file && (
+                  <button
+                    className="btn b-orange"
+                    type="button"
+                    disabled={manque.length > 0 || occupe}
+                    onClick={handleUpload}
+                  >
+                    <Picto nom="envoyer" />Importer et joindre
+                  </button>
+                )}
               </div>
-              {(projetId || monumentId) && (
-                <Select value={scope} onValueChange={(v) => setScope(v as 'monument' | 'all')}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous mes documents</SelectItem>
-                    <SelectItem value="monument">
-                      {projetId ? 'Ce projet uniquement' : 'Ce monument uniquement'}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
-            <div className="max-h-64 overflow-y-auto border rounded-lg">
-              {loading ? (
-                <div className="flex items-center justify-center py-10">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
-                  <IconDocument className="h-8 w-8 opacity-50" />
-                  <p className="text-sm text-center px-4">
-                    Aucun document existant — utilisez la zone de téléversement ci-dessus.
-                  </p>
-                </div>
-              ) : (
-                <ul className="divide-y">
-                  {filtered.map((doc) => {
-                    const busy = attachingId === doc.id;
-                    return (
-                      <li key={doc.id}>
-                        <button
-                          type="button"
-                          disabled={!!attachingId}
-                          onClick={() => handleSelectExisting(doc)}
-                          className={cn(
-                            'w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/50 transition-colors',
-                            attachingId && !busy && 'opacity-50 cursor-not-allowed',
-                          )}
-                        >
-                          <IconDocument className="h-5 w-5 text-muted-foreground shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium truncate">{doc.nom}</span>
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
-                                {TYPE_LABELS[doc.type] ?? doc.type}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {doc.nomFichier} · {formatFileSize(doc.tailleFichier)}
-                            </p>
-                          </div>
-                          {busy ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
-                          ) : (
-                            <Check className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                          )}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </section>
+            </DialogPrimitive.Content>
+          </DialogPrimitive.Overlay>
         </div>
-
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={uploading || !!attachingId}
-          >
-            Fermer
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

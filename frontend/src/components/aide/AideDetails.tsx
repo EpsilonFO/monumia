@@ -25,12 +25,21 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
+import { QuestionOptions } from '@/components/project/wizard/QuestionOptions';
 import { AIDE_CATEGORIES, AIDE_TYPES } from '@/constants/aide-categories';
+import { questionsPourAide } from '@/lib/diagnostic-bilan';
 import { formatCurrency } from '@/lib/format-utils';
 import { deadlineLabel } from '@/lib/date-utils';
 import { C, SERIF, DEADLINE_TONE } from '@/lib/brand';
 import { getEligibilityStatus, STATUS_BADGE } from './eligibility-status';
-import type { Aide, AideDocument, AideLevier, AideMatchResult } from '@/types';
+import type {
+  Aide,
+  AideDocument,
+  AideLevier,
+  AideMatchResult,
+  ProjectQuestionnaireAnswers,
+  QcmQuestion,
+} from '@/types';
 
 export const decodeHtml = (text: string | null | undefined): string => {
   if (!text) return '';
@@ -48,6 +57,23 @@ interface AideDetailsProps {
   showDocumentsRequis?: boolean;
   /** Contenu rendu dans la colonne de droite, sous la fiche « L'essentiel ». */
   aside?: ReactNode;
+  /**
+   * Répondre depuis la fiche. Même contrat que sur la carte : sans
+   * `onRepondre`, l'analyse reste en lecture seule (c'est le cas d'un
+   * collaborateur sans droit d'écriture, et du parcours invité).
+   */
+  questions?: QcmQuestion[];
+  answers?: ProjectQuestionnaireAnswers;
+  onRepondre?: (factKey: string, value: string | string[] | undefined) => void;
+  envoiEnCours?: boolean;
+}
+
+/** Ce qu'il faut pour poser une question dans l'analyse — rien ou tout. */
+interface ReponseEnPlace {
+  questions?: QcmQuestion[];
+  answers?: ProjectQuestionnaireAnswers;
+  onRepondre?: (factKey: string, value: string | string[] | undefined) => void;
+  envoiEnCours?: boolean;
 }
 
 type IconType = ComponentType<{ className?: string; strokeWidth?: number; style?: React.CSSProperties }>;
@@ -75,14 +101,14 @@ function SectionCard({ icon: Icon, title, tint = 'plain', children }: {
         boxShadow: 'var(--shadow-card)',
       }}
     >
-      <h3 className="mb-3.5 flex items-center gap-2.5 text-[17px]" style={{ fontFamily: SERIF, color: C.ink }}>
+      <h3 className="mb-3.5 flex items-center gap-2.5 text-[19px]" style={{ fontFamily: SERIF, color: C.ink }}>
         <span
           className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
           style={success
             ? { background: 'var(--success)', color: 'var(--success-foreground)' }
             : { background: 'var(--secondary)', color: 'var(--primary)' }}
         >
-          <Icon className="h-[16px] w-[16px]" strokeWidth={2} />
+          <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
         </span>
         {title}
       </h3>
@@ -104,18 +130,18 @@ function EnBref({ text }: { text: string }) {
 
   return (
     <div className="space-y-2.5">
-      {lead && <p className="text-[18px] leading-snug" style={{ fontFamily: SERIF, color: C.ink }}>{lead}</p>}
+      {lead && <p className="text-[20.5px] leading-snug" style={{ fontFamily: SERIF, color: C.ink }}>{lead}</p>}
       {body && (
         <>
           <p
-            className={`text-[14.5px] leading-relaxed whitespace-pre-line text-muted-foreground ${!open && longBody ? 'line-clamp-3' : ''}`}
+            className={`text-[16.5px] leading-relaxed whitespace-pre-line text-muted-foreground ${!open && longBody ? 'line-clamp-3' : ''}`}
           >
             {body}
           </p>
           {longBody && (
             <button
               onClick={() => setOpen((o) => !o)}
-              className="text-[13px] font-semibold text-primary hover:underline"
+              className="text-[15px] font-semibold text-primary hover:underline"
             >
               {open ? 'Réduire' : 'Lire la suite'}
             </button>
@@ -141,7 +167,7 @@ function CountPill({ icon: Icon, tone, children }: { icon: IconType; tone: 'succ
     destructive: 'bg-destructive-muted text-destructive',
   } as const;
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-semibold ${map[tone]}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[15px] font-semibold ${map[tone]}`}>
       <Icon className="h-3.5 w-3.5" strokeWidth={2} />
       {children}
     </span>
@@ -188,11 +214,11 @@ function LevierPlan({ levier }: { levier: AideLevier }) {
         <span style={{ color: C.ink }}>{levier.critere}</span>
       </div>
       <div className="space-y-1.5 pl-6">
-        <p className="text-[13px] font-medium leading-snug" style={{ color: C.ink }}>
+        <p className="text-[15px] font-medium leading-snug" style={{ color: C.ink }}>
           {levier.resume}
         </p>
         {levier.ecart && (
-          <p className="text-[12.5px] font-semibold text-info">{levier.ecart}</p>
+          <p className="text-[14.5px] font-semibold text-info">{levier.ecart}</p>
         )}
         {levier.demarche && (
           <p className="text-xs leading-relaxed text-muted-foreground">{levier.demarche}</p>
@@ -272,8 +298,8 @@ function EvalGroup({ icon: Icon, tone, title, count, defaultOpen = false, childr
         <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: t.bg, color: t.fg }}>
           <Icon className="h-4 w-4" strokeWidth={2} />
         </span>
-        <span className="flex-1 text-[14px] font-semibold leading-snug" style={{ color: C.ink }}>{title}</span>
-        <span className="rounded-full px-2.5 py-0.5 text-[12px] font-bold tabular-nums" style={{ background: t.bg, color: t.fg }}>
+        <span className="flex-1 text-[16px] font-semibold leading-snug" style={{ color: C.ink }}>{title}</span>
+        <span className="rounded-full px-2.5 py-0.5 text-[14px] font-bold tabular-nums" style={{ background: t.bg, color: t.fg }}>
           {count}
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -289,11 +315,37 @@ function EvalGroup({ icon: Icon, tone, title, count, defaultOpen = false, childr
  * Détail de l'analyse, groupé selon la nature des conditions. Si aucune
  * évaluation ne porte de `nature`, bascule sur un rendu à plat.
  */
-function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) {
+function EligibilityAnalysis({
+  matchResult,
+  questions,
+  answers,
+  onRepondre,
+  envoiEnCours,
+}: { matchResult: AideMatchResult } & ReponseEnPlace) {
   const evals: Evaluation[] = matchResult.llmEvaluation?.evaluations ?? [];
   const eliminatoires = matchResult.criteresNonRemplis ?? [];
   const leviers = matchResult.leviers ?? [];
   const hasNature = evals.some((e) => !!e.nature);
+
+  // SOURCE DE VÉRITÉ des questions de cette aide : `q.aideIds`, jamais
+  // `evaluations[].categorie`. Une condition bloquée par une passerelle
+  // `applies_if` n'a pas de `categorie` quand son propre fait est connu
+  // (eligibility_engine.py) : s'appuyer sur elle laisserait des questions
+  // invisibles, alors qu'elles sont ce qui sépare l'aide d'un verdict.
+  const restantes =
+    onRepondre && questions ? questionsPourAide(matchResult.aide.id, questions, answers ?? {}) : [];
+  const parFait = new Map(restantes.map((q) => [q.id, q]));
+  const poser = (q: QcmQuestion, sousUnCritere = false) => (
+    <div className={sousUnCritere ? 'pl-6 pt-1' : 'pt-0.5'}>
+      <QuestionOptions
+        question={q}
+        value={answers?.[q.id]}
+        onAnswer={(v) => onRepondre?.(q.id, v)}
+        compact
+        disabled={envoiEnCours}
+      />
+    </div>
+  );
 
   if (!hasNature) {
     return (
@@ -322,6 +374,14 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
   const valides = evals.filter((e) => e.nature === 'user_fact' && (e.verdict === 'oui' || isClarified(e)));
   const autos = evals.filter((e) => e.nature === 'auto' && e.verdict === 'oui');
 
+  // Appariement question ↔ critère affiché. On le calcule AVANT le rendu : une
+  // question posée deux fois (sous son critère et dans les orphelines) ferait
+  // deux formulaires concurrents pour un seul fait.
+  const appariees = new Set(
+    aVerifier.map((e) => e.categorie).filter((k): k is string => !!k && parFait.has(k)),
+  );
+  const orphelines = restantes.filter((q) => !appariees.has(q.id));
+
   return (
     <div className="space-y-2.5">
       {eliminatoires.length > 0 && (
@@ -336,7 +396,26 @@ function EligibilityAnalysis({ matchResult }: { matchResult: AideMatchResult }) 
       )}
       {aVerifier.length > 0 && (
         <EvalGroup icon={IconHelp} tone="amber" title="À vérifier de votre côté" count={aVerifier.length} defaultOpen>
-          {aVerifier.map((e, i) => <EvalLine key={i} critere={e.critere} tone="amber" />)}
+          {aVerifier.map((e, i) => {
+            const q = e.categorie ? parFait.get(e.categorie) : undefined;
+            return (
+              <div key={i} className="space-y-1">
+                <EvalLine critere={e.critere} tone="amber" />
+                {q && poser(q, true)}
+              </div>
+            );
+          })}
+        </EvalGroup>
+      )}
+      {/* Les questions de l'aide qu'aucun critère affiché ne porte : conditions
+          suspendues à une passerelle, dont l'évaluation n'a pas de `categorie`.
+          Sans ce bloc elles resteraient invisibles ici alors même qu'elles
+          gouvernent le verdict. */}
+      {orphelines.length > 0 && (
+        <EvalGroup icon={IconHelp} tone="amber" title="Précisez votre situation" count={orphelines.length} defaultOpen>
+          {orphelines.map((q) => (
+            <div key={q.id}>{poser(q)}</div>
+          ))}
         </EvalGroup>
       )}
       {aConfirmer.length > 0 && (
@@ -459,12 +538,12 @@ function RuleGroup({ group, items, open, onOpenChange, query }: {
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
-            <span className="text-[15px] font-semibold leading-snug" style={{ color: C.ink }}>{group.title}</span>
-            <span className="rounded-full px-2 py-0.5 text-[11.5px] font-bold tabular-nums" style={{ background: t.bg, color: t.fg }}>
+            <span className="text-[17px] font-semibold leading-snug" style={{ color: C.ink }}>{group.title}</span>
+            <span className="rounded-full px-2 py-0.5 text-[13.5px] font-bold tabular-nums" style={{ background: t.bg, color: t.fg }}>
               {items.length}
             </span>
           </span>
-          <span className="mt-0.5 block text-[12.5px] leading-snug" style={{ color: 'var(--gray-fg)' }}>{group.hint}</span>
+          <span className="mt-0.5 block text-[14.5px] leading-snug" style={{ color: 'var(--gray-fg)' }}>{group.hint}</span>
         </span>
         <ChevronDown className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>
@@ -472,11 +551,11 @@ function RuleGroup({ group, items, open, onOpenChange, query }: {
         <ul className="mb-1 divide-y pl-10" style={{ borderColor: C.border }}>
           {items.map((e, i) => (
             <li key={i} className="py-2.5 first:border-t first:pt-3" style={{ borderColor: C.border }}>
-              <p className="text-[14px] leading-relaxed" style={{ color: C.ink }}>
+              <p className="text-[16px] leading-relaxed" style={{ color: C.ink }}>
                 <Highlight text={e.critere} query={query} />
               </p>
               {perLineExpl && e.explication && (
-                <p className="mt-0.5 text-[12.5px] leading-relaxed" style={{ color: 'var(--gray-fg)' }}>{e.explication}</p>
+                <p className="mt-0.5 text-[14.5px] leading-relaxed" style={{ color: 'var(--gray-fg)' }}>{e.explication}</p>
               )}
             </li>
           ))}
@@ -517,13 +596,13 @@ function RulesReference({ matchResult }: { matchResult: AideMatchResult }) {
     <SectionCard icon={IconRegle} title="Le règlement de cette aide">
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[13.5px] leading-snug" style={{ color: 'var(--gray-fg)' }}>
+          <p className="text-[15.5px] leading-snug" style={{ color: 'var(--gray-fg)' }}>
             {total} point{total > 1 ? 's' : ''} issu{total > 1 ? 's' : ''} du règlement officiel. Aucun ne décide de votre
             éligibilité&nbsp;: ils servent à préparer le dossier.
           </p>
           <button
             onClick={() => setOverrides(Object.fromEntries(groups.map((g) => [g.group.nature, !allOpen])))}
-            className="shrink-0 text-[13px] font-semibold text-primary hover:underline"
+            className="shrink-0 text-[15px] font-semibold text-primary hover:underline"
           >
             {allOpen ? 'Tout replier' : 'Tout déplier'}
           </button>
@@ -537,13 +616,13 @@ function RulesReference({ matchResult }: { matchResult: AideMatchResult }) {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Rechercher dans le règlement (taux, délai, cumul…)"
               aria-label="Rechercher dans le règlement de l'aide"
-              className="h-9 bg-card pl-9 text-[13.5px]"
+              className="h-9 bg-card pl-9 text-[15.5px]"
             />
           </div>
         )}
 
         {searching && (
-          <p className="text-[12.5px]" style={{ color: 'var(--gray-fg)' }}>
+          <p className="text-[14.5px]" style={{ color: 'var(--gray-fg)' }}>
             {matching === 0 ? 'Aucun point ne correspond.' : `${matching} point${matching > 1 ? 's' : ''} sur ${total}.`}
           </p>
         )}
@@ -603,7 +682,7 @@ function DemarcheSteps({ description }: { description: string }) {
     .filter(Boolean);
 
   if (steps.length <= 1) {
-    return <p className="text-[14.5px] leading-relaxed whitespace-pre-line text-muted-foreground">{decodeHtml(description)}</p>;
+    return <p className="text-[16.5px] leading-relaxed whitespace-pre-line text-muted-foreground">{decodeHtml(description)}</p>;
   }
 
   return (
@@ -611,15 +690,15 @@ function DemarcheSteps({ description }: { description: string }) {
       {steps.map((step, i) => (
         <li key={i} className="relative flex gap-3.5">
           {i < steps.length - 1 && (
-            <span className="absolute left-[15px] top-9 h-[calc(100%-2px)] w-px" style={{ background: C.border }} aria-hidden />
+            <span className="absolute left-[17px] top-9 h-[calc(100%-2px)] w-px" style={{ background: C.border }} aria-hidden />
           )}
           <span
-            className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white"
+            className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[15px] font-bold text-white"
             style={{ background: C.blue }}
           >
             {i + 1}
           </span>
-          <p className="pt-1 text-[14.5px] leading-relaxed" style={{ color: C.ink }}>{step}</p>
+          <p className="pt-1 text-[16.5px] leading-relaxed" style={{ color: C.ink }}>{step}</p>
         </li>
       ))}
     </ol>
@@ -634,11 +713,11 @@ function EssentialFact({ icon: Icon, label, value, first }: { icon: IconType; la
   return (
     <div className="flex items-start gap-3 px-5 py-3.5" style={first ? undefined : { borderTop: `1px solid ${C.border}` }}>
       <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary">
-        <Icon className="h-[17px] w-[17px]" strokeWidth={1.9} />
+        <Icon className="h-[19px] w-[19px]" strokeWidth={1.9} />
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-        <div className="text-[14px] font-semibold leading-snug" style={{ color: C.ink }}>{value}</div>
+        <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <div className="text-[16px] font-semibold leading-snug" style={{ color: C.ink }}>{value}</div>
       </div>
     </div>
   );
@@ -655,8 +734,8 @@ function EssentialCard({ aide }: { aide: Aide }) {
   return (
     <div className="overflow-hidden rounded-2xl border" style={{ borderColor: C.border, background: C.card, boxShadow: 'var(--shadow-card)' }}>
       <div className="flex items-center gap-2.5 px-5 py-3.5" style={{ background: C.blue }}>
-        <IconFiche className="h-[18px] w-[18px]" style={{ color: 'var(--background)' }} strokeWidth={2} />
-        <span className="text-[15px] tracking-wide" style={{ fontFamily: SERIF, color: 'var(--background)' }}>L'essentiel de l'aide</span>
+        <IconFiche className="h-[20.5px] w-[20.5px]" style={{ color: 'var(--background)' }} strokeWidth={2} />
+        <span className="text-[17px] tracking-wide" style={{ fontFamily: SERIF, color: 'var(--background)' }}>L'essentiel de l'aide</span>
       </div>
       <div className="h-[3px]" style={{ background: C.orange }} />
       <div>
@@ -668,7 +747,7 @@ function EssentialCard({ aide }: { aide: Aide }) {
             value={(
               <>
                 {moneyLabel}
-                {aide.tauxMax && <span className="block text-[12px] font-normal text-muted-foreground">de vos travaux (base {aide.baseTTC ? 'TTC' : 'HT'})</span>}
+                {aide.tauxMax && <span className="block text-[14px] font-normal text-muted-foreground">de vos travaux (base {aide.baseTTC ? 'TTC' : 'HT'})</span>}
               </>
             )}
           />
@@ -698,7 +777,7 @@ function DocumentLine({ raw }: { raw: string | AideDocument }) {
     <li className="rounded-xl border bg-card px-3.5 py-3" style={{ borderColor: C.border }}>
       <div className="flex items-center gap-3">
         <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary">
-          <IconDocument className="h-[15px] w-[15px]" strokeWidth={2} />
+          <IconDocument className="h-[17px] w-[17px]" strokeWidth={2} />
         </span>
         <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm">
           {doc.url ? (
@@ -715,7 +794,7 @@ function DocumentLine({ raw }: { raw: string | AideDocument }) {
             <span style={{ color: C.ink }}>{doc.nom}</span>
           )}
           {doc.obligatoire === false && (
-            <Badge variant="outline" className="text-[10px]">selon le cas</Badge>
+            <Badge variant="outline" className="text-[12px]">selon le cas</Badge>
           )}
         </span>
       </div>
@@ -731,11 +810,11 @@ function DocumentsCollapsible({ docs }: { docs: (string | AideDocument)[] }) {
       <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 p-5 text-left">
         <span className="flex items-center gap-3">
           <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary">
-            <IconDocument className="h-[18px] w-[18px]" strokeWidth={1.9} />
+            <IconDocument className="h-[20.5px] w-[20.5px]" strokeWidth={1.9} />
           </span>
           <span className="flex flex-col">
-            <span className="text-[16px]" style={{ fontFamily: SERIF, color: C.ink }}>Les documents à préparer</span>
-            <span className="text-[13px] text-muted-foreground">
+            <span className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>Les documents à préparer</span>
+            <span className="text-[15px] text-muted-foreground">
               {docs.length} document{docs.length > 1 ? 's' : ''} à réunir
             </span>
           </span>
@@ -757,7 +836,7 @@ function DocumentsCollapsible({ docs }: { docs: (string | AideDocument)[] }) {
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 
-export function AideDetails({ aide, matchResult, monumentName, showHeader = true, showDocumentsRequis = true, aside }: AideDetailsProps) {
+export function AideDetails({ aide, matchResult, monumentName, showHeader = true, showDocumentsRequis = true, aside, questions, answers, onRepondre, envoiEnCours }: AideDetailsProps) {
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
 
   return (
@@ -786,11 +865,17 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
               title={(
                 <span>
                   Êtes-vous éligible&nbsp;?
-                  {monumentName && <span className="ml-1 text-[13px] font-normal text-muted-foreground" style={{ fontFamily: 'var(--font-sans)' }}>pour {monumentName}</span>}
+                  {monumentName && <span className="ml-1 text-[15px] font-normal text-muted-foreground" style={{ fontFamily: 'var(--font-sans)' }}>pour {monumentName}</span>}
                 </span>
               )}
             >
-              <EligibilityAnalysis matchResult={matchResult} />
+              <EligibilityAnalysis
+                matchResult={matchResult}
+                questions={questions}
+                answers={answers}
+                onRepondre={onRepondre}
+                envoiEnCours={envoiEnCours}
+              />
             </SectionCard>
           )}
 
@@ -815,7 +900,7 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
                 href={aide.urlOfficielle}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] font-semibold transition-colors hover:bg-secondary"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-[15px] font-semibold transition-colors hover:bg-secondary"
                 style={{ borderColor: C.border, color: C.blue }}
               >
                 <IconLienExterne className="h-4 w-4" />

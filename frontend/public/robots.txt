@@ -1,0 +1,15 @@
+# app.monumia.fr — l'application. Rien d'indexable ici : le référencement est
+# le métier de la landing (monumia.fr).
+#
+# Nécessaire depuis que le wizard monument est PUBLIC (parcours découverte) :
+# sans ces règles, un formulaire de saisie se retrouverait dans les résultats
+# de recherche à la place de la page qui l'explique.
+#
+# `/blog` et `/tarifs` restent ouverts : ce sont de vraies pages de contenu,
+# servies par l'app et liées depuis la landing.
+
+User-agent: *
+Disallow: /app/
+Disallow: /auth/
+Disallow: /invitation/
+Disallow: /reset-password

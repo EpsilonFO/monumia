@@ -1,6 +1,8 @@
-/** Offres payantes et droits d'accès (Stripe). */
+/** Offres payantes et droits du compte (Stripe). */
 
-export type BillingPlan = 'dossier' | 'abonnement';
+import type { BillingPlan, Offre } from '@/lib/offres';
+
+export type { BillingPlan, Offre };
 
 /** Un prix tel qu'il est configuré dans Stripe — jamais recopié côté front. */
 export interface BillingPrice {
@@ -8,7 +10,7 @@ export interface BillingPrice {
   priceId: string;
   amountCents: number | null;
   currency: string;
-  /** 'month' pour l'abonnement, null pour un paiement unique. */
+  /** 'month' : les deux offres sont des abonnements mensuels. */
   interval: string | null;
   recurring: boolean;
 }
@@ -21,6 +23,8 @@ export interface BillingPlansResponse {
 }
 
 export interface BillingSubscription {
+  /** null pour un abonnement antérieur aux trois offres, qui n'ouvre rien. */
+  plan: BillingPlan | null;
   status: string;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
@@ -31,11 +35,20 @@ export interface BillingSubscription {
  * le profil persisté dans le localStorage ne débloque rien.
  */
 export interface BillingAccess {
-  /** Abonnement actif ou accès accordé manuellement → tous les projets ouverts. */
-  allAccess: boolean;
-  /** Projets débloqués à l'unité. Vide quand `allAccess` est vrai. */
-  unlockedMonumentIds: string[];
+  /** Les offres détenues. Vide = offre gratuite. */
+  plans: BillingPlan[];
+  /**
+   * L'offre déjà résolue par le serveur. Le front tient la même table
+   * (`lib/offres.ts`) mais lit CELLE-CI : c'est le serveur qui tranche.
+   */
+  offre: Offre;
   subscription: BillingSubscription | null;
+  /**
+   * Le portail Stripe est-il utilisable ? Vrai seulement si le compte est
+   * rattaché à un Customer, ce qui ne se déduit PAS de la présence d'une
+   * offre : Multi-monuments se négocie et peut être ouverte sans Stripe.
+   */
+  portail: boolean;
   configured: boolean;
   testMode: boolean;
 }

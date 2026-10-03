@@ -9,9 +9,11 @@ Run from backend/:  uv run pytest tests/test_snapshot_source.py
 """
 
 import hashlib
+import io
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,7 +21,37 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import snapshot_source  # noqa: E402
 import yaml  # noqa: E402
-from snapshot_source import to_markdown, write_md_snapshot, write_pdf_snapshot  # noqa: E402
+from snapshot_source import (  # noqa: E402
+    docx_bytes_to_text,
+    est_docx,
+    to_markdown,
+    write_docx_snapshot,
+    write_md_snapshot,
+    write_pdf_snapshot,
+)
+
+DEPOT = Path(__file__).resolve().parent.parent / "data" / "sources"
+# Le seul .docx VERSIONNÉ du dépôt : un test qui s'appuie sur un document
+# produit par le vrai Word vaut mieux qu'un ZIP fabriqué à la main, et celui-ci
+# est disponible en CI.
+DOCX_DU_DEPOT = (
+    DEPOT / "programme-patrimoine-emploi-fondation-patrimoine" / "2026-08-27-dossier.docx"
+)
+
+
+def _docx(*paragraphes: str, repli: str | None = None) -> bytes:
+    """Un .docx minimal mais authentique : un ZIP portant `word/document.xml`."""
+    ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    ns += ' xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"'
+    corps = "".join(f"<w:p><w:r><w:t>{p}</w:t></w:r></w:p>" for p in paragraphes)
+    if repli:
+        corps += f"<mc:Fallback><w:p><w:r><w:t>{repli}</w:t></w:r></w:p></mc:Fallback>"
+    xml = f"<w:document {ns}><w:body>{corps}</w:body></w:document>"
+    tampon = io.BytesIO()
+    with zipfile.ZipFile(tampon, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types/>")
+        archive.writestr("word/document.xml", xml)
+    return tampon.getvalue()
 
 
 class SnapshotTestCase(unittest.TestCase):
@@ -46,6 +78,20 @@ class TestToMarkdown(SnapshotTestCase):
         md = to_markdown('<p><a href="https://ex.fr/r.pdf">Règlement</a></p><img src="l.png">')
         self.assertIn("[Règlement](https://ex.fr/r.pdf)", md)
         self.assertNotIn("l.png", md)
+
+    def test_jeton_csrf_retire_des_liens(self):
+        # gitleaks refusait le commit d'une archive dont chaque lien portait
+        # le jeton de session du portail (`?__CSRFTOKEN__=<uuid>`).
+        jeton = "f749bd59-7a77-4b1b-88e1-b001f02a541e"
+        md = to_markdown(
+            f'<a href="https://ex.fr/arbres/?__CSRFTOKEN__={jeton}">Accueil</a> '
+            f'<a href="https://ex.fr/d?page=2&amp;csrf_token={jeton}#haut">Suite</a> '
+            f'<a href="https://ex.fr/d?__CSRFTOKEN__={jeton}&amp;page=3">Fin</a>'
+        )
+        self.assertNotIn(jeton, md)
+        self.assertIn("(https://ex.fr/arbres/)", md)
+        self.assertIn("(https://ex.fr/d?page=2#haut)", md)
+        self.assertIn("(https://ex.fr/d?page=3)", md)
 
 
 class TestWriteMdSnapshot(SnapshotTestCase):
@@ -178,6 +224,79 @@ class TestValidationDesNoms(SnapshotTestCase):
     def test_labels_du_depot_acceptes(self):
         for bon in ("reglement", "page-2026", "reglement-objets-2016", "wayback-20240328"):
             self.assertTrue(write_md_snapshot("mon-aide", "https://ex.fr", "<p>x</p>", label=bon))
+
+
+class TestDocx(SnapshotTestCase):
+    """Les règlements d'intervention régionaux sont souvent des .docx.
+
+    Sans conversion, l'archive contenait le ZIP brut (« PK...[Content_Types].
+    xml ») : illisible pour l'agent, et aucune citation ne pouvait s'y
+    retrouver. Mesuré sur hdf-jardins-en-scene le 2026-09-06 — 8 des 34
+    conditions de la référence, dont 2 exigences décisives et l'assiette de
+    financement, ne sont citables QUE depuis deux annexes .docx. Le pipeline
+    manuel les convertissait hors bande ; celui payé à l'API n'avait pas de
+    mains, et on a d'abord imputé les manques au MODÈLE.
+    """
+
+    def test_reconnait_un_docx_et_pas_un_pdf_ni_un_zip(self):
+        self.assertTrue(est_docx(_docx("x")))
+        self.assertFalse(est_docx(b"%PDF-1.4 ..."))
+        self.assertFalse(est_docx(b"<html><body>x</body></html>"))
+        tampon = io.BytesIO()
+        with zipfile.ZipFile(tampon, "w") as archive:
+            archive.writestr("xl/workbook.xml", "<x/>")  # un .xlsx
+        self.assertFalse(est_docx(tampon.getvalue()))
+
+    def test_un_paragraphe_par_ligne(self):
+        texte = docx_bytes_to_text(_docx("Éligibilité des demandeurs :", "Je suis :"))
+        self.assertEqual(texte.split("\n\n"), ["Éligibilité des demandeurs :", "Je suis :\n"])
+
+    def test_illisible_rend_une_chaine_vide_sans_lever(self):
+        for octets in (b"", b"PK\x03\x04 pas un zip", b"%PDF-1.4"):
+            self.assertEqual(docx_bytes_to_text(octets), "")
+
+    def test_la_branche_de_repli_de_word_nest_pas_dupliquee(self):
+        texte = docx_bytes_to_text(_docx("Encadré", repli="Encadré"))
+        self.assertEqual(texte.count("Encadré"), 1)
+
+    def test_le_docx_du_depot_sextrait(self):
+        """Sur un document produit par le vrai Word, pas par ce test."""
+        texte = docx_bytes_to_text(DOCX_DU_DEPOT.read_bytes())
+        self.assertGreater(len(texte), 5_000)
+        self.assertIn("DOSSIER DE DEMANDE", texte)
+        # Une zone de texte porte ses propres `w:p` : le paragraphe qui les
+        # ancre agrégeait leur contenu, puis chacun ressortait pour lui-même.
+        self.assertEqual(texte.count("VOTRE DÉLÉGATION RÉGIONALE"), 1)
+
+    def test_archive_le_texte_et_pas_le_binaire(self):
+        chemin, texte = write_docx_snapshot(
+            "mon-aide", _docx("Le taux est de 40 %."), url="https://ex.fr/r.docx"
+        )
+        self.assertEqual(chemin.suffix, ".md")
+        corps = chemin.read_text(encoding="utf-8")
+        self.assertIn("Le taux est de 40 %.", corps)
+        self.assertIn("url: https://ex.fr/r.docx", corps)
+        self.assertNotIn("[Content_Types]", corps)
+        self.assertEqual(texte.strip(), "Le taux est de 40 %.")
+
+    def test_sha_sur_le_texte_pour_ne_pas_crier_au_changement(self):
+        """Re-zipper un document identique change ses octets, pas son texte.
+
+        Le sha256 d'un snapshot .docx porte donc sur le TEXTE extrait : sur le
+        binaire, chaque re-téléchargement aurait signalé un changement de
+        règlement (les ZIP portent des horodatages internes).
+        """
+        premier, _ = write_docx_snapshot("mon-aide", _docx("Stable."))
+        with patch("snapshot_source.datetime") as faux:
+            faux.now.return_value.isoformat.return_value = "plus-tard"
+            second, _ = write_docx_snapshot("mon-aide", _docx("Stable."))
+        self.assertEqual(premier, second)
+
+    def test_snapshot_dun_fichier_docx_local(self):
+        source = Path(self._tmp.name) / "reglement.docx"
+        source.write_bytes(_docx("Critère de sélection : gratuité."))
+        chemin = snapshot_source.snapshot("mon-aide", str(source))
+        self.assertIn("gratuité", chemin.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

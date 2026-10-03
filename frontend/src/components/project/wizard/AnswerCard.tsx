@@ -5,21 +5,8 @@ import { cn } from '@/lib/utils';
 import type { QcmOption } from '@/types';
 import { isUnknownAnswer } from './unknownAnswer';
 
-const LETTERS = 'ABCDEFGHIJKL';
-
-// Tuiles d'icônes : le duo de marque décliné — les bleus (monument,
-// information) alternent avec les oranges (action). Cyclé par position,
-// la sélection reste orange plein.
-const TILE_TONES = [
-  { bg: 'var(--secondary)', fg: 'var(--primary)' },
-  { bg: 'var(--warning-muted)', fg: 'var(--accent)' },
-  { bg: 'var(--info-muted)', fg: 'var(--info)' },
-  { bg: 'color-mix(in srgb, var(--orange-vif) 16%, #fff)', fg: 'var(--orange-vif)' },
-] as const;
-
 interface AnswerCardProps {
   option: QcmOption;
-  optionIndex: number;
   selected: boolean;
   /** Roving tabindex : seul l'élément « actif » du radiogroup est tabbable. */
   roving: boolean;
@@ -31,16 +18,15 @@ interface AnswerCardProps {
 }
 
 /**
- * Carte-réponse du questionnaire : pastille lettrée A/B/C (toujours — les
- * libellés du moteur sont imprévisibles, pas de devinette d'icône), « ? »
- * pour les options « je ne sais pas », libellé, coche à droite. Hover =
- * léger lift + ombre pop ; sélection = bordure accent + fond orange pâle.
- * En choix multiple, la coche devient carrée et l'élément un `checkbox` :
- * la forme dit « on peut en cocher plusieurs » avant même de cliquer.
+ * Carte-réponse du questionnaire : la coche à gauche, le libellé ensuite —
+ * même grammaire que les tuiles des écrans de cadrage (`CadrageTile`), pour
+ * que le parcours se lise d'un bout à l'autre comme une seule séquence. La
+ * forme de la coche porte à elle seule le mode de réponse : ronde en choix
+ * simple, carrée en choix multiple, avant même le premier clic. Hover = léger
+ * lift + ombre pop ; sélection = bordure accent + fond orange pâle.
  */
 export function AnswerCard({
   option,
-  optionIndex,
   selected,
   roving,
   multiple,
@@ -48,11 +34,9 @@ export function AnswerCard({
   onKeyDown,
   buttonRef,
 }: AnswerCardProps) {
+  // Filet : les « je ne sais pas » passent normalement par SkipCard, mais s'ils
+  // atterrissent ici ils ne doivent pas se lire comme une réponse de plein droit.
   const unknown = isUnknownAnswer(option);
-  // « Je ne sais pas » = ton neutre : ce n'est pas une réponse comme les autres.
-  const tile = unknown
-    ? { bg: 'var(--muted)', fg: 'var(--gray-fg)' }
-    : TILE_TONES[optionIndex % TILE_TONES.length];
 
   return (
     <button
@@ -64,43 +48,27 @@ export function AnswerCard({
       onClick={onSelect}
       onKeyDown={onKeyDown}
       className={cn(
-        'group flex min-h-[3.5rem] w-full items-center gap-3.5 rounded-2xl border-2 px-4 py-2.5 text-left text-[15px] font-medium leading-snug transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'group flex min-h-[3.5rem] w-full items-center gap-3.5 rounded-2xl border-2 px-4 py-2.5 text-left text-[17px] font-medium leading-snug transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         selected
           ? 'border-accent bg-warning-muted shadow-[var(--shadow-card)]'
           : 'border-border bg-card hover:-translate-y-0.5 hover:border-warning hover:shadow-[var(--shadow-pop)]',
       )}
-      style={{ color: C.ink }}
+      style={{ color: unknown ? C.grayFg : C.ink }}
     >
-      <span
-        aria-hidden
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors"
-        style={
-          selected
-            ? { background: C.orange, color: '#fff' }
-            : { background: tile.bg, color: tile.fg }
-        }
-      >
-        {unknown ? (
-          <IconHelp className="h-5 w-5" />
-        ) : (
-          <span className="text-[14px] font-bold">{LETTERS[optionIndex] ?? '•'}</span>
-        )}
-      </span>
-      <span className="flex-1">{option.label}</span>
       <span
         aria-hidden
         className={cn(
           'flex h-6 w-6 shrink-0 items-center justify-center border-2 transition-colors',
           multiple ? 'rounded-md' : 'rounded-full',
-          selected ? 'border-accent bg-accent text-white' : 'border-border',
+          selected
+            ? 'border-accent bg-accent text-white'
+            : 'border-border group-hover:border-warning',
         )}
       >
-        {selected ? (
-          <Check className="h-3.5 w-3.5" strokeWidth={3} />
-        ) : (
-          <span className="h-1.5 w-1.5 rounded-full bg-muted transition-colors group-hover:bg-accent" />
-        )}
+        {selected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
       </span>
+      {unknown && <IconHelp aria-hidden className="h-4 w-4 shrink-0" />}
+      <span className="flex-1">{option.label}</span>
     </button>
   );
 }

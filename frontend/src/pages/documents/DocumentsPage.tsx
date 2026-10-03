@@ -1,448 +1,540 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router';
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import { IconDepot, IconRecherche, IconDossierOuvert, IconSupprimer, IconDocuments } from '@/components/icons';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { EmptyState } from '@/components/shared/EmptyState';
-import { RoleBadge } from '@/components/sharing/RoleBadge';
-import { DocumentTile } from '@/components/document/DocumentTile';
-import { DocumentGrid } from '@/components/document/DocumentGrid';
-import { ProjectLegend, type LegendItem } from '@/components/document/ProjectLegend';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
+import { toast } from 'sonner';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Picto } from '@/components/shared/ecrans/Picto';
+import { PictoDoc, type NomPictoDoc } from '@/components/document/PictosDocuments';
+import {
+  BarreSection, BarreSelection, DossiersDocuments, FichiersDocuments, FichiersSquelette, OutilsDocuments,
+  VideDocuments, VoileDepot, type GesteSelection,
+} from '@/components/document/EspaceDocuments';
+import { useDepotGlisse } from '@/components/document/useDepotGlisse';
+import type { DocumentAfficheProps } from '@/components/document/LigneDocument';
+import { PiecesADeposer } from '@/components/document/PiecesADeposer';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
-import { UploadDocumentDialog } from '@/components/document/UploadDocumentDialog';
+import { UploadDocumentDialog, type PieceAPreremplir } from '@/components/document/UploadDocumentDialog';
 import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
 import { AddToProjectDialog } from '@/components/document/AddToProjectDialog';
+import { ChangerDossierDialog } from '@/components/document/ChangerDossierDialog';
+import { usePiecesADeposer } from '@/hooks/usePiecesADeposer';
+import { useProjectsData } from '@/hooks/useProjectsData';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
-import { useDossierStore } from '@/stores/useDossierStore';
-import { DocumentsListSkeleton } from '@/components/skeletons';
-import { C, SERIF } from '@/lib/brand';
-import { projectColor } from '@/lib/project-color';
-import { groupDocumentsByProject } from '@/lib/group-documents';
-import { typeLabel } from '@/lib/document-type-meta';
+import { useProjetStore } from '@/stores/useProjetStore';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { actionsDocument, repartirSelection, type ActionDocument } from '@/lib/actions-document';
+import { dossierLabel } from '@/lib/document-type-meta';
+import { tailleFichier } from '@/lib/document-fichier';
+import { downloadDocument } from '@/lib/document-download';
+import {
+  compterParType, documentsRecents, rechercherDocuments, tailleTotale, trierDocuments,
+  type TriDocuments, type VueDocuments,
+} from '@/lib/documents-espace';
+import { documentDuMonument, nbAidesParPiece } from '@/lib/pieces-a-deposer';
+import { projetTitre } from '@/lib/projet-titre';
+import { ACCEPT_ATTR } from '@/constants/file-types';
 import { ROUTES } from '@/constants/routes';
-import type { Document } from '@/types';
-import { toast } from 'sonner';
+import type { Document, DocumentType, ProjectRole } from '@/types';
+import '@/components/document/documents.css';
 
+/** Les deux entrées du sélecteur de lieu qui ne sont pas un monument. */
+const SANS = 'sans';
+const PARTAGES = 'partages';
+
+type Section = 'tous' | 'recents' | 'pieces' | 'corbeille';
+
+const RANG: Record<ProjectRole, number> = { member: 1, co_owner: 2, owner: 3 };
+function meilleurRole(roles: (ProjectRole | null | undefined)[]): ProjectRole | null {
+  return roles.reduce<ProjectRole | null>((m, r) => (r && (!m || RANG[r] > RANG[m]) ? r : m), null);
+}
+
+const plur = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
+
+/** Grille ou liste : une commodité du navigateur, jamais une donnée. */
+const CLE_VUE = 'monumia.documents.vue';
+function vueMemorisee(): VueDocuments {
+  try { return window.localStorage.getItem(CLE_VUE) === 'liste' ? 'liste' : 'grille'; } catch { return 'grille'; }
+}
+
+interface Lieu {
+  id: string;
+  nom: string;
+  docs: Document[];
+}
+
+/** Ce que la fenêtre d'ajout reçoit à l'ouverture. */
+interface Depot {
+  fichiers: File[];
+  type: DocumentType | null;
+  piece: PieceAPreremplir | null;
+}
+
+/**
+ * Mes documents : maquette `monumia-documents.html`, un espace de fichiers.
+ * À gauche « Nouveau » et les rubriques (tous, récents, pièces demandées,
+ * corbeille) ; à droite la recherche, le fil (« Tous les documents › Devis »),
+ * le lieu, les dossiers (un par type) et les fichiers en grille ou en liste.
+ *
+ * La page montre UN lieu à la fois (`?monument=`) : un monument, les documents
+ * sans monument, ou ceux qu'un monument invisible partage avec vous. La liste
+ * vient telle quelle de `GET /documents`, déjà filtrée par le serveur
+ * (`best_document_role`) : rien n'est masqué ici qui aurait été reçu.
+ */
 export function DocumentsPage() {
+  // Les digests des projets (pièces demandées par leurs aides) et les projets
+  // eux-mêmes viennent de `GET /dashboard`.
+  useProjectsData();
   const {
     documents, trashedDocuments, loading,
-    fetchDocuments, fetchTrashed, trashDocument, restoreDocument, removeFromProject, deleteDocument, updateDocument,
+    fetchDocuments, fetchTrashed, trashDocument, restoreDocument, removeFromProject, deleteDocument,
   } = useDocumentStore();
   const monuments = useMonumentStore((s) => s.monuments);
-  const dossiers = useDossierStore((s) => s.dossiers);
+  const projets = useProjetStore((s) => s.projets);
+  const userId = useAuthStore((s) => s.user?.id);
+  const [params, setParams] = useSearchParams();
 
-  const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [activeProject, setActiveProject] = useState<string | null>(null);
-  const [uploadOpen, setUploadOpen] = useState(false);
+  const [section, setSection] = useState<Section>('tous');
+  const [dossier, setDossier] = useState<DocumentType | null>(null);
+  const [recherche, setRecherche] = useState('');
+  const [tri, setTri] = useState<TriDocuments>('date');
+  const [vue, setVueEtat] = useState<VueDocuments>(vueMemorisee);
+  const [selection, setSelection] = useState<Set<string>>(new Set());
+  const [depot, setDepot] = useState<Depot | null>(null);
+  const [editDoc, setEditDoc] = useState<Document | null>(null);
   const [accessDoc, setAccessDoc] = useState<Document | null>(null);
-  const [trashOpen, setTrashOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [addToProjectDoc, setAddToProjectDoc] = useState<Document | null>(null);
-  const [renameDoc, setRenameDoc] = useState<Document | null>(null);
-  const [renameName, setRenameName] = useState('');
-  const [renameLoading, setRenameLoading] = useState(false);
+  const [aDeplacer, setADeplacer] = useState<Document[]>([]);
+  const [nouveaux, setNouveaux] = useState<Set<string>>(new Set());
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const enAttente = useRef<Omit<Depot, 'fichiers'>>({ type: null, piece: null });
 
   useEffect(() => {
     fetchDocuments();
     fetchTrashed();
   }, [fetchDocuments, fetchTrashed]);
 
-  // ---- Résolution des noms (depuis les stores, avec repli) ----
-  const monumentNames = useMemo(() => {
-    const m: Record<string, string> = {};
-    monuments.forEach((mo) => { m[mo.id] = mo.nom; });
-    return m;
-  }, [monuments]);
+  useEffect(() => {
+    if (nouveaux.size === 0) return;
+    const t = setTimeout(() => setNouveaux(new Set()), 1600);
+    return () => clearTimeout(t);
+  }, [nouveaux]);
 
-  const roleByMonument = useMemo(() => {
-    const m: Record<string, 'owner' | 'co_owner' | 'member' | null> = {};
-    monuments.forEach((mo) => { m[mo.id] = mo.myRole ?? null; });
-    return m;
-  }, [monuments]);
+  const setVue = (v: VueDocuments) => {
+    setVueEtat(v);
+    try { window.localStorage.setItem(CLE_VUE, v); } catch { /* navigation privée */ }
+  };
 
-  const dossiersById = useMemo(() => {
-    const m: Record<string, { titre: string; monumentId: string }> = {};
-    dossiers.forEach((d) => { m[d.id] = { titre: d.titre, monumentId: d.monumentId }; });
+  // ---- Résolution des noms et des rôles ----
+  const monumentsById = useMemo(() => new Map(monuments.map((m) => [m.id, m])), [monuments]);
+  const projetsById = useMemo(() => new Map(projets.map((p) => [p.id, p])), [projets]);
+  const projetsParMonument = useMemo(() => {
+    const m = new Map<string, string[]>();
+    projets.forEach((p) => m.set(p.monumentId, [...(m.get(p.monumentId) ?? []), p.id]));
     return m;
-  }, [dossiers]);
-
+  }, [projets]);
   const uploaderNames = useMemo(() => {
     const m: Record<string, string> = {};
-    monuments.forEach((mo) => {
-      (mo.members ?? []).forEach((p) => { m[p.userId] = `${p.prenom} ${p.nom}`.trim(); });
-    });
+    monuments.forEach((mo) => (mo.members ?? []).forEach((p) => { m[p.userId] = `${p.prenom} ${p.nom}`.trim(); }));
     return m;
   }, [monuments]);
 
-  // ---- Filtrage (recherche + type) ----
-  const matches = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return (d: Document) => {
-      if (filterType !== 'all' && d.type !== filterType) return false;
-      if (!q) return true;
-      return (
-        d.nom.toLowerCase().includes(q) ||
-        d.nomFichier.toLowerCase().includes(q) ||
-        d.tags.some((t) => t.toLowerCase().includes(q))
-      );
-    };
-  }, [search, filterType]);
+  /** Les monuments connus auxquels un document pend, directement ou par un de leurs projets. */
+  const monumentsDuDocument = useMemo(() => (d: Document): string[] => {
+    const ids = new Set(d.monumentIds.filter((id) => monumentsById.has(id)));
+    d.projetIds.forEach((pid) => {
+      const mid = projetsById.get(pid)?.monumentId;
+      if (mid && monumentsById.has(mid)) ids.add(mid);
+    });
+    return [...ids];
+  }, [monumentsById, projetsById]);
 
-  const visibleDocs = useMemo(() => documents.filter(matches), [documents, matches]);
-  const { byProject, sansProjet } = useMemo(() => groupDocumentsByProject(visibleDocs), [visibleDocs]);
+  // ---- Les lieux ----
+  const lieux: Lieu[] = useMemo(() => {
+    const parMonument: Lieu[] = monuments.map((m) => ({
+      id: m.id,
+      nom: m.nom,
+      docs: documents.filter((d) => documentDuMonument(d, m.id, projetsParMonument.get(m.id) ?? [])),
+    }));
+    const sans = documents.filter((d) => d.monumentIds.length === 0 && d.projetIds.length === 0);
+    // Filet de sécurité : un document que le serveur nous rend (donc visible)
+    // mais dont aucun monument n'est connu du store ne doit jamais disparaître.
+    const partages = documents.filter(
+      (d) => (d.monumentIds.length > 0 || d.projetIds.length > 0) && monumentsDuDocument(d).length === 0,
+    );
+    return [
+      ...parMonument,
+      ...(sans.length > 0 ? [{ id: SANS, nom: 'Sans monument', docs: sans }] : []),
+      ...(partages.length > 0 ? [{ id: PARTAGES, nom: 'Partagés avec vous', docs: partages }] : []),
+    ];
+  }, [monuments, documents, projetsParMonument, monumentsDuDocument]);
 
-  const docTypes = useMemo(
-    () => Array.from(new Set(documents.map((d) => d.type))).sort(),
-    [documents],
-  );
+  const demande = params.get('monument');
+  const actif = lieux.find((o) => o.id === demande) ?? lieux[0] ?? null;
+  const monumentActif = actif ? monumentsById.get(actif.id) ?? null : null;
 
-  // ---- Sections monument, triées par nom ; légende ----
-  // Fix I1: exclude projects whose name is not known (foreign projects the caller
-  // is not a member of — they may appear in monument_ids but are not in my store).
-  const projectSections = useMemo(() => {
-    const entries = Array.from(byProject.entries())
-      .filter(([mid]) => monumentNames[mid] !== undefined)
-      .map(([mid, docs]) => ({
-        mid,
-        name: monumentNames[mid]!,
-        color: projectColor(mid),
-        docs,
-      }));
-    entries.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
-    return entries;
-  }, [byProject, monumentNames]);
-
-  const legendItems: LegendItem[] = useMemo(
-    () => projectSections.map((s) => ({ id: s.mid, name: s.name, color: s.color, count: s.docs.length })),
-    [projectSections],
-  );
-
-  const shownSections = activeProject
-    ? projectSections.filter((s) => s.mid === activeProject)
-    : projectSections;
-
-  // Filet de sécurité : un document que le backend nous a renvoyé (donc visible)
-  // mais dont AUCUN monument n'est connu de notre store (monument partagé pas encore
-  // chargé, etc.) ne doit jamais disparaître — on l'affiche dans une section à part.
-  const orphanDocs = useMemo(
-    () =>
-      visibleDocs.filter(
-        (d) =>
-          d.monumentIds.length > 0 &&
-          !d.monumentIds.some((mid) => monumentNames[mid] !== undefined),
-      ),
-    [visibleDocs, monumentNames],
-  );
-
-  // ---- Handlers ----
-  const handleTrash = async (d: Document) => {
-    if (!confirm(`Mettre "${d.nom}" à la corbeille ?`)) return;
-    try { await trashDocument(d.id); toast.success('Document mis à la corbeille'); }
-    catch (e) { toast.error(e instanceof Error ? e.message : 'Erreur'); }
+  const choisirLieu = (id: string) => {
+    setDossier(null);
+    setSelection(new Set());
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('monument', id);
+      return next;
+    }, { replace: true });
   };
-  const handleRemoveFromProject = async (d: Document, monumentId: string) => {
-    try { await removeFromProject(d.id, monumentId); toast.success('Document retiré du monument'); }
-    catch (e) { toast.error(e instanceof Error ? e.message : 'Erreur'); }
+
+  // ---- Pièces demandées (rubrique, et pastille « Sert à N aides ») ----
+  const { pieces } = usePiecesADeposer(monumentActif?.id ?? null);
+  const aidesParPiece = useMemo(() => nbAidesParPiece(pieces), [pieces]);
+  const piecesRestantes = pieces.filter((p) => !p.deposee).length;
+  // Un lieu sans pièces (autre monument, « Sans monument ») referme la rubrique.
+  const rubrique: Section = section === 'pieces' && pieces.length === 0 ? 'tous' : section;
+
+  // ---- Rattachement d'un nouveau dépôt ----
+  // Sur un monument dont on est de l'équipe, le document pend au monument. Un
+  // membre d'un seul chantier n'y a pas droit (la route refuse) : il le range
+  // dans ses projets ouverts. Un monument relu du cache n'a pas encore son rôle.
+  const membreDuMonument = !!monumentActif
+    && (!!monumentActif.myRole || monumentActif.userId === userId || !!monumentActif.depuisLeCache);
+  const depotMonuments = monumentActif && membreDuMonument ? [monumentActif.id] : [];
+  const depotProjets = monumentActif && !membreDuMonument
+    ? projets.filter((p) => p.monumentId === monumentActif.id && !p.clotureAt).map((p) => p.id)
+    : [];
+
+  /** « Nouveau », « Importer un fichier », « Déposer » : le sélecteur de fichiers d'abord. */
+  const choisirFichiers = (opts: Omit<Depot, 'fichiers'>) => {
+    enAttente.current = opts;
+    const input = inputRef.current;
+    if (!input) return;
+    input.multiple = !opts.piece;
+    input.value = '';
+    input.click();
+  };
+  const ouvrirDepot = (d: Depot) => { setEditDoc(null); setDepot(d); };
+
+  const depotGlisse = useDepotGlisse(
+    rubrique === 'corbeille' ? null : (fichiers, cible) => ouvrirDepot({ fichiers, type: cible ?? dossier, piece: null }),
+  );
+
+  // ---- Ce qui s'affiche ----
+  const base = actif?.docs ?? [];
+  const trouves = rechercherDocuments(rubrique === 'corbeille' ? trashedDocuments : base, recherche);
+  const liste = rubrique === 'recents'
+    ? trierDocuments(documentsRecents(trouves), tri)
+    : trierDocuments(rubrique === 'tous' && dossier ? trouves.filter((d) => d.type === dossier) : trouves, tri);
+  const comptes = compterParType(base);
+  const montrerDossiers = rubrique === 'tous' && !dossier && !recherche.trim();
+
+  // ---- Rôles et gestes ----
+  const roleSur = (d: Document): ProjectRole | null => meilleurRole([
+    ...d.monumentIds.map((id) => monumentsById.get(id)?.myRole),
+    ...d.projetIds.map((id) => projetsById.get(id)?.myRole),
+  ]);
+  const ici = monumentActif ? { type: 'monument' as const, id: monumentActif.id, nom: monumentActif.nom } : null;
+
+  const erreur = (e: unknown) => toast.error(e instanceof Error ? e.message : 'Erreur');
+
+  const handleTrash = async (d: Document) => {
+    if (!confirm(`Mettre « ${d.nom} » à la corbeille ?`)) return;
+    try { await trashDocument(d.id); toast.success(`« ${d.nom} » est dans la corbeille.`); } catch (e) { erreur(e); }
+  };
+  const handleRemoveFromMonument = async (d: Document, monumentId: string) => {
+    try { await removeFromProject(d.id, monumentId); toast.success('Document retiré du monument'); } catch (e) { erreur(e); }
   };
   const handleRestore = async (d: Document) => {
-    try { await restoreDocument(d.id); toast.success('Document restauré'); }
-    catch (e) { toast.error(e instanceof Error ? e.message : 'Erreur'); }
+    try { await restoreDocument(d.id); toast.success('Document restauré'); } catch (e) { erreur(e); }
   };
   const handleDeletePermanent = async (d: Document) => {
-    if (!confirm(`Supprimer définitivement "${d.nom}" ? Cette action est irréversible.`)) return;
-    try { await deleteDocument(d.id); toast.success('Document supprimé définitivement'); }
-    catch (e) { toast.error(e instanceof Error ? e.message : 'Erreur'); }
+    if (!confirm(`Supprimer définitivement « ${d.nom} » ? Cette action est irréversible.`)) return;
+    try { await deleteDocument(d.id); toast.success('Document supprimé définitivement'); } catch (e) { erreur(e); }
   };
 
-  const handleRenameOpen = (d: Document) => {
-    setRenameDoc(d);
-    setRenameName(d.nom);
-  };
+  const actionsPour = (d: Document): ActionDocument[] => (rubrique === 'corbeille'
+    ? [
+      { cle: 'restaurer', label: 'Restaurer', onClick: () => handleRestore(d) },
+      { cle: 'supprimer', label: 'Supprimer définitivement', onClick: () => handleDeletePermanent(d), destructive: true },
+    ]
+    : actionsDocument(d, { userId, role: roleSur(d), ici }, {
+      modifier: (doc) => { setDepot(null); setEditDoc(doc); },
+      deplacer: (doc) => setADeplacer([doc]),
+      rattacher: setAddToProjectDoc,
+      gererAcces: setAccessDoc,
+      corbeille: handleTrash,
+      retirer: (doc, lieu) => handleRemoveFromMonument(doc, lieu.id),
+    }));
 
-  const handleRenameSave = async () => {
-    if (!renameDoc) return;
-    const trimmed = renameName.trim();
-    if (!trimmed || trimmed === renameDoc.nom) { setRenameDoc(null); return; }
-    setRenameLoading(true);
-    try {
-      await updateDocument(renameDoc.id, { nom: trimmed });
-      toast.success('Document renommé');
-      setRenameDoc(null);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Erreur');
-    } finally {
-      setRenameLoading(false);
+  const rattachementsDe = (d: Document): string[] => (monumentActif
+    ? d.projetIds
+      .map((pid) => projetsById.get(pid))
+      .filter((p) => p?.monumentId === monumentActif.id)
+      .map((p) => projetTitre(p!, monumentActif.nom))
+    : []);
+
+  const basculer = (id: string) => setSelection((s) => {
+    const n = new Set(s);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+
+  const proprietes = (d: Document): DocumentAfficheProps => ({
+    document: d,
+    onVoir: () => setPreviewDoc(d),
+    actions: actionsPour(d),
+    variant: rubrique === 'corbeille' ? 'trash' : 'normal',
+    nbAides: d.pieceId ? aidesParPiece[d.pieceId] : undefined,
+    rattachements: rattachementsDe(d),
+    auteur: d.userId !== userId ? uploaderNames[d.userId] : undefined,
+    nouveau: nouveaux.has(d.id),
+    selectionne: selection.has(d.id),
+    onSelection: rubrique === 'corbeille' ? undefined : () => basculer(d.id),
+  });
+
+  // ---- Sélection ----
+  const selectionnes = base.filter((d) => selection.has(d.id));
+  const repartition = repartirSelection(selectionnes, { userId, roleDe: roleSur, ici });
+
+  const telechargerSelection = async () => {
+    for (const d of selectionnes) {
+      try { await downloadDocument(d); } catch (e) { toast.error(`${d.nom} : ${e instanceof Error ? e.message : 'téléchargement impossible'}`); }
     }
   };
-
-  const tileHandlers = {
-    onPreview: setPreviewDoc,
-    onAddToProject: (d: Document) => setAddToProjectDoc(d),
-    onRename: handleRenameOpen,
-    onTrash: handleTrash,
-    onRemoveFromProject: handleRemoveFromProject,
-    onRestore: handleRestore,
-    onDeletePermanent: handleDeletePermanent,
+  const supprimerSelection = async () => {
+    const { aJeter, aRetirer, sansRetrait } = repartition;
+    const phrases = [
+      aJeter.length ? `${plur(aJeter.length, 'document')} à la corbeille` : '',
+      aRetirer.length && ici ? `${plur(aRetirer.length, 'document')} retiré${aRetirer.length > 1 ? 's' : ''} de ${ici.nom}` : '',
+    ].filter(Boolean);
+    const reste = sansRetrait.length
+      ? `\n${plur(sansRetrait.length, 'autre document')} ne ${sansRetrait.length > 1 ? 'peuvent' : 'peut'} pas être supprimé${sansRetrait.length > 1 ? 's' : ''} par vous : ${sansRetrait.length > 1 ? 'ils restent' : 'il reste'} en place.`
+      : '';
+    if (!confirm(`Supprimer la sélection : ${phrases.join(', ')} ?${reste}`)) return;
+    let ok = 0;
+    for (const d of aJeter) { try { await trashDocument(d.id); ok += 1; } catch (e) { erreur(e); } }
+    for (const d of aRetirer) { try { if (ici) { await removeFromProject(d.id, ici.id); ok += 1; } } catch (e) { erreur(e); } }
+    setSelection(new Set());
+    if (ok) toast.success(`${plur(ok, 'document')} supprimé${ok > 1 ? 's' : ''} de cet espace.`);
   };
 
-  const totalVisible = visibleDocs.length;
-  const isEmpty = documents.length === 0 && trashedDocuments.length === 0;
+  const gestesSelection: GesteSelection[] = [
+    { label: 'Télécharger', picto: 'telecharger', onClick: telechargerSelection },
+    ...(repartition.modifiables.length ? [{ label: 'Déplacer', picto: 'deplacer' as const, onClick: () => setADeplacer(repartition.modifiables) }] : []),
+    ...(repartition.aJeter.length + repartition.aRetirer.length
+      ? [{ label: 'Supprimer', picto: 'corbeille' as const, onClick: supprimerSelection }]
+      : []),
+  ];
+
+  // ---- Après un dépôt ----
+  const apresDepot = (docs: Document[]) => {
+    const doc = docs[0];
+    if (!doc) return;
+    setNouveaux(new Set(docs.map((d) => d.id)));
+    // Rangé ailleurs que sous le lieu affiché : on suit le document.
+    const ou = monumentsDuDocument(doc);
+    if (ou.length > 0 && actif && !ou.includes(actif.id)) choisirLieu(ou[0]);
+    else if (ou.length === 0 && doc.monumentIds.length === 0 && doc.projetIds.length === 0 && actif?.id !== SANS) choisirLieu(SANS);
+    // Comme la maquette : on ouvre le dossier où il vient d'être rangé (sauf
+    // depuis « Pièces demandées », où l'on enchaîne les dépôts).
+    if (rubrique !== 'pieces') {
+      setSection('tous');
+      setRecherche('');
+      setDossier(docs.every((d) => d.type === doc.type) ? doc.type : null);
+    }
+    // Le document est créé avec un défaut sûr (chef + adjoints) : « Gérer
+    // l'accès » s'ouvre aussitôt pour que l'auteur choisisse qui peut le voir.
+    if (docs.length === 1 && doc.monumentIds.length > 0) setAccessDoc(doc);
+  };
+
+  const ouvrirRubrique = (s: Section) => {
+    setSection(s);
+    setDossier(null);
+    setSelection(new Set());
+  };
+
+  // ---- Fil ----
+  const fil: { label: string; onClick?: () => void }[] = rubrique === 'recents'
+    ? [{ label: 'Récents' }]
+    : rubrique === 'corbeille'
+      ? [{ label: 'Corbeille' }]
+      : rubrique === 'pieces'
+        ? [{ label: 'Pièces demandées' }]
+        : dossier
+          ? [{ label: 'Tous les documents', onClick: () => { setDossier(null); setSelection(new Set()); } }, { label: dossierLabel(dossier) }]
+          : [{ label: 'Tous les documents' }];
+
+  const rubriques: { id: Section; picto: NomPictoDoc; label: string; badge?: number }[] = [
+    { id: 'tous', picto: 'tous', label: 'Tous les documents' },
+    { id: 'recents', picto: 'recents', label: 'Récents' },
+    ...(pieces.length > 0 ? [{ id: 'pieces' as const, picto: 'pieces' as const, label: 'Pièces demandées', badge: piecesRestantes }] : []),
+    { id: 'corbeille', picto: 'corbeille', label: 'Corbeille' },
+  ];
+
+  const importer = (
+    <button className="btn b-blue" type="button" onClick={() => choisirFichiers({ type: dossier, piece: null })}>
+      <Picto nom="envoyer" />Importer un fichier
+    </button>
+  );
+  const vide = recherche.trim()
+    ? <VideDocuments titre="Aucun document trouvé" texte="Essayez un autre mot." />
+    : rubrique === 'corbeille'
+      ? <VideDocuments titre="La corbeille est vide" texte="Un document mis à la corbeille y reste tant que vous ne le supprimez pas définitivement." />
+      : (
+        <VideDocuments
+          titre={dossier ? 'Ce dossier est vide' : 'Aucun document'}
+          texte="Glissez un fichier sur cette page, ou choisissez-le sur votre ordinateur."
+          action={importer}
+        />
+      );
 
   return (
-    <div className="space-y-6">
-      {/* Header (inline, charte) */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ background: C.paleBlue }}>
-            <IconDocuments className="h-5 w-5" style={{ color: C.blue }} strokeWidth={1.8} />
-          </div>
-          <div>
-            <h1 className="text-[22px] leading-tight" style={{ fontFamily: SERIF, color: C.ink }}>
-              Mes documents
-            </h1>
-            <p className="text-[13px] text-muted-foreground">
-              Tous vos fichiers, classés par monument
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => setUploadOpen(true)}
-          className="inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all duration-200 hover:shadow-md"
-          style={{ background: C.orange }}
-        >
-          <IconDepot className="h-3.5 w-3.5" strokeWidth={2} />Ajouter un document
-        </button>
-      </div>
+    <div className="ec docs-page">
+      <h1 className="sr">Mes documents</h1>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPT_ATTR}
+        className="sr"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          const fichiers = [...(e.target.files ?? [])];
+          if (fichiers.length) ouvrirDepot({ fichiers, ...enAttente.current });
+        }}
+      />
 
-      {/* Légende */}
-      <ProjectLegend items={legendItems} activeId={activeProject} onSelect={setActiveProject} />
+      <div className="drive">
+        <aside className="side" aria-label="Navigation des documents">
+          <button className="nouveau" type="button" onClick={() => choisirFichiers({ type: dossier, piece: null })}>
+            <Picto nom="plus" />Nouveau
+          </button>
+          <nav className="dnav">
+            {rubriques.map((r) => (
+              <button key={r.id} type="button" aria-current={rubrique === r.id} onClick={() => ouvrirRubrique(r.id)}>
+                <PictoDoc nom={r.picto} />{r.label}{r.badge ? <em>{r.badge}</em> : null}
+              </button>
+            ))}
+          </nav>
+          {actif && (
+            <div className="store">
+              <b>{plur(base.length, 'document')}</b>
+              <small>{tailleFichier(tailleTotale(base))}</small>
+            </div>
+          )}
+          <p className="priv">
+            <Picto nom="cadenas" />
+            <span>Vos fichiers restent privés. Monumia ne les transmet à aucun financeur, et vous choisissez qui, dans votre équipe, peut les voir.</span>
+          </p>
+        </aside>
 
-      {/* Filtres */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <IconRecherche className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="pl-9 h-10 text-[14px]"
-            style={{ background: C.card, borderColor: C.border }}
-            placeholder="Rechercher un document..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+        <section className="desp main" aria-label="Vos documents" {...depotGlisse.gestionnaires}>
+          <OutilsDocuments
+            recherche={recherche}
+            onRecherche={(q) => {
+              setRecherche(q);
+              if (rubrique === 'pieces' || rubrique === 'corbeille') ouvrirRubrique('tous');
+            }}
+            vue={vue}
+            onVue={setVue}
           />
-        </div>
-        <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-full sm:w-44 h-10 text-[14px]" style={{ background: C.card, borderColor: C.border }}>
-            <SelectValue placeholder="Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous les types</SelectItem>
-            {docTypes.map((t) => (<SelectItem key={t} value={t}>{typeLabel(t)}</SelectItem>))}
-          </SelectContent>
-        </Select>
-      </div>
 
-      {/* Contenu */}
-      {loading ? (
-        <DocumentsListSkeleton />
-      ) : isEmpty ? (
-        <EmptyState
-          icon={IconDossierOuvert}
-          title="Aucun document"
-          description="Ajoutez vos premiers documents pour les utiliser dans vos projets de travaux et vos dossiers."
-          action={
-            <button
-              onClick={() => setUploadOpen(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg hover:shadow-md transition-all"
-              style={{ background: C.orange }}
-            >
-              <IconDepot className="h-3.5 w-3.5" strokeWidth={2} />Ajouter un document
-            </button>
-          }
-        />
-      ) : (
-        <div className="space-y-8">
-          {totalVisible === 0 && (search.trim() !== '' || filterType !== 'all') && (
-            <p className="text-[13px] text-muted-foreground">
-              Aucun document ne correspond à votre recherche.
-            </p>
-          )}
-
-          {/* Sections par monument */}
-          {shownSections.map((section) => (
-            <section key={section.mid} className="space-y-3">
-              <div className="flex items-center gap-2.5 border-b pb-2" style={{ borderColor: C.border }}>
-                <span className="h-3 w-3 rounded-full" style={{ background: section.color }} />
-                <h2 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>{section.name}</h2>
-                {roleByMonument[section.mid] && <RoleBadge role={roleByMonument[section.mid]!} />}
-                <span className="text-[12px] tabular-nums text-muted-foreground">
-                  {section.docs.length} document{section.docs.length > 1 ? 's' : ''}
-                </span>
-                <Link
-                  to={ROUTES.MONUMENT_DETAIL(section.mid)}
-                  className="ml-auto text-[12px] hover:underline"
-                  style={{ color: C.blue }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Voir le monument
-                </Link>
-              </div>
-              <DocumentGrid
-                items={section.docs}
-                keyOf={(doc) => `${section.mid}-${doc.id}`}
-                renderItem={(doc) => (
-                  <DocumentTile
-                    document={doc}
-                    accentColor={section.color}
-                    monumentNames={monumentNames}
-                    dossiersById={dossiersById}
-                    uploaderName={uploaderNames[doc.userId]}
-                    myRole={roleByMonument[section.mid]}
-                    sectionMonumentId={section.mid}
-                    {...tileHandlers}
-                  />
-                )}
-              />
-            </section>
-          ))}
-
-          {/* Sans monument */}
-          {!activeProject && sansProjet.length > 0 && (
-            <section className="space-y-3">
-              <div className="flex items-center gap-2.5 border-b pb-2" style={{ borderColor: C.border }}>
-                <span className="h-3 w-3 rounded-full" style={{ background: 'var(--muted-foreground)' }} />
-                <h2 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>Sans monument (personnels)</h2>
-                <span className="text-[12px] tabular-nums text-muted-foreground">
-                  {sansProjet.length} document{sansProjet.length > 1 ? 's' : ''}
-                </span>
-              </div>
-              <DocumentGrid
-                items={sansProjet}
-                keyOf={(doc) => `solo-${doc.id}`}
-                renderItem={(doc) => (
-                  <DocumentTile
-                    document={doc}
-                    accentColor="var(--muted-foreground)"
-                    monumentNames={monumentNames}
-                    dossiersById={dossiersById}
-                    uploaderName={uploaderNames[doc.userId]}
-                    myRole={null}
-                    sectionMonumentId={null}
-                    {...tileHandlers}
-                  />
-                )}
-              />
-            </section>
-          )}
-
-          {/* Autres documents partagés (monument non chargé / non membre) */}
-          {!activeProject && orphanDocs.length > 0 && (
-            <section className="space-y-3">
-              <div className="flex items-center gap-2.5 border-b pb-2" style={{ borderColor: C.border }}>
-                <span className="h-3 w-3 rounded-full" style={{ background: 'var(--muted-foreground)' }} />
-                <h2 className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>Autres documents partagés</h2>
-                <span className="text-[12px] tabular-nums text-muted-foreground">
-                  {orphanDocs.length} document{orphanDocs.length > 1 ? 's' : ''}
-                </span>
-              </div>
-              <DocumentGrid
-                items={orphanDocs}
-                keyOf={(doc) => `orphan-${doc.id}`}
-                renderItem={(doc) => (
-                  <DocumentTile
-                    document={doc}
-                    accentColor="var(--muted-foreground)"
-                    monumentNames={monumentNames}
-                    dossiersById={dossiersById}
-                    uploaderName={uploaderNames[doc.userId]}
-                    myRole={null}
-                    sectionMonumentId={null}
-                    {...tileHandlers}
-                  />
-                )}
-              />
-            </section>
-          )}
-
-          {/* Corbeille */}
-          {!activeProject && trashedDocuments.length > 0 && (
-            <Collapsible open={trashOpen} onOpenChange={setTrashOpen}>
-              <CollapsibleTrigger asChild>
-                <button className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
-                  {trashOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  <IconSupprimer className="h-3.5 w-3.5" />
-                  Documents supprimés ({trashedDocuments.length})
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
-                <DocumentGrid
-                  items={trashedDocuments}
-                  keyOf={(doc) => `trash-${doc.id}`}
-                  renderItem={(doc) => (
-                    <DocumentTile
-                      document={doc}
-                      accentColor="var(--destructive)"
-                      monumentNames={monumentNames}
-                      dossiersById={dossiersById}
-                      uploaderName={uploaderNames[doc.userId]}
-                      myRole={null}
-                      sectionMonumentId={null}
-                      variant="trash"
-                      {...tileHandlers}
-                    />
+          <div className="crumbs">
+            {fil.map((f, i) => (
+              <span key={f.label} className="crumb">
+                {i > 0 && <PictoDoc nom="suivant" className="sep" />}
+                {f.onClick ? <button type="button" onClick={f.onClick}>{f.label}</button> : <span aria-current="page">{f.label}</span>}
+              </span>
+            ))}
+          </div>
+          {actif && rubrique !== 'corbeille' && (
+            lieux.length > 1 ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" className="lieu" aria-label={`Lieu : ${actif.nom}. Changer de lieu`}>
+                    {actif.nom}<Picto nom="chevron" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="ec dmenu">
+                  {lieux.map((l) => (
+                    <DropdownMenuItem key={l.id} onClick={() => choisirLieu(l.id)} className={l.id === actif.id ? 'on' : undefined}>
+                      <span className="nomlieu">{l.nom}</span><em>{l.docs.length}</em>
+                    </DropdownMenuItem>
+                  ))}
+                  {monumentActif && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link to={ROUTES.MONUMENT_DETAIL(monumentActif.id)}>Voir la fiche du monument</Link>
+                      </DropdownMenuItem>
+                    </>
                   )}
-                />
-              </CollapsibleContent>
-            </Collapsible>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : monumentActif ? (
+              <Link className="lieu" to={ROUTES.MONUMENT_DETAIL(monumentActif.id)}>{monumentActif.nom}</Link>
+            ) : (
+              <span className="lieu">{actif.nom}</span>
+            )
           )}
-        </div>
-      )}
 
-      {/* Dialogue de renommage */}
-      <Dialog open={!!renameDoc} onOpenChange={(open) => { if (!open) setRenameDoc(null); }}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>Renommer le document</DialogTitle></DialogHeader>
-          <Input
-            value={renameName}
-            onChange={(e) => setRenameName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleRenameSave(); }}
-            autoFocus
-            className="h-10 text-[14px]"
-            style={{ background: C.card, borderColor: C.border }}
-          />
-          <DialogFooter>
-            <button
-              onClick={() => setRenameDoc(null)}
-              disabled={renameLoading}
-              className="px-4 py-2 text-[13px] font-medium border rounded-lg transition-colors text-muted-foreground"
-              style={{ borderColor: C.border }}
-            >
-              Annuler
-            </button>
-            <button
-              onClick={handleRenameSave}
-              disabled={!renameName.trim() || renameLoading}
-              className="px-4 py-2 text-[13px] font-semibold text-white rounded-lg disabled:opacity-50 hover:shadow-md transition-all"
-              style={{ background: C.blue }}
-            >
-              {renameLoading ? 'Enregistrement…' : 'Enregistrer'}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {rubrique === 'pieces' && monumentActif ? (
+            <PiecesADeposer
+              monumentId={monumentActif.id}
+              replier={false}
+              onDeposer={(p) => choisirFichiers({
+                type: p.typeDocument,
+                piece: { pieceId: p.pieceId, nom: p.nom, typeDocument: p.typeDocument, nbAides: p.nbAides },
+              })}
+            />
+          ) : (
+            <>
+              {montrerDossiers && (
+                <>
+                  <BarreSection titre="Dossiers" />
+                  <DossiersDocuments
+                    comptes={comptes}
+                    onOuvrir={(t) => { setDossier(t); setSelection(new Set()); }}
+                    survole={depotGlisse.survole}
+                  />
+                </>
+              )}
+              <BarreSection
+                titre={rubrique === 'corbeille' ? 'Dans la corbeille' : recherche.trim() && !dossier ? 'Résultats' : 'Documents'}
+                tri={tri}
+                onTri={setTri}
+              />
+              {loading ? <FichiersSquelette /> : liste.length === 0 ? vide : (
+                <FichiersDocuments documents={liste} vue={vue} proprietes={proprietes} />
+              )}
+              <BarreSelection nombre={selectionnes.length} gestes={gestesSelection} onVider={() => setSelection(new Set())} />
+            </>
+          )}
+
+          <VoileDepot actif={depotGlisse.actif && !depotGlisse.surDossiers} dossier={dossier} />
+        </section>
+      </div>
 
       <UploadDocumentDialog
-        open={uploadOpen}
-        onOpenChange={setUploadOpen}
-        onUploaded={(doc) => setAccessDoc(doc)}
+        open={!!depot || !!editDoc}
+        onOpenChange={(o) => { if (!o) { setDepot(null); setEditDoc(null); } }}
+        onUploaded={apresDepot}
+        fichiers={depot?.fichiers}
+        typeParDefaut={depot?.type}
+        piece={depot?.piece}
+        document={editDoc}
+        monumentIdsParDefaut={depotMonuments}
+        projetIds={depotProjets}
+      />
+      <ChangerDossierDialog
+        documents={aDeplacer}
+        onOpenChange={(o) => { if (!o) setADeplacer([]); }}
+        onDeplace={() => setSelection(new Set())}
       />
       {accessDoc && (
         <ManageDocumentAccessDialog
           document={accessDoc}
-          myRole={roleByMonument[accessDoc.monumentIds[0]] ?? null}
+          myRole={roleSur(accessDoc)}
           open={!!accessDoc}
           onOpenChange={(open) => { if (!open) setAccessDoc(null); }}
         />

@@ -85,6 +85,10 @@ class _FakeSupabase:
 
 PROJET = {"id": "p1", "monument_id": "m1", "user_id": "chef", "titre": "Toiture"}
 
+# Inviter suppose l'offre Veille : sans cette ligne, toute tentative d'invitation
+# s'arrête sur un 402 avant d'atteindre les gardes de cloisonnement testés ici.
+ABONNEMENT_VEILLE = [{"user_id": "chef", "plan": "veille", "status": "active"}]
+
 
 class MaxRoleTests(unittest.TestCase):
     """La règle qui articule les deux appartenances : on ne restreint jamais."""
@@ -193,17 +197,19 @@ class ListMembersTests(unittest.TestCase):
 
 
 class InviteGuardTests(unittest.TestCase):
-    def test_refuse_un_membre_de_l_equipe_du_monument(self) -> None:
-        """Il a déjà accès : la ligne serait trompeuse et n'ajouterait rien."""
-        supabase = _FakeSupabase(
-            {
-                "projets": PROJET,
-                "monuments": {"id": "m1", "nom": "Église Saint-Pierre"},
-                "project_members": [{"user_id": "chef", "role": "owner"}],
-                "projet_members": None,
-                "users": {"id": "archi"},
-            }
-        )
+    def _supabase(self, **over) -> _FakeSupabase:
+        tables = {
+            "projets": PROJET,
+            "monuments": {"id": "m1", "nom": "Église Saint-Pierre"},
+            "project_members": [{"user_id": "chef", "role": "owner"}],
+            "projet_members": None,
+            "users": {"id": "archi"},
+            "subscriptions": ABONNEMENT_VEILLE,
+        }
+        tables.update(over)
+        return _FakeSupabase(tables)
+
+    def _inviter(self, supabase) -> HTTPException:
         with self.assertRaises(HTTPException) as ctx:
             create_invitation(
                 projet_id="p1",
@@ -212,7 +218,18 @@ class InviteGuardTests(unittest.TestCase):
                 user_id="chef",
                 supabase=supabase,  # type: ignore[arg-type]
             )
-        self.assertEqual(ctx.exception.status_code, 409)
+        return ctx.exception
+
+    def test_refuse_un_membre_de_l_equipe_du_monument(self) -> None:
+        """Il a déjà accès : la ligne serait trompeuse et n'ajouterait rien."""
+        self.assertEqual(self._inviter(self._supabase()).status_code, 409)
+
+    def test_l_offre_gratuite_ne_peut_pas_inviter(self) -> None:
+        """Travailler à plusieurs est un service de l'offre Veille. 402 et non
+        403 : le chef de projet a bien le droit, il lui manque l'offre."""
+        exc = self._inviter(self._supabase(subscriptions=[]))
+        self.assertEqual(exc.status_code, 402)
+        self.assertIn("Veille", str(exc.detail))
 
 
 class TargetMemberGuardTests(unittest.TestCase):

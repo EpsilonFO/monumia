@@ -53,7 +53,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
       <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
         {labelled ? (
           <button
-            className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground transition-colors hover:underline underline-offset-2"
+            className="inline-flex items-center gap-1.5 text-[14.5px] text-muted-foreground transition-colors hover:underline underline-offset-2"
             title="Voir où est rangé ce fichier"
           >
             <IconLocalisation className="h-4 w-4" weight="fill" style={{ color: C.blue }} />
@@ -75,13 +75,13 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b" style={{ borderColor: C.border }}>
-          <p className="text-[13px]" style={{ fontFamily: SERIF, color: C.ink }}>
+          <p className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
             Où est ce fichier ?
           </p>
         </div>
         <div className="p-2 space-y-1">
           {hasNothing && (
-            <p className="px-2 py-3 text-[12px] text-muted-foreground">
+            <p className="px-2 py-3 text-[14px] text-muted-foreground">
               Ce document n'est rattaché à aucun monument ni dossier.
             </p>
           )}
@@ -94,16 +94,16 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ background: projectColor(mid) }}
                   />
-                  <span className="text-[12px] font-medium break-words" style={{ color: C.ink }}>
+                  <span className="text-[14px] font-medium break-words" style={{ color: C.ink }}>
                     {monumentNames[mid]}
                   </span>
                 </div>
                 {dossiers.length > 0 && (
-                  <ul className="mt-1.5 ml-[18px] space-y-1">
+                  <ul className="mt-1.5 ml-[20.5px] space-y-1">
                     {dossiers.map((titre, i) => (
                       <li
                         key={i}
-                        className="flex items-start gap-1.5 text-[11px] break-words text-muted-foreground"
+                        className="flex items-start gap-1.5 text-[13px] break-words text-muted-foreground"
                       >
                         <IconDossierOuvert className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
                         <span className="break-words">{titre}</span>
@@ -118,13 +118,13 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
             <div className="rounded-lg px-2 py-2" style={{ background: C.cream }}>
               <div className="flex items-center gap-2 mb-1.5">
                 <IconDossierOuvert className="h-3 w-3 shrink-0 text-muted-foreground" strokeWidth={1.8} />
-                <span className="text-[12px] font-medium" style={{ color: C.ink }}>Dossiers</span>
+                <span className="text-[14px] font-medium" style={{ color: C.ink }}>Dossiers</span>
               </div>
-              <ul className="ml-[18px] space-y-1">
+              <ul className="ml-[20.5px] space-y-1">
                 {orphanDossiers.map((titre, i) => (
                   <li
                     key={i}
-                    className="flex items-start gap-1.5 text-[11px] break-words text-muted-foreground"
+                    className="flex items-start gap-1.5 text-[13px] break-words text-muted-foreground"
                   >
                     <IconDossierOuvert className="h-3 w-3 shrink-0 mt-0.5" strokeWidth={1.8} />
                     <span className="break-words">{titre}</span>

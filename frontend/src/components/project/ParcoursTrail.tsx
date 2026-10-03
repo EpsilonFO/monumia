@@ -65,7 +65,7 @@ export function ParcoursTrail({ stage }: { stage: ProjectStage }) {
                     ? 'none'
                     : `2px solid color-mix(in srgb, ${C.blue} 22%, transparent)`,
                 boxShadow: current
-                  ? `0 0 0 4px color-mix(in srgb, ${C.orange} 22%, transparent)`
+                  ? `0 0 0 5px color-mix(in srgb, ${C.orange} 22%, transparent)`
                   : 'none',
               }}
             >
@@ -77,7 +77,7 @@ export function ParcoursTrail({ stage }: { stage: ProjectStage }) {
             </span>
             <span
               aria-hidden
-              className="ml-2 whitespace-nowrap text-[13px]"
+              className="ml-2 whitespace-nowrap text-[15px]"
               style={{
                 color: current ? C.ink : done ? C.grayFg : C.grayMuted,
                 fontWeight: current ? 700 : 500,

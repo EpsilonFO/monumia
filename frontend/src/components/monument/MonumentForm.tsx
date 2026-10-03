@@ -4,16 +4,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent } from '@/components/ui/card';
 import { CommuneAutocomplete } from '@/components/monument/CommuneAutocomplete';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { PROTECTION_LEVELS, ETATS_CONSERVATION } from '@/constants/monument-options';
 import {
-  PROTECTION_LEVELS,
-  OWNERSHIP_TYPES,
-  ETATS_CONSERVATION,
-} from '@/constants/monument-options';
+  GROUPES_TYPE_EDIFICE,
+  affectationApplicable,
+  architectureRomaneApplicable,
+  avecTypesEdifice,
+  basculerChoix,
+  groupesProprietaire,
+  proprietairesCoches,
+  typesCoches,
+  type GroupeChoix,
+} from '@/lib/fiche-monument';
 import type { Monument } from '@/types';
 
 interface MonumentFormProps {
@@ -37,7 +46,7 @@ function isStepValid(step: number, data: Partial<Monument>): boolean {
     case 1:
       return !!(data.nom?.trim() && data.commune?.trim());
     case 2:
-      return !!(data.protection && data.proprietaire);
+      return !!data.protection && proprietairesCoches(data).length > 0;
     case 3:
       // Dernière étape avant « Terminer » : c'est la seule garantie que l'état
       // sanitaire soit renseigné, faute de quoi les gates des dispositifs
@@ -263,29 +272,164 @@ function Step2StatutJuridique({ data, onChange }: StepProps) {
       </div>
       <div className={FIELD}>
         <Label htmlFor="proprietaire">Type de propriétaire *</Label>
-        <Select
-          value={data.proprietaire ?? ''}
-          onValueChange={(v) => onChange({ proprietaire: v as Monument['proprietaire'] })}
-        >
-          <SelectTrigger id="proprietaire" className={SELECT_TRIGGER}>
-            <SelectValue placeholder="Sélectionner..." />
-          </SelectTrigger>
-          <SelectContent>
-            {OWNERSHIP_TYPES.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <ChoixMultiple
+          id="proprietaire"
+          groupes={groupesProprietaire(data)}
+          valeurs={proprietairesCoches(data)}
+          vide="Sélectionner..."
+          onChange={(v) =>
+            onChange({
+              proprietaire: proprietairesCoches({ proprietaire: v as Monument['proprietaire'] }),
+            })
+          }
+        />
+        <p className="text-xs text-muted-foreground">
+          Plusieurs choix possibles. Une aide vous est proposée dès que l&rsquo;un des
+          propriétaires peut la demander.
+        </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Radix n'admet pas d'item à valeur vide : « Non renseigné » a sa sentinelle,
+ * traduite en `null` pour que l'enregistrement EFFACE la valeur en base.
+ */
+const NON_RENSEIGNE = '__non_renseigne';
+
+function lireOuiNon(v: boolean | null | undefined): string {
+  return v === true ? 'oui' : v === false ? 'non' : NON_RENSEIGNE;
+}
+
+function ecrireOuiNon(v: string): boolean | null {
+  return v === 'oui' ? true : v === 'non' ? false : null;
+}
+
+/**
+ * Choix multiple de l'édition (types d'édifice, propriétaires) : une liste à
+ * cocher, rangée par famille, dans un menu déroulant. Le formulaire de
+ * création en a l'équivalent avec `MenuChoix` ; celui-ci garde la charte
+ * shadcn de l'édition.
+ */
+function ChoixMultiple({
+  id,
+  groupes,
+  valeurs,
+  vide,
+  onChange,
+}: {
+  id: string;
+  groupes: readonly GroupeChoix[];
+  valeurs: readonly string[];
+  /** Texte du bouton quand rien n'est coché. */
+  vide: string;
+  onChange: (valeurs: string[]) => void;
+}) {
+  const libelles = groupes
+    .flatMap((g) => g.options)
+    .filter((o) => valeurs.includes(o.value))
+    .map((o) => o.label);
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          id={id}
+          type="button"
+          variant="outline"
+          className="w-full min-w-0 justify-between font-normal"
+        >
+          <span className={cn('truncate', libelles.length === 0 && 'text-muted-foreground')}>
+            {libelles.length > 0 ? libelles.join(', ') : vide}
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="max-h-80 w-(--radix-popover-trigger-width) overflow-y-auto p-1.5"
+      >
+        {groupes.map((g) => (
+          <div key={g.titre} className="py-1">
+            <p className="px-2 py-1 text-xs font-medium text-muted-foreground">{g.titre}</p>
+            {g.options.map((o) => {
+              const idOption = `${id}-${o.value}`;
+              return (
+                <label
+                  key={o.value}
+                  htmlFor={idOption}
+                  className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                >
+                  <Checkbox
+                    id={idOption}
+                    checked={valeurs.includes(o.value)}
+                    onCheckedChange={() => onChange(basculerChoix(valeurs, o.value))}
+                  />
+                  {o.label}
+                </label>
+              );
+            })}
+          </div>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }
 
 function Step3DescriptionPhysique({ data, onChange }: StepProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className={cn(FIELD, 'md:col-span-2')}>
+        <Label htmlFor="typeEdifice">Type d&rsquo;édifice</Label>
+        <ChoixMultiple
+          id="typeEdifice"
+          groupes={GROUPES_TYPE_EDIFICE}
+          valeurs={typesCoches(data)}
+          vide="Non renseigné"
+          onChange={(v) => onChange(avecTypesEdifice(data, v))}
+        />
+        <p className="text-xs text-muted-foreground">
+          Plusieurs choix possibles&nbsp;: un domaine peut réunir château, chapelle et pigeonnier.
+          Ils répondent d&rsquo;avance aux questions sur la nature du bien, qui ne vous sont
+          alors plus posées.
+        </p>
+      </div>
+      {affectationApplicable(data) && (
+        <div className={FIELD}>
+          <Label htmlFor="affecteAuCulte">Affectation au culte</Label>
+          <Select
+            value={lireOuiNon(data.affecteAuCulte)}
+            onValueChange={(v) => onChange({ affecteAuCulte: ecrireOuiNon(v) })}
+          >
+            <SelectTrigger id="affecteAuCulte" className={SELECT_TRIGGER}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NON_RENSEIGNE}>Non renseigné</SelectItem>
+              <SelectItem value="oui">Toujours affecté au culte</SelectItem>
+              <SelectItem value="non">Désaffecté</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {architectureRomaneApplicable(data) && (
+        <div className={FIELD}>
+          <Label htmlFor="architectureRomane">Architecture romane</Label>
+          <Select
+            value={lireOuiNon(data.architectureRomane)}
+            onValueChange={(v) => onChange({ architectureRomane: ecrireOuiNon(v) })}
+          >
+            <SelectTrigger id="architectureRomane" className={SELECT_TRIGGER}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NON_RENSEIGNE}>Non renseigné</SelectItem>
+              <SelectItem value="oui">Oui, en tout ou en partie</SelectItem>
+              <SelectItem value="non">Non</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <div className={FIELD}>
         <Label htmlFor="siecleConstruction">Siècle de construction</Label>
         <Input

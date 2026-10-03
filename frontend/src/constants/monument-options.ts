@@ -28,6 +28,47 @@ export const ETATS_CONSERVATION = [
 
 export type EtatConservation = (typeof ETATS_CONSERVATION)[number]['value'];
 
+/**
+ * Natures du bien (`monuments.type_edifice`, choix multiple). Miroir de `TYPE_EDIFICE_LABELS`
+ * ([backend/labels.py]), même ordre : `tests/test_type_edifice.py` compare les
+ * codes, et le CHECK SQL refuse tout autre code. Le moteur en déduit les
+ * réponses aux questions sur la nature de l'édifice (est-ce une église ? un
+ * monument aux morts ?), qui ne sont alors plus posées. Les regroupements du
+ * menu sont dans `lib/fiche-monument.ts`.
+ */
+export const TYPES_EDIFICE = [
+  { value: 'eglise', label: 'Église, cathédrale, basilique' },
+  { value: 'chapelle', label: 'Chapelle' },
+  { value: 'abbaye_couvent', label: 'Abbaye, prieuré, couvent' },
+  { value: 'temple', label: 'Temple protestant' },
+  { value: 'synagogue', label: 'Synagogue' },
+  { value: 'croix_calvaire', label: 'Croix, calvaire' },
+  { value: 'autre_religieux', label: 'Autre édifice religieux', hint: 'Oratoire, cimetière, mosquée…' },
+  { value: 'chateau', label: 'Château, château fort' },
+  { value: 'manoir_demeure', label: 'Manoir, demeure' },
+  { value: 'hotel_particulier', label: 'Hôtel particulier' },
+  { value: 'maison', label: 'Maison', hint: 'De ville ou de village, maison natale…' },
+  { value: 'edifice_public', label: 'Édifice public', hint: 'Mairie, école, théâtre, palais de justice…' },
+  { value: 'hopital', label: 'Hôpital, hospice, Hôtel-Dieu' },
+  { value: 'halle', label: 'Halle, marché couvert' },
+  { value: 'patrimoine_industriel', label: 'Patrimoine industriel', hint: 'Usine, forge, mine, gare…' },
+  { value: 'ferme', label: 'Ferme, grange, bâtiment agricole' },
+  { value: 'moulin', label: 'Moulin' },
+  { value: 'lavoir_fontaine', label: 'Lavoir, fontaine' },
+  { value: 'pigeonnier', label: 'Pigeonnier, colombier' },
+  { value: 'petit_patrimoine', label: 'Four, puits, petit patrimoine', hint: 'Four à pain, puits, abreuvoir, kiosque…' },
+  { value: 'fortification', label: 'Fortification, rempart, porte de ville' },
+  { value: 'pont', label: 'Pont, aqueduc, ouvrage d’art' },
+  { value: 'jardin', label: 'Parc, jardin' },
+  { value: 'site_archeologique', label: 'Site archéologique, mégalithe' },
+  { value: 'monument_aux_morts', label: 'Monument aux morts' },
+  { value: 'monument_commemoratif', label: 'Statue, monument commémoratif' },
+  { value: 'autre', label: 'Autre', hint: 'Aucun de ces types ne correspond' },
+] as const;
+
+export type TypeEdifice = (typeof TYPES_EDIFICE)[number]['value'];
+
+
 export const URGENCE_TRAVAUX = [
   { value: 'faible', label: 'Faible' },
   { value: 'moyenne', label: 'Moyenne' },
@@ -56,6 +97,17 @@ export const WORK_TYPES = [
   { value: 'parcs_jardins', label: 'Parcs et jardins' },
   { value: 'protection_solaire', label: 'Protection solaire' },
   { value: 'ventilation', label: 'Ventilation' },
+  // Le DOMAINE autour du bâti. Miroir de `TRAVAUX_LABELS` ([backend/labels.py]) :
+  // un code présent d'un seul côté rend invisibles les aides qui s'y cadrent —
+  // l'utilisateur ne pourrait jamais le cocher.
+  { value: 'exploitation_agricole', label: 'Exploitation agricole (plantations, vergers, haies)' },
+  { value: 'foret', label: 'Forêt et desserte forestière' },
+  {
+    value: 'eau_milieux_aquatiques',
+    label: 'Eau et milieux aquatiques (cours d’eau, étang, captage)',
+  },
+  { value: 'equipement_professionnel', label: 'Équipement professionnel (matériel, véhicule)' },
+  { value: 'equipement_numerique', label: 'Équipement numérique (informatique, outils de médiation, affichage, réseau)' },
 ] as const;
 
 export const MATERIAUX = [

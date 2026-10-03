@@ -44,7 +44,7 @@ export function DocumentVisibilityField({ value, onChange, currentUserRole, memb
 
   return (
     <div className="space-y-1.5">
-      <p className="text-[13px] font-semibold" style={{ color: C.ink }}>
+      <p className="text-[15px] font-semibold" style={{ color: C.ink }}>
         Qui peut voir ce document&nbsp;?
       </p>
 
@@ -69,8 +69,8 @@ export function DocumentVisibilityField({ value, onChange, currentUserRole, memb
               </span>
               <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: active ? C.blue : C.grayMuted }} strokeWidth={1.8} />
               <span className="min-w-0">
-                <span className="block text-[13px] font-medium" style={{ color: C.ink }}>{meta.label}</span>
-                <span className="block text-[11px] text-muted-foreground">{meta.help}</span>
+                <span className="block text-[15px] font-medium" style={{ color: C.ink }}>{meta.label}</span>
+                <span className="block text-[13px] text-muted-foreground">{meta.help}</span>
               </span>
             </button>
           );
@@ -102,12 +102,12 @@ export function DocumentVisibilityField({ value, onChange, currentUserRole, memb
                 </span>
                 <MemberAvatar person={m} size="sm" colorIndex={i} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px]" style={{ color: C.ink }}>
+                  <span className="block truncate text-[15px]" style={{ color: C.ink }}>
                     {m.prenom} {m.nom}
                   </span>
                 </span>
                 {isOwner ? (
-                  <span className="text-[11px] font-medium text-muted-foreground">Toujours</span>
+                  <span className="text-[13px] font-medium text-muted-foreground">Toujours</span>
                 ) : (
                   <RoleBadge role={m.role} />
                 )}

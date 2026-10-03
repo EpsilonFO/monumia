@@ -54,9 +54,14 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
+      # --group pipeline : `providall` n'est pas dans les groupes par défaut
+      # (cf. backend/pyproject.toml), donc le venv d'un worktree neuf ne
+      # l'installe pas et pyright rate onze imports dans tests/ — un pre-push
+      # rouge sur une installation incomplète, pas sur le code poussé.
+      # `uv run --group pipeline` répare le venv avant de lancer pyright.
       - id: pyright
         name: pyright type check
-        entry: bash -c 'cd backend && uv run pyright .'
+        entry: bash -c 'cd backend && uv run --group pipeline pyright .'
         language: system
         pass_filenames: false
         stages: [pre-push]

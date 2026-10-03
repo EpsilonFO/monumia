@@ -4,6 +4,7 @@ import { router } from './router';
 import { Toaster } from '@/components/ui/sonner';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { ensureFreshAccessToken } from '@/lib/token-refresh';
+import { YbugWidget } from '@/components/shared/YbugWidget';
 
 /**
  * Le token d'accès vit en mémoire : au chargement, si un profil persiste
@@ -33,6 +34,8 @@ function App() {
     <>
       <RouterProvider router={router} />
       <Toaster position="bottom-right" />
+      {/* Bouton de retour bêta : ne rend rien sans VITE_YBUG_ID. */}
+      <YbugWidget />
     </>
   );
 }

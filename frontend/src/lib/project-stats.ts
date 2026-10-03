@@ -42,8 +42,9 @@ export function deadlineLink(d: ProjectDeadline): string {
  * Build the unified deadline list for a project:
  *  - aide `dateLimite` from eligibles + potentiels, only when `!permanent` and a date exists;
  *    past aide deadlines are dropped (irrelevant — the window closed).
- *  - dossier `echeances` that are not `accomplie`; past dossier echeances are KEPT as 'past'
- *    (the user still has an overdue task to act on).
+ *  - dossier `echeances` that are not `accomplie` and not past either. Décision du
+ *    2026-09-28 : une date passée ne s'affiche plus nulle part (tableau de bord,
+ *    échéancier, cartes), elle n'est plus actionnable.
  * Sorted ascending by `joursRestants`.
  */
 export function mergeProjectDeadlines(
@@ -83,6 +84,7 @@ export function mergeProjectDeadlines(
     for (const echeance of dossier.echeances) {
       if (echeance.accomplie) continue;
       const joursRestants = daysUntil(echeance.date);
+      if (joursRestants < 0) continue;
       deadlines.push({
         id: `dossier-${dossier.id}-${echeance.id}`,
         label: echeance.label,

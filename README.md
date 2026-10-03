@@ -74,7 +74,42 @@ présente en YAML mais absente de la base renvoie « Aide introuvable ».
 
 ### 4. Lancer l'application
 
-Deux terminaux :
+En une commande, depuis la racine du dépôt ou de n'importe quel worktree :
+
+```bash
+npm run monumia
+```
+
+Le lanceur ([scripts/dev/](scripts/dev/)) prépare d'abord le dépôt, puis ouvre un
+écran plein terminal qui fait tourner backend, frontend et landing. La préparation :
+
+- `git fetch`, puis signale un retard sur la branche amont ;
+- démarre Supabase local s'il est arrêté ;
+- dans un worktree, copie les `.env` et `.env.local` du dépôt principal qui manquent,
+  et génère ceux qui manquent encore avec `scripts/setup-env-local.sh` ;
+- applique les migrations à la base **locale** (`supabase db push --local --include-all`) ;
+- `uv sync --group dev --group pipeline` ;
+- `npm ci` dans `frontend/` et `landing/` quand `package-lock.json` a changé depuis
+  la dernière installation. Dans un worktree neuf, `node_modules` est cloné depuis
+  le dépôt principal (clone APFS, instantané) si les deux lockfiles sont identiques ;
+- vérifie que les ports 8000, 3000 et 3001 sont libres, et propose de libérer ceux
+  qui ne le sont pas.
+
+Dans l'écran : `↑↓` (ou `&` `é` `"` `'` sur AZERTY, `1`-`4` sur QWERTY, ou un clic) change de panneau, `r` relance le
+serveur affiché, `x` l'arrête, `R` relance tout, `o` ouvre son URL. Glisser à la
+souris sélectionne du texte (double-clic : une ligne), `c` le copie, `C` copie tout
+le journal. `r` sur le panneau « préparation » arrête les serveurs, refait la
+préparation (après un `git pull`, par exemple) et relance ceux qui tournaient. Pour
+la sélection native du terminal, garder Option (⌥) enfoncé.
+
+Options : `--sans-prep` (lancer tout de suite), `--sans-db` (pas de migrations),
+`--seulement backend,frontend`, `--prep` (préparation seule). Détails :
+`npm run monumia -- --aide`.
+
+Pour avoir la commande `monumia` partout, un `npm link` à la racine du dépôt
+principal suffit : elle lance toujours le dépôt ou le worktree du dossier courant.
+
+À la main, deux terminaux :
 
 ```bash
 # Terminal 1 — backend
@@ -102,12 +137,17 @@ L'inscription depuis http://localhost:3000 fonctionne immédiatement : la
 confirmation par email est désactivée en local
 ([supabase/config.toml](supabase/config.toml), `enable_confirmations = false`).
 
-L'accès aux aides est payant (Stripe) et caviardé côté backend pour un compte sans
-droits. Sans configurer Stripe, ouvrir l'accès à la main :
+Le détail des aides est gratuit. Ce qui se paie, ce sont les volumes (monuments,
+projets), le calendrier (échéancier, aides à venir) et la veille par email : deux
+abonnements, `veille` et `multi_monuments`, tous deux négociés (aucun montant
+affiché, la page Tarifs renvoie vers `contact@monumia.fr`). Stripe ne sert donc
+qu'à facturer une offre convenue. Pour ouvrir une offre à la main sur un compte
+local :
 
 ```bash
-docker exec supabase_db_monumia psql -U postgres \
-  -c "update public.users set has_aides_access = true;"
+docker exec supabase_db_monumia psql -U postgres -c "
+  insert into public.subscriptions (stripe_subscription_id, user_id, stripe_customer_id, plan, status)
+  select 'sub_local', id, 'cus_local', 'multi_monuments', 'active' from public.users limit 1;"
 ```
 
 ## Au quotidien
@@ -207,6 +247,32 @@ delete from aide_rappels_envoyes where user_id = '<uuid>';
 **Clés LLM.** Le diagnostic servi au produit est déterministe et n'appelle aucun
 LLM. `DEEPSEEK_API_KEY` et compagnie ne servent qu'aux outils hors ligne
 (ingestion d'aides, veille des sources).
+
+**Administration du catalogue.** `ADMIN_USER_IDS` liste les UUID Supabase des
+comptes qui ouvrent la page `/admin` (retirer une aide du catalogue, reformuler
+une question du questionnaire), séparés par des virgules. À renseigner **par
+environnement** — prod et beta ont chacun leur projet Supabase, donc des
+identifiants différents pour les mêmes personnes — puis à redémarrer le backend.
+Vide ou absente : aucun administrateur, et les sept routes `/admin/...`
+répondent 403.
+
+**Retours de bêta-test (Ybug).** `VITE_YBUG_ID` branche le widget
+[Ybug](https://ybug.io) dans la SPA : un bouton flottant qui capture l'écran,
+laisse l'annoter et commenter, puis envoie le rapport au projet Ybug (avec
+l'URL, le navigateur et la console). Vide ou absente, **rien n'est chargé** :
+ni script, ni bouton, ni requête vers ybug.io — c'est le seul interrupteur.
+L'identifiant se lit dans le snippet d'installation du tableau de bord Ybug.
+Comme toute variable `VITE_`, elle est figée **au build** : en déploiement, elle
+vient de `APP_YBUG_ID` / `BETA_YBUG_ID` dans le `.env` de la racine, et changer
+la valeur demande de rebuilder le front. Deux variables distinctes pour pouvoir
+n'ouvrir le bouton qu'en beta, ou séparer les deux flux de retours.
+
+Le widget joint à chaque rapport l'identifiant du compte, son nom, son email,
+ses offres et son statut d'administrateur ([frontend/src/lib/ybug.ts](frontend/src/lib/ybug.ts))
+— de quoi recontacter l'auteur et rejouer son cas. Rien d'autre du compte n'y
+passe, et hors session le rapport part en visiteur anonyme. Ybug devient donc
+un sous-traitant qui reçoit des données personnelles : à mentionner dans la
+politique de confidentialité avant d'ouvrir la beta.
 
 ## Hooks git
 

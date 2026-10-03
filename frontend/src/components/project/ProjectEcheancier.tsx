@@ -1,106 +1,97 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
-import { ChevronRight } from 'lucide-react';
-import { IconEcheance, IconDocument, IconAide } from '@/components/icons';
-import { C, SERIF } from '@/lib/brand';
-import { formatDate } from '@/lib/date-utils';
+import { format, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { Picto } from '@/components/shared/ecrans/Picto';
 import { deadlineLink } from '@/lib/project-stats';
 import type { ProjectDeadline } from '@/lib/project-stats';
 
+/** Au-delà, les dates suivantes se déplient sous la grille. */
+const VISIBLES = 4;
+/** Une échéance à 45 jours ou moins passe en orange : c'est le temps qu'il faut
+ *  pour réunir les pièces d'un dossier. */
+const SEUIL_URGENT = 45;
+/** Horizon de la jauge : une date à six mois ou plus laisse la jauge au plancher. */
+const HORIZON = 180;
+
 interface ProjectEcheancierProps {
   deadlines: ProjectDeadline[];
+  /** Titre et montant écrits d'une aide, pour la carte de sa date limite. */
+  aide?: (aideId: string) => { titre: string; montant: string | null } | null;
 }
 
-// Code couleur unique des échéances (voir DEADLINE_TONE) :
-//   < 30 j → rouge · 30–100 j → orange · > 100 j → bleu · dépassée → rouge
-const URGENCY_STYLE: Record<ProjectDeadline['urgency'], { bg: string; fg: string; border: string }> = {
-  urgent: { bg: C.paleDanger, fg: C.danger, border: C.danger },
-  warning: { bg: C.paleOrange, fg: C.orange, border: C.orange },
-  normal: { bg: C.paleBlue, fg: C.blue, border: C.blueLight },
-  past: { bg: C.paleDanger, fg: C.danger, border: C.danger },
-};
-
-function joursLabel(d: ProjectDeadline): string {
-  if (d.urgency === 'past') return 'Dépassée';
+function jours(d: ProjectDeadline): string {
+  if (d.joursRestants < 0) return 'Dépassée';
   if (d.joursRestants === 0) return "Aujourd'hui";
   return `J-${d.joursRestants}`;
 }
 
 /**
- * Échéancier du projet : les dates limites d'aides et les échéances de dossier,
- * de la plus proche à la plus lointaine.
+ * Échéancier du projet (maquette : la bande bleue « N dates à ne pas
+ * manquer ») : une carte par date limite d'aide ou échéance de dossier, de la
+ * plus proche à la plus lointaine, avec son compte à rebours et une jauge qui
+ * se remplit à l'approche. La plus proche est cerclée d'orange.
  *
- * Chaque ligne mène là où l'échéance se traite — la fiche de l'aide, ou le
- * dossier (cf. `deadlineLink`). Sur un projet non débloqué, le nom de l'aide est
- * déjà masqué côté serveur et la fiche renvoie d'elle-même vers les tarifs : le
- * lien n'ouvre donc rien qui ne soit payé.
+ * Chaque carte mène là où l'échéance se traite — la fiche de l'aide, ou le
+ * dossier (cf. `deadlineLink`).
+ *
+ * L'échéancier lui-même est réservé à l'offre Veille : c'est la page du projet
+ * qui le décide (`offre.echeancier`), ce composant n'en sait rien. Il peut donc
+ * porter des lignes dont le nom d'aide est masqué — une aide à venir sur un
+ * compte gratuit, vue par un membre d'une équipe dont le propriétaire est
+ * abonné : le nom est retiré côté serveur, et le lien renvoie de lui-même vers
+ * les tarifs.
  */
-export function ProjectEcheancier({ deadlines }: ProjectEcheancierProps) {
-  if (deadlines.length === 0) {
-    return (
-      <div
-        className="rounded-2xl border px-5 py-4 flex items-center gap-3"
-        style={{ background: C.card, borderColor: C.border }}
-      >
-        <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: C.paleBlue }}>
-          <IconEcheance className="h-5 w-5" style={{ color: C.blue }} />
-        </div>
-        <div>
-          <p className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>Aucune échéance à venir</p>
-          <p className="text-[13px] text-muted-foreground">
-            Les dates limites des aides et des dossiers apparaîtront ici.
-          </p>
-        </div>
-      </div>
-    );
-  }
+export function ProjectEcheancier({ deadlines, aide }: ProjectEcheancierProps) {
+  const [tout, setTout] = useState(false);
+  if (deadlines.length === 0) return null;
+  const visibles = tout ? deadlines : deadlines.slice(0, VISIBLES);
+  const n = deadlines.length;
 
   return (
-    <div className="rounded-2xl border overflow-hidden" style={{ background: C.card, borderColor: C.border }}>
-      <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: C.border }}>
-        <IconEcheance className="h-4 w-4" style={{ color: C.blue }} />
-        <h3 className="text-[16px]" style={{ fontFamily: SERIF, color: C.ink }}>Échéancier</h3>
-        <span className="text-[12px] text-muted-foreground">
-          · {deadlines.length} échéance{deadlines.length > 1 ? 's' : ''}
-        </span>
+    <section className="ech" aria-labelledby="ech-t">
+      <div className="ech-h">
+        <div>
+          <span className="eyebrow">Échéancier</span>
+          <h2 id="ech-t">
+            {n === 1 ? 'Une date à ne pas manquer' : `${n} dates à ne pas manquer`}
+          </h2>
+        </div>
+        <p>Les dates limites de dépôt de vos aides, de la plus proche à la plus lointaine.</p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 p-4">
-        {deadlines.map((d) => {
-          const style = URGENCY_STYLE[d.urgency];
-          const SourceIcon = d.source === 'aide' ? IconAide : IconDocument;
+      <div className="ech-grid">
+        {visibles.map((d, i) => {
+          const urgent = d.joursRestants <= SEUIL_URGENT;
+          const pct = d.joursRestants < 0 ? 100 : Math.max(6, 100 - (d.joursRestants / HORIZON) * 100);
+          const redige = d.source === 'aide' && d.aideId ? aide?.(d.aideId) : null;
+          const sous =
+            d.source === 'dossier' ? 'Échéance de dossier' : redige?.montant ?? 'Montant non publié';
           return (
-            <Link
-              key={d.id}
-              to={deadlineLink(d)}
-              aria-label={`${d.label} — ${d.source === 'aide' ? "ouvrir la fiche de l'aide" : 'ouvrir le dossier'}`}
-              className="group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              style={{ background: C.cream, borderColor: C.border }}
-            >
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: style.bg }}>
-                <SourceIcon className="h-4 w-4" style={{ color: style.fg }} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-medium leading-snug line-clamp-2 group-hover:underline" style={{ color: C.ink }}>{d.label}</p>
-                <p className="text-[11px] mt-0.5 text-muted-foreground">
-                  {d.source === 'aide' ? 'Aide' : 'Dossier'} · {formatDate(d.date)}
-                </p>
-              </div>
-              <span className="flex shrink-0 items-center gap-1">
-                <span
-                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border"
-                  style={{ background: style.bg, color: style.fg, borderColor: style.border }}
-                >
-                  {joursLabel(d)}
+            <Link key={d.id} to={deadlineLink(d)} className={i === 0 ? 'dl urgent' : 'dl'}>
+              <div className="dl-top">
+                <span className="dl-date">
+                  {format(parseISO(d.date), 'd MMM', { locale: fr })}
+                  <small>{sous}</small>
                 </span>
-                <ChevronRight
-                  className="h-3.5 w-3.5 shrink-0 opacity-40 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:opacity-100"
-                  style={{ color: C.blue }}
-                  aria-hidden
-                />
+                <span className={`jx ${d.joursRestants < 0 ? 'passe' : urgent ? 'urg' : 'calm'}`}>{jours(d)}</span>
+              </div>
+              <div className={urgent ? 'bar' : 'bar calm'} aria-hidden="true">
+                <i style={{ width: `${pct}%` }} />
+              </div>
+              <p>{redige?.titre ?? d.label}</p>
+              <span className="dl-f">
+                {d.source === 'aide' ? "Voir l'aide" : 'Voir le dossier'}
+                <Picto nom="fleche" />
               </span>
             </Link>
           );
         })}
       </div>
-    </div>
+      {n > VISIBLES && (
+        <button className="ech-all" type="button" onClick={() => setTout((t) => !t)}>
+          {tout ? 'Ne montrer que les plus proches' : `Voir les ${n - VISIBLES} autres dates`}
+        </button>
+      )}
+    </section>
   );
 }

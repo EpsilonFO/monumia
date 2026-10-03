@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import { projetSharingService, sharingService } from '@/services/sharing.service';
 import { projectPermissions } from '@/lib/project-permissions';
+import { OffreUpsell } from '@/components/shared/OffreUpsell';
 import { RoleBadge } from './RoleBadge';
 import { MemberAvatar } from './MemberAvatar';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -26,6 +27,13 @@ interface TeamPanelProps {
   scope: 'monument' | 'projet';
   /** Id du monument ou du projet, selon `scope`. */
   scopeId: string;
+  /**
+   * L'offre du bien permet-elle d'AJOUTER quelqu'un ? Le retrait, lui, reste
+   * toujours ouvert : après une résiliation, l'équipe garde son accès, et
+   * couper un accès qu'on ne contrôle plus n'est pas un service mais une
+   * sécurité. D'où deux droits distincts là où il n'y en avait qu'un.
+   */
+  invitationsOuvertes: boolean;
   myRole: ProjectRole | null;
   members: ProjectMember[];
   invitations: ProjectInvitation[];
@@ -73,7 +81,16 @@ const TEXTES = {
  * n'est pas le même : sur un projet, ce panneau ouvre un accès CLOISONNÉ, et le
  * dire est la moitié du travail.
  */
-export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChanged, onLeft }: TeamPanelProps) {
+export function TeamPanel({
+  scope,
+  scopeId,
+  invitationsOuvertes,
+  myRole,
+  members,
+  invitations,
+  onChanged,
+  onLeft,
+}: TeamPanelProps) {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const perms = projectPermissions(myRole);
   const api = scope === 'projet' ? projetSharingService : sharingService;
@@ -83,6 +100,7 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
   const [confirmRemove, setConfirmRemove] = useState<ProjectMember | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const isSolo = members.length === 1 && invitations.length === 0;
+  const peutInviter = perms.canInvite && invitationsOuvertes;
 
   const handleInvite = async () => {
     const target = email.trim();
@@ -113,18 +131,32 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>
+        <h2 className="text-[20.5px]" style={{ fontFamily: SERIF, color: C.ink }}>
           {t.titre}
         </h2>
-        <p className="text-[13px] text-muted-foreground">{t.intro}</p>
+        <p className="text-[15px] text-muted-foreground">{t.intro}</p>
       </div>
 
-      {perms.canInvite && (
+      {/* Le formulaire cède la place à la porte de sortie quand l'offre ne
+          permet plus d'ajouter : on n'arrive ici, dans ce cas, que parce qu'une
+          équipe est déjà constituée et reste à gérer. */}
+      {perms.canInvite && !invitationsOuvertes && (
+        <OffreUpsell
+          action={
+            scope === 'monument'
+              ? 'inviter des collaborateurs sur ce monument'
+              : 'inviter des collaborateurs sur ce chantier'
+          }
+          offre="Veille"
+        />
+      )}
+
+      {peutInviter && (
         <div
           className="rounded-xl border p-4 space-y-2"
           style={{ background: C.card, borderColor: C.border }}
         >
-          <label className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: C.ink }}>
+          <label className="flex items-center gap-1.5 text-[15px] font-semibold" style={{ color: C.ink }}>
             <IconEquipe className="h-4 w-4" style={{ color: C.blue }} strokeWidth={1.8} />
             Inviter une personne
           </label>
@@ -135,7 +167,7 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
-              className="h-10 text-[14px] bg-card"
+              className="h-10 text-[16px] bg-card"
               style={{ borderColor: C.border }}
             />
             <button
@@ -143,27 +175,27 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
               onClick={handleInvite}
               disabled={inviting || !email.trim()}
               aria-label="Inviter"
-              className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-lg disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 text-[15px] font-semibold text-white rounded-lg disabled:opacity-50"
               style={{ background: C.orange }}
             >
               {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Inviter'}
             </button>
           </div>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[13px] text-muted-foreground">
             Un email d'invitation lui sera envoyé.
           </p>
         </div>
       )}
 
       {isSolo && (
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-[15px] text-muted-foreground">
           {t.solo}
-          {perms.canInvite ? ' Invitez vos collaborateurs ci-dessus.' : ''}
+          {peutInviter ? ' Invitez vos collaborateurs ci-dessus.' : ''}
         </p>
       )}
 
       <div className="space-y-2">
-        <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="text-[14px] font-semibold uppercase tracking-wide text-muted-foreground">
           Personnes ayant accès ({members.length})
         </p>
         {members.map((m, mi) => {
@@ -183,13 +215,13 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
               <MemberAvatar person={m} size="md" colorIndex={mi} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-[14px] font-medium truncate" style={{ color: C.ink }}>
+                  <p className="text-[16px] font-medium truncate" style={{ color: C.ink }}>
                     {m.prenom} {m.nom} {isMe && <span className="text-muted-foreground">(vous)</span>}
                   </p>
                   <RoleBadge role={m.role} />
                   {herite && (
                     <span
-                      className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                      className="rounded-full px-2 py-0.5 text-[13px] font-semibold"
                       style={{ background: C.paleBlue, color: C.blue }}
                       title="Accès hérité de l’équipe du monument"
                     >
@@ -197,7 +229,7 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
                     </span>
                   )}
                 </div>
-                <p className="text-[12px] truncate text-muted-foreground">
+                <p className="text-[14px] truncate text-muted-foreground">
                   {[m.metier, m.email].filter(Boolean).join(' · ')}
                 </p>
               </div>
@@ -205,7 +237,7 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     aria-label="Gérer ce membre"
-                    className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium hover:bg-muted text-gray-fg"
+                    className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[14px] font-medium hover:bg-muted text-gray-fg"
                     style={{ borderColor: C.border }}
                   >
                     Gérer <MoreVertical className="h-3.5 w-3.5" />
@@ -237,7 +269,7 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
 
       {invitations.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-[14px] font-semibold uppercase tracking-wide text-muted-foreground">
             Invitations en attente ({invitations.length})
           </p>
           {invitations.map((inv) => (
@@ -247,12 +279,12 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
               style={{ borderColor: C.border }}
             >
               <IconContact className="h-4 w-4 text-muted-foreground" />
-              <p className="text-[13px] flex-1 truncate text-gray-fg">{inv.email}</p>
-              <span className="text-[11px] text-muted-foreground">Invitation envoyée</span>
+              <p className="text-[15px] flex-1 truncate text-gray-fg">{inv.email}</p>
+              <span className="text-[13px] text-muted-foreground">Invitation envoyée</span>
               {perms.canInvite && (
                 <button
                   type="button"
-                  className="text-[12px] hover:underline text-destructive"
+                  className="text-[14px] hover:underline text-destructive"
                   onClick={() => act(() => api.revokeInvitation(scopeId, inv.id), 'Invitation annulée')}
                 >
                   Annuler
@@ -268,7 +300,7 @@ export function TeamPanel({ scope, scopeId, myRole, members, invitations, onChan
           <button
             type="button"
             onClick={() => setConfirmLeave(true)}
-            className="inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition-colors hover:bg-destructive-muted text-destructive border-destructive-muted"
+            className="inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-[15px] font-semibold transition-colors hover:bg-destructive-muted text-destructive border-destructive-muted"
           >
             <IconDeconnexion className="h-4 w-4" strokeWidth={1.8} />
             {t.quitter}

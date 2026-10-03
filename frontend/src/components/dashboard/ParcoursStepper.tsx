@@ -13,7 +13,7 @@ export function ParcoursStepper({ stage }: { stage: ProjectStage }) {
           <li key={s.key} className="flex flex-1 items-center gap-1.5">
             <span className="flex items-center gap-1.5">
               <span
-                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[12px] font-bold"
                 style={{
                   background: reached ? C.orange : C.paleBlue,
                   color: reached ? '#fff' : C.blue,
@@ -23,7 +23,7 @@ export function ParcoursStepper({ stage }: { stage: ProjectStage }) {
                 {reached ? <Check className="h-3 w-3" strokeWidth={3} aria-hidden /> : i + 1}
               </span>
               <span
-                className="hidden whitespace-nowrap text-[11px] font-medium md:inline"
+                className="hidden whitespace-nowrap text-[13px] font-medium md:inline"
                 style={{ color: reached ? C.ink : C.grayMuted }}
               >
                 {s.label}

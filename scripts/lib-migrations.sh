@@ -66,3 +66,25 @@ push_migrations() {
   echo "Pushing DB migrations ($label)..."
   supabase db push --db-url "$db_url" --yes
 }
+
+# migrer_si_besoin <label> <chemin/vers/.env>
+#
+# push_migrations, sauté quand supabase/migrations/ n'a pas bougé depuis le
+# dernier push réussi sur cet environnement. Demande scripts/lib-deploy.sh
+# (empreintes). `db push` sans rien à pousser coûte quand même le démarrage du
+# CLI et une connexion au pooler, pour chaque environnement.
+#
+# Les `|| return 1` sont indispensables : appelée à gauche d'un `||`, la
+# fonction tourne sans `set -e`, et un push raté serait sinon noté comme fait.
+migrer_si_besoin() {
+  local label="$1" env_file="$2" e
+  e=$(empreinte supabase/migrations)
+
+  if etape_a_jour "migrations-$label" "$e"; then
+    echo "Migrations $label : aucune nouvelle depuis le dernier push, sauté."
+    return 0
+  fi
+
+  push_migrations "$label" "$env_file" || return 1
+  noter_etape "migrations-$label" "$e"
+}

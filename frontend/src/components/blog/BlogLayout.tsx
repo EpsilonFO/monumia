@@ -28,7 +28,7 @@ export function BlogLayout() {
           <Outlet />
         </div>
         <footer
-          className="border-t py-8 text-center text-[12px]"
+          className="border-t py-8 text-center text-[14px]"
           style={{ borderColor: C.border, color: C.ink, opacity: 0.55 }}
         >
           © Monumia — Ressources pour les propriétaires et les communes

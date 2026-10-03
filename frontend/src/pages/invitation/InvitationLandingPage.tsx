@@ -8,6 +8,7 @@ import { usePendingOAuthStore } from '@/stores/usePendingOAuthStore';
 import { MetierSelect } from '@/components/sharing/MetierSelect';
 import { AuthLayout } from '@/components/layout/AuthLayout';
 import { GoogleButton } from '@/components/auth/GoogleButton';
+import { ConfirmerEmail } from '@/components/auth/ConfirmerEmail';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,6 +16,7 @@ import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
 import { setPendingInvitation } from '@/lib/pending-invitation';
+import { ApiError } from '@/lib/api-error';
 import { toast } from 'sonner';
 
 const SUCCESS = 'var(--success)';
@@ -24,7 +26,7 @@ type Mode = 'choice' | 'signup' | 'login' | 'oauth';
 
 const MUTED = 'var(--muted-foreground)';
 const LIGHT = 'var(--muted-foreground)';
-const INPUT_CLS = 'h-12 text-[15px] bg-card border-border focus:border-primary focus:ring-primary/10';
+const INPUT_CLS = 'h-12 text-[17px] bg-card border-border focus:border-primary focus:ring-primary/10';
 
 // Pages légales, servies par la landing (monumia.fr).
 const CGU_URL = 'https://monumia.fr/cgu';
@@ -37,7 +39,7 @@ function CguConsent({ checked, onChange }: { checked: boolean; onChange: (v: boo
   return (
     <label className="flex cursor-pointer items-start gap-2.5">
       <Checkbox checked={checked} onCheckedChange={(v) => onChange(v === true)} className="mt-[3px]" />
-      <span className="text-[13px] leading-[1.55]" style={{ color: MUTED }}>
+      <span className="text-[15px] leading-[1.55]" style={{ color: MUTED }}>
         J'ai lu et j'accepte les{' '}
         <a href={CGU_URL} target="_blank" rel="noopener noreferrer" className={linkCls} style={{ color: C.blue }}>
           conditions générales d'utilisation
@@ -73,6 +75,16 @@ export function InvitationLandingPage() {
   const [mode, setMode] = useState<Mode>(oauthAccessToken ? 'oauth' : 'choice');
   const [busy, setBusy] = useState(false);
   const [acceptCgu, setAcceptCgu] = useState(false);
+  // Confirmation d'email exigée : le compte est créé mais sans session, donc
+  // l'invitation ne peut pas être acceptée tout de suite. Le lien de
+  // confirmation ramène ici (`invitation` transmis au serveur), et le bouton
+  // « Rejoindre » attendra la personne, connectée.
+  const [emailAConfirmer, setEmailAConfirmer] = useState<{
+    email: string;
+    // Ce qui a mené là : l'inscription (le compte vient d'être créé) ou la
+    // connexion (compte plus ancien, jamais confirmé). Le message diffère.
+    variante: 'inscription' | 'connexion';
+  } | null>(null);
 
   const [form, setForm] = useState({
     prenom: oauthPrenom ?? '',
@@ -133,7 +145,12 @@ export function InvitationLandingPage() {
         nom: form.nom,
         metier: form.metier,
         telephone: form.telephone || undefined,
+        invitation: token,
       });
+      if (!access_token) {
+        setEmailAConfirmer({ email: form.email, variante: 'inscription' });
+        return;
+      }
       setAuth(u, access_token);
       await acceptAndGo();
     } catch (e) {
@@ -192,6 +209,13 @@ export function InvitationLandingPage() {
       setAuth(u, access_token);
       await acceptAndGo();
     } catch (e) {
+      // 403 : identifiants bons, adresse pas encore confirmée. Le renvoi de
+      // l'email est le seul chemin de sortie, un toast rouge n'en donnerait
+      // aucun.
+      if (e instanceof ApiError && e.status === 403) {
+        setEmailAConfirmer({ email: form.email, variante: 'connexion' });
+        return;
+      }
       toast.error(e instanceof Error ? e.message : 'Connexion impossible');
     } finally {
       setBusy(false);
@@ -199,12 +223,28 @@ export function InvitationLandingPage() {
   };
 
   // ── États non nominaux ──
+  if (emailAConfirmer) {
+    return (
+      <AuthLayout panelEyebrow="Invitation">
+        <ConfirmerEmail
+          email={emailAConfirmer.email}
+          intention={{ invitation: token }}
+          variante={emailAConfirmer.variante}
+        >
+          <p className="text-center text-[15px] leading-[1.6]" style={{ color: C.grayMuted }}>
+            L&rsquo;invitation reste valable : le lien vous ramènera ici, et il n&rsquo;y aura plus
+            qu&rsquo;à rejoindre {preview ? `« ${preview.monumentNom} »` : 'le monument'}.
+          </p>
+        </ConfirmerEmail>
+      </AuthLayout>
+    );
+  }
   if (error) {
     return (
       <AuthLayout panelEyebrow="Invitation">
         <Heading>Invitation introuvable</Heading>
-        <p className="text-[15px]" style={{ color: C.danger }}>{error}</p>
-        <p className="text-[14px]" style={{ color: LIGHT }}>
+        <p className="text-[17px]" style={{ color: C.danger }}>{error}</p>
+        <p className="text-[16px]" style={{ color: LIGHT }}>
           Demandez un nouveau lien à la personne qui vous a invité.
         </p>
       </AuthLayout>
@@ -223,8 +263,8 @@ export function InvitationLandingPage() {
     return (
       <AuthLayout panelEyebrow="Invitation">
         <Heading>Invitation expirée</Heading>
-        <p className="text-[15px]" style={{ color: C.danger }}>Cette invitation n'est plus valide.</p>
-        <p className="text-[14px]" style={{ color: LIGHT }}>
+        <p className="text-[17px]" style={{ color: C.danger }}>Cette invitation n'est plus valide.</p>
+        <p className="text-[16px]" style={{ color: LIGHT }}>
           Elle a peut-être déjà été utilisée, annulée ou expirée. Demandez un nouveau lien à la
           personne qui vous a invité.
         </p>
@@ -250,19 +290,19 @@ export function InvitationLandingPage() {
     <AuthLayout panelEyebrow="Invitation à collaborer" panelHeadline={panelHeadline} panelDescription={panelDescription}>
       {/* contexte (visible aussi sur mobile, où le panneau bleu est masqué) */}
       <div className="space-y-3">
-        <p className="text-[15px]" style={{ color: MUTED }}>
+        <p className="text-[17px]" style={{ color: MUTED }}>
           <strong style={{ color: C.ink }}>{preview.inviterNom}</strong> vous invite à collaborer sur
         </p>
-        <h1 className="text-[26px] leading-[1.15]" style={{ fontFamily: SERIF, color: C.ink }}>
+        <h1 className="text-[30px] leading-[1.15]" style={{ fontFamily: SERIF, color: C.ink }}>
           «&nbsp;{preview.monumentNom}&nbsp;»
         </h1>
         {preview.projetTitre && (
-          <p className="text-[14px]" style={{ color: MUTED }}>
+          <p className="text-[16px]" style={{ color: MUTED }}>
             Sur le projet de travaux{' '}
             <strong style={{ color: C.orange }}>{preview.projetTitre}</strong>, et lui seul.
           </p>
         )}
-        <p className="text-[14px]" style={{ color: LIGHT }}>
+        <p className="text-[16px]" style={{ color: LIGHT }}>
           Vous rejoignez en tant que <strong style={{ color: C.blue }}>collaborateur</strong>.
         </p>
       </div>
@@ -277,7 +317,7 @@ export function InvitationLandingPage() {
       ) : mode === 'oauth' ? (
         <div className="flex flex-col gap-4">
           <div
-            className="flex items-start gap-2.5 rounded-xl p-4 text-[14px] leading-[1.55]"
+            className="flex items-start gap-2.5 rounded-xl p-4 text-[16px] leading-[1.55]"
             style={{ background: 'var(--secondary)', color: C.ink }}
           >
             <Check className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: SUCCESS }} />
@@ -317,7 +357,7 @@ export function InvitationLandingPage() {
           />
           <div className="flex items-center gap-3" aria-hidden="true">
             <span className="h-px flex-1" style={{ background: C.border }} />
-            <span className="text-[13px] whitespace-nowrap" style={{ color: LIGHT }}>
+            <span className="text-[15px] whitespace-nowrap" style={{ color: LIGHT }}>
               ou avec votre adresse email
             </span>
             <span className="h-px flex-1" style={{ background: C.border }} />
@@ -340,7 +380,7 @@ export function InvitationLandingPage() {
                 {PASSWORD_RULES.map(({ key, label }) => {
                   const ok = passwordChecks(form.password)[key];
                   return (
-                    <div key={key} className="flex items-center gap-1.5 text-[12px]" style={{ color: ok ? SUCCESS : LIGHT }}>
+                    <div key={key} className="flex items-center gap-1.5 text-[14px]" style={{ color: ok ? SUCCESS : LIGHT }}>
                       {ok ? <Check className="h-3 w-3 flex-shrink-0" /> : <X className="h-3 w-3 flex-shrink-0" />}
                       {label}
                     </div>
@@ -372,14 +412,14 @@ export function InvitationLandingPage() {
         </div>
       )}
 
-      <p className="text-[12px]" style={{ color: LIGHT }}>Invitation valable jusqu'au {expires}.</p>
+      <p className="text-[14px]" style={{ color: LIGHT }}>Invitation valable jusqu'au {expires}.</p>
     </AuthLayout>
   );
 }
 
 function Heading({ children }: { children: React.ReactNode }) {
   return (
-    <h1 className="text-[26px] leading-[1.15]" style={{ fontFamily: SERIF, color: C.ink }}>
+    <h1 className="text-[30px] leading-[1.15]" style={{ fontFamily: SERIF, color: C.ink }}>
       {children}
     </h1>
   );
@@ -388,7 +428,7 @@ function Heading({ children }: { children: React.ReactNode }) {
 function FormField({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={htmlFor} className="text-[14px] font-medium" style={{ color: C.ink }}>{label}</Label>
+      <Label htmlFor={htmlFor} className="text-[16px] font-medium" style={{ color: C.ink }}>{label}</Label>
       {children}
     </div>
   );
@@ -400,7 +440,7 @@ function PrimaryButton({ onClick, busy, children }: { onClick: () => void; busy?
       type="button"
       onClick={onClick}
       disabled={busy}
-      className="group flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[14px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
+      className="group flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[16px] font-semibold text-white transition-opacity duration-200 hover:opacity-90 disabled:opacity-50"
       style={{ background: C.orange }}
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : (
@@ -418,7 +458,7 @@ function SecondaryButton({ onClick, children }: { onClick: () => void; children:
     <button
       type="button"
       onClick={onClick}
-      className="h-12 w-full rounded-lg border text-[14px] font-medium transition-colors hover:bg-card"
+      className="h-12 w-full rounded-lg border text-[16px] font-medium transition-colors hover:bg-card"
       style={{ borderColor: C.border, color: C.blue }}
     >
       {children}
@@ -428,7 +468,7 @@ function SecondaryButton({ onClick, children }: { onClick: () => void; children:
 
 function BackLink({ onClick }: { onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="self-center text-[13px] underline underline-offset-2" style={{ color: C.orange }}>
+    <button type="button" onClick={onClick} className="self-center text-[15px] underline underline-offset-2" style={{ color: C.orange }}>
       Retour
     </button>
   );

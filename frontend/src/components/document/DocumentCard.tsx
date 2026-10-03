@@ -112,13 +112,13 @@ export function DocumentCard({
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleRename(); }}
             autoFocus
-            className="h-10 text-[14px] bg-card border-border focus:border-primary focus:ring-primary/10"
+            className="h-10 text-[16px] bg-card border-border focus:border-primary focus:ring-primary/10"
           />
           <DialogFooter>
-            <button onClick={() => setRenameOpen(false)} disabled={loading} className="px-4 py-2 text-[13px] font-medium border border-border rounded-lg text-muted-foreground hover:bg-muted transition-colors">
+            <button onClick={() => setRenameOpen(false)} disabled={loading} className="px-4 py-2 text-[15px] font-medium border border-border rounded-lg text-muted-foreground hover:bg-muted transition-colors">
               Annuler
             </button>
-            <button onClick={handleRename} disabled={!newName.trim() || loading} className="px-4 py-2 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg disabled:opacity-50 hover:shadow-md transition-all">
+            <button onClick={handleRename} disabled={!newName.trim() || loading} className="px-4 py-2 text-[15px] font-semibold text-primary-foreground bg-primary rounded-lg disabled:opacity-50 hover:shadow-md transition-all">
               {loading ? 'Enregistrement...' : 'Enregistrer'}
             </button>
           </DialogFooter>

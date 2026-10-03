@@ -16,7 +16,7 @@ interface MetierSelectProps {
 export function MetierSelect({ value, onChange, className }: MetierSelectProps) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className={className ?? 'h-12 text-[15px] bg-card border-border'}>
+      <SelectTrigger className={className ?? 'h-12 text-[17px] bg-card border-border'}>
         <SelectValue placeholder="Votre rôle sur le monument" />
       </SelectTrigger>
       <SelectContent>

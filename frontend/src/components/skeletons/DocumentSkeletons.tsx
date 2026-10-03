@@ -29,7 +29,7 @@ function DocumentRowSkeleton() {
         style={{ borderColor: C.border }}
       >
         <Skeleton className="h-3 w-28" />
-        <Skeleton className="h-[30px] w-28 rounded-lg" />
+        <Skeleton className="h-[34px] w-28 rounded-lg" />
       </div>
     </div>
   );

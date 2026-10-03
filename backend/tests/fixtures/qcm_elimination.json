@@ -1,0 +1,159 @@
+{
+  "_doc": "Fixture PARTAGÉE par les deux miroirs de l'élimination du QCM : `computeEliminatedAideIds` / `isVisible` (frontend/src/lib/qcm.ts) et `aides_eliminees` / `est_visible` (backend/profils_questionnaire.py). Le backend simule le parcours pour le ratchet du questionnaire, le front le vit ; deux implémentations qui divergent feraient mentir le ratchet sans que rien ne le dise. Rejouée des deux côtés : tests/test_profils_questionnaire.py et frontend/src/lib/__tests__/qcm.test.ts.",
+  "questions": [
+    {
+      "id": "statut_juridique_porteur",
+      "question": "Qui pourrait déposer la demande ?",
+      "multiple": true,
+      "options": [
+        { "id": "societe", "label": "Société" },
+        { "id": "public_commune", "label": "Commune" },
+        { "id": "pas_encore_choisi", "label": "Pas encore choisi", "unknown": true }
+      ],
+      "aideIds": ["pret-pme", "dotation-communale", "prix-prive"],
+      "eliminatingOptionIds": [],
+      "eliminationsParOption": {
+        "societe": ["dotation-communale", "prix-prive"],
+        "public_commune": ["pret-pme", "prix-prive"]
+      }
+    },
+    {
+      "id": "effectif_salaries",
+      "question": "Combien de salariés compte la structure porteuse ?",
+      "options": [
+        { "id": "moins_de_50", "label": "Moins de 50" },
+        { "id": "plus_de_50", "label": "50 ou plus" }
+      ],
+      "aideIds": ["pret-pme"],
+      "eliminatingOptionIds": ["plus_de_50"],
+      "dependsOn": { "questionId": "statut_juridique_porteur", "showForOptionIds": ["societe"] }
+    },
+    {
+      "id": "monument_ouvert_au_public",
+      "question": "Le monument est-il ouvert au public ?",
+      "options": [
+        { "id": "oui", "label": "Oui" },
+        { "id": "non", "label": "Non" }
+      ],
+      "aideIds": ["dotation-communale", "prix-prive"],
+      "eliminatingOptionIds": ["non"]
+    },
+    {
+      "id": "usage_batiment",
+      "question": "Quels sont les usages du bâtiment ?",
+      "multiple": true,
+      "options": [
+        { "id": "cultuel", "label": "Culte" },
+        { "id": "activite_culturelle", "label": "Activité culturelle" },
+        { "id": "habitation", "label": "Habitation" }
+      ],
+      "aideIds": ["tourisme-hors-culte", "salle-concerts"],
+      "eliminatingOptionIds": [],
+      "eliminationsParOption": {
+        "cultuel": ["tourisme-hors-culte", "salle-concerts"],
+        "habitation": ["salle-concerts"]
+      },
+      "eliminationsStrictesParOption": {
+        "cultuel": ["tourisme-hors-culte"]
+      }
+    }
+  ],
+  "cas_elimination": [
+    {
+      "nom": "sans réponse, rien n'est écarté",
+      "answers": {},
+      "eliminees": []
+    },
+    {
+      "nom": "une case cochée écarte ce qu'elle porte",
+      "answers": { "statut_juridique_porteur": ["public_commune"] },
+      "eliminees": ["prix-prive", "pret-pme"]
+    },
+    {
+      "nom": "deux cases : INTERSECTION, cocher plus libère des aides",
+      "answers": { "statut_juridique_porteur": ["societe", "public_commune"] },
+      "eliminees": ["prix-prive"]
+    },
+    {
+      "nom": "une réponse « je ne sais pas » n'écarte rien",
+      "answers": { "statut_juridique_porteur": ["pas_encore_choisi"] },
+      "eliminees": []
+    },
+    {
+      "nom": "« skip » n'écarte rien non plus",
+      "answers": { "statut_juridique_porteur": "skip" },
+      "eliminees": []
+    },
+    {
+      "nom": "repli grossier : l'option éliminante emporte toutes les aides de la question",
+      "answers": { "monument_ouvert_au_public": "non" },
+      "eliminees": ["dotation-communale", "prix-prive"]
+    },
+    {
+      "nom": "option non éliminante, forme grossière : rien",
+      "answers": { "monument_ouvert_au_public": "oui" },
+      "eliminees": []
+    },
+    {
+      "nom": "les éliminations de deux questions se cumulent",
+      "answers": {
+        "statut_juridique_porteur": ["societe"],
+        "effectif_salaries": "plus_de_50"
+      },
+      "eliminees": ["dotation-communale", "prix-prive", "pret-pme"]
+    },
+    {
+      "nom": "exclusion stricte : la case exclue écarte l'aide malgré les autres cases",
+      "answers": { "usage_batiment": ["cultuel", "activite_culturelle"] },
+      "eliminees": ["tourisme-hors-culte"]
+    },
+    {
+      "nom": "exclusion stricte : sans la case exclue, rien",
+      "answers": { "usage_batiment": ["activite_culturelle"] },
+      "eliminees": []
+    },
+    {
+      "nom": "exclusion stricte et intersection se cumulent",
+      "answers": { "usage_batiment": ["cultuel", "habitation"] },
+      "eliminees": ["tourisme-hors-culte", "salle-concerts"]
+    }
+  ],
+  "cas_visibilite": [
+    {
+      "nom": "porteuse non répondue : la dépendante reste posée (fail-closed)",
+      "question": "effectif_salaries",
+      "answers": {},
+      "visible": true
+    },
+    {
+      "nom": "porteuse passée : la dépendante reste posée",
+      "question": "effectif_salaries",
+      "answers": { "statut_juridique_porteur": "skip" },
+      "visible": true
+    },
+    {
+      "nom": "réponse attendue : la dépendante est posée",
+      "question": "effectif_salaries",
+      "answers": { "statut_juridique_porteur": ["societe"] },
+      "visible": true
+    },
+    {
+      "nom": "une seule case pertinente suffit en choix multiple",
+      "question": "effectif_salaries",
+      "answers": { "statut_juridique_porteur": ["public_commune", "societe"] },
+      "visible": true
+    },
+    {
+      "nom": "aucune case pertinente : la dépendante disparaît",
+      "question": "effectif_salaries",
+      "answers": { "statut_juridique_porteur": ["public_commune"] },
+      "visible": false
+    },
+    {
+      "nom": "une question sans dependsOn est toujours visible",
+      "question": "monument_ouvert_au_public",
+      "answers": { "statut_juridique_porteur": ["public_commune"] },
+      "visible": true
+    }
+  ]
+}

@@ -10,7 +10,7 @@ function makeMonument(id: string, userId: string, nom: string): Monument {
     codeInsee: '00000',
     commune: 'Rodez',
     protection: 'classe',
-    proprietaire: 'public_commune',
+    proprietaire: ['public_commune'],
     etatConservation: 'moyen',
     photos: [],
     completionPercentage: 50,

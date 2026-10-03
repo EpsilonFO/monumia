@@ -8,6 +8,9 @@ import { authFetch, handleResponse } from '@/lib/auth-fetch';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
+/** Les `GET /dossiers` en vol, par filtre (cf. `fetchAll`). */
+const dossiersEnVol = new Map<string, Promise<Dossier[]>>();
+
 // Backend returns snake_case, frontend uses camelCase
 export function toDossier(row: Record<string, unknown>): Dossier {
   return {
@@ -34,13 +37,28 @@ export function toDossier(row: Record<string, unknown>): Dossier {
 }
 
 export const dossierService = {
-  async fetchAll(projetId?: string): Promise<Dossier[]> {
+  /**
+   * Partagé tant qu'il est en vol : quatre pages l'appellent à leur montage, et
+   * le tableau de bord remplit déjà le même store. Deux appels rapprochés
+   * rendent la même promesse plutôt que deux requêtes.
+   */
+  fetchAll(projetId?: string): Promise<Dossier[]> {
     const query = projetId ? `?projet_id=${encodeURIComponent(projetId)}` : '';
-    const res = await authFetch(`${BASE}/dossiers${query}`);
-    const rows = await handleResponse<Record<string, unknown>[]>(res);
-    const dossiers = rows.map(toDossier);
-    useDossierStore.getState().setDossiers(dossiers);
-    return dossiers;
+    const encours = dossiersEnVol.get(query);
+    if (encours) return encours;
+    const chargement = (async () => {
+      try {
+        const res = await authFetch(`${BASE}/dossiers${query}`);
+        const rows = await handleResponse<Record<string, unknown>[]>(res);
+        const dossiers = rows.map(toDossier);
+        useDossierStore.getState().setDossiers(dossiers);
+        return dossiers;
+      } finally {
+        dossiersEnVol.delete(query);
+      }
+    })();
+    dossiersEnVol.set(query, chargement);
+    return chargement;
   },
 
   async getById(id: string): Promise<Dossier> {
@@ -96,6 +114,28 @@ export const dossierService = {
         statut,
         ...(documentId !== undefined ? { document_id: documentId } : {}),
       }),
+    });
+    const row = await handleResponse<Record<string, unknown>>(res);
+    const dossier = toDossier(row);
+    useDossierStore.getState().updateDossier(dossierId, dossier);
+    return dossier;
+  },
+
+  async reprendrePieces(dossierId: string): Promise<Dossier> {
+    const res = await authFetch(`${BASE}/dossiers/${dossierId}/reprendre-pieces`, {
+      method: 'POST',
+    });
+    const row = await handleResponse<Record<string, unknown>>(res);
+    const dossier = toDossier(row);
+    useDossierStore.getState().updateDossier(dossierId, dossier);
+    return dossier;
+  },
+
+  /** Retire le document d'une pièce (rejet d'une reprise). */
+  async detacherChecklistItem(dossierId: string, itemId: string): Promise<Dossier> {
+    const res = await authFetch(`${BASE}/dossiers/${dossierId}/checklist/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ statut: 'manquant', detacher: true }),
     });
     const row = await handleResponse<Record<string, unknown>>(res);
     const dossier = toDossier(row);

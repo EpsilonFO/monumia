@@ -30,20 +30,38 @@ interface DocumentState {
   getDocumentsForDossier: (dossierId: string) => Document[];
 }
 
+/**
+ * Les chargements en vol, par jeu de paramètres. Quatre pages et une modale
+ * appellent `fetchDocuments` au montage : deux montages rapprochés partageaient
+ * sinon deux requêtes identiques, dont la plus lente écrasait la plus fraîche.
+ */
+const enVol = new Map<string, Promise<void>>();
+
 export const useDocumentStore = create<DocumentState>()((set, get) => ({
   documents: [],
   trashedDocuments: [],
   loading: false,
   error: null,
 
-  fetchDocuments: async (params) => {
-    set({ loading: true, error: null });
-    try {
-      const documents = await documentService.getAll(params);
-      set({ documents, loading: false });
-    } catch (e) {
-      set({ error: (e as Error).message, loading: false });
-    }
+  fetchDocuments: (params) => {
+    const cle = JSON.stringify(params ?? {});
+    const encours = enVol.get(cle);
+    if (encours) return encours;
+    // Le squelette au PREMIER chargement seulement : revenir sur la page
+    // effaçait la liste déjà là, le temps de la relire.
+    set({ loading: get().documents.length === 0, error: null });
+    const chargement = (async () => {
+      try {
+        const documents = await documentService.getAll(params);
+        set({ documents, loading: false });
+      } catch (e) {
+        set({ error: (e as Error).message, loading: false });
+      } finally {
+        enVol.delete(cle);
+      }
+    })();
+    enVol.set(cle, chargement);
+    return chargement;
   },
 
   uploadDocument: async (payload, userId) => {

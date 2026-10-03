@@ -1,11 +1,13 @@
 import contextlib
+import json
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
+from pieces_schema import TYPE_DOCUMENTS, load_pieces
 from services.project_access import (
     allowed_visibilities,
     best_document_role,
@@ -13,6 +15,8 @@ from services.project_access import (
     can_view_document,
     max_role,
     my_scope_roles,
+    projet_role_depuis,
+    projet_roles_propres,
     require_project_access,
     require_projet_access,
 )
@@ -64,6 +68,32 @@ class CreateDocumentRequest(BaseModel):
     description: str | None = None
     visibility: str | None = None
     allowed_user_ids: list[str] = []
+    # La pièce du référentiel (data/pieces.yaml) que ce fichier incarne, quand
+    # il est déposé depuis « À déposer pour vos aides ». C'est l'étiquette qui
+    # le fait reprendre dans chaque dossier qui la demande (services/piece_reuse).
+    piece_id: str | None = None
+
+    @field_validator("type")
+    @classmethod
+    def _type_connu(cls, v: str) -> str:
+        return _valider_type(v)
+
+    @field_validator("piece_id")
+    @classmethod
+    def _piece_connue(cls, v: str | None) -> str | None:
+        # Une étiquette inconnue ne serait reprise par aucun dossier : mieux vaut
+        # un refus net qu'un document qui ne sert à rien sans le dire.
+        if v is not None and v not in load_pieces():
+            raise ValueError(f"pièce inconnue « {v} »")
+        return v
+
+
+def _valider_type(v: str) -> str:
+    """Le type doit exister dans l'enum `document_type` : sans ce contrôle, la
+    base refuse l'insertion et la route répond 500 au lieu de 422."""
+    if v not in TYPE_DOCUMENTS:
+        raise ValueError(f"type de document inconnu « {v} »")
+    return v
 
 
 class UpdateDocumentRequest(BaseModel):
@@ -74,6 +104,11 @@ class UpdateDocumentRequest(BaseModel):
     description: str | None = None
     visibility: str | None = None
     allowed_user_ids: list[str] | None = None
+
+    @field_validator("type")
+    @classmethod
+    def _type_connu(cls, v: str | None) -> str | None:
+        return None if v is None else _valider_type(v)
 
 
 class AddToProjectsRequest(BaseModel):
@@ -229,10 +264,10 @@ def list_documents(
 ):
     """Documents d'un monument, d'un projet, ou tout ce que je peux voir.
 
-    Les deux périmètres sont volontairement DISJOINTS : `?monument_id=` ne rend
-    que les pièces du bien (arrêté, cadastre, photos), `?projet_id=` que celles
-    du chantier. Un onglet qui mélangerait les deux montrerait à l'équipe d'un
-    projet des documents du monument auxquels elle n'a pas droit.
+    Les deux périmètres suivent les deux niveaux de partage, et ne sont donc pas
+    symétriques : `?projet_id=` ne rend que les pièces du chantier, jamais celles
+    du bien (l'équipe d'un projet n'y a pas droit) ; `?monument_id=` rend les
+    pièces du bien ET celles de tous ses chantiers, que son équipe voit déjà.
     """
     if projet_id:
         _, role = require_projet_access(supabase, projet_id, user_id, "member")
@@ -262,26 +297,38 @@ def list_documents(
         # Réservé à l'équipe du MONUMENT : un membre d'un seul de ses projets
         # n'a rien à faire dans les pièces du bien.
         role = require_project_access(supabase, monument_id, user_id, "member")
+        # Les pièces des chantiers y figurent aussi, SANS être rattachées au
+        # monument : les retirer du projet les retire d'ici, et l'équipe d'un
+        # projet ne les voit pas pour autant pendre au bien.
+        projets = (
+            supabase.table("projets")
+            .select("id, user_id")
+            .eq("monument_id", monument_id)
+            .execute()
+            .data
+        ) or []
+        clauses = [f"monument_ids.cs.{{{monument_id}}}"]
+        if projets:
+            clauses.append(f"projet_ids.ov.{{{','.join(str(p['id']) for p in projets)}}}")
         query = (
             supabase.table("documents")
             .select(COLUMNS)
-            .contains("monument_ids", [monument_id])
+            .or_(",".join(clauses))
+            .is_("trashed_at", "null")
             .order("date_upload", desc=True)
         )
         if type:
             query = query.eq("type", type)
         rows = query.execute().data or []
-        return [
-            r
-            for r in rows
-            if can_view_document(
-                visibility=r.get("visibility") or "team",
-                allowed_user_ids=r.get("allowed_user_ids") or [],
-                uploader_id=r.get("user_id"),
-                viewer_id=user_id,
-                viewer_role=role,
-            )
-        ]
+        # Rôle EFFECTIF sur chaque chantier : celui du monument, relevé au besoin
+        # par une appartenance propre au projet (même règle que `max_role`).
+        propres = projet_roles_propres(supabase, user_id) if projets else {}
+        projet_roles = {
+            str(p["id"]): r
+            for p in projets
+            if (r := projet_role_depuis(p, role, propres, user_id)) is not None
+        }
+        return _filter_visible(rows, user_id, {monument_id: role}, projet_roles)
 
     # Vue « Mes documents » : tout ce que je peux voir (mes uploads + les pièces
     # des monuments et des projets où je suis membre), filtré par les droits de
@@ -459,11 +506,15 @@ def delete_document(
         and ".." not in storage_path.split("/")
     ):
         safe_path = storage_path
+    _detacher_des_checklists(supabase, document_id)
+    supabase.table("documents").delete().eq("id", document_id).execute()
+    # Le stockage en DERNIER : un échec à mi-chemin dans l'autre ordre laisse
+    # une ligne vivante dont le fichier n'existe plus — aperçu mort, suppression
+    # qui re-échoue à chaque essai. Un objet orphelin dans le bucket est, lui,
+    # inoffensif.
     if safe_path:
         with contextlib.suppress(Exception):
             supabase.storage.from_(STORAGE_BUCKET).remove([safe_path])
-
-    supabase.table("documents").delete().eq("id", document_id).execute()
 
 
 @router.post("/{document_id}/link/{dossier_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -565,6 +616,54 @@ def add_document_to_projects(
     return result.data[0]
 
 
+def _detacher_des_checklists(supabase: Client, document_id: str) -> None:
+    """Détache un document de toutes les checklists qui le référencent.
+
+    Jeter ou supprimer un document vide `dossiers_utilises` de SON côté, mais
+    les checklists des dossiers (JSONB) pointent toujours vers lui : la pièce
+    resterait « fournie » avec un fichier fantôme, que le front afficherait
+    verrouillée (« Réservé ») sans plus aucune action possible. Les pièces
+    concernées repassent à « manquant » — la reprise pourra proposer un autre
+    fichier. La recherche par `@>` couvre aussi les pièces simplement
+    « reprises », que `dossiers_utilises` ne connaît pas (le lien au dossier ne
+    se crée qu'à la confirmation).
+    """
+    # Import local : documents → dossiers serait un cycle au niveau module
+    # (dossiers importe déjà des helpers de routers), et seul ce recalcul est
+    # nécessaire ici.
+    from routers.dossiers import _recalculate_progression
+
+    rows = (
+        supabase.table("dossiers")
+        .select("id, checklist")
+        # Chaîne JSON impérativement : postgrest-py sérialise une LISTE avec
+        # ','.join(...), qui lève TypeError sur des dicts — l'endpoint entier
+        # répondait 500 (« failed to fetch » côté client).
+        .contains("checklist", json.dumps([{"documentId": document_id}]))
+        .execute()
+        .data
+        or []
+    )
+    for dossier in rows:
+        checklist = dossier.get("checklist") or []
+        modifie = False
+        for item in checklist:
+            if item.get("documentId") == document_id:
+                item["documentId"] = None
+                if item.get("statut") in ("fourni", "repris"):
+                    item["statut"] = "manquant"
+                item.pop("origine", None)
+                item.pop("perime", None)
+                modifie = True
+        if modifie:
+            supabase.table("dossiers").update(
+                {
+                    "checklist": checklist,
+                    "progression_pourcentage": _recalculate_progression({"checklist": checklist}),
+                }
+            ).eq("id", dossier["id"]).execute()
+
+
 @router.post("/{document_id}/trash")
 def trash_document(
     document_id: str,
@@ -577,7 +676,13 @@ def trash_document(
     role = _highest_project_role(supabase, doc, user_id)
     if not _can_modify(doc, role, user_id):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas supprimer ce document")
-    patch = {"monument_ids": [], "dossiers_utilises": [], "trashed_at": _now_iso()}
+    _detacher_des_checklists(supabase, document_id)
+    patch = {
+        "monument_ids": [],
+        "projet_ids": [],
+        "dossiers_utilises": [],
+        "trashed_at": _now_iso(),
+    }
     result = supabase.table("documents").update(patch).eq("id", document_id).execute()
     return result.data[0]
 

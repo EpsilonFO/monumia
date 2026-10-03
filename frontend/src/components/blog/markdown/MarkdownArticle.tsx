@@ -20,11 +20,11 @@ import { PullStat } from './PullStat';
 
 // Classes de style du corps Markdown — charte Monumia (PT Serif via font-serif, palette C).
 const MARKDOWN_CLASS =
-  'text-[15.5px] leading-[1.75] text-[#222b35] ' +
+  'text-[17.5px] leading-[1.75] text-[#222b35] ' +
   // Premier paragraphe (l'accroche) = cadre « problématique » qui se détache.
-  '[&>p:first-child]:mt-0 [&>p:first-child]:rounded-xl [&>p:first-child]:border [&>p:first-child]:border-[#ece3d2] [&>p:first-child]:bg-[#fffefb] [&>p:first-child]:px-5 [&>p:first-child]:py-4 [&>p:first-child]:shadow-[inset_3px_0_0_0_#f17105] [&>p:first-child]:text-[16.5px] [&>p:first-child]:leading-[1.72] [&>p:first-child]:text-[#222b35] ' +
-  '[&_h2]:mt-10 [&_h2]:scroll-mt-24 [&_h2]:font-serif [&_h2]:text-[24px] [&_h2]:font-normal [&_h2]:text-[#222b35] ' +
-  '[&_h3]:mt-7 [&_h3]:scroll-mt-24 [&_h3]:font-serif [&_h3]:text-[18px] [&_h3]:font-semibold [&_h3]:text-[#222b35] ' +
+  '[&>p:first-child]:mt-0 [&>p:first-child]:rounded-xl [&>p:first-child]:border [&>p:first-child]:border-[#ece3d2] [&>p:first-child]:bg-[#fffefb] [&>p:first-child]:px-5 [&>p:first-child]:py-4 [&>p:first-child]:shadow-[inset_3px_0_0_0_#f17105] [&>p:first-child]:text-[18.5px] [&>p:first-child]:leading-[1.72] [&>p:first-child]:text-[#222b35] ' +
+  '[&_h2]:mt-10 [&_h2]:scroll-mt-24 [&_h2]:font-serif [&_h2]:text-[27px] [&_h2]:font-normal [&_h2]:text-[#222b35] ' +
+  '[&_h3]:mt-7 [&_h3]:scroll-mt-24 [&_h3]:font-serif [&_h3]:text-[20.5px] [&_h3]:font-semibold [&_h3]:text-[#222b35] ' +
   '[&_p]:mt-4 [&_ul]:mt-4 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mt-4 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mt-1.5 ' +
   '[&_a]:font-medium [&_a]:text-[#f17105] [&_a]:underline hover:[&_a]:no-underline [&_strong]:font-semibold [&_strong]:text-[#222b35] ' +
   '[&_blockquote]:mt-4 [&_blockquote]:border-l-2 [&_blockquote]:border-[#f17105] [&_blockquote]:bg-[#fdf9f0] [&_blockquote]:px-4 [&_blockquote]:py-2 [&_blockquote]:italic [&_blockquote]:text-[#6a7180]';

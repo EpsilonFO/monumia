@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { AllClear } from '@/components/illustrations';
-import { AnswerCard } from '@/components/project/wizard/AnswerCard';
-import { SkipCard } from '@/components/project/wizard/SkipCard';
-import { isUnknownAnswer } from '@/components/project/wizard/unknownAnswer';
-import { IconInfo, IconSubvention } from '@/components/icons';
+import { EcranQuestion } from '@/components/project/wizard/EcranQuestion';
+import { ReponsesQuestion } from '@/components/project/wizard/ReponsesQuestion';
+import { Picto } from '@/components/shared/ecrans/Picto';
+import {
+  computeEliminatedAideIds,
+  isQuestionServingLiveAide,
+  isVisible,
+  partitionnerQuestions,
+} from '@/lib/qcm';
+import { reponsesChoisies } from '@/lib/question-reponse';
+import type { RepriseDurable } from '@/services/projet.service';
+import type { BilanDiagnostic } from '@/lib/diagnostic-bilan';
 import { formatCurrency } from '@/lib/format-utils';
-import { computeEliminatedAideIds, isQuestionServingLiveAide } from '@/lib/qcm';
-import { C, SERIF } from '@/lib/brand';
-import { cn } from '@/lib/utils';
-import type { ProjectQuestionnaireAnswers, QcmOption, QcmQuestion } from '@/types';
+import type { ProjectQuestionnaireAnswers, QcmQuestion } from '@/types';
 
 interface ProjectQuestionnaireProps {
   /** Questions générées par le moteur d'aides (faits manquants du diagnostic). */
@@ -22,113 +27,178 @@ interface ProjectQuestionnaireProps {
   submitting?: boolean;
   /** Libellé du bouton final. */
   completeLabel?: string;
-  /** Remonte la position courante (rail + header mobile du shell). */
-  onProgress?: (progress: { index: number; total: number }) => void;
+  /**
+   * `'tronc'` ne pose que les questions PARTAGÉES par au moins deux aides
+   * vivantes ; celles qui ne servent qu'une aide se posent sur sa carte et sa
+   * fiche. `'toutes'` (défaut) garde le comportement historique — c'est ce que
+   * veut « Refaire → seulement les questions passées », où l'on redemande
+   * justement tout ce qui reste.
+   */
+  portee?: 'tronc' | 'toutes';
+  /**
+   * Écran de fin du tronc commun, affiché À LA PLACE du « C'est tout ! » quand
+   * il reste des questions propres à une aide. Deux options de même poids, et
+   * un bilan CALCULÉ (spinner tant qu'il vaut `null`) : promettre « 40 aides à
+   * confirmer » qui tombent à 10 au premier clic serait pire que se taire.
+   */
+  finTronc?: {
+    bilan: BilanDiagnostic | Pick<BilanDiagnostic, 'questionsRestantes' | 'minutesEstimees'> | null;
+    onDecouvrir: () => void;
+    onContinuer: () => void;
+  };
+  /** Appelé à CHAQUE passage de l'écran de questions à l'écran de fin du tronc. */
+  onFinTronc?: () => void;
+  /**
+   * Contexte d'une question du COMPLÉMENT : l'aide qu'elle débloque et son
+   * enjeu. Absent en mode invité, où les `aideIds` sont des pseudonymes.
+   */
+  contexteAide?: (q: QcmQuestion) => { nom: string; montantMax?: number | null; nbAides: number } | null;
+  /**
+   * Réponses REPRISES des autres projets du monument (faits durables : le bien,
+   * le propriétaire), telles que la route les nomme. Affichées en bandeau
+   * dépliable sur la PREMIÈRE question et sur l'écran de fin.
+   *
+   * Le dire est la contrepartie de la reprise : un questionnaire qui commence
+   * par « question 1 » alors qu'il en a déjà neuf de répondues dans le dos se
+   * lit comme une perte de données. Et il faut pouvoir dire LESQUELLES : une
+   * réponse reprise n'étant plus une incertitude, le moteur ne rend plus sa
+   * question et aucune fiche d'aide ne l'offre à la correction — cette liste
+   * est le seul endroit où l'utilisateur peut vérifier ce qu'on a supposé pour
+   * lui. Liste vide ⇒ rien n'est affiché.
+   */
+  reprises?: RepriseDurable[];
+  /**
+   * Avancement du questionnaire (0 à 100), remonté à la coquille du wizard qui
+   * le dessine en tête de page et sous l'étape de la colonne. Appelé à chaque
+   * changement.
+   */
+  onProgression?: (pct: number) => void;
 }
 
-/** Délai avant l'auto-avance : laisse voir sa réponse se cocher. */
-const ADVANCE_MS = 420;
+/**
+ * La rubrique d'une question, lue sur le `scope` de son fait : le bien, le
+ * chantier ou celui qui dépose. C'est la seule classification que l'ontologie
+ * porte (`categorie` n'est que la clé du fait) ; sans scope, pas de rubrique.
+ */
+const RUBRIQUE_PAR_SCOPE: Record<NonNullable<QcmQuestion['scope']>, string> = {
+  monument: 'Le monument',
+  projet: 'Le projet',
+  proprietaire: 'Le porteur',
+};
 
 /**
- * Au-delà, le texte d'aide est replié à trois lignes. Seuil calé sur la largeur
- * de lecture (62ch) : les textes courts s'affichent en entier, les longs (la
- * moitié de l'ontologie dépasse 190 caractères) ne poussent pas les réponses
- * sous la ligne de flottaison.
+ * Bandeau des réponses reprises d'un autre projet du même monument.
+ *
+ * Discret, et jamais une alerte : ce n'est pas un avertissement, c'est une
+ * explication — sans lui, le questionnaire semble avoir sauté des questions.
+ *
+ * Il DÉPLIE la liste, et ce n'est pas un ornement : une réponse reprise n'est
+ * plus une incertitude, donc le moteur ne rend plus sa question, donc aucune
+ * fiche d'aide ne l'offre à la correction. Le renvoi vers « Refaire le
+ * questionnaire » est le seul geste qui les repose vraiment.
+ *
+ * C'est un RAPPEL, pas une découverte : l'accord a été demandé explicitement
+ * avant le questionnaire (`ProjectReprisesStep`), et ce bandeau n'apparaît que
+ * si l'utilisateur a dit oui.
  */
-const HELP_CLAMP_CHARS = 170;
-
-/**
- * Note explicative d'une question : encart distinct de la question elle-même,
- * en contraste lisible, replié à trois lignes quand il est long. Même geste que
- * « Lire la suite » sur la fiche d'aide.
- */
-function QuestionHelp({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  const long = text.length > HELP_CLAMP_CHARS;
+function BandeauReprises({ reprises }: { reprises: RepriseDurable[] }) {
+  if (reprises.length === 0) return null;
+  const n = reprises.length;
+  // Un seul projet source dans l'immense majorité des cas : on le nomme.
+  const titres = [...new Set(reprises.map((r) => r.projetTitre).filter(Boolean))];
+  const provenance = titres.length === 1 ? ` « ${titres[0]} »` : ' vos autres projets';
   return (
-    <div
-      className="flex max-w-[62ch] gap-2.5 rounded-xl border-l-[3px] py-2.5 pl-3 pr-3.5"
-      style={{ borderColor: C.blueLight, background: 'var(--secondary)' }}
-    >
-      <IconInfo className="mt-[3px] h-4 w-4 shrink-0" style={{ color: C.blue }} />
-      <div className="min-w-0">
-        <p
-          className={cn('text-[14px] leading-relaxed', !open && long && 'line-clamp-3')}
-          style={{ color: C.grayFg }}
-        >
-          {text}
-        </p>
-        {long && (
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            className="mt-1 text-[13px] font-semibold underline-offset-2 hover:underline"
-            style={{ color: C.blue }}
-          >
-            {open ? 'Réduire' : 'Lire la suite'}
-          </button>
-        )}
+    <details className="reprises">
+      <summary>
+        {n} réponse{n > 1 ? 's' : ''} reprise{n > 1 ? 's' : ''} de{provenance} sur ce monument :
+        voir {n > 1 ? 'lesquelles' : 'laquelle'}
+      </summary>
+      <ul>
+        {reprises.map((r) => (
+          <li key={r.fact}>
+            {r.question}
+            {r.reponse && (
+              <>
+                {' '}
+                <b>{r.reponse}</b>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+      <p>
+        Vous avez accepté de les reprendre&nbsp;: elles ne vous sont donc pas reposées.
+        Pour les corriger, refaites le questionnaire depuis la page du projet.
+      </p>
+    </details>
+  );
+}
+
+/**
+ * Le bilan chiffré de fin de tronc commun.
+ *
+ * Tout y est CALCULÉ par une relance du moteur avec les réponses données, et
+ * les deux nombres qui se confondent facilement sont séparés à dessein :
+ * ce que les réponses ont écarté, et ce que le monument met à portée (le reste
+ * ayant été écarté par les filtres automatiques, sans qu'on ait rien demandé).
+ */
+function BilanTronc({
+  bilan,
+}: {
+  bilan: BilanDiagnostic | Pick<BilanDiagnostic, 'questionsRestantes' | 'minutesEstimees'>;
+}) {
+  const complet = 'aPortee' in bilan ? bilan : null;
+  if (!complet) return null;
+  const chiffres: { valeur: number; libelle: string }[] = [
+    { valeur: complet.eligibles, libelle: complet.eligibles > 1 ? 'aides mobilisables' : 'aide mobilisable' },
+    { valeur: complet.aConfirmer, libelle: 'à confirmer' },
+    { valeur: complet.ecarteesParReponses, libelle: 'écartées par vos réponses' },
+  ];
+  return (
+    <div className="bilan">
+      <div className="chiffres">
+        {chiffres.map((c) => (
+          <div key={c.libelle}>
+            <strong>{c.valeur}</strong>
+            <span>{c.libelle}</span>
+          </div>
+        ))}
       </div>
+      <p>
+        sur {complet.aPortee} aide{complet.aPortee > 1 ? 's' : ''} à portée de votre monument
+        {complet.aConfirmerUneQuestion > 0 && (
+          <>
+            {' '}&middot; dont {complet.aConfirmerUneQuestion} à une seule question d&rsquo;un verdict
+          </>
+        )}
+        {/* La page projet range sous « Disponibles bientôt » toute aide dont la
+            fenêtre est fermée, quel que soit son statut. Sans cette ligne, le
+            chiffre ci-dessus promet des aides que l'écran suivant n'affiche pas
+            là où on les cherche. */}
+        {complet.eligibles > complet.eligiblesMaintenant && (
+          <>
+            {' '}&middot;{' '}
+            {complet.eligiblesMaintenant === 0
+              ? complet.eligibles > 1
+                ? 'leurs guichets ouvrent plus tard'
+                : 'son guichet ouvre plus tard'
+              : `dont ${complet.eligibles - complet.eligiblesMaintenant} dont le guichet ouvre plus tard`}
+          </>
+        )}
+      </p>
     </div>
   );
 }
 
 /**
- * Ordre d'affichage des options : les vraies réponses d'abord, les
- * échappatoires (« je ne sais pas ») en bas, sous forme de carte pointillée.
- * Sert aussi de parcours au clavier, pour que les flèches suivent ce qu'on voit.
- */
-function displayOrder(question: QcmQuestion): QcmOption[] {
-  return [
-    ...question.options.filter((o) => !isUnknownAnswer(o)),
-    ...question.options.filter(isUnknownAnswer),
-  ];
-}
-
-/**
- * Réponse à une question, toujours vue comme une liste d'ids : une seule case
- * pour une question simple, plusieurs pour une question à choix multiple.
- */
-function selectedIds(question: QcmQuestion, answers: ProjectQuestionnaireAnswers): string[] {
-  const answer = answers[question.id];
-  if (Array.isArray(answer)) return answer;
-  return typeof answer === 'string' ? [answer] : [];
-}
-
-/**
- * Une question conditionnelle n'est posée que si la réponse à la question dont
- * elle dépend la rend pertinente. Fail-closed : tant que cette question n'est
- * pas répondue (ou qu'elle est passée), on pose quand même — mieux vaut une
- * question de trop qu'une aide écartée sans que l'utilisateur l'ait su.
- * Le moteur garantit que la question porteuse est posée AVANT ses dépendantes.
- * Sur une question porteuse à choix multiple, une seule case pertinente suffit.
- */
-function isVisible(question: QcmQuestion, answers: ProjectQuestionnaireAnswers): boolean {
-  const dep = question.dependsOn;
-  if (!dep) return true;
-  const answer = answers[dep.questionId];
-  const given = (Array.isArray(answer) ? answer : [answer]).filter(
-    (id): id is string => typeof id === 'string' && id !== 'skip',
-  );
-  if (given.length === 0) return true;
-  return given.some((id) => dep.showForOptionIds.includes(id));
-}
-
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    !!window.matchMedia &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
-}
-
-/**
  * Questionnaire du moteur d'aides, posé **une question à la fois** (style Doctolib).
- * On clique une réponse → elle se coche → la question suivante glisse automatiquement.
+ * On clique une réponse → elle se coche → si elle écarte des aides, un encart dit
+ * pourquoi → « Continuer » mène à la question suivante. Jamais d'auto-avance :
+ * l'encart doit pouvoir se lire, et une réponse se corriger avant de partir.
  * La dernière mène à un écran de fin avec le bouton final (jamais de lancement par accident).
  * `value` mappe id de question → id d'option, ou → liste d'ids sur une question à
- * choix multiple (`multiple`), qui attend alors un « Continuer » explicite. Une
- * question passée n'a simplement pas de clé : le moteur la traite comme inconnue.
+ * choix multiple (`multiple`). Une question passée n'a simplement pas de clé : le
+ * moteur la traite comme inconnue.
  */
 export function ProjectQuestionnaire({
   questions: allQuestions,
@@ -137,7 +207,12 @@ export function ProjectQuestionnaire({
   onComplete,
   submitting,
   completeLabel = 'Lancer le diagnostic',
-  onProgress,
+  portee = 'toutes',
+  finTronc,
+  onFinTronc,
+  contexteAide,
+  reprises = [],
+  onProgression,
 }: ProjectQuestionnaireProps) {
   // Questions déjà affichées, par id. Une question que le curseur a dépassée ne
   // doit plus jamais disparaître, même passée : le parcours se repère à un
@@ -153,10 +228,9 @@ export function ProjectQuestionnaire({
   }
 
   // Le parcours ne connaît que les questions PERTINENTES pour les réponses déjà
-  // données : la progression, la navigation et l'écran de fin se calculent
-  // dessus. Une question porteuse répondue peut en faire disparaître d'autres —
+  // données : la navigation et l'écran de fin se calculent dessus. Une question porteuse répondue peut en faire disparaître d'autres —
   // toujours situées après elle, donc l'index courant reste valide.
-  const questions = useMemo(() => {
+  const { questions, propres } = useMemo(() => {
     // Une réponse peut écarter d'un coup toutes les aides que d'autres questions
     // servaient : les poser quand même ferait perdre du temps sans rien changer
     // au résultat. Une seule passe sur l'ensemble des réponses — répondue ou
@@ -166,104 +240,83 @@ export function ProjectQuestionnaire({
     // le payload (même comportement que `dependsOn`) : le moteur ré-évalue tout
     // côté serveur.
     const eliminated = new Set(computeEliminatedAideIds(value, allQuestions));
-    return allQuestions.filter(
-      (q) =>
-        isVisible(q, value) &&
-        (value[q.id] !== undefined ||
-          seenRef.current.ids.has(q.id) ||
-          isQuestionServingLiveAide(q, eliminated)),
-    );
-  }, [allQuestions, value]);
+    // Tronc commun : la troisième branche se resserre sur les questions
+    // partagées. Le filtre reste DANS le composant, jamais en amont — `seenRef`
+    // est clé sur l'identité du tableau `questions`, et le remplacer à chaque
+    // réponse remettrait le parcours à zéro.
+    const { tronc, propres } =
+      portee === 'tronc'
+        ? partitionnerQuestions(allQuestions, value)
+        : { tronc: allQuestions, propres: [] as QcmQuestion[] };
+    const troncIds = portee === 'tronc' ? new Set(tronc.map((q) => q.id)) : null;
+    return {
+      propres,
+      questions: allQuestions.filter(
+        (q) =>
+          isVisible(q, value) &&
+          (value[q.id] !== undefined ||
+            seenRef.current.ids.has(q.id) ||
+            (troncIds ? troncIds.has(q.id) : isQuestionServingLiveAide(q, eliminated))),
+      ),
+    };
+  }, [allQuestions, value, portee]);
   const total = questions.length;
+  // Questions du complément qui n'ont pas déjà été posées dans le tronc : une
+  // question vue puis passée reste affichée ici, elle ne doit pas compter deux
+  // fois. Le serveur la reposera au complément — c'est la sémantique de
+  // « seulement les questions passées ».
+  const restantes = propres.filter((q) => !seenRef.current.ids.has(q.id)).length;
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
-  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const optionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  // Plus haute progression atteinte À CET ÉCRAN (cf. le calcul de `pct`).
+  const progressHighWater = useRef({ index: 0, pct: 0 });
   const finishRef = useRef<HTMLHeadingElement | null>(null);
 
   const onFinish = index >= total;
   const q = onFinish ? null : questions[index];
 
-  const clearTimer = () => {
-    if (advanceTimer.current) {
-      clearTimeout(advanceTimer.current);
-      advanceTimer.current = null;
-    }
-  };
-
-  useEffect(() => clearTimer, []);
-
-  // Focus à chaque changement d'écran (accessibilité + clavier).
+  // Changement d'écran : on note la question comme VUE et on donne le focus.
+  // Celui des réponses appartient à `ReponsesQuestion` (`autoFocus`), qui possède
+  // les refs de ses boutons ; ici il ne reste que l'écran de fin.
   useEffect(() => {
-    clearTimer();
     if (onFinish) {
       finishRef.current?.focus();
       return;
     }
     const current = questions[index];
-    if (!current) return;
-    seenRef.current.ids.add(current.id);
-    const targetId = selectedIds(current, value)[0] ?? current.options[0]?.id;
-    if (targetId) optionRefs.current[`${current.id}:${targetId}`]?.focus();
+    if (current) seenRef.current.ids.add(current.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, onFinish]);
 
-  // Le shell (rail desktop + header mobile) affiche la progression : on la
-  // lui remonte à chaque changement d'écran (index === total sur la fin).
+  // Fin du tronc : on redemande un bilan au moteur À CHAQUE arrivée sur l'écran.
+  // « Revoir mes réponses », corriger, puis revenir repartirait sinon d'un bilan
+  // périmé — et ce sont justement ses chiffres qui décident du clic suivant.
+  const finTroncActif = portee === 'tronc' && !!finTronc && restantes > 0;
+  const cleReponses = JSON.stringify(value);
   useEffect(() => {
-    onProgress?.({ index: Math.min(index, total), total });
+    if (onFinish && finTroncActif) onFinTronc?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, total]);
+  }, [onFinish, finTroncActif, cleReponses]);
 
   const goNext = () => {
-    clearTimer();
     setDir('fwd');
     setIndex((i) => Math.min(i + 1, total));
   };
 
   const goBack = () => {
-    clearTimer();
     setDir('back');
     setIndex((i) => Math.max(i - 1, 0));
   };
 
-  /** Sélectionne une réponse puis avance automatiquement après un court délai. */
-  const commit = (optionId: string) => {
-    if (!q) return;
-    onChange({ ...value, [q.id]: optionId });
-    clearTimer();
-    advanceTimer.current = setTimeout(goNext, prefersReducedMotion() ? 180 : ADVANCE_MS);
-  };
-
   /**
-   * Choix multiple : coche/décoche, sans jamais avancer tout seul (c'est
-   * « Continuer » qui le fait). Les réponses « je ne sais pas » sont exclusives
-   * des autres — cocher « pas encore décidé » ET « association » n'aurait aucun
-   * sens. Sélection vide ⇒ on efface la clé : la question est passée.
+   * Une réponse du bloc de question. Elle s'enregistre et rien ne bouge : on
+   * n'avance qu'au « Continuer », en choix simple comme en choix multiple.
    */
-  const toggle = (option: QcmOption) => {
+  const repondre = (answer: string | string[] | undefined) => {
     if (!q) return;
-    const current = selectedIds(q, value);
-    const optionOf = (id: string) => q.options.find((o) => o.id === id);
-    let next: string[];
-    if (current.includes(option.id)) {
-      next = current.filter((id) => id !== option.id);
-    } else if (isUnknownAnswer(option)) {
-      next = [option.id];
-    } else {
-      const kept = current.filter((id) => {
-        const o = optionOf(id);
-        return o ? !isUnknownAnswer(o) : true;
-      });
-      next = [...kept, option.id];
-    }
-    // Ordre du moteur : la réponse persistée ne dépend pas de l'ordre des clics.
-    const rank = (id: string) => q.options.findIndex((o) => o.id === id);
-    next.sort((a, b) => rank(a) - rank(b));
-
     const answers = { ...value };
-    if (next.length === 0) delete answers[q.id];
-    else answers[q.id] = next;
+    if (answer === undefined) delete answers[q.id];
+    else answers[q.id] = answer;
     onChange(answers);
   };
 
@@ -278,68 +331,137 @@ export function ProjectQuestionnaire({
     goNext();
   };
 
-  const onOptionKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, optionIndex: number) => {
-    if (!q) return;
-    const isNext = e.key === 'ArrowDown' || e.key === 'ArrowRight';
-    const isPrev = e.key === 'ArrowUp' || e.key === 'ArrowLeft';
-    if (!isNext && !isPrev) return;
-    e.preventDefault();
-    const order = displayOrder(q);
-    const n = isNext
-      ? (optionIndex + 1) % order.length
-      : (optionIndex - 1 + order.length) % order.length;
-    optionRefs.current[`${q.id}:${order[n].id}`]?.focus();
-  };
-
   const slideClass = dir === 'fwd' ? 'q-in-fwd' : 'q-in-back';
+
+  // Rang de la question courante sur les questions ENCORE pertinentes (l'écran
+  // de fin vaut 100 %). Sur place, la barre ne recule jamais : cocher une case
+  // de plus sur une question à choix multiple LIBÈRE des aides (sémantique
+  // existentielle, cf. `computeEliminatedAideIds`) et peut donc rallonger la
+  // liste — voir la jauge redescendre pendant qu'on répond se lirait comme une
+  // punition. Changer d'écran la relâche : « Précédent » doit bien faire
+  // reculer la barre.
+  const rawPct = total === 0 ? 100 : Math.round((Math.min(index + 1, total) / total) * 100);
+  const highWater = progressHighWater.current;
+  if (highWater.index !== index) {
+    highWater.index = index;
+    highWater.pct = rawPct;
+  } else if (rawPct > highWater.pct) {
+    highWater.pct = rawPct;
+  }
+  const pct = highWater.pct;
+
+  // La barre est dessinée par la coquille (tête de page et colonne).
+  useEffect(() => {
+    onProgression?.(pct);
+  }, [pct, onProgression]);
+
+  // ─── Écran de fin du TRONC COMMUN ───
+  // Il reste des questions, mais elles ne concernent chacune qu'une seule aide :
+  // les poser ici serait le tunnel qu'on cherche à éviter. Deux options de même
+  // poids, et le prix de chacune écrit noir sur blanc.
+  if (onFinish && finTroncActif && finTronc) {
+    const bilan = finTronc.bilan;
+    const r = bilan?.questionsRestantes ?? restantes;
+    return (
+      <div className={`fin ${slideClass}`}>
+        <AllClear />
+        <h2 ref={finishRef} tabIndex={-1}>
+          Le tronc commun est terminé
+        </h2>
+        <p>
+          Les questions suivantes ne concernent plus qu&rsquo;une aide chacune. Vous pouvez les
+          garder pour plus tard&nbsp;: elles vous seront reposées sur la carte de l&rsquo;aide
+          concernée.
+        </p>
+        <BandeauReprises reprises={reprises} />
+
+        {bilan === null ? (
+          <div className="attente">
+            <Loader2 className="spin" aria-hidden="true" />
+            Calcul de votre diagnostic…
+          </div>
+        ) : (
+          <BilanTronc bilan={bilan} />
+        )}
+
+        {/* Deux boutons de même poids : ce sont deux intentions, pas une
+            action et son annulation. */}
+        <div className="actions">
+          <button
+            type="button"
+            className="btn b-orange"
+            onClick={finTronc.onDecouvrir}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="spin" aria-hidden="true" />
+                Analyse des aides en cours…
+              </>
+            ) : (
+              <>
+                Découvrir mon diagnostic
+                <Picto nom="fleche" />
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            className="btn b-line"
+            onClick={finTronc.onContinuer}
+            disabled={submitting || bilan === null}
+          >
+            Répondre aux {r} question{r > 1 ? 's' : ''} restante{r > 1 ? 's' : ''}
+            <em>(≈ {bilan?.minutesEstimees ?? 0} min)</em>
+          </button>
+        </div>
+
+        {!submitting && (
+          <button type="button" className="retour" onClick={goBack}>
+            <Picto nom="retour" />
+            Revoir mes réponses
+          </button>
+        )}
+      </div>
+    );
+  }
 
   // ─── Écran de fin ───
   if (onFinish) {
     const answered = questions.filter((qq) => value[qq.id] !== undefined).length;
     return (
-      <div className={cn('flex flex-col items-center gap-5 py-10 text-center', slideClass)}>
+      <div className={`fin ${slideClass}`}>
         <AllClear />
-        <h2
-          ref={finishRef}
-          tabIndex={-1}
-          className="text-[clamp(1.5rem,3.4vw,2rem)] leading-tight outline-none"
-          style={{ fontFamily: SERIF, color: C.ink }}
-        >
+        <h2 ref={finishRef} tabIndex={-1}>
           C&rsquo;est tout&nbsp;!
         </h2>
-        <p className="max-w-sm text-[15px] leading-relaxed" style={{ color: C.grayFg }}>
+        <p>
           {answered > 0
             ? `Vous avez répondu à ${answered} question${answered > 1 ? 's' : ''}. `
-            : 'Pas de souci si vous avez passé des questions. '}
+            : total === 0
+              ? 'Aucune précision supplémentaire n’était nécessaire. '
+              : 'Pas de souci si vous avez passé des questions. '}
           On met à jour vos aides.
         </p>
-        <button
-          type="button"
-          onClick={onComplete}
-          disabled={submitting}
-          className="group mt-1 inline-flex min-h-[3.25rem] items-center gap-2 rounded-2xl px-7 py-3.5 text-[16px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)] disabled:opacity-60"
-          style={{ background: C.orange }}
-        >
-          {submitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Analyse des aides en cours…
-            </>
-          ) : (
-            <>
-              {completeLabel}
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </>
-          )}
-        </button>
+        <BandeauReprises reprises={reprises} />
+        <div className="actions">
+          <button type="button" className="btn b-orange" onClick={onComplete} disabled={submitting}>
+            {submitting ? (
+              <>
+                <Loader2 className="spin" aria-hidden="true" />
+                Analyse des aides en cours…
+              </>
+            ) : (
+              <>
+                {completeLabel}
+                <Picto nom="fleche" />
+              </>
+            )}
+          </button>
+        </div>
         {!submitting && (
-          <button
-            type="button"
-            onClick={goBack}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium underline-offset-2 hover:underline"
-            style={{ color: C.grayMuted }}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
+          <button type="button" className="retour" onClick={goBack}>
+            <Picto nom="retour" />
             Revoir mes réponses
           </button>
         )}
@@ -348,185 +470,64 @@ export function ProjectQuestionnaire({
   }
 
   // ─── Une question à la fois ───
-  // La barre reflète la position courante (jamais 0 % sur la 1re question).
-  const pct = Math.round(((index + 1) / total) * 100);
-  // Les options « je ne sais pas » du moteur descendent en bas de la liste,
-  // rendues comme le bouton « Passer cette question » : même forme pour la même
-  // intention. Quand le moteur n'en fournit aucune, on ajoute notre « passer ».
-  const answerOptions = q!.options.filter((o) => !isUnknownAnswer(o));
-  const unknownOptions = q!.options.filter(isUnknownAnswer);
-  const showSkipCard = unknownOptions.length === 0;
-  // Choix multiple : pas d'auto-avance possible (l'utilisateur n'a pas fini de
-  // cocher), donc un bouton « Continuer » explicite dans la barre du bas.
   const multiple = !!q!.multiple;
-  const chosen = selectedIds(q!, value);
-
-  // L'enjeu vit sur la ligne de progression, pas entre la question et ses
-  // réponses : il motive sans s'intercaler dans la lecture.
-  const enjeuLabel = q!.enjeuMax
-    ? `Jusqu'à ${formatCurrency(q!.enjeuMax)} en jeu`
-    : `${q!.aideIds.length} aide${q!.aideIds.length > 1 ? 's' : ''} concernée${q!.aideIds.length > 1 ? 's' : ''}`;
+  // Hors pseudo-choix « passer » : une réponse `skip` déjà enregistrée ne
+  // coche rien et n'ouvre pas « Continuer ».
+  const chosen = reponsesChoisies(value[q!.id]);
+  const contexte = contexteAide?.(q!) ?? null;
+  const rubrique = q!.scope ? RUBRIQUE_PAR_SCOPE[q!.scope] : null;
 
   return (
-    <div>
-      {/* Barre fine de progression, en tête de scène. */}
-      <div className="pb-4">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-          <span
-            aria-live="polite"
-            className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-            style={{ color: C.orange }}
-          >
-            Question {index + 1} <span style={{ color: C.grayMuted }}>sur {total}</span>
-          </span>
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
-            style={{ background: 'var(--secondary)', color: C.blue }}
-          >
-            <IconSubvention className="h-3.5 w-3.5" />
-            {enjeuLabel}
-          </span>
-        </div>
-        <div
-          className="mt-2 h-1.5 w-full overflow-hidden rounded-full"
-          style={{ background: C.border }}
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={total}
-          aria-valuenow={index + 1}
-        >
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{
-              width: `${pct}%`,
-              background: 'linear-gradient(90deg, var(--accent), var(--orange-vif))',
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Question (glisse à chaque changement) */}
-      <div key={q!.id} className={cn(slideClass, 'pb-1')}>
-        <fieldset role={multiple ? 'group' : 'radiogroup'} className="space-y-4">
-          {/* La légende ne porte QUE la question : c'est elle qui nomme le
-              groupe de boutons radio pour les lecteurs d'écran. La note
-              explicative vit à côté, où elle peut être repliée. */}
-          <legend className="w-full">
-            <span
-              className="block text-[clamp(1.25rem,2.8vw,1.6rem)] leading-snug"
-              style={{ fontFamily: SERIF, color: C.ink }}
-            >
-              {q!.question}
-            </span>
-            {/* La consigne doit être lue AVANT de cliquer : la forme carrée des
-                cases ne suffit pas à dire qu'on peut en cocher plusieurs. */}
-            {multiple && (
-              <span
-                className="mt-1.5 block text-[13px] font-semibold"
-                style={{ color: C.orange }}
-              >
-                Plusieurs réponses possibles
+    <EcranQuestion
+      // Chaque question glisse à son arrivée, et son encart « Pourquoi »
+      // repart replié.
+      key={q!.id}
+      className={slideClass}
+      // Hors tronc commun, chaque question ne sert plus qu'une aide ou deux :
+      // on dit laquelle, et ce qu'elle pèse. Sans ce contexte, la question
+      // paraît sortie de nulle part.
+      rubrique={
+        rubrique || contexte ? (
+          <>
+            {rubrique}
+            {rubrique && contexte && ' · '}
+            {contexte && (
+              <span className="pour">
+                Pour {contexte.nom}
+                {contexte.nbAides > 1 &&
+                  ` et ${contexte.nbAides - 1} autre${contexte.nbAides > 2 ? 's' : ''} aide${contexte.nbAides > 2 ? 's' : ''}`}
+                {typeof contexte.montantMax === 'number' &&
+                  contexte.montantMax > 0 &&
+                  `, jusqu’à ${formatCurrency(contexte.montantMax)}`}
               </span>
             )}
-          </legend>
-
-          {q!.help && <QuestionHelp text={q!.help} />}
-
-          <div
-            className={cn(
-              'grid gap-2.5',
-              answerOptions.length > 3 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1',
-            )}
-          >
-            {answerOptions.map((option, optionIndex) => {
-              const selected = chosen.includes(option.id);
-              const refKey = `${q!.id}:${option.id}`;
-              const roving = selected || (chosen.length === 0 && optionIndex === 0);
-              return (
-                <AnswerCard
-                  key={option.id}
-                  option={option}
-                  optionIndex={optionIndex}
-                  selected={selected}
-                  roving={roving}
-                  multiple={multiple}
-                  onSelect={() => (multiple ? toggle(option) : commit(option.id))}
-                  onKeyDown={(e) => onOptionKeyDown(e, optionIndex)}
-                  buttonRef={(el) => {
-                    optionRefs.current[refKey] = el;
-                  }}
-                />
-              );
-            })}
-          </div>
-
-          {/* Les « je ne sais pas » du moteur : mêmes cartes pointillées que le
-              « passer », mais ce sont de vraies réponses — elles restent dans le
-              groupe radio et se cochent. */}
-          {unknownOptions.map((option, unknownIndex) => {
-            const selected = chosen.includes(option.id);
-            const refKey = `${q!.id}:${option.id}`;
-            return (
-              <SkipCard
-                key={option.id}
-                label={option.label}
-                asOption
-                selected={selected}
-                roving={
-                  selected ||
-                  (chosen.length === 0 && answerOptions.length === 0 && unknownIndex === 0)
-                }
-                multiple={multiple}
-                onSelect={() => (multiple ? toggle(option) : commit(option.id))}
-                onKeyDown={(e) => onOptionKeyDown(e, answerOptions.length + unknownIndex)}
-                buttonRef={(el) => {
-                  optionRefs.current[refKey] = el;
-                }}
-              />
-            );
-          })}
-
-          {/* En choix multiple, « passer » effacerait des cases cochées : on ne
-              le propose plus dès qu'il y en a (« Continuer » prend le relais).
-              En choix simple il reste offert, y compris sur une question déjà
-              répondue où l'on revient — c'est le seul moyen de se dédire. */}
-          {showSkipCard && (!multiple || chosen.length === 0) && (
-            <SkipCard label="Passer cette question" onSelect={skip} />
-          )}
-        </fieldset>
-      </div>
-
-      {/* Navigation bas */}
-      <div
-        className="mt-3 flex items-center justify-between border-t py-3"
-        style={{ borderColor: C.border }}
-      >
-        <button
-          type="button"
-          onClick={goBack}
-          disabled={index === 0}
-          className="inline-flex min-h-11 items-center gap-1.5 text-[14px] font-medium transition-opacity disabled:pointer-events-none disabled:opacity-0"
-          style={{ color: C.grayFg }}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Précédent
-        </button>
-        {multiple ? (
-          <button
-            type="button"
-            onClick={goNext}
-            className="group inline-flex min-h-11 items-center gap-2 rounded-xl px-5 py-2.5 text-[15px] font-semibold text-white transition-all hover:shadow-[var(--shadow-pop)]"
-            style={{ background: C.orange }}
-          >
-            Continuer
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </button>
-        ) : (
-          <span className="hidden text-[12px] sm:block" style={{ color: C.grayMuted }}>
-            Vous pourrez refaire ce questionnaire plus tard
-          </span>
-        )}
-      </div>
-    </div>
+          </>
+        ) : null
+      }
+      titre={q!.question}
+      // La consigne doit être lue AVANT de cliquer : la forme carrée des cases
+      // ne suffit pas à dire qu'on peut en cocher plusieurs.
+      consigne={multiple ? 'Plusieurs réponses possibles.' : null}
+      pourquoi={q!.help}
+      // Sur la PREMIÈRE question seulement : dire ce qui a été repris des
+      // autres projets. Le répéter à chaque question serait du bruit.
+      enTete={index === 0 ? <BandeauReprises reprises={reprises} /> : null}
+      multiple={multiple}
+      onPrecedent={index > 0 ? goBack : undefined}
+      // « Passer » efface la réponse : en choix multiple, il effacerait des
+      // cases cochées, d'où son retrait dès qu'il y en a (« Continuer » prend
+      // le relais). En choix simple, il reste offert sur une question déjà
+      // répondue où l'on revient : c'est le seul moyen de se dédire.
+      onPasser={multiple && chosen.length > 0 ? undefined : skip}
+      // « Continuer » n'avance qu'une fois une réponse donnée : rien de coché
+      // ne veut pas dire « aucune de ces réponses » mais « je n'ai pas
+      // répondu », et l'échappatoire porte son propre libellé.
+      onContinuer={goNext}
+      continuerDesactive={chosen.length === 0}
+      continuerIndice={multiple ? 'Choisissez au moins une réponse.' : 'Choisissez une réponse.'}
+      modifiablePlusTard
+    >
+      <ReponsesQuestion question={q!} value={value[q!.id]} onAnswer={repondre} autoFocus />
+    </EcranQuestion>
   );
 }

@@ -22,13 +22,13 @@ export const billingService = {
    * Ouvre une session de paiement et renvoie l'URL Stripe où rediriger.
    *
    * Aucun montant n'est envoyé : le serveur choisit le prix à partir du nom de
-   * l'offre. `monumentId` n'est requis que pour l'offre « dossier », dont le
-   * déblocage porte sur un projet précis.
+   * l'offre. Les deux offres sont des abonnements de compte, donc rien d'autre
+   * à transmettre — aucun monument n'est débloqué en particulier.
    */
-  async startCheckout(plan: BillingPlan, monumentId?: string): Promise<string> {
+  async startCheckout(plan: BillingPlan): Promise<string> {
     const res = await authFetch(`${BASE}/billing/checkout`, {
       method: 'POST',
-      body: JSON.stringify({ plan, monumentId: monumentId ?? null }),
+      body: JSON.stringify({ plan }),
     });
     const { url } = await handleResponse<{ url: string }>(res);
     return url;

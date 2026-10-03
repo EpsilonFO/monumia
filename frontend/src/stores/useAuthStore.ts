@@ -9,7 +9,9 @@ import { useDocumentStore } from './useDocumentStore';
 import { useAideStore } from './useAideStore';
 import { useSuiviStore } from './useSuiviStore';
 import { useBillingStore } from './useBillingStore';
+import { useBrouillonInviteStore } from './useBrouillonInviteStore';
 import { setSessionCookie, clearSessionCookie } from '@/lib/session';
+import { fermerCaches, ouvrirCaches } from './persistance';
 
 interface AuthState {
   user: User | null;
@@ -33,6 +35,9 @@ export const useAuthStore = create<AuthState>()(
       isOnboarded: false,
 
       setAuth: (user, token) => {
+        // Avant de poser le compte : s'il diffère de celui dont les caches
+        // sont ouverts, leurs états mémoire sont vidés d'abord.
+        ouvrirCaches(user.id);
         set({ user, token, isOnboarded: user.onboardingComplete });
         // Let the landing page (separate origin) know a session is active.
         setSessionCookie();
@@ -40,7 +45,13 @@ export const useAuthStore = create<AuthState>()(
 
       setTokens: (token) => set({ token }),
 
-      setUser: (user) => set({ user, isOnboarded: user.onboardingComplete }),
+      setUser: (user) => {
+        // Le profil rendu par le serveur fait foi : s'il ne désigne pas le
+        // compte du profil persisté (session changée dans un autre onglet),
+        // les caches du précédent se ferment ici.
+        ouvrirCaches(user.id);
+        set({ user, isOnboarded: user.onboardingComplete });
+      },
 
       updateProfile: async (updates) => {
         if (!get().token) return;
@@ -68,6 +79,9 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        // Les caches locaux d'abord : une fois fermés, les remises à zéro
+        // ci-dessous ne réécrivent plus rien, et leurs entrées quittent le poste.
+        fermerCaches();
         set({ user: null, token: null, isOnboarded: false });
         clearSessionCookie();
         // Reset all data stores to prevent data leaking between accounts
@@ -80,6 +94,14 @@ export const useAuthStore = create<AuthState>()(
         // Sinon les monuments débloqués du compte précédent resteraient ouverts
         // pour le suivant, le temps que /billing/access réponde.
         useBillingStore.getState().reset();
+        // Le brouillon découverte n'est PAS une donnée de compte : c'est une
+        // saisie faite avant d'en avoir un, et la vider ferait perdre son
+        // travail à qui se déconnecte pour reprendre sur le bon compte. Sauf
+        // s'il porte déjà un monumentId — le rejeu a commencé, il est lié au
+        // compte qui part.
+        if (useBrouillonInviteStore.getState().monumentId) {
+          useBrouillonInviteStore.getState().vider();
+        }
       },
     }),
     {
@@ -88,9 +110,14 @@ export const useAuthStore = create<AuthState>()(
       // persisté (UX). La session est restaurée au boot via le cookie httpOnly.
       partialize: (state) => ({ user: state.user, isOnboarded: state.isOnboarded }),
       // Keep the cross-domain session hint in sync after a page reload.
+      // Ouvre aussi les caches des stores de données, au nom du compte relu :
+      // c'est ce qui permet d'afficher le dernier état connu avant la première
+      // réponse du serveur (cf. stores/persistance).
       onRehydrateStorage: () => (state) => {
-        if (state?.user) setSessionCookie();
-        else clearSessionCookie();
+        if (state?.user) {
+          setSessionCookie();
+          ouvrirCaches(state.user.id);
+        } else clearSessionCookie();
       },
     }
   )

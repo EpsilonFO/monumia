@@ -1,6 +1,8 @@
 import contextlib
+import logging
 import os
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -8,7 +10,11 @@ from pydantic import BaseModel, field_validator
 from supabase import Client
 
 from db import get_anon_supabase, get_current_auth_user, get_current_user_id, get_supabase
+from services import stripe_billing as billing
 from services.rappels_service import PALIER_MAX, PALIER_MIN, PALIERS_DEFAUT
+from services.roles import est_admin
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -26,6 +32,10 @@ class RegisterRequest(BaseModel):
     prenom: str
     nom: str
     telephone: str | None = None
+    # Inscription venue du parcours découverte : le lien de confirmation doit
+    # ramener sur l'écran de reprise du brouillon, pas sur l'espace. Un booléen
+    # et non une URL — le client ne choisit pas où Supabase redirige.
+    reprise: bool = False
 
 
 class RegisterCollaboratorRequest(BaseModel):
@@ -35,6 +45,10 @@ class RegisterCollaboratorRequest(BaseModel):
     nom: str
     metier: str
     telephone: str | None = None
+    # Jeton de l'invitation d'où vient l'inscription : le lien de confirmation
+    # ramène sur elle, sinon le collaborateur confirme son adresse et se
+    # retrouve dans un espace vide, sans le monument qui l'avait fait venir.
+    invitation: str | None = None
 
 
 class RegisterOauthRequest(BaseModel):
@@ -103,6 +117,12 @@ class ForgotPasswordRequest(BaseModel):
     email: str
 
 
+class ResendConfirmationRequest(BaseModel):
+    email: str
+    reprise: bool = False
+    invitation: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # Cookie de refresh token (httpOnly : jamais lisible par le JavaScript)
 # ---------------------------------------------------------------------------
@@ -162,14 +182,14 @@ def _get_profile(supabase: Client, user_id: str) -> dict:
         profile["onboardingComplete"] = profile.pop("onboarding_complete")
     if "created_at" in profile:
         profile["createdAt"] = profile.pop("created_at")
-    if "has_aides_access" in profile:
-        profile["hasAidesAccess"] = profile.pop("has_aides_access")
-    else:
-        profile["hasAidesAccess"] = False
-
     if "account_type" in profile:
         profile["accountType"] = profile.pop("account_type")
     # `metier` reste tel quel (déjà en une seule clé compatible)
+
+    # Administration du catalogue : un CONFORT d'affichage (le lien vers /admin
+    # dans le profil, le garde de route côté SPA). L'autorité reste
+    # `require_admin`, sur chaque route du router d'administration.
+    profile["estAdmin"] = est_admin(supabase, user_id)
 
     return profile
 
@@ -217,6 +237,119 @@ def _validate_password(password: str) -> None:
         )
 
 
+DETAIL_DEJA_INSCRIT = "Un compte existe déjà avec cette adresse."
+DETAIL_NON_CONFIRME = (
+    "Votre adresse email n'est pas encore confirmée. "
+    "Ouvrez le message que nous vous avons envoyé pour activer votre compte."
+)
+
+
+def _erreur_inscription(exc: Exception) -> HTTPException:
+    """Traduit l'échec d'un `sign_up` Supabase en réponse exploitable.
+
+    Le cas de loin le plus fréquent est l'adresse déjà inscrite, et il mérite
+    son propre statut : le front y attache un lien « Se connecter » plutôt
+    qu'un toast rouge. C'est devenu vital avec le parcours découverte — le
+    visiteur arrive sur l'inscription avec un brouillon complet derrière lui,
+    et un message anglais sans issue lui ferait perdre tout son travail.
+
+    Le message de la bibliothèque n'est pas un contrat : on cherche « already »
+    (« User already registered », « already been registered »…) et on retombe
+    sur le 400 générique pour tout le reste.
+    """
+    message = str(exc)
+    if "already" in message.lower():
+        return HTTPException(status_code=409, detail=DETAIL_DEJA_INSCRIT)
+    return HTTPException(status_code=400, detail=message)
+
+
+def _url_retour_confirmation(*, reprise: bool = False, invitation: str | None = None) -> str:
+    """Où atterrit le lien de confirmation d'email.
+
+    Toujours `/auth/callback` : c'est le seul écran qui sache lire les jetons du
+    fragment d'URL, poser le cookie de refresh et entrer dans l'application
+    (cf. `AuthCallbackPage`). L'intention voyage en paramètre de requête plutôt
+    qu'en `sessionStorage`, parce que le lien s'ouvre presque toujours dans un
+    AUTRE onglet — souvent sur un autre appareil — où rien du parcours n'a
+    survécu.
+
+    Le client ne fournit jamais l'URL, seulement l'intention : une redirection
+    libre serait une redirection ouverte signée par notre domaine. Le jeton
+    d'invitation est encodé, faute de quoi un jeton biscornu déplacerait le
+    point d'atterrissage.
+    """
+    base = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    if invitation:
+        return f"{base}/auth/callback?invitation={quote(invitation, safe='')}"
+    if reprise:
+        return f"{base}/auth/callback?reprise=brouillon"
+    return f"{base}/auth/callback"
+
+
+def _utilisateur_obfusque(auth_user) -> bool:
+    """Vrai si Supabase a rendu un utilisateur FACTICE pour une adresse déjà prise.
+
+    Confirmation d'email activée, `sign_up` ne lève plus sur une adresse déjà
+    inscrite et confirmée : il rend un utilisateur sans identité, pour ne pas
+    révéler l'existence du compte. Il faut reconnaître ce cas ici, sinon on
+    enchaîne sur un `insert` de profil en doublon (500) au lieu du 409 sur
+    lequel le front accroche son lien « Se connecter ».
+
+    `identities` absent ou `None` n'est PAS un utilisateur factice : on ne
+    conclut que sur une liste explicitement vide. Se tromper de sens coûterait
+    cher — on écraserait le profil d'un compte existant.
+    """
+    identities = getattr(auth_user, "identities", None)
+    return identities is not None and len(identities) == 0
+
+
+def _profil_existe(supabase: Client, user_id: str) -> bool:
+    """Le profil applicatif est-il déjà là ?
+
+    Cas visé : une adresse inscrite mais JAMAIS confirmée qui se réinscrit.
+    Supabase renvoie alors le MÊME utilisateur et relance l'email — geste
+    parfaitement légitime (le premier message s'est perdu), mais le profil
+    existe déjà et le réinsérer violerait la clé primaire.
+    """
+    result = supabase.table("users").select("id").eq("id", user_id).limit(1).execute()
+    return bool(result.data)
+
+
+def _reponse_inscription(
+    supabase: Client,
+    user_id: str,
+    session,
+    response: Response,
+) -> dict:
+    """La réponse d'une inscription, avec ou sans session.
+
+    `access_token` NUL est le cas normal quand la confirmation d'email est
+    exigée : le compte existe, mais la session n'ouvre qu'après le clic dans
+    l'email. C'est ce que le front lit pour afficher « allez voir votre boîte »
+    au lieu d'entrer dans l'application (un `setAuth` sans jeton poserait un
+    état mi-connecté que `ProtectedRoute` rejetterait sans rien expliquer).
+    """
+    if session and session.refresh_token:
+        _set_refresh_cookie(response, session.refresh_token)
+    return {
+        "access_token": session.access_token if session else None,
+        "token_type": "bearer",
+        "user": _get_profile(supabase, user_id),
+    }
+
+
+def _email_non_confirme(exc: Exception) -> bool:
+    """L'échec de connexion vient-il d'une adresse non confirmée ?
+
+    GoTrue répond « Email not confirmed » (code `email_not_confirmed`). Le
+    distinguer d'un mot de passe faux est indispensable : sans ça l'utilisateur
+    lit « Email ou mot de passe incorrect », ressaisit trois fois le bon mot de
+    passe, puis demande une réinitialisation qui ne réglera rien.
+    """
+    message = str(exc).lower()
+    return "not confirmed" in message or "email_not_confirmed" in message
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -236,15 +369,24 @@ def register(
             {
                 "email": body.email,
                 "password": body.password,
+                "options": {"email_redirect_to": _url_retour_confirmation(reprise=body.reprise)},
             }
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise _erreur_inscription(e) from e
 
     if not auth_response.user:
         raise HTTPException(status_code=400, detail="Échec de la création du compte")
+    if _utilisateur_obfusque(auth_response.user):
+        raise HTTPException(status_code=409, detail=DETAIL_DEJA_INSCRIT)
 
     user_id = auth_response.user.id
+
+    # Réinscription d'une adresse jamais confirmée : Supabase vient de relancer
+    # l'email et rend le même utilisateur. Le profil est déjà là, l'offre déjà
+    # octroyée — il n'y a plus qu'à redire d'aller voir sa boîte.
+    if _profil_existe(supabase, user_id):
+        return _reponse_inscription(supabase, user_id, auth_response.session, response)
 
     # 2. Insert profile row
     profile: dict[str, Any] = {
@@ -254,20 +396,14 @@ def register(
         "nom": body.nom,
         "telephone": body.telephone,
         "onboarding_complete": False,
-        "has_aides_access": False,
         "notification_preferences": _default_notification_preferences(),
     }
 
     supabase.table("users").insert(profile).execute()
+    # Tout compte neuf repart avec l'offre du moment (cf. PLAN_A_LA_CREATION).
+    billing.octroyer_offre_initiale(supabase, user_id)
 
-    session = auth_response.session
-    if session and session.refresh_token:
-        _set_refresh_cookie(response, session.refresh_token)
-    return {
-        "access_token": session.access_token if session else None,
-        "token_type": "bearer",
-        "user": _get_profile(supabase, user_id),
-    }
+    return _reponse_inscription(supabase, user_id, auth_response.session, response)
 
 
 @router.post("/register-collaborator", status_code=status.HTTP_201_CREATED)
@@ -280,14 +416,27 @@ def register_collaborator(
     """Inscription allégée pour un invité : onboarding déjà terminé."""
     _validate_password(body.password)
     try:
-        auth_response = anon.auth.sign_up({"email": body.email, "password": body.password})
+        auth_response = anon.auth.sign_up(
+            {
+                "email": body.email,
+                "password": body.password,
+                "options": {
+                    "email_redirect_to": _url_retour_confirmation(invitation=body.invitation)
+                },
+            }
+        )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise _erreur_inscription(e) from e
 
     if not auth_response.user:
         raise HTTPException(status_code=400, detail="Échec de la création du compte")
+    if _utilisateur_obfusque(auth_response.user):
+        raise HTTPException(status_code=409, detail=DETAIL_DEJA_INSCRIT)
 
     user_id = auth_response.user.id
+
+    if _profil_existe(supabase, user_id):
+        return _reponse_inscription(supabase, user_id, auth_response.session, response)
 
     profile: dict[str, Any] = {
         "id": user_id,
@@ -298,19 +447,13 @@ def register_collaborator(
         "account_type": "collaborateur",
         "metier": body.metier,
         "onboarding_complete": True,
-        "has_aides_access": False,
         "notification_preferences": _default_notification_preferences(),
     }
     supabase.table("users").insert(profile).execute()
+    # Tout compte neuf repart avec l'offre du moment (cf. PLAN_A_LA_CREATION).
+    billing.octroyer_offre_initiale(supabase, user_id)
 
-    session = auth_response.session
-    if session and session.refresh_token:
-        _set_refresh_cookie(response, session.refresh_token)
-    return {
-        "access_token": session.access_token if session else None,
-        "token_type": "bearer",
-        "user": _get_profile(supabase, user_id),
-    }
+    return _reponse_inscription(supabase, user_id, auth_response.session, response)
 
 
 @router.post("/login")
@@ -328,9 +471,29 @@ def login(
             }
         )
     except Exception as e:
+        # 403 et non 401 : les identifiants sont BONS, c'est l'adresse qui
+        # n'est pas confirmée. Le front distingue les deux — le 403 propose de
+        # renvoyer l'email, le 401 reste « email ou mot de passe incorrect ».
+        if _email_non_confirme(e):
+            raise HTTPException(status_code=403, detail=DETAIL_NON_CONFIRME) from e
+        # Le 401 rendu au front ne distingue rien (mot de passe faux, clé API
+        # invalide, Supabase injoignable) : la cause réelle n'est lisible qu'ici.
+        # Jamais le mot de passe, seulement de quoi repérer une saisie altérée.
+        logger.warning(
+            "Connexion refusée par Supabase (%s, status=%s, code=%s) : %s | email=%r, mdp=%d car.",
+            type(e).__name__,
+            getattr(e, "status", None),
+            getattr(e, "code", None),
+            e,
+            body.email,
+            len(body.password),
+        )
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect") from e
 
     if not auth_response.user or not auth_response.session:
+        logger.warning(
+            "Connexion sans session ni utilisateur rendus par Supabase : email=%r", body.email
+        )
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
 
     user_id = auth_response.user.id
@@ -381,13 +544,15 @@ def register_oauth(
         "nom": body.nom,
         "telephone": body.telephone,
         "onboarding_complete": False,
-        "has_aides_access": False,
         "notification_preferences": _default_notification_preferences(),
     }
     # Course entre deux soumissions : la ligne vient d'être créée par
     # l'autre requête — l'idempotence retombe sur le profil existant.
     with contextlib.suppress(Exception):
         supabase.table("users").insert(profile).execute()
+    # Même octroi que pour une inscription par mot de passe. L'appel est
+    # idempotent : la course entre deux soumissions réécrit la même ligne.
+    billing.octroyer_offre_initiale(supabase, auth_user.id)
 
     return {"user": _get_profile(supabase, auth_user.id)}
 
@@ -412,13 +577,15 @@ def register_collaborator_oauth(
         "account_type": "collaborateur",
         "metier": body.metier,
         "onboarding_complete": True,
-        "has_aides_access": False,
         "notification_preferences": _default_notification_preferences(),
     }
     # Course entre deux soumissions : la ligne vient d'être créée par
     # l'autre requête — l'idempotence retombe sur le profil existant.
     with contextlib.suppress(Exception):
         supabase.table("users").insert(profile).execute()
+    # Même octroi que pour une inscription par mot de passe. L'appel est
+    # idempotent : la course entre deux soumissions réécrit la même ligne.
+    billing.octroyer_offre_initiale(supabase, auth_user.id)
 
     return {"user": _get_profile(supabase, auth_user.id)}
 
@@ -435,6 +602,47 @@ def oauth_session(
     _set_refresh_cookie(response, body.refresh_token)
 
 
+@router.post("/resend-confirmation")
+def resend_confirmation(
+    body: ResendConfirmationRequest,
+    anon: Client = Depends(get_anon_supabase),
+):
+    """Renvoie l'email de confirmation d'inscription.
+
+    Le premier message se perd (spam, adresse mal tapée, onglet fermé), et sans
+    ce recours le compte est mort : l'adresse est prise, donc l'inscription
+    répond 409, et la connexion 403. C'est le seul chemin de sortie.
+
+    Réponse toujours 200, comme `/forgot-password` : ni l'existence du compte
+    ni son état de confirmation ne se déduisent d'ici. Supabase applique en
+    outre sa propre limite de fréquence, qui remonterait en erreur.
+    """
+    try:
+        anon.auth.resend(
+            {
+                "type": "signup",
+                "email": body.email,
+                "options": {
+                    "email_redirect_to": _url_retour_confirmation(
+                        reprise=body.reprise, invitation=body.invitation
+                    )
+                },
+            }
+        )
+    except Exception as e:
+        logger.warning(
+            "Renvoi de confirmation refusé par Supabase (%s, status=%s, code=%s) : %s | email=%r",
+            type(e).__name__,
+            getattr(e, "status", None),
+            getattr(e, "code", None),
+            e,
+            body.email,
+        )
+    return {
+        "message": "Si une confirmation est en attente pour cette adresse, un email a été envoyé."
+    }
+
+
 @router.post("/forgot-password")
 def forgot_password(
     body: ForgotPasswordRequest,
@@ -447,11 +655,22 @@ def forgot_password(
     import os
 
     frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-    # On n'expose jamais l'erreur au client (ne pas révéler si l'adresse existe).
-    with contextlib.suppress(Exception):
+    # On n'expose jamais l'erreur au client (ne pas révéler si l'adresse existe),
+    # mais on la garde dans les logs : un SMTP refusé, une limite d'envoi
+    # atteinte ou une clé invalide ne se voyaient nulle part.
+    try:
         anon.auth.reset_password_for_email(
             body.email,
             {"redirect_to": f"{frontend_url}/reset-password"},
+        )
+    except Exception as e:
+        logger.warning(
+            "Email de réinitialisation refusé par Supabase (%s, status=%s, code=%s) : %s | email=%r",
+            type(e).__name__,
+            getattr(e, "status", None),
+            getattr(e, "code", None),
+            e,
+            body.email,
         )
     return {"message": "Si un compte existe pour cette adresse, un email a été envoyé."}
 

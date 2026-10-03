@@ -1,5 +1,30 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { Monument, MonumentPhoto } from '@/types';
+import { enregistrerCache, optionsDeCache } from './persistance';
+
+/**
+ * Ce que le cache garde d'un monument : tout, SAUF ce qui ouvre un droit.
+ *
+ * `offre` gouverne l'onglet Équipe, l'échéancier, les aides « bientôt » et la
+ * suppression (cf. `useOffreMonument`) : la persister reviendrait exactement à
+ * ce que `useBillingStore` interdit, n'importe qui éditerait la clé pour
+ * s'ouvrir Multi-monuments côté interface. `myRole` et `members` suivent la
+ * même règle — ce sont les droits d'équipe sur le bien. Les zones qu'ils
+ * gouvernent attendent donc le serveur, et seul le contenu s'affiche depuis le
+ * cache.
+ */
+export function monumentPourLeCache(monument: Monument): Monument {
+  const reste = { ...monument };
+  delete reste.offre;
+  delete reste.myRole;
+  delete reste.members;
+  return reste;
+}
+
+interface MonumentCache {
+  monuments: Monument[];
+}
 
 interface MonumentState {
   monuments: Monument[];
@@ -16,7 +41,7 @@ interface MonumentState {
   removePhoto: (monumentId: string, photoId: string) => void;
 }
 
-export const useMonumentStore = create<MonumentState>()((set, get) => ({
+export const useMonumentStore = create<MonumentState>()(persist((set, get) => ({
   monuments: [],
   activeMonumentId: null,
 
@@ -75,4 +100,19 @@ export const useMonumentStore = create<MonumentState>()((set, get) => ({
           : m
       ),
     })),
-}));
+}), optionsDeCache<MonumentState, MonumentCache>({
+  domaine: 'monuments',
+  version: 1,
+  partialize: (state) => ({ monuments: state.monuments.map(monumentPourLeCache) }),
+  relire: (persiste, courant) => ({
+    ...courant,
+    monuments: (persiste.monuments ?? []).map((m) => ({
+      ...monumentPourLeCache(m),
+      depuisLeCache: true,
+    })),
+  }),
+})));
+
+enregistrerCache(useMonumentStore, () =>
+  useMonumentStore.setState({ monuments: [], activeMonumentId: null }),
+);

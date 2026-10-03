@@ -1,0 +1,43 @@
+/*
+ * Tableau de bord : maquette `monumia-tableau-de-bord.html` (yaml paul),
+ * géométrie reprise telle quelle, couleurs par les tokens `--e-*` (ecrans.css).
+ */
+
+/* en-tête */
+.tdb .hello { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; padding-top: 8px; }
+.tdb .hello h1 { font-size: clamp(37.5px, 5vw, 56px); margin-top: 10px; }
+.tdb .hello h1 span { color: var(--e-blue); }
+.tdb .hello p { font-size: 17.5px; margin-top: 10px; max-width: 62ch; }
+
+.tdb .sec { margin-top: 43.5px; }
+.tdb .sec-h h2 { font-size: 27.5px; margin-top: 8px; }
+
+/* 1. à faire maintenant */
+.tdb .now { position: relative; margin-top: 30px; background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: 22px; box-shadow: var(--e-sh-card); overflow: hidden; }
+.tdb .now-in { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 20px 27.5px; align-items: center; padding: 27.5px 30px; }
+.tdb .cal { width: 91.5px; height: 100px; border-radius: 16px; background: var(--e-orange); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.tdb .cal b { font: 700 40px/1 var(--e-serif); font-variant-numeric: tabular-nums; }
+.tdb .cal span { font-size: 13.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; margin-top: 6px; }
+.tdb .cal.retard { background: var(--e-red); }
+.tdb .now .tag-now { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--e-orange); }
+.tdb .now .tag-now.retard { color: var(--e-red); }
+.tdb .now h2 { font: 700 25px/1.25 var(--e-serif); margin-top: 8px; }
+.tdb .now .sub { font-size: 15.5px; margin-top: 8px; }
+.tdb .now .sub b { color: var(--e-ink); font-weight: 600; }
+.tdb .now-step { background: var(--e-blue); color: #fff; padding: 16px 30px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 15.5px; }
+.tdb .now-step b { font-weight: 600; }
+.tdb .now-step .lbl { font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--e-on-blue-faint); }
+/* toute la carte est cliquable : le lien du bouton la recouvre */
+.tdb .now-lien::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.tdb .now:has(.now-lien:hover) .now-lien { background: var(--e-orange-hover); }
+
+/* rien de daté : la même carte, sans éphéméride ni bande */
+.tdb .now.calme .now-in { grid-template-columns: minmax(0, 1fr) auto; }
+.tdb .now.calme h2 { font-weight: 400; }
+
+@media (max-width: 760px) {
+  .tdb .now-in { grid-template-columns: auto minmax(0, 1fr); padding: 22px 18px; }
+  .tdb .now-in .btn { grid-column: 1 / -1; }
+  .tdb .now.calme .now-in { grid-template-columns: 1fr; }
+  .tdb .now-step { padding: 14px 18px; }
+}

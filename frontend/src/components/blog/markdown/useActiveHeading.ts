@@ -17,7 +17,7 @@ export function useActiveHeading(ids: string[]): string {
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
         if (visible[0]) setActive((visible[0].target as HTMLElement).id);
       },
-      { rootMargin: '-88px 0px -70% 0px', threshold: 0 },
+      { rootMargin: '-100.5px 0px -70% 0px', threshold: 0 },
     );
     const els = ids
       .map((id) => document.getElementById(id))

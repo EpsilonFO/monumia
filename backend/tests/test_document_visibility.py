@@ -110,5 +110,54 @@ class CanEditVisibilityTests(unittest.TestCase):
         self.assertTrue(can_edit_visibility("owner", is_uploader=False))
 
 
+class FilterVisibleDocumentsTests(unittest.TestCase):
+    """Filtrage d'une liste de documents selon les rôles du lecteur.
+
+    `filter_visible_documents` est le point de passage unique de la reprise des
+    pièces : il doit voir exactement ce que la liste des documents montre, sur
+    les DEUX périmètres (bien et chantiers).
+    """
+
+    def _doc(self, doc_id, visibility, uploader, monument_ids=("m1",), projet_ids=(), allowed=()):
+        return {
+            "id": doc_id,
+            "visibility": visibility,
+            "user_id": uploader,
+            "monument_ids": list(monument_ids),
+            "projet_ids": list(projet_ids),
+            "allowed_user_ids": list(allowed),
+        }
+
+    def test_membre_ne_voit_pas_un_document_responsables(self) -> None:
+        from services.project_access import filter_visible_documents
+
+        rows = [self._doc("d1", "responsables", "u2")]
+        visibles = filter_visible_documents(rows, "u1", {"m1": "member"}, {})
+        self.assertEqual(visibles, [])
+
+    def test_membre_voit_un_document_team(self) -> None:
+        from services.project_access import filter_visible_documents
+
+        rows = [self._doc("d1", "team", "u2")]
+        visibles = filter_visible_documents(rows, "u1", {"m1": "member"}, {})
+        self.assertEqual([d["id"] for d in visibles], ["d1"])
+
+    def test_auteur_voit_toujours_son_document(self) -> None:
+        from services.project_access import filter_visible_documents
+
+        rows = [self._doc("d1", "custom", "u1", monument_ids=())]
+        visibles = filter_visible_documents(rows, "u1", {}, {})
+        self.assertEqual([d["id"] for d in visibles], ["d1"])
+
+    def test_le_role_projet_suffit(self) -> None:
+        """Un document du chantier est visible du membre du chantier, même sans
+        aucun rôle sur le monument."""
+        from services.project_access import filter_visible_documents
+
+        rows = [self._doc("d1", "team", "u2", monument_ids=(), projet_ids=("p1",))]
+        visibles = filter_visible_documents(rows, "u1", {}, {"p1": "member"})
+        self.assertEqual([d["id"] for d in visibles], ["d1"])
+
+
 if __name__ == "__main__":
     unittest.main()

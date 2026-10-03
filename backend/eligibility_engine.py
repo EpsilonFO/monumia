@@ -24,28 +24,38 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Literal
 
 from aides_schema import (
+    BLOCK_OPS,
     ENUM_FACT_TYPES,
+    FAIT_PORTEUR,
+    FIELD_REGISTRY,
+    OPTIONS_BOOLEEN_IMPLICITES,
     ROLE_BY_TYPE,
     Aide,
     AppliesIf,
     Condition,
     FactDef,
+    Fiche,
     MultiValue,
     RangeValue,
     evaluate_predicate,
+    gate_porteur,
 )
 from labels import (
     DEPARTEMENT_LABELS,
     ETAT_LABELS,
+    FAMILLES_HERITEES,
     OWNERSHIP_LABELS,
     PROTECTION_LABELS,
     REGION_LABELS,
     TRAVAUX_LABELS,
+    TYPES_AVEC_AFFECTATION_CULTE,
+    TYPES_AVEC_ARCHITECTURE_ROMANE,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,15 +101,37 @@ def build_context(
     SIREN d'EPCI : absent pour une commune isolée, ce qui laisse les aides
     intercommunales en incertitude plutôt que de les déclarer non éligibles.
     """
+    types_edifice = types_coches(monument.get("type_edifice"))
     ctx: dict[str, object] = {
         "monument.nom": monument.get("nom"),
         "monument.protection": monument.get("protection"),
-        "monument.proprietaire": monument.get("proprietaire"),
+        # UN propriétaire : le diagnostic évalue une fiche par propriétaire
+        # coché (`profils_par_proprietaire`). Appelé directement sur une fiche
+        # qui en coche plusieurs, le contexte n'en retient aucun (fail-closed).
+        "monument.proprietaire": proprietaire_unique(monument),
         "monument.etat_conservation": monument.get("etat_conservation"),
         "monument.region": monument.get("region"),
         "monument.departement_num": monument.get("departement_num"),
         "monument.travaux_envisages": monument.get("travaux_envisages") or [],
         "monument.siecle_construction": monument.get("siecle_construction"),
+        # Choix multiple : la liste des types cochés, None si aucun.
+        "monument.type_edifice": list(types_edifice) or None,
+        # Une précision ne vaut que si AU MOINS un type coché l'admet : restée
+        # d'un premier choix « église », « affecté au culte » ne doit pas
+        # suivre une fiche devenue « château » seul (le router la vide aussi).
+        # Château + chapelle la garde : elle décrit alors la chapelle, et ne
+        # nourrit que le fait qu'elle alimente, jamais `edifice_cultuel` (cf.
+        # DEDUCTIONS_TYPE_EDIFICE, où l'unanimité des types s'applique seule).
+        "monument.affecte_au_culte": (
+            monument.get("affecte_au_culte")
+            if TYPES_AVEC_AFFECTATION_CULTE.intersection(types_edifice)
+            else None
+        ),
+        "monument.architecture_romane": (
+            monument.get("architecture_romane")
+            if TYPES_AVEC_ARCHITECTURE_ROMANE.intersection(types_edifice)
+            else None
+        ),
         "commune.population": population,
     }
     # Champs d'enrichissement commune : présents seulement si la donnée existe.
@@ -143,6 +175,12 @@ class AideVerdict:
     # personne ne les pose. Sans eux, une condition dont l'applicabilité est
     # indéterminée reste éternellement en incertitude (cf. _gateway_condition).
     gateway_facts: dict[str, list[Condition]] = field(default_factory=dict)
+    # Plusieurs propriétaires cochés (2026-09-30) : les verdicts ENCORE VIVANTS
+    # de l'aide (potentiel ou atteignable), un par propriétaire, celui-ci
+    # compris, quand il y en a plus d'un. Vide dans le cas courant d'un seul
+    # propriétaire. `build_questions` en tire l'union des questions et
+    # l'intersection des éliminations (cf. `_meilleur_verdict`).
+    profils_vivants: list[AideVerdict] = field(default_factory=list)
 
 
 def _tranche_repr(option_id: str):
@@ -170,12 +208,26 @@ def _tranche_repr(option_id: str):
 
 def _normalize_answer(fact: FactDef | None, raw):
     """Convertit une réponse du QCM (id d'option) vers la valeur typée attendue
-    par les prédicats : oui/non → bool, tranche numérique → représentant, enum →
-    id (déjà la valeur), multi_enum → MultiValue des ids cochés, `skip`/option
-    `unknown` → None (fait non renseigné).
+    par les prédicats : réponse d'un booléen → sa `valeur` déclarée, tranche
+    numérique → représentant, enum → id (déjà la valeur), multi_enum →
+    MultiValue des ids cochés, `skip`/option `unknown` → None (fait non
+    renseigné).
 
     Sans cette normalisation, passer l'id brut « non » à un prédicat `eq: false`
     donnerait `"non" == False` → False, marquant l'aide non éligible à tort.
+
+    Un fait `boolean` qui ne déclare rien retombe sur OPTIONS_BOOLEEN_IMPLICITES
+    (« oui » → True, « non » → False) : ajouter des options à un booléen est donc
+    strictement inerte pour les réponses déjà persistées, puisque R1 impose que
+    le couple y survive. Une option de `valeur` nulle rend None — le fait reste
+    inconnu, l'aide n'est jamais écartée.
+
+    Un id d'option INCONNU du fait vaut fait non renseigné, jamais valeur
+    brute : les réponses sont persistées dans `projets.questionnaire` et les
+    options d'un fait peuvent changer sous elles (correction de `facts.yaml`,
+    reformulation depuis /admin). Une réponse devenue orpheline éliminerait
+    sinon des aides pour toujours, sans que personne puisse la corriger — c'est
+    exactement le cas que le principe fail-closed du moteur doit couvrir.
     """
     if raw is None or raw == "skip":
         return None
@@ -184,24 +236,23 @@ def _normalize_answer(fact: FactDef | None, raw):
     if fact.type == "boolean":
         if isinstance(raw, bool):
             return raw
-        if raw == "oui":
-            return True
-        if raw == "non":
-            return False
+        for opt in fact.options or OPTIONS_BOOLEEN_IMPLICITES:
+            if opt.id == raw:
+                return None if opt.unknown else opt.valeur
         return None
     if fact.type == "multi_enum":
         # Le front envoie une liste d'ids ; une réponse d'avant le passage en
         # choix multiple (chaîne unique, déjà persistée dans
         # `monuments.questionnaire`) reste lisible telle quelle.
         raws = raw if isinstance(raw, (list, tuple)) else [raw]
-        unknown_ids = {o.id for o in fact.options or [] if o.unknown}
-        kept = [v for v in raws if isinstance(v, str) and v != "skip" and v not in unknown_ids]
+        connues = {o.id for o in fact.options or [] if not o.unknown}
+        kept = [v for v in raws if isinstance(v, str) and v in connues]
         return MultiValue(kept) if kept else None
     if fact.type == "enum":
         for opt in fact.options or []:
-            if opt.id == raw and opt.unknown:
-                return None
-        return raw
+            if opt.id == raw:
+                return None if opt.unknown else raw
+        return None
     if fact.type in ("integer", "number"):
         if isinstance(raw, (int, float)) and not isinstance(raw, bool):
             return raw
@@ -309,15 +360,572 @@ def _eglise_ou_chapelle_depuis_nom(brut: object) -> bool | None:
     return True if _TETE_RELIGIEUSE_RE.match(_sans_accents(brut)) else None
 
 
-# Comment un fait lit son `auto_source` quand la valeur brute de la fiche n'a
-# pas son type (un siècle n'est pas une année, un nom n'est pas un booléen).
-# Sans entrée ici, la valeur du contexte est reprise telle quelle.
-AUTO_SOURCE_DERIVERS = {
-    "annee_construction": _annee_depuis_siecle,
-    "edifice_eglise_ou_chapelle": _eglise_ou_chapelle_depuis_nom,
-    # Une église ou une chapelle est, par construction, un édifice cultuel.
-    "edifice_cultuel": _eglise_ou_chapelle_depuis_nom,
+# ---------------------------------------------------------------------------
+# Faits déduits du type d'édifice (2026-09-30)
+# ---------------------------------------------------------------------------
+#
+# Ce que CHAQUE type d'édifice de la fiche (`monuments.type_edifice`, codes de
+# `labels.TYPE_EDIFICE_LABELS`) répond d'avance : fait → {type → valeur}. Un
+# type ABSENT de la table d'un fait ne déduit rien (None) et la question reste
+# posée ; `autre` n'apparaît dans aucune table, par construction.
+#
+# La règle d'écriture est celle de toute déduction qui peut ÉCARTER une aide :
+# une valeur n'entre ici que si elle est CERTAINE pour tout bien de ce type.
+# « Un lavoir n'est pas une église » l'est ; « une église n'est pas romane »
+# ne l'est pas (d'où la précision `architecture_romane`, qui seule y répond), et
+# « un château n'a pas de jardin » encore moins. Dans le doute, on s'abstient :
+# la question posée coûte une ligne, l'aide écartée à tort disparaît.
+#
+# Plusieurs types se cochent (choix multiple, 2026-09-30) : un domaine réunit
+# un château, sa chapelle, son pigeonnier. Le fait se déduit alors à
+# l'UNANIMITÉ des types cochés (`_depuis_type_edifice`) : château + chapelle ne
+# répondent ni oui ni non à « est-ce une église ou une chapelle ? », et la
+# question reste posée, puisque le projet peut porter sur l'un comme sur
+# l'autre. Le fait décrit toujours LE BIEN de la fiche ; la réponse du
+# questionnaire prime, et un nom qui contredit les types rend la question (cf.
+# `_auto_fact_value`).
+
+# Les édifices religieux BÂTIS, dont le culte est certain (une croix n'est pas
+# un « édifice », « autre édifice religieux » couvre l'oratoire et le cimetière).
+_CULTUELS = frozenset({"eglise", "chapelle", "abbaye_couvent", "temple", "synagogue"})
+# Ce qui n'est à coup sûr ni une église, ni un édifice affecté au culte. Hors de
+# la liste : l'hôpital (une chapelle d'Hôtel-Dieu se déclare souvent ainsi), le
+# site archéologique (vestiges d'abbaye), la croix, l'autre religieux, l'autre.
+_NON_CULTUELS = frozenset(
+    {
+        "chateau",
+        "manoir_demeure",
+        "hotel_particulier",
+        "maison",
+        "edifice_public",
+        "halle",
+        "patrimoine_industriel",
+        "ferme",
+        "moulin",
+        "lavoir_fontaine",
+        "pigeonnier",
+        "petit_patrimoine",
+        "fortification",
+        "pont",
+        "jardin",
+        "monument_aux_morts",
+        "monument_commemoratif",
+    }
+)
+# Les petits ouvrages : ni habitables, ni équipés d'un orgue, ni maisons
+# d'artiste. `jardin` et `site_archeologique` ne sont pas des bâtiments.
+_PETITS_OUVRAGES = frozenset(
+    {
+        "croix_calvaire",
+        "lavoir_fontaine",
+        "pigeonnier",
+        "petit_patrimoine",
+        "pont",
+        "monument_aux_morts",
+        "monument_commemoratif",
+    }
+)
+
+
+def _vrai_faux(
+    vrai: frozenset[str] | set[str] = frozenset(),
+    faux: frozenset[str] | set[str] = frozenset(),
+) -> dict[str, object]:
+    """Table d'un fait booléen. Un type ne peut pas être dans les deux listes."""
+    assert not (set(vrai) & set(faux)), set(vrai) & set(faux)
+    return {**dict.fromkeys(faux, False), **dict.fromkeys(vrai, True)}
+
+
+DEDUCTIONS_TYPE_EDIFICE: dict[str, dict[str, object]] = {
+    # « Église Saint-Martin » ou « Chapelle » : oui. Un temple ou une synagogue
+    # n'est ni l'un ni l'autre (le legs Maillé les exclut, et la note de
+    # pdl-edifices-religieux range ces cas en « non » + dérogation). L'abbaye
+    # ne tranche pas : son abbatiale est une église, son cloître non.
+    "edifice_eglise_ou_chapelle": _vrai_faux(
+        vrai={"eglise", "chapelle"},
+        faux=_NON_CULTUELS | {"temple", "synagogue", "croix_calvaire"},
+    ),
+    # La question énumère elle-même « église, chapelle, temple, synagogue,
+    # bâtiment conventuel ».
+    "edifice_cultuel": _vrai_faux(vrai=_CULTUELS, faux=_NON_CULTUELS),
+    # Le type ne dit que le « non » des biens civils ; pour un édifice
+    # religieux, c'est la précision `affecte_au_culte` de la fiche qui répond.
+    "edifice_toujours_affecte_culte": _vrai_faux(faux=_NON_CULTUELS),
+    # Une synagogue l'est par définition. Un édifice chrétien ne l'est pas, un
+    # lavoir, un four ou un pont non plus. Une demeure, une maison, une ferme
+    # peuvent l'être (un immeuble et un cimetière figurent parmi les lauréats,
+    # l'hôtel Camondo est un hôtel particulier), un monument commémoratif aussi :
+    # la question reste posée pour eux.
+    "bien_representatif_histoire_culture_juives": _vrai_faux(
+        vrai={"synagogue"},
+        faux={
+            "eglise",
+            "chapelle",
+            "abbaye_couvent",
+            "temple",
+            "croix_calvaire",
+            "lavoir_fontaine",
+            "pigeonnier",
+            "petit_patrimoine",
+            "pont",
+        },
+    ),
+    # L'énumération du fait : cultuel, vernaculaire (lavoir, fontaine…) ou petit
+    # patrimoine de proximité (puits, halles, fours, pigeonniers, croix,
+    # monuments aux morts ou de personnages illustres). Son `pourquoi` exclut
+    # « un château, une demeure ou un bâtiment civil ». Maison, ferme, moulin,
+    # pont : ni l'un ni l'autre avec certitude.
+    "patrimoine_cultuel_vernaculaire_public": _vrai_faux(
+        vrai=_CULTUELS
+        | {
+            "croix_calvaire",
+            "autre_religieux",
+            "lavoir_fontaine",
+            "pigeonnier",
+            "petit_patrimoine",
+            "halle",
+            "monument_aux_morts",
+            "monument_commemoratif",
+        },
+        faux={
+            "chateau",
+            "manoir_demeure",
+            "hotel_particulier",
+            "edifice_public",
+            "patrimoine_industriel",
+        },
+    ),
+    # Les exemples des trois options du fait. La maison (de village ou de
+    # ville), le manoir et l'édifice public (urbain ou non) ne tranchent pas.
+    "patrimoine_bati_rural_ou_cultuel": {
+        **dict.fromkeys(_CULTUELS | {"croix_calvaire", "autre_religieux"}, "cultuel"),
+        **dict.fromkeys(
+            {"ferme", "moulin", "lavoir_fontaine", "pigeonnier", "petit_patrimoine"},
+            "bati_rural",
+        ),
+        **dict.fromkeys(
+            {"chateau", "hotel_particulier", "patrimoine_industriel"}, "ni_l_un_ni_l_autre"
+        ),
+    },
+    # Le « rural » ne se lit pas sur le type : seul le « non » des biens qui ne
+    # sont ni de culte ni de croyance. Le lavoir (fontaine de dévotion) et le
+    # petit patrimoine (puits sacré) ne tranchent pas.
+    "lieu_rural_culte_ou_croyance": _vrai_faux(
+        faux=_NON_CULTUELS - {"lavoir_fontaine", "petit_patrimoine"},
+    ),
+    # Un calvaire peut être le monument aux morts de la commune, et un
+    # « monument commémoratif » aussi : ni l'un ni l'autre ne tranchent.
+    "edifice_monument_aux_morts": _vrai_faux(
+        vrai={"monument_aux_morts"},
+        faux=(_CULTUELS | _NON_CULTUELS | {"hopital", "site_archeologique"})
+        - {"monument_aux_morts", "monument_commemoratif"},
+    ),
+    # Les exemples du `help` (chapelle, pigeonnier, lavoir, fontaine) et les
+    # autres ouvrages. Le moulin, cité par le `help`, est souvent devenu une
+    # maison : il ne tranche pas, pas plus que la ferme ou le château en ruine.
+    "batiment_habitable": _vrai_faux(
+        vrai={"maison", "manoir_demeure"},
+        faux=_PETITS_OUVRAGES
+        | {"eglise", "chapelle", "temple", "synagogue", "halle", "jardin", "site_archeologique"},
+    ),
+    "possede_orgue_a_tuyaux": _vrai_faux(
+        faux=_PETITS_OUVRAGES | {"jardin", "site_archeologique", "moulin", "ferme", "halle"},
+    ),
+    # Un parc ou un jardin, oui ; tout le reste peut en avoir un.
+    "bien_parc_jardin_ou_arboretum": _vrai_faux(vrai={"jardin"}),
+    "est_maison_atelier_artiste": _vrai_faux(
+        faux=_PETITS_OUVRAGES | _CULTUELS | {"site_archeologique", "hopital", "halle"},
+    ),
+    # Une gare se déclare en patrimoine industriel ; une halle de marchandises,
+    # une maison ou un édifice public peuvent en être une ancienne.
+    "edifice_batiment_ferroviaire_ferme": _vrai_faux(
+        faux=(_CULTUELS | _NON_CULTUELS | _PETITS_OUVRAGES | {"autre_religieux", "hopital"})
+        - {"maison", "edifice_public", "halle", "patrimoine_industriel", "pont"},
+    ),
+    # Un hôpital est lié à un établissement de santé par sa construction même.
+    # Une chapelle peut l'être par sa situation : elle ne tranche pas.
+    "patrimoine_lie_etablissement_sante_ou_ordre_malte": _vrai_faux(vrai={"hopital"}),
+    # Le théâtre est rangé dans « édifice public » ; une halle ou une usine
+    # reconvertie, un théâtre antique peuvent en être un.
+    "est_theatre_de_ville": _vrai_faux(
+        faux=(_CULTUELS | _NON_CULTUELS | _PETITS_OUVRAGES | {"autre_religieux", "hopital"})
+        - {"edifice_public", "halle", "patrimoine_industriel"},
+    ),
 }
+
+
+def valeurs_cochees(brut: object) -> tuple[str, ...]:
+    """Les codes d'un champ à choix multiple de la fiche, dédoublonnés, dans
+    l'ordre (vide si aucun). Une chaîne seule vaut un code : colonne d'avant le
+    passage en tableau, brouillon invité ou cache d'avant.
+
+    Sert au type d'édifice (`text[]`, migration 20260930082523) et au
+    propriétaire (`ownership_type[]`, migration 20260930084241).
+    """
+    if isinstance(brut, str):
+        brut = [brut]
+    if not isinstance(brut, (list, tuple)):
+        return ()
+    return tuple(dict.fromkeys(t for t in brut if isinstance(t, str) and t))
+
+
+types_coches = valeurs_cochees
+proprietaires_coches = valeurs_cochees
+
+
+def _depuis_type_edifice(fact_key: str) -> Callable[[object], object]:
+    """Dérivation `monument.type_edifice` → valeur du fait, à l'UNANIMITÉ.
+
+    Chaque type coché rend son verdict dans la table du fait (absent = None).
+    La valeur n'est retenue que si TOUS rendent la même, non nulle : château +
+    chapelle ne sont pas « une église », château + pigeonnier ne sont pas « un
+    édifice cultuel » pour autant qu'aucun des deux ne l'est. Un seul type qui
+    ne tranche pas (dont « autre ») laisse la question posée.
+    """
+    table = DEDUCTIONS_TYPE_EDIFICE[fact_key]
+
+    def deriver(brut: object) -> object:
+        verdicts = [table.get(t) for t in types_coches(brut)]
+        if not verdicts or verdicts[0] is None:
+            return None
+        premier = verdicts[0]
+        return premier if all(_meme_valeur(v, premier) for v in verdicts[1:]) else None
+
+    return deriver
+
+
+# Comment un fait lit une source de son `auto_source` quand la valeur brute de
+# la fiche n'a pas son type (un siècle n'est pas une année, un nom ou un type
+# d'édifice n'est pas un booléen). Clé : (fait, source). Sans entrée, la valeur
+# du contexte est reprise telle quelle, ce que le lint n'admet que si la source
+# a le type du fait (`auto_sources_sans_derivation`).
+AUTO_SOURCE_DERIVERS: dict[tuple[str, str], Callable[[object], object]] = {
+    ("annee_construction", "monument.siecle_construction"): _annee_depuis_siecle,
+    ("edifice_eglise_ou_chapelle", "monument.nom"): _eglise_ou_chapelle_depuis_nom,
+    # Une église ou une chapelle est, par construction, un édifice cultuel.
+    ("edifice_cultuel", "monument.nom"): _eglise_ou_chapelle_depuis_nom,
+    **{
+        (fact_key, "monument.type_edifice"): _depuis_type_edifice(fact_key)
+        for fact_key in DEDUCTIONS_TYPE_EDIFICE
+    },
+}
+
+
+def auto_sources_sans_derivation(facts: dict[str, FactDef]) -> list[str]:
+    """Les sources d'`auto_source` qui seraient reprises telles quelles à tort.
+
+    Une source hors registre est signalée ailleurs (lint). Ici : une source d'un
+    AUTRE type que le fait, sans dérivation — un type d'édifice « eglise »
+    comparé à `eq: true` vaudrait False, et l'aide serait écartée sur une
+    valeur que personne n'a donnée.
+    """
+    erreurs = []
+    for key, fact in facts.items():
+        for source in fact.auto_sources:
+            champ = FIELD_REGISTRY.get(source)
+            if champ is None or (key, source) in AUTO_SOURCE_DERIVERS:
+                continue
+            if champ["type"] != fact.type:
+                erreurs.append(
+                    f"{key}: auto_source « {source} » ({champ['type']}) sans dérivation "
+                    f"vers un fait {fact.type} (eligibility_engine.AUTO_SOURCE_DERIVERS)"
+                )
+    return erreurs
+
+
+def _faire_vivre_depuis_raisons(raisons: set[str]) -> bool | None:
+    """Une intention non cochée répond d'avance : pas de « faire vivre le lieu »,
+    donc ni festival, ni projet artistique ou culturel.
+
+    L'inverse n'est jamais vrai — « Faire vivre et ouvrir le lieu » couvre
+    autant des visites pérennes qu'une exposition d'un été —, d'où le None qui
+    laisse la question posée là où elle discrimine vraiment.
+    """
+    return None if "valorisation_rayonnement" in raisons else False
+
+
+# Faits que l'étape « Votre projet » répond d'avance, par déduction des
+# intentions cochées. Pendant de AUTO_SOURCE_DERIVERS : même principe (ne pas
+# demander ce que l'on sait déjà), mais la source est l'intention déclarée et
+# non la fiche du monument. Ne jamais y mettre une déduction qui pourrait
+# ÉCARTER une aide : une intention non cochée est une indication sur le projet,
+# pas une preuve — fail-closed, la déduction rend None et la question survit.
+FAITS_DEDUITS_DES_RAISONS: dict[str, Callable[[set[str]], object]] = {
+    "projet_evenementiel_ponctuel": _faire_vivre_depuis_raisons,
+    # Même déduction : un projet ou une action artistique ou culturelle
+    # (exposition, spectacle, résidence…) relève de « faire vivre le lieu ».
+    # Cohérent avec le `help` du fait : « répondez non si votre projet porte
+    # uniquement sur des travaux sur le bâtiment ».
+    "projet_artistique_ou_culturel": _faire_vivre_depuis_raisons,
+    # `prevoit_programme_valorisation` y avait une déduction positive (cocher
+    # « Faire vivre le lieu » EST un programme de valorisation). Le fait est
+    # devenu une promesse le 2026-09-23 et ne se demande plus : la déduction
+    # est partie avec lui.
+}
+
+
+def deduire_faits_des_raisons(
+    raisons: set[str],
+    answers: dict[str, object],
+    facts: dict[str, FactDef],
+) -> dict[str, object]:
+    """Complète les réponses par les faits déductibles des intentions déclarées.
+
+    Poser à un propriétaire qui refait sa toiture « votre projet est-il un
+    festival ? » se lit comme une panne : l'étape « Votre projet » a déjà dit
+    non. Le filtrage `hors_projet` ne suffit pas, parce qu'une aide multi-raison
+    (Fondation CA Pays de France : restauration ET valorisation) reste candidate
+    pour un pur chantier et traîne ses faits événementiels avec elle.
+
+    La réponse de l'utilisateur prime toujours : la déduction ne remplit qu'un
+    fait qu'il n'a pas renseigné (une réponse « je ne sais pas » n'en est pas
+    une). `raisons` vide ⇒ aucune déduction, comme `hors_projet` ne filtre rien :
+    un questionnaire d'avant l'étape ne dit rien des intentions.
+    """
+    if not raisons:
+        return answers
+    complete = dict(answers)
+    for fact_key, deduire in FAITS_DEDUITS_DES_RAISONS.items():
+        if _normalize_answer(facts.get(fact_key), complete.get(fact_key)) is not None:
+            continue
+        valeur = deduire(raisons)
+        if valeur is not None:
+            complete[fact_key] = valeur
+    return complete
+
+
+# Faits de PÉRIMÈTRE qu'une famille cochée rend plausibles : fait → familles qui
+# le rendent plausible. Pendant de FAITS_DEDUITS_DES_RAISONS un cran plus fin —
+# avoir coché « spectacles » répond d'avance « non » à « votre projet est-il un
+# hébergement touristique ? ».
+#
+# Deux faits de scope `monument` (`bien_parc_jardin_ou_arboretum`,
+# `possede_orgue_a_tuyaux`) et le `multi_enum` `projet_dimension_environnementale`
+# sont volontairement ABSENTS : les deux premiers décrivent le bien et non le
+# projet (un jardin ne cesse pas d'exister parce qu'on monte un festival), le
+# troisième n'est pas un périmètre.
+FAITS_DEDUITS_DES_FAMILLES: dict[str, frozenset[str]] = {
+    "projet_lieu_diffusion_culturelle": frozenset({"spectacles_manifestations"}),
+    "porteur_compagnie_artistique": frozenset({"spectacles_manifestations"}),
+    "porteur_structure_musicale": frozenset({"spectacles_manifestations"}),
+    "projet_hebergement_touristique": frozenset({"hebergement_touristique"}),
+    "projet_developpement_touristique": frozenset(
+        {"hebergement_touristique", "tourisme_visite", "activite_economique_lieu"}
+    ),
+    "projet_equipement_culturel": frozenset(
+        {"mediation_numerique_expositions", "spectacles_manifestations"}
+    ),
+    "projet_artistique_ou_culturel": frozenset(
+        {"mediation_numerique_expositions", "spectacles_manifestations"}
+    ),
+    "projet_lie_chasse_peche_nature": frozenset({"eau_nature_domaine", "parcs_jardins_paysages"}),
+    "projet_amenagement_urbain_nature_en_ville": frozenset({"parcs_jardins_paysages"}),
+    "projet_support_insertion_ou_formation": frozenset(
+        {"restauration_bati", "activite_economique_lieu"}
+    ),
+}
+
+
+# Miroir POSITIF, et volontairement beaucoup plus étroit : les faits qu'une
+# famille COCHÉE ne rend pas seulement plausibles mais certains, parce qu'ils
+# redisent ce que la famille déclare déjà. Cocher « Spectacles et
+# manifestations » puis s'entendre demander « votre projet est-il une action
+# artistique ou culturelle ? » se lit comme une panne. Même condition que pour
+# toute déduction positive : elle ne doit pouvoir écarter AUCUNE aide.
+#
+# Trois entrées, et la garde de `_retournerait_contre` les revérifie à chaque
+# diagnostic plutôt que de faire confiance à cette liste. Mesuré sur le corpus
+# au 2026-09-18 : 9 et 35 références pour les deux premières, aucune qu'un
+# « oui » réfute.
+#
+# La troisième, `projet_hebergement_touristique`, n'a pu entrer qu'après la
+# SCISSION de `tourisme_hebergement` (2026-09-22) : tant que la même famille
+# couvrait les gîtes ET les sites de visite, cocher la tuile ne disait pas que
+# le projet était un hébergement, et trois aides qui gatent `eq: false` sur ce
+# fait faisaient tomber la garde pour tout le monde. Deux d'entre elles sont
+# désormais `tourisme_visite` et sortent par `hors_famille` avant la déduction ;
+# qui coche les DEUX tuiles garde donc la question, et c'est légitime — c'est
+# alors elle qui tranche entre les aides d'hébergement et les autres.
+#
+# `projet_evenementiel_ponctuel` n'y est PAS, et c'est le cas intéressant :
+# cinq aides le gatent `eq: false`, un « oui » déduit les ferait tomber
+# « écartées par vos réponses » sur une question jamais posée. Ponctuel ou
+# pérenne est précisément ce que « spectacles » ne dit pas — la question reste
+# donc posée, et elle est la seule des trois à discriminer.
+#
+# On ne lit ici que les familles DÉCLARÉES : celles qu'une finalité implique
+# sont une indication, pas une déclaration, et ne peuvent pas porter un « oui ».
+FAITS_DEDUITS_VRAI_DES_FAMILLES: dict[str, frozenset[str]] = {
+    "projet_artistique_ou_culturel": frozenset(
+        {"spectacles_manifestations", "mediation_numerique_expositions"}
+    ),
+    "projet_lieu_diffusion_culturelle": frozenset({"spectacles_manifestations"}),
+    "projet_hebergement_touristique": frozenset({"hebergement_touristique"}),
+}
+
+
+def _retournerait_contre(aide: Aide, fact_key: str, valeur: bool = False) -> bool:
+    """Répondre `valeur` à ce fait retournerait-il cette aide contre elle-même ?
+
+    Deux façons : son PÉRIMÈTRE porte sur le fait et la réponse l'en sort
+    (`hors_perimetre` l'écarte alors du résultat), ou l'un de ses GATES porte
+    sur le fait et la réponse le réfute (l'aide tombe « écartée par vos
+    réponses », sur une question que l'utilisateur n'a jamais vue).
+
+    Forme exacte de la garde de `deduire_faits_des_familles`, dans les deux
+    sens, et plus sûre que la coïncidence des tags : elle ne suppose rien du
+    catalogue, et elle vaut donc aussi pendant que le backfill des familles est
+    en cours. `valeur` par défaut à `False` : c'est la déduction négative, de
+    loin la plus fréquente.
+    """
+    if (
+        aide.applies_if
+        and aide.applies_if.fact == fact_key
+        and evaluate_predicate(aide.applies_if.predicate.root, valeur) is False
+    ):
+        return True
+    return any(
+        c.fact == fact_key
+        and c.effect == "gate"
+        and c.predicate is not None
+        and evaluate_predicate(c.predicate.root, valeur) is False
+        for c in aide.conditions
+    )
+
+
+def deduire_faits_des_familles(
+    effectives: set[str],
+    declarees: set[str],
+    answers: dict[str, object],
+    facts: dict[str, FactDef],
+    candidates: dict[str, Aide],
+) -> dict[str, object]:
+    """Répond « non » d'avance aux faits de périmètre qu'aucune famille cochée
+    ne rend plausibles — mais seulement quand c'est SÛR.
+
+    La garde est le cœur de la fonction. `hors_famille` promet un fail-open PAR
+    AIDE : une aide non taguée passe toujours. Or la déduction agit PAR FAIT, et
+    répondre « non » à un fait écarte du même coup, via `hors_perimetre` ou via
+    un gate, les aides que le filtrage venait de garder. On ne déduit donc que si
+    la valeur déduite ne RETOURNE aucune aide candidate contre elle-même
+    (cf. `_retournerait_contre`). Sinon `None` : la question reste posée
+    (fail-closed).
+
+    Sans cette garde : `feder-normandie-tourisme-responsable` (périmètre
+    `projet_developpement_touristique`, pas de famille) serait écartée par la
+    bande ; une aide « festival touristique » taguée `spectacles` serait gardée
+    par `hors_famille` puis tuée par la déduction ; et les treize aides du
+    corpus qui gatent `eq: true` sur un fait de la table sans en faire leur
+    périmètre tomberaient « écartées par vos réponses » sans réponse.
+
+    Ce qui reste permis, et c'est tout le gain : résoudre une EXCLUSION. Une
+    aide de spectacles qui exige « le projet n'est pas un hébergement
+    touristique » n'a plus besoin de poser la question à qui vient de cocher
+    « spectacles ».
+    """
+    if not declarees:
+        return answers
+    complete = dict(answers)
+    for fact_key, familles_du_fait in FAITS_DEDUITS_DES_FAMILLES.items():
+        if _normalize_answer(facts.get(fact_key), complete.get(fact_key)) is not None:
+            continue
+        if familles_du_fait & effectives:
+            continue  # une famille cochée rend le fait plausible : on demande
+        if any(_retournerait_contre(a, fact_key) for a in candidates.values()):
+            continue
+        complete[fact_key] = False
+    for fact_key, familles_du_fait in FAITS_DEDUITS_VRAI_DES_FAMILLES.items():
+        if _normalize_answer(facts.get(fact_key), complete.get(fact_key)) is not None:
+            continue
+        if not (familles_du_fait & declarees):
+            continue  # aucune famille cochée ne l'affirme : on demande
+        if any(_retournerait_contre(a, fact_key, True) for a in candidates.values()):
+            continue
+        complete[fact_key] = True
+    return complete
+
+
+# Faits qu'une AUTRE réponse du questionnaire rend inutiles à demander. Pendant
+# de FAITS_DEDUITS_DES_RAISONS, avec une réponse pour source au lieu de
+# l'intention : fait déduit → (fait source, {réponse source → valeur déduite}).
+#
+# « Fermé au public, sans projet d'ouverture » répond d'avance « ouvert 0 jour
+# par an » : poser la seconde question juste après la première se lit comme une
+# panne. L'inverse ne se déduit pas — 0 jour aujourd'hui peut devenir accessible
+# après les travaux.
+#
+# La source est ici un fait à choix MULTIPLE : la déduction ne vaut que si la
+# case déduisante est la SEULE cochée (cf. deduire_faits_des_faits). C'est ce que
+# veut la sémantique existentielle du MultiValue, et la table garde des
+# identifiants d'option nus, ceux-là mêmes que compare _depends_on_deduction.
+#
+# Deux effets, qui doivent rester d'accord : côté serveur la valeur déduite
+# entre dans le contexte comme une réponse (celle de l'utilisateur prime) ;
+# côté questionnaire la question déduite se branche sur sa source (`dependsOn`,
+# cf. _depends_on_deduction) et se pose avant elle, si bien que le front ne la
+# montre plus dès que la source y répond.
+FAITS_DEDUITS_DES_FAITS: dict[str, tuple[str, dict[object, object]]] = {
+    "jours_ouverture_public_par_an": ("ouverture_public", {"aucune": 0}),
+    # « Ce projet ne comporte pas de travaux » répond d'avance « budget de
+    # travaux : 0 € » : les gates `gte` d'un programme de chantier échouent
+    # (l'aide part en « écartée par vos réponses », ce qu'elle est), et la
+    # question disparaît du QCM au profit de sa source.
+    "budget_travaux_estime": ("etat_travaux", {"aucun": 0}),
+    # « Mes travaux relèvent de l'entretien courant » répond d'avance « non »
+    # à « mon programme est-il une création / extension / rénovation
+    # fondamentale ? », qui exclut l'entretien courant dans son énoncé même.
+    # Sans ça, les deux questions se suivaient en se contredisant.
+    #
+    # Dans CE sens seulement, et pour deux raisons. La réciproque serait tout
+    # aussi vraie (une rénovation fondamentale n'est pas de l'entretien
+    # courant), mais la SOURCE d'une déduction se pose avant sa cible : c'est
+    # la question la plus partagée qui doit passer devant (13 aides contre 5),
+    # pas une question d'hôtellerie posée à tout le monde. Et deux entrées
+    # croisées feraient un cycle dans la table, que ni l'ordre des questions ni
+    # `_depends_on_deduction` ne savent trancher.
+    #
+    # Les deux faits ne se FUSIONNENT pas pour autant : « mise aux normes
+    # seule » et « simple rafraîchissement » ne sont ni l'un ni l'autre, et
+    # répondent non aux deux questions.
+    "projet_renovation_fondamentale": ("travaux_entretien_courant", {True: False}),
+}
+
+
+def _meme_valeur(a: object, b: object) -> bool:
+    """Égalité stricte de type : `0 == False` en Python, pas ici."""
+    return type(a) is type(b) and a == b
+
+
+def deduire_faits_des_faits(
+    answers: dict[str, object],
+    facts: dict[str, FactDef],
+) -> dict[str, object]:
+    """Complète les réponses par les faits déductibles d'une autre réponse.
+
+    La réponse de l'utilisateur prime toujours : la déduction ne remplit qu'un
+    fait qu'il n'a pas renseigné. Source inconnue (non répondue, « je ne sais
+    pas ») ⇒ rien n'est déduit et la question survit (fail-closed).
+    """
+    complete = dict(answers)
+    for fact_key, (source_key, table) in FAITS_DEDUITS_DES_FAITS.items():
+        if _normalize_answer(facts.get(fact_key), complete.get(fact_key)) is not None:
+            continue
+        source = _normalize_answer(facts.get(source_key), complete.get(source_key))
+        if source is None:
+            continue
+        # Source à choix multiple : on ne conclut que d'une sélection d'UNE case,
+        # et la table se compare alors à son identifiant nu. Cocher « fermé au
+        # public » EN PLUS d'« ouvert lors des Journées du patrimoine » est une
+        # sélection qui se contredit : on n'en déduit rien (fail-closed).
+        if isinstance(source, MultiValue):
+            if len(source) != 1:
+                continue
+            source = source[0]
+        for valeur_source, deduit in table.items():
+            if _meme_valeur(source, valeur_source):
+                complete[fact_key] = deduit
+                break
+    return complete
 
 
 def _answered_value(ctx: dict, fact_key: str, facts: dict[str, FactDef]):
@@ -332,13 +940,24 @@ def _auto_fact_value(fact_key: str, fact: FactDef | None, ctx: dict):
     notice donne déjà le siècle. La réponse de l'utilisateur, elle, prime
     toujours : elle est plus précise que la déduction.
     """
-    if fact is None or not fact.auto_source:
+    if fact is None:
         return None
-    brut = ctx.get(fact.auto_source)
-    if brut is None:
+    valeurs = []
+    for source in fact.auto_sources:
+        brut = ctx.get(source)
+        if brut is None:
+            continue
+        deriver = AUTO_SOURCE_DERIVERS.get((fact_key, source))
+        valeur = deriver(brut) if deriver else brut
+        if valeur is not None:
+            valeurs.append(valeur)
+    if not valeurs:
         return None
-    deriver = AUTO_SOURCE_DERIVERS.get(fact_key)
-    return deriver(brut) if deriver else brut
+    # Plusieurs sources (le type d'édifice, puis le nom) : on ne retient que ce
+    # sur quoi elles s'accordent. Un « Château » nommé « Chapelle du château »
+    # désigne sans doute la chapelle du domaine, et la question se pose.
+    premiere = valeurs[0]
+    return premiere if all(_meme_valeur(v, premiere) for v in valeurs[1:]) else None
 
 
 def _resolve_fact_value(ctx: dict, fact_key: str, facts: dict[str, FactDef]):
@@ -368,38 +987,98 @@ def _applies(cond: Condition, ctx: dict, facts: dict[str, FactDef]) -> bool | No
     return _evaluate_clause(cond.applies_if, ctx, facts)
 
 
+# Fait « vide », pour que `_pertinence` et `_scoped_conditions` lisent
+# `pertinent_si` sans un `if` de plus : une condition peut citer un fait absent
+# de l'ontologie (le lint le refuse, mais le moteur ne doit pas casser pour
+# autant).
+_SANS_FAIT = FactDef(type="boolean", scope="projet", question="")
+
+
+def _pertinence(fact_key: str | None, ctx: dict, facts: dict[str, FactDef]) -> bool | None:
+    """Le fait a-t-il une valeur pour ce profil ? (clause `pertinent_si` du fait)
+
+    Une seule question, posée aux trois endroits qui en tirent une conséquence :
+    le BRANCHEMENT de la question (`_depends_on_pertinence`), l'évaluation de
+    la CONDITION qui cite le fait, et le PÉRIMÈTRE d'une aide posé dessus.
+
+    True quand le fait ne déclare pas de porte — le cas courant. False dit que
+    le fait n'a pas de valeur ici : « quel type d'hébergement ? » ne veut rien
+    dire sans projet d'hébergement, et une exclusion posée dessus ne doit
+    écarter personne. None = la porte est inconnue (fail-closed).
+    """
+    clause = (facts.get(fact_key or "") or _SANS_FAIT).pertinent_si
+    if clause is None:
+        return True
+    return _evaluate_clause(clause, ctx, facts)
+
+
 def hors_perimetre(aide: Aide, ctx: dict, facts: dict[str, FactDef]) -> bool:
     """Vrai si l'utilisateur a répondu que cette aide ne concerne pas son projet.
 
     Fail-closed : tant que le fait de périmètre est inconnu, l'aide reste
     candidate (et la question est posée). Seule une réponse explicitement
     négative l'écarte.
+
+    Une PORTE fermée vaut réponse négative : une aide dont tout le périmètre est
+    « votre hébergement est-il un hôtel ? » ne concerne pas quelqu'un qui n'a
+    pas de projet d'hébergement. Sans cette règle, l'aide restait « potentielle »
+    pour toujours — son périmètre en incertitude sur un fait qu'on ne lui
+    demanderait jamais.
     """
-    return aide.applies_if is not None and _evaluate_clause(aide.applies_if, ctx, facts) is False
+    if aide.applies_if is None:
+        return False
+    if _pertinence(aide.applies_if.fact, ctx, facts) is False:
+        return True
+    return _evaluate_clause(aide.applies_if, ctx, facts) is False
 
 
-def _scoped_conditions(aide: Aide) -> list[Condition]:
-    """Conditions de l'aide, chacune héritant du PÉRIMÈTRE de l'aide.
+def _scoped_conditions(aide: Aide, facts: dict[str, FactDef]) -> list[Condition]:
+    """Conditions de l'aide, chacune héritant de la clause qui la gouverne.
 
-    Reporter la clause de l'aide sur ses conditions les fait entrer telles
-    quelles dans la mécanique existante : le fait de périmètre est posé comme
-    fait passerelle, et chaque question de l'aide en hérite d'un `dependsOn`.
-    Une aide de 27 conditions se déclare donc en une ligne de YAML.
+    Deux clauses peuvent être reportées, par ordre de priorité DÉCROISSANTE :
 
-    Une condition qui porte DÉJÀ sa propre clause garde la sienne : elle est
-    plus spécifique, et le branchement conditionnel se désactive alors de
-    lui-même (fail-closed, la question est posée). Un gate qui porte sur le fait
-    de périmètre lui-même n'hérite de rien : il serait sa propre condition
-    d'applicabilité.
+    1. la clause PROPRE de la condition, toujours gardée : elle est la plus
+       spécifique, et le branchement conditionnel se désactive alors de lui-même
+       (fail-closed, la question est posée) ;
+    2. le PÉRIMÈTRE de l'aide (`Aide.applies_if`), reporté sur chacune de ses
+       conditions : le fait de périmètre est posé comme fait passerelle, et
+       chaque question de l'aide en hérite d'un `dependsOn`. Une aide de 27
+       conditions se déclare ainsi en une ligne de YAML ;
+    3. la DÉPENDANCE INTRINSÈQUE du fait gaté (`FactDef.pertinent_si`) :
+       « depuis combien d'années les travaux sont-ils achevés ? » n'a de sens
+       que si `etat_travaux = acheves`. Déclarée UNE FOIS sur le fait au lieu
+       d'être recopiée sur chaque condition qui le cite.
+
+    Le périmètre passe avant la dépendance du fait parce qu'une condition ne
+    porte qu'UNE clause, et que la première question à trancher est « cette aide
+    me concerne-t-elle ? ».
+
+    Cette fonction n'est plus le seul lecteur de `pertinent_si`, et ce report
+    n'en est plus que la voie la plus COURTE — celle qui ne coûte aucun cas
+    particulier quand la condition n'a pas de clause. Les deux clauses plus
+    spécifiques lui prennent sa place sans rien lui faire perdre : `_pertinence`
+    est consultée à part dans `evaluate_aide` (la condition est ignorée, l'aide
+    sort du périmètre) et dans `_depends_on_pertinence` (la question se branche
+    sur la porte). Perdre le report ne coûte donc plus rien du tout.
+
+    Un gate qui porte sur le fait de sa propre clause n'hérite de rien : il
+    serait sa propre condition d'applicabilité.
     """
-    clause = aide.applies_if
-    if clause is None:
+
+    def clause_de(cond: Condition) -> AppliesIf | None:
+        if cond.applies_if is not None:
+            return None  # la sienne, plus spécifique, est gardée
+        for clause in (aide.applies_if, (facts.get(cond.fact or "") or _SANS_FAIT).pertinent_si):
+            if clause is not None and cond.fact != clause.fact:
+                return clause
+        return None
+
+    reportees = [(c, clause_de(c)) for c in aide.conditions]
+    if all(clause is None for _, clause in reportees):
         return aide.conditions
     return [
-        c
-        if c.applies_if is not None or c.fact == clause.fact
-        else c.model_copy(update={"applies_if": clause})
-        for c in aide.conditions
+        c if clause is None else c.model_copy(update={"applies_if": clause})
+        for c, clause in reportees
     ]
 
 
@@ -439,12 +1118,14 @@ def _numeric_gap(predicate: dict, value, fact: FactDef) -> str | None:
 
 
 def _levier_plan(cond: Condition, fact: FactDef, value) -> dict:
-    """Plan d'action affichable pour un gate en échec sur un fait à levier."""
+    """Plan d'action d'un fait à levier : gate en échec, ou démarche d'un
+    `manual_check` qui cite ce levier (`cond.levier`)."""
     levier = fact.levier
     assert levier is not None  # garanti par l'appelant
     plan = {
-        "factId": cond.fact,
+        "factId": cond.fact or cond.levier,
         "critere": cond.text,
+        "conditionId": cond.id,
         "resume": levier.resume,
         "demarche": levier.demarche,
         "organisme": levier.organisme,
@@ -502,6 +1183,125 @@ def _gateway_condition(cond: Condition) -> Condition:
     )
 
 
+def _porte_condition(clause: AppliesIf, fact: FactDef | None) -> Condition:
+    """Gate synthétique sur la PORTE d'un fait (`FactDef.pertinent_si`)."""
+    assert clause.fact  # garanti par l'appelant
+    return Condition.model_validate(
+        {
+            "id": "pertinence",
+            "text": _perimetre_texte(fact),
+            "kind": "user_fact",
+            "fact": clause.fact,
+            "predicate": clause.predicate.root,
+        }
+    )
+
+
+def _poser_porte(
+    gateway_facts: dict[str, list[Condition]],
+    fact_key: str | None,
+    ctx: dict,
+    facts: dict[str, FactDef],
+) -> None:
+    """Pose la PORTE d'un fait comme fait passerelle, tant qu'elle est inconnue.
+
+    Sans elle, la question du fait porté n'aurait rien à quoi se brancher —
+    `_depends_on_pertinence` renonce (fail-closed) et la question part à tout
+    le monde. `_scoped_conditions` reporte déjà la porte sur les conditions qui
+    n'ont pas de clause propre ; cette fonction couvre les deux cas où une
+    clause plus spécifique lui a pris la place : le PÉRIMÈTRE d'une aide et la
+    clause PROPRE d'une condition.
+
+    Ne repose rien si le fait de la porte est déjà posé : une question suffit.
+    """
+    clause = (facts.get(fact_key or "") or _SANS_FAIT).pertinent_si
+    if clause is None or not clause.fact or clause.fact in gateway_facts:
+        return
+    if _evaluate_clause(clause, ctx, facts) is not None:
+        return  # porte tranchée : soit le fait est pertinent, soit tout est écarté
+    gateway_facts[clause.fact] = [_porte_condition(clause, facts.get(clause.fact))]
+
+
+# ---------------------------------------------------------------------------
+# Le marqueur `porteurs_concernes`, rendu exécutable
+# ---------------------------------------------------------------------------
+
+
+def _porteur_admis(fact: FactDef, ctx: dict, facts: dict[str, FactDef]) -> bool | None:
+    """Le porteur déclaré fait-il partie de ceux que ce fait concerne ?
+
+    `True` : il en fait partie (ou le fait ne marque personne — le cas courant).
+    `False` : il n'en fait pas partie, la condition doit ÉCHOUER.
+    `None` : le porteur est inconnu, la condition reste une incertitude et la
+    question du porteur est posée.
+
+    Fail-closed, comme tout le moteur : une valeur inconnue ne rend jamais
+    `False`. C'est la différence entre « cette aide n'est pas pour vous » et
+    « dites-nous qui vous êtes ».
+    """
+    marques = fact.porteurs_concernes
+    if not marques:
+        return True
+    valeur = _resolve_fact_value(ctx, FAIT_PORTEUR, facts)
+    if valeur is None:
+        return None
+    return evaluate_predicate({"in": list(marques)}, valeur)
+
+
+def _porteur_condition(cond: Condition, fact: FactDef) -> Condition:
+    """Le gate SYNTHÉTIQUE qui pose la question du porteur à la place de `cond`.
+
+    Miroir éliminant de `_gateway_condition` : celui-là ne sert qu'à poser une
+    question (« la condition s'applique-t-elle ? »), celui-ci ÉLIMINE — un
+    porteur hors du marqueur ferme l'aide. La distinction porte tout
+    `eliminationsParOption` : le front calcule les éliminations depuis le
+    prédicat, et un gate qui n'élimine pas ne doit pas y entrer.
+
+    Le `text` reprend celui de la condition d'origine : c'est lui que
+    l'utilisateur lira dans « critères non remplis », et « réservé aux porteurs :
+    société, entreprise individuelle » sans dire de quel critère il s'agit ne
+    renseignerait personne.
+    """
+    marques = list(fact.porteurs_concernes or [])
+    return Condition.model_validate(
+        {
+            "id": f"{cond.id}--porteur",
+            "text": cond.text,
+            "kind": "user_fact",
+            "effect": "gate",
+            "fact": FAIT_PORTEUR,
+            "predicate": {"in": marques},
+        }
+    )
+
+
+def conditions_porteur_derivees(
+    aide: Aide, facts: dict[str, FactDef]
+) -> list[tuple[Condition, Condition]]:
+    """(condition d'origine, gate porteur dérivé) pour chaque fait marqué qu'elle gate.
+
+    Vide si l'aide pose déjà un gate porteur EXPLICITE : celui-ci a précédence,
+    et c'est mesuré — 138 aides du corpus ont un gate plus large que le marqueur
+    d'un fait qu'elles gatent, dont 31 qui admettent `public_commune`. Les
+    cumuler refuserait une commune que la source admet noir sur blanc.
+
+    Partagé avec `services/catalogue_admin.construire_index` : l'écran
+    « impact des réponses » de `/admin` doit voir les mêmes gates que le moteur,
+    sinon il sous-déclare ce que « Commune » écarte.
+    """
+    if gate_porteur(aide):
+        return []
+    derivees: list[tuple[Condition, Condition]] = []
+    for cond in aide.conditions:
+        if cond.effect != "gate" or not cond.fact:
+            continue
+        fact = facts.get(cond.fact)
+        if fact is None or not fact.porteurs_concernes:
+            continue
+        derivees.append((cond, _porteur_condition(cond, fact)))
+    return derivees
+
+
 def _evaluate_hard_filters(
     aide: Aide, monument: dict, population: int | None
 ) -> tuple[list[str], list[str]]:
@@ -525,7 +1325,7 @@ def _evaluate_hard_filters(
         ),
         (
             hf.proprietaires,
-            monument.get("proprietaire"),
+            proprietaire_unique(monument),
             OWNERSHIP_LABELS,
             "Type de propriétaire",
             "Propriétaire éligible",
@@ -623,6 +1423,10 @@ def evaluate_aide(
         verdict.gateway_facts.setdefault(aide.applies_if.fact or "", []).append(
             _perimetre_condition(aide, perimetre_fact)
         )
+        # Le fait de périmètre a lui-même une porte, encore inconnue : sans
+        # elle, l'aide n'aurait AUCUNE question — sa question de périmètre se
+        # brancherait sur une porte absente du questionnaire.
+        _poser_porte(verdict.gateway_facts, aide.applies_if.fact, ctx, facts)
         verdict.evaluations.append(
             {
                 "critere": _perimetre_texte(perimetre_fact),
@@ -635,7 +1439,22 @@ def evaluate_aide(
             }
         )
 
-    for cond in _scoped_conditions(aide):
+    # Calculé UNE fois : un gate porteur explicite désarme la dérivation pour
+    # toute l'aide (cf. `conditions_porteur_derivees`).
+    gate_explicite = gate_porteur(aide)
+
+    for cond in _scoped_conditions(aide, facts):
+        # La porte du FAIT (`pertinent_si`) tranche avant toute clause : un fait
+        # sans valeur pour ce profil n'a pas à être évalué, même quand la
+        # condition porte sa propre clause — `_scoped_conditions` a alors gardé
+        # celle-ci et perdu la porte. Une exclusion « pas de gîte » ne bloque
+        # plus quelqu'un qui n'a aucun projet d'hébergement.
+        pertinent = _pertinence(cond.fact, ctx, facts)
+        if pertinent is False:
+            continue  # le fait n'a pas de valeur ici → ni gate, ni affichée
+        if pertinent is None and cond.effect == "gate" and cond.applies_if is not None:
+            _poser_porte(verdict.gateway_facts, cond.fact, ctx, facts)
+
         applies = _applies(cond, ctx, facts)
         if applies is False:
             continue  # condition non applicable à ce profil → ni gate, ni affichée
@@ -661,28 +1480,35 @@ def evaluate_aide(
             elif nature == "modulateur":
                 explication = "Peut moduler le taux ou le montant (n'affecte pas l'éligibilité)."
             elif nature == "manual_check":
-                # Vraie condition, mais dont la vérification n'a de sens qu'au
-                # montage du dossier (plan de financement, pièces justificatives).
-                # La poser en amont ne renseignerait personne et éliminerait à
-                # tort ; on l'affiche à confirmer avec l'organisme, sans gater.
+                # Vraie condition, qu'on ne demande pas : soit une démarche à
+                # faire avant le dépôt (audit, architecte, adhésion), soit une
+                # exigence que le propriétaire ne peut pas trancher seul (avis
+                # d'un comité, liste fermée de sites). Elle ne gate pas, mais
+                # elle n'est pas « sans incidence » pour autant.
                 explication = (
-                    "À confirmer avec l'organisme au moment du dossier "
-                    "(sans incidence sur votre éligibilité)."
+                    "À faire ou à faire confirmer par l'organisme avant le dépôt du dossier."
                 )
             else:
                 explication = "Information sur l'aide."
-            verdict.evaluations.append(
-                {
-                    "critere": cond.text,
-                    "verdict": INFO,
-                    "explication": explication,
-                    "nature": nature,
-                }
-            )
+            evaluation = {
+                "critere": cond.text,
+                "conditionId": cond.id,
+                "verdict": INFO,
+                "explication": explication,
+                "nature": nature,
+            }
+            # Démarche à accomplir : le plan d'action vient du levier du fait
+            # cité, écrit une fois dans facts.yaml pour toutes les aides.
+            fait_levier = facts.get(cond.levier) if cond.levier else None
+            if fait_levier is not None and fait_levier.levier is not None:
+                evaluation["demarche"] = _levier_plan(cond, fait_levier, None)
+                evaluation["explication"] = fait_levier.levier.resume
+            verdict.evaluations.append(evaluation)
             continue
 
         fact: FactDef | None = None
         value = None
+        porteur_inconnu = False
         # Gate tranché sur la FICHE (auto_source) et non sur une réponse : son
         # refus n'est pas imputable à l'utilisateur (cf. _match_result).
         issu_fiche = False
@@ -691,6 +1517,41 @@ def evaluate_aide(
             cat = None
         elif cond.kind == "user_fact":
             fact = facts.get(cond.fact or "")
+            # Le marqueur `porteurs_concernes` du fait gaté, rendu exécutable :
+            # une commune ne s'entend plus demander son effectif salarié, et
+            # l'aide qui l'exige lui est fermée sans qu'elle ait à répondre.
+            # Placé AVANT les branches `derogation_possible` et `levier` : un
+            # porteur hors du marqueur n'est pas un critère qu'on peut lever,
+            # c'est le mauvais destinataire.
+            admis = (
+                _porteur_admis(fact, ctx, facts)
+                if fact is not None and cond.effect == "gate" and not gate_explicite
+                else True
+            )
+            if admis is False:
+                has_non = True
+                marques = ", ".join(fact.porteurs_concernes or []) if fact else ""
+                verdict.criteres_non_remplis.append(cond.text)
+                verdict.raison_ineligibilite = verdict.raison_ineligibilite or cond.text
+                verdict.evaluations.append(
+                    {
+                        "critere": cond.text,
+                        "conditionId": cond.id,
+                        "verdict": NON,
+                        "explication": f"Réservé aux porteurs : {marques}.",
+                        "nature": nature,
+                    }
+                )
+                continue
+            if admis is None:
+                # Le porteur est inconnu : on POSE sa question (éliminante,
+                # donc `eliminationsParOption` exact par construction) et on
+                # laisse la condition en incertitude sans demander son fait.
+                assert fact is not None
+                verdict.missing_facts.setdefault(FAIT_PORTEUR, []).append(
+                    _porteur_condition(cond, fact)
+                )
+            porteur_inconnu = admis is None
             value = _resolve_fact_value(ctx, cond.fact, facts)
             issu_fiche = value is not None and _answered_value(ctx, cond.fact, facts) is None
             result = evaluate_predicate(cond.predicate.root, value)
@@ -701,18 +1562,21 @@ def evaluate_aide(
 
         # Le FAIT tranche-t-il, indépendamment de l'applicabilité ? Un fait déjà
         # connu (réponse ou fiche) ne se redemande pas : l'inconnue restante est
-        # alors le fait passerelle, posé de son côté.
+        # alors le fait passerelle — ou le PORTEUR —, posé de son côté.
         fait_tranche = result is not None
 
         # applies_if indéterminé : la condition s'applique peut-être (fail-closed)
-        # → si on n'a pas pu trancher le gate, on reste en incertitude.
-        if applies is None and result is True:
+        # → si on n'a pas pu trancher le gate, on reste en incertitude. Même
+        # geste pour un porteur inconnu : tant qu'on ignore si l'aide s'adresse
+        # à lui, un critère satisfait ne la rend pas éligible.
+        if (applies is None or porteur_inconnu) and result is True:
             result = None
 
         if result is True:
             verdict.evaluations.append(
                 {
                     "critere": cond.text,
+                    "conditionId": cond.id,
                     "verdict": OUI,
                     "explication": "Critère satisfait.",
                     "nature": nature,
@@ -726,6 +1590,7 @@ def evaluate_aide(
             verdict.evaluations.append(
                 {
                     "critere": cond.text,
+                    "conditionId": cond.id,
                     "verdict": INCERTITUDE,
                     "explication": "Non satisfait, mais une dérogation est possible — "
                     "à vérifier auprès du financeur.",
@@ -745,6 +1610,7 @@ def evaluate_aide(
             verdict.evaluations.append(
                 {
                     "critere": cond.text,
+                    "conditionId": cond.id,
                     "verdict": NON,
                     "explication": plan["resume"],
                     "nature": nature,
@@ -758,6 +1624,7 @@ def evaluate_aide(
             verdict.evaluations.append(
                 {
                     "critere": cond.text,
+                    "conditionId": cond.id,
                     "verdict": NON,
                     "explication": "Critère non satisfait.",
                     "nature": nature,
@@ -768,6 +1635,7 @@ def evaluate_aide(
             has_incertitude = True
             ev = {
                 "critere": cond.text,
+                "conditionId": cond.id,
                 "verdict": INCERTITUDE,
                 "explication": (
                     "À vérifier auprès du financeur."
@@ -825,6 +1693,86 @@ def _normalize_boundary(op: str, val: float, is_integer: bool) -> float | None:
     return val  # gte, lt, eq, neq… : la valeur est déjà la frontière
 
 
+def _unite_singulier(unit: str) -> str:
+    """Forme singulière d'une unité : « 1 jour », pas « 1 jours ».
+
+    En français le pluriel du nom compté se marque par un -s final ; `mois` est
+    invariable, et une unité composée ne s'accorde que sur son premier segment
+    (« jours/an » → « jour/an »).
+    """
+    tete, _, queue = unit.partition("/")
+    if tete != "mois" and tete.endswith("s"):
+        tete = tete[:-1]
+    return f"{tete}/{queue}" if queue else tete
+
+
+def _fmt_borne(v: float) -> str:
+    return str(int(v)) if float(v).is_integer() else str(v)
+
+
+def _suffixe_unite(v: float, unit: str | None) -> str:
+    """Unité accordée au nombre qui la précède."""
+    if not unit:
+        return ""
+    if unit == "€":
+        return unit
+    return f" {_unite_singulier(unit) if abs(v) == 1 else unit}"
+
+
+# Les trois formes de libellé d'une tranche, définies UNE FOIS : elles servent à
+# fabriquer les options (`_numeric_tranches`) et à les relire depuis leur seul
+# identifiant (`libelle_tranche`). Deux définitions dériveraient, et un libellé
+# relu qui ne dirait pas la même chose que celui qu'on a montré à l'utilisateur
+# serait pire que pas de libellé du tout.
+def _libelle_basse(borne: float, unit: str | None) -> str:
+    # Seuil à 1 sur un compteur : la bande ne contient que 0. « Moins de 1 jour »
+    # se lit comme un arrondi ; « Aucun (0) » dit ce qu'elle est.
+    if borne == 1:
+        return "Aucun (0)"
+    return f"Moins de {_fmt_borne(borne)}{_suffixe_unite(borne, unit)}"
+
+
+def _libelle_intermediaire(lo: float, hi: float, unit: str | None) -> str:
+    # L'unité s'accorde sur la borne HAUTE, celle qu'elle suit dans le libellé.
+    return f"De {_fmt_borne(lo)} à {_fmt_borne(hi)}{_suffixe_unite(hi, unit)}"
+
+
+def _libelle_haute(borne: float, unit: str | None) -> str:
+    return f"{_fmt_borne(borne)}{_suffixe_unite(borne, unit)} ou plus"
+
+
+# Identifiants produits par `_numeric_tranches` : `lt<borne>`, `<lo>_<hi>`,
+# `ge<borne>`. Les bornes peuvent être décimales (`fmt` rend `2.5` tel quel).
+_NOMBRE = r"\d+(?:\.\d+)?"
+_TRANCHE_BASSE = re.compile(rf"^lt({_NOMBRE})$")
+_TRANCHE_INTERMEDIAIRE = re.compile(rf"^({_NOMBRE})_({_NOMBRE})$")
+_TRANCHE_HAUTE = re.compile(rf"^ge({_NOMBRE})$")
+
+
+def libelle_tranche(option_id: str, unit: str | None) -> str | None:
+    """Relit le libellé d'une tranche depuis son seul IDENTIFIANT.
+
+    Utile là où les options ne sont pas reconstructibles : une réponse persistée
+    dans `projets.questionnaire` vaut `ge5`, et les tranches sont fabriquées
+    depuis les seuils des aides CANDIDATES — hors diagnostic, on ne les a pas.
+
+    Mais l'identifiant porte ses propres bornes (`lt5`, `5_9`, `ge5`) : le
+    libellé se reconstruit donc à l'identique, sans rien supposer du catalogue.
+    C'est ce qui permet de montrer « 5 ans ou plus » plutôt qu'un laconique
+    « réponse déjà donnée » quand on rappelle à l'utilisateur ce qu'il a répondu.
+
+    Rend None sur un identifiant d'une autre forme (réponse d'avant les
+    tranches, valeur écrite à la main) : on n'invente pas de libellé.
+    """
+    if m := _TRANCHE_BASSE.match(option_id):
+        return _libelle_basse(float(m.group(1)), unit)
+    if m := _TRANCHE_INTERMEDIAIRE.match(option_id):
+        return _libelle_intermediaire(float(m.group(1)), float(m.group(2)), unit)
+    if m := _TRANCHE_HAUTE.match(option_id):
+        return _libelle_haute(float(m.group(1)), unit)
+    return None
+
+
 def _numeric_tranches(boundaries: list[float], unit: str | None) -> list[dict]:
     """Construit des options MECE à partir de bornes triées (cf.
     `_normalize_boundary`). Chaque option porte un `repr` (valeur représentative
@@ -832,26 +1780,31 @@ def _numeric_tranches(boundaries: list[float], unit: str | None) -> list[dict]:
     seuil au représentant est exact.
     """
     ts = sorted(set(boundaries))
-    suffix = f" {unit}" if unit and unit not in ("€",) else (unit or "")
-
-    def fmt(v: float) -> str:
-        return str(int(v)) if float(v).is_integer() else str(v)
+    fmt = _fmt_borne
 
     options = []
     # Tranche basse : strictement sous la plus petite borne. Omise si elle ne
     # contient aucune valeur atteignable (borne basse <= 0 pour un compteur).
     if ts[0] - 1 >= 0:
         options.append(
-            {"id": f"lt{fmt(ts[0])}", "label": f"Moins de {fmt(ts[0])}{suffix}", "repr": ts[0] - 1}
+            {"id": f"lt{fmt(ts[0])}", "label": _libelle_basse(ts[0], unit), "repr": ts[0] - 1}
         )
     # Tranches intermédiaires.
     for lo, hi in zip(ts, ts[1:], strict=False):
         options.append(
-            {"id": f"{fmt(lo)}_{fmt(hi)}", "label": f"De {fmt(lo)} à {fmt(hi)}{suffix}", "repr": lo}
+            {
+                "id": f"{fmt(lo)}_{fmt(hi)}",
+                "label": _libelle_intermediaire(lo, hi, unit),
+                "repr": lo,
+            }
         )
     # Tranche haute : au-dessus de la plus grande borne (incluse).
     options.append(
-        {"id": f"ge{fmt(ts[-1])}", "label": f"{fmt(ts[-1])}{suffix} ou plus", "repr": ts[-1]}
+        {
+            "id": f"ge{fmt(ts[-1])}",
+            "label": _libelle_haute(ts[-1], unit),
+            "repr": ts[-1],
+        }
     )
     return options
 
@@ -860,13 +1813,28 @@ def _options_for_fact(fact: FactDef, gate_conds: list[Condition]) -> list[dict]:
     """Options d'une question, selon le type du fait. Chaque option a `value`
     (à injecter pour calculer l'élimination) ou `repr` (numérique)."""
     if fact.type == "boolean":
+        # Un booléen peut déclarer plus de deux réponses, chacune disant la
+        # valeur qu'elle envoie aux prédicats (cf. FactOption.valeur). Sans
+        # déclaration, le couple implicite — même liste que `_normalize_answer`.
         return [
-            {"id": "oui", "label": "Oui", "value": True},
-            {"id": "non", "label": "Non", "value": False},
+            {
+                "id": o.id,
+                "label": o.label,
+                "value": o.valeur,
+                "unknown": o.unknown,
+                "description": o.description,
+            }
+            for o in fact.options or OPTIONS_BOOLEEN_IMPLICITES
         ]
     if fact.type in ENUM_FACT_TYPES:
         return [
-            {"id": o.id, "label": o.label, "value": o.id, "unknown": o.unknown}
+            {
+                "id": o.id,
+                "label": o.label,
+                "value": o.id,
+                "unknown": o.unknown,
+                "description": o.description,
+            }
             for o in fact.options or []
         ]
     # integer / number : tranches à partir des seuils des prédicats des gates.
@@ -921,6 +1889,86 @@ def _depends_on(
     return {"questionId": gateway, "showForOptionIds": show_for}
 
 
+def _depends_on_pertinence(
+    fact: FactDef,
+    built: dict[str, dict],
+    options_by_fact: dict[str, list[dict]],
+) -> dict | None:
+    """Branchement d'une question sur la PORTE de son fait (`pertinent_si`).
+
+    C'est l'AUTORITÉ du branchement, avant toute inférence : la clause est
+    déclarée sur le FAIT, donc vraie de toutes les aides à la fois, là où
+    `_depends_on` doit la remonter des conditions et renonce (fail-closed) dès
+    qu'une seule ne la porte pas. Sur `type_hebergement_touristique`, cinq aides
+    sur treize suffisaient à casser l'inférence : trois l'utilisent comme
+    périmètre d'AIDE (le gate synthétique n'a pas d'`applies_if`), deux ont une
+    clause PROPRE que `_scoped_conditions` garde à la place de la porte.
+
+    Porte non posée : rien à quoi se brancher, la question reste (fail-closed).
+    """
+    clause = fact.pertinent_si
+    if clause is None or not clause.fact or clause.fact not in built:
+        return None
+    show_for = [
+        opt["id"]
+        for opt in options_by_fact[clause.fact]
+        # Option « je ne sais pas » : la porte reste inconnue, le fait est donc
+        # peut-être pertinent — on garde la question (fail-closed).
+        if opt.get("unknown")
+        or evaluate_predicate(clause.predicate.root, opt.get("value", opt.get("repr"))) is not False
+    ]
+    if not show_for or len(show_for) == len(options_by_fact[clause.fact]):
+        return None  # jamais pertinent, ou toujours : pas de branchement utile
+    return {"questionId": clause.fact, "showForOptionIds": show_for}
+
+
+def _depends_on_deduction(
+    fact_key: str,
+    built: dict[str, dict],
+    options_by_fact: dict[str, list[dict]],
+) -> dict | None:
+    """Branchement d'une question DÉDUITE sur sa source (FAITS_DEDUITS_DES_FAITS).
+
+    La question n'a de sens que pour les réponses à la source qui ne déduisent
+    rien ; pour les autres, le serveur connaît déjà la valeur. L'option « je ne
+    sais pas » garde la question (fail-closed). Source non posée : rien à quoi
+    se brancher, la question reste.
+    """
+    deduction = FAITS_DEDUITS_DES_FAITS.get(fact_key)
+    if deduction is None:
+        return None
+    source_key, table = deduction
+    if source_key not in built:
+        return None
+    show_for = [
+        opt["id"]
+        for opt in options_by_fact[source_key]
+        if opt.get("unknown")
+        or not any(_meme_valeur(opt.get("value", opt.get("repr")), v) for v in table)
+    ]
+    if not show_for or len(show_for) == len(options_by_fact[source_key]):
+        return None
+    return {"questionId": source_key, "showForOptionIds": show_for}
+
+
+def _pourquoi_servi(
+    fact: FactDef, options: list[dict], eliminations: dict[str, list[str]]
+) -> dict[str, str] | None:
+    """Les textes `pourquoi` du fait que le front peut avoir à afficher.
+
+    Rien quand aucune réponse n'écarte d'aide dans ce diagnostic : l'encart ne
+    s'ouvrirait jamais. Sinon, les clés des réponses encore offertes, plus le
+    repli `"*"` : une réponse retirée depuis /admin laisse sa clé orpheline
+    dans le YAML, et le front n'a pas à la recevoir. La décision d'afficher
+    reste au front, qui connaît les aides déjà écartées par les autres réponses.
+    """
+    if not fact.pourquoi or not eliminations:
+        return None
+    offertes = {o["id"] for o in options}
+    servi = {cle: texte for cle, texte in fact.pourquoi.items() if cle == "*" or cle in offertes}
+    return servi or None
+
+
 def build_questions(
     verdicts: list[AideVerdict],
     facts: dict[str, FactDef],
@@ -931,38 +1979,122 @@ def build_questions(
     éliminations) et les faits PASSERELLES (`gateway_facts`, qui débloquent
     l'applicabilité d'une condition sans jamais éliminer personne).
 
-    eliminationsParOption[option] = aides dont un gate sur ce fait devient
-    IMPOSSIBLE si l'utilisateur choisit cette option — calculé en évaluant le
-    prédicat à la valeur de l'option. Exact, pas de réparation de monotonie.
+    eliminationsParOption[option] = aides que cette option REFUSE vraiment, au
+    sens du statut `non_eligible` — calculé en évaluant le prédicat à la valeur
+    de l'option. Exact, pas de réparation de monotonie. Un gate en échec qui
+    n'est pas dirimant (fait porteur d'un `levier`, condition à
+    `derogation_possible`) n'y entre donc pas : l'aide reste vivante, et le
+    front doit continuer de poser ses autres questions.
 
     Sur une question à choix multiple (`multiple: true`), chaque entrée vaut
     « si c'était la seule case cochée » : cocher une case de plus ne peut que
     LIBÉRER des aides (sémantique existentielle, cf. MultiValue), d'où
-    l'intersection côté front. Le verdict qui compte reste celui du moteur,
-    réévalué avec les réponses complètes.
+    l'intersection côté front. Seule exception, les exclusions strictes
+    (`none_in`) : cocher une case de plus peut écarter une aide, et
+    `eliminationsStrictesParOption` les porte à part pour que le front en
+    fasse l'union. Le verdict qui compte reste celui du moteur, réévalué avec
+    les réponses complètes.
     """
     # fact_key → {aide_slug → [conditions gate sur ce fait]}
     by_fact: dict[str, dict[str, list[Condition]]] = {}
     gateway_by_fact: dict[str, dict[str, list[Condition]]] = {}
     montant_by_slug: dict[str, float] = {}
+    # (slug, fait) → rang de la PREMIÈRE condition de l'aide portant ce fait.
+    rang_source: dict[tuple[str, str], int] = {}
+    # slug → faits manquants de CHAQUE profil vivant, pour une aide évaluée par
+    # propriétaire (plusieurs cochés) : une réponse ne l'élimine que si elle
+    # élimine tous ces profils (cf. `_meilleur_verdict`). Absent du cas courant.
+    profils_by_slug: dict[str, list[dict[str, list[Condition]]]] = {}
     for v in verdicts:
         if v.status not in ("potentiel", "atteignable"):
             continue
         montant_by_slug[v.aide.slug] = v.aide.financement.montant_max or 0
-        for fact_key, conds in v.missing_facts.items():
-            by_fact.setdefault(fact_key, {})[v.aide.slug] = conds
-        for fact_key, conds in v.gateway_facts.items():
-            gateway_by_fact.setdefault(fact_key, {})[v.aide.slug] = conds
+        if not v.profils_vivants:
+            for fact_key, conds in v.missing_facts.items():
+                by_fact.setdefault(fact_key, {})[v.aide.slug] = conds
+            for fact_key, conds in v.gateway_facts.items():
+                gateway_by_fact.setdefault(fact_key, {})[v.aide.slug] = conds
+        else:
+            profils_by_slug[v.aide.slug] = [p.missing_facts for p in v.profils_vivants]
+            # Union des questions des profils vivants, chaque condition une fois.
+            for p in v.profils_vivants:
+                for fact_key, conds in p.missing_facts.items():
+                    deja = by_fact.setdefault(fact_key, {}).setdefault(v.aide.slug, [])
+                    deja.extend(c for c in conds if all(c is not d for d in deja))
+                for fact_key, conds in p.gateway_facts.items():
+                    deja = gateway_by_fact.setdefault(fact_key, {}).setdefault(v.aide.slug, [])
+                    deja.extend(c for c in conds if all(c is not d for d in deja))
+        for rang, cond in enumerate(v.aide.conditions):
+            if cond.fact:
+                rang_source.setdefault((v.aide.slug, cond.fact), rang)
 
     def aide_slugs(fact_key: str) -> list[str]:
         return sorted(set(by_fact.get(fact_key, {})) | set(gateway_by_fact.get(fact_key, {})))
 
+    def ordre_source(fact_key: str) -> tuple[str, int]:
+        """Départage à nombre d'aides égal : les questions d'une même aide se
+        suivent, dans l'ordre où le règlement énonce ses conditions.
+
+        Le YAML suit le texte officiel : « possède un orgue » y précède « âge de
+        l'orgue », et l'objet d'une aide ses exclusions. Un départage
+        alphabétique sur la clé du fait les mélangeait (`age_orgue_ans` avant
+        `possede_orgue_a_tuyaux`) et dispersait une aide sur tout le
+        questionnaire. Un fait sans condition dans l'aide (gate synthétique de
+        périmètre) passe en dernier."""
+        slugs = aide_slugs(fact_key)
+        premier = slugs[0] if slugs else ""
+        return (premier, rang_source.get((premier, fact_key), 10**6))
+
+    candidats = set(by_fact) | set(gateway_by_fact)
+    # Un fait dont une réponse en déduit un autre (FAITS_DEDUITS_DES_FAITS) se
+    # pose avant lui, comme une passerelle : c'est ce qui permet au front de
+    # sauter la question déduite.
+    sources_deduction = {
+        source for cible, (source, _) in FAITS_DEDUITS_DES_FAITS.items() if cible in candidats
+    }
+    # Même geste pour la PORTE d'un fait (`pertinent_si`) : elle se pose avant
+    # lui, sinon `_depends_on_pertinence` n'a rien à quoi se brancher et la
+    # question part à tout le monde. Une porte sert parfois MOINS d'aides que
+    # sa dépendante (« avez-vous un projet d'hébergement ? » face aux treize
+    # aides qui en demandent le type) : le classement par nombre d'aides,
+    # seul, l'aurait mise après.
+    portes: set[str] = set()
+    for cible in candidats:
+        porte = (facts.get(cible) or _SANS_FAIT).pertinent_si
+        if porte is not None and porte.fact:
+            portes.add(porte.fact)
+    # Le fait PORTEUR entre au premier étage dès qu'une aide l'attend par
+    # dérivation (`_porteur_condition`) : tant qu'on ignore qui dépose, les
+    # questions d'entreprise de ces aides n'ont pas à être posées, et y répondre
+    # ne servirait à rien si le porteur les écarte toutes ensuite. Les gates
+    # dérivés sont reconnaissables à leur id suffixé — on ne se fie pas à la
+    # seule présence du fait, qu'une aide peut gater explicitement.
+    porteur_derive = any(
+        cond.id.endswith("--porteur")
+        for conds in by_fact.get(FAIT_PORTEUR, {}).values()
+        for cond in conds
+    )
     # Tri : les faits PASSERELLES d'abord (une question dont dépend une autre se
-    # pose avant elle), puis ceux qui débloquent le plus d'aides. Le graphe
-    # d'applicabilité n'a qu'un niveau dans le corpus : pas de tri topologique.
+    # pose avant elle), puis ceux qui débloquent le plus d'aides, puis l'ordre de
+    # la source. Le graphe d'applicabilité n'a qu'un niveau dans le corpus : pas
+    # de tri topologique.
+    #
+    # Parmi les passerelles, les PORTES passent devant : un fait peut être à la
+    # fois passerelle (périmètre d'une aide) et dépendant d'une porte. C'était
+    # `type_hebergement_touristique` (périmètre des villages de vacances, porte
+    # `projet_hebergement_touristique`) : à égalité de rang, il était construit
+    # le premier, `_depends_on_pertinence` ne trouvait pas sa porte, et le type
+    # d'hébergement se posait à tout le monde, avant même la question d'hébergement.
     ordered = sorted(
-        set(by_fact) | set(gateway_by_fact),
-        key=lambda k: (k not in gateway_by_fact, -len(aide_slugs(k)), k),
+        candidats,
+        key=lambda k: (
+            not (porteur_derive and k == FAIT_PORTEUR),
+            k not in gateway_by_fact and k not in sources_deduction and k not in portes,
+            k not in portes,
+            -len(aide_slugs(k)),
+            *ordre_source(k),
+            k,
+        ),
     )
 
     questions: list[dict] = []
@@ -982,27 +2114,90 @@ def build_questions(
             continue
 
         elim: dict[str, list[str]] = {}
+        elim_strictes: dict[str, list[str]] = {}
+        # Un fait porteur d'un levier n'élimine JAMAIS : son gate en échec rend
+        # l'aide « à débloquer » (cf. evaluate_aide), pas refusée.
+        fait_dirimant = fact.levier is None
         for opt in options:
             if opt.get("unknown"):
                 continue  # option « pas encore choisi » : n'élimine jamais
             test_value = opt.get("value", opt.get("repr"))
             eliminated = []
+            strictes = []
             for slug, conds in aides_conds.items():
-                # L'aide est éliminée si AU MOINS un de ses gates sur ce fait
-                # devient faux à cette valeur. Les gates synthétiques des faits
-                # passerelles sont exclus : ils libèrent, ils n'éliminent pas.
-                if any(evaluate_predicate(c.predicate.root, test_value) is False for c in conds):
+                # Plusieurs profils vivants (plusieurs propriétaires) : chacun
+                # doit être éliminé pour que l'aide le soit. Un profil qui ne
+                # pose pas cette question survit à toute réponse.
+                groupes = (
+                    [p.get(fact_key, []) for p in profils_by_slug[slug]]
+                    if slug in profils_by_slug
+                    else [conds]
+                )
+                # Exclusion stricte (`none_in`) : cette case écarte l'aide quelles
+                # que soient les autres cases cochées. Elle entre AUSSI dans
+                # `elim` ci-dessous, qui reste exact pour qui ne coche qu'elle
+                # (et pour un onglet dont le front ignore encore la table
+                # stricte : il sous-élimine, il n'élimine jamais à tort).
+                if fait_dirimant and all(
+                    any(
+                        next(iter(c.predicate.root)) in BLOCK_OPS
+                        and evaluate_predicate(c.predicate.root, test_value) is False
+                        and not c.derogation_possible
+                        for c in groupe
+                    )
+                    for groupe in groupes
+                ):
+                    strictes.append(slug)
+                # L'aide est éliminée si AU MOINS un de ses gates DIRIMANTS sur
+                # ce fait devient faux à cette valeur. Les gates synthétiques des
+                # faits passerelles sont exclus : ils libèrent, ils n'éliminent
+                # pas. Un gate à `derogation_possible` ne l'est pas davantage :
+                # son échec dégrade en incertitude, l'aide reste potentielle.
+                #
+                # Annoncer ici une élimination que le moteur n'applique pas
+                # coûte cher : le front élague le questionnaire sur cette liste
+                # (`isQuestionServingLiveAide`), et l'aide, toujours vivante,
+                # revient avec des critères jamais posés.
+                if fait_dirimant and all(
+                    any(
+                        evaluate_predicate(c.predicate.root, test_value) is False
+                        and not c.derogation_possible
+                        for c in groupe
+                    )
+                    for groupe in groupes
+                ):
                     eliminated.append(slug)
             if eliminated:
                 elim[opt["id"]] = sorted(eliminated)
+            if strictes:
+                elim_strictes[opt["id"]] = sorted(strictes)
 
         slugs = aide_slugs(fact_key)
         multiple = fact.type == "multi_enum"
         # `unknown` est remonté au front : ces options portent un « ? » plutôt
         # qu'une pastille lettrée, ne comptent pour aucune élimination, et sont
         # exclusives des autres en choix multiple.
+        # Quand le fait DÉCLARE ses options, `unknown` part explicitement — y
+        # compris `false` : le front n'a alors plus à deviner au libellé quelle
+        # réponse est une échappatoire (cf. unknownAnswer.ts), et une réponse de
+        # plein droit nommée « Je ne sais pas trop » garde sa pastille lettrée.
+        # Les options FABRIQUÉES par le moteur (tranches numériques, couple
+        # booléen implicite) gardent l'ancien contrat : rien à déclarer.
+        declare = bool(fact.options)
         shown_options = [
-            {"id": o["id"], "label": o["label"], **({"unknown": True} if o.get("unknown") else {})}
+            {
+                "id": o["id"],
+                "label": o["label"],
+                **(
+                    {"unknown": bool(o.get("unknown"))}
+                    if declare
+                    else ({"unknown": True} if o.get("unknown") else {})
+                ),
+                # La précision sous le libellé ne part que si le fait la déclare :
+                # une clé absente plutôt qu'un `null`, comme `unknown` ci-dessus
+                # pour les options fabriquées.
+                **({"description": o["description"]} if o.get("description") else {}),
+            }
             for o in options
         ]
         # Le pseudo-choix « passer » n'a pas de sens en choix multiple : ne rien
@@ -1022,9 +2217,26 @@ def build_questions(
             "enjeuMax": sum(montant_by_slug.get(s, 0) for s in slugs),
             "eliminatingOptionIds": [],
             "eliminationsParOption": elim,
+            # Choix multiple seulement, et seulement s'il y a lieu : les aides
+            # qu'une case écarte À ELLE SEULE (exclusion stricte, `none_in`).
+            # Le front en fait l'UNION sur la sélection, là où il intersecte
+            # `eliminationsParOption`.
+            **({"eliminationsStrictesParOption": elim_strictes} if elim_strictes else {}),
             "categorie": fact_key,
+            # Où la réponse vaut : le bien, le projet, ou le propriétaire. Sert
+            # aux faits DURABLES — une réponse de scope `monument` ou
+            # `proprietaire` se reprend d'un projet à l'autre du même bien
+            # (cf. services/faits_durables.py).
+            "scope": fact.scope,
         }
-        depends_on = _depends_on(all_conds, built, options_by_fact)
+        pourquoi = _pourquoi_servi(fact, options, elim or elim_strictes)
+        if pourquoi:
+            question["pourquoiEcarte"] = pourquoi
+        depends_on = (
+            _depends_on_pertinence(fact, built, options_by_fact)
+            or _depends_on(all_conds, built, options_by_fact)
+            or _depends_on_deduction(fact_key, built, options_by_fact)
+        )
         if depends_on:
             question["dependsOn"] = depends_on
         options_by_fact[fact_key] = options
@@ -1057,6 +2269,11 @@ def aide_display_dict(aide: Aide) -> dict:
         "type": aide.type,
         # Finalités de l'aide — sert au préfiltre « Votre projet » et au debug.
         "raison": aide.raison,
+        # Familles thématiques — servent au préfiltre « Votre projet » et aux
+        # facettes du mode découverte. Comme `raison`, la clé passe en
+        # snake_case (hors _AIDE_KEY_MAP) et n'est pas caviardée par
+        # `retirer_les_modalites` : une famille n'est pas une modalité.
+        "familles": aide.familles,
         "montant_max": f.montant_max,
         "montant_min": f.montant_min,
         "taux_max": f.taux_max,
@@ -1080,7 +2297,68 @@ def aide_display_dict(aide: Aide) -> dict:
         "url_officielle": aide.source.url_officielle,
         "formulaire_url": aide.source.formulaire_url,
         "tags": aide.tags,
+        "carte": _carte_editoriale(aide.fiche),
     }
+
+
+def _carte_editoriale(fiche: Fiche | None) -> dict | None:
+    """Ce que la carte d'une aide emprunte à sa fiche rédigée.
+
+    Quatre champs courts, et rien de plus : ce dict part avec chaque aide du
+    diagnostic, une centaine par projet. Le reste de la fiche ne sert qu'à sa
+    page et passe par `GET /aides/{id}` (cf. `aide_fiche_dict`).
+    """
+    if fiche is None:
+        return None
+    carte = {
+        "titre": fiche.titre,
+        "financeur": fiche.financeur,
+        "chapeau": fiche.chapeau,
+        "montant": fiche.montant.model_dump() if fiche.montant else None,
+    }
+    return carte if any(carte.values()) else None
+
+
+def aide_fiche_dict(aide: Aide) -> dict:
+    """La forme d'affichage, plus ce que seule la page de l'aide consomme.
+
+    `reglement` porte les conditions telles que le règlement les énonce (texte,
+    citation, nature) pour la rubrique « Le règlement complet » : les
+    évaluations du diagnostic n'en disent que le verdict, et pas pour les
+    conditions écartées d'un profil par `applies_if`. `fiche` est la rédaction
+    en langue claire, en camelCase comme le reste de la réponse.
+    """
+    d = aide_display_dict(aide)
+    d["verifie_le"] = aide.source.verified_at.isoformat() if aide.source.verified_at else None
+    d["reglement"] = [
+        {
+            "id": c.id,
+            "text": c.text,
+            "quote": c.quote,
+            "kind": c.kind,
+            "effect": c.effect,
+            "derogationPossible": c.derogation_possible,
+        }
+        for c in aide.conditions
+    ]
+    f = aide.fiche
+    if f is None:
+        d["fiche"] = None
+        return d
+    d["fiche"] = {
+        "redigeLe": f.redige_le.isoformat() if f.redige_le else None,
+        "titre": f.titre,
+        "financeur": f.financeur,
+        "chapeau": f.chapeau,
+        "montant": f.montant.model_dump() if f.montant else None,
+        "essentiel": f.essentiel.model_dump(exclude_none=True),
+        "enBref": f.en_bref.model_dump() if f.en_bref else None,
+        "conseils": [c.model_dump() for c in f.conseils],
+        "etapes": [e.model_dump() for e in f.etapes],
+        "points": {k: p.model_dump() for k, p in f.points.items()},
+        "pieces": dict(f.pieces),
+    }
+    return d
 
 
 # Rôles de financement qui allègent réellement la facture de chantier. Le taux
@@ -1195,6 +2473,37 @@ def engine_ready_aides(aides: dict[str, Aide]) -> dict[str, Aide]:
     }
 
 
+def _codes_reserves(brut: object) -> set[str]:
+    """Liste de codes portée par une clé réservée (`_raisons`, `_familles`).
+
+    Tolérante par construction : le dict vient de `projets.questionnaire`, donc
+    d'un enregistrement qui peut précéder la clé. Absence, valeur d'un autre
+    type et éléments non textuels rendent un ensemble vide — « rien de déclaré »,
+    qui ne filtre rien.
+    """
+    if not isinstance(brut, (list, tuple, set)):
+        return set()
+    return {c for c in brut if isinstance(c, str)}
+
+
+def familles_heritees(declarees: set[str]) -> set[str]:
+    """Traduit les codes de famille RETIRÉS du référentiel (`FAMILLES_HERITEES`).
+
+    Un projet garde dans `projets.questionnaire._familles` les codes cochés le
+    jour où il a été cadré, et rien ne les réécrit. Sans cette traduction, un
+    projet coché « Tourisme et hébergement » avant la scission du 2026-09-22
+    déclarerait une famille qu'aucune aide ne porte plus : `hors_famille`
+    (déclaré non vide, intersection vide) écarterait TOUTES les aides taguées,
+    l'inverse exact de ce que l'utilisateur a demandé.
+
+    Un héritage ÉLARGIT toujours — l'ancien code vaut ses successeurs — donc la
+    traduction ne peut rien retirer. Un code inconnu est laissé tel quel :
+    `hors_famille` est déjà fail-open par aide, et une famille orpheline ne
+    ferme rien d'autre qu'elle-même.
+    """
+    return {code for d in declarees for code in FAMILLES_HERITEES.get(d, frozenset({d}))}
+
+
 def hors_projet(aide: Aide, raisons: set[str]) -> bool:
     """Vrai si l'aide ne sert AUCUNE des finalités déclarées par l'utilisateur.
 
@@ -1204,6 +2513,50 @@ def hors_projet(aide: Aide, raisons: set[str]) -> bool:
     if not raisons or not aide.raison:
         return False
     return not (set(aide.raison) & raisons)
+
+
+# Familles qu'une finalité IMPLIQUE, pour les projets qui n'ont pas vu l'étape
+# « Votre projet » dans sa version familles. L'intention étant exclusive depuis
+# le passage au choix unique, l'étape ne s'affiche que pour « faire vivre le
+# lieu » seul ; un projet ANCIEN à plusieurs intentions qui repasse le wizard la
+# verra aussi, et il ne faut pas lui retirer ses aides de restauration parce
+# qu'il aura coché « spectacles ». Projection de la skill de prospection.
+FAMILLES_PAR_RAISON: dict[str, frozenset[str]] = {
+    "restauration_travaux": frozenset(
+        {
+            "restauration_bati",
+            "energie_climat",
+            "eau_nature_domaine",
+            "securite_risques",
+            "parcs_jardins_paysages",
+        }
+    ),
+    "etude_ingenierie": frozenset({"etudes_ingenierie"}),
+}
+
+
+def familles_effectives(declarees: set[str], raisons: set[str]) -> set[str]:
+    """Familles déclarées, complétées de celles qu'impliquent les finalités."""
+    return set(declarees).union(*(FAMILLES_PAR_RAISON.get(r, frozenset()) for r in raisons))
+
+
+def hors_famille(aide: Aide, effectives: set[str], declarees: set[str]) -> bool:
+    """Vrai si l'aide ne relève d'AUCUNE des familles retenues par le projet.
+
+    Calqué sur `hors_projet`, avec le même fail-open et la même asymétrie : une
+    aide sans `familles` passe toujours (on ne masque jamais une aide faute de
+    tag), et rien n'est filtré tant que l'utilisateur n'a rien DÉCLARÉ — c'est
+    le sens de « Je ne sais pas encore, montrez-moi tout », qui envoie une liste
+    vide et doit tout garder.
+
+    `declarees` gouverne l'activation du filtre, `effectives` son contenu : les
+    familles implicites d'une finalité ne déclenchent jamais un filtrage à
+    elles seules (sinon un projet de restauration, qui ne voit pas l'étape
+    familles, perdrait toute aide taguée hors des cinq familles de travaux).
+    """
+    if not declarees or not aide.familles:
+        return False
+    return not (set(aide.familles) & effectives)
 
 
 Disponibilite = Literal["maintenant", "bientot"]
@@ -1236,6 +2589,76 @@ def disponibilite(aide: Aide, today: date | None = None) -> Disponibilite:
     return "maintenant"
 
 
+# ---------------------------------------------------------------------------
+# Plusieurs propriétaires (2026-09-30)
+# ---------------------------------------------------------------------------
+#
+# « Il suffit d'un seul » : quand la fiche coche plusieurs propriétaires (une
+# commune et une association, une SCI et un particulier), une aide est proposée
+# dès qu'UN d'eux peut la déposer. Une évaluation « existentielle » condition
+# par condition serait fausse : 70 clauses `applies_if` lisent le propriétaire
+# (« si privé, alors … »), et la clause « privé » s'appliquerait à un monument
+# commune + privé, jusqu'à écarter une aide que la commune dépose. On évalue
+# donc l'aide une fois par propriétaire, sur une fiche où `proprietaire` vaut
+# ce seul code, et on garde le MEILLEUR verdict. Les prédicats des aides restent
+# écrits sur une valeur (`eq`, `in`…) : c'est l'évaluation par profil qui les
+# rend justes, et `FIELD_REGISTRY` garde `monument.proprietaire` en enum.
+
+#: Du meilleur au pire, dans l'ordre même où `evaluate_aide` fait primer un
+#: refus sur un levier, et un levier sur une incertitude : éligible, « à
+#: confirmer » (à portée sans démarche), « à débloquer », non éligible.
+RANG_STATUT = {"eligible": 0, "potentiel": 1, "atteignable": 2, "non_eligible": 3}
+
+
+def proprietaire_unique(monument: dict) -> str | None:
+    """Le propriétaire d'une fiche qui n'en coche qu'un, sinon None."""
+    codes = proprietaires_coches(monument.get("proprietaire"))
+    return codes[0] if len(codes) == 1 else None
+
+
+def profils_par_proprietaire(monument: dict) -> list[dict]:
+    """La fiche déclinée par propriétaire coché (au moins une fiche).
+
+    Un seul propriétaire, ou une chaîne seule (fiche d'avant le choix
+    multiple) : une fiche où `proprietaire` est ce code, rien d'autre ne change.
+    Aucun : la fiche telle quelle, `proprietaire` à None, et les critères qui
+    le lisent restent inconnus (fail-closed).
+    """
+    codes = proprietaires_coches(monument.get("proprietaire"))
+    if not codes:
+        return [{**monument, "proprietaire": None}]
+    return [{**monument, "proprietaire": code} for code in codes]
+
+
+def _meilleur_verdict(verdicts: list[AideVerdict]) -> AideVerdict:
+    """Le verdict retenu pour une aide évaluée une fois par propriétaire.
+
+    Le meilleur statut l'emporte (`RANG_STATUT`). À statut égal, le profil qui
+    laisse le moins de questions : c'est lui qu'on affiche, ses critères et son
+    explication. En cas d'égalité encore, l'ordre des propriétaires cochés.
+
+    Les QUESTIONS, elles, ne se réduisent pas au profil affiché. Tant que
+    plusieurs profils restent vivants (potentiel ou atteignable), l'aide peut
+    aboutir par l'un comme par l'autre : le questionnaire pose l'union de leurs
+    questions, et une réponse n'élimine l'aide que si elle élimine TOUS les
+    profils vivants (`build_questions`). Garder seulement le profil qui pose le
+    moins de questions serait plus court mais faux : le front élague sur
+    `eliminationsParOption`, et une réponse qui écarte ce profil déclarerait
+    morte une aide que l'autre propriétaire peut encore déposer.
+    """
+    if len(verdicts) == 1:
+        return verdicts[0]
+    retenu = min(
+        verdicts,
+        key=lambda v: (RANG_STATUT[v.status], len(v.missing_facts) + len(v.gateway_facts)),
+    )
+    if retenu.status in ("potentiel", "atteignable"):
+        vivants = [v for v in verdicts if v.status in ("potentiel", "atteignable")]
+        if len(vivants) > 1:
+            retenu.profils_vivants = vivants
+    return retenu
+
+
 def run_deterministic_diagnostic(
     aides: dict[str, Aide],
     facts: dict[str, FactDef],
@@ -1253,12 +2676,15 @@ def run_deterministic_diagnostic(
     """
     today = today or date.today()
     fact_answers, reserved = split_reserved_answers(answers)
-    raw_raisons = reserved.get("_raisons")
-    raisons = (
-        {r for r in raw_raisons if isinstance(r, str)}
-        if isinstance(raw_raisons, (list, tuple, set))
-        else set()
-    )
+    raisons = _codes_reserves(reserved.get("_raisons"))
+    # `_familles` : ce que l'utilisateur a coché à l'étape « Votre projet » d'un
+    # projet « faire vivre le lieu ». Clé absente comme liste vide ⇒ rien de
+    # déclaré, donc aucun filtrage (cf. hors_famille).
+    # `familles_heritees` traduit d'abord les codes retirés du référentiel : un
+    # projet cadré avant la scission du 2026-09-22 porte encore
+    # `tourisme_hebergement`, que plus aucune aide ne tague.
+    familles_declarees = familles_heritees(_codes_reserves(reserved.get("_familles")))
+    familles = familles_effectives(familles_declarees, raisons)
 
     ready = engine_ready_aides(aides)
     # La fenêtre de candidature n'écarte plus aucune aide : elle est portée par
@@ -1271,15 +2697,48 @@ def run_deterministic_diagnostic(
     ready = {slug: a for slug, a in ready.items() if not hors_projet(a, raisons)}
     hors_sujet = ready_avant_raisons - len(ready)
 
-    ctx = build_context(monument, population, fact_answers)
+    # Même geste, un cran plus fin : la FAMILLE thématique, que `raison` ne sait
+    # pas dire (un festival, un gîte et un outil de médiation partagent
+    # « valorisation_rayonnement »). Posé juste après `hors_projet` pour que les
+    # deux filtres de cadrage comptent dans le même `hors_sujet`.
+    ready_avant_familles = len(ready)
+    ready = {
+        slug: a for slug, a in ready.items() if not hors_famille(a, familles, familles_declarees)
+    }
+    hors_sujet += ready_avant_familles - len(ready)
+
+    reponses = deduire_faits_des_faits(
+        deduire_faits_des_familles(
+            familles,
+            familles_declarees,
+            deduire_faits_des_raisons(raisons, fact_answers, facts),
+            facts,
+            ready,
+        ),
+        facts,
+    )
+    # Un PROFIL par propriétaire coché : la fiche où `proprietaire` vaut ce seul
+    # propriétaire. Un seul coché (le cas courant) donne un seul profil, et le
+    # diagnostic est exactement celui d'avant le choix multiple.
+    profils = [
+        (m, build_context(m, population, reponses)) for m in profils_par_proprietaire(monument)
+    ]
     # Exclure les aides dont l'utilisateur a déclaré qu'elles ne le concernent
     # pas (périmètre de l'aide : festivals, compagnies, écoles d'art…). Même
     # traitement que les aides hors projet : elles n'ont jamais été candidates.
+    # Avec plusieurs propriétaires, l'aide n'est hors périmètre que pour TOUS.
     ready_avant_perimetre = len(ready)
-    ready = {slug: a for slug, a in ready.items() if not hors_perimetre(a, ctx, facts)}
+    ready = {
+        slug: a
+        for slug, a in ready.items()
+        if not all(hors_perimetre(a, ctx, facts) for _, ctx in profils)
+    }
     hors_sujet += ready_avant_perimetre - len(ready)
 
-    verdicts = [evaluate_aide(a, monument, population, ctx, facts) for a in ready.values()]
+    verdicts = [
+        _meilleur_verdict([evaluate_aide(a, m, population, ctx, facts) for m, ctx in profils])
+        for a in ready.values()
+    ]
 
     eligibles = [v for v in verdicts if v.status == "eligible"]
     potentiels = [v for v in verdicts if v.status == "potentiel"]

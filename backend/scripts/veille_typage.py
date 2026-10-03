@@ -64,6 +64,7 @@ from aides_schema import (
     Aide,
     FactDef,
     Predicate,
+    charger_yaml,
     load_aide,
     load_facts,
     load_pending_facts,
@@ -72,6 +73,7 @@ from aides_schema import (
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lint_aides_data import check_fact_predicate, check_field_predicate
+from pipeline.verrou import ajouter_sous_verrou
 from veille_apply import (
     CHAMPS_TYPAGE,
     ChangementCondition,
@@ -499,6 +501,10 @@ def ecrire_faits_pending(nouveaux: list[NouveauFait]) -> list[str]:
     existantes, on ajoute à la fin, et le diff git ne montre donc que la
     nouveauté. C'est ce diff que l'humain arbitre avant de promouvoir le fait
     vers `facts.yaml` — le commit vaut validation (TYPING.md).
+
+    L'ajout passe par `ajouter_sous_verrou` : `facts_pending.yaml` est partagé
+    avec `ingerer.py`, qui peut tourner en même temps, et un `write_text` direct
+    l'a déjà détruit une fois (2026-09-04, quatre faits perdus).
     """
     if not nouveaux:
         return []
@@ -517,20 +523,26 @@ def ecrire_faits_pending(nouveaux: list[NouveauFait]) -> list[str]:
         + "\n"
         for nf in a_ecrire
     )
-    if FACTS_PENDING_FILE.exists():
-        ancien = FACTS_PENDING_FILE.read_text(encoding="utf-8").rstrip("\n")
-        contenu = f"{ancien}\n\n{bloc}"
-    else:
-        contenu = (
-            "# Faits PROPOSÉS, en attente de validation humaine.\n"
-            "#\n"
-            "# Écrit automatiquement par scripts/veille_typage.py. Rien n'entre dans\n"
-            "# `facts.yaml` sans relecture : approuver un fait, c'est déplacer son\n"
-            "# entrée d'ici vers `facts.yaml`, et le commit vaut validation.\n"
-            "# Voir data/TYPING.md, section « Proposer un nouveau fait ».\n\n" + bloc
-        )
-    FACTS_PENDING_FILE.write_text(contenu, encoding="utf-8")
+    entete = (
+        f"\n# --- veille_typage.py ({date.today().isoformat()}) ---\n#\n"
+        "# Faits proposés par le typage automatique, en attente de validation humaine.\n"
+        "# Approuver = déplacer l'entrée vers `facts.yaml` (cf. data/TYPING.md).\n"
+    )
+    ajouter_sous_verrou(FACTS_PENDING_FILE, entete + bloc, valider=_valider_pending)
+    load_pending_facts.cache_clear()
     return [nf.cle for nf in a_ecrire]
+
+
+def _valider_pending(texte: str) -> None:
+    """Refuse d'écrire un `facts_pending.yaml` que le lint ne pourrait pas lire."""
+    brut = charger_yaml(texte) or {}
+    if not isinstance(brut, dict):
+        raise ValueError("facts_pending.yaml doit être un dictionnaire de faits")
+    for cle, valeur in brut.items():
+        try:
+            FactDef.model_validate(valeur)
+        except Exception as exc:
+            raise ValueError(f"fait invalide « {cle} » : {exc}") from exc
 
 
 @dataclass

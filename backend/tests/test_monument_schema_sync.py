@@ -46,7 +46,7 @@ class RemovedColumnsSchemaTests(unittest.TestCase):
             nom="Château de Test",
             commune="Paris",
             protection="classe",
-            proprietaire="prive",
+            proprietaire="prive_personne_physique",
             etatConservation="bon",
             affectataire="Commune de Test",
             periodeConstruction=["XIXe"],

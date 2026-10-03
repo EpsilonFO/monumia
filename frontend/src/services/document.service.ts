@@ -28,6 +28,8 @@ export interface UploadDocumentPayload {
   tags?: string[];
   visibility?: DocumentVisibility;
   allowedUserIds?: string[];
+  /** La pièce du référentiel que le fichier incarne (dépôt depuis « À déposer »). */
+  pieceId?: string;
 }
 
 function toDocument(row: Record<string, unknown>): Document {
@@ -50,6 +52,7 @@ function toDocument(row: Record<string, unknown>): Document {
     visibility: (row.visibility as DocumentVisibility) ?? 'team',
     allowedUserIds: (row.allowed_user_ids as string[]) ?? [],
     trashedAt: (row.trashed_at as string | null) ?? undefined,
+    pieceId: (row.piece_id as string | null) ?? undefined,
   };
 }
 
@@ -110,6 +113,7 @@ export const documentService = {
       description: payload.description ?? null,
       visibility: payload.visibility ?? null,
       allowed_user_ids: payload.allowedUserIds ?? [],
+      piece_id: payload.pieceId ?? null,
     };
 
     const res = await authFetch(`${BASE}/documents`, {

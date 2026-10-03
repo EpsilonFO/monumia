@@ -19,7 +19,10 @@ L'URL n'est enregistrée nulle part — une seule est retrouvable depuis
    en-tête. Gratuit, et daté du même jour que le PDF : c'est la page telle
    qu'elle était quand le PDF a été récupéré ;
 3. les liens `.pdf` de la page officielle fraîchement téléchargée (sauf
-   `--offline`).
+   `--offline`) ;
+4. `--url`, pour l'URL qu'un humain a retrouvée à la main quand les trois
+   premières sources ont échoué. Elle est confrontée au PDF archivé comme
+   toutes les autres : proposer une URL ne la fait pas accepter.
 
 Chaque candidate est téléchargée puis confrontée au PDF archivé :
 
@@ -267,6 +270,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="candidates locales seulement — n'établit aucune preuve, sert à cadrer",
     )
+    p.add_argument(
+        "--url",
+        action="append",
+        default=[],
+        metavar="URL",
+        help="candidate supplémentaire, retrouvée à la main (répétable). Essayée AVANT "
+        "les candidates déduites, et soumise à la même confrontation : c'est le PDF "
+        "archivé qui tranche, pas l'intention de qui la propose.",
+    )
     p.add_argument("--limit", type=int, help="ne traiter que les N premières aides")
     p.add_argument("--seuil", type=float, default=SEUIL_DEFAUT)
     p.add_argument("--timeout", type=float, default=TIMEOUT_DEFAUT)
@@ -275,6 +287,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
+    # `--url` désigne le PDF d'UNE aide. Étalée sur tout le parc, la même URL
+    # serait confrontée à 106 PDF : au mieux du bruit réseau, au pire un
+    # rattachement fortuit sur un document voisin.
+    if args.url and len(args.slugs) != 1:
+        print("ERREUR : --url exige exactement un slug.", file=sys.stderr)
+        return 1
     if args.slugs:
         paths = [AIDES_DIR / f"{s}.yaml" for s in args.slugs]
         if manquants := [p.stem for p in paths if not p.exists()]:
@@ -313,7 +331,7 @@ def main(argv: list[str] | None = None) -> int:
             headers={"User-Agent": UA}, follow_redirects=True, timeout=args.timeout
         ) as client:
             for aide, pdfs in travail:
-                urls = candidates_hors_ligne(aide)
+                urls = list(dict.fromkeys([*args.url, *candidates_hors_ligne(aide)]))
                 if args.offline:
                     for pdf in pdfs:
                         etat = f"{len(urls)} candidate(s) locale(s)" if urls else "aucune candidate"
@@ -321,6 +339,11 @@ def main(argv: list[str] | None = None) -> int:
                     continue
                 if not urls:
                     urls = candidates_reseau(aide, client)
+                elif args.url:
+                    # Une URL fournie à la main ne doit pas priver l'aide de la
+                    # découverte réseau : si elle se révèle fausse, les liens de
+                    # la page vivante restent la meilleure chance suivante.
+                    urls += [u for u in candidates_reseau(aide, client) if u not in urls]
                 cache: dict[str, bytes | None] = {}
                 for pdf in pdfs:
                     r = rattacher(pdf, urls, client, seuil=args.seuil, cache=cache, scratch=scratch)

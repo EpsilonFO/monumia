@@ -32,11 +32,9 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from aides_schema import AIDES_DIR, DATA_DIR, load_aide
+from aides_schema import AIDES_DIR, DATA_DIR, charger_yaml, load_aide
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -84,7 +82,7 @@ class Gold:
 
 
 def charger_golds(chemin: Path = GOLDS_PATH) -> list[Gold]:
-    brut = yaml.safe_load(chemin.read_text(encoding="utf-8")) or []
+    brut = charger_yaml(chemin.read_text(encoding="utf-8")) or []
     return [Gold(**cas) for cas in brut]
 
 
@@ -196,6 +194,9 @@ def executer(gold: Gold, spec: ModelSpec, *, raw: bool, aujourd_hui: date, log) 
     diff = normalized_diff(baseline, frais).text
 
     prompt = build_prompt(aide, documents, diff, aujourd_hui=aujourd_hui)
+    # Avant l'appel : un modèle à raisonnement peut répondre en plusieurs
+    # minutes, et un terminal muet se lit « bloqué ».
+    log(f"      {spec.alias:<10} … appel en cours (~{len(prompt) // 4} tokens de prompt)")
     appel = call(spec, system_pour(spec), prompt)
     score.input_tokens = appel.input_tokens
     score.output_tokens = appel.output_tokens

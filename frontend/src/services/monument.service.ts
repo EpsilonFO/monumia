@@ -1,4 +1,4 @@
-import type { Monument, MonumentPhoto } from '@/types';
+import type { Monument, MonumentInput, MonumentPhoto } from '@/types';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
 import { uploadToStorage } from '@/lib/storage-upload';
 
@@ -25,6 +25,24 @@ function toPhoto(row: Record<string, unknown>): MonumentPhoto {
   };
 }
 
+/**
+ * `monuments.type_edifice` est un `text[]` ; une chaîne seule (colonne d'avant
+ * la migration 20260930082523) vaut un type, un tableau vide aucun.
+ */
+function typesDeLaLigne(brut: unknown): Monument['typeEdifice'] {
+  if (typeof brut === 'string') return [brut] as Monument['typeEdifice'];
+  return Array.isArray(brut) && brut.length > 0 ? (brut as Monument['typeEdifice']) : undefined;
+}
+
+/**
+ * `monuments.proprietaire` est un `ownership_type[]` ; une chaîne seule (colonne
+ * d'avant la migration 20260930084241) vaut un propriétaire.
+ */
+function proprietairesDeLaLigne(brut: unknown): Monument['proprietaire'] {
+  if (typeof brut === 'string') return [brut] as Monument['proprietaire'];
+  return Array.isArray(brut) ? (brut as Monument['proprietaire']) : [];
+}
+
 export function toMonument(row: Record<string, unknown>): Monument {
   return {
     id: row.id as string,
@@ -39,6 +57,9 @@ export function toMonument(row: Record<string, unknown>): Monument {
         }))
       : undefined,
     memberCount: (row.member_count as number) ?? undefined,
+    // L'offre qui gouverne ce bien, résolue par le serveur. Absente d'un
+    // monument fabriqué localement : les hooks retombent alors sur le gratuit.
+    offre: (row.offre as Monument['offre']) ?? undefined,
     nom: row.nom as string,
     commune: row.commune as string,
     codeInsee: row.code_insee as string ?? row.codeInsee as string ?? '',
@@ -48,9 +69,12 @@ export function toMonument(row: Record<string, unknown>): Monument {
     protection: row.protection as Monument['protection'],
     dateProtection: row.date_protection as string ?? row.dateProtection as string,
     typeProtection: row.type_protection as string ?? row.typeProtection as string,
-    proprietaire: row.proprietaire as Monument['proprietaire'],
+    proprietaire: proprietairesDeLaLigne(row.proprietaire),
     siecleConstruction: row.siecle_construction as string ?? row.siecleConstruction as string,
     descriptionGenerale: row.description_generale as string ?? row.descriptionGenerale as string,
+    typeEdifice: typesDeLaLigne(row.type_edifice ?? row.typeEdifice),
+    affecteAuCulte: (row.affecte_au_culte ?? row.affecteAuCulte ?? undefined) as Monument['affecteAuCulte'],
+    architectureRomane: (row.architecture_romane ?? row.architectureRomane ?? undefined) as Monument['architectureRomane'],
     etatConservation: (row.etat_conservation ?? row.etatConservation ?? undefined) as Monument['etatConservation'],
     photos: Array.isArray(row.photos)
       ? (row.photos as Array<Record<string, unknown>>).map(toPhoto)
@@ -74,7 +98,7 @@ export const monumentService = {
     return toMonument(row);
   },
 
-  async create(data: Omit<Monument, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'completionPercentage' | 'photos'>): Promise<Monument> {
+  async create(data: MonumentInput): Promise<Monument> {
     const res = await authFetch(`${BASE}/monuments`, {
       method: 'POST',
       body: JSON.stringify(data),

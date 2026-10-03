@@ -17,7 +17,7 @@ export function NextActionCardSkeleton() {
         <Skeleton className="h-16 w-14 shrink-0 rounded-2xl" />
         <div className="min-w-0 flex-1 space-y-2">
           <Skeleton className="h-3 w-44" />
-          <Skeleton className="h-5 w-3/5 max-w-[360px]" />
+          <Skeleton className="h-5 w-3/5 max-w-[409.5px]" />
           <Skeleton className="h-3.5 w-36" />
         </div>
         <Skeleton className="h-10 w-40 shrink-0 self-start rounded-xl sm:self-center" />

@@ -71,6 +71,77 @@ export interface Aide {
   formulaireUrl?: string;
 
   baseTTC: boolean;
+
+  /** Familles thématiques de l'aide (liste fermée, cf. `constants/familles`).
+   *  Vide ou absente = l'aide concerne tout projet (fail-open). Sert au cadrage
+   *  « faire vivre le lieu » côté serveur, et aux facettes de la page projet. */
+  familles?: string[];
+
+  /** Ce que la carte emprunte à la fiche rédigée. Part avec chaque aide du
+   *  diagnostic ; `null` quand l'aide n'a pas encore de fiche. Le financeur est
+   *  retiré d'une aide à venir hors offre, comme l'organisme. */
+  carte?: AideCarteRedigee | null;
+  /** Fiche rédigée complète : servie par `GET /aides/{id}` seulement. */
+  fiche?: AideFicheRedigee | null;
+  /** Les conditions telles que le règlement les énonce, pour « Le règlement
+   *  complet ». Servies par `GET /aides/{id}` seulement. */
+  reglement?: AideConditionReglement[];
+  /** Dernière vérification de la source par Monumia (ISO). */
+  verifieLe?: string | null;
+}
+
+/** Une ligne rédigée : la valeur en gras, sa précision dessous. */
+export interface AideTexteValeur {
+  valeur?: string | null;
+  detail?: string | null;
+}
+
+export interface AideCarteRedigee {
+  titre?: string | null;
+  financeur?: string | null;
+  chapeau?: string | null;
+  montant?: AideTexteValeur | null;
+}
+
+/** Rubriques du règlement complet. Miroir de `THEMES_REGLEMENT` (aides_schema.py). */
+export type ThemeReglement = 'candidater' | 'projet' | 'montant' | 'dossier' | 'apres';
+
+/** Pastilles des puces « En bref ». Miroir de `TONS_EN_BREF` (aides_schema.py). */
+export type TonEnBref = 'couvert' | 'montant' | 'exclu' | 'calendrier' | 'info';
+
+export type LigneEssentiel =
+  | 'financeur'
+  | 'beneficiaires'
+  | 'type'
+  | 'calendrier'
+  | 'delai'
+  | 'depot'
+  | 'cumul'
+  | 'contact';
+
+/** Le bloc `fiche:` du YAML de l'aide, en camelCase (cf. `aide_fiche_dict`). */
+export interface AideFicheRedigee extends AideCarteRedigee {
+  redigeLe?: string | null;
+  essentiel: Partial<Record<LigneEssentiel, AideTexteValeur>>;
+  enBref?: { puces: { ton: TonEnBref; texte: string }[]; detail: string[] } | null;
+  conseils: { titre: string; texte: string; condition?: string | null }[];
+  etapes: { titre: string; texte?: string | null }[];
+  /** Clé = id de condition. */
+  points: Record<string, { titre: string; resume?: string | null; theme?: ThemeReglement | null }>;
+  /** Libellé affiché d'une pièce. Clé = son `nom` dans `documentsRequis`,
+   *  qui reste celui des checklists de dossier. */
+  pieces?: Record<string, string>;
+}
+
+export interface AideConditionReglement {
+  id: string;
+  /** Texte de la condition, fidèle à la source. */
+  text: string;
+  /** Citation verbatim du règlement. */
+  quote?: string | null;
+  kind: 'untyped' | 'auto' | 'user_fact' | 'discretionary' | 'info' | 'manual_check';
+  effect: 'gate' | 'modulateur' | 'info';
+  derogationPossible: boolean;
 }
 
 export interface AideEligibilityCriteria {
@@ -98,6 +169,9 @@ export interface AideEligibilityCriteria {
 export type EvaluationVerdict = 'oui' | 'non' | 'incertitude' | 'info';
 
 export interface AideEvaluation {
+  /** Id de la condition évaluée : relie le verdict à son point du règlement.
+   *  Absent sur la condition synthétique de périmètre de l'aide. */
+  conditionId?: string;
   critere: string;
   verdict: EvaluationVerdict;
   explication: string;
@@ -113,6 +187,9 @@ export interface AideEvaluation {
   /** Échec sur un critère ACTIONNABLE : à afficher comme démarche à engager,
    *  jamais comme motif de refus. Le plan détaillé est dans `AideMatchResult.leviers`. */
   levier?: boolean;
+  /** Condition `manual_check` qui cite un levier : la démarche à accomplir avant
+   *  le dépôt, sans question posée ni effet sur le statut. */
+  demarche?: AideLevier;
 }
 
 /** Statut d'éligibilité rendu par le moteur. */
@@ -162,6 +239,12 @@ export interface AideMatchResult {
   elimineParReponse?: boolean;
   /** Plans d'action des critères à débloquer (statut « atteignable »). */
   leviers?: AideLevier[];
+  /** Entrée RÉSUMÉE par le serveur : une aide non éligible que le front
+   *  n'affiche pas (elle n'a pas été écartée par une réponse). Elle ne porte ni
+   *  `llmEvaluation` ni le détail de l'aide (pièces, démarche, conditions) —
+   *  de quoi la retrouver par son id, pas l'afficher. La fiche complète se
+   *  demande à `GET /aides/{id}`. */
+  resume?: boolean;
   /** Nom vestigial : ce sont les verdicts déterministes, condition par
    *  condition. Rien de LLM ici. */
   llmEvaluation?: {
@@ -179,6 +262,9 @@ export interface QcmOption {
   /** Réponse « je ne sais pas / pas encore décidé » : le fait reste inconnu.
    *  N'élimine aucune aide, et exclut les autres cases en choix multiple. */
   unknown?: boolean;
+  /** Précision facultative affichée sous le libellé (`description` de l'option
+   *  dans facts.yaml). Absente tant que le fait n'en déclare pas. */
+  description?: string;
 }
 
 /**
@@ -206,11 +292,23 @@ export interface QcmQuestion {
   eliminatingOptionIds: string[];
   /** Fine-grained elimination: optionId -> aideIds eliminated when that option is selected. */
   eliminationsParOption?: Record<string, string[]>;
+  /** Choix multiple : aides qu'une case écarte À ELLE SEULE, quelles que soient
+   *  les autres cases cochées (exclusion stricte `none_in` du moteur). Union sur
+   *  la sélection, là où `eliminationsParOption` s'intersecte. */
+  eliminationsStrictesParOption?: Record<string, string[]>;
   categorie?: string;
+  /** Où la réponse vaut : le bien, le projet, ou le propriétaire. Une réponse
+   *  de scope `monument` ou `proprietaire` est DURABLE — elle se reprend d'un
+   *  projet à l'autre du même monument (cf. `projetService.faitsDurables`). */
+  scope?: 'monument' | 'projet' | 'proprietaire';
   incertitudesGroupees?: string[];
   dependsOn?: QcmDependsOn;
   /** Montants max cumulés des aides suspendues à cette question (0 si aucune chiffrée). */
   enjeuMax?: number;
+  /** Pourquoi une réponse écarte des aides (`pourquoi` du fait dans facts.yaml) :
+   *  id de réponse → texte, et `'*'` pour le repli. Absent quand le fait n'a
+   *  rien à dire ou qu'aucune réponse n'écarte d'aide. Cf. `ecartParReponse`. */
+  pourquoiEcarte?: Record<string, string>;
 }
 
 export interface AideDiagnosticResult {
@@ -242,6 +340,37 @@ export interface AideDiagnosticResult {
   qcmAnswers?: Record<string, string | string[]>;
 }
 
+/**
+ * L'accroche chiffrée du parcours découverte : ce qu'un VISITEUR sans compte
+ * apprend de son diagnostic. Des compteurs et des montants, jamais un nom
+ * d'aide — la liste l'attend derrière l'inscription, recalculée sous l'offre
+ * réelle du compte.
+ */
+export interface SyntheseInvite {
+  eligibles: number;
+  potentielles: number;
+  atteignables: number;
+  totalAnalysees: number;
+  montantPotentielTotal?: number | null;
+  montantAtteignableTotal?: number | null;
+  tauxTravauxMaxPct?: number | null;
+}
+
+/**
+ * Réponse de `POST /aides/diagnostic-invite`. Volontairement PAUVRE face à
+ * `AideDiagnosticResult` : de quoi poser le questionnaire, de quoi donner
+ * envie, rien de plus.
+ *
+ * Les `aideIds` des questions sont pseudonymisés côté serveur (« a1 », « a2 »…) :
+ * `computeEliminatedAideIds` et `isQuestionServingLiveAide` ne font que des
+ * tests d'appartenance entre `aideIds` et `eliminationsParOption`, des alias
+ * stables à l'échelle d'une réponse leur suffisent.
+ */
+export interface DiagnosticInviteResult {
+  qcmQuestions: QcmQuestion[];
+  synthese: SyntheseInvite;
+}
+
 /** Vue allégée d'une aide : ce qu'une vignette de projet en montre. */
 export interface AideDigest {
   id: ID;
@@ -250,6 +379,19 @@ export interface AideDigest {
   permanent: boolean;
   dateLimite?: string;
   montantMax?: number;
+  /** De quoi rédiger l'aide comme sa carte (titre, chapeau, montant écrit).
+   *  Absents d'une aide à venir hors offre, comme son nom. */
+  nomCourt?: string;
+  carte?: AideCarteRedigee | null;
+  tauxMax?: number;
+}
+
+/** Une aide à portée dans un digest : sa fenêtre du jour et, pour une aide à
+ *  confirmer, le nombre de questions qui la séparent d'un verdict. */
+export interface AideDigestMatch {
+  aide: AideDigest;
+  disponibilite?: AideDisponibilite;
+  questionsRestantes?: number;
 }
 
 /**
@@ -268,10 +410,28 @@ export interface ProjectDigest {
   projetId?: ID;
   /** Monument parent — clé du paywall et de l'agrégation par monument. */
   monumentId: ID;
-  aidesEligibles: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
-  aidesPotentiellementEligibles: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
-  aidesAtteignables?: { aide: AideDigest; disponibilite?: AideDisponibilite }[];
+  aidesEligibles: AideDigestMatch[];
+  aidesPotentiellementEligibles: AideDigestMatch[];
+  aidesAtteignables?: AideDigestMatch[];
   montantPotentielTotal?: number;
   montantAtteignableTotal?: number;
   tauxTravauxMaxPct?: number;
+  /** Les pièces que demandent ses aides à portée (« À déposer pour vos aides »,
+   *  cf. backend/services/pieces_demandees.py). Absent d'un digest en cache
+   *  antérieur au champ. */
+  piecesDemandees?: PieceDemandee[];
+}
+
+/** Une pièce du référentiel demandée par au moins une aide à portée d'un projet. */
+export interface PieceDemandee {
+  pieceId: string;
+  nom: string;
+  description?: string | null;
+  typeDocument: import('./document.types').DocumentType;
+  /** `porteur` : propre au demandeur (RIB, statuts), réutilisable partout ;
+   *  `monument` / `operation` : bornée au bien et à ses chantiers. */
+  portee: 'porteur' | 'monument' | 'operation';
+  /** Les aides à portée qui la citent : le front fait l'union sur les projets
+   *  ouverts d'un monument, où la même aide peut revenir. */
+  aideIds: string[];
 }

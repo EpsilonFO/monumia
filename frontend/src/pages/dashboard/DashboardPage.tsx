@@ -1,34 +1,45 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router';
-import { ArrowUpRight } from 'lucide-react';
-import { IconAjouter } from '@/components/icons';
-import { C } from '@/lib/brand';
-import { NextActionCard } from '@/components/dashboard/NextActionCard';
-import { buildUpcomingRows } from '@/components/dashboard/echeances-alertes-utils';
-import { MonumentsInProgress } from '@/components/dashboard/MonumentsInProgress';
-import { NextActionCardSkeleton, ProjectsInProgressSkeleton } from '@/components/skeletons';
+import { format, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { AFaireMaintenantCarte } from '@/components/dashboard/AFaireMaintenantCarte';
+import { CarteMonument } from '@/components/dashboard/CarteMonument';
+import { Picto } from '@/components/shared/ecrans/Picto';
 import { useSuiviStore } from '@/stores/useSuiviStore';
-import { projectStage } from '@/lib/project-stats';
-import type { ProjectStage } from '@/lib/project-stats';
 import { useProjetStore } from '@/stores/useProjetStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
-import { useNotificationStore } from '@/stores/useNotificationStore';
 import { useProjectsData } from '@/hooks/useProjectsData';
 import { ROUTES } from '@/constants/routes';
-import { mergeProjectDeadlines, computeMonumentStats } from '@/lib/project-stats';
-import type { MonumentStats } from '@/lib/project-stats';
+import { aFaireMaintenant, type AFaire } from '@/lib/a-faire-maintenant';
+import { mergeProjectDeadlines, computeMonumentStats, projectStage } from '@/lib/project-stats';
+import type { MonumentStats, ProjectStage } from '@/lib/project-stats';
 import type { ProjectDigest } from '@/types';
+import './tableau-de-bord.css';
 
+/** La phrase sous le bonjour : ce que dit la date la plus proche. Sans date,
+ *  la carte « Tout est à jour » le dit déjà : pas de phrase. */
+function phraseDuJour(a: AFaire): string {
+  const quand = format(parseISO(a.echeance.date), 'd MMMM', { locale: fr });
+  if (a.echeance.joursRestants < 0) return `Une échéance est dépassée : ${a.titre}, prévue le ${quand}.`;
+  if (a.nature === 'dossier') return `Une échéance approche : ${a.detail}, le ${quand}.`;
+  return `Une date approche : ${a.titre} ferme le ${quand}.`;
+}
+
+/**
+ * Tableau de bord, dessiné comme la maquette `monumia-tableau-de-bord.html` :
+ * le bonjour, la chose à faire maintenant (la date la plus proche), puis chaque
+ * monument avec l'avancement de son projet.
+ */
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const dossiers = useDossierStore((s) => s.dossiers);
   const projets = useProjetStore((s) => s.projets);
   const digestsByProjet = useAideStore((s) => s.digestsByProjet);
-  const notifications = useNotificationStore((s) => s.notifications);
+  const suivis = useSuiviStore((s) => s.suivis);
 
   // Charge monuments, dossiers, digests d'aides et suivis en un seul appel :
   // tout arrive ensemble, donc les squelettes couvrent aussi le nombre d'aides
@@ -40,17 +51,14 @@ export function DashboardPage() {
     [monuments, user],
   );
 
-  // Grille « Vos monuments » : les vôtres + ceux partagés avec vous.
-  // (Le store ne contient que des monuments accessibles à l'utilisateur.)
-  // Le bandeau d'échéance et l'échéancier restent basés sur `userMonuments`.
+  // Cartes « Vos monuments » : les vôtres + ceux partagés avec vous (le store
+  // ne contient que des monuments accessibles). « À faire maintenant » reste
+  // sur `userMonuments`.
   const displayMonuments = monuments;
 
-  // Digests par PROJET, restreints à ceux dont le monument est affiché.
   const diagMap = useMemo<Record<string, ProjectDigest | null>>(() => {
     const out: Record<string, ProjectDigest | null> = {};
-    for (const p of projets) {
-      out[p.id] = digestsByProjet[p.id] ?? null;
-    }
+    for (const p of projets) out[p.id] = digestsByProjet[p.id] ?? null;
     return out;
   }, [projets, digestsByProjet]);
 
@@ -59,56 +67,25 @@ export function DashboardPage() {
     [dossiers, user],
   );
 
-  const userNotifications = useMemo(
-    () =>
-      user
-        ? notifications
-            .filter((n) => n.userId === user.id)
-            .sort((a, b) => new Date(b.dateCreation).getTime() - new Date(a.dateCreation).getTime())
-        : [],
-    [notifications, user],
-  );
-
-  // Toutes les échéances, triées de la plus proche à la plus lointaine.
-  // L'échéancier vertical les reprend toutes, même très éloignées.
-  const allDeadlines = useMemo(() => {
+  // Toutes les échéances, de la plus proche à la plus lointaine. Un dossier en
+  // retard passe en tête : c'est ce qu'il faut faire en premier.
+  const aFaire = useMemo(() => {
     const monumentIds = new Set(userMonuments.map((m) => m.id));
-    return projets
+    const echeances = projets
       .filter((p) => monumentIds.has(p.monumentId))
-      .flatMap((p) =>
-        mergeProjectDeadlines(diagMap[p.id] ?? null, userDossiers.filter((d) => d.projetId === p.id)),
-      )
+      .flatMap((p) => mergeProjectDeadlines(diagMap[p.id] ?? null, userDossiers.filter((d) => d.projetId === p.id)))
       .sort((a, b) => a.joursRestants - b.joursRestants);
+    return aFaireMaintenant(echeances, diagMap, userDossiers, userMonuments);
   }, [userMonuments, projets, diagMap, userDossiers]);
-
-  // Bandeau « prochaine échéance » : la plus proche à venir, et toutes celles
-  // qui tombent exactement à la même date (ex. deux dossiers le même jour).
-  const nextDeadlines = useMemo(() => {
-    const future = allDeadlines.filter((d) => d.joursRestants >= 0);
-    if (future.length === 0) return [];
-    const soonest = future[0].date;
-    return future.filter((d) => d.date === soonest);
-  }, [allDeadlines]);
-
-  // Section « Ensuite » de la carte agenda unifiée : le reste du flux
-  // (échéances suivantes, notifications non lues).
-  const upcomingRows = useMemo(
-    () => buildUpcomingRows(allDeadlines, nextDeadlines, userNotifications),
-    [allDeadlines, nextDeadlines, userNotifications],
-  );
 
   const statsByMonument = useMemo<Record<string, MonumentStats>>(() => {
     const out: Record<string, MonumentStats> = {};
-    for (const m of displayMonuments) {
-      out[m.id] = computeMonumentStats(m, projets, diagMap, dossiers);
-    }
+    for (const m of displayMonuments) out[m.id] = computeMonumentStats(m, projets, diagMap, dossiers);
     return out;
   }, [displayMonuments, projets, diagMap, dossiers]);
 
-  const suivis = useSuiviStore((s) => s.suivis);
-
   // Avancement affiché par monument : celui de son projet le PLUS avancé — la
-  // vignette dit où en est le monument, pas la moyenne de ses chantiers.
+  // carte dit où en est le monument, pas la moyenne de ses chantiers.
   const stageByMonument = useMemo<Record<string, ProjectStage>>(() => {
     const out: Record<string, ProjectStage> = {};
     for (const m of displayMonuments) {
@@ -121,9 +98,7 @@ export function DashboardPage() {
             suivis.filter((s) => s.projetId === p.id),
           ),
         );
-      out[m.id] =
-        stages.sort((a, b) => b.reachedIndex - a.reachedIndex)[0] ??
-        projectStage(null, [], []);
+      out[m.id] = stages.sort((a, b) => b.reachedIndex - a.reachedIndex)[0] ?? projectStage(null, [], []);
     }
     return out;
   }, [displayMonuments, projets, diagMap, dossiers, suivis]);
@@ -132,75 +107,79 @@ export function DashboardPage() {
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
+  const jour = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <div className="space-y-8">
-      {/* ─── EN-TÊTE ─── */}
-      <div>
-        <span
-          className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em]"
-          style={{ color: C.blue }}
-        >
-          <span aria-hidden style={{ width: 22, height: 2, borderRadius: 2, background: C.orange }} />
-          {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </span>
-        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-[clamp(1.8rem,4vw,2.5rem)] leading-[1.1]" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
-              {greeting}, <span style={{ color: C.blue }}>{user.prenom}</span>
-            </h1>
-            
-          </div>
-          <Link
-            to={ROUTES.MONUMENT_NEW}
-            className="group inline-flex shrink-0 items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: C.orange }}
-          >
-            <IconAjouter className="h-4 w-4" />
-            {userMonuments.length === 0 ? 'Créer un monument' : 'Nouveau monument'}
-            <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-          </Link>
+    <div className="ec tdb">
+      <div className="hello">
+        <div>
+          <span className="eyebrow">{jour.charAt(0).toUpperCase() + jour.slice(1)}</span>
+          <h1>
+            {greeting}, <span>{user.prenom}</span>
+          </h1>
+          {!loading && aFaire && <p>{phraseDuJour(aFaire)}</p>}
         </div>
+        <Link className="btn b-line" to={ROUTES.MONUMENT_NEW}>
+          <Picto nom="plus" />
+          {userMonuments.length === 0 ? 'Créer un monument' : 'Nouveau monument'}
+        </Link>
       </div>
 
-      {/* ─── À FAIRE MAINTENANT (carte agenda unifiée) ─── */}
       {loading ? (
-        <NextActionCardSkeleton />
+        <div className="now" aria-hidden="true">
+          <div className="now-in">
+            <span className="sk" style={{ width: 91, height: 100.5, borderRadius: 16 }} />
+            <div style={{ display: 'grid', gap: 11 }}>
+              <span className="sk" style={{ width: 218.5, height: 13 }} />
+              <span className="sk" style={{ width: '70%', height: 24 }} />
+              <span className="sk" style={{ width: '55%', height: 16 }} />
+            </div>
+            <span className="sk" style={{ width: 209.5, height: 48, borderRadius: 999 }} />
+          </div>
+        </div>
       ) : (
-        <NextActionCard deadlines={nextDeadlines} upcoming={upcomingRows} />
+        <AFaireMaintenantCarte aFaire={aFaire} />
       )}
 
-      {/* ─── VOS MONUMENTS (parcours) ─── */}
-      <section>
-        <SectionHeading eyebrow="Vos Monuments" title="" />
+      <section className="sec" aria-labelledby="monT">
+        <div className="sec-h">
+          <div>
+            <span className="eyebrow">Vos monuments</span>
+            <h2 id="monT">Où en sont vos projets</h2>
+          </div>
+        </div>
         {loading ? (
-          <ProjectsInProgressSkeleton />
+          <div className="cmons" aria-hidden="true">
+            {[0, 1].map((i) => (
+              <div key={i} className="cmon">
+                <div className="cmon-h" style={{ height: 103.5 }} />
+                <div className="cmon-b">
+                  <span className="sk" style={{ width: '60%', height: 20.5 }} />
+                  <span className="sk" style={{ width: '100%', height: 56 }} />
+                  <span className="sk" style={{ width: '40%', height: 16 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : displayMonuments.length === 0 ? (
+          <p className="vide">
+            Aucun monument pour l'instant. Commencez par la fiche de votre monument : Monumia en déduit les aides
+            auxquelles il peut prétendre.
+          </p>
         ) : (
-          <MonumentsInProgress monuments={displayMonuments} statsByMonument={statsByMonument} stageByMonument={stageByMonument} />
+          <div className="cmons">
+            {displayMonuments.map((m) => (
+              <CarteMonument
+                key={m.id}
+                monument={m}
+                projets={projets.filter((p) => p.monumentId === m.id)}
+                stats={statsByMonument[m.id]}
+                stage={stageByMonument[m.id]}
+              />
+            ))}
+          </div>
         )}
       </section>
-
-    </div>
-  );
-}
-
-/** En-tête de section éditorial : filet orange + petites caps + titre serif (repris de la landing). */
-function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
-  return (
-    <div className="mb-4">
-      <span
-        className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em]"
-        style={{ color: C.blue }}
-      >
-        <span aria-hidden style={{ width: 18, height: 2, borderRadius: 2, background: C.orange }} />
-        {eyebrow}
-      </span>
-      <h2
-        className="mt-1.5 text-[clamp(1.15rem,2vw,1.5rem)] leading-tight"
-        style={{ fontFamily: 'var(--font-serif)', color: C.ink }}
-      >
-        {title}
-      </h2>
     </div>
   );
 }
