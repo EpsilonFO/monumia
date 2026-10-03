@@ -26,3 +26,13 @@
 @media (max-width: 760px) {
   .ec .cmons { grid-template-columns: 1fr; }
 }
+/* Téléphone : une carte faisait 400 px, huit monuments 3 500 px de défilement. */
+@media (max-width: 640px) {
+  .ec .cmons { gap: 12px; }
+  .ec .cmon-h { padding: 16px 18px 14px; }
+  .ec .cmon-h.photo { min-height: 130px; }
+  .ec .cmon-h h3 { font-size: 22px; }
+  .ec .cmon-h p { font-size: 14.5px; margin-top: 2px; }
+  .ec .cmon-b { padding: 14px 18px 16px; gap: 12px; }
+  .ec .cmon-f { padding-top: 10px; }
+}

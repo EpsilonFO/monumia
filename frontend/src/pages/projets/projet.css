@@ -147,3 +147,7 @@
   .pproj .grp-sub { margin-left: 0; }
   .pproj .ko > button { margin-left: 0; }
 }
+@media (max-width: 640px) {
+  .pproj .phead { padding: 18px 16px; }
+  .pproj .phead h1 { font-size: 28px; }
+}

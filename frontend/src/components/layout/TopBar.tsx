@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router';
+import { Link, NavLink } from 'react-router';
 import { landingUrl } from '@/lib/session';
 import { cn } from '@/lib/utils';
 import { SERIF } from '@/lib/brand';
@@ -7,6 +7,13 @@ import { Picto } from '@/components/shared/ecrans/Picto';
 import { OwnerAccountMenu } from './ownerNav';
 import { navItemsPour, type NavItem } from './nav-items';
 import { useOffre } from '@/hooks/useOffre';
+import { useRetourStore } from '@/stores/useRetourStore';
+
+/** « Retour à Château » → « Château » : la flèche dit déjà « retour ». */
+function destinationRetour(libelle: string): string {
+  const reste = libelle.replace(/^Retour (à|aux|au) /, '');
+  return reste.charAt(0).toUpperCase() + reste.slice(1);
+}
 
 /**
  * Barre haute de l'application, dessinée comme les maquettes d'écran : le logo,
@@ -18,12 +25,28 @@ export function TopBar() {
   // public (ressources).
   const offre = useOffre();
   const topBarNavItems: NavItem[] = [...navItemsPour(offre), { to: '/blog', picto: 'livre', label: 'Blog' }];
+  const retour = useRetourStore((s) => s.retour);
 
   return (
     <header className="z-30 shrink-0 border-b border-border bg-[var(--card)]/70 backdrop-blur-xl">
-      <div className="mx-auto flex h-[70.5px] w-[min(1343.5px,100%-36.5px)] items-center gap-[34px]">
+      <div className="mx-auto flex h-[58px] w-[min(1343.5px,100%-36.5px)] items-center gap-4 md:h-[70.5px] md:gap-[34px]">
+        {/* Retour de la page de détail, à la place de la marque sur téléphone :
+            le carré bleu en tête de page s'efface alors (cf. BoutonRetour). */}
+        {retour && (
+          <Link
+            to={retour.to}
+            aria-label={retour.libelle}
+            className="flex min-w-0 items-center gap-2 font-semibold text-primary md:hidden"
+          >
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-primary text-primary-foreground">
+              <Picto nom="retour" className="h-[18px] w-[18px]" />
+            </span>
+            <span className="truncate text-[16px]">{destinationRetour(retour.libelle)}</span>
+          </Link>
+        )}
+
         {/* Marque */}
-        <a href={landingUrl()} className="flex shrink-0 items-center gap-2.5">
+        <a href={landingUrl()} className={cn('flex shrink-0 items-center gap-2.5', retour && 'max-md:hidden')}>
           <LogoMonumia className="h-[26px] w-[26px]" />
           <span
             className="hidden text-[21px] font-bold leading-none text-foreground sm:block"

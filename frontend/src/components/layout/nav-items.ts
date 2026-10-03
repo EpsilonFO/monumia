@@ -6,6 +6,8 @@ export interface NavItem {
   to: string;
   picto: NomPicto;
   label: string;
+  /** Libellé de la barre du bas : quatre onglets y tiennent dans 400 px. */
+  court?: string;
   end?: boolean;
 }
 
@@ -24,8 +26,13 @@ export interface NavItem {
  */
 export function navItemsPour(offre: Offre): NavItem[] {
   return [
-    { to: ROUTES.DASHBOARD, picto: 'grille', label: 'Tableau de bord', end: true },
-    { to: ROUTES.MONUMENTS, picto: 'maison', label: libelleMonuments(offre) },
-    { to: ROUTES.DOCUMENTS, picto: 'doc', label: 'Mes documents' },
+    { to: ROUTES.DASHBOARD, picto: 'grille', label: 'Tableau de bord', court: 'Accueil', end: true },
+    {
+      to: ROUTES.MONUMENTS,
+      picto: 'maison',
+      label: libelleMonuments(offre),
+      court: offre.monumentsMax === 1 ? 'Monument' : 'Monuments',
+    },
+    { to: ROUTES.DOCUMENTS, picto: 'doc', label: 'Mes documents', court: 'Documents' },
   ];
 }

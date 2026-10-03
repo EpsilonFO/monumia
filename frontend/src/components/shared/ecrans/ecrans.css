@@ -176,6 +176,16 @@
 @media (max-width: 760px) {
   .ec .steps.lg b { font-size: 14px; }
 }
+/* Téléphone : la pilule défilait de côté et cachait « Documents » et « Équipe »
+   sans le moindre indice. Les onglets se partagent la largeur, comme la barre
+   du bas : l'icône et le compteur, puis le libellé dessous. */
+@media (max-width: 640px) {
+  .ec .tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; width: 100%; padding: 5px; border-radius: 16px; overflow: visible; }
+  .ec .tabs button { flex-wrap: wrap; justify-content: center; align-content: center; gap: 3px 6px; padding: 8px 4px; border-radius: 12px; font-size: 13.5px; line-height: 1.2; white-space: normal; text-align: center; }
+  .ec .tabs button .lbl { flex-basis: 100%; }
+  .ec .tabs button em { font-size: 12px; min-width: 20px; padding: 1px 6px; }
+  .ec .sec-h h2 { font-size: 25px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .ec *, .ec *::before { transition: none !important; animation: none !important; }
 }
