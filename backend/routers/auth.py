@@ -4,13 +4,14 @@ import os
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, field_validator
 from supabase import Client
 
 from db import get_anon_supabase, get_current_auth_user, get_current_user_id, get_supabase
 from services import stripe_billing as billing
+from services.email_service import Inscription, send_inscription_email
 from services.rappels_service import PALIER_MAX, PALIER_MIN, PALIERS_DEFAUT
 from services.roles import est_admin
 
@@ -350,6 +351,29 @@ def _email_non_confirme(exc: Exception) -> bool:
     return "not confirmed" in message or "email_not_confirmed" in message
 
 
+def _notifier_inscription(
+    background_tasks: BackgroundTasks, profile: dict[str, Any], *, connexion: str
+) -> None:
+    """Prévient l'équipe d'un compte neuf, APRÈS la réponse.
+
+    En tâche de fond : l'utilisateur n'attend pas Resend, et une panne de
+    l'envoi ne peut plus rien coûter à une inscription déjà faite. N'est appelé
+    qu'une fois le profil inséré — une réinscription d'adresse non confirmée ou
+    une double soumission OAuth ne doublent pas l'avis.
+    """
+    background_tasks.add_task(
+        send_inscription_email,
+        Inscription(
+            email=profile.get("email") or "",
+            prenom=profile.get("prenom") or "",
+            nom=profile.get("nom") or "",
+            telephone=profile.get("telephone"),
+            metier=profile.get("metier"),
+            connexion=connexion,
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -359,6 +383,7 @@ def _email_non_confirme(exc: Exception) -> bool:
 def register(
     body: RegisterRequest,
     response: Response,
+    background_tasks: BackgroundTasks,
     anon: Client = Depends(get_anon_supabase),
     supabase: Client = Depends(get_supabase),
 ):
@@ -402,6 +427,7 @@ def register(
     supabase.table("users").insert(profile).execute()
     # Tout compte neuf repart avec l'offre du moment (cf. PLAN_A_LA_CREATION).
     billing.octroyer_offre_initiale(supabase, user_id)
+    _notifier_inscription(background_tasks, profile, connexion="mot de passe")
 
     return _reponse_inscription(supabase, user_id, auth_response.session, response)
 
@@ -410,6 +436,7 @@ def register(
 def register_collaborator(
     body: RegisterCollaboratorRequest,
     response: Response,
+    background_tasks: BackgroundTasks,
     anon: Client = Depends(get_anon_supabase),
     supabase: Client = Depends(get_supabase),
 ):
@@ -452,6 +479,7 @@ def register_collaborator(
     supabase.table("users").insert(profile).execute()
     # Tout compte neuf repart avec l'offre du moment (cf. PLAN_A_LA_CREATION).
     billing.octroyer_offre_initiale(supabase, user_id)
+    _notifier_inscription(background_tasks, profile, connexion="mot de passe")
 
     return _reponse_inscription(supabase, user_id, auth_response.session, response)
 
@@ -525,6 +553,7 @@ def oauth_profile_status(
 @router.post("/register-oauth", status_code=status.HTTP_201_CREATED)
 def register_oauth(
     body: RegisterOauthRequest,
+    background_tasks: BackgroundTasks,
     auth_user=Depends(get_current_auth_user),
     supabase: Client = Depends(get_supabase),
 ):
@@ -548,11 +577,17 @@ def register_oauth(
     }
     # Course entre deux soumissions : la ligne vient d'être créée par
     # l'autre requête — l'idempotence retombe sur le profil existant.
+    cree = False
     with contextlib.suppress(Exception):
         supabase.table("users").insert(profile).execute()
+        cree = True
     # Même octroi que pour une inscription par mot de passe. L'appel est
     # idempotent : la course entre deux soumissions réécrit la même ligne.
     billing.octroyer_offre_initiale(supabase, auth_user.id)
+    # Seule la soumission qui a créé la ligne prévient l'équipe : la course
+    # perdue ne doit pas doubler l'avis.
+    if cree:
+        _notifier_inscription(background_tasks, profile, connexion="Google")
 
     return {"user": _get_profile(supabase, auth_user.id)}
 
@@ -560,6 +595,7 @@ def register_oauth(
 @router.post("/register-collaborator-oauth", status_code=status.HTTP_201_CREATED)
 def register_collaborator_oauth(
     body: RegisterCollaboratorOauthRequest,
+    background_tasks: BackgroundTasks,
     auth_user=Depends(get_current_auth_user),
     supabase: Client = Depends(get_supabase),
 ):
@@ -581,11 +617,17 @@ def register_collaborator_oauth(
     }
     # Course entre deux soumissions : la ligne vient d'être créée par
     # l'autre requête — l'idempotence retombe sur le profil existant.
+    cree = False
     with contextlib.suppress(Exception):
         supabase.table("users").insert(profile).execute()
+        cree = True
     # Même octroi que pour une inscription par mot de passe. L'appel est
     # idempotent : la course entre deux soumissions réécrit la même ligne.
     billing.octroyer_offre_initiale(supabase, auth_user.id)
+    # Seule la soumission qui a créé la ligne prévient l'équipe : la course
+    # perdue ne doit pas doubler l'avis.
+    if cree:
+        _notifier_inscription(background_tasks, profile, connexion="Google")
 
     return {"user": _get_profile(supabase, auth_user.id)}
 

@@ -10,7 +10,7 @@ saisie).
 import unittest
 from unittest.mock import MagicMock
 
-from fastapi import HTTPException, Response
+from fastapi import BackgroundTasks, HTTPException, Response
 
 from routers.auth import RegisterCollaboratorRequest, RegisterRequest, register
 from routers.auth import register_collaborator as register_collab
@@ -46,6 +46,7 @@ class EmailDejaInscritTest(unittest.TestCase):
             register(
                 body=BODY,
                 response=Response(),
+                background_tasks=BackgroundTasks(),
                 anon=_AnonQuiRefuse("User already registered"),
                 supabase=MagicMock(),
             )
@@ -58,6 +59,7 @@ class EmailDejaInscritTest(unittest.TestCase):
             register(
                 body=BODY,
                 response=Response(),
+                background_tasks=BackgroundTasks(),
                 anon=_AnonQuiRefuse("this email has already been registered"),
                 supabase=MagicMock(),
             )
@@ -68,6 +70,7 @@ class EmailDejaInscritTest(unittest.TestCase):
             register_collab(
                 body=BODY_COLLAB,
                 response=Response(),
+                background_tasks=BackgroundTasks(),
                 anon=_AnonQuiRefuse("User already registered"),
                 supabase=MagicMock(),
             )
@@ -81,6 +84,7 @@ class AutresEchecsTest(unittest.TestCase):
             register(
                 body=BODY,
                 response=Response(),
+                background_tasks=BackgroundTasks(),
                 anon=_AnonQuiRefuse("Signups not allowed for this instance"),
                 supabase=MagicMock(),
             )
@@ -94,7 +98,13 @@ class AutresEchecsTest(unittest.TestCase):
             email="neuf@example.com", password="court", prenom="Marie", nom="Dupont"
         )
         with self.assertRaises(HTTPException) as ctx:
-            register(body=faible, response=Response(), anon=anon, supabase=MagicMock())
+            register(
+                body=faible,
+                response=Response(),
+                background_tasks=BackgroundTasks(),
+                anon=anon,
+                supabase=MagicMock(),
+            )
         self.assertEqual(ctx.exception.status_code, 400)
         anon.auth.sign_up.assert_not_called()
 

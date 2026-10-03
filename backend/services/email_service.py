@@ -1,7 +1,8 @@
 """Emails sortants via Resend, avec repli console en dev.
 
-Deux familles : l'invitation d'un collaborateur, et les rappels calendaires sur
-les aides (échéance qui approche, aide qui devient disponible).
+Trois familles : l'invitation d'un collaborateur, les rappels calendaires sur
+les aides (échéance qui approche, aide qui devient disponible), et l'avis
+interne d'inscription envoyé à l'équipe à chaque compte créé.
 
 Les fonctions `render_*` sont pures (testées). Les `send_*` lisent la config
 dans l'environnement ; si `RESEND_API_KEY` est vide, l'email est loggué dans la
@@ -354,3 +355,134 @@ def send_rappel_email(*, to_email: str, subject: str, html: str) -> None:
 
     resend.api_key = api_key
     resend.Emails.send({"from": sender, "to": [to_email], "subject": subject, "html": html})
+
+
+# ---------------------------------------------------------------------------
+# Avis interne : un compte vient d'être créé
+# ---------------------------------------------------------------------------
+
+# Expéditeur propre à l'équipe : l'avis se filtre dans la boîte de contact sans
+# se mêler aux invitations ni aux rappels envoyés aux utilisateurs.
+DEFAULT_FROM_NOTIFS = "Monumia <notifications@monumia.fr>"
+
+
+@dataclass(frozen=True)
+class Inscription:
+    """Ce que l'équipe veut savoir d'un compte qui vient d'être créé."""
+
+    email: str
+    prenom: str
+    nom: str
+    telephone: str | None
+    # Métier déclaré : renseigné pour un collaborateur invité, absent sinon.
+    metier: str | None
+    # « mot de passe » ou « Google » : une inscription par mot de passe n'a pas
+    # encore confirmé son adresse, il faut le savoir avant d'y répondre.
+    connexion: str
+
+
+def environnement_inscription() -> str | None:
+    """Hôte de l'application hors production (« beta.monumia.fr »), sinon None.
+
+    Le même avis part de la bêta si elle est configurée pour : sans ce repère
+    dans l'objet, un compte de test passerait pour un vrai client.
+    """
+    base = os.environ.get("FRONTEND_URL", "").strip().rstrip("/")
+    hote = base.split("://", 1)[-1]
+    if not hote or hote == "app.monumia.fr":
+        return None
+    return hote
+
+
+def sujet_inscription(inscription: Inscription, environnement: str | None) -> str:
+    nom = " ".join(p for p in (inscription.prenom, inscription.nom) if p) or inscription.email
+    parcours = "Nouveau collaborateur" if inscription.metier else "Nouvelle inscription"
+    sujet = f"{parcours} sur Monumia : {nom}"
+    return f"[{environnement}] {sujet}" if environnement else sujet
+
+
+def render_inscription_email(*, inscription: Inscription, admin_url: str) -> str:
+    """HTML de l'avis d'inscription. Tout ce qui vient du formulaire est échappé."""
+    lignes = [
+        ("Nom", " ".join(p for p in (inscription.prenom, inscription.nom) if p) or "—"),
+        ("Email", inscription.email),
+        ("Téléphone", inscription.telephone or "—"),
+        (
+            "Parcours",
+            f"collaborateur invité ({inscription.metier})"
+            if inscription.metier
+            else "inscription directe",
+        ),
+        ("Connexion", inscription.connexion),
+    ]
+    tableau = "\n".join(
+        f"""\
+        <tr>
+          <td style="padding:6px 16px 6px 0;color:#8a8a8a;white-space:nowrap">{libelle}</td>
+          <td style="padding:6px 0;font-weight:600">{escape(valeur)}</td>
+        </tr>"""
+        for libelle, valeur in lignes
+    )
+    confirmation = (
+        """
+      <p style="margin:16px 0 0;font-size:13px;color:#6b6b6b">L'adresse n'est pas encore confirmée : le compte ne s'ouvrira qu'une fois le lien de l'email de confirmation suivi.</p>"""
+        if inscription.connexion == "mot de passe"
+        else ""
+    )
+    return f"""\
+<div style="background:#fdf9f0;padding:32px 0;font-family:Inter,Arial,sans-serif;color:#222b35">
+  <div style="max-width:520px;margin:0 auto;background:#fffefb;border:1px solid #ece3d2;border-radius:12px;overflow:hidden">
+    <div style="background:#0a369d;color:#fff;padding:18px 28px;font-size:18px;font-weight:700">Monumia</div>
+    <div style="padding:28px">
+      <p style="margin:0 0 16px">Un compte vient d'être créé.</p>
+      <table style="border-collapse:collapse;font-size:14px">
+{tableau}
+      </table>{confirmation}
+      <p style="margin:24px 0 0;font-size:13px">Répondre à cet email écrit directement à la personne. <a href="{admin_url}" style="color:#0a369d">Voir les comptes</a></p>
+    </div>
+  </div>
+</div>"""
+
+
+def send_inscription_email(inscription: Inscription) -> None:
+    """Prévient l'équipe d'une inscription, à l'adresse `NOTIF_INSCRIPTION_TO`.
+
+    Variable vide ou absente = aucun avis : un poste de développement qui porte
+    une vraie clé Resend n'écrit pas à la boîte de contact à chaque compte de
+    test. Appelé en tâche de fond après la réponse ; une panne de Resend est
+    journalisée et ne remonte jamais, l'inscription a déjà réussi.
+    """
+    destinataire = os.environ.get("NOTIF_INSCRIPTION_TO", "").strip()
+    if not destinataire:
+        return
+
+    environnement = environnement_inscription()
+    subject = sujet_inscription(inscription, environnement)
+    app_url = (os.environ.get("FRONTEND_URL", "").strip() or "https://app.monumia.fr").rstrip("/")
+    html = render_inscription_email(inscription=inscription, admin_url=f"{app_url}/admin")
+    api_key = os.environ.get("RESEND_API_KEY", "").strip()
+    sender = os.environ.get("RESEND_FROM_NOTIFS", "").strip() or DEFAULT_FROM_NOTIFS
+
+    if not api_key:
+        logger.warning(
+            "[DEV] Resend non configuré — avis d'inscription non envoyé.\n  À: %s\n  Sujet: %s",
+            destinataire,
+            subject,
+        )
+        return
+
+    try:
+        import resend
+
+        resend.api_key = api_key
+        resend.Emails.send(
+            {
+                "from": sender,
+                "to": [destinataire],
+                "reply_to": inscription.email,
+                "subject": subject,
+                "html": html,
+            }
+        )
+    except Exception:
+        logger.exception("Avis d'inscription non envoyé pour %s", inscription.email)

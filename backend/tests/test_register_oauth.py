@@ -5,6 +5,8 @@ et idempotence en cas de double soumission."""
 import unittest
 from types import SimpleNamespace
 
+from fastapi import BackgroundTasks
+
 from routers.auth import RegisterOauthRequest, register_oauth
 
 
@@ -94,7 +96,9 @@ class RegisterOauthTest(unittest.TestCase):
         # 1) maybe_single (pas de ligne) 2) insert 3) single de _get_profile
         supabase = _FakeSupabase([None, _Resp(None), _Resp(dict(PROFILE_ROW))])
         body = RegisterOauthRequest(prenom="Marie", nom="Dupont")
-        result = register_oauth(body, auth_user=AUTH_USER, supabase=supabase)
+        result = register_oauth(
+            body, background_tasks=BackgroundTasks(), auth_user=AUTH_USER, supabase=supabase
+        )
 
         self.assertEqual(len(supabase.inserted), 1)
         row = supabase.inserted[0]
@@ -109,7 +113,9 @@ class RegisterOauthTest(unittest.TestCase):
         # 2) insert 3) single de _get_profile
         supabase = _FakeSupabase([_Resp(None), _Resp(None), _Resp(dict(PROFILE_ROW))])
         body = RegisterOauthRequest(prenom="Marie", nom="Dupont")
-        result = register_oauth(body, auth_user=AUTH_USER, supabase=supabase)
+        result = register_oauth(
+            body, background_tasks=BackgroundTasks(), auth_user=AUTH_USER, supabase=supabase
+        )
 
         self.assertEqual(len(supabase.inserted), 1)
         self.assertEqual(result["user"]["prenom"], "Marie")
@@ -118,7 +124,9 @@ class RegisterOauthTest(unittest.TestCase):
         # 1) maybe_single trouve la ligne 2) single de _get_profile
         supabase = _FakeSupabase([_Resp({"id": "user-1"}), _Resp(dict(PROFILE_ROW))])
         body = RegisterOauthRequest(prenom="Marie", nom="Dupont")
-        result = register_oauth(body, auth_user=AUTH_USER, supabase=supabase)
+        result = register_oauth(
+            body, background_tasks=BackgroundTasks(), auth_user=AUTH_USER, supabase=supabase
+        )
 
         self.assertEqual(supabase.inserted, [])  # pas de second insert
         self.assertEqual(result["user"]["email"], "marie@exemple.fr")
@@ -129,7 +137,9 @@ class RegisterOauthTest(unittest.TestCase):
         # File : 1) maybe_single 2) insert (_RaiseOnExecute) 3) single _get_profile
         supabase = _FakeSupabase([None, _RaiseOnExecute(), _Resp(dict(PROFILE_ROW))])
         body = RegisterOauthRequest(prenom="Marie", nom="Dupont")
-        result = register_oauth(body, auth_user=AUTH_USER, supabase=supabase)
+        result = register_oauth(
+            body, background_tasks=BackgroundTasks(), auth_user=AUTH_USER, supabase=supabase
+        )
 
         self.assertEqual(result["user"]["prenom"], "Marie")
 
@@ -154,7 +164,9 @@ class RegisterCollaboratorOauthTest(unittest.TestCase):
 
         supabase = _FakeSupabase([None, _Resp(None), _Resp(dict(COLLAB_ROW))])
         body = RegisterCollaboratorOauthRequest(prenom="Marie", nom="Dupont", metier="architecte")
-        result = register_collaborator_oauth(body, auth_user=AUTH_USER, supabase=supabase)
+        result = register_collaborator_oauth(
+            body, background_tasks=BackgroundTasks(), auth_user=AUTH_USER, supabase=supabase
+        )
 
         row = supabase.inserted[0]
         self.assertEqual(row["account_type"], "collaborateur")
@@ -169,7 +181,9 @@ class RegisterCollaboratorOauthTest(unittest.TestCase):
 
         supabase = _FakeSupabase([_Resp({"id": "user-1"}), _Resp(dict(COLLAB_ROW))])
         body = RegisterCollaboratorOauthRequest(prenom="Marie", nom="Dupont", metier="architecte")
-        result = register_collaborator_oauth(body, auth_user=AUTH_USER, supabase=supabase)
+        result = register_collaborator_oauth(
+            body, background_tasks=BackgroundTasks(), auth_user=AUTH_USER, supabase=supabase
+        )
 
         self.assertEqual(supabase.inserted, [])
         self.assertEqual(result["user"]["accountType"], "collaborateur")

@@ -17,7 +17,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from fastapi import Response
+from fastapi import BackgroundTasks, Response
 
 from routers.auth import (
     RegisterCollaboratorOauthRequest,
@@ -142,6 +142,7 @@ class OctroiSurLesQuatreInscriptionsTest(unittest.TestCase):
                 email="marie@exemple.fr", password="motdepasse1", prenom="Marie", nom="Dupont"
             ),
             response=Response(),
+            background_tasks=BackgroundTasks(),
             anon=_anon(),
             supabase=supabase,
         )
@@ -161,6 +162,7 @@ class OctroiSurLesQuatreInscriptionsTest(unittest.TestCase):
                 metier="architecte",
             ),
             response=Response(),
+            background_tasks=BackgroundTasks(),
             anon=_anon(),
             supabase=supabase,
         )
@@ -172,6 +174,7 @@ class OctroiSurLesQuatreInscriptionsTest(unittest.TestCase):
         supabase = _FakeSupabase({"users": []})
         register_oauth(
             RegisterOauthRequest(prenom="Marie", nom="Dupont"),
+            background_tasks=BackgroundTasks(),
             auth_user=AUTH_USER,
             supabase=supabase,
         )
@@ -182,6 +185,7 @@ class OctroiSurLesQuatreInscriptionsTest(unittest.TestCase):
         supabase = _FakeSupabase({"users": []})
         register_collaborator_oauth(
             RegisterCollaboratorOauthRequest(prenom="Marie", nom="Dupont", metier="architecte"),
+            background_tasks=BackgroundTasks(),
             auth_user=AUTH_USER,
             supabase=supabase,
         )
@@ -243,6 +247,7 @@ class RobustesseTest(unittest.TestCase):
                 email="marie@exemple.fr", password="motdepasse1", prenom="Marie", nom="Dupont"
             ),
             response=Response(),
+            background_tasks=BackgroundTasks(),
             anon=_anon(),
             supabase=supabase,
         )

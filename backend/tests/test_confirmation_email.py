@@ -17,7 +17,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from fastapi import HTTPException, Response
+from fastapi import BackgroundTasks, HTTPException, Response
 
 from routers.auth import (
     DETAIL_DEJA_INSCRIT,
@@ -94,6 +94,7 @@ class AdresseDejaPriseTest(unittest.TestCase):
             register(
                 body=BODY,
                 response=Response(),
+                background_tasks=BackgroundTasks(),
                 anon=_Anon(identities=[]),
                 supabase=supabase,
             )
@@ -106,6 +107,7 @@ class AdresseDejaPriseTest(unittest.TestCase):
             register_collab(
                 body=BODY_COLLAB,
                 response=Response(),
+                background_tasks=BackgroundTasks(),
                 anon=_Anon(identities=[]),
                 supabase=_supabase(),
             )
@@ -116,6 +118,7 @@ class AdresseDejaPriseTest(unittest.TestCase):
         resultat = register(
             body=BODY,
             response=Response(),
+            background_tasks=BackgroundTasks(),
             anon=_Anon(identities=None),
             supabase=_supabase(),
         )
@@ -127,6 +130,7 @@ class InscriptionSansSessionTest(unittest.TestCase):
         resultat = register(
             body=BODY,
             response=Response(),
+            background_tasks=BackgroundTasks(),
             anon=_Anon(identities=[{"provider": "email"}], session=None),
             supabase=_supabase(),
         )
@@ -138,6 +142,7 @@ class InscriptionSansSessionTest(unittest.TestCase):
         register(
             body=BODY,
             response=response,
+            background_tasks=BackgroundTasks(),
             anon=_Anon(identities=[{"provider": "email"}], session=None),
             supabase=_supabase(),
         )
@@ -152,6 +157,7 @@ class ReinscriptionNonConfirmeeTest(unittest.TestCase):
         resultat = register(
             body=BODY,
             response=Response(),
+            background_tasks=BackgroundTasks(),
             anon=_Anon(identities=[{"provider": "email"}], session=None),
             supabase=supabase,
         )
@@ -210,6 +216,7 @@ class UrlDeRetourTest(unittest.TestCase):
         register(
             body=BODY.model_copy(update={"reprise": True}),
             response=Response(),
+            background_tasks=BackgroundTasks(),
             anon=anon,
             supabase=_supabase(),
         )
@@ -220,6 +227,7 @@ class UrlDeRetourTest(unittest.TestCase):
         register_collab(
             body=BODY_COLLAB.model_copy(update={"invitation": "jeton-42"}),
             response=Response(),
+            background_tasks=BackgroundTasks(),
             anon=anon,
             supabase=_supabase(),
         )
