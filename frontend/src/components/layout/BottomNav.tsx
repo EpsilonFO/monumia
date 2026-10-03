@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router';
 import { cn } from '@/lib/utils';
 import { C } from '@/lib/brand';
-import { navItemsPour } from './nav-items';
+import { NAV_BLOG, navItemsPour } from './nav-items';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { useOffre } from '@/hooks/useOffre';
 
@@ -10,12 +10,11 @@ import { useOffre } from '@/hooks/useOffre';
  * applications mobiles grand public : grandes cibles, icône + libellé, pastille
  * bleue derrière l'onglet actif. Pensée pour un public peu à l'aise avec le numérique.
  *
- * La grille suit le nombre d'onglets : le tableau de bord n'apparaît qu'avec
- * l'offre Multi-monuments, et une grille figée à trois colonnes laisserait un
- * trou à droite.
+ * Mêmes onglets que la barre haute, Blog compris. La grille suit leur nombre
+ * plutôt qu'un nombre de colonnes figé.
  */
 export function BottomNav() {
-  const items = navItemsPour(useOffre());
+  const items = [...navItemsPour(useOffre()), NAV_BLOG];
 
   return (
     <nav

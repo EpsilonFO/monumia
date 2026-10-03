@@ -59,6 +59,7 @@ export function InvitationLandingPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const setAuth = useAuthStore((s) => s.setAuth);
+  const logout = useAuthStore((s) => s.logout);
 
   // Retour de Google : les jetons attendent en mémoire, le compte applicatif
   // n'existe pas encore. C'est ici qu'on le crée en collaborateur, parce que
@@ -233,7 +234,13 @@ export function InvitationLandingPage() {
         >
           <p className="text-center text-[15px] leading-[1.6]" style={{ color: C.grayMuted }}>
             L&rsquo;invitation reste valable : le lien vous ramènera ici, et il n&rsquo;y aura plus
-            qu&rsquo;à rejoindre {preview ? `« ${preview.monumentNom} »` : 'le monument'}.
+            qu&rsquo;à rejoindre{' '}
+            {preview?.projetTitre
+              ? `le projet « ${preview.projetTitre} »`
+              : preview
+                ? `« ${preview.monumentNom} »`
+                : 'le monument'}
+            .
           </p>
         </ConfirmerEmail>
       </AuthLayout>
@@ -274,6 +281,16 @@ export function InvitationLandingPage() {
 
   const expires = new Date(preview.expiresAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
+  // Le libellé suit la portée : rejoindre « le monument » quand l'invitation ne
+  // donne qu'un chantier annoncerait plus que ce qui s'ouvre.
+  const libelleRejoindre = preview.projetId ? 'Rejoindre le projet' : 'Rejoindre le monument';
+
+  // Le serveur refuse l'acceptation depuis un autre compte que le destinataire
+  // (`invitation_destinee_a`) : le dire avant le clic plutôt qu'en toast.
+  const emailCompte = user ? user.email : mode === 'oauth' ? oauthEmail : null;
+  const autreCompte =
+    !!emailCompte && emailCompte.trim().toLowerCase() !== preview.email.trim().toLowerCase();
+
   const panelHeadline = (
     <>
       <span className="font-normal">{preview.inviterNom}</span> vous invite à collaborer sur<br />
@@ -307,8 +324,28 @@ export function InvitationLandingPage() {
         </p>
       </div>
 
-      {user ? (
-        <PrimaryButton onClick={handleJoinLoggedIn} busy={busy}>Rejoindre le monument</PrimaryButton>
+      {autreCompte ? (
+        <div className="flex flex-col gap-4">
+          <div
+            className="rounded-xl p-4 text-[16px] leading-[1.55]"
+            style={{ background: 'var(--secondary)', color: C.ink }}
+          >
+            Vous êtes connecté avec <span className="font-semibold">{emailCompte}</span>, mais cette
+            invitation a été envoyée à <span className="font-semibold">{preview.email}</span>. Seul ce
+            compte peut l&rsquo;accepter.
+          </div>
+          <SecondaryButton
+            onClick={() => {
+              if (user) logout();
+              clearOAuthSession();
+              setMode('choice');
+            }}
+          >
+            Changer de compte
+          </SecondaryButton>
+        </div>
+      ) : user ? (
+        <PrimaryButton onClick={handleJoinLoggedIn} busy={busy}>{libelleRejoindre}</PrimaryButton>
       ) : mode === 'choice' ? (
         <div className="flex flex-col gap-2.5">
           <PrimaryButton onClick={() => setMode('signup')}>Je crée mon compte</PrimaryButton>
@@ -329,7 +366,7 @@ export function InvitationLandingPage() {
                   (<span className="font-semibold">{oauthEmail}</span>)
                 </>
               ) : null}
-              . Indiquez votre rôle et vous rejoignez le monument.
+              . Indiquez votre rôle et vous rejoignez {preview.projetId ? 'le projet' : 'le monument'}.
             </span>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -347,7 +384,7 @@ export function InvitationLandingPage() {
             <Input id="inv-oauth-tel" type="tel" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} className={INPUT_CLS} />
           </FormField>
           <CguConsent checked={acceptCgu} onChange={setAcceptCgu} />
-          <PrimaryButton onClick={handleOauthSignup} busy={busy}>Rejoindre le monument</PrimaryButton>
+          <PrimaryButton onClick={handleOauthSignup} busy={busy}>{libelleRejoindre}</PrimaryButton>
         </div>
       ) : mode === 'signup' ? (
         <div className="flex flex-col gap-4">

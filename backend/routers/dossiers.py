@@ -24,6 +24,7 @@ from services.project_access import (
     my_scope_roles,
     require_projet_access,
 )
+from services.suivi_service import apply_statut_change, statut_suivi_au_depot
 
 router = APIRouter(prefix="/dossiers", tags=["dossiers"])
 
@@ -906,15 +907,53 @@ def toggle_echeance(
     supabase.table("dossiers").update({"echeances": echeances}).eq("id", dossier_id).execute()
 
 
+def _aligner_suivi(supabase: Client, dossier: dict, user_id: str, *, depose: bool) -> None:
+    """Fait suivre le suivi de l'aide au dépôt (ou à la réouverture) du dossier.
+
+    Sans ça, marquer un dossier déposé laissait son avancement à « À faire » :
+    l'étape « Suivi » du parcours (`projectStage`) se lit sur le suivi, pas sur
+    le dossier. Même historique que la route de suivi (`apply_statut_change`).
+    """
+    projet_id, aide_id = dossier.get("projet_id"), dossier.get("aide_id")
+    if not projet_id or not aide_id:
+        return
+    res = (
+        supabase.table("aide_suivis")
+        .select("*")
+        .eq("projet_id", projet_id)
+        .eq("aide_id", aide_id)
+        .execute()
+    )
+    existing = res.data[0] if res.data else None
+    cible = statut_suivi_au_depot(existing.get("statut") if existing else None, depose=depose)
+    if cible is None:
+        return
+    fields = apply_statut_change(existing, {"statut": cible, "note": (existing or {}).get("note")})
+    if existing:
+        supabase.table("aide_suivis").update(fields).eq("id", existing["id"]).execute()
+    else:
+        supabase.table("aide_suivis").insert(
+            {
+                **fields,
+                "projet_id": projet_id,
+                "monument_id": dossier["monument_id"],
+                "aide_id": aide_id,
+                "user_id": user_id,
+            }
+        ).execute()
+
+
 @router.post("/{dossier_id}/submit", status_code=status.HTTP_204_NO_CONTENT)
 def submit_dossier(
     dossier_id: str,
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
+    """Marque le dossier comme déposé auprès du financeur (geste déclaratif :
+    Monumia ne transmet rien), et fait passer le suivi de l'aide à « Déposé »."""
     from datetime import datetime
 
-    _require_dossier_write(supabase, dossier_id, user_id)
+    dossier = _require_dossier_write(supabase, dossier_id, user_id)
 
     supabase.table("dossiers").update(
         {
@@ -924,3 +963,30 @@ def submit_dossier(
             "date_soumission": datetime.now(UTC).isoformat(),
         }
     ).eq("id", dossier_id).execute()
+    _aligner_suivi(supabase, dossier, user_id, depose=True)
+
+
+@router.post("/{dossier_id}/reouverture", status_code=status.HTTP_204_NO_CONTENT)
+def rouvrir_dossier(
+    dossier_id: str,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Annule un dépôt déclaré par erreur : les pièces redeviennent modifiables.
+
+    Le dossier repart « en cours » avec sa progression recalculée sur la
+    checklist ; le suivi revient « En préparation » s'il était « Déposé ».
+    """
+    dossier = _require_dossier_write(supabase, dossier_id, user_id)
+    if dossier.get("statut") != "soumis":
+        return
+
+    supabase.table("dossiers").update(
+        {
+            "statut": "en_cours",
+            "etape_actuelle": 1,
+            "progression_pourcentage": _recalculate_progression(dossier),
+            "date_soumission": None,
+        }
+    ).eq("id", dossier_id).execute()
+    _aligner_suivi(supabase, dossier, user_id, depose=False)

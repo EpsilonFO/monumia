@@ -197,8 +197,23 @@ export const dossierService = {
     useDossierStore.getState().updateDossier(dossierId, dossier);
   },
 
+  /** Déclare le dossier déposé auprès du financeur ; le serveur fait passer
+   *  le suivi de l'aide à « Déposé » dans la foulée. */
   async submit(id: string): Promise<void> {
     const res = await authFetch(`${BASE}/dossiers/${id}/submit`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail ?? `HTTP ${res.status}`);
+    }
+    const dossier = await this.getById(id);
+    useDossierStore.getState().updateDossier(id, dossier);
+  },
+
+  /** Annule un dépôt déclaré par erreur : les pièces redeviennent modifiables. */
+  async reopen(id: string): Promise<void> {
+    const res = await authFetch(`${BASE}/dossiers/${id}/reouverture`, {
       method: 'POST',
     });
     if (!res.ok) {

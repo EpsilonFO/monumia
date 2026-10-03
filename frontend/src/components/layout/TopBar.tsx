@@ -5,7 +5,7 @@ import { SERIF } from '@/lib/brand';
 import { LogoMonumia } from '@/components/icons';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { OwnerAccountMenu } from './ownerNav';
-import { navItemsPour, type NavItem } from './nav-items';
+import { NAV_BLOG, navItemsPour, type NavItem } from './nav-items';
 import { useOffre } from '@/hooks/useOffre';
 
 /**
@@ -17,7 +17,7 @@ export function TopBar() {
   // Onglets de la barre haute = nav privée (variable selon l'offre) + le Blog
   // public (ressources).
   const offre = useOffre();
-  const topBarNavItems: NavItem[] = [...navItemsPour(offre), { to: '/blog', picto: 'livre', label: 'Blog' }];
+  const topBarNavItems: NavItem[] = [...navItemsPour(offre), NAV_BLOG];
 
   return (
     <header className="z-30 shrink-0 border-b border-border bg-[var(--card)]/70 backdrop-blur-xl">

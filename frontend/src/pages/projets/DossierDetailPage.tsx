@@ -108,6 +108,8 @@ export function DossierDetailPage() {
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [accessDoc, setAccessDoc] = useState<Document | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmDepotOpen, setConfirmDepotOpen] = useState(false);
+  const [depotEnCours, setDepotEnCours] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   // Pièces en cours de vérification guidée (null = fenêtre fermée). Le tableau
@@ -388,6 +390,24 @@ export function DossierDetailPage() {
     }
   };
 
+  // Le dépôt est déclaratif (Monumia ne transmet rien au financeur) : c'est le
+  // seul geste qui fait passer le parcours aux étapes « Dépôt » et « Suivi ».
+  // Le serveur aligne le suivi de l'aide, qu'on recharge ensuite.
+  const basculerDepot = async (depose: boolean) => {
+    if (!dossier || !projetId) return;
+    setDepotEnCours(true);
+    try {
+      await (depose ? dossierService.submit(dossier.id) : dossierService.reopen(dossier.id));
+      await suiviService.fetchByProjet(projetId).catch(() => {});
+      toast.success(depose ? 'Dossier marqué comme déposé' : 'Dépôt annulé, le dossier est de nouveau modifiable');
+      setConfirmDepotOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la mise à jour du dossier');
+    } finally {
+      setDepotEnCours(false);
+    }
+  };
+
   const handlePreview = async (documentId: string) => {
     const existing = documents.find((d) => d.id === documentId);
     if (existing) { setPreviewDoc(existing); return; }
@@ -483,6 +503,17 @@ export function DossierDetailPage() {
               <Picto nom="livre" />Voir la fiche de l'aide
             </Link>
           )}
+          {canManageDossier && dossier.statut !== 'soumis' && (
+            <button className="btn b-blue" type="button" onClick={() => setConfirmDepotOpen(true)} disabled={depotEnCours}>
+              <Picto nom="coche" />Marquer comme déposé
+            </button>
+          )}
+          {canManageDossier && dossier.statut === 'soumis' && (
+            <button className="btn b-line" type="button" onClick={() => basculerDepot(false)} disabled={depotEnCours}>
+              {depotEnCours ? <Loader2 className="h-4 w-4 animate-spin" /> : <Picto nom="refaire" />}
+              Annuler le dépôt
+            </button>
+          )}
         </div>
       </section>
 
@@ -569,6 +600,23 @@ export function DossierDetailPage() {
           </button>
         </div>
       )}
+
+      <AlertDialog open={confirmDepotOpen} onOpenChange={setConfirmDepotOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Marquer ce dossier comme déposé ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              À faire une fois le dossier envoyé au financeur : Monumia ne le transmet pas à votre place. Les pièces ne seront plus modifiables, et l'avancement de l'aide passera à « Déposé ». Vous pourrez annuler ce dépôt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={depotEnCours}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={() => basculerDepot(true)} disabled={depotEnCours}>
+              {depotEnCours ? 'Enregistrement…' : 'Marquer comme déposé'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>

@@ -24,8 +24,11 @@ const DEBOUNCE_MS = 250;
  *
  * Choisir dans la liste fournit le code INSEE, dont le backend déduit
  * département, région et population : c'est ce qui rend les aides
- * territoriales évaluables. La saisie libre reste acceptée. La recherche part de
- * la frappe, jamais de `value` : un préremplissage Mérimée n'ouvre pas la liste.
+ * territoriales évaluables. Une saisie libre n'est acceptée que si le serveur
+ * retrouve la commune par son nom exact (`resolve_code_insee`, sinon 400
+ * « Commune introuvable ») : le message de liste vide ne promet donc pas
+ * qu'on peut la garder. La recherche part de la frappe, jamais de `value` : un
+ * préremplissage Mérimée n'ouvre pas la liste.
  */
 export function ChampCommune({ id, value, reconnue, onChange, onSelect }: ChampCommuneProps) {
   const listId = `${id}-liste`;
@@ -146,7 +149,7 @@ export function ChampCommune({ id, value, reconnue, onChange, onSelect }: ChampC
             ))
           ) : (
             <li className="none">
-              Aucune commune trouvée pour « {requete} ». Vous pouvez garder votre saisie.
+              Aucune commune trouvée pour « {requete} ». Vérifiez l&rsquo;orthographe : la commune doit être choisie dans la liste.
             </li>
           )}
         </ul>

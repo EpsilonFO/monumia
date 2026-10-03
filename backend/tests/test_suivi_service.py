@@ -6,6 +6,7 @@ from services.suivi_service import (
     SuiviValidationError,
     apply_statut_change,
     compute_etat_projet,
+    statut_suivi_au_depot,
     validate_payload,
 )
 
@@ -82,6 +83,21 @@ class ComputeEtatProjetTests(unittest.TestCase):
     def test_pret_when_all_terminal(self) -> None:
         suivis = [{"statut": "accorde"}, {"statut": "refuse"}]
         self.assertEqual(compute_etat_projet(None, suivis), "pret_a_cloturer")
+
+
+class StatutAuDepotTests(unittest.TestCase):
+    def test_depot_fait_avancer_un_suivi_en_amont(self) -> None:
+        for actuel in (None, "a_faire", "en_preparation"):
+            self.assertEqual(statut_suivi_au_depot(actuel, depose=True), "depose")
+
+    def test_depot_ne_touche_ni_depose_ni_decision(self) -> None:
+        for actuel in ("depose", "accorde", "refuse"):
+            self.assertIsNone(statut_suivi_au_depot(actuel, depose=True))
+
+    def test_reouverture_ne_defait_que_le_depot(self) -> None:
+        self.assertEqual(statut_suivi_au_depot("depose", depose=False), "en_preparation")
+        for actuel in (None, "a_faire", "en_preparation", "accorde", "refuse"):
+            self.assertIsNone(statut_suivi_au_depot(actuel, depose=False))
 
 
 if __name__ == "__main__":
