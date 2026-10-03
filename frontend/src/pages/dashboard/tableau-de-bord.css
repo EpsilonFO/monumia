@@ -41,3 +41,15 @@
   .tdb .now.calme .now-in { grid-template-columns: 1fr; }
   .tdb .now-step { padding: 14px 18px; }
 }
+/* Téléphone : l'éphéméride gardait sa colonne et le texte se tassait dans
+   190 px, sur une douzaine de lignes. Elle passe en pastille au-dessus. */
+@media (max-width: 640px) {
+  .tdb .hello h1 { font-size: 31px; }
+  .tdb .hello p { font-size: 16px; }
+  .tdb .sec-h h2 { font-size: 24px; }
+  .tdb .now-in { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .tdb .cal { width: auto; height: auto; flex-direction: row; align-items: baseline; gap: 8px; justify-self: start; padding: 8px 14px; border-radius: 12px; }
+  .tdb .cal b { font-size: 24px; }
+  .tdb .cal span { margin-top: 0; }
+  .tdb .now h2 { font-size: 22px; }
+}

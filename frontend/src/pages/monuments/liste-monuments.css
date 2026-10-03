@@ -9,12 +9,20 @@
 .mlist .tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 26px; }
 .mlist .search { position: relative; flex: 1; min-width: 239px; }
 .mlist .search .i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--e-faint); width: 18px; height: 18px; }
-.mlist .search input { width: 100%; height: 48px; border: 1.5px solid var(--e-line); border-radius: var(--e-pill); background: var(--e-paper); padding: 0 18px 0 43.5px; font-size: 15.5px; color: var(--e-ink); }
+.mlist .search input { width: 100%; height: 48px; border: 1.5px solid var(--e-line); border-radius: var(--e-pill); background: var(--e-paper); padding: 0 18px 0 43.5px; font-size: 16px; color: var(--e-ink); }
 .mlist .search input:focus { border-color: var(--e-blue); outline: none; }
 .mlist .sel { position: relative; }
-.mlist .sel select { appearance: none; -webkit-appearance: none; height: 48px; border: 1.5px solid var(--e-blue); border-radius: var(--e-pill); background: var(--e-paper); padding: 0 43.5px 0 18px; font-size: 15.5px; font-weight: 600; color: var(--e-blue); }
+.mlist .sel select { appearance: none; -webkit-appearance: none; height: 48px; border: 1.5px solid var(--e-blue); border-radius: var(--e-pill); background: var(--e-paper); padding: 0 43.5px 0 18px; font-size: 16px; font-weight: 600; color: var(--e-blue); }
 .mlist .sel::after { content: ""; position: absolute; right: 18.5px; top: 50%; width: 8px; height: 8px; border-right: 2px solid var(--e-blue); border-bottom: 2px solid var(--e-blue); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
 .mlist .cmons, .mlist .vide { margin-top: 26px; }
 /* un monument par ligne, la photo en grande bannière */
 .mlist .cmons { grid-template-columns: 1fr; }
 .mlist .cmon-h.photo { min-height: 273px; }
+
+@media (max-width: 640px) {
+  .mlist .top h1 { font-size: 28px; }
+  .mlist .top p { font-size: 16px; }
+  .mlist .tools { margin-top: 18px; }
+  .mlist .cmons, .mlist .vide { margin-top: 18px; }
+  .mlist .cmon-h.photo { min-height: 150px; }
+}

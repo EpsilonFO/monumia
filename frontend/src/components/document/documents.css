@@ -75,6 +75,8 @@
 .ec .desp .fold.vide .fi { color: var(--e-blue-line); }
 .ec .desp .fold b { display: block; font-weight: 600; font-size: 15px; color: var(--e-ink); line-height: 1.25; }
 .ec .desp .fold small { font-size: 13.5px; color: var(--e-faint); }
+/* le repli des dossiers vides n'existe que sur téléphone (cf. DossiersDocuments) */
+.ec .desp .voir-vides { display: none; }
 
 /* fichiers : grille */
 .ec .desp .files { display: grid; grid-template-columns: repeat(auto-fill, minmax(199px, 1fr)); gap: 14px; margin-top: 11.5px; }
@@ -231,7 +233,7 @@
 /* « Joindre un document » : la liste de ses documents, puis un nouveau fichier */
 .ec .dmodal .jsearch { position: relative; display: block; }
 .ec .dmodal .jsearch .i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--e-faint); width: 17px; height: 17px; }
-.ec .dmodal .jsearch input { width: 100%; height: 46px; border: 1.5px solid var(--e-line); border-radius: var(--e-pill); background: var(--e-cream); padding: 0 18px 0 44px; font: inherit; font-size: 15.5px; color: var(--e-ink); }
+.ec .dmodal .jsearch input { width: 100%; height: 46px; border: 1.5px solid var(--e-line); border-radius: var(--e-pill); background: var(--e-cream); padding: 0 18px 0 44px; font: inherit; font-size: 16px; color: var(--e-ink); }
 .ec .dmodal .jsearch input:focus { border-color: var(--e-blue); outline: none; background: var(--e-paper); }
 .ec .dmodal .jscope { margin-top: 10px; }
 .ec .dmodal .jlist { margin-top: 11.5px; max-height: 264px; overflow-y: auto; border: 1.5px solid var(--e-line); border-radius: 14px; }
@@ -255,7 +257,16 @@
 }
 @media (max-width: 640px) {
   .docs-page .main { padding: 16px 14px 22px; }
-  .ec .desp .folders, .ec .desp .files { grid-template-columns: repeat(auto-fill, minmax(159.5px, 1fr)); }
+  /* la navigation tenait 200 px en pastilles éparses : une grille de deux */
+  .docs-page .side { gap: 12px; }
+  .docs-page .nouveau { min-height: 48px; }
+  .docs-page .dnav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+  .docs-page .dnav button { width: 100%; gap: 8px; padding: 9px 12px; font-size: 14.5px; line-height: 1.2; }
+  .docs-page .dnav button .i { display: none; }
+  .ec .desp .folders, .ec .desp .files { grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); }
+  .ec .desp .folders:not(.vides-ouverts) .fold.vide { display: none; }
+  .ec .desp .voir-vides { display: inline-flex; margin-top: 10px; }
+  .ec .dov { padding: 16px 12px; }
   .ec .desp .dtable th:nth-child(3), .ec .desp .dtable td:nth-child(3),
   .ec .desp .dtable th:nth-child(4), .ec .desp .dtable td:nth-child(4) { display: none; }
   .ec .dmodal { padding: 22px 18px; }

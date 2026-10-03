@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { PictoDoc, PictoDossierPlein, type NomPictoDoc } from '@/components/document/PictosDocuments';
 import { CarteDocument, LigneDocument, type DocumentAfficheProps } from '@/components/document/LigneDocument';
@@ -82,30 +82,45 @@ export function BarreSection({ titre, tri, onTri, droite }: {
  * Un dossier par type (maquette `.fold`), vide compris. On peut y glisser un
  * fichier de l'ordinateur : il s'y range (cf. useDepotGlisse, qui lit
  * `data-dossier` sous le pointeur ; `survole` le met en évidence).
+ *
+ * Sur téléphone, les dossiers vides (souvent 17 sur 20) se replient derrière un
+ * bouton : on n'y glisse rien, et ils allongeaient la page de 1 000 px. Le
+ * repli est en CSS (`.folders:not(.vides-ouverts) .fold.vide`), l'ordinateur
+ * les garde tous.
  */
 export function DossiersDocuments({ comptes, onOuvrir, survole }: {
   comptes: Partial<Record<DocumentType, number>>;
   onOuvrir: (t: DocumentType) => void;
   survole?: DocumentType | null;
 }) {
+  const [videsOuverts, setVidesOuverts] = useState(false);
+  const nbVides = TYPES_DOSSIERS.filter((t) => !comptes[t]).length;
+
   return (
-    <div className="folders" data-dossiers="">
-      {TYPES_DOSSIERS.map((t) => {
-        const n = comptes[t] ?? 0;
-        return (
-          <button
-            key={t}
-            type="button"
-            data-dossier={t}
-            className={`fold${n ? '' : ' vide'}${survole === t ? ' drop' : ''}`}
-            onClick={() => onOuvrir(t)}
-          >
-            <PictoDossierPlein />
-            <span><b>{dossierLabel(t)}</b><small>{n ? plur(n, 'document') : 'Vide'}</small></span>
-          </button>
-        );
-      })}
-    </div>
+    <>
+      <div className={videsOuverts ? 'folders vides-ouverts' : 'folders'} data-dossiers="">
+        {TYPES_DOSSIERS.map((t) => {
+          const n = comptes[t] ?? 0;
+          return (
+            <button
+              key={t}
+              type="button"
+              data-dossier={t}
+              className={`fold${n ? '' : ' vide'}${survole === t ? ' drop' : ''}`}
+              onClick={() => onOuvrir(t)}
+            >
+              <PictoDossierPlein />
+              <span><b>{dossierLabel(t)}</b><small>{n ? plur(n, 'document') : 'Vide'}</small></span>
+            </button>
+          );
+        })}
+      </div>
+      {nbVides > 0 && (
+        <button type="button" className="lnk voir-vides" aria-expanded={videsOuverts} onClick={() => setVidesOuverts((v) => !v)}>
+          {videsOuverts ? 'Masquer les dossiers vides' : `Afficher les dossiers vides (${nbVides})`}
+        </button>
+      )}
+    </>
   );
 }
 

@@ -350,3 +350,14 @@
   .skeleton-shimmer::after { animation: none; }
 }
 
+/* ─── Téléphone : ce qui flotte en bas d'écran passe au-dessus de la barre d'onglets ───
+   Le bouton Ybug (injecté par son script, d'où l'id et le `!important` contre
+   son style en ligne) recouvrait le dernier onglet sur toutes les pages. Le
+   repère `data-barre-bas` (BottomNav) limite la règle aux écrans qui ont la
+   barre : les wizards et la connexion gardent le bouton en bas. */
+@media (width < 48rem) {
+  body:has([data-barre-bas]) #__ybug-launcher {
+    bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
