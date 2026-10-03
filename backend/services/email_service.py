@@ -214,43 +214,25 @@ def _enveloppe(*, prenom: str, titre: str, chapeau: str, corps: str, reglages_ur
 </div>"""
 
 
-def render_echeances_email(*, prenom: str, blocs: list[BlocProjet], reglages_url: str) -> str:
-    """Email « des aides arrivent à échéance », groupé par chantier."""
-    corps: list[str] = []
-    total = 0
-    for bloc in blocs:
-        if not bloc.echeances:
-            continue
-        corps.append(_en_tete_bloc(bloc))
-        for e in bloc.echeances:
-            total += 1
-            montant = montant_fr(e.montant_max)
-            detail = f"Date limite : {date_fr(e.date_limite)}"
-            if montant:
-                detail += f" · jusqu'à {montant}"
-            corps.append(
-                _ligne_aide(
-                    nom=e.aide_nom,
-                    url=aide_url(bloc.projet_url, e.aide_id),
-                    accroche=f"Dépôt à boucler {jours_fr(e.jours_restants)}",
-                    detail=detail,
-                    # Rouge à une semaine ou moins, orange au-delà : la couleur
-                    # doit dire l'urgence avant qu'on ait lu la date.
-                    accent="#c0392b" if e.jours_restants <= 7 else "#f17105",
-                )
+def _lignes_echeances(bloc: BlocProjet) -> list[str]:
+    lignes = []
+    for e in bloc.echeances:
+        montant = montant_fr(e.montant_max)
+        detail = f"Date limite : {date_fr(e.date_limite)}"
+        if montant:
+            detail += f" · jusqu'à {montant}"
+        lignes.append(
+            _ligne_aide(
+                nom=e.aide_nom,
+                url=aide_url(bloc.projet_url, e.aide_id),
+                accroche=f"Dépôt à boucler {jours_fr(e.jours_restants)}",
+                detail=detail,
+                # Rouge à une semaine ou moins, orange au-delà : la couleur
+                # doit dire l'urgence avant qu'on ait lu la date.
+                accent="#c0392b" if e.jours_restants <= 7 else "#f17105",
             )
-    titre = (
-        "Une aide de vos projets approche de sa date limite"
-        if total == 1
-        else f"{total} aides de vos projets approchent de leur date limite"
-    )
-    return _enveloppe(
-        prenom=prenom,
-        titre=titre,
-        chapeau="Le dépôt reste possible, mais la fenêtre se referme.",
-        corps="\n".join(corps),
-        reglages_url=reglages_url,
-    )
+        )
+    return lignes
 
 
 def _accroche_ouverture(o: RappelOuverture) -> str:
@@ -260,71 +242,106 @@ def _accroche_ouverture(o: RappelOuverture) -> str:
     return f"Dépôt ouvert depuis le {date_fr(o.disponible_depuis)}, « {statut} » pour ce projet"
 
 
-def titre_ouvertures(ouvertures: list[RappelOuverture]) -> tuple[str, str]:
-    """(titre, chapeau) de l'email, selon ce qu'il annonce.
+def _lignes_ouvertures(bloc: BlocProjet) -> list[str]:
+    lignes = []
+    for o in bloc.ouvertures:
+        montant = montant_fr(o.montant_max)
+        detail = (
+            f"À déposer avant le {date_fr(o.date_limite)}"
+            if o.date_limite
+            else "Dépôt ouvert, sans date limite annoncée"
+        )
+        if montant:
+            detail += f" · jusqu'à {montant}"
+        lignes.append(
+            _ligne_aide(
+                nom=o.aide_nom,
+                url=aide_url(bloc.projet_url, o.aide_id),
+                accroche=_accroche_ouverture(o),
+                detail=detail,
+                accent="#0a369d",
+            )
+        )
+    return lignes
 
-    Une aide nouvelle et une aide qui rouvre ne se disent pas pareil : la
+
+def _titre_ouvertures(ouvertures: list[RappelOuverture]) -> tuple[str, str]:
+    """Une aide nouvelle et une aide qui rouvre ne se disent pas pareil : la
     première, l'utilisateur ne l'a jamais vue ; la seconde, il l'a peut-être
-    croisée dans « Disponibles bientôt ». Exposé pour servir aussi d'objet.
-    """
+    croisée dans « Disponibles bientôt »."""
     total = len(ouvertures)
     nouvelles = sum(1 for o in ouvertures if o.nature == "nouvelle")
     if nouvelles == total:
-        titre = (
-            "Une nouvelle aide pour vos projets"
-            if total == 1
-            else f"{total} nouvelles aides pour vos projets"
+        if total == 1:
+            return (
+                "Une nouvelle aide pour vos projets",
+                "Elle vient d'entrer au catalogue Monumia, et votre projet y répond d'après ce que vous avez déjà renseigné.",
+            )
+        return (
+            f"{total} nouvelles aides pour vos projets",
+            "Elles viennent d'entrer au catalogue Monumia, et vos projets y répondent d'après ce que vous avez déjà renseigné.",
         )
-        chapeau = (
-            "Elle vient d'entrer au catalogue Monumia, et votre projet y répond d'après ce que vous avez déjà renseigné."
-            if total == 1
-            else "Elles viennent d'entrer au catalogue Monumia, et vos projets y répondent d'après ce que vous avez déjà renseigné."
+    if nouvelles == 0:
+        if total == 1:
+            return (
+                "Le dépôt vient d'ouvrir pour une aide de vos projets",
+                "Elle attendait dans « Disponibles bientôt » : le dossier peut maintenant être déposé.",
+            )
+        return (
+            f"Le dépôt vient d'ouvrir pour {total} aides de vos projets",
+            "Elles attendaient dans « Disponibles bientôt » : les dossiers peuvent maintenant être déposés.",
         )
-    elif nouvelles == 0:
-        titre = (
-            "Le dépôt vient d'ouvrir pour une aide de vos projets"
-            if total == 1
-            else f"Le dépôt vient d'ouvrir pour {total} aides de vos projets"
-        )
-        chapeau = (
-            "Elle attendait dans « Disponibles bientôt » : le dossier peut maintenant être déposé."
-            if total == 1
-            else "Elles attendaient dans « Disponibles bientôt » : les dossiers peuvent maintenant être déposés."
-        )
-    else:
-        titre = f"{total} aides deviennent disponibles pour vos projets"
-        chapeau = "Nouvelles au catalogue ou guichets qui rouvrent : les dossiers peuvent maintenant être déposés."
-    return titre, chapeau
+    return (
+        f"{total} aides deviennent disponibles pour vos projets",
+        "Nouvelles au catalogue ou guichets qui rouvrent : les dossiers peuvent maintenant être déposés.",
+    )
 
 
-def render_ouvertures_email(*, prenom: str, blocs: list[BlocProjet], reglages_url: str) -> str:
-    """Email « une aide devient disponible » (nouvelle ou réouverture), par chantier."""
+def _titre_echeances(total: int) -> tuple[str, str]:
+    titre = (
+        "Une aide de vos projets approche de sa date limite"
+        if total == 1
+        else f"{total} aides de vos projets approchent de leur date limite"
+    )
+    return titre, "Le dépôt reste possible, mais la fenêtre se referme."
+
+
+def titre_rappels(blocs: list[BlocProjet]) -> tuple[str, str]:
+    """(titre, chapeau) de l'email, qui sert aussi d'objet.
+
+    L'email est UNIQUE par compte et par passage : il dit ce qu'il contient,
+    échéances, aides devenues disponibles, ou les deux.
+    """
+    ouvertures = [o for b in blocs for o in b.ouvertures]
+    n_e = sum(len(b.echeances) for b in blocs)
+    if not ouvertures:
+        return _titre_echeances(n_e)
+    if not n_e:
+        return _titre_ouvertures(ouvertures)
+    n_o = len(ouvertures)
+    dispo = "Une aide devient disponible" if n_o == 1 else f"{n_o} aides deviennent disponibles"
+    echeance = (
+        "une aide approche de sa date limite"
+        if n_e == 1
+        else f"{n_e} aides approchent de leur date limite"
+    )
+    return "Du nouveau sur les aides de vos projets", f"{dispo}, et {echeance}."
+
+
+def render_rappels_email(*, prenom: str, blocs: list[BlocProjet], reglages_url: str) -> str:
+    """L'email de rappel d'un compte, groupé par chantier.
+
+    Dans chaque chantier, les aides qui deviennent disponibles d'abord (c'est
+    la nouvelle), puis les échéances.
+    """
     corps: list[str] = []
-    toutes: list[RappelOuverture] = []
     for bloc in blocs:
-        if not bloc.ouvertures:
+        if not bloc.echeances and not bloc.ouvertures:
             continue
         corps.append(_en_tete_bloc(bloc))
-        for o in bloc.ouvertures:
-            toutes.append(o)
-            montant = montant_fr(o.montant_max)
-            detail = (
-                f"À déposer avant le {date_fr(o.date_limite)}"
-                if o.date_limite
-                else "Dépôt ouvert, sans date limite annoncée"
-            )
-            if montant:
-                detail += f" · jusqu'à {montant}"
-            corps.append(
-                _ligne_aide(
-                    nom=o.aide_nom,
-                    url=aide_url(bloc.projet_url, o.aide_id),
-                    accroche=_accroche_ouverture(o),
-                    detail=detail,
-                    accent="#0a369d",
-                )
-            )
-    titre, chapeau = titre_ouvertures(toutes)
+        corps += _lignes_ouvertures(bloc)
+        corps += _lignes_echeances(bloc)
+    titre, chapeau = titre_rappels(blocs)
     return _enveloppe(
         prenom=prenom,
         titre=titre,

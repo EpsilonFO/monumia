@@ -8,8 +8,8 @@ from services.email_service import (
     date_fr,
     jours_fr,
     montant_fr,
-    render_echeances_email,
-    render_ouvertures_email,
+    render_rappels_email,
+    titre_rappels,
 )
 from services.rappels_service import (
     PALIERS_DEFAUT,
@@ -296,7 +296,7 @@ class RenderTests(unittest.TestCase):
         )
 
     def test_echeances_nomme_le_chantier_laide_et_la_date(self) -> None:
-        html = render_echeances_email(
+        html = render_rappels_email(
             prenom="Marie",
             blocs=[self._bloc_echeances()],
             reglages_url="https://app.monumia.fr/app/profil",
@@ -309,7 +309,7 @@ class RenderTests(unittest.TestCase):
         self.assertIn("https://app.monumia.fr/app/projets/p1/aides/aide-test", html)
 
     def test_ouvertures_annonce_le_seau_darrivee(self) -> None:
-        html = render_ouvertures_email(
+        html = render_rappels_email(
             prenom="",
             blocs=[self._bloc_ouvertures()],
             reglages_url="https://app.monumia.fr/app/profil",
@@ -322,7 +322,7 @@ class RenderTests(unittest.TestCase):
         self.assertIn("https://app.monumia.fr/app/projets/p1/aides/aide-test", html)
 
     def test_nouvelle_aide_se_dit_nouvelle(self) -> None:
-        html = render_ouvertures_email(
+        html = render_rappels_email(
             prenom="Marie",
             blocs=[self._bloc_ouvertures(nature="nouvelle")],
             reglages_url="https://app.monumia.fr/app/profil",
@@ -338,20 +338,59 @@ class RenderTests(unittest.TestCase):
             projet_url="https://app.monumia.fr/app/projets/p1",
             ouvertures=self._bloc_ouvertures().ouvertures,
         )
-        html = render_ouvertures_email(
+        html = render_rappels_email(
             prenom="Marie", blocs=[bloc], reglages_url="https://app.monumia.fr/app/profil"
         )
         self.assertNotIn("<script>", html)
         self.assertIn("Tour &amp; Remparts", html)
 
+    def test_plusieurs_nouvelles_aides_dans_un_seul_email(self) -> None:
+        diag = _diagnostic(
+            eligibles=[_match(aide_id="a", nom="Aide A"), _match(aide_id="b", nom="Aide B")]
+        )
+        dispos = {**_dispo("a", nature="nouvelle"), **_dispo("b", nature="nouvelle")}
+        bloc = BlocProjet(
+            projet_titre="Toiture",
+            monument_nom="Église",
+            projet_url="https://app.monumia.fr/app/projets/p1",
+            ouvertures=tuple(disponibles_pour_le_projet(diag, dispos)),
+        )
+        html = render_rappels_email(
+            prenom="Marie", blocs=[bloc], reglages_url="https://app.monumia.fr/app/profil"
+        )
+        self.assertIn("2 nouvelles aides pour vos projets", html)
+        self.assertIn("https://app.monumia.fr/app/projets/p1/aides/a", html)
+        self.assertIn("https://app.monumia.fr/app/projets/p1/aides/b", html)
+
+    def test_echeances_et_disponibles_dans_le_meme_email(self) -> None:
+        mixte = BlocProjet(
+            projet_titre="Réfection de la toiture",
+            monument_nom="Église Saint-Pierre",
+            projet_url="https://app.monumia.fr/app/projets/p1",
+            echeances=self._bloc_echeances().echeances,
+            ouvertures=self._bloc_ouvertures(nature="nouvelle").ouvertures,
+        )
+        titre, chapeau = titre_rappels([mixte])
+        self.assertEqual(titre, "Du nouveau sur les aides de vos projets")
+        self.assertEqual(
+            chapeau, "Une aide devient disponible, et une aide approche de sa date limite."
+        )
+        html = render_rappels_email(
+            prenom="Marie", blocs=[mixte], reglages_url="https://app.monumia.fr/app/profil"
+        )
+        self.assertIn("DRAC Toiture", html)
+        self.assertIn("Fondation du Patrimoine", html)
+        # Une seule en-tête de chantier : le projet n'est pas répété.
+        self.assertEqual(html.count("Réfection de la toiture"), 1)
+
     def test_lien_de_reglage_present_dans_les_deux(self) -> None:
         for html in (
-            render_echeances_email(
+            render_rappels_email(
                 prenom="Marie",
                 blocs=[self._bloc_echeances()],
                 reglages_url="https://app.monumia.fr/app/profil",
             ),
-            render_ouvertures_email(
+            render_rappels_email(
                 prenom="Marie",
                 blocs=[self._bloc_ouvertures()],
                 reglages_url="https://app.monumia.fr/app/profil",

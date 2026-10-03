@@ -200,8 +200,11 @@ par défaut), aides qui rouvrent (date d'ouverture atteinte, ou nouvelle session
 posée par la veille) et aides nouvelles au catalogue. Les deux dernières se
 détectent en comparant le catalogue du jour à l'instantané de la veille
 (table `aides_veille_etat`) : le tout premier passage le remplit sans rien
-envoyer. Chaque email nomme le monument et le projet, et chaque aide renvoie à
-sa fiche dans le projet (`/app/projets/<id>/aides/<slug>`). Le cron s'installe
+envoyer. Un compte reçoit au plus UN email par passage, qui regroupe tout ce
+qu'il y a à annoncer sur tous ses projets, et chaque rappel ne part qu'une
+fois (journal `aide_rappels_envoyes`). L'email nomme le monument et le projet,
+et chaque aide renvoie à sa fiche dans le projet
+(`/app/projets/<id>/aides/<slug>`). Le cron s'installe
 dans la crontab de root, comme la sauvegarde :
 
 ```

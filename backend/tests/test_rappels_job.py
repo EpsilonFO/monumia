@@ -83,47 +83,47 @@ class CollecterTests(unittest.TestCase):
     def test_les_deux_familles_par_defaut(self) -> None:
         # Préférences vides = tout activé : un compte créé avant la migration
         # ne doit pas se retrouver privé de rappels.
-        blocs_e, blocs_o, cles = self._collecter()
-        self.assertEqual(len(blocs_e), 1)
-        self.assertEqual(len(blocs_o), 1)
+        (bloc,), cles = self._collecter()
+        self.assertEqual(len(bloc.echeances), 1)
+        self.assertEqual(len(bloc.ouvertures), 1)
         self.assertEqual(len(cles), 2)
-        self.assertEqual(blocs_e[0].projet_url, f"{APP_URL}/app/projets/p1")
-        self.assertEqual(blocs_e[0].monument_nom, "Église Saint-Pierre")
-        self.assertEqual(blocs_o[0].projet_id, "p1")
+        self.assertEqual(bloc.projet_url, f"{APP_URL}/app/projets/p1")
+        self.assertEqual(bloc.monument_nom, "Église Saint-Pierre")
+        self.assertEqual(bloc.projet_id, "p1")
 
     def test_rien_de_disponible_ce_matin(self) -> None:
-        blocs_e, blocs_o, _ = self._collecter(dispos={})
-        self.assertEqual(len(blocs_e), 1)
-        self.assertEqual(blocs_o, [])
+        (bloc,), _ = self._collecter(dispos={})
+        self.assertEqual(len(bloc.echeances), 1)
+        self.assertEqual(bloc.ouvertures, ())
 
     def test_nouvelle_aide_journalisee_comme_nouvelle(self) -> None:
-        _, blocs_o, cles = self._collecter(
+        (bloc,), cles = self._collecter(
             dispos={"drac-toiture": Disponibilite("drac-toiture", "nouvelle", TODAY)}
         )
-        self.assertEqual(blocs_o[0].ouvertures[0].nature, "nouvelle")
+        self.assertEqual(bloc.ouvertures[0].nature, "nouvelle")
         self.assertIn(("p1", "drac-toiture", "nouvelle", None, "2026-09-01"), cles)
 
     def test_echeances_coupees(self) -> None:
-        blocs_e, blocs_o, cles = self._collecter(rappelsEcheances=False)
-        self.assertEqual(blocs_e, [])
-        self.assertEqual(len(blocs_o), 1)
+        (bloc,), cles = self._collecter(rappelsEcheances=False)
+        self.assertEqual(bloc.echeances, ())
+        self.assertEqual(len(bloc.ouvertures), 1)
         self.assertEqual([c[2] for c in cles], ["ouverture"])
 
     def test_ouvertures_coupees(self) -> None:
-        blocs_e, blocs_o, _ = self._collecter(rappelsOuvertures=False)
-        self.assertEqual(len(blocs_e), 1)
-        self.assertEqual(blocs_o, [])
+        (bloc,), _ = self._collecter(rappelsOuvertures=False)
+        self.assertEqual(len(bloc.echeances), 1)
+        self.assertEqual(bloc.ouvertures, ())
 
     def test_tout_coupe_ne_lance_aucun_diagnostic(self) -> None:
         with patch.object(rappels_aides, "projets_de") as projets:
             resultat = self._collecter(rappelsEcheances=False, rappelsOuvertures=False)
-        self.assertEqual(resultat, ([], [], []))
+        self.assertEqual(resultat, ([], []))
         projets.assert_not_called()
 
     def test_paliers_personnalises(self) -> None:
-        # L'aide est à 30 jours : avec un seul palier à 7 jours, rien ne part.
-        blocs_e, _, _ = self._collecter(rappelDelaisJours=[7])
-        self.assertEqual(blocs_e, [])
+        # L'aide est à 30 jours : avec un seul palier à 7 jours, pas d'échéance.
+        (bloc,), _ = self._collecter(rappelDelaisJours=[7])
+        self.assertEqual(bloc.echeances, ())
 
     def test_offre_gratuite_ne_recoit_rien(self) -> None:
         # Les rappels sont vendus avec Veille et Multi-monuments. Sur l'offre
@@ -131,28 +131,55 @@ class CollecterTests(unittest.TestCase):
         # diagnostic n'est rejoué pour un compte qui ne recevra rien.
         self.droit = False
         with patch.object(rappels_aides, "projets_de") as projets:
-            self.assertEqual(self._collecter(), ([], [], []))
+            self.assertEqual(self._collecter(), ([], []))
         projets.assert_not_called()
 
     def test_loffre_ne_dispense_pas_des_preferences(self) -> None:
         # Avoir droit au service ne force pas l'envoi : le compte qui a tout
         # coupé reste silencieux, offre ou pas.
         self.droit = True
-        self.assertEqual(
-            self._collecter(rappelsEcheances=False, rappelsOuvertures=False), ([], [], [])
-        )
+        self.assertEqual(self._collecter(rappelsEcheances=False, rappelsOuvertures=False), ([], []))
 
     def test_rappel_deja_envoye_ne_repart_pas(self) -> None:
         self.deja = {
             ("p1", "drac-toiture", "echeance", 30, "2026-10-01"),
             ("p1", "drac-toiture", "ouverture", None, "2026-09-01"),
         }
-        self.assertEqual(self._collecter(), ([], [], []))
+        self.assertEqual(self._collecter(), ([], []))
 
     def test_les_cles_journalisees_decrivent_ce_qui_est_parti(self) -> None:
-        _, _, cles = self._collecter()
+        _, cles = self._collecter()
         self.assertIn(("p1", "drac-toiture", "echeance", 30, "2026-10-01"), cles)
         self.assertIn(("p1", "drac-toiture", "ouverture", None, "2026-09-01"), cles)
+
+    def test_un_seul_envoi_puis_plus_rien_les_jours_suivants(self) -> None:
+        # J-30 : le rappel part. Puis le job tourne chaque matin jusqu'à
+        # l'échéance : à J-29, J-28… l'aide relève toujours du palier 30 et de
+        # la même date limite, donc de la même clé, déjà journalisée. Même
+        # chose pour l'annonce d'ouverture, rejouable 7 jours.
+        _, cles = self._collecter()
+        self.deja = set(cles)
+        for decalage in range(1, 31):
+            jour = date.fromordinal(TODAY.toordinal() + decalage)
+            user = {"id": "u1", "email": "m@example.fr", "notification_preferences": {}}
+            self.assertEqual(
+                rappels_aides.collecter(None, user, jour, APP_URL, DISPOS),
+                ([], []),
+                f"un rappel repart le {jour}",
+            )
+
+    def test_un_nouveau_palier_repart_une_fois(self) -> None:
+        # Avec 30 ET 7 jours : le rappel de J-30 ne bloque pas celui de J-7,
+        # qui a sa propre clé.
+        self.deja = {("p1", "drac-toiture", "echeance", 30, "2026-10-01")}
+        user = {
+            "id": "u1",
+            "email": "m@example.fr",
+            "notification_preferences": {"rappelDelaisJours": [30, 7]},
+        }
+        (bloc,), cles = rappels_aides.collecter(None, user, date(2026, 9, 24), APP_URL, {})
+        self.assertEqual([e.palier_jours for e in bloc.echeances], [7])
+        self.assertEqual(cles, [("p1", "drac-toiture", "echeance", 7, "2026-10-01")])
 
 
 class TraiterTests(unittest.TestCase):
@@ -172,7 +199,7 @@ class TraiterTests(unittest.TestCase):
             patch.object(
                 rappels_aides,
                 "collecter",
-                return_value=([bloc], [], [("p1", "drac-toiture", "echeance", 30, "2026-10-01")]),
+                return_value=([bloc], [("p1", "drac-toiture", "echeance", 30, "2026-10-01")]),
             ),
             patch.object(rappels_aides, "send_rappel_email"),
             patch.object(rappels_aides, "journaliser"),
@@ -196,6 +223,37 @@ class TraiterTests(unittest.TestCase):
         self.mocks["send_rappel_email"].assert_called_once()
         self.mocks["notifier_in_app"].assert_called_once()
         self.mocks["journaliser"].assert_called_once()
+
+    def test_un_seul_email_pour_tout_le_compte(self) -> None:
+        # Deux chantiers, des échéances et des aides devenues disponibles :
+        # tout part dans UN email, dont l'objet dit les deux.
+        echeances = rappels_aides.echeances_a_rappeler(DIAGNOSTIC, TODAY, (30,))
+        ouvertures = rappels_aides.disponibles_pour_le_projet(DIAGNOSTIC, DISPOS)
+        blocs = [
+            rappels_aides.BlocProjet(
+                projet_titre="Toiture",
+                monument_nom="Église",
+                projet_url=f"{APP_URL}/app/projets/p1",
+                echeances=tuple(echeances),
+                ouvertures=tuple(ouvertures),
+            ),
+            rappels_aides.BlocProjet(
+                projet_titre="Clocher",
+                monument_nom="Église",
+                projet_url=f"{APP_URL}/app/projets/p2",
+                ouvertures=tuple(ouvertures),
+            ),
+        ]
+        self.mocks["collecter"].return_value = (blocs, [])
+        n_e, n_o = rappels_aides.traiter(
+            None, self.user, TODAY, APP_URL, dry_run=False, disponibilites={}
+        )
+        self.assertEqual((n_e, n_o), (1, 2))
+        self.mocks["send_rappel_email"].assert_called_once()
+        envoi = self.mocks["send_rappel_email"].call_args.kwargs
+        self.assertEqual(envoi["subject"], "Du nouveau sur les aides de vos projets")
+        self.assertIn("Toiture", envoi["html"])
+        self.assertIn("Clocher", envoi["html"])
 
     def test_un_echec_denvoi_laisse_le_rappel_repartir_demain(self) -> None:
         self.mocks["send_rappel_email"].side_effect = RuntimeError("Resend HS")
@@ -322,8 +380,8 @@ class AnnonceNouvelleAideTests(unittest.TestCase):
     def _annoncees(self) -> list[str]:
         user = {"id": "u1", "email": "a@example.fr", "notification_preferences": {}}
         dispos = {SLUG_YONNE: Disponibilite(SLUG_YONNE, "nouvelle", TODAY)}
-        _, blocs_o, _ = rappels_aides.collecter(None, user, TODAY, APP_URL, dispos)
-        return [o.aide_id for b in blocs_o for o in b.ouvertures]
+        blocs, _ = rappels_aides.collecter(None, user, TODAY, APP_URL, dispos)
+        return [o.aide_id for b in blocs for o in b.ouvertures]
 
     def test_prive_dans_lyonne_sans_reponse(self) -> None:
         self.assertEqual(self._annoncees(), [SLUG_YONNE])

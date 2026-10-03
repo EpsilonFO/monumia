@@ -67,7 +67,6 @@ import argparse
 import logging
 import os
 import sys
-from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -88,10 +87,9 @@ from services import catalogue_admin
 from services import stripe_billing as billing
 from services.email_service import (
     BlocProjet,
-    render_echeances_email,
-    render_ouvertures_email,
+    render_rappels_email,
     send_rappel_email,
-    titre_ouvertures,
+    titre_rappels,
 )
 from services.rappels_service import (
     LIBELLE_STATUT,
@@ -383,33 +381,32 @@ def collecter(
     today: date,
     app_url: str,
     disponibilites: dict[str, Disponibilite],
-) -> tuple[list[BlocProjet], list[BlocProjet], list[tuple]]:
+) -> tuple[list[BlocProjet], list[tuple]]:
     """Ce qu'il y a à annoncer à cet utilisateur, et les clés à journaliser.
 
-    Retourne (blocs d'échéances, blocs d'ouvertures, clés de dédoublonnage).
-    Les deux listes de blocs sont indépendantes : un utilisateur peut n'avoir
-    activé que l'une des deux familles de rappel.
+    Retourne (un bloc par chantier qui a quelque chose à annoncer, clés de
+    dédoublonnage). Un bloc porte ses échéances ET ses aides devenues
+    disponibles : tout part dans le même email.
     """
     user_id = user["id"]
     prefs = user.get("notification_preferences") or {}
     veut_echeances = prefs.get("rappelsEcheances", True)
     veut_ouvertures = prefs.get("rappelsOuvertures", True)
     if not veut_echeances and not veut_ouvertures:
-        return [], [], []
+        return [], []
     # L'offre décide du droit au service, les préférences du souhait : un compte
     # gratuit sort ici, sans qu'on rejoue un seul de ses diagnostics.
     if not compte_a_droit_aux_rappels(supabase, user_id):
-        return [], [], []
+        return [], []
 
     paliers = normaliser_paliers(prefs.get("rappelDelaisJours"))
     cibles = projets_a_rappeler(supabase, user_id)
     if not cibles:
-        return [], [], []
+        return [], []
 
     deja = rappels_deja_envoyes(supabase, user_id)
 
-    blocs_echeances: list[BlocProjet] = []
-    blocs_ouvertures: list[BlocProjet] = []
+    blocs: list[BlocProjet] = []
     nouvelles_cles: list[tuple] = []
 
     for projet, monument, population in cibles:
@@ -436,20 +433,20 @@ def collecter(
         if not echeances and not ouvertures:
             continue
 
-        bloc = BlocProjet(
-            projet_titre=projet.get("titre") or "",
-            monument_nom=monument.get("nom") or "Monument",
-            projet_url=f"{app_url}/app/projets/{projet['id']}",
-            projet_id=projet["id"],
+        blocs.append(
+            BlocProjet(
+                projet_titre=projet.get("titre") or "",
+                monument_nom=monument.get("nom") or "Monument",
+                projet_url=f"{app_url}/app/projets/{projet['id']}",
+                projet_id=projet["id"],
+                echeances=tuple(echeances),
+                ouvertures=tuple(ouvertures),
+            )
         )
-        if echeances:
-            blocs_echeances.append(replace(bloc, echeances=tuple(echeances)))
-            nouvelles_cles += [_cle_echeance(projet["id"], e) for e in echeances]
-        if ouvertures:
-            blocs_ouvertures.append(replace(bloc, ouvertures=tuple(ouvertures)))
-            nouvelles_cles += [_cle_ouverture(projet["id"], o) for o in ouvertures]
+        nouvelles_cles += [_cle_echeance(projet["id"], e) for e in echeances]
+        nouvelles_cles += [_cle_ouverture(projet["id"], o) for o in ouvertures]
 
-    return blocs_echeances, blocs_ouvertures, nouvelles_cles
+    return blocs, nouvelles_cles
 
 
 def journaliser(supabase: Client, user_id: str, cles: list[tuple]) -> None:
@@ -475,17 +472,17 @@ def journaliser(supabase: Client, user_id: str, cles: list[tuple]) -> None:
     ).execute()
 
 
-def notifier_in_app(supabase: Client, user_id: str, blocs: list[BlocProjet], kind: str) -> None:
+def notifier_in_app(supabase: Client, user_id: str, blocs: list[BlocProjet]) -> None:
     """Une notification in-app par aide annoncée, en écho de l'email.
 
     Le projet part dans `lien_vers`, pour que la cloche ouvre l'aide DANS ce
     chantier, comme le lien de l'email.
     """
-    type_notif, categorie = NOTIF_ECHEANCE if kind == "echeance" else NOTIF_OUVERTURE
     rows = []
     for bloc in blocs:
         projet_id = bloc.projet_id
         for e in bloc.echeances:
+            type_notif, categorie = NOTIF_ECHEANCE
             rows.append(
                 {
                     "user_id": user_id,
@@ -503,6 +500,7 @@ def notifier_in_app(supabase: Client, user_id: str, blocs: list[BlocProjet], kin
                 if o.nature == "nouvelle"
                 else f"{o.aide_nom} : le dépôt est ouvert"
             )
+            type_notif, categorie = NOTIF_OUVERTURE
             rows.append(
                 {
                     "user_id": user_id,
@@ -561,10 +559,14 @@ def traiter(
     disponibilites: dict[str, Disponibilite],
     apercu: Path | None = None,
 ) -> tuple[int, int]:
-    """Traite un utilisateur. Retourne (aides en échéance, aides disponibles)."""
-    blocs_e, blocs_o, cles = collecter(supabase, user, today, app_url, disponibilites)
-    n_e = sum(len(b.echeances) for b in blocs_e)
-    n_o = sum(len(b.ouvertures) for b in blocs_o)
+    """Traite un utilisateur. Retourne (aides en échéance, aides disponibles).
+
+    UN email au plus par compte et par passage : échéances et aides devenues
+    disponibles, sur tous ses chantiers, partent ensemble.
+    """
+    blocs, cles = collecter(supabase, user, today, app_url, disponibilites)
+    n_e = sum(len(b.echeances) for b in blocs)
+    n_o = sum(len(b.ouvertures) for b in blocs)
     if not n_e and not n_o:
         return 0, 0
 
@@ -574,24 +576,11 @@ def traiter(
 
     log.info("%s : %d échéance(s), %d aide(s) disponible(s)", email or user["id"], n_e, n_o)
     if dry_run or apercu:
-        _detailler(blocs_e + blocs_o)
+        _detailler(blocs)
 
-    html_e = (
-        render_echeances_email(prenom=prenom, blocs=blocs_e, reglages_url=reglages_url)
-        if n_e
-        else None
-    )
-    html_o = (
-        render_ouvertures_email(prenom=prenom, blocs=blocs_o, reglages_url=reglages_url)
-        if n_o
-        else None
-    )
-
+    html = render_rappels_email(prenom=prenom, blocs=blocs, reglages_url=reglages_url)
     if apercu:
-        if html_e:
-            _ecrire_apercu(apercu, user, today, "echeances", html_e)
-        if html_o:
-            _ecrire_apercu(apercu, user, today, "ouvertures", html_o)
+        _ecrire_apercu(apercu, user, today, "rappels", html)
 
     if dry_run:
         return n_e, n_o
@@ -599,21 +588,13 @@ def traiter(
         log.warning("Compte %s sans email : rien envoyé.", user["id"])
         return 0, 0
 
-    # Deux emails distincts quand les deux s'appliquent : un rappel d'échéance
-    # et une aide qui devient disponible n'appellent pas la même action, et
-    # chacun se règle séparément dans les préférences.
-    #
-    # Chaque famille est journalisée APRÈS son envoi : si l'envoi échoue, le
-    # rappel repart demain, sans faire repartir l'autre email déjà parti.
-    if html_e:
-        send_rappel_email(to_email=email, subject="Vos aides arrivent à échéance", html=html_e)
-        notifier_in_app(supabase, user["id"], blocs_e, "echeance")
-        journaliser(supabase, user["id"], [c for c in cles if c[2] == "echeance"])
-    if html_o:
-        sujet, _ = titre_ouvertures([o for b in blocs_o for o in b.ouvertures])
-        send_rappel_email(to_email=email, subject=sujet, html=html_o)
-        notifier_in_app(supabase, user["id"], blocs_o, "ouverture")
-        journaliser(supabase, user["id"], [c for c in cles if c[2] != "echeance"])
+    sujet, _ = titre_rappels(blocs)
+    send_rappel_email(to_email=email, subject=sujet, html=html)
+    notifier_in_app(supabase, user["id"], blocs)
+    # Journalisé APRÈS l'envoi : si l'envoi échoue, le rappel repart demain.
+    # Une fois journalisé, il ne repart plus jamais : le lendemain, l'échéance
+    # relève du même palier et de la même date limite, donc de la même clé.
+    journaliser(supabase, user["id"], cles)
     return n_e, n_o
 
 
