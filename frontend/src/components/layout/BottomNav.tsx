@@ -12,12 +12,20 @@ import { useOffre } from '@/hooks/useOffre';
  *
  * Mêmes onglets que la barre haute, Blog compris. La grille suit leur nombre
  * plutôt qu'un nombre de colonnes figé.
+ *
+ * Libellés courts (`court`) : à quatre onglets sur un iPhone, « Tableau de
+ * bord » et « Mes monuments » se chevauchaient. Le libellé complet reste le nom
+ * accessible du lien.
+ *
+ * `data-barre-bas` : repère lu par index.css pour remonter le bouton Ybug et
+ * les toasts au-dessus de la barre.
  */
 export function BottomNav() {
   const items = [...navItemsPour(useOffre()), NAV_BLOG];
 
   return (
     <nav
+      data-barre-bas=""
       className="shrink-0 bg-[var(--card)]/95 backdrop-blur-xl md:hidden"
       style={{
         borderTop: '1px solid var(--color-border)',
@@ -34,9 +42,11 @@ export function BottomNav() {
               key={item.to}
               to={item.to}
               end={item.end}
+              aria-label={item.label}
               className={({ isActive }) =>
                 cn(
-                  'flex flex-col items-center gap-1 pb-2 pt-2 text-[13px] font-medium transition-colors',
+                  // 12 px sous 340 px de large (iPhone SE) : « Monuments » y était tronqué.
+                  'flex min-w-0 flex-col items-center gap-1 pb-2 pt-2 text-[13px] font-medium transition-colors max-[340px]:text-[12px]',
                   isActive ? 'text-[color:var(--primary)]' : 'text-[color:var(--gray-muted)]',
                 )
               }
@@ -49,7 +59,7 @@ export function BottomNav() {
                   >
                     <Picto nom={item.picto} className="h-[25px] w-[25px] shrink-0" />
                   </span>
-                  {item.label}
+                  <span className="max-w-full truncate px-1">{item.court ?? item.label}</span>
                 </>
               )}
             </NavLink>

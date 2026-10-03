@@ -19,7 +19,7 @@ export function BlogLayout() {
 
   return (
     <div
-      className="flex h-screen flex-col overflow-hidden bg-app-bg"
+      className="flex h-dvh flex-col overflow-hidden bg-app-bg"
       style={{ color: C.ink }}
     >
       <TopBar />

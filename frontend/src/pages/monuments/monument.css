@@ -60,6 +60,17 @@
   .pmon .proj-foot .act { margin-left: 0; width: 100%; }
   .pmon .proj-foot .act .btn { flex: 1; }
 }
+/* Téléphone : sans photo, l'invitation à en ajouter occupait 190 px avant même
+   le nom du monument. Elle se replie en une ligne. */
+@media (max-width: 640px) {
+  .pmon .head { padding: 16px; gap: 14px; }
+  .pmon .photo-invite { aspect-ratio: auto; flex-direction: row; justify-content: flex-start; gap: 12px; padding: 10px 14px; }
+  .pmon .photo-invite span { width: 36px; height: 36px; }
+  .pmon .photo-invite span .i { width: 18px; height: 18px; }
+  .pmon .id h1 { font-size: 28px; }
+  .pmon .id .loc { font-size: 16px; margin-top: 6px; }
+  .pmon .id .tags, .pmon .id .edit { margin-top: 12px; }
+}
 
 /* 4. fiche du monument (onglet « Fiche sanitaire »). Même vocabulaire que les
    autres écrans : les deux statuts dans un bloc du bleu plein du pied des

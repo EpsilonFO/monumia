@@ -35,7 +35,7 @@ export function Onglets<V extends string>({
           onClick={() => onChange(o.value)}
         >
           <Picto nom={o.picto} />
-          {o.label}
+          <span className="lbl">{o.label}</span>
           {o.count !== null && <em className={o.count === 0 ? 'zero' : undefined}>{o.count}</em>}
         </button>
       ))}

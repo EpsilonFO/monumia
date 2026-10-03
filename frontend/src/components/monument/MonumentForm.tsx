@@ -107,7 +107,10 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
                 ne bouge plus d'une étape à l'autre — donc les boutons non plus.
                 Une hauteur en dur se serait décalée au premier champ ajouté.
                 Les étapes inactives sont `invisible` (donc hors du parcours de
-                tabulation) et `inert` (hors de l'arbre d'accessibilité). */}
+                tabulation) et `inert` (hors de l'arbre d'accessibilité).
+                Sauf sur téléphone, où elles sortent tout à fait : les boutons y
+                passent sous le carré de toute façon, et l'étape 1 (deux champs)
+                laissait 500 px de blanc au-dessus d'eux. */}
             <div className="grid">
               {STEP_COMPONENTS.map((Step, i) => {
                 const actif = currentStep === i + 1;
@@ -116,7 +119,7 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
                     key={i}
                     className={cn(
                       'col-start-1 row-start-1 min-w-0',
-                      !actif && 'invisible pointer-events-none'
+                      !actif && 'invisible pointer-events-none max-sm:hidden'
                     )}
                     inert={!actif}
                   >

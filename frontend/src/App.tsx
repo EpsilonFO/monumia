@@ -33,7 +33,12 @@ function App() {
   return (
     <>
       <RouterProvider router={router} />
-      <Toaster position="bottom-right" />
+      {/* Sur téléphone, sonner pose ses toasts en bas sur toute la largeur : on
+          les remonte au-dessus de la barre d'onglets (BottomNav). */}
+      <Toaster
+        position="bottom-right"
+        mobileOffset={{ bottom: 'calc(84px + env(safe-area-inset-bottom))' }}
+      />
       {/* Bouton de retour bêta : ne rend rien sans VITE_YBUG_ID. */}
       <YbugWidget />
     </>
