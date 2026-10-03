@@ -186,10 +186,77 @@ npm run lint
 Les `.env.local` sont chargés en priorité sur les `.env`, côté backend
 ([db.py](backend/db.py)) comme côté Vite.
 
-**Emails d'invitation.** Sans `RESEND_API_KEY`, les emails de partage de projet sont
-écrits dans la console — suffisant pour développer. Pour envoyer en réel : compte
-[Resend](https://resend.com), domaine `monumia.fr` vérifié (SPF/DKIM/DMARC), puis
-`RESEND_API_KEY` et `RESEND_FROM`.
+**Emails.** Sans `RESEND_API_KEY`, les emails (partage de projet, rappels d'aides)
+sont écrits dans la console — suffisant pour développer. Pour envoyer en réel :
+compte [Resend](https://resend.com), domaine `monumia.fr` vérifié
+(SPF/DKIM/DMARC), puis `RESEND_API_KEY`, `RESEND_FROM` (invitations) et
+`RESEND_FROM_RAPPELS` (rappels automatiques, expéditeur distinct pour qu'un
+filtrage ou un désabonnement ne touche pas les invitations nominatives).
+
+**Rappels d'aides.** [scripts/cron-rappels.sh](scripts/cron-rappels.sh) lance
+chaque matin `backend/scripts/rappels_aides.py` dans le conteneur backend :
+échéances de dépôt qui approchent (paliers réglables par utilisateur, 30 jours
+par défaut), aides qui rouvrent (date d'ouverture atteinte, ou nouvelle session
+posée par la veille) et aides nouvelles au catalogue. Les deux dernières se
+détectent en comparant le catalogue du jour à l'instantané de la veille
+(table `aides_veille_etat`) : le tout premier passage le remplit sans rien
+envoyer. Chaque email nomme le monument et le projet, et chaque aide renvoie à
+sa fiche dans le projet (`/app/projets/<id>/aides/<slug>`). Le cron s'installe
+dans la crontab de root, comme la sauvegarde :
+
+```
+0 9 * * * /home/<user>/monumia/scripts/cron-rappels.sh >> /var/log/monumia-rappels.log 2>&1
+```
+
+Pour voir ce qui partirait sans rien envoyer :
+`./scripts/cron-rappels.sh prod --dry-run`.
+
+**Tester un rappel sans attendre le bon jour.** `--today` fige la date pour le
+moteur aussi, donc le rejeu est fidèle : la fenêtre de candidature de chaque
+aide est recalculée à cette date. Reste à savoir QUELLE date déclenche quoi,
+d'où `--agenda` :
+
+```bash
+cd backend
+uv run python scripts/rappels_aides.py --agenda --user <uuid>
+#   --today 2027-04-15  échéance   merimee-prix-…  limite 2027-05-15 (J-30)
+#   --today 2027-04-15  ouverture  merimee-prix-…  ouvre le 2027-04-15
+
+# puis, en reprenant une de ces dates :
+uv run python scripts/rappels_aides.py --today 2027-04-15 --user <uuid> --preview /tmp/apercus
+```
+
+`--agenda` simule (il rejoue le diagnostic à chaque date candidate) et couvre
+400 jours de part et d'autre : une date passée se rejoue aussi bien qu'une date
+future. `--preview` écrit les emails rendus en HTML, à ouvrir dans un
+navigateur, et implique `--dry-run` — rien n'est envoyé, rien n'est journalisé.
+
+Avec `--today`, l'instantané du catalogue n'est ni lu ni écrit : les
+ouvertures se déduisent des seules dates (fermée la veille, ouverte ce
+jour-là). Une aide nouvelle ne se prévoit pas, elle se simule avec
+`--annoncer <slug>`, qui la traite comme arrivée au catalogue ce jour-là :
+
+```bash
+uv run python scripts/rappels_aides.py --annoncer <slug> --user <uuid> --preview /tmp/apercus
+```
+
+Trois points pour un test en local : `APP_URL=http://localhost:3000` dans
+`backend/.env.local`, sinon les liens des emails pointent vers la production ;
+les tables `aide_rappels_envoyes` et `aides_veille_etat` doivent exister, donc
+la migration doit être appliquée ; et le compte de test doit tenir une offre Veille ou Multi-monuments,
+sans quoi le job l'écarte (l'agenda le signale). En local, une ligne
+d'abonnement suffit :
+
+```sql
+insert into subscriptions (stripe_subscription_id, user_id, stripe_customer_id, status, plan)
+values ('sub_test_local', '<uuid>', 'cus_test_local', 'active', 'veille');
+```
+
+Pour rejouer un rappel déjà parti, vider sa ligne :
+
+```sql
+delete from aide_rappels_envoyes where user_id = '<uuid>';
+```
 
 **Clés LLM.** Le diagnostic servi au produit est déterministe et n'appelle aucun
 LLM. `DEEPSEEK_API_KEY` et compagnie ne servent qu'aux outils hors ligne

@@ -1,6 +1,7 @@
 import logging
 import traceback
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -495,6 +496,7 @@ def deterministic_diagnostic_for(
     answers: dict[str, object] | None,
     *,
     supabase: Client | None = None,
+    today: date | None = None,
 ) -> dict:
     """Lance le moteur déterministe et rend le résultat prêt pour le frontend.
 
@@ -511,6 +513,13 @@ def deterministic_diagnostic_for(
     `supabase=None` rend le moteur NU, sur les seuls YAML : c'est ce que veulent
     les tests du moteur et les scripts hors ligne. Les trois appelants du
     produit passent leur client.
+
+    `today` n'est jamais renseigné par les routes — c'est la date du jour qui
+    fait foi pour un utilisateur. Il n'existe que pour les outils hors ligne
+    (`scripts/rappels_aides.py --today`), où figer la date est le seul moyen de
+    vérifier un rappel sans attendre l'échéance : sans lui, la fenêtre de
+    candidature de chaque aide resterait calée sur le vrai jour, et le décalage
+    ne porterait que sur l'arithmétique des paliers.
     """
     if supabase is not None:
         catalogue = catalogue_admin.catalogue_effectif(supabase)
@@ -526,6 +535,7 @@ def deterministic_diagnostic_for(
             monument=monument,
             population=population,
             answers=answers,
+            today=today,
         )
     except Exception as exc:
         logger.error("run_deterministic_diagnostic crashed:\n%s", traceback.format_exc())
