@@ -196,7 +196,7 @@ def _get_profile(supabase: Client, user_id: str) -> dict:
 
 def _default_notification_preferences() -> dict:
     """Doit rester aligné sur le `default` de `users.notification_preferences`
-    (migration 20260828152623) : le profil est parfois créé ici, parfois par la
+    (migration 20261003133251) : le profil est parfois créé ici, parfois par la
     base, et les deux chemins doivent produire les mêmes réglages."""
     return {
         "urgentDeadlines": True,

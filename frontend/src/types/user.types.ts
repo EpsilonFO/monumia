@@ -36,8 +36,9 @@ export interface NotificationPreferences {
    * (backend/scripts/rappels_aides.py).
    *
    * `rappelsEcheances` — une aide à portée approche de sa date limite.
-   * `rappelsOuvertures` — une aide quitte « Disponibles bientôt » : sa date
-   *   d'ouverture est franchie, le dépôt devient possible.
+   * `rappelsOuvertures` — une aide devient déposable pour un projet : elle
+   *   entre au catalogue guichet ouvert, ou elle quitte « Disponibles bientôt »
+   *   (date d'ouverture atteinte, nouvelle session repérée par la veille).
    * `rappelDelaisJours` — les paliers de rappel, en jours avant la date
    *   limite. Une liste et non un nombre : « 30 jours ET 7 jours » est le
    *   besoin courant — un rappel pour s'organiser, un pour ne pas oublier.

@@ -1,22 +1,31 @@
-"""Rappels calendaires sur les aides d'un projet : quoi annoncer, et quand.
+"""Rappels sur les aides d'un projet : quoi annoncer, et quand.
 
-Deux évènements, tous deux lus dans le résultat d'un diagnostic déterministe :
+Deux familles d'évènements :
 
   * ÉCHÉANCE — une aide à portée dont la `dateLimite` approche. L'utilisateur
-    choisit ses paliers (30 jours par défaut, plusieurs possibles).
-  * OUVERTURE — une aide qui patientait dans « Disponibles bientôt » et dont la
-    `dateOuverture` vient d'être franchie. Le basculement vers « Éligible
-    maintenant » / « À confirmer » / « À débloquer » n'a rien à déclencher : il
-    se recalcule tout seul à chaque diagnostic (`disponibilite()` compare les
-    dates du calendrier à la date du jour). Ce module ne fait que le CONSTATER
-    pour pouvoir l'annoncer.
+    choisit ses paliers (30 jours par défaut, plusieurs possibles). Lue dans
+    le seul diagnostic du projet.
+  * DISPONIBILITÉ — une aide devient déposable. Deux cas, une seule mécanique :
+      - NOUVELLE : l'aide entre au catalogue (ingestion, typage achevé) et son
+        guichet est ouvert ;
+      - OUVERTURE : l'aide était fermée (« Disponibles bientôt ») et ne l'est
+        plus, que sa `date_ouverture` soit atteinte ou que la veille ait posé
+        les dates d'une nouvelle session.
+    Rien ne se lit dans un diagnostic isolé : « vient de » suppose de savoir ce
+    qui était vrai hier. D'où l'INSTANTANÉ du catalogue (`comparer_catalogue`),
+    une ligne par aide, comparé chaque matin à l'état du jour. Le diagnostic
+    du projet ne sert ensuite qu'à savoir à qui l'annoncer : l'aide doit être
+    dans l'un des trois seaux du haut, ce qui veut dire qu'elle passe ses
+    critères automatiques et qu'aucune réponse déjà donnée ne l'écarte.
 
 Tout est pur : aucune I/O, aucun accès à Supabase, `today` toujours injecté.
 Le script `scripts/rappels_aides.py` s'en sert pour décider quoi envoyer.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
+from typing import Literal
 
 # Les trois seaux « à portée », ceux que la page projet affiche en haut. Une
 # aide non éligible n'a pas d'échéance qui vaille un email.
@@ -34,11 +43,12 @@ PALIERS_DEFAUT: tuple[int, ...] = (30,)
 PALIER_MIN = 0
 PALIER_MAX = 365
 
-# Une ouverture ne s'annonce que dans les jours qui suivent le franchissement.
-# Sans cette fenêtre, le tout premier passage du job réveillerait l'historique
-# entier : chaque aide ouverte depuis des années serait annoncée comme neuve.
-# Sept jours laissent de la marge pour un job qui n'aurait pas tourné.
-FENETRE_OUVERTURE_JOURS = 7
+# Une aide devenue disponible reste annonçable quelques jours. C'est le filet
+# d'un envoi raté (Resend en panne, job qui n'a pas tourné) : le journal des
+# envois empêche le doublon, la fenêtre laisse le rattrapage se faire. Un
+# chantier créé entre-temps reçoit lui aussi l'annonce, ce qui est juste :
+# l'aide vient bien d'ouvrir.
+FENETRE_ANNONCE_JOURS = 7
 
 # Libellé du seau d'arrivée, pour dire dans l'email OÙ l'aide vient d'atterrir.
 LIBELLE_STATUT: dict[str, str] = {
@@ -61,15 +71,43 @@ class RappelEcheance:
     palier_jours: int
 
 
+NatureDisponibilite = Literal["nouvelle", "ouverture"]
+
+
+@dataclass(frozen=True)
+class EtatAide:
+    """Une ligne de l'instantané du catalogue (table `aides_veille_etat`).
+
+    `entree_le` : le jour où le job a vu l'aide pour la première fois.
+    `ouverte_depuis` : le jour où il l'a vue passer de fermée à ouverte, ou la
+    voir entrer déjà ouverte. None tant qu'elle est fermée, et pour toutes les
+    aides du tout premier passage, dont on ignore depuis quand elles le sont.
+    """
+
+    ouverte: bool
+    entree_le: date
+    ouverte_depuis: date | None
+
+
+@dataclass(frozen=True)
+class Disponibilite:
+    """Une aide devenue déposable, à annoncer aux projets qui y ont droit."""
+
+    aide_id: str
+    nature: NatureDisponibilite
+    depuis: date
+
+
 @dataclass(frozen=True)
 class RappelOuverture:
-    """Une aide dont le guichet vient d'ouvrir, et le seau où elle atterrit."""
+    """Une aide devenue disponible pour un projet, et le seau où elle atterrit."""
 
     aide_id: str
     aide_nom: str
     statut: str
     montant_max: int | None
-    date_ouverture: date
+    nature: NatureDisponibilite
+    disponible_depuis: date
     date_limite: date | None
 
 
@@ -172,42 +210,105 @@ def echeances_a_rappeler(
     return rappels
 
 
-def ouvertures_franchies(
-    diagnostic: dict, today: date, fenetre_jours: int = FENETRE_OUVERTURE_JOURS
-) -> list[RappelOuverture]:
-    """Aides dont la date d'ouverture vient d'être franchie.
+def comparer_catalogue(
+    precedent: Mapping[str, EtatAide],
+    ouvertes: Mapping[str, bool],
+    today: date,
+) -> dict[str, EtatAide]:
+    """L'instantané du jour, à partir de celui de la veille.
 
-    Le signal est double : la `dateOuverture` est atteinte, ET l'aide est
-    effectivement passée en « maintenant » — c'est-à-dire qu'elle a bien quitté
-    « Disponibles bientôt » pour l'un des trois seaux du haut. Une aide ouverte
-    mais dont la date limite est déjà passée reste en « bientôt » et n'annonce
-    donc rien : il n'y aurait rien à déposer.
+    `ouvertes` : chaque aide du catalogue servi, et si son guichet est ouvert
+    aujourd'hui (`disponibilite() == "maintenant"`).
 
-    La fenêtre borne le rattrapage. Elle laisse hors du champ le cas d'une aide
-    qui rebasculerait en « maintenant » sans date d'ouverture (une session
-    reconduite dont seule la date limite est repoussée) : rien ne dit alors
-    quel jour le guichet a rouvert.
+    Un instantané VIDE est un premier passage : tout y entre sans date
+    d'ouverture, donc rien ne s'annonce. Sans cette règle, le premier matin
+    annoncerait le catalogue entier comme neuf.
+
+    Une aide absente du jour (retirée, archivée) garde sa ligne telle quelle :
+    si elle revient, elle n'est pas « nouvelle », et sa réouverture éventuelle
+    se lit comme celle de n'importe quelle autre aide.
     """
-    ouvertures: list[RappelOuverture] = []
+    premier_passage = not precedent
+    suivant = dict(precedent)
+    for aide_id, ouverte in sorted(ouvertes.items()):
+        avant = precedent.get(aide_id)
+        if avant is None:
+            suivant[aide_id] = EtatAide(
+                ouverte=ouverte,
+                entree_le=today,
+                ouverte_depuis=today if ouverte and not premier_passage else None,
+            )
+        elif ouverte and not avant.ouverte:
+            suivant[aide_id] = EtatAide(
+                ouverte=True, entree_le=avant.entree_le, ouverte_depuis=today
+            )
+        elif not ouverte and avant.ouverte:
+            suivant[aide_id] = EtatAide(
+                ouverte=False, entree_le=avant.entree_le, ouverte_depuis=None
+            )
+    return suivant
+
+
+def disponibilites_recentes(
+    etat: Mapping[str, EtatAide],
+    today: date,
+    fenetre_jours: int = FENETRE_ANNONCE_JOURS,
+) -> dict[str, Disponibilite]:
+    """Les aides devenues disponibles depuis moins de `fenetre_jours` jours.
+
+    NOUVELLE quand l'aide est entrée au catalogue le jour même où elle s'est
+    ouverte, OUVERTURE sinon : une aide arrivée en « Disponibles bientôt »
+    s'annonce le jour où son guichet ouvre, comme une réouverture.
+    """
+    dispos: dict[str, Disponibilite] = {}
+    for aide_id, e in etat.items():
+        if not e.ouverte or e.ouverte_depuis is None:
+            continue
+        ecart = (today - e.ouverte_depuis).days
+        if ecart < 0 or ecart > fenetre_jours:
+            continue
+        nature: NatureDisponibilite = "nouvelle" if e.ouverte_depuis == e.entree_le else "ouverture"
+        dispos[aide_id] = Disponibilite(aide_id=aide_id, nature=nature, depuis=e.ouverte_depuis)
+    return dispos
+
+
+def disponibles_pour_le_projet(
+    diagnostic: dict, disponibilites: Mapping[str, Disponibilite]
+) -> list[RappelOuverture]:
+    """Parmi les aides devenues disponibles, celles qui valent pour ce projet.
+
+    Le diagnostic du projet tranche : l'aide doit être dans l'un des trois
+    seaux du haut, donc passer les critères automatiques de la fiche (région,
+    département, protection, propriétaire…) sans qu'aucune réponse déjà donnée
+    au questionnaire ne l'écarte. Un critère que le projet n'a jamais vu (le
+    fait propre à une aide toute neuve) reste une incertitude : l'aide arrive
+    en « À confirmer », et elle s'annonce.
+
+    `disponibilite == maintenant` est revérifié ici : l'instantané dit que le
+    guichet est ouvert pour le catalogue, le diagnostic le redit à la date du
+    projet, et un désaccord (date figée en simulation) ne doit rien envoyer.
+    """
+    rappels: list[RappelOuverture] = []
     for match in matches_a_portee(diagnostic):
         if match.get("disponibilite", "maintenant") != "maintenant":
             continue
         aide = match["aide"]
-        date_ouverture = _parse_date(aide.get("dateOuverture"))
-        if date_ouverture is None:
+        dispo = disponibilites.get(str(aide.get("id")))
+        if dispo is None:
             continue
-        ecart = (today - date_ouverture).days
-        if ecart < 0 or ecart > fenetre_jours:
-            continue
-        ouvertures.append(
+        rappels.append(
             RappelOuverture(
-                aide_id=str(aide.get("id")),
+                aide_id=dispo.aide_id,
                 aide_nom=str(aide.get("nom") or aide.get("nomCourt") or "Aide"),
                 statut=str(match.get("statut") or ""),
                 montant_max=aide.get("montantMax"),
-                date_ouverture=date_ouverture,
+                nature=dispo.nature,
+                disponible_depuis=dispo.depuis,
                 date_limite=_parse_date(aide.get("dateLimite")),
             )
         )
-    ouvertures.sort(key=lambda o: (-o.date_ouverture.toordinal(), o.aide_nom))
-    return ouvertures
+    # Les nouveautés d'abord, puis les plus récentes.
+    rappels.sort(
+        key=lambda o: (o.nature != "nouvelle", -o.disponible_depuis.toordinal(), o.aide_nom)
+    )
+    return rappels

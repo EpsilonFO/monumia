@@ -15,6 +15,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { OffreUpsell } from '@/components/shared/OffreUpsell';
+import { useOffre } from '@/hooks/useOffre';
 import { C, SERIF } from '@/lib/brand';
 import { computeProfileCompletion } from '@/lib/profile-completion';
 import { authService } from '@/services/auth.service';
@@ -275,6 +277,10 @@ const PALIERS_PROPOSES = [60, 30, 15, 7, 3, 1];
 function RappelsPanel() {
   const user = useAuthStore((s) => s.user);
   const save = useAuthStore((s) => s.updateNotificationPreferences);
+  // Les emails sont vendus avec Veille et Multi-monuments. Sur l'offre
+  // gratuite, les réglages restent visibles et modifiables (ils prendront
+  // effet avec l'offre), et un bandeau dit ce qui manque.
+  const rappelsInclus = useOffre().rappelsEmail;
   // Optimiste : la bascule doit répondre tout de suite, l'appel suit. En cas
   // d'échec on repart de la valeur du store, qui n'a pas bougé.
   const [pending, setPending] = useState<Partial<NotificationPreferences> | null>(null);
@@ -312,14 +318,19 @@ function RappelsPanel() {
         icon={<IconEcheance className="h-4 w-4 text-primary" strokeWidth={1.8} />}
         title="Rappels par email"
       />
+      {!rappelsInclus && (
+        <div className="px-6 pt-5">
+          <OffreUpsell offre="Veille" action="recevoir ces emails sur les aides de vos projets" />
+        </div>
+      )}
       <div className="divide-y divide-border">
         <Reglage
           titre="Échéances qui approchent"
-          description="Un email le matin quand la date limite de dépôt d'une aide identifiée sur vos chantiers se rapproche."
+          description="Un email le matin quand la date limite de dépôt d'une aide identifiée sur vos projets se rapproche."
           checked={prefs.rappelsEcheances}
           onChange={(v) => patch({ rappelsEcheances: v })}
         >
-          <p className="mb-2 text-[13px]" style={{ color: C.grayFg }}>
+          <p className="mb-2 text-[15px]" style={{ color: C.grayFg }}>
             Me prévenir&nbsp;:
           </p>
           <div className="flex flex-wrap gap-2">
@@ -331,7 +342,7 @@ function RappelsPanel() {
                   type="button"
                   onClick={() => toggleDelai(jours)}
                   aria-pressed={actif}
-                  className="rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors"
+                  className="rounded-full border px-3.5 py-1.5 text-[15px] font-medium transition-colors"
                   style={
                     actif
                       ? { borderColor: C.blue, background: C.paleBlue, color: C.blue }
@@ -346,8 +357,8 @@ function RappelsPanel() {
         </Reglage>
 
         <Reglage
-          titre="Ouverture des guichets"
-          description="Une aide qui patientait dans « Disponibles bientôt » passe en « Éligible maintenant », « À confirmer » ou « À débloquer » dès que sa date d'ouverture est franchie. Cet email vous l'annonce."
+          titre="Aides qui deviennent disponibles"
+          description="Un email quand une aide à laquelle un de vos projets peut prétendre devient déposable : une nouvelle aide ajoutée au catalogue, ou une aide de « Disponibles bientôt » dont le dépôt ouvre ou rouvre."
           checked={prefs.rappelsOuvertures}
           onChange={(v) => patch({ rappelsOuvertures: v })}
         />
@@ -367,8 +378,8 @@ function Reglage({ titre, description, checked, onChange, children }: {
     <div className="px-6 py-5">
       <div className="flex items-start justify-between gap-5">
         <div className="min-w-0">
-          <p className="text-[15px] font-medium text-foreground">{titre}</p>
-          <p className="mt-1 text-[13.5px]" style={{ color: C.grayFg }}>
+          <p className="text-[16.5px] font-medium text-foreground">{titre}</p>
+          <p className="mt-1 text-[15px]" style={{ color: C.grayFg }}>
             {description}
           </p>
         </div>

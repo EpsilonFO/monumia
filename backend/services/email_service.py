@@ -1,7 +1,7 @@
 """Emails sortants via Resend, avec repli console en dev.
 
 Deux familles : l'invitation d'un collaborateur, et les rappels calendaires sur
-les aides (échéance qui approche, guichet qui vient d'ouvrir).
+les aides (échéance qui approche, aide qui devient disponible).
 
 Les fonctions `render_*` sont pures (testées). Les `send_*` lisent la config
 dans l'environnement ; si `RESEND_API_KEY` est vide, l'email est loggué dans la
@@ -12,6 +12,7 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import date
+from html import escape
 
 from services.rappels_service import LIBELLE_STATUT, RappelEcheance, RappelOuverture
 
@@ -162,19 +163,23 @@ class BlocProjet:
     projet_titre: str
     monument_nom: str
     projet_url: str
+    projet_id: str = ""
     echeances: tuple[RappelEcheance, ...] = ()
     ouvertures: tuple[RappelOuverture, ...] = ()
 
 
-def _aide_url(projet_url: str, aide_id: str) -> str:
+def aide_url(projet_url: str, aide_id: str) -> str:
+    """La fiche de l'aide DANS le projet (`/app/projets/:id/aides/:slug`) : le
+    lien de l'email ouvre l'aide avec le diagnostic de ce chantier."""
     return f"{projet_url}/aides/{aide_id}"
 
 
 def _en_tete_bloc(bloc: BlocProjet) -> str:
-    titre = bloc.projet_titre or "Projet de travaux"
+    # Nom du monument et titre du projet sont saisis par l'utilisateur : échappés.
+    titre = escape(bloc.projet_titre or "Projet de travaux")
     return f"""\
       <div style="margin:22px 0 10px">
-        <div style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#8a8a8a">{bloc.monument_nom}</div>
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#8a8a8a">{escape(bloc.monument_nom)}</div>
         <a href="{bloc.projet_url}" style="font-size:16px;font-weight:600;color:#072a72;text-decoration:none">{titre}</a>
       </div>"""
 
@@ -183,25 +188,26 @@ def _ligne_aide(*, nom: str, url: str, accroche: str, detail: str, accent: str) 
     """Une aide dans la liste : nom cliquable, une accroche datée, un détail."""
     return f"""\
       <div style="border-left:3px solid {accent};background:#fdf9f0;border-radius:0 8px 8px 0;padding:12px 16px;margin:0 0 8px">
-        <a href="{url}" style="font-size:15px;font-weight:600;color:#0a369d;text-decoration:none">{nom}</a>
-        <div style="margin-top:4px;font-size:14px;font-weight:600;color:{accent}">{accroche}</div>
-        <div style="margin-top:2px;font-size:13px;color:#6b6b6b">{detail}</div>
+        <a href="{url}" style="font-size:15px;font-weight:600;color:#0a369d;text-decoration:none">{escape(nom)}</a>
+        <div style="margin-top:4px;font-size:14px;font-weight:600;color:{accent}">{escape(accroche)}</div>
+        <div style="margin-top:2px;font-size:13px;color:#6b6b6b">{escape(detail)}</div>
+        <a href="{url}" style="display:inline-block;margin-top:8px;font-size:13px;font-weight:600;color:#f17105;text-decoration:none">Voir l'aide dans mon projet →</a>
       </div>"""
 
 
 def _enveloppe(*, prenom: str, titre: str, chapeau: str, corps: str, reglages_url: str) -> str:
     """Charte Monumia, commune aux deux emails de rappel."""
-    salutation = f"Bonjour {prenom}," if prenom else "Bonjour,"
+    salutation = f"Bonjour {escape(prenom)}," if prenom else "Bonjour,"
     return f"""\
 <div style="background:#fdf9f0;padding:32px 0;font-family:Inter,Arial,sans-serif;color:#222b35">
   <div style="max-width:560px;margin:0 auto;background:#fffefb;border:1px solid #ece3d2;border-radius:12px;overflow:hidden">
     <div style="background:#0a369d;color:#fff;padding:18px 28px;font-size:18px;font-weight:700">Monumia</div>
     <div style="padding:28px">
       <p style="margin:0 0 16px">{salutation}</p>
-      <h1 style="margin:0 0 8px;font-size:20px;line-height:1.3;color:#072a72">{titre}</h1>
-      <p style="margin:0 0 8px;font-size:14px;color:#6b6b6b">{chapeau}</p>
+      <h1 style="margin:0 0 8px;font-size:20px;line-height:1.3;color:#072a72">{escape(titre)}</h1>
+      <p style="margin:0 0 8px;font-size:14px;color:#6b6b6b">{escape(chapeau)}</p>
 {corps}
-      <p style="margin:26px 0 0;font-size:12px;color:#8a8a8a">Vous recevez cet email parce que vous avez activé les rappels sur vos aides. <a href="{reglages_url}" style="color:#0a369d">Modifier mes rappels</a>.</p>
+      <p style="margin:26px 0 0;font-size:12px;color:#8a8a8a">Vous recevez cet email parce que les rappels sur vos aides sont activés. <a href="{reglages_url}" style="color:#0a369d">Modifier mes rappels</a>.</p>
     </div>
   </div>
 </div>"""
@@ -224,7 +230,7 @@ def render_echeances_email(*, prenom: str, blocs: list[BlocProjet], reglages_url
             corps.append(
                 _ligne_aide(
                     nom=e.aide_nom,
-                    url=_aide_url(bloc.projet_url, e.aide_id),
+                    url=aide_url(bloc.projet_url, e.aide_id),
                     accroche=f"Dépôt à boucler {jours_fr(e.jours_restants)}",
                     detail=detail,
                     # Rouge à une semaine ou moins, orange au-delà : la couleur
@@ -246,16 +252,60 @@ def render_echeances_email(*, prenom: str, blocs: list[BlocProjet], reglages_url
     )
 
 
+def _accroche_ouverture(o: RappelOuverture) -> str:
+    statut = LIBELLE_STATUT.get(o.statut, "à étudier")
+    if o.nature == "nouvelle":
+        return f"Nouvelle aide au catalogue, « {statut} » pour ce projet"
+    return f"Dépôt ouvert depuis le {date_fr(o.disponible_depuis)}, « {statut} » pour ce projet"
+
+
+def titre_ouvertures(ouvertures: list[RappelOuverture]) -> tuple[str, str]:
+    """(titre, chapeau) de l'email, selon ce qu'il annonce.
+
+    Une aide nouvelle et une aide qui rouvre ne se disent pas pareil : la
+    première, l'utilisateur ne l'a jamais vue ; la seconde, il l'a peut-être
+    croisée dans « Disponibles bientôt ». Exposé pour servir aussi d'objet.
+    """
+    total = len(ouvertures)
+    nouvelles = sum(1 for o in ouvertures if o.nature == "nouvelle")
+    if nouvelles == total:
+        titre = (
+            "Une nouvelle aide pour vos projets"
+            if total == 1
+            else f"{total} nouvelles aides pour vos projets"
+        )
+        chapeau = (
+            "Elle vient d'entrer au catalogue Monumia, et votre projet y répond d'après ce que vous avez déjà renseigné."
+            if total == 1
+            else "Elles viennent d'entrer au catalogue Monumia, et vos projets y répondent d'après ce que vous avez déjà renseigné."
+        )
+    elif nouvelles == 0:
+        titre = (
+            "Le dépôt vient d'ouvrir pour une aide de vos projets"
+            if total == 1
+            else f"Le dépôt vient d'ouvrir pour {total} aides de vos projets"
+        )
+        chapeau = (
+            "Elle attendait dans « Disponibles bientôt » : le dossier peut maintenant être déposé."
+            if total == 1
+            else "Elles attendaient dans « Disponibles bientôt » : les dossiers peuvent maintenant être déposés."
+        )
+    else:
+        titre = f"{total} aides deviennent disponibles pour vos projets"
+        chapeau = "Nouvelles au catalogue ou guichets qui rouvrent : les dossiers peuvent maintenant être déposés."
+    return titre, chapeau
+
+
 def render_ouvertures_email(*, prenom: str, blocs: list[BlocProjet], reglages_url: str) -> str:
-    """Email « le guichet vient d'ouvrir », groupé par chantier."""
+    """Email « une aide devient disponible » (nouvelle ou réouverture), par chantier."""
     corps: list[str] = []
-    total = 0
+    toutes: list[RappelOuverture] = []
     for bloc in blocs:
         if not bloc.ouvertures:
             continue
         corps.append(_en_tete_bloc(bloc))
         for o in bloc.ouvertures:
-            total += 1
+            toutes.append(o)
             montant = montant_fr(o.montant_max)
             detail = (
                 f"À déposer avant le {date_fr(o.date_limite)}"
@@ -267,23 +317,13 @@ def render_ouvertures_email(*, prenom: str, blocs: list[BlocProjet], reglages_ur
             corps.append(
                 _ligne_aide(
                     nom=o.aide_nom,
-                    url=_aide_url(bloc.projet_url, o.aide_id),
-                    accroche=f"Guichet ouvert depuis le {date_fr(o.date_ouverture)}"
-                    f" — désormais « {LIBELLE_STATUT.get(o.statut, 'à étudier')} »",
+                    url=aide_url(bloc.projet_url, o.aide_id),
+                    accroche=_accroche_ouverture(o),
                     detail=detail,
                     accent="#0a369d",
                 )
             )
-    titre = (
-        "Le dépôt vient d'ouvrir pour une aide de vos projets"
-        if total == 1
-        else f"Le dépôt vient d'ouvrir pour {total} aides de vos projets"
-    )
-    chapeau = (
-        "Elle attendait dans « Disponibles bientôt » : le dossier peut maintenant être déposé."
-        if total == 1
-        else "Elles attendaient dans « Disponibles bientôt » : les dossiers peuvent maintenant être déposés."
-    )
+    titre, chapeau = titre_ouvertures(toutes)
     return _enveloppe(
         prenom=prenom,
         titre=titre,

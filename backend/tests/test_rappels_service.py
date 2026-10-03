@@ -13,9 +13,13 @@ from services.email_service import (
 )
 from services.rappels_service import (
     PALIERS_DEFAUT,
+    Disponibilite,
+    EtatAide,
+    comparer_catalogue,
+    disponibilites_recentes,
+    disponibles_pour_le_projet,
     echeances_a_rappeler,
     normaliser_paliers,
-    ouvertures_franchies,
     palier_courant,
 )
 
@@ -143,38 +147,109 @@ class EcheancesTests(unittest.TestCase):
         )
 
 
-class OuverturesTests(unittest.TestCase):
-    def test_ouverture_du_jour(self) -> None:
-        diag = _diagnostic(eligibles=[_match(date_ouverture="2026-09-01")])
-        (ouverture,) = ouvertures_franchies(diag, TODAY)
-        self.assertEqual(ouverture.date_ouverture, date(2026, 9, 1))
-        self.assertEqual(ouverture.statut, "eligible")
+def _dispo(aide_id: str = "aide-test", nature: str = "ouverture", depuis: date = TODAY):
+    return {aide_id: Disponibilite(aide_id=aide_id, nature=nature, depuis=depuis)}  # type: ignore[arg-type]
 
-    def test_rattrapage_dans_la_fenetre(self) -> None:
-        diag = _diagnostic(eligibles=[_match(date_ouverture="2026-08-28")])
-        self.assertEqual(len(ouvertures_franchies(diag, TODAY)), 1)
 
-    def test_hors_fenetre_lhistorique_ne_se_reveille_pas(self) -> None:
-        diag = _diagnostic(eligibles=[_match(date_ouverture="2024-01-01")])
-        self.assertEqual(ouvertures_franchies(diag, TODAY), [])
+class InstantaneTests(unittest.TestCase):
+    """L'état du catalogue, comparé d'un matin à l'autre."""
 
-    def test_ouverture_a_venir_nannonce_rien(self) -> None:
-        diag = _diagnostic(eligibles=[_match(disponibilite="bientot", date_ouverture="2026-12-01")])
-        self.assertEqual(ouvertures_franchies(diag, TODAY), [])
+    HIER = date(2026, 8, 31)
 
-    def test_guichet_ouvert_mais_session_close_reste_muet(self) -> None:
-        # Ouverture franchie, date limite dépassée : l'aide est retombée en
-        # « Disponibles bientôt », il n'y a rien à déposer.
-        diag = _diagnostic(
-            eligibles=[
-                _match(
-                    disponibilite="bientot",
-                    date_ouverture="2026-08-30",
-                    date_limite="2026-08-31",
-                )
-            ]
+    def _etat(self, ouverte: bool, entree_le=date(2026, 1, 1), ouverte_depuis=None) -> EtatAide:
+        return EtatAide(ouverte=ouverte, entree_le=entree_le, ouverte_depuis=ouverte_depuis)
+
+    def test_premier_passage_nannonce_rien(self) -> None:
+        # Sans cette règle, le premier matin présenterait tout le catalogue
+        # comme neuf.
+        etat = comparer_catalogue({}, {"a": True, "b": False}, TODAY)
+        self.assertEqual(set(etat), {"a", "b"})
+        self.assertIsNone(etat["a"].ouverte_depuis)
+        self.assertEqual(disponibilites_recentes(etat, TODAY), {})
+
+    def test_nouvelle_aide_ouverte(self) -> None:
+        etat = comparer_catalogue({"a": self._etat(True)}, {"a": True, "neuve": True}, TODAY)
+        dispos = disponibilites_recentes(etat, TODAY)
+        self.assertEqual(list(dispos), ["neuve"])
+        self.assertEqual(dispos["neuve"].nature, "nouvelle")
+        self.assertEqual(dispos["neuve"].depuis, TODAY)
+
+    def test_nouvelle_aide_fermee_sannonce_a_son_ouverture(self) -> None:
+        # Arrivée en « Disponibles bientôt » : rien à l'entrée...
+        etat = comparer_catalogue({"a": self._etat(True)}, {"a": True, "neuve": False}, self.HIER)
+        self.assertEqual(disponibilites_recentes(etat, self.HIER), {})
+        # ... puis une annonce le jour où le guichet ouvre.
+        etat = comparer_catalogue(etat, {"a": True, "neuve": True}, TODAY)
+        dispos = disponibilites_recentes(etat, TODAY)
+        self.assertEqual(dispos["neuve"].nature, "ouverture")
+
+    def test_reouverture(self) -> None:
+        # Fermée hier (session passée), rouverte aujourd'hui (la veille a posé
+        # une nouvelle date limite) : peu importe qu'il n'y ait pas de
+        # `date_ouverture`, la bascule suffit.
+        etat = comparer_catalogue({"a": self._etat(False)}, {"a": True}, TODAY)
+        dispos = disponibilites_recentes(etat, TODAY)
+        self.assertEqual(dispos["a"], Disponibilite("a", "ouverture", TODAY))
+
+    def test_rattrapage_dans_la_fenetre_puis_silence(self) -> None:
+        etat = {"a": self._etat(True, ouverte_depuis=date(2026, 8, 28))}
+        self.assertIn("a", disponibilites_recentes(etat, TODAY))
+        self.assertEqual(disponibilites_recentes(etat, date(2026, 9, 30)), {})
+
+    def test_fermeture_efface_la_date_douverture(self) -> None:
+        etat = comparer_catalogue(
+            {"a": self._etat(True, ouverte_depuis=self.HIER)}, {"a": False}, TODAY
         )
-        self.assertEqual(ouvertures_franchies(diag, TODAY), [])
+        self.assertEqual(etat["a"], self._etat(False))
+        self.assertEqual(disponibilites_recentes(etat, TODAY), {})
+
+    def test_aide_absente_garde_sa_ligne(self) -> None:
+        # Retirée du catalogue servi : sa ligne reste, pour qu'un retour ne
+        # passe pas pour une nouveauté.
+        avant = {"a": self._etat(True), "retiree": self._etat(True)}
+        etat = comparer_catalogue(avant, {"a": True}, TODAY)
+        self.assertEqual(etat["retiree"], avant["retiree"])
+        etat = comparer_catalogue(etat, {"a": True, "retiree": True}, date(2026, 9, 2))
+        self.assertEqual(disponibilites_recentes(etat, date(2026, 9, 2)), {})
+
+
+class DisponiblesPourLeProjetTests(unittest.TestCase):
+    def test_aide_a_portee(self) -> None:
+        diag = _diagnostic(potentiels=[_match(statut="potentiel", date_limite="2026-11-30")])
+        (o,) = disponibles_pour_le_projet(diag, _dispo(nature="nouvelle"))
+        self.assertEqual(o.nature, "nouvelle")
+        self.assertEqual(o.statut, "potentiel")
+        self.assertEqual(o.date_limite, date(2026, 11, 30))
+
+    def test_les_trois_seaux_du_haut(self) -> None:
+        diag = _diagnostic(
+            eligibles=[_match(aide_id="e")],
+            potentiels=[_match(aide_id="p", statut="potentiel")],
+            atteignables=[_match(aide_id="t", statut="atteignable")],
+        )
+        dispos = {**_dispo("e"), **_dispo("p"), **_dispo("t")}
+        self.assertEqual(
+            sorted(o.aide_id for o in disponibles_pour_le_projet(diag, dispos)), ["e", "p", "t"]
+        )
+
+    def test_aide_ecartee_par_le_projet_ne_sannonce_pas(self) -> None:
+        # Non éligible : un critère automatique ou une réponse déjà donnée
+        # l'écarte. Pas d'email.
+        diag = _diagnostic(non_eligibles=[_match(statut="non_eligible")])
+        self.assertEqual(disponibles_pour_le_projet(diag, _dispo()), [])
+
+    def test_aide_hors_disponibilites_ne_sannonce_pas(self) -> None:
+        diag = _diagnostic(eligibles=[_match(aide_id="ancienne")])
+        self.assertEqual(disponibles_pour_le_projet(diag, _dispo("autre")), [])
+
+    def test_encore_fermee_pour_le_projet(self) -> None:
+        diag = _diagnostic(eligibles=[_match(disponibilite="bientot")])
+        self.assertEqual(disponibles_pour_le_projet(diag, _dispo()), [])
+
+    def test_les_nouveautes_dabord(self) -> None:
+        diag = _diagnostic(eligibles=[_match(aide_id="r", nom="A"), _match(aide_id="n", nom="B")])
+        dispos = {**_dispo("r"), **_dispo("n", nature="nouvelle")}
+        self.assertEqual([o.aide_id for o in disponibles_pour_le_projet(diag, dispos)], ["n", "r"])
 
 
 class FormatsTests(unittest.TestCase):
@@ -202,7 +277,7 @@ class RenderTests(unittest.TestCase):
             echeances=tuple(echeances_a_rappeler(diag, TODAY, (30,))),
         )
 
-    def _bloc_ouvertures(self) -> BlocProjet:
+    def _bloc_ouvertures(self, nature: str = "ouverture") -> BlocProjet:
         diag = _diagnostic(
             atteignables=[
                 _match(
@@ -217,7 +292,7 @@ class RenderTests(unittest.TestCase):
             projet_titre="Réfection de la toiture",
             monument_nom="Église Saint-Pierre",
             projet_url="https://app.monumia.fr/app/projets/p1",
-            ouvertures=tuple(ouvertures_franchies(diag, TODAY)),
+            ouvertures=tuple(disponibles_pour_le_projet(diag, _dispo(nature=nature))),
         )
 
     def test_echeances_nomme_le_chantier_laide_et_la_date(self) -> None:
@@ -243,6 +318,31 @@ class RenderTests(unittest.TestCase):
         self.assertIn("À débloquer", html)
         self.assertIn("1 septembre 2026", html)
         self.assertIn("30 novembre 2026", html)
+        self.assertIn("Le dépôt vient d&#x27;ouvrir", html)
+        self.assertIn("https://app.monumia.fr/app/projets/p1/aides/aide-test", html)
+
+    def test_nouvelle_aide_se_dit_nouvelle(self) -> None:
+        html = render_ouvertures_email(
+            prenom="Marie",
+            blocs=[self._bloc_ouvertures(nature="nouvelle")],
+            reglages_url="https://app.monumia.fr/app/profil",
+        )
+        self.assertIn("Une nouvelle aide pour vos projets", html)
+        self.assertIn("Nouvelle aide au catalogue", html)
+        self.assertIn("https://app.monumia.fr/app/projets/p1/aides/aide-test", html)
+
+    def test_les_saisies_utilisateur_sont_echappees(self) -> None:
+        bloc = BlocProjet(
+            projet_titre="<script>x</script>",
+            monument_nom="Tour & Remparts",
+            projet_url="https://app.monumia.fr/app/projets/p1",
+            ouvertures=self._bloc_ouvertures().ouvertures,
+        )
+        html = render_ouvertures_email(
+            prenom="Marie", blocs=[bloc], reglages_url="https://app.monumia.fr/app/profil"
+        )
+        self.assertNotIn("<script>", html)
+        self.assertIn("Tour &amp; Remparts", html)
 
     def test_lien_de_reglage_present_dans_les_deux(self) -> None:
         for html in (

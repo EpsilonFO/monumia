@@ -196,8 +196,13 @@ filtrage ou un désabonnement ne touche pas les invitations nominatives).
 **Rappels d'aides.** [scripts/cron-rappels.sh](scripts/cron-rappels.sh) lance
 chaque matin `backend/scripts/rappels_aides.py` dans le conteneur backend :
 échéances de dépôt qui approchent (paliers réglables par utilisateur, 30 jours
-par défaut) et guichets dont la date d'ouverture vient d'être franchie. Le cron
-s'installe dans la crontab de root, comme la sauvegarde :
+par défaut), aides qui rouvrent (date d'ouverture atteinte, ou nouvelle session
+posée par la veille) et aides nouvelles au catalogue. Les deux dernières se
+détectent en comparant le catalogue du jour à l'instantané de la veille
+(table `aides_veille_etat`) : le tout premier passage le remplit sans rien
+envoyer. Chaque email nomme le monument et le projet, et chaque aide renvoie à
+sa fiche dans le projet (`/app/projets/<id>/aides/<slug>`). Le cron s'installe
+dans la crontab de root, comme la sauvegarde :
 
 ```
 0 9 * * * /home/<user>/monumia/scripts/cron-rappels.sh >> /var/log/monumia-rappels.log 2>&1
@@ -226,10 +231,19 @@ uv run python scripts/rappels_aides.py --today 2027-04-15 --user <uuid> --previe
 future. `--preview` écrit les emails rendus en HTML, à ouvrir dans un
 navigateur, et implique `--dry-run` — rien n'est envoyé, rien n'est journalisé.
 
+Avec `--today`, l'instantané du catalogue n'est ni lu ni écrit : les
+ouvertures se déduisent des seules dates (fermée la veille, ouverte ce
+jour-là). Une aide nouvelle ne se prévoit pas, elle se simule avec
+`--annoncer <slug>`, qui la traite comme arrivée au catalogue ce jour-là :
+
+```bash
+uv run python scripts/rappels_aides.py --annoncer <slug> --user <uuid> --preview /tmp/apercus
+```
+
 Trois points pour un test en local : `APP_URL=http://localhost:3000` dans
 `backend/.env.local`, sinon les liens des emails pointent vers la production ;
-le journal `aide_rappels_envoyes` doit exister, donc la migration doit être
-appliquée ; et le compte de test doit tenir une offre Veille ou Multi-monuments,
+les tables `aide_rappels_envoyes` et `aides_veille_etat` doivent exister, donc
+la migration doit être appliquée ; et le compte de test doit tenir une offre Veille ou Multi-monuments,
 sans quoi le job l'écarte (l'agenda le signale). En local, une ligne
 d'abonnement suffit :
 
