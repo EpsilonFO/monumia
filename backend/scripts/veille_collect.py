@@ -14,23 +14,29 @@ Deux comparaisons, dans cet ordre :
   2. sinon, diff normalisé du markdown (`veille_analyze`). Beaucoup de CMS
      glissent un horodatage ou un jeton dans le HTML, ce qui fait varier le sha
      à chaque requête sans que le contenu change.
+
+Le téléchargement passe par le `Fetcheur` du pipeline d'ingestion
+(`pipeline/web.py`) : la veille doit ouvrir les pages exactement comme
+l'ingestion les a ouvertes, sinon elle sort en erreur là où l'archive a été
+prise sans difficulté (certificats complétés par le magasin du système, repli
+`curl_cffi`, délai par hôte). Il exige le groupe `pipeline` du venv
+(`uv sync --group dev --group pipeline`), comme la prospection et l'ingestion.
 """
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
+import re
 import subprocess
 import sys
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from functools import cache
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlsplit
-
-import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -38,8 +44,11 @@ from aides_schema import DATA_DIR, Aide, charger_yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from snapshot_source import HEADERS_NAVIGATEUR, UA, resoudre_shield, to_markdown
+from snapshot_source import docx_bytes_to_text, est_docx, to_markdown
 from veille_text import flatten_markdown_links, parse_front_matter
+
+if TYPE_CHECKING:
+    from pipeline.web import Fetcheur, Page
 
 SOURCES_DIR = DATA_DIR / "sources"
 
@@ -68,6 +77,52 @@ RETRY_BACKOFF_S = 2.0
 # markdown : son contenu sert au contrôle des quotes, JAMAIS au diff de triage,
 # puisqu'il ne passe pas par la même chaîne de conversion que la baseline.
 JINA_PREFIX = "https://r.jina.ai/"
+
+# Copie d'archive brute (`id_` : les octets d'origine, sans la barre de
+# navigation de la Wayback Machine). Quelques snapshots ont été pris là faute
+# de pouvoir ouvrir la page en ligne.
+_WAYBACK_RE = re.compile(r"^https?://web\.archive\.org/web/\d+(?:id_)?/(https?://.+)$")
+
+
+def est_http(url: str | None) -> bool:
+    """URL téléchargeable. `mailto:`, `tel:`, un chemin relatif ne le sont pas.
+
+    Une fiche peut légitimement porter `formulaire_url: mailto:...` (dépôt par
+    courriel) : ce n'est pas une page à surveiller, et la passer au client HTTP
+    faisait tomber tout le passage sur un `ValueError`.
+    """
+    return bool(url) and url.strip().lower().startswith(("http://", "https://"))  # type: ignore[union-attr]
+
+
+def url_d_origine(url: str) -> tuple[str, Literal["direct", "proxy", "archive"]]:
+    """L'URL de la page dont un snapshot est la copie, et le chemin emprunté.
+
+    Un snapshot pris par le proxy jina ou dans la Wayback Machine porte l'URL
+    INTERMÉDIAIRE dans son en-tête. Le prendre tel quel faisait surveiller le
+    proxy ou l'archive (figée : toujours « inchangée », citations comprises)
+    au lieu de la page en ligne, qui restait sans baseline et jamais diffée.
+    """
+    if url.startswith(JINA_PREFIX) and est_http(reste := url[len(JINA_PREFIX) :]):
+        return reste, "proxy"
+    if m := _WAYBACK_RE.match(url):
+        return m.group(1), "archive"
+    return url, "direct"
+
+
+def corps_binaire(body: str) -> bool:
+    """Snapshot `.md` dont le corps est un binaire décodé de force.
+
+    Des ingestions anciennes ont archivé ainsi des .docx, .doc, .xls, .zip :
+    « PK... » ou une bouillie de caractères de remplacement. Ce n'est ni une
+    baseline (le diff contre un fichier frais serait 100 % de lignes changées),
+    ni une source de citations.
+    """
+    tete = body.lstrip()[:4000]
+    if tete.startswith("PK"):
+        return True
+    suspects = sum(1 for c in tete if c == "�" or (ord(c) < 32 and c not in "\n\r\t"))
+    return len(tete) > 0 and suspects / len(tete) > 0.05
+
 
 UrlRole = Literal["officielle", "snapshot", "formulaire"]
 
@@ -173,6 +228,18 @@ def pdf_lisible(text: str | None) -> bool:
     return text is not None and len(text.strip()) >= PDF_MIN_TEXT
 
 
+def empreinte_texte(texte: str | None) -> str | None:
+    """sha du texte d'un PDF, blancs écrasés. None s'il n'y a rien à lire.
+
+    Pour les PDF trop courts pour servir de baseline (formulaire d'une page,
+    PDF généré à la volée) : leurs octets changent à chaque requête, ce qui
+    escaladait l'aide à chaque passage alors que le texte est identique.
+    """
+    if not texte or not texte.strip():
+        return None
+    return hashlib.sha256(" ".join(texte.split()).encode()).hexdigest()
+
+
 def est_pdf(content: bytes | None) -> bool:
     return bool(content) and content[:5] == b"%PDF-"  # type: ignore[index]
 
@@ -208,9 +275,11 @@ def load_baselines(slug: str) -> tuple[list[tuple[str, str, str]], list[str], di
             # Liens aplatis : les quotes ont été saisies depuis le rendu visuel
             # de la page, où l'URL d'une ancre en milieu de phrase n'apparaît pas.
             meta, body = parse_front_matter(path.read_text(encoding="utf-8"))
+            if corps_binaire(body):
+                continue
             docs.append((path.name, flatten_markdown_links(body), "text"))
-            if (url := meta.get("url")) and url.startswith(("http://", "https://")):
-                provenance[path.name] = url
+            if est_http(url := meta.get("url")):
+                provenance[path.name] = url_d_origine(url)[0]
         elif suffix == ".pdf":
             text = pdf_to_text(path)
             if text is None:
@@ -225,8 +294,8 @@ def load_baselines(slug: str) -> tuple[list[tuple[str, str, str]], list[str], di
             sidecar = path.with_name(path.name + ".meta.yaml")
             if sidecar.is_file():
                 meta = charger_yaml(sidecar.read_text(encoding="utf-8")) or {}
-                if (url := meta.get("url")) and url.startswith(("http://", "https://")):
-                    provenance[path.name] = url
+                if est_http(url := meta.get("url")):
+                    provenance[path.name] = url_d_origine(url)[0]
     return docs, illisibles, provenance
 
 
@@ -241,11 +310,16 @@ class MonitoredUrl:
     baseline_sha: str | None = None
     # Corps markdown du snapshot : le terme de gauche du diff.
     baseline_body: str | None = None
+    # Empreinte du texte d'un PDF archivé, même illisible (cf. `empreinte_texte`).
+    baseline_empreinte_texte: str | None = None
     is_binary: bool = False
 
     @property
     def has_baseline(self) -> bool:
-        return self.baseline_sha is not None
+        # Un snapshot ancien sans sha dans son en-tête reste un terme de diff :
+        # les deux définitions doivent dire la même chose, sinon une page diffée
+        # (et escaladée) compte en même temps pour « sans baseline ».
+        return self.baseline_sha is not None or self.baseline_body is not None
 
     @property
     def host(self) -> str:
@@ -270,18 +344,28 @@ def _snapshot_baselines(slug: str) -> dict[str, MonitoredUrl]:
         if path.suffix.lower() == ".md":
             meta, body = parse_front_matter(path.read_text(encoding="utf-8"))
             url, sha = meta.get("url"), meta.get("sha256")
-            if url and url.startswith(("http://", "https://")):
-                baselines[url] = MonitoredUrl(
-                    url=url,
-                    role="snapshot",
-                    label=_label_of(path.stem),
-                    baseline_path=path,
-                    baseline_sha=sha,
-                    baseline_body=body,
-                )
+            if not est_http(url):
+                continue
+            url, chemin = url_d_origine(url)
+            # Un corps binaire n'est pas comparable, et le markdown d'un proxy ne
+            # sort pas de la même conversion que la page qu'on retéléchargera :
+            # dans les deux cas l'URL reste surveillée, mais sans terme de diff.
+            # Une page déjà archivée en direct garde sa baseline.
+            comparable = chemin != "proxy" and not corps_binaire(body)
+            if not comparable and url in baselines:
+                continue
+            baselines[url] = MonitoredUrl(
+                url=url,
+                role="snapshot",
+                label=_label_of(path.stem),
+                baseline_path=path if comparable else None,
+                baseline_sha=sha if comparable else None,
+                baseline_body=body if comparable else None,
+            )
         elif path.name.endswith(".pdf.meta.yaml"):
             meta = charger_yaml(path.read_text(encoding="utf-8")) or {}
-            if (url := meta.get("url")) and url.startswith(("http://", "https://")):
+            if est_http(url := meta.get("url")):
+                url = url_d_origine(url)[0]
                 pdf = path.with_name(path.name.removesuffix(".meta.yaml"))
                 # Le texte du PDF archivé est le terme de gauche du diff quand la
                 # même URL rend un PDF frais lisible. Un scan (texte trop court)
@@ -294,6 +378,7 @@ def _snapshot_baselines(slug: str) -> dict[str, MonitoredUrl]:
                     baseline_path=pdf,
                     baseline_sha=meta.get("sha256"),
                     baseline_body=texte if pdf_lisible(texte) else None,
+                    baseline_empreinte_texte=empreinte_texte(texte),
                     is_binary=True,
                 )
     return baselines
@@ -348,7 +433,8 @@ def monitored_urls(aide: Aide) -> list[MonitoredUrl]:
     urls: list[MonitoredUrl] = []
     seen: set[str] = set()
 
-    if officielle := aide.source.url_officielle:
+    if est_http(officielle := aide.source.url_officielle):
+        assert officielle is not None
         base = baselines.get(officielle) or par_cle.get(cle_url(officielle))
         urls.append(
             MonitoredUrl(
@@ -358,6 +444,7 @@ def monitored_urls(aide: Aide) -> list[MonitoredUrl]:
                 baseline_path=base.baseline_path if base else None,
                 baseline_sha=base.baseline_sha if base else None,
                 baseline_body=base.baseline_body if base else None,
+                baseline_empreinte_texte=base.baseline_empreinte_texte if base else None,
                 is_binary=base.is_binary if base else not _est_textuel("", officielle),
             )
         )
@@ -368,7 +455,9 @@ def monitored_urls(aide: Aide) -> list[MonitoredUrl]:
             urls.append(baselines[url])
             seen.add(cle)
 
-    if (formulaire := aide.source.formulaire_url) and cle_url(formulaire) not in seen:
+    formulaire = aide.source.formulaire_url
+    if est_http(formulaire) and cle_url(formulaire) not in seen:  # type: ignore[arg-type]
+        assert formulaire is not None
         urls.append(MonitoredUrl(url=formulaire, role="formulaire"))
     return urls
 
@@ -426,15 +515,17 @@ class FetchResult:
     # Texte tiré d'un PDF frais par `pdftotext`. None pour un binaire non PDF,
     # un PDF illisible ou un outil absent — jamais une chaîne vide « lisible ».
     texte_pdf: str | None = None
+    # Document Word : son texte est dans `body_md`, et c'est lui que porte le
+    # sha, comme dans l'en-tête de `write_docx_snapshot` (re-zipper un document
+    # identique change ses octets, pas son texte).
+    docx: bool = False
     via_proxy: bool = False
-    # Page obtenue seulement après repli sous identité de navigateur (403 au
-    # premier essai). Le contenu reste diffable : il passe par `to_markdown`
-    # comme la baseline, contrairement au proxy.
-    via_navigateur: bool = False
-    # Page obtenue après résolution d'un défi JavaScript (« shield »).
-    via_shield: bool = False
     elapsed_s: float = 0.0
     retried: bool = False
+
+    @property
+    def empreinte_texte(self) -> str | None:
+        return empreinte_texte(self.texte_pdf)
 
     @property
     def ok(self) -> bool:
@@ -451,7 +542,15 @@ class FetchResult:
 
     @property
     def morte(self) -> bool:
-        """La page n'existe plus — c'est une décision éditoriale, pas une panne."""
+        """La page n'existe plus — c'est une décision éditoriale, pas une panne.
+
+        Une redirection restée en bout de chaîne compte aussi : sans `Location`,
+        rien n'a pu la suivre. Vu sur maregionsud.fr le 2026-10-04 : la fiche
+        d'un appel à projets retiré répond 301 sans destination et sert la liste
+        des aides de la Région.
+        """
+        if self.status is not None and 300 <= self.status < 400:
+            return True
         return self.status in (404, 410)
 
     @property
@@ -472,97 +571,104 @@ class FetchResult:
         return "text" if self.body_md else "pdf"
 
 
-async def _fetch_one(
-    client: httpx.AsyncClient,
-    murl: MonitoredUrl,
-    *,
-    semaphore: asyncio.Semaphore,
-    host_locks: dict[str, asyncio.Lock],
-    proxy: str | None,
-) -> FetchResult:
-    target = f"{JINA_PREFIX}{murl.url}" if proxy == "jina" else murl.url
-    result = FetchResult(url=murl.url, via_proxy=proxy == "jina")
+def _depuis_page(murl: MonitoredUrl, page: Page, *, via_proxy: bool) -> FetchResult:
+    """Traduit une `Page` du fetcheur partagé dans le vocabulaire de l'étage B."""
+    result = FetchResult(url=murl.url, via_proxy=via_proxy)
+    if page.erreur is not None:
+        result.error = page.erreur
+        return result
+    result.status = page.status
+    if not 200 <= page.status < 300:
+        return result
+    result.url_finale = page.url_finale
+    result.is_binary = not _est_textuel(page.content_type, murl.url) or page.est_pdf
+    if result.is_binary or page.est_docx:
+        result.is_binary = True
+        result.content = page.contenu
+        if est_docx(page.contenu):
+            # Un .docx se compare par son TEXTE : c'est ce que l'ingestion
+            # archive (`write_docx_snapshot`), et un sha d'octets escaladait
+            # l'aide à chaque passage, re-zippage oblige.
+            texte = docx_bytes_to_text(page.contenu)
+            result.docx = True
+            result.body_md = texte or None
+            result.sha256 = hashlib.sha256(texte.encode()).hexdigest()
+        else:
+            # Un binaire ne passe pas par html2text : un .docx y rendait
+            # 111 000 caractères de ZIP illisible. Le texte d'un PDF est tiré
+            # par `collect()`, hors des threads réseau.
+            result.sha256 = hashlib.sha256(page.contenu).hexdigest()
+        return result
+    result.raw_text = page.texte
+    result.sha256 = hashlib.sha256(page.texte.encode()).hexdigest()
+    # Le proxy rend déjà du markdown : le reconvertir l'abîmerait.
+    result.body_md = page.texte if via_proxy else to_markdown(page.texte)
+    return result
+
+
+def _fetch_one(fetcheur: Fetcheur, murl: MonitoredUrl, *, proxy: str | None) -> FetchResult:
+    """Une URL, au plus deux essais. Ne lève jamais : une erreur est une donnée.
+
+    Le contournement des pare-feux (en-têtes de navigateur après un 403, défi
+    JavaScript, empreinte TLS de Chrome) est l'affaire du fetcheur ; ce qui
+    reste ici est la seconde chance donnée à une panne transitoire.
+    """
+    via_proxy = proxy == "jina"
+    target = f"{JINA_PREFIX}{murl.url}" if via_proxy else murl.url
     start = time.monotonic()
-    # None = identité par défaut du client (UA Monumia). Renseigné au second
-    # essai si le premier s'est heurté à un WAF.
-    headers: dict[str, str] | None = None
-    # Verrou d'hôte AVANT le sémaphore : l'inverse laisserait plusieurs tâches
-    # d'un même hôte occuper toutes les places disponibles pour s'attendre.
-    async with host_locks[murl.host]:
-        for attempt in (1, 2):
-            async with semaphore:
-                try:
-                    resp = await client.get(target, headers=headers)
-                    if (defi := resoudre_shield(resp.content)) is not None:
-                        # Ce n'est pas la page mais un script qui pose un cookie
-                        # calculé avant de rediriger. Rejouer le calcul coûte une
-                        # multiplication ; sans ça la page revient vide de
-                        # substance et l'aide sort en ERREUR_HTTP. Le cookie est
-                        # posé sur le client partagé : les autres URL du même
-                        # hôte en profitent sans repayer l'aller-retour.
-                        nom, valeur = defi
-                        client.cookies.set(nom, valeur, domain=murl.host)
-                        result.via_shield = True
-                        resp = await client.get(target, headers=headers)
-                    result.status = resp.status_code
-                    result.error = None
-                    if resp.is_success:
-                        result.url_finale = str(resp.url)
-                        ctype = resp.headers.get("content-type", "")
-                        result.is_binary = not _est_textuel(ctype, murl.url)
-                        if result.is_binary:
-                            # Un binaire ne passe pas par html2text : un .docx y
-                            # rendait 111 000 caractères de ZIP illisible — donc
-                            # « 100 % des lignes changées » et une escalade à
-                            # chaque passage, sur sept aides de Seine-et-Marne.
-                            # Ses octets sont gardés : `collect()` en tire le
-                            # texte s'il s'agit d'un PDF, hors de la boucle
-                            # réseau (pdftotext est un sous-processus bloquant).
-                            result.sha256 = hashlib.sha256(resp.content).hexdigest()
-                            result.content = resp.content
-                        else:
-                            result.raw_text = resp.text
-                            result.sha256 = hashlib.sha256(resp.text.encode()).hexdigest()
-                            # Le proxy rend déjà du markdown : le reconvertir
-                            # l'abîmerait.
-                            result.body_md = (
-                                resp.text if result.via_proxy else to_markdown(resp.text)
-                            )
-                except httpx.HTTPError as exc:
-                    result.status = None
-                    result.error = f"{type(exc).__name__}: {exc}"
-            if attempt == 1 and not result.ok and result.reessayable:
-                result.retried = True
-                if result.status == 403:
-                    # Un 403 est un refus déterministe : réémettre la même
-                    # requête après une pause ne change rien. On change
-                    # d'identité, et on n'attend pas.
-                    headers = HEADERS_NAVIGATEUR
-                else:
-                    await asyncio.sleep(RETRY_BACKOFF_S)
-                continue
-            break
-    # Après la boucle seulement : le repli n'est constaté que s'il a abouti.
-    result.via_navigateur = headers is not None and result.ok
+    result = FetchResult(url=murl.url, via_proxy=via_proxy)
+    for attempt in (1, 2):
+        try:
+            result = _depuis_page(murl, fetcheur.get(target), via_proxy=via_proxy)
+        except Exception as exc:
+            # Rien de ce qu'une URL renvoie ne doit faire tomber le passage :
+            # c'est ce qu'un `formulaire_url: mailto:` avait fait, après tout
+            # le téléchargement, sans rapport ni manifeste.
+            result = FetchResult(
+                url=murl.url, via_proxy=via_proxy, error=f"{type(exc).__name__}: {exc}"
+            )
+        # Le 403 a déjà eu droit aux en-têtes de navigateur puis au repli
+        # `curl_cffi` : le réémettre à l'identique ne changerait rien.
+        if attempt == 1 and not result.ok and result.reessayable and result.status != 403:
+            result.retried = True
+            time.sleep(RETRY_BACKOFF_S)
+            continue
+        break
+    result.retried = result.retried or attempt == 2
     result.elapsed_s = time.monotonic() - start
     return result
 
 
-async def _fetch_all_async(
+def _fetch_all(
     urls: list[MonitoredUrl], *, concurrency: int, timeout: float, proxy: str | None
 ) -> dict[str, FetchResult]:
-    semaphore = asyncio.Semaphore(concurrency)
-    host_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
-    async with httpx.AsyncClient(
-        headers={"User-Agent": UA}, follow_redirects=True, timeout=timeout
-    ) as client:
-        results = await asyncio.gather(
-            *(
-                _fetch_one(client, m, semaphore=semaphore, host_locks=host_locks, proxy=proxy)
-                for m in urls
-            )
-        )
-    return {r.url: r for r in results}
+    """Télécharge tout, une tâche par hôte, `concurrency` hôtes à la fois.
+
+    Le fetcheur sérialise déjà un même hôte, avec une seconde entre deux
+    requêtes. Répartir par URL laisserait tous les threads attendre le même
+    verrou (les URL triées regroupent les hôtes) pendant que les autres sites
+    restent sans requête ; répartir par hôte occupe chaque thread utilement.
+    """
+    # Import local : le fetcheur exige le groupe `pipeline` (truststore,
+    # curl_cffi), alors que `load_baselines` et `cle_url` sont importés par le
+    # lint et par d'autres scripts qui ne téléchargent rien.
+    from pipeline.web import Fetcheur
+
+    par_hote: dict[str, list[MonitoredUrl]] = defaultdict(list)
+    for m in urls:
+        par_hote[m.host].append(m)
+
+    def traiter_hote(lot: list[MonitoredUrl]) -> list[FetchResult]:
+        # Un fetcheur par hôte, donc par thread ; sans cache, le dédoublonnage
+        # est déjà fait et un 503 mis en cache fausserait la seconde chance.
+        with Fetcheur(timeout=timeout, taille_cache=0) as fetcheur:
+            return [_fetch_one(fetcheur, m, proxy=proxy) for m in lot]
+
+    # Les hôtes les plus chargés d'abord : ce sont eux qui bornent la durée.
+    lots = sorted(par_hote.values(), key=len, reverse=True)
+    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
+        resultats = [r for lot in pool.map(traiter_hote, lots) for r in lot]
+    return {r.url: r for r in resultats}
 
 
 @dataclass
@@ -641,13 +747,11 @@ def collect(
         for murl in col.urls:
             par_url.setdefault(murl.url, murl)
 
-    fetched = asyncio.run(
-        _fetch_all_async(
-            sorted(par_url.values(), key=lambda m: m.url),
-            concurrency=concurrency,
-            timeout=timeout,
-            proxy=proxy,
-        )
+    fetched = _fetch_all(
+        sorted(par_url.values(), key=lambda m: m.url),
+        concurrency=concurrency,
+        timeout=timeout,
+        proxy=proxy,
     )
     # Texte des PDF frais, une fois par URL et hors de la boucle réseau. Un
     # binaire qui n'est pas un PDF (.docx, tableur) reste sans texte : il n'est

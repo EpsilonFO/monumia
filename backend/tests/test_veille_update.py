@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import snapshot_source  # noqa: E402
+import veille_apply  # noqa: E402
 import veille_update  # noqa: E402
 from veille_aides import build_report, run_stage_c, update_manifest  # noqa: E402
 from veille_analyze import AideAnalysis, UrlVerdict  # noqa: E402
@@ -272,16 +273,24 @@ class TestNouvelleTentative(BaseEtageC):
     def test_echec_non_rattrapable_n_est_pas_rejoue(self):
         # Un champ hors périmètre est une erreur de référentiel… donc rattrapable.
         # Un re-typage déguisé aussi. Ce qui ne l'est PAS : un JSON syntaxiquement
-        # valide dont l'édition échoue. On prend ici une section absente du
-        # fichier, qui échoue à l'étape « edition ».
-        sans_cumul = FICHE.replace("cumul:\n  cumulable: true\n\n", "")
-        res, _, faux = self.lancer(
-            reponse(
-                cumul={"champs": {"cumulable": False}, "quote": "Le taux d'intervention est porté"}
-            ),
-            MAJ_TAUX,
-            contenu=sans_cumul,
-        )
+        # valide dont l'édition échoue — notre bug, pas celui du modèle. Les cas
+        # réels (section absente, section en flow) sont désormais gérés par
+        # l'éditeur : l'échec est donc simulé à la sortie de `appliquer`.
+        def edition_ratee(texte, aide, *args, **kwargs):
+            res = veille_apply.ApplyResult(slug=aide.slug, etape="edition")
+            res.erreurs = ["édition impossible"]
+            return res
+
+        with patch.object(veille_update, "appliquer", edition_ratee):
+            res, _, faux = self.lancer(
+                reponse(
+                    cumul={
+                        "champs": {"cumulable": False},
+                        "quote": "Le taux d'intervention est porté",
+                    }
+                ),
+                MAJ_TAUX,
+            )
         self.assertEqual(res.etape_echec, "edition")
         self.assertEqual(len(faux.prompts), 1, "notre bug d'édition ne se corrige pas au modèle")
 
@@ -316,7 +325,14 @@ class TestNouvelleTentative(BaseEtageC):
         self.assertEqual(len(faux.prompts), 1)
 
 
-class TestPlafondAjouts(BaseEtageC):
+class TestConditionsNouvellesOuDisparues(BaseEtageC):
+    """Décision du 2026-10-04 : la veille n'écrit ni n'annote aucune condition.
+
+    Une condition apparue ou disparue est ce que la veille existe pour voir, et
+    elle part en ré-ingestion dès la première : ajoutée en `untyped`, elle
+    retirait l'aide entière du moteur.
+    """
+
     def _ajouts(self, n: int) -> str:
         return reponse(
             conditions=[
@@ -334,19 +350,30 @@ class TestPlafondAjouts(BaseEtageC):
             ]
         )
 
-    def test_quelques_ajouts_restent_une_retouche(self):
-        res, apres, _ = self.lancer(self._ajouts(2))
-        self.assertEqual(res.etat, "applique", res.erreurs)
-        self.assertIn("nouvelle-condition-0", apres)
-        self.assertIn("nouvelle-condition-1", apres)
+    def test_un_seul_ajout_escalade_sans_rien_ecrire(self):
+        res, apres, faux = self.lancer(self._ajouts(1))
+        self.assertEqual(res.etat, "escalade", res.erreurs)
+        self.assertIn("1 condition(s) nouvelle(s)", res.raison)
+        self.assertIn("nouvelle-condition-0", res.raison)
+        self.assertIn("ré-ingestion", res.raison)
+        self.assertEqual(apres, FICHE)
+        self.assertEqual(len(faux.prompts), 1, "un constat ne se renégocie pas avec le modèle")
 
-    def test_ajouts_massifs_escaladent_sans_rien_ecrire(self):
-        # Toutes correctement citées : la validation les laisserait passer. Ce
-        # n'est pas leur véracité qui pose problème, c'est ce qu'elles révèlent —
-        # une fiche incomplète, donc une ré-ingestion.
-        res, apres, _ = self.lancer(self._ajouts(8))
-        self.assertEqual(res.etat, "escalade")
-        self.assertIn("8 conditions nouvelles", res.raison)
+    def test_condition_disparue_escalade_sans_annoter(self):
+        res, apres, _ = self.lancer(
+            reponse(conditions=[{"op": "signaler_disparue", "id": "montant-moyen"}])
+        )
+        self.assertEqual(res.etat, "escalade", res.erreurs)
+        self.assertIn("disparue(s)", res.raison)
+        self.assertEqual(apres, FICHE)
+
+    def test_ajout_et_retouche_ensemble_rien_n_est_ecrit(self):
+        # La retouche de taux qui accompagne l'ajout n'est pas appliquée seule :
+        # la ré-ingestion reprendra l'aide entière.
+        sortie = json.loads(self._ajouts(1))
+        sortie["financement"] = json.loads(MAJ_TAUX)["financement"]
+        res, apres, _ = self.lancer(json.dumps(sortie))
+        self.assertEqual(res.etat, "escalade", res.erreurs)
         self.assertEqual(apres, FICHE)
 
 
@@ -498,6 +525,36 @@ class TestRunStageC(unittest.TestCase):
         self._lancer(self._args(), analyses)
         self.assertEqual(analyses["aide-0"].statut, "ESCALADE_INGESTION")
         self.assertIn("dispositif fusionné", analyses["aide-0"].raisons)
+
+    def test_changement_deja_refuse_n_est_pas_resoumis(self):
+        from veille_aides import empreinte_changement
+
+        analyses = analyses_factices("MAJ_LLM", "MAJ_LLM", "MAJ_LLM")
+        manifest = {
+            "aide-0": {
+                "maj_refusee": {
+                    "date": "2026-08-01",
+                    "etat": "escalade",
+                    "empreinte": empreinte_changement(analyses["aide-0"]),
+                    "raison": "1 condition(s) nouvelle(s)",
+                }
+            },
+            # Empreinte différente : la source a encore bougé, on resoumet.
+            "aide-1": {"maj_refusee": {"etat": "echec", "empreinte": "perimee"}},
+        }
+        aides = dict.fromkeys(analyses)
+        run_stage_c(
+            self._args(max_llm=2),
+            aides,
+            analyses,
+            dict.fromkeys(analyses),
+            AUJOURD_HUI,
+            MuetJournal(),
+            manifest=manifest,
+        )
+        # aide-0 ne prend pas de place sous le plafond : aide-1 et aide-2 passent.
+        self.assertEqual(self.appels, ["aide-1", "aide-2"])
+        self.assertEqual(analyses["aide-0"].statut, "ESCALADE_INGESTION")
 
     def test_cle_absente_saute_l_etage_sans_echouer(self):
         spec = self.module.resoudre_modele("gpt-luna")
@@ -664,6 +721,42 @@ class TestManifesteErreurHttp(unittest.TestCase):
     def test_erreur_http_sur_une_aide_jamais_vue_reste_sans_date(self):
         m = update_manifest({}, analyses_factices("ERREUR_HTTP"), {}, AUJOURD_HUI)
         self.assertNotIn("checked_at", m["aide-0"])
+
+    def test_erreur_http_se_range_a_sa_derniere_tentative(self):
+        # Sinon les sources en panne durable restent seules en tête de file, et
+        # un `--limit` ne revisite plus qu'elles.
+        from veille_aides import anciennete
+
+        avant = {"aide-0": {"checked_at": "2026-07-01", "status": "ok"}}
+        m = update_manifest(avant, analyses_factices("ERREUR_HTTP"), {}, AUJOURD_HUI)
+        self.assertEqual(m["aide-0"]["tente_le"], AUJOURD_HUI.isoformat())
+        aide = Aide.model_validate(
+            {
+                "slug": "aide-0",
+                "nom": "n",
+                "organisme": "o",
+                "categorie": "region",
+                "type": "subvention",
+                "description": "d",
+            }
+        )
+        self.assertEqual(anciennete(aide, m), AUJOURD_HUI)
+
+    def test_maj_llm_laissee_de_cote_garde_sa_date(self):
+        # Plafond `--max-llm` atteint : l'aide n'a pas été traitée, elle doit
+        # repasser en tête au run suivant.
+        avant = {"aide-0": {"checked_at": "2026-07-01", "status": "ok"}}
+        m = update_manifest(avant, analyses_factices("MAJ_LLM"), {}, AUJOURD_HUI)
+        self.assertEqual(m["aide-0"]["checked_at"], "2026-07-01")
+
+    def test_refus_memorise_puis_oublie_quand_l_aide_sort_de_maj_llm(self):
+        refus = MajResult(slug="aide-0", etat="echec", raison="deep_diff", empreinte="e1")
+        m1 = update_manifest({}, analyses_factices("MAJ_LLM"), {"aide-0": refus}, AUJOURD_HUI)
+        self.assertEqual(m1["aide-0"]["maj_refusee"]["empreinte"], "e1")
+        m2 = update_manifest(m1, analyses_factices("MAJ_LLM"), {}, AUJOURD_HUI)
+        self.assertIn("maj_refusee", m2["aide-0"])
+        m3 = update_manifest(m2, analyses_factices("OK"), {}, AUJOURD_HUI)
+        self.assertNotIn("maj_refusee", m3["aide-0"])
 
     def test_rapport_liste_les_pages_rearchivees_sans_retouche(self):
         majs = {

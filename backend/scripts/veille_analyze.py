@@ -35,7 +35,7 @@ from aides_schema import Aide
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from veille_collect import AideCollect, FetchResult, MonitoredUrl
+from veille_collect import AideCollect, FetchResult, MonitoredUrl, cle_url
 from veille_text import (
     NormalizedDiff,
     QuoteMatch,
@@ -232,7 +232,7 @@ def _quote_verdicts(
     # « 0/n citation contrôlée » — un faux négatif, sur la page même qu'on
     # venait de re-télécharger.
     doc_recontrolable = {
-        m.baseline_path.name: m.url in urls_rafraichies
+        m.baseline_path.name: cle_url(m.url) in urls_rafraichies
         for m in collect.urls
         if m.baseline_path is not None
     }
@@ -241,7 +241,7 @@ def _quote_verdicts(
         if not nom:
             return False
         if url := collect.baseline_urls.get(nom):
-            return url in urls_rafraichies
+            return cle_url(url) in urls_rafraichies
         # Sans provenance — les PDF antérieurs au sidecar — on ne sait pas quelle
         # page ce document archive : le nom de fichier est tout ce qui reste.
         return doc_recontrolable.get(nom, False)
@@ -290,7 +290,11 @@ def analyze(
             # justifiait.
             texte = result.texte
             if texte is not None:
-                urls_rafraichies.add(murl.url)
+                # Sous les deux formes : la provenance d'un snapshot est l'URL où
+                # le téléchargement avait ABOUTI, redirections suivies.
+                urls_rafraichies.add(cle_url(murl.url))
+                if result.url_finale:
+                    urls_rafraichies.add(cle_url(result.url_finale))
             if murl.baseline_sha and result.sha256 == murl.baseline_sha:
                 # Chemin rapide : pas un octet de différence, rien à calculer.
                 verdict.sha_identique = True
@@ -298,6 +302,14 @@ def analyze(
             # que la baseline : le differ produirait du bruit pur.
             elif texte is not None and murl.baseline_body is not None and not result.via_proxy:
                 verdict.diff = normalized_diff(murl.baseline_body, texte, extra_noise=chrome)
+            elif (
+                murl.baseline_empreinte_texte
+                and result.empreinte_texte == murl.baseline_empreinte_texte
+            ):
+                # PDF trop court pour servir de baseline, mais dont le texte est
+                # identique : généré à la volée, ses octets changent à chaque
+                # requête (meuse.fr/…/pdf). Rien n'a bougé.
+                verdict.sha_identique = True
             elif result.is_binary and murl.baseline_sha:
                 # Le sha a bougé et aucun texte comparable n'existe d'un côté ou
                 # de l'autre (.docx, PDF scanné, pdftotext absent). Avant ce cas,

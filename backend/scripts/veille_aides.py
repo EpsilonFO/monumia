@@ -16,7 +16,8 @@ fraîchement téléchargée. Aucun modèle mesuré n'atteint zéro faux changeme
 `git diff` doit être relu avant commit, c'est la dernière barrière.
 
 `--report-only` s'arrête après l'étage B ; `--dry-run` va jusqu'au bout mais
-n'écrit aucun fichier d'aide.
+n'écrit aucun fichier d'aide. Ni l'un ni l'autre n'écrit le manifeste : seul un
+passage complet date ses contrôles (un acquittement explicite excepté).
 
 Codes de sortie : 0 terminé ; 1 erreur fatale ; 2 au moins une escalade, une
 erreur HTTP à retenter ou une mise à jour en échec.
@@ -25,6 +26,7 @@ erreur HTTP à retenter ou une mise à jour en échec.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import sys
 from collections import Counter
 from collections.abc import Sequence
@@ -52,7 +54,7 @@ from veille_analyze import (
 from veille_collect import DEFAULT_CONCURRENCY, DEFAULT_TIMEOUT, collect
 from veille_journal import Journal, cellule, milliers, tokens_compacts
 from veille_llm import MODELE_DEFAUT, resoudre_modele
-from veille_update import MAX_LLM_DEFAUT, MajResult, mettre_a_jour
+from veille_update import MAX_LIGNES_DIFF, MAX_LLM_DEFAUT, MajResult, mettre_a_jour
 
 MANIFEST_PATH = DATA_DIR / "veille-state.yaml"
 REVIEWS_DIR = DATA_DIR / "reviews"
@@ -182,9 +184,26 @@ def anciennete(aide: Aide, manifest: dict) -> date:
     """
     entry = manifest.get(aide.slug) or {}
     checked = entry.get("checked_at")
+    # Une aide injoignable garde la date de son dernier contrôle RÉEL, mais se
+    # range à celle de sa dernière tentative : sinon les sources en panne
+    # durable (Cloudflare, rendu JavaScript) restaient seules en tête de file et
+    # un `--limit` ne revisitait plus qu'elles, indéfiniment.
+    if entry.get("status") == "erreur_http" and entry.get("tente_le"):
+        checked = entry["tente_le"]
     if isinstance(checked, str):
         checked = date.fromisoformat(checked)
     return max(aide.source.verified_at or date.min, checked or date.min)
+
+
+def empreinte_changement(an: AideAnalysis) -> str:
+    """Empreinte du changement tel que l'étage C le soumet au modèle.
+
+    Sert à ne pas repayer un appel quand le MÊME changement a déjà été soumis
+    et refusé (échec de validation, escalade) : tant que la baseline n'est pas
+    ré-archivée, l'étage B le redétecte à chaque passage.
+    """
+    contenu = resume_diff(an, max_lignes=MAX_LIGNES_DIFF) + "\n" + "\n".join(sorted(an.raisons))
+    return hashlib.sha256(contenu.encode()).hexdigest()[:16]
 
 
 def update_manifest(
@@ -219,13 +238,17 @@ def update_manifest(
         )
         ancienne_entree = manifest.get(slug) or {}
         entree: dict = {"status": an.statut.lower()}
-        if an.statut == "ERREUR_HTTP":
-            # Rien n'a été vérifié : dater le contrôle d'aujourd'hui enverrait
-            # l'aide en fin de file d'ancienneté, donc hors d'un `--limit` au
-            # passage suivant — l'inverse de « à retenter ». Elle garde sa date
-            # précédente, ou aucune si elle n'a jamais été vue.
+        maj = majs.get(slug)
+        if an.statut == "ERREUR_HTTP" or (an.statut == "MAJ_LLM" and maj is None):
+            # Rien n'a été vérifié (source injoignable), ou le changement attend
+            # encore son passage au modèle (plafond `--max-llm`, clé absente) :
+            # l'aide garde la date de son dernier contrôle abouti, ou aucune.
+            # Une MAJ_LLM restée de côté repasse ainsi en tête au run suivant
+            # au lieu de céder sa place aux aides déjà traitées.
             if ancienne := ancienne_entree.get("checked_at"):
                 entree["checked_at"] = ancienne
+            if an.statut == "ERREUR_HTTP":
+                entree["tente_le"] = today.isoformat()
         else:
             entree["checked_at"] = today.isoformat()
         if urls:
@@ -233,7 +256,6 @@ def update_manifest(
         # Trace de la dernière retouche automatique. Conservée d'un run à
         # l'autre : c'est ce qui permet de répondre « quand la veille a-t-elle
         # touché cette fiche, et à quoi » sans fouiller l'historique git.
-        maj = majs.get(slug)
         ancienne_maj = ancienne_entree.get("maj")
         if maj is not None and maj.etat == "applique":
             entree["maj"] = {
@@ -252,8 +274,36 @@ def update_manifest(
         # Acquittement d'échéance (voir `traiter_acquittements`) : même report.
         if ack := ancienne_entree.get("ack"):
             entree["ack"] = ack
+        # Changement déjà soumis et refusé : mémorisé pour ne pas repayer le
+        # même appel au passage suivant (voir `run_stage_c`). Il tombe dès que
+        # l'aide sort de MAJ_LLM ou d'escalade — c'est-à-dire quand la source,
+        # la fiche ou la baseline ont bougé.
+        if maj is not None and maj.etat in ("echec", "escalade"):
+            entree["maj_refusee"] = {
+                "date": today.isoformat(),
+                "etat": maj.etat,
+                "empreinte": maj.empreinte,
+                "raison": maj.raison,
+            }
+        elif (refus := ancienne_entree.get("maj_refusee")) and an.statut in (
+            "MAJ_LLM",
+            "ESCALADE_INGESTION",
+        ):
+            entree["maj_refusee"] = refus
         merged[slug] = entree
     return merged
+
+
+def purger_orphelines(manifest: dict) -> list[str]:
+    """Retire les entrées dont la fiche n'existe plus (fusionnée, écartée).
+
+    Sans ça, un slug recréé plus tard hériterait d'un acquittement et d'un audit
+    qui portaient sur une autre fiche.
+    """
+    orphelines = sorted(s for s in manifest if not (AIDES_DIR / f"{s}.yaml").exists())
+    for slug in orphelines:
+        del manifest[slug]
+    return orphelines
 
 
 def write_manifest(manifest: dict, path: Path = MANIFEST_PATH) -> None:
@@ -569,6 +619,8 @@ def run_stage_c(
     collects: dict,
     today: date,
     log: Journal,
+    *,
+    manifest: dict | None = None,
 ) -> dict[str, MajResult]:
     """Soumet au modèle les aides retenues par l'étage B, dans l'ordre d'ancienneté.
 
@@ -583,6 +635,28 @@ def run_stage_c(
     # dont l'ordre porte l'ancienneté, et c'est lui qui décide qui passe sous
     # le plafond `--max-llm`.
     candidats = [s for s in aides if s in analyses and analyses[s].statut == "MAJ_LLM"]
+    # Un changement déjà soumis et refusé à l'identique n'est pas resoumis : le
+    # modèle répondrait pareil, et les refus récurrents prendraient chaque
+    # semaine les places du plafond avant les changements neufs.
+    deja_refuses = []
+    for slug in candidats:
+        refus = ((manifest or {}).get(slug) or {}).get("maj_refusee") or {}
+        if refus.get("empreinte") == empreinte_changement(analyses[slug]):
+            deja_refuses.append(slug)
+            an = analyses[slug]
+            an.raisons.append(
+                f"même changement déjà soumis le {refus.get('date')} ({refus.get('etat')}) : "
+                f"{refus.get('raison', '')}"
+            )
+            if refus.get("etat") == "escalade":
+                an.statut = "ESCALADE_INGESTION"
+    if deja_refuses:
+        log("")
+        log(
+            f"  {len(deja_refuses)} changement(s) déjà soumis et refusé(s) à l'identique, "
+            f"non resoumis : {', '.join(deja_refuses)}"
+        )
+    candidats = [s for s in candidats if s not in deja_refuses]
     if not candidats:
         return {}
 
@@ -614,6 +688,7 @@ def run_stage_c(
             aujourd_hui=today,
             dry_run=args.dry_run,
         )
+        maj.empreinte = empreinte_changement(analyses[slug])
         majs[slug] = maj
         log(
             f"  [{i}/{len(retenus)}] {maj.symbole} {slug:<46} "
@@ -655,7 +730,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--report-only",
         action="store_true",
-        help="étages A+B seulement : zéro LLM, zéro écriture",
+        help="étages A+B seulement : zéro LLM, ni fiche ni manifeste (seul le rapport est écrit)",
     )
     p.add_argument(
         "--dry-run",
@@ -775,7 +850,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     log(f"collecte et analyse terminées en {(time.monotonic() - start) / 60:.1f} min.")
 
-    majs = run_stage_c(args, aides, analyses, collects, today, log)
+    majs = run_stage_c(args, aides, analyses, collects, today, log, manifest=manifest)
     duree = time.monotonic() - start
 
     log("")
@@ -827,10 +902,17 @@ def main(argv: list[str] | None = None) -> int:
     else:
         mode = "dry-run" if args.dry_run else "complet"
 
-    if not args.offline:
-        # Hors ligne, aucune source n'a été consultée : dater le contrôle
-        # d'aujourd'hui ferait passer tout le parc pour vérifié.
-        write_manifest(update_manifest(manifest, analyses, majs, today))
+    if mode == "complet":
+        merged = update_manifest(manifest, analyses, majs, today)
+        if orphelines := purger_orphelines(merged):
+            log(f"manifeste : {len(orphelines)} entrée(s) sans fiche retirée(s)")
+        write_manifest(merged)
+    elif acquittees:
+        # Seul l'acquittement, explicitement demandé, est écrit. Un passage
+        # `--report-only` ou `--dry-run` ne date aucun contrôle : il ne retouche
+        # aucune fiche ni aucune baseline, et dater ses MAJ_LLM d'aujourd'hui
+        # les renvoyait en fin de file, hors du prochain passage réel.
+        write_manifest(manifest)
     REVIEWS_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REVIEWS_DIR / f"{today.isoformat()}-veille.md"
     report_path.write_text(
@@ -839,10 +921,10 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     log("")
-    if args.offline:
-        log("manifeste : NON mis à jour (--offline)")
-    else:
+    if mode == "complet" or acquittees:
         log(f"manifeste : {MANIFEST_PATH.relative_to(DATA_DIR.parent)}")
+    else:
+        log(f"manifeste : NON mis à jour ({mode})")
     log(f"rapport   : {report_path.relative_to(DATA_DIR.parent)}")
     log(f"durée     : {duree / 60:.1f} min")
     appliquees = [m for m in majs.values() if m.etat == "applique"]

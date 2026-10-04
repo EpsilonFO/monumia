@@ -43,13 +43,15 @@ noter_etape() {
 
 # Ce qui change le comportement d'un backend en marche : tout backend/, sauf ce
 # que l'API ne lit jamais (preuves des sources, fiches de review, prospection,
-# tests, scripts hors ligne). Un commit d'ingestion qui n'ajoute que des
-# snapshots ne redémarre donc rien.
+# tests, scripts hors ligne, manifeste et jeux de référence de la veille). Un
+# commit d'ingestion qui n'ajoute que des snapshots ne redémarre donc rien, ni
+# un passage de veille qui ne retouche aucune fiche.
 empreinte_backend() {
   empreinte backend \
     ':(exclude)backend/data/sources' \
     ':(exclude)backend/data/reviews' \
     ':(exclude)backend/data/prospection' \
+    ':(exclude,glob)backend/data/veille-*.yaml' \
     ':(exclude)backend/tests' \
     ':(exclude)backend/scripts'
 }
@@ -59,6 +61,7 @@ empreinte_backend() {
 empreinte_aides() {
   empreinte backend/data/aides \
     ':(glob)backend/data/*.yaml' \
+    ':(exclude,glob)backend/data/veille-*.yaml' \
     ':(glob)backend/*.py' \
     backend/scripts/load_aides_yaml.py
 }

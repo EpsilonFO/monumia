@@ -521,6 +521,25 @@ class TestDocumentsBinaires(unittest.TestCase):
         self.assertTrue(an.urls[1].binaire_modifie)
         self.assertTrue(any("binaire modifié" in r for r in an.raisons))
 
+    def test_pdf_court_au_texte_identique_ne_change_rien(self):
+        # PDF généré à la volée (meuse.fr/…/pdf) : trop court pour servir de
+        # baseline, ses octets changent à chaque requête, son texte non. Il
+        # escaladait l'aide à chaque passage.
+        from dataclasses import replace
+
+        from veille_collect import empreinte_texte
+
+        court = "Formulaire de demande. Date limite : 31 mars 2027."
+        aide = make_aide()
+        col = collect_avec_pdf(aide, pdf_frais=court, pdf_baseline=None)
+        col.urls = [
+            replace(u, baseline_empreinte_texte=empreinte_texte(court)) if u.url == PDF_URL else u
+            for u in col.urls
+        ]
+        an = analyze(aide, col, today=TODAY)
+        self.assertEqual(an.statut, "OK", an.raisons)
+        self.assertTrue(an.urls[1].sha_identique)
+
     def test_pdf_frais_lisible_mais_baseline_scannee_escalade(self):
         # L'archive ne s'extrait pas : rien à quoi comparer le texte frais.
         aide = make_aide()

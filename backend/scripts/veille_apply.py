@@ -34,6 +34,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -47,7 +48,13 @@ from aides_schema import Aide, Predicate, charger_yaml, load_facts, load_pending
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from lint_aides_data import check_fact_predicate, check_field_predicate
+from lint_aides_data import (
+    check_aide,
+    check_ecriture,
+    check_fact_predicate,
+    check_field_predicate,
+    check_hors_gate,
+)
 from veille_text import find_quote_in_any, is_cosmetic_change, normalize_line
 
 # Largeur de repli des block scalars, alignée sur `line-length = 100` de ruff
@@ -185,7 +192,17 @@ class VeilleLLMOutput(BaseModel):
 # ---------------------------------------------------------------------------
 
 Issue = Literal[
-    "json", "schema", "referentiel", "quote", "ancrage", "majeur", "edition", "deep_diff", "lint"
+    "json",
+    "schema",
+    "referentiel",
+    "quote",
+    "ancrage",
+    "majeur",
+    "structure",
+    "edition",
+    "deep_diff",
+    "lint",
+    "coherence",
 ]
 
 
@@ -218,8 +235,15 @@ class ApplyResult:
         Non pour `ancrage` : le modèle a cité correctement une page qui n'a pas
         bougé sur ce point. Il n'a rien à corriger, c'est sa lecture de la tâche
         qui est en cause. Le relancer produirait la même proposition.
+
+        Non pour `structure` : une condition apparue ou disparue est un constat,
+        et il envoie l'aide en ré-ingestion.
+
+        Oui pour `coherence` : la fiche obtenue est valide mais le lint la refuse
+        (une `date_limite` posée sans lever `permanent: true`, par exemple), et
+        c'est au modèle de compléter sa réponse.
         """
-        return self.etape in ("json", "schema", "referentiel", "quote")
+        return self.etape in ("json", "schema", "referentiel", "quote", "coherence")
 
 
 # ---------------------------------------------------------------------------
@@ -724,22 +748,34 @@ def _localiser(lignes: list[str], chemin: list[str]) -> int | None:
     qu'une position, et une correspondance textuelle contrainte par
     l'indentation du parent est plus simple à auditer qu'un arbre de nœuds.
     """
-    debut, fin, indent_parent = 0, len(lignes), -1
+    debut, fin = 0, len(lignes)
     ligne_trouvee = None
     for cle in chemin:
         motif = re.compile(rf"^(\s*){re.escape(cle)}:")
+        # Le premier niveau est la racine du document, les suivants l'enfant
+        # DIRECT du précédent. Chercher « à n'importe quelle profondeur » faisait
+        # trouver `fiche.essentiel.calendrier` dans une fiche sans section
+        # `calendrier:`, et y diriger l'édition.
+        indent_attendu = 0 if ligne_trouvee is None else _indent_enfants(lignes, debut, fin)
         ligne_trouvee = None
         for i in range(debut, fin):
             m = motif.match(lignes[i])
-            if m and len(m.group(1)) > indent_parent:
+            if m and len(m.group(1)) == indent_attendu:
                 ligne_trouvee = i
                 break
         if ligne_trouvee is None:
             return None
-        indent_parent = _indent_de(lignes[ligne_trouvee])
         debut, fin = _span_champ(lignes, ligne_trouvee)
         debut += 1
     return ligne_trouvee
+
+
+def _indent_enfants(lignes: list[str], debut: int, fin: int) -> int:
+    """Indentation des clés enfants d'un mapping, lue sur sa première ligne utile."""
+    for i in range(debut, fin):
+        if not _neutre(lignes[i], 10**6):
+            return _indent_de(lignes[i])
+    return -1
 
 
 def _localiser_condition(lignes: list[str], cond_id: str) -> tuple[int, int] | None:
@@ -775,6 +811,10 @@ class _Edition:
     fin: int
     remplacement: list[str]
     etiquette: str
+    # Section créée : à point d'insertion égal, elle passe APRÈS les champs
+    # ajoutés en fin de la section précédente, sinon ces champs atterriraient
+    # sous la nouvelle clé.
+    nouvelle_section: bool = False
 
 
 def _editions_section(
@@ -784,7 +824,17 @@ def _editions_section(
     erreurs: list[str] = []
     ligne_section = _localiser(lignes, [section])
     if ligne_section is None:
-        return [], [f"section « {section} » introuvable dans le fichier"]
+        # Section absente : le schéma lui donne ses valeurs par défaut (29 % des
+        # fiches n'écrivent pas `cumul`), et le prompt les montre au modèle
+        # comme si elles étaient écrites. On crée la section à sa place.
+        return [_edition_nouvelle_section(lignes, section, champs)], []
+    if re.fullmatch(rf"{re.escape(section)}:\s*\{{\}}\s*", lignes[ligne_section]):
+        # Section vide écrite en flow, comme `yaml.safe_dump` écrit un mapping
+        # vide : on l'ouvre en bloc à la même place.
+        nouvelle = _edition_nouvelle_section(lignes, section, champs)
+        return [
+            _Edition(ligne_section, ligne_section + 1, nouvelle.remplacement, nouvelle.etiquette)
+        ], []
     indent_section = _indent_de(lignes[ligne_section])
     _, fin_section = _span_champ(lignes, ligne_section)
 
@@ -823,6 +873,37 @@ def _editions_section(
                 )
             )
     return editions, erreurs
+
+
+# Ordre des sections au premier niveau des fiches (celui de `Aide`, et celui de
+# 193 des 200 fiches qui écrivent `cumul`). Une section créée se range avant la
+# première section présente qui la suit.
+ORDRE_SECTIONS = (
+    "source",
+    "financement",
+    "cumul",
+    "calendrier",
+    "hard_filters",
+    "conditions",
+    "demarche",
+    "documents_requis",
+    "tags",
+    "fiche",
+)
+
+
+def _edition_nouvelle_section(lignes: list[str], section: str, champs: dict[str, Any]) -> _Edition:
+    point = len(lignes)
+    while point > 0 and not lignes[point - 1].strip():
+        point -= 1
+    for suivante in ORDRE_SECTIONS[ORDRE_SECTIONS.index(section) + 1 :]:
+        if (ligne := _localiser(lignes, [suivante])) is not None:
+            point = ligne
+            break
+    rendu = [f"{section}:"]
+    for cle, valeur in champs.items():
+        rendu.extend(emit_field(cle, valeur, 2))
+    return _Edition(point, point, rendu, f"{section} (nouvelle section)", nouvelle_section=True)
 
 
 def _editions_conditions(
@@ -907,7 +988,21 @@ def _point_insertion(lignes: list[str], debut: int, fin: int, cle: str) -> int:
 
 
 def _valeur_brute(bloc: str, cle: str) -> str:
-    """Texte de la valeur d'un champ, block scalar aplati, pour comparaison."""
+    """Valeur d'un champ telle que YAML la lit, pour comparaison et réécriture.
+
+    Lue par le parseur et non découpée à la main : depuis que les fiches sont
+    sérialisées par `yaml.safe_dump`, des milliers de `text`/`notes` sont entre
+    guillemets simples, apostrophes doublées (`d''administration`). Le texte
+    brut, guillemets compris, faisait réécrire une note avec ses artefacts et
+    jeter toute la réponse à la différence profonde (344 aides sur 584), et
+    prenait une apostrophe retouchée pour un vrai changement.
+    """
+    try:
+        valeur = charger_yaml(textwrap.dedent(bloc))
+    except yaml.YAMLError:
+        valeur = None
+    if isinstance(valeur, dict) and cle in valeur and valeur[cle] is not None:
+        return str(valeur[cle])
     lignes = bloc.split("\n")
     tete = lignes[0].split(":", 1)[1].strip() if ":" in lignes[0] else ""
     if tete in (">-", "|-", ">", "|", ">+", "|+"):
@@ -1006,7 +1101,9 @@ def appliquer_editions(texte: str, editions: list[_Edition]) -> str:
     """
     lignes = texte.split("\n")
     ordonnees = sorted(
-        enumerate(editions), key=lambda t: (t[1].debut, t[1].fin, t[0]), reverse=True
+        enumerate(editions),
+        key=lambda t: (t[1].debut, t[1].fin, t[1].nouvelle_section, t[0]),
+        reverse=True,
     )
     for _rang, edition in ordonnees:
         lignes[edition.debut : edition.fin] = edition.remplacement
@@ -1036,7 +1133,9 @@ def attendu_apres(
         if section is not None:
             attendu.setdefault(nom, {}).update(section.champs)
 
-    conditions = attendu.setdefault("conditions", [])
+    # Pas de `setdefault` : une fiche sans `conditions:` doit le rester quand
+    # la réponse ne touche qu'à une section.
+    conditions = attendu.setdefault("conditions", []) if out.conditions else []
     par_id = {c["id"]: c for c in conditions}
     for chg in out.conditions:
         if chg.op == "update" and chg.champs:
@@ -1135,11 +1234,22 @@ def appliquer(
     origine: str = ORIGINE_DEFAUT,
     champs_condition: frozenset[str] = CHAMPS_CONDITION,
     facts_extra: dict[str, Any] | None = None,
+    escalader_structure: bool = False,
+    lint_complet: bool = False,
 ) -> ApplyResult:
     """Chaîne complète. Ne touche au disque que si TOUT passe.
 
     Retourne un `ApplyResult` dont `texte` porte le nouveau contenu du fichier ;
     l'écriture reste à l'appelant, ce qui rend `--dry-run` gratuit.
+
+    `escalader_structure` (la veille) : une condition ajoutée ou disparue n'est
+    pas écrite, elle arrête la chaîne à l'étape `structure`. Les critères de la
+    source ont changé, et c'est une ré-ingestion qui les type et les vérifie ;
+    une condition ajoutée en `untyped` retirait l'aide entière du moteur.
+    L'audit garde l'ajout, qu'il fait suivre de son propre typage.
+
+    `lint_complet` (la veille) : la fiche obtenue doit passer le lint d'écriture
+    sans erreur NOUVELLE, pas seulement le schéma.
     """
     res = ApplyResult(slug=aide.slug)
 
@@ -1169,6 +1279,10 @@ def appliquer(
         res.erreurs, res.etape = erreurs, "ancrage"
         return res
 
+    if escalader_structure and (structurels := _changements_structurels(out)):
+        res.erreurs, res.etape = structurels, "structure"
+        return res
+
     ancien_texte = chemin.read_text(encoding="utf-8")
     if out.est_vide:
         # Rien à faire, et surtout : ne pas réécrire le fichier.
@@ -1178,10 +1292,12 @@ def appliquer(
     lignes = ancien_texte.split("\n")
     editions: list[_Edition] = []
     erreurs = []
+    # Dans l'ordre des sections du fichier : deux sections créées au même point
+    # s'y rangent dans cet ordre.
     for nom, section in (
-        ("calendrier", out.calendrier),
         ("financement", out.financement),
         ("cumul", out.cumul),
+        ("calendrier", out.calendrier),
     ):
         if section is not None:
             eds, errs = _editions_section(lignes, nom, section.champs)
@@ -1218,7 +1334,7 @@ def appliquer(
         return res
 
     try:
-        Aide.model_validate(obtenu)
+        nouvelle_aide = Aide.model_validate(obtenu)
     except ValidationError as exc:
         res.erreurs, res.etape = (
             [f"{'.'.join(str(p) for p in e['loc'])} : {e['msg']}" for e in exc.errors()[:8]],
@@ -1226,10 +1342,44 @@ def appliquer(
         )
         return res
 
+    if lint_complet and (nouvelles := _erreurs_lint_nouvelles(aide, nouvelle_aide)):
+        res.erreurs, res.etape = nouvelles, "coherence"
+        return res
+
     res.ok = True
     res.texte = nouveau
     res.champs_touches = [e.etiquette for e in editions]
     return res
+
+
+def _changements_structurels(out: VeilleLLMOutput) -> list[str]:
+    """Conditions apparues ou disparues dans la réponse, en clair pour le rapport."""
+    ajouts = [c.id for c in out.conditions if c.op == "add"]
+    disparues = [c.id for c in out.conditions if c.op == "signaler_disparue"]
+    motifs = []
+    if ajouts:
+        motifs.append(
+            f"{len(ajouts)} condition(s) nouvelle(s) dans la source : {', '.join(ajouts)}"
+        )
+    if disparues:
+        motifs.append(
+            f"{len(disparues)} condition(s) disparue(s) de la source : {', '.join(disparues)}"
+        )
+    return motifs
+
+
+def _erreurs_lint_nouvelles(avant: Aide, apres: Aide) -> list[str]:
+    """Erreurs du lint d'écriture que la retouche a fait apparaître.
+
+    Un écart, pas un absolu : une fiche du stock peut porter une dette que le
+    lint global tolère, et la veille n'a pas à la solder pour retoucher un taux.
+    """
+    facts = {**load_facts(), **load_pending_facts()}
+
+    def erreurs(a: Aide) -> set[str]:
+        return {*check_aide(a, facts), *check_hors_gate(a, facts), *check_ecriture(a, facts)}
+
+    return sorted(erreurs(apres) - erreurs(avant))
 
 
 def _chevauchements(editions: list[_Edition]) -> str | None:

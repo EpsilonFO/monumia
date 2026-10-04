@@ -93,7 +93,14 @@ from veille_llm import (
 )
 from veille_text import find_quote_in_any, normalize, parse_front_matter
 from veille_typage import TypageResult, section_typage, typer_toutes
-from veille_update import MAX_AJOUTS_CONDITIONS, prompt_correction
+from veille_update import prompt_correction
+
+# Conditions manquantes ajoutées en une fois. Au-delà, la fiche n'est pas
+# lacunaire sur un point, elle est incomplète : c'est une ré-ingestion qu'il lui
+# faut, avec le typage et la vérification adversariale qui vont avec. Mesuré au
+# run pilote de la veille : `region-bretagne-edifices-proteges-prives` en
+# proposait HUIT d'un coup, toutes correctement citées.
+MAX_AJOUTS_CONDITIONS = 3
 
 # Origine inscrite dans la note des conditions ajoutées. Distincte de « veille » :
 # dans six mois, c'est cette note qui dira si la condition vient d'un changement

@@ -18,10 +18,12 @@ Quatre décisions y sont prises, et elles méritent d'être lues avant le code :
    ESCALADE_INGESTION. C'est la porte de sortie prévue : le modèle a le droit
    de dire « ça me dépasse », et c'est un bon résultat, pas un échec.
 
-3. Au-delà de trois conditions nouvelles d'un coup, on escalade au lieu
-   d'appliquer. Le problème n'est alors pas que la source a changé, mais que
-   la fiche était incomplète — et une ré-ingestion type et vérifie, là où la
-   veille ne ferait qu'empiler des conditions `untyped`.
+3. Une condition nouvelle ou disparue escalade, dès la première (décision du
+   2026-10-04). C'est le changement que la veille existe pour voir, et le
+   seul qu'elle ne sait pas écrire : ajoutée en `untyped`, une condition
+   retirait l'aide entière du moteur ; annotée « disparue », elle continuait
+   d'écarter des porteurs. Une ré-ingestion type, vérifie et coûte quelques
+   centimes.
 
 4. Une aide soumise au modèle voit ses pages RÉ-ARCHIVÉES, qu'il ait proposé
    une retouche ou non. Sans ça le pipeline n'est pas idempotent : la baseline
@@ -46,7 +48,7 @@ from aides_schema import AIDES_DIR, Aide
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from snapshot_source import NAME_RE, write_md_snapshot, write_pdf_snapshot
+from snapshot_source import NAME_RE, write_docx_snapshot, write_md_snapshot, write_pdf_snapshot
 from veille_analyze import AideAnalysis, resume_diff
 from veille_apply import appliquer
 from veille_collect import AideCollect, est_pdf
@@ -62,15 +64,6 @@ MAX_LLM_DEFAUT = 20
 # Lignes de diff montrées au modèle. Au-delà, ce n'est plus un changement
 # circonscrit — l'étage B aurait dû escalader.
 MAX_LIGNES_DIFF = 200
-
-# Conditions nouvelles acceptées en une fois. Au-delà, ce n'est plus une
-# retouche de règlement : la fiche était incomplète, et c'est une ré-ingestion
-# qu'il lui faut — avec le typage et la vérification adversariale qui vont avec.
-# Mesuré au run pilote : `region-bretagne-edifices-proteges-prives` en proposait
-# HUIT d'un coup, toutes correctement citées, parce que la page consultée est
-# plus fournie que la fiche. Les appliquer aurait fait entrer huit conditions
-# non typées par la petite porte.
-MAX_AJOUTS_CONDITIONS = 3
 
 # Réponse rejetée renvoyée au modèle : assez pour qu'il se relise, pas assez
 # pour doubler le prompt.
@@ -101,6 +94,9 @@ class MajResult:
     tokens_out: int = 0
     latence_s: float = 0.0
     etape_echec: str | None = None
+    # Empreinte du changement soumis (`veille_aides.empreinte_changement`),
+    # mémorisée au manifeste en cas de refus pour ne pas repayer le même appel.
+    empreinte: str = ""
     # Dernière réponse du modèle, conservée UNIQUEMENT en cas d'échec. Sans
     # elle, un rejet n'est pas rejouable : on connaît le motif, jamais ce qui
     # l'a provoqué. Mesuré au run pilote, où un échec d'édition sur `fctva` a
@@ -198,6 +194,8 @@ def mettre_a_jour(
             documents,
             aujourd_hui=aujourd_hui.isoformat(),
             diff=diff,
+            escalader_structure=True,
+            lint_complet=True,
         )
         if applied.ok or not applied.rattrapable or corrections:
             break
@@ -218,6 +216,12 @@ def mettre_a_jour(
             res.raison = "changement majeur déclaré par le modèle : " + (
                 applied.output.raison_changement_majeur or "sans raison fournie"
             )
+        elif applied.etape == "structure":
+            # Ce que la veille existe d'abord pour voir : la source a gagné ou
+            # perdu un critère. Rien n'est écrit ; une ré-ingestion retype et
+            # revérifie l'aide entière, pour quelques centimes.
+            res.etat = "escalade"
+            res.raison = " ; ".join(applied.erreurs) + " — ré-ingestion"
         elif applied.etape == "ancrage":
             # Pas un rejet sec : la proposition peut être juste et refléter une
             # divergence réelle entre la fiche et la source — simplement pas un
@@ -232,15 +236,6 @@ def mettre_a_jour(
         else:
             premiere = applied.erreurs[0] if applied.erreurs else "sans détail"
             res.raison = f"validation en échec ({applied.etape}) : {premiere}"
-        return res
-
-    ajouts = sum(1 for c in applied.output.conditions if c.op == "add") if applied.output else 0
-    if ajouts > MAX_AJOUTS_CONDITIONS:
-        res.etat = "escalade"
-        res.raison = (
-            f"{ajouts} conditions nouvelles proposées (seuil {MAX_AJOUTS_CONDITIONS}) : "
-            "la fiche est incomplète, pas périmée — ré-ingestion plutôt que retouche"
-        )
         return res
 
     if applied.texte == chemin.read_text(encoding="utf-8"):
@@ -297,11 +292,18 @@ def rafraichir_snapshots(an: AideAnalysis, collect: AideCollect, *, jour: date) 
             ecrits.append(
                 write_md_snapshot(an.slug, u.murl.url, res.raw_text, label=label, jour=jour).name
             )
+        elif res.docx and res.content:
+            # Un .docx s'archive par son texte, comme à l'ingestion : c'est lui
+            # que la veille compare (cf. `write_docx_snapshot`).
+            chemin, _texte = write_docx_snapshot(
+                an.slug, res.content, url=u.murl.url, label=label, jour=jour
+            )
+            ecrits.append(chemin.name)
         elif est_pdf(res.content):
             # Un règlement PDF modifié est ré-archivé avec son sidecar de
             # provenance : c'est lui qui redeviendra la baseline, texte compris.
-            # Les autres binaires (.docx) ne le sont pas — on ne sait pas les
-            # relire, donc pas les comparer autrement que par sha.
+            # Les autres binaires (tableurs, archives) ne le sont pas : on ne
+            # sait pas les relire, donc pas les comparer autrement que par sha.
             assert res.content is not None
             ecrits.append(
                 write_pdf_snapshot(
