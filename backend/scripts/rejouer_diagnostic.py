@@ -29,16 +29,39 @@ from routers.aides import deterministic_diagnostic_for, merge_projet_into_monume
 from routers.monuments import enrich_monument_with_population
 
 
+def _decoder(valeur: object) -> object:
+    """Rend sa forme à une colonne exportée en texte.
+
+    Selon l'outil, un `jsonb` sort en chaîne JSON (`"{\\"etat_travaux\\": ...}"`)
+    et un `text[]` en littéral Postgres (`"{toiture,facade}"`) : le moteur attend
+    un dict et des listes.
+    """
+    if not isinstance(valeur, str):
+        return valeur
+    brut = valeur.strip()
+    if brut[:1] in "{[":
+        try:
+            return json.loads(brut)
+        except json.JSONDecodeError:
+            pass
+    if brut.startswith("{") and brut.endswith("}"):
+        interieur = brut[1:-1]
+        return [v.strip().strip('"') for v in interieur.split(",") if v.strip()]
+    return valeur
+
+
 def _lire(chemin: str | None) -> dict | None:
     if not chemin:
         return None
-    data = json.loads(Path(chemin).read_text(encoding="utf-8"))
+    data = _decoder(Path(chemin).read_text(encoding="utf-8"))
     # Un export de Studio ou un `json_agg` rend une liste d'une ligne.
     if isinstance(data, list):
         if len(data) != 1:
             sys.exit(f"{chemin} : une seule ligne attendue, {len(data)} trouvées")
         data = data[0]
-    return data
+    if not isinstance(data, dict):
+        sys.exit(f"{chemin} : un objet JSON attendu")
+    return {cle: _decoder(valeur) for cle, valeur in data.items()}
 
 
 def _montant(aide: dict) -> str:
