@@ -10,6 +10,7 @@ import unittest
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
+from supabase import AuthApiError
 
 from db import get_anon_supabase, get_supabase
 from main import app
@@ -121,7 +122,8 @@ class _FakeAnonAuth:
 
     def refresh_session(self, token):
         if token != "rt-1":
-            raise ValueError("invalid refresh token")
+            # Ce que lève supabase-py quand GoTrue refuse le jeton.
+            raise AuthApiError("Invalid Refresh Token: Refresh Token Not Found", 400, None)
         return SimpleNamespace(user=SimpleNamespace(id="user-1"), session=_session("at-2", "rt-2"))
 
     def sign_out(self):

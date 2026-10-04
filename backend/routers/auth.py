@@ -6,8 +6,9 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from postgrest.exceptions import APIError
 from pydantic import BaseModel, field_validator
-from supabase import Client
+from supabase import AuthApiError, Client
 
 from db import get_anon_supabase, get_current_auth_user, get_current_user_id, get_supabase
 from services import stripe_billing as billing
@@ -735,19 +736,48 @@ def refresh(
     try:
         auth_response = anon.auth.refresh_session(refresh_token)
     except Exception as e:
-        raise HTTPException(status_code=401, detail="Refresh token invalide ou expiré") from e
+        # 401 = la session est perdue, et le front déconnecte. On ne le répond
+        # que si Supabase a REFUSÉ le jeton ; une panne (réseau, 5xx, 429) rend
+        # 503, que le front réessaie sans toucher à la session.
+        if _refus_definitif(e):
+            raise HTTPException(status_code=401, detail="Refresh token invalide ou expiré") from e
+        logger.warning("refresh : Supabase injoignable (%s)", e)
+        raise HTTPException(
+            status_code=503, detail="Service d'authentification indisponible"
+        ) from e
 
     if not auth_response.session:
         raise HTTPException(status_code=401, detail="Impossible de rafraîchir la session")
 
     user_id = auth_response.user.id if auth_response.user else auth_response.session.user.id
 
+    # Supabase a déjà fait tourner le jeton : si une PANNE de lecture du profil
+    # faisait échouer la réponse, le nouveau cookie n'arriverait jamais et
+    # l'ancien, révoqué, finirait en déconnexion. Le front garde alors le
+    # profil qu'il a déjà. Un profil ABSENT, lui, reste un refus : pas de
+    # session applicative sans ligne `users`.
+    try:
+        profil = _get_profile(supabase, user_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        if isinstance(e, APIError) and e.code == "PGRST116":  # .single() sans ligne
+            raise HTTPException(status_code=404, detail="Profil introuvable") from e
+        logger.exception("refresh : profil illisible pour %s", user_id)
+        profil = None
+
     _set_refresh_cookie(response, auth_response.session.refresh_token)
     return {
         "access_token": auth_response.session.access_token,
         "token_type": "bearer",
-        "user": _get_profile(supabase, user_id),
+        "user": profil,
     }
+
+
+def _refus_definitif(e: Exception) -> bool:
+    """Vrai si Supabase a répondu qu'il refuse ce refresh token (4xx hors 429),
+    faux pour une panne : réseau, 5xx, limite de débit."""
+    return isinstance(e, AuthApiError) and 400 <= e.status < 500 and e.status != 429
 
 
 _optional_bearer = HTTPBearer(auto_error=False)

@@ -34,15 +34,36 @@ export function purgeLegacyTokens(): void {
   }
 }
 
-async function doRefresh(): Promise<boolean> {
-  const { setTokens, setUser, logout } = useAuthStore.getState();
+/**
+ * Attentes entre deux essais quand le serveur ne répond pas : de quoi couvrir
+ * le redémarrage d'un backend pendant un déploiement (2 à 4 s de 502).
+ */
+export const ATTENTES_REESSAI_MS = [500, 1000, 2000, 4000];
+
+/**
+ * Vrai si le serveur a JUGÉ la session : elle est perdue, on déconnecte. Un
+ * 5xx (backend qui redémarre, Supabase en panne), un 408 ou un 429 ne disent
+ * rien du cookie de refresh, qui reste valide. Les confondre déconnectait
+ * tous les comptes actifs à chaque déploiement.
+ */
+export function sessionRefusee(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
+type Issue = 'ok' | 'refusee' | 'panne';
+
+async function essayerRefresh(): Promise<Issue> {
+  const { setTokens, setUser } = useAuthStore.getState();
 
   // Migration one-shot : un refresh token de l'ancien format est envoyé une
   // dernière fois dans le body ; ensuite le cookie httpOnly prend le relais.
+  // Relu à chaque essai, et purgé seulement quand le serveur a tranché : le
+  // perdre sur une panne transformerait l'essai suivant en refus.
   const legacy = readLegacyRefreshToken();
 
+  let res: Response;
   try {
-    const res = await fetch(`${BASE}/auth/refresh`, {
+    res = await fetch(`${BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
       ...(legacy
@@ -52,25 +73,39 @@ async function doRefresh(): Promise<boolean> {
           }
         : {}),
     });
+  } catch {
+    return 'panne';
+  }
 
-    if (legacy) purgeLegacyTokens();
+  if (!res.ok && !sessionRefusee(res.status)) return 'panne';
+  if (legacy) purgeLegacyTokens();
+  if (!res.ok) return 'refusee';
 
-    if (!res.ok) {
-      logout();
-      return false;
-    }
-
+  try {
     const data = await res.json();
-    if (!data.access_token) {
-      logout();
-      return false;
-    }
+    if (!data.access_token) return 'refusee';
     setTokens(data.access_token);
     if (data.user) setUser(data.user);
-    return true;
+    return 'ok';
   } catch {
-    logout();
-    return false;
+    return 'panne';
+  }
+}
+
+async function doRefresh(): Promise<boolean> {
+  for (let essai = 0; ; essai++) {
+    const issue = await essayerRefresh();
+    if (issue === 'ok') return true;
+    if (issue === 'refusee') {
+      useAuthStore.getState().logout();
+      return false;
+    }
+    if (essai >= ATTENTES_REESSAI_MS.length) {
+      // Serveur toujours injoignable : la session n'est pas perdue pour
+      // autant. On garde le profil et le cookie, le prochain appel réessaiera.
+      return false;
+    }
+    await new Promise((r) => setTimeout(r, ATTENTES_REESSAI_MS[essai]));
   }
 }
 
