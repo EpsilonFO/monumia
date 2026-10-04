@@ -214,6 +214,20 @@ dans la crontab de root, comme la sauvegarde :
 Pour voir ce qui partirait sans rien envoyer :
 `./scripts/cron-rappels.sh prod --dry-run`.
 
+**Mise en service sans rafale.** Le premier passage enverrait d'un coup tous
+les rappels déjà dus (toute aide à moins de 30 jours de sa date limite). Pour
+l'éviter, lancer une fois à la main, le jour où l'on pose le cron :
+
+```bash
+./scripts/cron-rappels.sh prod --amorcer
+```
+
+Il fait tout comme un vrai passage (instantané du catalogue, journal des
+rappels) sans envoyer d'email : les rappels dus ce jour-là sont tenus pour
+envoyés et ne partiront jamais. Tout rappel qui devient dû ensuite part
+normalement : un compte créé le lendemain, une aide à J-32 qui atteint J-30,
+un second palier (J-7) réglé par l'utilisateur.
+
 **Tester un rappel sans attendre le bon jour.** `--today` fige la date pour le
 moteur aussi, donc le rejeu est fidèle : la fenêtre de candidature de chaque
 aide est recalculée à cette date. Reste à savoir QUELLE date déclenche quoi,

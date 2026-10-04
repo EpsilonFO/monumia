@@ -48,6 +48,11 @@ Usage :
                      décalé sur l'arithmétique des paliers. L'instantané n'est
                      alors ni lu ni écrit : les ouvertures se déduisent des
                      dates (fermée la veille, ouverte ce jour-là)
+  --amorcer          mise en service : fait tout comme un vrai passage (instantané
+                     du catalogue, journal des rappels) SANS envoyer d'email.
+                     Les rappels dus aujourd'hui sont tenus pour envoyés et ne
+                     partiront jamais ; tout rappel qui devient dû ensuite
+                     (nouveau compte, nouveau projet, palier suivant) partira
   --annoncer SLUG    traite l'aide comme nouvelle au catalogue ce jour-là
                      (répétable). Pour tester l'annonce d'une aide sans
                      attendre une ingestion, ou la relancer à la main
@@ -558,11 +563,16 @@ def traiter(
     dry_run: bool,
     disponibilites: dict[str, Disponibilite],
     apercu: Path | None = None,
+    amorcer: bool = False,
 ) -> tuple[int, int]:
     """Traite un utilisateur. Retourne (aides en échéance, aides disponibles).
 
     UN email au plus par compte et par passage : échéances et aides devenues
     disponibles, sur tous ses chantiers, partent ensemble.
+
+    `amorcer` : journalise sans envoyer. C'est le passage de mise en service,
+    pour que le premier matin ne déverse pas d'un coup tous les rappels déjà
+    dus sur des comptes qui n'ont jamais rien reçu.
     """
     blocs, cles = collecter(supabase, user, today, app_url, disponibilites)
     n_e = sum(len(b.echeances) for b in blocs)
@@ -583,6 +593,9 @@ def traiter(
         _ecrire_apercu(apercu, user, today, "rappels", html)
 
     if dry_run:
+        return n_e, n_o
+    if amorcer:
+        journaliser(supabase, user["id"], cles)
         return n_e, n_o
     if not email:
         log.warning("Compte %s sans email : rien envoyé.", user["id"])
@@ -709,6 +722,11 @@ def main() -> int:
         default=[],
         help="traite cette aide comme nouvelle au catalogue (répétable)",
     )
+    parser.add_argument(
+        "--amorcer",
+        action="store_true",
+        help="mise en service : tient les rappels dus aujourd'hui pour envoyés, sans envoyer",
+    )
     parser.add_argument("--user", help="ne traiter qu'un utilisateur, par son id")
     parser.add_argument(
         "--preview",
@@ -728,6 +746,10 @@ def main() -> int:
         "(défaut : 400, de quoi couvrir la session suivante d'un dispositif annuel)",
     )
     args = parser.parse_args()
+    if args.amorcer and (args.dry_run or args.preview or args.today or args.agenda):
+        # L'amorçage ÉCRIT : le combiner avec un mode qui simule ou qui change
+        # la date marquerait comme envoyés des rappels d'un autre jour.
+        parser.error("--amorcer ne se combine ni avec --dry-run, --preview, --today ni --agenda")
 
     today = date.fromisoformat(args.today) if args.today else date.today()
     app_url = default_app_url()
@@ -761,7 +783,9 @@ def main() -> int:
     echecs = 0
     for user in users:
         try:
-            n_e, n_o = traiter(supabase, user, today, app_url, dry_run, disponibilites, apercu)
+            n_e, n_o = traiter(
+                supabase, user, today, app_url, dry_run, disponibilites, apercu, args.amorcer
+            )
         except Exception:
             # Un compte en erreur (fiche incomplète, diagnostic qui casse) ne
             # doit pas priver tous les autres de leurs rappels.
@@ -773,7 +797,7 @@ def main() -> int:
 
     log.info(
         "Terminé%s : %d échéance(s), %d aide(s) disponible(s), %d compte(s) en erreur.",
-        " (dry-run)" if dry_run else "",
+        " (dry-run)" if dry_run else " (amorçage, rien envoyé)" if args.amorcer else "",
         total_e,
         total_o,
         echecs,

@@ -168,6 +168,23 @@ class CollecterTests(unittest.TestCase):
                 f"un rappel repart le {jour}",
             )
 
+    def test_apres_amorcage_un_rappel_neuf_part(self) -> None:
+        # L'amorçage a journalisé l'aide de p1. Le lendemain, un projet p2
+        # (nouveau compte, ou nouveau chantier) découvre la même aide à J-32 :
+        # rien ce jour-là, puis le rappel part à J-30, car sa clé est neuve.
+        self.deja = {("p1", "drac-toiture", "echeance", 30, "2026-10-01")}
+        projet2 = {**PROJET, "id": "p2"}
+        user = {"id": "u1", "email": "m@example.fr", "notification_preferences": {}}
+        with patch.object(
+            rappels_aides, "projets_de", return_value=([PROJET, projet2], {"m1": MONUMENT}, {})
+        ):
+            self.assertEqual(
+                rappels_aides.collecter(None, user, date(2026, 8, 30), APP_URL, {}), ([], [])
+            )
+            (bloc,), cles = rappels_aides.collecter(None, user, date(2026, 9, 1), APP_URL, {})
+        self.assertEqual(bloc.projet_id, "p2")
+        self.assertEqual(cles, [("p2", "drac-toiture", "echeance", 30, "2026-10-01")])
+
     def test_un_nouveau_palier_repart_une_fois(self) -> None:
         # Avec 30 ET 7 jours : le rappel de J-30 ne bloque pas celui de J-7,
         # qui a sa propre clé.
@@ -254,6 +271,20 @@ class TraiterTests(unittest.TestCase):
         self.assertEqual(envoi["subject"], "Du nouveau sur les aides de vos projets")
         self.assertIn("Toiture", envoi["html"])
         self.assertIn("Clocher", envoi["html"])
+
+    def test_amorcer_journalise_sans_envoyer(self) -> None:
+        # Mise en service : les rappels dus aujourd'hui sont tenus pour
+        # envoyés. Aucun email, aucune notification, mais le journal est
+        # écrit, donc ils ne partiront pas demain non plus.
+        n_e, n_o = rappels_aides.traiter(
+            None, self.user, TODAY, APP_URL, dry_run=False, disponibilites={}, amorcer=True
+        )
+        self.assertEqual((n_e, n_o), (1, 0))
+        self.mocks["send_rappel_email"].assert_not_called()
+        self.mocks["notifier_in_app"].assert_not_called()
+        self.mocks["journaliser"].assert_called_once_with(
+            None, "u1", [("p1", "drac-toiture", "echeance", 30, "2026-10-01")]
+        )
 
     def test_un_echec_denvoi_laisse_le_rappel_repartir_demain(self) -> None:
         self.mocks["send_rappel_email"].side_effect = RuntimeError("Resend HS")
