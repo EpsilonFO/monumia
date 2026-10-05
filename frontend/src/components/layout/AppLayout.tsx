@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router';
 import { TopBar } from './TopBar';
 import { BottomNav } from './BottomNav';
+import { BienvenueBeta } from '@/components/shared/BienvenueBeta';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useBillingStore } from '@/stores/useBillingStore';
 import { dashboardService } from '@/services/dashboard.service';
@@ -61,6 +62,8 @@ export function AppLayout() {
         </div>
       </main>
       <BottomNav />
+      {/* Accueil des bêta-testeurs, une fois par compte : ne rend rien sans VITE_YBUG_ID. */}
+      <BienvenueBeta />
     </div>
   );
 }
