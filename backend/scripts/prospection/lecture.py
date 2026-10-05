@@ -26,13 +26,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import providall
-from pipeline.etat import CategorieEcart, Destinataire, Objet
+from pipeline.decision import ClientDecision, ErreurDecision
+from pipeline.etat import OBJETS_RETENUS, CategorieEcart, Destinataire, Objet
 from pipeline.etat import indetermine as issue_indeterminee
 from pipeline.etat import retenir as test_du_destinataire
 from pipeline.llm import Compteur
 from pipeline.web import Fetcheur, Page
 from veille_collect import pdf_bytes_to_text, pdf_lisible
 
+from . import arbitre as arbitre_mod
 from .collecte import Candidat, est_document, liens
 from .territoires import Territoire
 from .tri import SKILL_PROSPECTION, Famille, doctrine, familles_rendues
@@ -207,6 +209,10 @@ class LectureFiche(BaseModel):
         """Ni retenue ni écartée : à trancher par un humain, pas par le pipeline."""
         return issue_indeterminee(self.destinataire, self.objet, self.categorie_ecart)
 
+    @property
+    def ecartee(self) -> bool:
+        return not self.retenir and not self.indeterminee
+
 
 @dataclass
 class Lecture:
@@ -215,6 +221,13 @@ class Lecture:
     candidat: Candidat
     fiche: LectureFiche | None = None
     erreur: str | None = None
+    # Le jugement de Jev quand il a été consulté (`arbitre.py`), et pourquoi
+    # il manque quand l'appel a échoué : la lecture retombe alors sur le seul
+    # LLM, comme avant, et la fiche de prospection le dit.
+    arbitrage: arbitre_mod.Arbitrage | None = None
+    arbitrage_erreur: str | None = None
+    # `retenue` ou `renvoyee` quand Jev a corrigé le verdict du LLM.
+    correction: str | None = None
 
     @property
     def retenue(self) -> bool:
@@ -278,14 +291,36 @@ def lire(
     *,
     compteur: Compteur | None = None,
     skill_path: Path = SKILL_PROSPECTION,
+    arbitre: ClientDecision | None = None,
 ) -> Lecture:
-    """Ouvre une page candidate et la qualifie. Ne lève jamais."""
+    """Ouvre une page candidate et la qualifie. Ne lève jamais.
+
+    Avec un `arbitre`, Jev juge la page d'abord (`arbitre.py`) : sous son seuil
+    bas, la page est écartée sans appel au LLM ; sinon le LLM lit comme avant
+    et `_appliquer_arbitrage` corrige son verdict. Jev en panne : le LLM seul.
+    """
     page = fetcheur.get(candidat.url)
     if not page.ok:
         return Lecture(candidat, erreur=f"{page.erreur or f'HTTP {page.status}'}")
     texte, erreur = _texte_a_juger(page)
     if erreur is not None:
         return Lecture(candidat, erreur=erreur)
+
+    arbitrage: arbitre_mod.Arbitrage | None = None
+    arbitrage_erreur: str | None = None
+    if arbitre is not None:
+        try:
+            arbitrage = arbitre_mod.arbitrer(
+                arbitre, page.url_finale, texte[:MAX_CAR_PAGE], skill_path=skill_path
+            )
+        except ErreurDecision as exc:
+            arbitrage_erreur = str(exc)
+        if arbitrage is not None and compteur is not None:
+            compteur.ajouter_decision(arbitrage.cout_usd, arbitrage.jetons_entree, "arbitre")
+        if arbitrage is not None and arbitrage.bande == "ecartee":
+            return Lecture(
+                candidat, fiche=_fiche_ecartee_par_jev(candidat, arbitrage), arbitrage=arbitrage
+            )
 
     documents = _documents_lies(page, territoire, candidat)
     prompt = "\n\n".join(
@@ -301,14 +336,80 @@ def lire(
     if compteur is not None:
         compteur.ajouter(essai.response, "lecture")
     if essai.data is None:
-        return Lecture(candidat, erreur=f"lecture impossible : {essai.response.error}")
+        return Lecture(
+            candidat,
+            erreur=f"lecture impossible : {essai.response.error}",
+            arbitrage=arbitrage,
+            arbitrage_erreur=arbitrage_erreur,
+        )
 
     fiche = essai.data
     # Un PDF que la page ne porte pas est un PDF inventé : on ne garde que ce
     # qui a été réellement vu, sans quoi l'ingestion partirait sur un 404.
     fiche.urls_pdf = [u for u in fiche.urls_pdf if u in documents]
+    correction = _appliquer_arbitrage(fiche, arbitrage) if arbitrage is not None else None
     fiche.note = " ".join(fiche.note.split())[:MAX_CAR_NOTE]
-    return Lecture(candidat, fiche=fiche)
+    return Lecture(
+        candidat,
+        fiche=fiche,
+        arbitrage=arbitrage,
+        arbitrage_erreur=arbitrage_erreur,
+        correction=correction,
+    )
+
+
+def _fiche_ecartee_par_jev(candidat: Candidat, a: arbitre_mod.Arbitrage) -> LectureFiche:
+    """La fiche d'une page que Jev écarte seul : pas de LLM, donc rien d'extrait.
+
+    Les champs gardent le jugement de Jev tel quel ; `arbitre.bande` ne rend
+    `ecartee` que si ce jugement écarte bel et bien (destinataire tiers, objet
+    hors du lieu ou page qui n'est pas un dispositif), si bien que la tâche
+    écrite dans la file est cohérente avec `etat.retenir` et `motif_non_promotion`.
+    """
+    return LectureFiche(
+        destinataire=a.destinataire,  # type: ignore[arg-type]
+        objet=a.objet,  # type: ignore[arg-type]
+        categorie_ecart=a.categorie_ecart,  # type: ignore[arg-type]
+        famille="hors_perimetre",
+        titre=candidat.titre or candidat.url,
+        note=(
+            f"Écartée par Jev sans lecture (déposable {a.deposable:.2f}) : destinataire "
+            f"{a.destinataire}, objet {a.objet}."
+        ),
+        priorite="basse",
+    )
+
+
+def _appliquer_arbitrage(fiche: LectureFiche, a: arbitre_mod.Arbitrage) -> str | None:
+    """Le verdict de la lecture, corrigé par la bande de Jev. Modifie `fiche`.
+
+    Rend la correction faite (`retenue`, `renvoyee`), None si Jev et le LLM
+    s'accordent.
+
+    On ne réécrit que `destinataire` / `objet` / `categorie_ecart`, parce que
+    ce sont eux que la file d'attente relit (`motif_non_promotion`) : un verdict
+    porté ailleurs serait perdu à la promotion. Ce que la lecture avait dit est
+    gardé en tête de la note, pour l'humain qui relira.
+    """
+    lu = f"lecture : destinataire {fiche.destinataire}, objet {fiche.objet}"
+    if fiche.categorie_ecart:
+        lu += f", {fiche.categorie_ecart}"
+    if a.bande == "retenue" and not fiche.retenir:
+        fiche.note = f"[{a.resume()} : retenue malgré la {lu}] {fiche.note}"
+        fiche.destinataire = "proprietaire_gestionnaire"
+        if fiche.objet not in OBJETS_RETENUS:
+            fiche.objet = a.objet  # type: ignore[assignment]
+        fiche.categorie_ecart = None
+        return "retenue"
+    if a.bande == "milieu" and fiche.ecartee:
+        # Le cœur de l'affaire : dans cette bande, les écarts du LLM étaient
+        # faux une fois sur sept. Ils partent à un humain au lieu de disparaître.
+        fiche.note = f"[{a.resume()} : écart de la {lu}, renvoyé à un humain] {fiche.note}"
+        fiche.destinataire = "indetermine"
+        fiche.objet = "indetermine"
+        fiche.categorie_ecart = None
+        return "renvoyee"
+    return None
 
 
 # ---------------------------------------------------------------------------

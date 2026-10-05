@@ -188,6 +188,7 @@ def rendre_fiche(
         lignes.append(f"- déjà en file d'attente (`{statut}`) : {url} → `{slug}`")
     for lecture in en_erreur:
         lignes.append(f"- non lue : {lecture.candidat.url} — {lecture.erreur}")
+    lignes += _notes_jev(lectures)
     douteuses = [t for t in tries if t.decision == "douteux"]
     if douteuses:
         lignes.append(
@@ -203,6 +204,30 @@ def rendre_fiche(
     if cout:
         lignes.append(f"- coût du passage : {cout}")
     return "\n".join(lignes) + "\n"
+
+
+def _notes_jev(lectures: list[Lecture]) -> list[str]:
+    """Ce que Jev a tranché seul, ce qu'il a corrigé, et s'il a manqué."""
+    arbitrees = [le for le in lectures if le.arbitrage is not None]
+    pannes = [le for le in lectures if le.arbitrage_erreur]
+    if not arbitrees and not pannes:
+        return []
+    par_bande = {
+        b: sum(le.arbitrage.bande == b for le in arbitrees) for b in ("ecartee", "retenue")
+    }  # type: ignore[union-attr]
+    corrigees = {c: sum(le.correction == c for le in arbitrees) for c in ("retenue", "renvoyee")}
+    lignes = [
+        f"- Jev : {len(arbitrees)} page(s) jugée(s) ; {par_bande['ecartee']} écartée(s) "
+        f"sans lecture, {par_bande['retenue']} au-dessus du seuil haut. Il a retenu "
+        f"{corrigees['retenue']} page(s) que la lecture n'avait pas retenue(s), et renvoyé "
+        f"à un humain {corrigees['renvoyee']} écart(s) de la lecture."
+    ]
+    if pannes:
+        lignes.append(
+            f"- Jev indisponible sur {len(pannes)} page(s), lues par le LLM seul : "
+            f"{pannes[0].arbitrage_erreur}"
+        )
+    return lignes
 
 
 def taches(

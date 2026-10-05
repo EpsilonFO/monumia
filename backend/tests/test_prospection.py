@@ -1899,5 +1899,286 @@ class TestAnnuaire(unittest.TestCase):
             self.assertEqual(sites_departementaux(f), {})
 
 
+# ---------------------------------------------------------------------------
+# Arbitrage de Jev (prospection/arbitre.py)
+# ---------------------------------------------------------------------------
+
+from pipeline.decision import ClientDecision, Decision, ErreurDecision, Reponse  # noqa: E402
+from pipeline.etat import motif_non_promotion  # noqa: E402
+from pipeline.llm import Compteur  # noqa: E402
+from prospection import arbitre as arbitre_mod  # noqa: E402
+from prospection.fiche import _notes_jev  # noqa: E402
+
+LECTURE_TIERS = {
+    **LECTURE,
+    "destinataire": "activite_tiers",
+    "objet": "hors_lieu",
+    "categorie_ecart": "entreprise_generale",
+}
+
+
+def reponses_jev(
+    deposable: float,
+    destinataire: str = "activite_tiers",
+    objet: str = "hors_lieu",
+    dispositif: float = 0.9,
+    categorie: str = "entreprise_generale",
+) -> dict[str, Reponse]:
+    return {
+        "deposable": Reponse("noul", noul=deposable),
+        "destinataire": Reponse("choice", choix=destinataire, probabilites={destinataire: 1.0}),
+        "objet": Reponse("choice", choix=objet, probabilites={objet: 1.0}),
+        "dispositif": Reponse("noul", noul=dispositif),
+        "categorie_ecart": Reponse("choice", choix=categorie, probabilites={categorie: 1.0}),
+    }
+
+
+class FauxArbitre:
+    """Un `ClientDecision` sans réseau : rend des réponses fixées, ou lève."""
+
+    def __init__(self, reponses: dict[str, Reponse] | None = None, erreur: Exception | None = None):
+        self.reponses = reponses
+        self.erreur = erreur
+        self.appels: list[tuple[dict, dict]] = []
+
+    def decider(self, etat, questions) -> Decision:
+        self.appels.append((etat, questions))
+        if self.erreur is not None:
+            raise self.erreur
+        assert self.reponses is not None
+        return Decision(
+            reponses=self.reponses,
+            modele="typesafe/jev-test",
+            id="gen-dec-test",
+            jetons_entree=1200,
+            cout_usd=0.00005,
+            latence_s=0.1,
+            brut={},
+        )
+
+
+class TestBandes(unittest.TestCase):
+    def test_trois_bandes(self):
+        s = arbitre_mod.Seuils(bas=0.12, haut=0.57)
+        self.assertEqual(arbitre_mod.bande(0.05, True, s), "ecartee")
+        self.assertEqual(arbitre_mod.bande(0.90, False, s), "retenue")
+        self.assertEqual(arbitre_mod.bande(0.30, True, s), "milieu")
+        self.assertEqual(arbitre_mod.bande(0.30, False, s), "milieu")
+
+    def test_jev_ne_tranche_pas_seul_contre_ses_propres_reponses(self):
+        """Noté 0,05 mais dit adressé au propriétaire, pour son bâti : pas un écart sûr."""
+        s = arbitre_mod.Seuils(bas=0.12, haut=0.57)
+        self.assertEqual(arbitre_mod.bande(0.05, False, s), "milieu")
+        self.assertEqual(arbitre_mod.bande(0.90, True, s), "milieu")
+
+    def test_structure(self):
+        self.assertFalse(
+            arbitre_mod.structure_ecarte("proprietaire_gestionnaire", "bien_ou_lieu", 0.9)
+        )
+        self.assertTrue(arbitre_mod.structure_ecarte("activite_tiers", "bien_ou_lieu", 0.9))
+        self.assertTrue(arbitre_mod.structure_ecarte("proprietaire_gestionnaire", "hors_lieu", 0.9))
+        self.assertTrue(
+            arbitre_mod.structure_ecarte("proprietaire_gestionnaire", "bien_ou_lieu", 0.2)
+        )
+
+    def test_seuils_reglables_par_l_environnement(self):
+        with mock.patch.dict("os.environ", {"JEV_SEUIL_BAS": "0.2", "JEV_SEUIL_HAUT": "0.8"}):
+            self.assertEqual(arbitre_mod.seuils(), arbitre_mod.Seuils(bas=0.2, haut=0.8))
+        with mock.patch.dict("os.environ", {"JEV_SEUIL_BAS": "", "JEV_SEUIL_HAUT": ""}):
+            self.assertEqual(arbitre_mod.seuils(), arbitre_mod.Seuils())
+
+    def test_page_qui_n_est_pas_un_dispositif(self):
+        faux = FauxArbitre(reponses_jev(0.05, dispositif=0.1, categorie="entreprise_generale"))
+        a = arbitre_mod.arbitrer(faux, "https://x", "texte")  # type: ignore[arg-type]
+        self.assertEqual(a.categorie_ecart, "non_dispositif")
+
+
+class TestLectureArbitree(BaseProspection):
+    URL = "https://guide.example/dispositif1"
+
+    def _lire(self, arbitre, *reponses_llm, compteur=None):
+        with (
+            mock.patch.dict("os.environ", {"JEV_SEUIL_BAS": "", "JEV_SEUIL_HAUT": ""}),
+            fake_provider(*reponses_llm) as faux,
+        ):
+            lecture = lire(
+                Candidat(self.URL, "Restauration du patrimoine protégé"),
+                territoire(),
+                self.fetcheur,
+                client(),
+                compteur=compteur,
+                arbitre=arbitre,
+            )
+        return lecture, faux
+
+    def _tache(self, lecture: Lecture) -> Tache:
+        slugs = attribuer_slugs(territoire(), [lecture], set())
+        return next(iter(taches("ex", territoire(), [lecture], slugs, "x.md", jour=JOUR).values()))
+
+    def test_sous_le_seuil_bas_ecartee_sans_appel_au_llm(self):
+        arbitre = FauxArbitre(reponses_jev(0.05))
+        compteur = Compteur()
+        lecture, faux = self._lire(arbitre, json_reply(LECTURE), compteur=compteur)
+        self.assertEqual(faux.calls, 0)
+        self.assertTrue(lecture.ecartee)
+        assert lecture.fiche is not None
+        self.assertEqual(lecture.fiche.categorie_ecart, "entreprise_generale")
+        self.assertIn("Écartée par Jev", lecture.fiche.note)
+        tache = self._tache(lecture)
+        self.assertEqual(tache.statut, "ignore")
+        self.assertIn("entreprise_generale", tache.motif_ignore or "")
+        self.assertEqual(compteur.appels, 1)
+        self.assertAlmostEqual(compteur.cout_usd, 0.00005)
+
+    def test_jev_voit_la_doctrine_et_la_page(self):
+        arbitre = FauxArbitre(reponses_jev(0.05))
+        self._lire(arbitre, json_reply(LECTURE))
+        etat, questions = arbitre.appels[0]
+        self.assertIs(questions, arbitre_mod.QUESTIONS)
+        self.assertIn(doctrine()[:200], etat["doctrine"])
+        self.assertIn("Restauration du patrimoine protégé", etat["page"]["texte"])
+        self.assertEqual(etat["page"]["url"], self.URL)
+
+    def test_seuil_bas_incoherent_passe_par_le_llm(self):
+        arbitre = FauxArbitre(reponses_jev(0.05, "proprietaire_gestionnaire", "bien_ou_lieu"))
+        lecture, faux = self._lire(arbitre, json_reply(LECTURE))
+        self.assertEqual(faux.calls, 1)
+        self.assertTrue(lecture.retenue)
+        self.assertIsNone(lecture.correction)
+
+    def test_au_dessus_du_seuil_haut_retenue_malgre_la_lecture(self):
+        arbitre = FauxArbitre(reponses_jev(0.8, "proprietaire_gestionnaire", "bien_ou_lieu"))
+        lecture, faux = self._lire(arbitre, json_reply(LECTURE_TIERS))
+        self.assertEqual(faux.calls, 1)
+        self.assertTrue(lecture.retenue)
+        self.assertEqual(lecture.correction, "retenue")
+        f = lecture.fiche
+        assert f is not None
+        self.assertEqual(
+            (f.destinataire, f.objet, f.categorie_ecart),
+            ("proprietaire_gestionnaire", "bien_ou_lieu", None),
+        )
+        self.assertTrue(f.note.startswith("[Jev 0.80 : retenue malgré la lecture"))
+        self.assertIn("activite_tiers", f.note)
+        # L'extraction reste celle du LLM.
+        self.assertEqual(f.montant_taux, "40 %, plafond 150 000 €")
+        self.assertIsNone(motif_non_promotion(self._tache(lecture)))
+
+    def test_au_dessus_du_seuil_haut_garde_l_objet_du_llm_s_il_est_retenu(self):
+        arbitre = FauxArbitre(reponses_jev(0.8, "proprietaire_gestionnaire", "bien_ou_lieu"))
+        lu = {**LECTURE, "destinataire": "indetermine", "objet": "activite_dans_le_lieu"}
+        lecture, _ = self._lire(arbitre, json_reply(lu))
+        assert lecture.fiche is not None
+        self.assertEqual(lecture.fiche.objet, "activite_dans_le_lieu")
+        self.assertTrue(lecture.retenue)
+
+    def test_dans_la_bande_du_milieu_l_ecart_du_llm_va_a_un_humain(self):
+        arbitre = FauxArbitre(reponses_jev(0.3))
+        lecture, _ = self._lire(arbitre, json_reply(LECTURE_TIERS))
+        self.assertTrue(lecture.indeterminee)
+        self.assertEqual(lecture.correction, "renvoyee")
+        assert lecture.fiche is not None
+        self.assertIn("renvoyé à un humain", lecture.fiche.note)
+        tache = self._tache(lecture)
+        self.assertEqual(tache.statut, "a_valider")
+        self.assertIn("indéterminé", motif_non_promotion(tache) or "")
+
+    def test_dans_la_bande_du_milieu_la_retenue_du_llm_reste(self):
+        arbitre = FauxArbitre(reponses_jev(0.3))
+        lecture, _ = self._lire(arbitre, json_reply(LECTURE))
+        self.assertTrue(lecture.retenue)
+        self.assertIsNone(lecture.correction)
+        assert lecture.fiche is not None
+        self.assertEqual(lecture.fiche.note, "Cœur de cible.")
+
+    def test_jev_en_panne_la_lecture_retombe_sur_le_llm(self):
+        arbitre = FauxArbitre(erreur=ErreurDecision("HTTP 402 : crédits", statut=402))
+        lecture, faux = self._lire(arbitre, json_reply(LECTURE_TIERS))
+        self.assertEqual(faux.calls, 1)
+        self.assertTrue(lecture.ecartee)  # le verdict du LLM, tel quel
+        self.assertIsNone(lecture.arbitrage)
+        self.assertIn("402", lecture.arbitrage_erreur or "")
+        self.assertIn("indisponible sur 1 page", "\n".join(_notes_jev([lecture])))
+
+    def test_notes_techniques(self):
+        bas, _ = self._lire(FauxArbitre(reponses_jev(0.05)), json_reply(LECTURE))
+        milieu, _ = self._lire(FauxArbitre(reponses_jev(0.3)), json_reply(LECTURE_TIERS))
+        notes = "\n".join(_notes_jev([bas, milieu]))
+        self.assertIn("2 page(s) jugée(s) ; 1 écartée(s) sans lecture", notes)
+        self.assertIn("renvoyé à un humain 1 écart(s)", notes)
+        self.assertEqual(_notes_jev([]), [])
+
+
+class TestClientDecision(unittest.TestCase):
+    QUESTIONS = {
+        "q": {"type": "noul", "instructions": "?", "criteria": {"true": "o", "false": "n"}}
+    }
+
+    def _client(self, gestionnaire) -> ClientDecision:
+        c = ClientDecision(
+            cle="faux", url="https://dec.example/", transport=httpx.MockTransport(gestionnaire)
+        )
+        self.addCleanup(c.fermer)
+        return c
+
+    def test_reponse_lue(self):
+        corps = {
+            "model": "typesafe/jev-1.13-20260917",
+            "id": "gen-dec-1",
+            "answers": {"q": {"type": "noul", "noul": 0.97}},
+            "usage": {"input_tokens": 300, "output_tokens": 20, "cost": 1.2e-05},
+        }
+        envoyes: list[dict] = []
+
+        def g(req: httpx.Request) -> httpx.Response:
+            import json
+
+            envoyes.append(json.loads(req.content))
+            return httpx.Response(200, json=corps)
+
+        d = self._client(g).decider("état", self.QUESTIONS)
+        self.assertAlmostEqual(d.reponses["q"].proba("true"), 0.97)
+        self.assertAlmostEqual(d.reponses["q"].proba("false"), 0.03)
+        self.assertEqual((d.jetons_entree, d.cout_usd), (300, 1.2e-05))
+        self.assertEqual(envoyes[0]["state"], "état")
+        self.assertEqual(envoyes[0]["model"], "typesafe/jev-1.13")
+
+    def test_question_sans_reponse_leve(self):
+        """Une réponse absente n'est pas un « non » : traitée comme 0, elle écarterait tout."""
+        c = self._client(lambda _r: httpx.Response(200, json={"answers": {}}))
+        with self.assertRaises(ErreurDecision):
+            c.decider("état", self.QUESTIONS)
+
+    def test_402_sans_relance(self):
+        appels = []
+
+        def g(_r):
+            appels.append(1)
+            return httpx.Response(402, text="crédits épuisés")
+
+        with self.assertRaises(ErreurDecision) as ctx:
+            self._client(g).decider("état", self.QUESTIONS)
+        self.assertEqual(ctx.exception.statut, 402)
+        self.assertEqual(len(appels), 1)
+
+    def test_503_relance(self):
+        reponses = iter(
+            [
+                httpx.Response(503, text="surchargé"),
+                httpx.Response(200, json={"answers": {"q": {"type": "noul", "noul": 0.5}}}),
+            ]
+        )
+        with mock.patch("pipeline.decision.time.sleep"):
+            d = self._client(lambda _r: next(reponses)).decider("état", self.QUESTIONS)
+        self.assertAlmostEqual(d.reponses["q"].proba("true"), 0.5)
+
+    def test_cle_absente(self):
+        with (
+            mock.patch.dict("os.environ", {"OPENROUTER_API_KEY": ""}),
+            self.assertRaises(ErreurDecision),
+        ):
+            ClientDecision()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -50,6 +50,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ingestion import orchestrateur
 from ingestion.boucle import Limites
+from pipeline.decision import ClientDecision, ErreurDecision
 from pipeline.etat import (
     FILE_ATTENTE,
     PROSPECTION_DIR,
@@ -101,6 +102,32 @@ def _progression_tri(i: int, n: int, tries: list[tri_mod.TriCandidat]) -> None:
         f"    [2/3] lot {i}/{n} : {retenus} retenue(s), {douteux} douteuse(s){dont}",
         flush=True,
     )
+
+
+def arbitre_pour(args: argparse.Namespace) -> ClientDecision | None:
+    """Jev pour la lecture (`prospection/arbitre.py`), sauf `--sans-jev` ou sans clé.
+
+    Une clé absente n'arrête pas le balayage : la lecture retombe sur le LLM
+    seul, comme avant Jev, et le dit.
+    """
+    if getattr(args, "sans_jev", False):
+        return None
+    try:
+        return ClientDecision()
+    except ErreurDecision as exc:
+        print(f"    Jev indisponible ({exc}) : lecture par le LLM seul", flush=True)
+        return None
+
+
+def _verdict(le: lecture_mod.Lecture) -> str:
+    if le.erreur:
+        return "ERREUR "
+    verdict = "retenue" if le.retenue else "à trancher" if le.indeterminee else "écartée"
+    if le.arbitrage is not None:
+        suite = {"retenue": ", corrigée", "renvoyee": ", renvoyée"}.get(le.correction or "", "")
+        sans_llm = ", sans lecture" if le.arbitrage.bande == "ecartee" else ""
+        verdict += f" ({le.arbitrage.resume()}{sans_llm}{suite})"
+    return verdict
 
 
 def prospecter(
@@ -180,19 +207,25 @@ def prospecter(
         # --- étage 3 : lecture
         a_ouvrir = set(tri_mod.a_lire(tries))
         client_lecture = client_pour("lecture", args.model_lecture)
+        arbitre = arbitre_pour(args)
         a_lire = [c for c in collecte.candidats if c.url in a_ouvrir]
         print(f"    [3/3] {len(a_lire)} page(s) à lire, une par une", flush=True)
         lectures: list[lecture_mod.Lecture] = []
         debut = time.monotonic()
-        for i, c in enumerate(a_lire, 1):
-            le = lecture_mod.lire(c, territoire, fetcheur, client_lecture, compteur=compteur)
-            lectures.append(le)
-            verdict = "retenue" if le.retenue else ("ERREUR " if le.erreur else "écartée")
-            print(
-                f"    [3/3] {i:>3}/{len(a_lire)} {verdict}  {_court(c.url)}"
-                f"  ({time.monotonic() - debut:.0f} s)",
-                flush=True,
-            )
+        try:
+            for i, c in enumerate(a_lire, 1):
+                le = lecture_mod.lire(
+                    c, territoire, fetcheur, client_lecture, compteur=compteur, arbitre=arbitre
+                )
+                lectures.append(le)
+                print(
+                    f"    [3/3] {i:>3}/{len(a_lire)} {_verdict(le)}  {_court(c.url)}"
+                    f"  ({time.monotonic() - debut:.0f} s)",
+                    flush=True,
+                )
+        finally:
+            if arbitre is not None:
+                arbitre.fermer()
         (travail / "lectures.jsonl").write_text(
             "".join(
                 json.dumps(
@@ -200,6 +233,8 @@ def prospecter(
                         "url": le.candidat.url,
                         "erreur": le.erreur,
                         "fiche": le.fiche.model_dump() if le.fiche else None,
+                        "arbitrage": le.arbitrage.en_dict() if le.arbitrage else None,
+                        "correction": le.correction,
                     },
                     ensure_ascii=False,
                 )
@@ -525,6 +560,11 @@ def construire_parser() -> argparse.ArgumentParser:
     p.add_argument("--model-tri")
     p.add_argument("--model-lecture")
     p.add_argument("--model-decouverte")
+    p.add_argument(
+        "--sans-jev",
+        action="store_true",
+        help="lecture par le LLM seul, sans l'arbitrage de Jev (prospection/arbitre.py)",
+    )
 
     ing = p.add_argument_group(
         "ingestion (avec --auto)",
@@ -763,6 +803,7 @@ def cmd_relire(args: argparse.Namespace) -> int:
 
     compteur = Compteur()
     client = client_pour("lecture", args.model_lecture)
+    arbitre = arbitre_pour(args)
 
     def relire_une(slug: str) -> tuple[str, lecture_mod.Lecture | None, str | None]:
         tache = etat[slug]
@@ -776,14 +817,20 @@ def cmd_relire(args: argparse.Namespace) -> int:
         try:
             return (
                 slug,
-                lecture_mod.lire(candidat, territoire, fetcheur, client, compteur=compteur),
+                lecture_mod.lire(
+                    candidat, territoire, fetcheur, client, compteur=compteur, arbitre=arbitre
+                ),
                 None,
             )
         finally:
             fetcheur.close()
 
-    with ThreadPoolExecutor(max_workers=args.parallele) as pool:
-        resultats = list(pool.map(relire_une, slugs))
+    try:
+        with ThreadPoolExecutor(max_workers=args.parallele) as pool:
+            resultats = list(pool.map(relire_une, slugs))
+    finally:
+        if arbitre is not None:
+            arbitre.fermer()
 
     sorts: dict[str, list[str]] = {"a_valider": [], "ignore": [], "erreur": []}
     with verrou_fichier(args.etat):
@@ -815,6 +862,7 @@ def _parseur_relire() -> argparse.ArgumentParser:
     p.add_argument("--model-lecture")
     p.add_argument("--parallele", type=int, default=8, help="lectures simultanées (défaut : 8)")
     p.add_argument("--dry-run", action="store_true", help="lister, ne rien lire")
+    p.add_argument("--sans-jev", action="store_true", help="lecture par le LLM seul")
     _options_communes(p)
     return p
 

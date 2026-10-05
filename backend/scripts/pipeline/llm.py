@@ -190,6 +190,22 @@ class Compteur:
             n, cumul = self._par_etiquette.get(etiquette, (0, 0.0))
             self._par_etiquette[etiquette] = (n + 1, cumul + (response.cost_usd or 0.0))
 
+    def ajouter_decision(self, cout_usd: float | None, jetons_entree: int, etiquette: str) -> None:
+        """Un appel à un modèle de décision (`pipeline/decision.py`), sans `Response`.
+
+        Jev ne passe pas par providall : il rend son coût lui-même, et ne
+        produit aucun jeton de sortie facturé.
+        """
+        with self._lock:
+            self._usage = self._usage + Usage(input_tokens=jetons_entree)
+            self._appels += 1
+            if cout_usd is None:
+                self._cout_inconnu = True
+            else:
+                self._cout += cout_usd
+            n, cumul = self._par_etiquette.get(etiquette, (0, 0.0))
+            self._par_etiquette[etiquette] = (n + 1, cumul + (cout_usd or 0.0))
+
     @property
     def usage(self) -> Usage:
         with self._lock:
