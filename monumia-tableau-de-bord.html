@@ -1,0 +1,430 @@
+<title>Tableau de bord Monumia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Même style que les autres maquettes : PT Serif + Inter, bleu roi, orange pour ce qui presse. */
+:root{
+  --cream:#FDF9F0;--paper:#FFFEFB;--sand:#F4EDE0;
+  --line:#ECE3D2;--line-soft:#F4EDE0;
+  --ink:#222B35;--body:#55606E;--faint:#8A8F96;
+  --blue:#0A369D;--blue-2:#1446B8;--blue-ink:#082A7A;--blue-soft:#EEF3FF;--blue-line:#CCD9F5;
+  --orange:#F17105;--orange-ink:#A84B06;--orange-soft:#FEEEDD;--orange-line:#F7D8B5;
+  --green:#1B6E45;--green-soft:#E5F2EA;
+  --serif:"PT Serif",Georgia,serif;--sans:Inter,system-ui,-apple-system,sans-serif;
+  --sh-card:0 28px 60px -26px rgba(10,54,157,.22);
+  --r:18px;--pill:999px;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;font:400 16px/1.55 var(--sans);color:var(--body);background:var(--cream);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+h1,h2,h3,h4{font-family:var(--serif);font-weight:400;color:var(--ink);letter-spacing:-.015em;margin:0;line-height:1.16;text-wrap:balance}
+p{margin:0}
+a{color:var(--blue);text-underline-offset:3px}
+button{font:inherit;cursor:pointer;color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:8px}
+.w{width:min(1180px,100% - 32px);margin-inline:auto}
+.i{width:20px;height:20px;flex:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.eyebrow{display:flex;align-items:center;gap:10px;font-size:12.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}
+.eyebrow::before{content:"";width:26px;height:2px;background:var(--orange)}
+
+.demo{background:#161C24;color:#C9D0DA;font-size:13px}
+.demo .w{padding-block:8px}
+.demo b{color:#fff;font-weight:600}
+
+.app{background:rgba(255,254,251,.7);border-bottom:1px solid var(--line)}
+.app-in{display:flex;align-items:center;gap:34px;height:70px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo img{width:26px;height:26px}
+.logo span{font:700 21px/1 var(--serif);color:var(--ink)}
+.app nav{display:flex;gap:6px;font-size:15px}
+.app nav a{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--body);padding:8px 12px;border-radius:var(--pill)}
+.app nav a:hover{background:var(--sand);color:var(--ink)}
+.app nav a.on{color:var(--blue);background:var(--blue-soft);font-weight:600}
+.app nav .i{width:18px;height:18px}
+.me{margin-left:auto;display:flex;align-items:center;gap:10px;font-weight:600;color:var(--ink);font-size:15px}
+.av{width:36px;height:36px;border-radius:50%;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;font-size:12.5px;font-weight:700}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;font:600 15.5px/1 var(--sans);padding:13px 22px;min-height:48px;border-radius:var(--pill);border:1.5px solid transparent;text-decoration:none;white-space:nowrap;transition:background .15s,border-color .15s}
+.btn .i{width:18px;height:18px}
+.b-orange{background:var(--orange);color:#fff}
+.b-orange:hover{background:#E36804}
+.b-blue{background:var(--blue);color:#fff}
+.b-blue:hover{background:var(--blue-ink)}
+.b-line{background:var(--paper);color:var(--blue);border-color:var(--blue-line)}
+.b-line:hover{border-color:var(--blue)}
+.b-sm{min-height:42px;padding:9px 16px;font-size:15px}
+.lnk{background:none;border:0;padding:4px 0;color:var(--blue);font-weight:600;font-size:15px;display:inline-flex;align-items:center;gap:6px;text-decoration:underline;text-underline-offset:4px;text-decoration-color:rgba(10,54,157,.3)}
+.lnk .i{width:16px;height:16px}
+
+main{padding-block:34px 90px}
+.hello{display:flex;align-items:flex-end;justify-content:space-between;gap:16px 24px;flex-wrap:wrap}
+.hello h1{font-size:clamp(38px,5vw,56px);margin-top:10px}
+.hello h1 span{color:var(--blue)}
+.hello p{font-size:17.5px;margin-top:10px;max-width:62ch}
+
+.sec{margin-top:44px}
+.sec-h{display:flex;align-items:flex-end;justify-content:space-between;gap:10px 20px;flex-wrap:wrap;margin-bottom:16px}
+.sec-h h2{font-size:28px;margin-top:8px}
+.sec-h p{font-size:15.5px;margin-top:6px;max-width:64ch}
+
+/* 1. à faire maintenant */
+.now{margin-top:30px;background:var(--paper);border:1.5px solid var(--blue);border-radius:22px;box-shadow:var(--sh-card);overflow:hidden}
+.now-in{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:20px 28px;align-items:center;padding:28px 30px}
+.cal{width:92px;height:100px;border-radius:16px;background:var(--orange);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.cal b{font:700 40px/1 var(--serif)}
+.cal span{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-top:6px}
+.now .tag{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--orange)}
+.now h2{font:700 25px/1.25 var(--serif);margin-top:8px}
+.now .sub{font-size:15.5px;margin-top:8px}
+.now .sub b{color:var(--ink);font-weight:600}
+.now-step{background:var(--blue);color:#fff;padding:16px 30px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:15.5px}
+.now-step b{font-weight:600}
+.now-step .lbl{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#BACAF0}
+
+/* 2. vos prochaines actions */
+.acts{display:grid;gap:14px}
+.act{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px 20px;align-items:start;background:var(--paper);border:1.5px solid var(--blue);border-radius:var(--r);padding:20px 22px;transition:background .25s,border-color .25s}
+.chk{width:30px;height:30px;border-radius:9px;border:2px solid var(--blue-line);background:var(--paper);display:grid;place-items:center;margin-top:1px;padding:0}
+.chk:hover{border-color:var(--blue)}
+.chk svg{width:17px;height:17px;color:#fff;opacity:0}
+.act h3{font:700 19px/1.3 var(--serif)}
+.act .why{font-size:15.5px;margin-top:6px;max-width:72ch}
+.act .src{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.pill{display:inline-flex;align-items:center;font-size:13px;font-weight:600;border-radius:var(--pill);padding:3px 11px}
+.pill.b{background:var(--blue-soft);color:var(--blue)}
+.pill.o{background:var(--orange);color:#fff}
+.pill.g{background:var(--green);color:#fff}
+.act .go{align-self:center}
+.act.done{background:var(--green-soft);border-color:var(--green-soft)}
+.act.done .chk{background:var(--green);border-color:var(--green)}
+.act.done .chk svg{opacity:1}
+.act.done h3{color:var(--green);text-decoration:line-through;text-decoration-thickness:1px}
+.act.done .why,.act.done .src,.act.done .go{opacity:.55}
+
+/* 3. à venir + à surveiller */
+.two{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+.box{background:var(--paper);border:1.5px solid var(--blue);border-radius:var(--r);padding:22px 24px}
+.box h3{font:700 20px/1.3 var(--serif)}
+.box > p{font-size:15px;margin-top:4px}
+.dates{list-style:none;margin:14px 0 0;padding:0}
+.dates li{display:grid;grid-template-columns:78px minmax(0,1fr) auto;gap:6px 16px;align-items:center;padding:14px 0;border-top:1px solid var(--line-soft)}
+.dates li:first-child{border-top:0}
+.dates .d{font:700 22px/1 var(--serif);color:var(--ink)}
+.dates .d small{display:block;font:600 12.5px/1.2 var(--sans);color:var(--faint);margin-top:4px}
+.dates b{display:block;font-weight:600;color:var(--ink);font-size:15.5px;line-height:1.35}
+.dates .m{font-size:14px;color:var(--faint);margin-top:2px}
+.jx{font-size:13px;font-weight:700;border-radius:var(--pill);padding:3px 10px;white-space:nowrap}
+.jx.u{background:var(--orange);color:#fff}
+.jx.c{background:var(--blue-soft);color:var(--blue)}
+.watch{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+.w1{border:1.5px dashed var(--blue-line);border-radius:14px;padding:16px}
+.w1 .st{font-size:13px;font-weight:600;color:var(--faint)}
+.w1 b{display:block;font:700 17px/1.3 var(--serif);color:var(--ink);margin-top:4px}
+.w1 p{font-size:14.5px;margin-top:6px}
+.w1 .btn{margin-top:12px}
+.w1.on{border-style:solid;border-color:var(--green);background:var(--green-soft)}
+
+/* 2. échéancier : la bande bleue, comme sur la page des aides */
+.ech{margin-top:30px;border-radius:24px;background:linear-gradient(160deg,var(--blue-2) 0%,var(--blue) 45%,var(--blue-ink) 100%);color:#fff;padding:28px 30px 26px}
+.ech-h{display:flex;align-items:flex-end;justify-content:space-between;gap:10px 20px;flex-wrap:wrap;margin-bottom:20px}
+.ech-k{font-size:12.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--orange)}
+.ech-h h2{color:#fff;font-size:30px;margin-top:8px}
+.ech-h p{font-size:15px;color:#C9D5F0;max-width:46ch}
+.ech-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.dl{display:flex;flex-direction:column;gap:12px;text-align:left;background:var(--paper);color:var(--body);border:0;border-radius:16px;padding:18px 18px 16px;box-shadow:0 20px 40px -24px rgba(0,0,0,.45);transition:transform .2s}
+.dl:hover{transform:translateY(-3px)}
+.dl-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.dl-date{font:700 30px/1 var(--serif);color:var(--ink);letter-spacing:-.02em}
+.dl-date small{display:block;font:500 13px/1.3 var(--sans);color:var(--faint);letter-spacing:0;margin-top:5px}
+.dj{flex:none;font-size:13px;font-weight:700;border-radius:var(--pill);padding:4px 10px}
+.dj.urg{color:var(--orange-ink);background:var(--orange-soft);border:1px solid var(--orange-line)}
+.dj.calm{color:var(--blue);background:var(--blue-soft);border:1px solid var(--blue-line)}
+.dbar{height:6px;border-radius:3px;background:var(--sand);overflow:hidden}
+.dbar i{display:block;height:100%;border-radius:3px;background:var(--orange)}
+.dbar.calm i{background:var(--blue-line)}
+.dl p{font-size:15px;line-height:1.4;color:var(--ink);font-weight:600}
+.dl .mn{font-size:13.5px;color:var(--faint);margin-top:-6px}
+.dl .dl-f{margin-top:auto;display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:var(--blue)}
+.dl .dl-f .i{width:15px;height:15px}
+.dl.urgent{outline:2px solid var(--orange);outline-offset:-2px}
+.ech-all{margin-top:18px;background:none;border:0;padding:4px 0;color:#fff;font-weight:600;font-size:15px;display:inline-flex;align-items:center;gap:6px;text-decoration:underline;text-underline-offset:4px;text-decoration-color:rgba(255,255,255,.4)}
+.ech-all .i{width:16px;height:16px}
+.w1{display:flex;align-items:center;justify-content:space-between;gap:16px 24px;flex-wrap:wrap;background:var(--paper);border:1.5px solid var(--blue);border-radius:var(--r);padding:22px 24px}
+.w1 > div{flex:1;min-width:260px}
+.w1 .st{font-size:13.5px;font-weight:600;color:var(--faint)}
+.w1 b{display:block;font:700 20px/1.3 var(--serif);color:var(--ink);margin-top:4px}
+.w1 p{font-size:15.5px;margin-top:6px;max-width:70ch}
+.w1.on{border-color:var(--green);background:var(--green-soft)}
+@media (max-width:1040px){.ech-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:640px){.ech-grid{grid-template-columns:1fr}.ech{padding:22px 18px}}
+
+
+
+/* projets d'un monument */
+.projs{display:flex;flex-direction:column;gap:10px}
+.projs-k{font-size:12.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.pr{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px 18px;align-items:center;text-decoration:none;color:inherit;background:var(--cream);border:1.5px solid var(--line);border-radius:14px;padding:14px 16px;transition:border-color .15s,background .15s}
+.pr:hover{border-color:var(--blue);background:var(--blue-soft)}
+.pr-t b{display:block;font:700 18px/1.3 var(--serif);color:var(--ink)}
+.pr-t small{display:block;font-size:14.5px;color:var(--body);margin-top:2px}
+.pr-s{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--ink);white-space:nowrap}
+.dots{display:flex;gap:4px}
+.dots i{width:9px;height:9px;border-radius:50%;background:var(--line)}
+.dots i.on{background:var(--orange)}
+.pr-a{width:18px;height:18px;color:var(--blue)}
+@media (max-width:760px){.pr{grid-template-columns:minmax(0,1fr) auto}.pr-s{grid-column:1/-1;grid-row:2}}
+
+
+/* espace documents : accès depuis les autres pages */
+.dc{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;background:var(--paper);border:1.5px solid var(--blue);border-radius:var(--r);padding:22px}
+.dc-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.dc-h b{font:700 18px/1.3 var(--serif);color:var(--ink)}
+.folds{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.fo{display:inline-flex;align-items:center;gap:8px;background:var(--cream);border:1.5px solid var(--line);border-radius:12px;padding:8px 12px;font-size:14.5px;font-weight:600;color:var(--ink)}
+.fo:hover{border-color:var(--blue)}
+.fo svg{width:18px;height:18px;color:var(--blue)}
+.fo em{font-style:normal;font-weight:500;color:var(--faint)}
+.rec{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.rec li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:var(--cream);border:1px solid var(--line-soft)}
+.rec li.new{animation:recnew 1.6s ease}
+@keyframes recnew{0%{background:var(--green-soft)}100%{background:var(--cream)}}
+.ext{font-size:11.5px;font-weight:700;letter-spacing:.04em;color:#fff;background:var(--blue);border-radius:6px;padding:3px 7px;flex:none}
+.rec b{display:block;font-weight:600;color:var(--ink);font-size:15px}
+.rec small{font-size:13.5px;color:var(--faint)}
+.dc-drop{border:2px dashed var(--blue-line);border-radius:16px;background:var(--blue-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:22px 18px;transition:border-color .15s,background .15s}
+.dc-drop.over{border-color:var(--orange);background:var(--orange-soft)}
+.dc-drop .up{width:48px;height:48px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center}
+.dc-drop .up svg{width:22px;height:22px}
+.dc-drop b{font:400 20px/1.3 var(--serif);color:var(--ink)}
+.dc-drop p{font-size:14.5px;max-width:34ch}
+.dc-f{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--line-soft);font-size:14.5px;color:var(--faint)}
+.navc{font-style:normal;font-size:12px;font-weight:700;background:var(--orange);color:#fff;border-radius:var(--pill);padding:1px 7px;margin-left:2px}
+.gdrop{position:fixed;inset:0;z-index:70;background:rgba(10,54,157,.88);display:grid;place-items:center;text-align:center;color:#fff;pointer-events:none}
+.gdrop div{border:3px dashed rgba(255,255,255,.7);border-radius:28px;padding:48px 60px}
+.gdrop b{display:block;font:400 34px/1.2 var(--serif)}
+.gdrop p{margin-top:8px;font-size:17px;color:#DCE4F6}
+@media (max-width:860px){.dc{grid-template-columns:1fr}}
+
+
+.hint{display:block;font-size:13px;font-weight:500;color:var(--faint);margin-top:2px}
+/* nouvelle recherche d'aides */
+.hello-acts{display:flex;gap:10px;flex-wrap:wrap}
+.b-lg{min-height:52px;padding:14px 24px;font-size:16px}
+.ns{display:flex;flex-direction:column;justify-content:center;gap:14px;background:var(--paper);border:2px dashed var(--orange);border-radius:var(--r);padding:28px 28px}
+.ns .pl{width:52px;height:52px;border-radius:50%;background:var(--orange);color:#fff;display:grid;place-items:center}
+.ns .pl svg{width:24px;height:24px}
+.ns h3{font-size:25px}
+.ns p{font-size:16px;max-width:52ch}
+.ns .btn{align-self:flex-start}
+.ns-band{display:flex;align-items:center;gap:20px 28px;flex-wrap:wrap;margin-top:18px}
+.ns-band > div{flex:1;min-width:280px}
+.ns-band .pl{flex:none}
+.ns-band .btn{align-self:center}
+.b-oline{background:var(--paper);color:#C25A04;border-color:var(--orange)}
+.b-oline:hover{background:var(--orange-soft)}
+.mons.one{grid-template-columns:1fr}
+.mon-f .acts{display:flex;gap:10px;flex-wrap:wrap}
+
+/* 4. vos monuments */
+.mons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.mon{background:var(--paper);border:1.5px solid var(--blue);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column}
+.mon-h{background:linear-gradient(160deg,var(--blue-2) 0%,var(--blue) 50%,var(--blue-ink) 100%);color:#fff;padding:26px 24px 22px}
+.mon-h h3{font-size:26px;color:#fff}
+.mon-h p{font-size:15px;color:#C9D5F0;margin-top:6px}
+.mon-b{padding:20px 24px 22px;display:flex;flex-direction:column;gap:16px;flex:1}
+.proj{font-size:15px}
+.proj b{display:block;font:700 18px/1.3 var(--serif);color:var(--ink)}
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.steps li{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font-size:13.5px;font-weight:600;color:var(--faint)}
+.steps li::before{content:"";position:absolute;top:15px;left:calc(-50% + 20px);right:calc(50% + 20px);height:2px;background:var(--line)}
+.steps li:first-child::before{display:none}
+.steps .n{width:32px;height:32px;border-radius:50%;border:2px solid var(--line);background:var(--paper);display:grid;place-items:center;font-size:13.5px;position:relative}
+.steps .n svg{width:15px;height:15px}
+.steps .ok{color:var(--green)}
+.steps .ok .n{background:var(--green);border-color:var(--green);color:#fff}
+.steps .ok::before,.steps .cur::before{background:var(--green)}
+.steps .cur{color:var(--ink)}
+.steps .cur .n{background:var(--orange);border-color:var(--orange);color:#fff}
+.mon-f{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:auto;padding-top:14px;border-top:1px solid var(--line-soft);font-size:15px}
+.mon-f b{color:var(--ink)}
+
+.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translate(-50%,160%);background:var(--ink);color:#fff;border-radius:var(--pill);padding:12px 22px;font-size:15px;transition:transform .4s cubic-bezier(.2,.7,.2,1);z-index:50;max-width:calc(100% - 32px)}
+.toast.show{transform:translate(-50%,0)}
+
+@media (max-width:980px){.app nav{display:none}.two{grid-template-columns:1fr}}
+@media (max-width:760px){
+  .now-in{grid-template-columns:auto minmax(0,1fr);padding:22px 18px}
+  .now-in .btn{grid-column:1/-1}
+  .now-step{padding:14px 18px}
+  .act{grid-template-columns:auto minmax(0,1fr)}
+  .act .go{grid-column:2}
+  .mons{grid-template-columns:1fr}
+  .dates li{grid-template-columns:64px minmax(0,1fr)}
+  .dates .jx{grid-column:2;justify-self:start}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></symbol>
+  <symbol id="i-fold" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h4.2l2.1 2.4h6.7A2.5 2.5 0 0 1 21 8.9V17.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l8-6 8 6v10M9 20v-6h6v6"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10.5a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z"/><path d="M14 3.5V8h4M9 12h6M9 16h6"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 5.5c3-1 5.5-.8 8.5 1 3-1.8 5.5-2 8.5-1v13c-3-1-5.5-.8-8.5 1-3-1.8-5.5-2-8.5-1z"/><path d="M12 6.5v13"/></symbol>
+</svg>
+
+<div class="demo"><div class="w"><b>Maquette</b> · tableau de bord. Données reprises de l'application ; noms des deux projets donnés en exemple.</div></div>
+
+<header class="app">
+  <div class="w app-in">
+    <a class="logo" href="#"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iRmxvd2VyIGxvZ28iIGZpbGw9Im5vbmUiPgogIDxwYXRoIGZpbGw9IiNGMTcxMDUiIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSIKICAgIE0gNTAwLjQxIDguMTQgTCA0NzkuNjYgOS43NiBMIDQ1OS43MiAxMy4wMiBMIDQ0Mi42MyAxNy4wOSBMIDQyMS4wNyAyNCBMIDQwMC4zMiAzMi45NSBMIDM4NS4yNyA0MC42OCBMIDM4Mi4wMiA0My4xMiBMIDM3NS4xIDQ2Ljc5IEwgMzU3LjIgNTguOTkgTCAzMzkuMyA3My42NCBMIDMyMC45OSA5MS45NCBMIDMwNC43MiAxMTEuODggTCAyOTQuNTUgMTI2LjkzIEwgMjgxLjk0IDE0OC45IEwgMjY5LjczIDE3Ni45NyBMIDI2NC40NCAxOTMuNjUgTCAyNTkuNTYgMjEzLjk5IEwgMjU3LjkzIDIyMy4zNSBMIDI1NS40OSAyNDMuNjkgTCAyNTUuNDkgMjQ5LjM5IEwgMjU0LjY4IDI1MC42MSBMIDIyNy40MiAyNTIuMjQgTCAyMDAuNTcgMjU2LjcxIEwgMTgwLjIzIDI2MiBMIDE2NS45OSAyNjYuODggTCAxNTMuMzggMjcyLjE3IEwgMTMwLjE5IDI4My41NiBMIDEwOS40NCAyOTYuNTggTCA4OS41IDMxMi4wNCBMIDY4Ljc1IDMzMS45OCBMIDU0LjExIDM0OS4wNiBMIDM5LjQ2IDM2OS44MSBMIDI0IDM5Ny44OCBMIDE0LjI0IDQyMS44OSBMIDcuMzIgNDQ0LjY3IEwgMi40NCA0NjkuNDkgTCAwIDQ5NC43MSBMIDAgNTE5LjUzIEwgMi44NSA1NDcuMTkgTCA3LjMyIDU2OS41NyBMIDE1LjA1IDU5NC4zOCBMIDI0LjQxIDYxNy4xNyBMIDM0LjE3IDYzNS40NyBMIDM5LjQ2IDY0NC40MiBMIDQzLjk0IDY1MC41MyBMIDQzLjk0IDY1MS4zNCBMIDYxLjQzIDY3NC4xMiBMIDc5LjMzIDY5Mi44NCBMIDk2LjAxIDcwNy40OCBMIDExNS4xMyA3MjEuMzIgTCAxMzYuNyA3MzMuOTMgTCAxNDMuMjEgNzM2Ljc4IEwgMTQ2LjA1IDczOC44MSBMIDE1OS4wNyA3NDQuNTEgTCAxODEuMDQgNzUyLjI0IEwgMjA2LjI2IDc1OC43NCBMIDIyNy40MiA3NjIgTCAyNDcuNzYgNzYzLjIyIEwgMjQ4Ljk4IDc4Ny4yMiBMIDI1Mi4yNCA4MDkuMTkgTCAyNTkuOTcgODM4LjQ4IEwgMjY3LjcgODU5LjY0IEwgMjgxLjk0IDg4OC4xMiBMIDI4Ny4yMiA4OTcuMDcgTCAzMDEuODcgOTE3LjgyIEwgMzEyLjQ1IDkzMC40MyBMIDMyOC43MiA5NDcuMTEgTCAzMzkuNzEgOTU2Ljg3IEwgMzQwLjkzIDk1Ny4yOCBMIDM1Mi43MiA5NjcuMDQgTCAzNzUuMSA5ODEuNjkgTCAzOTguMjkgOTkzLjQ5IEwgNDE3IDEwMDEuMjIgTCA0MzQuOTEgMTAwNi45MSBMIDQ1OC4wOSAxMDEyLjIgTCA0NzEuOTMgMTAxNC4yNCBMIDQ4NC4xMyAxMDE1LjQ2IEwgNTI0IDEwMTUuNDYgTCA1NTAuMDQgMTAxMi4yIEwgNTczLjIzIDEwMDYuOTEgTCA1OTEuMTMgMTAwMS4yMiBMIDYxMy41IDk5MS44NiBMIDYzMi4yMiA5ODIuMSBMIDY1NS40MSA5NjcuMDQgTCA2NzQuMTIgOTUxLjk5IEwgNjkyLjAyIDkzNC41IEwgNzA5LjExIDkxNC4xNSBMIDcyNC4xNiA4OTEuNzggTCA3MjkuNDUgODgyLjQyIEwgNzQxLjI1IDg1Ny42MSBMIDc0OS43OSA4MzMuNiBMIDc0OS43OSA4MzEuOTcgTCA3NTQuMjcgODE2LjUxIEwgNzU3LjUyIDc5Ni4xNyBMIDc1OC43NCA3OTEuNyBMIDc1OS41NiA3ODMuOTcgTCA3NTkuNTYgNzY5LjMyIEwgNzYwLjM3IDc2OC41MSBMIDc4OS42NiA3NjguNTEgTCA4MTEuNjMgNzY1LjY2IEwgODI0LjI0IDc2My4yMiBMIDg0MS43NCA3NTguNzQgTCA4NjQuNTIgNzUwLjYxIEwgODkwLjU2IDczOC40IEwgOTE0Ljk3IDcyMy4zNSBMIDkzNC45IDcwNy44OSBMIDk1Ni44NyA2ODYuNzQgTCA5NzEuOTMgNjY4LjgzIEwgOTg0LjU0IDY1MC45MyBMIDk4NC41NCA2NTAuMTIgTCA5OTMuNDkgNjM1LjQ3IEwgMTAwMi40NCA2MTcuNTcgTCAxMDA5Ljc2IDU5OS4yNyBMIDEwMTYuNjggNTc2LjA4IEwgMTAxOS41MiA1NjQuNjggTCAxMDIxLjk3IDU1MC40NSBMIDEwMjMuNTkgNTM2LjIxIEwgMTAyMy41OSA0ODkuNDIgTCAxMDE5LjkzIDQ2My4zOCBMIDEwMTQuMjQgNDQwLjYgTCAxMDA2LjkxIDQxOS4wNCBMIDk5Ni43NCAzOTYuNjYgTCA5ODQuNTQgMzc1LjEgTCA5NjkuODkgMzU0LjM1IEwgOTU0LjQzIDMzNi40NSBMIDkzNi4xMiAzMTguOTYgTCA5MTQuNTYgMzAyLjI4IEwgODk4LjcgMjkyLjExIEwgODg2LjkgMjg2IEwgODg0Ljg2IDI4NC4zOCBMIDg3Mi42NiAyNzguNjggTCA4NTYuMzggMjcyLjE3IEwgODMxLjk3IDI2NC40NCBMIDgxMC44MiAyNTkuOTcgTCA3ODcuMjIgMjU3LjEyIEwgNzY2Ljg4IDI1Ni4zMSBMIDc2Ni40NyAyNDAuMDMgTCA3NjQuMDMgMjIxLjMyIEwgNzU4Ljc0IDE5Ni45MSBMIDc1Ny4xMiAxOTMuMjUgTCA3NTEuODMgMTc1Ljc1IEwgNzQyLjA2IDE1Mi41NiBMIDcyNy44MyAxMjYuOTMgTCA3MTQuNCAxMDcuODEgTCA2OTYuOTEgODcuNDcgTCA2ODEuODUgNzIuODIgTCA2NjEuMSA1Ni4xNCBMIDYzOS4xNCA0MS45IEwgNjE5LjIgMzEuNzMgTCA1OTYuNDIgMjIuMzggTCA1NzguMTEgMTYuNjggTCA1NTEuMjYgMTAuOTggTCA1MzAuMSA4LjU0IFoKICAgIE0gNDkxLjg2IDg4LjY5IEwgNTMyLjE0IDg4LjY5IEwgNTQ3LjYgOTEuMTMgTCA1NTcuNzcgOTMuNTcgTCA1NjEuNDMgOTUuMiBMIDU3Mi44MiA5OC40NSBMIDU5MS41NCAxMDYuNTkgTCA2MDcgMTE1LjU0IEwgNjE5LjIgMTI0LjA4IEwgNjM3LjEgMTM5Ljk1IEwgNjU1IDE2MS4xMSBMIDY2Ni4zOSAxNzkuNDEgTCA2NzIuNSAxOTEuNjIgTCA2NzcuMzggMjAzLjgyIEwgNjgxLjA0IDIxNS4yMSBMIDY4NC43IDIzMC42NyBMIDY4Ni43NCAyNDQuOTEgTCA2ODYuNzQgMjgxLjk0IEwgNjg1LjExIDI5My43MyBMIDY4Mi4yNiAzMDcuMTYgTCA2NzYuOTcgMzI0LjI1IEwgNjczLjcyIDMzMi4zOCBMIDY2MS45MiAzNTUuMTcgTCA2NTUgMzY1Ljc0IEwgNjQ0LjgzIDM3OC4zNiBMIDY1Mi45NyAzNzEuODUgTCA2NjguNDMgMzYxLjI3IEwgNjg2Ljc0IDM1MS41IEwgNjk5Ljc1IDM0Ni4yMiBMIDcxMS4xNSAzNDIuNTUgTCA3MzggMzM2Ljg2IEwgNzU1LjA4IDMzNS42NCBMIDc2NC44NSAzMzUuNjQgTCA3ODEuOTMgMzM2Ljg2IEwgNzg1LjYgMzM4LjA4IEwgNzkzLjMzIDMzOC44OSBMIDgwNC4zMSAzNDEuMzMgTCA4MjIuMjEgMzQ3LjAzIEwgODM4Ljg5IDM1NC4zNSBMIDg0MC45MiAzNTUuOTggTCA4NTEuOTEgMzYxLjY4IEwgODY0LjExIDM2OS44MSBMIDg4MS42MSAzODQuNDYgTCA4OTkuNTEgNDA0LjM5IEwgOTA2LjgzIDQxNC45NyBMIDkxNS4zOCA0MjkuMjEgTCA5MTkuNDQgNDM3LjM1IEwgOTI1LjE0IDQ1MS4xOCBMIDkzMi40NiA0NzYuODEgTCA5MzQuOSA0OTMuMDggTCA5MzQuOSA1MzAuMSBMIDkzMi44NyA1NDMuOTQgTCA5MjkuNjEgNTU3LjM2IEwgOTI1LjE0IDU3MS42IEwgOTIwLjI2IDU4My44MSBMIDkxNC45NyA1OTQuMzggTCA5MDcuMjQgNjA3LjQgTCA4OTkuOTIgNjE3Ljk4IEwgODkwLjU2IDYyOC45NiBMIDg4MC4zOSA2MzkuNTQgTCA4NjMuMyA2NTMuNzggTCA4NTEuNSA2NjEuNTEgTCA4NDAuNTIgNjY3LjIxIEwgODM4LjQ4IDY2OC44MyBMIDgyMS44IDY3Ni4xNiBMIDgwMy41IDY4MS44NSBMIDc5OS44MyA2ODIuMjYgTCA3OTQuNTUgNjgzLjg5IEwgNzg0LjM4IDY4NS4xMSBMIDc3OS45IDY4Ni4zMyBMIDc0MC4wMyA2ODYuMzMgTCA3MjUuMzggNjgzLjg5IEwgNzExLjk2IDY4MC42MyBMIDcwMS4zOCA2NzcuMzggTCA2ODcuMTQgNjcxLjY4IEwgNjY4LjgzIDY2MS45MiBMIDY1My4zNyA2NTEuMzQgTCA2NDAuMzYgNjQwLjM2IEwgNjU0LjE5IDY1Ny40NCBMIDY1OS40OCA2NjUuMTcgTCA2NjUuMTcgNjc0Ljk0IEwgNjcyLjA5IDY4OC43NyBMIDY3OS40MSA3MDguMyBMIDY4NC4yOSA3MjkuMDUgTCA2ODYuNzQgNzUwLjIgTCA2ODYuMzMgNzc0LjIgTCA2ODQuNyA3ODguMDQgTCA2ODIuNjcgNzk4LjYxIEwgNjc5LjQxIDgxMS4yMyBMIDY3Mi4wOSA4MzAuNzUgTCA2NjUuMTcgODQ0LjU5IEwgNjU0LjYgODYxLjY3IEwgNjM5LjU0IDg3OS45OCBMIDYyMi4wNSA4OTYuMjUgTCA2MTEuMDYgOTA0LjM5IEwgNTk4Ljg2IDkxMi4xMiBMIDU4OS4wOSA5MTcuNDEgTCA1NzguMTEgOTIyLjI5IEwgNTU2Ljk2IDkyOS42MSBMIDU0Ni43OCA5MzIuMDYgTCA1MzEuMzIgOTM0LjUgTCA0OTEuMDUgOTM0LjUgTCA0NzcuNjIgOTMyLjQ2IEwgNDY1LjQyIDkyOS42MSBMIDQ2MS43NiA5MjcuOTkgTCA0NTEuNTkgOTI1LjE0IEwgNDMyLjQ2IDkxNyBMIDQyNC43MyA5MTIuOTMgTCA0MDcuMjQgOTAxLjU0IEwgMzk5LjkyIDg5NS44NSBMIDM4Ny4zMSA4ODQuNDYgTCAzNzEuODUgODY2Ljk2IEwgMzU2Ljc5IDg0NC4xOCBMIDM0OS4wNiA4MjcuOTEgTCAzNDUuODEgODE5LjM2IEwgMzM4Ljg5IDc5NS4zNiBMIDMzNi40NSA3NzkuNDkgTCAzMzYuODYgNzM1LjU2IEwgMzM5LjMgNzIyLjEzIEwgMzQwLjkzIDcxNy42NSBMIDM0Mi4xNSA3MTEuNTUgTCAzNDYuNjIgNjk3LjcyIEwgMzUxLjkxIDY4NS4xMSBMIDM1Ni43OSA2NzUuMzQgTCAzNTguODMgNjcyLjkgTCAzNjQuNTIgNjYyLjczIEwgMzc4LjM2IDY0NC40MiBMIDM2My4zIDY1Ni4yMiBMIDM0MC41MiA2NjkuNjUgTCAzMjUuNDcgNjc2LjE2IEwgMzA3LjU3IDY4MS44NSBMIDMwNS41MyA2ODEuODUgTCAyOTEuNyA2ODUuMTEgTCAyNzUuODMgNjg3LjE0IEwgMjQ1LjMyIDY4Ni43NCBMIDIxOC44OCA2ODEuODUgTCAyMDAuOTggNjc2LjE2IEwgMTgzLjQ4IDY2OC40MyBMIDE3MC4wNiA2NjAuNyBMIDE1OS4wNyA2NTMuMzcgTCAxNDguOSA2NDUuMjQgTCAxMzkuMTQgNjM2LjI5IEwgMTI0LjA4IDYxOS4yIEwgMTExLjA3IDYwMC4wOCBMIDEwMi4xMiA1ODIuMTggTCA5Ni40MiA1NjcuNTMgTCA5Mi4zNSA1NTMuNyBMIDg5LjkxIDU0MS45IEwgODguMjggNTI5LjcgTCA4OC4yOCA0OTMuNDkgTCA5MS4xMyA0NzQuNzcgTCA5NS42MSA0NTguMDkgTCA5OC44NiA0NTAuMzYgTCA5OC44NiA0NDkuMTQgTCAxMDYuNTkgNDMxLjY1IEwgMTExLjg4IDQyMS44OSBMIDEyNi4xMiA0MDEuNTQgTCAxNDQuNDMgMzgyLjAyIEwgMTYwLjI5IDM2OSBMIDE3Ny43OSAzNTguMDEgTCAxOTYuMDkgMzQ5LjA2IEwgMjEyLjM3IDM0My4zNyBMIDIzNS41NiAzMzguMDggTCAyMzguODEgMzM4LjA4IEwgMjQzLjI5IDMzNi44NiBMIDI4My4xNiAzMzYuODYgTCAyODcuMjIgMzM4LjA4IEwgMjkwLjg5IDMzOC4wOCBMIDMxMS4yMyAzNDIuNTUgTCAzMjUuMDYgMzQ3LjAzIEwgMzQyLjU1IDM1NC43NiBMIDM1OC44MyAzNjQuMTIgTCAzNjYuNTYgMzY5LjQgTCAzODIuODMgMzgyLjgzIEwgMzc0LjY5IDM3My40NyBMIDM2OSAzNjUuNzQgTCAzNTcuMiAzNDcuMDMgTCAzNTIuMzIgMzM3LjI2IEwgMzQ2LjYyIDMyMy40MyBMIDMzOS4zIDI5Ny40IEwgMzM2Ljg2IDI4MS41MyBMIDMzNi40NSAyNzUuMDIgTCAzMzYuODYgMjQ1LjMyIEwgMzM4Ljg5IDIzMS40OSBMIDM0MS4zMyAyMjIuOTQgTCAzNDEuMzMgMjIwLjkxIEwgMzQ5LjA2IDE5Ni45MSBMIDM1Ni43OSAxODAuMjMgTCAzNTguODMgMTc3Ljc5IEwgMzY0LjUyIDE2Ny42MiBMIDM3Mi4yNSAxNTYuNjMgTCAzODMuMjQgMTQzLjYxIEwgMzkxLjM3IDEzNS40OCBMIDQwNS4yMSAxMjMuNjggTCA0MjQuNzMgMTEwLjY2IEwgNDQzLjg2IDEwMS4zIEwgNDY2LjIzIDkzLjU3IEwgNDc4LjQ0IDkwLjcyIFoKICAiLz4KPC9zdmc+Cg==" alt=""><span>Monumia</span></a>
+    <nav aria-label="Navigation principale">
+      <a href="#" class="on"><svg class="i"><use href="#i-grid"/></svg>Tableau de bord</a>
+      <a href="#"><svg class="i"><use href="#i-home"/></svg>Mes monuments</a>
+      <a href="#" title="Vos pièces, réutilisables dans tous vos dossiers"><svg class="i"><use href="#i-doc"/></svg>Mes documents <em class="navc">1</em></a>
+      <a href="#"><svg class="i"><use href="#i-book"/></svg>Blog</a>
+    </nav>
+    <div class="me"><span class="av">PV</span>Paul</div>
+  </div>
+</header>
+
+<main class="w">
+  <div class="hello">
+    <div>
+      <span class="eyebrow">Lundi 5 octobre</span>
+      <h1>Bonjour, <span>Paul</span></h1>
+      <p id="helloTxt"></p>
+    </div>
+    <div class="hello-acts">
+      <button class="btn b-line b-lg" type="button" data-toast="Nouveau monument"><svg class="i"><use href="#i-plus"/></svg>Nouveau monument</button>
+      <button class="btn b-orange b-lg" type="button" data-toast="Nouvelle recherche d'aides"><svg class="i"><use href="#i-search"/></svg>Nouvelle recherche d'aides</button>
+    </div>
+  </div>
+
+  <!-- 1. À faire maintenant -->
+  <section class="now" aria-labelledby="nowT">
+    <div class="now-in">
+      <div class="cal" aria-hidden="true"><b>31</b><span>oct.</span></div>
+      <div>
+        <span class="tag">À faire maintenant · dans 26 jours</span>
+        <h2 id="nowT">Dotation France Bois Forêt pour une restauration en bois</h2>
+        <p class="sub"><b>Jusqu'à 10 000 €</b> · Ancienne abbaye de Doue · Une dotation de 10 000 € au plus pour restaurer un bâtiment ouvert au public avec une part très significative de bois de forêts françaises gérées durablement.</p>
+      </div>
+      <button class="btn b-orange" type="button" data-toast="Ouverture de la fiche, à la question">Répondre à la question<svg class="i"><use href="#i-arrow"/></svg></button>
+    </div>
+    <div class="now-step"><span class="lbl">Prochaine étape</span><span><b>1 question</b> pour savoir si vous pouvez déposer. Ensuite, Monumia vous indique les pièces à réunir.</span></div>
+  </section>
+
+  <!-- 2. Vos monuments -->
+  <section class="sec" aria-labelledby="monT">
+    <div class="sec-h"><div><span class="eyebrow">Vos monuments</span><h2 id="monT">Où en sont vos projets</h2></div></div>
+    <div class="mons">
+      <article class="mon">
+        <div class="mon-h"><h3>Ancienne abbaye de Doue</h3><p>Saint-Germain-Laprade, Haute-Loire</p></div>
+        <div class="mon-b">
+          <div class="projs">
+            <span class="projs-k">2 projets en cours</span>
+            <a class="pr" href="#" data-toast="Ouverture du projet Restauration de la toiture">
+              <span class="pr-t"><b>Restauration de la toiture</b><small>Toiture, charpente, couverture</small></span>
+              <span class="pr-s"><span class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></span>Étape 1 sur 4 : estimation</span>
+              <svg class="i pr-a"><use href="#i-arrow"/></svg>
+            </a>
+            <a class="pr" href="#" data-toast="Ouverture du projet Ouverture au public">
+              <span class="pr-t"><b>Ouverture au public</b><small>Accueil d'une compagnie de théâtre</small></span>
+              <span class="pr-s"><span class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></span>Étape 1 sur 4 : estimation</span>
+              <svg class="i pr-a"><use href="#i-arrow"/></svg>
+            </a>
+          </div>
+          <div class="mon-f"><span><b>72 aides</b> repérées<small class="hint">1 document prêt pour vos dossiers</small></span><button class="btn b-blue b-sm" type="button" data-toast="Projets de l'abbaye">Voir les projets<svg class="i"><use href="#i-arrow"/></svg></button></div>
+        </div>
+      </article>
+      <article class="ns" aria-labelledby="nsT">
+        <span class="pl" aria-hidden="true"><svg><use href="#i-plus"/></svg></span>
+        <h3 id="nsT">Un nouveau projet pour l'abbaye ?</h3>
+        <p>Restauration, mise aux normes, compagnie de théâtre, chantier bénévole, exploitation agricole, coworking, et bien d'autres encore !</p>
+        <button class="btn b-orange b-lg" type="button" data-toast="Nouvelle recherche d'aides pour l'abbaye"><svg class="i"><use href="#i-search"/></svg>Lancer une nouvelle recherche</button>
+      </article>
+    </div>
+  </section>
+
+  <!-- 3. Vos documents -->
+  <section class="sec" aria-labelledby="docT">
+    <div class="sec-h"><div><span class="eyebrow">Vos documents</span><h2 id="docT">Les documents de l'abbaye</h2><p>Une pièce déposée une fois sert à tous vos dossiers.</p></div>
+      <button class="btn b-blue" type="button" data-toast="Ouverture de Mes documents">Ouvrir mes documents<svg class="i"><use href="#i-arrow"/></svg></button></div>
+    <div class="dc">
+      <div>
+        <div class="folds">
+          <button class="fo" type="button" data-toast="Dossier Photos"><svg><use href="#i-fold"/></svg>Photos <em>0</em></button>
+          <button class="fo" type="button" data-toast="Dossier Devis"><svg><use href="#i-fold"/></svg>Devis <em>0</em></button>
+          <button class="fo" type="button" data-toast="Dossier Arrêtés"><svg><use href="#i-fold"/></svg>Arrêtés <em>0</em></button>
+          <button class="fo" type="button" data-toast="Dossier Attestations"><svg><use href="#i-fold"/></svg>Attestations <em>1</em></button>
+        </div>
+        <div class="dc-h"><b>Derniers ajouts</b></div>
+        <ul class="rec" id="rec"><li><span class="ext">PDF</span><span><b>Charte régionale</b><small>Attestations · 17 sept. 2026</small></span></li></ul>
+      </div>
+      <div class="dc-drop" id="dcDrop">
+        <span class="up" aria-hidden="true"><svg><use href="#i-up"/></svg></span>
+        <b>Glissez un fichier ici</b>
+        <p>Devis, photos, arrêté de protection : vous choisirez ensuite son dossier.</p>
+        <button class="btn b-blue b-sm" type="button" data-pickdoc>Choisir un fichier</button>
+      </div>
+      <div class="dc-f"><span id="dcUse">1 document · 141 Ko utilisés sur 5 Go</span><span>Vos documents restent privés.</span></div>
+    </div>
+  </section>
+</main>
+
+<div class="gdrop" id="gdrop" hidden><div><b>Déposez votre fichier</b><p>Il sera rangé dans Mes documents.</p></div></div>
+<input type="file" id="docFile" class="sr" tabindex="-1" aria-hidden="true" multiple>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+const ECH=[
+ {d:"31 oct.",j:36,a:"Jusqu'à 10 000 €",t:"Appel à projets de la fondation France Bois Forêt pour notre patrimoine"},
+ {d:"9 nov.",j:45,t:"Soutien à l'investissement dédié aux tiers lieux culturels en ruralité"},
+ {d:"15 mars",j:171,t:"Prix Charpente remarquable de la Fondation Mérimée"},
+ {d:"15 mars",j:171,t:"Chantiers bénévoles de restauration du patrimoine"}
+];
+const S={notify:false};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function render(){
+  $("#helloTxt").textContent="Une date approche pour l'ancienne abbaye de Doue : la dotation France Bois Forêt ferme le 31 octobre.";
+}
+let tt;
+function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("show");clearTimeout(tt);tt=setTimeout(()=>el.classList.remove("show"),3000)}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.toast){toast(b.dataset.toast+" (maquette)");return}
+});
+render();
+})();
+
+/* dépôt de fichiers vers Mes documents, depuis n'importe où sur la page */
+(function(){
+  const g=document.getElementById("gdrop"),inp=document.getElementById("docFile"),rec=document.getElementById("rec"),drop=document.getElementById("dcDrop");
+  let n=1,depth=0;
+  function add(files){
+    [...files].forEach(f=>{n++;if(rec){const li=document.createElement("li");li.className="new";const e=(f.name.split(".").pop()||"").toUpperCase().slice(0,4);li.innerHTML='<span class="ext"></span><span><b></b><small>À ranger · aujourd\'hui</small></span>';li.querySelector(".ext").textContent=e;li.querySelector("b").textContent=f.name.replace(/\.[^.]+$/,"");rec.prepend(li)}});
+    const u=document.getElementById("dcUse");if(u)u.textContent=n+" documents dans votre espace, sur 5 Go";
+    document.querySelectorAll(".navc").forEach(x=>x.textContent=n);
+    const t=document.getElementById("toast");if(t){t.textContent=files.length>1?files.length+" fichiers ajoutés à Mes documents. Vous choisirez leur dossier.":"Fichier ajouté à Mes documents. Vous choisirez son dossier.";t.classList.add("show");setTimeout(()=>t.classList.remove("show"),3400)}
+  }
+  document.addEventListener("click",e=>{if(e.target.closest("[data-pickdoc]")){inp.value="";inp.click()}});
+  inp.addEventListener("change",()=>{if(inp.files.length)add(inp.files)});
+  const hasFiles=e=>e.dataTransfer&&[...e.dataTransfer.types].includes("Files");
+  window.addEventListener("dragenter",e=>{if(!hasFiles(e))return;e.preventDefault();depth++;g.hidden=false;if(drop)drop.classList.add("over")});
+  window.addEventListener("dragover",e=>{if(hasFiles(e))e.preventDefault()});
+  window.addEventListener("dragleave",()=>{depth=Math.max(0,depth-1);if(!depth){g.hidden=true;if(drop)drop.classList.remove("over")}});
+  window.addEventListener("drop",e=>{if(!hasFiles(e))return;e.preventDefault();depth=0;g.hidden=true;if(drop)drop.classList.remove("over");if(e.dataTransfer.files.length)add(e.dataTransfer.files)});
+})();
+</script>

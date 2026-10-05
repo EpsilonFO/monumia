@@ -1,14 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { Picto } from '@/components/shared/ecrans/Picto';
-import { PictoDoc } from '@/components/document/PictosDocuments';
-import { BarreSection } from '@/components/document/EspaceDocuments';
 import { documentService } from '@/services/document.service';
 import { templateService } from '@/services/template.service';
-import { formatBadge } from '@/lib/template-format';
-import { compterChecklist } from '@/lib/checklist-progress';
 import type { ChecklistItem, Template } from '@/types';
-import '@/components/document/documents.css';
 
 /** Défense : un label malformé (dossier stocké avec un objet document
  *  {nom, …} au lieu d'une chaîne) ne doit pas faire planter le rendu React. */
@@ -18,6 +12,14 @@ function labelText(label: unknown): string {
     return String((label as { nom: unknown }).nom ?? '');
   }
   return '';
+}
+
+/** Ce que la tuile montre du fichier qui remplit une pièce. */
+export interface FichierPiece {
+  nom: string;
+  /** PDF, JPG… */
+  ext: string;
+  image: boolean;
 }
 
 interface DossierChecklistProps {
@@ -30,11 +32,11 @@ interface DossierChecklistProps {
   documentUrlByItemId?: Record<string, string>;
   /** Le libellé affiché d'une pièce (celui de la fiche rédigée de l'aide, s'il existe). */
   libelle?: (label: string) => string;
-  /** Le nom du document qui remplit la pièce, s'il est connu. */
-  nomDocument?: (documentId: string) => string | undefined;
-  /** « Déposer » : un nouveau fichier pour cette pièce. */
+  /** Le fichier qui remplit la pièce, s'il est connu. */
+  fichierDe?: (documentId: string) => FichierPiece | undefined;
+  /** « Importer depuis l'ordinateur » : un nouveau fichier pour cette pièce. */
   onRequestDeposer?: (item: ChecklistItem) => void;
-  /** « Choisir un document » / « Remplacer ». */
+  /** « Choisir dans Mes documents » / « Remplacer ». */
   onRequestAttach?: (item: ChecklistItem) => void;
   onPreview?: (documentId: string) => void;
   onRequestDelete?: (item: ChecklistItem) => void;
@@ -49,10 +51,10 @@ interface DossierChecklistProps {
 }
 
 /**
- * Les pièces d'un dossier, avec les emplacements de l'espace documents
- * (`.req` / `.slot`, cf. PiecesADeposer) : en pointillé tant qu'une pièce
- * manque, en vert une fois fournie, en bleu quand un fichier déjà envoyé a été
- * repris et attend d'être vérifié.
+ * Les pièces d'un dossier en grille de tuiles (maquette `monumia-dossier.html`) :
+ * cercle vide et « Ajouter » tant qu'une pièce manque, en vert avec son fichier
+ * une fois fournie, en bleu quand un fichier déjà envoyé a été repris et attend
+ * d'être vérifié.
  */
 export function DossierChecklist({
   items,
@@ -60,7 +62,7 @@ export function DossierChecklist({
   templatesByItemId,
   documentUrlByItemId,
   libelle = (l) => l,
-  nomDocument,
+  fichierDe,
   onRequestDeposer,
   onRequestAttach,
   onPreview,
@@ -72,11 +74,28 @@ export function DossierChecklist({
   readOnly,
 }: DossierChecklistProps) {
   const sorted = [...items].sort((a, b) => a.ordre - b.ordre);
-  const { confirmees, aVerifier, total } = compterChecklist(items);
+
+  // Un seul menu « Ajouter » ouvert à la fois.
+  const [menuOuvert, setMenuOuvert] = useState<string | null>(null);
+
+  // La tuile qui vient d'être remplie s'illumine un instant.
+  const [fraiche, setFraiche] = useState<string | null>(null);
+  const fournies = useRef<Set<string> | null>(null);
+  const cleFournies = items.filter((i) => i.statut === 'fourni').map((i) => i.id).sort().join(',');
+  useEffect(() => {
+    const maintenant = new Set(cleFournies ? cleFournies.split(',') : []);
+    const avant = fournies.current;
+    fournies.current = maintenant;
+    if (!avant) return;
+    const nouvelle = [...maintenant].find((id) => !avant.has(id));
+    if (!nouvelle) return;
+    setFraiche(nouvelle);
+    window.setTimeout(() => setFraiche((f) => (f === nouvelle ? null : f)), 1400);
+  }, [cleFournies]);
 
   // Documents que l'utilisateur a le DROIT de voir (le backend filtre déjà selon
   // la visibilité). Une pièce dont le documentId n'y est pas est masquée pour lui
-  // → cadenas au lieu de « Voir ».
+  // → cadenas au lieu du fichier.
   const [viewableDocIds, setViewableDocIds] = useState<Set<string> | null>(null);
 
   // Re-fetch quand l'ensemble des pièces fournies change (dépôt/remplacement) :
@@ -116,64 +135,57 @@ export function DossierChecklist({
     return () => { cancelled = true; };
   }, [projetId, fourniKey]);
 
-  return (
-    <section className="desp pdos-pieces" aria-label="Pièces du dossier">
-      <BarreSection
-        titre="Pièces du dossier"
-        droite={total > 0 && (
-          <div className="pdep-prog">
-            <span>
-              {confirmees} sur {total} confirmée{confirmees > 1 ? 's' : ''}
-              {aVerifier > 0 && ` · ${aVerifier} à vérifier`}
-            </span>
-            <span className="track"><i style={{ width: `${(confirmees / total) * 100}%` }} /></span>
-          </div>
-        )}
-      />
+  if (sorted.length === 0) {
+    return (
+      <div className="pvide">
+        <b>Aucune pièce</b>
+        <p>Ce dossier ne comporte aucune pièce à fournir.</p>
+      </div>
+    );
+  }
 
-      {sorted.length === 0 ? (
-        <div className="empty">
-          <b>Aucune pièce</b>
-          <p>Ce dossier ne comporte aucune pièce à fournir.</p>
-        </div>
-      ) : (
-        <div className="req">
-          {sorted.map((item) => (
-            <SlotPiece
-              key={item.id}
-              item={item}
-              nom={libelle(labelText(item.label))}
-              nomDocument={item.documentId ? nomDocument?.(item.documentId) : undefined}
-              templates={templatesByItemId?.[item.id] ?? []}
-              documentUrl={documentUrlByItemId?.[item.id]}
-              readOnly={readOnly}
-              canModify={canModifyItem ? canModifyItem(item) : true}
-              busy={busyItemId === item.id}
-              hidden={!!item.documentId && viewableDocIds !== null && !viewableDocIds.has(item.documentId)}
-              onRequestDeposer={onRequestDeposer}
-              onRequestAttach={onRequestAttach}
-              onPreview={onPreview}
-              onRequestDelete={onRequestDelete}
-              onConfirm={onConfirm}
-              onReject={onReject}
-            />
-          ))}
-        </div>
-      )}
-    </section>
+  return (
+    <div className="pgrid">
+      {sorted.map((item) => (
+        <TuilePiece
+          key={item.id}
+          item={item}
+          nom={libelle(labelText(item.label))}
+          fichier={item.documentId ? fichierDe?.(item.documentId) : undefined}
+          templates={templatesByItemId?.[item.id] ?? []}
+          documentUrl={documentUrlByItemId?.[item.id]}
+          readOnly={readOnly}
+          canModify={canModifyItem ? canModifyItem(item) : true}
+          busy={busyItemId === item.id}
+          hidden={!!item.documentId && viewableDocIds !== null && !viewableDocIds.has(item.documentId)}
+          fraiche={fraiche === item.id}
+          menuOuvert={menuOuvert === item.id}
+          setMenuOuvert={setMenuOuvert}
+          onRequestDeposer={onRequestDeposer}
+          onRequestAttach={onRequestAttach}
+          onPreview={onPreview}
+          onRequestDelete={onRequestDelete}
+          onConfirm={onConfirm}
+          onReject={onReject}
+        />
+      ))}
+    </div>
   );
 }
 
-function SlotPiece({
+function TuilePiece({
   item,
   nom,
-  nomDocument,
+  fichier,
   templates,
   documentUrl,
   readOnly,
   canModify,
   busy,
   hidden,
+  fraiche,
+  menuOuvert,
+  setMenuOuvert,
   onRequestDeposer,
   onRequestAttach,
   onPreview,
@@ -183,140 +195,198 @@ function SlotPiece({
 }: {
   item: ChecklistItem;
   nom: string;
-  nomDocument?: string;
+  fichier?: FichierPiece;
   templates: Template[];
   documentUrl?: string;
   readOnly?: boolean;
   canModify: boolean;
   busy: boolean;
   hidden: boolean;
+  fraiche: boolean;
+  menuOuvert: boolean;
+  setMenuOuvert: Dispatch<SetStateAction<string | null>>;
 } & Pick<
   DossierChecklistProps,
   'onRequestDeposer' | 'onRequestAttach' | 'onPreview' | 'onRequestDelete' | 'onConfirm' | 'onReject'
 >) {
   const isFourni = item.statut === 'fourni';
   const isRepris = item.statut === 'repris';
-  const classe = isFourni ? 'slot ok' : isRepris ? `slot rep${item.perime ? ' vieux' : ''}` : 'slot';
+  const classe = [
+    'tile',
+    isFourni && 'done',
+    isRepris && 'rep',
+    isRepris && item.perime && 'vieux',
+    fraiche && 'new',
+  ].filter(Boolean).join(' ');
   const voir = (isFourni || isRepris) && item.documentId && !hidden && onPreview
     ? () => onPreview(item.documentId!)
     : undefined;
 
+  const basculerMenu = useCallback(
+    (ouvert: boolean) => setMenuOuvert(ouvert ? item.id : null),
+    [item.id, setMenuOuvert],
+  );
+  const menuRef = useRef<HTMLDivElement>(null);
+  const ajouterRef = useRef<HTMLButtonElement>(null);
+  const menuId = `pmenu-${item.id}`;
+
+  // Le menu se referme au clic dehors et à Échap (le focus revient alors sur
+  // « Ajouter ») ; à l'ouverture, il passe sur la première entrée.
+  useEffect(() => {
+    if (!menuOuvert) return;
+    menuRef.current?.querySelector<HTMLElement>('button, a')?.focus();
+    const dehors = (e: PointerEvent) => {
+      const cible = e.target as Node;
+      if (menuRef.current?.contains(cible) || ajouterRef.current?.contains(cible)) return;
+      basculerMenu(false);
+    };
+    const echap = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      basculerMenu(false);
+      ajouterRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', dehors);
+    document.addEventListener('keydown', echap);
+    return () => {
+      document.removeEventListener('pointerdown', dehors);
+      document.removeEventListener('keydown', echap);
+    };
+  }, [menuOuvert, basculerMenu]);
+
+  const choisir = (action: () => void) => () => {
+    basculerMenu(false);
+    action();
+  };
+
+  const nomFichier = fichier?.nom ?? 'Fichier joint';
+
   return (
-    <div className={classe}>
+    <article className={classe}>
+      <div className="t-top">
+        <span className="st" aria-hidden="true">
+          {isRepris ? <Picto nom="refaire" /> : <Picto nom="coche" />}
+        </span>
+        {item.obligatoire
+          ? <span className="tag o">Obligatoire</span>
+          : <span className="tag b">Selon votre situation</span>}
+      </div>
       <b>{nom}</b>
-      <small>
-        {isFourni && hidden ? (
-          <><Picto nom="cadenas" />Fourni · accès réservé</>
-        ) : isFourni ? (
-          <><Picto nom="coche" />Fourni</>
-        ) : isRepris ? (
-          <><Picto nom="refaire" />{item.perime ? 'Repris, document ancien : à vérifier' : 'Repris d’un autre dossier : à vérifier'}</>
-        ) : (
-          <>{item.obligatoire ? 'Obligatoire' : 'Facultative'} · à fournir</>
-        )}
-      </small>
-      {item.description && <p className="where">{item.description}</p>}
-      {/* Le nom du fichier, s'il dit autre chose que la pièce (un dépôt depuis
-          « Déposer » prend le nom de la pièce). */}
-      {(isFourni || isRepris) && nomDocument && nomDocument !== nom && !hidden && (
-        <p className="where">{isRepris ? 'Fichier proposé : ' : 'Fichier : '}{nomDocument}</p>
+      <span className="sr">
+        {isFourni ? 'Pièce fournie.' : isRepris ? 'Pièce reprise, à vérifier.' : 'Pièce à fournir.'}
+      </span>
+      {item.description && <p className="how">{item.description}</p>}
+
+      {(isFourni || isRepris) && hidden && (
+        <span className="fchip off"><Picto nom="cadenas" /><span>Fourni · accès réservé</span></span>
       )}
 
-      <div className="pdos-acts">
-        {/* Confirmer une pièce qu'on ne peut pas ouvrir serait confirmer à
-            l'aveugle : le bouton disparaît avec « Voir ». Le rejet, lui, ne
-            demande pas de consulter le document : il reste offert pour ne pas
-            laisser la pièce dans une impasse. */}
-        {!readOnly && isRepris && !hidden && onConfirm && (
-          <button className="btn b-blue b-sm" type="button" disabled={busy} onClick={() => onConfirm(item)}>
-            <Picto nom="coche" />C’est bien ça
-          </button>
-        )}
-        {!readOnly && isRepris && onReject && (
-          <button className="btn b-line b-sm" type="button" disabled={busy} onClick={() => onReject(item)}>
-            Ce n’est pas ça
-          </button>
-        )}
-        {!readOnly && !isFourni && !isRepris && onRequestDeposer && (
-          <button className="btn b-blue b-sm" type="button" disabled={busy} onClick={() => onRequestDeposer(item)}>
-            <Picto nom="envoyer" />{busy ? 'Envoi…' : 'Déposer'}
-          </button>
-        )}
-        {voir && (
-          isFourni ? (
-            <button className="btn b-line b-sm" type="button" onClick={voir}>
-              <PictoDoc nom="oeil" />Voir
+      {(isFourni || isRepris) && !hidden && (
+        <>
+          {isRepris && (
+            <small className="rep-t">
+              {item.perime ? 'Document ancien, repris d’un autre dossier : à vérifier' : 'Repris d’un autre dossier : à vérifier'}
+            </small>
+          )}
+          {voir ? (
+            <button className="fchip" type="button" onClick={voir} title="Voir le fichier">
+              {fichier && <span className={`ext${fichier.image ? ' img' : ''}`}>{fichier.ext}</span>}
+              <span>{nomFichier}</span>
             </button>
           ) : (
-            <button className="lnk" type="button" onClick={voir}>Voir le fichier</button>
-          )
-        )}
-        {!readOnly && !isFourni && !isRepris && onRequestAttach && (
-          <button className="lnk" type="button" disabled={busy} onClick={() => onRequestAttach(item)}>
-            Choisir un document
-          </button>
-        )}
-        {!readOnly && isFourni && canModify && !hidden && onRequestAttach && (
-          <button className="lnk" type="button" disabled={busy} onClick={() => onRequestAttach(item)}>
-            Remplacer
-          </button>
-        )}
-        {!readOnly && isFourni && item.documentId && canModify && !hidden && onRequestDelete && (
-          <button className="lnk del" type="button" disabled={busy} onClick={() => onRequestDelete(item)}>
-            Retirer
-          </button>
-        )}
-        <BoutonModele templates={templates} />
-        {documentUrl && (
-          <a
-            className="lnk"
-            href={documentUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Le formulaire, Cerfa ou modèle officiel de la pièce"
-          >
-            <Picto nom="telecharger" />Formulaire officiel
-          </a>
-        )}
-      </div>
-    </div>
-  );
-}
+            <span className="fchip">
+              {fichier && <span className={`ext${fichier.image ? ' img' : ''}`}>{fichier.ext}</span>}
+              <span>{nomFichier}</span>
+            </span>
+          )}
+        </>
+      )}
 
-// « Modèle » : présent quand au moins un modèle de la bibliothèque correspond à
-// la pièce. Un seul modèle → téléchargement direct ; plusieurs → liste dans un
-// popover. Aucun modèle → rien (cas fréquent, assumé).
-function BoutonModele({ templates }: { templates: Template[] }) {
-  if (templates.length === 0) return null;
-
-  if (templates.length === 1) {
-    const t = templates[0];
-    return (
-      <button className="lnk" type="button" onClick={() => templateService.download(t)} title={`Télécharger le modèle : ${t.nom}`}>
-        <Picto nom="telecharger" />Modèle
-      </button>
-    );
-  }
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button className="lnk" type="button">
-          <Picto nom="telecharger" />Modèles ({templates.length})
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="ec dmenu pdos-modeles">
-        <p className="pdos-modeles-t">Modèles suggérés</p>
-        {templates.map((t) => {
-          const badge = formatBadge(t.extension);
-          return (
-            <button key={t.id} type="button" onClick={() => templateService.download(t)}>
-              <span className={`fmt ${badge.className}`}>{badge.label}</span>
-              <span className="nomlieu">{t.nom}</span>
+      {/* Confirmer une pièce qu'on ne peut pas ouvrir serait confirmer à
+          l'aveugle : le bouton disparaît avec le fichier. Le rejet, lui, ne
+          demande pas de consulter le document : il reste offert pour ne pas
+          laisser la pièce dans une impasse. */}
+      {!readOnly && isRepris && (
+        <div className="t-acts">
+          {!hidden && onConfirm && (
+            <button className="btn b-blue add" type="button" disabled={busy} onClick={() => onConfirm(item)}>
+              <Picto nom="coche" />C’est bien ça
             </button>
-          );
-        })}
-      </PopoverContent>
-    </Popover>
+          )}
+          {onReject && (
+            <button className="rm" type="button" disabled={busy} onClick={() => onReject(item)}>
+              Ce n’est pas ça
+            </button>
+          )}
+        </div>
+      )}
+
+      {!readOnly && isFourni && item.documentId && canModify && !hidden && (onRequestDelete || onRequestAttach) && (
+        <div className="t-acts">
+          {onRequestDelete && (
+            <button className="rm" type="button" disabled={busy} onClick={() => onRequestDelete(item)}>
+              Retirer
+            </button>
+          )}
+          {onRequestAttach && (
+            <button className="rm" type="button" disabled={busy} onClick={() => onRequestAttach(item)}>
+              Remplacer
+            </button>
+          )}
+        </div>
+      )}
+
+      {!isFourni && !isRepris && (
+        readOnly ? (
+          <small className="manque">Non fournie</small>
+        ) : (
+          <>
+            <button
+              ref={ajouterRef}
+              className="btn b-blue add"
+              type="button"
+              disabled={busy}
+              aria-expanded={menuOuvert}
+              aria-controls={menuOuvert ? menuId : undefined}
+              onClick={() => basculerMenu(!menuOuvert)}
+            >
+              <Picto nom="plus" />{busy ? 'Ajout…' : 'Ajouter'}
+            </button>
+            {menuOuvert && (
+              <div className="pmenu" id={menuId} ref={menuRef}>
+                {documentUrl && (
+                  <a
+                    href={documentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => basculerMenu(false)}
+                    title="Le formulaire, Cerfa ou modèle officiel de la pièce"
+                  >
+                    <Picto nom="telecharger" />Télécharger le modèle à remplir
+                  </a>
+                )}
+                {templates.map((t) => (
+                  <button key={t.id} type="button" onClick={choisir(() => templateService.download(t))}>
+                    <Picto nom="telecharger" />
+                    <span>
+                      {templates.length === 1 && !documentUrl ? 'Télécharger le modèle à remplir' : `Modèle : ${t.nom}`}
+                    </span>
+                  </button>
+                ))}
+                {onRequestAttach && (
+                  <button type="button" onClick={choisir(() => onRequestAttach(item))}>
+                    <Picto nom="dossier" />Choisir dans Mes documents
+                  </button>
+                )}
+                {onRequestDeposer && (
+                  <button type="button" onClick={choisir(() => onRequestDeposer(item))}>
+                    <Picto nom="envoyer" />Importer depuis l'ordinateur
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )
+      )}
+    </article>
   );
 }

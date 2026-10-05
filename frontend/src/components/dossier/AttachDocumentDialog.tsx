@@ -34,6 +34,11 @@ interface AttachDocumentDialogProps {
   /** Called only after a FRESH upload (pas la sélection d'un doc existant) —
    *  pour ouvrir le popup « Gérer l'accès » sur la pièce déposée. */
   onUploaded?: (document: Document) => void;
+  /** Version courte de la page d'un dossier (« Choisir dans mes documents ») :
+   *  la seule liste de ses documents, sans dépôt dans la fenêtre. Le lien du
+   *  pied appelle `onImporter`, qui ouvre le dépôt habituel. */
+  choixSeul?: boolean;
+  onImporter?: () => void;
 }
 
 /**
@@ -51,6 +56,8 @@ export function AttachDocumentDialog({
   typeParDefaut,
   onAttach,
   onUploaded,
+  choixSeul = false,
+  onImporter,
 }: AttachDocumentDialogProps) {
   const user = useAuthStore((s) => s.user);
   const { documents, loading, fetchDocuments, uploadDocument } = useDocumentStore();
@@ -173,6 +180,88 @@ export function AttachDocumentDialog({
 
   const manque = [!type && 'le dossier', !nom.trim() && 'le nom'].filter(Boolean);
   const format = file ? formatFichier(file.name) : '';
+
+  if (choixSeul) {
+    return (
+      <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o && !occupe) onOpenChange(false); }}>
+        <DialogPrimitive.Portal>
+          <div className="ec">
+            <DialogPrimitive.Overlay className="dov">
+              <DialogPrimitive.Content className="dmodal pdos-choix" aria-describedby={undefined}>
+                <div className="m-h">
+                  <div>
+                    <DialogPrimitive.Title asChild><h2>Choisir dans mes documents</h2></DialogPrimitive.Title>
+                    {defaultName && <p className="m-sub">{defaultName}</p>}
+                  </div>
+                  <DialogPrimitive.Close asChild>
+                    <button className="x" type="button" aria-label="Fermer" disabled={occupe}>
+                      <Picto nom="croix" />
+                    </button>
+                  </DialogPrimitive.Close>
+                </div>
+
+                {documents.length > 5 && (
+                  <label className="jsearch">
+                    <span className="sr">Rechercher dans vos documents</span>
+                    <Picto nom="loupe" />
+                    <input
+                      type="search"
+                      placeholder="Rechercher dans vos documents"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </label>
+                )}
+                <div className="docs">
+                  {loading && documents.length === 0 ? (
+                    <p className="jvide">Chargement de vos documents…</p>
+                  ) : filtered.length === 0 ? (
+                    <p className="jvide">
+                      {search.trim() ? 'Aucun document trouvé. Essayez un autre mot.' : 'Aucun document pour l’instant.'}
+                    </p>
+                  ) : (
+                    filtered.map((doc) => {
+                      const fmt = formatFichier(doc.nomFichier);
+                      return (
+                        <button
+                          key={doc.id}
+                          type="button"
+                          className="doc"
+                          disabled={occupe}
+                          onClick={() => handleSelectExisting(doc)}
+                        >
+                          <span className={`ext${estImage(fmt, doc.mimeType) ? ' img' : ''}`}>{fmt}</span>
+                          <span className="jnom">
+                            <b>{doc.nom}</b>
+                            <small>
+                              {attachingId === doc.id ? 'Ajout…' : `${dossierLabel(doc.type)} · ${tailleFichier(doc.tailleFichier)}`}
+                            </small>
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+                {onImporter && (
+                  <div className="m-f">
+                    Le document n’y est pas ?{' '}
+                    <button
+                      className="rm"
+                      type="button"
+                      disabled={occupe}
+                      onClick={() => { onOpenChange(false); onImporter(); }}
+                    >
+                      Importez-le depuis votre ordinateur
+                    </button>
+                  </div>
+                )}
+              </DialogPrimitive.Content>
+            </DialogPrimitive.Overlay>
+          </div>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
+    );
+  }
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o && !occupe) onOpenChange(false); }}>

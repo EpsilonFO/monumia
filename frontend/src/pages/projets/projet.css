@@ -17,8 +17,17 @@
 .pproj .phead .renommer.vide { border-color: var(--e-orange); }
 .pproj .phead .aide-saisie { font-size: 13.5px; color: var(--e-faint); margin-top: 6px; }
 .pproj .phead .clos { font: 600 14px/1 var(--e-sans); letter-spacing: 0; border-radius: var(--e-pill); padding: 7px 13.5px; background: var(--e-sand); color: var(--e-body); }
-.pproj .proj-act { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
-.pproj .proj-act small { font-size: 13.5px; color: var(--e-faint); }
+.pproj .proj-act { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+.pproj .proj-act small { font-size: 13.5px; color: var(--e-faint); text-align: center; }
+
+/* Mes documents, visible dès l'arrivée sur l'onglet Aides */
+.pproj .docs-cta { margin-top: 22px; display: flex; align-items: center; gap: 16px 24px; flex-wrap: wrap; background: var(--e-blue-soft); border: 1.5px solid var(--e-blue); border-radius: 20px; padding: 22px 26px; }
+.pproj .docs-cta > div { flex: 1; min-width: 260px; }
+.pproj .docs-cta h2 { font-size: 24px; }
+.pproj .docs-cta p { font-size: 16px; margin-top: 6px; max-width: 70ch; }
+.pproj .dc-ic { width: 54px; height: 54px; border-radius: 14px; background: var(--e-blue); color: #fff; display: grid; place-items: center; flex: none; }
+.pproj .dc-ic .i { width: 26px; height: 26px; }
+.pproj .dc-btn { min-height: 52px; padding: 14px 24px; font-size: 16px; }
 
 .pproj .tabs { margin-top: 22px; }
 

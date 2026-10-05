@@ -39,93 +39,37 @@ export function ouvrirSection(id: string) {
   window.dispatchEvent(new CustomEvent(EVENEMENT_OUVRIR, { detail: id }));
 }
 
-/** Vitesse de lecture du défilement automatique, en pixels par seconde. */
-const VITESSE = 14;
-/** La remontée va plus vite : on a déjà tout lu. */
-const VITESSE_RETOUR = VITESSE * 6;
-/** Pause en haut et en bas, le temps de lire la première ou la dernière ligne. */
-const PAUSE_BOUT = 3000;
-/** Après un défilement à la main, on laisse la main dix secondes. */
-const REPRISE_APRES_MAIN = 10_000;
+/** Hauteur de la barre de l'application, plus la marge sous laquelle la colonne se cale. */
+const HAUT_COLLANT = 75.5;
+/** Marge laissée sous la colonne quand elle se cale en bas de l'écran. */
+const MARGE_BAS = 16;
 
 /**
- * Défilement automatique d'un panneau trop haut pour son cadre (« L'essentiel ») :
- * sans lui, une ligne restait cachée sous le bas du panneau, et rien ne disait
- * qu'on pouvait la faire venir. Il descend lentement, marque une pause, remonte,
- * et recommence.
+ * Colonne « L'essentiel » : elle défile d'abord avec la page, puis reste à côté
+ * du contenu jusqu'en bas. Rien ne défile DANS la colonne.
  *
- * La main reste à l'utilisateur : molette, doigt, clavier ou barre de défilement
- * l'arrêtent dix secondes, et il attend tant que la souris est posée dessus
- * (un texte qui bouge sous le pointeur ne se lit pas). Rien ne bouge si tout
- * tient dans le cadre, ni pour qui a demandé moins d'animations au système.
+ * C'est un `position: sticky` dont le `top` dépend de sa hauteur : quand elle
+ * tient dans l'écran, elle se colle sous la barre (`HAUT_COLLANT`) ; quand elle
+ * est plus haute, son `top` devient négatif, si bien qu'elle monte avec la page
+ * jusqu'à ce que son bas apparaisse, puis se cale là. Le CSS ne connaît pas la
+ * hauteur d'un élément : elle est mesurée ici et posée dans `--side-top`.
  */
-export function useDefilementAuto<T extends HTMLElement>() {
+export function useColonneCollante<T extends HTMLElement>() {
   const ref = useRef<T>(null);
   useEffect(() => {
     const el = ref.current;
-    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    let pos = el.scrollTop;
-    let sens: 1 | -1 = 1;
-    let attendreJusqua = performance.now() + PAUSE_BOUT;
-    let survol = false;
-    let dernier = performance.now();
-    let raf = 0;
-
-    const laMain = () => {
-      pos = el.scrollTop;
-      attendreJusqua = performance.now() + REPRISE_APRES_MAIN;
+    if (!el) return;
+    const caler = () => {
+      const top = Math.min(HAUT_COLLANT, window.innerHeight - el.offsetHeight - MARGE_BAS);
+      el.style.setProperty('--side-top', `${top}px`);
     };
-    // Un défilement qui n'est pas le nôtre (barre de défilement, ancre) : la
-    // position s'écarte de celle qu'on vient de poser.
-    const surDefilement = () => {
-      if (Math.abs(el.scrollTop - pos) > 2) laMain();
-    };
-    const entree = () => {
-      survol = true;
-    };
-    const sortie = () => {
-      survol = false;
-      pos = el.scrollTop;
-      attendreJusqua = Math.max(attendreJusqua, performance.now() + 1500);
-    };
-
-    const tick = (t: number) => {
-      const dt = Math.min(t - dernier, 100) / 1000;
-      dernier = t;
-      const max = el.scrollHeight - el.clientHeight;
-      if (max > 4 && !survol && t >= attendreJusqua) {
-        pos += sens * (sens > 0 ? VITESSE : VITESSE_RETOUR) * dt;
-        if (pos >= max) {
-          pos = max;
-          sens = -1;
-          attendreJusqua = t + PAUSE_BOUT;
-        } else if (pos <= 0) {
-          pos = 0;
-          sens = 1;
-          attendreJusqua = t + PAUSE_BOUT;
-        }
-        el.scrollTop = pos;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-
-    const options = { passive: true } as const;
-    el.addEventListener('scroll', surDefilement, options);
-    el.addEventListener('wheel', laMain, options);
-    el.addEventListener('touchstart', laMain, options);
-    el.addEventListener('keydown', laMain);
-    el.addEventListener('pointerenter', entree);
-    el.addEventListener('pointerleave', sortie);
+    caler();
+    const ro = new ResizeObserver(caler);
+    ro.observe(el);
+    window.addEventListener('resize', caler);
     return () => {
-      cancelAnimationFrame(raf);
-      el.removeEventListener('scroll', surDefilement);
-      el.removeEventListener('wheel', laMain);
-      el.removeEventListener('touchstart', laMain);
-      el.removeEventListener('keydown', laMain);
-      el.removeEventListener('pointerenter', entree);
-      el.removeEventListener('pointerleave', sortie);
+      ro.disconnect();
+      window.removeEventListener('resize', caler);
     };
   }, []);
   return ref;

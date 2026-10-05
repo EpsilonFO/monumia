@@ -31,8 +31,8 @@ import type { MerimeeRecord, MonumentInput } from '@/types';
 import '@/components/shared/ecrans/ecrans.css';
 import './nouveau-monument.css';
 
-/** D'où vient la fiche : la recherche Mérimée ouverte, une notice choisie, ou la main. */
-type Source = 'recherche' | 'merimee' | 'manuel';
+/** D'où vient la fiche : la recherche Mérimée ouverte, ou une notice choisie. */
+type Source = 'recherche' | 'merimee';
 
 /**
  * Création d'un MONUMENT : sa fiche, état sanitaire inclus, sur un seul écran
@@ -40,10 +40,10 @@ type Source = 'recherche' | 'merimee' | 'manuel';
  * les travaux, les intentions et le questionnaire appartiennent au projet et se
  * saisissent dans le wizard projet, une fois le monument décrit.
  *
- * À l'arrivée, la recherche Mérimée est seule à l'écran. Choisir une notice
- * déplie tout le formulaire, déjà pré-rempli, et encadre en orange ce qui reste
- * à dire (l'état du bâtiment toujours, que Mérimée ignore) ; « Mon monument
- * n'est pas dans la liste » le déplie vide. Un brouillon repris arrive déplié.
+ * Tout le formulaire est là dès l'arrivée, la recherche Mérimée en tête et
+ * mise en avant : choisir une notice pré-remplit la fiche et encadre en orange
+ * ce qui reste à dire (l'état du bâtiment toujours, que Mérimée ignore). Rien
+ * n'oblige à passer par elle : on peut remplir les champs directement.
  *
  * Le type d'édifice suit le NOM tant que l'utilisateur ne l'a pas choisi
  * lui-même : « Château de Paley » coche « Château » (`typesEdificeDepuisNom`).
@@ -75,9 +75,8 @@ export function MonumentWizardPage() {
   // la page est ensuite maîtresse de son propre état.
   const [fiche, setFiche] = useState<FicheMonument>(() => brouillonMonument ?? {});
   const [source, setSource] = useState<Source>(() =>
-    brouillonMonument ? (brouillonMonument.referenceMerimee ? 'merimee' : 'manuel') : 'recherche',
+    brouillonMonument?.referenceMerimee ? 'merimee' : 'recherche',
   );
-  const [deplie, setDeplie] = useState(() => Boolean(brouillonMonument));
   // Vrai tant que le type d'édifice n'a été ni choisi à la main, ni donné par
   // la dénomination d'une notice : il se déduit alors du nom, à chaque frappe.
   const [typesDepuisNom, setTypesDepuisNom] = useState(
@@ -110,7 +109,6 @@ export function MonumentWizardPage() {
       const record = fullRecord ?? searchRecord;
       setTypesDepuisNom(typesEdificeDepuisDenomination(record.denomination_de_l_edifice).length === 0);
       setSource('merimee');
-      setDeplie(true);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : 'Erreur lors de la récupération de la fiche Mérimée',
@@ -118,15 +116,6 @@ export function MonumentWizardPage() {
     } finally {
       setChargementNotice(false);
     }
-  };
-
-  const pasDansLaListe = () => {
-    // La référence désignait la notice qu'on vient d'écarter : elle ne suit pas
-    // la fiche. Le reste (déjà saisi ou pré-rempli) se corrige à la main.
-    update({ referenceMerimee: undefined });
-    setSource('manuel');
-    setDeplie(true);
-    requestAnimationFrame(() => document.getElementById('nm-nom')?.focus());
   };
 
   const handleFormSubmit = async () => {
@@ -200,38 +189,33 @@ export function MonumentWizardPage() {
 
   const blocMerimee =
     source === 'recherche' ? (
-      <div className="fld">
+      <div className="fld merimee-avant">
         <label htmlFor="nm-merimee">
-          Rechercher dans la base Mérimée <span className="opt">facultatif</span>
+          <Picto nom="loupe" />
+          Gagnez du temps&nbsp;: cherchez votre monument dans la base Mérimée
         </label>
-        <p className="why">Si votre monument y figure, sa fiche sera pré-remplie automatiquement.</p>
+        <p className="why">
+          S&rsquo;il est protégé, il y figure&nbsp;: choisissez-le et les champs ci-dessous se
+          rempliront tout seuls. Sinon, remplissez-les directement.
+        </p>
         <RechercheMerimee
           id="nm-merimee"
           onSelect={handleMerimeeSelect}
           chargement={chargementNotice}
         />
-        <div className="ac-alt">
-          <button type="button" className="lnk" onClick={pasDansLaListe}>
-            Mon monument n&rsquo;est pas dans la liste
-          </button>
-        </div>
       </div>
     ) : (
       <div className="fld">
         <span className="lb">Base Mérimée</span>
         <div className="ac-alt">
-          {source === 'merimee' ? (
-            <span className="ac-ok">
-              <Picto nom="coche" />
-              Fiche pré-remplie depuis la notice
-              {fiche.referenceMerimee ? ` ${fiche.referenceMerimee}` : ''}
-            </span>
-          ) : (
-            <p>Vous décrivez le monument vous-même.</p>
-          )}
+          <span className="ac-ok">
+            <Picto nom="coche" />
+            Fiche pré-remplie depuis la notice
+            {fiche.referenceMerimee ? ` ${fiche.referenceMerimee}` : ''}
+          </span>
           <button type="button" className="lnk" onClick={() => setSource('recherche')}>
             <Picto nom="loupe" />
-            {source === 'merimee' ? 'Chercher un autre monument' : 'Le chercher dans la base Mérimée'}
+            Chercher un autre monument
           </button>
         </div>
       </div>
@@ -265,25 +249,19 @@ export function MonumentWizardPage() {
           </p>
         </div>
 
-        {deplie ? (
-          <div className="grid deplie">
-            <form noValidate onSubmit={(e) => e.preventDefault()}>
-              <FicheMonumentSections
-                fiche={fiche}
-                onChange={update}
-                merimee={blocMerimee}
-                // Les encadrés ne viennent qu'après un pré-remplissage : sur une
-                // fiche vide, tout serait orange et plus rien ne se verrait.
-                aRemplir={source === 'merimee' ? champsARemplir(fiche) : undefined}
-              />
-            </form>
-            <ApercuFiche fiche={fiche} saving={saving} onValider={handleFormSubmit} />
-          </div>
-        ) : (
-          <section className="sec seul" aria-label="Recherche dans la base Mérimée">
-            {blocMerimee}
-          </section>
-        )}
+        <div className="grid">
+          <form noValidate onSubmit={(e) => e.preventDefault()}>
+            <FicheMonumentSections
+              fiche={fiche}
+              onChange={update}
+              merimee={blocMerimee}
+              // Les encadrés ne viennent qu'après un pré-remplissage : sur une
+              // fiche vide, tout serait orange et plus rien ne se verrait.
+              aRemplir={source === 'merimee' ? champsARemplir(fiche) : undefined}
+            />
+          </form>
+          <ApercuFiche fiche={fiche} saving={saving} onValider={handleFormSubmit} />
+        </div>
       </main>
 
       {/* Le compte a déjà son monument gratuit. En MODALE et non en toast :

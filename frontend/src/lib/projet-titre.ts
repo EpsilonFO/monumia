@@ -114,3 +114,61 @@ export function projetTitre(projet: Projet, monumentNom?: string | null): string
 
   return 'Projet de travaux';
 }
+
+/**
+ * Ce que le projet vise, en une ligne sous son titre : ses travaux en clair
+ * (« Toiture, charpente, couverture »), à défaut son intention. Null quand il
+ * n'y a rien à dire, ou rien que le titre ne dise déjà (un projet sans titre
+ * est nommé par ses travaux).
+ */
+export function projetSousTitre(projet: Projet, monumentNom?: string | null): string | null {
+  const travaux = projet.travauxEnvisages ?? [];
+  let ligne: string | null = null;
+  if (travaux.length > 0) {
+    const noms = travaux.slice(0, 3).map((t) => WORK_LABELS[t] ?? t);
+    const reste = travaux.length - noms.length;
+    const liste = noms.map((n, i) => (i === 0 ? n : n.charAt(0).toLowerCase() + n.slice(1))).join(', ');
+    ligne = reste > 0 ? `${liste} +${reste}` : liste;
+  } else {
+    const raison = readRaisons(projet.questionnaire)[0];
+    ligne = (raison && RAISON_LABELS[raison]) || null;
+  }
+  if (!ligne) return null;
+  const titre = projetTitre(projet, monumentNom);
+  return sansAccents(titre) === sansAccents(ligne) ? null : ligne;
+}
+
+/** Adjectifs qui précèdent parfois le nom commun : « Ancienne abbaye de… ». */
+const ADJECTIFS_DE_TETE = new Set([
+  'ancien', 'ancienne', 'vieux', 'vieil', 'vieille', 'grand', 'grande', 'petit', 'petite',
+]);
+
+/**
+ * Le monument désigné par son nom commun, comme on en parle : « l'abbaye »
+ * pour « Ancienne abbaye de Doue », « le château » pour « Château de Bar »,
+ * « la chapelle » pour « La Chapelle Saint-Roch ». Avec `de` : « de
+ * l'abbaye », « du château », « de la chapelle ».
+ *
+ * Null quand le nom ne commence pas par un nom commun dont on connaît le
+ * genre (mêmes listes que les titres de projet) : l'appelant écrit alors « ce
+ * monument » plutôt qu'un article inventé.
+ */
+export function monumentNomCourt(nom: string, de = false): string | null {
+  const mots = nom.trim().split(/\s+/).filter(Boolean);
+  let i = 0;
+  // Un article en tête (« La Chapelle… ») : le nom commun est le mot suivant.
+  if (mots[i] && ARTICLES.has(sansAccents(mots[i]))) i += 1;
+  else if (mots[i] && /^l['’]/i.test(mots[i])) mots[i] = mots[i].slice(2);
+  if (mots[i] && ADJECTIFS_DE_TETE.has(sansAccents(mots[i]))) i += 1;
+  const tete = mots[i];
+  if (!tete) return null;
+
+  const motCle = sansAccents(tete).split('-')[0];
+  const genre = MASCULINS.has(motCle) ? 'm' : FEMININS.has(motCle) ? 'f' : null;
+  if (!genre) return null;
+
+  const commun = tete.toLowerCase();
+  if (elide(tete)) return `${de ? 'de ' : ''}l'${commun}`;
+  if (genre === 'm') return `${de ? 'du' : 'le'} ${commun}`;
+  return `${de ? 'de ' : ''}la ${commun}`;
+}

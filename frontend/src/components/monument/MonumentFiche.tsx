@@ -6,7 +6,7 @@ import {
   PROTECTION_LABELS, isEnPeril, perilLabel,
 } from '@/constants/monument-options';
 import {
-  affectationApplicable, architectureRomaneApplicable, libellesProprietaires, libellesTypesEdifice,
+  affectationApplicable, libellesProprietaires, libellesTypesEdifice,
 } from '@/lib/fiche-monument';
 import type { Monument } from '@/types';
 
@@ -156,7 +156,6 @@ export function MonumentFiche({
   // Identification : seuls les champs renseignés apparaissent.
   type FaitFiche = { label: string; value: string | string[] };
   const faits = ([
-    monument.referenceMerimee && { label: 'Référence Mérimée', value: monument.referenceMerimee },
     monument.commune && { label: 'Commune', value: monument.commune },
     monument.departement && { label: 'Département', value: monument.departement },
     typesLibelles.length > 0 && {
@@ -168,10 +167,6 @@ export function MonumentFiche({
     affectationApplicable(monument) && typeof monument.affecteAuCulte === 'boolean' && {
       label: 'Affectation au culte',
       value: monument.affecteAuCulte ? 'Toujours affecté au culte' : 'Désaffecté',
-    },
-    architectureRomaneApplicable(monument) && typeof monument.architectureRomane === 'boolean' && {
-      label: 'Architecture romane',
-      value: monument.architectureRomane ? 'Oui, en tout ou en partie' : 'Non',
     },
     monument.siecleConstruction && {
       label: 'Siècle de construction',
@@ -227,7 +222,7 @@ export function MonumentFiche({
 
       {monument.descriptionGenerale && (
         <section className="fm-carte" aria-labelledby="fm-desc">
-          <h3 id="fm-desc">Description</h3>
+          <h3 id="fm-desc">Description de la protection</h3>
           <Description text={monument.descriptionGenerale} />
         </section>
       )}

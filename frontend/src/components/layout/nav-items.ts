@@ -9,6 +9,8 @@ export interface NavItem {
   /** Libellé de la barre du bas : quatre onglets y tiennent dans 400 px. */
   court?: string;
   end?: boolean;
+  /** Infobulle, quand le libellé ne dit pas à quoi sert l'entrée. */
+  title?: string;
 }
 
 /**
@@ -33,7 +35,13 @@ export function navItemsPour(offre: Offre): NavItem[] {
       label: libelleMonuments(offre),
       court: offre.monumentsMax === 1 ? 'Monument' : 'Monuments',
     },
-    { to: ROUTES.DOCUMENTS, picto: 'doc', label: 'Mes documents', court: 'Documents' },
+    {
+      to: ROUTES.DOCUMENTS,
+      picto: 'doc',
+      label: 'Mes documents',
+      court: 'Documents',
+      title: 'Vos pièces, réutilisables dans tous vos dossiers',
+    },
   ];
 }
 

@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { CarteMonument } from '@/components/dashboard/CarteMonument';
+import { BoutonNouvelleRecherche, CarteNouveauProjet } from '@/components/dashboard/NouvelleRecherche';
+import { useNouvelleRecherche } from '@/components/dashboard/useNouvelleRecherche';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { ProjectListSkeleton } from '@/components/skeletons';
 import { useSuiviStore } from '@/stores/useSuiviStore';
@@ -8,17 +10,27 @@ import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useProjetStore } from '@/stores/useProjetStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
+import { useDocumentStore } from '@/stores/useDocumentStore';
 import { computeMonumentStats, projectStage } from '@/lib/project-stats';
+import { documentDuMonument } from '@/lib/pieces-a-deposer';
 import { useProjectsData } from '@/hooks/useProjectsData';
 import { useOffre } from '@/hooks/useOffre';
 import { libelleMonuments, sousLePlafond } from '@/lib/offres';
 import { PaywallDialog } from '@/components/shared/Paywall';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { ROUTES } from '@/constants/routes';
+import type { Projet } from '@/types';
+import '@/components/dashboard/nouvelle-recherche.css';
 import './liste-monuments.css';
 
 type MonumentSortKey = 'recent' | 'oldest' | 'name' | 'modified';
 
+/**
+ * « Mes monuments » : maquette `monumia-mes-monuments.html`. Un monument par
+ * ligne, chacun avec ses projets et trois boutons (documents, nouvelle
+ * recherche, projets), puis le bandeau « nouveau projet », centré (demande de
+ * Félix, la maquette met le bouton à droite).
+ */
 export function MonumentsListPage() {
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
@@ -26,11 +38,17 @@ export function MonumentsListPage() {
   const dossiers = useDossierStore((s) => s.dossiers);
   const digestsByProjet = useAideStore((s) => s.digestsByProjet);
   const suivis = useSuiviStore((s) => s.suivis);
+  const documents = useDocumentStore((s) => s.documents);
+  const fetchDocuments = useDocumentStore((s) => s.fetchDocuments);
+  const recherche = useNouvelleRecherche();
 
   // Charge monuments, projets, dossiers, diagnostics et suivis ; `loading` ne
   // retombe qu'une fois TOUT arrivé, pour que le squelette couvre aussi le
   // nombre d'aides (sinon les cartes s'affichent vides puis sautent).
   const { loading } = useProjectsData();
+  // Le compteur « Documents » de chaque carte : la liste de `GET /documents`,
+  // déjà filtrée par le serveur.
+  useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
 
   const [paywallMonument, setPaywallMonument] = useState(false);
   const [search, setSearch] = useState('');
@@ -83,40 +101,45 @@ export function MonumentsListPage() {
   // l'utilisateur sur sa liste, ce qu'une redirection vers les tarifs ne
   // permet pas. `Link` quand l'action est ouverte, `button` sinon — un lien
   // qui n'emmène nulle part mentirait au survol comme au clic milieu.
-  const newMonumentButton = peutCreer ? (
-    <Link className="btn b-orange" to={ROUTES.MONUMENT_NEW}>
+  const newMonumentButton = (className: string) => peutCreer ? (
+    <Link className={className} to={ROUTES.MONUMENT_NEW}>
       <Picto nom="plus" />
       Nouveau monument
     </Link>
   ) : (
-    <button className="btn b-orange" type="button" onClick={() => setPaywallMonument(true)}>
+    <button className={className} type="button" onClick={() => setPaywallMonument(true)}>
       <Picto nom="plus" />
       Nouveau monument
     </button>
   );
 
-  // Avancement d'un monument : celui de son projet le PLUS avancé, comme sur le
-  // tableau de bord.
-  const etapeDe = (monumentId: string) =>
-    projets
-      .filter((p) => p.monumentId === monumentId)
-      .map((p) =>
-        projectStage(
-          digestsByProjet[p.id] ?? null,
-          dossiers.filter((d) => d.projetId === p.id),
-          suivis.filter((x) => x.projetId === p.id),
-        ),
-      )
-      .sort((a, b) => b.reachedIndex - a.reachedIndex)[0] ?? projectStage(null, [], []);
+  // L'étape de chaque projet, affichée en points sur sa ligne.
+  const etapeDe = (p: Projet) =>
+    projectStage(
+      digestsByProjet[p.id] ?? null,
+      dossiers.filter((d) => d.projetId === p.id),
+      suivis.filter((x) => x.projetId === p.id),
+    );
+
+  const documentsDe = (monumentId: string) => {
+    const ids = projets.filter((p) => p.monumentId === monumentId).map((p) => p.id);
+    return documents.filter((d) => documentDuMonument(d, monumentId, ids)).length;
+  };
+  const peutChercher = new Set(recherche.candidats.map((m) => m.id));
 
   return (
     <div className="ec mlist">
-      <div className="top">
+      <div className="hello">
         <div>
           <h1>{libelleMonuments(offre)}</h1>
           <p>Chaque monument, ses projets de travaux et les aides qui vont avec.</p>
         </div>
-        {newMonumentButton}
+        <div className="hello-acts">
+          {newMonumentButton('btn b-line b-lg')}
+          <BoutonNouvelleRecherche recherche={recherche} nbMonuments={monuments.length}>
+            Nouvelle recherche d'aides
+          </BoutonNouvelleRecherche>
+        </div>
       </div>
 
       {loading ? (
@@ -130,7 +153,7 @@ export function MonumentsListPage() {
             Décrivez votre monument, puis lancez autant de projets de travaux que nécessaire pour identifier les
             aides mobilisables.
           </p>
-          {newMonumentButton}
+          {newMonumentButton('btn b-orange')}
         </div>
       ) : (
         <>
@@ -176,11 +199,17 @@ export function MonumentsListPage() {
                   monument={monument}
                   projets={projets.filter((p) => p.monumentId === monument.id)}
                   stats={computeMonumentStats(monument, projets, digestsByProjet, dossiers)}
-                  stage={etapeDe(monument.id)}
+                  etapeDe={etapeDe}
+                  nbDocuments={documentsDe(monument.id)}
+                  variante="liste"
+                  onNouvelleRecherche={
+                    monuments.length > 1 && peutChercher.has(monument.id) ? () => recherche.lancer(monument.id) : undefined
+                  }
                 />
               ))}
             </div>
           )}
+          <CarteNouveauProjet recherche={recherche} nbMonuments={monuments.length} bande />
         </>
       )}
 
@@ -191,6 +220,7 @@ export function MonumentsListPage() {
         titre="Gérez tout votre parc au même endroit"
         description="L'offre gratuite couvre un monument. Multi-monuments les rend illimités et ouvre le tableau de bord, qui réunit leurs chantiers et leurs échéances."
       />
+      {recherche.dialogue}
     </div>
   );
 }

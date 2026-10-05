@@ -10,7 +10,7 @@ import { FicheEligibilite } from '@/components/aide/fiche/FicheEligibilite';
 import { FicheEssentiel } from '@/components/aide/fiche/FicheEssentiel';
 import { FichePieces } from '@/components/aide/fiche/FichePieces';
 import { FicheReglement, type FicheReglementHandle } from '@/components/aide/fiche/FicheReglement';
-import { ouvrirSection, signalerPoint } from '@/components/aide/fiche/useFiche';
+import { ouvrirSection, signalerPoint, useColonneCollante } from '@/components/aide/fiche/useFiche';
 import '@/components/aide/fiche/fiche-aide.css';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useProjetStore } from '@/stores/useProjetStore';
@@ -82,6 +82,7 @@ export function AideProjectPage() {
   const projetFetchedRef = useRef(false);
   const titreRef = useRef<HTMLHeadingElement>(null);
   const reglementRef = useRef<FicheReglementHandle>(null);
+  const colonneRef = useColonneCollante<HTMLElement>();
 
   const diagnostic = projetId ? diagnosticsByProjet[projetId] ?? null : null;
   const aide = charge && charge.id === aideId ? charge.aide : null;
@@ -257,21 +258,6 @@ export function AideProjectPage() {
     }
   };
 
-  // Les voisines de l'aide, dans l'ordre du diagnostic, pour « Aide précédente /
-  // suivante ». Une aide à venir hors offre n'y figure pas : elle mènerait aux
-  // tarifs, pas à une fiche.
-  const voisines = useMemo(() => {
-    if (!diagnostic || !aideId) return { avant: null, apres: null };
-    const liste = [
-      ...diagnostic.aidesEligibles,
-      ...(diagnostic.aidesAtteignables ?? []),
-      ...diagnostic.aidesPotentiellementEligibles,
-    ].filter((m) => offre.aidesBientot || getDisponibilite(m) !== 'bientot');
-    const i = liste.findIndex((m) => m.aide.id === aideId);
-    if (i < 0) return { avant: null, apres: null };
-    return { avant: liste[i - 1]?.aide.id ?? null, apres: liste[i + 1]?.aide.id ?? null };
-  }, [diagnostic, aideId, offre.aidesBientot]);
-
   if (notFound) {
     return (
       <div className="space-y-4">
@@ -362,7 +348,7 @@ export function AideProjectPage() {
           </section>
         </div>
 
-        <aside className="side" aria-labelledby="ess-t">
+        <aside className="side" aria-labelledby="ess-t" ref={colonneRef}>
           <FicheEssentiel aide={aide} guichet={g} onSignaler={signaler} />
         </aside>
 
@@ -395,14 +381,6 @@ export function AideProjectPage() {
           <FicheEtapes etapes={etapesAide(aide)} />
           <FichePieces pieces={pieces} onAjouter={handleOpenOrView} ouverture={opening} />
           <FicheReglement key={aide.id} reglement={reglement} sources={sources} ref={reglementRef} />
-          <nav className="pager" aria-label="Autres aides">
-            {voisines.avant
-              ? <Link to={ROUTES.PROJET_AIDE(projet.id, voisines.avant)}>← Aide précédente</Link>
-              : <span className="vide">← Aide précédente</span>}
-            <Link to={lienProjet}>Toutes les aides</Link>
-            {/* « Aide suivante » retirée (décision du 2026-09-28) : la place reste vide. */}
-            <span className="vide" aria-hidden="true" />
-          </nav>
         </div>
       </div>
     </div>

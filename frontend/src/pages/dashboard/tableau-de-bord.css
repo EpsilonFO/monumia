@@ -1,5 +1,6 @@
 /*
- * Tableau de bord : maquette `monumia-tableau-de-bord.html` (yaml paul),
+ * Tableau de bord : maquette `monumia-tableau-de-bord.html` (version du
+ * 2026-10-05, avec les projets de chaque monument et l'espace documents),
  * géométrie reprise telle quelle, couleurs par les tokens `--e-*` (ecrans.css).
  */
 
@@ -52,4 +53,48 @@
   .tdb .cal b { font-size: 24px; }
   .tdb .cal span { margin-top: 0; }
   .tdb .now h2 { font-size: 22px; }
+}
+
+/* en-tête : « Nouveau monument » et « Nouvelle recherche d'aides » (`.b-lg` : nouvelle-recherche.css) */
+.tdb .hello-acts { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* 3. vos documents (maquette `.dc`) */
+.tdb .dc { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: var(--e-r); padding: 22px; }
+.tdb .dc-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.tdb .dc-h b { font: 700 18px/1.3 var(--e-serif); color: var(--e-ink); }
+.tdb .folds { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.tdb .fo { display: inline-flex; align-items: center; gap: 8px; background: var(--e-cream); border: 1.5px solid var(--e-line); border-radius: 12px; padding: 8px 12px; font-size: 14.5px; font-weight: 600; color: var(--e-ink); text-decoration: none; }
+.tdb .fo:hover { border-color: var(--e-blue); }
+.tdb .fo .i { width: 18px; height: 18px; color: var(--e-blue); }
+.tdb .fo em { font-style: normal; font-weight: 500; color: var(--e-faint); font-variant-numeric: tabular-nums; }
+.tdb .rec { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.tdb .rec li button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--e-cream); border: 1px solid var(--e-line-soft); text-align: left; transition: border-color .15s; }
+.tdb .rec li button:hover { border-color: var(--e-blue); }
+.tdb .rec li button > span:last-child { min-width: 0; }
+.tdb .rec li.new button { animation: tdb-recnew 1.6s ease; }
+@keyframes tdb-recnew { 0% { background: var(--e-green-soft); } 100% { background: var(--e-cream); } }
+.tdb .rec .ext { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; color: #fff; background: var(--e-blue); border-radius: 6px; padding: 3px 7px; flex: none; }
+.tdb .rec .ext.img { background: var(--e-green); }
+.tdb .rec b { display: block; font-weight: 600; color: var(--e-ink); font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tdb .rec small { font-size: 13.5px; color: var(--e-faint); }
+.tdb .rec-vide { font-size: 15px; color: var(--e-faint); }
+.tdb .dc-drop { border: 2px dashed var(--e-blue-line); border-radius: 16px; background: var(--e-blue-soft); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; padding: 22px 18px; transition: border-color .15s, background .15s; }
+.tdb .dc-drop.over { border-color: var(--e-orange); background: var(--e-orange-soft); }
+.tdb .dc-drop .up { width: 48px; height: 48px; border-radius: 50%; background: var(--e-blue); color: #fff; display: grid; place-items: center; }
+.tdb .dc-drop .up .i { width: 22px; height: 22px; }
+.tdb .dc-drop b { font: 400 20px/1.3 var(--e-serif); color: var(--e-ink); }
+.tdb .dc-drop p { font-size: 14.5px; max-width: 34ch; }
+.tdb .dc-f { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid var(--e-line-soft); font-size: 14.5px; color: var(--e-faint); }
+/* le voile plein écran quand on glisse un fichier sur la page */
+.tdb .gdrop { position: fixed; inset: 0; z-index: 70; background: color-mix(in srgb, var(--e-blue-ink) 88%, transparent); display: grid; place-items: center; text-align: center; color: #fff; pointer-events: none; padding: 16px; }
+.tdb .gdrop > div { border: 3px dashed rgba(255, 255, 255, .7); border-radius: 28px; padding: 48px 60px; }
+.tdb .gdrop b { display: block; font: 400 34px/1.2 var(--e-serif); }
+.tdb .gdrop p { margin-top: 8px; font-size: 17px; color: var(--e-on-blue); }
+@media (max-width: 860px) {
+  .tdb .dc { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .tdb .dc { padding: 16px; }
+  .tdb .gdrop > div { padding: 32px 24px; }
+  .tdb .gdrop b { font-size: 26px; }
 }

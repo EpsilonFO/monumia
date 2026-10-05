@@ -1,12 +1,14 @@
 /*
- * Liste « Mes monuments ». Pas de maquette propre : elle reprend l'en-tête et la
- * barre de recherche de `monumia-documents.html` et la carte monument du
- * tableau de bord, pour parler la même langue que les écrans voisins.
+ * Liste « Mes monuments » : maquette `monumia-mes-monuments.html` (en-tête,
+ * un monument par ligne, bandeau « nouveau projet »), la carte monument étant
+ * celle du tableau de bord (carte-monument.css). La recherche et le tri, que la
+ * maquette ne montre pas, reprennent la barre de `monumia-documents.html`.
  */
-.mlist .top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; padding-top: 8px; }
-.mlist .top h1 { font-size: clamp(32px, 4vw, 43.5px); }
-.mlist .top p { font-size: 17px; margin-top: 8px; max-width: 60ch; }
-.mlist .tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 26px; }
+.mlist .hello { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; padding-top: 8px; }
+.mlist .hello h1 { font-size: clamp(37.5px, 5vw, 56px); margin-top: 10px; }
+.mlist .hello p { font-size: 17.5px; margin-top: 10px; max-width: 62ch; }
+.mlist .hello-acts { display: flex; gap: 10px; flex-wrap: wrap; }
+.mlist .tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 30px; }
 .mlist .search { position: relative; flex: 1; min-width: 239px; }
 .mlist .search .i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--e-faint); width: 18px; height: 18px; }
 .mlist .search input { width: 100%; height: 48px; border: 1.5px solid var(--e-line); border-radius: var(--e-pill); background: var(--e-paper); padding: 0 18px 0 43.5px; font-size: 16px; color: var(--e-ink); }
@@ -14,14 +16,15 @@
 .mlist .sel { position: relative; }
 .mlist .sel select { appearance: none; -webkit-appearance: none; height: 48px; border: 1.5px solid var(--e-blue); border-radius: var(--e-pill); background: var(--e-paper); padding: 0 43.5px 0 18px; font-size: 16px; font-weight: 600; color: var(--e-blue); }
 .mlist .sel::after { content: ""; position: absolute; right: 18.5px; top: 50%; width: 8px; height: 8px; border-right: 2px solid var(--e-blue); border-bottom: 2px solid var(--e-blue); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
-.mlist .cmons, .mlist .vide { margin-top: 26px; }
+.mlist .tools + .cmons, .mlist .tools + .vide { margin-top: 18px; }
+.mlist .cmons, .mlist .vide { margin-top: 30px; }
 /* un monument par ligne, la photo en grande bannière */
 .mlist .cmons { grid-template-columns: 1fr; }
 .mlist .cmon-h.photo { min-height: 273px; }
 
 @media (max-width: 640px) {
-  .mlist .top h1 { font-size: 28px; }
-  .mlist .top p { font-size: 16px; }
+  .mlist .hello h1 { font-size: 31px; }
+  .mlist .hello p { font-size: 16px; }
   .mlist .tools { margin-top: 18px; }
   .mlist .cmons, .mlist .vide { margin-top: 18px; }
   .mlist .cmon-h.photo { min-height: 150px; }

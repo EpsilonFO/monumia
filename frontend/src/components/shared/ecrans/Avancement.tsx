@@ -3,7 +3,7 @@ import { rangEnCours } from '@/lib/avancement';
 import { Picto } from './Picto';
 
 /**
- * Les quatre étapes d'un projet (Estimation, Dossier, Dépôt, Suivi) : faites en
+ * Les trois étapes d'un projet (Estimation, Dossier, Dépôt) : faites en
  * vert avec une coche, l'étape en cours en orange, les suivantes au trait.
  * `grand` : la version pleine largeur de la carte projet, avec « En cours »
  * sous l'étape actuelle.

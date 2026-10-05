@@ -1,9 +1,12 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link } from 'react-router';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { AFaireMaintenantCarte } from '@/components/dashboard/AFaireMaintenantCarte';
 import { CarteMonument } from '@/components/dashboard/CarteMonument';
+import { DocumentsTableau } from '@/components/dashboard/DocumentsTableau';
+import { BoutonNouvelleRecherche, CarteNouveauProjet } from '@/components/dashboard/NouvelleRecherche';
+import { useNouvelleRecherche } from '@/components/dashboard/useNouvelleRecherche';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { useSuiviStore } from '@/stores/useSuiviStore';
 import { useProjetStore } from '@/stores/useProjetStore';
@@ -11,12 +14,15 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { useAideStore } from '@/stores/useAideStore';
+import { useDocumentStore } from '@/stores/useDocumentStore';
 import { useProjectsData } from '@/hooks/useProjectsData';
 import { ROUTES } from '@/constants/routes';
 import { aFaireMaintenant, type AFaire } from '@/lib/a-faire-maintenant';
 import { mergeProjectDeadlines, computeMonumentStats, projectStage } from '@/lib/project-stats';
-import type { MonumentStats, ProjectStage } from '@/lib/project-stats';
-import type { ProjectDigest } from '@/types';
+import type { MonumentStats } from '@/lib/project-stats';
+import { documentDuMonument } from '@/lib/pieces-a-deposer';
+import type { ProjectDigest, Projet } from '@/types';
+import '@/components/dashboard/nouvelle-recherche.css';
 import './tableau-de-bord.css';
 
 /** La phrase sous le bonjour : ce que dit la date la plus proche. Sans date,
@@ -30,8 +36,9 @@ function phraseDuJour(a: AFaire): string {
 
 /**
  * Tableau de bord, dessiné comme la maquette `monumia-tableau-de-bord.html` :
- * le bonjour, la chose à faire maintenant (la date la plus proche), puis chaque
- * monument avec l'avancement de son projet.
+ * le bonjour et ses deux boutons, la chose à faire maintenant (la date la plus
+ * proche), chaque monument avec ses projets puis la carte « nouveau projet »,
+ * et enfin l'espace documents.
  */
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -40,11 +47,18 @@ export function DashboardPage() {
   const projets = useProjetStore((s) => s.projets);
   const digestsByProjet = useAideStore((s) => s.digestsByProjet);
   const suivis = useSuiviStore((s) => s.suivis);
+  const documents = useDocumentStore((s) => s.documents);
+  const fetchDocuments = useDocumentStore((s) => s.fetchDocuments);
+  const recherche = useNouvelleRecherche();
+  const peutChercher = new Set(recherche.candidats.map((m) => m.id));
 
   // Charge monuments, dossiers, digests d'aides et suivis en un seul appel :
   // tout arrive ensemble, donc les squelettes couvrent aussi le nombre d'aides
   // et l'avancement sans que les cartes « sautent ».
   const { loading } = useProjectsData();
+  // Les documents comptent sur les cartes et dans l'espace documents ; le store
+  // partage la requête si les deux la lancent ensemble.
+  useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
 
   const userMonuments = useMemo(
     () => (user ? monuments.filter((m) => m.userId === user.id) : []),
@@ -84,24 +98,24 @@ export function DashboardPage() {
     return out;
   }, [displayMonuments, projets, diagMap, dossiers]);
 
-  // Avancement affiché par monument : celui de son projet le PLUS avancé — la
-  // carte dit où en est le monument, pas la moyenne de ses chantiers.
-  const stageByMonument = useMemo<Record<string, ProjectStage>>(() => {
-    const out: Record<string, ProjectStage> = {};
+  // L'étape de chaque projet, affichée en points sur sa ligne.
+  const etapeDe = (p: Projet) =>
+    projectStage(
+      diagMap[p.id] ?? null,
+      dossiers.filter((d) => d.projetId === p.id),
+      suivis.filter((s) => s.projetId === p.id),
+    );
+
+  // « 1 document prêt pour vos dossiers » : ceux du monument et de ses projets
+  // (la liste vient de `GET /documents`, chargée par l'espace documents).
+  const documentsParMonument = useMemo<Record<string, number>>(() => {
+    const out: Record<string, number> = {};
     for (const m of displayMonuments) {
-      const stages = projets
-        .filter((p) => p.monumentId === m.id)
-        .map((p) =>
-          projectStage(
-            diagMap[p.id] ?? null,
-            dossiers.filter((d) => d.projetId === p.id),
-            suivis.filter((s) => s.projetId === p.id),
-          ),
-        );
-      out[m.id] = stages.sort((a, b) => b.reachedIndex - a.reachedIndex)[0] ?? projectStage(null, [], []);
+      const ids = projets.filter((p) => p.monumentId === m.id).map((p) => p.id);
+      out[m.id] = documents.filter((d) => documentDuMonument(d, m.id, ids)).length;
     }
     return out;
-  }, [displayMonuments, projets, diagMap, dossiers, suivis]);
+  }, [displayMonuments, projets, documents]);
 
   if (!user) return null;
 
@@ -119,10 +133,15 @@ export function DashboardPage() {
           </h1>
           {!loading && aFaire && <p>{phraseDuJour(aFaire)}</p>}
         </div>
-        <Link className="btn b-line" to={ROUTES.MONUMENT_NEW}>
-          <Picto nom="plus" />
-          {userMonuments.length === 0 ? 'Créer un monument' : 'Nouveau monument'}
-        </Link>
+        <div className="hello-acts">
+          <Link className="btn b-line b-lg" to={ROUTES.MONUMENT_NEW}>
+            <Picto nom="plus" />
+            {userMonuments.length === 0 ? 'Créer un monument' : 'Nouveau monument'}
+          </Link>
+          <BoutonNouvelleRecherche recherche={recherche} nbMonuments={displayMonuments.length}>
+            Nouvelle recherche d'aides
+          </BoutonNouvelleRecherche>
+        </div>
       </div>
 
       {loading ? (
@@ -174,12 +193,22 @@ export function DashboardPage() {
                 monument={m}
                 projets={projets.filter((p) => p.monumentId === m.id)}
                 stats={statsByMonument[m.id]}
-                stage={stageByMonument[m.id]}
+                etapeDe={etapeDe}
+                nbDocuments={documentsParMonument[m.id] ?? 0}
+                onNouvelleRecherche={
+                  displayMonuments.length > 1 && peutChercher.has(m.id) ? () => recherche.lancer(m.id) : undefined
+                }
               />
             ))}
+            <CarteNouveauProjet recherche={recherche} nbMonuments={displayMonuments.length} />
           </div>
         )}
       </section>
+
+      {!loading && displayMonuments.length > 0 && (
+        <DocumentsTableau monuments={displayMonuments} projets={projets} />
+      )}
+      {recherche.dialogue}
     </div>
   );
 }

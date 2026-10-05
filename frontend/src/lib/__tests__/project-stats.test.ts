@@ -280,7 +280,7 @@ function makeSuivi(partial: Partial<AideSuivi> & { id: string }): AideSuivi {
 
 describe('projectStage', () => {
   it('a 4 étapes ordonnées', () => {
-    expect(PROJECT_STAGES.map((s) => s.key)).toEqual(['estimation', 'dossier', 'depot', 'suivi']);
+    expect(PROJECT_STAGES.map((s) => s.key)).toEqual(['estimation', 'dossier', 'depot']);
   });
 
   it('rien fait → reachedIndex -1, current estimation', () => {
@@ -310,9 +310,9 @@ describe('projectStage', () => {
     expect(s.reached).toEqual(['estimation', 'dossier', 'depot']);
   });
 
-  it('suivi déposé/accordé/refusé → étape suivi atteinte', () => {
+  it('suivi déposé/accordé/refusé → étape dépôt atteinte (plus d’étape suivi)', () => {
     const s = projectStage(makeDiagnostic('p1', [], [], 0), [], [makeSuivi({ id: 's1', statut: 'accorde' })]);
-    expect(s.reachedIndex).toBe(3);
-    expect(s.current).toBe('suivi');
+    expect(s.reachedIndex).toBe(2);
+    expect(s.current).toBe('depot');
   });
 });

@@ -204,17 +204,16 @@ export function computeMonumentStats(
   };
 }
 
-export type ProjectStageKey = 'estimation' | 'dossier' | 'depot' | 'suivi';
+export type ProjectStageKey = 'estimation' | 'dossier' | 'depot';
 
 export const PROJECT_STAGES: { key: ProjectStageKey; label: string }[] = [
   { key: 'estimation', label: 'Estimation' },
   { key: 'dossier', label: 'Dossier' },
   { key: 'depot', label: 'Dépôt' },
-  { key: 'suivi', label: 'Suivi' },
 ];
 
 export interface ProjectStage {
-  /** Index (0..3) de l'étape la plus avancée atteinte ; -1 si rien. */
+  /** Index (0..2) de l'étape la plus avancée atteinte ; -1 si rien. */
   reachedIndex: number;
   reached: ProjectStageKey[];
   /** Étape mise en avant (la plus avancée atteinte, ou « estimation » si rien). */
@@ -233,8 +232,10 @@ export function projectStage(
   const raw = [
     !!diagnostic, // estimation
     dossiers.length > 0, // dossier
-    dossiers.some((d) => d.statut === 'pret' || d.statut === 'soumis'), // dépôt
-    suivis.some((s) => s.statut === 'depose' || s.statut === 'accorde' || s.statut === 'refuse'), // suivi
+    // dépôt : un dossier prêt ou soumis, ou une aide dont le suivi dit qu'elle
+    // est déposée (ou déjà tranchée). Il n'y a plus d'étape « Suivi » après.
+    dossiers.some((d) => d.statut === 'pret' || d.statut === 'soumis')
+      || suivis.some((s) => s.statut === 'depose' || s.statut === 'accorde' || s.statut === 'refuse'),
   ];
 
   let reachedIndex = -1;

@@ -6,6 +6,8 @@ export interface Onglet<V extends string> {
   picto: NomPicto;
   /** `null` : pas de compteur (la fiche du monument). */
   count: number | null;
+  /** Infobulle de l'onglet, quand son libellé ne dit pas à quoi il sert. */
+  title?: string;
 }
 
 /**
@@ -32,6 +34,7 @@ export function Onglets<V extends string>({
           type="button"
           role="tab"
           aria-selected={o.value === actif}
+          title={o.title}
           onClick={() => onChange(o.value)}
         >
           <Picto nom={o.picto} />

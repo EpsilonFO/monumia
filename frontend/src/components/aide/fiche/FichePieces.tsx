@@ -51,6 +51,7 @@ export function FichePieces({
       id="pieces"
       className="repli-bloc"
       titre="Ce qu'il faut réunir"
+      ouvertParDefaut
       entete={
         <div className="block-head">
           <h2>Ce qu'il faut réunir</h2>

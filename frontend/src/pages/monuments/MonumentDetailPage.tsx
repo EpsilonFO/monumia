@@ -253,6 +253,15 @@ export function MonumentDetailPage() {
     finally { setSaving(false); }
   };
 
+  const handleRenommer = async (nom: string) => {
+    try {
+      updateMonument(monument.id, await monumentService.update(monument.id, { nom }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors du renommage');
+      throw err;
+    }
+  };
+
   // Supprimer le monument emporte ses projets, dossiers et suivis (cascade en
   // base). Les dossiers sont supprimés d'abord pour que le store local reste
   // cohérent si la suppression du monument échoue à mi-chemin.
@@ -329,6 +338,7 @@ export function MonumentDetailPage() {
         monument={monument}
         members={members}
         onModifier={canEdit ? () => setIsEditing(true) : undefined}
+        onRenommer={canEdit ? handleRenommer : undefined}
       />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>

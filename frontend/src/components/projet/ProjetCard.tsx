@@ -32,8 +32,6 @@ function action(projetId: string, reachedIndex: number): { label: string; to: st
       return { label: 'Continuer mon dossier', to: dossiers };
     case 2:
       return { label: 'Suivre mon dépôt', to: dossiers };
-    case 3:
-      return { label: 'Voir le suivi', to: dossiers };
     default:
       return { label: 'Estimer mes aides', to: aides };
   }
@@ -41,7 +39,7 @@ function action(projetId: string, reachedIndex: number): { label: string; to: st
 
 /**
  * Un projet dans l'onglet « Projets » d'un monument (maquette
- * `monumia-page-monument.html`) : son titre et son étape, les quatre étapes en
+ * `monumia-page-monument.html`) : son titre et son étape, les trois étapes en
  * grand, puis la bande bleue avec le nombre d'aides repérées et les deux
  * boutons. L'échéance ne s'y montre que si elle presse. Toute la carte mène
  * où mène le bouton orange (`.proj-lien::after`) ; « Voir les aides » passe
