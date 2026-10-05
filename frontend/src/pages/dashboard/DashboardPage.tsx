@@ -50,6 +50,7 @@ export function DashboardPage() {
   const documents = useDocumentStore((s) => s.documents);
   const fetchDocuments = useDocumentStore((s) => s.fetchDocuments);
   const recherche = useNouvelleRecherche();
+  const peutChercher = new Set(recherche.candidats.map((m) => m.id));
 
   // Charge monuments, dossiers, digests d'aides et suivis en un seul appel :
   // tout arrive ensemble, donc les squelettes couvrent aussi le nombre d'aides
@@ -194,6 +195,9 @@ export function DashboardPage() {
                 stats={statsByMonument[m.id]}
                 etapeDe={etapeDe}
                 nbDocuments={documentsParMonument[m.id] ?? 0}
+                onNouvelleRecherche={
+                  displayMonuments.length > 1 && peutChercher.has(m.id) ? () => recherche.lancer(m.id) : undefined
+                }
               />
             ))}
             <CarteNouveauProjet recherche={recherche} nbMonuments={displayMonuments.length} />

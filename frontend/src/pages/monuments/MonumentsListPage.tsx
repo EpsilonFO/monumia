@@ -202,7 +202,9 @@ export function MonumentsListPage() {
                   etapeDe={etapeDe}
                   nbDocuments={documentsDe(monument.id)}
                   variante="liste"
-                  onNouvelleRecherche={peutChercher.has(monument.id) ? () => recherche.lancer(monument.id) : undefined}
+                  onNouvelleRecherche={
+                    monuments.length > 1 && peutChercher.has(monument.id) ? () => recherche.lancer(monument.id) : undefined
+                  }
                 />
               ))}
             </div>

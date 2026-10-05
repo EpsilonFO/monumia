@@ -46,9 +46,12 @@ function LigneProjet({ projet, monumentNom, stage }: { projet: Projet; monumentN
  * bannière (la bande bleue à défaut), son nom dessus, puis la liste de ses
  * projets, chacun avec ses étapes. Le pied diffère : le tableau de bord compte
  * les aides repérées, « Mes monuments » (`variante="liste"`) ouvre ses
- * documents et une nouvelle recherche. Toute la carte mène à ses projets : le
- * lien « Voir les projets » s'étend sur la carte (`.cmon-lien::after`), les
- * lignes de projet et les autres boutons passent au-dessus.
+ * documents. Sur les deux, « Lancer une nouvelle recherche » quand la page
+ * montre plusieurs monuments (`onNouvelleRecherche`) ; avec un seul, c'est la
+ * carte en pointillé sous la liste qui le propose. Toute la carte mène à ses
+ * projets : le lien « Voir les projets » s'étend sur la carte
+ * (`.cmon-lien::after`), les lignes de projet et les autres boutons passent
+ * au-dessus.
  */
 export function CarteMonument({
   monument,
@@ -66,7 +69,8 @@ export function CarteMonument({
   /** Documents du monument et de ses projets, tels que le serveur les rend. */
   nbDocuments: number;
   variante?: 'tableau' | 'liste';
-  /** « Nouvelle recherche pour l'abbaye » ; absent, pas de bouton (droits d'équipe insuffisants). */
+  /** « Lancer une nouvelle recherche » sur ce monument. Absent : pas de bouton
+   *  (un seul monument sur la page, ou droits d'équipe insuffisants). */
   onNouvelleRecherche?: () => void;
 }) {
   const lieu = [monument.commune, monument.departement].filter(Boolean).join(', ');
@@ -75,8 +79,14 @@ export function CarteMonument({
   const enCours = projets.filter((p) => !p.clotureAt).length;
   // Les chantiers ouverts d'abord, puis les clôturés ; à l'intérieur, l'ordre du store.
   const lignes = [...projets].sort((a, b) => Number(!!a.clotureAt) - Number(!!b.clotureAt));
-  const nomCourt = monumentNomCourt(monument.nom);
   const deNomCourt = monumentNomCourt(monument.nom, true) ?? 'de ce monument';
+
+  const nouvelleRecherche = onNouvelleRecherche && (
+    <button className="btn b-oline b-sm" type="button" onClick={onNouvelleRecherche}>
+      <Picto nom="loupe" />
+      Lancer une nouvelle recherche
+    </button>
+  );
 
   const voir = (
     <Link className="btn b-blue b-sm cmon-lien" to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`}>
@@ -115,7 +125,10 @@ export function CarteMonument({
               )}
               <small className="hint">{phraseDocuments(nbDocuments)}</small>
             </span>
-            {voir}
+            <div className="acts">
+              {nouvelleRecherche}
+              {voir}
+            </div>
           </div>
         ) : (
           <div className="cmon-f">
@@ -129,12 +142,7 @@ export function CarteMonument({
                 <PictoDossierPlein className="i" />
                 Documents <em className="navc">{nbDocuments}</em>
               </Link>
-              {onNouvelleRecherche && (
-                <button className="btn b-oline b-sm" type="button" onClick={onNouvelleRecherche}>
-                  <Picto nom="loupe" />
-                  Nouvelle recherche pour {nomCourt ?? 'ce monument'}
-                </button>
-              )}
+              {nouvelleRecherche}
               {voir}
             </div>
           </div>

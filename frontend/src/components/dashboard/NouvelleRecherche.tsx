@@ -66,6 +66,10 @@ export function BoutonNouvelleRecherche({
  * grille des monuments du tableau de bord, en bandeau sous la liste de « Mes
  * monuments » (`bande`). Centrée dans les deux cas, le bouton dessous
  * (demande de Félix, la maquette met le bouton à droite du bandeau).
+ *
+ * Seulement quand la page montre UN monument : avec plusieurs, chaque carte
+ * porte son propre « Lancer une nouvelle recherche », et la carte en pointillé
+ * disparaît (demande de Félix du 2026-10-05).
  */
 export function CarteNouveauProjet({
   recherche,
@@ -78,10 +82,8 @@ export function CarteNouveauProjet({
 }) {
   const id = useId();
   const { candidats } = recherche;
-  if (candidats.length === 0) return null;
-  const titre = candidats.length > 1
-    ? 'Un nouveau projet pour vos monuments ?'
-    : `Un nouveau projet pour ${monumentNomCourt(candidats[0].nom) ?? 'ce monument'} ?`;
+  if (nbMonuments !== 1 || candidats.length !== 1) return null;
+  const titre = `Un nouveau projet pour ${monumentNomCourt(candidats[0].nom) ?? 'ce monument'} ?`;
   return (
     <article className={bande ? 'ns ns-band' : 'ns'} aria-labelledby={id}>
       <span className="pl" aria-hidden="true"><Picto nom="plus" /></span>
