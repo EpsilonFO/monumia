@@ -145,7 +145,7 @@
 .ec .tabs button[aria-selected="true"] em { background: rgba(255, 255, 255, .2); color: #fff; }
 
 /* avancement d'un projet en quatre étapes : faites en vert, l'actuelle en orange */
-.ec .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ec .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
 .ec .steps li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 14px; font-weight: 600; color: var(--e-faint); }
 .ec .steps li::before { content: ""; position: absolute; top: 15px; left: calc(-50% + 20px); right: calc(50% + 20px); height: 2px; background: var(--e-line); }
 .ec .steps li:first-child::before { display: none; }

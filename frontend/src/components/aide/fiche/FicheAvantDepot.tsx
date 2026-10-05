@@ -32,10 +32,8 @@ export function PlanLevier({ levier, titre = levier.resume }: { levier: AideLevi
  * conditions » sans elles laisserait croire le dossier prêt. Le plan d'action
  * vient du diagnostic (`evaluation.demarche`) quand le fait cité en porte un.
  *
- * Replié par défaut, son titre et son compte restent lisibles. C'est ici, et
- * plus dans le règlement, que vivent ces points : chacun porte son ancre
- * (`p-<id>`) et son texte officiel. Arriver par le lien d'un de ces points
- * ouvre la section d'emblée.
+ * Déplié par défaut, et repliable. C'est ici, et plus dans le règlement, que
+ * vivent ces points : chacun porte son ancre (`p-<id>`) et son texte officiel.
  */
 export function FicheAvantDepot({
   demarches,
@@ -46,14 +44,13 @@ export function FicheAvantDepot({
 }) {
   if (!demarches.length) return null;
   const n = demarches.length;
-  const viaLien = demarches.some((p) => location.hash === `#p-${p.id}`);
   return (
     <Repli
       id="avant-depot"
       className="avant"
       classeEntete="avant-h"
       titre="Avant de déposer"
-      ouvertParDefaut={viaLien}
+      ouvertParDefaut
       entete={
         <>
           <span className="chip t-solid-orange"><Ico nom="delai" /></span>

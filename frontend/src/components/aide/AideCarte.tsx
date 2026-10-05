@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { ROUTES } from '@/constants/routes';
 import { questionsPourAide } from '@/lib/diagnostic-bilan';
-import { chapeauAide, financeurAide, guichet, montantAide, titreAide, type Guichet } from '@/lib/fiche-aide';
+import { financeurAide, guichet, montantAide, titreAide, type Guichet } from '@/lib/fiche-aide';
 import { getEligibilityStatus, STATUS_PILL_LABEL, type EligibilityStatus } from './eligibility-status';
 import type { AideMatchResult, ProjectQuestionnaireAnswers, QcmQuestion } from '@/types';
 
@@ -40,8 +40,9 @@ interface AideCarteProps {
 
 /**
  * Carte d'une aide dans le diagnostic d'un projet (maquette
- * `monumia-page-aides.html`) : financeur et guichet, titre, chapeau, le nombre
- * de questions qui restent, puis la bande bleue du pied avec le montant et
+ * `monumia-page-aides.html`) : financeur et guichet, titre, le nombre de
+ * questions qui restent (rien d'autre sous le titre : chapeau et motif
+ * d'écart se lisent sur la fiche), puis la bande bleue du pied avec le montant et
  * l'éligibilité. Une aide qu'une seule question départage a son lien en
  * pastille orange : c'est la plus proche d'un verdict.
  *
@@ -58,7 +59,6 @@ export function AideCarte({ match, projetId, showMontant = true, questions, answ
 
   const restantes =
     questions && statut === 'potential' ? questionsPourAide(aide.id, questions, answers ?? {}).length : 0;
-  const raison = statut === 'non-eligible' ? match.criteresNonRemplis[0] : undefined;
   const classes = ['card', statut === 'non-eligible' ? 'no' : '', restantes === 1 ? 'q1' : ''].filter(Boolean);
 
   return (
@@ -84,18 +84,11 @@ export function AideCarte({ match, projetId, showMontant = true, questions, answ
         </span>
       </div>
       <h4>{titreAide(aide)}</h4>
-      <p className="desc">{chapeauAide(aide)}</p>
-      {raison ? (
-        <p className="raison" title={raison}>
-          {raison}
-        </p>
-      ) : (
-        restantes > 0 && (
-          <span className="q-l">
-            {restantes === 1 ? '1 question pour trancher' : `${restantes} questions pour trancher`}
-            <Picto nom="fleche" />
-          </span>
-        )
+      {restantes > 0 && (
+        <span className="q-l">
+          {restantes === 1 ? '1 question pour trancher' : `${restantes} questions pour trancher`}
+          <Picto nom="fleche" />
+        </span>
       )}
       <div className="c-foot">
         <span className="amt">

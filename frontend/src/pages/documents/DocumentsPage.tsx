@@ -12,7 +12,6 @@ import {
 } from '@/components/document/EspaceDocuments';
 import { useDepotGlisse } from '@/components/document/useDepotGlisse';
 import type { DocumentAfficheProps } from '@/components/document/LigneDocument';
-import { PiecesADeposer } from '@/components/document/PiecesADeposer';
 import { DocumentPreviewDialog } from '@/components/document/DocumentPreviewDialog';
 import { UploadDocumentDialog, type PieceAPreremplir } from '@/components/document/UploadDocumentDialog';
 import { ManageDocumentAccessDialog } from '@/components/document/ManageDocumentAccessDialog';
@@ -43,7 +42,7 @@ import '@/components/document/documents.css';
 const SANS = 'sans';
 const PARTAGES = 'partages';
 
-type Section = 'tous' | 'recents' | 'pieces' | 'corbeille';
+type Section = 'tous' | 'recents' | 'corbeille';
 
 const RANG: Record<ProjectRole, number> = { member: 1, co_owner: 2, owner: 3 };
 function meilleurRole(roles: (ProjectRole | null | undefined)[]): ProjectRole | null {
@@ -186,12 +185,10 @@ export function DocumentsPage() {
     }, { replace: true });
   };
 
-  // ---- Pièces demandées (rubrique, et pastille « Sert à N aides ») ----
+  // ---- Pièces demandées par les aides (pastille « Sert à N aides ») ----
   const { pieces } = usePiecesADeposer(monumentActif?.id ?? null);
   const aidesParPiece = useMemo(() => nbAidesParPiece(pieces), [pieces]);
-  const piecesRestantes = pieces.filter((p) => !p.deposee).length;
-  // Un lieu sans pièces (autre monument, « Sans monument ») referme la rubrique.
-  const rubrique: Section = section === 'pieces' && pieces.length === 0 ? 'tous' : section;
+  const rubrique = section;
 
   // ---- Rattachement d'un nouveau dépôt ----
   // Sur un monument dont on est de l'équipe, le document pend au monument. Un
@@ -335,13 +332,10 @@ export function DocumentsPage() {
     const ou = monumentsDuDocument(doc);
     if (ou.length > 0 && actif && !ou.includes(actif.id)) choisirLieu(ou[0]);
     else if (ou.length === 0 && doc.monumentIds.length === 0 && doc.projetIds.length === 0 && actif?.id !== SANS) choisirLieu(SANS);
-    // Comme la maquette : on ouvre le dossier où il vient d'être rangé (sauf
-    // depuis « Pièces demandées », où l'on enchaîne les dépôts).
-    if (rubrique !== 'pieces') {
-      setSection('tous');
-      setRecherche('');
-      setDossier(docs.every((d) => d.type === doc.type) ? doc.type : null);
-    }
+    // Comme la maquette : on ouvre le dossier où il vient d'être rangé.
+    setSection('tous');
+    setRecherche('');
+    setDossier(docs.every((d) => d.type === doc.type) ? doc.type : null);
     // Le document est créé avec un défaut sûr (chef + adjoints) : « Gérer
     // l'accès » s'ouvre aussitôt pour que l'auteur choisisse qui peut le voir.
     if (docs.length === 1 && doc.monumentIds.length > 0) setAccessDoc(doc);
@@ -358,16 +352,13 @@ export function DocumentsPage() {
     ? [{ label: 'Récents' }]
     : rubrique === 'corbeille'
       ? [{ label: 'Corbeille' }]
-      : rubrique === 'pieces'
-        ? [{ label: 'Pièces demandées' }]
-        : dossier
-          ? [{ label: 'Tous les documents', onClick: () => { setDossier(null); setSelection(new Set()); } }, { label: dossierLabel(dossier) }]
-          : [{ label: 'Tous les documents' }];
+      : dossier
+        ? [{ label: 'Tous les documents', onClick: () => { setDossier(null); setSelection(new Set()); } }, { label: dossierLabel(dossier) }]
+        : [{ label: 'Tous les documents' }];
 
   const rubriques: { id: Section; picto: NomPictoDoc; label: string; badge?: number }[] = [
     { id: 'tous', picto: 'tous', label: 'Tous les documents' },
     { id: 'recents', picto: 'recents', label: 'Récents' },
-    ...(pieces.length > 0 ? [{ id: 'pieces' as const, picto: 'pieces' as const, label: 'Pièces demandées', badge: piecesRestantes }] : []),
     { id: 'corbeille', picto: 'corbeille', label: 'Corbeille' },
   ];
 
@@ -433,7 +424,7 @@ export function DocumentsPage() {
             recherche={recherche}
             onRecherche={(q) => {
               setRecherche(q);
-              if (rubrique === 'pieces' || rubrique === 'corbeille') ouvrirRubrique('tous');
+              if (rubrique === 'corbeille') ouvrirRubrique('tous');
             }}
             vue={vue}
             onVue={setVue}
@@ -478,38 +469,25 @@ export function DocumentsPage() {
             )
           )}
 
-          {rubrique === 'pieces' && monumentActif ? (
-            <PiecesADeposer
-              monumentId={monumentActif.id}
-              replier={false}
-              onDeposer={(p) => choisirFichiers({
-                type: p.typeDocument,
-                piece: { pieceId: p.pieceId, nom: p.nom, typeDocument: p.typeDocument, nbAides: p.nbAides },
-              })}
-            />
-          ) : (
+          {montrerDossiers && (
             <>
-              {montrerDossiers && (
-                <>
-                  <BarreSection titre="Dossiers" />
-                  <DossiersDocuments
-                    comptes={comptes}
-                    onOuvrir={(t) => { setDossier(t); setSelection(new Set()); }}
-                    survole={depotGlisse.survole}
-                  />
-                </>
-              )}
-              <BarreSection
-                titre={rubrique === 'corbeille' ? 'Dans la corbeille' : recherche.trim() && !dossier ? 'Résultats' : 'Documents'}
-                tri={tri}
-                onTri={setTri}
+              <BarreSection titre="Dossiers" />
+              <DossiersDocuments
+                comptes={comptes}
+                onOuvrir={(t) => { setDossier(t); setSelection(new Set()); }}
+                survole={depotGlisse.survole}
               />
-              {loading ? <FichiersSquelette /> : liste.length === 0 ? vide : (
-                <FichiersDocuments documents={liste} vue={vue} proprietes={proprietes} />
-              )}
-              <BarreSelection nombre={selectionnes.length} gestes={gestesSelection} onVider={() => setSelection(new Set())} />
             </>
           )}
+          <BarreSection
+            titre={rubrique === 'corbeille' ? 'Dans la corbeille' : recherche.trim() && !dossier ? 'Résultats' : 'Documents'}
+            tri={tri}
+            onTri={setTri}
+          />
+          {loading ? <FichiersSquelette /> : liste.length === 0 ? vide : (
+            <FichiersDocuments documents={liste} vue={vue} proprietes={proprietes} />
+          )}
+          <BarreSelection nombre={selectionnes.length} gestes={gestesSelection} onVider={() => setSelection(new Set())} />
 
           <VoileDepot actif={depotGlisse.actif && !depotGlisse.surDossiers} dossier={dossier} />
         </section>

@@ -161,13 +161,13 @@
   .nm-page * { transition: none !important; }
 }
 
-/* À l'arrivée : la recherche Mérimée seule, dans la largeur de l'en-tête.
-   Choisir une notice (ou « pas dans la liste ») déplie le formulaire. */
-.nm-page .sec.seul { max-width: 757px; margin: 37.5px auto 0; padding: 26px 27.5px 22px; }
-.nm-page .sec.seul .fld { border-top: 0; padding: 0; }
-.nm-page .grid.deplie { animation: nm-deplie .35s cubic-bezier(.2, .7, .2, 1); }
-@keyframes nm-deplie { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .nm-page .grid.deplie { animation: none; } }
+/* La recherche Mérimée, en tête de la section 1 : encadré bleu, puisque c'est
+   le raccourci qui remplit le reste du formulaire. */
+.nm-page .fld.merimee-avant { border: 1.5px solid var(--e-blue-line); border-radius: 14px; background: var(--e-blue-soft); padding: 18px 18px 20px; margin: 8px -18px 14px; }
+.nm-page .fld.merimee-avant > label { color: var(--e-blue-ink); }
+.nm-page .fld.merimee-avant > label .i { width: 18px; height: 18px; align-self: center; }
+.nm-page .fld.merimee-avant + .row2 { border-top: 0; }
+@media (max-width: 1180px) { .nm-page .fld.merimee-avant { margin-inline: 0; } }
 
 /* Ce qui reste à remplir après le pré-remplissage Mérimée : encadré orange. */
 .nm-page .fld.a-remplir { border: 1.5px solid var(--e-orange); border-radius: 14px; background: color-mix(in srgb, var(--e-orange-soft) 45%, var(--e-paper)); padding: 16px 18px; margin: 8px -18px; }

@@ -105,11 +105,11 @@
 .fa .page { display: grid; grid-template-columns: minmax(0, 1fr) 398.5px; grid-template-areas: "head side" "body side"; column-gap: 40px; padding-bottom: 40px; }
 .fa .head { grid-area: head; }
 .fa .body { grid-area: body; min-width: 0; }
-/* La colonne se colle sous la barre de la fiche (60 px, fixe, qui passerait
-   sinon par-dessus l'en-tête bleu) et ne dépasse jamais la hauteur de l'écran
-   (64 px : la barre de l'application). Quand tout ne tient pas, seules les
-   lignes défilent : le montant et les liens restent en vue. */
-.fa .side { grid-area: side; align-self: start; position: sticky; top: 75.5px; margin-top: 61.5px; display: flex; flex-direction: column; max-height: calc(100dvh - 70.5px - 75.5px - 16px); }
+/* La colonne garde toute sa hauteur (rien ne défile dedans) : elle monte avec
+   la page, puis reste à côté du contenu jusqu'en bas. `--side-top` est calculé
+   d'après sa hauteur par `useColonneCollante` (75.5 px quand elle tient dans
+   l'écran, sous la barre de la fiche ; négatif sinon). */
+.fa .side { grid-area: side; align-self: start; position: sticky; top: var(--side-top, 75.5px); margin-top: 61.5px; display: flex; flex-direction: column; }
 
 /* en-tête */
 .fa .crumbs { font-size: 13.5px; color: var(--fa-muted); padding: 10px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; }
@@ -121,7 +121,7 @@
 .fa .tag-fin { font: 600 12px/1 var(--fa-sans); color: var(--fa-blue); background: var(--fa-blue-soft); padding: 7px 10px; border-radius: 995px; }
 .fa .tag-type { font-size: 13.5px; color: var(--fa-muted); }
 .fa .top h1 { font-size: clamp(2rem, 4.4vw, 2.8rem); line-height: 1.08; margin: 14px 0 11.5px; }
-.fa .lede { font-size: 17.5px; line-height: 1.55; color: var(--fa-muted); max-width: 657.5px; }
+.fa .lede { font-size: 17.5px; line-height: 1.55; color: var(--fa-muted); }
 
 /* L'essentiel */
 .fa .ess { display: flex; flex-direction: column; min-height: 0; background: var(--fa-warm); border: 1px solid var(--fa-line); border-radius: 22px; overflow: hidden; box-shadow: 0 22px 43.5px -34px color-mix(in srgb, var(--primary) 45%, transparent); }
@@ -132,16 +132,7 @@
 .fa .status.on-blue { background: #fff; letter-spacing: 0; text-transform: none; }
 .fa .ess-amt { font: 400 29px/1.12 var(--fa-serif); margin-top: 16px; letter-spacing: -.01em; }
 .fa .ess-amt-s { font-size: 13.5px; line-height: 1.45; color: rgba(255,255,255,.8); margin-top: 6px; }
-/* Ombres de défilement (fonds `local` qui masquent des fonds `scroll`) : une
-   ombre ne paraît que du côté où il reste des lignes cachées, sans script. */
-.fa .ess-b {
-  flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 8px 0 6px;
-  background:
-    linear-gradient(var(--fa-warm) 30%, transparent) top / 100% 36px no-repeat local,
-    linear-gradient(transparent, var(--fa-warm) 70%) bottom / 100% 36px no-repeat local,
-    radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--fa-ink) 14%, transparent), transparent) top / 100% 10px no-repeat,
-    radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--fa-ink) 14%, transparent), transparent) bottom / 100% 10px no-repeat;
-}
+.fa .ess-b { padding: 8px 0 6px; }
 .fa .ess-h, .fa .ess-f, .fa .checked { flex: none; }
 .fa .ess-row { display: grid; grid-template-columns: 34px 1fr; gap: 13.5px; padding: 10px 20px; align-items: start; }
 .fa .ess-row small { display: block; font: 600 12px/1.3 var(--fa-sans); letter-spacing: .09em; text-transform: uppercase; color: var(--fa-faint); }
@@ -197,7 +188,13 @@
 .fa .q.answered { background: var(--fa-paper); border-color: var(--fa-line-soft); }
 .fa .q.wide { flex-direction: column; align-items: stretch; gap: 11.5px; }
 .fa .q > p, .fa .q > div > p { font-weight: 600; font-size: 14.5px; line-height: 1.4; }
-.fa .q p small { display: block; font-weight: 400; color: var(--fa-muted); font-size: 13.5px; margin-top: 3px; }
+.fa .q .q-t > p { font-size: 16.5px; line-height: 1.4; }
+.fa .q .q-t small { display: block; font-weight: 400; color: var(--fa-muted); font-size: 14px; line-height: 1.5; margin-top: 6px; }
+.fa .q .q-t small[hidden] { display: none; }
+/* le « i » qui déplie l'explication, collé au dernier mot de la question */
+.fa .q-info { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-left: 6px; vertical-align: -4px; border-radius: 50%; border: 1px solid var(--fa-line); background: var(--fa-paper); color: var(--fa-muted); padding: 0; cursor: pointer; transition: color .15s, border-color .15s; }
+.fa .q-info:hover, .fa .q-info.on { color: var(--fa-blue); border-color: var(--fa-blue); }
+.fa .q-info .i { width: 13px; height: 13px; }
 .fa .q .multi { display: block; font-weight: 600; color: var(--fa-orange-ink); font-size: 12px; margin-top: 3px; }
 .fa .yn { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
 .fa .q.wide .yn { flex: 1; }
@@ -350,9 +347,6 @@
 .fa .sources a { display: flex; align-items: center; gap: 11.5px; padding: 10px 0; text-decoration: none; color: var(--fa-blue); font-weight: 600; }
 .fa .sources a + a { border-top: 1px solid var(--fa-line); }
 .fa .sources a small { display: block; font-weight: 400; color: var(--fa-muted); font-size: 12px; }
-.fa .pager { display: flex; justify-content: space-between; gap: 11.5px; margin: 48px 0 0; padding-top: 20px; border-top: 1px solid var(--fa-line); font-size: 14px; }
-.fa .pager a { color: var(--fa-blue); text-decoration: none; font-weight: 600; }
-.fa .pager .vide { visibility: hidden; }
 
 .fa .reveal { opacity: 0; transform: translateY(11.5px); transition: opacity .6s ease, transform .6s cubic-bezier(.2,.7,.2,1); }
 .fa .reveal.in { opacity: 1; transform: none; }
@@ -386,7 +380,7 @@
 .fa .acard .plus { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--fa-blue); }
 .fa .acard .plus .i { width: 16px; height: 16px; }
 
-/* Sections repliées par défaut (Avant de déposer, conseils, étapes, pièces) :
+/* Sections repliables (Avant de déposer, conseils, pièces), dépliées à l'arrivée :
    l'en-tête entier est cliquable, le corps se déplie de 0fr à 1fr. */
 .fa .repli-h { position: relative; display: flex; align-items: center; gap: 11.5px; }
 .fa .repli-h > .block-head { flex: 1; margin-bottom: 0; justify-content: flex-start; }
@@ -406,6 +400,10 @@
 .fa .repli-bloc .repli-corps > div > :first-child { margin-top: 14px; }
 .fa .repli-bloc .card { border: 0; border-radius: 0; background: none; }
 .fa .repli-bloc .piece, .fa .repli-bloc .pieces-foot { padding-inline: 0; }
+/* « Comment ça se passe » : même boîte, sans repli. */
+.fa .etapes-bloc .block-head { margin-bottom: 0; justify-content: flex-start; }
+.fa .etapes-bloc .block-head .meta { margin-left: auto; }
+.fa .etapes-bloc .steps { margin-top: 14px; }
 
 /* Les démarches, désormais ici plutôt que dans le règlement : leur numéro et
    leur texte officiel, repliable. */
@@ -439,8 +437,7 @@
 }
 @media (max-width: 1000px) {
   .fa .page { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "side" "body"; }
-  .fa .side { position: static; margin-top: 22px; max-height: none; }
-  .fa .ess-b { overflow: visible; background: none; }
+  .fa .side { position: static; margin-top: 22px; }
   .fa .track { display: none; }
   .fa-sticky .sticky-in .btn { margin-left: auto; }
 }
@@ -468,7 +465,6 @@
   .fa .bref { padding: 18px; }
   .fa-sticky small { display: none; }
   .fa-sticky .btn { padding: 9px 11.5px; }
-  .fa .pager { font-size: 13.5px; }
   .fa.grid { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {

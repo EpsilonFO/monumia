@@ -3,7 +3,6 @@ import {
   IconDiagnostic,
   IconDossier,
   IconDepot,
-  IconSuivi,
   type IconComponent,
 } from '@/components/icons';
 import { C } from '@/lib/brand';
@@ -16,7 +15,6 @@ const STAGE_ICON: Record<ProjectStageKey, IconComponent> = {
   estimation: IconDiagnostic,
   dossier: IconDossier,
   depot: IconDepot,
-  suivi: IconSuivi,
 };
 
 const STATE_TEXT = { done: 'étape faite', current: 'étape en cours', upcoming: 'étape à venir' };

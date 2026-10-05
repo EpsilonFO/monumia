@@ -5,7 +5,7 @@ import type { AideFicheRedigee } from '@/types';
 /**
  * « Nos conseils pour ce dossier ». Rédigés dans la fiche, jamais déduits : une
  * aide sans fiche n'en montre pas, plutôt que de paraphraser ses conditions.
- * Repliés par défaut : l'en-tête dit combien il y en a.
+ * Dépliés par défaut ; l'en-tête dit combien il y en a.
  */
 export function FicheConseils({
   conseils,
@@ -22,6 +22,7 @@ export function FicheConseils({
       className="tips"
       classeEntete="tips-h"
       titre="Nos conseils pour ce dossier"
+      ouvertParDefaut
       entete={
         <>
           <span className="chip t-solid-orange"><Ico nom="ampoule" /></span>
@@ -57,20 +58,16 @@ export function FicheConseils({
   );
 }
 
-/** « Comment ça se passe » : les étapes rédigées, ou la démarche découpée. Repliée par défaut. */
+/** « Comment ça se passe » : les étapes rédigées, ou la démarche découpée. Toujours
+ *  visible, sans repli : c'est le fil du dossier, il se lit d'un coup d'œil. */
 export function FicheEtapes({ etapes }: { etapes: { titre: string; texte?: string | null }[] }) {
   if (!etapes.length) return null;
   return (
-    <Repli
-      className="repli-bloc"
-      titre="Comment ça se passe"
-      entete={
-        <div className="block-head">
-          <h2>Comment ça se passe</h2>
-          <span className="meta">{etapes.length === 1 ? 'Une étape' : `${etapes.length} étapes`}</span>
-        </div>
-      }
-    >
+    <section className="repli-bloc etapes-bloc" aria-labelledby="etapes-t">
+      <div className="block-head">
+        <h2 id="etapes-t">Comment ça se passe</h2>
+        <span className="meta">{etapes.length === 1 ? 'Une étape' : `${etapes.length} étapes`}</span>
+      </div>
       <ol className="steps">
         {etapes.map((e, i) => (
           <li key={i}>
@@ -88,6 +85,6 @@ export function FicheEtapes({ etapes }: { etapes: { titre: string; texte?: strin
           </li>
         ))}
       </ol>
-    </Repli>
+    </section>
   );
 }

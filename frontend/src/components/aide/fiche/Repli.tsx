@@ -3,8 +3,8 @@ import { Ico } from './Ico';
 import { EVENEMENT_OUVRIR } from './useFiche';
 
 /**
- * Une section de la fiche repliée par défaut : sans elles, la page entière
- * défilait sur plusieurs écrans avant le règlement. L'en-tête garde son titre
+ * Une section repliable de la fiche (dépliée ou non à l'arrivée, selon
+ * `ouvertParDefaut`). L'en-tête garde son titre
  * (un vrai `h2`) et devient cliquable d'un bout à l'autre : le bouton au
  * chevron s'étend dessus (`.repli-b::after`). Le corps se déplie en douceur
  * (`grid-template-rows` de 0fr à 1fr), et reste `inert` replié : ni tabulation
