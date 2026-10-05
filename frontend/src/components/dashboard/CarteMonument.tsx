@@ -1,46 +1,89 @@
 import { Link } from 'react-router';
-import { Avancement } from '@/components/shared/ecrans/Avancement';
-import { libelleEtape } from '@/lib/avancement';
 import { Picto } from '@/components/shared/ecrans/Picto';
+import { PictoDossierPlein } from '@/components/document/PictosDocuments';
 import { ROUTES } from '@/constants/routes';
+import { libelleEtape, rangEnCours } from '@/lib/avancement';
 import { monumentPhotoProfil } from '@/lib/monument-photo';
-import { projetTitre } from '@/lib/projet-titre';
-import type { MonumentStats, ProjectStage } from '@/lib/project-stats';
+import { PROJECT_STAGES, type MonumentStats, type ProjectStage } from '@/lib/project-stats';
+import { monumentNomCourt, projetSousTitre, projetTitre } from '@/lib/projet-titre';
 import type { Monument, Projet } from '@/types';
 import './carte-monument.css';
 
 const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
 
+/** « 1 document prêt pour vos dossiers » : les pièces du monument et de ses projets. */
+function phraseDocuments(n: number): string {
+  return n > 0 ? `${pluriel(n, 'document')} prêt${n > 1 ? 's' : ''} pour vos dossiers` : 'Aucun document pour vos dossiers';
+}
+
+/** Un projet du monument : son titre, ses travaux, ses étapes en points, une ligne qui mène au projet. */
+function LigneProjet({ projet, monumentNom, stage }: { projet: Projet; monumentNom: string; stage: ProjectStage }) {
+  const titre = projetTitre(projet, monumentNom);
+  const sous = projetSousTitre(projet, monumentNom);
+  const rang = rangEnCours(stage);
+  const etape = libelleEtape(stage);
+  const statut = projet.clotureAt ? 'Clôturé' : `${etape.rang} : ${etape.action}`;
+  return (
+    <Link className="pr" to={ROUTES.PROJET_DETAIL(projet.id)}>
+      <span className="pr-t">
+        <b>{titre}</b>
+        {sous && <small>{sous}</small>}
+      </span>
+      <span className="pr-s">
+        <span className="dots" aria-hidden="true">
+          {PROJECT_STAGES.map((s, i) => <i key={s.key} className={i <= rang ? 'on' : undefined} />)}
+        </span>
+        {statut}
+      </span>
+      <Picto nom="fleche" className="i pr-a" />
+    </Link>
+  );
+}
+
 /**
- * Un monument sur le tableau de bord et dans « Mes monuments » : sa photo en
- * bannière (la bande bleue à défaut), son nom dessus, puis où en est son projet
- * (le plus avancé s'il en a plusieurs). Toute la carte mène où mène son bouton :
- * le lien du bouton s'étend sur la carte (`.cmon-lien::after`).
+ * Un monument sur le tableau de bord et dans « Mes monuments » (maquettes
+ * `monumia-tableau-de-bord.html` et `monumia-mes-monuments.html`) : sa photo en
+ * bannière (la bande bleue à défaut), son nom dessus, puis la liste de ses
+ * projets, chacun avec ses étapes. Le pied diffère : le tableau de bord compte
+ * les aides repérées, « Mes monuments » (`variante="liste"`) ouvre ses
+ * documents et une nouvelle recherche. Toute la carte mène à ses projets : le
+ * lien « Voir les projets » s'étend sur la carte (`.cmon-lien::after`), les
+ * lignes de projet et les autres boutons passent au-dessus.
  */
 export function CarteMonument({
   monument,
   projets,
   stats,
-  stage,
+  etapeDe,
+  nbDocuments,
+  variante = 'tableau',
+  onNouvelleRecherche,
 }: {
   monument: Monument;
   projets: Projet[];
   stats: MonumentStats | undefined;
-  stage: ProjectStage;
+  etapeDe: (projet: Projet) => ProjectStage;
+  /** Documents du monument et de ses projets, tels que le serveur les rend. */
+  nbDocuments: number;
+  variante?: 'tableau' | 'liste';
+  /** « Nouvelle recherche pour l'abbaye » ; absent, pas de bouton (droits d'équipe insuffisants). */
+  onNouvelleRecherche?: () => void;
 }) {
   const lieu = [monument.commune, monument.departement].filter(Boolean).join(', ');
   const photo = monumentPhotoProfil(monument)?.signedUrl ?? null;
-  const { rang, action } = libelleEtape(stage);
-  const seul = projets.length === 1 ? projets[0] : null;
   const aides = stats?.aidesIdentifiees ?? 0;
-  const dossiers = stats?.dossiersActifs ?? 0;
+  const enCours = projets.filter((p) => !p.clotureAt).length;
+  // Les chantiers ouverts d'abord, puis les clôturés ; à l'intérieur, l'ordre du store.
+  const lignes = [...projets].sort((a, b) => Number(!!a.clotureAt) - Number(!!b.clotureAt));
+  const nomCourt = monumentNomCourt(monument.nom);
+  const deNomCourt = monumentNomCourt(monument.nom, true) ?? 'de ce monument';
 
-  const bouton =
-    projets.length === 0
-      ? { to: ROUTES.PROJET_NEW(monument.id), label: 'Créer un projet' }
-      : seul
-        ? { to: ROUTES.PROJET_DETAIL(seul.id), label: 'Voir les aides' }
-        : { to: ROUTES.MONUMENT_DETAIL(monument.id), label: 'Voir les projets' };
+  const voir = (
+    <Link className="btn b-blue b-sm cmon-lien" to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`}>
+      {projets.length > 0 ? 'Voir les projets' : 'Voir le monument'}
+      <Picto nom="fleche" />
+    </Link>
+  );
 
   return (
     <article className="cmon">
@@ -52,32 +95,50 @@ export function CarteMonument({
         {lieu && <p>{lieu}</p>}
       </div>
       <div className="cmon-b">
-        <div className="proj">
-          <b>{projets.length === 0 ? 'Pas encore de projet' : seul ? projetTitre(seul, monument.nom) : pluriel(projets.length, 'projet')}</b>
-          {projets.length > 0 && `${rang} : ${action}`}
-        </div>
-        <Avancement stage={stage} />
-        <div className="cmon-f">
-          <span>
-            {aides > 0 ? (
-              <>
-                <b>{pluriel(aides, 'aide')}</b> repérée{aides > 1 ? 's' : ''}
-              </>
-            ) : (
-              'Aucune aide estimée'
-            )}
-            {dossiers > 0 && (
-              <>
-                {' · '}
-                <b>{pluriel(dossiers, 'dossier')}</b> en cours
-              </>
-            )}
+        <div className="projs">
+          <span className="projs-k">
+            {enCours > 0 ? `${pluriel(enCours, 'projet')} en cours` : projets.length > 0 ? 'Aucun projet en cours' : 'Pas encore de projet'}
           </span>
-          <Link className="btn b-blue b-sm cmon-lien" to={bouton.to}>
-            {bouton.label}
-            <Picto nom="fleche" />
-          </Link>
+          {lignes.map((p) => (
+            <LigneProjet key={p.id} projet={p} monumentNom={monument.nom} stage={etapeDe(p)} />
+          ))}
         </div>
+        {variante === 'tableau' ? (
+          <div className="cmon-f">
+            <span>
+              {aides > 0 ? (
+                <>
+                  <b>{pluriel(aides, 'aide')}</b> repérée{aides > 1 ? 's' : ''}
+                </>
+              ) : (
+                'Aucune aide estimée'
+              )}
+              <small className="hint">{phraseDocuments(nbDocuments)}</small>
+            </span>
+            {voir}
+          </div>
+        ) : (
+          <div className="cmon-f">
+            <span className="hint">{phraseDocuments(nbDocuments)}</span>
+            <div className="acts">
+              <Link
+                className="btn b-line b-sm"
+                to={`${ROUTES.DOCUMENTS}?monument=${encodeURIComponent(monument.id)}`}
+                title={`Les pièces ${deNomCourt}, réutilisables dans tous ses dossiers`}
+              >
+                <PictoDossierPlein className="i" />
+                Documents <em className="navc">{nbDocuments}</em>
+              </Link>
+              {onNouvelleRecherche && (
+                <button className="btn b-oline b-sm" type="button" onClick={onNouvelleRecherche}>
+                  <Picto nom="loupe" />
+                  Nouvelle recherche pour {nomCourt ?? 'ce monument'}
+                </button>
+              )}
+              {voir}
+            </div>
+          </div>
+        )}
       </div>
     </article>
   );

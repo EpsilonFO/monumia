@@ -1,0 +1,399 @@
+<meta charset="utf-8">
+<title>Dossier France Bois Forêt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Même style que les autres maquettes : PT Serif + Inter, bleu roi, un seul orange (#F17105), vert pour ce qui est fait. */
+:root{
+  --cream:#FDF9F0;--paper:#FFFEFB;--sand:#F4EDE0;
+  --line:#ECE3D2;--line-soft:#F4EDE0;
+  --ink:#222B35;--body:#55606E;--faint:#8A8F96;
+  --blue:#0A369D;--blue-2:#1446B8;--blue-ink:#082A7A;--blue-soft:#EEF3FF;--blue-line:#CCD9F5;
+  --orange:#F17105;--orange-soft:#FEEEDD;
+  --green:#1B6E45;--green-soft:#E5F2EA;
+  --serif:"PT Serif",Georgia,serif;--sans:Inter,system-ui,-apple-system,sans-serif;
+  --sh-card:0 28px 60px -26px rgba(10,54,157,.22);
+  --r:18px;--pill:999px;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;font:400 16px/1.55 var(--sans);color:var(--body);background:var(--cream);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+body.lock{overflow:hidden}
+h1,h2,h3{font-family:var(--serif);font-weight:400;color:var(--ink);letter-spacing:-.015em;margin:0;line-height:1.16;text-wrap:balance}
+p{margin:0}
+button{font:inherit;cursor:pointer;color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:8px}
+.w{width:min(1180px,100% - 32px);margin-inline:auto}
+.i{width:20px;height:20px;flex:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+.demo{background:#161C24;color:#C9D0DA;font-size:13px}
+.demo .w{padding-block:8px}
+.demo b{color:#fff;font-weight:600}
+
+.app{background:rgba(255,254,251,.8);border-bottom:1px solid var(--line)}
+.app-in{display:flex;align-items:center;gap:34px;height:70px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo img{width:26px;height:26px}
+.logo span{font:700 21px/1 var(--serif);color:var(--ink)}
+.app nav{display:flex;gap:6px;font-size:15px}
+.app nav a{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--body);padding:8px 12px;border-radius:var(--pill)}
+.app nav a:hover{background:var(--sand);color:var(--ink)}
+.app nav a.on{color:var(--blue);background:var(--blue-soft);font-weight:600}
+.app nav .i{width:18px;height:18px}
+.me{margin-left:auto;display:flex;align-items:center;gap:10px;font-weight:600;color:var(--ink);font-size:15px}
+.av{width:36px;height:36px;border-radius:50%;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;font-size:12.5px;font-weight:700}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font:600 15px/1 var(--sans);padding:11px 18px;min-height:44px;border-radius:var(--pill);border:1.5px solid transparent;white-space:nowrap;text-decoration:none;transition:background .15s,border-color .15s}
+.btn .i{width:17px;height:17px}
+.b-orange{background:var(--orange);color:#fff}
+.b-orange:hover{background:#E36804}
+.b-orange:disabled{background:#E9DFCD;color:#8E8676;cursor:not-allowed}
+.b-blue{background:var(--blue);color:#fff}
+.b-blue:hover{background:var(--blue-ink)}
+.b-line{background:var(--paper);color:var(--blue);border-color:var(--blue-line)}
+.b-line:hover{border-color:var(--blue)}
+.b-lg{min-height:54px;padding:14px 26px;font-size:16px}
+
+main{padding-block:26px 90px}
+.back{width:44px;height:44px;border-radius:12px;background:var(--blue);color:#fff;display:inline-grid;place-items:center;text-decoration:none}
+.back:hover{background:var(--blue-ink)}
+.back svg{width:20px;height:20px}
+
+/* en-tête du dossier */
+.head{margin-top:18px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end}
+.lieu{font:400 24px/1.2 var(--serif);color:var(--blue);text-decoration:none}
+.lieu:hover{text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
+.head h1{font-size:clamp(32px,4vw,46px);margin-top:6px}
+.head .proj{font-size:16.5px;margin-top:8px}
+.head .proj a{color:var(--blue);font-weight:600;text-decoration:none}
+.head .proj a:hover{text-decoration:underline}
+.keys{display:flex;gap:10px;flex-wrap:wrap}
+.key{background:var(--paper);border:1.5px solid var(--blue);border-radius:16px;padding:14px 18px;min-width:170px}
+.key small{display:block;font-size:12.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.key b{display:block;font:700 22px/1.2 var(--serif);color:var(--ink);margin-top:4px}
+.key span{font-size:14px;font-weight:600;color:var(--orange)}
+
+/* avancement */
+.prog{margin-top:26px;background:var(--blue);color:#fff;border-radius:22px;padding:22px 26px;display:flex;align-items:center;gap:18px 28px;flex-wrap:wrap}
+.prog .t{flex:1;min-width:260px}
+.prog .t b{display:block;font:400 26px/1.2 var(--serif);color:#fff}
+.prog .t p{font-size:15px;color:#C9D5F0;margin-top:4px}
+.prog .tr{height:10px;border-radius:5px;background:rgba(255,255,255,.18);overflow:hidden;margin-top:14px}
+.prog .tr i{display:block;height:100%;background:var(--orange);border-radius:5px;transition:width .4s ease}
+.prog.ready{background:var(--green)}
+.prog.ready .tr i{background:#fff}
+
+/* qui dépose */
+.who{margin-top:22px;background:var(--paper);border:1.5px solid var(--blue);border-radius:var(--r);padding:20px 24px;display:flex;align-items:center;gap:14px 20px;flex-wrap:wrap}
+.who h2{font:600 17px/1.3 var(--sans);color:var(--ink);margin-right:auto}
+.seg{display:flex;gap:8px;flex-wrap:wrap}
+.seg button{border:1.5px solid var(--line);background:var(--paper);border-radius:var(--pill);padding:10px 18px;min-height:46px;font-size:15.5px;font-weight:600;color:var(--ink)}
+.seg button:hover{border-color:var(--blue-line)}
+.seg button[aria-pressed="true"]{background:var(--orange);border-color:var(--orange);color:#fff}
+
+/* lien vers Mes documents */
+.cloud{margin-top:22px;display:flex;align-items:center;gap:14px 20px;flex-wrap:wrap;background:var(--blue-soft);border:1.5px solid var(--blue-line);border-radius:var(--r);padding:18px 22px}
+.cloud > div{flex:1;min-width:260px}
+.cloud b{display:block;font-weight:600;color:var(--ink);font-size:16px}
+.cloud p{font-size:15px;margin-top:2px}
+.cl-ic{width:46px;height:46px;border-radius:12px;background:var(--blue);color:#fff;display:grid;place-items:center;flex:none}
+.cl-ic svg{width:22px;height:22px}
+
+.head-docs{margin-top:14px}
+.demo-in{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.demo button{background:none;border:1px solid #37414D;border-radius:999px;padding:5px 12px;color:#C9D0DA;font-size:13px}
+.demo button[aria-pressed="true"]{background:#fff;color:#161C24;border-color:#fff;font-weight:600}
+.empty-d{margin-top:26px;display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;background:var(--paper);border:2px dashed var(--blue-line);border-radius:var(--r);padding:26px 28px}
+.empty-d > div{flex:1;min-width:260px}
+.empty-d h2{font-size:26px}
+.empty-d p{font-size:16px;margin-top:8px;max-width:72ch}
+.ed-acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+
+
+/* étapes du dossier */
+.stepbar{margin-top:26px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;background:var(--blue);border-radius:22px;padding:14px}
+.sb{display:flex;align-items:center;gap:12px;text-align:left;background:rgba(255,255,255,.08);border:0;border-radius:14px;padding:12px 14px;color:#fff}
+.sb:hover{background:rgba(255,255,255,.16)}
+.sb .c{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;flex:none;background:rgba(255,255,255,.18);color:#fff}
+.sb .c svg{width:17px;height:17px}
+.sb.done .c{background:var(--green)}
+.sb.cur{background:#fff;color:var(--ink)}
+.sb.cur .c{background:var(--orange)}
+.sb b{display:block;font-weight:600;font-size:15.5px}
+.sb small{display:block;font-size:13.5px;opacity:.8}
+.sb > span{display:block;min-width:0}
+.sb .mini{display:block;height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}
+.sb .mini i{display:block;height:100%;background:var(--orange)}
+.step{margin-top:22px;background:var(--paper);border:1.5px solid var(--blue);border-radius:var(--r);padding:24px 26px}
+.step-h{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px}
+.step-h > div{flex:1;min-width:260px}
+.step-h h2{font-size:26px}
+.step-h p{font-size:15.5px;margin-top:6px;max-width:72ch}
+.num{width:40px;height:40px;border-radius:50%;background:var(--orange);color:#fff;display:grid;place-items:center;font-weight:700;font-size:17px;flex:none}
+.num.done{background:var(--green)}
+.num.todo{background:var(--sand);color:var(--faint)}
+.num svg{width:18px;height:18px}
+.sub-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:18px 0 10px}
+.sub-h h3{font:600 16px/1.3 var(--sans);color:var(--ink);letter-spacing:.02em}
+.sub-h span{font-size:14.5px;color:var(--faint)}
+.how{display:block;font-size:14.5px;color:var(--body);margin-top:6px}
+.step.final{display:flex;align-items:center;justify-content:space-between;gap:16px 24px;flex-wrap:wrap}
+.step.final .step-h{margin-bottom:0;flex:1}
+@media (max-width:760px){.stepbar{grid-template-columns:1fr}}
+
+
+/* pièces en grille compacte */
+.pcount{font:600 15px/1 var(--sans);color:var(--orange);background:var(--orange-soft);border-radius:var(--pill);padding:4px 10px;vertical-align:middle;margin-left:8px}
+.pgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.tile{position:relative;display:flex;flex-direction:column;gap:10px;background:var(--cream);border:1.5px solid var(--blue-line);border-radius:16px;padding:14px;min-height:150px}
+.tile .t-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tile .st{width:26px;height:26px;border-radius:50%;border:2px solid var(--blue-line);display:grid;place-items:center;background:var(--paper)}
+.tile .st svg{width:14px;height:14px;color:#fff;opacity:0}
+.tile b{font-weight:600;color:var(--ink);font-size:15px;line-height:1.35;flex:1}
+.tile .add{align-self:flex-start;min-height:40px;padding:9px 16px}
+.tile.done{background:var(--green-soft);border-color:var(--green)}
+.tile.done .st{background:var(--green);border-color:var(--green)}
+.tile.done .st svg{opacity:1}
+.tile .fchip{margin-top:0}
+.tile .rm{align-self:flex-start}
+.tile.new{animation:pop 1.4s ease}
+.pmenu{position:absolute;left:10px;min-width:270px;top:calc(100% - 8px);z-index:20;background:var(--paper);border:1.5px solid var(--blue);border-radius:14px;padding:6px;box-shadow:0 18px 40px -16px rgba(10,54,157,.4)}
+.pmenu button{width:100%;display:flex;align-items:center;gap:10px;background:none;border:0;border-radius:10px;padding:10px;font-size:14.5px;color:var(--ink);text-align:left}
+.pmenu button:hover{background:var(--blue-soft)}
+.pmenu .i{width:17px;height:17px;color:var(--blue)}
+@media (max-width:1100px){.pgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:600px){.pgrid{grid-template-columns:1fr}}
+
+/* pièces */
+.sec{margin-top:34px}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px 20px;flex-wrap:wrap;margin-bottom:14px}
+.sec-h h2{font-size:26px}
+.sec-h span{font-size:15px;color:var(--faint)}
+.list{display:grid;gap:12px}
+.pc{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px 18px;align-items:center;background:var(--paper);border:1.5px solid var(--blue);border-radius:16px;padding:18px 20px;transition:background .25s,border-color .25s}
+.pc .st{width:32px;height:32px;border-radius:50%;border:2px solid var(--blue-line);display:grid;place-items:center;flex:none}
+.pc .st svg{width:17px;height:17px;color:#fff;opacity:0}
+.pc b{display:block;font-weight:600;color:var(--ink);font-size:16.5px;line-height:1.4}
+.pc .tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.tag{font-size:13px;font-weight:600;border-radius:var(--pill);padding:3px 11px}
+.tag.o{background:var(--orange);color:#fff}
+.tag.b{background:var(--blue-soft);color:var(--blue)}
+.pc .acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.pc.done{background:var(--green-soft);border-color:var(--green)}
+.pc.done .st{background:var(--green);border-color:var(--green)}
+.pc.done .st svg{opacity:1}
+.fchip{display:inline-flex;align-items:center;gap:10px;margin-top:10px;background:#fff;border:1.5px solid var(--green);border-radius:12px;padding:8px 12px;font-size:14.5px;color:var(--ink);max-width:100%}
+.fchip .ext{font-size:11.5px;font-weight:700;color:#fff;background:var(--green);border-radius:6px;padding:2px 7px}
+.fchip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rm{background:none;border:0;color:var(--blue);font-weight:600;font-size:14.5px;text-decoration:underline;text-underline-offset:3px;padding:6px 4px}
+.pc.new{animation:pop 1.4s ease}
+@keyframes pop{0%{box-shadow:0 0 0 4px rgba(27,110,69,.35)}100%{box-shadow:none}}
+
+.other{margin-top:18px;background:var(--paper);border:1.5px dashed var(--blue-line);border-radius:16px;overflow:hidden}
+.other summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:16px 20px;font-weight:600;color:var(--ink)}
+.other summary::-webkit-details-marker{display:none}
+.other summary span{font-weight:400;color:var(--faint)}
+.other summary .i{margin-left:auto;color:var(--faint);transition:transform .2s}
+.other[open] summary .i{transform:rotate(180deg)}
+.other ul{list-style:none;margin:0;padding:0 20px 14px}
+.other li{padding:10px 0;border-top:1px solid var(--line-soft);font-size:15px;color:var(--body)}
+
+.final{margin-top:30px;display:flex;align-items:center;justify-content:space-between;gap:16px 24px;flex-wrap:wrap;background:var(--paper);border:1.5px solid var(--blue);border-radius:var(--r);padding:22px 24px}
+.final b{display:block;font:400 22px/1.3 var(--serif);color:var(--ink)}
+.final p{font-size:15px;margin-top:4px}
+.final .acts{display:flex;gap:10px;flex-wrap:wrap}
+
+/* choisir dans mes documents */
+.ov{position:fixed;inset:0;background:rgba(22,28,36,.45);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;overflow-y:auto}
+.modal{width:min(560px,100%);background:var(--paper);border:1.5px solid var(--blue);border-radius:22px;padding:24px 26px}
+.m-h{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.m-h h2{font-size:24px}
+.m-h p{font-size:15px;margin-top:6px}
+.x{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--line);background:var(--paper);display:grid;place-items:center;flex:none}
+.x .i{width:17px;height:17px}
+.docs{margin-top:16px;display:grid;gap:8px}
+.doc{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--cream);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px}
+.doc:hover{border-color:var(--blue)}
+.doc .ext{font-size:11.5px;font-weight:700;color:#fff;background:var(--blue);border-radius:6px;padding:3px 7px}
+.doc b{display:block;color:var(--ink);font-weight:600}
+.doc small{color:var(--faint);font-size:13.5px}
+.m-f{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:14.5px}
+
+.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translate(-50%,160%);background:var(--ink);color:#fff;border-radius:var(--pill);padding:12px 22px;font-size:15px;transition:transform .4s cubic-bezier(.2,.7,.2,1);z-index:80;max-width:calc(100% - 32px)}
+.toast.show{transform:translate(-50%,0)}
+
+@media (max-width:980px){.app nav{display:none}.head{grid-template-columns:1fr}}
+@media (max-width:700px){
+  .pc{grid-template-columns:auto minmax(0,1fr)}
+  .pc .acts{grid-column:1/-1;justify-content:flex-start}
+  .key{flex:1}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M3.5 7a2 2 0 0 1 2-2h4l2 2.4h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12 20 4l-4 16-4-6.5z"/><path d="M12 13.5 20 4"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l8-6 8 6v10M9 20v-6h6v6"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10.5a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z"/><path d="M14 3.5V8h4M9 12h6M9 16h6"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 5.5c3-1 5.5-.8 8.5 1 3-1.8 5.5-2 8.5-1v13c-3-1-5.5-.8-8.5 1-3-1.8-5.5-2-8.5-1z"/><path d="M12 6.5v13"/></symbol>
+</svg>
+
+<div class="demo"><div class="w"><b>Maquette</b> · page Mon dossier. Pièces reprises de l'application (9 des 12 pièces visibles sur la capture).</div></div>
+
+<header class="app">
+  <div class="w app-in">
+    <a class="logo" href="#"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iRmxvd2VyIGxvZ28iIGZpbGw9Im5vbmUiPgogIDxwYXRoIGZpbGw9IiNGMTcxMDUiIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSIKICAgIE0gNTAwLjQxIDguMTQgTCA0NzkuNjYgOS43NiBMIDQ1OS43MiAxMy4wMiBMIDQ0Mi42MyAxNy4wOSBMIDQyMS4wNyAyNCBMIDQwMC4zMiAzMi45NSBMIDM4NS4yNyA0MC42OCBMIDM4Mi4wMiA0My4xMiBMIDM3NS4xIDQ2Ljc5IEwgMzU3LjIgNTguOTkgTCAzMzkuMyA3My42NCBMIDMyMC45OSA5MS45NCBMIDMwNC43MiAxMTEuODggTCAyOTQuNTUgMTI2LjkzIEwgMjgxLjk0IDE0OC45IEwgMjY5LjczIDE3Ni45NyBMIDI2NC40NCAxOTMuNjUgTCAyNTkuNTYgMjEzLjk5IEwgMjU3LjkzIDIyMy4zNSBMIDI1NS40OSAyNDMuNjkgTCAyNTUuNDkgMjQ5LjM5IEwgMjU0LjY4IDI1MC42MSBMIDIyNy40MiAyNTIuMjQgTCAyMDAuNTcgMjU2LjcxIEwgMTgwLjIzIDI2MiBMIDE2NS45OSAyNjYuODggTCAxNTMuMzggMjcyLjE3IEwgMTMwLjE5IDI4My41NiBMIDEwOS40NCAyOTYuNTggTCA4OS41IDMxMi4wNCBMIDY4Ljc1IDMzMS45OCBMIDU0LjExIDM0OS4wNiBMIDM5LjQ2IDM2OS44MSBMIDI0IDM5Ny44OCBMIDE0LjI0IDQyMS44OSBMIDcuMzIgNDQ0LjY3IEwgMi40NCA0NjkuNDkgTCAwIDQ5NC43MSBMIDAgNTE5LjUzIEwgMi44NSA1NDcuMTkgTCA3LjMyIDU2OS41NyBMIDE1LjA1IDU5NC4zOCBMIDI0LjQxIDYxNy4xNyBMIDM0LjE3IDYzNS40NyBMIDM5LjQ2IDY0NC40MiBMIDQzLjk0IDY1MC41MyBMIDQzLjk0IDY1MS4zNCBMIDYxLjQzIDY3NC4xMiBMIDc5LjMzIDY5Mi44NCBMIDk2LjAxIDcwNy40OCBMIDExNS4xMyA3MjEuMzIgTCAxMzYuNyA3MzMuOTMgTCAxNDMuMjEgNzM2Ljc4IEwgMTQ2LjA1IDczOC44MSBMIDE1OS4wNyA3NDQuNTEgTCAxODEuMDQgNzUyLjI0IEwgMjA2LjI2IDc1OC43NCBMIDIyNy40MiA3NjIgTCAyNDcuNzYgNzYzLjIyIEwgMjQ4Ljk4IDc4Ny4yMiBMIDI1Mi4yNCA4MDkuMTkgTCAyNTkuOTcgODM4LjQ4IEwgMjY3LjcgODU5LjY0IEwgMjgxLjk0IDg4OC4xMiBMIDI4Ny4yMiA4OTcuMDcgTCAzMDEuODcgOTE3LjgyIEwgMzEyLjQ1IDkzMC40MyBMIDMyOC43MiA5NDcuMTEgTCAzMzkuNzEgOTU2Ljg3IEwgMzQwLjkzIDk1Ny4yOCBMIDM1Mi43MiA5NjcuMDQgTCAzNzUuMSA5ODEuNjkgTCAzOTguMjkgOTkzLjQ5IEwgNDE3IDEwMDEuMjIgTCA0MzQuOTEgMTAwNi45MSBMIDQ1OC4wOSAxMDEyLjIgTCA0NzEuOTMgMTAxNC4yNCBMIDQ4NC4xMyAxMDE1LjQ2IEwgNTI0IDEwMTUuNDYgTCA1NTAuMDQgMTAxMi4yIEwgNTczLjIzIDEwMDYuOTEgTCA1OTEuMTMgMTAwMS4yMiBMIDYxMy41IDk5MS44NiBMIDYzMi4yMiA5ODIuMSBMIDY1NS40MSA5NjcuMDQgTCA2NzQuMTIgOTUxLjk5IEwgNjkyLjAyIDkzNC41IEwgNzA5LjExIDkxNC4xNSBMIDcyNC4xNiA4OTEuNzggTCA3MjkuNDUgODgyLjQyIEwgNzQxLjI1IDg1Ny42MSBMIDc0OS43OSA4MzMuNiBMIDc0OS43OSA4MzEuOTcgTCA3NTQuMjcgODE2LjUxIEwgNzU3LjUyIDc5Ni4xNyBMIDc1OC43NCA3OTEuNyBMIDc1OS41NiA3ODMuOTcgTCA3NTkuNTYgNzY5LjMyIEwgNzYwLjM3IDc2OC41MSBMIDc4OS42NiA3NjguNTEgTCA4MTEuNjMgNzY1LjY2IEwgODI0LjI0IDc2My4yMiBMIDg0MS43NCA3NTguNzQgTCA4NjQuNTIgNzUwLjYxIEwgODkwLjU2IDczOC40IEwgOTE0Ljk3IDcyMy4zNSBMIDkzNC45IDcwNy44OSBMIDk1Ni44NyA2ODYuNzQgTCA5NzEuOTMgNjY4LjgzIEwgOTg0LjU0IDY1MC45MyBMIDk4NC41NCA2NTAuMTIgTCA5OTMuNDkgNjM1LjQ3IEwgMTAwMi40NCA2MTcuNTcgTCAxMDA5Ljc2IDU5OS4yNyBMIDEwMTYuNjggNTc2LjA4IEwgMTAxOS41MiA1NjQuNjggTCAxMDIxLjk3IDU1MC40NSBMIDEwMjMuNTkgNTM2LjIxIEwgMTAyMy41OSA0ODkuNDIgTCAxMDE5LjkzIDQ2My4zOCBMIDEwMTQuMjQgNDQwLjYgTCAxMDA2LjkxIDQxOS4wNCBMIDk5Ni43NCAzOTYuNjYgTCA5ODQuNTQgMzc1LjEgTCA5NjkuODkgMzU0LjM1IEwgOTU0LjQzIDMzNi40NSBMIDkzNi4xMiAzMTguOTYgTCA5MTQuNTYgMzAyLjI4IEwgODk4LjcgMjkyLjExIEwgODg2LjkgMjg2IEwgODg0Ljg2IDI4NC4zOCBMIDg3Mi42NiAyNzguNjggTCA4NTYuMzggMjcyLjE3IEwgODMxLjk3IDI2NC40NCBMIDgxMC44MiAyNTkuOTcgTCA3ODcuMjIgMjU3LjEyIEwgNzY2Ljg4IDI1Ni4zMSBMIDc2Ni40NyAyNDAuMDMgTCA3NjQuMDMgMjIxLjMyIEwgNzU4Ljc0IDE5Ni45MSBMIDc1Ny4xMiAxOTMuMjUgTCA3NTEuODMgMTc1Ljc1IEwgNzQyLjA2IDE1Mi41NiBMIDcyNy44MyAxMjYuOTMgTCA3MTQuNCAxMDcuODEgTCA2OTYuOTEgODcuNDcgTCA2ODEuODUgNzIuODIgTCA2NjEuMSA1Ni4xNCBMIDYzOS4xNCA0MS45IEwgNjE5LjIgMzEuNzMgTCA1OTYuNDIgMjIuMzggTCA1NzguMTEgMTYuNjggTCA1NTEuMjYgMTAuOTggTCA1MzAuMSA4LjU0IFoKICAgIE0gNDkxLjg2IDg4LjY5IEwgNTMyLjE0IDg4LjY5IEwgNTQ3LjYgOTEuMTMgTCA1NTcuNzcgOTMuNTcgTCA1NjEuNDMgOTUuMiBMIDU3Mi44MiA5OC40NSBMIDU5MS41NCAxMDYuNTkgTCA2MDcgMTE1LjU0IEwgNjE5LjIgMTI0LjA4IEwgNjM3LjEgMTM5Ljk1IEwgNjU1IDE2MS4xMSBMIDY2Ni4zOSAxNzkuNDEgTCA2NzIuNSAxOTEuNjIgTCA2NzcuMzggMjAzLjgyIEwgNjgxLjA0IDIxNS4yMSBMIDY4NC43IDIzMC42NyBMIDY4Ni43NCAyNDQuOTEgTCA2ODYuNzQgMjgxLjk0IEwgNjg1LjExIDI5My43MyBMIDY4Mi4yNiAzMDcuMTYgTCA2NzYuOTcgMzI0LjI1IEwgNjczLjcyIDMzMi4zOCBMIDY2MS45MiAzNTUuMTcgTCA2NTUgMzY1Ljc0IEwgNjQ0LjgzIDM3OC4zNiBMIDY1Mi45NyAzNzEuODUgTCA2NjguNDMgMzYxLjI3IEwgNjg2Ljc0IDM1MS41IEwgNjk5Ljc1IDM0Ni4yMiBMIDcxMS4xNSAzNDIuNTUgTCA3MzggMzM2Ljg2IEwgNzU1LjA4IDMzNS42NCBMIDc2NC44NSAzMzUuNjQgTCA3ODEuOTMgMzM2Ljg2IEwgNzg1LjYgMzM4LjA4IEwgNzkzLjMzIDMzOC44OSBMIDgwNC4zMSAzNDEuMzMgTCA4MjIuMjEgMzQ3LjAzIEwgODM4Ljg5IDM1NC4zNSBMIDg0MC45MiAzNTUuOTggTCA4NTEuOTEgMzYxLjY4IEwgODY0LjExIDM2OS44MSBMIDg4MS42MSAzODQuNDYgTCA4OTkuNTEgNDA0LjM5IEwgOTA2LjgzIDQxNC45NyBMIDkxNS4zOCA0MjkuMjEgTCA5MTkuNDQgNDM3LjM1IEwgOTI1LjE0IDQ1MS4xOCBMIDkzMi40NiA0NzYuODEgTCA5MzQuOSA0OTMuMDggTCA5MzQuOSA1MzAuMSBMIDkzMi44NyA1NDMuOTQgTCA5MjkuNjEgNTU3LjM2IEwgOTI1LjE0IDU3MS42IEwgOTIwLjI2IDU4My44MSBMIDkxNC45NyA1OTQuMzggTCA5MDcuMjQgNjA3LjQgTCA4OTkuOTIgNjE3Ljk4IEwgODkwLjU2IDYyOC45NiBMIDg4MC4zOSA2MzkuNTQgTCA4NjMuMyA2NTMuNzggTCA4NTEuNSA2NjEuNTEgTCA4NDAuNTIgNjY3LjIxIEwgODM4LjQ4IDY2OC44MyBMIDgyMS44IDY3Ni4xNiBMIDgwMy41IDY4MS44NSBMIDc5OS44MyA2ODIuMjYgTCA3OTQuNTUgNjgzLjg5IEwgNzg0LjM4IDY4NS4xMSBMIDc3OS45IDY4Ni4zMyBMIDc0MC4wMyA2ODYuMzMgTCA3MjUuMzggNjgzLjg5IEwgNzExLjk2IDY4MC42MyBMIDcwMS4zOCA2NzcuMzggTCA2ODcuMTQgNjcxLjY4IEwgNjY4LjgzIDY2MS45MiBMIDY1My4zNyA2NTEuMzQgTCA2NDAuMzYgNjQwLjM2IEwgNjU0LjE5IDY1Ny40NCBMIDY1OS40OCA2NjUuMTcgTCA2NjUuMTcgNjc0Ljk0IEwgNjcyLjA5IDY4OC43NyBMIDY3OS40MSA3MDguMyBMIDY4NC4yOSA3MjkuMDUgTCA2ODYuNzQgNzUwLjIgTCA2ODYuMzMgNzc0LjIgTCA2ODQuNyA3ODguMDQgTCA2ODIuNjcgNzk4LjYxIEwgNjc5LjQxIDgxMS4yMyBMIDY3Mi4wOSA4MzAuNzUgTCA2NjUuMTcgODQ0LjU5IEwgNjU0LjYgODYxLjY3IEwgNjM5LjU0IDg3OS45OCBMIDYyMi4wNSA4OTYuMjUgTCA2MTEuMDYgOTA0LjM5IEwgNTk4Ljg2IDkxMi4xMiBMIDU4OS4wOSA5MTcuNDEgTCA1NzguMTEgOTIyLjI5IEwgNTU2Ljk2IDkyOS42MSBMIDU0Ni43OCA5MzIuMDYgTCA1MzEuMzIgOTM0LjUgTCA0OTEuMDUgOTM0LjUgTCA0NzcuNjIgOTMyLjQ2IEwgNDY1LjQyIDkyOS42MSBMIDQ2MS43NiA5MjcuOTkgTCA0NTEuNTkgOTI1LjE0IEwgNDMyLjQ2IDkxNyBMIDQyNC43MyA5MTIuOTMgTCA0MDcuMjQgOTAxLjU0IEwgMzk5LjkyIDg5NS44NSBMIDM4Ny4zMSA4ODQuNDYgTCAzNzEuODUgODY2Ljk2IEwgMzU2Ljc5IDg0NC4xOCBMIDM0OS4wNiA4MjcuOTEgTCAzNDUuODEgODE5LjM2IEwgMzM4Ljg5IDc5NS4zNiBMIDMzNi40NSA3NzkuNDkgTCAzMzYuODYgNzM1LjU2IEwgMzM5LjMgNzIyLjEzIEwgMzQwLjkzIDcxNy42NSBMIDM0Mi4xNSA3MTEuNTUgTCAzNDYuNjIgNjk3LjcyIEwgMzUxLjkxIDY4NS4xMSBMIDM1Ni43OSA2NzUuMzQgTCAzNTguODMgNjcyLjkgTCAzNjQuNTIgNjYyLjczIEwgMzc4LjM2IDY0NC40MiBMIDM2My4zIDY1Ni4yMiBMIDM0MC41MiA2NjkuNjUgTCAzMjUuNDcgNjc2LjE2IEwgMzA3LjU3IDY4MS44NSBMIDMwNS41MyA2ODEuODUgTCAyOTEuNyA2ODUuMTEgTCAyNzUuODMgNjg3LjE0IEwgMjQ1LjMyIDY4Ni43NCBMIDIxOC44OCA2ODEuODUgTCAyMDAuOTggNjc2LjE2IEwgMTgzLjQ4IDY2OC40MyBMIDE3MC4wNiA2NjAuNyBMIDE1OS4wNyA2NTMuMzcgTCAxNDguOSA2NDUuMjQgTCAxMzkuMTQgNjM2LjI5IEwgMTI0LjA4IDYxOS4yIEwgMTExLjA3IDYwMC4wOCBMIDEwMi4xMiA1ODIuMTggTCA5Ni40MiA1NjcuNTMgTCA5Mi4zNSA1NTMuNyBMIDg5LjkxIDU0MS45IEwgODguMjggNTI5LjcgTCA4OC4yOCA0OTMuNDkgTCA5MS4xMyA0NzQuNzcgTCA5NS42MSA0NTguMDkgTCA5OC44NiA0NTAuMzYgTCA5OC44NiA0NDkuMTQgTCAxMDYuNTkgNDMxLjY1IEwgMTExLjg4IDQyMS44OSBMIDEyNi4xMiA0MDEuNTQgTCAxNDQuNDMgMzgyLjAyIEwgMTYwLjI5IDM2OSBMIDE3Ny43OSAzNTguMDEgTCAxOTYuMDkgMzQ5LjA2IEwgMjEyLjM3IDM0My4zNyBMIDIzNS41NiAzMzguMDggTCAyMzguODEgMzM4LjA4IEwgMjQzLjI5IDMzNi44NiBMIDI4My4xNiAzMzYuODYgTCAyODcuMjIgMzM4LjA4IEwgMjkwLjg5IDMzOC4wOCBMIDMxMS4yMyAzNDIuNTUgTCAzMjUuMDYgMzQ3LjAzIEwgMzQyLjU1IDM1NC43NiBMIDM1OC44MyAzNjQuMTIgTCAzNjYuNTYgMzY5LjQgTCAzODIuODMgMzgyLjgzIEwgMzc0LjY5IDM3My40NyBMIDM2OSAzNjUuNzQgTCAzNTcuMiAzNDcuMDMgTCAzNTIuMzIgMzM3LjI2IEwgMzQ2LjYyIDMyMy40MyBMIDMzOS4zIDI5Ny40IEwgMzM2Ljg2IDI4MS41MyBMIDMzNi40NSAyNzUuMDIgTCAzMzYuODYgMjQ1LjMyIEwgMzM4Ljg5IDIzMS40OSBMIDM0MS4zMyAyMjIuOTQgTCAzNDEuMzMgMjIwLjkxIEwgMzQ5LjA2IDE5Ni45MSBMIDM1Ni43OSAxODAuMjMgTCAzNTguODMgMTc3Ljc5IEwgMzY0LjUyIDE2Ny42MiBMIDM3Mi4yNSAxNTYuNjMgTCAzODMuMjQgMTQzLjYxIEwgMzkxLjM3IDEzNS40OCBMIDQwNS4yMSAxMjMuNjggTCA0MjQuNzMgMTEwLjY2IEwgNDQzLjg2IDEwMS4zIEwgNDY2LjIzIDkzLjU3IEwgNDc4LjQ0IDkwLjcyIFoKICAiLz4KPC9zdmc+Cg==" alt=""><span>Monumia</span></a>
+    <nav aria-label="Navigation principale">
+      <a href="#"><svg class="i"><use href="#i-grid"/></svg>Tableau de bord</a>
+      <a href="#" class="on"><svg class="i"><use href="#i-home"/></svg>Mes monuments</a>
+      <a href="#" title="Vos pièces, réutilisables dans tous vos dossiers"><svg class="i"><use href="#i-doc"/></svg>Mes documents</a>
+      <a href="#"><svg class="i"><use href="#i-book"/></svg>Blog</a>
+    </nav>
+    <div class="me"><span class="av">PV</span>Paul</div>
+  </div>
+</header>
+
+<main class="w">
+  <a class="back" href="#" aria-label="Retour aux aides du projet" title="Retour aux aides du projet" data-toast="Retour aux aides du projet"><svg><use href="#i-back"/></svg></a>
+
+  <section class="head" aria-labelledby="dt">
+    <div>
+      <a class="lieu" href="#" data-toast="Fiche du monument">Eglise Sainte-Radegonde</a>
+      <h1 id="dt">Dossier Fondation France Bois Forêt</h1>
+      <p class="proj">Projet <a href="#" data-toast="Page du projet">Travaux de restauration</a> · <a href="#" data-toast="Fiche de l'aide">Voir la fiche de l'aide</a></p>
+    </div>
+    <div class="keys">
+      <div class="key"><small>Date limite</small><b>31 octobre</b><span>Dans 32 jours</span></div>
+      <div class="key"><small>Montant</small><b>Jusqu'à 10 000 €</b></div>
+    </div>
+  </section>
+
+  <nav class="stepbar" aria-label="Étapes du dossier" id="stepbar"></nav>
+
+  <section class="step" id="s1" aria-labelledby="whoT">
+    <div class="step-h"><span class="num" id="n1">1</span><div><h2 id="whoT">Qui dépose ce dossier ?</h2><p>Les pièces demandées changent selon votre réponse.</p></div></div>
+    <div class="seg" role="group" aria-labelledby="whoT" id="who"></div>
+  </section>
+
+  <section class="step" id="s2" aria-labelledby="piecesT">
+    <div class="step-h"><span class="num" id="n2">2</span><div><h2 id="piecesT">Réunissez les pièces <span class="pcount" id="pcount"></span></h2><p>Cliquez sur « Ajouter » : choisissez la pièce dans Mes documents, ou importez-la depuis votre ordinateur.</p></div>
+      <button class="btn b-line step-docs" type="button" data-toast="Ouverture de Mes documents"><svg class="i"><use href="#i-folder"/></svg>Ouvrir mes documents</button></div>
+    <div class="pgrid" id="pgrid"></div>
+    <details class="other" id="other"><summary>Pièces qui ne vous concernent pas <span id="otherN"></span><svg class="i"><use href="#i-chev"/></svg></summary><ul id="otherList"></ul></details>
+  </section>
+
+  <section class="step final" id="s3" aria-labelledby="fT">
+    <div class="step-h"><span class="num" id="n3">3</span><div><h2 id="fT">Téléchargez votre dossier, puis déposez-le</h2><p id="fS"></p></div></div>
+    <div class="acts"><button class="btn b-line b-lg" type="button" id="dlAll"><svg class="i"><use href="#i-down"/></svg>Télécharger le dossier</button></div>
+  </section>
+</main>
+
+<div class="ov" id="ov" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+    <div class="m-h"><div><h2 id="mt">Choisir dans mes documents</h2><p id="mSub"></p></div><button class="x" type="button" data-close aria-label="Fermer"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="docs" id="docs"></div>
+    <div class="m-f">Le document n'y est pas ? <button class="rm" type="button" id="mImport">Importez-le depuis votre ordinateur</button></div>
+  </div>
+</div>
+<input type="file" id="file" class="sr" tabindex="-1" aria-hidden="true">
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+/* pièces : intitulés repris tels quels de l'application ; "pour" = à qui la pièce s'applique */
+const PIECES=[
+ {id:"form",n:"Formulaire « Dépôt du dossier et demande de financement » (édition 2026), à remplir et signer, ou dépôt via le formulaire en ligne",s:"Formulaire de demande (édition 2026), rempli et signé",req:true,dl:true},
+ {id:"photos",n:"Photos du projet",req:true},
+ {id:"rib",n:"Coordonnées bancaires (RIB ou IBAN)",req:true},
+ {id:"mh",n:"Preuve du classement ou de l'inscription du bâtiment aux monuments historiques",pour:["prive"]},
+ {id:"delib",n:"Délibération du conseil municipal actant la décision de restauration",pour:["commune"]},
+ {id:"statuts",n:"Statuts de la structure, datés et signés",pour:["structure"]},
+ {id:"jo",n:"Copie de la parution au Journal officiel (nom, date de création, adresse et objet)",pour:["structure"]},
+ {id:"ca",n:"Liste des membres du conseil d'administration et du bureau",pour:["structure"]},
+ {id:"ra",n:"Dernier rapport d'activités (2025)",pour:["structure"]}
+];
+const WHO=[["commune","Une commune"],["structure","Une association ou une structure"],["prive","Un propriétaire privé"]];
+const MYDOCS=[{n:"Charte régionale",ext:"PDF",t:"Attestations",d:"17 sept. 2026"}];
+const S={who:"commune",files:{},target:null,fresh:null,menu:null};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const applies=p=>!p.pour||p.pour.includes(S.who);
+
+function card(p){
+  const f=S.files[p.id], open=S.menu===p.id;
+  return `<article class="tile${f?" done":""}${S.fresh===p.id?" new":""}">
+    <div class="t-top"><span class="st" aria-hidden="true"><svg><use href="#i-check"/></svg></span>${p.req?'<span class="tag o">Obligatoire</span>':'<span class="tag b">Selon votre situation</span>'}</div>
+    <b>${esc(p.s||p.n)}</b>
+    ${f?`<span class="fchip"><span class="ext">${esc(f.ext)}</span><span>${esc(f.n)}</span></span><button class="rm" type="button" data-rm="${p.id}">Retirer</button>`
+      :`<button class="btn b-blue add" type="button" data-menu="${p.id}" aria-expanded="${open}"><svg class="i"><use href="#i-plus"/></svg>Ajouter</button>
+      ${open?`<div class="pmenu" role="menu">
+        ${p.dl?`<button type="button" data-toast="Téléchargement du modèle"><svg class="i"><use href="#i-down"/></svg>Télécharger le modèle à remplir</button>`:""}
+        <button type="button" data-mine="${p.id}"><svg class="i"><use href="#i-folder"/></svg>Choisir dans Mes documents</button>
+        <button type="button" data-imp="${p.id}"><svg class="i"><use href="#i-up"/></svg>Importer depuis l'ordinateur</button>
+      </div>`:""}`}
+  </article>`;
+}
+function render(){
+  $("#who").innerHTML=WHO.map(([k,l])=>`<button type="button" data-who="${k}" aria-pressed="${S.who===k}">${l}</button>`).join("");
+  const req=PIECES.filter(p=>p.req), sit=PIECES.filter(p=>!p.req&&applies(p)), off=PIECES.filter(p=>!p.req&&!applies(p));
+  const mine=req.concat(sit), done=mine.filter(p=>S.files[p.id]).length;
+  $("#pgrid").innerHTML=req.concat(sit).map(card).join("");
+  $("#pcount").textContent=`${done} sur ${mine.length}`;
+  $("#otherN").textContent=`(${off.length})`;
+  $("#otherList").innerHTML=off.map(p=>`<li>${esc(p.n)}</li>`).join("");
+  $("#other").hidden=!off.length;
+  const all=done===mine.length, chk='<svg><use href="#i-check"/></svg>';
+  const st=[["done","Qui dépose",WHO.find(w=>w[0]===S.who)[1],"s1"],[all?"done":"cur","Réunir les pièces",`${done} sur ${mine.length}`,"s2"],[all?"cur":"todo","Télécharger et déposer",all?"Votre dossier est prêt":"Avant le 31 octobre","s3"]];
+  $("#stepbar").innerHTML=st.map(([c,t,sub,id],i)=>`<button type="button" class="sb ${c}" data-go="${id}"><span class="c">${c==="done"?chk:i+1}</span><span style="flex:1"><b>${t}</b><small>${sub}</small>${i===1&&!all?`<span class="mini"><i style="width:${mine.length?done/mine.length*100:0}%"></i></span>`:""}</span></button>`).join("");
+  $("#n1").className="num done";$("#n1").innerHTML=chk;
+  $("#n2").className="num"+(all?" done":"");$("#n2").innerHTML=all?chk:"2";
+  $("#n3").className="num"+(all?"":" todo");
+  $("#dlAll").className="btn b-lg "+(all?"b-orange":"b-line");
+  $("#fS").textContent=all?"Votre dossier est complet. Téléchargez-le, puis envoyez-le vous-même à la fondation avant le 31 octobre.":`Il reste ${mine.length-done} pièce${mine.length-done>1?"s":""} à réunir. Ensuite, téléchargez le dossier et envoyez-le vous-même à la fondation avant le 31 octobre.`;
+  S.fresh=null;
+}
+let tt;
+function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("show");clearTimeout(tt);tt=setTimeout(()=>el.classList.remove("show"),3200)}
+const FOLDER={form:"Autres",photos:"Photos",rib:"RIB",mh:"Arrêtés",delib:"Délibérations",statuts:"Statuts",jo:"Autres",ca:"Autres",ra:"Rapports"};
+function attach(id,f,fromCloud){S.files[id]=f;S.fresh=id;render();toast(fromCloud?"Pièce ajoutée au dossier.":`Pièce ajoutée au dossier et rangée dans Mes documents › ${FOLDER[id]||"Autres"}.`)}
+function openMine(id){
+  S.target=id;
+  $("#mSub").textContent=PIECES.find(p=>p.id===id).n;
+  $("#docs").innerHTML=MYDOCS.map((d,i)=>`<button type="button" class="doc" data-pickdoc="${i}"><span class="ext">${esc(d.ext)}</span><span><b>${esc(d.n)}</b><small>${esc(d.t)} · ${esc(d.d)}</small></span></button>`).join("");
+  $("#ov").hidden=false;document.body.classList.add("lock");
+}
+function closeMine(){$("#ov").hidden=true;document.body.classList.remove("lock")}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button,a");if(!b){if(S.menu){S.menu=null;render()}return}
+  if(b.dataset.menu){S.menu=S.menu===b.dataset.menu?null:b.dataset.menu;render();return}
+  if(b.dataset.who){S.who=b.dataset.who;render();return}
+  if(b.dataset.go){document.getElementById(b.dataset.go).scrollIntoView({behavior:"smooth",block:"start"});return}
+  if(b.dataset.imp){S.menu=null;S.target=b.dataset.imp;$("#file").value="";$("#file").click();return}
+  if(b.dataset.mine){S.menu=null;render();openMine(b.dataset.mine);return}
+  if(b.dataset.pickdoc){const d=MYDOCS[+b.dataset.pickdoc];closeMine();attach(S.target,{n:d.n,ext:d.ext},true);return}
+  if(b.id==="mImport"){closeMine();$("#file").value="";$("#file").click();return}
+  if("close" in b.dataset){closeMine();return}
+  if(b.dataset.rm){delete S.files[b.dataset.rm];render();return}
+  if(b.id==="dlAll"){toast("Téléchargement de toutes les pièces du dossier (maquette).");return}
+  if(b.dataset.toast){e.preventDefault();toast(b.dataset.toast+" (maquette)");return}
+  if(b.tagName==="A"&&b.getAttribute("href")==="#")e.preventDefault();
+});
+$("#file").addEventListener("change",e=>{const f=e.target.files[0];if(f&&S.target){const ext=f.name.includes(".")?f.name.split(".").pop().toUpperCase().slice(0,4):"FICHIER";attach(S.target,{n:f.name,ext})}});
+$("#ov").addEventListener("click",e=>{if(e.target.id==="ov")closeMine()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#ov").hidden)closeMine()});
+render();
+})();
+</script>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { projetTitre } from '@/lib/projet-titre';
+import { monumentNomCourt, projetSousTitre, projetTitre } from '@/lib/projet-titre';
 import type { Projet } from '@/types';
 
 function projet(partial: Partial<Projet>): Projet {
@@ -97,5 +97,40 @@ describe('projetTitre : intention appliquée au monument', () => {
 
   it('garde le titre saisi', () => {
     expect(projetTitre(projet({ titre: 'Clocher', questionnaire: restaurer }), 'Église Saint-Martin')).toBe('Clocher');
+  });
+});
+
+describe('projetSousTitre', () => {
+  it('liste les travaux, la première lettre seule en capitale', () => {
+    expect(
+      projetSousTitre(projet({ titre: 'Restauration de la toiture', travauxEnvisages: ['toiture', 'charpente', 'couverture'] })),
+    ).toBe('Toiture, charpente, couverture');
+  });
+
+  it('retombe sur l’intention sans travaux, et ne répète pas le titre', () => {
+    expect(projetSousTitre(projet({ titre: 'Ouverture au public', questionnaire: { _raisons: ['valorisation_rayonnement'] } })))
+      .toBe('Faire vivre et ouvrir le lieu');
+    expect(projetSousTitre(projet({ travauxEnvisages: ['toiture'] }))).toBeNull();
+    expect(projetSousTitre(projet({ titre: 'Chantier' }))).toBeNull();
+  });
+});
+
+describe('monumentNomCourt', () => {
+  it('désigne le monument par son nom commun, article accordé', () => {
+    expect(monumentNomCourt('Ancienne abbaye de Doue')).toBe("l'abbaye");
+    expect(monumentNomCourt('Château des comtes de Bar (ancien)')).toBe('le château');
+    expect(monumentNomCourt('Église de la Nativité')).toBe("l'église");
+    expect(monumentNomCourt('La Chapelle Saint-Roch')).toBe('la chapelle');
+  });
+
+  it('construit le complément avec « de »', () => {
+    expect(monumentNomCourt('Ancienne abbaye de Doue', true)).toBe("de l'abbaye");
+    expect(monumentNomCourt('Moulin de Maître Cornille', true)).toBe('du moulin');
+    expect(monumentNomCourt('Chapelle Saint-Roch', true)).toBe('de la chapelle');
+  });
+
+  it("rend null devant un nom qu'on ne sait pas accorder", () => {
+    expect(monumentNomCourt('Notre-Dame de Bon-Secours')).toBeNull();
+    expect(monumentNomCourt('')).toBeNull();
   });
 });

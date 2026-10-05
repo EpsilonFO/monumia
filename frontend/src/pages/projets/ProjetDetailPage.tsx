@@ -89,7 +89,6 @@ function byBientot(a: AideMatchResult, b: AideMatchResult): number {
 
 /** Au-delà, « À confirmer » se déplie sur demande : c'est la section la plus
  *  longue, et ses premières cartes sont les plus proches d'un verdict. */
-const A_CONFIRMER_VISIBLES = 12;
 
 /** Une section d'aides de la maquette : pastille ronde, titre serif, phrase
  *  d'explication, puis la grille de cartes. */
@@ -164,7 +163,6 @@ export function ProjetDetailPage() {
   const [resolution, setResolution] = useState<'projet' | 'monument' | 'introuvable' | null>(null);
   const [running, setRunning] = useState(false);
   const [showNonEligibles, setShowNonEligibles] = useState(false);
-  const [toutAConfirmer, setToutAConfirmer] = useState(false);
   const [confirmRefaireOpen, setConfirmRefaireOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -579,7 +577,13 @@ export function ProjetDetailPage() {
     // Les aides à débloquer comptent : ce sont des pistes vivantes, pas des refus.
     ...(canAccessAides ? [{ value: 'aides', label: 'Aides', picto: 'main' as const, count: aidesAPortee.length }] : []),
     { value: 'dossiers', label: 'Dossiers', picto: 'dossier', count: dossiers.length },
-    { value: 'documents', label: 'Documents', picto: 'doc', count: projetDocuments.length },
+    {
+      value: 'documents',
+      label: 'Documents',
+      picto: 'doc',
+      count: projetDocuments.length,
+      title: 'Déposez une pièce une fois, elle sert à tous vos dossiers',
+    },
     { value: 'equipe', label: 'Équipe', picto: 'equipe', count: members.length },
   ];
 
@@ -588,7 +592,7 @@ export function ProjetDetailPage() {
   const redaction = new Map(
     aidesAPortee.map((m) => [m.aide.id, { titre: titreAide(m.aide), montant: montantAide(m.aide)?.valeur ?? null }]),
   );
-  const potentielsVisibles = toutAConfirmer ? potentielsMaintenant : potentielsMaintenant.slice(0, A_CONFIRMER_VISIBLES);
+  const lienMesDocuments = `${ROUTES.DOCUMENTS}?monument=${monument.id}`;
   const chezFiltre = filtre.key === 'toutes' ? '' : ` chez « ${filtre.label} »`;
   const aucuneSection =
     eligiblesMaintenant.length + atteignablesMaintenant.length + potentielsMaintenant.length + bientot.length === 0;
@@ -610,6 +614,22 @@ export function ProjetDetailPage() {
 
         {/* AIDES */}
         <TabsContent value="aides">
+          {/* Mes documents, visible dès l'arrivée : les pièces d'un dossier se
+              rangent là une fois, et servent à toutes les aides. */}
+          <section className="docs-cta" aria-labelledby="dc-t">
+            <span className="dc-ic" aria-hidden="true"><Picto nom="dossier" /></span>
+            <div>
+              <h2 id="dc-t">Gardez les documents de votre monument au même endroit</h2>
+              <p>
+                Déposez ici vos devis, arrêtés, délibérations et photos. Monumia les range par type, et vous
+                pouvez les réutiliser dans chacun de vos dossiers d&rsquo;aide.
+              </p>
+            </div>
+            <Link className="btn b-blue dc-btn" to={lienMesDocuments}>
+              <Picto nom="dossier" />
+              Ouvrir mes documents
+            </Link>
+          </section>
           {chargementDiagnostic ? (
             <div className="onglet">
               <AidesTabSkeleton />
@@ -704,16 +724,7 @@ export function ProjetDetailPage() {
                     {/* Le chiffre qui compte n'est pas le nombre d'aides mais ce
                         qu'il en coûte de trancher : les plus proches d'un
                         verdict sont en tête. */}
-                    {renderAideList(potentielsVisibles)}
-                    {potentielsMaintenant.length > A_CONFIRMER_VISIBLES && (
-                      <div className="more">
-                        <button className="btn b-line" type="button" onClick={() => setToutAConfirmer((v) => !v)}>
-                          {toutAConfirmer
-                            ? "Ne montrer que les plus proches d'un verdict"
-                            : `Voir les ${potentielsMaintenant.length - A_CONFIRMER_VISIBLES} autres aides à confirmer`}
-                        </button>
-                      </div>
-                    )}
+                    {renderAideList(potentielsMaintenant)}
                   </Groupe>
                 )}
 

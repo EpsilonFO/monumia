@@ -63,6 +63,7 @@ export function TopBar() {
               key={item.to}
               to={item.to}
               end={item.end}
+              title={item.title}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-2 rounded-full px-2.5 py-1.5 transition-colors',

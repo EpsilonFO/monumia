@@ -1,0 +1,432 @@
+<title>Aides de l'église de la Nativité</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Style : landing monumia.fr (crème, bleu profond, pilules) et fiche d'aide (PT Serif + Inter, pastilles). */
+:root{
+  --cream:#FDF9F0;--paper:#FFFEFB;--sand:#F4EDE0;
+  --line:#ECE3D2;--line-soft:#F4EDE0;
+  --ink:#222B35;--body:#55606E;--faint:#8A8F96;
+  --blue:#0A369D;--blue-2:#1446B8;--blue-ink:#082A7A;--blue-soft:#EEF3FF;--blue-line:#CCD9F5;
+  --orange:#F17105;--orange-2:#FC8905;--orange-ink:#A84B06;--orange-soft:#FEEEDD;--orange-line:#F7D8B5;
+  --green:#1B6E45;--green-soft:#E5F2EA;--green-line:#BFDFCB;
+  --serif:"PT Serif",Georgia,serif;--sans:Inter,system-ui,-apple-system,sans-serif;
+  --sh-card:0 28px 60px -26px rgba(10,54,157,.22);
+  --sh-soft:0 18px 40px -24px rgba(34,43,53,.22);
+  --r:18px;--r-sm:12px;--pill:999px;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth;scroll-padding-top:24px}
+body{margin:0;font:400 16px/1.55 var(--sans);color:var(--body);background:var(--cream);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+h1,h2,h3{font-family:var(--serif);font-weight:400;color:var(--ink);letter-spacing:-.015em;margin:0;line-height:1.16;text-wrap:balance}
+p{margin:0}
+a{color:var(--blue);text-underline-offset:3px}
+button{font:inherit;cursor:pointer;color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:8px}
+.w{width:min(1180px,100% - 32px);margin-inline:auto;position:relative;z-index:1}
+.i{width:20px;height:20px;flex:none}
+.eyebrow{font-size:11.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--orange)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* bandeau de maquette */
+.demo{background:#161C24;color:#C9D0DA;font-size:13px;position:relative;z-index:2}
+.demo .w{padding-block:8px}
+.demo b{color:#fff;font-weight:600}
+
+/* barre de l'app (inchangée dans son contenu) */
+.app{position:relative;z-index:2;background:rgba(255,254,251,.7);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.app-in{display:flex;align-items:center;gap:34px;height:70px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo img{width:26px;height:26px}
+.logo span{font:700 21px/1 var(--serif);color:var(--ink)}
+.app nav{display:flex;gap:6px;font-size:15px}
+.app nav a{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--body);padding:8px 12px;border-radius:var(--pill)}
+.app nav a:hover{background:var(--sand);color:var(--ink)}
+.app nav a.on{color:var(--blue);background:var(--blue-soft);font-weight:600}
+.app nav .i{width:18px;height:18px}
+.me{margin-left:auto;display:flex;align-items:center;gap:10px;font-weight:600;color:var(--ink);font-size:15px}
+.av{width:36px;height:36px;border-radius:50%;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;font-size:12.5px;font-weight:700}
+
+/* boutons pilules */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;font:600 15px/1 var(--sans);padding:14px 24px;min-height:48px;border-radius:var(--pill);border:1.5px solid transparent;text-decoration:none;white-space:nowrap;transition:transform .15s ease,box-shadow .2s ease,background .15s ease,border-color .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn .i{width:18px;height:18px}
+.b-orange{background:var(--orange);color:#fff;}
+.b-orange:hover{background:#E36804}
+.b-blue{background:var(--blue);color:#fff}
+.b-blue:hover{background:var(--blue-ink)}
+.b-line{background:var(--paper);color:var(--blue);border-color:var(--blue-line)}
+.b-line:hover{border-color:var(--blue)}
+
+main{padding-block:26px 90px}
+.back{width:44px;height:44px;border-radius:12px;background:var(--blue);color:#fff;display:inline-grid;place-items:center;text-decoration:none;transition:background .15s,transform .15s}
+.back:hover{background:var(--blue-ink);transform:translateX(-2px)}
+.back svg{width:20px;height:20px;transform:scaleX(-1)}
+
+/* 1. en-tête du projet */
+.proj{margin-top:18px;background:var(--paper);border:1px solid var(--line);border-radius:24px;box-shadow:var(--sh-card);padding:34px 36px 30px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:22px 36px;align-items:start;position:relative;overflow:hidden}
+.proj h1{font-size:clamp(32px,4vw,46px);margin-top:6px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+.more-w{font:600 15px/1 var(--sans);letter-spacing:0;color:var(--blue);background:var(--blue-soft);border:1px solid var(--blue-line);border-radius:var(--pill);padding:8px 14px;display:inline-flex;align-items:center;gap:6px}
+.more-w:hover{border-color:var(--blue)}
+.edit{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--paper);display:inline-grid;place-items:center;color:var(--faint)}
+.edit:hover{color:var(--blue);border-color:var(--blue-line)}
+.edit .i{width:17px;height:17px}
+.lieu{display:inline-block;font:400 24px/1.2 var(--serif);color:var(--blue);text-decoration:none;letter-spacing:-.01em}
+.lieu:hover{text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
+.mon{margin-top:10px;font:700 22px/1.25 var(--serif);color:var(--ink);letter-spacing:-.01em}
+.mon .i{width:18px;height:18px;color:var(--blue)}
+.mon a{color:inherit;text-decoration:none}
+.mon a:hover{color:var(--blue)}
+.summary{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--line-soft);padding-top:22px}
+.sum{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:6px 12px;text-decoration:none;color:var(--body);font-size:14.5px;line-height:1.35;border-left:1px solid var(--line-soft);border-radius:10px;transition:background .15s}
+.sum:first-child{border-left:0}
+.sum:hover{background:var(--cream)}
+.sum b{display:block;font:700 30px/1 var(--serif);color:var(--ink);letter-spacing:-.01em}
+.sum .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:none}
+.sum .ic svg{width:19px;height:19px}
+.t-green{background:var(--green-soft);color:var(--green)}
+.t-orange{background:var(--orange-soft);color:var(--orange-ink)}
+.t-blue{background:var(--blue-soft);color:var(--blue)}
+.proj-act{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+.proj-act small{text-align:center}
+.proj-act small{font-size:13px;color:var(--faint)}
+
+/* 2. onglets du projet */
+.tabs{display:flex;gap:6px;margin-top:22px;padding:6px;background:var(--paper);border:1px solid var(--line);border-radius:var(--pill);width:max-content;max-width:100%;overflow-x:auto}
+.tabs a{display:flex;align-items:center;gap:9px;padding:11px 20px;border-radius:var(--pill);text-decoration:none;font-weight:600;font-size:15.5px;color:var(--ink);white-space:nowrap}
+.tabs a:hover{background:var(--sand)}
+.tabs a .i{width:18px;height:18px;color:var(--faint)}
+.tabs a em{font-style:normal;font-size:12.5px;font-weight:700;min-width:24px;text-align:center;padding:2px 8px;border-radius:var(--pill);background:var(--blue-soft);color:var(--blue)}
+.tabs a em.zero{background:var(--sand);color:var(--faint)}
+.tabs a.on{background:var(--orange);color:#fff}
+.tabs a.on .i{color:#fff}
+.tabs a.on em{background:rgba(255,255,255,.2);color:#fff}
+
+
+/* Mes documents, visible dès l'arrivée */
+.docs-cta{margin-top:22px;display:flex;align-items:center;gap:16px 24px;flex-wrap:wrap;background:var(--blue-soft);border:1.5px solid var(--blue);border-radius:20px;padding:22px 26px}
+.docs-cta > div{flex:1;min-width:260px}
+.docs-cta h2{font-size:24px}
+.docs-cta p{font-size:16px;margin-top:6px;max-width:70ch}
+.dc-ic{width:54px;height:54px;border-radius:14px;background:var(--blue);color:#fff;display:grid;place-items:center;flex:none}
+.dc-ic svg{width:26px;height:26px}
+.dc-btn{min-height:52px;padding:14px 24px;font-size:16px}
+
+/* 3. échéancier : la bande bleue de la landing */
+.ech{margin-top:26px;border-radius:24px;background:linear-gradient(160deg,var(--blue-2) 0%,var(--blue) 45%,var(--blue-ink) 100%);color:#fff;padding:28px 30px 30px;position:relative;overflow:hidden}
+.ech-h{position:relative;display:flex;align-items:flex-end;justify-content:space-between;gap:10px 20px;flex-wrap:wrap;margin-bottom:20px}
+.ech-h .eyebrow{color:var(--orange-2)}
+.ech-h h2{color:#fff;font-size:30px;margin-top:8px}
+.ech-h p{font-size:15px;color:#C9D5F0;max-width:46ch}
+.ech-grid{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.dl{display:flex;flex-direction:column;gap:12px;text-align:left;background:var(--paper);color:var(--body);border:0;border-radius:16px;padding:18px 18px 16px;box-shadow:0 20px 40px -24px rgba(0,0,0,.45);transition:transform .2s}
+.dl:hover{transform:translateY(-3px)}
+.dl-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.dl-date{font:700 30px/1 var(--serif);color:var(--ink);letter-spacing:-.02em}
+.dl-date small{display:block;font:500 13px/1.3 var(--sans);color:var(--faint);letter-spacing:0;margin-top:5px}
+.jx{flex:none;font-size:13px;font-weight:700;border-radius:var(--pill);padding:4px 10px}
+.jx.urg{color:var(--orange-ink);background:var(--orange-soft);border:1px solid var(--orange-line)}
+.jx.calm{color:var(--blue);background:var(--blue-soft);border:1px solid var(--blue-line)}
+.dl p{font-size:15px;line-height:1.4;color:var(--ink);font-weight:600}
+.dl .dl-f{margin-top:auto;display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:var(--blue)}
+.dl .dl-f .i{width:15px;height:15px}
+.dl.urgent{outline:2px solid var(--orange-2);outline-offset:-2px}
+.bar{position:relative;height:6px;border-radius:3px;background:var(--sand);overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--orange)}
+.bar.calm i{background:var(--blue-line)}
+
+/* 4. filtres */
+.sec{margin-top:44px}
+.sec-h{display:flex;align-items:flex-end;justify-content:space-between;gap:10px 20px;flex-wrap:wrap;margin-bottom:16px}
+.sec-h h2{font-size:30px}
+.sec-h p{font-size:15px;color:var(--faint)}
+.fin{display:flex;flex-wrap:wrap;gap:8px}
+.fin button{display:inline-flex;align-items:center;gap:10px;background:var(--paper);border:1.5px solid var(--line);border-radius:var(--pill);padding:10px 18px;min-height:46px;font-size:15.5px;font-weight:600;color:var(--ink);transition:border-color .15s,background .15s}
+.fin button em{font-style:normal;font-size:13px;font-weight:700;min-width:24px;text-align:center;border-radius:var(--pill);padding:2px 8px;background:var(--blue-soft);color:var(--blue)}
+.fin button:hover{border-color:var(--blue-line)}
+.fin button[aria-pressed="true"]{background:var(--orange);border-color:var(--orange);color:#fff}
+.fin button[aria-pressed="true"] em{background:rgba(255,255,255,.2);color:#fff}
+.act{margin-top:14px}
+.act-t{display:inline-flex;align-items:center;gap:8px;background:none;border:0;padding:6px 0;font-size:15px;font-weight:600;color:var(--blue)}
+.act-t .i{width:17px;height:17px;transition:transform .2s}
+.act-t[aria-expanded="true"] .i{transform:rotate(180deg)}
+.act-t small{font-weight:400;color:var(--faint)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chips button{background:transparent;border:1px solid var(--line);border-radius:var(--pill);padding:7px 14px;font-size:14.5px;color:var(--body)}
+.chips button span{color:var(--faint);margin-left:6px}
+.chips button:hover{border-color:var(--blue-line);color:var(--ink)}
+.chips button[aria-pressed="true"]{background:var(--blue-soft);border-color:var(--blue);color:var(--blue);font-weight:600}
+.chips button[aria-pressed="true"] span{color:var(--blue)}
+
+/* 5. groupes */
+.grp{margin-top:36px}
+.grp-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.grp-h h3{font-size:25px}
+.grp-h .n{font:600 14px/1 var(--sans);color:var(--faint)}
+.gi{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex:none}
+.gi svg{width:16px;height:16px}
+.grp-sub{margin:6px 0 18px 42px;font-size:15.5px;color:var(--body);max-width:70ch}
+
+/* le bandeau des aides à une question */
+.oneq{display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:var(--orange-soft);border:1px solid var(--orange-line);border-radius:16px;padding:16px 20px;margin:0 0 18px}
+.oneq .gi{width:40px;height:40px;background:var(--orange);color:#fff}
+.oneq .gi svg{width:20px;height:20px}
+.oneq div{flex:1;min-width:240px}
+.oneq b{display:block;font:700 18px/1.3 var(--serif);color:var(--ink)}
+.oneq span{font-size:14.5px;color:var(--orange-ink)}
+
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+
+/* 6. carte d'aide */
+.card{position:relative;display:flex;flex-direction:column;gap:12px;background:var(--paper);border:1.5px solid var(--blue);border-radius:var(--r);padding:22px 22px 0;transition:box-shadow .25s,transform .2s;overflow:hidden}
+.card:hover{box-shadow:var(--sh-card);transform:translateY(-2px)}
+.c-tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border-radius:var(--pill);padding:4px 11px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag.f{background:var(--blue-soft);color:var(--blue)}
+.tag.o{background:var(--green-soft);color:var(--green)}
+.tag.d{background:var(--sand);color:var(--body)}
+.tag.u{background:var(--orange-soft);color:var(--orange-ink)}
+.tag .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.card h4{font:700 20px/1.28 var(--serif);color:var(--ink);margin:2px 0 0;letter-spacing:-.01em;text-wrap:balance}
+.card h4 a{color:inherit;text-decoration:none}
+.card h4 a::after{content:"";position:absolute;inset:0;z-index:0}
+.card h4 a:hover{color:var(--blue)}
+.card .desc{font-size:15px;line-height:1.55;color:var(--body);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.q-l{position:relative;z-index:1;align-self:flex-start;display:inline-flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--blue);text-decoration:none;padding:2px 0}
+.q-l:hover{text-decoration:underline;text-underline-offset:4px}
+.q-l .i{width:16px;height:16px}
+.card.q1 .q-l{color:var(--orange-ink);background:var(--orange-soft);border:1px solid var(--orange-line);border-radius:var(--pill);padding:8px 14px}
+.card.q1 .q-l:hover{text-decoration:none;border-color:var(--orange)}
+.c-foot{margin:auto -22px 0;padding:14px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--blue);color:#fff}
+.amt{display:flex;align-items:center;gap:10px;min-width:0}
+.amt .ic{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;flex:none;background:rgba(255,255,255,.14);color:#fff}
+.amt .ic svg{width:17px;height:17px}
+.amt b{font-size:15.5px;font-weight:400;color:#fff;line-height:1.3}
+.amt b.none{font-weight:500;color:rgba(255,255,255,.72)}
+.st{flex:none;display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;border-radius:var(--pill);padding:5px 12px}
+.st .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.st.ok{background:var(--green);color:#fff}
+.st.ck{background:#D2600A;color:#fff}
+
+.more{margin-top:18px;display:flex;justify-content:center}
+.ko{margin-top:36px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:18px 22px;border:1.5px dashed var(--line);border-radius:var(--r);background:rgba(255,254,251,.6);font-size:15.5px}
+.ko .gi{background:var(--sand);color:var(--faint)}
+.ko b{color:var(--ink)}
+.ko button{margin-left:auto;background:none;border:0;color:var(--blue);font-weight:600;text-decoration:underline;text-underline-offset:4px}
+.empty{padding:22px;border:1.5px dashed var(--line);border-radius:var(--r);font-size:15.5px}
+
+.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translate(-50%,160%);background:var(--ink);color:#fff;border-radius:var(--pill);padding:12px 22px;font-size:15px;box-shadow:0 18px 40px -14px rgba(0,0,0,.45);transition:transform .4s cubic-bezier(.2,.7,.2,1);z-index:50;max-width:calc(100% - 32px)}
+.toast.show{transform:translate(-50%,0)}
+
+@keyframes rise{from{transform:translateY(12px);opacity:.3}to{transform:none;opacity:1}}
+.rise{animation:rise .7s cubic-bezier(.2,.7,.2,1) both}
+.d1{animation-delay:.08s}.d2{animation-delay:.16s}.d3{animation-delay:.24s}
+
+@media (max-width:1080px){
+  .ech-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .app nav{display:none}
+}
+@media (max-width:760px){
+  .proj{grid-template-columns:1fr;padding:24px 20px}
+  .proj-act{align-items:stretch}
+  .ech{padding:22px 18px}
+  .ech-grid,.grid{grid-template-columns:1fr}
+  .grp-sub{margin-left:0}
+  .summary{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:16px}
+  .sum:nth-child(3){border-left:0}
+  .ko button{margin-left:0}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-euro" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 6.5A6.5 6.5 0 0 0 7 12a6.5 6.5 0 0 0 10.5 5.5"/><path d="M4.5 10h9M4.5 14h9"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-q" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9.2 9.2a2.9 2.9 0 1 1 4 2.7c-.8.4-1.2 1-1.2 1.8v.5"/><path d="M12 17.6h.01"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></symbol>
+  <symbol id="i-church" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M10 4h4M7 21V11l5-5 5 5v10M3 21v-6l4-3M21 21v-6l-4-3M10 21v-4a2 2 0 0 1 4 0v4M2 21h20"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15h3l4 2h4a1.5 1.5 0 0 0 0-3h-3M6 15v5M14 17l5.3-2.4a1.6 1.6 0 0 1 1.5 2.8L14 21H6"/><circle cx="15" cy="7" r="3"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10.5a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z"/><path d="M14 3.5V8h4M9 12h6M9 16h6"/></symbol>
+  <symbol id="i-team" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="3"/><path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><circle cx="17" cy="8" r="2.5"/><path d="M16 13.2c2.4 0 4 1.3 4.6 3.8"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 5.5c3-1 5.5-.8 8.5 1 3-1.8 5.5-2 8.5-1v13c-3-1-5.5-.8-8.5 1-3-1.8-5.5-2-8.5-1z"/><path d="M12 6.5v13"/></symbol>
+</svg>
+
+<div class="demo"><div class="w"><b>Maquette</b> · page Aides du projet, données reprises de l'application (église de la Nativité)</div></div>
+
+<header class="app">
+  <div class="w app-in">
+    <a class="logo" href="#"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iRmxvd2VyIGxvZ28iIGZpbGw9Im5vbmUiPgogIDxwYXRoIGZpbGw9IiNGMTcxMDUiIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSIKICAgIE0gNTAwLjQxIDguMTQgTCA0NzkuNjYgOS43NiBMIDQ1OS43MiAxMy4wMiBMIDQ0Mi42MyAxNy4wOSBMIDQyMS4wNyAyNCBMIDQwMC4zMiAzMi45NSBMIDM4NS4yNyA0MC42OCBMIDM4Mi4wMiA0My4xMiBMIDM3NS4xIDQ2Ljc5IEwgMzU3LjIgNTguOTkgTCAzMzkuMyA3My42NCBMIDMyMC45OSA5MS45NCBMIDMwNC43MiAxMTEuODggTCAyOTQuNTUgMTI2LjkzIEwgMjgxLjk0IDE0OC45IEwgMjY5LjczIDE3Ni45NyBMIDI2NC40NCAxOTMuNjUgTCAyNTkuNTYgMjEzLjk5IEwgMjU3LjkzIDIyMy4zNSBMIDI1NS40OSAyNDMuNjkgTCAyNTUuNDkgMjQ5LjM5IEwgMjU0LjY4IDI1MC42MSBMIDIyNy40MiAyNTIuMjQgTCAyMDAuNTcgMjU2LjcxIEwgMTgwLjIzIDI2MiBMIDE2NS45OSAyNjYuODggTCAxNTMuMzggMjcyLjE3IEwgMTMwLjE5IDI4My41NiBMIDEwOS40NCAyOTYuNTggTCA4OS41IDMxMi4wNCBMIDY4Ljc1IDMzMS45OCBMIDU0LjExIDM0OS4wNiBMIDM5LjQ2IDM2OS44MSBMIDI0IDM5Ny44OCBMIDE0LjI0IDQyMS44OSBMIDcuMzIgNDQ0LjY3IEwgMi40NCA0NjkuNDkgTCAwIDQ5NC43MSBMIDAgNTE5LjUzIEwgMi44NSA1NDcuMTkgTCA3LjMyIDU2OS41NyBMIDE1LjA1IDU5NC4zOCBMIDI0LjQxIDYxNy4xNyBMIDM0LjE3IDYzNS40NyBMIDM5LjQ2IDY0NC40MiBMIDQzLjk0IDY1MC41MyBMIDQzLjk0IDY1MS4zNCBMIDYxLjQzIDY3NC4xMiBMIDc5LjMzIDY5Mi44NCBMIDk2LjAxIDcwNy40OCBMIDExNS4xMyA3MjEuMzIgTCAxMzYuNyA3MzMuOTMgTCAxNDMuMjEgNzM2Ljc4IEwgMTQ2LjA1IDczOC44MSBMIDE1OS4wNyA3NDQuNTEgTCAxODEuMDQgNzUyLjI0IEwgMjA2LjI2IDc1OC43NCBMIDIyNy40MiA3NjIgTCAyNDcuNzYgNzYzLjIyIEwgMjQ4Ljk4IDc4Ny4yMiBMIDI1Mi4yNCA4MDkuMTkgTCAyNTkuOTcgODM4LjQ4IEwgMjY3LjcgODU5LjY0IEwgMjgxLjk0IDg4OC4xMiBMIDI4Ny4yMiA4OTcuMDcgTCAzMDEuODcgOTE3LjgyIEwgMzEyLjQ1IDkzMC40MyBMIDMyOC43MiA5NDcuMTEgTCAzMzkuNzEgOTU2Ljg3IEwgMzQwLjkzIDk1Ny4yOCBMIDM1Mi43MiA5NjcuMDQgTCAzNzUuMSA5ODEuNjkgTCAzOTguMjkgOTkzLjQ5IEwgNDE3IDEwMDEuMjIgTCA0MzQuOTEgMTAwNi45MSBMIDQ1OC4wOSAxMDEyLjIgTCA0NzEuOTMgMTAxNC4yNCBMIDQ4NC4xMyAxMDE1LjQ2IEwgNTI0IDEwMTUuNDYgTCA1NTAuMDQgMTAxMi4yIEwgNTczLjIzIDEwMDYuOTEgTCA1OTEuMTMgMTAwMS4yMiBMIDYxMy41IDk5MS44NiBMIDYzMi4yMiA5ODIuMSBMIDY1NS40MSA5NjcuMDQgTCA2NzQuMTIgOTUxLjk5IEwgNjkyLjAyIDkzNC41IEwgNzA5LjExIDkxNC4xNSBMIDcyNC4xNiA4OTEuNzggTCA3MjkuNDUgODgyLjQyIEwgNzQxLjI1IDg1Ny42MSBMIDc0OS43OSA4MzMuNiBMIDc0OS43OSA4MzEuOTcgTCA3NTQuMjcgODE2LjUxIEwgNzU3LjUyIDc5Ni4xNyBMIDc1OC43NCA3OTEuNyBMIDc1OS41NiA3ODMuOTcgTCA3NTkuNTYgNzY5LjMyIEwgNzYwLjM3IDc2OC41MSBMIDc4OS42NiA3NjguNTEgTCA4MTEuNjMgNzY1LjY2IEwgODI0LjI0IDc2My4yMiBMIDg0MS43NCA3NTguNzQgTCA4NjQuNTIgNzUwLjYxIEwgODkwLjU2IDczOC40IEwgOTE0Ljk3IDcyMy4zNSBMIDkzNC45IDcwNy44OSBMIDk1Ni44NyA2ODYuNzQgTCA5NzEuOTMgNjY4LjgzIEwgOTg0LjU0IDY1MC45MyBMIDk4NC41NCA2NTAuMTIgTCA5OTMuNDkgNjM1LjQ3IEwgMTAwMi40NCA2MTcuNTcgTCAxMDA5Ljc2IDU5OS4yNyBMIDEwMTYuNjggNTc2LjA4IEwgMTAxOS41MiA1NjQuNjggTCAxMDIxLjk3IDU1MC40NSBMIDEwMjMuNTkgNTM2LjIxIEwgMTAyMy41OSA0ODkuNDIgTCAxMDE5LjkzIDQ2My4zOCBMIDEwMTQuMjQgNDQwLjYgTCAxMDA2LjkxIDQxOS4wNCBMIDk5Ni43NCAzOTYuNjYgTCA5ODQuNTQgMzc1LjEgTCA5NjkuODkgMzU0LjM1IEwgOTU0LjQzIDMzNi40NSBMIDkzNi4xMiAzMTguOTYgTCA5MTQuNTYgMzAyLjI4IEwgODk4LjcgMjkyLjExIEwgODg2LjkgMjg2IEwgODg0Ljg2IDI4NC4zOCBMIDg3Mi42NiAyNzguNjggTCA4NTYuMzggMjcyLjE3IEwgODMxLjk3IDI2NC40NCBMIDgxMC44MiAyNTkuOTcgTCA3ODcuMjIgMjU3LjEyIEwgNzY2Ljg4IDI1Ni4zMSBMIDc2Ni40NyAyNDAuMDMgTCA3NjQuMDMgMjIxLjMyIEwgNzU4Ljc0IDE5Ni45MSBMIDc1Ny4xMiAxOTMuMjUgTCA3NTEuODMgMTc1Ljc1IEwgNzQyLjA2IDE1Mi41NiBMIDcyNy44MyAxMjYuOTMgTCA3MTQuNCAxMDcuODEgTCA2OTYuOTEgODcuNDcgTCA2ODEuODUgNzIuODIgTCA2NjEuMSA1Ni4xNCBMIDYzOS4xNCA0MS45IEwgNjE5LjIgMzEuNzMgTCA1OTYuNDIgMjIuMzggTCA1NzguMTEgMTYuNjggTCA1NTEuMjYgMTAuOTggTCA1MzAuMSA4LjU0IFoKICAgIE0gNDkxLjg2IDg4LjY5IEwgNTMyLjE0IDg4LjY5IEwgNTQ3LjYgOTEuMTMgTCA1NTcuNzcgOTMuNTcgTCA1NjEuNDMgOTUuMiBMIDU3Mi44MiA5OC40NSBMIDU5MS41NCAxMDYuNTkgTCA2MDcgMTE1LjU0IEwgNjE5LjIgMTI0LjA4IEwgNjM3LjEgMTM5Ljk1IEwgNjU1IDE2MS4xMSBMIDY2Ni4zOSAxNzkuNDEgTCA2NzIuNSAxOTEuNjIgTCA2NzcuMzggMjAzLjgyIEwgNjgxLjA0IDIxNS4yMSBMIDY4NC43IDIzMC42NyBMIDY4Ni43NCAyNDQuOTEgTCA2ODYuNzQgMjgxLjk0IEwgNjg1LjExIDI5My43MyBMIDY4Mi4yNiAzMDcuMTYgTCA2NzYuOTcgMzI0LjI1IEwgNjczLjcyIDMzMi4zOCBMIDY2MS45MiAzNTUuMTcgTCA2NTUgMzY1Ljc0IEwgNjQ0LjgzIDM3OC4zNiBMIDY1Mi45NyAzNzEuODUgTCA2NjguNDMgMzYxLjI3IEwgNjg2Ljc0IDM1MS41IEwgNjk5Ljc1IDM0Ni4yMiBMIDcxMS4xNSAzNDIuNTUgTCA3MzggMzM2Ljg2IEwgNzU1LjA4IDMzNS42NCBMIDc2NC44NSAzMzUuNjQgTCA3ODEuOTMgMzM2Ljg2IEwgNzg1LjYgMzM4LjA4IEwgNzkzLjMzIDMzOC44OSBMIDgwNC4zMSAzNDEuMzMgTCA4MjIuMjEgMzQ3LjAzIEwgODM4Ljg5IDM1NC4zNSBMIDg0MC45MiAzNTUuOTggTCA4NTEuOTEgMzYxLjY4IEwgODY0LjExIDM2OS44MSBMIDg4MS42MSAzODQuNDYgTCA4OTkuNTEgNDA0LjM5IEwgOTA2LjgzIDQxNC45NyBMIDkxNS4zOCA0MjkuMjEgTCA5MTkuNDQgNDM3LjM1IEwgOTI1LjE0IDQ1MS4xOCBMIDkzMi40NiA0NzYuODEgTCA5MzQuOSA0OTMuMDggTCA5MzQuOSA1MzAuMSBMIDkzMi44NyA1NDMuOTQgTCA5MjkuNjEgNTU3LjM2IEwgOTI1LjE0IDU3MS42IEwgOTIwLjI2IDU4My44MSBMIDkxNC45NyA1OTQuMzggTCA5MDcuMjQgNjA3LjQgTCA4OTkuOTIgNjE3Ljk4IEwgODkwLjU2IDYyOC45NiBMIDg4MC4zOSA2MzkuNTQgTCA4NjMuMyA2NTMuNzggTCA4NTEuNSA2NjEuNTEgTCA4NDAuNTIgNjY3LjIxIEwgODM4LjQ4IDY2OC44MyBMIDgyMS44IDY3Ni4xNiBMIDgwMy41IDY4MS44NSBMIDc5OS44MyA2ODIuMjYgTCA3OTQuNTUgNjgzLjg5IEwgNzg0LjM4IDY4NS4xMSBMIDc3OS45IDY4Ni4zMyBMIDc0MC4wMyA2ODYuMzMgTCA3MjUuMzggNjgzLjg5IEwgNzExLjk2IDY4MC42MyBMIDcwMS4zOCA2NzcuMzggTCA2ODcuMTQgNjcxLjY4IEwgNjY4LjgzIDY2MS45MiBMIDY1My4zNyA2NTEuMzQgTCA2NDAuMzYgNjQwLjM2IEwgNjU0LjE5IDY1Ny40NCBMIDY1OS40OCA2NjUuMTcgTCA2NjUuMTcgNjc0Ljk0IEwgNjcyLjA5IDY4OC43NyBMIDY3OS40MSA3MDguMyBMIDY4NC4yOSA3MjkuMDUgTCA2ODYuNzQgNzUwLjIgTCA2ODYuMzMgNzc0LjIgTCA2ODQuNyA3ODguMDQgTCA2ODIuNjcgNzk4LjYxIEwgNjc5LjQxIDgxMS4yMyBMIDY3Mi4wOSA4MzAuNzUgTCA2NjUuMTcgODQ0LjU5IEwgNjU0LjYgODYxLjY3IEwgNjM5LjU0IDg3OS45OCBMIDYyMi4wNSA4OTYuMjUgTCA2MTEuMDYgOTA0LjM5IEwgNTk4Ljg2IDkxMi4xMiBMIDU4OS4wOSA5MTcuNDEgTCA1NzguMTEgOTIyLjI5IEwgNTU2Ljk2IDkyOS42MSBMIDU0Ni43OCA5MzIuMDYgTCA1MzEuMzIgOTM0LjUgTCA0OTEuMDUgOTM0LjUgTCA0NzcuNjIgOTMyLjQ2IEwgNDY1LjQyIDkyOS42MSBMIDQ2MS43NiA5MjcuOTkgTCA0NTEuNTkgOTI1LjE0IEwgNDMyLjQ2IDkxNyBMIDQyNC43MyA5MTIuOTMgTCA0MDcuMjQgOTAxLjU0IEwgMzk5LjkyIDg5NS44NSBMIDM4Ny4zMSA4ODQuNDYgTCAzNzEuODUgODY2Ljk2IEwgMzU2Ljc5IDg0NC4xOCBMIDM0OS4wNiA4MjcuOTEgTCAzNDUuODEgODE5LjM2IEwgMzM4Ljg5IDc5NS4zNiBMIDMzNi40NSA3NzkuNDkgTCAzMzYuODYgNzM1LjU2IEwgMzM5LjMgNzIyLjEzIEwgMzQwLjkzIDcxNy42NSBMIDM0Mi4xNSA3MTEuNTUgTCAzNDYuNjIgNjk3LjcyIEwgMzUxLjkxIDY4NS4xMSBMIDM1Ni43OSA2NzUuMzQgTCAzNTguODMgNjcyLjkgTCAzNjQuNTIgNjYyLjczIEwgMzc4LjM2IDY0NC40MiBMIDM2My4zIDY1Ni4yMiBMIDM0MC41MiA2NjkuNjUgTCAzMjUuNDcgNjc2LjE2IEwgMzA3LjU3IDY4MS44NSBMIDMwNS41MyA2ODEuODUgTCAyOTEuNyA2ODUuMTEgTCAyNzUuODMgNjg3LjE0IEwgMjQ1LjMyIDY4Ni43NCBMIDIxOC44OCA2ODEuODUgTCAyMDAuOTggNjc2LjE2IEwgMTgzLjQ4IDY2OC40MyBMIDE3MC4wNiA2NjAuNyBMIDE1OS4wNyA2NTMuMzcgTCAxNDguOSA2NDUuMjQgTCAxMzkuMTQgNjM2LjI5IEwgMTI0LjA4IDYxOS4yIEwgMTExLjA3IDYwMC4wOCBMIDEwMi4xMiA1ODIuMTggTCA5Ni40MiA1NjcuNTMgTCA5Mi4zNSA1NTMuNyBMIDg5LjkxIDU0MS45IEwgODguMjggNTI5LjcgTCA4OC4yOCA0OTMuNDkgTCA5MS4xMyA0NzQuNzcgTCA5NS42MSA0NTguMDkgTCA5OC44NiA0NTAuMzYgTCA5OC44NiA0NDkuMTQgTCAxMDYuNTkgNDMxLjY1IEwgMTExLjg4IDQyMS44OSBMIDEyNi4xMiA0MDEuNTQgTCAxNDQuNDMgMzgyLjAyIEwgMTYwLjI5IDM2OSBMIDE3Ny43OSAzNTguMDEgTCAxOTYuMDkgMzQ5LjA2IEwgMjEyLjM3IDM0My4zNyBMIDIzNS41NiAzMzguMDggTCAyMzguODEgMzM4LjA4IEwgMjQzLjI5IDMzNi44NiBMIDI4My4xNiAzMzYuODYgTCAyODcuMjIgMzM4LjA4IEwgMjkwLjg5IDMzOC4wOCBMIDMxMS4yMyAzNDIuNTUgTCAzMjUuMDYgMzQ3LjAzIEwgMzQyLjU1IDM1NC43NiBMIDM1OC44MyAzNjQuMTIgTCAzNjYuNTYgMzY5LjQgTCAzODIuODMgMzgyLjgzIEwgMzc0LjY5IDM3My40NyBMIDM2OSAzNjUuNzQgTCAzNTcuMiAzNDcuMDMgTCAzNTIuMzIgMzM3LjI2IEwgMzQ2LjYyIDMyMy40MyBMIDMzOS4zIDI5Ny40IEwgMzM2Ljg2IDI4MS41MyBMIDMzNi40NSAyNzUuMDIgTCAzMzYuODYgMjQ1LjMyIEwgMzM4Ljg5IDIzMS40OSBMIDM0MS4zMyAyMjIuOTQgTCAzNDEuMzMgMjIwLjkxIEwgMzQ5LjA2IDE5Ni45MSBMIDM1Ni43OSAxODAuMjMgTCAzNTguODMgMTc3Ljc5IEwgMzY0LjUyIDE2Ny42MiBMIDM3Mi4yNSAxNTYuNjMgTCAzODMuMjQgMTQzLjYxIEwgMzkxLjM3IDEzNS40OCBMIDQwNS4yMSAxMjMuNjggTCA0MjQuNzMgMTEwLjY2IEwgNDQzLjg2IDEwMS4zIEwgNDY2LjIzIDkzLjU3IEwgNDc4LjQ0IDkwLjcyIFoKICAiLz4KPC9zdmc+Cg==" alt=""><span>Monumia</span></a>
+    <nav aria-label="Navigation principale">
+      <a href="#"><svg class="i"><use href="#i-grid"/></svg>Tableau de bord</a>
+      <a href="#" class="on"><svg class="i"><use href="#i-church"/></svg>Mes monuments</a>
+      <a href="#" title="Vos pièces, réutilisables dans tous vos dossiers"><svg class="i"><use href="#i-doc"/></svg>Mes documents</a>
+      <a href="#"><svg class="i"><use href="#i-book"/></svg>Blog</a>
+    </nav>
+    <div class="me"><span class="av">PV</span>Paul</div>
+  </div>
+</header>
+
+<main class="w">
+  <a class="back rise" href="#" aria-label="Retour à l'église de la Nativité" title="Retour à l'église de la Nativité" data-toast="Retour à l'église de la Nativité"><svg><use href="#i-arrow"/></svg></a>
+
+  <!-- 1. En-tête du projet -->
+  <section class="proj rise d1" aria-labelledby="pt">
+    <div>
+      <a class="lieu" href="#">Église de la Nativité</a>
+      <h1 id="pt">Travaux de restauration <button class="edit" type="button" aria-label="Renommer le projet" data-toast="Renommer le projet"><svg class="i"><use href="#i-pen"/></svg></button></h1>
+    </div>
+    <div class="proj-act">
+      <button class="btn b-blue" type="button" data-toast="Ouverture de Mes documents"><svg class="i"><use href="#i-folder"/></svg>Mes documents</button>
+      <small>Vos pièces, réutilisables d'un dossier à l'autre</small>
+      <button class="btn b-line" type="button" data-toast="Retour au questionnaire, vos réponses sont conservées"><svg class="i"><use href="#i-redo"/></svg>Modifier mes réponses</button>
+      <small>Vos réponses actuelles sont conservées</small>
+    </div>
+  </section>
+
+  <!-- 2. Onglets -->
+  <nav class="tabs rise d2" aria-label="Rubriques du projet">
+    <a href="#" class="on"><svg class="i"><use href="#i-hand"/></svg>Aides <em>49</em></a>
+    <a href="#" data-toast="Dossiers du projet"><svg class="i"><use href="#i-folder"/></svg>Dossiers <em>1</em></a>
+    <a href="#" data-toast="Documents du projet" title="Déposez une pièce une fois, elle sert à tous vos dossiers"><svg class="i"><use href="#i-doc"/></svg>Documents <em class="zero">0</em></a>
+    <a href="#" data-toast="Équipe du projet"><svg class="i"><use href="#i-team"/></svg>Équipe <em>1</em></a>
+  </nav>
+
+  <!-- Mes documents : visible dès l'arrivée -->
+  <section class="docs-cta rise d2" aria-labelledby="dcT">
+    <span class="dc-ic" aria-hidden="true"><svg><use href="#i-folder"/></svg></span>
+    <div>
+      <h2 id="dcT">Gardez les documents de votre monument au même endroit</h2>
+      <p>Déposez ici vos devis, arrêtés, délibérations et photos. Monumia les range par type, et vous pouvez les réutiliser dans chacun de vos dossiers d'aide.</p>
+    </div>
+    <button class="btn b-blue dc-btn" type="button" data-toast="Ouverture de Mes documents"><svg class="i"><use href="#i-folder"/></svg>Ouvrir mes documents</button>
+  </section>
+
+  <!-- 3. Échéancier -->
+  <section class="ech rise d3" id="ech" aria-labelledby="et">
+    <div class="ech-h">
+      <div><span class="eyebrow">Échéancier</span><h2 id="et">4 dates à ne pas manquer</h2></div>
+      <p>Les dates limites de dépôt de vos aides, de la plus proche à la plus lointaine.</p>
+    </div>
+    <div class="ech-grid" id="echGrid"></div>
+  </section>
+
+  <!-- 4. Aides -->
+  <section class="sec" aria-labelledby="at">
+    <div class="sec-h">
+      <h2 id="at">Toutes vos aides</h2>
+      <p>49 aides repérées pour ce projet</p>
+    </div>
+    <div class="fin" role="group" aria-label="Filtrer par financeur" id="fin"></div>
+    <div class="act">
+      <button class="act-t" type="button" id="actT" aria-expanded="false" aria-controls="chips">Filtrer par activité <small id="actN">(11 thèmes)</small><svg class="i"><use href="#i-chev"/></svg></button>
+      <div class="chips" id="chips" hidden></div>
+    </div>
+    <div id="groups"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+const ECH=[
+ {d:"31 oct.",y:"31 octobre 2026",j:36,a:"Jusqu'à 10 000 €",t:"Appel à projets de la fondation France Bois Forêt pour notre patrimoine"},
+ {d:"9 nov.",y:"9 novembre 2026",j:45,t:"Soutien à l'investissement dédié aux tiers lieux culturels en ruralité"},
+ {d:"15 mars",y:"15 mars 2027",j:171,t:"Prix Charpente remarquable de la Fondation Mérimée"},
+ {d:"15 mars",y:"15 mars 2027",j:171,t:"Chantiers bénévoles de restauration du patrimoine"}
+];
+const FIN=[["all","Toutes les aides",49],["prix","Prix et mécènes",16],["region","Région",23],["dep","Département",1],["etat","État (DRAC)",3],["europe","Europe",1],["autres","Autres",5]];
+const ACT=[["Énergie et climat",8],["Activité économique dans le lieu",7],["Médiation, expositions, musée, numérique",6],["Restauration du bâti",6],["Hébergement touristique",5],["Site de visite et tourisme",4],["Eau, nature et domaine",3],["Vie locale et associative",3],["Études et ingénierie",1],["Sécurité et risques",1],["Spectacles et manifestations",1]];
+
+/* aides visibles dans l'application ; o = ouvert toute l'année, d = dates à confirmer, u = date limite */
+const OK=[
+ {c:"autres",f:"État · DGFiP",dt:["o","Ouvert toute l'année"],t:"Remboursement forfaitaire de la TVA des collectivités",x:"Le fonds de compensation pour la taxe sur la valeur ajoutée (FCTVA) rembourse aux collectivités une part forfaitaire de la TVA payé…",a:"16,404 % du montant TTC"},
+ {c:"region",f:"Région Grand Est · Agences de l'eau, DREAL, OFB",dt:["d","Dates à confirmer"],t:"Appel à projets Trame verte et bleue en Grand Est",x:"Un appel à projets commun à la Région Grand Est, aux Agences de l'eau, à la DREAL et à l'OFB pour préserver et reconquérir les continuités…",a:"80 % des études et travaux"},
+ {c:"prix",f:"La Sauvegarde de l'Art Français",dt:["d","Dates à confirmer"],t:"Aide au gros œuvre des églises et chapelles d'avant 1800",x:"Une aide de la fondation La Sauvegarde de l'Art Français pour la charpente, la couverture et la maçonnerie des églises et chapelles, surtout…",a:"5 000 € en moyenne"},
+ {c:"prix",f:"Fondation du patrimoine",dt:["o","Ouvert toute l'année"],t:"Collecte de dons avec la Fondation du patrimoine",x:"La Fondation du patrimoine ouvre une collecte de dons défiscalisés pour financer la restauration de votre édifice, et vous reverse l…",a:"Selon les dons collectés"}
+];
+const CK=[
+ {c:"autres",q:1,f:"État · préfecture de département",dt:["d","Dates à confirmer"],t:"DETR pour le patrimoine des communes rurales",x:"La dotation d'équipement des territoires ruraux (DETR) finance les investissements des communes rurales et de leurs groupements,…",a:"20 % à 80 % du montant HT"},
+ {c:"prix",q:1,f:"Fondation du patrimoine",dt:["o","Ouvert toute l'année"],t:"Programme Patrimoine emploi pour les chantiers d'insertion",x:"Une dotation de la Fondation du patrimoine pour un projet de restauration ou de valorisation du patrimoine mené en tout ou partie par un…",a:null},
+ {c:"prix",q:1,f:"Fondation du patrimoine · Airbnb",dt:["o","Ouvert toute l'année"],t:"Aide Patrimoine et Tourisme local de la Fondation",x:"Un soutien de la Fondation du patrimoine, financé par un don d'Airbnb, pour restaurer, préserver ou sauver un édifice d'intérêt…",a:null},
+ {c:"prix",q:1,f:"Fondation du patrimoine · Fondation Edmond J. Safra",dt:["o","Ouvert toute l'année"],t:"Aide de la Fondation du patrimoine au patrimoine juif",x:"Un appel à projets annuel de la Fondation du patrimoine, soutenu par la Fondation Edmond J. Safra, pour restaurer et sauvegarder des biens…",a:null},
+ {c:"prix",q:1,f:"Fondation du patrimoine",dt:["o","Ouvert toute l'année"],t:"Dotation de la Fondation du patrimoine pour l'art roman",x:"Une dotation de la Fondation du patrimoine pour restaurer ou préserver un édifice ou des éléments d'architecture romane. Les projets…",a:"De 14 400 € à 78 800 €"},
+ {c:"etat",q:2,f:"DRAC · ministère de la Culture",dt:["o","Ouvert toute l'année"],t:"Subvention DRAC pour un immeuble inscrit",x:"Une subvention de l'État pour les travaux qui conservent les parties inscrites monument historique d'un immeuble. La DRAC de votre…",a:"20 % en moyenne"},
+ {c:"prix",q:2,f:"Fondation du patrimoine",dt:["o","Ouvert toute l'année"],t:"Trophées Impact de la Fondation du patrimoine",x:"Une aide de la Fondation du patrimoine pour des restaurations exemplaires par leur effet sur le territoire : économie, social…",a:"Aucun barème publié"},
+ {c:"prix",q:3,f:"Fondation France Bois Forêt · Fondation de France",dt:["u","Jusqu'au 31 octobre 2026"],t:"Dotation France Bois Forêt pour une restauration en bois",x:"Une dotation de 10 000 € au plus pour restaurer un bâtiment ouvert au public avec une part très significative de bois de forêts françaises gérée…",a:"Jusqu'à 10 000 €"},
+ {c:"dep",q:3,f:"Département de l'Aube",dt:["o","Ouvert toute l'année"],t:"Aide de l'Aube aux bâtiments et équipements communaux",x:"Le Département de l'Aube aide les communes et les groupements de communes à construire, agrandir, restaurer ou réparer leurs…",a:"10 % à 25 % pour une commune"},
+ {c:"prix",q:3,f:"Fondation Mérimée · French Heritage Society",dt:["d","Dates à confirmer"],t:"Prix French Heritage Society pour une restauration",x:"Un prix en dollars, financé par l'association franco-américaine French Heritage Society, pour un programme de restauration à venir sur…",a:"10 000 $ à 30 000 $"},
+ {c:"region",q:3,f:"Région Grand Est",dt:["o","Ouvert toute l'année"],t:"Contrats Natura 2000 financés par la Région Grand Est",x:"Une aide de la Région pour les actions non productives d'un contrat Natura 2000 qui préservent les espèces et les habitats naturels…",a:"Jusqu'à 100 % du coût"},
+ {c:"region",q:3,f:"Région Grand Est",dt:["o","Ouvert toute l'année"],t:"Aide régionale à la prévention des inondations en Grand Est",x:"Une subvention d'investissement de la Région Grand Est pour les études et travaux qui préviennent les inondations : écoulements,…",a:"10 % à 30 % selon l'axe"}
+];
+const TOTAL_CK=35;
+
+const S={fin:"all",act:new Set()};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pl=(n,a,b)=>n+" "+(n>1?(b||a+"s"):a);
+
+function renderEch(){
+  $("#echGrid").innerHTML=ECH.map((e,i)=>{const urg=e.j<=45;const pct=Math.max(6,100-e.j/180*100);
+    return `<button type="button" class="dl${i===0?" urgent":""}" data-toast="Ouverture de la fiche : ${esc(e.t)}">
+      <div class="dl-top"><span class="dl-date">${e.d}<small>${e.a||"Montant non publié"}</small></span><span class="jx ${urg?"urg":"calm"}">J-${e.j}</span></div>
+      <div class="bar${urg?"":" calm"}" aria-hidden="true"><i style="width:${pct}%"></i></div>
+      <p>${esc(e.t)}</p>
+      <span class="dl-f">Voir l'aide <svg class="i"><use href="#i-arrow"/></svg></span></button>`}).join("");
+}
+function renderFilters(){
+  $("#fin").innerHTML=FIN.map(([k,l,n])=>`<button type="button" data-fin="${k}" aria-pressed="${S.fin===k}">${l}<em>${n}</em></button>`).join("");
+  $("#chips").innerHTML=ACT.map(([l,n])=>`<button type="button" data-act="${esc(l)}" aria-pressed="${S.act.has(l)}">${esc(l)}<span>${n}</span></button>`).join("");
+  $("#actN").textContent=S.act.size?`(${pl(S.act.size,"thème choisi","thèmes choisis")})`:"(11 thèmes)";
+}
+function card(a,ok){
+  const tagC={o:"o",d:"d",u:"u"}[a.dt[0]];
+  const ql=ok?"":`<a class="q-l" href="#" data-toast="Ouverture de la fiche, à la question">${a.q===1?"1 question pour trancher":a.q+" questions pour trancher"}<svg class="i"><use href="#i-arrow"/></svg></a>`;
+  return `<article class="card${ok?" ok":""}${!ok&&a.q===1?" q1":""}">
+    <div class="c-tags"><span class="tag f" title="${esc(a.f)}">${esc(a.f)}</span><span class="tag ${tagC}"><i class="dot"></i>${esc(a.dt[1])}</span></div>
+    <h4><a href="#" data-toast="Ouverture de la fiche : ${esc(a.t)}">${esc(a.t)}</a></h4>
+    <p class="desc">${esc(a.x)}</p>
+    ${ql}
+    <div class="c-foot"><span class="amt"><span class="ic"><svg><use href="#i-euro"/></svg></span><b class="${a.a?"":"none"}">${esc(a.a||"Montant non publié")}</b></span>
+    <span class="st ${ok?"ok":"ck"}"><i class="dot"></i>${ok?"Éligible":"À confirmer"}</span></div></article>`;
+}
+function renderList(){
+  const f=a=>S.fin==="all"||a.c===S.fin;
+  const ok=OK.filter(f), ck=CK.filter(f).sort((a,b)=>a.q-b.q);
+  const totalFin=(FIN.find(x=>x[0]===S.fin)||[])[2];
+  const one=ck.filter(a=>a.q===1).length;
+  let h=!ok.length?"":`<div class="grp" id="g-ok"><div class="grp-h"><span class="gi" style="background:var(--green);color:#fff"><svg><use href="#i-check"/></svg></span><h3>Disponibles maintenant</h3></div>
+    <p class="grp-sub">Votre projet remplit les conditions publiées par le financeur. Vous pouvez monter le dossier.</p>
+    <div class="grid">${ok.map(a=>card(a,true)).join("")}</div></div>`;
+  h+=`<div class="grp" id="g-ck"><div class="grp-h"><span class="gi" style="background:var(--orange);color:#fff"><svg><use href="#i-q"/></svg></span><h3>À confirmer</h3></div>
+    <p class="grp-sub">Il nous manque une ou plusieurs réponses pour savoir si votre projet est éligible. Elles se posent dans la fiche de chaque aide.</p>
+    ${ck.length?`<div class="grid">${ck.map(a=>card(a,false)).join("")}</div>`:`<p class="empty">Aucune aide à confirmer pour ce financeur dans cet aperçu.</p>`}
+    ${S.fin==="all"?`<div class="more"><button class="btn b-line" type="button" data-toast="Affiche les 23 autres aides à confirmer">Voir les 23 autres aides à confirmer</button></div>`:""}</div>`;
+  if(S.fin==="all") h+=`<div class="ko"><span class="gi"><svg><use href="#i-x"/></svg></span><span><b>Aides écartées</b> pour ce projet, avec la raison pour chacune.</span><button type="button" data-toast="Liste des aides écartées et de leur motif">Voir pourquoi</button></div>`;
+  $("#groups").innerHTML=h;
+}
+function render(){renderFilters();renderList()}
+
+let tt;
+function toast(t){const el=$("#toast");el.textContent=t+" (maquette)";el.classList.add("show");clearTimeout(tt);tt=setTimeout(()=>el.classList.remove("show"),3000)}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button,a");if(!b)return;
+  if(b.dataset.fin){S.fin=b.dataset.fin;render();return}
+  if(b.dataset.act){const k=b.dataset.act;S.act.has(k)?S.act.delete(k):S.act.add(k);renderFilters();toast("Filtre par activité");return}
+  if(b.id==="actT"){const o=$("#chips").hidden;$("#chips").hidden=!o;b.setAttribute("aria-expanded",o);return}
+  if(b.dataset.toast){e.preventDefault();toast(b.dataset.toast);return}
+  if(b.tagName==="A"&&b.getAttribute("href")==="#")e.preventDefault();
+});
+renderEch();render();
+})();
+</script>

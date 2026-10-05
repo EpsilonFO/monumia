@@ -36,6 +36,7 @@ import { projetTitre } from '@/lib/projet-titre';
 import { ACCEPT_ATTR } from '@/constants/file-types';
 import { ROUTES } from '@/constants/routes';
 import type { Document, DocumentType, ProjectRole } from '@/types';
+import { CommentFonctionne } from '@/components/document/CommentFonctionne';
 import '@/components/document/documents.css';
 
 /** Les deux entrées du sélecteur de lieu qui ne sont pas un monument. */
@@ -429,6 +430,7 @@ export function DocumentsPage() {
             vue={vue}
             onVue={setVue}
           />
+          <CommentFonctionne />
 
           <div className="crumbs">
             {fil.map((f, i) => (

@@ -1,61 +1,136 @@
 /*
- * Page d'un dossier de candidature. Elle porte `.ec .pproj .pdos` : l'en-tête
- * (`.phead`), les pastilles et les pictos ronds sont ceux de la page projet
- * (projet.css), les pièces sont les emplacements de l'espace documents
- * (`.desp .req .slot`, documents.css). Ne vit ici que ce que le dossier ajoute.
+ * Page d'un dossier de candidature : maquette `monumia-dossier.html` (yaml
+ * paul), géométrie reprise telle quelle, couleurs par les tokens `--e-*`
+ * (ecrans.css). Tout est rangé sous `.pdos`, la racine de la page, sauf la
+ * fenêtre « Choisir dans mes documents », rendue en portail (`.ec .dmodal.pdos-choix`).
+ *
+ * Écarts à la maquette : ni « Qui dépose ce dossier ? », ni barre d'étapes, ni
+ * numéros devant les sections.
  */
 
-.pdos .pdos-lieu { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; font: 400 20px/1.2 var(--e-serif); color: var(--e-faint); }
-.pdos .phead .pdos-lieu .lieu { font-size: 20px; }
-.pdos .pdos-sous { margin-top: 8px; font-size: 15px; color: var(--e-faint); }
+/* en-tête du dossier */
+.pdos .head { margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: end; }
+.pdos .head .lieu { font: 400 24px/1.2 var(--e-serif); color: var(--e-blue); text-decoration: none; }
+.pdos .head .lieu:hover { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+.pdos .head h1 { font-size: clamp(32px, 4vw, 46px); margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.pdos .head .clos { font: 600 14px/1 var(--e-sans); letter-spacing: 0; border-radius: var(--e-pill); padding: 7px 13.5px; background: var(--e-green-soft); color: var(--e-green); }
+.pdos .head .proj { font-size: 16.5px; margin-top: 8px; }
+.pdos .head .proj a { color: var(--e-blue); font-weight: 600; text-decoration: none; }
+.pdos .head .proj a:hover { text-decoration: underline; }
+.pdos .keys { display: flex; gap: 10px; flex-wrap: wrap; }
+.pdos .key { background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: 16px; padding: 14px 18px; min-width: 170px; }
+.pdos .key small { display: block; font-size: 12.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--e-faint); }
+.pdos .key b { display: block; font: 700 22px/1.2 var(--e-serif); color: var(--e-ink); margin-top: 4px; }
+.pdos .key span { font-size: 14px; font-weight: 600; color: var(--e-orange-ink); }
+.pdos .key span.passe { color: var(--e-red); }
 
 /* pièces reprises d'un autre dossier, à vérifier */
-.pdos .pdos-rep { margin-top: 26px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 18px 22px; border: 1.5px solid var(--e-blue-line); border-radius: var(--e-r); background: var(--e-blue-soft); }
-.pdos .pdos-rep .gi { background: var(--e-blue); }
+.pdos .pdos-rep { margin-top: 22px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 18px 22px; border: 1.5px solid var(--e-blue-line); border-radius: var(--e-r); background: var(--e-blue-soft); }
+.pdos .pdos-rep .gi { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; color: #fff; background: var(--e-blue); }
+.pdos .pdos-rep .gi .i { width: 16px; height: 16px; }
 .pdos .pdos-rep > div { flex: 1; min-width: 239px; }
 .pdos .pdos-rep b { display: block; color: var(--e-ink); font-weight: 600; font-size: 16px; }
 .pdos .pdos-rep p { font-size: 15px; margin-top: 2px; }
 
-/* les pièces */
-.pdos .pdos-pieces { margin-top: 30px; }
-.pdos .pdos-pieces .bar { margin-top: 0; }
-.pdos .desp .slot.rep { border-style: solid; border-color: var(--e-blue-line); background: var(--e-blue-soft); }
-.pdos .desp .slot.rep small { color: var(--e-blue); font-weight: 600; }
-.pdos .desp .slot.rep.vieux { border-color: var(--e-orange-line); background: var(--e-orange-soft); }
-.pdos .desp .slot.rep.vieux small { color: var(--e-orange-ink); }
-.pdos .pdos-acts { margin-top: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
-.pdos .pdos-acts .lnk { font-size: 14.5px; }
-.pdos .pdos-acts .lnk:disabled { opacity: .55; }
-.pdos .pdos-acts .lnk.del { color: var(--e-red); text-decoration-color: color-mix(in srgb, var(--destructive) 30%, transparent); }
+/* sections */
+.pdos .step { margin-top: 22px; background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: var(--e-r); padding: 24px 26px; }
+.pdos .step-h { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 18px; }
+.pdos .step-h > div { flex: 1; min-width: 260px; }
+.pdos .step-h h2 { font-size: 26px; }
+.pdos .step-h p { font-size: 15.5px; margin-top: 6px; max-width: 72ch; }
+.pdos .step.final { display: flex; align-items: center; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; }
+.pdos .step.final .step-h { margin-bottom: 0; flex: 1; }
+.pdos .step.final .acts { display: flex; gap: 10px; flex-wrap: wrap; }
+.pdos .step.final .depot { font-size: 14.5px; color: var(--e-faint); margin-top: 8px; }
+.pdos .step.final .depot .rm { padding: 0; }
 
-/* rappel : le dépôt se fait hors de Monumia */
-.pdos .pdos-manuel { margin-top: 30px; display: flex; align-items: flex-start; gap: 14px; padding: 16px 20px; border: 1.5px dashed var(--e-orange-line); border-radius: var(--e-r); font-size: 15px; }
-.pdos .pdos-manuel .gi { background: var(--e-orange); }
-.pdos .pdos-manuel b { color: var(--e-ink); font-weight: 600; }
+/* boutons de la maquette (ecrans.css a les siens, un cran plus grands) */
+.pdos .step .btn { font-size: 15px; padding: 11px 18px; min-height: 44px; gap: 8px; }
+.pdos .step .btn .i { width: 17px; height: 17px; }
+.pdos .step .b-lg { min-height: 54px; padding: 14px 26px; font-size: 16px; }
+.pdos .step .b-line:disabled { opacity: .55; border-color: var(--e-blue-line); }
 
-/* l'aide, résumée en une carte qui mène à sa fiche */
-.pdos .pdos-aide { display: flex; flex-direction: column; gap: 11.5px; max-width: 760px; background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: var(--e-r); padding: 22px 22px 0; overflow: hidden; text-decoration: none; color: inherit; transition: box-shadow .25s, transform .2s; }
-.pdos .pdos-aide:hover { box-shadow: var(--e-sh-card); transform: translateY(-2px); }
-.pdos .pdos-aide h3 { font: 700 21px/1.28 var(--e-serif); color: var(--e-ink); letter-spacing: -.01em; }
-.pdos .pdos-aide:hover h3 { color: var(--e-blue); }
-.pdos .pdos-aide .desc { font-size: 15px; line-height: 1.55; color: var(--e-body); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.pdos .pdos-aide-f { margin: 6px -22px 0; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; gap: 11.5px; flex-wrap: wrap; background: var(--e-blue); color: #fff; }
-.pdos .pdos-aide-f b { font-size: 15.5px; font-weight: 400; color: #fff; }
-.pdos .pdos-aide-f .q-l { color: #fff; margin-left: auto; }
-.pdos .pdos-aide:hover .q-l { text-decoration: underline; text-underline-offset: 4px; }
+/* pièces en grille compacte */
+.pdos .pcount { font: 600 15px/1 var(--e-sans); color: var(--e-orange-ink); background: var(--e-orange-soft); border-radius: var(--e-pill); padding: 4px 10px; vertical-align: middle; margin-left: 8px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.pdos .pgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.pdos .tile { position: relative; display: flex; flex-direction: column; gap: 10px; background: var(--e-cream); border: 1.5px solid var(--e-blue-line); border-radius: 16px; padding: 14px; min-height: 150px; }
+.pdos .tile .t-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pdos .tile .st { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--e-blue-line); display: grid; place-items: center; background: var(--e-paper); flex: none; }
+.pdos .tile .st .i { width: 14px; height: 14px; color: #fff; opacity: 0; }
+.pdos .tile > b { font-weight: 600; color: var(--e-ink); font-size: 15px; line-height: 1.35; flex: 1; }
+.pdos .tile .how { font-size: 14px; line-height: 1.45; color: var(--e-body); margin-top: -4px; }
+.pdos .tile .tag { font-size: 13px; font-weight: 600; border-radius: var(--e-pill); padding: 3px 11px; }
+.pdos .tile .tag.o { background: var(--e-orange); color: #fff; }
+.pdos .tile .tag.b { background: var(--e-blue-soft); color: var(--e-blue); }
+.pdos .tile .add { align-self: flex-start; min-height: 40px; padding: 9px 16px; }
+.pdos .tile .t-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.pdos .tile .manque { font-size: 14px; color: var(--e-faint); }
+.pdos .tile.done { background: var(--e-green-soft); border-color: var(--e-green); }
+.pdos .tile.done .st { background: var(--e-green); border-color: var(--e-green); }
+.pdos .tile.done .st .i { opacity: 1; }
+/* reprise d'un autre dossier : en bleu, en orange si le document est ancien */
+.pdos .tile.rep { background: var(--e-blue-soft); border-color: var(--e-blue); }
+.pdos .tile.rep .st { background: var(--e-blue); border-color: var(--e-blue); }
+.pdos .tile.rep .st .i { opacity: 1; }
+.pdos .tile.rep .rep-t { font-size: 13.5px; font-weight: 600; color: var(--e-blue); }
+.pdos .tile.rep.vieux { background: var(--e-orange-soft); border-color: var(--e-orange); }
+.pdos .tile.rep.vieux .st { background: var(--e-orange); border-color: var(--e-orange); }
+.pdos .tile.rep.vieux .rep-t { color: var(--e-orange-ink); }
+.pdos .tile.new { animation: pdos-pop 1.4s ease; }
+@keyframes pdos-pop { 0% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 35%, transparent); } 100% { box-shadow: none; } }
+
+/* le menu « Ajouter » */
+.pdos .pmenu { position: absolute; left: 10px; min-width: 270px; top: calc(100% - 8px); z-index: 20; background: var(--e-paper); border: 1.5px solid var(--e-blue); border-radius: 14px; padding: 6px; box-shadow: 0 18px 40px -16px color-mix(in srgb, var(--primary) 40%, transparent); }
+.pdos .pmenu button, .pdos .pmenu a { width: 100%; display: flex; align-items: center; gap: 10px; background: none; border: 0; border-radius: 10px; padding: 10px; font-size: 14.5px; line-height: 1.35; color: var(--e-ink); text-align: left; text-decoration: none; }
+.pdos .pmenu button:hover, .pdos .pmenu a:hover { background: var(--e-blue-soft); }
+.pdos .pmenu .i { width: 17px; height: 17px; color: var(--e-blue); }
+
+/* le fichier d'une pièce fournie */
+.pdos .fchip { display: inline-flex; align-items: center; gap: 10px; align-self: flex-start; background: var(--e-paper); border: 1.5px solid var(--e-green); border-radius: 12px; padding: 8px 12px; font-size: 14.5px; color: var(--e-ink); max-width: 100%; text-align: left; }
+.pdos button.fchip:hover { border-color: var(--e-blue); }
+.pdos .fchip .ext { font-size: 11.5px; font-weight: 700; color: #fff; background: var(--e-green); border-radius: 6px; padding: 2px 7px; flex: none; }
+.pdos .fchip > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pdos .tile.rep .fchip { border-color: var(--e-blue-line); }
+.pdos .tile.rep .fchip .ext { background: var(--e-blue); }
+.pdos .fchip.off { border-color: var(--e-line); color: var(--e-faint); }
+.pdos .fchip.off .i { width: 15px; height: 15px; }
+.pdos .rm, .ec .dmodal.pdos-choix .rm { background: none; border: 0; color: var(--e-blue); font-weight: 600; font-size: 14.5px; text-decoration: underline; text-underline-offset: 3px; padding: 6px 4px; }
+.pdos .rm:disabled { opacity: .55; }
+.pdos .tile .rm { align-self: flex-start; }
+
+.pdos .pvide { border: 2px dashed var(--e-blue-line); border-radius: 16px; padding: 30px 20px; text-align: center; }
+.pdos .pvide b { display: block; font: 400 22px/1.3 var(--e-serif); color: var(--e-ink); }
+.pdos .pvide p { margin-top: 6px; font-size: 15.5px; }
+
+/* supprimer le dossier : discret, sous la dernière section */
+.pdos .pdos-suppr { display: flex; justify-content: flex-end; margin-top: 18px; }
+.pdos .pdos-suppr .rm.del { display: inline-flex; align-items: center; gap: 6px; color: var(--e-red); text-decoration-color: color-mix(in srgb, var(--destructive) 30%, transparent); }
+.pdos .pdos-suppr .i { width: 16px; height: 16px; }
 
 .pdos .pdos-introuvable { margin-top: 22px; }
 .pdos .pdos-introuvable h1 { font-size: 28px; }
 .pdos .pdos-introuvable p { margin-top: 6px; }
 
-/* « Modèles suggérés » (portail : `.ec.dmenu` sur le contenu du popover) */
-.ec.dmenu.pdos-modeles { width: 300px; }
-.ec.dmenu .pdos-modeles-t { padding: 6px 10px 4px; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--e-faint); }
-.ec.dmenu.pdos-modeles button { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; border-radius: 8px; padding: 9px 10px; text-align: left; font-size: 15px; color: var(--e-ink); }
-.ec.dmenu.pdos-modeles button:hover { background: var(--e-blue-soft); }
-.ec.dmenu.pdos-modeles .fmt { flex: none; font-size: 12px; font-weight: 700; border-radius: 6px; padding: 2.5px 7px; }
+/* « Choisir dans mes documents » (portail, cf. AttachDocumentDialog `choixSeul`) */
+.ec .dmodal.pdos-choix { width: min(560px, 100%); border-radius: 22px; padding: 24px 26px; }
+.ec .dmodal.pdos-choix .m-h h2 { font-size: 24px; }
+.ec .dmodal.pdos-choix .m-sub { font-size: 15px; color: var(--e-body); }
+.ec .dmodal.pdos-choix .jsearch { margin-top: 16px; }
+.ec .dmodal.pdos-choix .docs { margin-top: 16px; display: grid; gap: 8px; max-height: 420px; overflow-y: auto; }
+.ec .dmodal.pdos-choix .doc { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--e-cream); border: 1.5px solid var(--e-line); border-radius: 14px; padding: 12px 14px; }
+.ec .dmodal.pdos-choix .doc:hover:not(:disabled) { border-color: var(--e-blue); }
+.ec .dmodal.pdos-choix .doc:disabled { opacity: .55; }
+.ec .dmodal.pdos-choix .doc .ext { font-size: 11.5px; padding: 3px 7px; }
+.ec .dmodal.pdos-choix .doc b { display: block; color: var(--e-ink); font-weight: 600; }
+.ec .dmodal.pdos-choix .doc small { color: var(--e-faint); font-size: 13.5px; }
+.ec .dmodal.pdos-choix .m-f { display: block; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--e-line); font-size: 14.5px; }
 
-@media (max-width: 760px) {
+@media (max-width: 1100px) { .pdos .pgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 980px) { .pdos .head { grid-template-columns: 1fr; } }
+@media (max-width: 700px) {
+  .pdos .key { flex: 1; }
+  .pdos .step { padding: 20px 18px; }
   .pdos .pdos-rep { padding: 16px; }
 }
-.pdos .pdos-acts .lnk { text-align: left; }
+@media (max-width: 600px) { .pdos .pgrid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .pdos .tile.new { animation: none; } }

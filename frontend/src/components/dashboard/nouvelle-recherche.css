@@ -1,0 +1,29 @@
+/*
+ * « Nouvelle recherche d'aides » : le gros bouton des en-têtes, la carte orange
+ * en pointillé et le menu du choix du monument. Maquettes
+ * `monumia-tableau-de-bord.html` et `monumia-mes-monuments.html` (`.b-lg`,
+ * `.ns`, `.ns-band`), couleurs par les tokens `--e-*` (ecrans.css).
+ */
+
+/* le grand bouton des en-têtes et de la carte (absent d'ecrans.css) */
+.tdb .b-lg, .mlist .b-lg, .ec .ns .b-lg { min-height: 52px; padding: 14px 24px; font-size: 16px; }
+
+/* la carte : centrée, le bouton dessous (écart voulu : la maquette aligne à gauche) */
+.ec .ns { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; background: var(--e-paper); border: 2px dashed var(--e-orange); border-radius: var(--e-r); padding: 28px; }
+.ec .ns .pl { flex: none; width: 52px; height: 52px; border-radius: 50%; background: var(--e-orange); color: #fff; display: grid; place-items: center; }
+.ec .ns .pl .i { width: 24px; height: 24px; }
+.ec .ns h3 { font-size: 25px; }
+.ec .ns p { font-size: 16px; max-width: 52ch; margin: 14px auto 0; }
+/* le bandeau sous la liste de « Mes monuments » */
+.ec .ns-band { margin-top: 18px; }
+.ec .ns-band p { margin-top: 8px; }
+
+/* le menu « Pour quel monument ? » */
+.ec.dmenu.nr-menu { min-width: 240px; max-width: min(360px, calc(100vw - 32px)); }
+.ec.dmenu .nr-k { font-size: 12.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--e-faint); padding: 8px 10px 6px; }
+
+@media (max-width: 640px) {
+  .ec .ns { padding: 22px 18px; }
+  .ec .ns h3 { font-size: 22px; }
+  .ec .ns p { font-size: 15.5px; }
+}
