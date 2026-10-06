@@ -14,7 +14,7 @@ from labels import (
     OWNERSHIP_LABELS,
     TYPE_EDIFICE_LABELS,
     TYPES_AVEC_AFFECTATION_CULTE,
-    TYPES_AVEC_ARCHITECTURE_ROMANE,
+    architecture_romane_applicable,
 )
 from services import quotas
 from services.offres import as_dict
@@ -302,28 +302,58 @@ def _champs_de_la_fiche(body: BaseModel) -> dict:
 
 
 def _precisions_coherentes(data: dict, *, creation: bool = False) -> dict:
-    """Vide les précisions qu'aucun des types cochés n'admet.
+    """Vide les précisions qui n'ont plus d'objet.
 
-    Une fiche passée d'« église » à « château » seul ne doit pas garder
-    « affecté au culte » : le moteur ne la lirait plus (`build_context`), mais la base la
-    montrerait encore. Seulement quand le type fait partie de l'écriture : un
-    PATCH qui ne touche pas au type ne touche pas non plus à ses précisions. À
-    la création, une précision sans type est simplement retirée (aucune clé
-    ajoutée : une fiche sans type ne doit rien écrire de ces colonnes).
+    L'affectation au culte suit le type d'édifice : une fiche passée
+    d'« église » à « château » seul ne doit pas la garder ; le moteur ne la
+    lirait plus (`build_context`), mais la base la montrerait encore. Seulement
+    quand le type fait partie de l'écriture : un PATCH qui ne touche pas au type
+    ne touche pas non plus à cette précision. À la création, une affectation
+    sans type est simplement retirée (aucune clé ajoutée : une fiche sans type
+    ne doit rien écrire de ces colonnes).
+
+    L'architecture romane suit le domaine Mérimée (`merimee_domaine`, posé par
+    la route depuis la référence, jamais par le client) : seulement quand le
+    domaine fait partie de l'écriture, donc à la création et quand la référence
+    change. Une réponse déjà en base sur un bien hors domaine n'est pas effacée
+    par un PATCH qui ne touche pas à la référence ; le moteur l'ignore.
     """
     if creation and data.get("type_edifice") is None:
-        for colonne in ("type_edifice", "affecte_au_culte", "architecture_romane"):
+        for colonne in ("type_edifice", "affecte_au_culte"):
             data.pop(colonne, None)
-        return data
-    if "type_edifice" not in data:
-        return data
-    # Une précision reste tant qu'AU MOINS un type coché l'admet.
-    types = set(data["type_edifice"] or ())
-    if not types & TYPES_AVEC_AFFECTATION_CULTE:
+    # L'affectation reste tant qu'AU MOINS un type coché l'admet.
+    elif "type_edifice" in data and not (
+        set(data["type_edifice"] or ()) & TYPES_AVEC_AFFECTATION_CULTE
+    ):
         data["affecte_au_culte"] = None
-    if not types & TYPES_AVEC_ARCHITECTURE_ROMANE:
+    if creation:
+        if not architecture_romane_applicable(data.get("merimee_domaine")):
+            data.pop("architecture_romane", None)
+    elif "merimee_domaine" in data and not architecture_romane_applicable(data["merimee_domaine"]):
         data["architecture_romane"] = None
     return data
+
+
+def domaine_merimee(supabase: Client, reference: str | None) -> str | None:
+    """Le domaine de la notice Mérimée (« architecture religieuse »…), ou rien.
+
+    Lu côté serveur à chaque écriture de la référence : le client ne le pose
+    jamais, sinon il déciderait seul de la précision qu'on lit.
+    """
+    if not reference:
+        return None
+    rows = (
+        supabase.table("merimee_buildings")
+        .select("domaine")
+        .eq("reference", reference)
+        .limit(1)
+        .execute()
+        .data
+    )
+    domaine = rows[0].get("domaine") if rows else None
+    if not isinstance(domaine, str):
+        return None
+    return domaine.strip() or None
 
 
 # ---------------------------------------------------------------------------
@@ -744,7 +774,13 @@ def create_monument(
     # et la ligne créée puis refusée laisserait un bien orphelin.
     quotas.verifier_creation_monument(supabase, user_id)
 
-    data = _precisions_coherentes(_normalize_dates(_champs_de_la_fiche(body)), creation=True)
+    data = _normalize_dates(_champs_de_la_fiche(body))
+    # Le domaine n'est écrit que s'il est connu : une fiche saisie à la main
+    # n'écrit pas la colonne (NULL par défaut).
+    domaine = domaine_merimee(supabase, body.referenceMerimee)
+    if domaine:
+        data["merimee_domaine"] = domaine
+    data = _precisions_coherentes(data, creation=True)
 
     # Resolve code_insee from commune name, falling back to the historical INSEE
     # code (e.g. Mérimée's cog_insee_lors_de_la_protection) via communes_historique.
@@ -813,7 +849,12 @@ def update_monument(
 ):
     require_project_access(supabase, monument_id, user_id, "co_owner")
 
-    updates = _precisions_coherentes(_normalize_dates(_champs_de_la_fiche(body)))
+    updates = _normalize_dates(_champs_de_la_fiche(body))
+    # Nouvelle référence, nouveau domaine (NULL compris) : la précision romane
+    # le suit dans `_precisions_coherentes`.
+    if "reference_merimee" in updates:
+        updates["merimee_domaine"] = domaine_merimee(supabase, updates["reference_merimee"])
+    updates = _precisions_coherentes(updates)
 
     # Re-resolve code_insee when commune changes
     if body.commune is not None:

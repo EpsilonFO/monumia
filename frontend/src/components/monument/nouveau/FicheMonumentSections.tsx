@@ -163,8 +163,9 @@ export function FicheMonumentSections({ fiche, onChange, merimee, aRemplir }: Fi
           />
         </div>
 
-        {/* Les précisions n'apparaissent que si au moins un type coché les
-            admet (`TYPES_AVEC_*`), et sont vidées quand plus aucun ne le fait. */}
+        {/* L'affectation n'apparaît que si au moins un type coché l'admet
+            (`TYPES_AVEC_AFFECTATION_CULTE`), et se vide quand plus aucun ne le
+            fait. Le style roman suit le domaine Mérimée de la notice choisie. */}
         {affectationApplicable(fiche) && (
           <Precision
             id="nm-l-culte"

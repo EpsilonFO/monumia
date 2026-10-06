@@ -159,6 +159,30 @@ class SurchargeFaitTests(unittest.TestCase):
             ],
         )
 
+    def test_surcharge_doptions_garde_les_groupes_du_yaml(self) -> None:
+        """Même report pour `groupe` : une reformulation faite dans /admin ne
+        doit pas défaire le rangement des cartes."""
+        original = _fact_enum(
+            options=[
+                {"id": "culte", "label": "Lieu de culte", "groupe": "Usages"},
+                {"id": "musee", "label": "Musée", "groupe": "Usages"},
+            ]
+        )
+        effectif = ca.surcharger_fait(
+            original,
+            SurchargeFait(
+                fact_key="k",
+                options=[
+                    OptionSurchargee(id="culte", label="Église ou chapelle"),
+                    OptionSurchargee(id="autre", label="Autre usage"),
+                ],
+            ),
+        )
+        self.assertEqual(
+            [(o.id, o.groupe) for o in effectif.options or []],
+            [("culte", "Usages"), ("autre", None)],
+        )
+
     def test_surcharge_invalide_conserve_le_fait_yaml(self) -> None:
         """Une liste vide sur un enum viole `_options_iff_enum` : la validation
         doit se relancer (d'où model_validate, et non model_copy)."""

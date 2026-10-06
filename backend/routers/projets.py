@@ -103,7 +103,8 @@ def get_faits_durables(
 ):
     """Les réponses du monument qu'un nouveau projet n'a pas à redemander.
 
-    62 faits de l'ontologie décrivent le BIEN et 40 le PROPRIÉTAIRE : ils ne
+    Les faits de scope `monument` décrivent le BIEN, ceux de scope
+    `proprietaire` le PROPRIÉTAIRE (171 faits sur 398 au 2026-10-06) : ils ne
     changent pas d'un chantier à l'autre, et les reposer à chaque projet est la
     première cause de questionnaire interminable au second projet.
 

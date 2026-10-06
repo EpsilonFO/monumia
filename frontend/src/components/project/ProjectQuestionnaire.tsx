@@ -479,7 +479,7 @@ export function ProjectQuestionnaire({
 
   return (
     <EcranQuestion
-      // Chaque question glisse à son arrivée, et son encart « Pourquoi »
+      // Chaque question glisse à son arrivée, et son encart « Bon à savoir »
       // repart replié.
       key={q!.id}
       className={slideClass}

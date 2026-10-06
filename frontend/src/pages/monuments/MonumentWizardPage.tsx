@@ -144,6 +144,8 @@ export function MonumentWizardPage() {
       typeEdifice: typesCoches(data).length > 0 ? typesCoches(data) : undefined,
       affecteAuCulte: data.affecteAuCulte ?? undefined,
       architectureRomane: data.architectureRomane ?? undefined,
+      // Lu par le seul diagnostic invité ; la création le relit en base.
+      merimeeDomaine: data.merimeeDomaine ?? undefined,
     };
 
     setSaving(true);

@@ -265,6 +265,9 @@ export interface QcmOption {
   /** Précision facultative affichée sous le libellé (`description` de l'option
    *  dans facts.yaml). Absente tant que le fait n'en déclare pas. */
   description?: string;
+  /** Intertitre sous lequel l'écran range la carte (`groupe` de l'option dans
+   *  facts.yaml). Purement visuel ; absent, les cartes ne sont pas groupées. */
+  groupe?: string;
 }
 
 /**

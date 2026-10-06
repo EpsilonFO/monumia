@@ -212,34 +212,46 @@ describe("type d'édifice", () => {
     expect(affectationApplicable({ typeEdifice: ['chateau'] })).toBe(false);
     expect(affectationApplicable({ typeEdifice: ['chateau', 'chapelle'] })).toBe(true);
     expect(affectationApplicable({})).toBe(false);
-    expect(architectureRomaneApplicable({ typeEdifice: ['chateau', 'lavoir_fontaine'] })).toBe(true);
-    expect(architectureRomaneApplicable({ typeEdifice: ['lavoir_fontaine'] })).toBe(false);
   });
 
-  it('vide les précisions quand plus aucun type ne les admet, avec null pour effacer en base', () => {
+  it('propose le style roman aux seuls édifices religieux de Mérimée, quel que soit le type', () => {
+    const religieux = 'architecture religieuse';
+    expect(architectureRomaneApplicable({ merimeeDomaine: religieux })).toBe(true);
+    expect(
+      architectureRomaneApplicable({ merimeeDomaine: 'architecture religieuse;architecture militaire' }),
+    ).toBe(true);
+    expect(
+      architectureRomaneApplicable({ merimeeDomaine: 'architecture militaire ; Architecture religieuse' }),
+    ).toBe(true);
+    expect(architectureRomaneApplicable({ merimeeDomaine: 'architecture militaire' })).toBe(false);
+    expect(architectureRomaneApplicable({ merimeeDomaine: '' })).toBe(false);
+    expect(architectureRomaneApplicable({ merimeeDomaine: null })).toBe(false);
+    // Saisie à la main : pas de domaine, pas de précision, même pour une église.
+    expect(architectureRomaneApplicable({ typeEdifice: ['eglise'] })).toBe(false);
+    expect(
+      architectureRomaneApplicable({ typeEdifice: ['lavoir_fontaine'], merimeeDomaine: religieux }),
+    ).toBe(true);
+  });
+
+  it("vide l'affectation quand plus aucun type ne l'admet, avec null pour effacer en base", () => {
     const domaine: FicheMonument = {
       typeEdifice: ['chateau', 'chapelle'],
       affecteAuCulte: true,
       architectureRomane: true,
     };
-    // Retirer le château : la chapelle garde les deux précisions.
+    // Retirer le château : la chapelle garde l'affectation.
     expect(avecTypesEdifice(domaine, ['chapelle'])).toEqual({
       typeEdifice: ['chapelle'],
       affecteAuCulte: true,
-      architectureRomane: true,
     });
-    // Retirer la chapelle : le château garde le roman, pas l'affectation.
+    // Retirer la chapelle : plus d'affectation. Le style roman n'est pas
+    // touché, il suit le domaine Mérimée.
     expect(avecTypesEdifice(domaine, ['chateau'])).toEqual({
       typeEdifice: ['chateau'],
       affecteAuCulte: null,
-      architectureRomane: true,
     });
-    // Plus rien de coché : null partout (la base refuse un tableau vide).
-    expect(avecTypesEdifice(domaine, [])).toEqual({
-      typeEdifice: null,
-      affecteAuCulte: null,
-      architectureRomane: null,
-    });
+    // Plus rien de coché : null (la base refuse un tableau vide).
+    expect(avecTypesEdifice(domaine, [])).toEqual({ typeEdifice: null, affecteAuCulte: null });
   });
 
   it("affiche les libellés dans l'ordre du menu", () => {
@@ -369,6 +381,25 @@ describe('Mérimée', () => {
     expect(appliquerMerimee(avant, muette).typeEdifice).toBeUndefined();
   });
 
+  it('recopie le domaine de la notice, et ne garde le style roman que sur la même notice', () => {
+    const religieuse = ficheDepuisMerimee({ ...record, domaine: ' architecture religieuse ' });
+    expect(religieuse.merimeeDomaine).toBe('architecture religieuse');
+    expect(architectureRomaneApplicable(religieuse)).toBe(true);
+    expect(ficheDepuisMerimee({ ...record, domaine: undefined }).merimeeDomaine).toBeUndefined();
+
+    const avant: FicheMonument = {
+      referenceMerimee: record.reference,
+      merimeeDomaine: 'architecture religieuse',
+      architectureRomane: true,
+    };
+    expect(appliquerMerimee(avant, religieuse).architectureRomane).toBe(true);
+    const autre = ficheDepuisMerimee({ ...record, reference: 'PA00000000', domaine: 'architecture civile' });
+    const apres = appliquerMerimee(avant, autre);
+    expect(apres.architectureRomane).toBeUndefined();
+    expect(apres.merimeeDomaine).toBe('architecture civile');
+    expect(architectureRomaneApplicable(apres)).toBe(false);
+  });
+
   it("garde l'état saisi, et le propriétaire quand la notice ne le dit pas", () => {
     const avant: FicheMonument = {
       nom: 'Autre',
@@ -432,10 +463,13 @@ describe('champsARemplir', () => {
       protection: 'classe' as const,
       proprietaire: ['public_commune' as const],
       typeEdifice: ['eglise' as const],
+      merimeeDomaine: 'architecture religieuse',
     };
     expect([...champsARemplir(fiche)].sort()).toEqual(
       ['affecteAuCulte', 'architectureRomane', 'etatConservation'].sort(),
     );
+    // Église saisie à la main : pas de domaine, pas de précision romane.
+    expect(champsARemplir({ ...fiche, merimeeDomaine: undefined }).has('architectureRomane')).toBe(false);
   });
 
   it("ne demande pas les précisions d'un lavoir, et signale un type manquant", () => {
@@ -450,7 +484,12 @@ describe('champsARemplir', () => {
   });
 
   it('une précision répondue « non » est remplie', () => {
-    const fiche = { typeEdifice: ['chapelle' as const], affecteAuCulte: false, architectureRomane: null };
+    const fiche = {
+      typeEdifice: ['chapelle' as const],
+      merimeeDomaine: 'architecture religieuse',
+      affecteAuCulte: false,
+      architectureRomane: null,
+    };
     const vides = champsARemplir(fiche);
     expect(vides.has('affecteAuCulte')).toBe(false);
     expect(vides.has('architectureRomane')).toBe(true);

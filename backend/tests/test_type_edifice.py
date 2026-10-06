@@ -27,9 +27,10 @@ from eligibility_engine import (
     run_deterministic_diagnostic,
 )
 from labels import (
+    DOMAINE_ARCHITECTURE_RELIGIEUSE,
     TYPE_EDIFICE_LABELS,
     TYPES_AVEC_AFFECTATION_CULTE,
-    TYPES_AVEC_ARCHITECTURE_ROMANE,
+    architecture_romane_applicable,
 )
 from routers.aides import MonumentInvite
 from routers.monuments import (
@@ -37,6 +38,7 @@ from routers.monuments import (
     UpdateMonumentRequest,
     _champs_de_la_fiche,
     _precisions_coherentes,
+    domaine_merimee,
 )
 from tests.test_eligibility_engine import _fixture_aide, _monument
 
@@ -91,7 +93,6 @@ class TableDesTypesTest(unittest.TestCase):
 
     def test_les_precisions_portent_sur_des_types_connus(self) -> None:
         self.assertLessEqual(TYPES_AVEC_AFFECTATION_CULTE, set(TYPE_EDIFICE_LABELS))
-        self.assertLessEqual(TYPES_AVEC_ARCHITECTURE_ROMANE, set(TYPE_EDIFICE_LABELS))
 
     def test_le_check_sql_dit_la_meme_chose(self) -> None:
         portantes = [
@@ -116,13 +117,21 @@ class TableDesTypesTest(unittest.TestCase):
 
     def test_le_front_propose_les_precisions_sur_les_memes_types(self) -> None:
         source = FRONT_FICHE.read_text(encoding="utf-8")
-        for nom, attendu in (
-            ("TYPES_AVEC_AFFECTATION_CULTE", TYPES_AVEC_AFFECTATION_CULTE),
-            ("TYPES_AVEC_ARCHITECTURE_ROMANE", TYPES_AVEC_ARCHITECTURE_ROMANE),
-        ):
-            bloc = re.search(rf"export const {nom}[^=]*= new Set<[^>]*>\(\[(.*?)\]\)", source, re.S)
-            assert bloc is not None, f"{nom} introuvable dans fiche-monument.ts"
-            self.assertEqual(set(re.findall(r"'([a-z_]+)'", bloc.group(1))), attendu, nom)
+        nom = "TYPES_AVEC_AFFECTATION_CULTE"
+        bloc = re.search(rf"export const {nom}[^=]*= new Set<[^>]*>\(\[(.*?)\]\)", source, re.S)
+        assert bloc is not None, f"{nom} introuvable dans fiche-monument.ts"
+        self.assertEqual(
+            set(re.findall(r"'([a-z_]+)'", bloc.group(1))), TYPES_AVEC_AFFECTATION_CULTE
+        )
+
+    def test_le_front_lit_le_meme_domaine_merimee(self) -> None:
+        """La précision romane suit le domaine Mérimée, des deux côtés."""
+        source = FRONT_FICHE.read_text(encoding="utf-8")
+        bloc = re.search(r"export const DOMAINE_ARCHITECTURE_RELIGIEUSE = '([^']+)'", source)
+        assert bloc is not None, (
+            "DOMAINE_ARCHITECTURE_RELIGIEUSE introuvable dans fiche-monument.ts"
+        )
+        self.assertEqual(bloc.group(1), DOMAINE_ARCHITECTURE_RELIGIEUSE)
 
 
 class TablesDeDeductionTest(unittest.TestCase):
@@ -293,7 +302,9 @@ class PrecisionsTest(unittest.TestCase):
         v = self._verdict("edifice_toujours_affecte_culte", {"eq": False}, type_edifice=["maison"])
         self.assertEqual(v.status, "eligible")
 
-    def test_une_precision_hors_de_son_type_nest_pas_lue(self) -> None:
+    def test_une_precision_hors_de_son_objet_nest_pas_lue(self) -> None:
+        """Affectation hors des types qui l'admettent, style roman hors du
+        domaine « architecture religieuse » : ni l'une ni l'autre n'est lue."""
         ctx = build_context(
             _monument(
                 type_edifice=["lavoir_fontaine"], affecte_au_culte=True, architecture_romane=True
@@ -317,6 +328,7 @@ class PrecisionsTest(unittest.TestCase):
                 "edifice_architecture_romane",
                 {"eq": True},
                 type_edifice=["eglise"],
+                merimee_domaine=ROMANE_OUI,
                 architecture_romane=valeur,
             )
             self.assertEqual(v.status, statut, valeur)
@@ -324,6 +336,89 @@ class PrecisionsTest(unittest.TestCase):
     def test_le_type_seul_ne_dit_rien_du_style(self) -> None:
         v = self._verdict("edifice_architecture_romane", {"eq": True}, type_edifice=["eglise"])
         self.assertIn("edifice_architecture_romane", v.missing_facts)
+
+    def test_une_eglise_hors_domaine_religieux_reste_une_question(self) -> None:
+        """Le type coché ne décide plus : sans domaine Mérimée religieux, la
+        précision n'est pas lue, et le questionnaire pose la question."""
+        for domaine in (None, "", "architecture civile"):
+            v = self._verdict(
+                "edifice_architecture_romane",
+                {"eq": True},
+                type_edifice=["eglise"],
+                merimee_domaine=domaine,
+                architecture_romane=True,
+            )
+            self.assertIn("edifice_architecture_romane", v.missing_facts, domaine)
+
+    def test_le_domaine_religieux_suffit_quel_que_soit_le_type(self) -> None:
+        """Un lavoir rangé par Mérimée en architecture religieuse (lavoir d'un
+        couvent) : la précision vaut."""
+        v = self._verdict(
+            "edifice_architecture_romane",
+            {"eq": True},
+            type_edifice=["lavoir_fontaine"],
+            merimee_domaine="architecture religieuse;architecture civile",
+            architecture_romane=True,
+        )
+        self.assertEqual(v.status, "eligible")
+
+
+#: Un domaine Mérimée qui ouvre la précision romane.
+ROMANE_OUI = DOMAINE_ARCHITECTURE_RELIGIEUSE
+
+
+class DomaineMerimeeTest(unittest.TestCase):
+    def test_architecture_romane_applicable(self) -> None:
+        for domaine, attendu in (
+            ("architecture religieuse", True),
+            ("architecture religieuse;architecture militaire", True),
+            ("architecture militaire ; architecture religieuse", True),
+            ("Architecture religieuse", True),
+            ("architecture militaire", False),
+            ("architecture religieuse et funéraire", False),
+            ("", False),
+            (None, False),
+            (["architecture religieuse"], False),
+        ):
+            self.assertIs(architecture_romane_applicable(domaine), attendu, domaine)
+
+    def test_domaine_lu_dans_merimee(self) -> None:
+        sb = _SupabaseMerimee({"PA001": "architecture religieuse", "PA002": "  ", "PA003": None})
+        self.assertEqual(domaine_merimee(sb, "PA001"), "architecture religieuse")  # type: ignore[arg-type]
+        self.assertIsNone(domaine_merimee(sb, "PA002"))  # type: ignore[arg-type]
+        self.assertIsNone(domaine_merimee(sb, "PA003"))  # type: ignore[arg-type]
+        self.assertIsNone(domaine_merimee(sb, "PA999"))  # type: ignore[arg-type]
+        self.assertIsNone(domaine_merimee(sb, None))  # type: ignore[arg-type]
+        self.assertEqual(sb.lectures, 4)
+
+
+class _SupabaseMerimee:
+    """Juste ce que lit `domaine_merimee` : une ligne par référence."""
+
+    def __init__(self, domaines: dict[str, str | None]) -> None:
+        self.domaines = domaines
+        self.lectures = 0
+        self._ref: str | None = None
+
+    def table(self, nom: str):
+        assert nom == "merimee_buildings"
+        return self
+
+    def select(self, _colonnes: str):
+        return self
+
+    def eq(self, _colonne: str, valeur: str):
+        self._ref = valeur
+        return self
+
+    def limit(self, _n: int):
+        return self
+
+    def execute(self):
+        self.lectures += 1
+        ref = self._ref
+        data = [{"domaine": self.domaines[ref]}] if ref in self.domaines else []
+        return type("R", (), {"data": data})()
 
 
 class QuestionnaireSurLeCorpusTest(unittest.TestCase):
@@ -403,14 +498,42 @@ class RoutesMonumentTest(unittest.TestCase):
         data = _precisions_coherentes(_champs_de_la_fiche(body), creation=True)
         self.assertEqual(data["type_edifice"], ["chateau"])
         self.assertIsNone(data["affecte_au_culte"])
-        self.assertIs(data["architecture_romane"], True)
+        # Sans domaine Mérimée religieux, la précision romane n'est pas écrite.
+        self.assertNotIn("architecture_romane", data)
+
+    def test_creation_garde_la_precision_romane_dun_edifice_religieux(self) -> None:
+        body = CreateMonumentRequest.model_validate(
+            {**self.BASE, "typeEdifice": ["chateau"], "architectureRomane": False}
+        )
+        data = {**_champs_de_la_fiche(body), "merimee_domaine": ROMANE_OUI}
+        self.assertIs(_precisions_coherentes(data, creation=True)["architecture_romane"], False)
+
+    def test_le_client_ne_pose_pas_le_domaine(self) -> None:
+        body = CreateMonumentRequest.model_validate(
+            {**self.BASE, "merimeeDomaine": ROMANE_OUI, "architectureRomane": True}
+        )
+        data = _precisions_coherentes(_champs_de_la_fiche(body), creation=True)
+        self.assertNotIn("merimee_domaine", data)
+        self.assertNotIn("architecture_romane", data)
+
+    def test_une_nouvelle_reference_hors_domaine_efface_la_precision(self) -> None:
+        body = UpdateMonumentRequest.model_validate({"referenceMerimee": "PA002"})
+        data = {**_champs_de_la_fiche(body), "merimee_domaine": None}
+        self.assertIsNone(_precisions_coherentes(data)["architecture_romane"])
+        data = {**_champs_de_la_fiche(body), "merimee_domaine": ROMANE_OUI}
+        self.assertNotIn("architecture_romane", _precisions_coherentes(data))
+
+    def test_un_patch_sans_reference_garde_la_precision_romane(self) -> None:
+        """Une réponse déjà en base n'est pas effacée : le moteur l'ignore."""
+        body = UpdateMonumentRequest.model_validate({"architectureRomane": True})
+        self.assertIs(
+            _precisions_coherentes(_champs_de_la_fiche(body))["architecture_romane"], True
+        )
 
     def test_un_null_explicite_efface_le_type(self) -> None:
         body = UpdateMonumentRequest.model_validate({"typeEdifice": None})
         data = _precisions_coherentes(_champs_de_la_fiche(body))
-        self.assertEqual(
-            data, {"type_edifice": None, "affecte_au_culte": None, "architecture_romane": None}
-        )
+        self.assertEqual(data, {"type_edifice": None, "affecte_au_culte": None})
 
     def test_la_chaine_vide_efface_aussi(self) -> None:
         body = UpdateMonumentRequest.model_validate({"typeEdifice": ""})
@@ -425,6 +548,12 @@ class RoutesMonumentTest(unittest.TestCase):
             {**self.BASE, "typeEdifice": ["eglise", "chateau"], "affecteAuCulte": False}
         )
         self.assertEqual(m.typeEdifice, ["eglise", "chateau"])
+
+    def test_le_diagnostic_invite_accepte_le_domaine(self) -> None:
+        m = MonumentInvite.model_validate({**self.BASE, "merimeeDomaine": ROMANE_OUI})
+        self.assertEqual(m.merimeeDomaine, ROMANE_OUI)
+        with self.assertRaises(ValidationError):
+            MonumentInvite.model_validate({**self.BASE, "merimeeDomaine": "x" * 201})
 
 
 class ChoixMultipleTest(unittest.TestCase):
@@ -500,12 +629,13 @@ class ChoixMultipleTest(unittest.TestCase):
         self.assertEqual(v.status, "eligible")
 
     def test_architecture_romane_vaut_pour_lensemble(self) -> None:
-        """Château + lavoir, romane : le lavoir ne l'admet pas, le château si ;
-        la précision est gardée et répond au fait roman."""
+        """Château + chapelle d'un domaine Mérimée combiné, romane : la
+        précision répond au fait roman, quels que soient les types cochés."""
         v = self._verdict(
             "edifice_architecture_romane",
             {"eq": True},
             type_edifice=["chateau", "lavoir_fontaine"],
+            merimee_domaine="architecture militaire;architecture religieuse",
             architecture_romane=True,
         )
         self.assertEqual(v.status, "eligible")
@@ -541,9 +671,7 @@ class RoutesChoixMultipleTest(unittest.TestCase):
         body = UpdateMonumentRequest.model_validate({"typeEdifice": []})
         self.assertIsNone(body.typeEdifice)
         data = _precisions_coherentes(_champs_de_la_fiche(body))
-        self.assertEqual(
-            data, {"type_edifice": None, "affecte_au_culte": None, "architecture_romane": None}
-        )
+        self.assertEqual(data, {"type_edifice": None, "affecte_au_culte": None})
         creation = CreateMonumentRequest.model_validate({**self.BASE, "typeEdifice": []})
         self.assertNotIn(
             "type_edifice", _precisions_coherentes(_champs_de_la_fiche(creation), creation=True)
@@ -576,7 +704,8 @@ class RoutesChoixMultipleTest(unittest.TestCase):
         )
         data = _precisions_coherentes(_champs_de_la_fiche(body))
         self.assertIsNone(data["affecte_au_culte"])
-        self.assertIsNone(data["architecture_romane"])
+        # Le type ne décide plus du style roman (cf. domaine Mérimée).
+        self.assertNotIn("architecture_romane", data)
 
 
 class FactDefAutoSourceTest(unittest.TestCase):

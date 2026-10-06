@@ -68,7 +68,14 @@ export function AnswerCard({
         {selected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
       </span>
       {unknown && <IconHelp aria-hidden className="h-4 w-4 shrink-0" />}
-      <span className="flex-1">{option.label}</span>
+      <span className="flex-1">
+        {option.label}
+        {option.description && (
+          <span className="mt-0.5 block text-[0.875em] leading-snug" style={{ color: C.grayFg }}>
+            {option.description}
+          </span>
+        )}
+      </span>
     </button>
   );
 }

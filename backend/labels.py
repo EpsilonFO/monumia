@@ -232,25 +232,41 @@ TYPE_EDIFICE_LABELS = {
     "autre": "Autre",
 }
 
-# Les deux PRÉCISIONS de la fiche, et les types où elles ont un sens. Chacune
-# répond à un fait existant : `edifice_toujours_affecte_culte` et
-# `edifice_architecture_romane`. Elle est proposée dès qu'AU MOINS un type
-# coché l'admet ; quand plus aucun ne l'admet, elle n'est ni proposée (front),
-# ni conservée (router), ni lue (`build_context`) : une réponse « affecté au
-# culte » restée d'un premier choix « église » ne doit pas suivre la fiche
-# devenue « château ». Elle ne nourrit que son propre fait : château + chapelle
-# « affectée au culte » ne font pas un édifice cultuel.
+# Les deux PRÉCISIONS de la fiche. Chacune répond à un fait existant :
+# `edifice_toujours_affecte_culte` et `edifice_architecture_romane`.
 #
-# L'architecture romane n'est proposée que là où elle est courante : un
-# programme roman vise « toutes les catégories d'édifices », mais demander le
-# style d'un lavoir alourdit la fiche pour rien. Ailleurs, la question reste
-# posée au questionnaire si une aide la cite.
+# L'affectation au culte suit le type d'édifice : elle est proposée dès qu'AU
+# MOINS un type coché l'admet ; quand plus aucun ne l'admet, elle n'est ni
+# proposée (front), ni conservée (router), ni lue (`build_context`) : une
+# réponse « affecté au culte » restée d'un premier choix « église » ne doit pas
+# suivre la fiche devenue « château ». Elle ne nourrit que son propre fait :
+# château + chapelle « affectée au culte » ne font pas un édifice cultuel.
 TYPES_AVEC_AFFECTATION_CULTE = frozenset(
     {"eglise", "chapelle", "abbaye_couvent", "temple", "synagogue", "autre_religieux"}
 )
-TYPES_AVEC_ARCHITECTURE_ROMANE = frozenset(
-    {"eglise", "chapelle", "abbaye_couvent", "chateau", "fortification"}
-)
+
+# L'architecture romane suit le DOMAINE Mérimée du bien (2026-10-06), pas le
+# type coché : la précision n'est proposée qu'aux édifices que Mérimée range en
+# « architecture religieuse », seule ou combinée (« architecture
+# religieuse;architecture militaire »). Les autres biens, et ceux saisis à la
+# main, n'ont pas de champ : le fait reste inconnu, et le questionnaire pose la
+# question si une aide la cite. Aucun « non » n'est déduit d'office, puisque le
+# programme roman vise « toutes les catégories » d'édifices. Miroir exact :
+# `architectureRomaneApplicable` (frontend/src/lib/fiche-monument.ts).
+DOMAINE_ARCHITECTURE_RELIGIEUSE = "architecture religieuse"
+
+
+def architecture_romane_applicable(domaine: object) -> bool:
+    """Le domaine Mérimée contient-il « architecture religieuse » ?
+
+    Découpé sur `;`, chaque terme sans espaces autour ni majuscules. Absent,
+    vide ou d'un autre type : non.
+    """
+    if not isinstance(domaine, str):
+        return False
+    termes = (t.strip().lower() for t in domaine.split(";"))
+    return DOMAINE_ARCHITECTURE_RELIGIEUSE in termes
+
 
 REGION_LABELS = {
     "auvergne-rhone-alpes": "Auvergne-Rhône-Alpes",

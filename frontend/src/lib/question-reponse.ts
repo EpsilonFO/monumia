@@ -56,9 +56,51 @@ export function toggleMulti(
  */
 export const PSEUDO_PASSER = 'skip';
 
-/** Les réponses du wizard, dans l'ordre de l'écran et du clavier. */
+/** Un bloc de cartes sous son intertitre ; `null` pour le bloc sans titre. */
+export interface BlocReponses<T> {
+  titre: string | null;
+  options: T[];
+}
+
+/**
+ * Range les réponses sous leurs intertitres (`groupe`), dans l'ordre de la
+ * première apparition de chaque groupe. Les réponses sans groupe d'une liste
+ * groupée forment un dernier bloc, sans titre ; celles que `aPart` désigne
+ * (« Pas encore décidé ») vont en pied, hors des blocs.
+ *
+ * `null` quand aucune réponse ne porte de groupe : l'écran garde alors sa
+ * grille unique, exactement comme avant.
+ */
+export function grouperReponses<T extends { groupe?: string | null }>(
+  options: readonly T[],
+  aPart: (o: T) => boolean = () => false,
+): { blocs: BlocReponses<T>[]; pied: T[] } | null {
+  const principales = options.filter((o) => !aPart(o));
+  if (!principales.some((o) => o.groupe)) return null;
+  const parGroupe = new Map<string, T[]>();
+  const sansGroupe: T[] = [];
+  for (const o of principales) {
+    if (!o.groupe) {
+      sansGroupe.push(o);
+      continue;
+    }
+    const bloc = parGroupe.get(o.groupe);
+    if (bloc) bloc.push(o);
+    else parGroupe.set(o.groupe, [o]);
+  }
+  const blocs: BlocReponses<T>[] = [...parGroupe].map(([titre, opts]) => ({ titre, options: opts }));
+  if (sansGroupe.length > 0) blocs.push({ titre: null, options: sansGroupe });
+  return { blocs, pied: options.filter(aPart) };
+}
+
+/**
+ * Les réponses du wizard, dans l'ordre de l'écran et du clavier : bloc par
+ * bloc quand elles sont groupées, les échappatoires en dernier.
+ */
 export function reponsesAffichees(question: QcmQuestion): QcmOption[] {
-  return displayOrder(question).filter((o) => o.id !== PSEUDO_PASSER);
+  const ordre = displayOrder(question).filter((o) => o.id !== PSEUDO_PASSER);
+  const groupes = grouperReponses(ordre, isUnknownAnswer);
+  return groupes ? [...groupes.blocs.flatMap((b) => b.options), ...groupes.pied] : ordre;
 }
 
 /**
@@ -69,4 +111,16 @@ export function reponsesAffichees(question: QcmQuestion): QcmOption[] {
 export function reponsesChoisies(value: string | string[] | undefined): string[] {
   const ids = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
   return ids.filter((id) => id !== PSEUDO_PASSER);
+}
+
+/** À partir de ces nombres de réponses, trois puis quatre par ligne : la
+ *  question doit tenir sur un écran sans défiler. */
+const TROIS_COLONNES = 5;
+const QUATRE_COLONNES = 13;
+
+/** La classe de colonnes d'une grille de `n` cartes, plafonnée à `max`. */
+export function classeColonnes(n: number, max: 3 | 4 = 4): string | undefined {
+  if (max === 4 && n >= QUATRE_COLONNES) return 'trois quatre';
+  if (n >= TROIS_COLONNES) return 'trois';
+  return undefined;
 }

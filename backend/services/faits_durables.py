@@ -1,10 +1,11 @@
 """Faits DURABLES d'un monument — ce qu'un nouveau projet n'a pas à redemander.
 
-62 faits de l'ontologie ont `scope: monument` (une propriété du bien : est-ce
-une église ? y a-t-il un orgue ? le site est-il ouvert au public ?) et 40
-`scope: proprietaire` (revenus, régime fiscal, statut juridique). Ils sont
-redemandés à CHAQUE projet, alors que `FactDef.scope` est documenté depuis
-l'origine comme pilotant la réutilisation.
+Les faits de `scope: monument` (une propriété du bien : est-ce une église ? y
+a-t-il un orgue ? le site est-il ouvert au public ?) et de `scope:
+proprietaire` (revenus, régime fiscal, statut juridique), soit 171 des 398
+faits de l'ontologie au 2026-10-06. Ils étaient redemandés à CHAQUE projet,
+alors que `FactDef.scope` est documenté depuis l'origine comme pilotant la
+réutilisation.
 
 Ce module est PUR : il ne lit ni la base ni le réseau, et ne dépend que des
 lignes de projets qu'on lui passe. La route qui l'appelle vit dans
@@ -28,6 +29,11 @@ from eligibility_engine import libelle_tranche
 #: disait le précédent.
 SCOPES_DURABLES = frozenset({"monument", "proprietaire"})
 
+#: Le pseudo-choix « Passer cette question » que le moteur ajoute à toute
+#: question à choix simple. Persisté, il ne dit rien : le reprendre afficherait
+#: une réponse vide, et ferait sauter une question que personne n'a tranchée.
+REPONSE_PASSEE = "skip"
+
 
 def faits_durables(
     projets: list[dict],
@@ -44,8 +50,9 @@ def faits_durables(
     bien, et son questionnaire est souvent le plus complet.
 
     Sont ignorées : les clés réservées (préfixe `_`, qui portent le cadrage et
-    non des faits), les clés absentes de l'ontologie (un fait retiré depuis), et
-    les faits de scope `projet`.
+    non des faits), les clés absentes de l'ontologie (un fait retiré depuis),
+    les faits de scope `projet`, et les questions PASSÉES (`skip`) : elles
+    n'écrasent pas non plus une vraie réponse d'un projet plus ancien.
     """
     reponses: dict[str, object] = {}
     source: dict[str, str] = {}
@@ -59,6 +66,8 @@ def faits_durables(
                 continue
             fait = facts.get(cle)
             if fait is None or fait.scope not in SCOPES_DURABLES:
+                continue
+            if valeur == REPONSE_PASSEE or valeur in (None, [], ""):
                 continue
             reponses[cle] = valeur
             source[cle] = projet_id
@@ -116,6 +125,9 @@ def details_reprises(
             {
                 "fact": cle,
                 "question": fait.question,
+                # « Le monument » ou « Le porteur » : l'écran de reprise range
+                # ses lignes en deux blocs.
+                "scope": fait.scope,
                 "reponse": libelle_reponse(fait, valeur),
                 "projetId": projet_id,
                 "projetTitre": titres.get(projet_id),

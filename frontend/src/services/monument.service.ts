@@ -75,6 +75,7 @@ export function toMonument(row: Record<string, unknown>): Monument {
     typeEdifice: typesDeLaLigne(row.type_edifice ?? row.typeEdifice),
     affecteAuCulte: (row.affecte_au_culte ?? row.affecteAuCulte ?? undefined) as Monument['affecteAuCulte'],
     architectureRomane: (row.architecture_romane ?? row.architectureRomane ?? undefined) as Monument['architectureRomane'],
+    merimeeDomaine: (row.merimee_domaine ?? row.merimeeDomaine ?? undefined) as Monument['merimeeDomaine'],
     etatConservation: (row.etat_conservation ?? row.etatConservation ?? undefined) as Monument['etatConservation'],
     photos: Array.isArray(row.photos)
       ? (row.photos as Array<Record<string, unknown>>).map(toPhoto)

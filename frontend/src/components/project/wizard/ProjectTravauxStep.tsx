@@ -1,7 +1,12 @@
 import { WORK_TYPES } from '@/constants/monument-options';
+import { grouperReponses } from '@/lib/question-reponse';
 import type { WorkType } from '@/types';
 import { CadrageStep, CadrageTile } from './CadrageStep';
+import { BlocsReponses } from './EcranQuestion';
 import { TRAVAUX_STEP } from './etapes';
+
+/** Les types de travaux sous leurs six intertitres (cf. `WORK_TYPES`). */
+const BLOCS_TRAVAUX = grouperReponses(WORK_TYPES)?.blocs ?? [{ titre: null, options: [...WORK_TYPES] }];
 
 interface ProjectTravauxStepProps {
   /**
@@ -56,7 +61,7 @@ export function ProjectTravauxStep({
       consigne="Plusieurs réponses possibles."
       pourquoi="Certaines aides ne financent qu'un type d'ouvrage précis."
       multiple
-      // Une vingtaine de types, sans précision : des cartes serrées.
+      // Vingt-cinq types : des cartes serrées, rangées par famille.
       serre
       onNext={onNext}
       onBack={onBack}
@@ -66,22 +71,31 @@ export function ProjectTravauxStep({
       // « Tout refaire » depuis la page du projet repasse par cette étape.
       modifiablePlusTard
     >
-      {WORK_TYPES.map((type) => (
-        <CadrageTile
-          key={type.value}
-          label={type.label}
-          multiple
-          selected={selected.includes(type.value as WorkType)}
-          onSelect={() => toggle(type.value as WorkType)}
-        />
-      ))}
-
-      <CadrageTile
-        label="Pas encore déterminé"
-        hint="Nous vous montrerons toutes les aides, sans filtrer sur le type de travaux."
-        large
-        selected={indetermine}
-        onSelect={() => onChange(indetermine ? null : [])}
+      <BlocsReponses
+        serre
+        blocs={BLOCS_TRAVAUX.map((bloc) => ({
+          titre: bloc.titre,
+          cartes: bloc.options.map((type) => (
+            <CadrageTile
+              key={type.value}
+              label={type.label}
+              hint={'hint' in type ? type.hint : undefined}
+              multiple
+              selected={selected.includes(type.value as WorkType)}
+              onSelect={() => toggle(type.value as WorkType)}
+            />
+          )),
+        }))}
+        pied={[
+          <CadrageTile
+            key="indetermine"
+            label="Pas encore déterminé"
+            hint="Nous vous montrerons toutes les aides, sans filtrer sur le type de travaux."
+            large
+            selected={indetermine}
+            onSelect={() => onChange(indetermine ? null : [])}
+          />,
+        ]}
       />
     </CadrageStep>
   );

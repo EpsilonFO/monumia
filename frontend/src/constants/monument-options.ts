@@ -76,38 +76,77 @@ export const URGENCE_TRAVAUX = [
   { value: 'critique', label: 'Critique' },
 ] as const;
 
+/**
+ * Les types de travaux de l'étape « Sur quoi portent les travaux ? », rangés
+ * sous six intertitres (`groupe`). L'ORDRE suit `TRAVAUX_LABELS`
+ * ([backend/labels.py]), que `tests/test_types_travaux.py` compare code à code ;
+ * l'écran regroupe dans l'ordre de première apparition de chaque groupe. Le
+ * libellé reste court, le détail va dans `hint`.
+ */
 export const WORK_TYPES = [
-  { value: 'toiture', label: 'Toiture' },
-  { value: 'charpente', label: 'Charpente' },
-  { value: 'couverture', label: 'Couverture' },
-  { value: 'facade', label: 'Façade' },
-  { value: 'maconnerie', label: 'Maçonnerie' },
-  { value: 'vitraux', label: 'Vitraux' },
-  { value: 'peintures_murales', label: 'Peintures murales' },
-  { value: 'menuiserie', label: 'Menuiserie' },
-  { value: 'electricite', label: 'Électricité' },
-  { value: 'plomberie', label: 'Plomberie' },
-  { value: 'chauffage', label: 'Chauffage' },
-  { value: 'accessibilite', label: 'Accessibilité' },
-  { value: 'mise_en_securite', label: 'Mise en sécurité' },
-  { value: 'etude_prealable', label: 'Étude préalable' },
-  { value: 'mobilier', label: 'Mobilier' },
-  { value: 'archives', label: 'Archives et documents (photographies, fonds papier, audiovisuel)' },
-  { value: 'orgues', label: 'Orgues' },
-  { value: 'parcs_jardins', label: 'Parcs et jardins' },
-  { value: 'protection_solaire', label: 'Protection solaire' },
-  { value: 'ventilation', label: 'Ventilation' },
+  {
+    value: 'toiture',
+    label: 'Toiture',
+    groupe: 'Clos et couvert',
+    hint: 'Le toit dans son ensemble : charpente, couverture, zinguerie.',
+  },
+  { value: 'charpente', label: 'Charpente', groupe: 'Clos et couvert', hint: 'L’ossature qui porte le toit.' },
+  {
+    value: 'couverture',
+    label: 'Couverture',
+    groupe: 'Clos et couvert',
+    hint: 'Le seul revêtement du toit : ardoises, tuiles, lauzes.',
+  },
+  { value: 'facade', label: 'Façade', groupe: 'Clos et couvert' },
+  { value: 'maconnerie', label: 'Maçonnerie', groupe: 'Clos et couvert' },
+  { value: 'vitraux', label: 'Vitraux', groupe: 'Décors et objets' },
+  { value: 'peintures_murales', label: 'Peintures murales', groupe: 'Décors et objets' },
+  { value: 'menuiserie', label: 'Menuiserie', groupe: 'Clos et couvert' },
+  { value: 'electricite', label: 'Électricité', groupe: 'Installations techniques' },
+  { value: 'plomberie', label: 'Plomberie', groupe: 'Installations techniques' },
+  { value: 'chauffage', label: 'Chauffage', groupe: 'Installations techniques' },
+  { value: 'accessibilite', label: 'Accessibilité', groupe: 'Installations techniques' },
+  { value: 'mise_en_securite', label: 'Mise en sécurité', groupe: 'Installations techniques' },
+  { value: 'etude_prealable', label: 'Étude préalable', groupe: 'Études' },
+  { value: 'mobilier', label: 'Mobilier', groupe: 'Décors et objets' },
+  {
+    value: 'archives',
+    label: 'Archives et documents',
+    groupe: 'Décors et objets',
+    hint: 'Photographies, fonds papier, audiovisuel.',
+  },
+  { value: 'orgues', label: 'Orgues', groupe: 'Décors et objets' },
+  { value: 'parcs_jardins', label: 'Parcs et jardins', groupe: 'Abords et domaine' },
+  { value: 'protection_solaire', label: 'Protection solaire', groupe: 'Clos et couvert' },
+  { value: 'ventilation', label: 'Ventilation', groupe: 'Installations techniques' },
   // Le DOMAINE autour du bâti. Miroir de `TRAVAUX_LABELS` ([backend/labels.py]) :
   // un code présent d'un seul côté rend invisibles les aides qui s'y cadrent —
   // l'utilisateur ne pourrait jamais le cocher.
-  { value: 'exploitation_agricole', label: 'Exploitation agricole (plantations, vergers, haies)' },
-  { value: 'foret', label: 'Forêt et desserte forestière' },
+  {
+    value: 'exploitation_agricole',
+    label: 'Exploitation agricole',
+    groupe: 'Abords et domaine',
+    hint: 'Plantations, vergers, haies.',
+  },
+  { value: 'foret', label: 'Forêt et desserte forestière', groupe: 'Abords et domaine' },
   {
     value: 'eau_milieux_aquatiques',
-    label: 'Eau et milieux aquatiques (cours d’eau, étang, captage)',
+    label: 'Eau et milieux aquatiques',
+    groupe: 'Abords et domaine',
+    hint: 'Cours d’eau, étang, captage.',
   },
-  { value: 'equipement_professionnel', label: 'Équipement professionnel (matériel, véhicule)' },
-  { value: 'equipement_numerique', label: 'Équipement numérique (informatique, outils de médiation, affichage, réseau)' },
+  {
+    value: 'equipement_professionnel',
+    label: 'Équipement professionnel',
+    groupe: 'Équipement',
+    hint: 'Matériel, véhicule.',
+  },
+  {
+    value: 'equipement_numerique',
+    label: 'Équipement numérique',
+    groupe: 'Équipement',
+    hint: 'Informatique, outils de médiation, affichage, réseau.',
+  },
 ] as const;
 
 export const MATERIAUX = [

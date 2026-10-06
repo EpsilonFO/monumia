@@ -55,7 +55,7 @@ from labels import (
     REGION_LABELS,
     TRAVAUX_LABELS,
     TYPES_AVEC_AFFECTATION_CULTE,
-    TYPES_AVEC_ARCHITECTURE_ROMANE,
+    architecture_romane_applicable,
 )
 
 logger = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ def build_context(
         "monument.siecle_construction": monument.get("siecle_construction"),
         # Choix multiple : la liste des types cochés, None si aucun.
         "monument.type_edifice": list(types_edifice) or None,
-        # Une précision ne vaut que si AU MOINS un type coché l'admet : restée
+        # L'affectation ne vaut que si AU MOINS un type coché l'admet : restée
         # d'un premier choix « église », « affecté au culte » ne doit pas
         # suivre une fiche devenue « château » seul (le router la vide aussi).
         # Château + chapelle la garde : elle décrit alors la chapelle, et ne
@@ -127,9 +127,12 @@ def build_context(
             if TYPES_AVEC_AFFECTATION_CULTE.intersection(types_edifice)
             else None
         ),
+        # L'architecture romane ne vaut que pour un édifice que Mérimée range en
+        # « architecture religieuse » : une réponse saisie avant la règle du
+        # 2026-10-06 sur un autre bien reste en base, mais n'est plus lue.
         "monument.architecture_romane": (
             monument.get("architecture_romane")
-            if TYPES_AVEC_ARCHITECTURE_ROMANE.intersection(types_edifice)
+            if architecture_romane_applicable(monument.get("merimee_domaine"))
             else None
         ),
         "commune.population": population,
@@ -1833,6 +1836,7 @@ def _options_for_fact(fact: FactDef, gate_conds: list[Condition]) -> list[dict]:
                 "value": o.valeur,
                 "unknown": o.unknown,
                 "description": o.description,
+                "groupe": o.groupe,
             }
             for o in fact.options or OPTIONS_BOOLEEN_IMPLICITES
         ]
@@ -1844,6 +1848,7 @@ def _options_for_fact(fact: FactDef, gate_conds: list[Condition]) -> list[dict]:
                 "value": o.id,
                 "unknown": o.unknown,
                 "description": o.description,
+                "groupe": o.groupe,
             }
             for o in fact.options or []
         ]
@@ -2207,6 +2212,7 @@ def build_questions(
                 # une clé absente plutôt qu'un `null`, comme `unknown` ci-dessus
                 # pour les options fabriquées.
                 **({"description": o["description"]} if o.get("description") else {}),
+                **({"groupe": o["groupe"]} if o.get("groupe") else {}),
             }
             for o in options
         ]

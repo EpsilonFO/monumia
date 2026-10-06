@@ -173,9 +173,9 @@ export const GROUPES_TYPE_EDIFICE: readonly GroupeChoix[] = GROUPES_TYPE_EDIFICE
 );
 
 /**
- * Les types où chaque précision a un sens. Miroir de `labels.py` (mêmes noms),
- * vérifié par `tests/test_type_edifice.py`. Hors de ces types, la précision
- * n'est pas proposée, et le serveur l'efface.
+ * Les types où l'affectation au culte a un sens. Miroir de `labels.py` (même
+ * nom), vérifié par `tests/test_type_edifice.py`. Hors de ces types, la
+ * précision n'est pas proposée, et le serveur l'efface.
  */
 export const TYPES_AVEC_AFFECTATION_CULTE: ReadonlySet<TypeEdifice> = new Set<TypeEdifice>([
   'eglise',
@@ -185,13 +185,16 @@ export const TYPES_AVEC_AFFECTATION_CULTE: ReadonlySet<TypeEdifice> = new Set<Ty
   'synagogue',
   'autre_religieux',
 ]);
-export const TYPES_AVEC_ARCHITECTURE_ROMANE: ReadonlySet<TypeEdifice> = new Set<TypeEdifice>([
-  'eglise',
-  'chapelle',
-  'abbaye_couvent',
-  'chateau',
-  'fortification',
-]);
+
+/**
+ * L'architecture romane suit le DOMAINE Mérimée du bien (2026-10-06), pas le
+ * type coché : la précision n'est proposée qu'aux édifices que Mérimée range en
+ * « architecture religieuse », seule ou combinée (« architecture
+ * religieuse;architecture militaire »). Ailleurs, la question reste posée au
+ * questionnaire si une aide la cite. Miroir de `labels.py`
+ * (`architecture_romane_applicable`), vérifié par `tests/test_type_edifice.py`.
+ */
+export const DOMAINE_ARCHITECTURE_RELIGIEUSE = 'architecture religieuse';
 
 /**
  * Les types cochés, dédoublonnés, dans l'ordre. Choix multiple depuis le
@@ -210,13 +213,19 @@ export function affectationApplicable(fiche: FicheMonument): boolean {
   return typesCoches(fiche).some((t) => TYPES_AVEC_AFFECTATION_CULTE.has(t));
 }
 
+/** Le domaine Mérimée contient-il « architecture religieuse » ? */
 export function architectureRomaneApplicable(fiche: FicheMonument): boolean {
-  return typesCoches(fiche).some((t) => TYPES_AVEC_ARCHITECTURE_ROMANE.has(t));
+  const domaine = fiche.merimeeDomaine;
+  if (typeof domaine !== 'string') return false;
+  return domaine
+    .split(';')
+    .some((terme) => terme.trim().toLowerCase() === DOMAINE_ARCHITECTURE_RELIGIEUSE);
 }
 
 /**
- * Changer les types cochés : les précisions qu'aucun type restant n'admet sont
- * vidées. `null` et non `undefined`, pour que l'édition d'une fiche existante
+ * Changer les types cochés : l'affectation au culte est vidée si aucun type
+ * restant ne l'admet. Le style roman ne dépend pas du type, il n'est pas
+ * touché. `null` et non `undefined`, pour que l'édition d'une fiche existante
  * les efface aussi en base (un `undefined` ne part pas dans le JSON). Aucun
  * type coché vaut `null` : la base refuse un tableau vide.
  */
@@ -226,9 +235,6 @@ export function avecTypesEdifice(fiche: FicheMonument, valeurs: readonly string[
   return {
     typeEdifice: types.length > 0 ? types : null,
     affecteAuCulte: affectationApplicable(suivante) ? (fiche.affecteAuCulte ?? null) : null,
-    architectureRomane: architectureRomaneApplicable(suivante)
-      ? (fiche.architectureRomane ?? null)
-      : null,
   };
 }
 
@@ -746,6 +752,7 @@ export function ficheDepuisMerimee(record: MerimeeRecord): FicheMonument {
     proprietaire: proprietaires.length > 0 ? proprietaires : undefined,
     descriptionGenerale: record.precision_de_la_protection || undefined,
     typeEdifice: typesEdifice.length > 0 ? typesEdifice : undefined,
+    merimeeDomaine: record.domaine?.trim() || undefined,
   };
 }
 
@@ -760,13 +767,14 @@ export function ficheDepuisMerimee(record: MerimeeRecord): FicheMonument {
  *
  * Les types d'édifice, eux, sont remplacés même quand la notice n'en donne
  * aucun : un type resté d'une autre notice répondrait à tort aux questions sur
- * la nature du bien. Leurs précisions ne survivent que si les types cochés ne
- * changent pas.
+ * la nature du bien. L'affectation au culte ne survit que si les types cochés
+ * ne changent pas, le style roman que si la notice est la même.
  */
 export function appliquerMerimee(fiche: FicheMonument, notice: FicheMonument): FicheMonument {
   const avant = [...typesCoches(fiche)].sort().join();
   const apres = [...typesCoches(notice)].sort().join();
   const memeType = apres !== '' && apres === avant;
+  const memeNotice = !!notice.referenceMerimee && notice.referenceMerimee === fiche.referenceMerimee;
   return {
     ...fiche,
     ...notice,
@@ -774,7 +782,8 @@ export function appliquerMerimee(fiche: FicheMonument, notice: FicheMonument): F
     etatConservation: fiche.etatConservation,
     typeEdifice: notice.typeEdifice,
     affecteAuCulte: memeType ? fiche.affecteAuCulte : undefined,
-    architectureRomane: memeType ? fiche.architectureRomane : undefined,
+    merimeeDomaine: notice.merimeeDomaine,
+    architectureRomane: memeNotice ? fiche.architectureRomane : undefined,
   };
 }
 

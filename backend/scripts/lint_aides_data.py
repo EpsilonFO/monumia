@@ -45,8 +45,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ontologie_regles import (
+    MAX_CAR_LIBELLE_OPTION,
+    MAX_CAR_QUESTION_CIBLE,
     MAX_CAR_QUESTION_LINT,
+    MAX_OPTIONS_SANS_GROUPE,
     booleen_a_seuil,
+    libelles_trop_longs,
+    options_a_grouper,
     question_trop_longue,
 )
 
@@ -684,6 +689,44 @@ def check_facts(facts: dict[str, FactDef]) -> list[str]:
     return erreurs
 
 
+def check_forme_des_questions(facts: dict[str, FactDef]) -> list[str]:
+    """Ce qui rend l'écran de question illisible, en trois avertissements
+    groupés (un par règle, pas un par fait : la dette se résorbe par lots, et
+    cent lignes noieraient les erreurs). Règles d'écriture en tête de
+    `facts.yaml` ; le cliquet qui empêche la dette de remonter vit dans
+    `tests/test_forme_des_faits.py`."""
+    avertissements: list[str] = []
+
+    def _liste(cles: list[str]) -> str:
+        return ", ".join(cles[:8]) + (f" … et {len(cles) - 8} autre(s)" if len(cles) > 8 else "")
+
+    longues = sorted(
+        k for k, f in facts.items() if question_trop_longue(f, maximum=MAX_CAR_QUESTION_CIBLE)
+    )
+    if longues:
+        avertissements.append(
+            f"{len(longues)} question(s) de plus de {MAX_CAR_QUESTION_CIBLE} caractères — une "
+            "question est une phrase, l'énumération va dans `help` ou dans les `description` "
+            f"des options : {_liste(longues)}"
+        )
+    libelles = sorted(
+        f"{k} ({len(ids)})" for k, f in facts.items() if (ids := libelles_trop_longs(f.options))
+    )
+    if libelles:
+        avertissements.append(
+            f"{len(libelles)} fait(s) dont des libellés d'option dépassent "
+            f"{MAX_CAR_LIBELLE_OPTION} caractères — parenthèses, exemples et énumérations vont "
+            f"dans `description` : {_liste(libelles)}"
+        )
+    a_grouper = sorted(k for k, f in facts.items() if options_a_grouper(f.options))
+    if a_grouper:
+        avertissements.append(
+            f"{len(a_grouper)} fait(s) à plus de {MAX_OPTIONS_SANS_GROUPE} options sans "
+            f"`groupe` : {_liste(a_grouper)}"
+        )
+    return avertissements
+
+
 def check_pourquoi(facts: dict[str, FactDef]) -> list[str]:
     """Chaque clé de `pourquoi` nomme une réponse du fait, ou vaut « * ».
 
@@ -996,6 +1039,10 @@ def lint(
     # (bloquant en --strict, pour la CI) tant qu'il n'a pas été approuvé.
     facts = {**approved, **pending}
     rapport.erreurs.extend(check_facts(facts))
+    # Sur tout le catalogue seulement : en mono-slug (ingestion), la porte
+    # d'entrée `ingestion.faits.proposer` a ses propres refus.
+    if not slugs:
+        rapport.avertissements.extend(check_forme_des_questions(facts))
 
     global_mode = not slugs
     chemins = (

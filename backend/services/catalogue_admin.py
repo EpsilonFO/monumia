@@ -233,13 +233,19 @@ def surcharger_fait(original: FactDef, surcharge: SurchargeFait) -> FactDef:
     if surcharge.help is not None:
         donnees["help"] = surcharge.help
     if surcharge.options is not None:
-        # L'administration n'édite pas la `description` d'une réponse : une
-        # surcharge d'options la reprend donc du YAML, par identifiant (les ids
-        # sont figés). Sans ce report, reformuler un seul libellé effacerait
-        # toutes les descriptions du fait. Une réponse NOUVELLE n'en a pas.
-        decrites = {o.id: o.description for o in original.options or [] if o.description}
+        # L'administration n'édite ni la `description` ni le `groupe` d'une
+        # réponse : une surcharge d'options les reprend donc du YAML, par
+        # identifiant (les ids sont figés). Sans ce report, reformuler un seul
+        # libellé effacerait toutes les descriptions et tous les groupes du
+        # fait. Une réponse NOUVELLE n'a ni l'un ni l'autre.
+        yaml = {o.id: o for o in original.options or []}
         donnees["options"] = [
-            {**o.model_dump(), "description": decrites.get(o.id)} for o in surcharge.options
+            {
+                **o.model_dump(),
+                "description": yaml[o.id].description if o.id in yaml else None,
+                "groupe": yaml[o.id].groupe if o.id in yaml else None,
+            }
+            for o in surcharge.options
         ]
     return FactDef.model_validate(donnees)
 

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { IconInfo } from '@/components/icons';
+import { TexteAide } from '@/components/shared/TexteAide';
 import { C } from '@/lib/brand';
+import { longueurTexteAide } from '@/lib/texte-aide';
 import { cn } from '@/lib/utils';
 
 /**
@@ -18,7 +20,7 @@ const HELP_CLAMP_CHARS = 170;
  */
 export function QuestionHelp({ text, compact }: { text: string; compact?: boolean }) {
   const [open, setOpen] = useState(false);
-  const long = text.length > HELP_CLAMP_CHARS;
+  const long = longueurTexteAide(text) > HELP_CLAMP_CHARS;
   return (
     <div
       className={cn(
@@ -29,16 +31,17 @@ export function QuestionHelp({ text, compact }: { text: string; compact?: boolea
     >
       <IconInfo className="mt-[3px] h-4 w-4 shrink-0" style={{ color: C.blue }} />
       <div className="min-w-0">
-        <p
+        {/* Paragraphes et puces (`TexteAide`) : replié par hauteur, trois
+            lignes, puisqu'un `line-clamp` ne coupe pas une liste. */}
+        <TexteAide
+          texte={text}
           className={cn(
-            'leading-relaxed',
+            'leading-relaxed [&_li+li]:mt-0.5 [&_p+p]:mt-1.5 [&_p+ul]:mt-1 [&_ul+p]:mt-1.5 [&_ul]:list-disc [&_ul]:pl-5',
             compact ? 'text-[15px]' : 'text-[16px]',
-            !open && long && 'line-clamp-3',
+            !open && long && 'max-h-[4.9em] overflow-hidden',
           )}
           style={{ color: C.grayFg }}
-        >
-          {text}
-        </p>
+        />
         {long && (
           <button
             type="button"

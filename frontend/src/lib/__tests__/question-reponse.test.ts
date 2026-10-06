@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   displayOrder,
+  grouperReponses,
   reponsesAffichees,
   reponsesChoisies,
   toggleMulti,
@@ -99,5 +100,43 @@ describe('reponsesChoisies', () => {
     expect(reponsesChoisies(undefined)).toEqual([]);
     expect(reponsesChoisies('a')).toEqual(['a']);
     expect(reponsesChoisies(['a', 'b'])).toEqual(['a', 'b']);
+  });
+});
+
+describe('grouperReponses', () => {
+  const groupee = () =>
+    question({
+      options: [
+        { id: 'prive_personne_physique', label: 'Particulier', groupe: 'Vous-même ou une société' },
+        { id: 'pas_encore_decide', label: 'Pas encore décidé', unknown: true },
+        { id: 'association', label: 'Association', groupe: 'Associations et fondations' },
+        { id: 'autre', label: 'Autre' },
+        { id: 'societe', label: 'Société', groupe: 'Vous-même ou une société' },
+        { id: 'skip', label: 'Passer cette question' },
+      ],
+    });
+
+  it('rien de groupé : null, la grille reste unique', () => {
+    expect(grouperReponses(question().options)).toBeNull();
+  });
+
+  it("range par groupe dans l'ordre de première apparition, sans-groupe en dernier", () => {
+    const g = grouperReponses(groupee().options, (o) => !!o.unknown)!;
+    expect(g.blocs.map((b) => [b.titre, b.options.map((o) => o.id)])).toEqual([
+      ['Vous-même ou une société', ['prive_personne_physique', 'societe']],
+      ['Associations et fondations', ['association']],
+      [null, ['autre', 'skip']],
+    ]);
+    expect(g.pied.map((o) => o.id)).toEqual(['pas_encore_decide']);
+  });
+
+  it("l'ordre du clavier suit celui des blocs, l'échappatoire en pied et sans « passer »", () => {
+    expect(reponsesAffichees(groupee()).map((o) => o.id)).toEqual([
+      'prive_personne_physique',
+      'societe',
+      'association',
+      'autre',
+      'pas_encore_decide',
+    ]);
   });
 });

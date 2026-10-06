@@ -95,6 +95,9 @@ import type {
  * ne serait plus jamais posée — le wizard monument ne repasse pas. Le mode
  * invité n'en a jamais besoin : `MonumentForm` impose l'état sanitaire.
  */
+/** Délai de l'enregistrement au fil des réponses, après le dernier clic. */
+const ENREGISTREMENT_DIFFERE_MS = 1200;
+
 export function ProjetWizardPage() {
   const navigate = useNavigate();
   const { monumentId } = useParams();
@@ -240,8 +243,12 @@ export function ProjetWizardPage() {
    * incertitude et qu'aucune fiche d'aide ne l'offre donc à la correction.
    */
   const [reprises, setReprises] = useState<RepriseDurable[]>([]);
-  /** Réponse à l'écran de reprise. `null` : pas encore demandé, ou pas répondu. */
-  const [reprendreDurables, setReprendreDurables] = useState<boolean | null>(null);
+  /**
+   * Les clés COCHÉES sur l'écran de reprise : toutes par défaut, l'utilisateur
+   * décoche ce qu'il veut se faire reposer. `null` : l'écran n'a pas encore
+   * été proposé (il ne l'est qu'une fois par passage dans le wizard).
+   */
+  const [retenues, setRetenues] = useState<string[] | null>(null);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [loadedCadrageKey, setLoadedCadrageKey] = useState<string | null>(null);
@@ -285,7 +292,7 @@ export function ProjetWizardPage() {
   // étape traversée ne disparaît pas du rail, sinon celui-ci se contracterait
   // juste après qu'on l'a franchie (un refus vide `reprises`).
   const etapeReprises =
-    reprises.length > 0 || step === 'reprises' || reprendreDurables !== null;
+    reprises.length > 0 || step === 'reprises' || retenues !== null;
   // « Tout refaire » passe TOUJOURS par les travaux : c'est la seule étape du
   // cadrage qui reste ouverte (cf. `intentionVerrouillee`).
   const sauterTravaux =
@@ -579,12 +586,15 @@ export function ProjetWizardPage() {
     }
     if (!monumentId) return;
     setSaving(true);
-    // Premier projet de la session : on reprend les faits DURABLES des autres
-    // projets du monument. Par le service et non par le store : celui-ci peut
-    // être vide hors `AppLayout`, et une reprise silencieusement vide se
-    // lirait comme une panne. Un échec n'arrête rien — on repose les questions.
+    // Première sortie des travaux dans ce wizard : on propose les faits
+    // DURABLES des projets du monument que celui-ci ne porte pas encore. Vaut
+    // pour un nouveau projet comme pour « Refaire le questionnaire », où un
+    // autre chantier a pu répondre depuis. Par le service et non par le store :
+    // celui-ci peut être vide hors `AppLayout`, et une reprise silencieusement
+    // vide se lirait comme une panne. Un échec n'arrête rien : on repose les
+    // questions.
     let aDemander: RepriseDurable[] = [];
-    if (!projetId) {
+    if (retenues === null) {
       try {
         const durables = await projetService.faitsDurables(monumentId);
         // Ce que la reprise APPORTERAIT, pas ce qu'elle contient : une réponse
@@ -597,6 +607,8 @@ export function ProjetWizardPage() {
         );
         aDemander = durables.details.filter((d) => apportees.includes(d.fact));
         setReprises(aDemander);
+        // Tout coché par défaut : la reprise reste le geste le plus court.
+        if (aDemander.length > 0) setRetenues(aDemander.map((d) => d.fact));
       } catch (err) {
         console.error('Erreur lecture des faits durables (ignorée):', err);
       }
@@ -654,16 +666,22 @@ export function ProjetWizardPage() {
 
   /**
    * Sortie de l'écran de reprise. L'accord est APPLIQUÉ ici, pas avant : les
-   * réponses entrent dans l'état du questionnaire et dans le projet enregistré.
+   * réponses COCHÉES entrent dans l'état du questionnaire et dans le projet
+   * enregistré, les autres seront reposées.
    *
-   * Un refus n'a rien à défaire — rien n'avait été écrit — et vide les deux
-   * réserves pour que le changement de cadrage ne les réintroduise pas.
+   * Tout décoché vaut refus : rien n'avait été écrit, rien n'est à défaire, et
+   * les deux réserves se vident pour que le changement de cadrage ne les
+   * réintroduise pas.
    */
   const handleReprisesNext = async () => {
-    if (reprendreDurables === null) return;
-    if (!reprendreDurables) {
+    if (retenues === null) return;
+    const gardees = new Set(retenues);
+    proposeesRef.current = Object.fromEntries(
+      Object.entries(proposeesRef.current).filter(([cle]) => gardees.has(cle)),
+    );
+    setReprises((liste) => liste.filter((r) => gardees.has(r.fact)));
+    if (gardees.size === 0) {
       proposeesRef.current = {};
-      setReprises([]);
       setStep('questionnaire');
       return;
     }
@@ -782,6 +800,7 @@ export function ProjetWizardPage() {
     setPhase('complement');
   };
 
+
   /**
    * Contexte d'une question du complément : l'aide qu'elle débloque, son enjeu.
    *
@@ -852,6 +871,45 @@ export function ProjetWizardPage() {
     navigate(ROUTES.PROJET_DETAIL(projetId));
   };
 
+  /**
+   * Enregistrement AU FIL des réponses (connecté) : une réponse donnée puis un
+   * onglet fermé ne se perd plus, et un autre projet du monument peut la
+   * reprendre (faits durables). Différé d'un instant pour ne pas écrire à
+   * chaque clic d'une question à choix multiple, et vidé au démontage.
+   *
+   * Écrit PAR-DESSUS le questionnaire tel qu'il était à l'entrée du parcours
+   * (`questionnaireEnregistre`) : en « Refaire le questionnaire », quitter à
+   * mi-chemin garde les anciennes réponses aux questions pas encore revues.
+   * Les deux enregistrements de fin (tronc commun, questionnaire) restent ceux
+   * qui font foi : ils n'écrivent que les réponses de ce parcours.
+   */
+  const enAttente = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (modeInvite || !projetId || step !== 'questionnaire') return;
+    if (Object.keys(answers).length === 0) return;
+    const ecrire = () => {
+      enAttente.current = null;
+      projetService
+        .update(projetId, {
+          questionnaire: {
+            ...sansClesReservees(questionnaireEnregistre.current),
+            ...answers,
+            ...cadrageSeul(),
+          },
+        })
+        .then(upsertProjet)
+        .catch((err) => console.error('Enregistrement au fil des réponses (ignoré):', err));
+    };
+    enAttente.current = ecrire;
+    const minuteur = window.setTimeout(ecrire, ENREGISTREMENT_DIFFERE_MS);
+    return () => window.clearTimeout(minuteur);
+    // `cadrageSeul` et `upsertProjet` sont stables pour ce qui compte ici : le
+    // cadrage ne bouge pas pendant le questionnaire.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answers, projetId, step, modeInvite]);
+  // Quitter le wizard pendant le délai : la dernière réponse part quand même.
+  useEffect(() => () => enAttente.current?.(), []);
+
   // Quitter : le projet n'est créé qu'à la fin de l'étape travaux, et les
   // réponses au questionnaire ne sont écrites qu'à la toute fin. En invité, il
   // n'y a pas d'espace où retourner — la connexion, donc, et sans alarmer : le
@@ -879,11 +937,9 @@ export function ProjetWizardPage() {
    *
    * En invité, chaque réponse du questionnaire part dans le brouillon
    * `localStorage` au moment du clic, et le cadrage à chaque « Continuer » : la
-   * phrase de la maquette est exacte, à l'appareil près. Connecté, rien ne
-   * s'écrit à la réponse : le projet naît à la fin du cadrage, et les réponses
-   * ne partent qu'en fin de tronc commun et à la fin du questionnaire (la
-   * confirmation de sortie le dit aussi). On le dit tel quel pendant les
-   * questions, et on se tait sur les étapes de cadrage.
+   * phrase de la maquette est exacte, à l'appareil près. Connecté, chaque
+   * réponse part sur le projet un instant après le clic (cf. l'enregistrement
+   * au fil). On se tait sur les étapes de cadrage.
    */
   const noteEnregistrement: NoteEnregistrement | null =
     step === 'diagnostic'
@@ -891,7 +947,7 @@ export function ProjetWizardPage() {
       : modeInvite
         ? { texte: 'Vos réponses sont enregistrées au fur et à mesure, sur cet appareil.', auFil: true }
         : step === 'questionnaire'
-          ? { texte: 'Vos réponses seront enregistrées à la fin du questionnaire.', auFil: false }
+          ? { texte: 'Vos réponses sont enregistrées au fur et à mesure.', auFil: true }
           : null;
 
   // Arrivée directe sur la route invitée sans brouillon (favori, lien
@@ -907,9 +963,8 @@ export function ProjetWizardPage() {
       monument={monumentAffiche}
       // Rien à confirmer quand quitter mène à l'écran de fin : les réponses
       // sont dans le brouillon et le questionnaire reste reprenable.
-      confirmQuit={
-        !quitterVersInscription && step === 'questionnaire' && Object.keys(answers).length > 0
-      }
+      // Connecté, les réponses partent au fil : quitter ne perd rien.
+      confirmQuit={false}
       quitDisabled={step === 'diagnostic'}
       exitTo={exitTo}
       onQuit={quitterVersInscription ? allerAInscription : undefined}
@@ -988,8 +1043,8 @@ export function ProjetWizardPage() {
       {step === 'reprises' && (
         <ProjectReprisesStep
           reprises={reprises}
-          value={reprendreDurables}
-          onChange={setReprendreDurables}
+          value={retenues ?? []}
+          onChange={setRetenues}
           onNext={() => void handleReprisesNext()}
           saving={saving}
         />

@@ -1,7 +1,12 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react';
 import { isUnknownAnswer } from './unknownAnswer';
-import { CarteReponse } from './EcranQuestion';
-import { reponsesAffichees, reponsesChoisies, toggleMulti } from '@/lib/question-reponse';
+import { BlocsReponses, CarteReponse } from './EcranQuestion';
+import {
+  grouperReponses,
+  reponsesAffichees,
+  reponsesChoisies,
+  toggleMulti,
+} from '@/lib/question-reponse';
 import type { QcmOption, QcmQuestion } from '@/types';
 
 interface ReponsesQuestionProps {
@@ -54,30 +59,41 @@ export function ReponsesQuestion({ question, value, onAnswer, autoFocus }: Repon
     optionRefs.current[ordre[n].id]?.focus();
   };
 
-  return (
-    <>
-      {ordre.map((option, rang) => {
-        const selected = chosen.includes(option.id);
-        // Tabindex itinérant : seule la réponse cochée (ou la première) est
-        // atteinte par Tab, les flèches parcourent les autres.
-        const active = selected || (chosen.length === 0 && rang === 0);
-        return (
-          <CarteReponse
-            key={option.id}
-            label={option.label}
-            description={option.description}
-            selected={selected}
-            multiple={multiple}
-            nsp={isUnknownAnswer(option)}
-            onSelect={() => choisir(option)}
-            tabIndex={active ? 0 : -1}
-            onKeyDown={(e) => onKeyDown(e, rang)}
-            buttonRef={(el) => {
-              optionRefs.current[option.id] = el;
-            }}
-          />
-        );
-      })}
-    </>
-  );
+  const carte = (option: QcmOption) => {
+    // `ordre` suit déjà les blocs : le rang est celui du clavier.
+    const rang = ordre.indexOf(option);
+    const selected = chosen.includes(option.id);
+    // Tabindex itinérant : seule la réponse cochée (ou la première) est
+    // atteinte par Tab, les flèches parcourent les autres.
+    const active = selected || (chosen.length === 0 && rang === 0);
+    return (
+      <CarteReponse
+        key={option.id}
+        label={option.label}
+        description={option.description}
+        selected={selected}
+        multiple={multiple}
+        nsp={isUnknownAnswer(option)}
+        onSelect={() => choisir(option)}
+        tabIndex={active ? 0 : -1}
+        onKeyDown={(e) => onKeyDown(e, rang)}
+        buttonRef={(el) => {
+          optionRefs.current[option.id] = el;
+        }}
+      />
+    );
+  };
+
+  // Des options groupées dans facts.yaml : un intertitre par groupe, et
+  // l'échappatoire à part, en pied.
+  const groupes = grouperReponses(ordre, isUnknownAnswer);
+  if (groupes) {
+    return (
+      <BlocsReponses
+        blocs={groupes.blocs.map((b) => ({ titre: b.titre, cartes: b.options.map(carte) }))}
+        pied={groupes.pied.map(carte)}
+      />
+    );
+  }
+  return <>{ordre.map(carte)}</>;
 }

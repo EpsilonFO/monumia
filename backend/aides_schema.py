@@ -360,6 +360,13 @@ class FactOption(BaseModel):
     # rien à ce que la réponse vaut pour les prédicats. Absente par défaut, et
     # l'écran n'affiche alors que le libellé.
     description: str | None = None
+    # Intertitre sous lequel l'écran range la carte (« Clos et couvert »,
+    # « Associations et fondations »). Purement visuel : comme la description,
+    # il ne change rien à ce que la réponse vaut. Les groupes s'affichent dans
+    # l'ordre de leur première apparition ; une option sans groupe d'un fait
+    # groupé tombe dans un dernier bloc sans titre. Utile au-delà de huit
+    # options (le lint le signale).
+    groupe: str | None = None
     # True pour les réponses du type « pas encore choisi » : le moteur traite
     # alors le fait comme inconnu (None) — la condition reste une incertitude
     # au lieu d'éliminer l'aide. Fail-closed, jamais fail-open.

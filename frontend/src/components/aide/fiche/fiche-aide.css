@@ -195,6 +195,13 @@
 .fa .q-info { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-left: 6px; vertical-align: -4px; border-radius: 50%; border: 1px solid var(--fa-line); background: var(--fa-paper); color: var(--fa-muted); padding: 0; cursor: pointer; transition: color .15s, border-color .15s; }
 .fa .q-info:hover, .fa .q-info.on { color: var(--fa-blue); border-color: var(--fa-blue); }
 .fa .q-info .i { width: 13px; height: 13px; }
+/* l'explication dépliée : paragraphes et puces (`TexteAide`) */
+.fa .q .q-t .q-aide { font-weight: 400; color: var(--fa-muted); font-size: 14px; line-height: 1.5; margin-top: 6px; }
+.fa .q .q-t .q-aide[hidden] { display: none; }
+.fa .q .q-t .q-aide > p { font-size: inherit; font-weight: 400; }
+.fa .q .q-t .q-aide p + p, .fa .q .q-t .q-aide ul + p { margin-top: 4px; }
+.fa .q .q-t .q-aide ul { list-style: disc; padding-left: 18px; margin-top: 2px; }
+.fa .yn button small { display: block; font-size: 12.5px; font-weight: 400; opacity: .75; margin-top: 2px; }
 .fa .q .multi { display: block; font-weight: 600; color: var(--fa-orange-ink); font-size: 12px; margin-top: 3px; }
 .fa .yn { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
 .fa .q.wide .yn { flex: 1; }

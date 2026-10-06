@@ -2074,15 +2074,6 @@ class TestDescriptionDesReponses(unittest.TestCase):
     def test_description_sans_effet_sur_les_eliminations(self):
         self.assertEqual(self._question()["eliminationsParOption"], {"acheves": ["fixture-aide"]})
 
-    def test_aucune_description_dans_lontologie_reelle(self):
-        """Choix du 2026-09-28 : le champ existe, aucune réponse n'en a encore.
-        Ce test tombera le jour où la première sera rédigée : c'est voulu, il
-        suffira alors de le supprimer."""
-        decrites = [
-            f"{key}.{o.id}" for key, f in FACTS.items() for o in f.options or [] if o.description
-        ]
-        self.assertEqual(decrites, [])
-
 
 class TestBooleenSansOptions(unittest.TestCase):
     """Le cas de 562 faits : rien ne change, le couple implicite fait foi."""

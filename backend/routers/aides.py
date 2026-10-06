@@ -87,6 +87,10 @@ class MonumentInvite(BaseModel):
     typeEdifice: list[str] | None = None
     affecteAuCulte: bool | None = None
     architectureRomane: bool | None = None
+    #: Domaine Mérimée de la notice choisie (« architecture religieuse »…) : un
+    #: visiteur n'a pas de ligne en base où le lire, le front le recopie du
+    #: relevé. Il ne décide que de la lecture de `architectureRomane`.
+    merimeeDomaine: str | None = Field(default=None, max_length=200)
 
     _v_type = field_validator("typeEdifice", mode="before")(valider_type_edifice)
     _v_proprietaire = field_validator("proprietaire", mode="before")(valider_proprietaires)
@@ -688,6 +692,7 @@ def diagnostic_invite(
         "type_edifice": m.typeEdifice,
         "affecte_au_culte": m.affecteAuCulte,
         "architecture_romane": m.architectureRomane,
+        "merimee_domaine": m.merimeeDomaine,
         "travaux_envisages": body.travaux_envisages,
     }
     monument, population = enrich_monument_with_population(supabase, monument)

@@ -62,14 +62,22 @@ export interface Monument {
    * 20260930082523), et leurs deux précisions. Le moteur en déduit, à
    * l'unanimité des types cochés, les réponses aux questions sur la nature de
    * l'édifice, qui ne sont alors plus posées. `null` EFFACE la valeur en base sur un PATCH
-   * (`undefined` n'envoie rien). Les précisions n'ont de sens que pour certains
-   * types (`TYPES_AVEC_AFFECTATION_CULTE`, `TYPES_AVEC_ARCHITECTURE_ROMANE`).
+   * (`undefined` n'envoie rien). L'affectation n'a de sens que pour certains
+   * types (`TYPES_AVEC_AFFECTATION_CULTE`), le style roman que pour un domaine
+   * Mérimée religieux (`architectureRomaneApplicable`).
    */
   typeEdifice?: TypeEdifice[] | null;
   /** Édifice religieux toujours affecté au culte (true) ou désaffecté (false). */
   affecteAuCulte?: boolean | null;
   /** Architecture romane, en tout ou en partie (true), ou non (false). */
   architectureRomane?: boolean | null;
+  /**
+   * Domaine Mérimée de la notice (« architecture religieuse », combinaisons
+   * séparées par `;`). Posé par le serveur depuis la référence, jamais écrit
+   * par le client ; le diagnostic invité, sans ligne en base, le recopie du
+   * relevé choisi.
+   */
+  merimeeDomaine?: string | null;
 
   // État sanitaire — décrit le BIEN, pas un chantier : tous les projets du
   // monument le partagent. Absent tant que la question « le monument est-il en
@@ -131,4 +139,6 @@ export interface MerimeeRecord {
   statut_juridique_de_l_edifice?: string;
   cog_insee_lors_de_la_protection?: string;
   commune_actuelle?: string | null;
+  /** Absent des résultats de recherche, présent sur la notice complète. */
+  domaine?: string | null;
 }

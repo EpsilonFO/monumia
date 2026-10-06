@@ -38,6 +38,19 @@ MAX_CAR_QUESTION = 250
 #: Le même plafond, desserré pour l'avertissement du lint sur le stock existant.
 MAX_CAR_QUESTION_LINT = 300
 
+#: La CIBLE d'écriture d'une question, posée le 2026-10-06 (cf. l'en-tête de
+#: `facts.yaml`) : une phrase d'environ 160 caractères, sans énumération. Le
+#: lint avertit au-delà, sur toute l'ontologie ; `tests/test_forme_des_faits.py`
+#: fige le nombre de questions de plus de 200 caractères pour qu'il ne remonte
+#: pas.
+MAX_CAR_QUESTION_CIBLE = 160
+
+#: Le titre d'une carte de réponse. Au-delà, la carte devient un paragraphe :
+#: les parenthèses, exemples et énumérations vont dans `description`.
+MAX_CAR_LIBELLE_OPTION = 45
+#: Au-delà, les cartes se rangent sous des intertitres (`groupe`).
+MAX_OPTIONS_SANS_GROUPE = 8
+
 #: Un seuil chiffré enfermé dans le libellé d'un booléen : `logement_plus_15_ans`,
 #: `age_porteur_moins_62_ans`, « au moins 3 ans », « supérieur à 50 % ».
 #:
@@ -148,6 +161,25 @@ def question_trop_longue(fait: FaitLisible, *, maximum: int = MAX_CAR_QUESTION) 
     return longueur if longueur > maximum else None
 
 
+class OptionLisible(Protocol):
+    id: str
+    label: str
+    groupe: str | None
+
+
+def libelles_trop_longs(
+    options: list[OptionLisible] | None, *, maximum: int = MAX_CAR_LIBELLE_OPTION
+) -> list[str]:
+    """Les ids des options dont le libellé (replié) dépasse `maximum`."""
+    return [o.id for o in options or [] if len(" ".join(o.label.split())) > maximum]
+
+
+def options_a_grouper(options: list[OptionLisible] | None) -> bool:
+    """Plus de `MAX_OPTIONS_SANS_GROUPE` options, et aucune ne porte de groupe."""
+    opts = options or []
+    return len(opts) > MAX_OPTIONS_SANS_GROUPE and not any(o.groupe for o in opts)
+
+
 def _nie(jetons: list[str], i: int) -> bool:
     """Le jeton `i` est-il directement précédé d'un négateur ?"""
     return i > 0 and jetons[i - 1] in NEGATEURS
@@ -195,12 +227,17 @@ def polarites_suspectes(pending: dict[str, FaitLisible]) -> list[str]:
 
 
 __all__ = [
+    "MAX_CAR_LIBELLE_OPTION",
     "MAX_CAR_QUESTION",
+    "MAX_CAR_QUESTION_CIBLE",
     "MAX_CAR_QUESTION_LINT",
+    "MAX_OPTIONS_SANS_GROUPE",
     "NEGATEURS",
     "RACINE_MIN",
     "SEUIL_CHIFFRE_RE",
     "booleen_a_seuil",
+    "libelles_trop_longs",
+    "options_a_grouper",
     "polarites_suspectes",
     "question_trop_longue",
     "seuil_chiffre",

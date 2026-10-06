@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { Ico } from './Ico';
 import { isUnknownAnswer } from '@/components/project/wizard/unknownAnswer';
+import { TexteAide } from '@/components/shared/TexteAide';
 import { displayOrder, toggleMulti } from '@/lib/question-reponse';
 import type { QcmQuestion } from '@/types';
 
@@ -33,7 +34,8 @@ export function FicheQuestion({
   const choisies = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
   const multiple = !!question.multiple;
   const options = displayOrder(question);
-  const large = options.length > 3 || options.some((o) => o.label.length > LIBELLE_COURT);
+  const large =
+    options.length > 3 || options.some((o) => o.label.length > LIBELLE_COURT || o.description);
   const inerte = disabled || !onAnswer;
   const [aideOuverte, setAideOuverte] = useState(false);
   const aideId = useId();
@@ -70,9 +72,7 @@ export function FicheQuestion({
         </p>
         {multiple && <span className="multi">Plusieurs réponses possibles</span>}
         {question.help && (
-          <small id={aideId} hidden={!aideOuverte}>
-            {question.help}
-          </small>
+          <TexteAide id={aideId} hidden={!aideOuverte} texte={question.help} className="q-aide" />
         )}
       </div>
       <div className="yn" role={multiple ? 'group' : 'radiogroup'} aria-label="Réponse">
@@ -90,6 +90,7 @@ export function FicheQuestion({
             }}
           >
             {o.label}
+            {o.description && <small>{o.description}</small>}
           </button>
         ))}
       </div>

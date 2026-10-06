@@ -51,6 +51,8 @@ export interface RepriseDurable {
   /** La réponse en clair, ou `null` quand on ne sait pas la nommer (tranche
    *  numérique, fabriquée par le moteur depuis les seuils des aides). */
   reponse: string | null;
+  /** Le bien ou le porteur : l'écran de reprise range ses lignes par bloc. */
+  scope?: 'monument' | 'proprietaire';
   projetId: string;
   projetTitre: string | null;
 }

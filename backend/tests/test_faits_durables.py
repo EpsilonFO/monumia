@@ -72,6 +72,17 @@ class FaitsDurablesTest(unittest.TestCase):
         # Le plus récent l'emporte PAR CLÉ, et la provenance suit.
         self.assertEqual(source, {"edifice_cultuel": "ancien", "possede_orgue": "recent"})
 
+    def test_une_question_passee_ne_se_reprend_pas(self) -> None:
+        """`skip` ne dit rien : ni reprise (libellé vide à l'écran), ni
+        écrasement de la vraie réponse d'un projet plus ancien."""
+        projets = [
+            _projet("ancien", {"edifice_cultuel": "oui"}, "2026-01-01"),
+            _projet("recent", {"edifice_cultuel": "skip", "possede_orgue": "skip"}, "2026-06-01"),
+        ]
+        reponses, source = faits_durables(projets, FACTS)
+        self.assertEqual(reponses, {"edifice_cultuel": "oui"})
+        self.assertEqual(source, {"edifice_cultuel": "ancien"})
+
     def test_l_ordre_de_la_liste_ne_compte_pas(self) -> None:
         """Le tri se fait sur `updated_at`, pas sur l'ordre rendu par la base."""
         anciens = _projet("ancien", {"possede_orgue": "non"}, "2026-01-01")
@@ -251,6 +262,7 @@ class LibelleDesReprisesTest(unittest.TestCase):
         self.assertEqual([d["fact"] for d in details], ["edifice_cultuel", "revenu_fiscal"])
         self.assertEqual(details[0]["reponse"], "Oui")
         self.assertEqual(details[0]["projetTitre"], "Toiture 2024")
+        self.assertEqual([d["scope"] for d in details], ["monument", "proprietaire"])
         # La tranche numérique est relue depuis son identifiant : les bornes y
         # sont. Le fixture n'a pas d'unité, d'où le libellé nu.
         self.assertEqual(details[1]["reponse"], "40000 ou plus")

@@ -7,7 +7,7 @@ interface CadrageStepProps {
   title: string;
   /** Sous le titre : « Plusieurs réponses possibles. », par exemple. */
   consigne?: string;
-  /** Encart « Pourquoi on vous le demande ». */
+  /** Encart « Bon à savoir ». */
   pourquoi: string;
   /** Entre l'encart et les réponses. */
   avantReponses?: ReactNode;
@@ -31,7 +31,7 @@ interface CadrageStepProps {
 
 /**
  * Écran de cadrage du wizard projet, au même format que les questions du
- * moteur (`EcranQuestion`) : rubrique, question, encart « Pourquoi », réponses
+ * moteur (`EcranQuestion`) : rubrique, question, encart « Bon à savoir », réponses
  * en cartes, barre de navigation. Pas de « Je ne sais pas, passer » ici : les
  * étapes de cadrage portent chacune leur propre « pas encore déterminé », qui
  * est une réponse enregistrée.
