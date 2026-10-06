@@ -22,6 +22,11 @@ export interface User {
 
   onboardingComplete: boolean;
   notificationPreferences: NotificationPreferences;
+  /**
+   * Visites guidées déjà vues ou passées : identifiant de la visite → date.
+   * Absent d'un profil persisté d'avant le champ : lu comme vide.
+   */
+  guidesVus?: Partial<Record<import('@/lib/guides').GuideId, string>>;
   createdAt: string;
 }
 

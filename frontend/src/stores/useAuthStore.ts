@@ -11,6 +11,8 @@ import { useSuiviStore } from './useSuiviStore';
 import { useBillingStore } from './useBillingStore';
 import { useBrouillonInviteStore } from './useBrouillonInviteStore';
 import { setSessionCookie, clearSessionCookie } from '@/lib/session';
+import type { GuideId } from '@/lib/guides';
+import { oublierGuidesLocaux, retenirGuideLocal } from '@/lib/guides-local';
 import { fermerCaches, ouvrirCaches } from './persistance';
 
 interface AuthState {
@@ -24,6 +26,10 @@ interface AuthState {
   updateProfile: (updates: Partial<User>) => Promise<void>;
   completeOnboarding: () => void;
   updateNotificationPreferences: (prefs: Partial<NotificationPreferences>) => Promise<void>;
+  /** Visite guidée vue ou passée : sur le compte, et sur l'appareil en repli. */
+  marquerGuideVu: (id: GuideId) => void;
+  /** « Revoir les visites guidées » du profil. */
+  reinitialiserGuides: () => Promise<void>;
   logout: () => void;
 }
 
@@ -75,6 +81,27 @@ export const useAuthStore = create<AuthState>()(
       updateNotificationPreferences: async (prefs) => {
         if (!get().token) return;
         const updated = await authService.updateNotificationPreferences(prefs);
+        set({ user: updated });
+      },
+
+      marquerGuideVu: (id) => {
+        // Sur l'appareil d'abord : le visiteur sans compte n'a que lui, et une
+        // écriture serveur qui échoue (migration pas encore appliquée) ne doit
+        // pas rejouer la visite à chaque arrivée.
+        retenirGuideLocal(id);
+        const { user, token } = get();
+        if (!user || !token) return;
+        set({ user: { ...user, guidesVus: { ...user.guidesVus, [id]: new Date().toISOString() } } });
+        authService
+          .marquerGuideVu(id)
+          .then((updated) => set({ user: updated }))
+          .catch((err) => console.error('Visite guidée non enregistrée sur le compte (ignoré):', err));
+      },
+
+      reinitialiserGuides: async () => {
+        oublierGuidesLocaux();
+        if (!get().token) return;
+        const updated = await authService.reinitialiserGuides();
         set({ user: updated });
       },
 

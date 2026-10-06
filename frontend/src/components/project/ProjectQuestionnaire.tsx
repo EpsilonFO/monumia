@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { AllClear } from '@/components/illustrations';
 import { EcranQuestion } from '@/components/project/wizard/EcranQuestion';
 import { ReponsesQuestion } from '@/components/project/wizard/ReponsesQuestion';
+import { Guide } from '@/components/shared/Guide';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import {
   computeEliminatedAideIds,
@@ -478,7 +479,11 @@ export function ProjectQuestionnaire({
   const rubrique = q!.scope ? RUBRIQUE_PAR_SCOPE[q!.scope] : null;
 
   return (
-    <EcranQuestion
+    <>
+      {/* À la première question qui porte un « Bon à savoir » : la visite le
+          montre, avec « Je ne sais pas, passer ». */}
+      <Guide id="questionnaire" pret={!!q!.help} />
+      <EcranQuestion
       // Chaque question glisse à son arrivée, et son encart « Bon à savoir »
       // repart replié.
       key={q!.id}
@@ -529,5 +534,6 @@ export function ProjectQuestionnaire({
     >
       <ReponsesQuestion question={q!} value={value[q!.id]} onAnswer={repondre} autoFocus />
     </EcranQuestion>
+    </>
   );
 }

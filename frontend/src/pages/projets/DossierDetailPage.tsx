@@ -43,6 +43,7 @@ import { isAccessLostError } from '@/lib/api-error';
 import { toast } from 'sonner';
 import type { Aide, ChecklistItem, Document, DocumentType, Dossier } from '@/types';
 import './dossier.css';
+import { Guide } from '@/components/shared/Guide';
 
 /**
  * Le sélecteur d'avancement (« À faire », « En préparation », « Déposé »…) est
@@ -506,6 +507,7 @@ export function DossierDetailPage() {
 
   return (
     <div className="ec pdos">
+      <Guide id="dossier" />
       <BoutonRetour to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`} libelle={`Retour à ${nomProjet}`} />
 
       <input
@@ -531,7 +533,14 @@ export function DossierDetailPage() {
           </h1>
           <p className="proj">
             Projet <Link to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`}>{nomProjet}</Link>
-            {lienAide && <> · <Link to={lienAide}>Voir la fiche de l'aide</Link></>}
+            {lienAide && (
+              <>
+                {' · '}
+                <Link to={lienAide} data-guide="dossier.aide">
+                  Voir la fiche de l'aide
+                </Link>
+              </>
+            )}
           </p>
         </div>
         {aide && (
@@ -582,7 +591,7 @@ export function DossierDetailPage() {
         </div>
       )}
 
-      <section className="step" aria-labelledby="piecesT">
+      <section className="step" aria-labelledby="piecesT" data-guide="dossier.pieces">
         <div className="step-h">
           <div>
             <h2 id="piecesT">
@@ -648,6 +657,7 @@ export function DossierDetailPage() {
             type="button"
             onClick={handleDownloadAll}
             disabled={downloading || !aDesPieces}
+            data-guide="dossier.telecharger"
             title={aDesPieces ? undefined : 'Ajoutez d’abord une pièce au dossier'}
           >
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Picto nom="telecharger" />}

@@ -1,7 +1,8 @@
 import contextlib
 import logging
 import os
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, Literal, get_args
 from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
@@ -87,6 +88,26 @@ class UpdateProfileRequest(BaseModel):
     nom: str | None = None
     email: str | None = None
     telephone: str | None = None
+
+
+#: Les visites guidées du front, une par écran (`frontend/src/lib/guides.ts`,
+#: miroir vérifié par `tests/test_guides_vus.py`). Fermé ici pour qu'un client
+#: ne puisse pas remplir `users.guides_vus` de clés arbitraires.
+GuideId = Literal["monuments", "monument", "questionnaire", "projet", "aide", "dossier"]
+GUIDES: tuple[str, ...] = get_args(GuideId)
+
+
+class GuideVuRequest(BaseModel):
+    id: GuideId
+
+
+def marquer_guide_vu(vus: object, guide: str, quand: datetime) -> dict[str, str]:
+    """Les visites vues, plus celle-ci. Une valeur illisible en base (écrite à
+    la main) repart d'un dict vide plutôt que de casser le profil, et une clé
+    hors de `GUIDES` (visite retirée depuis) est oubliée au passage."""
+    courant = vus if isinstance(vus, dict) else {}
+    garde = {k: v for k, v in courant.items() if k in GUIDES}
+    return {**garde, guide: quand.isoformat()}
 
 
 class UpdateNotificationsRequest(BaseModel):
@@ -180,6 +201,10 @@ def _get_profile(supabase: Client, user_id: str) -> dict:
             **_default_notification_preferences(),
             **(profile.pop("notification_preferences") or {}),
         }
+    # Visites guidées déjà vues : `{}` aussi quand la colonne manque (migration
+    # pas encore appliquée), pour que le front ait toujours un objet à lire.
+    guides_vus = profile.pop("guides_vus", None)
+    profile["guidesVus"] = guides_vus if isinstance(guides_vus, dict) else {}
     if "onboarding_complete" in profile:
         profile["onboardingComplete"] = profile.pop("onboarding_complete")
     if "created_at" in profile:
@@ -835,4 +860,28 @@ def update_notifications(
     merged = {**current_prefs, **patch}
 
     supabase.table("users").update({"notification_preferences": merged}).eq("id", user_id).execute()
+    return _get_profile(supabase, user_id)
+
+
+@router.patch("/me/guides")
+def marquer_guide(
+    body: GuideVuRequest,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """Une visite guidée vue (« Compris ») ou passée (« Passer ») : elle ne se
+    rejouera plus. Idempotent : la date est simplement rafraîchie."""
+    courant = _get_profile(supabase, user_id).get("guidesVus")
+    vus = marquer_guide_vu(courant, body.id, datetime.now(UTC))
+    supabase.table("users").update({"guides_vus": vus}).eq("id", user_id).execute()
+    return _get_profile(supabase, user_id)
+
+
+@router.delete("/me/guides")
+def reinitialiser_guides(
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+):
+    """« Revoir les visites guidées » : toutes se rejouent à la prochaine arrivée."""
+    supabase.table("users").update({"guides_vus": {}}).eq("id", user_id).execute()
     return _get_profile(supabase, user_id)

@@ -8,6 +8,8 @@ export interface Onglet<V extends string> {
   count: number | null;
   /** Infobulle de l'onglet, quand son libellé ne dit pas à quoi il sert. */
   title?: string;
+  /** Ancre d'une visite guidée (`data-guide`, cf. lib/guides). */
+  guide?: string;
 }
 
 /**
@@ -35,6 +37,7 @@ export function Onglets<V extends string>({
           role="tab"
           aria-selected={o.value === actif}
           title={o.title}
+          data-guide={o.guide}
           onClick={() => onChange(o.value)}
         >
           <Picto nom={o.picto} />

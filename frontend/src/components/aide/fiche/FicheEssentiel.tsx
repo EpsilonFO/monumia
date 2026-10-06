@@ -78,7 +78,7 @@ export function FicheEssentiel({
   return (
     <>
       <div className="ess">
-        <div className="ess-h">
+        <div className="ess-h" data-guide="aide.montant">
           <p className="ess-k">
             <span id="ess-t">L'essentiel</span>
             <span className={`status on-blue ${CLASSE_GUICHET[g.etat]}`}><i />{g.court}</span>

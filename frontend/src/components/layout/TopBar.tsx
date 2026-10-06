@@ -2,6 +2,7 @@ import { Link, NavLink } from 'react-router';
 import { landingUrl } from '@/lib/session';
 import { cn } from '@/lib/utils';
 import { SERIF } from '@/lib/brand';
+import { ROUTES } from '@/constants/routes';
 import { LogoMonumia } from '@/components/icons';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { OwnerAccountMenu } from './ownerNav';
@@ -64,6 +65,7 @@ export function TopBar() {
               to={item.to}
               end={item.end}
               title={item.title}
+              data-guide={item.to === ROUTES.DOCUMENTS ? 'monuments.documents' : undefined}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-2 rounded-full px-2.5 py-1.5 transition-colors',
