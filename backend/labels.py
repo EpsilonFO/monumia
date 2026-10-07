@@ -29,8 +29,11 @@ OWNERSHIP_LABELS = {
     "mixte": "Propriété mixte",
 }
 
+# Un code n'entre ici que si au moins une aide du catalogue le cite dans
+# `hard_filters.travaux`, et s'il ne REGROUPE pas d'autres codes : la grille de
+# l'écran « Sur quoi portent les travaux ? » se lit comme une liste de choix
+# distincts. Cf. TRAVAUX_RETIRES pour les codes qui n'y sont plus.
 TRAVAUX_LABELS = {
-    "toiture": "Toiture",
     "charpente": "Charpente",
     "couverture": "Couverture",
     "facade": "Façade",
@@ -59,12 +62,43 @@ TRAVAUX_LABELS = {
     "exploitation_agricole": "Exploitation agricole (plantations, vergers, haies)",
     "foret": "Forêt et desserte forestière",
     "eau_milieux_aquatiques": "Eau et milieux aquatiques (cours d'eau, étang, captage)",
-    "equipement_professionnel": "Équipement professionnel (matériel, véhicule)",
     # Ajouté le 2026-09-23 : le numérique était une question posée à tous
     # (`projet_composante_numerique`) alors que c'est l'OBJET du projet. Les
     # aides qui ne financent que cela se cadrent par `hard_filters.travaux`.
     "equipement_numerique": "Équipement numérique (informatique, outils de médiation, affichage, réseau)",
 }
+
+# Codes de travaux retirés du vocabulaire, et ce qu'ils valent désormais. Les
+# projets enregistrés avant le retrait peuvent encore les porter (migration
+# 20261007 à appliquer) : le moteur les traduit à la lecture
+# (`normaliser_travaux`), si bien qu'un projet ancien garde le même résultat.
+#
+# Retirés le 2026-10-07 :
+# - « toiture » regroupait charpente et couverture (« le toit dans son
+#   ensemble ») : 25 des 28 aides qui la citaient citaient aussi les deux
+#   autres, et les trois restantes visent bien le toit entier. Proposer les
+#   trois à la fois faisait cocher deux fois la même chose.
+# - « equipement_professionnel » : aucune aide ne le citait. Le cocher seul
+#   écartait toutes les aides cadrées sur des travaux sans en ouvrir aucune.
+TRAVAUX_RETIRES: dict[str, tuple[str, ...]] = {
+    "toiture": ("charpente", "couverture"),
+    "equipement_professionnel": (),
+}
+
+
+def normaliser_travaux(codes: list[str] | None) -> list[str]:
+    """Les travaux d'un projet, codes retirés traduits (cf. TRAVAUX_RETIRES).
+
+    L'ordre est gardé et les doublons tombent : « toiture + charpente »
+    devient « charpente, couverture ».
+    """
+    resultat: list[str] = []
+    for code in codes or []:
+        for c in TRAVAUX_RETIRES.get(code, (code,)):
+            if c not in resultat:
+                resultat.append(c)
+    return resultat
+
 
 # ── Familles thématiques d'une aide ────────────────────────────────────────────
 #

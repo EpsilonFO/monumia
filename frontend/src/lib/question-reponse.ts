@@ -113,14 +113,3 @@ export function reponsesChoisies(value: string | string[] | undefined): string[]
   return ids.filter((id) => id !== PSEUDO_PASSER);
 }
 
-/** À partir de ces nombres de réponses, trois puis quatre par ligne : la
- *  question doit tenir sur un écran sans défiler. */
-const TROIS_COLONNES = 5;
-const QUATRE_COLONNES = 13;
-
-/** La classe de colonnes d'une grille de `n` cartes, plafonnée à `max`. */
-export function classeColonnes(n: number, max: 3 | 4 = 4): string | undefined {
-  if (max === 4 && n >= QUATRE_COLONNES) return 'trois quatre';
-  if (n >= TROIS_COLONNES) return 'trois';
-  return undefined;
-}

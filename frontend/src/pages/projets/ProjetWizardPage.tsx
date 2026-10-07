@@ -1055,6 +1055,10 @@ export function ProjetWizardPage() {
           value={travaux}
           onChange={setTravaux}
           onNext={() => void handleTravauxNext()}
+          onIndetermine={() => {
+            setTravaux([]);
+            void handleTravauxNext([]);
+          }}
           onBack={
             intentionVerrouillee
               ? undefined

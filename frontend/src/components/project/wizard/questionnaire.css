@@ -109,46 +109,30 @@
 .qz .reprises ul b { font-weight: 500; color: var(--e-ink); }
 .qz .reprises p { margin-top: 8px; }
 
-.qz .opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; margin-top: 18px; }
-.qz .opt { position: relative; display: flex; gap: 16px; align-items: center; text-align: left; background: var(--e-paper); border: 1.5px solid var(--e-line); border-radius: 16px; padding: 14px 17px; min-height: 0; transition: border-color .15s, background .15s; }
+/* ── cartes de réponse ─────────────────────────────────────────────────
+   UN SEUL format, sur tous les écrans du parcours : trois colonnes, hauteur
+   fixe, libellé sur deux lignes au plus. Plus de variante selon le nombre de
+   réponses, de carte « serrée » ni de carte sur toute la largeur : d'une
+   question à l'autre, la même carte a la même taille. La précision d'une
+   réponse passe en infobulle au survol (cf. CarteReponse). */
+.qz .opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+.qz .opt { position: relative; display: flex; gap: 8px; align-items: center; height: 64px; background: var(--e-paper); border: 1.5px solid var(--e-line); border-radius: 14px; padding: 0 12px 0 15px; transition: border-color .15s, background .15s; }
 .qz .opt:hover { border-color: var(--e-blue-line); }
-.qz .opt .rd { width: 23px; height: 23px; border-radius: 50%; border: 2px solid var(--q-rd); flex: none; margin-top: 0; display: grid; place-items: center; transition: border-color .15s, background .15s; }
+/* Le bouton de la carte couvre toute sa surface (::after) : cliquer n'importe
+   où coche la réponse. */
+.qz .opt-btn { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 0 1 auto; background: none; border: 0; padding: 0; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.qz .opt-btn::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.qz .opt-btn:focus-visible { outline: none; }
+.qz .opt:has(> .opt-btn:focus-visible) { outline: 2px solid var(--e-blue); outline-offset: 2px; }
+.qz .opt .rd { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--q-rd); flex: none; display: grid; place-items: center; transition: border-color .15s, background .15s; }
 .qz .opt.multi .rd { border-radius: 7px; }
 .qz .opt .rd .i { width: 14px; height: 14px; color: #fff; opacity: 0; }
-.qz .opt b { display: block; font-size: 16px; font-weight: 600; color: var(--e-ink); line-height: 1.35; }
-.qz .opt small { display: block; font-size: 14.5px; line-height: 1.45; color: var(--e-body); margin-top: 4px; }
-.qz .opt[aria-checked="true"] { border-color: var(--e-blue); background: var(--e-blue-soft); }
-.qz .opt[aria-checked="true"] .rd { border-color: var(--e-blue); background: var(--e-blue); }
-.qz .opt[aria-checked="true"] .rd .i { opacity: 1; }
+.qz .opt b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 15.5px; font-weight: 600; color: var(--e-ink); line-height: 1.3; }
+.qz .opt.on { border-color: var(--e-blue); background: var(--e-blue-soft); }
+.qz .opt.on .rd { border-color: var(--e-blue); background: var(--e-blue); }
+.qz .opt.on .rd .i { opacity: 1; }
 /* « je ne sais pas » du moteur : une vraie réponse, au libellé moins appuyé */
 .qz .opt.nsp b { font-weight: 500; color: var(--e-body); }
-/* Sans description (le cas de toutes les réponses pour l'instant), la carte est
-   basse et son libellé centré face au rond ; une description la rallonge et
-   ramène le rond en haut. */
-.qz .opt:has(small) { align-items: flex-start; padding-block: 16px; }
-.qz .opt:has(small) .rd { margin-top: 1px; }
-/* Beaucoup de réponses : trois par ligne, pour que la question tienne sur un
-   écran sans défiler (classe posée par EcranQuestion selon leur nombre). */
-.qz .opts.trois { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
-.qz .opts.trois .opt { padding: 11px 15px; gap: 13px; }
-.qz .opts.trois .opt b { font-size: 15.5px; }
-/* Très longues listes (les travaux) : quatre par ligne, et la zone de la
-   question s'élargit, barre du haut comprise, pour que tout tienne. */
-.qz .opts.quatre { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.qz .qz-main:has(.opts.quatre) .qz-scene, .qz .qz-main:has(.opts.quatre) .qz-top, .qz .qz-main:has(.opts.quatre) .later { max-width: 1138.5px; }
-.qz .qz-main:has(.opts.quatre) { padding-top: 20.5px; }
-.qz .qz-main:has(.opts.quatre) .qz-scene { margin-top: 16px; }
-.qz .qz-main:has(.opts.quatre) .why { margin-top: 11px; padding-block: 11px; }
-@media (max-width: 1200px) {
-  .qz .opts.quatre { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-/* réponse à part, sur toute la largeur (« Pas encore déterminé »…) */
-.qz .opt.large { grid-column: 1 / -1; }
-/* longues listes sans précision (les vingt types de travaux) : cartes serrées */
-.qz .opts.serre { gap: 7px; margin-top: 14px; }
-.qz .opts.serre .opt { min-height: 0; padding: 8px 13px; gap: 10px; align-items: center; border-radius: 13px; }
-.qz .opts.serre .opt .rd { margin-top: 0; width: 19px; height: 19px; }
-.qz .opts.serre .opt b { font-size: 14.5px; line-height: 1.3; }
 .qz .opts:disabled, .qz .opts[aria-disabled="true"] { opacity: .6; }
 
 /* réponses groupées sous des intertitres (`groupe` des options) */
@@ -156,12 +140,7 @@
 .qz .grp + .grp, .qz .grp + .opts.pied { margin-top: 16px; }
 .qz .grp .opts { margin-top: 8px; }
 .qz .opts.pied { margin-top: 16px; }
-.qz .opts.pied .opt { grid-column: 1 / -1; }
 .qz .grp-t { font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--e-faint); }
-
-/* description d'une carte : deux lignes, en entier une fois cochée ou au clavier */
-.qz .opt small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13.5px; }
-.qz .opt[aria-checked="true"] small, .qz .opt:focus-visible small { -webkit-line-clamp: unset; display: block; }
 
 /* écran de reprise : une case par réponse, rangée par bloc */
 .qz .reprises-tout { margin-top: 14px; background: none; border: 0; padding: 0; color: var(--e-blue); font-weight: 600; font-size: 15px; text-decoration: underline; text-underline-offset: 4px; }
@@ -219,10 +198,10 @@
   .qz .qz-etapes, .qz .qz-mon, .qz .qz-save { display: none; }
   .qz .qz-main { padding: 22px 16px 40px; }
   .qz .qz-scene { margin-top: 23px; }
-  .qz .opts.trois { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .qz .opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
-  .qz .opts, .qz .opts.trois { grid-template-columns: 1fr; }
+  .qz .opts { grid-template-columns: 1fr; }
   .qz .qz-nav .b-orange { width: 100%; order: -1; margin-left: 0; }
   .qz .later { text-align: left; }
 }

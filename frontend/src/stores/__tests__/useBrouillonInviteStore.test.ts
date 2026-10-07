@@ -80,7 +80,7 @@ describe('brouillon du parcours découverte', () => {
   it('remet le cadrage à zéro quand le monument change de bien', () => {
     const store = useBrouillonInviteStore.getState();
     store.setMonument(MONUMENT);
-    store.setCadrage(['restauration_travaux'], ['toiture']);
+    store.setCadrage(['restauration_travaux'], ['facade']);
     store.setAnswers({ etat_travaux: 'non_commences' });
     store.setEtape('questionnaire');
 
@@ -96,7 +96,7 @@ describe('brouillon du parcours découverte', () => {
   it('conserve le cadrage quand seul un détail du même bien est corrigé', () => {
     const store = useBrouillonInviteStore.getState();
     store.setMonument(MONUMENT);
-    store.setCadrage(['restauration_travaux'], ['toiture']);
+    store.setCadrage(['restauration_travaux'], ['facade']);
     store.setAnswers({ etat_travaux: 'non_commences' });
 
     // Retour en arrière dans le wizard monument : la protection est corrigée,
@@ -104,7 +104,7 @@ describe('brouillon du parcours découverte', () => {
     useBrouillonInviteStore.getState().setMonument({ ...MONUMENT, protection: 'inscrit' });
 
     const s = useBrouillonInviteStore.getState();
-    expect(s.travaux).toEqual(['toiture']);
+    expect(s.travaux).toEqual(['facade']);
     expect(s.answers).toEqual({ etat_travaux: 'non_commences' });
   });
 
@@ -169,7 +169,7 @@ describe('réhydratation', () => {
         state: {
           monument: MONUMENT,
           raisons: ['restauration_travaux'],
-          travaux: ['toiture'],
+          travaux: ['facade'],
           answers: { etat_travaux: 'non_commences' },
           etape: 'inscription',
           monumentId: null,

@@ -7,7 +7,7 @@ export type Region =
   | 'occitanie' | 'pays-de-la-loire' | 'provence-alpes-cote-d-azur';
 
 export type WorkType =
-  | 'toiture' | 'charpente' | 'maconnerie' | 'vitraux'
+  | 'charpente' | 'maconnerie' | 'vitraux'
   | 'peintures_murales' | 'menuiserie' | 'electricite'
   | 'plomberie' | 'chauffage' | 'accessibilite'
   | 'mise_en_securite' | 'etude_prealable'

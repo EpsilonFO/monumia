@@ -35,11 +35,19 @@ const LIGNES: { cle: LigneEssentiel; libelle: string; ico: NomIco; teinte: strin
 /** « Non précisé par la source » n'est pas un délai : la ligne ne s'affiche pas. */
 const NON_PRECISE = /^non (précisé|indiqué|communiqué)/i;
 
+/**
+ * Au-delà, le délai brut du YAML (`calendrier.delai_instruction`) ne s'affiche
+ * pas : c'est une note de catalogue, écrite pour la relecture (étapes de
+ * l'instruction, millésime à reconfirmer…), illisible dans une carte étroite.
+ * La ligne attend alors le délai rédigé de la fiche (`fiche.essentiel.delai`),
+ * dont les valeurs tiennent toutes sous ce seuil.
+ */
+const DELAI_BRUT_MAX = 60;
+
 function lignesDe(aide: Aide, g: Guichet): Partial<Record<LigneEssentiel, AideTexteValeur>> {
   const ecrit = aide.fiche?.essentiel ?? {};
-  const delaiBrut = aide.delaiInstruction && !NON_PRECISE.test(aide.delaiInstruction.trim())
-    ? aide.delaiInstruction
-    : null;
+  const brut = aide.delaiInstruction?.trim();
+  const delaiBrut = brut && brut.length <= DELAI_BRUT_MAX && !NON_PRECISE.test(brut) ? brut : null;
   return {
     financeur: ecrit.financeur ?? (aide.organisme ? { valeur: aide.organisme } : undefined),
     beneficiaires: ecrit.beneficiaires,

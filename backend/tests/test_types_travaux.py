@@ -18,19 +18,20 @@ import re
 import unittest
 from pathlib import Path
 
-from labels import TRAVAUX_LABELS
+from aides_schema import load_all_aides
+from labels import TRAVAUX_LABELS, TRAVAUX_RETIRES, normaliser_travaux
 
 RACINE = Path(__file__).resolve().parents[2]
 FRONT_OPTIONS = RACINE / "frontend" / "src" / "constants" / "monument-options.ts"
 
 
 class TableDesTypesTravauxTest(unittest.TestCase):
-    #: Les vingt-quatre types et leur libellé, FIGÉS. Les quatre derniers
-    #: décrivent le DOMAINE et non le bâti : sans eux, une aide qui ne finance
-    #: qu'une plantation ou une desserte forestière n'a aucun moyen de dire
-    #: qu'elle ne finance pas une toiture.
+    #: Les vingt-trois types et leur libellé, FIGÉS. Trois d'entre eux décrivent
+    #: le DOMAINE et non le bâti : sans eux, une aide qui ne finance qu'une
+    #: plantation ou une desserte forestière n'a aucun moyen de dire qu'elle ne
+    #: finance pas une charpente. « toiture » et « equipement_professionnel »
+    #: sont retirés depuis le 2026-10-07 (cf. labels.TRAVAUX_RETIRES).
     ATTENDUS = {
-        "toiture": "Toiture",
         "charpente": "Charpente",
         "couverture": "Couverture",
         "facade": "Façade",
@@ -53,7 +54,6 @@ class TableDesTypesTravauxTest(unittest.TestCase):
         "exploitation_agricole": "Exploitation agricole (plantations, vergers, haies)",
         "foret": "Forêt et desserte forestière",
         "eau_milieux_aquatiques": "Eau et milieux aquatiques (cours d'eau, étang, captage)",
-        "equipement_professionnel": "Équipement professionnel (matériel, véhicule)",
         "equipement_numerique": "Équipement numérique (informatique, outils de médiation, affichage, réseau)",
     }
 
@@ -72,6 +72,37 @@ class TableDesTypesTravauxTest(unittest.TestCase):
         assert bloc is not None, "WORK_TYPES introuvable dans monument-options.ts"
         codes = re.findall(r"value:\s*'([a-z_]+)'", bloc.group(1))
         self.assertEqual(codes, list(TRAVAUX_LABELS))
+
+    def test_chaque_type_ouvre_au_moins_une_aide(self) -> None:
+        """Une case que l'utilisateur coche doit servir : un code qu'aucune aide
+        ne cite écarte, coché seul, toutes les aides cadrées sur des travaux sans
+        en ouvrir une seule. C'était `equipement_professionnel`."""
+        cites = {code for aide in load_all_aides().values() for code in aide.hard_filters.travaux}
+        self.assertEqual(sorted(set(TRAVAUX_LABELS) - cites), [])
+
+    def test_les_codes_retires_ne_sont_plus_proposes(self) -> None:
+        self.assertEqual(set(TRAVAUX_RETIRES) & set(TRAVAUX_LABELS), set())
+        for remplacants in TRAVAUX_RETIRES.values():
+            self.assertLessEqual(set(remplacants), set(TRAVAUX_LABELS))
+
+
+class NormaliserTravauxTest(unittest.TestCase):
+    """Les projets enregistrés avant le retrait d'un code gardent leur résultat."""
+
+    def test_toiture_devient_charpente_et_couverture(self) -> None:
+        self.assertEqual(
+            normaliser_travaux(["toiture", "facade"]), ["charpente", "couverture", "facade"]
+        )
+
+    def test_sans_doublon_et_dans_l_ordre(self) -> None:
+        self.assertEqual(
+            normaliser_travaux(["facade", "toiture", "charpente"]),
+            ["facade", "charpente", "couverture"],
+        )
+
+    def test_un_code_sans_remplacant_disparait(self) -> None:
+        self.assertEqual(normaliser_travaux(["equipement_professionnel"]), [])
+        self.assertEqual(normaliser_travaux(None), [])
 
 
 if __name__ == "__main__":

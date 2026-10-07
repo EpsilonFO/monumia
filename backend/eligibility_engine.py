@@ -56,6 +56,7 @@ from labels import (
     TRAVAUX_LABELS,
     TYPES_AVEC_AFFECTATION_CULTE,
     architecture_romane_applicable,
+    normaliser_travaux,
 )
 
 logger = logging.getLogger(__name__)
@@ -112,7 +113,7 @@ def build_context(
         "monument.etat_conservation": monument.get("etat_conservation"),
         "monument.region": monument.get("region"),
         "monument.departement_num": monument.get("departement_num"),
-        "monument.travaux_envisages": monument.get("travaux_envisages") or [],
+        "monument.travaux_envisages": normaliser_travaux(monument.get("travaux_envisages")),
         "monument.siecle_construction": monument.get("siecle_construction"),
         # Choix multiple : la liste des types cochés, None si aucun.
         "monument.type_edifice": list(types_edifice) or None,
@@ -891,6 +892,18 @@ FAITS_DEDUITS_DES_FAITS: dict[str, tuple[str, dict[object, object]]] = {
     # seule » et « simple rafraîchissement » ne sont ni l'un ni l'autre, et
     # répondent non aux deux questions.
     "projet_renovation_fondamentale": ("travaux_entretien_courant", {True: False}),
+    # « Le site n'est pas un musée » répond d'avance « non » à « le musée
+    # bénéficie-t-il de l'appellation Musée de France ? ». Sans ça, une abbaye
+    # se voyait demander l'appellation de « son musée » quand une aide la citait
+    # sans périmètre musée (Bretagne, Grand Est, Hauts-de-France).
+    #
+    # Une déduction et non un `pertinent_si` : une condition sur un fait non
+    # pertinent est IGNORÉE, et les aides réservées aux musées de France (gate
+    # `eq: true` sans périmètre) seraient devenues éligibles pour tout lieu qui
+    # n'est pas un musée. Ici la valeur déduite est `false`, et ces aides
+    # tombent comme elles le doivent. La réciproque ne se déduit pas : un musée
+    # peut ne pas avoir l'appellation.
+    "appellation_musee_de_france": ("est_un_musee", {False: False}),
 }
 
 
@@ -1358,7 +1371,7 @@ def _evaluate_hard_filters(
             non_remplis.append(f"{ko_prefix} : {', '.join(mapping.get(v, v) for v in allowed)}")
 
     if hf.travaux:
-        monument_travaux = monument.get("travaux_envisages") or []
+        monument_travaux = normaliser_travaux(monument.get("travaux_envisages"))
         if not monument_travaux or (set(hf.travaux) & set(monument_travaux)):
             remplis.append("Types de travaux compatibles")
         else:
