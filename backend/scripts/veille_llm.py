@@ -344,6 +344,15 @@ REGISTRE: dict[str, ModelSpec] = {
         structured=True,
         note="id, tarif et response_format relevés sur /api/v1/models le 2026-08-28",
     ),
+    "or-ds41": _spec(
+        "or-ds41",
+        "openrouter",
+        "deepseek/deepseek-v4.1-flash",
+        prix_in=0.30,
+        prix_out=1.20,
+        structured=True,
+        note="même modèle que `or-ds41` de providall (rédaction des fiches), relevé le 2026-09-11",
+    ),
     "or-kimi": _spec(
         "or-kimi",
         "openrouter",
@@ -484,10 +493,21 @@ Tu ne rends QUE du JSON conforme au schéma. Aucun texte autour.
 Règle absolue : chaque `quote` que tu produis doit être un extrait VERBATIM du contenu frais fourni. Elle est vérifiée automatiquement par recherche littérale ; une citation approximative, reformulée ou reconstituée de mémoire fait rejeter toute ta réponse. Si tu ne peux pas citer, ne propose pas le changement.
 
 Ton mandat est étroit — quatre choses seulement :
-- `calendrier` : permanent, date_ouverture, date_limite, delai_instruction
-- `financement` : montant_min, montant_max, taux_min, taux_max, plancher, base_ttc, assiette
-- `cumul` : plafond_public_pct, cumulable, exclusions
-- `conditions` : texte, citation, notes, prédicat d'une condition existante ; ou ajout d'une condition nouvelle
+- `calendrier` :
+  - `date_ouverture`, `date_limite` : dates ISO (AAAA-MM-JJ) de la session de dépôt en cours ou à venir.
+  - `permanent` : `true` seulement pour un dépôt au fil de l'eau, sans échéance. Une `date_limite` exige `permanent: false` : pose les deux ensemble, sinon l'échéance est ignorée.
+  - `delai_instruction` : texte court, tel que la source le donne.
+- `financement` :
+  - `montant_min`, `montant_max` : bornes en euros de l'AIDE versée.
+  - `taux_min`, `taux_max` : taux d'aide en pourcentage, de 0 à 100 (40 pour 40 %).
+  - `plancher` : seuil minimal de DÉPENSES éligibles en deçà duquel le projet n'est pas aidé (« dépense subventionnable minimale : 5 000 € »). Ce n'est JAMAIS le minimum de l'aide, qui va dans `montant_min`.
+  - `base_ttc` : `true` si les montants s'entendent TTC, `false` s'ils sont HT.
+  - `assiette` : les dépenses sur lesquelles s'applique le taux, en texte fidèle à la source.
+- `cumul` :
+  - `plafond_public_pct` : plafond du cumul des aides publiques, en % du coût du projet.
+  - `cumulable` : `false` si le dispositif ne se cumule avec aucune autre aide.
+  - `exclusions` : dispositifs nommément non cumulables, tels que la source les cite.
+- `conditions` : texte, citation, notes, prédicat d'une condition existante.
 
 Tout le reste (description, démarche, documents requis) ne t'appartient pas : ne le touche pas, même si la source a changé dessus.
 
@@ -497,9 +517,10 @@ Ne re-type jamais une condition. Changer `kind`, `effect`, `fact` ou `field` n'e
 
 Réponds `changement_majeur: true` aussi si la page décrit maintenant un dispositif différent, si l'aide semble supprimée, ou si tu ne reconnais pas le règlement.
 
-Pour une condition dont tu ne retrouves plus la trace dans la source fraîche, utilise `op: "signaler_disparue"` : elle sera annotée pour un humain, jamais supprimée automatiquement.
-
-Une condition ajoutée reste non typée : donne `id`, `text`, `quote`, et `kind: "untyped"` (ou `"info"` s'il s'agit d'une simple modalité sans incidence sur l'éligibilité).
+Une condition qui APPARAÎT dans la source (une exigence nouvelle, un critère, une exclusion), ou qui en DISPARAÎT, est le changement le plus important que tu puisses trouver. Signale-le, sans rien proposer d'autre à côté : l'aide entière sera ré-ingérée, et rien de ta réponse ne sera écrit dans la fiche.
+- Condition nouvelle : `op: "add"`, avec `id`, `text` et `quote` (la phrase nouvelle, citée verbatim du contenu frais).
+- Condition dont tu ne retrouves plus la trace : `op: "signaler_disparue"` avec son `id`.
+Une simple reformulation d'une condition existante n'est ni l'un ni l'autre.
 
 Renseigne TOUJOURS `resume` : une phrase disant ce qui a changé dans la source, ou pourquoi tu ne proposes rien. C'est ce que lira l'humain chargé de relire ton diff."""
 
@@ -517,13 +538,7 @@ def build_prompt(
     *,
     aujourd_hui: date,
 ) -> str:
-    """Prompt utilisateur : l'existant, le frais, et ce qui a bougé entre les deux.
-
-    Seules les sections du mandat sont montrées. Envoyer la fiche entière
-    inviterait le modèle à corriger `description` ou `demarche`, qui relèvent
-    de `/ingest-aide` — et chaque proposition hors mandat est un aller-retour
-    de validation perdu.
-    """
+    """Prompt utilisateur : l'existant, le frais, et ce qui a bougé entre les deux."""
     extrait = {
         "slug": aide.slug,
         "nom": aide.nom,
