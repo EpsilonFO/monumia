@@ -161,7 +161,7 @@ class BaseEtageC(unittest.TestCase):
     dans le dépôt.
     """
 
-    def lancer(self, *reponses, dry_run=False, frais=FRAIS, contenu=FICHE):
+    def lancer(self, *reponses, dry_run=False, frais=FRAIS, contenu=FICHE, arbitre=None):
         chemin, aide, tmp = fiche_temporaire(contenu)
         an, collect = contexte(frais)
         faux = FauxModele(*reponses)
@@ -179,6 +179,7 @@ class BaseEtageC(unittest.TestCase):
                     aujourd_hui=AUJOURD_HUI,
                     dry_run=dry_run,
                     chemin=chemin,
+                    arbitre=arbitre,
                 )
                 return res, chemin.read_text(encoding="utf-8"), faux
         finally:
@@ -203,7 +204,7 @@ class TestEcriture(BaseEtageC):
         self.assertEqual(res.champs, ["financement.taux_max"])
         # La preuve part avec la modification : page ré-archivée dans le même geste.
         self.assertEqual(res.snapshots, [f"{AUJOURD_HUI.isoformat()}.md"])
-        self.assertIn("taux_max: 40.0", apres)
+        self.assertIn("taux_max: 40\n", apres)
         self.assertNotIn("taux_max: 30.0", apres)
         # Le reste du fichier ne bouge pas : c'est ce qui garde le diff lisible.
         self.assertIn("  - id: montant-moyen", apres)
@@ -252,7 +253,7 @@ class TestNouvelleTentative(BaseEtageC):
         self.assertEqual(len(faux.prompts), 2)
         self.assertEqual(res.tentatives, 2)
         self.assertEqual(res.etat, "applique", res.erreurs)
-        self.assertIn("taux_max: 40.0", apres)
+        self.assertIn("taux_max: 40\n", apres)
         # Le second prompt porte le motif du rejet, pas seulement le premier.
         self.assertIn("REJETÉE", faux.prompts[1])
         self.assertIn("citation introuvable", faux.prompts[1])
@@ -301,7 +302,7 @@ class TestNouvelleTentative(BaseEtageC):
         # Relance à l'identique : rien à corriger, le modèle n'a rien dit.
         self.assertEqual(faux.prompts[0], faux.prompts[1])
         self.assertEqual(res.etat, "applique", res.erreurs)
-        self.assertIn("taux_max: 40.0", apres)
+        self.assertIn("taux_max: 40\n", apres)
 
     def test_reponse_vide_deux_fois_abandonne(self):
         vide = LLMCall(error="contenu vide", reponse_vide=True)
@@ -845,3 +846,232 @@ class TestEffortDeRaisonnement(unittest.TestCase):
         for alias in ("ds-flash", "gpt-luna"):
             kwargs = kwargs_openai_compat(resoudre_modele(alias), "s", "u", 1000)
             self.assertNotIn("extra_body", kwargs, alias)
+
+
+# ---------------------------------------------------------------------------
+# Jev : filtre avant l'appel, garde avant le ré-archivage
+# ---------------------------------------------------------------------------
+
+from veille_update import filtrable  # noqa: E402
+
+from tests.test_veille_arbitre import JevFactice  # noqa: E402
+
+RESUME_REPORT = "la date limite de dépôt passe du 31 décembre 2025 au 31 décembre 2026"
+
+
+class TestJevFiltreEtGarde(BaseEtageC):
+    def test_note_basse_aucun_appel_au_llm_et_page_rearchivee(self):
+        jev = JevFactice(touche=0.03)
+        res, apres, faux = self.lancer(MAJ_TAUX, arbitre=jev.arbitre(filtre=0.1))
+        self.assertEqual(res.etat, "inchange")
+        self.assertTrue(res.ecartee_par_jev)
+        self.assertEqual(faux.prompts, [], "le filtre doit dispenser de l'appel au LLM")
+        self.assertIn("bruit écarté par Jev (p = 0,03)", res.raison)
+        self.assertEqual(res.snapshots, [f"{AUJOURD_HUI.isoformat()}.md"])
+        self.assertEqual(apres, FICHE)
+
+    def test_note_au_dessus_du_filtre_le_llm_juge(self):
+        jev = JevFactice(touche=0.4)
+        res, _, faux = self.lancer(MAJ_TAUX, arbitre=jev.arbitre(filtre=0.1))
+        self.assertEqual(res.etat, "applique", res.erreurs)
+        self.assertEqual(len(faux.prompts), 1)
+        self.assertFalse(res.ecartee_par_jev)
+
+    def test_inchange_du_llm_et_note_haute_suspect_sans_rearchivage(self):
+        jev = JevFactice(touche=0.8)
+        res, apres, _ = self.lancer(
+            reponse(resume=RESUME_REPORT, conditions=[]), arbitre=jev.arbitre(garde=0.2)
+        )
+        self.assertEqual(res.etat, "suspect")
+        self.assertEqual(res.snapshots, [], "un suspect ne doit JAMAIS être ré-archivé")
+        self.assertEqual(apres, FICHE)
+        self.assertIn(RESUME_REPORT, res.raison)
+        # C'est le résumé du LLM qui trahissait les deux cas du 2026-10-04.
+        self.assertEqual(jev.etats[-1]["resume_lecteur"], RESUME_REPORT)
+
+    def test_inchange_du_llm_et_note_basse_rearchive_comme_avant(self):
+        jev = JevFactice(touche=0.05)
+        res, _, _ = self.lancer(reponse(conditions=[]), arbitre=jev.arbitre(garde=0.2))
+        self.assertEqual(res.etat, "inchange")
+        self.assertEqual(res.snapshots, [f"{AUJOURD_HUI.isoformat()}.md"])
+        self.assertAlmostEqual(res.jev["garde"], 0.05)
+
+    def test_jev_en_panne_comportement_d_avant(self):
+        jev = JevFactice(statut=401)
+        res, _, faux = self.lancer(
+            reponse(conditions=[]), arbitre=jev.arbitre(filtre=0.5, garde=0.0)
+        )
+        self.assertEqual(res.etat, "inchange")
+        self.assertEqual(len(faux.prompts), 1, "sans Jev, le LLM juge seul")
+        self.assertEqual(res.snapshots, [f"{AUJOURD_HUI.isoformat()}.md"])
+        self.assertIn("401", res.jev_erreur)
+
+    def test_une_retouche_appliquee_ne_consulte_pas_la_garde(self):
+        jev = JevFactice(touche=0.99)
+        res, _, _ = self.lancer(MAJ_TAUX, arbitre=jev.arbitre(garde=0.2))
+        self.assertEqual(res.etat, "applique", res.erreurs)
+        self.assertEqual(jev.etats, [])
+
+
+class TestFiltrable(unittest.TestCase):
+    """Le filtre ne dispense de l'appel que quand le diff est le SEUL signal."""
+
+    def setUp(self):
+        self.arbitre = JevFactice().arbitre(filtre=0.1)
+        self.an, _ = contexte()
+
+    def test_cas_nominal(self):
+        self.assertTrue(filtrable(self.an, "+ x", self.arbitre))
+
+    def test_date_limite_depassee(self):
+        self.an.date_limite_perimee = date(2025, 12, 31)
+        self.assertFalse(filtrable(self.an, "+ x", self.arbitre))
+
+    def test_refonte_retrogradee(self):
+        self.an.retrogradee = True
+        self.assertFalse(filtrable(self.an, "+ x", self.arbitre))
+
+    def test_sans_seuil_ni_arbitre(self):
+        self.assertFalse(filtrable(self.an, "+ x", None))
+        self.assertFalse(filtrable(self.an, "+ x", JevFactice().arbitre(garde=0.2)))
+
+
+class TestSuspectsAuPassageSuivant(unittest.TestCase):
+    def setUp(self):
+        self.appels: list[str] = []
+        import veille_aides
+
+        self.module = veille_aides
+        self.reel = veille_aides.mettre_a_jour
+
+        def faux(aide, an, collect, spec, **kwargs):
+            self.appels.append(an.slug)
+            return MajResult(slug=an.slug, etat="inchange", modele=spec.alias)
+
+        veille_aides.mettre_a_jour = faux
+        self.addCleanup(setattr, veille_aides, "mettre_a_jour", self.reel)
+        env = patch.dict(os.environ, {"DEEPSEEK_API_KEY": "cle-de-test"})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def _args(self, **kwargs) -> argparse.Namespace:
+        base = {
+            "report_only": False,
+            "offline": False,
+            "dry_run": False,
+            "max_llm": 20,
+            "model": "ds-flash",
+            "slugs": [],
+            "rearchiver": False,
+        }
+        return argparse.Namespace(**{**base, **kwargs})
+
+    def _manifeste_suspect(self, analyses) -> dict:
+        from veille_aides import empreinte_changement
+
+        return {
+            "aide-0": {
+                "maj_refusee": {
+                    "date": "2026-08-01",
+                    "etat": "suspect",
+                    "empreinte": empreinte_changement(analyses["aide-0"]),
+                    "raison": f"changement possible non appliqué (Jev p = 0,80) : {RESUME_REPORT}",
+                }
+            }
+        }
+
+    def test_suspect_memorise_pas_resoumis_mais_reste_au_rapport(self):
+        analyses = analyses_factices("MAJ_LLM", "MAJ_LLM")
+        manifest = self._manifeste_suspect(analyses)
+        majs = run_stage_c(
+            self._args(),
+            dict.fromkeys(analyses),
+            analyses,
+            dict.fromkeys(analyses),
+            AUJOURD_HUI,
+            MuetJournal(),
+            manifest=manifest,
+        )
+        self.assertEqual(self.appels, ["aide-1"])
+        self.assertEqual(majs["aide-0"].etat, "suspect")
+        self.assertTrue(majs["aide-0"].memorise)
+        # L'aide reste candidate : ni escaladée, ni soldée.
+        self.assertEqual(analyses["aide-0"].statut, "MAJ_LLM")
+
+        m2 = update_manifest(manifest, analyses, majs, date(2026, 8, 14))
+        self.assertEqual(m2["aide-0"]["maj_refusee"]["etat"], "suspect")
+        self.assertEqual(m2["aide-0"]["maj_refusee"]["date"], "2026-08-01")
+
+        rapport = build_report(analyses, AUJOURD_HUI, 60.0, majs=majs, mode="complet")
+        self.assertIn("### Changement possible non appliqué", rapport)
+        self.assertIn("aide-0** (depuis le 2026-08-01)", rapport)
+        self.assertIn("aide-0 --rearchiver", rapport)
+        self.assertIn("1 aide(s) soumise(s) au modèle", rapport)
+
+    def test_rearchiver_solde_le_suspect_sans_appel(self):
+        analyses = analyses_factices("MAJ_LLM")
+        manifest = self._manifeste_suspect(analyses)
+        majs = run_stage_c(
+            self._args(slugs=["aide-0"], rearchiver=True, dry_run=True),
+            dict.fromkeys(analyses),
+            analyses,
+            dict.fromkeys(analyses),
+            AUJOURD_HUI,
+            MuetJournal(),
+            manifest=manifest,
+        )
+        self.assertEqual(self.appels, [])
+        self.assertEqual(majs["aide-0"].etat, "inchange")
+        self.assertTrue(majs["aide-0"].rearchivee_a_la_main)
+        m2 = update_manifest(manifest, analyses, majs, AUJOURD_HUI)
+        self.assertNotIn("maj_refusee", m2["aide-0"])
+
+    def test_le_plafond_ne_compte_que_les_aides_soumises_au_llm(self):
+        def faux(aide, an, collect, spec, **kwargs):
+            self.appels.append(an.slug)
+            # Une aide sur deux écartée par le filtre de Jev.
+            return MajResult(
+                slug=an.slug, etat="inchange", ecartee_par_jev=an.slug in ("aide-0", "aide-2")
+            )
+
+        self.module.mettre_a_jour = faux
+        analyses = analyses_factices(*(["MAJ_LLM"] * 5))
+        run_stage_c(
+            self._args(max_llm=2),
+            dict.fromkeys(analyses),
+            analyses,
+            dict.fromkeys(analyses),
+            AUJOURD_HUI,
+            MuetJournal(),
+        )
+        self.assertEqual(self.appels, ["aide-0", "aide-1", "aide-2", "aide-3"])
+
+
+class TestDocumentsSoumis(unittest.TestCase):
+    """Seules les pages modifiées partent au modèle (banc de l'étage C, 2026-10-05)."""
+
+    def _contexte_deux_pages(self, seconde_change: bool):
+        an, collect = contexte()
+        url2 = "https://ex.fr/reglement"
+        murl2 = MonitoredUrl(url=url2, role="snapshot", baseline_body="Règlement stable.")
+        texte2 = "Règlement modifié." if seconde_change else "Règlement stable."
+        res2 = FetchResult(url=url2, status=200, raw_text=texte2, body_md=texte2)
+        collect.urls.append(murl2)
+        collect.fetched[url2] = res2
+        an.urls.append(
+            UrlVerdict(murl=murl2, result=res2, diff=normalized_diff("Règlement stable.", texte2))
+        )
+        return an, collect
+
+    def test_page_inchangee_omise(self):
+        an, collect = self._contexte_deux_pages(seconde_change=False)
+        docs = veille_update.documents_a_soumettre(an, collect)
+        self.assertEqual([d[0] for d in docs], [URL])
+
+    def test_deux_pages_modifiees_toutes_soumises(self):
+        an, collect = self._contexte_deux_pages(seconde_change=True)
+        self.assertEqual(len(veille_update.documents_a_soumettre(an, collect)), 2)
+
+    def test_sans_page_modifiee_tout_part(self):
+        an, collect = contexte(frais=BASELINE)  # citation disparue, aucun diff
+        self.assertEqual(len(veille_update.documents_a_soumettre(an, collect)), 1)

@@ -196,7 +196,41 @@ def consigne(aides_dir: Path = AIDES_DIR) -> str:
 
 def prompt_pour(chemin: Path) -> str:
     source = retirer_fiche(chemin.read_text(encoding="utf-8"))
-    return f"Aide à rédiger : {chemin.name}\n\n```yaml\n{source}\n```"
+    # La liste explicite : sans elle, un modèle léger omettait le bloc `points`
+    # en entier sur une aide à vingt conditions (8 refus sur 24 le 2026-10-04).
+    ids = [c.id for c in load_aide(chemin).conditions]
+    attendus = (
+        "\n\nLe bloc `points` doit contenir exactement une entrée par condition, "
+        f"ni plus ni moins ({len(ids)}) : " + ", ".join(ids)
+        if ids
+        else ""
+    )
+    return f"Aide à rédiger : {chemin.name}\n\n```yaml\n{source}\n```{attendus}"
+
+
+# Réponse refusée renvoyée au modèle : assez pour qu'il la complète plutôt que
+# de tout réécrire, pas assez pour doubler le prompt.
+MAX_CHARS_REPONSE_REFUSEE = 12_000
+
+
+def prompt_correction(prompt: str, fiche: Fiche, erreurs: list[str]) -> str:
+    """Le prompt d'origine, plus la fiche refusée et les motifs du refus."""
+    refusee = fiche.model_dump_json(exclude_none=True)[:MAX_CHARS_REPONSE_REFUSEE]
+    return "\n".join(
+        [
+            prompt,
+            "",
+            "## Ta fiche précédente a été REFUSÉE",
+            "```json",
+            refusee,
+            "```",
+            "",
+            "Motifs du refus :",
+            *[f"- {e}" for e in erreurs],
+            "",
+            "Corrige ces points et rends la fiche COMPLÈTE.",
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -226,16 +260,28 @@ class Resultat:
     erreurs: list[str] = field(default_factory=list)
 
 
+# Corrections accordées après un refus des contrôles. Mesuré le 2026-10-04 avec
+# glm-5.3-flash : sans seconde chance, 12 fiches refusées sur 24 (points omis,
+# tiret cadratin, titre trop long), dont 8 à nouveau à un second lancement à froid.
+MAX_CORRECTIONS = 2
+
+
 def rediger(chemin: Path, client, systeme: str, compteur: Compteur, jour: date) -> Resultat:
     aide = load_aide(chemin)
-    essai = client.try_complete_json(Fiche, prompt_pour(chemin), system=systeme)
-    compteur.ajouter(essai.response, "redaction")
-    if essai.data is None:
-        return Resultat(aide.slug, [f"réponse inexploitable : {essai.response.error}"])
-    fiche = normaliser(aide, essai.data, jour)
-    erreurs = controler(aide, fiche)
-    if not erreurs:
-        ecrire_fiche(chemin, fiche)
+    prompt = prompt_pour(chemin)
+    erreurs: list[str] = []
+    for _tentative in range(1 + MAX_CORRECTIONS):
+        essai = client.try_complete_json(Fiche, prompt, system=systeme)
+        compteur.ajouter(essai.response, "redaction")
+        if essai.data is None:
+            erreurs = [f"réponse inexploitable : {essai.response.error}"]
+            continue
+        fiche = normaliser(aide, essai.data, jour)
+        erreurs = controler(aide, fiche)
+        if not erreurs:
+            ecrire_fiche(chemin, fiche)
+            return Resultat(aide.slug, [])
+        prompt = prompt_correction(prompt_pour(chemin), fiche, erreurs)
     return Resultat(aide.slug, erreurs)
 
 

@@ -26,12 +26,19 @@ Quatre décisions y sont prises, et elles méritent d'être lues avant le code :
    centimes.
 
 4. Une aide soumise au modèle voit ses pages RÉ-ARCHIVÉES, qu'il ait proposé
-   une retouche ou non. Sans ça le pipeline n'est pas idempotent : la baseline
+   une retouche ou non — sauf si Jev juge son « inchangé » suspect (point 5). Sans ça le pipeline n'est pas idempotent : la baseline
    resterait l'ancienne page, le passage suivant rejouerait le même diff — et
    une aide dont la page a bougé hors mandat repaierait un appel chaque jour.
    Pour une fiche modifiée, la preuve doit en plus voyager avec la
    modification, dans le même commit, sinon les citations fraîches seraient
    comptées en dette par `veille_quotes_audit.py`.
+
+5. Jev (`veille_arbitre`), quand ses seuils sont réglés, encadre l'appel. AVANT :
+   un diff qu'il juge hors mandat ne coûte pas d'appel au LLM, l'aide passe
+   `inchange` et sa page est ré-archivée. APRÈS un « inchangé » : s'il juge que
+   le changement touche le mandat, résumé du LLM à l'appui, la page n'est PAS
+   ré-archivée et l'aide sort `suspect`. Un ré-archivage à tort efface le
+   changement pour toujours ; une fausse alerte coûte une relecture.
 """
 
 from __future__ import annotations
@@ -51,6 +58,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from snapshot_source import NAME_RE, write_docx_snapshot, write_md_snapshot, write_pdf_snapshot
 from veille_analyze import AideAnalysis, resume_diff
 from veille_apply import appliquer
+from veille_arbitre import Arbitre, ErreurDecision, note
 from veille_collect import AideCollect, est_pdf
 from veille_llm import ModelSpec, build_prompt, call, system_pour
 
@@ -69,7 +77,7 @@ MAX_LIGNES_DIFF = 200
 # pour doubler le prompt.
 MAX_CHARS_REPONSE_REJETEE = 4_000
 
-Etat = Literal["applique", "inchange", "escalade", "echec"]
+Etat = Literal["applique", "inchange", "escalade", "echec", "suspect"]
 
 
 @dataclass
@@ -102,10 +110,30 @@ class MajResult:
     # l'a provoqué. Mesuré au run pilote, où un échec d'édition sur `fctva` a
     # dû être reconstitué à la main.
     reponse_rejetee: str = ""
+    # Notes de Jev (probabilité que le changement touche le mandat), par usage :
+    # `filtre` avant l'appel, `garde` après un « inchangé ».
+    jev: dict[str, float] = field(default_factory=dict)
+    jev_cout_usd: float = 0.0
+    jev_erreur: str = ""
+    # Écartée par le filtre de Jev : aucun appel au LLM, ne compte pas sous
+    # le plafond `--max-llm`.
+    ecartee_par_jev: bool = False
+    # Refus repris du manifeste, sans nouvel appel : un `suspect` reste au
+    # rapport chaque semaine tant que sa page n'est pas ré-archivée.
+    memorise: bool = False
+    depuis: str = ""
+    # Page ré-archivée sur demande humaine (`veille_aides.py --rearchiver`).
+    rearchivee_a_la_main: bool = False
 
     @property
     def symbole(self) -> str:
-        return {"applique": "→", "inchange": "=", "escalade": "✗", "echec": "!"}[self.etat]
+        return {
+            "applique": "→",
+            "inchange": "=",
+            "escalade": "✗",
+            "echec": "!",
+            "suspect": "?",
+        }[self.etat]
 
 
 def prompt_correction(prompt: str, reponse: str, erreurs: list[str]) -> str:
@@ -144,12 +172,13 @@ def mettre_a_jour(
     aujourd_hui: date,
     dry_run: bool = False,
     chemin: Path | None = None,
+    arbitre: Arbitre | None = None,
 ) -> MajResult:
     """Un appel (au plus deux) au modèle, puis l'écriture si tout passe."""
     res = MajResult(slug=aide.slug, modele=spec.alias)
     chemin = chemin or AIDES_DIR / f"{aide.slug}.yaml"
 
-    documents = collect.fresh_docs()
+    documents = documents_a_soumettre(an, collect)
     if not documents:
         res.raison = "aucun contenu frais fouillable : rien à soumettre au modèle"
         res.etape_echec = "collecte"
@@ -160,6 +189,18 @@ def mettre_a_jour(
     # une citation issue d'une ligne écartée par la troncature, ou d'en accepter
     # une que le modèle n'avait pas sous les yeux.
     diff = resume_diff(an, max_lignes=MAX_LIGNES_DIFF)
+
+    if filtrable(an, diff, arbitre):
+        assert arbitre is not None and arbitre.seuils.filtre is not None
+        p = _juger(res, "filtre", arbitre, aide, diff)
+        if p is not None and p < arbitre.seuils.filtre:
+            res.etat = "inchange"
+            res.ecartee_par_jev = True
+            res.raison = f"bruit écarté par Jev ({note(p)})"
+            if not dry_run:
+                res.snapshots = rafraichir_snapshots(an, collect, jour=aujourd_hui)
+            return res
+
     prompt = build_prompt(aide, documents, diff, aujourd_hui=aujourd_hui)
     system = system_pour(spec)
 
@@ -250,6 +291,16 @@ def mettre_a_jour(
         # lue ; c'est donc elle qui devient la baseline.
         res.etat = "inchange"
         res.raison = res.resume or "le modèle ne propose aucun changement dans son mandat"
+        if arbitre is not None and arbitre.seuils.garde is not None and diff:
+            p = _juger(res, "garde", arbitre, aide, diff, resume=res.resume)
+            if p is not None and p >= arbitre.seuils.garde:
+                # Pas de ré-archivage : la baseline reste l'ancienne page, le
+                # changement reste visible au passage suivant.
+                res.etat = "suspect"
+                res.raison = f"changement possible non appliqué (Jev {note(p)}) : " + (
+                    res.resume or "le modèle n'a rien proposé"
+                )
+                return res
         if not dry_run:
             res.snapshots = rafraichir_snapshots(an, collect, jour=aujourd_hui)
         return res
@@ -262,6 +313,61 @@ def mettre_a_jour(
         chemin.write_text(applied.texte, encoding="utf-8")
         res.snapshots = rafraichir_snapshots(an, collect, jour=aujourd_hui)
     return res
+
+
+def documents_a_soumettre(an: AideAnalysis, collect: AideCollect) -> list[tuple[str, str, str]]:
+    """Les documents montrés au modèle : seules les pages qui ont bougé.
+
+    Mesuré au banc de l'étage C sur le passage du 2026-10-04 (or-glm, 33
+    changements réels) : toutes les pages de l'aide (16 000 jetons en moyenne,
+    règlements PDF inchangés compris) ou les seules pages modifiées, la veille
+    perd 2 à 3 changements dans les deux cas, l'écart restant dans la variance
+    d'un essai à l'autre (1 à 4). Mais l'appel coûte 30 % de moins. Prévenir
+    dans le prompt que les autres pages n'ont pas bougé faisait plutôt pire
+    (3 à 4) : le modèle concluait plus souvent « inchangé ».
+    Sans page modifiée (une citation disparue, rien d'autre), tout part.
+    """
+    docs = collect.fresh_docs()
+    modifiees = {u.murl.url for u in an.urls if u.a_change}
+    return [d for d in docs if d[0] in modifiees] or docs
+
+
+def filtrable(an: AideAnalysis, diff: str, arbitre: Arbitre | None) -> bool:
+    """Le filtre de Jev peut-il dispenser cette aide d'appel au LLM ?
+
+    Jamais quand un autre signal que le diff parle : une citation disparue de
+    la source, une date limite dépassée sur une page qui a bougé (le cas même
+    d'un report d'échéance), ou une refonte que Jev vient de rétrograder — le
+    plan l'envoie à l'étage C, pas au ré-archivage.
+    """
+    return (
+        arbitre is not None
+        and arbitre.seuils.filtre is not None
+        and bool(diff)
+        and not an.regressions
+        and an.date_limite_perimee is None
+        and not an.retrogradee
+    )
+
+
+def _juger(
+    res: MajResult,
+    usage: str,
+    arbitre: Arbitre,
+    aide: Aide,
+    diff: str,
+    *,
+    resume: str | None = None,
+) -> float | None:
+    """Une note de Jev, ou `None` s'il est en panne : on fait alors sans lui."""
+    try:
+        j = arbitre.mandat(aide, diff, resume=resume)
+    except ErreurDecision as exc:
+        res.jev_erreur = str(exc)
+        return None
+    res.jev[usage] = j.p
+    res.jev_cout_usd += j.cout_usd
+    return j.p
 
 
 def rafraichir_snapshots(an: AideAnalysis, collect: AideCollect, *, jour: date) -> list[str]:
@@ -315,6 +421,8 @@ def rafraichir_snapshots(an: AideAnalysis, collect: AideCollect, *, jour: date) 
 
 __all__ = [
     "MAX_LLM_DEFAUT",
+    "documents_a_soumettre",
+    "filtrable",
     "Etat",
     "MajResult",
     "mettre_a_jour",

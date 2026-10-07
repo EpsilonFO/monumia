@@ -31,11 +31,13 @@ un échec en 6 ne l'est pas — c'est un bug d'éditeur, on escalade.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import sys
 import textwrap
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Any, Literal
 
@@ -594,11 +596,18 @@ def emit_field(cle: str, valeur: Any, indent: int) -> list[str]:
     """
     pad = " " * indent
     if valeur is None:
-        return [f"{pad}{cle}:"]
+        # Explicite, comme les fiches l'écrivent (`date_limite: null`).
+        return [f"{pad}{cle}: null"]
     if isinstance(valeur, bool):
         return [f"{pad}{cle}: {'true' if valeur else 'false'}"]
+    if isinstance(valeur, float) and valeur.is_integer():
+        # Le modèle rend des flottants (« 20000.0 ») : un montant entier
+        # s'écrit comme les fiches l'écrivent, sans décimale.
+        return [f"{pad}{cle}: {int(valeur)}"]
     if isinstance(valeur, (int, float)):
         return [f"{pad}{cle}: {valeur}"]
+    if isinstance(valeur, date):
+        return [f"{pad}{cle}: {valeur.isoformat()}"]
     if isinstance(valeur, list):
         if not valeur:
             return [f"{pad}{cle}: []"]
@@ -817,11 +826,39 @@ class _Edition:
     nouvelle_section: bool = False
 
 
+# Champs de date : le modèle les rend en chaîne ISO. Écrits tels quels, ils
+# passaient en bloc replié (`date_limite: >-` puis la date à la ligne), une
+# date nue relisant en `date` et non en chaîne.
+CHAMPS_DATE = frozenset({"date_ouverture", "date_limite"})
+
+
+def champs_a_ecrire(champs: dict[str, Any], existant: dict | None) -> dict[str, Any]:
+    """Ce qu'une retouche de section écrit réellement, éditeur et témoin confondus.
+
+    Un `null` sur un champ absent ne change rien au sens (le schéma vaut déjà
+    `None`) : l'écrire ajoutait une clé vide au diff. Une date ISO devient une
+    `date`, pour s'écrire sans guillemets ni repli.
+    """
+    sortie: dict[str, Any] = {}
+    for cle, valeur in champs.items():
+        if valeur is None and cle not in (existant or {}):
+            continue
+        if cle in CHAMPS_DATE and isinstance(valeur, str):
+            # Une date mal formée reste une chaîne : la validation du schéma tranchera.
+            with contextlib.suppress(ValueError):
+                valeur = date.fromisoformat(valeur)
+        sortie[cle] = valeur
+    return sortie
+
+
 def _editions_section(
-    lignes: list[str], section: str, champs: dict[str, Any]
+    lignes: list[str], section: str, champs: dict[str, Any], existant: dict | None = None
 ) -> tuple[list[_Edition], list[str]]:
     editions: list[_Edition] = []
     erreurs: list[str] = []
+    champs = champs_a_ecrire(champs, existant)
+    if not champs:
+        return [], []
     ligne_section = _localiser(lignes, [section])
     if ligne_section is None:
         # Section absente : le schéma lui donne ses valeurs par défaut (29 % des
@@ -1131,7 +1168,8 @@ def attendu_apres(
         ("cumul", out.cumul),
     ):
         if section is not None:
-            attendu.setdefault(nom, {}).update(section.champs)
+            cible = attendu.setdefault(nom, {})
+            cible.update(champs_a_ecrire(section.champs, (ancien.get(nom) or {})))
 
     # Pas de `setdefault` : une fiche sans `conditions:` doit le rester quand
     # la réponse ne touche qu'à une section.
@@ -1292,6 +1330,7 @@ def appliquer(
     lignes = ancien_texte.split("\n")
     editions: list[_Edition] = []
     erreurs = []
+    ancien_dict = charger_yaml(ancien_texte) or {}
     # Dans l'ordre des sections du fichier : deux sections créées au même point
     # s'y rangent dans cet ordre.
     for nom, section in (
@@ -1300,7 +1339,7 @@ def appliquer(
         ("calendrier", out.calendrier),
     ):
         if section is not None:
-            eds, errs = _editions_section(lignes, nom, section.champs)
+            eds, errs = _editions_section(lignes, nom, section.champs, ancien_dict.get(nom))
             editions.extend(eds)
             erreurs.extend(errs)
     eds, errs, cosmetiques = _editions_conditions(lignes, out.conditions, aujourd_hui, origine)

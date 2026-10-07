@@ -19,8 +19,12 @@ fraîchement téléchargée. Aucun modèle mesuré n'atteint zéro faux changeme
 n'écrit aucun fichier d'aide. Ni l'un ni l'autre n'écrit le manifeste : seul un
 passage complet date ses contrôles (un acquittement explicite excepté).
 
+Jev (`veille_arbitre.py`), quand ses seuils sont réglés, trie les refontes
+entre l'étage B et l'étage C, écarte le bruit avant l'appel au LLM et retient le
+ré-archivage d'un « inchangé » suspect. `--sans-jev` le coupe.
+
 Codes de sortie : 0 terminé ; 1 erreur fatale ; 2 au moins une escalade, une
-erreur HTTP à retenter ou une mise à jour en échec.
+erreur HTTP à retenter, une mise à jour en échec ou un changement suspect.
 """
 
 from __future__ import annotations
@@ -45,16 +49,25 @@ from urllib.parse import urlsplit
 
 from veille_analyze import (
     CHROME_MIN_URLS,
+    RATIO_DIFF_ESCALADE,
     STATUTS,
     AideAnalysis,
     analyze_all,
     hotes_affames,
     resume_diff,
 )
+from veille_arbitre import Arbitre, ErreurDecision
+from veille_arbitre import construire as construire_arbitre
 from veille_collect import DEFAULT_CONCURRENCY, DEFAULT_TIMEOUT, collect
 from veille_journal import Journal, cellule, milliers, tokens_compacts
 from veille_llm import MODELE_DEFAUT, resoudre_modele
-from veille_update import MAX_LIGNES_DIFF, MAX_LLM_DEFAUT, MajResult, mettre_a_jour
+from veille_update import (
+    MAX_LIGNES_DIFF,
+    MAX_LLM_DEFAUT,
+    MajResult,
+    mettre_a_jour,
+    rafraichir_snapshots,
+)
 
 MANIFEST_PATH = DATA_DIR / "veille-state.yaml"
 REVIEWS_DIR = DATA_DIR / "reviews"
@@ -278,16 +291,22 @@ def update_manifest(
         # même appel au passage suivant (voir `run_stage_c`). Il tombe dès que
         # l'aide sort de MAJ_LLM ou d'escalade — c'est-à-dire quand la source,
         # la fiche ou la baseline ont bougé.
-        if maj is not None and maj.etat in ("echec", "escalade"):
+        #
+        # Un `suspect` (Jev juge que le LLM a manqué un changement) y entre
+        # aussi : pas de nouvel appel la semaine suivante, mais l'aide reste au
+        # rapport tant que `--rearchiver` n'a pas été lancé. Sa date est celle
+        # du PREMIER refus, pour que le rapport dise depuis quand il attend.
+        if maj is not None and maj.etat in ("echec", "escalade", "suspect"):
             entree["maj_refusee"] = {
-                "date": today.isoformat(),
+                "date": maj.depuis or today.isoformat(),
                 "etat": maj.etat,
                 "empreinte": maj.empreinte,
                 "raison": maj.raison,
             }
-        elif (refus := ancienne_entree.get("maj_refusee")) and an.statut in (
-            "MAJ_LLM",
-            "ESCALADE_INGESTION",
+        elif (
+            maj is None
+            and (refus := ancienne_entree.get("maj_refusee"))
+            and an.statut in ("MAJ_LLM", "ESCALADE_INGESTION")
         ):
             entree["maj_refusee"] = refus
         merged[slug] = entree
@@ -329,13 +348,21 @@ def write_manifest(manifest: dict, path: Path = MANIFEST_PATH) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _section_majs(majs: dict[str, MajResult], mode: str) -> list[str]:
+def soumise_au_llm(m: MajResult) -> bool:
+    """L'aide a-t-elle coûté un passage au LLM pendant CE run ?"""
+    return not (m.memorise or m.ecartee_par_jev or m.rearchivee_a_la_main)
+
+
+def _section_majs(majs: dict[str, MajResult], mode: str, jev_bilan: str | None = None) -> list[str]:
     """Ce que l'étage C a produit : les diffs à relire, puis ce qui a échoué."""
-    if not majs:
+    if not majs and not jev_bilan:
         return []
+    soumises = [m for m in majs.values() if soumise_au_llm(m)]
     appliquees = [m for m in majs.values() if m.etat == "applique"]
     echecs = [m for m in majs.values() if m.etat == "echec"]
-    inchangees = [m for m in majs.values() if m.etat == "inchange"]
+    inchangees = [m for m in soumises if m.etat == "inchange"]
+    suspects = [m for m in majs.values() if m.etat == "suspect"]
+    ecartees = [m for m in majs.values() if m.ecartee_par_jev]
     cout = sum(m.cout_usd for m in majs.values())
     tok_in = sum(m.tokens_in for m in majs.values())
     tok_out = sum(m.tokens_out for m in majs.values())
@@ -343,12 +370,44 @@ def _section_majs(majs: dict[str, MajResult], mode: str) -> list[str]:
     out = [
         "## Étage C",
         "",
-        f"{len(majs)} aide(s) soumise(s) au modèle pour {cout:.3f} $ "
+        f"{len(soumises)} aide(s) soumise(s) au modèle pour {cout:.3f} $ "
         f"({milliers(tok_in)} tokens en entrée, {milliers(tok_out)} en sortie) : "
         + f"{len(appliquees)} mise(s) à jour, {len(inchangees)} sans changement dans le "
-        f"mandat, {len(echecs)} en échec.",
+        f"mandat, {len(echecs)} en échec"
+        + (f", {len(suspects)} suspecte(s)" if suspects else "")
+        + ".",
         "",
     ]
+    if jev_bilan:
+        out += [
+            f"Jev : {jev_bilan}"
+            + (f" ; {len(ecartees)} aide(s) écartée(s) sans appel au LLM" if ecartees else "")
+            + ".",
+            "",
+        ]
+    if suspects:
+        out += [
+            "### Changement possible non appliqué",
+            "",
+            "Le modèle n'a rien retouché, mais Jev juge que le changement touche une "
+            "échéance, un montant ou une condition. La page n'a PAS été ré-archivée : "
+            "elle reviendra ici chaque semaine. Relire la page, corriger la fiche s'il le "
+            "faut, puis ré-archiver pour solder :",
+            "",
+            *(
+                f"- **{m.slug}**"
+                + (f" (depuis le {m.depuis})" if m.depuis else "")
+                + f" — {cellule(m.raison, 300)}"
+                for m in sorted(suspects, key=lambda m: m.slug)
+            ),
+            "",
+            "```",
+            "uv run python scripts/veille_aides.py "
+            + " ".join(m.slug for m in sorted(suspects, key=lambda m: m.slug))
+            + " --rearchiver",
+            "```",
+            "",
+        ]
     if appliquees:
         if mode == "dry-run":
             out += [
@@ -414,6 +473,7 @@ def build_report(
     offline: bool = False,
     majs: dict[str, MajResult] | None = None,
     mode: str = "report-only",
+    jev_bilan: str | None = None,
 ) -> str:
     majs = majs or {}
     par_statut: dict[str, list[AideAnalysis]] = {s: [] for s in STATUTS}
@@ -459,7 +519,7 @@ def build_report(
         out.append(f"| `{statut}` | {len(par_statut[statut])} | {legendes[statut]} |")
     out.append("")
 
-    out += _section_majs(majs, mode)
+    out += _section_majs(majs, mode, jev_bilan)
 
     if escalades := par_statut["ESCALADE_INGESTION"]:
         out += ["## Escalades — ré-ingestion complète", ""]
@@ -612,6 +672,59 @@ def build_report(
 # ---------------------------------------------------------------------------
 
 
+def trier_refontes(
+    aides: dict[str, Aide],
+    analyses: dict[str, AideAnalysis],
+    arbitre: Arbitre | None,
+    log: Journal,
+) -> list[str]:
+    """Soumet à Jev les escalades de la règle 6, et elles seules.
+
+    Une refonte dont Jev juge le règlement identique (bénéficiaires, dépenses,
+    montants, calendrier) au-dessus du seuil est RÉTROGRADÉE en MAJ_LLM, jamais
+    classée inchangée : l'étage C la lit avec son mandat, et la garde de Jev
+    s'applique à son « inchangé ». Sinon, ré-ingestion comme avant.
+
+    Ici et non dans `veille_analyze` : l'étage B garde sa propriété « zéro
+    modèle ».
+    """
+    if arbitre is None or arbitre.seuils.refonte is None:
+        return []
+    retrogradees: list[str] = []
+    for slug, an in analyses.items():
+        if not (an.statut == "ESCALADE_INGESTION" and an.refonte):
+            continue
+        pages = [
+            (u.murl.url, u.result.texte)
+            for u in an.urls
+            if u.diff and u.diff.ratio > RATIO_DIFF_ESCALADE and u.result and u.result.texte
+        ]
+        if not pages:
+            continue
+        try:
+            j = arbitre.refonte(aides[slug], pages)
+        except ErreurDecision:
+            continue
+        if j.p >= arbitre.seuils.refonte:
+            an.statut = "MAJ_LLM"
+            an.retrogradee = True
+            # Sans la note : elle entre dans `empreinte_changement`, et une
+            # probabilité qui bouge d'un centième ferait repayer un refus.
+            an.raisons.append(
+                "refonte jugée sans changement de règlement par Jev : rétrogradée vers l'étage C"
+            )
+            retrogradees.append(f"{slug} ({j.note})")
+        else:
+            an.raisons.append(f"Jev ne reconnaît pas le même règlement ({j.note})")
+    if retrogradees:
+        log("")
+        log(
+            f"  {len(retrogradees)} refonte(s) rétrogradée(s) vers l'étage C par Jev : "
+            f"{', '.join(retrogradees)}"
+        )
+    return retrogradees
+
+
 def run_stage_c(
     args: argparse.Namespace,
     aides: dict[str, Aide],
@@ -621,6 +734,7 @@ def run_stage_c(
     log: Journal,
     *,
     manifest: dict | None = None,
+    arbitre: Arbitre | None = None,
 ) -> dict[str, MajResult]:
     """Soumet au modèle les aides retenues par l'étage B, dans l'ordre d'ancienneté.
 
@@ -631,17 +745,38 @@ def run_stage_c(
     """
     if args.report_only or args.offline:
         return {}
+    trier_refontes(aides, analyses, arbitre, log)
     # Itération sur `aides` et non sur `analyses` : c'est le seul dictionnaire
     # dont l'ordre porte l'ancienneté, et c'est lui qui décide qui passe sous
     # le plafond `--max-llm`.
     candidats = [s for s in aides if s in analyses and analyses[s].statut == "MAJ_LLM"]
+    majs: dict[str, MajResult] = {}
+
+    # `--rearchiver` : un humain a relu le changement (fiche corrigée, ou
+    # changement sans objet). La page devient la baseline sans appel au modèle ;
+    # c'est la sortie d'un `suspect`, qui sinon revient chaque semaine.
+    a_rearchiver = set(args.slugs) if getattr(args, "rearchiver", False) else set()
+    for slug in [s for s in candidats if s in a_rearchiver]:
+        maj = MajResult(
+            slug=slug,
+            etat="inchange",
+            modele="humain",
+            raison="page ré-archivée à la main (--rearchiver)",
+            rearchivee_a_la_main=True,
+        )
+        if not args.dry_run:
+            maj.snapshots = rafraichir_snapshots(analyses[slug], collects[slug], jour=today)
+        majs[slug] = maj
+    candidats = [s for s in candidats if s not in a_rearchiver]
+
     # Un changement déjà soumis et refusé à l'identique n'est pas resoumis : le
     # modèle répondrait pareil, et les refus récurrents prendraient chaque
     # semaine les places du plafond avant les changements neufs.
     deja_refuses = []
     for slug in candidats:
         refus = ((manifest or {}).get(slug) or {}).get("maj_refusee") or {}
-        if refus.get("empreinte") == empreinte_changement(analyses[slug]):
+        empreinte = empreinte_changement(analyses[slug])
+        if refus.get("empreinte") == empreinte:
             deja_refuses.append(slug)
             an = analyses[slug]
             an.raisons.append(
@@ -650,6 +785,18 @@ def run_stage_c(
             )
             if refus.get("etat") == "escalade":
                 an.statut = "ESCALADE_INGESTION"
+            elif refus.get("etat") == "suspect":
+                # Pas de nouvel appel, mais l'aide reste au rapport : c'est un
+                # changement peut-être manqué, pas un refus à oublier.
+                majs[slug] = MajResult(
+                    slug=slug,
+                    etat="suspect",
+                    modele="mémoire",
+                    raison=refus.get("raison", ""),
+                    empreinte=empreinte,
+                    memorise=True,
+                    depuis=str(refus.get("date") or ""),
+                )
     if deja_refuses:
         log("")
         log(
@@ -658,7 +805,7 @@ def run_stage_c(
         )
     candidats = [s for s in candidats if s not in deja_refuses]
     if not candidats:
-        return {}
+        return majs
 
     spec = resoudre_modele(args.model)
     if not spec.cle_presente:
@@ -667,19 +814,22 @@ def run_stage_c(
             f"⚠ étage C ignoré : {spec.env_key} absente de backend/.env — "
             f"{len(candidats)} aide(s) restent à mettre à jour."
         )
-        return {}
+        return majs
 
-    retenus = candidats[: args.max_llm]
     log("")
     log(f"{'=' * 70}")
     log(
-        f"ÉTAGE C — {len(retenus)}/{len(candidats)} aide(s), modèle {spec.alias}"
-        + (" — à blanc, aucune écriture" if args.dry_run else "")
+        f"ÉTAGE C — {len(candidats)} candidate(s), au plus {args.max_llm} soumise(s) au "
+        f"modèle {spec.alias}" + (" — à blanc, aucune écriture" if args.dry_run else "")
     )
     log(f"{'=' * 70}")
 
-    majs: dict[str, MajResult] = {}
-    for i, slug in enumerate(retenus, 1):
+    # Le plafond compte les aides SOUMISES au modèle : c'est un plafond de
+    # relecture, et une aide écartée par Jev ne laisse aucun diff à relire.
+    soumises = traitees = 0
+    for slug in candidats:
+        if soumises >= args.max_llm:
+            break
         maj = mettre_a_jour(
             aides[slug],
             analyses[slug],
@@ -687,15 +837,22 @@ def run_stage_c(
             spec,
             aujourd_hui=today,
             dry_run=args.dry_run,
+            arbitre=arbitre,
         )
+        traitees += 1
+        if not maj.ecartee_par_jev:
+            soumises += 1
         maj.empreinte = empreinte_changement(analyses[slug])
         majs[slug] = maj
+        jev = " ".join(f"{k} {v:.2f}" for k, v in maj.jev.items())
         log(
-            f"  [{i}/{len(retenus)}] {maj.symbole} {slug:<46} "
+            f"  [{traitees}/{len(candidats)}] {maj.symbole} {slug:<46} "
             f"{maj.cout_usd * 100:>5.2f}¢ {maj.latence_s:>5.1f}s "
             f"{tokens_compacts(maj.tokens_in):>6}↑{tokens_compacts(maj.tokens_out):>6}↓  "
-            f"{cellule(maj.raison, 52)}"
+            f"{cellule(maj.raison, 52)}" + (f"  [Jev {jev}]" if jev else "")
         )
+        if maj.jev_erreur:
+            log(f"      Jev en panne, décision sans lui : {maj.jev_erreur[:200]}")
         if maj.reponse_rejetee:
             # Dans le log, pas dans le rapport : c'est de la matière de
             # débogage, et le rapport doit rester relisable.
@@ -706,9 +863,9 @@ def run_stage_c(
             analyses[slug].statut = "ESCALADE_INGESTION"
             analyses[slug].raisons.append(maj.raison)
 
-    if len(candidats) > len(retenus):
+    if len(candidats) > traitees:
         log(
-            f"  … {len(candidats) - len(retenus)} aide(s) laissée(s) de côté : plafond "
+            f"  … {len(candidats) - traitees} aide(s) laissée(s) de côté : plafond "
             f"--max-llm={args.max_llm}. Relancer après relecture pour la suite."
         )
     tok_in = sum(m.tokens_in for m in majs.values())
@@ -773,6 +930,20 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "rendu, ne plus alerter tant que la date limite ne change pas"
         ),
     )
+    p.add_argument(
+        "--rearchiver",
+        action="store_true",
+        help=(
+            "pour les slugs donnés dont la page a bougé : changement relu par un humain "
+            "(fiche corrigée, ou sans objet), la page devient la baseline sans appel au "
+            "modèle. C'est la sortie d'un « suspect »."
+        ),
+    )
+    p.add_argument(
+        "--sans-jev",
+        action="store_true",
+        help="ne pas consulter Jev (filtre, garde, tri des refontes) : comportement d'avant",
+    )
     return p.parse_args(argv)
 
 
@@ -795,6 +966,13 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "ERREUR : --acquitter exige des slugs explicites et un run en ligne "
             "(le manifeste n'est pas écrit hors ligne).",
+            file=sys.stderr,
+        )
+        return 1
+    if args.rearchiver and (not args.slugs or args.offline or args.report_only):
+        print(
+            "ERREUR : --rearchiver exige des slugs explicites et un passage en ligne "
+            "jusqu'à l'étage C (ni --offline ni --report-only).",
             file=sys.stderr,
         )
         return 1
@@ -850,7 +1028,19 @@ def main(argv: list[str] | None = None) -> int:
         )
     log(f"collecte et analyse terminées en {(time.monotonic() - start) / 60:.1f} min.")
 
-    majs = run_stage_c(args, aides, analyses, collects, today, log, manifest=manifest)
+    arbitre = None
+    if not (args.report_only or args.offline):
+        if args.sans_jev:
+            log("Jev : coupé (--sans-jev).")
+        else:
+            arbitre, motif = construire_arbitre()
+            log(f"Jev : {'actif, ' if arbitre else 'inactif, '}{motif}.")
+    majs = run_stage_c(
+        args, aides, analyses, collects, today, log, manifest=manifest, arbitre=arbitre
+    )
+    jev_bilan = arbitre.bilan() if arbitre else None
+    if jev_bilan:
+        log(f"  Jev : {jev_bilan}")
     duree = time.monotonic() - start
 
     log("")
@@ -916,7 +1106,15 @@ def main(argv: list[str] | None = None) -> int:
     REVIEWS_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REVIEWS_DIR / f"{today.isoformat()}-veille.md"
     report_path.write_text(
-        build_report(analyses, today, duree, offline=args.offline, majs=majs, mode=mode),
+        build_report(
+            analyses,
+            today,
+            duree,
+            offline=args.offline,
+            majs=majs,
+            mode=mode,
+            jev_bilan=jev_bilan,
+        ),
         encoding="utf-8",
     )
 
@@ -944,7 +1142,13 @@ def main(argv: list[str] | None = None) -> int:
         log("Relire avant commit : git diff -- data/aides data/sources")
     log.save(LOG_DIR / f"veille-{today.isoformat()}.log")
 
-    echecs = any(m.etat == "echec" for m in majs.values())
+    if suspects := sorted(m.slug for m in majs.values() if m.etat == "suspect"):
+        log("")
+        log(
+            f"{len(suspects)} changement(s) possible(s) non appliqué(s) (Jev), page NON "
+            f"ré-archivée : {', '.join(suspects)}"
+        )
+    echecs = any(m.etat in ("echec", "suspect") for m in majs.values())
     return 2 if compte["ESCALADE_INGESTION"] or compte["ERREUR_HTTP"] or echecs else 0
 
 

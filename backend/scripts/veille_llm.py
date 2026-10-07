@@ -344,6 +344,15 @@ REGISTRE: dict[str, ModelSpec] = {
         structured=True,
         note="id, tarif et response_format relevés sur /api/v1/models le 2026-08-28",
     ),
+    "or-ds41": _spec(
+        "or-ds41",
+        "openrouter",
+        "deepseek/deepseek-v4.1-flash",
+        prix_in=0.30,
+        prix_out=1.20,
+        structured=True,
+        note="même modèle que `or-ds41` de providall (rédaction des fiches), relevé le 2026-09-11",
+    ),
     "or-kimi": _spec(
         "or-kimi",
         "openrouter",
@@ -529,13 +538,7 @@ def build_prompt(
     *,
     aujourd_hui: date,
 ) -> str:
-    """Prompt utilisateur : l'existant, le frais, et ce qui a bougé entre les deux.
-
-    Seules les sections du mandat sont montrées. Envoyer la fiche entière
-    inviterait le modèle à corriger `description` ou `demarche`, qui relèvent
-    de `/ingest-aide` — et chaque proposition hors mandat est un aller-retour
-    de validation perdu.
-    """
+    """Prompt utilisateur : l'existant, le frais, et ce qui a bougé entre les deux."""
     extrait = {
         "slug": aide.slug,
         "nom": aide.nom,

@@ -23,6 +23,7 @@ from veille_analyze import (  # noqa: E402
     MIN_CONTENU_UTILE,
     analyze,
     contenu_utile,
+    lignes_de_chrome,
 )
 from veille_collect import AideCollect, FetchResult, MonitoredUrl  # noqa: E402
 
@@ -397,6 +398,63 @@ class TestContenuUtile(unittest.TestCase):
 
     def test_prose_compte(self):
         self.assertGreater(contenu_utile(BASELINE * 3), MIN_CONTENU_UTILE)
+
+
+class TestChromeEtReglementPartage(unittest.TestCase):
+    """Une ligne qui change à l'identique sur deux pages est du gabarit… sauf
+    si c'est du règlement : deux aides sœurs d'un même guide changent leur
+    échéance d'un bloc (cvl-pact-cooperation et cvl-pact-programmation, le
+    2026-10-04, classées « source inchangée » alors que la date avait bougé)."""
+
+    def _deux_soeurs(self, avant: str, apres: str) -> dict[str, AideCollect]:
+        collects = {}
+        for i in (1, 2):
+            url = f"https://region.fr/aide-{i}"
+            murl = MonitoredUrl(
+                url=url,
+                role="officielle",
+                baseline_sha="ancien",
+                baseline_body=f"# Aide {i}\n\nTexte propre à l'aide {i}.\n\n{avant}\n",
+            )
+            collects[f"aide-{i}"] = AideCollect(
+                slug=f"aide-{i}",
+                urls=[murl],
+                fetched={
+                    url: FetchResult(
+                        url=url,
+                        status=200,
+                        sha256="nouveau",
+                        body_md=f"# Aide {i}\n\nTexte propre à l'aide {i}.\n\n{apres}\n",
+                    )
+                },
+            )
+        return collects
+
+    def test_echeance_partagee_n_est_pas_du_chrome(self):
+        collects = self._deux_soeurs(
+            "Les dossiers doivent être déposés avant le 15 novembre 2025.",
+            "Les dossiers doivent être déposés avant le 16 novembre 2026.",
+        )
+        self.assertEqual(lignes_de_chrome(collects), frozenset())
+
+    def test_plafond_partage_n_est_pas_du_chrome(self):
+        collects = self._deux_soeurs(
+            "Subvention plafonnée à 50 000 €.", "Subvention plafonnée à 40 000 €."
+        )
+        self.assertEqual(lignes_de_chrome(collects), frozenset())
+
+    def test_menu_et_date_de_mise_a_jour_restent_du_chrome(self):
+        for avant, apres in (
+            (
+                "Mon été, ma Région : que faire cet été en Île-de-France ?",
+                "Cet automne, découvrez les journées du patrimoine en région",
+            ),
+            ("Mis à jour le 28 septembre 2026", "Mis à jour le 1er octobre 2026"),
+            ("Le 19 juin 2026", "Le 29 septembre 2026"),
+            ("Corrèze 100% Fibre", "Corrèze Mobilité"),
+        ):
+            with self.subTest(avant=avant):
+                self.assertTrue(lignes_de_chrome(self._deux_soeurs(avant, apres)))
 
 
 class TestFormulaireUrl(unittest.TestCase):

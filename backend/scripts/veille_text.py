@@ -42,6 +42,7 @@ import difflib
 import re
 import unicodedata
 from array import array
+from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Literal
@@ -338,6 +339,24 @@ _DECORATION_RE = re.compile(r"^(?:[*_\-\s]+|!\[[^\]]*\]\([^)]*\))$")
 
 _MAX_NOISE_LABEL = 60
 
+# Jeton technique sur une ligne seule : contexte de session sérialisé
+# (`AjaxCtxt` des portails Jalios, savoie.fr et loire.fr : du XML zlib en
+# base64, coupé en plusieurs lignes), identifiant de requête. Il change à
+# chaque visite. Mesuré au banc Jev du 2026-10-04 : c'étaient les deux seules
+# fausses alertes de la garde au seuil retenu, et six aides de Savoie
+# repassaient au modèle chaque semaine pour lui. Une ligne de règlement n'est
+# jamais un mot unique mêlant majuscules, minuscules et chiffres sans espace.
+_JETON_RE = re.compile(r"^[A-Za-z0-9+/=_-]{12,}$")
+
+
+def _est_jeton(brut: str) -> bool:
+    return (
+        bool(_JETON_RE.match(brut))
+        and any(c.isdigit() for c in brut)
+        and any(c.isupper() for c in brut)
+        and any(c.islower() for c in brut)
+    )
+
 
 def is_noise_line(line: str) -> bool:
     """Vrai si la ligne relève du chrome de page et non du contenu.
@@ -351,6 +370,8 @@ def is_noise_line(line: str) -> bool:
     if not norm:
         return True
     if _DECORATION_RE.match(line.strip()):
+        return True
+    if _est_jeton(line.strip()):
         return True
     if any(marker in norm for marker in _NOISE_MARKERS):
         return True
@@ -663,15 +684,31 @@ def normalized_diff(
     matcher = difflib.SequenceMatcher(
         a=[n for n, _ in old_pairs], b=[n for n, _ in new_pairs], autojunk=False
     )
-    added = removed = 0
+    blocs = [op for op in matcher.get_opcodes() if op[0] != "equal"]
+    retirees = [old_pairs[i] for _, i1, i2, _, _ in blocs for i in range(i1, i2)]
+    ajoutees = [new_pairs[j] for _, _, _, j1, j2 in blocs for j in range(j1, j2)]
+    # Une ligne retirée ici et ajoutée là, à l'identique, a été DÉPLACÉE : le
+    # bloc a changé de place sur la page, pas de contenu. Mesuré au banc Jev :
+    # « plafond à 500 000 € » retiré puis remis plus bas sur savoie.fr suffisait
+    # à faire juger le diff porteur d'un montant.
+    deplacees = Counter(n for n, _ in retirees) & Counter(n for n, _ in ajoutees)
+    a_taire = {"-": Counter(deplacees), "+": Counter(deplacees)}
     lines: list[str] = []
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == "equal":
-            continue
-        removed += i2 - i1
-        added += j2 - j1
-        lines.extend(f"- {old_pairs[i][1]}" for i in range(i1, i2))
-        lines.extend(f"+ {new_pairs[j][1]}" for j in range(j1, j2))
+    compte = {"-": 0, "+": 0}
+
+    def emettre(signe: str, norm: str, raw: str) -> None:
+        if a_taire[signe][norm] > 0:
+            a_taire[signe][norm] -= 1
+            return
+        lines.append(f"{signe} {raw}")
+        compte[signe] += 1
+
+    for _, i1, i2, j1, j2 in blocs:
+        for i in range(i1, i2):
+            emettre("-", *old_pairs[i])
+        for j in range(j1, j2):
+            emettre("+", *new_pairs[j])
+    added, removed = compte["+"], compte["-"]
 
     truncated = len(lines) > max_lines
     if truncated:

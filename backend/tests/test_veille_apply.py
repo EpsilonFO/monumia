@@ -227,6 +227,8 @@ class TestRetouchesSurLeCatalogue(unittest.TestCase):
                 echecs.append(f"{aide.slug} ({res.etape}) : {res.erreurs[:1]}")
                 continue
             assert res.texte is not None
+            # Une date s'écrit nue, comme dans les fiches, et pas en bloc replié.
+            self.assertIn("date_limite: 2027-03-31\n", res.texte, aide.slug)
             apres = Aide.model_validate(charger_yaml(res.texte))
             self.assertEqual(str(apres.calendrier.date_limite), "2027-03-31", aide.slug)
             self.assertFalse(apres.calendrier.permanent, aide.slug)
@@ -702,7 +704,9 @@ class TestEmitField(unittest.TestCase):
 
     def test_booleen_et_nombre(self):
         self.assertEqual(emit_field("permanent", False, 2), ["  permanent: false"])
-        self.assertEqual(emit_field("taux_max", 40.0, 2), ["  taux_max: 40.0"])
+        self.assertEqual(emit_field("taux_max", 40.0, 2), ["  taux_max: 40"])
+        self.assertEqual(emit_field("taux_max", 12.5, 2), ["  taux_max: 12.5"])
+        self.assertEqual(emit_field("date_limite", None, 2), ["  date_limite: null"])
 
     def test_texte_long_replie(self):
         texte = "Les travaux doivent concerner le gros œuvre : " * 4
