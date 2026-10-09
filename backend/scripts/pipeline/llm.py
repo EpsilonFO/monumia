@@ -152,6 +152,22 @@ MODELES_MAISON: tuple[ModelSpec, ...] = (
         "(annonce du 2026-09-10), `structured` limité à json_object",
         **PRIX_V41_FLASH,
     ),
+    # Candidat au banc d'essai face à `or-glm`. La clé Mistral directe ne sert
+    # pas Large 4 (absent de son /v1/models le 2026-10-07) : OpenRouter, si,
+    # avec un seul fournisseur (Mistral) et `structured_outputs`. Réglages
+    # laissés à ceux d'`or-glm` (effort medium, json_schema strict) pour que
+    # l'écart mesuré tienne au modèle seul.
+    providall.spec(
+        "or-mistral-large",
+        "openrouter",
+        "mistralai/mistral-large-4-0",
+        caps={"structured": "json_schema"},
+        note="Mistral Large 4 routé par OpenRouter ; id, tarif et "
+        "structured_outputs relevés sur /api/v1/models le 2026-10-07",
+        price_in=0.68,
+        price_out=2.09,
+        price_cache_read=0.07,
+    ),
 )
 
 for _modele in MODELES_MAISON:
