@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from catalogue.openrouter import Client, Panne
+from catalogue.openrouter import Client, Panne, choix, noul
 
 
 def _reponse(contenu: str = '{"ok": true}', **usage: object) -> dict[str, object]:
@@ -131,3 +131,101 @@ def test_sans_cle_le_client_refuse_de_demarrer(monkeypatch: pytest.MonkeyPatch) 
     with pytest.raises(Panne) as exc:
         Client(None)
     assert exc.value.classe == "cle"
+
+
+# ----------------------------------------------------------------- décisions
+
+
+def _decision(**reponses: object) -> dict[str, object]:
+    return {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": reponses,
+        "usage": {"input_tokens": 300, "cost": 0.0000126},
+    }
+
+
+def test_une_decision_rend_des_distributions_et_le_cout() -> None:
+    def repondre(requete: httpx.Request) -> httpx.Response:
+        assert requete.url.path == "/api/alpha/decisions"
+        return httpx.Response(
+            200,
+            json=_decision(
+                deposable={"type": "noul", "noul": 0.81},
+                destinataire={
+                    "type": "choice",
+                    "choice": "proprietaire_gestionnaire",
+                    "probabilities": {"proprietaire_gestionnaire": 0.7, "activite_tiers": 0.3},
+                },
+            ),
+        )
+
+    questions = {
+        "deposable": noul("Déposable ?", "oui", "non"),
+        "destinataire": choix("Qui ?", {"proprietaire_gestionnaire": "p", "activite_tiers": "t"}),
+    }
+    d = _client(repondre).decider("typesafe/jev-1.13", {"page": "x"}, questions)
+    assert d.avis["deposable"].proba("true") == pytest.approx(0.81)
+    assert d.avis["deposable"].proba("false") == pytest.approx(0.19)
+    assert d.avis["destinataire"].choix == "proprietaire_gestionnaire"
+    assert d.cout_usd == pytest.approx(0.0000126)
+    assert d.modele_servi == "typesafe/jev-1.13-20260917"
+
+
+@pytest.mark.parametrize(
+    "reponse",
+    [
+        {"type": "noul"},
+        {"type": "noul", "noul": None},
+        {"type": "noul", "noul": 1.4},
+        {"type": "choice", "choice": "a"},
+        {"type": "choice", "probabilities": {}},
+    ],
+)
+def test_une_reponse_de_jev_sans_probabilite_est_une_panne(
+    reponse: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("catalogue.openrouter.time.sleep", lambda _s: None)
+
+    def repondre(requete: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_decision(q=reponse))
+
+    with pytest.raises(Panne) as exc:
+        _client(repondre).decider("m", "état", {"q": noul("?", "oui", "non")})
+    assert exc.value.classe == "reponse_invalide"
+
+
+def test_une_question_sans_reponse_est_une_panne(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("catalogue.openrouter.time.sleep", lambda _s: None)
+
+    def repondre(requete: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_decision(autre={"type": "noul", "noul": 0.5}))
+
+    with pytest.raises(Panne) as exc:
+        _client(repondre).decider("m", "état", {"q": noul("?", "oui", "non")})
+    assert exc.value.classe == "reponse_invalide"
+
+
+def test_un_modele_servi_hors_liste_est_refuse_sans_relance() -> None:
+    appels = []
+
+    def repondre(requete: httpx.Request) -> httpx.Response:
+        appels.append(1)
+        return httpx.Response(200, json=_reponse())
+
+    with pytest.raises(Panne) as exc:
+        _client(repondre, tentatives=3).completer(
+            "z-ai/glm-5.3-flash", [{"role": "user", "content": "x"}], acceptes={"autre/modele"}
+        )
+    assert exc.value.classe == "modele_substitue"
+    assert len(appels) == 1
+
+
+def test_un_delai_depasse_est_une_panne(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("catalogue.openrouter.time.sleep", lambda _s: None)
+
+    def repondre(requete: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("trop long", request=requete)
+
+    with pytest.raises(Panne) as exc:
+        _client(repondre).decider("m", "état", {"q": noul("?", "oui", "non")}, delai_s=0.1)
+    assert exc.value.classe == "delai"
