@@ -28,6 +28,15 @@ class Modele(_Strict):
     alias_providall: str | None = None
     effort: Literal["low", "medium", "high"] | None = None
     delai_s: float = Field(gt=0)
+    # Tarif en dollars par million de jetons, relevé sur /api/v1/models : il ne
+    # sert qu'à RÉSERVER le coût plafond d'un appel avant de le lancer. Le coût
+    # compté est toujours celui que la réponse facture.
+    prix_entree: float = Field(ge=0)
+    prix_sortie: float = Field(ge=0)
+
+    def plafond_usd(self, jetons_entree: int, jetons_sortie: int) -> float:
+        """Ce qu'un appel peut coûter au plus, pour une réservation du budget."""
+        return (jetons_entree * self.prix_entree + jetons_sortie * self.prix_sortie) / 1e6
 
 
 class DecisionFermee(_Strict):

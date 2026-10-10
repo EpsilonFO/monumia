@@ -183,10 +183,15 @@ class Vue:
         self.par_cle: dict[str, Evenement] = {}
         self.derniere: dict[tuple[str, str], Evenement] = {}
         self.felix: dict[tuple[str, str], Evenement] = {}
+        # Toutes les clés vues, réponses de Félix comprises : relire un ancien
+        # rapport ne doit pas rejouer une réponse déjà consignée.
+        self.cles: set[str] = set()
         for e in evenements:
             self.prendre(e)
 
     def prendre(self, e: Evenement) -> None:
+        if e.cle:
+            self.cles.add(e.cle)
         if e.type == "decision" and e.decision:
             if e.cle:
                 self.par_cle[e.cle] = e

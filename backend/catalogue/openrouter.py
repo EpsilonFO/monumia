@@ -158,6 +158,8 @@ class Client:
         *,
         schema: dict[str, Any] | None = None,
         nom_schema: str = "sortie",
+        objet_json: bool = False,
+        temperature: float | None = None,
         effort: str | None = "medium",
         max_tokens: int = 32000,
         fournisseurs: dict[str, Any] | None = None,
@@ -165,15 +167,25 @@ class Client:
         delai_s: float | None = None,
         role: str = "",
     ) -> Reponse:
-        """Un appel de LLM. Avec `schema`, la réponse est un JSON strict, rendu dans `donnees`."""
+        """Un appel de LLM. Avec `schema`, la réponse est un JSON strict, rendu dans `donnees`.
+
+        `objet_json` demande seulement un objet JSON (`json_object`), le schéma
+        restant dans la consigne : c'est la forme de l'appel de l'ancienne veille,
+        que la nouvelle reprend telle quelle tant qu'aucun banc ne l'a battue.
+        La réponse reste alors du texte : la validation revient à l'appelant.
+        """
         corps: dict[str, Any] = {
             "model": modele,
             "messages": messages,
             "max_tokens": max_tokens,
             "usage": {"include": True},
         }
+        if temperature is not None:
+            corps["temperature"] = temperature
         if effort:
             corps["reasoning"] = {"effort": effort}
+        if objet_json and schema is None:
+            corps["response_format"] = {"type": "json_object"}
         preferences = dict(fournisseurs or {})
         if schema is not None:
             corps["response_format"] = {

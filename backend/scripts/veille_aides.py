@@ -947,12 +947,45 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+def veille_reprise(chemin: Path | None = None) -> str | None:
+    """Le motif de refus si la veille appartient désormais à la nouvelle chaîne, sinon None.
+
+    Pendant la refonte (`docs/refonte-pipeline/architecture.md`, section 10),
+    une seule chaîne écrit chaque opération, et le registre du paquet
+    `catalogue` dit laquelle. Un passage réel de cette ancienne veille après la
+    bascule archiverait les pages fraîches et solderait des changements que la
+    nouvelle garde en attente. Les passages qui n'écrivent rien (`--report-only`,
+    `--dry-run`, `--offline`) restent permis. Sans registre, rien ne change ;
+    un registre illisible refuse, puisqu'il ne dit plus qui écrit.
+    """
+    from catalogue import registre
+
+    chemin = chemin or registre.REGISTRE
+    if not chemin.exists():
+        return None
+    try:
+        reg = registre.charger(chemin)
+    except Exception as exc:  # noqa: BLE001 — tout registre illisible refuse
+        return f"registre du catalogue illisible ({chemin}) : {exc}"
+    if reg.proprietaires["veille"] == "nouvelle":
+        return (
+            "la veille appartient à la nouvelle chaîne (registre du catalogue, "
+            "`proprietaires.veille: nouvelle`) : lancer `uv run python -m catalogue veille`, "
+            "ou repasser le registre à `ancienne` pour revenir à ce script"
+        )
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     import time
 
     args = parse_args(argv if argv is not None else sys.argv[1:])
     log = Journal()
     today = date.today()
+
+    if not (args.report_only or args.dry_run or args.offline) and (refus := veille_reprise()):
+        print(f"ERREUR : {refus}", file=sys.stderr)
+        return 1
 
     # Un VEILLE_MODEL mal saisi doit dire lequel et proposer les valeurs
     # valides, pas dérouler une KeyError au milieu d'un passage.
