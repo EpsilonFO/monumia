@@ -46,6 +46,7 @@ import argparse
 import datetime as dt
 import json
 import random
+import re
 import time
 from collections import Counter
 from pathlib import Path
@@ -451,6 +452,45 @@ def regle(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------
 
 
+# Ce qu'écrit un juge quand le texte extrait n'a rien à juger (menus, fil
+# d'Ariane, titre seul). Relevé par la relecture adverse du 2026-10-10 : ces
+# pages avaient été étiquetées, souvent « indéterminées » faute de texte, et
+# gonflaient les pages à revoir et les pertes.
+MOTIF_SANS_CONTENU = re.compile(
+    r"ne contient (que|rien)|uniquement (de |du |des |le |la |les )?(menu|navigation)"
+    r"|seulement (le |la |les )?(menu|navigation)|que (le |la |les |des )?(menu|navigation|bandeau)"
+    r"|aucun contenu|pas de contenu|on ne peut (pas )?(juger|trancher)"
+    r"|impossible de (juger|trancher)|s'arrête (avant|au)|texte (extrait )?(se limite|réduit)",
+    re.I,
+)
+
+
+def pages_sans_contenu(dossier: Path, etiquettes_brutes: list[dict[str, Any]]) -> dict[str, str]:
+    """Les pages dont le texte extrait n'a rien à juger, avec la raison.
+
+    Deux règles : un contenu binaire décodé comme du texte (en-tête JFIF d'une
+    image), ou la justification d'un juge ou de l'arbitre qui dit que le texte
+    extrait ne contient que la navigation. Ces pages sortent des mesures, comme
+    le prévoyait le plan (« une page sans texte exploitable est comptée à part,
+    sans étiquette ») ; en production, le contrôle `C-inexploitable` doit les
+    arrêter avant tout décideur.
+    """
+    sortie: dict[str, str] = {}
+    for chemin in sorted((dossier / "pages").glob("*.md")):
+        tete = chemin.read_bytes()[:200]
+        if b"JFIF" in tete or b"\x00" in tete:
+            sortie[chemin.stem] = "contenu binaire"
+    for e in etiquettes_brutes:
+        textes = " ".join(
+            str(v.get("justification", ""))
+            for k in ("juge1", "juge2", "arbitre", "final")
+            if isinstance(v := e.get(k), dict)
+        )
+        if e["id"] not in sortie and MOTIF_SANS_CONTENU.search(textes):
+            sortie[e["id"]] = "le texte extrait ne contient que la navigation"
+    return sortie
+
+
 def _etiquette(e: dict[str, Any]) -> str | None:
     final = e.get("final")
     if not final:
@@ -514,15 +554,21 @@ def analyser(args: argparse.Namespace) -> int:
     brut = json.loads(Path(args.etiquettes).read_text(encoding="utf-8"))
     etiquettes = {e["id"]: v for e in brut if (v := _etiquette(e)) is not None}
     poids = {i: 1.0 / e["p_inclusion"] for i, e in echantillon.items()}
-    exploitables = [i for i, t in telechargements.items() if t["longueur"]]
+    vides = {} if args.avec_pages_vides else pages_sans_contenu(dossier, brut)
+    exploitables = [i for i, t in telechargements.items() if t["longueur"] and i not in vides]
     etiquetees = [i for i in exploitables if i in etiquettes]
 
     resultat: dict[str, Any] = {
         "echantillon": len(echantillon),
         "exploitables": len(exploitables),
         "inexploitables": _taux(
-            [(not telechargements[i]["longueur"], poids[i]) for i in echantillon]
+            [(not telechargements[i]["longueur"] or i in vides, poids[i]) for i in echantillon]
         ),
+        "sans_contenu_jugeable": {
+            "pages": len(vides),
+            "etiquettes": dict(Counter(etiquettes.get(i) for i in vides)),
+            "liste": vides,
+        },
         "etiquetees": len(etiquetees),
         "etiquettes": dict(Counter(etiquettes[i] for i in etiquetees)),
         "prevalence_retenue": _taux([(etiquettes[i] == "retenue", poids[i]) for i in etiquetees]),
@@ -555,7 +601,8 @@ def analyser(args: argparse.Namespace) -> int:
         communs = [i for i in a if i in b and a[i] and b[i]]
         resultat["accord_entre_executions"] = f"{sum(a[i] == b[i] for i in communs)}/{len(communs)}"
 
-    (dossier / "analyse.json").write_text(
+    suffixe = "-toutes" if args.avec_pages_vides else ""
+    (dossier / f"analyse{suffixe}.json").write_text(
         json.dumps(resultat, ensure_ascii=False, indent=1), encoding="utf-8"
     )
     texte = [
@@ -587,7 +634,7 @@ def analyser(args: argparse.Namespace) -> int:
         texte.append(
             f"accord des verdicts entre les deux exécutions : {resultat['accord_entre_executions']}"
         )
-    (dossier / "analyse.txt").write_text("\n".join(texte) + "\n", encoding="utf-8")
+    (dossier / f"analyse{suffixe}.txt").write_text("\n".join(texte) + "\n", encoding="utf-8")
     print("\n".join(texte))
     return 0
 
@@ -603,6 +650,7 @@ def main() -> int:
     p = sous.add_parser("analyser")
     p.add_argument("dossier")
     p.add_argument("etiquettes")
+    p.add_argument("--avec-pages-vides", action="store_true")
     p.set_defaults(fonction=analyser)
     args = parseur.parse_args()
     return args.fonction(args)

@@ -41,7 +41,7 @@ from pipeline.decision import ClientDecision, Decision, ErreurDecision, noul
 from prospection.tri import SKILL_PROSPECTION
 
 from catalogue.logistique import Modele, ajuster, auc
-from catalogue.mesures.jeu_e import _lire_jsonl, _sous_dossier_neuf, verdict
+from catalogue.mesures.jeu_e import _lire_jsonl, _sous_dossier_neuf, pages_sans_contenu, verdict
 from catalogue.mesures.stats import ponderee
 
 PLAFOND_USD = 0.30
@@ -378,6 +378,141 @@ def _taux(c: dict[str, float]) -> dict[str, float]:
     }
 
 
+PLIS_INTERNES = 5
+
+
+def _hors_pli(
+    x: list[list[float]],
+    y_revoir: list[int],
+    y_retenir: list[int],
+    poids: list[float],
+    rng: random.Random,
+) -> tuple[list[float], list[float]]:
+    """Les deux probabilités de chaque page, prédites par un modèle qui ne l'a pas vue."""
+    ordre = list(range(len(x)))
+    rng.shuffle(ordre)
+    parts = [ordre[j::PLIS_INTERNES] for j in range(PLIS_INTERNES)]
+    p_revoir = [0.0] * len(x)
+    p_retenir = [0.0] * len(x)
+    for part in parts:
+        dedans = set(part)
+        appr = [k for k in ordre if k not in dedans]
+        xa = [x[k] for k in appr]
+        wa = [poids[k] for k in appr]
+        m_revoir = ajuster(xa, [y_revoir[k] for k in appr], wa)
+        m_retenir = ajuster(xa, [y_retenir[k] for k in appr], wa)
+        for k in part:
+            p_revoir[k] = m_revoir.proba(x[k])
+            p_retenir[k] = m_retenir.proba(x[k])
+    return p_revoir, p_retenir
+
+
+def valider(
+    ids: list[str],
+    variables: dict[str, dict[str, list[float]]],
+    etiquettes: dict[str, str],
+    poids: dict[str, float],
+    issues_reference: dict[str, str],
+    configurations: list[str],
+) -> dict[str, Any]:
+    """Validation croisée à deux plis répétée, pour chaque configuration de variables.
+
+    Sur chaque pli d'apprentissage : deux régressions (page à revoir, page à
+    retenir), un seuil d'écart pour le budget de pertes, un seuil d'admission
+    pour le budget d'admissions à tort. Sur l'autre pli : les issues, comptées
+    avec leurs poids, et comparées à celles de la règle de référence sur les
+    mêmes pages. Les mêmes plis servent à toutes les configurations.
+    """
+    rng = random.Random(GRAINE)
+    plis_par_repetition = []
+    for _ in range(REPETITIONS):
+        melange = ids[:]
+        rng.shuffle(melange)
+        plis_par_repetition.append((melange[: len(melange) // 2], melange[len(melange) // 2 :]))
+
+    sortie: dict[str, Any] = {}
+    for nom in configurations:
+        rng_interne = random.Random(GRAINE + 1)
+        cumul: dict[str, float] = {}
+        cumul_ref: dict[str, float] = {}
+        discordances = {"candidate_perd_seule": 0.0, "reference_perd_seule": 0.0}
+        par_repetition = []
+        for plis in plis_par_repetition:
+            c_rep: dict[str, float] = {}
+            for k in (0, 1):
+                appr, test = plis[k], plis[1 - k]
+                xa = [variables[i][nom] for i in appr]
+                wa = [poids[i] for i in appr]
+                ya_revoir = [int(etiquettes[i] in ("retenue", "indeterminee")) for i in appr]
+                ya_retenir = [int(etiquettes[i] == "retenue") for i in appr]
+                m_revoir = ajuster(xa, ya_revoir, wa)
+                m_retenir = ajuster(xa, ya_retenir, wa)
+                # Les seuils se choisissent sur des prédictions hors pli, à
+                # l'intérieur du pli d'apprentissage : réglés sur les prédictions
+                # du modèle ajusté sur ces mêmes pages, ils surajustaient (pertes
+                # de 0,6 % dans l'échantillon contre 8,6 % hors échantillon,
+                # relecture adverse du 2026-10-10).
+                p_revoir, p_retenir = _hors_pli(xa, ya_revoir, ya_retenir, wa, rng_interne)
+                b = _seuil_bas(p_revoir, ya_revoir, wa, BUDGET_PERTES)
+                h = _seuil_haut(
+                    p_retenir,
+                    [int(etiquettes[i] == "ecartee") for i in appr],
+                    wa,
+                    BUDGET_ADMISSIONS,
+                )
+                issues = _issues(m_revoir, m_retenir, b, h, [variables[i][nom] for i in test])
+                lab_test = [etiquettes[i] for i in test]
+                w_test = [poids[i] for i in test]
+                for cle, v in _compter(issues, lab_test, w_test).items():
+                    c_rep[cle] = c_rep.get(cle, 0.0) + v
+                ref = [issues_reference[i] for i in test]
+                for cle, v in _compter(ref, lab_test, w_test).items():
+                    cumul_ref[cle] = cumul_ref.get(cle, 0.0) + v
+                for iss, i in zip(issues, test, strict=True):
+                    if etiquettes[i] == "ecartee":
+                        continue
+                    perd_c, perd_r = iss == "ecarter", issues_reference[i] == "ecarter"
+                    if perd_c and not perd_r:
+                        discordances["candidate_perd_seule"] += 1
+                    elif perd_r and not perd_c:
+                        discordances["reference_perd_seule"] += 1
+            par_repetition.append(_taux(c_rep))
+            for cle, v in c_rep.items():
+                cumul[cle] = cumul.get(cle, 0.0) + v
+        sortie[nom] = {
+            "taux_cumules": _taux(cumul),
+            "reference_sur_les_memes_plis": _taux(cumul_ref),
+            "doute_min_max": [
+                min(r["part_doute"] for r in par_repetition),
+                max(r["part_doute"] for r in par_repetition),
+            ],
+            "pertes_min_max": [
+                min(r["pertes"] for r in par_repetition),
+                max(r["pertes"] for r in par_repetition),
+            ],
+            # Pages à revoir discordantes, en moyenne par répétition (chaque page
+            # est testée une fois par répétition).
+            "discordances_par_repetition": {k: v / REPETITIONS for k, v in discordances.items()},
+        }
+    return sortie
+
+
+def lignes_configurations(configurations: dict[str, Any]) -> list[str]:
+    lignes = []
+    for nom, bloc in configurations.items():
+        t = bloc["taux_cumules"]
+        d = bloc["discordances_par_repetition"]
+        lignes.append(
+            f"{nom} : pertes {t['pertes']:.3f} (répétitions {bloc['pertes_min_max'][0]:.3f} à "
+            f"{bloc['pertes_min_max'][1]:.3f}), strictes {t['pertes_strictes']:.3f}, admises à "
+            f"tort {t['admises_a_tort']:.3f}, doute {t['part_doute']:.3f} (répétitions "
+            f"{bloc['doute_min_max'][0]:.3f} à {bloc['doute_min_max'][1]:.3f}), admises "
+            f"{t['part_admise']:.3f} ; pages à revoir perdues par la seule candidate "
+            f"{d['candidate_perd_seule']:.1f}, par la seule référence {d['reference_perd_seule']:.1f}"
+        )
+    return lignes
+
+
 def _issue_production(r: dict[str, Any]) -> str:
     if r.get("verdict") == "ecartee":
         return "ecarter"
@@ -388,8 +523,11 @@ def evaluer(args: argparse.Namespace) -> int:
     dossier = Path(args.dossier)
     echantillon = {e["id"]: e for e in _lire_jsonl(dossier / "echantillon.jsonl")}
     etiquettes: dict[str, str] = {}
-    for e in json.loads(Path(args.etiquettes).read_text(encoding="utf-8")):
-        if e.get("final"):
+    brut = json.loads(Path(args.etiquettes).read_text(encoding="utf-8"))
+    # Les pages sans contenu jugeable sortent des mesures (`jeu_e.pages_sans_contenu`).
+    vides = {} if args.avec_pages_vides else pages_sans_contenu(dossier, brut)
+    for e in brut:
+        if e.get("final") and e["id"] not in vides:
             f = e["final"]
             etiquettes[e["id"]] = verdict(f["destinataire"], f["objet"], f.get("categorie_ecart"))
     regle = {r["id"]: r for r in _lire_jsonl(dossier / "regle-1" / "reponses.jsonl")}
@@ -446,67 +584,9 @@ def evaluer(args: argparse.Namespace) -> int:
             [1.0 - variables[i]["jev_reduit"][1] for i in ids], y_revoir, w
         )
 
-    rng = random.Random(GRAINE)
-    plis_par_repetition = []
-    for _ in range(REPETITIONS):
-        melange = ids[:]
-        rng.shuffle(melange)
-        plis_par_repetition.append((melange[: len(melange) // 2], melange[len(melange) // 2 :]))
-
-    for nom in configurations:
-        cumul = dict.fromkeys(c_prod, 0.0)
-        cumul_prod = dict.fromkeys(c_prod, 0.0)
-        discordances = {"candidate_perd_seule": 0.0, "production_perd_seule": 0.0}
-        par_repetition = []
-        for plis in plis_par_repetition:
-            c_rep = dict.fromkeys(c_prod, 0.0)
-            for k in (0, 1):
-                appr, test = plis[k], plis[1 - k]
-                xa = [variables[i][nom] for i in appr]
-                wa = [poids[i] for i in appr]
-                ya_revoir = [int(etiquettes[i] in ("retenue", "indeterminee")) for i in appr]
-                m_revoir = ajuster(xa, ya_revoir, wa)
-                m_retenir = ajuster(xa, [int(etiquettes[i] == "retenue") for i in appr], wa)
-                b = _seuil_bas([m_revoir.proba(v) for v in xa], ya_revoir, wa, BUDGET_PERTES)
-                h = _seuil_haut(
-                    [m_retenir.proba(v) for v in xa],
-                    [int(etiquettes[i] == "ecartee") for i in appr],
-                    wa,
-                    BUDGET_ADMISSIONS,
-                )
-                issues = _issues(m_revoir, m_retenir, b, h, [variables[i][nom] for i in test])
-                lab_test = [etiquettes[i] for i in test]
-                w_test = [poids[i] for i in test]
-                for cle, v in _compter(issues, lab_test, w_test).items():
-                    c_rep[cle] += v
-                for cle, v in _compter([issues_prod[i] for i in test], lab_test, w_test).items():
-                    cumul_prod[cle] += v
-                for iss, i in zip(issues, test, strict=True):
-                    if etiquettes[i] == "ecartee":
-                        continue
-                    perd_c, perd_p = iss == "ecarter", issues_prod[i] == "ecarter"
-                    if perd_c and not perd_p:
-                        discordances["candidate_perd_seule"] += 1
-                    elif perd_p and not perd_c:
-                        discordances["production_perd_seule"] += 1
-            par_repetition.append(_taux(c_rep))
-            for cle, v in c_rep.items():
-                cumul[cle] += v
-        resultat["configurations"][nom] = {
-            "taux_cumules": _taux(cumul),
-            "production_sur_les_memes_plis": _taux(cumul_prod),
-            "doute_min_max": [
-                min(r["part_doute"] for r in par_repetition),
-                max(r["part_doute"] for r in par_repetition),
-            ],
-            "pertes_min_max": [
-                min(r["pertes"] for r in par_repetition),
-                max(r["pertes"] for r in par_repetition),
-            ],
-            # Pages à revoir discordantes, en moyenne par répétition (chaque page
-            # est testée une fois par répétition).
-            "discordances_par_repetition": {k: v / REPETITIONS for k, v in discordances.items()},
-        }
+    resultat["configurations"] = valider(
+        ids, variables, etiquettes, poids, issues_prod, configurations
+    )
 
     (dossier / "combinaison.json").write_text(
         json.dumps(resultat, ensure_ascii=False, indent=1), encoding="utf-8"
@@ -520,17 +600,7 @@ def evaluer(args: argparse.Namespace) -> int:
     )
     lignes.append(f"  pertes {resultat['production']['pertes_intervalle']}")
     lignes.append(f"  doute {resultat['production']['doute_intervalle']}")
-    for nom, bloc in resultat["configurations"].items():
-        t = bloc["taux_cumules"]
-        d = bloc["discordances_par_repetition"]
-        lignes.append(
-            f"{nom} : pertes {t['pertes']:.3f} (répétitions {bloc['pertes_min_max'][0]:.3f} à "
-            f"{bloc['pertes_min_max'][1]:.3f}), strictes {t['pertes_strictes']:.3f}, admises à "
-            f"tort {t['admises_a_tort']:.3f}, doute {t['part_doute']:.3f} (répétitions "
-            f"{bloc['doute_min_max'][0]:.3f} à {bloc['doute_min_max'][1]:.3f}), admises "
-            f"{t['part_admise']:.3f} ; pages à revoir perdues par la seule candidate "
-            f"{d['candidate_perd_seule']:.1f}, par la seule production {d['production_perd_seule']:.1f}"
-        )
+    lignes += lignes_configurations(resultat["configurations"])
     (dossier / "combinaison.txt").write_text("\n".join(lignes) + "\n", encoding="utf-8")
     print("\n".join(lignes))
     return 0
@@ -545,6 +615,7 @@ def main() -> int:
     p = sous.add_parser("evaluer")
     p.add_argument("dossier")
     p.add_argument("etiquettes")
+    p.add_argument("--avec-pages-vides", action="store_true")
     p.set_defaults(fonction=evaluer)
     args = parseur.parse_args()
     return args.fonction(args)
