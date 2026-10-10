@@ -6,6 +6,8 @@ Commandes, depuis backend/ :
     uv run python -m catalogue.mesures.banc_x verifier <dossier>/<slug>.yaml [--faits <fichier>]
     uv run python -m catalogue.mesures.banc_x agent <dossier du banc> --copie <dossier hors du dépôt>
     uv run python -m catalogue.mesures.banc_x noter <dossier du banc>
+    uv run python -m catalogue.mesures.banc_x tirer --confirmation <aides.json du banc X>
+    uv run python -m catalogue.mesures.banc_x confirmer <dossier du banc de confirmation>
 
 `tirer` choisit les 12 aides du banc : les 5 du banc d'ingestion du 2026-10-07
 (`2026-10-07-benchmark-mistral-large-4.md`), puis 7 aides tirées au hasard
@@ -112,7 +114,22 @@ def _sources(slug: str) -> list[str]:
     return sorted(p.name for p in dossier.iterdir() if not p.name.endswith(".meta.yaml"))
 
 
-def tirer(_: argparse.Namespace) -> int:
+A_TIRER_CONFIRMATION = {
+    (portee, restauration): 4
+    for portee in ("nationale", "regionale", "departementale")
+    for restauration in (True, False)
+}
+GRAINE_CONFIRMATION = 20261016
+
+
+def tirer(args: argparse.Namespace) -> int:
+    confirmation = bool(getattr(args, "confirmation", None))
+    exclues: set[str] = set()
+    if confirmation:
+        exclues = {
+            a["slug"]
+            for a in json.loads(Path(args.confirmation).read_text(encoding="utf-8"))["aides"]
+        }
     echecs = {p.name.removesuffix(".yaml.echec") for p in AIDES.glob("*.yaml.echec")}
     population: dict[tuple[str, bool], list[str]] = {}
     strates: dict[str, tuple[str, bool]] = {}
@@ -120,12 +137,16 @@ def tirer(_: argparse.Namespace) -> int:
         aide = yaml.safe_load(f.read_text(encoding="utf-8"))
         slug = aide["slug"]
         strates[slug] = _strate(aide)
-        if slug in FIXES or slug in echecs or not _sources(slug):
+        if slug in FIXES or slug in echecs or slug in exclues or not _sources(slug):
             continue
         population.setdefault(strates[slug], []).append(slug)
-    rng = random.Random(GRAINE)
-    choisies = [{"slug": s, "strate": strates[s], "origine": "banc du 2026-10-07"} for s in FIXES]
-    for strate, n in A_TIRER.items():
+    rng = random.Random(GRAINE_CONFIRMATION if confirmation else GRAINE)
+    choisies = (
+        []
+        if confirmation
+        else [{"slug": s, "strate": strates[s], "origine": "banc du 2026-10-07"} for s in FIXES]
+    )
+    for strate, n in (A_TIRER_CONFIRMATION if confirmation else A_TIRER).items():
         for slug in rng.sample(population[strate], n):
             choisies.append(
                 {
@@ -141,7 +162,8 @@ def tirer(_: argparse.Namespace) -> int:
     (dossier / "aides.json").write_text(
         json.dumps(
             {
-                "graine": GRAINE,
+                "graine": GRAINE_CONFIRMATION if confirmation else GRAINE,
+                "confirmation_de": str(args.confirmation) if confirmation else None,
                 "population": {
                     f"{p}, {'restauration' if r else 'autre'}": len(v)
                     for (p, r), v in population.items()
@@ -369,7 +391,7 @@ def agent(args: argparse.Namespace) -> int:
     def executer(tache: tuple[int, str]) -> None:
         passe, slug = tache
         with verrou:
-            if etat["depense"] + RESERVE_RUN_USD * (etat["en_cours"] + 1) > PLAFOND_AGENT_USD:
+            if etat["depense"] + RESERVE_RUN_USD * (etat["en_cours"] + 1) > args.plafond:
                 print(
                     f"plafond : {slug} passe {passe} non lancé ({etat['depense']:.3f} $)",
                     flush=True,
@@ -636,7 +658,8 @@ def noter(args: argparse.Namespace) -> int:
                     rappel(index[(config, slug, p)], seulement)
                     - rappel(index[("agent", slug, p)], seulement)
                     for p in (1, 2)
-                    if (config, slug, p) in index and ("agent", slug, p) in index
+                    if index.get((config, slug, p), {}).get("issue", "absent") != "absent"
+                    and index.get(("agent", slug, p), {}).get("issue", "absent") != "absent"
                 ]
                 if diffs:
                     par_aide[slug] = statistics.mean(diffs)
@@ -647,12 +670,15 @@ def noter(args: argparse.Namespace) -> int:
             diffs = [
                 rappel(index[(config, slug, p)], False) - rappel(index[("agent", slug, p)], False)
                 for p in (1, 2)
-                if (config, slug, p) in index and index.get(("agent", slug, p), {}).get("yaml")
+                if index.get((config, slug, p), {}).get("issue", "absent") != "absent"
+                and index.get(("agent", slug, p), {}).get("yaml")
             ]
             if diffs:
                 par_aide_produit[slug] = statistics.mean(diffs)
-        bloc["la_ou_l_agent_produit"] = intervalle(par_aide_produit)
-        comparaisons[config] = bloc
+        if par_aide_produit:
+            bloc["la_ou_l_agent_produit"] = intervalle(par_aide_produit)
+        if bloc:
+            comparaisons[config] = bloc
     resultat = {"synthese": synthese, "comparaisons_appariees": comparaisons}
     (banc / "notes.json").write_text(
         json.dumps(resultat, ensure_ascii=False, indent=1), encoding="utf-8"
@@ -666,10 +692,49 @@ def noter(args: argparse.Namespace) -> int:
     return 0
 
 
+def confirmer(args: argparse.Namespace) -> int:
+    """Le critère du banc de confirmation, fixé au journal du 2026-10-10 avant toute donnée."""
+    banc = Path(args.banc).resolve()
+    notes = json.loads((banc / "notes.json").read_text(encoding="utf-8"))
+    agent = notes["synthese"]["agent"]
+    b = notes["synthese"]["structuree-b"]
+    comparaison = notes["comparaisons_appariees"]["structuree-b"]["toutes_sorties"]
+    couverture = b["couverture_minimale_des_introuvables"]
+    criteres = {
+        "a_borne_basse_au_moins_moins_10_points": comparaison["ic95_reechantillonnage_points"][0]
+        >= -10.0,
+        "b_citations_faites_a_90_pourcent_de_texte_des_instantanes": couverture is None
+        or couverture >= 0.9,
+        "c_acceptee_au_moins_aussi_souvent": b["acceptees"] >= agent["acceptees"],
+        "d_moins_chere_par_aide_acceptee": (b["cout_par_acceptee_usd"] or 1e9)
+        < (agent["cout_par_acceptee_usd"] or 1e9),
+    }
+    resultat = {
+        "criteres": criteres,
+        "issue": "A, l'extraction structurée remplace l'agent"
+        if all(criteres.values())
+        else "B, l'agent reste",
+        "chiffres": {
+            "difference_points": comparaison["moyenne_points"],
+            "ic95": comparaison["ic95_reechantillonnage_points"],
+            "couverture_minimale": couverture,
+            "acceptees": [b["acceptees"], agent["acceptees"]],
+            "cout_par_acceptee_usd": [b["cout_par_acceptee_usd"], agent["cout_par_acceptee_usd"]],
+        },
+    }
+    (banc / "confirmation.json").write_text(
+        json.dumps(resultat, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
+    print(json.dumps(resultat, ensure_ascii=False, indent=1))
+    return 0
+
+
 def main() -> int:
     parseur = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sous = parseur.add_subparsers(dest="commande", required=True)
-    sous.add_parser("tirer").set_defaults(fonction=tirer)
+    p = sous.add_parser("tirer")
+    p.add_argument("--confirmation", help="aides.json du banc à confirmer : ses aides sont exclues")
+    p.set_defaults(fonction=tirer)
     p = sous.add_parser("verifier")
     p.add_argument("chemin")
     p.add_argument("--faits")
@@ -679,10 +744,14 @@ def main() -> int:
     p.add_argument("--copie", required=True)
     p.add_argument("--seulement", nargs="*", default=[])
     p.add_argument("--passes", nargs="*", type=int, default=[1, 2])
+    p.add_argument("--plafond", type=float, default=PLAFOND_AGENT_USD)
     p.set_defaults(fonction=agent)
     p = sous.add_parser("noter")
     p.add_argument("banc")
     p.set_defaults(fonction=noter)
+    p = sous.add_parser("confirmer")
+    p.add_argument("banc")
+    p.set_defaults(fonction=confirmer)
     args = parseur.parse_args()
     return args.fonction(args)
 

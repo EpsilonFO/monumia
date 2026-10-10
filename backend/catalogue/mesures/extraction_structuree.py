@@ -52,6 +52,7 @@ from ingestion.verification import verifier
 from lint_aides_data import lint
 from pipeline import llm
 from veille_collect import load_baselines
+from veille_text import find_quote_in_any
 
 from aides_schema import (
     CATEGORIES,
@@ -65,6 +66,7 @@ from aides_schema import (
 )
 from catalogue.mesures.lanceur_agent import indexer, relever
 from catalogue.openrouter import Client, Panne
+from catalogue.registre import charger as charger_registre
 from labels import (
     DEPARTEMENT_LABELS,
     ETAT_LABELS,
@@ -79,9 +81,12 @@ from pieces_schema import load_pieces
 BACKEND = Path(__file__).resolve().parents[2]
 SOURCES = BACKEND / "data" / "sources"
 AIDES = BACKEND / "data" / "aides"
-MODELE_EXTRACTION = "z-ai/glm-5.3-flash"
-MODELE_VERIFICATION = "or-ds41"
-TOURS_CORRECTION = 2
+# Trois tours : le banc X du 2026-10-10 a refusé deux aides pour des citations
+# recollées, et le troisième tour vise précisément ces citations.
+TOURS_CORRECTION = 3
+# Les fournisseurs les plus rapides d'abord : un fournisseur de GLM répondait en
+# 286 s en médiane au banc X, et un de ses appels a tourné 16 minutes à vide.
+FOURNISSEURS = {"sort": "throughput"}
 ORDRE_AIDE = (
     "slug",
     "nom",
@@ -497,6 +502,67 @@ def definition_fait(f: dict[str, Any]) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
+def coherence(donnees: dict[str, Any]) -> list[str]:
+    """Les contraintes du schéma des aides que le json_schema ne peut pas dire, en clair.
+
+    Le message de validation de pydantic, renvoyé tel quel, laissait au banc X une
+    condition `user_fact` sans fait après deux corrections.
+    """
+    messages = []
+    for c in donnees.get("conditions") or []:
+        ident, kind, effect = c["id"], c["kind"], c["effect"]
+        if kind == "user_fact" and not (c.get("fact") and c.get("predicate")):
+            messages.append(
+                f"condition {ident} : kind user_fact exige `fact` et `predicate`. Si aucun fait ne "
+                "pose la question, propose-en un dans `faits_proposes`, ou type la condition en "
+                "manual_check, effect info, avec des notes."
+            )
+        if kind == "auto" and not (c.get("field") and c.get("predicate")):
+            messages.append(f"condition {ident} : kind auto exige `field` et `predicate`.")
+        if kind not in ("user_fact", "auto") and (
+            c.get("fact") or c.get("field") or c.get("predicate")
+        ):
+            messages.append(
+                f"condition {ident} : kind {kind} ne porte ni fact, ni field, ni predicate "
+                "(seuls user_fact et auto en portent)."
+            )
+        if kind == "info" and effect != "info":
+            messages.append(f"condition {ident} : kind info exige effect info.")
+        if kind == "discretionary" and effect == "gate":
+            messages.append(
+                f"condition {ident} : discretionary n'est jamais un gate (info ou modulateur)."
+            )
+        if kind == "manual_check" and effect == "gate":
+            messages.append(
+                f"condition {ident} : manual_check en gate est interdit (info ou modulateur)."
+            )
+        if c.get("levier") and kind != "manual_check":
+            messages.append(f"condition {ident} : `levier` n'existe que sur un manual_check.")
+        if c.get("derogation_possible") and not (
+            kind in ("auto", "user_fact") and effect == "gate"
+        ):
+            messages.append(
+                f"condition {ident} : derogation_possible n'existe que sur un gate auto ou user_fact."
+            )
+    return messages
+
+
+def citations_introuvables(atelier: Atelier, donnees: dict[str, Any]) -> list[str]:
+    """Une consigne par citation que la recherche du lint ne retrouve pas."""
+    documents, _, _ = load_baselines(atelier.slug)
+    messages = []
+    for c in donnees.get("conditions") or []:
+        q = c.get("quote")
+        if q and not find_quote_in_any(q, documents)[1].found:
+            messages.append(
+                f"citation de la condition {c['id']} introuvable mot pour mot dans les instantanés : "
+                f"« {q[:300]} ». Copie UN SEUL passage continu d'un instantané, sans points de "
+                "suspension ni puces mises bout à bout ; si l'exigence s'étend sur plusieurs "
+                "passages, garde le passage principal ou scinde la condition."
+            )
+    return messages
+
+
 def ecrire_et_controler(
     atelier: Atelier,
     donnees: dict[str, Any],
@@ -551,6 +617,9 @@ def ecrire_et_controler(
     atelier.pending_path.write_text(pending_origine + "".join(blocs), encoding="utf-8")
     load_pending_facts.cache_clear()
 
+    incoherences = coherence(donnees)
+    if incoherences:
+        return [*erreurs, *incoherences], ids_proposes, a_montrer
     try:
         aide = emettre(donnees, atelier.slug, url, snapshot)
     except (ValueError, KeyError) as exc:
@@ -575,6 +644,7 @@ def ecrire_et_controler(
     )
     if not rapport.ok:
         erreurs.append("lint :\n" + rapport.texte()[:6000])
+        erreurs.extend(citations_introuvables(atelier, donnees))
     return erreurs, ids_proposes, a_montrer
 
 
@@ -640,9 +710,19 @@ def extraire(
     resume: dict[str, Any] = {"slug": slug, "tours": 0, "verification": None, "erreurs": []}
     voisins_montres: set[str] = set()
 
+    modele = charger_registre().modele("extraction")
+
     def appeler(role: str) -> dict[str, Any]:
         reponse = client.completer(
-            MODELE_EXTRACTION, messages, schema=schema, nom_schema="aide", role=role
+            modele.nom,
+            messages,
+            schema=schema,
+            nom_schema="aide",
+            effort=modele.effort,
+            fournisseurs=FOURNISSEURS,
+            acceptes=modele.acceptes,
+            delai_s=modele.delai_s,
+            role=role,
         )
         resume["tours"] += 1
         messages.append({"role": "assistant", "content": reponse.texte})
@@ -690,7 +770,9 @@ def extraire(
         if avec_verificateur and not erreurs:
             rapport, rendu = verifier(
                 atelier,
-                llm.client_pour("verification", MODELE_VERIFICATION),
+                llm.client_pour(
+                    "verification", charger_registre().modele("verification").alias_providall
+                ),
                 aide=load_aide(atelier.yaml_path),
             )
             bloquants = [p for p in rapport.problemes if p.severite == "bloquant"]
@@ -762,11 +844,22 @@ def main() -> int:
         sortie.mkdir(parents=True)
         appels = sortie / "appels.jsonl"
         relever(appels)
-        client = Client(journal=appels)
-        try:
-            resume = extraire(slug, sortie, client, avec_verificateur=args.config == "b")
-        finally:
-            client.fermer()
+        pannes_precedentes: list[str] = []
+        # Une panne n'est pas un échec : la production rejouerait l'aide. Une
+        # seconde tentative, dans un dossier neuf ; la dépense de la première
+        # reste comptée.
+        for _ in range(2):
+            client = Client(journal=appels)
+            try:
+                resume = extraire(slug, sortie, client, avec_verificateur=args.config == "b")
+            finally:
+                client.fermer()
+            if resume["issue"] != "panne":
+                break
+            pannes_precedentes.append(f"{resume.get('panne')} : {resume.get('message', '')[:200]}")
+            for sous in ("aides", "reviews"):
+                shutil.rmtree(sortie / sous, ignore_errors=True)
+        resume["pannes_rejouees"] = pannes_precedentes
         couts = [json.loads(x) for x in appels.read_text(encoding="utf-8").splitlines() if x]
         resume.update(
             config=args.config,
