@@ -69,19 +69,33 @@ class PageRejouee(web.Page):
         return self.md
 
 
+def _meta(chemin: Path) -> dict[str, Any]:
+    """L'en-tête `.meta.yaml` d'un instantané binaire.
+
+    Vide quand il manque : des archives de juillet 2026 n'en ont pas (le PDF de
+    `hdf-etude-prealable-patrimoine`, ceux de `35-patrimoine`). Leur URL est
+    alors inconnue, le fichier n'est pas servi par URL, mais l'agent le lit
+    encore par l'outil `snapshots`, qui liste le dossier.
+    """
+    meta = chemin.with_name(chemin.name + ".meta.yaml")
+    if not meta.exists():
+        return {}
+    return yaml.safe_load(meta.read_text(encoding="utf-8")) or {}
+
+
 def indexer(dossier: Path) -> dict[str, Archive]:
     """Les documents d'un dossier d'instantanés, par URL canonique ; le plus récent l'emporte."""
     index: dict[str, Archive] = {}
     for chemin in sorted(dossier.iterdir()):
         nom = chemin.name
         if nom.endswith(".pdf"):
-            meta = yaml.safe_load(chemin.with_name(nom + ".meta.yaml").read_text(encoding="utf-8"))
-            if meta and meta.get("url"):
+            meta = _meta(chemin)
+            if meta.get("url"):
                 index[cle_url(meta["url"])] = Archive(
                     meta["url"], chemin, "pdf", chemin.read_bytes(), ""
                 )
         elif nom.endswith(".docx"):
-            meta = yaml.safe_load(chemin.with_name(nom + ".meta.yaml").read_text(encoding="utf-8"))
+            meta = _meta(chemin)
             converti = chemin.with_suffix(".md")
             if meta and meta.get("url") and converti.exists():
                 _, corps = parse_front_matter(converti.read_text(encoding="utf-8"))
