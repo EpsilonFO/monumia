@@ -25,7 +25,7 @@ import fcntl
 import hashlib
 import json
 import os
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -121,21 +121,36 @@ class Journal:
 
     def ajouter(self, e: Evenement) -> Evenement:
         """Ajoute un événement ; l'horodatage se pose ici s'il manque."""
-        if not e.t:
-            e = Evenement.depuis_dict(
-                {**e.en_dict(), "t": dt.datetime.now(dt.UTC).isoformat(timespec="seconds")}
-            )
-        self.dossier.mkdir(parents=True, exist_ok=True)
-        ligne = json.dumps(e.en_dict(), ensure_ascii=False, sort_keys=True) + "\n"
-        with self._fichier(e.t).open("a", encoding="utf-8") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            try:
-                f.write(ligne)
-                f.flush()
-                os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
-        return e
+        return self.ajouter_lot([e])[0]
+
+    def ajouter_lot(self, evenements: Iterable[Evenement]) -> list[Evenement]:
+        """Ajoute des événements dans l'ordre donné : un verrou et un `fsync` par fichier de mois.
+
+        La conversion de l'état ancien écrit des milliers d'événements d'un coup ;
+        un `fsync` par ligne la rendrait lente pour rien. Un run tué pendant
+        l'écriture laisse au pire une dernière ligne tronquée, que `lire` ignore.
+        """
+        maintenant = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
+        ecrits: list[Evenement] = []
+        par_fichier: dict[Path, list[str]] = {}
+        for e in evenements:
+            if not e.t:
+                e = Evenement.depuis_dict({**e.en_dict(), "t": maintenant})
+            ecrits.append(e)
+            ligne = json.dumps(e.en_dict(), ensure_ascii=False, sort_keys=True) + "\n"
+            par_fichier.setdefault(self._fichier(e.t), []).append(ligne)
+        if par_fichier:
+            self.dossier.mkdir(parents=True, exist_ok=True)
+        for fichier, lignes in sorted(par_fichier.items()):
+            with fichier.open("a", encoding="utf-8") as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                try:
+                    f.write("".join(lignes))
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+        return ecrits
 
     def lire(self) -> Iterator[Evenement]:
         """Tous les événements, du plus ancien mois au plus récent, dans l'ordre d'écriture."""

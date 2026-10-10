@@ -80,6 +80,22 @@ def test_les_mois_se_lisent_dans_l_ordre(tmp_path: Path) -> None:
     assert sorted(p.name for p in tmp_path.iterdir()) == ["2026-10.jsonl", "2026-11.jsonl"]
 
 
+def test_un_lot_garde_son_ordre_et_se_range_par_mois(tmp_path: Path) -> None:
+    j = Journal(tmp_path)
+    ecrits = j.ajouter_lot(
+        [
+            Evenement("import", "a:x", auteur="import", t="2026-07-02T10:00:00+00:00"),
+            Evenement("import", "a:y", auteur="import", t="2026-09-01T10:00:00+00:00"),
+            Evenement("import", "a:z", auteur="import", t="2026-07-30T10:00:00+00:00"),
+            Evenement("contradiction", "a:x", auteur="import"),
+        ]
+    )
+    assert ecrits[3].t  # horodaté à l'écriture
+    assert sorted(p.name for p in tmp_path.iterdir())[:2] == ["2026-07.jsonl", "2026-09.jsonl"]
+    assert [e.objet for e in j.lire()][:3] == ["a:x", "a:z", "a:y"]
+    assert j.ajouter_lot([]) == []
+
+
 def test_un_evenement_mal_forme_est_refuse() -> None:
     with pytest.raises(ValueError):
         Evenement("verdict", "d:1")
