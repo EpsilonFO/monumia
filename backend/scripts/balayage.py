@@ -824,6 +824,14 @@ def main() -> int:
     )
     p.add_argument("--model-audit", default="ds-v41")
     args = p.parse_args()
+    # Pendant la refonte, une seule chaîne écrit chaque opération (registre du catalogue).
+    sys.path.insert(0, str(RACINE))
+    from catalogue.registre import refus_ancienne
+
+    for operation in ("prospection", "ingestion"):
+        if refus := refus_ancienne(operation):
+            print(f"ERREUR : {refus}", file=sys.stderr)
+            return 1
 
     if not args.territoires:
         p.error("nommer au moins un territoire (ex. : grand-est nouvelle-aquitaine)")

@@ -215,6 +215,32 @@ def test_la_garde_et_sa_zone_prudente(
         assert manifeste[SLUG]["maj_refusee"]["empreinte"]
 
 
+@pytest.mark.parametrize(
+    ("etiquette", "issue", "avance"),
+    [("ne touche pas", "inchange", True), ("touche", "case", False)],
+)
+def test_l_etiquette_mensuelle_fait_sortir_de_la_zone_prudente(
+    banc: dict[str, Any], etiquette: str, issue: str, avance: bool
+) -> None:
+    j = Journal(banc["tmp"] / "journal")
+    ctx, _, r = _passer(banc, FauxClient([_sortie(resume="rien")], [0.2]), journal=j)
+    assert r.issue == "zone_prudente"
+    (garde,) = [e for e in j.lire() if e.decision == "V1-garde"]
+    j.ajouter(
+        Evenement(
+            "decision",
+            f"a:{SLUG}",
+            decision="V1-etiquette",
+            decideur="claude",
+            issue=etiquette,
+            donnees={"garde": garde.cle},
+        )
+    )
+    _, _, r2 = _passer(banc, FauxClient([], []), journal=j)
+    assert r2.issue == issue
+    assert bool(banc["ecrits"]) is avance
+
+
 def test_une_garde_en_panne_laisse_la_reference(banc: dict[str, Any]) -> None:
     ctx, bilan, r = _passer(
         banc, FauxClient([_sortie(resume="rien")], [Panne("reponse_invalide", "noul vide")])
@@ -383,3 +409,148 @@ def test_les_etalons_livres_de_la_garde_portent_tous_une_note() -> None:
     assert all("typesafe/jev-1.13-20260917" in e.p for e in etalons)
     texte = calibrer.calibrer_v1(charger(), "typesafe/jev-1.13-20260917", None)
     assert "Effectif insuffisant" in texte
+
+
+def test_une_escalade_que_felix_fait_reextraire_passe_par_la_reextraction(
+    banc: dict[str, Any],
+) -> None:
+    from catalogue import reextraction
+
+    j = Journal(banc["tmp"] / "journal")
+    _, _, r = _passer(banc, FauxClient([_sortie(resume="rien")], [0.6]), journal=j)
+    (case,) = r.cases
+    rapport = banc["tmp"] / "2026-10-11-semaine.md"
+    rapport.write_text(
+        "\n".join(case.rendre()).replace("- [ ] `reextraire`", "- [x] `reextraire`"),
+        encoding="utf-8",
+    )
+    j.ajouter_lot(cases.relire([rapport], Vue(list(j.lire())))[0])
+    appels: list[str] = []
+
+    def refus(slug: str, etat: str) -> reextraction.Bilan:
+        appels.append(slug)
+        return reextraction.Bilan(slug, "refusee", "lint : erreur neuve", cout_usd=0.1)
+
+    for _ in range(2):
+        ctx = _ctx(banc, FauxClient([], []), j)
+        ctx.reextraire = refus
+        bilan = veille.passer(ctx, {SLUG: load_aide(banc["yaml"])}, _collecte(_frais()))
+        r = bilan.resultats[SLUG]
+        assert r.issue == "case" and "ré-extraction" in r.raison
+    # Le refus est mémorisé pour ce changement : une seule ré-extraction payée.
+    assert appels == [SLUG]
+    assert [e.issue for e in j.lire() if e.decision == "reextraction"] == ["refusee"]
+
+
+# ------------------------------------------------------------------ relecture adverse d'I2
+
+
+def _cocher(banc: dict[str, Any], j: Journal, case: Any, option: str) -> None:
+    rapport = banc["tmp"] / f"cases-{case.id}-{option}.md"
+    rapport.write_text(
+        "\n".join(case.rendre()).replace(f"- [ ] `{option}`", f"- [x] `{option}`"),
+        encoding="utf-8",
+    )
+    j.ajouter_lot(cases.relire([rapport], Vue(list(j.lire())))[0])
+
+
+def _deduite() -> tuple[str, str]:
+    sortie = _sortie(
+        calendrier={"champs": {"date_limite": "2027-02-12"}, "quote": "jusqu'au 12 février"}
+    )
+    return sortie, _frais().replace("12 février 2027", "12 février")
+
+
+def test_une_proposition_en_attente_ne_repaie_pas_d_appel_et_appliquer_ecrit_ce_que_felix_a_vu(
+    banc: dict[str, Any],
+) -> None:
+    j = Journal(banc["tmp"] / "journal")
+    sortie, frais = _deduite()
+    client = FauxClient([sortie], [])
+    ctx = _ctx(banc, client, j)
+    r = veille.passer(ctx, {SLUG: load_aide(banc["yaml"])}, _collecte(frais)).resultats[SLUG]
+    (case,) = r.cases
+    assert case.sorte == "veille-proposition" and "2027-02-12" in "\n".join(case.contexte)
+    # Semaine suivante, sans réponse : aucun appel, la même case.
+    second = FauxClient([], [])
+    r2 = veille.passer(
+        _ctx(banc, second, j), {SLUG: load_aide(banc["yaml"])}, _collecte(frais)
+    ).resultats[SLUG]
+    assert second.appels == [] and [c.id for c in r2.cases] == [case.id]
+    _cocher(banc, j, case, "appliquer")
+    troisieme = FauxClient([], [])
+    r3 = veille.passer(
+        _ctx(banc, troisieme, j), {SLUG: load_aide(banc["yaml"])}, _collecte(frais)
+    ).resultats[SLUG]
+    assert troisieme.appels == [] and r3.issue == "retouche"
+    assert "date_limite: 2027-02-12" in banc["yaml"].read_text(encoding="utf-8")
+
+
+def test_appliquer_ne_vaut_plus_si_la_fiche_a_change(banc: dict[str, Any]) -> None:
+    j = Journal(banc["tmp"] / "journal")
+    sortie, frais = _deduite()
+    ctx = _ctx(banc, FauxClient([sortie], []), j)
+    (case,) = (
+        veille.passer(ctx, {SLUG: load_aide(banc["yaml"])}, _collecte(frais)).resultats[SLUG].cases
+    )
+    _cocher(banc, j, case, "appliquer")
+    # Félix retouche la fiche entre-temps : la proposition vue ne vaut plus.
+    banc["yaml"].write_text(
+        banc["yaml"].read_text(encoding="utf-8") + "\n# retouche\n", encoding="utf-8"
+    )
+    client = FauxClient([sortie], [])
+    r = veille.passer(
+        _ctx(banc, client, j), {SLUG: load_aide(banc["yaml"])}, _collecte(frais)
+    ).resultats[SLUG]
+    assert client.appels == ["llm"] and r.issue == "case"
+    assert "2027-02-12" not in banc["yaml"].read_text(encoding="utf-8")
+
+
+def test_une_panne_de_la_garde_n_entre_pas_au_manifeste_comme_refus(banc: dict[str, Any]) -> None:
+    _passer(banc, FauxClient([_sortie(resume="rien")], [Panne("delai", "15 s")]))
+    manifeste = veille_aides.load_manifest(banc["tmp"] / "veille-state.yaml")
+    assert "maj_refusee" not in manifeste.get(SLUG, {})
+
+
+def test_une_base_proxy_ne_remplace_pas_une_capture_directe(banc: dict[str, Any]) -> None:
+    proxy = banc["sources"] / SLUG / "2026-09-29-presentation.md"
+    proxy.write_text(
+        f"---\nurl: https://r.jina.ai/{URL}\nsha256: z\n---\ncorps proxy\n", encoding="utf-8"
+    )
+    murl = MonitoredUrl(url=URL, role="officielle", baseline_body="direct", baseline_sha="y")
+    col = {SLUG: AideCollect(slug=SLUG, urls=[murl])}
+    bases = {(f"a:{SLUG}", veille_collect.cle_url(URL)): {"fichier": proxy.name}}
+    assert veille.appliquer_bases(col, bases, banc["sources"]) == 0
+    assert col[SLUG].urls[0].baseline_body == "direct"
+
+
+def test_une_reponse_tronquee_est_une_panne() -> None:
+    import httpx
+
+    from catalogue.openrouter import Client
+
+    corps = {
+        "model": "z-ai/glm-5.3-flash",
+        "choices": [{"message": {"content": '{"resume": "coup'}, "finish_reason": "length"}],
+        "usage": {"cost": 0.01, "completion_tokens": 32000},
+    }
+    client = Client(
+        "cle",
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json=corps)),
+        tentatives=1,
+    )
+    with pytest.raises(Panne) as exc:
+        client.completer("z-ai/glm-5.3-flash", [{"role": "user", "content": "x"}], objet_json=True)
+    assert exc.value.classe == "reponse_tronquee"
+
+
+def test_un_diff_vide_fait_avancer_la_reference_sans_garde(banc: dict[str, Any]) -> None:
+    ctx = _ctx(banc, FauxClient([], []))
+    res = veille.Resultat(slug=SLUG, statut="MAJ_LLM", issue="ok")
+    aide = load_aide(banc["yaml"])
+    collects = _collecte(_frais())
+    from veille_analyze import analyze_all
+
+    an = analyze_all({SLUG: aide}, collects, today=JOUR)[SLUG]
+    maj = veille._garder(ctx, aide, an, collects[SLUG], res, "", "rien", "e", lambda *a, **k: a)
+    assert res.issue == "inchange" and ctx.client.appels == [] and maj is not None

@@ -955,25 +955,11 @@ def veille_reprise(chemin: Path | None = None) -> str | None:
     `catalogue` dit laquelle. Un passage réel de cette ancienne veille après la
     bascule archiverait les pages fraîches et solderait des changements que la
     nouvelle garde en attente. Les passages qui n'écrivent rien (`--report-only`,
-    `--dry-run`, `--offline`) restent permis. Sans registre, rien ne change ;
-    un registre illisible refuse, puisqu'il ne dit plus qui écrit.
+    `--dry-run`, `--offline`) restent permis.
     """
-    from catalogue import registre
+    from catalogue.registre import refus_ancienne
 
-    chemin = chemin or registre.REGISTRE
-    if not chemin.exists():
-        return None
-    try:
-        reg = registre.charger(chemin)
-    except Exception as exc:  # noqa: BLE001 — tout registre illisible refuse
-        return f"registre du catalogue illisible ({chemin}) : {exc}"
-    if reg.proprietaires["veille"] == "nouvelle":
-        return (
-            "la veille appartient à la nouvelle chaîne (registre du catalogue, "
-            "`proprietaires.veille: nouvelle`) : lancer `uv run python -m catalogue veille`, "
-            "ou repasser le registre à `ancienne` pour revenir à ce script"
-        )
-    return None
+    return refus_ancienne("veille", chemin)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -983,7 +969,9 @@ def main(argv: list[str] | None = None) -> int:
     log = Journal()
     today = date.today()
 
-    if not (args.report_only or args.dry_run or args.offline) and (refus := veille_reprise()):
+    # `--acquitter` écrit le manifeste même à blanc : il passe lui aussi la garde.
+    ecrit = not (args.report_only or args.dry_run or args.offline) or args.acquitter
+    if ecrit and (refus := veille_reprise()):
         print(f"ERREUR : {refus}", file=sys.stderr)
         return 1
 

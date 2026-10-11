@@ -111,3 +111,26 @@ def charger(chemin: Path = REGISTRE) -> Registre:
     if not isinstance(brut, dict):
         raise ValueError(f"{chemin} : registre vide ou illisible")
     return Registre.model_validate(brut)
+
+
+def refus_ancienne(operation: str, chemin: Path | None = None) -> str | None:
+    """Le motif de refus d'un ancien script quand le registre donne `operation` à la nouvelle chaîne.
+
+    Pendant la transition, une seule chaîne écrit chaque opération (section 10
+    d'`architecture.md`). Sans registre, rien ne change ; un registre illisible
+    refuse, puisqu'il ne dit plus qui écrit.
+    """
+    chemin = chemin or REGISTRE
+    if not chemin.exists():
+        return None
+    try:
+        reg = charger(chemin)
+    except Exception as exc:  # noqa: BLE001 — tout registre illisible refuse
+        return f"registre du catalogue illisible ({chemin}) : {exc}"
+    if reg.proprietaires.get(operation) == "nouvelle":  # type: ignore[call-overload]
+        return (
+            f"l'opération « {operation} » appartient à la nouvelle chaîne (registre du "
+            f"catalogue, `proprietaires.{operation}: nouvelle`) : passer par "
+            "`uv run python -m catalogue`, ou repasser le registre à `ancienne`"
+        )
+    return None

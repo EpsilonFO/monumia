@@ -47,7 +47,7 @@ from typing import Any
 import veille_aides
 from veille_analyze import AideAnalysis, _panne_generalisee, analyze_all, resume_diff
 from veille_apply import ApplyResult, appliquer
-from veille_arbitre import QUESTIONS_MANDAT, etat_mandat
+from veille_arbitre import QUESTIONS_MANDAT, etat_mandat, fiche_pour_jev
 from veille_collect import (
     SOURCES_DIR,
     AideCollect,
@@ -86,7 +86,7 @@ REVIEWS = DATA_DIR / "reviews"
 # Version de l'étape : elle entre dans les clés de mémorisation, pour qu'un
 # changement de la conduite de l'étage C ne reprenne pas les verdicts d'avant.
 VERSION = "veille@1"
-JETONS_SORTIE = 16_000
+JETONS_SORTIE = 32_000
 # Consigne du mandat telle que l'ancienne veille l'envoie à un fournisseur sans
 # sortie structurée native (`veille_llm.system_pour`) : le schéma y est joint.
 CONSIGNE = (
@@ -99,7 +99,7 @@ EMPREINTE_QUESTIONS = empreinte(json.dumps(QUESTIONS_MANDAT, sort_keys=True, ens
 
 OPTIONS_ESCALADE = {
     "rearchiver": "la page a changé sans effet sur la fiche, ou je l'ai corrigée : la référence avance",
-    "reextraire": "à ré-extraire (incrément I4)",
+    "reextraire": "ré-extraire l'aide par l'agent, au plus petit diff",
 }
 OPTIONS_PROPOSITION = {
     "appliquer": "la retouche proposée est juste : l'écrire",
@@ -173,7 +173,9 @@ def appliquer_bases(
                 nouvelles.append(m)
                 continue
             champs = baseline_de(slug, fichier, sources)
-            if champs is None:
+            # Comme l'ancienne veille : une capture sans terme de comparaison
+            # (proxy, contenu binaire) ne remplace jamais une capture directe.
+            if champs is None or (champs["baseline_body"] is None and m.has_baseline):
                 nouvelles.append(m)
                 continue
             nouvelles.append(replace(m, **champs))
@@ -234,6 +236,8 @@ class Contexte:
     sources: Path = SOURCES_DIR
     # (slug, contenu du YAML) pour rejouer sur une version d'avant ; sinon le fichier.
     chemin_yaml: Callable[[str], Path] = lambda slug: AIDES_DIR / f"{slug}.yaml"
+    # Ré-extraction d'une escalade (`catalogue.reextraction`), slug et état -> bilan.
+    reextraire: Callable[[str, str], Any] | None = None
 
     def consigner(self, e: Evenement) -> Evenement:
         e = replace(e, run=self.run) if e.run is None else e
@@ -411,9 +415,22 @@ def _case_proposition(
             f"Résumé du modèle : {resume or '(aucun)'}",
             *[f"- {m}" for m in motifs],
             f"Champs : {', '.join(applique.champs_touches)}",
+            "Proposition (c'est elle, et elle seule, que `appliquer` écrit) :",
+            "",
+            "```json",
+            _proposition_lisible(applique)[:4000],
+            "```",
         ),
         donnees={"reponse": reponse},
     )
+
+
+def _proposition_lisible(applique: ApplyResult) -> str:
+    if applique.output is None:
+        return ""
+    out = applique.output.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
+    out.pop("resume", None)
+    return json.dumps(out, ensure_ascii=False, indent=1)
 
 
 def etage_c(
@@ -440,10 +457,7 @@ def etage_c(
         )
 
     # Une réponse de Félix sur CET état du changement passe avant tout appel.
-    reponse_felix = cases_mod.reponse(ctx.vue, "veille-proposition", f"a:{slug}", etat) or (
-        cases_mod.reponse(ctx.vue, "veille-escalade", f"a:{slug}", etat)
-    )
-    if reponse_felix == "rearchiver":
+    if cases_mod.reponse(ctx.vue, "veille-escalade", f"a:{slug}", etat) == "rearchiver":
         res.issue, res.raison = "rearchivee", "référence avancée sur réponse de Félix"
         _avancer(ctx, an, col, res, "felix")
         return maj("inchange", res.raison)
@@ -460,11 +474,10 @@ def etage_c(
     cle_maj = cle(VERSION, "veille", slug, etat, m_veille.nom, EMPREINTE_CONSIGNE, _lire(chemin))
     memo = ctx.vue.memo(cle_maj)
     texte_modele = (memo.donnees.get("reponse") or "") if memo is not None else ""
-    if texte_modele and (
-        memo is not None and memo.issue != "retouche" or reponse_felix == "appliquer"
-    ):
+    if texte_modele:
         # Même changement, même fiche, même modèle et même consigne : la réponse
-        # mémorisée se revalide sans appel (la validation est du code).
+        # mémorisée se revalide sans appel (la validation est du code). Une
+        # proposition en attente de Félix n'est donc jamais retirée au sort.
         applique = _rejouer(ctx, aide, chemin, documents, diff, texte_modele)
         res.memorise = True
     else:
@@ -511,13 +524,15 @@ def etage_c(
             )
         )
 
-    if reponse_felix == "appliquer" and applique.ok and applique.texte != _lire(chemin):
-        return _ecrire(ctx, aide, an, col, res, applique, maj, felix=True)
-
     if not applique.ok:
         issue, raison = _issue_echec(applique)
         res.issue, res.raison = issue, raison
-        res.cases.append(
+        reprise = _escalader(
+            ctx,
+            aide,
+            an,
+            col,
+            res,
             Case(
                 sorte="veille-escalade",
                 objet=f"a:{slug}",
@@ -525,15 +540,25 @@ def etage_c(
                 etat=etat,
                 options=OPTIONS_ESCALADE,
                 contexte=(f"Motif : {raison}", f"Diff :\n\n```diff\n{diff[:3000]}\n```"),
-            )
+            ),
         )
-        return maj(issue, raison)
+        return reprise or maj(issue, raison)
 
     if applique.texte == _lire(chemin):
         resume = applique.output.resume.strip() if applique.output else ""
         return _garder(ctx, aide, an, col, res, diff, resume, etat, maj)
 
     assert applique.output is not None
+    # L'état d'une proposition : le changement, la fiche ET la réponse du modèle.
+    # Félix ne valide que ce qu'il a vu ; une autre proposition rouvre une case.
+    etat_proposition = empreinte(f"{etat}\n{_lire(chemin)}\n{texte_modele}")
+    reponse_felix = cases_mod.reponse(ctx.vue, "veille-proposition", f"a:{slug}", etat_proposition)
+    if reponse_felix == "appliquer":
+        return _ecrire(ctx, aide, an, col, res, applique, maj, felix=True)
+    if reponse_felix == "rearchiver":
+        res.issue, res.raison = "rearchivee", "proposition écartée par Félix : la référence avance"
+        _avancer(ctx, an, col, res, "felix")
+        return maj("inchange", res.raison)
     protegees = controles.conditions_protegees(applique.output)
     deduites = controles.valeurs_deduites(applique.output, documents)
     notes = controles.notes_non_ancrees(applique.output)
@@ -550,7 +575,7 @@ def etage_c(
         res.champs = applique.champs_touches
         res.cases.append(
             _case_proposition(
-                slug, "retouche à valider", etat, applique, motifs, texte_modele or ""
+                slug, "retouche à valider", etat_proposition, applique, motifs, texte_modele or ""
             )
         )
         return maj("suspect", res.raison)
@@ -606,16 +631,26 @@ def _garder(
     resume: str,
     etat: str,
     maj: Callable[..., MajResult],
-) -> MajResult:
+) -> MajResult | None:
     """Un « inchangé » du modèle : la garde de Jev décide si la référence avance."""
     seuils = ctx.registre.decisions["V1-garde"].seuils
     escalade, bas = seuils["escalade"], seuils["zone_prudente_bas"]
+    if ctx.registre.reglages.zone_prudente == "refusee":
+        bas = escalade  # comme l'ancienne veille : sous l'escalade, la référence avance
+    if not diff.strip():
+        # Comme l'ancienne veille : rien à juger, la page devient la référence.
+        res.issue, res.raison = "inchange", resume or "aucune ligne changée à juger"
+        _avancer(ctx, an, col, res, "sans_diff")
+        return maj("inchange", res.raison)
     m = ctx.registre.modele("decision")
     m_veille = ctx.registre.modele("veille")
     cle_garde = cle(
         VERSION,
         "V1",
         aide.slug,
+        empreinte(
+            json.dumps(fiche_pour_jev(aide), ensure_ascii=False, sort_keys=True, default=str)
+        ),
         empreinte(diff),
         resume,
         m_veille.nom,
@@ -651,7 +686,9 @@ def _garder(
                     donnees={"message": str(exc)[:300]},
                 )
             )
-            return maj("suspect", res.raison)
+            # Une panne n'est pas un refus : rien n'entre au manifeste, et
+            # l'ancienne veille, relancée, resoumettrait le changement.
+            return None
         res.cout_usd += cout or 0.0
         zone = "avance" if p < bas else ("prudente" if p < escalade else "escalade")
         ctx.consigner(
@@ -678,13 +715,34 @@ def _garder(
         res.issue, res.raison = "inchange", resume or "aucun changement dans le mandat"
         _avancer(ctx, an, col, res, "garde")
         return maj("inchange", res.raison)
-    if p < escalade:
+    # Sortie de la zone prudente : l'étiquette de la session mensuelle (`banc`).
+    etiquette = ctx.vue.derniere.get((f"a:{aide.slug}", "V1-etiquette"))
+    etiquette_ici = (
+        etiquette.issue
+        if etiquette is not None and etiquette.donnees.get("garde") == cle_garde
+        else None
+    )
+    if p < escalade and etiquette_ici == "ne touche pas":
+        res.issue, res.raison = (
+            "inchange",
+            "« inchangé » confirmé à l'étiquetage : la référence avance",
+        )
+        _avancer(ctx, an, col, res, "etiquette")
+        return maj("inchange", res.raison)
+    if p < escalade and etiquette_ici != "touche":
         res.issue = "zone_prudente"
         res.raison = f"« inchangé » noté {p:.2f} par la garde : la référence reste"
         return maj("suspect", res.raison)
     res.issue = "case"
     res.raison = f"changement possible non appliqué (garde {p:.2f}) : {resume or 'rien proposé'}"
-    res.cases.append(
+    if etiquette_ici == "touche":
+        res.raison = f"changement vu à l'étiquetage (garde {p:.2f}) : {resume or 'rien proposé'}"
+    reprise = _escalader(
+        ctx,
+        aide,
+        an,
+        col,
+        res,
         Case(
             sorte="veille-escalade",
             objet=f"a:{aide.slug}",
@@ -696,26 +754,136 @@ def _garder(
                 f"Résumé du modèle : {resume or '(aucun)'}",
                 f"Diff :\n\n```diff\n{diff[:3000]}\n```",
             ),
-        )
+        ),
     )
-    return maj("suspect", res.raison)
+    return reprise or maj("suspect", res.raison)
+
+
+# ------------------------------------------------------------------ escalades
+
+
+def _escalader(
+    ctx: Contexte, aide: Aide, an: AideAnalysis, col: AideCollect, res: Resultat, case: Case
+) -> MajResult | None:
+    """Une escalade : ré-extraite si le registre (ou Félix) le dit, sinon une case.
+
+    Rend le `MajResult` de la projection inverse quand la ré-extraction a
+    soldé le changement, `None` quand il reste dû (case ouverte).
+    """
+    felix = cases_mod.reponse(ctx.vue, "veille-escalade", case.objet, case.etat)
+    auto = ctx.registre.proprietaires["escalades"] == "nouvelle"
+    if ctx.reextraire is None or not (auto or felix == "reextraire"):
+        res.cases.append(case)
+        return None
+    cle_rx = cle(VERSION, "reextraction", aide.slug, case.etat)
+    memo = ctx.vue.memo(cle_rx)
+    if memo is not None and memo.issue in ("refusee", "hors_perimetre", "orpheline"):
+        res.cases.append(case)
+        res.raison += f" ; ré-extraction déjà {memo.issue} pour ce changement"
+        return None
+    try:
+        b = ctx.reextraire(aide.slug, case.etat)
+    except BudgetEpuise as exc:
+        res.cases.append(case)
+        res.panne = "budget"
+        ctx.consigner(
+            Evenement(
+                "panne",
+                case.objet,
+                decision="reextraction",
+                issue="budget",
+                donnees={"message": str(exc)},
+            )
+        )
+        return None
+    res.cout_usd += b.cout_usd
+    res.cases += b.cases
+    donnees = {
+        "raison": b.raison[:500],
+        "cout_usd": b.cout_usd,
+        "duree_s": b.duree_s,
+        "changements": b.changements,
+        "faits": b.faits,
+        "etat": case.etat,
+    }
+    if b.panne:
+        ctx.consigner(
+            Evenement(
+                "panne",
+                case.objet,
+                decision="reextraction",
+                decideur="agent",
+                issue=b.panne,
+                donnees=donnees,
+            )
+        )
+    else:
+        ctx.consigner(
+            Evenement(
+                "decision",
+                case.objet,
+                decision="reextraction",
+                decideur="agent",
+                issue=b.issue,
+                cle=cle_rx,
+                donnees=donnees,
+            )
+        )
+    if b.issue == "acceptee":
+        from catalogue.convertir import instantanes
+
+        res.issue, res.champs = "reextraite", b.changements
+        for i in instantanes(ctx.sources / aide.slug):
+            if i.nom in b.snapshots:
+                ctx.consigner(
+                    Evenement(
+                        "decision",
+                        case.objet,
+                        decision="base",
+                        decideur="code",
+                        issue="avance",
+                        cle=cle("base", aide.slug, i.cle, i.nom),
+                        donnees={
+                            "url": i.url,
+                            "cle_url": i.cle,
+                            "fichier": i.nom,
+                            "sha256": i.sha256,
+                            "origine": i.origine,
+                            "motif": "reextraction",
+                        },
+                    )
+                )
+        return MajResult(
+            slug=aide.slug, etat="applique", champs=["reextraction"], empreinte=case.etat
+        )
+    if b.issue == "inchangee":
+        res.issue = "reextraite"
+        _avancer(ctx, an, col, res, "reextraction")
+        return MajResult(slug=aide.slug, etat="inchange", empreinte=case.etat)
+    res.cases.append(case)
+    res.raison += f" ; ré-extraction : {b.issue} ({b.raison[:160]})"
+    return None
 
 
 # ------------------------------------------------------------------ passage
 
 
 def _pannes_precedentes(vue_evenements: list[Evenement], slug: str, run: str) -> int:
-    """Nombre de runs distincts, avant celui-ci, où l'aide a été injoignable."""
-    return len(
-        {
-            e.run
-            for e in vue_evenements
-            if e.type == "panne"
-            and e.objet == f"a:{slug}"
-            and e.decision == "collecte"
-            and e.run != run
-        }
-    )
+    """Passages de suite, juste avant celui-ci, où l'aide a été injoignable.
+
+    La série s'arrête au dernier passage où l'aide a été jugée (une décision de
+    veille, de garde ou de référence) : une panne d'il y a trois mois, suivie
+    de passages réussis, ne compte plus.
+    """
+    runs: set[str | None] = set()
+    for e in reversed(vue_evenements):
+        if e.objet != f"a:{slug}" or e.run == run:
+            continue
+        if e.type == "panne" and e.decision == "collecte":
+            runs.add(e.run)
+        elif e.type == "decision" and e.decision in ("veille", "V1-garde", "base"):
+            break
+    return len(runs)
 
 
 def traiter(
@@ -779,7 +947,12 @@ def traiter(
             _avancer(ctx, an, col, res, "felix")
             return res, MajResult(slug=aide.slug, etat="inchange", empreinte=etat)
         garder_frais(an, col, ctx.blobs)
-        res.cases.append(
+        reprise = _escalader(
+            ctx,
+            aide,
+            an,
+            col,
+            res,
             Case(
                 sorte="veille-escalade",
                 objet=f"a:{aide.slug}",
@@ -787,9 +960,9 @@ def traiter(
                 etat=etat,
                 options=OPTIONS_ESCALADE,
                 contexte=tuple(f"- {r}" for r in an.raisons),
-            )
+            ),
         )
-        return res, None
+        return res, reprise
     # MAJ_LLM
     try:
         return res, etage_c(ctx, aide, an, col, res)
@@ -807,6 +980,8 @@ class Bilan:
     ambigues: list[str]
     depense: float
     couts_inconnus: int
+    # Aides dont la garde a laissé la référence en zone prudente : depuis quand.
+    stock_zone: dict[str, str] = field(default_factory=dict)
 
     @property
     def cases(self) -> list[Case]:
@@ -845,10 +1020,19 @@ def passer(
     for slug, aide in aides.items():
         if slug not in analyses:
             continue
+        chemin = ctx.chemin_yaml(slug)
+        avant = chemin.read_bytes() if chemin.exists() else b""
         try:
             res, maj = traiter(ctx, aide, analyses[slug], collects[slug], historique)
         except Exception as exc:  # une aide en bug ne doit pas arrêter le passage
-            res, maj = Resultat(slug, analyses[slug].statut, "panne", str(exc)[:300]), None
+            ecrite = chemin.exists() and chemin.read_bytes() != avant
+            res = Resultat(
+                slug,
+                analyses[slug].statut,
+                "retouche" if ecrite else "panne",
+                ("retouche écrite, puis bug : " if ecrite else "") + str(exc)[:300],
+            )
+            maj = None
             res.panne = "bug"
             ctx.consigner(
                 Evenement(
@@ -873,7 +1057,22 @@ def passer(
         [],
         ctx.budget.depense,
         ctx.budget.couts_inconnus,
+        stock_zone_prudente(list(ctx.journal.lire())),
     )
+
+
+def stock_zone_prudente(evenements: list[Evenement]) -> dict[str, str]:
+    """Pour chaque aide en zone prudente, la date du premier jugement de la série en cours."""
+    depuis: dict[str, str] = {}
+    for e in evenements:
+        if e.type == "decision" and e.decision == "V1-garde":
+            if e.issue == "prudente":
+                depuis.setdefault(e.objet, e.t)
+            else:
+                depuis.pop(e.objet, None)
+        elif e.type == "decision" and e.decision in ("base", "V1-etiquette"):
+            depuis.pop(e.objet, None)
+    return depuis
 
 
 def charger_aides(slugs: list[str] | None = None) -> dict[str, Aide]:
@@ -911,6 +1110,13 @@ def section(bilan: Bilan) -> list[str]:
             "",
         ]
         lignes += [f"- `{x.slug}` : {x.raison}" for x in zone]
+    if bilan.stock_zone:
+        plus_ancien = min(bilan.stock_zone.values())
+        lignes += [
+            "",
+            f"Stock de la zone prudente : {len(bilan.stock_zone)} aide(s) en attente "
+            f"d'étiquetage, la plus ancienne depuis le {plus_ancien[:10]}.",
+        ]
     pannes = Counter(x.panne for x in r.values() if x.panne)
     if pannes:
         lignes += ["", f"Pannes, par classe : {', '.join(f'{k} {v}' for k, v in pannes.items())}."]
@@ -960,6 +1166,22 @@ def commande(
         aujourd_hui=jour,
         ecrire=not a_blanc,
     )
+
+    def reextraire(slug: str, etat: str) -> Any:
+        from catalogue import reextraction
+
+        plafond = 1.875  # budget de l'agent par aide (1,50 $) × 1,25, vérification comprise
+        r = ctx.budget.reserver(plafond, f"ré-extraction {slug}")
+        b = None
+        try:
+            b = reextraction.reextraire(
+                slug, plafond=plafond, delai_s=3600, jour=jour, etat=etat, ecrire=not a_blanc
+            )
+            return b
+        finally:
+            ctx.budget.regler(r, b.cout_usd if b is not None else None)
+
+    ctx.reextraire = reextraire
     aides = charger_aides(slugs or None)
     collects = collect(list(aides.values()))
     if _panne_generalisee(collects):
@@ -973,7 +1195,7 @@ def commande(
         else:
             print(f"rapport : {rapport.ecrire(reviews)}")
         return CODE_RESEAU
-    bilan = passer(ctx, aides, collects, manifeste=None if a_blanc else veille_aides.MANIFEST_PATH)
+    bilan = passer(ctx, aides, collects, manifeste=veille_aides.MANIFEST_PATH)
     bilan.ambigues = ambigues
     rapport = Rapport(jour, run)
     rapport.entete = [

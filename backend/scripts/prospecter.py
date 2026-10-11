@@ -882,6 +882,13 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     charger_env()
 
+    # Pendant la refonte, une seule chaîne écrit chaque opération (registre du catalogue).
+    from catalogue.registre import refus_ancienne
+
+    if refus := refus_ancienne("prospection"):
+        print(f"ERREUR : {refus}", file=sys.stderr)
+        return 1
+
     if argv and argv[0] in SOUS_COMMANDES:
         fabrique, fonction = SOUS_COMMANDES[argv[0]]
         args = fabrique().parse_args(argv[1:])

@@ -240,7 +240,13 @@ def commande(decision: str, modele: str | None) -> int:
 
         client = Client()
         try:
-            d = client.decider(modele or role.nom, etat, QUESTIONS_MANDAT, delai_s=role.delai_s)
+            d = client.decider(
+                modele or role.nom,
+                etat,
+                QUESTIONS_MANDAT,
+                acceptes=role.acceptes,
+                delai_s=role.delai_s,
+            )
         finally:
             client.fermer()
         return d.avis["touche"].proba("true")

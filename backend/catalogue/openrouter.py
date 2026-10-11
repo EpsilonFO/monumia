@@ -209,6 +209,12 @@ class Client:
             )
             if not texte.strip():
                 raise Panne("reponse_vide", f"fin {choisi.get('finish_reason')}")
+            if choisi.get("finish_reason") == "length":
+                # Une réponse coupée au plafond de sortie n'est pas une réponse :
+                # la valider la ferait passer pour un jugement (un « échec »).
+                raise Panne(
+                    "reponse_tronquee", f"{usage.get('completion_tokens')} jetons de sortie"
+                )
             donnees: Any = None
             if schema is not None:
                 try:
