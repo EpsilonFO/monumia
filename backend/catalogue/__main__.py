@@ -8,6 +8,14 @@
   (référence `base` du journal, mandat, garde, cases), le rapport de la
   semaine et la projection inverse vers `veille-state.yaml`. Avant la bascule,
   seulement dans une copie jetable du dépôt.
+- `semaine` : le run hebdomadaire planifiable (pré-vol, copie jetable,
+  étapes que le registre donne à la nouvelle chaîne, recopie, rapport).
+- `entree --territoire <nom> --journal <dossier>` : un territoire, de la
+  collecte au jugement des pages (règle d'entrée de production portée).
+- `ingestion --journal <dossier>` : les pages admises passent par l'agent
+  sous contrat ; projection inverse vers `file-attente.yaml`.
+- `banc V1-garde --preparer <dossier> | --lire <fichier>` : la session
+  mensuelle d'étiquetage des cas de la zone prudente.
 - `calibrer --decision <id> [--modele <nom>]` : rejoue une décision sur ses
   étalons et propose des seuils.
 """
@@ -45,17 +53,52 @@ def main(argv: list[str] | None = None) -> int:
     )
     v.add_argument("slugs", nargs="*")
 
+    commandes.add_parser("semaine", help="le run hebdomadaire planifiable")
+
     k = commandes.add_parser("calibrer", help="recalibrer une décision fermée")
     k.add_argument("--decision", required=True)
     k.add_argument(
         "--modele", help="nom du modèle de décision à calibrer (défaut : celui du registre)"
     )
 
+    en = commandes.add_parser("entree", help="un territoire : collecte, tri, jugement des pages")
+    en.add_argument("--territoire", required=True)
+    en.add_argument("--journal", type=Path, required=True)
+    en.add_argument("--parties", type=Path)
+
+    ig = commandes.add_parser("ingestion", help="ingérer les pages admises par l'entrée")
+    ig.add_argument("--journal", type=Path, required=True)
+    ig.add_argument("--parties", type=Path)
+    ig.add_argument("--a-blanc", action="store_true")
+
+    b = commandes.add_parser("banc", help="session mensuelle d'étiquetage")
+    b.add_argument("decision")
+    b.add_argument("--journal", type=Path, default=None, help="défaut : data/catalogue/journal")
+    b.add_argument("--preparer", type=Path, help="dossier neuf où exporter les cas à l'aveugle")
+    b.add_argument("--lire", type=Path, help="fichier JSON des étiquettes rendues")
+
     args = parseur.parse_args(argv)
+    if args.commande == "entree":
+        from catalogue import entree
+
+        return entree.commande(args.territoire, args.journal, args.parties)
+    if args.commande == "ingestion":
+        from catalogue import ingestion
+
+        return ingestion.commande(args.journal, args.parties, a_blanc=args.a_blanc)
+    if args.commande == "banc":
+        from catalogue import banc
+        from catalogue.journal import DOSSIER
+
+        return banc.commande(args.decision, args.journal or DOSSIER, args.preparer, args.lire)
     if args.commande == "veille":
         from catalogue import veille
 
         return veille.commande(args.journal, args.slugs, a_blanc=args.a_blanc, parties=args.parties)
+    if args.commande == "semaine":
+        from catalogue import semaine
+
+        return semaine.semaine()
     if args.commande == "calibrer":
         from catalogue import calibrer
 
