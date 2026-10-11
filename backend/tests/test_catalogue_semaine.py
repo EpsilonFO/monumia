@@ -213,3 +213,13 @@ def test_le_banc_exporte_la_zone_prudente_a_l_aveugle_et_relit_les_etiquettes(
     )
     (sortie,) = [e for e in j.lire() if e.decision == "V1-etiquette"]
     assert sortie.objet == "a:x" and sortie.issue == "touche" and sortie.donnees["garde"] == "k1"
+
+
+def test_le_registre_refuse_une_prospection_et_une_ingestion_separees() -> None:
+    from catalogue.registre import Registre
+
+    reg = charger()
+    brut = reg.model_dump()
+    brut["proprietaires"] = {**brut["proprietaires"], "prospection": "nouvelle"}
+    with pytest.raises(ValueError, match="même chaîne"):
+        Registre.model_validate(brut)

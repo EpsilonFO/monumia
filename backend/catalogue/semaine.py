@@ -71,7 +71,13 @@ ANCIENS_SCRIPTS = (
     "rediger_fiches.py",
 )
 # Ce que le run peut écrire dans la copie et recopier dans le worktree.
-ECRITS = ("backend/data/aides", "backend/data/sources", "backend/data/reviews")
+ECRITS = (
+    "backend/data/aides",
+    "backend/data/sources",
+    "backend/data/reviews",
+    "backend/data/catalogue/brouillons",
+    "backend/data/catalogue/rebuts",
+)
 FICHIERS_ECRITS = (
     "backend/data/veille-state.yaml",
     "backend/data/facts_pending.yaml",
@@ -363,16 +369,27 @@ def etapes(reg: Registre, journal: Path, parties: Path) -> list[Etape]:
     return liste
 
 
-def lancer(copie: Path, etape: Etape, delai_s: float) -> int:
+def lancer(copie: Path, etape: Etape, delai_s: float, reste_usd: float | None = None) -> int:
+    arguments = list(etape.arguments)
+    if reste_usd is not None and etape.arguments[0] in ("entree", "ingestion"):
+        # Une étape ne dépense que ce qui reste du budget du run.
+        arguments += ["--plafond", f"{max(reste_usd, 0.0):.4f}"]
     try:
         r = subprocess.run(
-            [sys.executable, "-m", "catalogue", *etape.arguments],
+            [sys.executable, "-m", "catalogue", *arguments],
             cwd=copie / "backend",
             timeout=delai_s,
         )
     except subprocess.TimeoutExpired:
         return 9
     return r.returncode
+
+
+def _depense_partie(chemin: Path) -> float:
+    try:
+        return float(json.loads(chemin.read_text(encoding="utf-8")).get("depense") or 0.0)
+    except (OSError, ValueError):
+        return 0.0
 
 
 def notifier(code: int, chemin: Path | None) -> None:
@@ -443,7 +460,12 @@ def semaine(
             if restant <= 0:
                 code = 9
                 break
-            c = lancer(copie, e, restant)
+            depense = sum(_depense_partie(f) for f in parties.glob("*.json"))
+            reste = reg.budgets.run.plafond_usd - depense
+            if reste <= 0:
+                code = 2
+                break
+            c = lancer(copie, e, restant, reste)
             faites.append(f"{e.nom} : code {c}")
             code = code or c
             if c in (3, 4, 5, 6, 8, 9):
@@ -474,6 +496,14 @@ def semaine(
         rapport.entete = entete
         for f in sorted(parties.glob("*.json")):
             ajouter_parties(rapport, f.read_text(encoding="utf-8"))
+        # Dix cases de doute d'entrée au plus pour tout le run (section 8), les
+        # territoires passant chacun les siennes.
+        doutes = [c for c in rapport.cases if c.sorte == "entree-doute"]
+        if len(doutes) > 10:
+            rapport.cases = [c for c in rapport.cases if c.sorte != "entree-doute"] + doutes[:10]
+            rapport.entete.append(
+                f"- {len(doutes) - 10} doute(s) d'entrée en attente au-delà des dix cases."
+            )
         shutil.rmtree(parties, ignore_errors=True)
         chemin = rapport.ecrire(reviews)
         (copies / f"{run}.json").parent.mkdir(parents=True, exist_ok=True)

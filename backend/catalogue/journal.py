@@ -186,12 +186,16 @@ class Vue:
         # Toutes les clés vues, réponses de Félix comprises : relire un ancien
         # rapport ne doit pas rejouer une réponse déjà consignée.
         self.cles: set[str] = set()
+        # Les pannes, jamais mémorisées comme décisions : on les compte par objet.
+        self.pannes: list[Evenement] = []
         for e in evenements:
             self.prendre(e)
 
     def prendre(self, e: Evenement) -> None:
         if e.cle:
             self.cles.add(e.cle)
+        if e.type == "panne":
+            self.pannes.append(e)
         if e.type == "decision" and e.decision:
             if e.cle:
                 self.par_cle[e.cle] = e

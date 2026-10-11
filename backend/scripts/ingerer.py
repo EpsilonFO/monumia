@@ -199,8 +199,13 @@ def main(argv: list[str] | None = None) -> int:
     charger_env()
 
     # Pendant la refonte, une seule chaîne ingère la file (registre du catalogue).
-    # Le mode `--slug` reste ouvert : c'est celui qu'emploie l'agent sous contrat.
-    if args.file_attente:
+    # `--slug` sous `--sortie` n'écrit que dans son dossier : il reste ouvert.
+    if (
+        args.file_attente
+        or args.reprendre
+        or args.relancer_echecs
+        or (args.slug and not args.sortie)
+    ):
         from catalogue.registre import refus_ancienne
 
         if refus := refus_ancienne("ingestion"):

@@ -32,7 +32,7 @@ from pipeline import decision as pd
 from pipeline import etat
 from prospection import arbitre, lecture, tri
 
-from catalogue.budget import Budget
+from catalogue.budget import Budget, BudgetEpuise
 from catalogue.journal import Evenement, Vue, cle, empreinte
 from catalogue.openrouter import Client, Panne
 from catalogue.registre import BACKEND, Registre
@@ -129,6 +129,8 @@ class Page:
     est_pdf: bool
     territoire: str
     titre: str = ""
+    # Les documents que la collecte a vus liés depuis la page (règlement, formulaire).
+    documents_collecte: tuple[str, ...] = ()
 
 
 @dataclass
@@ -277,6 +279,10 @@ def juger(
             "beneficiaires": fiche.beneficiaires,
             "note": " ".join((fiche.note or "").split())[: lecture.MAX_CAR_NOTE],
             "slug": fiche.slug_propose,
+            "doublon_probable": fiche.doublon_probable,
+            "source_unique_vulgarisation": fiche.source_unique_vulgarisation,
+            "priorite": fiche.priorite,
+            "documents_collecte": list(page.documents_collecte),
             "correction": correction,
         }
         j.issue, j.motif = issue_de(
@@ -304,6 +310,7 @@ def juger(
                 "arbitrage": j.arbitrage,
                 "lu": j.lu,
                 "territoire": page.territoire,
+                "titre": page.titre,
             },
         )
     )
@@ -337,6 +344,8 @@ class Exploration:
     tri: dict[str, int] = field(default_factory=dict)
     jugements: list[Jugement] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    # Pages sans contenu depuis au moins trois runs : une case de Félix.
+    inexploitables_persistantes: list[tuple[str, str]] = field(default_factory=list)
 
 
 def explorer(
@@ -352,8 +361,15 @@ def explorer(
     fetcheur: Any,
     client_decouverte: Any = None,
     candidats_figes: Path | None = None,
+    file: dict[str, Any] | None = None,
 ) -> Exploration:
-    """Collecte, anti-boucle, dédoublonnage contre le journal, plafond, tri mémorisé, jugement des pages."""
+    """Collecte, anti-boucle, dédoublonnage (catalogue, file, journal), plafond, tri mémorisé, jugement.
+
+    `file` : la file d'attente de l'ancienne chaîne. Une URL qui y figure, quel
+    que soit son statut, n'est pas rejugée : 1 649 `ignore` y portent des écarts,
+    dont beaucoup tranchés à la main, et une page qu'on y rejugerait pourrait
+    entrer au catalogue contre la décision de Félix.
+    """
     from prospection import collecte as collecte_mod
     from prospection.territoires import aides_existantes, charger_territoires
 
@@ -362,18 +378,21 @@ def explorer(
     t = charger_territoires()[nom]
     corpus = {p.stem: load_aide(p) for p in sorted(AIDES_DIR.glob("*.yaml"))}
     x = Exploration(nom)
-    # La collecte d'origine, sans son plafond ni la file : le plafond s'applique
-    # après la règle anti-boucle et le dédoublonnage contre le journal.
     if candidats_figes is not None:
         # Une liste figée (comparaison de bascule) : la même entrée que l'ancienne chaîne.
-        c = collecte_mod.Collecte(candidats=collecte_mod.Collecte.lire(candidats_figes))
+        brut = collecte_mod.Collecte.lire(candidats_figes)
     else:
+        # La collecte d'origine, sans son plafond : le plafond s'applique après
+        # la règle anti-boucle et les dédoublonnages.
         c = collecte_mod.collecter(
             t, fetcheur, corpus, file=None, client_decouverte=client_decouverte, max_candidats=10**6
         )
-    x.notes += c.notes
+        x.notes += c.notes
+        brut = c.candidats
+    retenus, au_catalogue, en_file = collecte_mod.dedoublonner(brut, corpus, file or {})
+    x.deja_juges += len(au_catalogue) + len(en_file)
     candidats = []
-    for cand in c.candidats:
+    for cand in retenus:
         if en_boucle(cand.url):
             x.en_boucle += 1
             continue
@@ -430,54 +449,77 @@ def explorer(
                 },
             )
         )
-    from collections import Counter
+    from collections import Counter, defaultdict
+    from urllib.parse import urlsplit
 
     x.tri = dict(Counter(decisions.values()))
-    textes_vus: dict[tuple[str, str], str] = {}
+    # Toutes les pages à juger sont ouvertes d'abord : un texte que partagent
+    # plusieurs pages d'un même site est le gabarit seul (le contenu venant
+    # après la troncature), et aucune d'elles ne doit aller à un décideur, pas
+    # même la première.
+    ouvertes: list[tuple[Any, Page]] = []
     for cand in candidats:
         if decisions.get(cand.url) not in ("retenir", "douteux"):
             continue
         page_web = fetcheur.get(cand.url)
         if not page_web.ok:
+            erreur = str(page_web.erreur or page_web.status)
             consigner(
                 Evenement(
                     "panne",
                     objet_page(cand.url),
                     decision="entree",
                     issue="reseau_hote",
-                    donnees={"url": cand.url, "erreur": str(page_web.erreur or page_web.status)},
+                    donnees={"url": cand.url, "erreur": erreur},
                 )
             )
-            x.jugements.append(
-                Jugement(
-                    cand.url, "panne", str(page_web.erreur or page_web.status), panne="reseau_hote"
-                )
-            )
+            x.jugements.append(Jugement(cand.url, "panne", erreur, panne="reseau_hote"))
             continue
         texte, erreur = lecture._texte_a_juger(page_web)
         if erreur is not None:
-            consigner(
-                Evenement(
-                    "panne",
-                    objet_page(cand.url),
-                    decision="entree",
-                    issue="contenu_inexploitable",
-                    donnees={"url": cand.url, "motif": erreur},
-                )
-            )
-            x.jugements.append(Jugement(cand.url, "panne", erreur, panne="contenu_inexploitable"))
+            _inexploitable(x, cand.url, erreur, vue, consigner)
             continue
-        page = Page(
-            url=cand.url,
-            url_finale=page_web.url_finale,
-            texte=texte,
-            documents=lecture._documents_lies(page_web, t, cand),
-            est_pdf=page_web.est_pdf,
-            territoire=nom,
-            titre=cand.titre,
+        ouvertes.append(
+            (
+                cand,
+                Page(
+                    cand.url,
+                    page_web.url_finale,
+                    texte,
+                    lecture._documents_lies(page_web, t, cand),
+                    page_web.est_pdf,
+                    nom,
+                    cand.titre,
+                    tuple(cand.documents),
+                ),
+            )
         )
-        x.jugements.append(
-            juger(
+    groupes: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for _, page in ouvertes:
+        groupes[
+            (
+                urlsplit(page.url_finale).netloc.lower(),
+                empreinte(page.texte[: lecture.MAX_CAR_PAGE]),
+            )
+        ].append(page.url)
+    for _cand, page in ouvertes:
+        meme = groupes[
+            (
+                urlsplit(page.url_finale).netloc.lower(),
+                empreinte(page.texte[: lecture.MAX_CAR_PAGE]),
+            )
+        ]
+        if len(meme) > 1:
+            _inexploitable(
+                x,
+                page.url,
+                f"texte identique à celui de {len(meme) - 1} autre(s) page(s) du site (gabarit seul)",
+                vue,
+                consigner,
+            )
+            continue
+        try:
+            j = juger(
                 page,
                 registre=registre,
                 vue=vue,
@@ -485,10 +527,47 @@ def explorer(
                 lecteur=lecteur,
                 modele_lecture=modele_lecture,
                 consigner=consigner,
-                textes_vus=textes_vus,
+            )
+        except BudgetEpuise as exc:
+            consigner(
+                Evenement(
+                    "panne",
+                    objet_page(page.url),
+                    decision="entree",
+                    issue="budget",
+                    donnees={"url": page.url, "message": str(exc)[:300]},
+                )
+            )
+            x.notes.append(
+                f"budget du run épuisé : {len(ouvertes)} page(s) ouvertes, le reste attend le run suivant"
+            )
+            break
+        if j.panne == "contenu_inexploitable":
+            _inexploitable(x, page.url, j.motif, vue, consigner, deja_consigne=True)
+            continue
+        x.jugements.append(j)
+    return x
+
+
+def _inexploitable(
+    x: Exploration, url: str, motif: str, vue: Vue, consigner: Any, *, deja_consigne: bool = False
+) -> None:
+    """Une page sans rien à juger : panne jamais mémorisée ; au troisième run de suite, une case."""
+    objet = objet_page(url)
+    if not deja_consigne:
+        consigner(
+            Evenement(
+                "panne",
+                objet,
+                decision="entree",
+                issue="contenu_inexploitable",
+                donnees={"url": url, "motif": motif},
             )
         )
-    return x
+    x.jugements.append(Jugement(url, "panne", motif, panne="contenu_inexploitable"))
+    runs = {e.run for e in vue.pannes if e.objet == objet and e.issue == "contenu_inexploitable"}
+    if len(runs) >= 3:
+        x.inexploitables_persistantes.append((url, motif))
 
 
 # ------------------------------------------------------------------ commande
@@ -500,7 +579,13 @@ def cases_de_doute(x: Exploration, vue: Vue) -> tuple[list[Any], int]:
     """Les doutes à montrer, plus anciens d'abord, et le nombre de ceux qui attendent au-delà du plafond."""
     from catalogue.cases import Case
 
-    doutes = [j for j in x.jugements if j.issue == "doute"]
+    # Un doute que Félix a déjà tranché ne revient pas : sa réponse vaut jusqu'à
+    # ce que la page change (la clé de l'entrée change alors, et le doute aussi).
+    doutes = [
+        j
+        for j in x.jugements
+        if j.issue == "doute" and (objet_page(j.url), "entree-doute") not in vue.felix
+    ]
 
     def anciennete(j: Jugement) -> str:
         premier = next(
@@ -564,12 +649,27 @@ def section(x: Exploration, en_attente: int) -> list[str]:
 
 
 def commande(
-    territoire: str, journal: Path, parties: Path | None, candidats: Path | None = None
+    territoire: str,
+    journal: Path,
+    parties: Path | None,
+    candidats: Path | None = None,
+    *,
+    plafond: float | None = None,
+    file: Path | None = None,
+    forcer: bool = False,
 ) -> int:
-    """`python -m catalogue entree --territoire <nom>` : un territoire, de la collecte au jugement."""
+    """`python -m catalogue entree --territoire <nom>` : un territoire, de la collecte au jugement.
+
+    Refuse de tourner tant que le registre laisse la prospection à l'ancienne
+    chaîne, sauf `forcer` (copies jetables des bancs). `plafond` borne toute la
+    dépense de l'étape, Jev, tri et lecture compris ; `semaine` y passe ce qui
+    reste du budget du run.
+    """
     import datetime as dt
     import secrets
 
+    from pipeline.etat import FILE_ATTENTE
+    from pipeline.etat import charger as charger_file
     from pipeline.llm import charger_env, client_pour
     from pipeline.web import Fetcheur
     from prospection.territoires import charger_territoires
@@ -582,6 +682,12 @@ def commande(
 
     charger_env()
     reg = charger()
+    if not forcer and reg.proprietaires["prospection"] != "nouvelle":
+        print(
+            "ERREUR : le registre laisse la prospection à l'ancienne chaîne (`--forcer` pour une copie jetable)."
+        )
+        return 1
+    file_attente = file or FILE_ATTENTE
     run = f"{dt.date.today().isoformat()}-entree-{secrets.token_hex(2)}"
     j = Journal(journal)
     vue = Vue(list(j.lire()))
@@ -590,12 +696,13 @@ def commande(
         j.ajouter_lot(reponses)
         for e in reponses:
             vue.prendre(e)
-    budget = Budget(reg.budgets.run.plafond_usd)
+    budget = Budget(plafond if plafond is not None else reg.budgets.run.plafond_usd)
     # Le tri et la lecture restent sur providall, enveloppé : modèle servi
     # contrôlé et coût facturé relevé à chaque tentative, sous le budget du run.
     roles = {r: reg.modele(r) for r in ("tri", "lecture")}
     releve = agent.Releve(
-        plafond=reg.budgets.run.plafond_usd,
+        plafond=budget.plafond,
+        budget=budget,
         modeles={m.alias_providall: m for m in roles.values() if m.alias_providall},
         chemin=BACKEND / ".cache" / "catalogue" / "appels" / f"{run}.jsonl",
     )
@@ -622,8 +729,22 @@ def commande(
             fetcheur=fetcheur,
             client_decouverte=client_pour("decouverte", roles["tri"].alias_providall),
             candidats_figes=candidats,
+            file=charger_file(file_attente) if file_attente.exists() else {},
         )
     cases, en_attente = cases_de_doute(x, vue)
+    from catalogue.cases import Case
+
+    cases += [
+        Case(
+            "entree-inexploitable",
+            objet_page(url),
+            "page sans contenu à juger depuis trois runs",
+            empreinte(motif),
+            {"vu": "vu ; la page reste suivie", "ecarter": "l'écarter"},
+            (f"<{url}>", motif),
+        )
+        for url, motif in x.inexploitables_persistantes
+    ]
     depense = budget.depense + releve.depense
     entete = [
         f"- Entrée, `{territoire}` : {len(x.jugements)} page(s) jugée(s), {len(cases)} case(s), {depense:.4f} $ relevés."
@@ -631,7 +752,10 @@ def commande(
     if parties is not None:
         parties.write_text(
             parties_json(
-                entete, cases, [Section(f"Entrée : {territoire}", section(x, en_attente))]
+                entete,
+                cases,
+                [Section(f"Entrée : {territoire}", section(x, en_attente))],
+                depense=depense,
             ),
             encoding="utf-8",
         )

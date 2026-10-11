@@ -52,24 +52,46 @@ class Admise:
     lu: dict[str, Any]
 
     def tache(self) -> etat.Tache:
+        """La tâche telle que l'ancienne fiche de prospection la remplissait (`prospection/fiche.py`)."""
+        from prospection.territoires import charger_territoires
+
         lu = self.lu
+        t = charger_territoires().get(self.territoire)
+        documents = list(
+            dict.fromkeys([*(lu.get("urls_pdf") or []), *(lu.get("documents_collecte") or [])])
+        )
+        priorite = (
+            lu.get("priorite") if lu.get("priorite") in ("haute", "normale", "basse") else "normale"
+        )
         return etat.Tache(
             titre=lu.get("titre") or self.url,
             url=self.url,
-            urls_pdf=list(lu.get("urls_pdf") or []),
+            urls_pdf=documents,
             territoire=self.territoire,
+            departements=t.codes_departements(self.territoire) if t is not None else [],
             famille=lu.get("famille"),
             beneficiaires=lu.get("beneficiaires"),
             destinataire=lu.get("destinataire") or "indetermine",
             objet=lu.get("objet") or "indetermine",
             categorie_ecart=lu.get("categorie_ecart"),
             note=lu.get("note"),
+            doublon_probable=lu.get("doublon_probable"),
+            source_unique_vulgarisation=bool(lu.get("source_unique_vulgarisation")),
+            priorite=priorite,  # type: ignore[arg-type]
             statut="valide",
         )
 
 
-def admises_a_ingerer(vue: Vue) -> list[Admise]:
-    """Les pages admises (par la règle, ou par Félix) que l'ingestion n'a pas encore tranchées."""
+def admises_a_ingerer(
+    vue: Vue, aides: Path = AIDES_DIR, brouillons: Path = BROUILLONS
+) -> list[Admise]:
+    """Les pages admises (par la règle, ou par Félix) que l'ingestion n'a pas encore tranchées.
+
+    Une ingestion « acceptée » ne compte pour faite que si son YAML est au
+    catalogue (et un brouillon, que s'il est rangé) : un run tué entre
+    l'événement et l'écriture, ou une recopie refusée, laisse l'aide due au
+    lieu de la perdre.
+    """
     sortie = []
     for (objet, decision), e in sorted(vue.derniere.items()):
         if decision != "entree":
@@ -77,10 +99,15 @@ def admises_a_ingerer(vue: Vue) -> list[Admise]:
         felix = vue.felix.get((objet, "entree-doute"))
         admise = e.issue == "admise" or (felix is not None and felix.issue == "admettre")
         faite = vue.derniere.get((objet, "ingestion"))
-        if admise and (
-            faite is None
-            or faite.issue not in ("acceptee", "refusee", "hors_perimetre", "brouillon")
-        ):
+        if faite is not None:
+            slug = faite.donnees.get("slug", "")
+            if faite.issue in ("refusee", "hors_perimetre"):
+                continue
+            if faite.issue == "acceptee" and (aides / f"{slug}.yaml").exists():
+                continue
+            if faite.issue == "brouillon" and (brouillons / f"{slug}.yaml").exists():
+                continue
+        if admise:
             d = e.donnees
             sortie.append(Admise(objet, d["url"], d.get("territoire", ""), d.get("lu") or {}))
     return sortie
@@ -206,7 +233,7 @@ def ingerer(
                 objet,
                 f"fait neuf `{f}`",
                 f,
-                {"valider": "valider", "refuser": "refuser"},
+                {"vu": "validé (déplacé dans facts.yaml) ou refusé, à la main, comme aujourd'hui"},
                 (f"Proposé par l'ingestion de `{slug}`.",),
             )
         )
@@ -231,9 +258,10 @@ def projeter_file(evenements: list[Evenement], chemin: Path) -> list[str]:
 
     Pour que l'ancienne chaîne, relancée, ne rejuge ni ne réingère rien : une
     URL jugée par l'entrée y entre (écartée en `ignore` avec son motif, doute en
-    `a_valider`, admise en `valide`), et une ingestion faite y passe `ingere`,
-    `echec` ou `ignore`. Une tâche déjà présente n'est jamais réécrite, sauf
-    pour son statut d'ingestion : une décision humaine de la file reste.
+    `a_valider`, admise en `valide`) sous le slug que l'ingestion emploiera, et
+    une ingestion faite y passe `ingere`, `echec`, `ignore` ou, en brouillon,
+    `a_valider`. Une tâche n'est jamais réécrite que si elle est `valide` : un
+    `ignore` ou un `a_valider` posé par Félix ne bouge pas.
     """
     file = etat.charger(chemin) if chemin.exists() else {}
     par_url = {t.url: s for s, t in file.items()}
@@ -253,28 +281,40 @@ def projeter_file(evenements: list[Evenement], chemin: Path) -> list[str]:
         statut = {"admise": "valide", "ecartee": "ignore", "doute": "a_valider"}.get(
             e.issue or "", "a_valider"
         )
-        slug = slug_pour(Admise(e.objet, url, d.get("territoire") or "", lu), occupes)
+        slug = slug_pour(
+            Admise(
+                e.objet,
+                url,
+                d.get("territoire") or "",
+                {**lu, "titre": lu.get("titre") or d.get("titre")},
+            ),
+            occupes,
+        )
         occupes.add(slug)
         nouvelles[slug] = etat.Tache(
-            titre=lu.get("titre") or url,
+            titre=lu.get("titre") or d.get("titre") or url,
             url=url,
             territoire=d.get("territoire") or "",
             famille=lu.get("famille"),
             destinataire=lu.get("destinataire") or "indetermine",
             objet=lu.get("objet") or "indetermine",
             categorie_ecart=lu.get("categorie_ecart"),
-            statut=statut,
+            statut=statut,  # type: ignore[arg-type]
             motif_ignore=(f"nouvelle chaîne : {d.get('motif')}" if statut == "ignore" else None),
         )
         par_url[url] = slug
     ajoutees = etat.fusionner(chemin, nouvelles) if nouvelles else []
+    file = etat.charger(chemin) if chemin.exists() else {}
     for url, e in ingestions.items():
-        slug = e.donnees.get("slug") if e.donnees.get("slug") in file else par_url.get(url)
-        if slug is None:
+        slug = par_url.get(url)
+        if slug is None or slug not in file or file[slug].statut != "valide":
             continue
-        statut = {"acceptee": "ingere", "refusee": "echec", "hors_perimetre": "ignore"}.get(
-            e.issue or ""
-        )
+        statut = {
+            "acceptee": "ingere",
+            "refusee": "echec",
+            "hors_perimetre": "ignore",
+            "brouillon": "a_valider",
+        }.get(e.issue or "")
         if statut:
             etat.mettre_a_jour(chemin, slug, statut=statut)
     return list(ajoutees)
@@ -292,43 +332,90 @@ def lire_tache(sortie: Path) -> etat.Tache | None:
 # ------------------------------------------------------------------ commande
 
 
-def commande(journal: Path, parties: Path | None, *, a_blanc: bool = False) -> int:
-    """`python -m catalogue ingestion` : les admises en attente, une par une, sous le budget du run."""
+def commande(
+    journal: Path,
+    parties: Path | None,
+    *,
+    a_blanc: bool = False,
+    plafond: float | None = None,
+    forcer: bool = False,
+    file: Path | None = None,
+) -> int:
+    """`python -m catalogue ingestion` : les admises en attente, une par une, sous le budget de l'étape.
+
+    Refuse de tourner tant que le registre laisse l'ingestion à l'ancienne
+    chaîne, sauf `forcer` (copies jetables des bancs). À blanc, rien n'est
+    écrit, ni au catalogue ni au journal.
+    """
     import secrets
+    from collections import Counter
 
     from pipeline.etat import FILE_ATTENTE
 
+    from catalogue import cases as cases_mod
     from catalogue.budget import Budget, BudgetEpuise
     from catalogue.journal import Journal
     from catalogue.rapport import Rapport, Section, parties_json
     from catalogue.registre import BACKEND, charger
 
     reg = charger()
+    if not forcer and reg.proprietaires["ingestion"] != "nouvelle":
+        print(
+            "ERREUR : le registre laisse l'ingestion à l'ancienne chaîne (`--forcer` pour une copie jetable)."
+        )
+        return 1
+    file_attente = file or FILE_ATTENTE
     jour = dt.date.today()
     run = f"{jour.isoformat()}-ingestion-{secrets.token_hex(2)}"
     j = Journal(journal)
     vue = Vue(list(j.lire()))
-    budget = Budget(reg.budgets.run.plafond_usd)
-    file = etat.charger(FILE_ATTENTE) if FILE_ATTENTE.exists() else {}
-    par_url = {t.url: s for s, t in file.items()}
-    occupes = set(file) | {p.stem for p in AIDES_DIR.glob("*.yaml")}
+    reponses, _ = cases_mod.relire((BACKEND / "data" / "reviews").glob("*-semaine*.md"), vue, run)
+    if reponses and not a_blanc:
+        j.ajouter_lot(reponses)
+    for e in reponses:
+        vue.prendre(e)
+    notes: list[str] = []
+    # Un brouillon que Félix a choisi d'écrire entre au catalogue, si son slug est libre.
+    for (objet, sorte), e in list(vue.felix.items()):
+        if sorte != "ingestion-brouillon" or e.issue != "ecrire" or not objet.startswith("a:"):
+            continue
+        slug = objet.removeprefix("a:")
+        brouillon, cible = BROUILLONS / f"{slug}.yaml", AIDES_DIR / f"{slug}.yaml"
+        if (
+            brouillon.exists()
+            and not cible.exists()
+            and empreinte(brouillon.read_text(encoding="utf-8")) == e.donnees.get("etat")
+        ):
+            if not a_blanc:
+                shutil.move(str(brouillon), str(cible))
+            notes.append(f"- brouillon `{slug}` écrit au catalogue sur réponse de Félix")
+    # La file d'abord : chaque admise y prend le slug sous lequel elle sera ingérée.
+    if not a_blanc and file_attente.exists():
+        projeter_file(list(j.lire()), file_attente)
+    taches = etat.charger(file_attente) if file_attente.exists() else {}
+    par_url = {t.url: s for s, t in taches.items() if t.statut == "valide"}
+    occupes = set(taches) | {p.stem for p in AIDES_DIR.glob("*.yaml")}
+    budget = Budget(plafond if plafond is not None else reg.budgets.run.plafond_usd)
     bilans: list[Bilan] = []
-    plafond = 1.875  # budget de l'agent par aide (1,50 $) × 1,25, vérification comprise
+    par_aide = 1.875  # budget de l'agent par aide (1,50 $) × 1,25, vérification comprise
     for a in admises_a_ingerer(vue):
         slug = par_url.get(a.url) or slug_pour(a, occupes)
         occupes.add(slug)
         try:
-            reservation = budget.reserver(plafond, f"ingestion {slug}")
+            reservation = budget.reserver(par_aide, f"ingestion {slug}")
         except BudgetEpuise:
-            break  # le reste attend le run suivant ; le rapport le dit
+            notes.append("- budget de l'étape épuisé : le reste des admises attend le run suivant")
+            break
         b = None
         try:
             b = ingerer(
-                slug, a.tache(), plafond=plafond, delai_s=3600, jour=jour, ecrire=not a_blanc
+                slug, a.tache(), plafond=par_aide, delai_s=3600, jour=jour, ecrire=not a_blanc
             )
         finally:
             budget.regler(reservation, b.cout_usd if b is not None else None)
         bilans.append(b)
+        if a_blanc:
+            continue
         donnees = {
             "url": a.url,
             "slug": slug,
@@ -361,10 +448,8 @@ def commande(journal: Path, parties: Path | None, *, a_blanc: bool = False) -> i
                     donnees=donnees,
                 )
             )
-    if not a_blanc and FILE_ATTENTE.exists():
-        projeter_file(list(j.lire()), FILE_ATTENTE)
-    from collections import Counter
-
+    if not a_blanc and file_attente.exists():
+        projeter_file(list(j.lire()), file_attente)
     issues = Counter(b.issue for b in bilans)
     lignes = [
         f"{len(bilans)} aide(s) traitée(s) : {', '.join(f'{k} {v}' for k, v in sorted(issues.items())) or 'aucune'} ; {budget.depense:.4f} $."
@@ -372,11 +457,17 @@ def commande(journal: Path, parties: Path | None, *, a_blanc: bool = False) -> i
     lignes += [
         f"- `{b.slug}` : {b.issue}{' (' + b.raison[:160] + ')' if b.raison else ''}" for b in bilans
     ]
+    lignes += notes
     cases = [c for b in bilans for c in b.cases]
-    entete = [f"- Ingestion : {len(bilans)} aide(s), {len(cases)} case(s), {budget.depense:.4f} $."]
+    entete = [
+        f"- Ingestion : {len(bilans)} aide(s), {len(cases)} case(s), {budget.depense:.4f} $"
+        + (" (à blanc)" if a_blanc else "")
+        + "."
+    ]
     if parties is not None:
         parties.write_text(
-            parties_json(entete, cases, [Section("Ingestion", lignes)]), encoding="utf-8"
+            parties_json(entete, cases, [Section("Ingestion", lignes)], depense=budget.depense),
+            encoding="utf-8",
         )
     else:
         r = Rapport(jour, run)

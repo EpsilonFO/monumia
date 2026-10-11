@@ -66,11 +66,17 @@ def main(argv: list[str] | None = None) -> int:
     en.add_argument("--journal", type=Path, required=True)
     en.add_argument("--parties", type=Path)
     en.add_argument("--candidats", type=Path, help="liste figée de candidates (candidats.jsonl)")
+    en.add_argument("--plafond", type=float, help="dépense maximale de l'étape, en dollars")
+    en.add_argument("--file", type=Path, help="file d'attente contre laquelle dédoublonner")
+    en.add_argument("--forcer", action="store_true", help="tourner hors registre (copies jetables)")
 
     ig = commandes.add_parser("ingestion", help="ingérer les pages admises par l'entrée")
     ig.add_argument("--journal", type=Path, required=True)
     ig.add_argument("--parties", type=Path)
     ig.add_argument("--a-blanc", action="store_true")
+    ig.add_argument("--plafond", type=float, help="dépense maximale de l'étape, en dollars")
+    ig.add_argument("--file", type=Path, help="file d'attente à projeter")
+    ig.add_argument("--forcer", action="store_true", help="tourner hors registre (copies jetables)")
 
     b = commandes.add_parser("banc", help="session mensuelle d'étiquetage")
     b.add_argument("decision")
@@ -82,11 +88,26 @@ def main(argv: list[str] | None = None) -> int:
     if args.commande == "entree":
         from catalogue import entree
 
-        return entree.commande(args.territoire, args.journal, args.parties, args.candidats)
+        return entree.commande(
+            args.territoire,
+            args.journal,
+            args.parties,
+            args.candidats,
+            plafond=args.plafond,
+            file=args.file,
+            forcer=args.forcer,
+        )
     if args.commande == "ingestion":
         from catalogue import ingestion
 
-        return ingestion.commande(args.journal, args.parties, a_blanc=args.a_blanc)
+        return ingestion.commande(
+            args.journal,
+            args.parties,
+            a_blanc=args.a_blanc,
+            plafond=args.plafond,
+            forcer=args.forcer,
+            file=args.file,
+        )
     if args.commande == "banc":
         from catalogue import banc
         from catalogue.journal import DOSSIER

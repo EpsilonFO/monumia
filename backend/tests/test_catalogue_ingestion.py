@@ -150,22 +150,66 @@ def _entree(url: str, issue: str, titre: str) -> Evenement:
 
 
 def test_seules_les_admises_non_traitees_sont_a_ingerer(tmp_path: Path) -> None:
-    j = Journal(tmp_path)
+    j = Journal(tmp_path / "journal")
+    aides = tmp_path / "aides"
+    aides.mkdir()
+    (aides / "aide-c.yaml").write_text("slug: aide-c\n", encoding="utf-8")
+    objet = lambda u: "d:" + u[-12:].rjust(12, "0")  # noqa: E731
     j.ajouter_lot(
         [
             _entree("https://x.fr/a", "admise", "Aide A"),
             _entree("https://x.fr/b", "ecartee", "Aide B"),
             _entree("https://x.fr/c", "admise", "Aide C"),
+            _entree("https://x.fr/d", "admise", "Aide D"),
             Evenement(
                 "decision",
-                "d:" + "https://x.fr/c"[-12:].rjust(12, "0"),
+                objet("https://x.fr/c"),
                 decision="ingestion",
                 issue="acceptee",
+                donnees={"slug": "aide-c"},
+            ),
+            # Acceptée au journal, mais le YAML n'est jamais arrivé (recopie refusée) : elle reste due.
+            Evenement(
+                "decision",
+                objet("https://x.fr/d"),
+                decision="ingestion",
+                issue="acceptee",
+                donnees={"slug": "aide-d"},
             ),
         ]
     )
-    admises = ing.admises_a_ingerer(Vue(list(j.lire())))
-    assert [a.url for a in admises] == ["https://x.fr/a"]
+    admises = ing.admises_a_ingerer(Vue(list(j.lire())), aides, tmp_path / "brouillons")
+    assert [a.url for a in admises] == ["https://x.fr/a", "https://x.fr/d"]
+
+
+def test_la_projection_ne_reecrit_jamais_une_decision_humaine(tmp_path: Path) -> None:
+    chemin = tmp_path / "file-attente.yaml"
+    etat.ecrire(
+        chemin,
+        {
+            "aide-x": etat.Tache(
+                titre="X",
+                url="https://x.fr/x",
+                territoire="t",
+                statut="ignore",
+                motif_ignore="écartée à la main",
+            )
+        },
+    )
+    ing.projeter_file(
+        [
+            Evenement(
+                "decision",
+                "a:aide-x",
+                decision="ingestion",
+                issue="acceptee",
+                donnees={"url": "https://x.fr/x", "slug": "aide-x"},
+            )
+        ],
+        chemin,
+    )
+    t = etat.charger(chemin)["aide-x"]
+    assert t.statut == "ignore" and t.motif_ignore == "écartée à la main"
 
 
 def test_la_projection_inverse_empeche_l_ancienne_chaine_de_rejuger(tmp_path: Path) -> None:

@@ -67,7 +67,9 @@ def compte(c: Counter[str]) -> str:
     return ", ".join(f"{k} {v}" for k, v in sorted(c.items(), key=lambda kv: (-kv[1], kv[0])))
 
 
-def parties_json(entete: list[str], cases: list[Case], sections: list[Section]) -> str:
+def parties_json(
+    entete: list[str], cases: list[Case], sections: list[Section], *, depense: float = 0.0
+) -> str:
     """Les parties d'un rapport, pour qu'une étape lancée en sous-processus les rende au run."""
     return json.dumps(
         {
@@ -84,12 +86,14 @@ def parties_json(entete: list[str], cases: list[Case], sections: list[Section]) 
                 for c in cases
             ],
             "sections": [{"titre": s.titre, "lignes": s.lignes} for s in sections],
+            "depense": depense,
         },
         ensure_ascii=False,
     )
 
 
-def ajouter_parties(rapport: Rapport, texte: str) -> None:
+def ajouter_parties(rapport: Rapport, texte: str) -> float:
+    """Ajoute les parties d'une étape au rapport ; rend la dépense que l'étape déclare."""
     d = json.loads(texte)
     rapport.entete += d["entete"]
     rapport.cases += [
@@ -97,3 +101,4 @@ def ajouter_parties(rapport: Rapport, texte: str) -> None:
         for c in d["cases"]
     ]
     rapport.sections += [Section(x["titre"], x["lignes"]) for x in d["sections"]]
+    return float(d.get("depense") or 0.0)

@@ -50,6 +50,8 @@ class Releve:
     plafond: float
     modeles: dict[str, Modele]  # alias providall -> modèle du registre
     chemin: Path
+    # Un budget partagé (celui du run) : le plafond borne la somme des deux.
+    budget: Any = None
     depense: float = 0.0
     panne: str | None = None
     verification_indisponible: str | None = None
@@ -93,7 +95,10 @@ def surveiller(releve: Releve) -> None:
             releve.ecrire(ligne)
             raise Arret(f"modèle hors registre : {alias}")
         plafond = _plafond_appel(m, body)
-        if releve.depense + plafond > releve.plafond:
+        autre = (
+            (releve.budget.depense + releve.budget.reserve) if releve.budget is not None else 0.0
+        )
+        if releve.depense + autre + plafond > releve.plafond:
             releve.panne = releve.panne or "budget"
             ligne.update(arret="budget", plafond_appel=plafond)
             releve.ecrire(ligne)

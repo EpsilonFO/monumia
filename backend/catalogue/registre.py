@@ -99,6 +99,11 @@ class Registre(_Strict):
         manquants = {"veille", "escalades", "prospection", "ingestion"} - set(self.proprietaires)
         if manquants:
             raise ValueError(f"propriétaire manquant pour : {', '.join(sorted(manquants))}")
+        # La prospection admet, l'ingestion écrit ; séparées, l'une laisserait du
+        # travail que l'autre ne lit pas (des `valide` sans ingestion, ou des
+        # admises jamais projetées dans la file).
+        if self.proprietaires["prospection"] != self.proprietaires["ingestion"]:
+            raise ValueError("prospection et ingestion doivent appartenir à la même chaîne")
         return self
 
     def modele(self, role: str) -> Modele:

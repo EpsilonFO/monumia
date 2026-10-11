@@ -198,3 +198,42 @@ def test_un_texte_identique_a_celui_d_une_autre_page_du_site_est_le_gabarit() ->
 def test_la_regle_anti_boucle() -> None:
     assert entree.en_boucle("https://moselle.fr/a/b/a/b/a/fiche")
     assert not entree.en_boucle("https://moselle.fr/aides/patrimoine/restauration")
+
+
+def test_l_entree_ne_rejuge_pas_une_url_de_la_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Une URL écartée à la main dans la file n'est ni triée ni jugée par la nouvelle chaîne."""
+    import json as _json
+
+    from pipeline import etat
+
+    candidats = tmp_path / "candidats.jsonl"
+    candidats.write_text(
+        _json.dumps({"url": "https://x.fr/ecartee", "titre": "Aide écartée"}) + "\n",
+        encoding="utf-8",
+    )
+    file = {
+        "ecartee": etat.Tache(
+            titre="X", url="https://x.fr/ecartee", territoire="91", statut="ignore"
+        )
+    }
+
+    class Tri:
+        def try_complete_json(self, *a: Any, **k: Any) -> Any:
+            raise AssertionError("aucun tri ne doit partir")
+
+    x = entree.explorer(
+        "91",
+        registre=charger(),
+        vue=Vue([]),
+        jev=Jev(0.3),
+        client_tri=Tri(),
+        lecteur=Lecteur("proprietaire_gestionnaire", "bien_ou_lieu"),
+        modele_lecture="m",
+        consigner=lambda e: e,
+        fetcheur=None,
+        candidats_figes=candidats,
+        file=file,
+    )
+    assert x.candidats == 0 and x.deja_juges == 1 and x.jugements == []

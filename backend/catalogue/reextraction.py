@@ -436,7 +436,7 @@ def retour(
             "H-fait",
             f"fait neuf `{f}`",
             [f"Proposé par la ré-extraction de `{slug}`, ajouté en fin de `facts_pending.yaml`."],
-            {"valider": "valider", "refuser": "refuser"},
+            {"vu": "validé (déplacé dans facts.yaml) ou refusé, à la main, comme aujourd'hui"},
         )
     return r
 
