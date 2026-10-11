@@ -16,10 +16,8 @@ import argparse
 import json
 from pathlib import Path
 
-import veille_collect
-import veille_text
-
 from aides_schema import AIDES_DIR, load_aide
+from catalogue import veille_collect, veille_text
 from catalogue.registre import BACKEND
 
 REFERENCE = (

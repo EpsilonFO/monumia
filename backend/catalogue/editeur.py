@@ -27,9 +27,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from veille_apply import ORDRE_CHAMPS_CONDITION, emit_field, emit_item
-
 from aides_schema import charger_yaml
+from catalogue.veille_apply import ORDRE_CHAMPS_CONDITION, emit_field, emit_item
 
 _CLE_HAUT = re.compile(r"^([A-Za-z_][\w-]*):(\s|$)")
 

@@ -57,9 +57,9 @@ from pipeline.decision import ClientDecision, Decision, ErreurDecision
 from pipeline.web import Fetcheur
 from prospection import arbitre, lecture
 from prospection.territoires import charger_territoires
-from veille_collect import cle_url
 
 from catalogue.mesures.stats import Proportion, ponderee
+from catalogue.veille_collect import cle_url
 
 BACKEND = Path(__file__).resolve().parents[2]
 LOGS = BACKEND / "data" / "reviews" / "logs" / "refonte"

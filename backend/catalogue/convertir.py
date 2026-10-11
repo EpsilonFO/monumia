@@ -62,10 +62,10 @@ from typing import Any
 import veille_aides
 import yaml
 from pipeline import etat
-from veille_collect import cle_url, est_http, url_d_origine
-from veille_text import parse_front_matter
 
 from catalogue.journal import Evenement, Journal, cle
+from catalogue.veille_collect import cle_url, est_http, url_d_origine
+from catalogue.veille_text import parse_front_matter
 
 FILE = Path("backend/data/prospection/file-attente.yaml")
 MANIFESTE = Path("backend/data/veille-state.yaml")

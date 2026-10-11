@@ -24,7 +24,7 @@ import re
 import unicodedata
 from typing import Any
 
-from veille_apply import VeilleLLMOutput
+from catalogue.veille_apply import VeilleLLMOutput
 
 MOIS = (
     "janvier",

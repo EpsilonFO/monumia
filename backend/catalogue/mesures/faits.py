@@ -65,10 +65,10 @@ from typing import Any
 
 import yaml
 from ingestion.faits import SEUIL_PROXIMITE, _proches, _texte_indexe, rechercher
-from veille_text import normalize
 
 from aides_schema import FactDef, charger_yaml
 from catalogue.mesures.jeu_e import _dossier_neuf
+from catalogue.veille_text import normalize
 
 BACKEND = Path(__file__).resolve().parents[2]
 REVIEWS = BACKEND / "data" / "reviews"

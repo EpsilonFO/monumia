@@ -46,23 +46,8 @@ from typing import Any
 
 import veille_aides
 from veille_analyze import AideAnalysis, _panne_generalisee, analyze_all, resume_diff
-from veille_apply import ApplyResult, appliquer
 from veille_arbitre import QUESTIONS_MANDAT, etat_mandat, fiche_pour_jev
-from veille_collect import (
-    SOURCES_DIR,
-    AideCollect,
-    MonitoredUrl,
-    charger_yaml,
-    cle_url,
-    corps_binaire,
-    empreinte_texte,
-    est_http,
-    pdf_lisible,
-    pdf_to_text,
-    url_d_origine,
-)
 from veille_llm import SYSTEM, build_prompt, json_schema
-from veille_text import parse_front_matter
 from veille_update import (
     MAX_LIGNES_DIFF,
     MajResult,
@@ -79,6 +64,21 @@ from catalogue.cases import Case
 from catalogue.journal import Evenement, Journal, Vue, cle, empreinte
 from catalogue.openrouter import Client, Panne
 from catalogue.registre import Registre
+from catalogue.veille_apply import ApplyResult, appliquer
+from catalogue.veille_collect import (
+    SOURCES_DIR,
+    AideCollect,
+    MonitoredUrl,
+    charger_yaml,
+    cle_url,
+    corps_binaire,
+    empreinte_texte,
+    est_http,
+    pdf_lisible,
+    pdf_to_text,
+    url_d_origine,
+)
+from catalogue.veille_text import parse_front_matter
 
 BACKEND = Path(__file__).resolve().parents[1]
 BLOBS = BACKEND / ".cache" / "catalogue" / "blobs"
@@ -1143,10 +1143,9 @@ def commande(
     """`python -m catalogue veille` : un passage complet, le rapport, la projection inverse."""
     import secrets
 
-    from veille_collect import collect
-
     from catalogue import registre as registre_mod
     from catalogue.rapport import Rapport, Section, parties_json
+    from catalogue.veille_collect import collect
 
     reg = registre_mod.charger()
     jour = dt.date.today()

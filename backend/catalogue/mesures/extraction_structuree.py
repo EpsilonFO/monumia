@@ -51,8 +51,6 @@ from ingestion.atelier import Atelier, atelier_redirige
 from ingestion.verification import verifier
 from lint_aides_data import lint
 from pipeline import llm
-from veille_collect import load_baselines
-from veille_text import find_quote_in_any
 
 from aides_schema import (
     CATEGORIES,
@@ -67,6 +65,8 @@ from aides_schema import (
 from catalogue.mesures.lanceur_agent import indexer, relever
 from catalogue.openrouter import Client, Panne
 from catalogue.registre import charger as charger_registre
+from catalogue.veille_collect import load_baselines
+from catalogue.veille_text import find_quote_in_any
 from labels import (
     DEPARTEMENT_LABELS,
     ETAT_LABELS,

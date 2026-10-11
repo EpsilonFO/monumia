@@ -34,7 +34,6 @@ from typing import Any, Literal
 from pipeline import llm
 from pipeline.decision import ClientDecision, ErreurDecision
 from pydantic import BaseModel, Field
-from veille_text import find_quote
 
 from catalogue.mesures.combinaison import (
     EXCLUSIONS,
@@ -54,6 +53,7 @@ from catalogue.mesures.jeu_e import (
     pages_sans_contenu,
     verdict,
 )
+from catalogue.veille_text import find_quote
 
 PLAFOND_USD = 1.0
 RESERVE_PAGE_USD = 0.006

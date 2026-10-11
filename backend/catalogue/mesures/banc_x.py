@@ -70,11 +70,11 @@ from typing import Any
 
 import yaml
 from comparer_aides import _couvert_par_filtre, apparier_conditions, comparer
-from veille_collect import load_baselines
-from veille_text import find_quote_in_any
 
 from aides_schema import Aide, FactDef, load_aide, load_facts, load_pending_facts
 from catalogue.mesures.jeu_e import _dossier_neuf
+from catalogue.veille_collect import load_baselines
+from catalogue.veille_text import find_quote_in_any
 
 BACKEND = Path(__file__).resolve().parents[2]
 AIDES = BACKEND / "data" / "aides"
@@ -494,7 +494,7 @@ def couverture(citation: str, documents: Any) -> float:
     """
     from difflib import SequenceMatcher
 
-    from veille_text import normalize
+    from catalogue.veille_text import normalize
 
     cible = normalize(citation)
     if not cible:

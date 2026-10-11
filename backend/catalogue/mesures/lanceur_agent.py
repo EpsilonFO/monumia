@@ -42,8 +42,9 @@ from typing import Any
 import yaml
 from pipeline import web
 from providall.providers.openai_compat import ChatCompletionsAdapter
-from veille_collect import cle_url
-from veille_text import parse_front_matter
+
+from catalogue.veille_collect import cle_url
+from catalogue.veille_text import parse_front_matter
 
 TYPE_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 

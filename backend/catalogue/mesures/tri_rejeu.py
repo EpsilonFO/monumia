@@ -36,11 +36,11 @@ from pipeline import llm
 from prospection import tri
 from prospection.collecte import Candidat
 from prospection.territoires import aides_existantes, charger_territoires
-from veille_collect import cle_url
 
 from aides_schema import load_all_aides
 from catalogue.mesures.jeu_e import RACINES, verdict
 from catalogue.mesures.stats import wilson
+from catalogue.veille_collect import cle_url
 
 BACKEND = Path(__file__).resolve().parents[2]
 LOGS = BACKEND / "data" / "reviews" / "logs" / "refonte"

@@ -55,14 +55,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from veille_collect import SOURCES_DIR, load_baselines
-from veille_text import find_quote_in_any
-
 from aides_schema import AIDES_DIR, DATA_DIR, FACTS_PENDING_FILE, charger_yaml
 from catalogue import controles
 from catalogue.cases import Case
 from catalogue.editeur import EditionImpossible, editer
 from catalogue.registre import BACKEND
+from catalogue.veille_collect import SOURCES_DIR, load_baselines
+from catalogue.veille_text import find_quote_in_any
 
 REBUTS = DATA_DIR / "catalogue" / "rebuts"
 SORTIES = BACKEND / ".cache" / "catalogue" / "reextractions"
@@ -179,7 +178,7 @@ def classer(r: dict[str, Any]) -> tuple[str, str, str | None]:
 
 def documents(dossier: Path) -> tuple[list[tuple[str, str, str]], dict[str, str]]:
     """Les documents d'un dossier d'instantanés et l'URL de chacun, lus comme la veille et le lint les lisent."""
-    import veille_collect
+    from catalogue import veille_collect
 
     ancien = veille_collect.SOURCES_DIR
     try:
@@ -239,7 +238,7 @@ def retour(
     `base` : les instantanés d'avant la ré-extraction ; `frais` : ceux que
     l'agent vient d'archiver ; `urls` : nom de fichier -> URL archivée.
     """
-    from veille_collect import cle_url
+    from catalogue.veille_collect import cle_url
 
     objet = f"a:{slug}"
     urls = urls or {}
@@ -466,8 +465,9 @@ def erreurs_nouvelles(avant: list[str], apres: list[str]) -> list[str]:
 
 def lint_aide(dossier: Path, slug: str, pending: Path, sources: Path) -> list[str]:
     """Le lint d'une aide, citations cherchées dans `sources` (et non dans `data/sources/`)."""
-    import veille_collect
     from lint_aides_data import lint
+
+    from catalogue import veille_collect
 
     ancien = veille_collect.SOURCES_DIR
     try:
