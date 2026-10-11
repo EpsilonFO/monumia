@@ -6,8 +6,7 @@
   journal et les compare octet pour octet aux fichiers en service.
 - `veille --journal <dossier> [--a-blanc] [slug ...]` : un passage de veille
   (référence `base` du journal, mandat, garde, cases), le rapport de la
-  semaine et la projection inverse vers `veille-state.yaml`. Avant la bascule,
-  seulement dans une copie jetable du dépôt.
+  semaine et la projection inverse vers `veille-state.yaml`.
 - `semaine` : le run hebdomadaire planifiable (pré-vol, copie jetable,
   étapes que le registre donne à la nouvelle chaîne, recopie, rapport).
 - `entree --territoire <nom> --journal <dossier>` : un territoire, de la
@@ -35,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
         "--journal",
         type=Path,
         required=True,
-        help="dossier du journal à compléter ; avant la bascule, jamais data/catalogue/journal",
+        help="dossier du journal à compléter (en service : data/catalogue/journal)",
     )
     c.add_argument(
         "--verifier",

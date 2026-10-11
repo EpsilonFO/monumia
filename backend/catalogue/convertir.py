@@ -8,9 +8,9 @@ Lit sans les modifier la file (`data/prospection/file-attente.yaml`) et ses
 versions dans git, le manifeste de veille (`data/veille-state.yaml`) et les
 siennes, les instantanés de `data/sources/`, les `.yaml` et `.yaml.echec` de
 `data/aides/`, et ajoute au journal les événements `auteur: import` qui
-manquent. Avant la bascule, le journal s'écrit dans le dossier qu'on donne
-(sorties de mesure, dossier temporaire d'un test), jamais dans
-`data/catalogue/journal/`. Formats, historique et comptes :
+manquent. La conversion réelle vers `data/catalogue/journal/` a été faite le
+2026-10-11 (I9a) ; relancée, elle importe ce que l'ancienne chaîne a écrit
+depuis (une opération qu'elle tient encore au registre). Formats, historique et comptes :
 `docs/refonte-pipeline/notes/conversion-formats.md`.
 
 Ce qui est importé, un événement par objet à son état courant :

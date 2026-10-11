@@ -15,7 +15,14 @@ import pytest
 
 from catalogue import banc, calibrer, semaine
 from catalogue.journal import Evenement, Journal
-from catalogue.registre import charger
+from catalogue.registre import Registre, charger
+
+
+def _tout_a_l_ancienne() -> Registre:
+    """Le registre livré, toutes les opérations laissées à l'ancienne chaîne."""
+    reg = charger()
+    return reg.model_copy(update={"proprietaires": dict.fromkeys(reg.proprietaires, "ancienne")})
+
 
 # ------------------------------------------------------------------ pré-vol
 
@@ -116,6 +123,7 @@ def test_un_run_sans_etape_ecrit_son_rapport_et_sort_en_zero(
     monkeypatch.setattr(semaine, "prevol", lambda reg, **_: semaine.Prevol(notes=["clé : ok"]))
     monkeypatch.setattr(semaine, "SECOURS", tmp_path / "secours")
     monkeypatch.setattr(semaine, "notifier", lambda code, chemin: None)
+    monkeypatch.setattr(semaine, "charger", _tout_a_l_ancienne)
     code = semaine.semaine(
         racine, journal=tmp_path / "journal", copies=tmp_path / "copies", jour=dt.date(2026, 10, 12)
     )
@@ -148,7 +156,7 @@ def test_un_pre_vol_rate_n_appelle_rien_et_le_dit(
 
 
 def test_les_etapes_suivent_le_registre(tmp_path: Path) -> None:
-    reg = charger()
+    reg = _tout_a_l_ancienne()
     assert semaine.etapes(reg, tmp_path, tmp_path) == []
     reprise = reg.model_copy(update={"proprietaires": {**reg.proprietaires, "veille": "nouvelle"}})
     (veille,) = semaine.etapes(reprise, tmp_path / "j", tmp_path)
@@ -218,8 +226,7 @@ def test_le_banc_exporte_la_zone_prudente_a_l_aveugle_et_relit_les_etiquettes(
 def test_le_registre_refuse_une_prospection_et_une_ingestion_separees() -> None:
     from catalogue.registre import Registre
 
-    reg = charger()
-    brut = reg.model_dump()
+    brut = _tout_a_l_ancienne().model_dump()
     brut["proprietaires"] = {**brut["proprietaires"], "prospection": "nouvelle"}
     with pytest.raises(ValueError, match="même chaîne"):
         Registre.model_validate(brut)

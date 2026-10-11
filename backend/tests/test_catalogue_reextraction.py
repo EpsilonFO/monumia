@@ -329,7 +329,13 @@ def depot(tmp_path: Path) -> dict[str, Path]:
     aides, sources = tmp_path / "aides", tmp_path / "sources"
     aides.mkdir()
     shutil.copy(AIDES / f"{SLUG}.yaml", aides / f"{SLUG}.yaml")
-    shutil.copytree(BACKEND / "data" / "sources" / SLUG, sources / SLUG)
+    # Les instantanés d'avant le jour du test : la page « fraîche » est celle que
+    # le lanceur écrit, pas un instantané que la veille aurait archivé ce jour-là.
+    shutil.copytree(
+        BACKEND / "data" / "sources" / SLUG,
+        sources / SLUG,
+        ignore=lambda _d, noms: [n for n in noms if n[:10] >= JOUR.isoformat()],
+    )
     pending = tmp_path / "facts_pending.yaml"
     shutil.copy(BACKEND / "data" / "facts_pending.yaml", pending)
     return {"tmp": tmp_path, "aides": aides, "sources": sources, "pending": pending}

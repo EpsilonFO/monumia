@@ -150,7 +150,14 @@ def test_le_registre_livre_se_charge() -> None:
     r = charger()
     assert r.reglages.doute == "c"
     assert r.reglages.extraction == "agent"
-    assert set(r.proprietaires.values()) == {"ancienne"}
+    # Après I9a : la nouvelle chaîne tient veille, prospection et ingestion ; les
+    # escalades attendent une case « reextraire » de Félix.
+    assert r.proprietaires == {
+        "veille": "nouvelle",
+        "escalades": "ancienne",
+        "prospection": "nouvelle",
+        "ingestion": "nouvelle",
+    }
     assert r.modele("decision").nom == "typesafe/jev-1.13"
 
 

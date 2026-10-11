@@ -369,7 +369,11 @@ def test_valeurs_et_residus() -> None:
 def test_l_ancienne_veille_refuse_un_passage_reel_quand_la_veille_est_reprise(
     tmp_path: Path,
 ) -> None:
-    registre = (BACKEND / "data" / "catalogue" / "registre.yaml").read_text(encoding="utf-8")
+    registre = (
+        (BACKEND / "data" / "catalogue" / "registre.yaml")
+        .read_text(encoding="utf-8")
+        .replace("  veille: nouvelle", "  veille: ancienne")
+    )
     chemin = tmp_path / "registre.yaml"
     chemin.write_text(registre, encoding="utf-8")
     assert veille_aides.veille_reprise(chemin) is None
@@ -382,9 +386,10 @@ def test_l_ancienne_veille_refuse_un_passage_reel_quand_la_veille_est_reprise(
     assert veille_aides.veille_reprise(tmp_path / "absent.yaml") is None
 
 
-def test_le_registre_en_service_laisse_la_veille_a_l_ancienne_chaine() -> None:
-    assert charger().proprietaires["veille"] == "ancienne"
-    assert veille_aides.veille_reprise() is None
+def test_le_registre_en_service_donne_la_veille_a_la_nouvelle_chaine() -> None:
+    """Depuis I9a, l'ancienne veille refuse un passage réel tant que le registre n'est pas repassé."""
+    assert charger().proprietaires["veille"] == "nouvelle"
+    assert "nouvelle chaîne" in (veille_aides.veille_reprise() or "")
 
 
 # ------------------------------------------------------------------ calibrer
