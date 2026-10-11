@@ -65,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     en.add_argument("--territoire", required=True)
     en.add_argument("--journal", type=Path, required=True)
     en.add_argument("--parties", type=Path)
+    en.add_argument("--candidats", type=Path, help="liste figée de candidates (candidats.jsonl)")
 
     ig = commandes.add_parser("ingestion", help="ingérer les pages admises par l'entrée")
     ig.add_argument("--journal", type=Path, required=True)
@@ -81,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.commande == "entree":
         from catalogue import entree
 
-        return entree.commande(args.territoire, args.journal, args.parties)
+        return entree.commande(args.territoire, args.journal, args.parties, args.candidats)
     if args.commande == "ingestion":
         from catalogue import ingestion
 
