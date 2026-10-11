@@ -252,3 +252,20 @@ def test_la_projection_inverse_empeche_l_ancienne_chaine_de_rejuger(tmp_path: Pa
     assert etat.selectionner(etat.charger(chemin)) == []
     # Relancée, la projection n'ajoute rien.
     assert ing.projeter_file(evenements, chemin) == []
+
+
+def test_un_doute_admis_par_felix_garde_son_slug_de_file(tmp_path: Path) -> None:
+    chemin = tmp_path / "file-attente.yaml"
+    etat.ecrire(chemin, {})
+    doute = _entree("https://x.fr/aide-d", "doute", "Aide D")
+    ing.projeter_file([doute], chemin)
+    (slug,) = etat.charger(chemin)
+    assert etat.charger(chemin)[slug].statut == "a_valider"
+    felix = Evenement(
+        "felix", doute.objet, decision="entree-doute", auteur="felix", issue="admettre", cle="f1"
+    )
+    ing.projeter_file([doute, felix], chemin)
+    assert etat.charger(chemin)[slug].statut == "valide"
+    assert {t.url: s for s, t in etat.charger(chemin).items() if t.statut == "valide"} == {
+        "https://x.fr/aide-d": slug
+    }

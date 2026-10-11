@@ -305,6 +305,15 @@ def projeter_file(evenements: list[Evenement], chemin: Path) -> list[str]:
         par_url[url] = slug
     ajoutees = etat.fusionner(chemin, nouvelles) if nouvelles else []
     file = etat.charger(chemin) if chemin.exists() else {}
+    # Une page en doute que Félix admet : sa tâche `a_valider` passe `valide`,
+    # pour que l'ingestion la reprenne sous ce slug (sa réponse, pas un modèle).
+    url_de = {e.objet: url for url, e in derniere.items()}
+    for e in evenements:
+        if e.type == "felix" and e.decision == "entree-doute" and e.issue == "admettre":
+            slug = par_url.get(url_de.get(e.objet, ""))
+            if slug in file and file[slug].statut == "a_valider":
+                etat.mettre_a_jour(chemin, slug, statut="valide")
+    file = etat.charger(chemin) if chemin.exists() else {}
     for url, e in ingestions.items():
         slug = par_url.get(url)
         if slug is None or slug not in file or file[slug].statut != "valide":
