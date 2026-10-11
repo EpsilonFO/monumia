@@ -872,8 +872,8 @@ def _escalader(
 # ------------------------------------------------------------------ passage
 
 
-def _pannes_precedentes(vue_evenements: list[Evenement], slug: str, run: str) -> int:
-    """Passages de suite, juste avant celui-ci, où l'aide a été injoignable.
+def _pannes_precedentes(vue_evenements: list[Evenement], slug: str, run: str) -> set[str | None]:
+    """Les passages de suite, juste avant celui-ci, où l'aide a été injoignable.
 
     La série s'arrête au dernier passage où l'aide a été jugée (une décision de
     veille, de garde ou de référence) : une panne d'il y a trois mois, suivie
@@ -887,7 +887,7 @@ def _pannes_precedentes(vue_evenements: list[Evenement], slug: str, run: str) ->
             runs.add(e.run)
         elif e.type == "decision" and e.decision in ("veille", "V1-garde", "base"):
             break
-    return len(runs)
+    return runs
 
 
 def traiter(
@@ -903,7 +903,8 @@ def traiter(
         classe = "anti_robot" if 403 in codes else "reseau_hote"
         res.issue, res.panne = "panne", classe
         res.raison = an.raisons[0] if an.raisons else classe
-        precedentes = _pannes_precedentes(historique, aide.slug, ctx.run)
+        serie = _pannes_precedentes(historique, aide.slug, ctx.run)
+        precedentes = len(serie)
         ctx.consigner(
             Evenement(
                 "panne",
@@ -913,13 +914,20 @@ def traiter(
                 donnees={"raison": res.raison, "codes": codes},
             )
         )
-        if precedentes >= 1:
+        # Une case par série de pannes, pas par passage : « vu » la tait jusqu'à
+        # ce que la source revienne ou change de classe de panne. Avec l'état
+        # daté du passage, une source durablement derrière Cloudflare rouvrait
+        # sa case chaque semaine (15 aides de Bretagne au passage du 2026-10-11).
+        etat = empreinte(f"{classe}:{min(str(r) for r in serie) if serie else ctx.run}")
+        if precedentes >= 1 and (
+            cases_mod.reponse(ctx.vue, "veille-injoignable", f"a:{aide.slug}", etat) != "vu"
+        ):
             res.cases.append(
                 Case(
                     sorte="veille-injoignable",
                     objet=f"a:{aide.slug}",
                     titre="source injoignable",
-                    etat=empreinte(f"{classe}:{ctx.run}"),
+                    etat=etat,
                     options={"vu": "vu ; la source reste suivie"},
                     contexte=(f"{precedentes + 1} passages de suite : {res.raison}",),
                 )

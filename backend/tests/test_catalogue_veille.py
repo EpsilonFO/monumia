@@ -559,3 +559,34 @@ def test_un_diff_vide_fait_avancer_la_reference_sans_garde(banc: dict[str, Any])
     an = analyze_all({SLUG: aide}, collects, today=JOUR)[SLUG]
     maj = veille._garder(ctx, aide, an, collects[SLUG], res, "", "rien", "e", lambda *a, **k: a)
     assert res.issue == "inchange" and ctx.client.appels == [] and maj is not None
+
+
+def test_une_source_injoignable_ouvre_une_case_par_serie_et_vu_la_tait(
+    banc: dict[str, Any],
+) -> None:
+    """Une source durablement derrière un anti-robot ne rouvre pas sa case chaque semaine."""
+    from types import SimpleNamespace
+
+    from catalogue.cases import Reponse
+
+    j = Journal(banc["tmp"] / "journal")
+    an = SimpleNamespace(
+        statut="ERREUR_HTTP",
+        erreurs=[SimpleNamespace(result=SimpleNamespace(status=403))],
+        raisons=["HTTP 403"],
+    )
+    aide = SimpleNamespace(slug=SLUG)
+
+    def passage(run: str) -> list[Any]:
+        ctx = _ctx(banc, None, j)
+        ctx.run = run
+        res, _ = veille.traiter(ctx, aide, an, None, list(j.lire()))  # type: ignore[arg-type]
+        return res.cases
+
+    assert passage("r1") == []
+    (case,) = passage("r2")
+    assert case.sorte == "veille-injoignable"
+    (encore,) = passage("r3")
+    assert encore.etat == case.etat
+    j.ajouter(Reponse(case.id, case.sorte, case.objet, case.etat, "vu").evenement("r3"))
+    assert passage("r4") == []
