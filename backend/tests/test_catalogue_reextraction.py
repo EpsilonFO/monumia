@@ -100,8 +100,14 @@ BASE = [
 FRAIS = [("frais.md", "Phrase A gardée. Phrase B nouvelle. Date limite le 31 mars 2027.", "text")]
 
 
+URLS = {"base.md": "https://x.fr/aide", "frais.md": "https://x.fr/aide"}
+
+
 def _retour(
-    anciennes: list[dict[str, Any]], proposees: list[dict[str, Any]], **sections: Any
+    anciennes: list[dict[str, Any]],
+    proposees: list[dict[str, Any]],
+    urls: dict[str, str] = URLS,
+    **sections: Any,
 ) -> rx.Retour:
     ancien = {"slug": "x", "calendrier": {"permanent": False}, "conditions": anciennes}
     agent = {
@@ -109,7 +115,7 @@ def _retour(
         "calendrier": sections.get("calendrier", {"permanent": False}),
         "conditions": proposees,
     }
-    return rx.retour("x", ancien, agent, BASE, FRAIS, {"fait_connu"}, "e")
+    return rx.retour("x", ancien, agent, BASE, FRAIS, {"fait_connu"}, "e", urls)
 
 
 def test_une_condition_toujours_citee_reste_a_l_octet_meme_si_l_agent_la_reformule() -> None:
@@ -192,7 +198,64 @@ def test_une_condition_neuve_proche_d_une_gardee_devient_une_case() -> None:
     a = _cond("a-bis", "Phrase A gardée et précisée.")
     r = _retour([c], [c, a])
     assert [x["id"] for x in r.cible["conditions"]] == ["a"]
-    assert [k.sorte for k in r.cases] == ["reextraction-proche"]
+    assert [k.sorte for k in r.cases] == ["reextraction-condition"]
+
+
+def test_un_retrait_exige_que_le_document_de_la_citation_ait_ete_retelecharge() -> None:
+    info = _cond("c", "Phrase C disparue.")
+    r = _retour(
+        [info], [], urls={"base.md": "https://x.fr/reglement.pdf", "frais.md": "https://x.fr/aide"}
+    )
+    assert [c["id"] for c in r.cible["conditions"]] == ["c"] and r.cases == []
+
+
+def test_sans_page_fraiche_le_texte_d_une_condition_ne_bouge_pas() -> None:
+    c = _cond("b", "Phrase B ancienne.")
+    a = dict(c, text="reformulé", quote="Phrase B nouvelle.")
+    ancien = {"slug": "x", "conditions": [c]}
+    r = rx.retour("x", ancien, {"slug": "x", "conditions": [a]}, BASE, [], set(), "e", URLS)
+    assert r.cible["conditions"] == [c]
+
+
+def test_une_proposition_n_est_rapprochee_qu_une_fois() -> None:
+    c2 = _cond("c2", "Phrase A gardée.")
+    c5 = _cond("c5", "Phrase jamais archivée.", kind="discretionary")
+    a = _cond("c5", "Phrase A gardée.")
+    r = _retour([c2, c5], [a])
+    assert r.cible["conditions"] == [c2, c5]
+
+
+def test_une_condition_neuve_sans_effect_ou_untyped_devient_une_case() -> None:
+    sans_effect = {"id": "n1", "text": "x", "kind": "info", "quote": "Phrase B nouvelle."}
+    untyped = {
+        "id": "n2",
+        "text": "y",
+        "kind": "untyped",
+        "effect": "info",
+        "quote": "Date limite le 31 mars 2027.",
+    }
+    r = _retour([], [sans_effect, untyped])
+    assert (
+        r.cible["conditions"] == [] and [k.sorte for k in r.cases] == ["reextraction-condition"] * 2
+    )
+
+
+def test_une_section_partielle_ne_perd_rien_et_un_booleen_va_en_case() -> None:
+    ancien = {
+        "slug": "x",
+        "conditions": [],
+        "calendrier": {"permanent": False, "date_limite": dt.date(2026, 3, 31)},
+        "cumul": {"cumulable": True},
+    }
+    agent = {
+        "slug": "x",
+        "conditions": [],
+        "calendrier": {"permanent": True},
+        "cumul": {"cumulable": False, "exclusions": ["Fonds inventé"]},
+    }
+    r = rx.retour("x", ancien, agent, BASE, FRAIS, set(), "e", URLS)
+    assert r.cible["calendrier"] == ancien["calendrier"] and r.cible["cumul"] == ancien["cumul"]
+    assert [k.sorte for k in r.cases] == ["reextraction-valeur", "reextraction-valeur"]
 
 
 def test_aucun_id_n_est_reattribue() -> None:
@@ -213,6 +276,36 @@ def test_l_acceptation_par_ecart_ignore_la_dette_et_voit_l_erreur_neuve() -> Non
         "x : condition `z` sans `effect`",
     ]
     assert rx.erreurs_nouvelles(avant, apres) == ["x : condition `z` sans `effect`"]
+
+
+def test_la_cle_d_erreur_distingue_deux_conditions_aux_ids_proches() -> None:
+    avant = ["x / critere-1: quote introuvable dans les snapshots « a »"]
+    apres = [*avant, "x / critere-2: quote introuvable dans les snapshots « inventée »"]
+    assert rx.erreurs_nouvelles(avant, apres) == [apres[1]]
+
+
+@pytest.mark.parametrize(
+    ("resultat", "classe"),
+    [
+        (
+            {"ok": False, "arret": "erreur_modele", "motif_echec": "NetworkError: coupure"},
+            "fournisseur",
+        ),
+        (
+            {"ok": False, "arret": "erreur_modele", "motif_echec": "HTTP 402 insufficient credits"},
+            "credits",
+        ),
+        ({"ok": False, "arret": "budget", "motif_echec": "budget"}, "agent_budget"),
+        ({"ok": False, "arret": "max_tours"}, "agent_max_tours"),
+    ],
+)
+def test_un_agent_arrete_avant_la_fin_est_une_panne_pas_un_refus(
+    resultat: dict[str, Any], classe: str
+) -> None:
+    assert rx.classer(resultat)[0::2] == ("panne", classe)
+    assert (
+        rx.classer({"ok": False, "arret": "termine", "motif_echec": "lint rouge"})[0] == "refusee"
+    )
 
 
 def test_les_faits_neufs_s_ajoutent_en_fin_de_fichier_sans_reecriture(tmp_path: Path) -> None:
@@ -336,3 +429,100 @@ def test_une_echeance_lue_dans_la_page_fraiche_s_ecrit_par_plages(depot: dict[st
     assert nouveau.split("calendrier:")[0] == texte.split("calendrier:")[0]
     assert b.snapshots == ["2026-10-11-reglement.md"]
     assert "reextraction-fiche" in [c.sorte for c in b.cases]
+
+
+# ------------------------------------------------------------------ contrat de l'agent
+
+
+class _Spec:
+    alias = "or-glm"
+
+
+class _Req:
+    spec = _Spec()
+    label = "ingestion"
+
+
+class _Usage:
+    def __init__(self, cout: float | None) -> None:
+        self.cost, self.prompt_tokens, self.completion_tokens, self.model_extra = cout, 10, 5, {}
+
+
+class _Brut:
+    def __init__(self, modele: str, cout: float | None) -> None:
+        self.model, self.usage, self.model_extra = modele, _Usage(cout), {}
+
+
+def test_le_contrat_arrete_l_aide_et_compte_un_cout_inconnu_a_son_plafond(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from providall.providers.openai_compat import ChatCompletionsAdapter
+
+    from catalogue import agent
+    from catalogue.registre import charger
+
+    m = charger().modele("extraction")
+    reponses = [
+        _Brut("z-ai/glm-5.3-flash", None),
+        _Brut("autre/modele", 0.001),
+        _Brut("z-ai/glm-5.3-flash", 0.001),
+    ]
+    monkeypatch.setattr(ChatCompletionsAdapter, "send", lambda self, req, body: reponses.pop(0))
+    releve = agent.Releve(plafond=10.0, modeles={"or-glm": m}, chemin=tmp_path / "appels.jsonl")
+    agent.surveiller(releve)
+    corps = {"messages": [{"role": "user", "content": "x" * 300}], "max_tokens": 1000}
+    ChatCompletionsAdapter.send(None, _Req(), corps)  # type: ignore[arg-type]
+    plafond = agent._plafond_appel(m, corps)
+    assert releve.depense == pytest.approx(plafond)
+    with pytest.raises(agent.Arret):
+        ChatCompletionsAdapter.send(None, _Req(), corps)  # type: ignore[arg-type]
+    assert releve.panne == "modele_substitue"
+    with pytest.raises(agent.Arret):
+        ChatCompletionsAdapter.send(None, _Req(), corps)  # type: ignore[arg-type]
+    assert len(reponses) == 1  # le troisième appel n'est jamais parti
+    lignes = [
+        json.loads(x) for x in (tmp_path / "appels.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert lignes[0]["cout_compte"] == pytest.approx(plafond)
+    assert rx.depense(tmp_path) == pytest.approx(plafond + 0.001)
+
+
+def test_le_plafond_refuse_l_appel_qui_le_depasserait(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from providall.providers.openai_compat import ChatCompletionsAdapter
+
+    from catalogue import agent
+    from catalogue.registre import charger
+
+    monkeypatch.setattr(
+        ChatCompletionsAdapter, "send", lambda self, req, body: pytest.fail("appel parti")
+    )
+    releve = agent.Releve(
+        plafond=0.0001,
+        modeles={"or-glm": charger().modele("extraction")},
+        chemin=tmp_path / "a.jsonl",
+    )
+    agent.surveiller(releve)
+    with pytest.raises(agent.Arret):
+        ChatCompletionsAdapter.send(None, _Req(), {"messages": [], "max_tokens": 32000})  # type: ignore[arg-type]
+    assert releve.panne == "budget"
+
+
+def test_le_groupe_de_l_agent_est_tue_au_delai(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import subprocess
+
+    lances: list[Any] = []
+    vrai = subprocess.Popen
+
+    def popen(args: Any, **kw: Any) -> Any:
+        p = vrai([sys.executable, "-c", "import time; time.sleep(60)"], **kw)
+        lances.append(p)
+        return p
+
+    monkeypatch.setattr(rx.subprocess, "Popen", popen)
+    lancement = rx.lancer("x", tmp_path, 1.0, 0.5)
+    assert lancement.panne == "delai" and lancement.resultat is None
+    assert lances[0].poll() is not None

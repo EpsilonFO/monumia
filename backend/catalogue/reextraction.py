@@ -137,7 +137,15 @@ def lancer(slug: str, sortie: Path, plafond: float, delai_s: float) -> Lancement
 
 
 def classer(r: dict[str, Any]) -> tuple[str, str, str | None]:
-    """(issue, raison, classe de panne) d'une ré-extraction terminée."""
+    """(issue, raison, classe de panne) d'une ré-extraction ou d'une ingestion terminée.
+
+    Un refus ne vient que des contrôles du contenu, sur un agent arrivé au bout
+    (`arret: termine`). Tout autre arrêt (fournisseur en panne, budget, tours
+    épuisés, boucle) est une panne rejouable : le drapeau `echec_transitoire`
+    de l'agent ne suffit pas, il n'est posé que si aucun YAML n'existe, ce qui
+    n'arrive jamais en ré-extraction.
+    """
+    motif = str(r.get("motif_echec") or "")
     if r.get("panne_contrat"):
         return "panne", f"contrat : {r['panne_contrat']}", r["panne_contrat"]
     if r.get("verification_indisponible"):
@@ -147,38 +155,47 @@ def classer(r: dict[str, Any]) -> tuple[str, str, str | None]:
             "verification",
         )
     if r.get("echec_fatal"):
-        return "panne", r.get("motif_echec") or "erreur fatale", "cle"
-    if r.get("echec_transitoire"):
-        return "panne", r.get("motif_echec") or "panne du fournisseur", "fournisseur"
+        return "panne", motif or "erreur fatale", "cle"
     if r.get("hors_perimetre"):
-        cat, motif = r["hors_perimetre"]
-        return "hors_perimetre", f"{cat} : {motif}", None
+        cat, raison = r["hors_perimetre"]
+        return "hors_perimetre", f"{cat} : {raison}", None
+    arret = r.get("arret") or "termine"
+    if not r.get("ok") and arret != "termine":
+        if arret == "erreur_modele":
+            bas = motif.lower()
+            classe = "credits" if ("402" in bas or "credit" in bas) else "fournisseur"
+        else:
+            classe = f"agent_{arret}"
+        return "panne", motif or f"agent arrêté sur « {arret} »", classe
+    if r.get("echec_transitoire"):
+        return "panne", motif or "panne du fournisseur", "fournisseur"
     if not r.get("ok"):
-        return "refusee", r.get("motif_echec") or "refusée par les contrôles", None
+        return "refusee", motif or "refusée par les contrôles", None
     return "acceptee", "", None
 
 
 # ------------------------------------------------------------------ retour
 
 
-def _documents(dossier: Path, noms: set[str] | None = None) -> list[tuple[str, str, str]]:
-    """Les documents d'un dossier d'instantanés, lus comme la veille et le lint les lisent."""
+def documents(dossier: Path) -> tuple[list[tuple[str, str, str]], dict[str, str]]:
+    """Les documents d'un dossier d'instantanés et l'URL de chacun, lus comme la veille et le lint les lisent."""
     import veille_collect
 
     ancien = veille_collect.SOURCES_DIR
     try:
         veille_collect.SOURCES_DIR = dossier.parent
-        docs, _, _ = load_baselines(dossier.name)
+        docs, _, provenance = load_baselines(dossier.name)
     finally:
         veille_collect.SOURCES_DIR = ancien
-    return [d for d in docs if noms is None or d[0] in noms]
+    return docs, provenance
 
 
-def _trouvee(quote: str | None, docs: list[tuple[str, str, str]]) -> bool:
+def _ou(quote: str | None, docs: list[tuple[str, str, str]]) -> str | None:
+    """Le document où la citation se retrouve, ou `None`."""
     if not quote or not docs:
-        return False
+        return None
     nom, _ = find_quote_in_any(quote, docs)  # type: ignore[arg-type]
-    return nom is not None
+    return nom
 
 
 SEUIL_PROCHE = 0.4
@@ -203,6 +220,10 @@ class Retour:
     faits_neufs: list[str] = field(default_factory=list)
 
 
+def _effet(c: dict[str, Any]) -> str:
+    return c.get("effect") or ("info" if c.get("kind") in ("info", "discretionary") else "gate")
+
+
 def retour(
     slug: str,
     ancien: dict[str, Any],
@@ -211,15 +232,30 @@ def retour(
     frais: list[tuple[str, str, str]],
     faits_connus: set[str],
     etat: str,
+    urls: dict[str, str] | None = None,
 ) -> Retour:
-    """La cible que l'aide en service peut devenir, et les cases de ce qui ne s'écrit pas."""
+    """La cible que l'aide en service peut devenir, et les cases de ce qui ne s'écrit pas.
+
+    `base` : les instantanés d'avant la ré-extraction ; `frais` : ceux que
+    l'agent vient d'archiver ; `urls` : nom de fichier -> URL archivée.
+    """
+    from veille_collect import cle_url
+
     objet = f"a:{slug}"
+    urls = urls or {}
     r = Retour(cible=copy.deepcopy(ancien))
 
     def case(
         sorte: str, titre: str, lignes: list[str], options: dict[str, str] = OPTIONS_DIVERGENCE
     ) -> None:
         r.cases.append(Case(sorte, objet, titre, f"{etat}:{len(r.cases)}", options, tuple(lignes)))
+
+    def frais_de(nom_base: str | None) -> list[tuple[str, str, str]]:
+        """Les pages fraîches qui re-téléchargent le document `nom_base`."""
+        url = urls.get(nom_base or "")
+        if not url:
+            return []
+        return [d for d in frais if cle_url(urls.get(d[0], "")) == cle_url(url)]
 
     anciennes: list[dict[str, Any]] = list(ancien.get("conditions") or [])
     proposees: list[dict[str, Any]] = list(agent.get("conditions") or [])
@@ -228,7 +264,7 @@ def retour(
 
     def rapprocher(c: dict[str, Any]) -> dict[str, Any] | None:
         a = par_id.get(c.get("id"))
-        if a is not None:
+        if a is not None and id(a) not in utilisees:
             utilisees.add(id(a))
             return a
         q = " ".join(str(c.get("quote") or "").split())
@@ -242,24 +278,22 @@ def retour(
     for c in anciennes:
         a = rapprocher(c)
         q = c.get("quote")
-        en_base, en_frais = _trouvee(q, base), _trouvee(q, frais)
+        doc_base = _ou(q, base)
         if a is None:
-            if en_base and frais and not en_frais:
-                if (
-                    c.get(
-                        "effect", "info" if c.get("kind") in ("info", "discretionary") else "gate"
-                    )
-                    == "info"
-                ):
+            # Retrait seulement si le document qui portait la citation a été
+            # re-téléchargé et ne la porte plus (C-retrait-condition).
+            ses_frais = frais_de(doc_base) if doc_base else []
+            if ses_frais and _ou(q, ses_frais) is None:
+                if _effet(c) == "info":
                     r.changements.append(
-                        f"condition retirée : {c.get('id')} (citation disparue de la source)"
+                        f"condition retirée : {c.get('id')} (citation disparue de sa page)"
                     )
                     continue
                 case(
                     "reextraction-retrait",
                     "retrait de condition proposé",
                     [
-                        f"`{c.get('id')}` ({c.get('kind')}, {c.get('effect', 'gate')}) : sa citation a disparu des pages fraîches.",
+                        f"`{c.get('id')}` ({c.get('kind')}, {_effet(c)}) : sa citation a disparu de sa page fraîche.",
                         f"> {q}",
                     ],
                     {"retirer": "retirer la condition", "garder": "la garder"},
@@ -272,15 +306,21 @@ def retour(
                 "reextraction-typage",
                 "typage divergent",
                 [
-                    f"`{c.get('id')}` : l'agent propose {', '.join(f'{k} = {a.get(k)!r}' for k in divergences)} ; en service : {', '.join(f'{k} = {c.get(k)!r}' for k in divergences)}."
+                    f"`{c.get('id')}` : l'agent propose {', '.join(f'{k} = {a.get(k)!r}' for k in divergences)} ; "
+                    f"en service : {', '.join(f'{k} = {c.get(k)!r}' for k in divergences)}."
                 ],
             )
-        if (
-            not q
-            or not en_base
-            or en_frais
-            or (a.get("quote") == q and a.get("text") == c.get("text"))
-        ):
+        # Texte et citation ne bougent que si le passage cité a changé : citation
+        # retrouvée dans la référence, absente de la page fraîche de son
+        # document, et une citation neuve retrouvée dans une page fraîche.
+        ses_frais = frais_de(doc_base) if doc_base else []
+        change = (
+            bool(ses_frais)
+            and _ou(q, ses_frais) is None
+            and _norm(a.get("quote")) != _norm(q)
+            and _ou(a.get("quote"), frais) is not None
+        )
+        if not change:
             sortie.append(c)  # inchangée, endettée ou toujours citée : à l'octet
             continue
         if c.get("kind") == "user_fact" or c.get("predicate") is not None:
@@ -299,58 +339,83 @@ def retour(
         nouvelle = dict(c)
         nouvelle["text"], nouvelle["quote"] = a.get("text"), a.get("quote")
         r.changements.append(
-            f"condition {c.get('id')} : texte et citation repris de la source fraîche"
+            f"condition {c.get('id')} : texte et citation repris de sa page fraîche"
         )
         sortie.append(nouvelle)
+    gardees = list(sortie)
+    ids = {c.get("id") for c in sortie}
     for a in proposees:
-        if id(a) in utilisees:
-            continue
-        if a.get("id") in {c.get("id") for c in sortie}:
+        if id(a) in utilisees or a.get("id") in ids:
             continue  # jamais un id réattribué
+        motifs = []
+        if a.get("kind") in (None, "untyped"):
+            motifs.append("condition non typée")
+        if "effect" not in a:
+            motifs.append("sans ligne `effect`")
+        if a.get("kind") == "manual_check" and _effet(a) == "gate":
+            motifs.append("`manual_check` en gate")
+        if (
+            a.get("kind") in ("auto", "user_fact", "manual_check")
+            and _ou(a.get("quote"), frais + base) is None
+        ):
+            motifs.append("citation introuvable dans les instantanés")
         proche = max(
-            ((recouvrement(a.get("quote"), c.get("quote")), c.get("id")) for c in sortie),
+            ((recouvrement(a.get("quote"), c.get("quote")), c.get("id")) for c in gardees),
             default=(0.0, None),
         )
         if proche[0] >= SEUIL_PROCHE:
-            # Une condition neuve qui recoupe une condition gardée est peut-être
-            # la même, réécrite : l'ajouter ferait un doublon, la jeter une perte.
+            motifs.append(f"citation qui recoupe à {proche[0]:.0%} celle de `{proche[1]}`, gardée")
+        if motifs:
             case(
-                "reextraction-proche",
-                "condition proche d'une condition en service",
+                "reextraction-condition",
+                "condition neuve à valider",
                 [
-                    f"L'agent propose `{a.get('id')}`, dont la citation recoupe à {proche[0]:.0%} celle de `{proche[1]}` (gardée).",
+                    f"L'agent propose `{a.get('id')}` ({a.get('kind')}, {a.get('effect', 'sans effet')}) : {' ; '.join(motifs)}.",
                     f"> {a.get('quote')}",
                 ],
-                {"ajouter": "c'est une exigence distincte : l'ajouter", "ignorer": "c'est la même"},
+                {"ajouter": "l'ajouter (à la main)", "ignorer": "ne pas l'ajouter"},
             )
             continue
         sortie.append(a)
+        ids.add(a.get("id"))
         r.changements.append(f"condition ajoutée : {a.get('id')} ({a.get('kind')})")
         if a.get("kind") == "user_fact" and a.get("fact") and a["fact"] not in faits_connus:
             r.faits_neufs.append(a["fact"])
     r.cible["conditions"] = sortie
 
+    # Calendrier, financement, cumul : clé par clé. Seule une date ou un nombre
+    # écrit tel quel dans une page fraîche s'écrit ; tout autre changement
+    # (booléen, texte, liste) est une case ; une clé que l'agent omet reste.
     texte_frais = controles.sans_accents("\n".join(d[1] for d in frais))
     for nom in SECTIONS:
-        avant, apres = _norm(ancien.get(nom) or {}), _norm(agent.get(nom) or {})
-        if avant == apres:
+        avant = ancien.get(nom) or {}
+        apres = agent.get(nom) or {}
+        if not isinstance(avant, dict) or not isinstance(apres, dict):
             continue
-        changees = {k: v for k, v in apres.items() if avant.get(k) != v}
-        deduites = [
-            f"{nom}.{k} = {v}"
-            for k, v in changees.items()
-            if controles.figure(v, texte_frais) is False
-        ]
-        if deduites or not frais:
-            case(
-                "reextraction-valeur",
-                f"{nom} : valeur à vérifier",
-                [f"- {d}" for d in deduites] or ["- aucune page fraîche re-téléchargée"],
-            )
-            continue
-        if nom in ancien or apres:
-            r.cible[nom] = agent.get(nom)
-            r.changements.append(f"{nom} : {', '.join(sorted(changees))}")
+        acceptees: dict[str, Any] = {}
+        en_case: list[str] = []
+        for k, v in apres.items():
+            if _norm(avant.get(k)) == _norm(v):
+                continue
+            if frais and controles.figure(v, texte_frais) is True:
+                acceptees[k] = v
+            else:
+                en_case.append(f"{nom}.{k} : {avant.get(k)!r} → {v!r}")
+        # Une échéance acceptée lève le dépôt permanent, que la source date.
+        if (
+            "date_limite" in acceptees
+            and apres.get("permanent") is False
+            and avant.get("permanent") is not False
+        ):
+            acceptees["permanent"] = False
+            en_case = [x for x in en_case if not x.startswith(f"{nom}.permanent ")]
+        if en_case:
+            case("reextraction-valeur", f"{nom} : valeur à vérifier", [f"- {x}" for x in en_case])
+        if acceptees:
+            fusion = copy.deepcopy(avant)
+            fusion.update(acceptees)
+            r.cible[nom] = fusion
+            r.changements.append(f"{nom} : {', '.join(sorted(acceptees))}")
     if any(ch.split(" :")[0] in SECTIONS for ch in r.changements) and ancien.get("fiche"):
         case(
             "reextraction-fiche",
@@ -381,9 +446,17 @@ def retour(
 
 
 def cle_erreur(message: str) -> str:
-    """Une erreur de lint sans les valeurs qu'elle cite : ce qui la rend stable d'une version à l'autre."""
-    sans = re.sub(r"«[^»]*»|\"[^\"]*\"", "«»", message)
-    return re.sub(r"\d", "0", sans)
+    """Une erreur de lint réduite à (aide, condition ou champ, règle) : stable d'une version à l'autre.
+
+    La tête du message (« slug / id ») se garde telle quelle : deux conditions
+    dont les ids ne diffèrent que par un chiffre restent deux erreurs. Seule la
+    règle est débarrassée des valeurs qu'elle cite (nombres, extraits).
+    """
+    tete, sep, regle = message.partition(": ")
+    if not sep:
+        tete, regle = "", message
+    regle = re.sub(r"«[^»]*»|\"[^\"]*\"|`[^`]*\d[^`]*`|\([^)]*\d[^)]*\)", "«»", regle)
+    return tete + " : " + re.sub(r"\d", "0", regle)
 
 
 def erreurs_nouvelles(avant: list[str], apres: list[str]) -> list[str]:
@@ -391,10 +464,17 @@ def erreurs_nouvelles(avant: list[str], apres: list[str]) -> list[str]:
     return [e for e in apres if cle_erreur(e) not in deja]
 
 
-def lint_aide(dossier: Path, slug: str, pending: Path) -> list[str]:
+def lint_aide(dossier: Path, slug: str, pending: Path, sources: Path) -> list[str]:
+    """Le lint d'une aide, citations cherchées dans `sources` (et non dans `data/sources/`)."""
+    import veille_collect
     from lint_aides_data import lint
 
-    rapport = lint([slug], quotes=True, aides_dir=dossier, pending_path=pending, ecriture=True)
+    ancien = veille_collect.SOURCES_DIR
+    try:
+        veille_collect.SOURCES_DIR = sources
+        rapport = lint([slug], quotes=True, aides_dir=dossier, pending_path=pending, ecriture=True)
+    finally:
+        veille_collect.SOURCES_DIR = ancien
     return list(rapport.erreurs)
 
 
@@ -418,16 +498,26 @@ def blocs_faits(texte: str) -> dict[str, str]:
 
 
 def ajouter_faits(cles: list[str], propose: Path, cible: Path = FACTS_PENDING_FILE) -> list[str]:
-    """Ajoute en fin de fichier les faits de l'agent absents de `cible` ; jamais de réécriture."""
-    texte = cible.read_text(encoding="utf-8") if cible.exists() else ""
-    deja = blocs_faits(texte)
+    """Ajoute en fin de fichier, sous verrou, les faits de l'agent absents de `cible` ; jamais de réécriture."""
+    import fcntl
+
     venus = blocs_faits(propose.read_text(encoding="utf-8")) if propose.exists() else {}
-    ajoutes = [k for k in cles if k in venus and k not in deja]
-    if ajoutes:
-        with cible.open("a", encoding="utf-8") as f:
-            f.write(
-                ("" if texte.endswith("\n") else "\n") + "".join(f"\n{venus[k]}\n" for k in ajoutes)
-            )
+    with cible.open("a+", encoding="utf-8") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            f.seek(0)
+            texte = f.read()
+            deja = blocs_faits(texte)
+            ajoutes = [k for k in cles if k in venus and k not in deja]
+            if ajoutes:
+                f.write(
+                    ("" if texte.endswith("\n") or not texte else "\n")
+                    + "".join(f"\n{venus[k]}\n" for k in ajoutes)
+                )
+                f.flush()
+                os.fsync(f.fileno())
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
     return ajoutes
 
 
@@ -473,7 +563,9 @@ def depense(sortie: Path) -> float:
     for ligne in chemin.read_text(encoding="utf-8").splitlines():
         if ligne.strip():
             d = json.loads(ligne)
-            total += float(d.get("cout_usd") or d.get("cout_compte") or 0.0)
+            # Un appel non facturé compte pour son plafond, jamais pour zéro.
+            cout = d.get("cout_usd")
+            total += float(cout if cout is not None else (d.get("cout_compte") or 0.0))
     return total
 
 
@@ -493,6 +585,40 @@ def reextraire(
     lanceur: Any = None,
 ) -> Bilan:
     """Une ré-extraction complète, de la préparation à l'écriture. Ne lève pas : une erreur est une panne."""
+    try:
+        return _reextraire(
+            slug,
+            plafond=plafond,
+            delai_s=delai_s,
+            jour=jour,
+            etat=etat,
+            sorties=sorties,
+            aides=aides,
+            sources=sources,
+            pending=pending,
+            rebuts=rebuts,
+            ecrire=ecrire,
+            lanceur=lanceur,
+        )
+    except Exception as exc:  # noqa: BLE001 — une exception est une panne de l'objet, pas un jugement
+        return Bilan(slug, "panne", f"{type(exc).__name__}: {exc}"[:300], panne="bug")
+
+
+def _reextraire(
+    slug: str,
+    *,
+    plafond: float,
+    delai_s: float,
+    jour: dt.date,
+    etat: str,
+    sorties: Path,
+    aides: Path,
+    sources: Path,
+    pending: Path,
+    rebuts: Path,
+    ecrire: bool,
+    lanceur: Any,
+) -> Bilan:
     chemin = aides / f"{slug}.yaml"
     if not chemin.exists():
         # C-orpheline : jamais de ré-extraction d'une aide sans YAML en service.
@@ -502,6 +628,9 @@ def reextraire(
         / f"{jour.isoformat()}-{slug}-{os.getpid()}-{dt.datetime.now().strftime('%H%M%S%f')}"
     )
     preparer(slug, sortie, aides, sources)
+    # L'agent part du même facts_pending.yaml que celui où ses faits seront ajoutés.
+    if pending.exists():
+        shutil.copy2(pending, sortie / "facts_pending.yaml")
     lancement = (lanceur or lancer)(slug, sortie, plafond, delai_s)
     b = Bilan(slug, "panne", cout_usd=depense(sortie), duree_s=lancement.duree_s)
     if lancement.resultat is None:
@@ -534,13 +663,13 @@ def reextraire(
     noms_avant = (
         {p.name for p in (sources / slug).iterdir()} if (sources / slug).is_dir() else set()
     )
-    tous = _documents(sortie / "sources" / slug)
+    tous, urls = documents(sortie / "sources" / slug)
     base = [d for d in tous if d[0] in noms_avant]
     frais = [d for d in tous if d[0] not in noms_avant]
     from aides_schema import load_facts, load_pending_facts
 
     connus = set(load_facts()) | set(load_pending_facts(pending))
-    r = retour(slug, ancien, agent, base, frais, connus, etat)
+    r = retour(slug, ancien, agent, base, frais, connus, etat, urls)
     b.cases, b.changements = r.cases, r.changements
     try:
         nouveau = editer(texte_ancien, r.cible)
@@ -551,13 +680,17 @@ def reextraire(
         b.issue, b.raison = "inchangee", "rien à écrire dans le mandat de la ré-extraction"
         return b
     # Acceptation par écart : la dette connue ne refuse pas, une erreur neuve si.
+    # Avant : la version en service contre ses instantanés ; après : la version
+    # écrite contre ces instantanés plus ceux que l'agent vient d'archiver.
     essai = sortie / "essai"
     essai.mkdir(exist_ok=True)
     (essai / f"{slug}.yaml").write_text(nouveau, encoding="utf-8")
     pending_essai = sortie / "facts_pending.yaml"
     neuves = erreurs_nouvelles(
-        lint_aide(sortie / "en-service", slug, pending),
-        lint_aide(essai, slug, pending_essai if pending_essai.exists() else pending),
+        lint_aide(sortie / "en-service", slug, pending, sources),
+        lint_aide(
+            essai, slug, pending_essai if pending_essai.exists() else pending, sortie / "sources"
+        ),
     )
     if neuves:
         b.issue, b.raison = "refusee", "lint : " + " ; ".join(neuves[:3])
@@ -566,6 +699,7 @@ def reextraire(
         return b
     b.issue, b.texte = "acceptee", nouveau
     if ecrire:
+        # Ordre de la section 7.6 : les faits, puis les instantanés et le YAML.
         b.faits = ajouter_faits(r.faits_neufs, pending_essai, pending)
         (sources / slug).mkdir(parents=True, exist_ok=True)
         for p in sorted((sortie / "sources" / slug).iterdir()):

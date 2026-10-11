@@ -2,6 +2,11 @@
 
     uv run --no-sync python -m catalogue.mesures.reextraction_banc <dossier> [--plafond-serie 3]
     uv run --no-sync python -m catalogue.mesures.reextraction_banc <dossier> --analyser
+    uv run --no-sync python -m catalogue.mesures.reextraction_banc <dossier> --rejouer <dossier d'une série>
+
+`--rejouer` refait le retour, l'acceptation et l'écriture à partir des sorties
+de l'agent d'une série précédente, sans aucun appel de modèle : le code du
+parent change, la réponse de l'agent ne change pas.
 
 Le 2026-10-05, Félix a fait ré-ingérer 7 aides dont la veille du 2026-10-04
 avait manqué le changement (commit `c36cbfd9`). On rejoue ces ré-extractions
@@ -75,7 +80,24 @@ def preparer(dossier: Path) -> None:
     shutil.copy2(BACKEND / "data" / "facts_pending.yaml", dossier / "facts_pending.yaml")
 
 
-def executer(dossier: Path, plafond_serie: float) -> int:
+def lanceur_rejoue(serie: Path) -> Any:
+    """Un lanceur qui rend la sortie que l'agent avait produite dans `serie`, sans appel."""
+
+    def lancer(slug: str, sortie: Path, plafond: float, delai_s: float) -> rx.Lancement:
+        ancienne = sorted((serie / "sorties").glob(f"*-{slug}-*"))[-1]
+        shutil.copy2(ancienne / "aides" / f"{slug}.yaml", sortie / "aides" / f"{slug}.yaml")
+        shutil.rmtree(sortie / "sources" / slug, ignore_errors=True)
+        shutil.copytree(ancienne / "sources" / slug, sortie / "sources" / slug)
+        for nom in ("facts_pending.yaml", "appels.jsonl", "resultat.json"):
+            if (ancienne / nom).exists():
+                shutil.copy2(ancienne / nom, sortie / nom)
+        resultat = json.loads((ancienne / "resultat.json").read_text(encoding="utf-8"))
+        return rx.Lancement(resultat, None, sortie, 0.0)
+
+    return lancer
+
+
+def executer(dossier: Path, plafond_serie: float, lanceur: Any = None) -> int:
     dossier.mkdir(parents=True, exist_ok=False)
     preparer(dossier)
     total = 0.0
@@ -96,6 +118,7 @@ def executer(dossier: Path, plafond_serie: float) -> int:
                 sources=dossier / "sources",
                 pending=dossier / "facts_pending.yaml",
                 rebuts=dossier / "rebuts",
+                lanceur=lanceur,
             )
             total += b.cout_usd
             apres = (dossier / "aides" / f"{slug}.yaml").read_text(encoding="utf-8")
@@ -154,13 +177,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("dossier", type=Path)
     p.add_argument("--plafond-serie", type=float, default=3.0)
     p.add_argument("--analyser", action="store_true")
+    p.add_argument(
+        "--rejouer", type=Path, help="dossier d'une série dont on rejoue les sorties de l'agent"
+    )
     args = p.parse_args(argv)
     if args.analyser:
         texte = analyser(args.dossier)
         (args.dossier / "analyse.md").write_text(texte + "\n", encoding="utf-8")
         print(texte)
         return 0
-    return executer(args.dossier, args.plafond_serie)
+    return executer(
+        args.dossier, args.plafond_serie, lanceur_rejoue(args.rejouer) if args.rejouer else None
+    )
 
 
 if __name__ == "__main__":

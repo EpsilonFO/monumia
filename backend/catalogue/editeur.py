@@ -120,65 +120,86 @@ def _fin_utile(lignes: list[str], p: Plage) -> int:
     return f
 
 
+def _emettre(cle: str, valeur: Any, indent: int) -> list[str]:
+    """`emit_field`, plus les conteneurs vides, qu'il ne sait pas écrire."""
+    if valeur == {} or valeur == []:
+        return [f"{' ' * indent}{cle}: {'{}' if valeur == {} else '[]'}"]
+    return emit_field(cle, valeur, indent)
+
+
+def _neutre_champ(ligne: str, indent: int) -> bool:
+    """Ligne vide, ou commentaire au niveau des champs : elle appartient au champ qui suit."""
+    nu = ligne.strip()
+    return not nu or (nu.startswith("#") and len(ligne) - len(ligne.lstrip()) <= indent)
+
+
+def _champs(
+    lignes: list[str],
+    ancien: dict[str, Any],
+    cible: dict[str, Any],
+    indent: int,
+    ordre: tuple[str, ...] = (),
+) -> list[str] | None:
+    """Les champs d'un mapping indenté de `indent`, remplacés un par un ; `None` si la forme surprend.
+
+    Un champ inchangé reste à l'octet ; un commentaire placé avant un champ lui
+    appartient, et survit au remplacement du champ qui le précède.
+    """
+    pad = " " * indent
+    debuts = [
+        i
+        for i, ligne in enumerate(lignes)
+        if ligne.startswith(pad)
+        and not ligne.startswith(pad + " ")
+        and re.match(r"[\w-]+:", ligne[indent:])
+    ]
+    if not debuts:
+        return None
+    cles = [lignes[d][indent:].split(":", 1)[0] for d in debuts]
+    if cles != list(ancien):
+        return None
+    sortie = lignes[: debuts[0]]
+    fins: dict[str, int] = {}
+    for n, d in enumerate(debuts):
+        suivant = debuts[n + 1] if n + 1 < len(debuts) else len(lignes)
+        f = suivant
+        while f > d + 1 and _neutre_champ(lignes[f - 1], indent):
+            f -= 1
+        cle = cles[n]
+        if cle in cible:
+            if _normal(ancien[cle]) == _normal(cible[cle]):
+                sortie += lignes[d:f]
+            else:
+                sortie += _emettre(cle, cible[cle], indent)
+            fins[cle] = len(sortie)
+        sortie += lignes[f:suivant]
+    rang = {k: i for i, k in enumerate(ordre)}
+    for cle in [k for k in cible if k not in ancien]:
+        rendu = _emettre(cle, cible[cle], indent)
+        if ordre:
+            # À sa place dans l'ordre des fiches : après le dernier champ gardé qui le précède.
+            avant = [k for k in fins if rang.get(k, len(rang)) <= rang.get(cle, len(rang))]
+            position = fins[avant[-1]] if avant else len(lignes[: debuts[0]])
+        else:
+            position = len(sortie)
+            while position > 0 and not sortie[position - 1].strip():
+                position -= 1
+        sortie[position:position] = rendu
+        fins = {k: (v + len(rendu) if v >= position else v) for k, v in fins.items()}
+        fins[cle] = position + len(rendu)
+    return sortie
+
+
 def _item_par_champs(
     corps: list[str], ancien: dict[str, Any], cible: dict[str, Any], indent: int
 ) -> list[str]:
     """Un item de liste modifié champ par champ : les champs inchangés restent à l'octet."""
     if not isinstance(ancien, dict) or not isinstance(cible, dict) or not corps:
         return emit_item(_ordonner(cible), indent)
-    pad = " " * (indent + 2)
     # Le premier champ porte le tiret : on le lit comme s'il ne le portait pas.
-    lignes = [pad + corps[0][indent + 2 :]] + corps[1:]
-    debuts = [
-        i
-        for i, ligne in enumerate(lignes)
-        if ligne.startswith(pad)
-        and not ligne.startswith(pad + " ")
-        and re.match(r"[\w-]+:", ligne[len(pad) :])
-    ]
-    if not debuts or debuts[0] != 0:
-        return emit_item(_ordonner(cible), indent)
-    spans: dict[str, tuple[int, int]] = {}
-    for n, d in enumerate(debuts):
-        f = debuts[n + 1] if n + 1 < len(debuts) else len(lignes)
-        while f > d + 1 and not lignes[f - 1].strip():
-            f -= 1
-        cle = lignes[d][len(pad) :].split(":", 1)[0]
-        spans[cle] = (d, f)
-    if list(spans) != [k for k in ancien if k in spans] or set(spans) != set(ancien):
-        return emit_item(_ordonner(cible), indent)
-    sortie: list[str] = []
-    for cle, (d, f) in spans.items():
-        if cle not in cible:
-            continue
-        if _normal(ancien[cle]) == _normal(cible[cle]):
-            sortie += lignes[d:f]
-        else:
-            sortie += emit_field(cle, cible[cle], indent + 2)
-        sortie += [
-            x
-            for x in lignes[
-                f : (debuts[debuts.index(d) + 1] if debuts.index(d) + 1 < len(debuts) else f)
-            ]
-        ]
-    # Champs nouveaux : à leur place dans l'ordre des fiches, sinon en fin d'item.
-    rang = {k: i for i, k in enumerate(ORDRE_CHAMPS_CONDITION)}
-    for cle in [k for k in cible if k not in ancien]:
-        rendu = emit_field(cle, cible[cle], indent + 2)
-        apres = [k for k in spans if k in cible and rang.get(k, 99) <= rang.get(cle, 99)]
-        if apres:
-            # Après le dernier champ gardé qui le précède dans l'ordre.
-            ancre = apres[-1]
-            ligne_ancre = next(i for i, x in enumerate(sortie) if x.startswith(f"{pad}{ancre}:"))
-            fin_ancre = ligne_ancre + 1
-            while fin_ancre < len(sortie) and (
-                sortie[fin_ancre].startswith(pad + " ") or not sortie[fin_ancre].strip()
-            ):
-                fin_ancre += 1
-            sortie[fin_ancre:fin_ancre] = rendu
-        else:
-            sortie[0:0] = rendu
-    if not sortie:
+    lignes = [" " * (indent + 2) + corps[0][indent + 2 :]] + corps[1:]
+    sortie = _champs(lignes, ancien, cible, indent + 2, ORDRE_CHAMPS_CONDITION)
+    if not sortie or not sortie[0].startswith(" " * (indent + 2)):
         return emit_item(_ordonner(cible), indent)
     sortie[0] = " " * indent + "- " + sortie[0][indent + 2 :]
     return sortie
@@ -213,12 +234,34 @@ def _conditions(lignes: list[str], p: Plage, anciennes: list[Any], cibles: list[
     return sortie + lignes[_fin_utile(lignes, p) : p.fin]
 
 
+def _bloc(lignes: list[str], p: Plage, avant: Any, apres: Any) -> list[str]:
+    """Un bloc de premier niveau changé : champ par champ si c'est un mapping écrit en bloc."""
+    fin = _fin_utile(lignes, p)
+    if (
+        p.cle == "conditions"
+        and isinstance(avant, list)
+        and isinstance(apres, list)
+        and avant
+        and apres
+    ):
+        return lignes[p.debut : p.cle_ligne] + _conditions(lignes, p, avant, apres)
+    if isinstance(avant, dict) and isinstance(apres, dict) and avant and apres:
+        corps = lignes[p.cle_ligne + 1 : fin]
+        premiere = next((x for x in corps if x.strip() and not x.lstrip().startswith("#")), "")
+        indent = len(premiere) - len(premiere.lstrip())
+        if indent > 0 and lignes[p.cle_ligne].rstrip().endswith(":"):
+            champs = _champs(corps, avant, apres, indent)
+            if champs is not None:
+                return lignes[p.debut : p.cle_ligne + 1] + champs + lignes[fin : p.fin]
+    return lignes[p.debut : p.cle_ligne] + _emettre(p.cle or "", apres, 0) + lignes[fin : p.fin]
+
+
 def editer(texte: str, cible: dict[str, Any]) -> str:
     """Le texte de l'aide modifié par plages pour valoir `cible`. Lève `EditionImpossible`."""
     ancien = charger_yaml(texte) or {}
     if _normal(ancien) == _normal(cible):
         return texte
-    if list(ancien) != [k for k in cible if k in ancien]:
+    if [k for k in ancien if k in cible] != [k for k in cible if k in ancien]:
         raise EditionImpossible("l'ordre des clés de premier niveau change")
     lignes = texte.split("\n")
     sortie: list[str] = []
@@ -233,19 +276,14 @@ def editer(texte: str, cible: dict[str, Any]) -> str:
             continue  # clé retirée, avec ses commentaires d'en-tête
         if _normal(avant) == _normal(apres):
             sortie += lignes[p.debut : p.fin]
-        elif p.cle == "conditions" and isinstance(avant, list) and isinstance(apres, list):
-            sortie += lignes[p.debut : p.cle_ligne] + _conditions(lignes, p, avant, apres)
         else:
-            fin = _fin_utile(lignes, p)
-            sortie += (
-                lignes[p.debut : p.cle_ligne] + emit_field(p.cle, apres, 0) + lignes[fin : p.fin]
-            )
+            sortie += _bloc(lignes, p, avant, apres)
     nouvelles = [k for k in cible if k not in vues]
     if nouvelles:
         while sortie and not sortie[-1].strip():
             sortie.pop()
         for k in nouvelles:
-            sortie += ["", *emit_field(k, cible[k], 0)]
+            sortie += ["", *_emettre(k, cible[k], 0)]
         sortie.append("")
     resultat = "\n".join(sortie)
     try:

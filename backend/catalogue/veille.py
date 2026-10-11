@@ -853,6 +853,10 @@ def _escalader(
                         },
                     )
                 )
+        # Les pages que la veille a vues changer avancent aussi, même si l'agent
+        # ne les a pas archivées : sinon le même changement revient la semaine
+        # suivante et la ré-extraction se repaie.
+        _avancer(ctx, an, col, res, "reextraction")
         return MajResult(
             slug=aide.slug, etat="applique", champs=["reextraction"], empreinte=case.etat
         )

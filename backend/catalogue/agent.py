@@ -82,8 +82,15 @@ def surveiller(releve: Releve) -> None:
             "alias": alias,
             "role": req.label,
         }
+        if releve.panne in ("modele_substitue", "budget", "modele_hors_registre"):
+            # Le contrat a déjà arrêté l'aide : aucun appel de plus, même de sauvetage.
+            ligne.update(arret=releve.panne)
+            releve.ecrire(ligne)
+            raise Arret(f"aide arrêtée par le contrat ({releve.panne})")
         if m is None:
             releve.panne = releve.panne or "modele_hors_registre"
+            ligne.update(arret="modele_hors_registre")
+            releve.ecrire(ligne)
             raise Arret(f"modèle hors registre : {alias}")
         plafond = _plafond_appel(m, body)
         if releve.depense + plafond > releve.plafond:
@@ -110,6 +117,8 @@ def surveiller(releve: Releve) -> None:
             cout = extra.get("cost")
         servi = getattr(brut, "model", None) or ""
         releve.depense += float(cout) if cout is not None else plafond
+        if cout is None:
+            ligne["cout_compte"] = plafond
         ligne.update(
             modele_servi=servi,
             fournisseur=(getattr(brut, "model_extra", None) or {}).get("provider"),
@@ -152,7 +161,7 @@ def lint_par_ecart(sortie: Path, slug: str) -> None:
     """
     import dataclasses as dc
 
-    from ingestion import worker
+    from ingestion import outils, worker
 
     from catalogue.reextraction import erreurs_nouvelles
 
@@ -169,6 +178,10 @@ def lint_par_ecart(sortie: Path, slug: str) -> None:
         return rapport
 
     worker.lancer_lint = enveloppe  # type: ignore[assignment]
+    # Le lint que l'agent lance lui-même pendant sa boucle : sans l'écart, il
+    # verrait la dette connue en erreur et dépenserait à la « corriger ».
+    if hasattr(outils, "lancer_lint"):
+        outils.lancer_lint = enveloppe  # type: ignore[attr-defined]
 
 
 def veiller_parent() -> None:
