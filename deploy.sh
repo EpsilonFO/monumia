@@ -95,9 +95,11 @@ redemarrer_backends app-backend beta-backend
 
 # ── nginx ─────────────────────────────────────────────
 # `up -d` est un no-op s'il tourne déjà avec la bonne config. Il ne recrée le
-# conteneur que si docker-compose.yml a changé.
+# conteneur que si docker-compose.yml a changé. certbot est relancé au passage :
+# si sa boucle de renouvellement est morte, rien d'autre ne le remarquerait
+# avant l'expiration des certificats.
 nginx_reload_failed=""
-sudo docker compose up -d nginx
+sudo docker compose up -d nginx certbot
 reload_nginx || nginx_reload_failed="oui"
 
 # ── Sync aides YAML → aides_v3 ────────────────────────

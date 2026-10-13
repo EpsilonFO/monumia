@@ -112,6 +112,12 @@ services:
     networks:
       - default
       - web
+    # Recharge nginx toutes les 12 h. Le service certbot renouvelle les fichiers
+    # de certificat sur le disque, mais nginx garde en mémoire ceux qu'il a lus
+    # au démarrage : sans reload, il continue de servir l'ancien certificat
+    # jusqu'à son expiration, et seul un déploiement venait le rafraîchir.
+    # `exec` laisse nginx en PID 1 pour qu'il reçoive le SIGTERM de `stop`.
+    command: "/bin/sh -c 'while :; do sleep 12h & wait $${!}; nginx -s reload; done & exec nginx -g \"daemon off;\"'"
     restart: unless-stopped
 
   # ── SSL ─────────────────────────────────────────────
@@ -125,6 +131,8 @@ services:
     # Sans cette ligne, la boucle de renouvellement ne survit pas à un reboot du
     # VPS : c'est ce qui est arrivé le 2026-07-08 (conteneur mort, code 255),
     # et les certificats ont expiré le 2026-09-08 sans que rien ne le signale.
+    # Le conteneur n'a pas été relancé après ce correctif : un certificat a
+    # expiré le 2026-10-12. deploy.sh fait donc aussi `up -d certbot`.
     restart: unless-stopped
 
 volumes:
