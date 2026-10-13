@@ -97,7 +97,6 @@ export function ProjectFamillesStep({
         label="Des travaux sont nécessaires"
         hint="Aménagement, mise aux normes, restauration : nous vous demanderons sur quoi ils portent."
         multiple
-        large
         selected={avecTravaux}
         onSelect={() => toggle(FAMILLE_TRAVAUX)}
       />
@@ -105,7 +104,6 @@ export function ProjectFamillesStep({
       <CadrageTile
         label="Je ne sais pas encore, montrez-moi tout"
         hint="Nous vous montrerons toutes les aides à portée du monument, sans filtrer sur l'activité."
-        large
         selected={toutMontrer}
         onSelect={() => onChange(toutMontrer ? null : [])}
       />

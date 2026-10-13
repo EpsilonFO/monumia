@@ -12,7 +12,7 @@ d'où la distinction, dans les listes ci-dessous, entre les membres hérités du
 monument et ceux invités sur le seul projet.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -21,7 +21,7 @@ from supabase import Client
 from config import request_app_origin
 from db import get_current_user_id, get_supabase
 from services import quotas
-from services.email_service import send_invitation_email
+from services.email_service import date_fr, send_invitation_email
 from services.invitations import generate_invite_token, invitation_expiry_iso
 from services.project_access import require_projet_access
 
@@ -195,7 +195,11 @@ def create_invitation(
     )
 
     inviter = (
-        supabase.table("users").select("prenom, nom").eq("id", user_id).maybe_single().execute()
+        supabase.table("users")
+        .select("prenom, nom, email")
+        .eq("id", user_id)
+        .maybe_single()
+        .execute()
     )
     inviter_nom = (
         f"{inviter.data['prenom']} {inviter.data['nom']}"
@@ -207,7 +211,8 @@ def create_invitation(
         inviter_nom=inviter_nom,
         monument_nom=monument["nom"],
         invite_url=f"{request_app_origin(request)}/invitation/{token}",
-        expires_label=expires_at[:10],
+        expires_label=date_fr(date.fromisoformat(expires_at[:10])),
+        inviter_email=inviter.data.get("email") if inviter and inviter.data else None,
         projet_titre=projet.get("titre"),
     )
     return {

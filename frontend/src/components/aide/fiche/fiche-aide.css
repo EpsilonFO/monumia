@@ -228,6 +228,8 @@
 .fa .levier { padding: 14px 16px; border: 1px solid var(--fa-line); border-radius: 14px; background: var(--fa-warm); }
 .fa .levier b { display: block; font-size: 14.5px; font-weight: 600; line-height: 1.4; }
 .fa .levier p { font-size: 14px; color: var(--fa-body); margin-top: 4px; }
+.fa .levier .demarche ul { list-style: disc; padding-left: 18px; margin-top: 4px; font-size: 14px; color: var(--fa-body); }
+.fa .levier .demarche li + li { margin-top: 2px; }
 .fa .levier dl { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; font-size: 13px; }
 .fa .levier dt { color: var(--fa-muted); display: inline; }
 .fa .levier dd { display: inline; margin: 0 0 0 6px; }

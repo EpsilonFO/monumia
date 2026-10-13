@@ -11,14 +11,15 @@ interface CadrageStepProps {
   pourquoi: string;
   /** Entre l'encart et les réponses. */
   avantReponses?: ReactNode;
-  /** Les réponses (des `CadrageTile`), posées dans la grille à deux colonnes. */
+  /** Les réponses (des `CadrageTile`), posées dans la grille de l'écran. */
   children: ReactNode;
   multiple?: boolean;
-  /** Longue liste de réponses sans précision : cartes serrées. */
-  serre?: boolean;
   onNext: () => void;
   /** Absent quand l'écran ouvre le parcours. */
   onBack?: () => void;
+  /** L'échappatoire de l'étape, dans la barre du bas (« Pas encore déterminé »). */
+  onPasser?: () => void;
+  libellePasser?: string;
   /** Tant qu'aucune réponse n'est donnée, « Continuer » reste inerte. */
   nextDisabled?: boolean;
   /** Pourquoi « Continuer » est inerte (dit aux lecteurs d'écran). */
@@ -32,9 +33,9 @@ interface CadrageStepProps {
 /**
  * Écran de cadrage du wizard projet, au même format que les questions du
  * moteur (`EcranQuestion`) : rubrique, question, encart « Bon à savoir », réponses
- * en cartes, barre de navigation. Pas de « Je ne sais pas, passer » ici : les
- * étapes de cadrage portent chacune leur propre « pas encore déterminé », qui
- * est une réponse enregistrée.
+ * en cartes, barre de navigation. Une étape de cadrage peut renommer le lien
+ * « Je ne sais pas, passer » de la barre du bas : son échappatoire (« Pas encore
+ * déterminé ») est une réponse enregistrée, pas une question sautée.
  */
 export function CadrageStep({
   rubrique,
@@ -44,9 +45,10 @@ export function CadrageStep({
   avantReponses,
   children,
   multiple,
-  serre,
   onNext,
   onBack,
+  onPasser,
+  libellePasser,
   nextDisabled,
   nextHint,
   saving,
@@ -60,9 +62,10 @@ export function CadrageStep({
       pourquoi={pourquoi}
       avantReponses={avantReponses}
       multiple={multiple}
-      serre={serre}
       gele={saving}
       onPrecedent={onBack}
+      onPasser={onPasser}
+      libellePasser={libellePasser}
       onContinuer={onNext}
       continuerDesactive={nextDisabled}
       continuerIndice={nextHint}
@@ -76,25 +79,22 @@ export function CadrageStep({
 
 interface CadrageTileProps {
   label: string;
-  /** Précision sous le libellé. */
+  /** Précision du libellé, en infobulle au survol de la carte. */
   hint?: string;
   selected: boolean;
   /** Case carrée (choix multiple) plutôt que ronde (choix exclusif). */
   multiple?: boolean;
-  /** Réponse à part, sur toute la largeur (« Pas encore déterminé »…). */
-  large?: boolean;
   onSelect: () => void;
 }
 
 /** Réponse cochable d'un écran de cadrage : la carte du questionnaire. */
-export function CadrageTile({ label, hint, selected, multiple, large, onSelect }: CadrageTileProps) {
+export function CadrageTile({ label, hint, selected, multiple, onSelect }: CadrageTileProps) {
   return (
     <CarteReponse
       label={label}
       description={hint}
       selected={selected}
       multiple={multiple}
-      large={large}
       onSelect={onSelect}
     />
   );

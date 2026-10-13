@@ -16,6 +16,8 @@ interface ProjectTravauxStepProps {
   value: WorkType[] | null;
   onChange: (travaux: WorkType[] | null) => void;
   onNext: () => void;
+  /** « Pas encore déterminé » : enregistre la liste vide et passe à la suite. */
+  onIndetermine: () => void;
   onBack?: () => void;
   saving?: boolean;
 }
@@ -32,18 +34,18 @@ interface ProjectTravauxStepProps {
  * PROJET : deux chantiers d'un même monument peuvent viser des ouvrages
  * différents, et n'ont donc pas les mêmes aides.
  *
- * « Pas encore déterminé » persiste une liste vide : le filtre redevient
- * fail-open et aucune aide n'est masquée faute de donnée.
+ * « Pas encore déterminé », dans la barre du bas, persiste une liste vide : le
+ * filtre redevient fail-open et aucune aide n'est masquée faute de donnée.
  */
 export function ProjectTravauxStep({
   value,
   onChange,
   onNext,
+  onIndetermine,
   onBack,
   saving,
 }: ProjectTravauxStepProps) {
   const selected = value ?? [];
-  const indetermine = value !== null && value.length === 0;
 
   const toggle = (type: WorkType) => {
     const next = selected.includes(type)
@@ -61,10 +63,11 @@ export function ProjectTravauxStep({
       consigne="Plusieurs réponses possibles."
       pourquoi="Certaines aides ne financent qu'un type d'ouvrage précis."
       multiple
-      // Vingt-cinq types : des cartes serrées, rangées par famille.
-      serre
       onNext={onNext}
       onBack={onBack}
+      // À la place du « Je ne sais pas, passer » des autres questions.
+      onPasser={onIndetermine}
+      libellePasser="Pas encore déterminé"
       nextDisabled={value === null}
       nextHint="Cochez au moins un type de travaux, ou « Pas encore déterminé »."
       saving={saving}
@@ -72,30 +75,18 @@ export function ProjectTravauxStep({
       modifiablePlusTard
     >
       <BlocsReponses
-        serre
         blocs={BLOCS_TRAVAUX.map((bloc) => ({
           titre: bloc.titre,
           cartes: bloc.options.map((type) => (
             <CadrageTile
               key={type.value}
               label={type.label}
-              hint={'hint' in type ? type.hint : undefined}
               multiple
               selected={selected.includes(type.value as WorkType)}
               onSelect={() => toggle(type.value as WorkType)}
             />
           )),
         }))}
-        pied={[
-          <CadrageTile
-            key="indetermine"
-            label="Pas encore déterminé"
-            hint="Nous vous montrerons toutes les aides, sans filtrer sur le type de travaux."
-            large
-            selected={indetermine}
-            onSelect={() => onChange(indetermine ? null : [])}
-          />,
-        ]}
       />
     </CadrageStep>
   );

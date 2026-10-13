@@ -70,7 +70,7 @@ PROFILS: dict[str, Profil] = {
             region="pays-de-la-loire",
             departement_num="44",
             etat_conservation="mauvais",
-            travaux_envisages=["toiture", "facade"],
+            travaux_envisages=["charpente", "couverture", "facade"],
         ),
         population=3000,
         answers=dict(_NON_HISTORIQUE),
@@ -82,7 +82,7 @@ PROFILS: dict[str, Profil] = {
             region="nouvelle-aquitaine",
             departement_num="33",
             etat_conservation="moyen",
-            travaux_envisages=["toiture"],
+            travaux_envisages=["charpente", "couverture"],
         ),
         population=3000,
         answers=dict(_NON_HISTORIQUE),
@@ -114,7 +114,7 @@ PROFILS: dict[str, Profil] = {
             region="grand-est",
             departement_num="88",
             etat_conservation="mauvais",
-            travaux_envisages=["toiture", "charpente", "maconnerie"],
+            travaux_envisages=["charpente", "couverture", "maconnerie"],
         ),
         population=1200,
         answers={
@@ -129,7 +129,7 @@ PROFILS: dict[str, Profil] = {
             region="bourgogne-franche-comte",
             departement_num="71",
             etat_conservation="mauvais",
-            travaux_envisages=["toiture", "charpente", "maconnerie"],
+            travaux_envisages=["charpente", "couverture", "maconnerie"],
         ),
         population=1200,
         answers={
@@ -144,7 +144,7 @@ PROFILS: dict[str, Profil] = {
             region="bourgogne-franche-comte",
             departement_num="71",
             etat_conservation="mauvais",
-            travaux_envisages=["toiture", "charpente", "maconnerie"],
+            travaux_envisages=["charpente", "couverture", "maconnerie"],
         ),
         population=1200,
         answers={
@@ -159,7 +159,7 @@ PROFILS: dict[str, Profil] = {
             region="ile-de-france",
             departement_num="77",
             etat_conservation="mauvais",
-            travaux_envisages=["toiture", "charpente", "maconnerie"],
+            travaux_envisages=["charpente", "couverture", "maconnerie"],
         ),
         population=1200,
         answers={
@@ -271,7 +271,7 @@ PROFILS: dict[str, Profil] = {
             region="auvergne-rhone-alpes",
             departement_num="63",
             etat_conservation="mauvais",
-            travaux_envisages=["toiture", "charpente", "maconnerie"],
+            travaux_envisages=["charpente", "couverture", "maconnerie"],
         ),
         population=1200,
         answers={
@@ -286,7 +286,7 @@ PROFILS: dict[str, Profil] = {
             region="bourgogne-franche-comte",
             departement_num="25",
             etat_conservation="mauvais",
-            travaux_envisages=["toiture", "charpente", "maconnerie"],
+            travaux_envisages=["charpente", "couverture", "maconnerie"],
         ),
         population=1200,
         answers={
@@ -301,7 +301,7 @@ PROFILS: dict[str, Profil] = {
             region="bretagne",
             departement_num="35",
             etat_conservation="mauvais",
-            travaux_envisages=["toiture", "charpente", "maconnerie"],
+            travaux_envisages=["charpente", "couverture", "maconnerie"],
         ),
         population=1200,
         answers={
@@ -316,7 +316,7 @@ PROFILS: dict[str, Profil] = {
             region="occitanie",
             departement_num="12",
             etat_conservation="mauvais",
-            travaux_envisages=["toiture", "charpente", "maconnerie"],
+            travaux_envisages=["charpente", "couverture", "maconnerie"],
         ),
         population=1200,
         answers={
@@ -331,7 +331,7 @@ PROFILS: dict[str, Profil] = {
             region="provence-alpes-cote-d-azur",
             departement_num="84",
             etat_conservation="mauvais",
-            travaux_envisages=["toiture", "charpente", "maconnerie"],
+            travaux_envisages=["charpente", "couverture", "maconnerie"],
         ),
         population=1200,
         answers={

@@ -21,19 +21,19 @@ describe('projetTitre', () => {
   });
 
   it('ignore un titre vide ou blanc', () => {
-    expect(projetTitre(projet({ titre: '   ', travauxEnvisages: ['toiture'] }))).toBe('Toiture');
+    expect(projetTitre(projet({ titre: '   ', travauxEnvisages: ['facade'] }))).toBe('Façade');
   });
 
   it('décrit le projet par ses travaux, en clair', () => {
-    expect(projetTitre(projet({ travauxEnvisages: ['toiture', 'charpente'] }))).toBe(
-      'Toiture, Charpente',
+    expect(projetTitre(projet({ travauxEnvisages: ['facade', 'charpente'] }))).toBe(
+      'Façade, Charpente',
     );
   });
 
   it('abrège au-delà de trois types de travaux', () => {
     expect(
-      projetTitre(projet({ travauxEnvisages: ['toiture', 'charpente', 'couverture', 'facade'] })),
-    ).toBe('Toiture, Charpente, Couverture +1');
+      projetTitre(projet({ travauxEnvisages: ['facade', 'charpente', 'couverture', 'maconnerie'] })),
+    ).toBe('Façade, Charpente, Couverture +1');
   });
 
   it('retombe sur la première intention quand les travaux ne sont pas déterminés', () => {
@@ -90,7 +90,7 @@ describe('projetTitre : intention appliquée au monument', () => {
   });
 
   it("préfère l'intention aux travaux, et le libellé seul sans le nom du monument", () => {
-    const p = projet({ questionnaire: restaurer, travauxEnvisages: ['toiture'] });
+    const p = projet({ questionnaire: restaurer, travauxEnvisages: ['facade'] });
     expect(projetTitre(p, 'Château de Chambord')).toBe('Restaurer le Château de Chambord');
     expect(projetTitre(p)).toBe('Restaurer ou faire des travaux');
   });
@@ -103,14 +103,14 @@ describe('projetTitre : intention appliquée au monument', () => {
 describe('projetSousTitre', () => {
   it('liste les travaux, la première lettre seule en capitale', () => {
     expect(
-      projetSousTitre(projet({ titre: 'Restauration de la toiture', travauxEnvisages: ['toiture', 'charpente', 'couverture'] })),
-    ).toBe('Toiture, charpente, couverture');
+      projetSousTitre(projet({ titre: 'Restauration de la toiture', travauxEnvisages: ['facade', 'charpente', 'couverture'] })),
+    ).toBe('Façade, charpente, couverture');
   });
 
   it('retombe sur l’intention sans travaux, et ne répète pas le titre', () => {
     expect(projetSousTitre(projet({ titre: 'Ouverture au public', questionnaire: { _raisons: ['valorisation_rayonnement'] } })))
       .toBe('Faire vivre et ouvrir le lieu');
-    expect(projetSousTitre(projet({ travauxEnvisages: ['toiture'] }))).toBeNull();
+    expect(projetSousTitre(projet({ travauxEnvisages: ['facade'] }))).toBeNull();
     expect(projetSousTitre(projet({ titre: 'Chantier' }))).toBeNull();
   });
 });

@@ -26,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { QuestionOptions } from '@/components/project/wizard/QuestionOptions';
+import { TexteAide } from '@/components/shared/TexteAide';
 import { AIDE_CATEGORIES, AIDE_TYPES } from '@/constants/aide-categories';
 import { questionsPourAide } from '@/lib/diagnostic-bilan';
 import { formatCurrency } from '@/lib/format-utils';
@@ -221,7 +222,10 @@ function LevierPlan({ levier }: { levier: AideLevier }) {
           <p className="text-[14.5px] font-semibold text-info">{levier.ecart}</p>
         )}
         {levier.demarche && (
-          <p className="text-xs leading-relaxed text-muted-foreground">{levier.demarche}</p>
+          <TexteAide
+            className="space-y-1 text-xs leading-relaxed text-muted-foreground [&_ul]:list-disc [&_ul]:pl-4"
+            texte={levier.demarche}
+          />
         )}
         {facts.length > 0 && (
           <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs">

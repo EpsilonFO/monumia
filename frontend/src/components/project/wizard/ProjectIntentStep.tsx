@@ -37,15 +37,12 @@ export function ProjectIntentStep({ value, onChange, onNext }: ProjectIntentStep
       nextDisabled={value.length === 0}
       nextHint="Choisissez une intention."
     >
-      {RAISON_CHOIX.map((option, i) => (
+      {RAISON_CHOIX.map((option) => (
         <CadrageTile
           key={option.value}
           label={option.label}
           hint={option.hint}
           selected={value.includes(option.value)}
-          // Un nombre impair de réponses laisserait la dernière seule sur sa
-          // ligne, à mi-largeur : elle prend toute la largeur.
-          large={RAISON_CHOIX.length % 2 === 1 && i === RAISON_CHOIX.length - 1}
           onSelect={() => select(option.value)}
         />
       ))}

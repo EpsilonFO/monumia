@@ -1,8 +1,7 @@
-import { Children, useId, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react';
+import { useId, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { TexteAide } from '@/components/shared/TexteAide';
-import { classeColonnes } from '@/lib/question-reponse';
 import { longueurTexteAide } from '@/lib/texte-aide';
 import { cn } from '@/lib/utils';
 
@@ -46,15 +45,13 @@ function Pourquoi({ texte }: { texte: string }) {
 
 interface CarteReponseProps {
   label: string;
-  /** La précision sous le libellé, quand il y en a une. */
+  /** La précision du libellé, quand il y en a une : au survol de la carte. */
   description?: string | null;
   selected: boolean;
   /** Choix multiple : case carrée plutôt que rond. */
   multiple?: boolean;
   /** Réponse « je ne sais pas » du moteur : libellé moins appuyé. */
   nsp?: boolean;
-  /** Réponse à part, sur toute la largeur de la grille. */
-  large?: boolean;
   onSelect: () => void;
   /** Roving tabindex du questionnaire ; absent, la carte est tabulable. */
   tabIndex?: number;
@@ -63,12 +60,11 @@ interface CarteReponseProps {
 }
 
 /**
- * Une réponse, en carte : le rond (ou le carré) à cocher, le libellé en gras
- * (court : 45 caractères au plus), et la description facultative dessous, plus
- * petite et coupée à deux lignes. Elle se déplie en entier quand la carte est
- * cochée ou atteinte au clavier, et le survol la montre en infobulle : un
- * bouton « Lire la suite » DANS le bouton de la carte serait un contrôle
- * imbriqué. Cochée, la carte passe au bleu.
+ * Une réponse, en carte : le rond (ou le carré) à cocher et le libellé en gras
+ * (court : 45 caractères au plus). Toutes les cartes ont la même taille, d'une
+ * question à l'autre, et rien d'autre ne s'y affiche : la précision facultative
+ * passe en infobulle au survol, et le lecteur d'écran l'entend avec la réponse
+ * (`aria-describedby`).
  */
 export function CarteReponse({
   label,
@@ -76,31 +72,37 @@ export function CarteReponse({
   selected,
   multiple,
   nsp,
-  large,
   onSelect,
   tabIndex,
   onKeyDown,
   buttonRef,
 }: CarteReponseProps) {
+  const descriptionId = useId();
   return (
-    <button
-      ref={buttonRef}
-      type="button"
-      className={cn('opt', multiple && 'multi', nsp && 'nsp', large && 'large')}
-      role={multiple ? 'checkbox' : 'radio'}
-      aria-checked={selected}
-      tabIndex={tabIndex}
-      onClick={onSelect}
-      onKeyDown={onKeyDown}
-    >
-      <span className="rd" aria-hidden="true">
-        <Picto nom="coche" />
-      </span>
-      <span>
+    <div className={cn('opt', multiple && 'multi', nsp && 'nsp', selected && 'on')}>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="opt-btn"
+        role={multiple ? 'checkbox' : 'radio'}
+        aria-checked={selected}
+        aria-describedby={description ? descriptionId : undefined}
+        title={description ? `${label} : ${description}` : label}
+        tabIndex={tabIndex}
+        onClick={onSelect}
+        onKeyDown={onKeyDown}
+      >
+        <span className="rd" aria-hidden="true">
+          <Picto nom="coche" />
+        </span>
         <b>{label}</b>
-        {description && <small title={description}>{description}</small>}
-      </span>
-    </button>
+      </button>
+      {description && (
+        <span id={descriptionId} hidden>
+          {description}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -117,18 +119,18 @@ interface EcranQuestionProps {
   enTete?: ReactNode;
   /** Entre l'encart et les réponses (la liste des réponses à reprendre). */
   avantReponses?: ReactNode;
-  /** Les cartes de réponse : elles sont posées dans la grille à deux colonnes. */
+  /** Les cartes de réponse : elles sont posées dans la grille à trois colonnes. */
   children: ReactNode;
   /** Après les réponses (l'encart d'une réponse écartante). */
   apresReponses?: ReactNode;
   multiple?: boolean;
-  /** Longue liste de réponses sans description : cartes serrées. */
-  serre?: boolean;
   /** Désactive la grille pendant un enregistrement. */
   gele?: boolean;
   onPrecedent?: () => void;
   /** « Je ne sais pas, passer » : le lien n'est rendu que s'il est fourni. */
   onPasser?: () => void;
+  /** Le libellé de ce lien, quand l'échappatoire a un autre nom. */
+  libellePasser?: string;
   onContinuer: () => void;
   continuerDesactive?: boolean;
   /** Pourquoi « Continuer » est inerte, dit aux lecteurs d'écran. */
@@ -147,36 +149,27 @@ interface BlocsReponsesProps {
   blocs: { titre: string | null; cartes: ReactNode[] }[];
   /** Les échappatoires (« Pas encore décidé »), sous tous les blocs. */
   pied?: ReactNode[];
-  serre?: boolean;
 }
 
 /**
- * Les cartes rangées sous leurs intertitres : une sous-grille par bloc, trois
- * colonnes au plus, puis le pied. À poser dans la grille d'`EcranQuestion`,
- * qui passe alors en simple colonne (`.opts:has(> .grp)`).
+ * Les cartes rangées sous leurs intertitres : une sous-grille par bloc, puis
+ * le pied. Toutes les sous-grilles ont les mêmes colonnes que la grille
+ * d'`EcranQuestion`, qui passe alors en simple colonne (`.opts:has(> .grp)`).
  */
-export function BlocsReponses({ blocs, pied = [], serre }: BlocsReponsesProps) {
+export function BlocsReponses({ blocs, pied = [] }: BlocsReponsesProps) {
   return (
     <>
       {blocs.map((bloc, i) => (
-        <BlocReponses key={bloc.titre ?? `bloc-${i}`} titre={bloc.titre} serre={serre}>
+        <BlocReponses key={bloc.titre ?? `bloc-${i}`} titre={bloc.titre}>
           {bloc.cartes}
         </BlocReponses>
       ))}
-      {pied.length > 0 && <div className={cn('opts', 'pied', serre && 'serre')}>{pied}</div>}
+      {pied.length > 0 && <div className="opts pied">{pied}</div>}
     </>
   );
 }
 
-function BlocReponses({
-  titre,
-  serre,
-  children,
-}: {
-  titre: string | null;
-  serre?: boolean;
-  children: ReactNode[];
-}) {
+function BlocReponses({ titre, children }: { titre: string | null; children: ReactNode[] }) {
   const titreId = useId();
   return (
     <div className="grp" role="group" aria-labelledby={titre ? titreId : undefined}>
@@ -185,16 +178,14 @@ function BlocReponses({
           {titre}
         </p>
       )}
-      <div className={cn('opts', classeColonnes(children.length, 3), serre && 'serre')}>
-        {children}
-      </div>
+      <div className="opts">{children}</div>
     </div>
   );
 }
 
 /**
  * Une question du wizard, au dessin de la maquette : rubrique, question en
- * sérif, consigne, encart « Bon à savoir », réponses en cartes sur deux colonnes,
+ * sérif, consigne, encart « Bon à savoir », réponses en cartes sur trois colonnes,
  * puis la barre « Question précédente » / « Je ne sais pas, passer » /
  * « Continuer ». Les étapes de cadrage et le questionnaire du moteur la
  * partagent : le parcours se lit d'un bout à l'autre comme une seule suite.
@@ -209,10 +200,10 @@ export function EcranQuestion({
   children,
   apresReponses,
   multiple,
-  serre,
   gele,
   onPrecedent,
   onPasser,
+  libellePasser = 'Je ne sais pas, passer',
   onContinuer,
   continuerDesactive,
   continuerIndice,
@@ -241,7 +232,7 @@ export function EcranQuestion({
         {pourquoi && <Pourquoi texte={pourquoi} />}
         {avantReponses}
         <div
-          className={cn('opts', classeColonnes(Children.count(children)), serre && 'serre')}
+          className="opts"
           role={multiple ? 'group' : 'radiogroup'}
           aria-labelledby={titreId}
           aria-disabled={gele || undefined}

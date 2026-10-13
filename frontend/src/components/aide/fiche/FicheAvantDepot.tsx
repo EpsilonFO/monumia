@@ -1,3 +1,4 @@
+import { TexteAide } from '@/components/shared/TexteAide';
 import { Ico } from './Ico';
 import { Repli } from './Repli';
 import type { PointReglement } from '@/lib/fiche-aide';
@@ -9,7 +10,8 @@ export function PlanLevier({ levier, titre = levier.resume }: { levier: AideLevi
     <div className="levier">
       <b>{titre}</b>
       {levier.ecart && <p>{levier.ecart}</p>}
-      {levier.demarche && <p>{levier.demarche}</p>}
+      {/* Paragraphes et puces, comme le `help` d'une question (cf. facts.yaml). */}
+      {levier.demarche && <TexteAide className="demarche" texte={levier.demarche} />}
       {(levier.organisme || levier.cout || levier.delai) && (
         <dl>
           {levier.organisme && <div><dt>Auprès de</dt><dd>{levier.organisme}</dd></div>}

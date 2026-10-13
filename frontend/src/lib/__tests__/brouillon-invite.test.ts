@@ -87,7 +87,7 @@ const PROJET_CREE = { id: 'prj-1', monumentId: 'mon-1' } as Projet;
 function brouillonComplet() {
   const store = useBrouillonInviteStore.getState();
   store.setMonument(MONUMENT);
-  store.setCadrage(['restauration_travaux'], ['toiture']);
+  store.setCadrage(['restauration_travaux'], ['facade']);
   store.setAnswers({ etat_travaux: 'non_commences' });
   store.setEtape('inscription');
 }
@@ -157,7 +157,7 @@ describe('finaliserBrouillon — chemin nominal', () => {
     expect(creerMonument).toHaveBeenCalledTimes(1);
     expect(creerMonument).toHaveBeenCalledWith(expect.objectContaining({ nom: MONUMENT.nom }));
     expect(creerProjet).toHaveBeenCalledWith('mon-1', {
-      travauxEnvisages: ['toiture'],
+      travauxEnvisages: ['facade'],
       questionnaire: { etat_travaux: 'non_commences', _raisons: ['restauration_travaux'] },
     });
   });

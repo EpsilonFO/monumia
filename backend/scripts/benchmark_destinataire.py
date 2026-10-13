@@ -20,11 +20,17 @@ sur lequel l'humain a jugé. Les deux modèles lisent exactement ce texte,
 tronqué comme à la lecture (`MAX_CAR_PAGE`).
 
 Chaque réponse est mise en cache (`data/reviews/logs/benchmark-destinataire/`,
-hors git) : relancer ne repaie rien, et le rapport se régénère seul.
+hors git) : relancer ne repaie rien, et le rapport se régénère seul. Le cache
+du LLM est rangé PAR MODÈLE (`llm-<alias>.jsonl`) : un cache unique ferait
+passer un nouveau modèle pour déjà jugé, et le banc ne mesurerait que l'ancien.
+Dès que deux modèles ont jugé, le rapport les met face à face sur leurs cas
+communs.
 
     uv run python scripts/benchmark_destinataire.py --dry-run
     uv run python scripts/benchmark_destinataire.py --jev --echantillon 40
     uv run python scripts/benchmark_destinataire.py --jev --llm
+    uv run python scripts/benchmark_destinataire.py --llm \\
+        --model-lecture or-glm --model-lecture or-mistral-large --echantillon 200
     uv run python scripts/benchmark_destinataire.py          # rapport seul
 
 Ne modifie aucune aide, aucune tâche de la file : le seul fichier versionné
@@ -56,7 +62,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from pipeline.decision import ClientDecision, ErreurDecision
 from pipeline.etat import FILE_ATTENTE
-from pipeline.llm import charger_env, client_pour
+from pipeline.llm import charger_env, client_pour, resolution_pour
 from prospection import arbitre
 from prospection.lecture import MAX_CAR_PAGE, LectureFiche, consigne
 from veille_collect import pdf_to_text
@@ -396,8 +402,19 @@ def _pct(n: int, total: int) -> str:
     return f"{n} ({100 * n / total:.1f} %)" if total else "0"
 
 
-def rapport(cas: list[Cas], jev: dict[str, dict[str, Any]], llm: dict[str, dict[str, Any]]) -> str:
+def _issue_llm(r: dict[str, Any]) -> str:
+    return "retenue" if r["retenir"] else "humain" if r["indeterminee"] else "ecartee"
+
+
+def rapport(
+    cas: list[Cas],
+    jev: dict[str, dict[str, Any]],
+    llms: dict[str, dict[str, dict[str, Any]]],
+    reference: str,
+) -> str:
+    """`llms` : les verdicts par modèle ; `reference` : celui que Jev affronte."""
     par_slug = {c.slug: c for c in cas}
+    llm = llms.get(reference, {})
     lignes: list[str] = [f"# Banc d'essai du test du destinataire, {date.today().isoformat()}", ""]
     n_g = sum(c.garde for c in cas)
     lignes += [
@@ -407,18 +424,21 @@ def rapport(cas: list[Cas], jev: dict[str, dict[str, Any]], llm: dict[str, dict[
         f"{MAX_CAR_PAGE} caractères.",
         "",
         f"Jeu : **{len(cas)} aides**, {n_g} gardées, {len(cas) - n_g} écartées.",
-        f"Jugées : Jev {len(jev)}, LLM de lecture {len(llm)}.",
+        "Jugées : Jev "
+        + str(len(jev))
+        + "".join(f", {m} {len(r)}" for m, r in sorted(llms.items()))
+        + ".",
         "",
     ]
 
     # --- LLM de lecture : trois issues, comme en production
-    if llm:
-        rs = [(par_slug[s], r) for s, r in llm.items() if s in par_slug]
-        modeles = sorted({r["modele"] for _, r in rs})
+    for alias, verdicts in sorted(llms.items()):
+        rs = [(par_slug[s], r) for s, r in verdicts.items() if s in par_slug]
         g = [r for c, r in rs if c.garde]
         e = [r for c, r in rs if not c.garde]
+        lat = [r["latence_s"] for _, r in rs if r.get("latence_s")]
         lignes += [
-            f"## LLM de lecture ({', '.join(modeles)})",
+            f"## LLM de lecture ({alias})",
             "",
             "Issue de production : `retenir` calculé, `indeterminee` renvoyée à un humain, "
             "le reste écarté.",
@@ -432,9 +452,80 @@ def rapport(cas: list[Cas], jev: dict[str, dict[str, Any]], llm: dict[str, dict[
             f"| écartées | **{_pct(sum(not r['retenir'] and not r['indeterminee'] for r in g), len(g))}** "
             f"| {_pct(sum(not r['retenir'] and not r['indeterminee'] for r in e), len(e))} |",
             "",
-            f"Coût : ${sum(r.get('cout_usd') or 0 for _, r in rs):.4f} pour {len(rs)} cas.",
+            f"Coût : ${sum(r.get('cout_usd') or 0 for _, r in rs):.4f} pour {len(rs)} cas"
+            + (f" ; latence médiane {statistics.median(lat):.1f} s." if lat else "."),
             "",
         ]
+
+    # --- Face-à-face des LLM, sur les seuls cas que tous ont jugés
+    if len(llms) >= 2:
+        modeles = sorted(llms)
+        communs = sorted(s for s in par_slug if all(s in llms[m] for m in modeles))
+        if communs:
+            n_g = sum(par_slug[s].garde for s in communs)
+            n_e = len(communs) - n_g
+            lignes += [
+                f"## Face-à-face des LLM de lecture, sur les {len(communs)} cas jugés par tous",
+                "",
+                f"{n_g} gardées, {n_e} écartées. Une gardée écartée est perdue sans recours ; "
+                "une écartée retenue coûte une ingestion et de la relecture.",
+                "",
+                "| | " + " | ".join(modeles) + " |",
+                "|---|" + "---:|" * len(modeles),
+            ]
+            for libelle, issue, verite in (
+                ("gardées écartées à tort", "ecartee", True),
+                ("écartées retenues à tort", "retenue", False),
+                ("renvoyées à un humain", "humain", None),
+            ):
+                tot = sum(verite is None or par_slug[s].garde == verite for s in communs)
+                cols = [
+                    _pct(
+                        sum(
+                            (verite is None or par_slug[s].garde == verite)
+                            and _issue_llm(llms[m][s]) == issue
+                            for s in communs
+                        ),
+                        tot,
+                    )
+                    for m in modeles
+                ]
+                lignes.append(f"| {libelle} | " + " | ".join(cols) + " |")
+            couts = [sum(llms[m][s].get("cout_usd") or 0 for s in communs) for m in modeles]
+            lats = [
+                statistics.median(
+                    [llms[m][s]["latence_s"] for s in communs if llms[m][s].get("latence_s")]
+                    or [0.0]
+                )
+                for m in modeles
+            ]
+            lignes += [
+                "| coût total | " + " | ".join(f"${c:.4f}" for c in couts) + " |",
+                "| latence médiane | " + " | ".join(f"{x:.1f} s" for x in lats) + " |",
+                "",
+            ]
+
+            # Les cas où les modèles divergent : c'est là qu'on lit lequel a raison.
+            divergents = [s for s in communs if len({_issue_llm(llms[m][s]) for m in modeles}) > 1]
+            if divergents:
+                lignes += [
+                    f"### Les {len(divergents)} cas où ils divergent",
+                    "",
+                    "| slug | humain | " + " | ".join(modeles) + " |",
+                    "|---|---|" + "---|" * len(modeles),
+                ]
+                for s in divergents:
+                    verdicts = []
+                    for m in modeles:
+                        r = llms[m][s]
+                        juste = (_issue_llm(r) == "retenue") == par_slug[s].garde
+                        marque = "" if _issue_llm(r) == "humain" else (" ✓" if juste else " ✗")
+                        verdicts.append(
+                            f"{_issue_llm(r)}{marque} ({r['destinataire']} / {r['objet']})"
+                        )
+                    humain = "gardée" if par_slug[s].garde else "écartée"
+                    lignes.append(f"| `{s}` | {humain} | " + " | ".join(verdicts) + " |")
+                lignes.append("")
 
     # --- Jev : séparation, calibration, bandes
     if jev:
@@ -548,8 +639,7 @@ def rapport(cas: list[Cas], jev: dict[str, dict[str, Any]], llm: dict[str, dict[
         rs = [(par_slug[s], scores_jev(jev[s])["deposable"], llm[s]) for s in communs]
         couples = [(p, c.garde) for c, p, _ in rs]
 
-        def issue_llm(r: dict[str, Any]) -> str:
-            return "retenue" if r["retenir"] else "humain" if r["indeterminee"] else "ecartee"
+        issue_llm = _issue_llm
 
         part_llm = sum(issue_llm(r) == "humain" for _, _, r in rs) / len(rs)
         bandes_jev = {
@@ -562,7 +652,7 @@ def rapport(cas: list[Cas], jev: dict[str, dict[str, Any]], llm: dict[str, dict[
 
         bt, bc = bandes_jev["tolerance"], bandes_jev["charge"]
         lignes += [
-            f"## Tête-à-tête sur les {len(communs)} cas jugés par les deux",
+            f"## Tête-à-tête Jev / {reference}, sur les {len(communs)} cas jugés par les deux",
             "",
             "Seuils de Jev ajustés sur ces mêmes cas : optimiste pour Jev, à lire avec "
             "les bandes mesurées sur une moitié à part plus haut. Deux réglages : "
@@ -630,7 +720,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--jev", action="store_true", help="faire juger par Jev (DECISION_MODEL)")
     p.add_argument("--llm", action="store_true", help="faire juger par le LLM de lecture")
-    p.add_argument("--model-lecture", help="modèle du LLM (défaut : LLM_MODEL_LECTURE)")
+    p.add_argument(
+        "--model-lecture",
+        action="append",
+        default=[],
+        help="modèle du LLM (défaut : LLM_MODEL_LECTURE) ; répétable pour en comparer plusieurs",
+    )
     p.add_argument("--echantillon", type=int, help="n cas équilibrés au lieu du jeu entier")
     p.add_argument("--parallele", type=int, default=8)
     p.add_argument("--dry-run", action="store_true", help="décrire le jeu, n'appeler personne")
@@ -657,13 +752,20 @@ def main(argv: list[str] | None = None) -> int:
             faire_juger("jev", juge_jev(client), cas, args.parallele)
         finally:
             client.fermer()
+    production = resolution_pour("lecture").spec.alias
     if args.llm:
-        faire_juger("llm", juge_llm(args.model_lecture), cas, args.parallele)
+        for modele in args.model_lecture or [production]:
+            alias = resolution_pour("lecture", modele).spec.alias
+            faire_juger(f"llm-{alias}", juge_llm(alias), cas, args.parallele)
 
     slugs = {c.slug for c in cas}
     jev = {s: r for s, r in lire_cache("jev").items() if s in slugs}
-    llm = {s: r for s, r in lire_cache("llm").items() if s in slugs}
-    texte = rapport(cas, jev, llm)
+    llms = {
+        f.stem.removeprefix("llm-"): {s: r for s, r in lire_cache(f.stem).items() if s in slugs}
+        for f in sorted(CACHE_DIR.glob("llm-*.jsonl"))
+    }
+    llms = {m: v for m, v in llms.items() if v}
+    texte = rapport(cas, jev, llms, production)
     REVIEWS_DIR.mkdir(parents=True, exist_ok=True)
     chemin = REVIEWS_DIR / f"{date.today().isoformat()}-benchmark-destinataire.md"
     chemin.write_text(texte + "\n", encoding="utf-8")
