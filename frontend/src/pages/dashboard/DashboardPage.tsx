@@ -24,6 +24,7 @@ import { documentDuMonument } from '@/lib/pieces-a-deposer';
 import type { ProjectDigest, Projet } from '@/types';
 import '@/components/dashboard/nouvelle-recherche.css';
 import './tableau-de-bord.css';
+import { Guide } from '@/components/shared/Guide';
 
 /** La phrase sous le bonjour : ce que dit la date la plus proche. Sans date,
  *  la carte « Tout est à jour » le dit déjà : pas de phrase. */
@@ -125,6 +126,7 @@ export function DashboardPage() {
 
   return (
     <div className="ec tdb">
+      <Guide id="monuments" pret={!loading} />
       <div className="hello">
         <div>
           <span className="eyebrow">{jour.charAt(0).toUpperCase() + jour.slice(1)}</span>
@@ -134,7 +136,11 @@ export function DashboardPage() {
           {!loading && aFaire && <p>{phraseDuJour(aFaire)}</p>}
         </div>
         <div className="hello-acts">
-          <Link className="btn b-line b-lg" to={ROUTES.MONUMENT_NEW}>
+          <Link
+            className="btn b-line b-lg"
+            to={ROUTES.MONUMENT_NEW}
+            data-guide="monuments.nouveau-monument"
+          >
             <Picto nom="plus" />
             {userMonuments.length === 0 ? 'Créer un monument' : 'Nouveau monument'}
           </Link>

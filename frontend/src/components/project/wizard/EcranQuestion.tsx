@@ -26,7 +26,7 @@ function Pourquoi({ texte }: { texte: string }) {
   const [ouvert, setOuvert] = useState(false);
   const long = longueurTexteAide(texte) > POURQUOI_REPLIE;
   return (
-    <div className="why">
+    <div className="why" data-guide="questionnaire.aide">
       <span className="ic" aria-hidden="true">
         i
       </span>
@@ -252,7 +252,13 @@ export function EcranQuestion({
             </button>
           )}
           {onPasser && (
-            <button className="skip" type="button" onClick={onPasser} disabled={enCours}>
+            <button
+              className="skip"
+              type="button"
+              onClick={onPasser}
+              disabled={enCours}
+              data-guide="questionnaire.passer"
+            >
               {libellePasser}
             </button>
           )}

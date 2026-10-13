@@ -56,6 +56,7 @@ import type {
   AideDiagnosticResult, AideMatchResult, Document, ProjectInvitation, ProjectMember,
   ProjectQuestionnaireAnswers,
 } from '@/types';
+import { Guide } from '@/components/shared/Guide';
 
 /** Tri : aides avec une échéance à venir d'abord (de la plus proche à la plus lointaine),
  *  puis les permanentes / sans date / échéances dépassées. */
@@ -576,7 +577,7 @@ export function ProjetDetailPage() {
   const projectTabs: Onglet<string>[] = [
     // Les aides à débloquer comptent : ce sont des pistes vivantes, pas des refus.
     ...(canAccessAides ? [{ value: 'aides', label: 'Aides', picto: 'main' as const, count: aidesAPortee.length }] : []),
-    { value: 'dossiers', label: 'Dossiers', picto: 'dossier', count: dossiers.length },
+    { value: 'dossiers', label: 'Dossiers', picto: 'dossier', count: dossiers.length, guide: 'projet.dossiers' },
     {
       value: 'documents',
       label: 'Documents',
@@ -599,6 +600,7 @@ export function ProjetDetailPage() {
 
   return (
     <div className="ec pproj">
+      <Guide id="projet" pret={!chargementDiagnostic && !!diagnostic} />
       <BoutonRetour to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`} libelle={`Retour à ${monument.nom}`} />
 
       <ProjetSummaryBar
@@ -675,7 +677,7 @@ export function ProjetDetailPage() {
                   </div>
                 ))}
 
-              <section className="sec" aria-labelledby="at">
+              <section className="sec" aria-labelledby="at" data-guide="projet.aides">
                 <div className="sec-h">
                   <h2 id="at">Toutes vos aides</h2>
                   <p>

@@ -37,6 +37,7 @@ import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
 import type { Monument, Document, ProjectMember, ProjectInvitation } from '@/types';
 import { BoutonRetour } from '@/components/shared/ecrans/BoutonRetour';
+import { Guide } from '@/components/shared/Guide';
 
 /**
  * Page d'un MONUMENT : la fiche du bien et tout ce qui s'y rattache
@@ -320,18 +321,31 @@ export function MonumentDetailPage() {
   );
 
   const tabs: Onglet<string>[] = [
-    { value: 'sanitaire', label: 'Fiche monument', picto: 'maison', count: null },
-    { value: 'projets', label: 'Projets', picto: 'dossier', count: projets.length },
+    { value: 'sanitaire', label: 'Fiche monument', picto: 'maison', count: null, guide: 'monument.onglet-fiche' },
+    { value: 'projets', label: 'Projets', picto: 'dossier', count: projets.length, guide: 'monument.onglet-projets' },
     ...(equipeDuMonument
       ? [
-          { value: 'documents', label: 'Documents', picto: 'doc' as const, count: monumentDocuments.length },
-          { value: 'equipe', label: 'Équipe', picto: 'equipe' as const, count: members.length },
+          {
+            value: 'documents',
+            label: 'Documents',
+            picto: 'doc' as const,
+            count: monumentDocuments.length,
+            guide: 'monument.onglet-documents',
+          },
+          {
+            value: 'equipe',
+            label: 'Équipe',
+            picto: 'equipe' as const,
+            count: members.length,
+            guide: 'monument.onglet-equipe',
+          },
         ]
       : []),
   ];
 
   return (
     <div className="ec pmon">
+      <Guide id="monument" pret={droitsConnus} />
       <BoutonRetour to={ROUTES.MONUMENTS} libelle={`Retour à ${libelleMonuments(offreCompte).toLowerCase()}`} />
 
       <EnTeteMonument

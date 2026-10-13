@@ -238,7 +238,11 @@ def verrou_run(racine: Path) -> Iterator[bool]:
 
 
 def cloner(racine: Path, cible: Path) -> None:
-    """Copie le dépôt (code, données, skills) par clone APFS, sans venv ni caches."""
+    """Copie le dépôt (code, données, skills) par clone APFS, sans venv ni caches.
+
+    `cp -c` (clone APFS) n'existe que sur macOS ; ailleurs (CI Linux), copie pleine.
+    """
+    copie = ["cp", "-cR"] if sys.platform == "darwin" else ["cp", "-R"]
     cible.mkdir(parents=True)
     for nom in ("backend", ".claude"):
         source = racine / nom
@@ -250,7 +254,7 @@ def cloner(racine: Path, cible: Path) -> None:
                 continue
             if nom == ".claude" and enfant.name not in ("skills",):
                 continue
-            subprocess.run(["cp", "-cR", str(enfant), str(cible / nom / enfant.name)], check=True)
+            subprocess.run([*copie, str(enfant), str(cible / nom / enfant.name)], check=True)
 
 
 def etat_fichiers(racine: Path) -> dict[str, tuple[int, int]]:

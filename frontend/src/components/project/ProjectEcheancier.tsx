@@ -49,7 +49,7 @@ export function ProjectEcheancier({ deadlines, aide }: ProjectEcheancierProps) {
   const n = deadlines.length;
 
   return (
-    <section className="ech" aria-labelledby="ech-t">
+    <section className="ech" aria-labelledby="ech-t" data-guide="projet.echeancier">
       <div className="ech-h">
         <div>
           <span className="eyebrow">Échéancier</span>

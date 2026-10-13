@@ -96,7 +96,7 @@ export function CarteMonument({
   );
 
   return (
-    <article className="cmon">
+    <article className="cmon" data-guide="monuments.carte">
       <div
         className={photo ? 'cmon-h photo' : 'cmon-h'}
         style={photo ? { backgroundImage: `var(--cmon-voile), url("${photo}")` } : undefined}

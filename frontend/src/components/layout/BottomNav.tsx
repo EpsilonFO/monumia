@@ -2,6 +2,7 @@ import { NavLink } from 'react-router';
 import { cn } from '@/lib/utils';
 import { C } from '@/lib/brand';
 import { NAV_BLOG, navItemsPour } from './nav-items';
+import { ROUTES } from '@/constants/routes';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { useOffre } from '@/hooks/useOffre';
 
@@ -42,6 +43,7 @@ export function BottomNav() {
               key={item.to}
               to={item.to}
               end={item.end}
+              data-guide={item.to === ROUTES.DOCUMENTS ? 'monuments.documents' : undefined}
               aria-label={item.label}
               className={({ isActive }) =>
                 cn(

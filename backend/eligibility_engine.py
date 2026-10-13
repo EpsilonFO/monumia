@@ -716,8 +716,9 @@ FAITS_DEDUITS_DES_FAMILLES: dict[str, frozenset[str]] = {
     "projet_developpement_touristique": frozenset(
         {"hebergement_touristique", "tourisme_visite", "activite_economique_lieu"}
     ),
+    # `vie_locale_associative` : l'équipement culturel d'une association (Morbihan).
     "projet_equipement_culturel": frozenset(
-        {"mediation_numerique_expositions", "spectacles_manifestations"}
+        {"mediation_numerique_expositions", "spectacles_manifestations", "vie_locale_associative"}
     ),
     "projet_artistique_ou_culturel": frozenset(
         {"mediation_numerique_expositions", "spectacles_manifestations"}
