@@ -22,6 +22,7 @@ que les seuils eux-mêmes :
 
 from __future__ import annotations
 
+import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -35,7 +36,7 @@ from aides_schema import Aide
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from veille_collect import AideCollect, FetchResult, MonitoredUrl
+from veille_collect import AideCollect, FetchResult, MonitoredUrl, cle_url
 from veille_text import (
     NormalizedDiff,
     QuoteMatch,
@@ -96,6 +97,34 @@ SEUIL_PANNE_GENERALISEE = 0.30
 # est propre à sa page, alors qu'un carrousel bouge sur tout le portail. Voir
 # `lignes_de_chrome` pour la mesure qui a fixé ce seuil.
 CHROME_MIN_URLS = 2
+
+# Une ligne de RÈGLEMENT n'est jamais du chrome, même partagée : les aides sœurs
+# d'un même guide ont des pages distinctes au texte commun, et leur échéance
+# change d'un bloc. Mesuré au 2026-10-04 : « déposés… avant le 16 novembre
+# 2026 » (deux aides cvl-pact, classées « source inchangée »), la date limite de
+# six aides des Vosges, un plafond savoyard, tous effacés. Est réputée de
+# règlement une ligne qui porte une date ou un montant ET un mot de règlement ;
+# l'un sans l'autre laissait passer « Mis à jour le… », « Corrèze 100% Fibre »
+# et les carrousels d'actualités datés. Motifs écrits sur la forme normalisée
+# (`normalize_line` : minuscules, sans accents).
+_MOIS = r"(janv|fevr|mars|avr|mai|juin|juil|aout|sept|oct|nov|dec)[a-z]*\.?"
+_DATE_RE = re.compile(rf"\b\d{{1,2}}(er)?\s+{_MOIS}\s+20\d\d\b|\b\d{{1,2}}/\d{{1,2}}/20\d\d\b")
+_MONTANT_RE = re.compile(r"\d[\d .]*\s*(€|euros?\b|%)")
+_MOT_REGLEMENT_RE = re.compile(
+    r"(depot|deposer|deposes|avant le|date limite|cloture|jusqu|candidature|appel a projet|"
+    r"plafond|taux|montant|subvention|eligib|depense|dossier)"
+)
+_GABARIT_DATE_RE = re.compile(r"(mis a jour|mise a jour|publie le|modifie le|©|\(c\))")
+
+
+def ligne_de_reglement(norm: str) -> bool:
+    """Ligne normalisée qui porte une échéance ou un montant de règlement."""
+    return bool(
+        (_DATE_RE.search(norm) or _MONTANT_RE.search(norm))
+        and _MOT_REGLEMENT_RE.search(norm)
+        and not _GABARIT_DATE_RE.search(norm)
+    )
+
 
 # Une page qui répond 200 mais ne rend presque plus rien, alors que sa baseline
 # était un vrai règlement, n'a pas été vidée par son financeur : elle est rendue
@@ -161,6 +190,15 @@ class AideAnalysis:
     pdf_illisibles: list[str] = field(default_factory=list)
     contenu_utile: int | None = None
     contenu_utile_baseline: int | None = None
+    # Escalade par la seule règle 6 (pourcentage de lignes changées). Refonte du
+    # site ou nouveau règlement, le code ne sait pas les distinguer : c'est la
+    # seule escalade que la veille soumet à Jev (`veille_arbitre`), entre
+    # l'étage B et l'étage C. Page morte, binaire illisible, contenu effondré et
+    # régressions massives de citations restent décidés ici.
+    refonte: bool = False
+    # Refonte que Jev a jugée sans changement de règlement : rétrogradée en
+    # MAJ_LLM, jamais classée inchangée. Le filtre de Jev ne s'y applique pas.
+    retrogradee: bool = False
 
     @property
     def regressions(self) -> list[QuoteVerdict]:
@@ -232,7 +270,7 @@ def _quote_verdicts(
     # « 0/n citation contrôlée » — un faux négatif, sur la page même qu'on
     # venait de re-télécharger.
     doc_recontrolable = {
-        m.baseline_path.name: m.url in urls_rafraichies
+        m.baseline_path.name: cle_url(m.url) in urls_rafraichies
         for m in collect.urls
         if m.baseline_path is not None
     }
@@ -241,7 +279,7 @@ def _quote_verdicts(
         if not nom:
             return False
         if url := collect.baseline_urls.get(nom):
-            return url in urls_rafraichies
+            return cle_url(url) in urls_rafraichies
         # Sans provenance — les PDF antérieurs au sidecar — on ne sait pas quelle
         # page ce document archive : le nom de fichier est tout ce qui reste.
         return doc_recontrolable.get(nom, False)
@@ -290,7 +328,11 @@ def analyze(
             # justifiait.
             texte = result.texte
             if texte is not None:
-                urls_rafraichies.add(murl.url)
+                # Sous les deux formes : la provenance d'un snapshot est l'URL où
+                # le téléchargement avait ABOUTI, redirections suivies.
+                urls_rafraichies.add(cle_url(murl.url))
+                if result.url_finale:
+                    urls_rafraichies.add(cle_url(result.url_finale))
             if murl.baseline_sha and result.sha256 == murl.baseline_sha:
                 # Chemin rapide : pas un octet de différence, rien à calculer.
                 verdict.sha_identique = True
@@ -298,6 +340,14 @@ def analyze(
             # que la baseline : le differ produirait du bruit pur.
             elif texte is not None and murl.baseline_body is not None and not result.via_proxy:
                 verdict.diff = normalized_diff(murl.baseline_body, texte, extra_noise=chrome)
+            elif (
+                murl.baseline_empreinte_texte
+                and result.empreinte_texte == murl.baseline_empreinte_texte
+            ):
+                # PDF trop court pour servir de baseline, mais dont le texte est
+                # identique : généré à la volée, ses octets changent à chaque
+                # requête (meuse.fr/…/pdf). Rien n'a bougé.
+                verdict.sha_identique = True
             elif result.is_binary and murl.baseline_sha:
                 # Le sha a bougé et aucun texte comparable n'existe d'un côté ou
                 # de l'autre (.docx, PDF scanné, pdftotext absent). Avant ce cas,
@@ -389,6 +439,7 @@ def _decider(an: AideAnalysis, principale: UrlVerdict | None, *, panne_generalis
     gros_diff = [u for u in an.urls if u.diff and u.diff.ratio > RATIO_DIFF_ESCALADE]
     if gros_diff:
         an.statut = "ESCALADE_INGESTION"
+        an.refonte = True
         for u in gros_diff:
             assert u.diff is not None
             an.raisons.append(f"refonte de {u.murl.url} ({u.diff.ratio:.0%} des lignes changées)")
@@ -455,7 +506,8 @@ def lignes_de_chrome(collects: dict[str, AideCollect]) -> frozenset[str]:
 
     Le décompte porte sur les URL distinctes, jamais sur les aides : cinq aides
     partageant un même règlement ne doivent pas faire passer sa vraie
-    modification pour du gabarit.
+    modification pour du gabarit. Et une ligne de règlement (échéance, montant,
+    cf. `ligne_de_reglement`) n'est jamais retenue, même vue sur plusieurs pages.
     """
     par_ligne: dict[str, set[str]] = defaultdict(set)
     for col in collects.values():
@@ -467,7 +519,11 @@ def lignes_de_chrome(collects: dict[str, AideCollect]) -> frozenset[str]:
             for ligne in brut.text.splitlines():
                 if ligne[:2] in ("+ ", "- ") and (norm := normalize_line(ligne[2:])):
                     par_ligne[norm].add(murl.url)
-    return frozenset(ligne for ligne, urls in par_ligne.items() if len(urls) >= CHROME_MIN_URLS)
+    return frozenset(
+        ligne
+        for ligne, urls in par_ligne.items()
+        if len(urls) >= CHROME_MIN_URLS and not ligne_de_reglement(ligne)
+    )
 
 
 def hotes_affames(collects: dict[str, AideCollect]) -> dict[str, int]:

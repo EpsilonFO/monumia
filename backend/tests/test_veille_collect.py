@@ -179,3 +179,138 @@ class TestTextePdf(unittest.TestCase):
         self.assertEqual(long.texte, "x" * 2000)
         page = FetchResult(url="u", status=200, body_md="page")
         self.assertEqual((page.kind, page.texte), ("text", "page"))
+
+
+class TestUrlsSurveillables(unittest.TestCase):
+    """Une URL qui n'est pas une page web ne doit jamais atteindre le client HTTP."""
+
+    def test_mailto_et_relatif_ne_sont_pas_telechargeables(self):
+        self.assertFalse(veille_collect.est_http("mailto:baignade@grandest.fr"))
+        self.assertFalse(veille_collect.est_http("/baignade@grandest.fr"))
+        self.assertFalse(veille_collect.est_http(None))
+        self.assertTrue(veille_collect.est_http("https://ex.fr/aide"))
+
+    def test_formulaire_mailto_hors_surveillance(self):
+        # Le cas réel du 2026-10-04 : region-grand-est-ami-baignade-milieu-naturel.
+        aide = make_aide(url_officielle="https://ex.fr/aide", formulaire_url="mailto:a@ex.fr")
+        with mock.patch.object(veille_collect, "SOURCES_DIR", Path("/nexiste/pas")):
+            self.assertEqual([u.url for u in monitored_urls(aide)], ["https://ex.fr/aide"])
+
+    def test_copies_proxy_et_archive_rattachees_a_la_page_d_origine(self):
+        self.assertEqual(
+            veille_collect.url_d_origine("https://r.jina.ai/https://ex.fr/aide"),
+            ("https://ex.fr/aide", "proxy"),
+        )
+        self.assertEqual(
+            veille_collect.url_d_origine(
+                "https://web.archive.org/web/20260601000000id_/https://ex.fr/aide"
+            ),
+            ("https://ex.fr/aide", "archive"),
+        )
+        self.assertEqual(
+            veille_collect.url_d_origine("https://ex.fr/aide"), ("https://ex.fr/aide", "direct")
+        )
+
+
+class TestBaselinesInexploitables(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dossier = Path(tmp.name) / "aide-test"
+        self.dossier.mkdir()
+        patcher = mock.patch.object(veille_collect, "SOURCES_DIR", Path(tmp.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _snapshot(self, nom: str, url: str, corps: str) -> None:
+        (self.dossier / nom).write_text(
+            f"---\nurl: {url}\nfetched_at: x\nsha256: abc\n---\n\n{corps}\n",
+            encoding="utf-8",
+        )
+
+    def test_binaire_decode_n_est_ni_baseline_ni_citation(self):
+        self._snapshot(
+            "2026-06-22-dossier.md", "https://ex.fr/dossier.docx", "PK\x03\x04 [Content_Types].xml"
+        )
+        urls = monitored_urls(make_aide(url_officielle="https://ex.fr/aide"))
+        dossier = next(u for u in urls if u.url == "https://ex.fr/dossier.docx")
+        self.assertFalse(dossier.has_baseline)
+        docs, _, _ = veille_collect.load_baselines("aide-test")
+        self.assertEqual(docs, [])
+
+    def test_copie_jina_surveille_la_page_d_origine_sans_terme_de_diff(self):
+        self._snapshot(
+            "2026-06-22.md", "https://r.jina.ai/https://ex.fr/aide", "Règlement en markdown."
+        )
+        urls = monitored_urls(make_aide(url_officielle="https://ex.fr/aide"))
+        self.assertEqual([u.url for u in urls], ["https://ex.fr/aide"])
+        self.assertFalse(urls[0].has_baseline)
+        # Ses citations restent rattachées à la page, donc recontrôlables.
+        _, _, provenance = veille_collect.load_baselines("aide-test")
+        self.assertEqual(provenance, {"2026-06-22.md": "https://ex.fr/aide"})
+
+
+class TestDepuisPage(unittest.TestCase):
+    """Traduction d'une `Page` du fetcheur partagé dans le vocabulaire de l'étage B."""
+
+    def _page(
+        self, contenu: bytes, content_type: str, status: int = 200, url: str = "https://ex.fr/f"
+    ):
+        from pipeline.web import Page
+
+        return Page(
+            url=url,
+            url_finale=url,
+            status=status,
+            content_type=content_type,
+            contenu=contenu,
+            texte=contenu.decode("utf-8", errors="replace"),
+        )
+
+    def test_docx_compare_par_son_texte(self):
+        import io
+        import zipfile
+
+        tampon = io.BytesIO()
+        with zipfile.ZipFile(tampon, "w") as z:
+            z.writestr(
+                "word/document.xml",
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                "<w:body><w:p><w:r><w:t>Taux de 40 %</w:t></w:r></w:p></w:body></w:document>",
+            )
+        murl = MonitoredUrl(url="https://ex.fr/reglement.docx", role="snapshot")
+        res = veille_collect._depuis_page(
+            murl,
+            self._page(
+                tampon.getvalue(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                url=murl.url,
+            ),
+            via_proxy=False,
+        )
+        self.assertTrue(res.docx)
+        self.assertEqual(res.texte, "Taux de 40 %\n")
+        # Même empreinte que l'en-tête de `write_docx_snapshot` : sha du texte.
+        import hashlib
+
+        self.assertEqual(res.sha256, hashlib.sha256(b"Taux de 40 %\n").hexdigest())
+
+    def test_redirection_sans_destination_est_une_page_morte(self):
+        murl = MonitoredUrl(url="https://ex.fr/aap-2026", role="officielle")
+        res = veille_collect._depuis_page(
+            murl, self._page(b"<html>liste</html>", "text/html", 301), via_proxy=False
+        )
+        self.assertTrue(res.morte)
+        self.assertFalse(res.ok)
+
+    def test_une_exception_devient_une_erreur_sans_arreter_le_passage(self):
+        class Explosif:
+            def get(self, url):
+                raise ValueError(f"unknown url type: {url!r}")
+
+        murl = MonitoredUrl(url="https://ex.fr/aide", role="officielle")
+        with mock.patch.object(veille_collect, "RETRY_BACKOFF_S", 0):
+            res = veille_collect._fetch_one(Explosif(), murl, proxy=None)  # type: ignore[arg-type]
+        self.assertFalse(res.ok)
+        self.assertIn("ValueError", res.error or "")
+        self.assertTrue(res.retried)

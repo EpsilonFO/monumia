@@ -198,6 +198,20 @@ def main(argv: list[str] | None = None) -> int:
     args = construire_parser().parse_args(argv)
     charger_env()
 
+    # Pendant la refonte, une seule chaîne ingère la file (registre du catalogue).
+    # `--slug` sous `--sortie` n'écrit que dans son dossier : il reste ouvert.
+    if (
+        args.file_attente
+        or args.reprendre
+        or args.relancer_echecs
+        or (args.slug and not args.sortie)
+    ):
+        from catalogue.registre import refus_ancienne
+
+        if refus := refus_ancienne("ingestion"):
+            print(f"ERREUR : {refus}", file=sys.stderr)
+            return 1
+
     if args.tarif:
         if not args.model:
             raise SystemExit("--tarif exige --model (le tarif s'applique à un modèle nommé)")

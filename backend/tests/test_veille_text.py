@@ -553,5 +553,38 @@ class TestIsCosmeticChange(unittest.TestCase):
         self.assertFalse(is_cosmetic_change(None, "une note ajoutée"))
 
 
+class TestBruitDesPortails(unittest.TestCase):
+    """Les deux fausses alertes de la garde au banc Jev du 2026-10-04 (savoie.fr)."""
+
+    def test_jeton_de_session_est_du_bruit(self):
+        self.assertTrue(
+            is_noise_line("eNq9mFFv2jAQx9/5FCjvJNDSdpsC1cbaDanVGC3atJfKJEcxS+30bJN0n34XQ")
+        )
+        # Le bout de jeton coupé en fin de ligne aussi.
+        self.assertTrue(is_noise_line("30vXeQ1Nej0HQKqw"))
+
+    def test_mot_de_reglement_n_est_pas_un_jeton(self):
+        for ligne in ("Auvergne-Rhone-Alpes", "COVID-19", "2026-2027", "SIRET"):
+            self.assertFalse(is_noise_line(ligne), ligne)
+
+    def test_ligne_deplacee_n_est_pas_un_changement(self):
+        avant = (
+            "Intro du dispositif.\nPlafond à 500 000 € maximum.\nBénéficiaires : communes.\nFin."
+        )
+        apres = (
+            "Intro du dispositif.\nBénéficiaires : communes.\nPlafond à 500 000 € maximum.\nFin."
+        )
+        d = normalized_diff(avant, apres)
+        self.assertTrue(d.is_empty, d.text)
+
+    def test_deplacement_et_vrai_changement(self):
+        avant = "A.\nPlafond à 500 000 €.\nB.\nDate limite : 30 septembre 2026."
+        apres = "A.\nB.\nPlafond à 500 000 €.\nDate limite : 30 octobre 2026."
+        d = normalized_diff(avant, apres)
+        self.assertEqual((d.added, d.removed), (1, 1))
+        self.assertIn("+ Date limite : 30 octobre 2026.", d.text)
+        self.assertNotIn("500 000", d.text)
+
+
 if __name__ == "__main__":
     unittest.main()

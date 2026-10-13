@@ -185,6 +185,151 @@ class TestLocalisationConditions(unittest.TestCase):
         self.assertEqual(mal_delimitees, [], f"plages fautives : {mal_delimitees[:10]}")
 
 
+class TestRetouchesSurLeCatalogue(unittest.TestCase):
+    """Troisième test canonique : de VRAIES retouches, sur toutes les fiches.
+
+    Les deux premiers n'exercent pas l'éditeur (sortie vide) ou seulement son
+    repérage. Ils ont laissé passer qu'une fois le catalogue sérialisé par
+    `yaml.safe_dump` (guillemets simples, `{}` pour un mapping vide, sections
+    absentes), l'étape C échouait sur des centaines de fiches : mesuré le
+    2026-10-04, une retouche de `cumul` ratait sur 173 aides et un signalement
+    de condition disparue sur 344.
+    """
+
+    CITATION = "Le taux d'intervention est porté à 42 pour cent des travaux éligibles."
+    DOCS = [("frais.md", f"# Page\n\n{CITATION}\n", "text")]
+
+    def _fiches(self) -> list[Path]:
+        chemins = sorted(AIDES_DIR.glob("*.yaml"))
+        self.assertGreater(len(chemins), 100, "le dépôt doit contenir les fiches réelles")
+        return chemins
+
+    def test_les_trois_sections_se_retouchent_partout(self):
+        echecs = []
+        for chemin in self._fiches():
+            aide = load_aide(chemin)
+            res = appliquer(
+                sortie(
+                    slug=aide.slug,
+                    calendrier={
+                        "champs": {"permanent": False, "date_limite": "2027-03-31"},
+                        "quote": self.CITATION,
+                    },
+                    financement={"champs": {"taux_max": 42.0}, "quote": self.CITATION},
+                    cumul={"champs": {"plafond_public_pct": 80.0}, "quote": self.CITATION},
+                ),
+                aide,
+                chemin,
+                self.DOCS,
+                aujourd_hui=AUJOURD_HUI,
+            )
+            if not res.ok:
+                echecs.append(f"{aide.slug} ({res.etape}) : {res.erreurs[:1]}")
+                continue
+            assert res.texte is not None
+            # Une date s'écrit nue, comme dans les fiches, et pas en bloc replié.
+            self.assertIn("date_limite: 2027-03-31\n", res.texte, aide.slug)
+            apres = Aide.model_validate(charger_yaml(res.texte))
+            self.assertEqual(str(apres.calendrier.date_limite), "2027-03-31", aide.slug)
+            self.assertFalse(apres.calendrier.permanent, aide.slug)
+            self.assertEqual(apres.financement.taux_max, 42.0, aide.slug)
+            self.assertEqual(apres.cumul.plafond_public_pct, 80.0, aide.slug)
+            # Le bloc `fiche:` porte lui aussi `essentiel.calendrier` : l'édition
+            # ne doit jamais y atterrir.
+            self.assertEqual(apres.fiche, aide.fiche, aide.slug)
+        self.assertEqual(echecs, [])
+
+    def test_texte_et_retouche_cosmetique_d_une_condition(self):
+        echecs, cosmetiques_ecrites = [], []
+        for chemin in self._fiches():
+            aide = load_aide(chemin)
+            if not aide.conditions:
+                continue
+            cond = aide.conditions[0]
+            res = appliquer(
+                sortie(
+                    slug=aide.slug,
+                    conditions=[
+                        {
+                            "op": "update",
+                            "id": cond.id,
+                            "champs": {
+                                "text": "Texte nouveau de la source.",
+                                "quote": self.CITATION,
+                            },
+                        }
+                    ],
+                ),
+                aide,
+                chemin,
+                self.DOCS,
+                aujourd_hui=AUJOURD_HUI,
+            )
+            if not res.ok:
+                echecs.append(f"{aide.slug} ({res.etape}) : {res.erreurs[:1]}")
+            # Une apostrophe redressée n'est pas un changement : jetée en silence,
+            # fiche intacte — même quand le champ est écrit entre guillemets.
+            if "'" in cond.text:
+                res = appliquer(
+                    sortie(
+                        slug=aide.slug,
+                        conditions=[
+                            {
+                                "op": "update",
+                                "id": cond.id,
+                                "champs": {"text": cond.text.replace("'", "’")},
+                            }
+                        ],
+                    ),
+                    aide,
+                    chemin,
+                    self.DOCS,
+                    aujourd_hui=AUJOURD_HUI,
+                )
+                if not res.ok or res.texte != chemin.read_text(encoding="utf-8"):
+                    cosmetiques_ecrites.append(f"{aide.slug} ({res.etape})")
+        self.assertEqual(echecs, [])
+        self.assertEqual(cosmetiques_ecrites, [])
+
+    def test_date_limite_sans_lever_permanent_refusee_et_rattrapable(self):
+        aide = next(
+            a
+            for a in map(load_aide, self._fiches())
+            if a.calendrier.permanent and not a.calendrier.date_limite
+        )
+        res = appliquer(
+            sortie(
+                slug=aide.slug,
+                calendrier={"champs": {"date_limite": "2027-03-31"}, "quote": self.CITATION},
+            ),
+            aide,
+            AIDES_DIR / f"{aide.slug}.yaml",
+            self.DOCS,
+            aujourd_hui=AUJOURD_HUI,
+            lint_complet=True,
+        )
+        self.assertEqual(res.etape, "coherence", res.erreurs)
+        self.assertTrue(res.rattrapable)
+        self.assertTrue(any("permanent" in e for e in res.erreurs), res.erreurs)
+
+    def test_condition_disparue_ou_nouvelle_arrete_la_chaine(self):
+        aide = next(a for a in map(load_aide, self._fiches()) if a.conditions)
+        res = appliquer(
+            sortie(
+                slug=aide.slug,
+                conditions=[{"op": "signaler_disparue", "id": aide.conditions[0].id}],
+            ),
+            aide,
+            AIDES_DIR / f"{aide.slug}.yaml",
+            self.DOCS,
+            aujourd_hui=AUJOURD_HUI,
+            escalader_structure=True,
+        )
+        self.assertEqual(res.etape, "structure")
+        self.assertFalse(res.rattrapable)
+        self.assertIsNone(res.texte)
+
+
 class TestApplicationReelle(unittest.TestCase):
     def test_condition_modifiee_dans_une_fiche_a_liste_plate(self):
         # Style YAML où les items sont au même niveau que `conditions:` — 26
@@ -559,7 +704,9 @@ class TestEmitField(unittest.TestCase):
 
     def test_booleen_et_nombre(self):
         self.assertEqual(emit_field("permanent", False, 2), ["  permanent: false"])
-        self.assertEqual(emit_field("taux_max", 40.0, 2), ["  taux_max: 40.0"])
+        self.assertEqual(emit_field("taux_max", 40.0, 2), ["  taux_max: 40"])
+        self.assertEqual(emit_field("taux_max", 12.5, 2), ["  taux_max: 12.5"])
+        self.assertEqual(emit_field("date_limite", None, 2), ["  date_limite: null"])
 
     def test_texte_long_replie(self):
         texte = "Les travaux doivent concerner le gros œuvre : " * 4

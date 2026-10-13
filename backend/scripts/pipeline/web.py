@@ -27,6 +27,9 @@ navigateur, ce que ce module ne pilote pas.
 
 from __future__ import annotations
 
+import fcntl
+import os
+import re
 import ssl
 import sys
 import threading
@@ -165,15 +168,67 @@ def _hote(url: str) -> str:
 
 
 def _attendre_son_tour(hote: str, delai_s: float) -> None:
-    """Respecte le délai minimal depuis la dernière requête vers cet hôte."""
+    """Respecte le délai minimal depuis la dernière requête vers cet hôte.
+
+    Deux niveaux : entre les fils du processus (verrou et horodatage en
+    mémoire), puis entre les processus de la machine (`_attendre_entre_processus`).
+    """
     with _garde:
         precedent = _dernier_appel.get(hote)
     if precedent is not None:
         reste = delai_s - (time.monotonic() - precedent)
         if reste > 0:
             time.sleep(reste)
+    if delai_s > 0:
+        _attendre_entre_processus(hote, delai_s)
     with _garde:
         _dernier_appel[hote] = time.monotonic()
+
+
+def _dossier_hotes() -> Path | None:
+    """Où vit l'horodatage partagé de chaque hôte. `MONUMIA_HOTES=""` le désactive."""
+    valeur = os.environ.get("MONUMIA_HOTES")
+    if valeur == "":
+        return None
+    return Path(valeur) if valeur else Path.home() / ".cache" / "monumia" / "hotes"
+
+
+def _attendre_entre_processus(hote: str, delai_s: float) -> None:
+    """Le délai par hôte vaut pour toute la machine, pas pour un seul processus.
+
+    La refonte fait tourner plusieurs processus à la fois (trois extractions en
+    parallèle, la collecte, la veille) : le verrou en mémoire ne les voit pas,
+    et un guide régional bloqué casserait aussi la veille de Félix. Un fichier
+    par hôte, verrouillé (`flock`) le temps de lire l'heure du dernier appel,
+    d'attendre et d'écrire la nouvelle. Une erreur de fichier ne bloque pas le
+    téléchargement : le verrou en mémoire reste.
+    """
+    dossier = _dossier_hotes()
+    if dossier is None:
+        return
+    nom = re.sub(r"[^a-z0-9.-]", "_", hote.lower()) or "_"
+    try:
+        dossier.mkdir(parents=True, exist_ok=True)
+        with (dossier / f"{nom}.lock").open("a+", encoding="utf-8") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                f.seek(0)
+                texte = f.read().strip()
+                try:
+                    dernier = float(texte) if texte else 0.0
+                except ValueError:
+                    dernier = 0.0
+                reste = delai_s - (time.time() - dernier)
+                if reste > 0:
+                    time.sleep(min(reste, delai_s))
+                f.seek(0)
+                f.truncate()
+                f.write(f"{time.time():.6f}")
+                f.flush()
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+    except OSError:
+        return
 
 
 class Fetcheur:

@@ -76,3 +76,6 @@ backend/data/reviews/logs/
 
 # Empreintes des étapes de déploiement déjà faites (scripts/lib-deploy.sh).
 .deploy-state/
+
+# Verrou du run hebdomadaire du catalogue (python -m catalogue semaine)
+backend/.run.lock

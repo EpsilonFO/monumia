@@ -259,7 +259,7 @@ export function EcranQuestion({
               disabled={enCours}
               data-guide="questionnaire.passer"
             >
-              Je ne sais pas, passer
+              {libellePasser}
             </button>
           )}
           <button

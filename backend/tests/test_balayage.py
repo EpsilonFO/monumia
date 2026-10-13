@@ -296,6 +296,8 @@ class TestPhaseIngestion(BaseBalayage):
             mock.patch.object(balayage, "charger_etat", return_value={"faits": [], "debut": None}),
             mock.patch.object(balayage, "ecrire_etat"),
             mock.patch.object(sys, "argv", argv),
+            # L'ancienne chaîne, comme si le registre lui laissait l'opération.
+            mock.patch("catalogue.registre.refus_ancienne", return_value=None),
             redirect_stdout(io.StringIO()),
         ):
             code = balayage.main()
