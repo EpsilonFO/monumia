@@ -138,7 +138,7 @@ export function FicheEligibilite({
   }
 
   return (
-    <div className={`elig${etat === 'todo' ? '' : ` ${etat}`}${replie ? ' replie' : ''}`} id="eligibilite">
+    <div className={`elig${etat === 'todo' ? '' : ` ${etat}`}${replie ? ' replie' : ''}`} id="eligibilite" data-guide="aide.criteres">
       <div className="elig-head">
         <div>
           <h2>{titre}</h2>
@@ -227,7 +227,13 @@ export function FicheEligibilite({
               </small>
             </p>
           )}
-          <button type="button" className="btn btn-main" onClick={onDossier} disabled={ouverture}>
+          <button
+            type="button"
+            className="btn btn-main"
+            onClick={onDossier}
+            disabled={ouverture}
+            data-guide="aide.dossier"
+          >
             {ouverture && <Loader2 className="i animate-spin" />}
             {dossierOuvert ? 'Voir le dossier' : 'Commencer mon dossier'}
           </button>

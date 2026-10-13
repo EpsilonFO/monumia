@@ -126,7 +126,12 @@ export function ProjetSummaryBar({
       </div>
       {perms.canAccessAides && (
         <div className="proj-act">
-          <button className="btn b-line" type="button" onClick={onRefaireQuestionnaire}>
+          <button
+            className="btn b-line"
+            type="button"
+            onClick={onRefaireQuestionnaire}
+            data-guide="projet.refaire"
+          >
             <Picto nom="refaire" />
             Modifier mes réponses
           </button>

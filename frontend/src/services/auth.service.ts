@@ -170,6 +170,21 @@ export const authService = {
     return handleResponse(res);
   },
 
+  /** Une visite guidée vue ou passée : elle ne se rejouera plus. */
+  async marquerGuideVu(id: import('@/lib/guides').GuideId): Promise<import('@/types').User> {
+    const res = await authFetch(`${BASE}/auth/me/guides`, {
+      method: 'PATCH',
+      body: JSON.stringify({ id }),
+    });
+    return handleResponse(res);
+  },
+
+  /** « Revoir les visites guidées » : toutes se rejouent. */
+  async reinitialiserGuides(): Promise<import('@/types').User> {
+    const res = await authFetch(`${BASE}/auth/me/guides`, { method: 'DELETE' });
+    return handleResponse(res);
+  },
+
   async updateNotificationPreferences(
     prefs: Partial<import('@/types').NotificationPreferences>,
   ): Promise<import('@/types').User> {

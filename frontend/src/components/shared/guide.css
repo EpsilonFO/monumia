@@ -1,0 +1,60 @@
+/* Bulles des visites guidées (driver.js), aux couleurs du thème. */
+.driver-popover.guide-bulle {
+  background: var(--popover);
+  color: var(--popover-foreground, var(--foreground));
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
+  padding: 16px 18px 14px;
+  max-width: min(340px, calc(100vw - 32px));
+  font-family: inherit;
+}
+.driver-popover.guide-bulle .driver-popover-title {
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.driver-popover.guide-bulle .driver-popover-description {
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--muted-foreground, var(--foreground));
+  margin-top: 4px;
+}
+.driver-popover.guide-bulle .driver-popover-progress-text {
+  font-size: 12.5px;
+  color: var(--muted-foreground, var(--foreground));
+}
+.driver-popover.guide-bulle .driver-popover-footer {
+  margin-top: 14px;
+  gap: 8px;
+  align-items: center;
+}
+.driver-popover.guide-bulle .driver-popover-footer button {
+  font-family: inherit;
+  font-size: 14px;
+  text-shadow: none;
+  border-radius: calc(var(--radius) - 2px);
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+}
+.driver-popover.guide-bulle .driver-popover-footer button.driver-popover-next-btn {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground, #fff);
+}
+.driver-popover.guide-bulle .guide-passer {
+  margin-right: auto;
+  border: 0 !important;
+  background: none !important;
+  padding: 6px 2px !important;
+  color: var(--muted-foreground, var(--foreground)) !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.driver-popover.guide-bulle .driver-popover-arrow-side-bottom { border-bottom-color: var(--popover); }
+.driver-popover.guide-bulle .driver-popover-arrow-side-top { border-top-color: var(--popover); }
+.driver-popover.guide-bulle .driver-popover-arrow-side-left { border-left-color: var(--popover); }
+.driver-popover.guide-bulle .driver-popover-arrow-side-right { border-right-color: var(--popover); }

@@ -45,6 +45,7 @@ import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
 import type { Aide, AideMatchResult } from '@/types';
 import { BoutonRetour } from '@/components/shared/ecrans/BoutonRetour';
+import { Guide } from '@/components/shared/Guide';
 
 /**
  * Fiche d'une aide, vue depuis un PROJET de travaux : c'est le projet qui donne
@@ -321,6 +322,7 @@ export function AideProjectPage() {
 
   return (
     <div className="fa">
+      <Guide id="aide" pret={!!matchResult} />
       <FicheBarre
         titre={titre}
         sousTitre={g.libelle}

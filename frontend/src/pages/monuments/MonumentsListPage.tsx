@@ -22,6 +22,7 @@ import { ROUTES } from '@/constants/routes';
 import type { Projet } from '@/types';
 import '@/components/dashboard/nouvelle-recherche.css';
 import './liste-monuments.css';
+import { Guide } from '@/components/shared/Guide';
 
 type MonumentSortKey = 'recent' | 'oldest' | 'name' | 'modified';
 
@@ -102,12 +103,17 @@ export function MonumentsListPage() {
   // permet pas. `Link` quand l'action est ouverte, `button` sinon — un lien
   // qui n'emmène nulle part mentirait au survol comme au clic milieu.
   const newMonumentButton = (className: string) => peutCreer ? (
-    <Link className={className} to={ROUTES.MONUMENT_NEW}>
+    <Link className={className} to={ROUTES.MONUMENT_NEW} data-guide="monuments.nouveau-monument">
       <Picto nom="plus" />
       Nouveau monument
     </Link>
   ) : (
-    <button className={className} type="button" onClick={() => setPaywallMonument(true)}>
+    <button
+      className={className}
+      type="button"
+      onClick={() => setPaywallMonument(true)}
+      data-guide="monuments.nouveau-monument"
+    >
       <Picto nom="plus" />
       Nouveau monument
     </button>
@@ -129,6 +135,7 @@ export function MonumentsListPage() {
 
   return (
     <div className="ec mlist">
+      <Guide id="monuments" pret={!loading} />
       <div className="hello">
         <div>
           <h1>{libelleMonuments(offre)}</h1>

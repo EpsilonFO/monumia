@@ -29,6 +29,7 @@ export function ProfilePage() {
   const user = useAuthStore((s) => s.user);
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const logout = useAuthStore((s) => s.logout);
+  const reinitialiserGuides = useAuthStore((s) => s.reinitialiserGuides);
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -220,6 +221,32 @@ export function ProfilePage() {
               </button>
             </>
           )}
+        </div>
+      </Panel>
+
+      {/* ═════════ VISITES GUIDÉES ═════════ */}
+      <Panel>
+        <PanelHeader
+          icon={<IconReglages className="h-4 w-4 text-primary" strokeWidth={1.8} />}
+          title="Visites guidées"
+        />
+        <div className="px-6 py-5">
+          <p className="text-[16px]" style={{ color: C.grayFg }}>
+            Chaque écran se présente en quelques bulles à votre première visite. Vous pouvez les
+            revoir : elles se rejoueront à votre prochain passage sur chaque écran.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              reinitialiserGuides()
+                .then(() => toast.success('Les visites guidées se rejoueront'))
+                .catch(() => toast.error('Impossible de réinitialiser les visites pour le moment'));
+            }}
+            className="mt-3 inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-[16px] font-semibold transition-colors hover:bg-[var(--secondary)]"
+            style={{ borderColor: C.border, color: C.blue }}
+          >
+            Revoir les visites guidées
+          </button>
         </div>
       </Panel>
 
