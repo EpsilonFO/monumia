@@ -229,3 +229,45 @@ def test_un_delai_depasse_est_une_panne(monkeypatch: pytest.MonkeyPatch) -> None
     with pytest.raises(Panne) as exc:
         _client(repondre).decider("m", "état", {"q": noul("?", "oui", "non")}, delai_s=0.1)
     assert exc.value.classe == "delai"
+
+
+def _plongements(*vecteurs: list[float], ordre: list[int] | None = None) -> dict[str, object]:
+    rangs = ordre if ordre is not None else list(range(len(vecteurs)))
+    return {
+        "model": "Qwen/Qwen3-Embedding-8B",
+        "data": [{"index": r, "embedding": vecteurs[r]} for r in rangs],
+        "usage": {"prompt_tokens": 18, "cost": 1.8e-07},
+    }
+
+
+def test_des_plongements_rendent_un_vecteur_par_texte_dans_l_ordre_des_index() -> None:
+    def repondre(requete: httpx.Request) -> httpx.Response:
+        assert requete.url.path == "/api/v1/embeddings"
+        assert json.loads(requete.content)["input"] == ["a", "b"]
+        return httpx.Response(200, json=_plongements([1.0, 0.0], [0.0, 1.0], ordre=[1, 0]))
+
+    p = _client(repondre).plonger(
+        "qwen/qwen3-embedding-8b", ["a", "b"], acceptes=["Qwen/Qwen3-Embedding-8B"]
+    )
+    assert p.vecteurs == [[1.0, 0.0], [0.0, 1.0]]
+    assert p.cout_usd == pytest.approx(1.8e-07)
+    assert p.modele_servi == "Qwen/Qwen3-Embedding-8B"
+
+
+@pytest.mark.parametrize(
+    "reponse",
+    [
+        {"model": "Qwen/Qwen3-Embedding-8B", "data": [{"index": 0, "embedding": [1.0]}]},
+        {"model": "Qwen/Qwen3-Embedding-8B", "data": [{"index": 0, "embedding": [1.0]}] * 2},
+        _plongements([1.0], []),
+    ],
+    ids=["vecteur_manquant", "rang_en_double", "vecteur_vide"],
+)
+def test_un_plongement_incomplet_est_une_panne(
+    monkeypatch: pytest.MonkeyPatch, reponse: dict[str, object]
+) -> None:
+    monkeypatch.setattr("catalogue.openrouter.time.sleep", lambda _s: None)
+    client = _client(lambda _r: httpx.Response(200, json=reponse))
+    with pytest.raises(Panne) as exc:
+        client.plonger("qwen/qwen3-embedding-8b", ["a", "b"])
+    assert exc.value.classe == "reponse_invalide"

@@ -7,7 +7,7 @@ Dans l'ordre :
 1. Un seul run par checkout (`.run.lock`, `flock`), et aucun ancien script du
    pipeline en cours sur la machine.
 2. Pré-vol : clé OpenRouter (reste sur son plafond, date d'expiration),
-   dépendances (`providall`, `curl_cffi`, `truststore`), `pdftotext` et sa
+   dépendances (`providall`, `curl_cffi`, `truststore`, `numpy`), `pdftotext` et sa
    version épinglée, venv synchronisé sur `uv.lock` (`uv sync --check`, hors
    ligne), registre et fichiers de faits valides. Un pré-vol raté n'appelle
    aucun modèle et écrit quand même le rapport.
@@ -77,6 +77,8 @@ ECRITS = (
     "backend/data/reviews",
     "backend/data/catalogue/brouillons",
     "backend/data/catalogue/rebuts",
+    # Les jugements de Jev de la cohérence du typage, en ajout seul.
+    "backend/data/catalogue/coherence",
 )
 FICHIERS_ECRITS = (
     "backend/data/veille-state.yaml",
@@ -160,7 +162,7 @@ def cle_openrouter(
 
 def dependances() -> list[Echec]:
     echecs = []
-    for module in ("providall", "curl_cffi", "truststore"):
+    for module in ("providall", "curl_cffi", "truststore", "numpy"):
         try:
             __import__(module)
         except ImportError:
@@ -370,12 +372,33 @@ def etapes(reg: Registre, journal: Path, parties: Path) -> list[Etape]:
                 ],
             )
         )
+    # Après l'ingestion, et seulement avec elle : les aides de la semaine entrent
+    # dans l'espace, et les faits qu'elle a proposés sont rattachés à leur
+    # famille. Un registre qui laisse tout à l'ancienne chaîne ne lance rien.
+    coherence = reg.decisions.get("C1-coherence")
+    if (
+        reg.proprietaires["ingestion"] == "nouvelle"
+        and coherence is not None
+        and coherence.statut == "en_service"
+    ):
+        liste.append(
+            Etape(
+                "coherence",
+                [
+                    "coherence",
+                    "--journal",
+                    str(journal),
+                    "--parties",
+                    str(parties / "coherence.json"),
+                ],
+            )
+        )
     return liste
 
 
 def lancer(copie: Path, etape: Etape, delai_s: float, reste_usd: float | None = None) -> int:
     arguments = list(etape.arguments)
-    if reste_usd is not None and etape.arguments[0] in ("entree", "ingestion"):
+    if reste_usd is not None and etape.arguments[0] in ("entree", "ingestion", "coherence"):
         # Une étape ne dépense que ce qui reste du budget du run.
         arguments += ["--plafond", f"{max(reste_usd, 0.0):.4f}"]
     try:

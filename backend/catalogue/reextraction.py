@@ -698,6 +698,19 @@ def _reextraire(
             rebut(slug, sortie, b.raison, jour, rebuts)
         return b
     b.issue, b.texte = "acceptee", nouveau
+    # Les conditions NEUVES rattachées à leur famille (catalogue/espace.py) ;
+    # celles que la ré-extraction garde à l'octet l'ont déjà été.
+    ids_avant = {c.get("id") for c in ancien.get("conditions") or [] if isinstance(c, dict)}
+    ids_apres = {
+        c.get("id")
+        for c in (charger_yaml(nouveau) or {}).get("conditions") or []
+        if isinstance(c, dict)
+    }
+    if neuves := {str(i) for i in ids_apres - ids_avant if i}:
+        from catalogue import espace as espace_mod
+
+        ecarts, _panne = espace_mod.controler_aide(slug, nouveau, seulement=neuves)
+        b.cases += ecarts
     if ecrire:
         # Ordre de la section 7.6 : les faits, puis les instantanés et le YAML.
         b.faits = ajouter_faits(r.faits_neufs, pending_essai, pending)

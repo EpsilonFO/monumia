@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from datetime import date
 from difflib import SequenceMatcher
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -125,16 +126,68 @@ def rechercher(
         )
     resultats.sort(key=lambda r: (-r[0], r[1]))
     lignes = [f"{len(resultats)} fait(s) trouvé(s), les {min(limite, len(resultats))} meilleurs :"]
-    for _score, cle in resultats[:limite]:
-        fait = tous[cle]
-        marque = " ⏳ (proposé, non approuvé)" if cle in pending else ""
-        options = ""
-        if fait.options:
-            options = "  [" + ", ".join(o.id for o in fait.options) + "]"
-        lignes.append(
-            f"  {cle}  {fait.type}  {fait.scope}  "
-            f"« {' '.join(fait.question.split())} »{options}{marque}"
-        )
+    lignes += [_ligne_fait(cle, tous[cle], pending) for _score, cle in resultats[:limite]]
+    return "\n".join(lignes)
+
+
+def _ligne_fait(cle: str, fait: FactDef, pending: dict[str, FactDef]) -> str:
+    marque = " ⏳ (proposé, non approuvé)" if cle in pending else ""
+    options = "  [" + ", ".join(o.id for o in fait.options) + "]" if fait.options else ""
+    return (
+        f"  {cle}  {fait.type}  {fait.scope}  "
+        f"« {' '.join(fait.question.split())} »{options}{marque}"
+    )
+
+
+def rechercher_plongement(
+    facts: dict[str, FactDef],
+    pending: dict[str, FactDef],
+    mots: str,
+    *,
+    scope: str | None = None,
+    limite: int = LIMITE_DEFAUT,
+) -> str:
+    """Les faits les plus proches de ces mots PAR LE SENS (espace d'embedding).
+
+    Mesuré le 2026-10-14 : avec le texte d'une condition pour requête, le bon
+    fait est parmi les 20 premiers 94 fois sur 100, contre 72 pour le comptage
+    de mots (`data/reviews/2026-10-14-rappel-faits-plongement.md`). Les faits
+    dont l'id ou le texte portent TOUS les mots sont ajoutés en fin de liste :
+    une recherche par clé exacte doit toujours retrouver sa clé. Lève si
+    l'espace est indisponible ; l'appelant retombe sur `rechercher`.
+    """
+    from catalogue.espace import instance
+    from catalogue.plongements import (
+        CONSIGNE_MOTS_VERS_FAIT,
+        avec_consigne,
+        plus_proches,
+        texte_fait,
+    )
+
+    if not mots.strip():
+        return "Aucun mot-clé fourni."
+    tous = {k: f for k, f in {**facts, **pending}.items() if not scope or f.scope == scope}
+    if not tous:
+        return f"Aucun fait de scope {scope}."
+    cles = list(tous)
+    plongeur = instance().plongeur
+    corpus = plongeur.vecteurs([texte_fait(k, tous[k]) for k in cles])
+    requete = plongeur.vecteurs([avec_consigne(CONSIGNE_MOTS_VERS_FAIT, mots)])
+    rangs, _ = plus_proches(requete, corpus, limite)
+    trouves = [cles[int(j)] for j in rangs[0]]
+    jetons = [t for t in normalize(mots.replace("_", " ")).split() if t]
+    exacts = [
+        cle
+        for cle in sorted(tous)
+        if cle not in trouves and jetons and all(t in _texte_indexe(cle, tous[cle]) for t in jetons)
+    ][:5]
+    lignes = [
+        f"Les {len(trouves)} faits les plus proches de « {mots} », du plus proche au plus lointain :"
+    ]
+    lignes += [_ligne_fait(cle, tous[cle], pending) for cle in trouves]
+    if exacts:
+        lignes.append("Faits qui portent aussi tous ces mots :")
+        lignes += [_ligne_fait(cle, tous[cle], pending) for cle in exacts]
     return "\n".join(lignes)
 
 
@@ -179,7 +232,14 @@ def detail(facts: dict[str, FactDef], pending: dict[str, FactDef], fact_id: str)
 # ---------------------------------------------------------------------------
 
 
-def _bloc(slug: str, fact_id: str, definition: dict, justification: str, jour: date) -> str:
+def _bloc(
+    slug: str,
+    fact_id: str,
+    definition: dict,
+    justification: str,
+    jour: date,
+    famille: str | None = None,
+) -> str:
     """Le bloc à ajouter, dans la forme qu'a prise le fichier à la main.
 
     Un commentaire de provenance et une justification repliée avant chaque
@@ -197,8 +257,7 @@ def _bloc(slug: str, fact_id: str, definition: dict, justification: str, jour: d
         f"\n# --- {slug} ---\n"
         f"#\n"
         f"# Proposé par ingerer.py {slug} ({jour.isoformat()}).\n"
-        f"{justif}\n"
-        f"{corps}"
+        f"{justif}\n" + (f"# {famille}\n" if famille else "") + f"{corps}"
     )
 
 
@@ -270,6 +329,43 @@ def _message_proximite(
     return "\n".join(lignes)
 
 
+def _famille(fact_id: str, fait: FactDef, tous: dict[str, FactDef]) -> tuple[Any, bool]:
+    """(la famille du fait selon Jev ou None, l'espace est-il en panne).
+
+    En panne (espace coupé, embedding ou Jev indisponible), l'appelant reprend
+    le garde lexical : un fait neuf ne passe jamais sans garde.
+    """
+    try:
+        from catalogue.espace import actif, famille_du_fait
+
+        if not actif():
+            return None, True
+        f = famille_du_fait(fact_id, fait, tous)
+    except Exception:  # noqa: BLE001 — l'espace en panne ne bloque pas la proposition
+        return None, True
+    return f, False
+
+
+def _message_famille(famille: Any, tous: dict[str, FactDef]) -> str:
+    """L'erreur qui ORIENTE vers le fait existant que Jev rattache à la proposition."""
+    autre = tous[famille.cle]
+    options = "  [" + ", ".join(o.id for o in autre.options) + "]" if autre.options else ""
+    voisins = [c for c in famille.candidats if c != famille.cle]
+    return "\n".join(
+        [
+            f"ERREUR : le fait existant `{famille.cle}` pose déjà cette question selon Jev "
+            f"({famille.proba:.0%}) :",
+            f"  {famille.cle}  {autre.type}  {autre.scope}  "
+            f"« {' '.join(autre.question.split())} »{options}",
+            "Relis-le avec `detail_fait`, puis réutilise-le : le seuil appartient au prédicat "
+            "de l'aide, pas au fait. S'il ne convient vraiment pas, repropose en disant dans "
+            "la justification ce qui l'en distingue : la proposition passera, et le "
+            "rapprochement sera soumis à Félix.",
+            f"Autres faits proches : {', '.join(voisins)}." if voisins else "",
+        ]
+    ).rstrip()
+
+
 #: Une question que tout demandeur accepte : « acceptez-vous de… »,
 #: « vous engagez-vous à… ». Elle ne trie personne et entre au questionnaire de
 #: tous les propriétaires.
@@ -304,9 +400,10 @@ def _refus_de_forme(fact_id: str, fait: FactDef) -> str | None:
             "elle entrerait au questionnaire de TOUS les propriétaires.\n"
             "Type la condition `kind: info` + `effect: info`, avec le `text` et la `quote` de "
             "la source : l'exigence reste affichée sur la fiche, sans devenir une question. "
-            "Si la promesse cache un critère réel (des travaux pas encore commencés, par "
-            "exemple), gate sur le fait qui porte ce critère (`etat_travaux`), déjà posé "
-            "pour tout le monde."
+            "Si la promesse cache un critère réel (déposer avant le démarrage d'un "
+            "CHANTIER, par exemple), gate sur le fait qui porte ce critère (`etat_travaux`) : "
+            "le moteur ne le pose qu'aux aides qui le gatent (TYPING.md, « Antériorité du "
+            "dépôt »)."
         )
     seuil = booleen_a_seuil(fact_id, fait) or (
         seuil_chiffre(fact_id, fait.question) if fait.type == "boolean" else None
@@ -452,17 +549,29 @@ def proposer(
             "utilise-le tel quel, il est valide pour le typage."
         )
 
-    proches = _proches(fact_id, fait, {**facts, **pending})
-    # « Cite le fait voisin » doit vouloir dire « va le LIRE ». Le garde
-    # cherchait la clé du voisin comme SOUS-CHAÎNE de la justification : recopier
-    # `porteur_siege_grand_est` dans une phrase suffisait à lever l'alerte, sans
-    # avoir jamais ouvert sa définition. On demande maintenant un `detail_fait`.
-    non_lus = [(s, c) for s, c in proches if c not in detailles]
-    if non_lus:
-        return _message_proximite(proches, {**facts, **pending}, non_lus=[c for _s, c in non_lus])
+    tous = {**facts, **pending}
+    mention: str | None = None
+    famille, en_panne = _famille(fact_id, fait, tous)
+    if en_panne:
+        proches = _proches(fact_id, fait, tous)
+        # « Cite le fait voisin » doit vouloir dire « va le LIRE ». Le garde
+        # cherchait la clé du voisin comme SOUS-CHAÎNE de la justification :
+        # recopier `porteur_siege_grand_est` dans une phrase suffisait à lever
+        # l'alerte, sans avoir jamais ouvert sa définition. On demande
+        # maintenant un `detail_fait`.
+        non_lus = [(s, c) for s, c in proches if c not in detailles]
+        if non_lus:
+            return _message_proximite(proches, tous, non_lus=[c for _s, c in non_lus])
+    elif famille is not None:
+        if famille.cle not in detailles:
+            return _message_famille(famille, tous)
+        mention = (
+            f"Famille selon Jev : {famille.cle} ({famille.proba:.2f}), lue et écartée par "
+            "l'agent : à fusionner ou à garder (case de la semaine)."
+        )
 
     definition = fait.model_dump(exclude_none=True, exclude_defaults=True)
-    bloc = _bloc(atelier.slug, fact_id, definition, justification, atelier.jour)
+    bloc = _bloc(atelier.slug, fact_id, definition, justification, atelier.jour, mention)
     try:
         ajouter_sous_verrou(atelier.pending_path, bloc, valider=_validateur(fact_id, facts))
     except Exception as exc:

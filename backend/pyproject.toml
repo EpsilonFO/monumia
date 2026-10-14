@@ -46,6 +46,7 @@ dev = [
 # (secret PROVIDALL_DEPLOY_KEY, cf. .github/workflows/ci.yml).
 pipeline = [
     "curl-cffi>=0.16.3",
+    "numpy>=2.5.4",
     "providall",
     "truststore>=0.10.4",
 ]

@@ -17,6 +17,9 @@
   mensuelle d'étiquetage des cas de la zone prudente.
 - `calibrer --decision <id> [--modele <nom>]` : rejoue une décision sur ses
   étalons et propose des seuils.
+- `coherence --journal <dossier>` : la cohérence du typage (décision
+  `C1-coherence`) ; écarts de typage au voisinage et faits en attente rattachés
+  à un fait existant, en cases (`catalogue/espace.py`).
 """
 
 from __future__ import annotations
@@ -77,6 +80,11 @@ def main(argv: list[str] | None = None) -> int:
     ig.add_argument("--file", type=Path, help="file d'attente à projeter")
     ig.add_argument("--forcer", action="store_true", help="tourner hors registre (copies jetables)")
 
+    co = commandes.add_parser("coherence", help="écarts de typage et familles de faits")
+    co.add_argument("--journal", type=Path, required=True)
+    co.add_argument("--parties", type=Path)
+    co.add_argument("--plafond", type=float, help="dépense maximale de l'étape, en dollars")
+
     b = commandes.add_parser("banc", help="session mensuelle d'étiquetage")
     b.add_argument("decision")
     b.add_argument("--journal", type=Path, default=None, help="défaut : data/catalogue/journal")
@@ -107,6 +115,10 @@ def main(argv: list[str] | None = None) -> int:
             forcer=args.forcer,
             file=args.file,
         )
+    if args.commande == "coherence":
+        from catalogue import espace
+
+        return espace.commande(args.journal, args.parties, plafond=args.plafond)
     if args.commande == "banc":
         from catalogue import banc
         from catalogue.journal import DOSSIER

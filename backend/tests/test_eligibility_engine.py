@@ -588,7 +588,12 @@ class TestUserFactGating(unittest.TestCase):
         satisfaits, devient éligible (Loto : protection + non-commencement +
         trésorerie insuffisante)."""
         m = _monument(protection="classe")
-        answers = {"etat_travaux": "non_commences", "tresorerie_insuffisante_autofinancement": True}
+        answers = {
+            "etat_travaux": "non_commences",
+            "tresorerie_insuffisante_autofinancement": True,
+            # Gate posé le 2026-10-14 (cohérence du typage, groupe G017).
+            "travaux_restauration_patrimoniale": True,
+        }
         ctx = build_context(m, 3000, answers=answers)
         v = evaluate_aide(AIDES["loto-patrimoine"], m, 3000, ctx, FACTS)
         self.assertEqual(v.status, "eligible")
@@ -2429,8 +2434,8 @@ class TestProjetSansTravaux(unittest.TestCase):
 
     Elle réfute par construction les deux familles de gates sur l'état des
     travaux — les programmes qui financent un chantier (`eq: non_commences`) et
-    les prix qui en récompensent un (`eq: acheves`) — et déduit un budget de
-    travaux nul, ce qui retire du QCM la question du budget.
+    les prix qui en récompensent un (`eq: acheves`). Elle ne déduit plus de
+    budget nul depuis le 2026-10-14 : le budget est celui du projet.
     """
 
     FACT = "etat_travaux"
@@ -2508,50 +2513,42 @@ class TestProjetSansTravaux(unittest.TestCase):
             res = self._run([self.GATE_PROGRAMME], {self.FACT: reponse})
             self.assertEqual([m["aide"]["id"] for m in res[attendu]], ["fx-travaux"], reponse)
 
-    def test_aucun_deduit_un_budget_de_travaux_nul(self):
-        self.assertEqual(
-            deduire_faits_des_faits({self.FACT: "aucun"}, FACTS),
-            {self.FACT: "aucun", self.BUDGET: 0},
-        )
-        # Les autres réponses ne déduisent rien : le budget reste à demander.
-        for reponse in ("non_commences", "en_cours", "acheves", "skip"):
+    def test_aucun_ne_deduit_plus_de_budget(self):
+        """Depuis le 2026-10-14, `budget_travaux_estime` porte sur le budget du
+        PROJET : un projet sans chantier en a un, rien ne se déduit d'« aucun »."""
+        for reponse in ("non_commences", "engages", "en_cours", "acheves", "aucun", "skip"):
             self.assertEqual(
                 deduire_faits_des_faits({self.FACT: reponse}, FACTS),
                 {self.FACT: reponse},
                 reponse,
             )
 
-    def test_la_question_du_budget_disparait_et_le_seuil_echoue(self):
+    def test_la_question_du_budget_reste_posee_sans_travaux(self):
+        """La déduction à 0 € écartait à tort les aides dont le plancher porte sur
+        la dépense de l'opération (équipements, études) : la question reste
+        posée, et l'aide n'est pas écartée tant qu'elle n'a pas de réponse."""
         res = self._run([self.GATE_BUDGET], {self.FACT: "aucun"})
-        self.assertNotIn(self.BUDGET, self._questions(res))
-        self.assertEqual([m["aide"]["id"] for m in res["aidesNonEligibles"]], ["fx-travaux"])
+        self.assertIn(self.BUDGET, self._questions(res))
+        self.assertEqual(res["aidesNonEligibles"], [])
 
-    def test_la_reponse_de_l_utilisateur_prime_sur_la_deduction(self):
+    def test_un_projet_sans_travaux_qui_atteint_le_seuil_reste_eligible(self):
         res = self._run([self.GATE_BUDGET], {self.FACT: "aucun", self.BUDGET: "ge10000"})
         self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fx-travaux"])
 
-    def test_la_question_du_budget_se_branche_sur_l_etat_des_travaux(self):
-        """`dependsOn` : le front ne montre plus le budget dès qu'« aucun » est
-        coché, et la source se pose AVANT lui."""
+    def test_la_question_du_budget_ne_depend_plus_de_l_etat_des_travaux(self):
         res = self._run([self.GATE_PROGRAMME, self.GATE_BUDGET])
-        ids = self._questions(res)
-        self.assertEqual(ids[0], self.FACT)
         budget = next(q for q in res["qcmQuestions"] if q["id"] == self.BUDGET)
-        self.assertEqual(budget["dependsOn"]["questionId"], self.FACT)
-        self.assertNotIn("aucun", budget["dependsOn"]["showForOptionIds"])
-        self.assertEqual(
-            sorted(budget["dependsOn"]["showForOptionIds"]),
-            ["acheves", "en_cours", "non_commences"],
-        )
+        self.assertFalse(budget.get("dependsOn"))
 
     def test_aucun_est_la_derniere_reponse_proposee(self):
-        """« Aucun » ferme la liste : les trois réponses habituelles d'un projet
-        de restauration restent en tête, dans leur ordre."""
+        """« Aucun » ferme la liste : les réponses habituelles d'un projet de
+        restauration restent en tête, dans leur ordre (`engages`, signé mais pas
+        commencé, depuis le 2026-10-14)."""
         res = self._run([self.GATE_PROGRAMME])
         question = next(q for q in res["qcmQuestions"] if q["id"] == self.FACT)
         self.assertEqual(
             [o["id"] for o in question["options"]],
-            ["non_commences", "en_cours", "acheves", "aucun", "skip"],
+            ["non_commences", "engages", "en_cours", "acheves", "aucun", "skip"],
         )
 
     def test_le_fioul_apres_travaux_ne_se_pose_pas_sans_travaux(self):
@@ -2625,58 +2622,19 @@ class TestProjetSansTravaux(unittest.TestCase):
     #: fait choisi à l'ingestion ne convient pas, et le corriger demande de
     #: rouvrir la source (`/ingest-aide`), pas de retoucher un prédicat.
     DETTE_DE_TYPAGE = {
-        "56-valorisation-restauration-patrimoine": "plancher de 2 500 € posé sur "
-        "`budget_travaux_estime` alors qu'il porte sur le coût du projet, "
-        "« équipements de valorisation » compris",
-        "71-label-ens": "planchers posés sur `budget_travaux_estime` alors que le label "
-        "et le plan de gestion ne sont pas des travaux",
         "europa-nostra-heritage-awards": "`etat_travaux eq acheves` appliqué aux cinq "
         "catégories, alors que Recherche, Éducation et Engagement citoyen n'ont pas de "
         "chantier",
-        "fondation-ca-paysdefrance": "plancher de 50 000 € sur `budget_travaux_estime` "
-        "alors que la fondation finance aussi le patrimoine artistique et muséal",
-        "naq-tourisme-sites-visites": "plancher de 50 000 € sur `budget_travaux_estime` "
-        "alors que la modernisation d'un site de visite n'est pas que du bâti",
-        "pdl-handicap-tourisme": "plancher de 1 500 € sur `budget_travaux_estime` alors "
-        "que l'aide finance l'ACQUISITION d'équipements",
-        "pdl-tourisme-culturel-innovation": "plancher de 5 000 € sur "
-        "`budget_travaux_estime` alors que la première branche est un produit touristique",
         "prix-patrimoine-institut-de-france": "`etat_travaux eq acheves` alors que le "
         "prix récompense une ACTION de médiation déjà mise en place, pas un chantier",
         "prix-regional-biodiversite-paca-fondation-patrimoine": "`etat_travaux` appliqué "
         "aux deux branches, alors que la préservation de la biodiversité n'est pas un "
         "chantier",
-        # Lot venu du pipeline de prospection (branche `feat/pipeline-prospection-
-        # ingestion`), ingéré avant que cet invariant existe. Les `etat_travaux`
-        # « dépôt avant démarrage » y ont été élargis à « aucun » comme ailleurs ; ne
-        # restent que des PLANCHERS DE DÉPENSES posés sur `budget_travaux_estime`, qui
-        # demandent de rouvrir la source pour savoir sur quelle assiette ils portent.
-        "normandie-reconversion-espaces-activites-industriels-friche": "plancher de "
-        "200 000 € sur `budget_travaux_estime` alors que la reconversion d'une friche "
-        "porte aussi sur des études et de l'animation de site",
-        "region-grand-est-chantiers-benevoles": "plancher de 2 000 € sur "
-        "`budget_travaux_estime` alors qu'un chantier de bénévoles est d'abord une "
-        "action de transmission",
-        "region-grand-est-soutien-amenagement-musees-equipements": "plancher de "
-        "150 000 € sur `budget_travaux_estime` alors que l'aide finance aussi des "
-        "équipements muséographiques",
-        "region-grand-est-soutien-developpement-tourisme-fluvial": "plancher de "
-        "40 000 € sur `budget_travaux_estime`, et `etat_travaux` appliqué aux deux "
-        "branches dont l'animation de l'escale",
-        "region-grand-est-soutien-hebergements-collectifs": "plancher de 125 000 € sur "
-        "`budget_travaux_estime` alors que l'assiette couvre aussi l'équipement",
-        "region-grand-est-soutien-hostels": "plancher de 125 000 € sur "
-        "`budget_travaux_estime` alors que l'assiette couvre aussi l'équipement",
-        "region-grand-est-soutien-hotellerie": "plancher de 125 000 € sur "
-        "`budget_travaux_estime` alors que l'assiette couvre aussi l'équipement",
-        # Lot du 2026-09-18 (Charente, Landes), même motif : un plancher de
-        # dépenses de l'OPÉRATION typé comme un budget de travaux.
-        "40-appui-attractivite-touristique": "plancher de 50 000 € sur "
-        "`budget_travaux_estime` alors que la source l'applique aux dépenses éligibles, "
-        "études, aménagements et équipements inclus",
-        "40-meubles-tourisme-chambres-hotes-hebergements-innovants": "plancher de "
-        "10 000 € sur `budget_travaux_estime` alors qu'il porte sur la dépense "
-        "subventionnable, qui couvre aussi l'équipement de l'hébergement",
+        # Les quatorze dettes de PLANCHER posé sur `budget_travaux_estime` sont
+        # tombées le 2026-10-14 : la question porte sur le budget du projet et ne se
+        # déduit plus d'« aucun travaux ».
+        "region-grand-est-soutien-developpement-tourisme-fluvial": "`etat_travaux` "
+        "appliqué aux deux branches dont l'animation de l'escale",
     }
 
     def test_corpus_une_aide_de_valorisation_est_obtenable_sans_travaux(self):

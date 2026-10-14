@@ -226,7 +226,19 @@ def ingerer(
         temporaire = aides / f".{slug}.yaml.{os.getpid()}.tmp"
         temporaire.write_text(texte, encoding="utf-8")
         temporaire.replace(aides / f"{slug}.yaml")
+    # Chaque condition rattachée à sa famille (catalogue/espace.py) : un typage
+    # qui s'en écarte devient une case, jamais une réécriture.
+    from catalogue import espace as espace_mod
+
+    ecarts, panne = espace_mod.controler_aide(slug, texte)
+    b.cases += ecarts
+    if panne:
+        b.raison = f"{b.raison} ; {panne}" if b.raison else panne
     for f in neufs:
+        contexte = [f"Proposé par l'ingestion de `{slug}`."]
+        famille = _famille_du_fait(f, proposes)
+        if famille:
+            contexte.append(famille)
         b.cases.append(
             Case(
                 "H-fait",
@@ -234,7 +246,7 @@ def ingerer(
                 f"fait neuf `{f}`",
                 f,
                 {"vu": "validé (déplacé dans facts.yaml) ou refusé, à la main, comme aujourd'hui"},
-                (f"Proposé par l'ingestion de `{slug}`.",),
+                tuple(contexte),
             )
         )
     b.cases.append(
@@ -248,6 +260,22 @@ def ingerer(
         )
     )
     return b
+
+
+def _famille_du_fait(cle_fait: str, proposes: dict[str, Any]) -> str | None:
+    """La ligne de case qui nomme le fait existant posant déjà la même question, s'il y en a un."""
+    from aides_schema import load_facts
+    from catalogue import espace as espace_mod
+
+    if not espace_mod.actif() or cle_fait not in proposes:
+        return None
+    try:
+        f = espace_mod.famille_du_fait(cle_fait, proposes[cle_fait], {**load_facts(), **proposes})
+    except Exception:  # noqa: BLE001 — l'espace en panne ne retient pas la case
+        return None
+    if f is None:
+        return None
+    return f"Famille selon Jev : `{f.cle}` ({f.proba:.2f}) pose déjà cette question : à fusionner ?"
 
 
 # ------------------------------------------------------------------ projection inverse vers la file

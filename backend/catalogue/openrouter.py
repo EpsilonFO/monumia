@@ -1,7 +1,8 @@
 """Client OpenRouter du paquet : un appel, un coût facturé, un modèle servi, ou une panne classée.
 
-Deux points d'accès, un seul client : `completer` (les LLM, chat completions)
-et `decider` (Jev, modèle de décision qui rend des probabilités). Chaque réponse
+Trois points d'accès, un seul client : `completer` (les LLM, chat completions),
+`decider` (Jev, modèle de décision qui rend des probabilités) et `plonger` (les
+modèles d'embedding, qui rendent un vecteur par texte). Chaque réponse
 porte ce qu'OpenRouter facture (`usage.cost`) et le modèle qui a répondu : le
 coût n'est jamais une estimation au tarif d'un registre (celui de providall
 tarifait `or-glm` à la moitié de son prix au 2026-10-10).
@@ -30,6 +31,8 @@ import httpx
 
 URL = "https://openrouter.ai/api/v1/chat/completions"
 URL_DECISIONS = "https://openrouter.ai/api/alpha/decisions"
+URL_PLONGEMENTS = "https://openrouter.ai/api/v1/embeddings"
+POINTS = {URL: "chat", URL_DECISIONS: "decisions", URL_PLONGEMENTS: "plongements"}
 TRANSITOIRES = frozenset({408, 429, 500, 502, 503, 504, 524, 529})
 # Une panne de ces classes ne se résout pas en attendant : pas de relance.
 DEFINITIVES = frozenset({"credits", "cle", "requete", "modele_substitue"})
@@ -75,6 +78,17 @@ class Decision:
     """Ce que Jev a rendu pour un état et des questions."""
 
     avis: dict[str, Avis]
+    modele_servi: str
+    cout_usd: float | None
+    jetons_entree: int
+    duree_s: float
+
+
+@dataclass(frozen=True)
+class Plongements:
+    """Un vecteur par texte envoyé, dans l'ordre des textes."""
+
+    vecteurs: list[list[float]]
     modele_servi: str
     cout_usd: float | None
     jetons_entree: int
@@ -262,6 +276,46 @@ class Client:
 
         return self._appeler(URL_DECISIONS, corps, modele, analyser, acceptes, delai_s, role)
 
+    def plonger(
+        self,
+        modele: str,
+        textes: list[str],
+        *,
+        acceptes: Collection[str] | None = None,
+        delai_s: float | None = 60.0,
+        role: str = "",
+    ) -> Plongements:
+        """Un appel d'embedding : un vecteur par texte, ou une panne s'il en manque un."""
+        corps = {"model": modele, "input": textes}
+
+        def analyser(brut: dict[str, Any], trace: dict[str, Any], debut: float) -> Plongements:
+            donnees = brut.get("data")
+            if not isinstance(donnees, list) or len(donnees) != len(textes):
+                recus = len(donnees) if isinstance(donnees, list) else 0
+                raise Panne("reponse_invalide", f"{recus} vecteurs pour {len(textes)} textes")
+            # L'ordre se lit sur `index` : rien ne garantit celui de la liste.
+            vecteurs: list[list[float] | None] = [None] * len(textes)
+            for element in donnees:
+                rang = element.get("index") if isinstance(element, dict) else None
+                vecteur = element.get("embedding") if isinstance(element, dict) else None
+                if not isinstance(rang, int) or not 0 <= rang < len(textes):
+                    raise Panne("reponse_invalide", "vecteur sans rang valide")
+                if not isinstance(vecteur, list) or not vecteur:
+                    raise Panne("reponse_invalide", f"vecteur {rang} vide")
+                vecteurs[rang] = vecteur
+            if any(v is None for v in vecteurs):
+                raise Panne("reponse_invalide", "rang de vecteur en double")
+            usage = brut.get("usage") or {}
+            return Plongements(
+                vecteurs=[v for v in vecteurs if v is not None],
+                modele_servi=brut.get("model") or modele,
+                cout_usd=usage.get("cost"),
+                jetons_entree=int(usage.get("prompt_tokens") or 0),
+                duree_s=round(time.monotonic() - debut, 2),
+            )
+
+        return self._appeler(URL_PLONGEMENTS, corps, modele, analyser, acceptes, delai_s, role)
+
     # ---------------------------------------------------------------- interne
 
     def _appeler[T](
@@ -300,7 +354,7 @@ class Client:
         debut = time.monotonic()
         trace: dict[str, Any] = {
             "t": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
-            "point": "decisions" if url == URL_DECISIONS else "chat",
+            "point": POINTS.get(url, url),
             "modele_demande": modele,
             "role": role,
         }

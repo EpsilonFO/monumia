@@ -289,7 +289,7 @@ def outils_pour(
     compteur: Compteur | None = None,
     entete_review: Callable[[], str] | None = None,
 ) -> tuple[list[providall.Tool], EtatOutils]:
-    """Les quatorze outils, fermés sur cet atelier. Renvoie aussi leur état partagé."""
+    """Les seize outils, fermés sur cet atelier. Renvoie aussi leur état partagé."""
     etat = EtatOutils()
     journal = journal or JournalMuet()
 
@@ -537,7 +537,35 @@ def outils_pour(
         à un seuil de 500 m² qu'à un seuil de 2 000 m².
         """
         compter("chercher_faits")
+        from catalogue.espace import actif
+
+        if actif():
+            try:
+                return faits_mod.rechercher_plongement(facts, pending, mots, scope=(scope or None))
+            except Exception:  # noqa: BLE001 — l'espace en panne : la recherche par mots
+                pass
         return faits_mod.rechercher(facts, pending, mots, scope=(scope or None))
+
+    def conditions_voisines(
+        texte: Annotated[
+            str,
+            Field(description="Le texte de la condition que tu types, tel que tu l'écris"),
+        ],
+    ) -> str:
+        """Comment le catalogue type DÉJÀ ce critère : sa famille et les conditions qui la portent.
+
+        À appeler pour chaque condition qui exige quelque chose, AVANT de la
+        typer. Les conditions d'autres aides proches par le sens sont jugées
+        par Jev (« même critère ») ; la famille est le typage que portent les
+        voisines confirmées (`kind`, `effect`, fait ou champ lu, et le prédicat
+        le plus fréquent). Type ta condition comme sa famille : une condition
+        typée autrement deviendra une case pour Félix. TYPING.md prime sur la
+        famille, et tout écart voulu s'explique dans `notes`.
+        """
+        compter("conditions_voisines")
+        from catalogue.espace import voisines_pour
+
+        return voisines_pour(texte, atelier.slug, atelier.slug)
 
     def detail_fait(
         fact_id: Annotated[str, Field(description="Identifiant exact du fait")],
@@ -992,6 +1020,7 @@ def outils_pour(
             lire_snapshot,
             chercher_dans_snapshot,
             chercher_faits,
+            conditions_voisines,
             detail_fait,
             proposer_fait,
             retirer_fait,

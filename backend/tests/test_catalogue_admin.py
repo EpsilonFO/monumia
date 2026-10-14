@@ -13,7 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from aides_schema import Aide, FactDef, load_all_aides, load_facts
-from eligibility_engine import engine_ready_aides
+from eligibility_engine import conditions_porteur_derivees, engine_ready_aides
 from services import catalogue_admin as ca
 from services.catalogue_admin import OptionSurchargee, SurchargeFait
 
@@ -548,6 +548,17 @@ class ImpactTests(unittest.TestCase):
             for slug, aide in ready.items()
             for key in {c.fact for c in aide.conditions if c.fact}
             if ca._gates_sur_fait(aide, key)
+        }
+        # Les gates porteur DÉRIVÉS d'un fait marqué `porteurs_concernes` : une
+        # aide qui gate un tel fait sans gate porteur explicite est quand même
+        # fermée aux autres porteurs (premier cas au corpus : le 2026-10-14,
+        # region-grand-est-soutien-hotellerie sur
+        # capital_groupe_financier_ou_culturel_majoritaire).
+        ontologie = load_facts()
+        attendus_gates |= {
+            (ca.FAIT_PORTEUR, slug)
+            for slug, aide in ready.items()
+            if conditions_porteur_derivees(aide, ontologie)
         }
         obtenus_gates = {(key, slug) for key, par_slug in index.gates.items() for slug in par_slug}
         self.assertEqual(obtenus_gates, attendus_gates)

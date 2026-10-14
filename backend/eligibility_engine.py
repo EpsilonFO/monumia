@@ -871,11 +871,12 @@ def deduire_faits_des_familles(
 # montre plus dès que la source y répond.
 FAITS_DEDUITS_DES_FAITS: dict[str, tuple[str, dict[object, object]]] = {
     "jours_ouverture_public_par_an": ("ouverture_public", {"aucune": 0}),
-    # « Ce projet ne comporte pas de travaux » répond d'avance « budget de
-    # travaux : 0 € » : les gates `gte` d'un programme de chantier échouent
-    # (l'aide part en « écartée par vos réponses », ce qu'elle est), et la
-    # question disparaît du QCM au profit de sa source.
-    "budget_travaux_estime": ("etat_travaux", {"aucun": 0}),
+    # `budget_travaux_estime` ne se déduit plus d'« aucun travaux » (2026-10-14) :
+    # la question porte sur le budget du PROJET, et un projet sans chantier en a
+    # un. La déduction à 0 € écartait à tort les aides dont le plancher porte sur
+    # la dépense éligible de l'opération (équipements, études), cf. l'ancienne
+    # `DETTE_DE_TYPAGE` de test_eligibility_engine.py. Les programmes de chantier
+    # écartent toujours ce projet, par leur gate `etat_travaux`.
     # « Mes travaux relèvent de l'entretien courant » répond d'avance « non »
     # à « mon programme est-il une création / extension / rénovation
     # fondamentale ? », qui exclut l'entretien courant dans son énoncé même.
