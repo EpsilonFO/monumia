@@ -58,6 +58,10 @@ class Reglages(_Strict):
     rebuts: Literal["dossier", "echec"]
     extraction: Literal["agent", "structuree"]
     zone_prudente: Literal["appliquee", "refusee"]
+    #: Une condition typée autrement que sa famille : une case pour Félix
+    #: (`case`), ou le lint de l'agent l'oblige à s'aligner (`aligner`), sauf
+    #: quand la famille retirerait un gate (`espace.garde_son_gate`).
+    typage_famille: Literal["case", "aligner"]
 
 
 class BudgetsErreur(_Strict):
@@ -116,6 +120,15 @@ def charger(chemin: Path = REGISTRE) -> Registre:
     if not isinstance(brut, dict):
         raise ValueError(f"{chemin} : registre vide ou illisible")
     return Registre.model_validate(brut)
+
+
+def faits_neufs_en_case() -> bool:
+    """Un fait neuf ouvre-t-il une case `H-fait` (réglage `faits_neufs: case`) ?
+
+    En `auto`, il entre dans `facts_pending.yaml`, servi au questionnaire comme
+    un fait approuvé, sans attendre Félix.
+    """
+    return charger().reglages.faits_neufs == "case"
 
 
 def refus_ancienne(operation: str, chemin: Path | None = None) -> str | None:

@@ -7,16 +7,20 @@ Une FAMILLE de condition, c'est le typage que portent ses voisines confirmées :
 les conditions d'autres aides que l'embedding rapproche (rôle `plongement`) et
 que Jev juge porter sur le même critère (décision `C1-coherence` du registre).
 Une famille de FAIT, c'est le fait existant qui pose déjà la même question
-(décision `F3-famille-fait`). Rien ici ne retype ni ne fusionne : la famille
-ORIENTE l'agent d'ingestion et OUVRE une case à Félix quand on s'en écarte.
+(décision `F3-famille-fait`). Rien ici n'écrit dans une aide : le code ne
+saurait pas écrire le prédicat (les valeurs viennent de la source). Avec
+`typage_famille: aligner` (registre), c'est le `lint` de l'agent qui l'oblige
+à retyper une condition comme sa famille, sauf quand la famille retirerait un
+gate (`garde_son_gate`) ; avec `case`, l'écart part en case pour Félix.
 
 Quatre usages, un seul espace :
 
 1. L'agent d'ingestion : `voisines_pour` (outil `conditions_voisines`) lui
-   montre comment le catalogue type déjà le critère qu'il lit, et
+   montre comment le catalogue type déjà le critère qu'il lit,
+   `alignements` rend bloquant au `lint` l'écart qu'il doit corriger, et
    `famille_du_fait` lui oppose le fait existant qui pose sa question.
 2. Après une ingestion ou une ré-extraction acceptée : `controler_aide` ouvre
-   une case `coherence:<id>` par condition typée autrement que sa famille.
+   une case `coherence:<id>` par écart resté (`a_signaler`).
 3. Le run de la semaine (`python -m catalogue coherence`) : l'audit du stock,
    incrémental (seules les conditions neuves se plongent, seules les paires
    neuves se jugent), et les faits en attente rattachés à leur famille.
@@ -79,27 +83,35 @@ DECISION_FAITS = "F3-famille-fait"
 #: au-delà, la fiche cesse d'être lue.
 MAX_CASES = 15
 MAX_CASES_FAITS = 10
-#: Candidats de fait soumis à Jev : les cinq plus proches dans l'espace.
-CANDIDATS_FAIT = 5
+#: Candidats de fait soumis à Jev : les dix plus proches dans l'espace. À cinq,
+#: 11 des 70 doublons de la revue du 2026-09-17 n'étaient pas montrés ; à dix,
+#: 7 (`data/reviews/2026-10-14-famille-fait.md`).
+CANDIDATS_FAIT = 10
 AUCUN = "aucun"
 
-QUESTIONS_FAIT: dict[str, Any] = {
-    "famille": choix(
-        "Un fait est une question posée au propriétaire d'un monument pour vérifier "
-        "son éligibilité à des aides. Parmi les candidats, lequel demande la MÊME "
-        "information que le fait proposé, au point qu'un seul des deux devrait être "
-        "posé ? Les seuils et les valeurs exigées appartiennent aux aides, pas aux "
-        "faits : « budget de plus de 10 000 € » et « budget estimé du projet » sont la "
-        "même information.",
-        {
-            **{
-                f"c{k}": f"Le candidat c{k} demande la même information que le fait proposé."
-                for k in range(1, CANDIDATS_FAIT + 1)
+
+def questions_fait(n: int) -> dict[str, Any]:
+    """La question de `F3-famille-fait` pour `n` candidats (son empreinte en dépend)."""
+    return {
+        "famille": choix(
+            "Un fait est une question posée au propriétaire d'un monument pour vérifier "
+            "son éligibilité à des aides. Parmi les candidats, lequel demande la MÊME "
+            "information que le fait proposé, au point qu'un seul des deux devrait être "
+            "posé ? Les seuils et les valeurs exigées appartiennent aux aides, pas aux "
+            "faits : « budget de plus de 10 000 € » et « budget estimé du projet » sont la "
+            "même information.",
+            {
+                **{
+                    f"c{k}": f"Le candidat c{k} demande la même information que le fait proposé."
+                    for k in range(1, n + 1)
+                },
+                AUCUN: "Aucun candidat ne demande la même information : le fait proposé est neuf.",
             },
-            AUCUN: "Aucun candidat ne demande la même information : le fait proposé est neuf.",
-        },
-    )
-}
+        )
+    }
+
+
+QUESTIONS_FAIT: dict[str, Any] = questions_fait(CANDIDATS_FAIT)
 EMPREINTE_QUESTIONS_FAIT = empreinte(json.dumps(QUESTIONS_FAIT, ensure_ascii=False, sort_keys=True))
 
 
@@ -116,6 +128,7 @@ class Reglages:
     min_voisines: int = co.MIN_VOISINS
     part_dominante: float = co.PART_DOMINANTE
     choix_fait: float = 0.5
+    typage_famille: str = "aligner"
 
     @classmethod
     def depuis(cls, reg: registre_mod.Registre | None = None) -> Reglages:
@@ -129,6 +142,7 @@ class Reglages:
             min_voisines=int(c["min_voisines"]),
             part_dominante=c["part_dominante"],
             choix_fait=f["choix"],
+            typage_famille=reg.reglages.typage_famille,
         )
 
 
@@ -296,9 +310,9 @@ def voisines_pour(texte: str, slug: str, nom: str, esp: Espace | None = None) ->
         )
         lignes += [
             f"FAMILLE : `{co.libelle(d.attendu)}` ({d.part:.0%} des voisines confirmées{pred}).",
-            "Type ta condition comme sa famille. Si le texte de ta source impose autre chose, "
-            "écris pourquoi dans `notes` : l'écart sera relu par Félix. TYPING.md prime sur "
-            "la famille (un événement n'est pas un chantier, par exemple).",
+            "Type ta condition comme sa famille : le `lint` l'imposera. Seule exception, un "
+            "gate que la famille n'a pas : si ta source pose une exigence vérifiable que la "
+            "famille laisse en `info`, garde ton gate.",
             "",
         ]
     elif f.confirmees:
@@ -370,6 +384,84 @@ def ecart(ligne: co.Ligne, f: Famille) -> bool:
     return f.dominante is not None and not co.concorde(ligne, f.dominante.attendu)
 
 
+def garde_son_gate(ligne: co.Ligne, attendu: co.Typage) -> bool:
+    """La famille retirerait un gate que la condition pose : la condition garde le sien.
+
+    Mesuré le 2026-10-14 sur les désaccords que Félix a arbitrés
+    (`data/reviews/2026-10-14-heritage-typage.md`) : quand la famille AJOUTE un
+    gate, elle avait raison 48 fois contre 5 ; quand elle en RETIRE un, l'agent
+    avait raison 17 fois contre 4. Une famille en `info` dit souvent que les
+    autres aides ont oublié l'exigence, pas qu'elle n'existe pas.
+    """
+    return co.pese(ligne.typage) and not co.pese(attendu)
+
+
+def a_aligner(ligne: co.Ligne, f: Famille) -> bool:
+    """L'écart que le `lint` de l'agent refuse (réglage `typage_famille: aligner`)."""
+    return (
+        ecart(ligne, f)
+        and f.dominante is not None
+        and not garde_son_gate(ligne, f.dominante.attendu)
+    )
+
+
+def a_signaler(ligne: co.Ligne, f: Famille) -> bool:
+    """L'écart qui devient une case : tous en mode `case`, les seuls à aligner sinon."""
+    if f.reglages.typage_famille == "case":
+        return ecart(ligne, f)
+    return a_aligner(ligne, f)
+
+
+def message_alignement(ligne: co.Ligne, f: Famille) -> str:
+    """L'erreur de `lint` qui oblige l'agent à retyper la condition comme sa famille."""
+    assert f.dominante is not None
+    d = f.dominante
+    porteuses = [v for v in f.confirmees if v.ligne.typage == d.attendu]
+    pred = (
+        f" Prédicat le plus fréquent chez elles : `{json.dumps(d.predicat, ensure_ascii=False)}`"
+        " (les valeurs viennent de TA source : seuil, liste, territoire)."
+        if d.predicat
+        else ""
+    )
+    lignes = [
+        f"  ✗ {ligne.condition.id} : typée `{co.libelle(ligne.typage)}`, mais "
+        f"{len(f.confirmees)} conditions d'autres aides qui posent le même critère sont "
+        f"typées `{co.libelle(d.attendu)}` ({d.part:.0%}). Retype-la en "
+        f"`{co.libelle(d.attendu)}`.{pred}",
+    ]
+    for v in porteuses[:2]:
+        lignes.append(
+            f"      ex. {v.ligne.ref} {_predicat_txt(v.ligne.condition)} : « {v.ligne.texte[:160]} »"
+        )
+    return "\n".join(lignes)
+
+
+def alignements(
+    slug: str, texte_yaml: str, *, esp: Espace | None = None
+) -> tuple[list[str], str | None]:
+    """Les erreurs de typage que le `lint` de l'agent rend bloquantes, et une note de panne.
+
+    Vide en mode `typage_famille: case` : l'écart part alors en case après
+    l'ingestion. Une panne n'impose rien : l'agent finit, et le contrôle
+    d'après ingestion rattrape ce qu'il peut.
+    """
+    if esp is None and not actif():
+        return [], None
+    try:
+        aide = Aide.model_validate(charger_yaml(texte_yaml))
+        esp = esp or instance()
+        if esp.reglages.typage_famille != "aligner":
+            return [], None
+        erreurs = []
+        for ligne in co.lignes_de(slug, aide):
+            f = esp.famille(ligne)
+            if a_aligner(ligne, f):
+                erreurs.append(message_alignement(ligne, f))
+        return erreurs, None
+    except Exception as exc:  # noqa: BLE001 (le contrôle en panne ne bloque pas l'agent)
+        return [], f"(contrôle de famille indisponible : {type(exc).__name__}, rien n'est imposé)"
+
+
 def controler_aide(
     slug: str,
     texte_yaml: str,
@@ -393,7 +485,7 @@ def controler_aide(
             if visees is not None and ligne.condition.id not in visees:
                 continue
             f = esp.famille(ligne)
-            if ecart(ligne, f):
+            if a_signaler(ligne, f):
                 cases.append(case_ecart(ligne, f))
         return cases, None
     except Exception as exc:  # noqa: BLE001 — un contrôle en panne ne refuse pas l'aide
@@ -510,6 +602,8 @@ def stock(
         ligne = lignes[s.indice]
         if Accepte(ligne.ref, co.libelle(ligne.typage), co.libelle(s.attendu)) in acceptes:
             continue
+        if esp.reglages.typage_famille == "aligner" and garde_son_gate(ligne, s.attendu):
+            continue
         sorte, objet = f"coherence:{ligne.condition.id}", f"a:{ligne.slug}"
         if repondu(sorte, objet, _etat_ecart(ligne, s.attendu)):
             continue
@@ -552,7 +646,16 @@ def faits_en_attente(
     *,
     max_cases: int = MAX_CASES_FAITS,
 ) -> Bilan:
-    """Les faits proposés que Jev rattache à un fait existant : une case par rapprochement."""
+    """Les faits proposés que Jev rattache à un fait existant : une case par rapprochement.
+
+    En `faits_neufs: auto`, aucune case : l'agent a déjà relu le fait que Jev
+    désignait avant de proposer le sien, et Jev seul rattache à tort plus d'un
+    fait sur deux qu'il désigne (`data/reviews/2026-10-14-famille-fait.md`).
+    Le rapport garde le compte.
+    """
+    from catalogue.registre import faits_neufs_en_case
+
+    en_case = faits_neufs_en_case()
     b = Bilan()
     ontologie = {**facts, **pending}
     trouves = 0
@@ -564,7 +667,7 @@ def faits_en_attente(
             continue
         trouves += 1
         sorte, objet, etat = "famille-fait", f"f:{cle}", empreinte(f"{cle}|{f.cle}")
-        if repondu(sorte, objet, etat) or len(b.cases) >= max_cases:
+        if not en_case or repondu(sorte, objet, etat) or len(b.cases) >= max_cases:
             continue
         autre = ontologie[f.cle]
         b.cases.append(

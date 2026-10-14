@@ -88,12 +88,23 @@ def test_une_aide_acceptee_entre_au_catalogue_avec_ses_instantanes(depot: dict[s
     assert [c.sorte for c in b.cases] == ["ingestion-fiche"]
 
 
-def test_un_fait_neuf_va_en_fin_de_fichier_et_en_case(depot: dict[str, Path]) -> None:
+def test_un_fait_neuf_va_en_fin_de_fichier_sans_case(
+    depot: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("catalogue.registre.faits_neufs_en_case", lambda: False)
     avant = depot["pending"].read_text(encoding="utf-8")
     b = _ingerer(depot, _lanceur({"ok": True}, fait="fait_tout_neuf_de_test"))
     assert b.faits == ["fait_tout_neuf_de_test"]
     apres = depot["pending"].read_text(encoding="utf-8")
     assert apres.startswith(avant) and apres.rstrip().endswith("question: Le projet est-il neuf ?")
+    assert "H-fait" not in [c.sorte for c in b.cases]
+
+
+def test_en_mode_case_un_fait_neuf_ouvre_une_case(
+    depot: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("catalogue.registre.faits_neufs_en_case", lambda: True)
+    b = _ingerer(depot, _lanceur({"ok": True}, fait="fait_tout_neuf_de_test"))
     assert "H-fait" in [c.sorte for c in b.cases]
 
 

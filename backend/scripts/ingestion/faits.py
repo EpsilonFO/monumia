@@ -566,8 +566,7 @@ def proposer(
         if famille.cle not in detailles:
             return _message_famille(famille, tous)
         mention = (
-            f"Famille selon Jev : {famille.cle} ({famille.proba:.2f}), lue et écartée par "
-            "l'agent : à fusionner ou à garder (case de la semaine)."
+            f"Famille selon Jev : {famille.cle} ({famille.proba:.2f}), lue et écartée par l'agent."
         )
 
     definition = fait.model_dump(exclude_none=True, exclude_defaults=True)

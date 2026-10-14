@@ -350,6 +350,25 @@ class TestLintEtReview(BaseOutils):
         self.assertIn("lint OK", sortie)
         self.assertTrue(self.etat.dernier_lint_ok)
 
+    def test_un_ecart_a_la_famille_rend_le_lint_rouge(self):
+        """`catalogue.espace.alignements` est bloquant comme le reste du lint."""
+        from unittest import mock
+
+        self.appeler("snapshotter", url="https://example.org/aide")
+        chemin = self.atelier.relatif(self.atelier.snapshots()[0])
+        self.appeler(
+            "ecrire_aide",
+            yaml_texte=aide_yaml(
+                "se dérouler dans un parc ou un jardin ouvert au public", snapshot=chemin
+            ),
+        )
+        erreur = "  ✗ parc : typée `info/info`, famille `user_fact/gate/parc_ouvert`."
+        with mock.patch("catalogue.espace.alignements", return_value=([erreur], None)):
+            sortie = self.appeler("lint")
+        self.assertIn("Typage à aligner sur sa famille (BLOQUANT)", sortie)
+        self.assertIn(erreur, sortie)
+        self.assertFalse(self.etat.dernier_lint_ok)
+
     def test_review_trop_courte_refusee(self):
         sortie = self.appeler("ecrire_review", markdown="## Trop court")
         self.assertTrue(sortie.startswith("ERREUR"))

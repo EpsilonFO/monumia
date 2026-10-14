@@ -431,7 +431,9 @@ def retour(
                     f"L'agent propose une autre valeur de `{nom}` ; la version en service est gardée."
                 ],
             )
-    for f in r.faits_neufs:
+    from catalogue.registre import faits_neufs_en_case
+
+    for f in r.faits_neufs if faits_neufs_en_case() else []:
         case(
             "H-fait",
             f"fait neuf `{f}`",

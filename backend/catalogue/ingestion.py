@@ -7,7 +7,8 @@ le banc de confirmation de l'extraction structurée ayant été abandonné le
 
 - **acceptée** par les contrôles de l'agent : le YAML entre au catalogue, ses
   instantanés dans `data/sources/<slug>/`, ses faits neufs en fin de
-  `facts_pending.yaml`, chacun en case `H-fait` (décision 5) ;
+  `facts_pending.yaml`, chacun en case `H-fait` si le registre dit
+  `faits_neufs: case` (décision 5), sans case en `auto` ;
 - **allongement du questionnaire** (l'agent rend un coût en questions) :
   l'aide attend en brouillon (`data/catalogue/brouillons/`), avec une case ;
 - **slug déjà pris** par une aide en service : brouillon et case, jamais
@@ -234,7 +235,9 @@ def ingerer(
     b.cases += ecarts
     if panne:
         b.raison = f"{b.raison} ; {panne}" if b.raison else panne
-    for f in neufs:
+    from catalogue.registre import faits_neufs_en_case
+
+    for f in neufs if faits_neufs_en_case() else []:
         contexte = [f"Proposé par l'ingestion de `{slug}`."]
         famille = _famille_du_fait(f, proposes)
         if famille:

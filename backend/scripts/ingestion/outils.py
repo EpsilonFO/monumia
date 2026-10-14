@@ -821,7 +821,21 @@ def outils_pour(
             ecriture=True,
         )
         etat.dernier_lint_ok = rapport.ok
-        return rapport.texte()
+        texte = rapport.texte()
+        # Le typage aligné sur la famille (catalogue/espace.py, réglage
+        # `typage_famille` du registre) : bloquant comme le reste du lint.
+        from catalogue.espace import alignements
+
+        erreurs, panne = alignements(atelier.slug, atelier.yaml_path.read_text(encoding="utf-8"))
+        if erreurs:
+            etat.dernier_lint_ok = False
+            texte += (
+                "\n\nTypage à aligner sur sa famille (BLOQUANT) : des conditions d'autres "
+                "aides posent le même critère et le typent autrement :\n" + "\n".join(erreurs)
+            )
+        elif panne:
+            texte += f"\n{panne}"
+        return texte
 
     def verification_adversariale() -> str:
         """Fait relire ton extraction par un second modèle chargé de la RÉFUTER.

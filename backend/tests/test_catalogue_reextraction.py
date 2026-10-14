@@ -171,7 +171,11 @@ def test_un_retrait_n_est_ecrit_que_pour_une_info_dont_la_citation_a_disparu() -
     assert [k.sorte for k in r.cases] == ["reextraction-retrait"]
 
 
-def test_une_condition_nouvelle_s_ajoute_et_son_fait_neuf_devient_une_case() -> None:
+@pytest.mark.parametrize("en_case", [True, False])
+def test_une_condition_nouvelle_s_ajoute_et_son_fait_neuf_devient_une_case_en_mode_case(
+    en_case: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("catalogue.registre.faits_neufs_en_case", lambda: en_case)
     a = _cond(
         "f",
         "Phrase B nouvelle.",
@@ -182,7 +186,8 @@ def test_une_condition_nouvelle_s_ajoute_et_son_fait_neuf_devient_une_case() -> 
     )
     r = _retour([], [a])
     assert [c["id"] for c in r.cible["conditions"]] == ["f"]
-    assert r.faits_neufs == ["fait_neuf"] and [k.sorte for k in r.cases] == ["H-fait"]
+    assert r.faits_neufs == ["fait_neuf"]
+    assert [k.sorte for k in r.cases] == (["H-fait"] if en_case else [])
 
 
 def test_une_date_ecrite_telle_quelle_s_ecrit_une_date_deduite_non() -> None:

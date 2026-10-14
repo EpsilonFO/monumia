@@ -149,6 +149,63 @@ conditions:
     assert cases == []
 
 
+AIDE_INFO_ET_GATE = """\
+slug: neuve
+nom: Aide neuve
+organisme: Région
+description: Une aide.
+categorie: region
+type: subvention
+conditions:
+- id: depot
+  text: Le dossier doit être déposé avant le commencement des travaux.
+  kind: info
+  effect: info
+- id: commune
+  text: La commune doit compter moins de 2 000 habitants.
+  kind: user_fact
+  fact: commune_moins_2000
+  predicate: {eq: true}
+"""
+
+
+def _catalogue_mixte() -> list[co.Ligne]:
+    """Quatre aides où « travaux non commencés » est un gate, quatre où « commune » est info."""
+    commune = {"text": "La commune doit compter moins de 5 000 habitants.", "kind": "info"}
+    return [_ligne(f"aide-{k}", 0, **GATE) for k in range(4)] + [
+        _ligne(f"autre-{k}", 0, **commune) for k in range(4)
+    ]
+
+
+def test_le_lint_impose_la_famille_quand_elle_ajoute_un_gate(tmp_path: Path) -> None:
+    espace = _espace(tmp_path, _catalogue_mixte(), FauxClient(MEME))
+    erreurs, panne = esp_mod.alignements("neuve", AIDE_INFO_ET_GATE, esp=espace)
+    assert panne is None
+    # `depot` est en info quand sa famille pose le gate : bloquant. `commune`
+    # pose un gate que sa famille laisse en info : il le garde.
+    assert len(erreurs) == 1
+    assert "depot" in erreurs[0] and "user_fact/gate/etat_travaux" in erreurs[0]
+
+
+def test_un_gate_que_la_famille_n_a_pas_ne_fait_pas_de_case(tmp_path: Path) -> None:
+    espace = _espace(tmp_path, _catalogue_mixte(), FauxClient(MEME))
+    cases, _ = esp_mod.controler_aide("neuve", AIDE_INFO_ET_GATE, esp=espace)
+    assert [c.sorte for c in cases] == ["coherence:depot"]
+
+
+def test_en_mode_case_le_lint_n_impose_rien(tmp_path: Path) -> None:
+    espace = _espace(tmp_path, _catalogue_mixte(), FauxClient(MEME))
+    espace.reglages = dataclasses.replace(espace.reglages, typage_famille="case")
+    assert esp_mod.alignements("neuve", AIDE_INFO_ET_GATE, esp=espace) == ([], None)
+    cases, _ = esp_mod.controler_aide("neuve", AIDE_INFO_ET_GATE, esp=espace)
+    assert sorted(c.sorte for c in cases) == ["coherence:commune", "coherence:depot"]
+
+
+def test_le_lint_n_impose_rien_quand_l_espace_est_coupe(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MONUMIA_ESPACE", "0")
+    assert esp_mod.alignements("neuve", AIDE_INFO_ET_GATE) == ([], None)
+
+
 def test_une_condition_conforme_a_sa_famille_ne_dit_rien(tmp_path: Path) -> None:
     catalogue = [_ligne(f"aide-{k}", 0, **GATE) for k in range(4)]
     espace = _espace(tmp_path, catalogue, FauxClient(MEME))
@@ -194,6 +251,14 @@ def test_un_ecart_accepte_ou_repondu_ne_revient_pas(tmp_path: Path) -> None:
         espace, set(), lambda s, o, e: (s, o, e) == (case.sorte, case.objet, case.etat)
     )
     assert repondu.cases == []
+
+
+def test_au_stock_un_gate_que_la_famille_n_a_pas_ne_fait_pas_de_case(tmp_path: Path) -> None:
+    catalogue = [_ligne(f"aide-{k}", 0, **INFO) for k in range(4)] + [_ligne("zz-gate", 0, **GATE)]
+    espace = _espace(tmp_path, catalogue, FauxClient(MEME))
+    assert esp_mod.stock(espace, set(), lambda *_: False).cases == []
+    espace.reglages = dataclasses.replace(espace.reglages, typage_famille="case")
+    assert [c.objet for c in esp_mod.stock(espace, set(), lambda *_: False).cases] == ["a:zz-gate"]
 
 
 # ------------------------------------------------------------------ famille d'un fait
@@ -243,6 +308,18 @@ def test_aucun_ne_rattache_rien(tmp_path: Path) -> None:
         reglages=esp_mod.Reglages(),
     )
     assert f is None
+
+
+@pytest.mark.parametrize("en_case", [True, False])
+def test_les_faits_en_attente_rattaches_ne_vont_en_case_qu_en_mode_case(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, en_case: bool
+) -> None:
+    monkeypatch.setattr("catalogue.registre.faits_neufs_en_case", lambda: en_case)
+    client = FauxClient({"c1": 0.9, "c2": 0.05, esp_mod.AUCUN: 0.05})
+    espace = _espace(tmp_path, [], client)
+    b = esp_mod.faits_en_attente({"devis_signes": DEVIS}, ONTOLOGIE, lambda *_: False, espace)
+    assert len(b.cases) == (1 if en_case else 0)
+    assert b.lignes == ["1 fait(s) en attente, 1 rattaché(s) à un fait existant."]
 
 
 def test_proposer_un_fait_de_la_famille_exige_de_lire_ce_fait(
