@@ -77,6 +77,18 @@ class Atelier:
         return self.logs_dir / f"ingest-{self.slug}.log"
 
     @property
+    def reformulations_path(self) -> Path:
+        """Où l'agent dépose sa reformulation de question (`proposer_reformulation`).
+
+        Dans la sortie du run, à côté de son `facts_pending.yaml` : c'est le
+        parent (`catalogue.ingestion`) qui la remonte dans le fichier partagé
+        une fois l'aide acceptée. Hors sortie, directement le fichier partagé.
+        """
+        if self.pending_path.resolve() == FACTS_PENDING_FILE.resolve():
+            return DATA_DIR / "catalogue" / "reformulations.yaml"
+        return self.pending_path.with_name("reformulations.yaml")
+
+    @property
     def dossier_sources(self) -> Path:
         return self.sources_dir / self.slug
 

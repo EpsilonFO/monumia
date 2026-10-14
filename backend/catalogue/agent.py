@@ -254,6 +254,7 @@ def main(argv: list[str] | None = None) -> int:
         # du contrat, vérification comprise, est tenu par l'enveloppe.
         limites=Limites(budget_usd=args.plafond / 1.25),
         sortie=args.sortie,
+        reformulation=reg.reglages.reformulation_fait == "case",
     )
     contexte = ContextePartage.construire(config.atelier(args.slug))
     r = ingerer_aide(args.slug, taches[args.slug], config, contexte=contexte)

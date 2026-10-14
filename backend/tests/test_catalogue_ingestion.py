@@ -113,6 +113,56 @@ def test_en_mode_case_un_fait_neuf_ouvre_une_case(
     assert "H-fait" in [c.sorte for c in b.cases]
 
 
+def _reformulation(slug: str = "aide-neuve") -> dict[str, Any]:
+    return {
+        "fact": "statut_juridique_porteur",
+        "slug": slug,
+        "jour": "2026-10-11",
+        "question_origine": "Quel est le statut juridique du porteur ?",
+        "help_origine": None,
+        "question": "Quel est le statut juridique de celui qui dépose la demande ?",
+        "help": None,
+        "justification": "x" * 60,
+        "citations": 12,
+        "extrait_citations": [],
+        "p1": {"gates": 3, "derive": 0.04},
+    }
+
+
+def test_une_reformulation_de_l_agent_ouvre_une_case(
+    depot: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    attente = depot["tmp"] / "reformulations.yaml"
+    monkeypatch.setattr("catalogue.reformulations.REFORMULATIONS", attente)
+    b = _ingerer(depot, _lanceur({"ok": True, "reformulations": [_reformulation()]}))
+    assert b.issue == "acceptee"
+    (case,) = [c for c in b.cases if c.sorte == "R-reformulation"]
+    assert case.objet == "f:statut_juridique_porteur"
+    from catalogue import reformulations as rf
+
+    assert rf.lire(attente)["statut_juridique_porteur"]["slug"] == "aide-neuve"
+
+
+def test_une_aide_en_brouillon_ne_remonte_pas_sa_reformulation(
+    depot: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    attente = depot["tmp"] / "reformulations.yaml"
+    monkeypatch.setattr("catalogue.reformulations.REFORMULATIONS", attente)
+    b = _ingerer(
+        depot,
+        _lanceur(
+            {
+                "ok": True,
+                "cout_questions": "+3 question(s) de tronc (BFC)",
+                "reformulations": [_reformulation()],
+            }
+        ),
+    )
+    assert b.issue == "brouillon"
+    assert "R-reformulation" not in [c.sorte for c in b.cases]
+    assert not attente.exists()
+
+
 def test_un_allongement_du_questionnaire_met_l_aide_en_brouillon(depot: dict[str, Path]) -> None:
     b = _ingerer(depot, _lanceur({"ok": True, "cout_questions": "+3 question(s) de tronc (BFC)"}))
     assert b.issue == "brouillon"

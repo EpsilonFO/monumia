@@ -740,6 +740,14 @@ def _reextraire(
 
         ecarts, _panne = espace_mod.controler_aide(slug, nouveau, seulement=neuves)
         b.cases += ecarts
+    # La reformulation de question proposée par l'agent (R1-reformulation).
+    from catalogue import reformulations as rf
+
+    cases_r, notes_r = rf.remonter(
+        slug, list(lancement.resultat.get("reformulations") or []), nouveau, ecrire=ecrire
+    )
+    b.cases += cases_r
+    b.changements += notes_r
     if ecrire:
         # Ordre de la section 7.6 : les faits, puis les instantanés et le YAML.
         b.faits = ajouter_faits(r.faits_neufs, pending_essai, pending)
