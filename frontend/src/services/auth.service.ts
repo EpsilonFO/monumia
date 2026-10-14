@@ -1,5 +1,6 @@
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
 import { ApiError } from '@/lib/api-error';
+import { suivre } from '@/lib/posthog';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -82,7 +83,9 @@ export const authService = {
       credentials: 'include',
       body: JSON.stringify(payload),
     });
-    return handleResponse<RegisterResponse>(res);
+    const reponse = await handleResponse<RegisterResponse>(res);
+    suivre({ nom: 'inscription', proprietes: { canal: 'email', viaInvitation: false } });
+    return reponse;
   },
 
   async registerCollaborator(payload: RegisterCollaboratorPayload): Promise<RegisterResponse> {
@@ -92,7 +95,9 @@ export const authService = {
       credentials: 'include',
       body: JSON.stringify(payload),
     });
-    return handleResponse<RegisterResponse>(res);
+    const reponse = await handleResponse<RegisterResponse>(res);
+    suivre({ nom: 'inscription', proprietes: { canal: 'email', viaInvitation: true } });
+    return reponse;
   },
 
   async oauthProfileStatus(accessToken: string): Promise<OauthProfileStatusResponse> {
@@ -111,7 +116,9 @@ export const authService = {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify(payload),
     });
-    return handleResponse(res);
+    const reponse = await handleResponse<{ user: import('@/types').User }>(res);
+    suivre({ nom: 'inscription', proprietes: { canal: 'google', viaInvitation: false } });
+    return reponse;
   },
 
   async registerCollaboratorOauth(
@@ -123,7 +130,9 @@ export const authService = {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify(payload),
     });
-    return handleResponse(res);
+    const reponse = await handleResponse<{ user: import('@/types').User }>(res);
+    suivre({ nom: 'inscription', proprietes: { canal: 'google', viaInvitation: true } });
+    return reponse;
   },
 
   /** Échange unique post-callback Google : le refresh token part en cookie httpOnly. */

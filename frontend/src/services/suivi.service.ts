@@ -1,6 +1,7 @@
 import type { AideSuivi, AideSuiviStatut, AideRefusMotif } from '@/types';
 import { useSuiviStore } from '@/stores/useSuiviStore';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
+import { suivre } from '@/lib/posthog';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -65,6 +66,7 @@ export const suiviService = {
     const row = await handleResponse<Record<string, unknown>>(res);
     const suivi = toSuivi(row);
     useSuiviStore.getState().upsert(suivi);
+    suivre({ nom: 'aide_suivie', proprietes: { aide: aideId, statut: input.statut } });
     return suivi;
   },
 

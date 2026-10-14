@@ -1,6 +1,7 @@
 import type { Monument, MonumentInput, MonumentPhoto } from '@/types';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
 import { uploadToStorage } from '@/lib/storage-upload';
+import { suivre } from '@/lib/posthog';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -105,6 +106,7 @@ export const monumentService = {
       body: JSON.stringify(data),
     });
     const row = await handleResponse<Record<string, unknown>>(res);
+    suivre({ nom: 'monument_cree' });
     return toMonument(row);
   },
 

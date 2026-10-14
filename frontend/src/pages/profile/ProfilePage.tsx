@@ -19,6 +19,7 @@ import { OffreUpsell } from '@/components/shared/OffreUpsell';
 import { useOffre } from '@/hooks/useOffre';
 import { C, SERIF } from '@/lib/brand';
 import { computeProfileCompletion } from '@/lib/profile-completion';
+import { clePostHog, enregistrerRefusMesure, mesureRefusee } from '@/lib/mesure-audience';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { isValidPhone } from '@/lib/phone';
@@ -184,6 +185,8 @@ export function ProfilePage() {
       </section>
 
       <RappelsPanel />
+
+      <MesureAudiencePanel />
 
       <Panel>
         <PanelHeader
@@ -390,6 +393,35 @@ function RappelsPanel() {
           onChange={(v) => patch({ rappelsOuvertures: v })}
         />
       </div>
+    </Panel>
+  );
+}
+
+/* ── Mesure d'audience ── */
+
+/**
+ * L'opposition à la mesure anonyme (cf. `lib/mesure-audience.ts`). Absent d'un
+ * build sans PostHog : on ne propose pas de refuser ce qui n'a pas lieu.
+ */
+function MesureAudiencePanel() {
+  const [refusee, setRefusee] = useState(mesureRefusee);
+  if (!clePostHog()) return null;
+
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<IconProtection className="h-4 w-4 text-primary" strokeWidth={1.8} />}
+        title="Mesure d'audience"
+      />
+      <Reglage
+        titre="Participer aux statistiques anonymes"
+        description="Les pages consultées et les étapes franchies, sans cookie et sans rien qui permette de savoir qui vous êtes. Elles nous montrent où l'application se comprend mal. Ce choix vaut pour ce navigateur."
+        checked={!refusee}
+        onChange={(participe) => {
+          enregistrerRefusMesure(!participe);
+          setRefusee(!participe);
+        }}
+      />
     </Panel>
   );
 }

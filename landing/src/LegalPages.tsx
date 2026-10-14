@@ -9,7 +9,7 @@ const BASE = import.meta.env.BASE_URL;
 export const CGU_PATH = `${BASE}cgu`;
 export const PRIVACY_PATH = `${BASE}confidentialite`;
 
-const DERNIERE_MAJ = '1er septembre 2026';
+const DERNIERE_MAJ = '8 octobre 2026';
 const CONTACT_EMAIL = 'contact@monumia.fr';
 
 function Section({ id, title, children }: { id?: string; title: string; children: ReactNode }) {
@@ -473,10 +473,17 @@ export function PrivacyPage() {
             <Strong>Données techniques</Strong> : journaux de connexion des serveurs (adresse IP,
             horodatage, pages appelées), à des fins de sécurité et de diagnostic d'incident.
           </li>
+          <li>
+            <Strong>Mesure d'audience de l'application</Strong> : les pages consultées et les
+            étapes franchies (création d'un monument, d'un projet, d'un dossier), sous forme de
+            statistiques anonymes. Aucun cookie ni stockage sur votre appareil, aucun identifiant
+            de compte, de monument ou de projet, aucun texte affiché à l'écran, aucun
+            enregistrement de votre session (voir l'article 9).
+          </li>
         </Ul>
         <p>Et voici ce que nous ne faisons pas :</p>
         <Ul>
-          <li>aucun cookie publicitaire, aucun traceur, aucun outil de mesure d'audience tiers ;</li>
+          <li>aucun cookie publicitaire ni traceur, aucun suivi individuel de votre navigation ;</li>
           <li>aucune revente, location ou cession de vos données à des tiers ;</li>
           <li>
             aucune transmission de vos données personnelles à des services d'intelligence
@@ -505,6 +512,11 @@ export function PrivacyPage() {
           <li>
             <Strong>Sécurité du Service</Strong> (journaux, prévention des abus) : intérêt
             légitime (article 6.1.f).
+          </li>
+          <li>
+            <Strong>Mesure d'audience de l'application</Strong>, pour repérer les écrans qui se
+            comprennent mal : intérêt légitime (article 6.1.f). Vous pouvez vous y opposer à tout
+            moment (voir l'article 9).
           </li>
           <li>
             <Strong>E-mails liés au fonctionnement du Service</Strong> (confirmations, invitations
@@ -596,6 +608,10 @@ export function PrivacyPage() {
             <Strong>Resend, Inc.</Strong> (États-Unis) : envoi des e-mails du Service (adresse
             e-mail et contenu des messages uniquement).
           </li>
+          <li>
+            <Strong>PostHog, Inc.</Strong> : mesure d'audience de l'application, avec des données
+            hébergées dans l'Union européenne.
+          </li>
         </Ul>
         <p>
           Vos données peuvent également être communiquées aux autorités lorsque la loi l'exige. Si
@@ -607,7 +623,7 @@ export function PrivacyPage() {
       <Section title="6. Transferts hors de l'Union européenne">
         <p>
           Nos serveurs et nos bases de données sont situés en France et dans l'Union européenne.
-          Certains sous-traitants (Supabase, Inc. et Resend, Inc., sociétés américaines) peuvent
+          Certains sous-traitants (Supabase, Inc., Resend, Inc. et PostHog, Inc., sociétés américaines) peuvent
           impliquer un accès à des données depuis les États-Unis ; ces transferts sont encadrés par
           des garanties appropriées au sens du chapitre V du RGPD (clauses contractuelles types de
           la Commission européenne et, le cas échéant, certification au cadre de protection des
@@ -642,6 +658,9 @@ export function PrivacyPage() {
           </li>
           <li>
             <Strong>Journaux techniques</Strong> : douze mois au maximum.
+          </li>
+          <li>
+            <Strong>Statistiques de mesure d'audience</Strong> : vingt-cinq mois au maximum.
           </li>
         </Ul>
       </Section>
@@ -694,9 +713,22 @@ export function PrivacyPage() {
           L'application app.monumia.fr utilise uniquement le stockage local de votre navigateur
           pour conserver votre session d'authentification. Ce stockage est strictement nécessaire
           à la fourniture du Service et est, à ce titre, exempté de consentement préalable
-          (article 82 de la loi Informatique et Libertés). Aucun bandeau de consentement n'est
-          donc requis ; si nous devions un jour introduire des traceurs soumis à consentement,
-          celui-ci vous serait demandé au préalable.
+          (article 82 de la loi Informatique et Libertés).
+        </p>
+        <p>
+          L'application mesure aussi son audience, avec l'outil PostHog, dans les conditions où la
+          CNIL dispense la mesure d'audience de consentement : sans cookie ni stockage sur votre
+          appareil, sous forme de statistiques anonymes réservées à Monumia, jamais recoupées avec
+          votre compte ni avec d'autres traitements. Les adresses des pages sont transmises sans
+          les identifiants qu'elles contiennent, et ni le texte affiché à l'écran ni le
+          déroulement de votre session ne sont enregistrés. Aucun bandeau de consentement n'est
+          donc requis. Vous pouvez vous opposer à cette mesure à tout moment depuis la page
+          Profil de l'application ; votre choix est retenu dans votre navigateur. Le réglage « Do
+          Not Track » de votre navigateur vaut également opposition.
+        </p>
+        <p>
+          Si nous devions un jour introduire des traceurs soumis à consentement, celui-ci vous
+          serait demandé au préalable.
         </p>
         <p>
           Les pages de paiement sont opérées par Stripe sur son propre domaine et sont soumises à

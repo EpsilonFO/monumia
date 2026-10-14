@@ -13,10 +13,13 @@ ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
 # Widget de retour Ybug : vide = pas de widget dans ce build.
 ARG VITE_YBUG_ID=
+# Mesure d'audience PostHog : vide = pas de mesure dans ce build.
+ARG VITE_POSTHOG_KEY=
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 ENV VITE_YBUG_ID=$VITE_YBUG_ID
+ENV VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY
 
 # `vite build` seul, pas `npm run build` (= `tsc -b && vite build`) : le
 # type-check a déjà tourné au pre-commit, au pre-push et en CI, et le refaire

@@ -1,5 +1,6 @@
 import type { Projet, WorkType } from '@/types';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
+import { suivre } from '@/lib/posthog';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -84,7 +85,9 @@ export const projetService = {
       method: 'POST',
       body: JSON.stringify(input),
     });
-    return toProjet(await handleResponse<Record<string, unknown>>(res));
+    const projet = toProjet(await handleResponse<Record<string, unknown>>(res));
+    suivre({ nom: 'projet_cree' });
+    return projet;
   },
 
   async getById(id: string): Promise<Projet> {
