@@ -62,6 +62,10 @@ class Reglages(_Strict):
     #: (`case`), ou le lint de l'agent l'oblige à s'aligner (`aligner`), sauf
     #: quand la famille retirerait un gate (`espace.garde_son_gate`).
     typage_famille: Literal["case", "aligner"]
+    #: Une aide absente de son guide deux listings sains de suite, et dont la
+    #: page est morte : retirée sans case (`auto`), ou une case (`case`).
+    #: Page vivante ou titre voisin listé ailleurs : une case dans les deux cas.
+    sorties: Literal["auto", "case"]
 
 
 class BudgetsErreur(_Strict):

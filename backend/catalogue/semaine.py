@@ -79,6 +79,10 @@ ECRITS = (
     "backend/data/catalogue/rebuts",
     # Les jugements de Jev de la cohérence du typage, en ajout seul.
     "backend/data/catalogue/coherence",
+    # Le dernier listing sain de chaque guide, et les aides que leur guide ne
+    # liste plus (`catalogue.sorties`) : le retrait efface aussi `data/aides/<slug>.yaml`.
+    "backend/data/catalogue/listings",
+    "backend/data/catalogue/retirees",
 )
 FICHIERS_ECRITS = (
     "backend/data/veille-state.yaml",

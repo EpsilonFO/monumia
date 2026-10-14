@@ -346,6 +346,9 @@ class Exploration:
     notes: list[str] = field(default_factory=list)
     # Pages sans contenu depuis au moins trois runs : une case de Félix.
     inexploitables_persistantes: list[tuple[str, str]] = field(default_factory=list)
+    # Tout ce que le guide a listé, catalogue compris (`catalogue.sorties`).
+    # Absent sur une liste figée : elle ne dit rien de ce que le guide liste.
+    listing: Any = None
 
 
 def explorer(
@@ -389,6 +392,15 @@ def explorer(
         )
         x.notes += c.notes
         brut = c.candidats
+        from catalogue.sorties import Entree, Listing
+
+        x.listing = Listing(
+            nom,
+            [Entree(cand.url, cand.titre) for cand in c.candidats if not en_boucle(cand.url)]
+            + [Entree(url, "", slug) for url, slug in c.doublons],
+            list(c.notes),
+            c.plafonnee,
+        )
     retenus, au_catalogue, en_file = collecte_mod.dedoublonner(brut, corpus, file or {})
     x.deja_juges += len(au_catalogue) + len(en_file)
     candidats = []
@@ -674,7 +686,7 @@ def commande(
     from pipeline.web import Fetcheur
     from prospection.territoires import charger_territoires
 
-    from catalogue import agent
+    from catalogue import agent, sorties
     from catalogue.cases import relire
     from catalogue.journal import Journal
     from catalogue.rapport import Rapport, Section, parties_json
@@ -690,7 +702,8 @@ def commande(
     file_attente = file or FILE_ATTENTE
     run = f"{dt.date.today().isoformat()}-entree-{secrets.token_hex(2)}"
     j = Journal(journal)
-    vue = Vue(list(j.lire()))
+    evenements = list(j.lire())
+    vue = Vue(evenements)
     reponses, _ = relire((BACKEND / "data" / "reviews").glob("*-semaine*.md"), vue, run)
     if reponses:
         j.ajouter_lot(reponses)
@@ -731,7 +744,24 @@ def commande(
             candidats_figes=candidats,
             file=charger_file(file_attente) if file_attente.exists() else {},
         )
+        bilan_sorties = None
+        if x.listing is not None:
+            from aides_schema import AIDES_DIR, load_aide
+
+            bilan_sorties = sorties.traiter(
+                x.listing,
+                territoire=t,
+                corpus={p.stem: load_aide(p) for p in sorted(AIDES_DIR.glob("*.yaml"))},
+                evenements=evenements,
+                vue=vue,
+                fetcheur=fetcheur,
+                consigner=consigner,
+                jour=dt.date.today(),
+                automatique=reg.reglages.sorties == "auto",
+            )
     cases, en_attente = cases_de_doute(x, vue)
+    if bilan_sorties is not None:
+        cases += bilan_sorties.cases
     from catalogue.cases import Case
 
     cases += [
@@ -746,25 +776,23 @@ def commande(
         for url, motif in x.inexploitables_persistantes
     ]
     depense = budget.depense + releve.depense
+    retirees = sum(1 for s in bilan_sorties.sorties if s.issue == "retiree") if bilan_sorties else 0
     entete = [
-        f"- Entrée, `{territoire}` : {len(x.jugements)} page(s) jugée(s), {len(cases)} case(s), {depense:.4f} $ relevés."
+        f"- Entrée, `{territoire}` : {len(x.jugements)} page(s) jugée(s), {len(cases)} case(s), "
+        + (f"{retirees} aide(s) retirée(s), " if retirees else "")
+        + f"{depense:.4f} $ relevés."
     ]
+    lignes = section(x, en_attente)
+    if bilan_sorties is not None:
+        lignes += ["", *sorties.section(bilan_sorties)]
+    sections = [Section(f"Entrée : {territoire}", lignes)]
     if parties is not None:
         parties.write_text(
-            parties_json(
-                entete,
-                cases,
-                [Section(f"Entrée : {territoire}", section(x, en_attente))],
-                depense=depense,
-            ),
+            parties_json(entete, cases, sections, depense=depense),
             encoding="utf-8",
         )
     else:
         r = Rapport(dt.date.today(), run)
-        r.entete, r.cases, r.sections = (
-            entete,
-            cases,
-            [Section(f"Entrée : {territoire}", section(x, en_attente))],
-        )
+        r.entete, r.cases, r.sections = (entete, cases, sections)
         print(f"rapport : {r.ecrire(BACKEND / 'data' / 'reviews')}")
     return 0
