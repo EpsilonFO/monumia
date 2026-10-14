@@ -162,6 +162,9 @@ class ResultatIngestion:
     #: Ce que l'agent a fait des signaux de l'espace (`EtatOutils.mesures_espace`) :
     #: alertes de fait réutilisées ou maintenues, écarts de typage levés au lint.
     espace: dict[str, int] = field(default_factory=dict)
+    #: Où le temps est passé, en secondes : `modele` (appels du modèle
+    #: d'extraction), `outil <nom>` (dont `lint` et `verification_adversariale`).
+    durees: dict[str, float] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -371,6 +374,7 @@ def ingerer_aide(
     atelier = config.atelier(slug)
     atelier.preparer()
     compteur_local = Compteur()
+    durees: dict[str, float] = {}
     modele = config.modele or "(défaut LLM_MODEL_INGESTION)"
     modele_verif = config.modele_verif or "(défaut LLM_MODEL_VERIFICATION)"
 
@@ -440,6 +444,7 @@ def ingerer_aide(
             journal=journal,
             compteur=compteur_local,
             review_ecrite=lambda: etat.review_ecrite,
+            durees=durees,
         )
         fetcheur.close()
 
@@ -496,6 +501,7 @@ def ingerer_aide(
                 if atelier.yaml_path.exists()
                 else None
             ),
+            durees={k: round(v, 1) for k, v in durees.items()},
             hors_perimetre=(
                 (etat.hors_perimetre.categorie, etat.hors_perimetre.motif)
                 if etat.hors_perimetre

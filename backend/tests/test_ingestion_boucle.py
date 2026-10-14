@@ -89,6 +89,26 @@ class TestArrets(unittest.TestCase):
         self.assertEqual(resultat.tours, 3)
         self.assertEqual(atelier.appels, ["lire_snapshot", "ecrire_review"])
 
+    def test_les_durees_separent_le_modele_et_chaque_outil(self):
+        atelier = Atelier()
+        reponses = [
+            chat_reply(tool_calls=[tool_call("lire_snapshot", {"chemin": "a.md"})]),
+            chat_reply(tool_calls=[tool_call("ecrire_review", {"markdown": "## Fiche"})]),
+            chat_reply("Ingestion terminée."),
+        ]
+        durees: dict[str, float] = {}
+        with fake_provider(*reponses):
+            executer(
+                client(),
+                "SYS",
+                "commence",
+                atelier.outils(),
+                review_ecrite=lambda: atelier.review,
+                durees=durees,
+            )
+        self.assertEqual(set(durees), {"modele", "outil lire_snapshot", "outil ecrire_review"})
+        self.assertTrue(all(v >= 0 for v in durees.values()))
+
     def test_sans_review_relance_deux_fois_puis_abandonne(self):
         atelier = Atelier()
         journal = JournalMuet()

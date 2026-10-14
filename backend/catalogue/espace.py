@@ -49,6 +49,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import threading
 from collections import Counter
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -196,18 +197,22 @@ class Espace:
         self.juge = juge or co.Juge()
         self.reglages = reglages or Reglages.depuis()
         self._vecteurs: np.ndarray | None = None
+        self._verrou = threading.Lock()
 
     @property
     def lignes(self) -> list[co.Ligne]:
-        if self._lignes is None:
-            self._lignes = co.charger()
-        return self._lignes
+        with self._verrou:
+            if self._lignes is None:
+                self._lignes = co.charger()
+            return self._lignes
 
     @property
     def vecteurs(self) -> np.ndarray:
-        if self._vecteurs is None:
-            self._vecteurs = self.plongeur.vecteurs([ln.texte for ln in self.lignes])
-        return self._vecteurs
+        lignes = self.lignes
+        with self._verrou:
+            if self._vecteurs is None:
+                self._vecteurs = self.plongeur.vecteurs([ln.texte for ln in lignes])
+            return self._vecteurs
 
     def candidates(self, ligne: co.Ligne) -> list[tuple[co.Ligne, float]]:
         """Les conditions d'AUTRES aides les plus proches dans l'espace, au-dessus du cosinus."""
@@ -255,6 +260,7 @@ class Espace:
 
 
 _INSTANCE: Espace | None = None
+_VERROU_INSTANCE = threading.Lock()
 
 
 def actif() -> bool:
@@ -265,9 +271,10 @@ def actif() -> bool:
 def instance() -> Espace:
     """L'espace du processus, construit une fois."""
     global _INSTANCE
-    if _INSTANCE is None:
-        _INSTANCE = Espace()
-    return _INSTANCE
+    with _VERROU_INSTANCE:
+        if _INSTANCE is None:
+            _INSTANCE = Espace()
+        return _INSTANCE
 
 
 # --------------------------------------------------------------------------

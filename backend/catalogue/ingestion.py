@@ -138,6 +138,8 @@ class Bilan:
     faits: list[str] = field(default_factory=list)
     #: Les mesures de l'agent sur l'espace (`EtatOutils.mesures_espace`).
     espace: dict[str, int] = field(default_factory=dict)
+    #: Où l'agent a passé son temps, en secondes (`ResultatIngestion.durees`).
+    durees: dict[str, float] = field(default_factory=dict)
 
 
 def ingerer(
@@ -172,6 +174,7 @@ def ingerer(
     issue, raison, classe = rx.classer(lancement.resultat)
     b.issue, b.raison, b.panne = issue, raison, classe
     b.espace = dict(lancement.resultat.get("espace") or {})
+    b.durees = dict(lancement.resultat.get("durees") or {})
     if issue == "refusee":
         if ecrire:
             rx.rebut(slug, sortie, raison, jour, rebuts)
@@ -467,6 +470,7 @@ def commande(
             "faits": b.faits,
             "snapshots": b.snapshots,
             "espace": b.espace,
+            "durees": b.durees,
         }
         if b.panne:
             j.ajouter(

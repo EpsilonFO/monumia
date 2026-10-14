@@ -108,7 +108,8 @@ class Plongeur:
         self.modele = self._registre.modele(ROLE)
         self._client = client
         cache.parent.mkdir(parents=True, exist_ok=True)
-        self._base = sqlite3.connect(cache, check_same_thread=False)
+        # timeout : plusieurs agents en vol (ré-extractions parallèles) écrivent le même cache.
+        self._base = sqlite3.connect(cache, check_same_thread=False, timeout=60)
         self._base.execute(
             "create table if not exists vecteurs (cle text primary key, vecteur blob not null)"
         )

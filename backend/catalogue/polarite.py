@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -44,6 +45,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 JUGEMENTS = BACKEND / "data" / "catalogue" / "coherence" / "polarite.jsonl"
 TAILLE_CITATION = 600
 TAILLE_AIDE_FAIT = 300
+PARALLELISME = 8
 
 CONSIGNE = (
     "Le texte est une condition d'éligibilité d'une aide au patrimoine, et la question "
@@ -287,11 +289,13 @@ def verifier(
         haut, bas = seuils or _seuils()
         bloquants: list[str] = []
         indications: list[str] = []
-        for c in aide.conditions:
-            g = gate_de(slug, aide.nom, c, faits)
-            if g is None:
-                continue
-            probas = juge.juger(g)
+        gates = [
+            (c, g) for c in aide.conditions if (g := gate_de(slug, aide.nom, c, faits)) is not None
+        ]
+        # Un appel de Jev par gate, en parallèle : l'agent attend ce lint.
+        with ThreadPoolExecutor(PARALLELISME) as pool:
+            jugees = list(pool.map(juge.juger, [g for _c, g in gates]))
+        for (c, g), probas in zip(gates, jugees, strict=True):
             if probas is None:
                 continue
             for d in desaccords(g, probas, haut, bas):

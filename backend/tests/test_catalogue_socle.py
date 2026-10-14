@@ -150,11 +150,11 @@ def test_le_registre_livre_se_charge() -> None:
     r = charger()
     assert r.reglages.doute == "c"
     assert r.reglages.extraction == "agent"
-    # Après I9a : la nouvelle chaîne tient veille, prospection et ingestion ; les
-    # escalades attendent une case « reextraire » de Félix.
+    # Depuis le 2026-10-15, la nouvelle chaîne tient aussi les escalades : la
+    # veille les ré-extrait sans attendre une case « reextraire » de Félix.
     assert r.proprietaires == {
         "veille": "nouvelle",
-        "escalades": "ancienne",
+        "escalades": "nouvelle",
         "prospection": "nouvelle",
         "ingestion": "nouvelle",
     }

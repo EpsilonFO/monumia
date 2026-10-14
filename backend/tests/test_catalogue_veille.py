@@ -729,3 +729,114 @@ def test_une_page_archivee_morte_citee_part_en_reextraction_sur_reponse(
 
 def _bilan(res: veille.Resultat) -> veille.Bilan:
     return veille.Bilan({res.slug: res}, 0, [], [], 0.0, 0)
+
+
+# ------------------------------------------------------------------ ré-extractions en parallèle
+
+
+def _escalades_factices(
+    banc: dict[str, Any], monkeypatch: pytest.MonkeyPatch, slugs: list[str]
+) -> dict[str, Any]:
+    """Des aides que l'analyse escalade toutes, sans page ni modèle derrière."""
+    from types import SimpleNamespace
+
+    base = load_aide(banc["yaml"])
+    aides = {s: base.model_copy(update={"slug": s}) for s in slugs}
+    analyses = {
+        s: SimpleNamespace(
+            slug=s,
+            statut="ESCALADE_INGESTION",
+            raisons=["refonte"],
+            liens_morts=[],
+            date_limite_perimee=None,
+        )
+        for s in slugs
+    }
+    monkeypatch.setattr(veille, "analyze_all", lambda *a, **k: analyses)
+    monkeypatch.setattr(veille, "empreinte_changement", lambda an: f"etat-{an.slug}")
+    monkeypatch.setattr(veille, "garder_frais", lambda *a, **k: {})
+    monkeypatch.setattr(veille, "_formulaires", lambda *a, **k: None)
+    return aides
+
+
+def test_les_reextractions_partent_ensemble_et_leur_suite_reste_dans_l_ordre(
+    banc: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+    from types import SimpleNamespace
+
+    from catalogue import reextraction
+
+    slugs = ["a-premiere", "b-deuxieme", "c-troisieme"]
+    aides = _escalades_factices(banc, monkeypatch, slugs)
+    # Les trois doivent être en vol EN MÊME TEMPS : en série, la barrière casse.
+    barriere = threading.Barrier(3, timeout=10)
+    fils: set[str] = set()
+
+    def reextraire(slug: str, etat: str) -> reextraction.Bilan:
+        fils.add(threading.current_thread().name)
+        barriere.wait()
+        return reextraction.Bilan(
+            slug, "refusee", "lint : erreur neuve", cout_usd=0.1, durees={"modele": 2.0}
+        )
+
+    ctx = _ctx(banc, FauxClient([], []))
+    ctx.reextraire, ctx.parallelisme = reextraire, 3
+    bilan = veille.passer(ctx, aides, {s: SimpleNamespace(urls=[]) for s in slugs})  # type: ignore[misc]
+
+    assert len(fils) == 3 and threading.current_thread().name not in fils
+    assert list(bilan.resultats) == slugs
+    for s in slugs:
+        r = bilan.resultats[s]
+        assert r.issue == "case" and "ré-extraction : refusee" in r.raison
+        assert [c.sorte for c in r.cases] == ["veille-escalade"]
+    # La suite (journal) se reprend dans l'ordre du passage, depuis le fil principal.
+    assert [e.objet for e in ctx.journal.lire() if e.decision == "reextraction"] == [
+        f"a:{s}" for s in slugs
+    ]
+    assert ctx.en_vol == {} and ctx.pool is None
+    durees = bilan.chrono.durees
+    assert durees["dans l'agent : modele"] == pytest.approx(6.0)
+    assert any(k.startswith("ré-extractions, horloge (3 aides") for k in durees)
+    assert any(ligne == "### Durées" for ligne in veille.section(bilan))
+
+
+def test_une_reextraction_en_bug_n_arrete_pas_les_autres(
+    banc: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from catalogue import reextraction
+
+    slugs = ["a-plante", "b-passe"]
+    aides = _escalades_factices(banc, monkeypatch, slugs)
+
+    def reextraire(slug: str, etat: str) -> reextraction.Bilan:
+        if slug == "a-plante":
+            raise RuntimeError("boum")
+        return reextraction.Bilan(slug, "refusee", "lint : erreur neuve")
+
+    ctx = _ctx(banc, FauxClient([], []))
+    ctx.reextraire, ctx.parallelisme = reextraire, 2
+    bilan = veille.passer(ctx, aides, {s: SimpleNamespace(urls=[]) for s in slugs})  # type: ignore[misc]
+    assert (bilan.resultats["a-plante"].issue, bilan.resultats["a-plante"].panne) == (
+        "panne",
+        "bug",
+    )
+    assert bilan.resultats["b-passe"].issue == "case"
+
+
+def test_le_chrono_cumule_et_classe_les_etapes() -> None:
+    from catalogue.chrono import Chrono, duree_lisible
+
+    c = Chrono()
+    c.ajouter("collecte", 125.0)
+    c.ajouter("garde", 1.5)
+    c.ajouter("garde", 2.5)
+    c.fusionner("agent : ", {"modele": 4000.0})
+    assert c.lignes() == [
+        "- agent : modele : 1 h 06",
+        "- collecte : 2 min 05 s",
+        "- garde : 4,0 s (2 fois, 2,0 s en moyenne)",
+    ]
+    assert duree_lisible(59.94) == "59,9 s"

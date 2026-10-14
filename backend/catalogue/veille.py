@@ -38,8 +38,10 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import time
 from collections import Counter
 from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -61,6 +63,7 @@ from catalogue import cases as cases_mod
 from catalogue import controles
 from catalogue.budget import Budget, BudgetEpuise
 from catalogue.cases import Case
+from catalogue.chrono import Chrono, duree_lisible
 from catalogue.journal import Evenement, Journal, Vue, cle, empreinte
 from catalogue.openrouter import Client, Panne
 from catalogue.registre import Registre
@@ -247,6 +250,13 @@ class Contexte:
     chemin_yaml: Callable[[str], Path] = lambda slug: AIDES_DIR / f"{slug}.yaml"
     # Ré-extraction d'une escalade (`catalogue.reextraction`), slug et état -> bilan.
     reextraire: Callable[[str, str], Any] | None = None
+    # Agents de ré-extraction en vol en même temps. 1 : chacune tourne au fil
+    # du passage, qui l'attend. Au-delà, `passer` les lance dans un pool et
+    # reprend leur suite après la dernière aide (`EnVol`).
+    parallelisme: int = 1
+    pool: ThreadPoolExecutor | None = None
+    en_vol: dict[str, EnVol] = field(default_factory=dict)
+    chrono: Chrono = field(default_factory=Chrono)
 
     def consigner(self, e: Evenement) -> Evenement:
         e = replace(e, run=self.run) if e.run is None else e
@@ -271,17 +281,18 @@ def _appel_mandat(ctx: Contexte, prompt: str, slug: str) -> tuple[str, float | N
     )
     cout: float | None = None
     try:
-        r = ctx.client.completer(
-            m.nom,
-            [{"role": "system", "content": CONSIGNE}, {"role": "user", "content": prompt}],
-            objet_json=True,
-            temperature=0,
-            effort=m.effort,
-            max_tokens=JETONS_SORTIE,
-            acceptes=m.acceptes,
-            delai_s=m.delai_s,
-            role="veille",
-        )
+        with ctx.chrono.mesurer("mandat de la veille (modèle)"):
+            r = ctx.client.completer(
+                m.nom,
+                [{"role": "system", "content": CONSIGNE}, {"role": "user", "content": prompt}],
+                objet_json=True,
+                temperature=0,
+                effort=m.effort,
+                max_tokens=JETONS_SORTIE,
+                acceptes=m.acceptes,
+                delai_s=m.delai_s,
+                role="veille",
+            )
         cout = r.cout_usd
         return r.texte, r.cout_usd, r.modele_servi
     finally:
@@ -307,9 +318,10 @@ def _garde(ctx: Contexte, aide: Aide, etat: dict[str, Any]) -> tuple[float, floa
     reservation = ctx.budget.reserver(m.plafond_usd(32_000, 0), f"garde {aide.slug}")
     cout: float | None = None
     try:
-        d = ctx.client.decider(
-            m.nom, etat, QUESTIONS_MANDAT, acceptes=m.acceptes, delai_s=m.delai_s, role="garde"
-        )
+        with ctx.chrono.mesurer("garde de Jev"):
+            d = ctx.client.decider(
+                m.nom, etat, QUESTIONS_MANDAT, acceptes=m.acceptes, delai_s=m.delai_s, role="garde"
+            )
         cout = d.cout_usd
         return d.avis["touche"].proba("true"), d.cout_usd, d.modele_servi
     finally:
@@ -790,8 +802,66 @@ def _escalader(
         res.cases.append(case)
         res.raison += f" ; ré-extraction déjà {memo.issue} pour ce changement"
         return None
+    if ctx.pool is not None:
+        # En vol : le passage continue, `passer` reprend la suite après la
+        # dernière aide (`_apres_reextraction`, puis formulaires et pages mortes).
+        vol = EnVol(
+            ctx.pool.submit(_reextraire_chronometre, ctx, aide.slug, case.etat),
+            aide,
+            an,
+            col,
+            res,
+            case,
+        )
+        vol.futur.add_done_callback(lambda _f: setattr(vol, "fin", time.perf_counter()))
+        ctx.en_vol[aide.slug] = vol
+        return None
+    return _apres_reextraction(
+        ctx, aide, an, col, res, case, lambda: _reextraire_chronometre(ctx, aide.slug, case.etat)
+    )
+
+
+@dataclass
+class EnVol:
+    """Une ré-extraction partie dans le pool, et ce qu'il faut pour en reprendre la suite."""
+
+    futur: Future[Any]
+    aide: Aide
+    an: AideAnalysis
+    col: AideCollect
+    res: Resultat
+    case: Case
+    # Posés par `passer` : ce que le traitement a rendu en attendant, si les
+    # formulaires et pages mortes restent à faire, et le YAML d'avant.
+    provisoire: MajResult | None = None
+    suite: bool = False
+    avant: bytes = b""
+    depart: float = field(default_factory=time.perf_counter)
+    fin: float | None = None
+
+
+def _reextraire_chronometre(ctx: Contexte, slug: str, etat: str) -> Any:
+    assert ctx.reextraire is not None
+    debut = time.perf_counter()
     try:
-        b = ctx.reextraire(aide.slug, case.etat)
+        return ctx.reextraire(slug, etat)
+    finally:
+        ctx.chrono.ajouter("ré-extraction d'une aide (agent compris)", time.perf_counter() - debut)
+
+
+def _apres_reextraction(
+    ctx: Contexte,
+    aide: Aide,
+    an: AideAnalysis,
+    col: AideCollect,
+    res: Resultat,
+    case: Case,
+    obtenir: Callable[[], Any],
+) -> MajResult | None:
+    """La suite d'une ré-extraction : son bilan au journal, la référence, la case si elle n'a rien soldé."""
+    cle_rx = cle(VERSION, "reextraction", aide.slug, case.etat)
+    try:
+        b = obtenir()
     except BudgetEpuise as exc:
         res.cases.append(case)
         res.panne = "budget"
@@ -815,7 +885,9 @@ def _escalader(
         "faits": b.faits,
         "etat": case.etat,
         "espace": getattr(b, "espace", {}),
+        "durees": getattr(b, "durees", {}),
     }
+    ctx.chrono.fusionner("dans l'agent : ", getattr(b, "durees", {}) or {})
     if b.panne:
         ctx.consigner(
             Evenement(
@@ -1043,6 +1115,22 @@ def traiter(
 ) -> tuple[Resultat, MajResult | None]:
     """Le traitement d'une aide selon son statut, puis ses liens morts, qui n'en dépendent pas."""
     res, maj = _traiter(ctx, aide, an, col, historique)
+    if (vol := ctx.en_vol.get(aide.slug)) is not None:
+        # Ré-extraction en vol : formulaires et pages mortes attendent son
+        # retour, dans le même ordre qu'en série (elle réécrit le YAML).
+        vol.suite = True
+        return res, maj
+    return _finir(ctx, aide, an, col, res, maj)
+
+
+def _finir(
+    ctx: Contexte,
+    aide: Aide,
+    an: AideAnalysis,
+    col: AideCollect,
+    res: Resultat,
+    maj: MajResult | None,
+) -> tuple[Resultat, MajResult | None]:
     _formulaires(ctx, aide, an, res)
     if an.liens_morts:
         maj = maj or _pages_mortes(ctx, aide, an, col, res)
@@ -1153,6 +1241,7 @@ class Bilan:
     couts_inconnus: int
     # Aides dont la garde a laissé la référence en zone prudente : depuis quand.
     stock_zone: dict[str, str] = field(default_factory=dict)
+    chrono: Chrono = field(default_factory=Chrono)
 
     @property
     def cases(self) -> list[Case]:
@@ -1170,9 +1259,10 @@ def passer(
     manifeste: Path | None = None,
 ) -> Bilan:
     """Un passage : référence du journal, analyse, mandat, garde, cases, projection inverse."""
-    historique = list(ctx.journal.lire())
-    remplacees = appliquer_bases(collects, bases_en_vigueur(historique), ctx.sources)
-    analyses = analyze_all(aides, collects, today=ctx.aujourd_hui)
+    with ctx.chrono.mesurer("références du journal et analyse"):
+        historique = list(ctx.journal.lire())
+        remplacees = appliquer_bases(collects, bases_en_vigueur(historique), ctx.sources)
+        analyses = analyze_all(aides, collects, today=ctx.aujourd_hui)
 
     manifest = veille_aides.load_manifest(manifeste) if manifeste else {}
     a_acquitter = [
@@ -1188,39 +1278,65 @@ def passer(
 
     resultats: dict[str, Resultat] = {}
     majs: dict[str, MajResult] = {}
-    for slug, aide in aides.items():
-        if slug not in analyses:
-            continue
+    paralleles = ctx.parallelisme > 1 and ctx.reextraire is not None
+    pool = ThreadPoolExecutor(ctx.parallelisme) if paralleles else None
+    ctx.pool, ctx.en_vol = pool, {}
+    try:
+        for slug, aide in aides.items():
+            if slug not in analyses:
+                continue
+            chemin = ctx.chemin_yaml(slug)
+            avant = chemin.read_bytes() if chemin.exists() else b""
+            try:
+                with ctx.chrono.mesurer(f"traitement des aides {analyses[slug].statut}"):
+                    res, maj = traiter(ctx, aide, analyses[slug], collects[slug], historique)
+            except Exception as exc:  # une aide en bug ne doit pas arrêter le passage
+                res, maj = _en_bug(ctx, slug, analyses[slug].statut, chemin, avant, exc), None
+            resultats[slug] = res
+            if maj is not None:
+                majs[slug] = maj
+            if (vol := ctx.en_vol.get(slug)) is not None:
+                vol.provisoire, vol.avant = maj, avant
+    finally:
+        # Une escalade levée pendant la reprise tourne en série : le pool est fermé.
+        ctx.pool = None
+        if pool is not None:
+            with ctx.chrono.mesurer("attente des ré-extractions après la dernière aide"):
+                pool.shutdown(wait=True)
+    if ctx.en_vol:
+        departs = [v.depart for v in ctx.en_vol.values()]
+        fins = [v.fin for v in ctx.en_vol.values() if v.fin]
+        if fins:
+            ctx.chrono.ajouter(
+                f"ré-extractions, horloge ({len(ctx.en_vol)} aides, {ctx.parallelisme} en parallèle)",
+                max(fins) - min(departs),
+            )
+    for slug, vol in list(ctx.en_vol.items()):
+        # Reprise dans l'ordre du passage : journal, référence, cases, puis la
+        # suite du traitement que la ré-extraction avait suspendue.
         chemin = ctx.chemin_yaml(slug)
-        avant = chemin.read_bytes() if chemin.exists() else b""
         try:
-            res, maj = traiter(ctx, aide, analyses[slug], collects[slug], historique)
-        except Exception as exc:  # une aide en bug ne doit pas arrêter le passage
-            ecrite = chemin.exists() and chemin.read_bytes() != avant
-            res = Resultat(
-                slug,
-                analyses[slug].statut,
-                "retouche" if ecrite else "panne",
-                ("retouche écrite, puis bug : " if ecrite else "") + str(exc)[:300],
-            )
-            maj = None
-            res.panne = "bug"
-            ctx.consigner(
-                Evenement(
-                    "panne",
-                    f"a:{slug}",
-                    decision="veille",
-                    issue="bug",
-                    donnees={"message": f"{type(exc).__name__}: {exc}"[:500]},
+            maj = (
+                _apres_reextraction(
+                    ctx, vol.aide, vol.an, vol.col, vol.res, vol.case, vol.futur.result
                 )
+                or vol.provisoire
             )
+            res = vol.res
+            if vol.suite:
+                res, maj = _finir(ctx, vol.aide, vol.an, vol.col, res, maj)
+        except Exception as exc:  # noqa: BLE001 — même règle que dans la boucle
+            res, maj = _en_bug(ctx, slug, vol.an.statut, chemin, vol.avant, exc), None
         resultats[slug] = res
+        majs.pop(slug, None)
         if maj is not None:
             majs[slug] = maj
+    ctx.en_vol = {}
 
     if manifeste is not None and ctx.ecrire:
-        fusion = veille_aides.update_manifest(manifest, analyses, majs, ctx.aujourd_hui)
-        veille_aides.write_manifest(fusion, manifeste)
+        with ctx.chrono.mesurer("manifeste"):
+            fusion = veille_aides.update_manifest(manifest, analyses, majs, ctx.aujourd_hui)
+            veille_aides.write_manifest(fusion, manifeste)
     return Bilan(
         resultats,
         remplacees,
@@ -1229,7 +1345,31 @@ def passer(
         ctx.budget.depense,
         ctx.budget.couts_inconnus,
         stock_zone_prudente(list(ctx.journal.lire())),
+        ctx.chrono,
     )
+
+
+def _en_bug(
+    ctx: Contexte, slug: str, statut: str, chemin: Path, avant: bytes, exc: Exception
+) -> Resultat:
+    ecrite = chemin.exists() and chemin.read_bytes() != avant
+    res = Resultat(
+        slug,
+        statut,
+        "retouche" if ecrite else "panne",
+        ("retouche écrite, puis bug : " if ecrite else "") + str(exc)[:300],
+    )
+    res.panne = "bug"
+    ctx.consigner(
+        Evenement(
+            "panne",
+            f"a:{slug}",
+            decision="veille",
+            issue="bug",
+            donnees={"message": f"{type(exc).__name__}: {exc}"[:500]},
+        )
+    )
+    return res
 
 
 def stock_zone_prudente(evenements: list[Evenement]) -> dict[str, str]:
@@ -1316,6 +1456,17 @@ def section(bilan: Bilan) -> list[str]:
             for x in sorted(r.values(), key=lambda x: x.slug)
             if x.panne and x.panne not in ("reseau_hote", "anti_robot")
         ]
+    if bilan.chrono.durees:
+        lignes += [
+            "",
+            "### Durées",
+            "",
+            "Sommes par étape, de la plus longue à la plus courte. « horloge » : temps mur "
+            "d'un ensemble qui tourne en parallèle ; « dans l'agent » : cumul sur toutes les "
+            "ré-extractions, appels du modèle d'un côté, chaque outil de l'autre.",
+            "",
+        ]
+        lignes += bilan.chrono.lignes()
     return lignes
 
 
@@ -1346,6 +1497,7 @@ def commande(
             vue.prendre(e)
     appels = BACKEND / ".cache" / "catalogue" / "appels" / f"{run}.jsonl"
     appels.parent.mkdir(parents=True, exist_ok=True)
+    debut = time.perf_counter()
     ctx = Contexte(
         registre=reg,
         journal=j,
@@ -1355,6 +1507,7 @@ def commande(
         run=run,
         aujourd_hui=jour,
         ecrire=not a_blanc,
+        parallelisme=reg.budgets.run.parallelisme_ingestion,
     )
 
     def reextraire(slug: str, etat: str) -> Any:
@@ -1372,8 +1525,10 @@ def commande(
             ctx.budget.regler(r, b.cout_usd if b is not None else None)
 
     ctx.reextraire = reextraire
-    aides = charger_aides(slugs or None)
-    collects = collect(list(aides.values()))
+    with ctx.chrono.mesurer("chargement des aides"):
+        aides = charger_aides(slugs or None)
+    with ctx.chrono.mesurer("collecte des pages"):
+        collects = collect(list(aides.values()))
     if _panne_generalisee(collects):
         # Plus de 30 % des URL en échec : aucune étape payante sur des pages manquantes.
         rapport = Rapport(jour, run)
@@ -1387,10 +1542,13 @@ def commande(
         return CODE_RESEAU
     bilan = passer(ctx, aides, collects, manifeste=veille_aides.MANIFEST_PATH)
     bilan.ambigues = ambigues
+    total = time.perf_counter() - debut
     rapport = Rapport(jour, run)
     rapport.entete = [
         f"- Veille : {len(bilan.resultats)} aides, {len(bilan.cases)} case(s), "
-        f"{bilan.depense:.4f} $ facturés" + (" (à blanc, rien d'écrit)" if a_blanc else "") + ".",
+        f"{bilan.depense:.4f} $ facturés, {duree_lisible(total)}"
+        + (" (à blanc, rien d'écrit)" if a_blanc else "")
+        + ".",
         f"- Réponses de Félix relues : {len(reponses)}"
         + (f" ; cases illisibles (plusieurs choix) : {', '.join(ambigues)}" if ambigues else "")
         + ".",
@@ -1405,6 +1563,8 @@ def commande(
     else:
         print(f"rapport : {rapport.ecrire(reviews)}")
     print(f"issues : {dict(bilan.compte())} ; dépense {bilan.depense:.4f} $")
+    print(f"durée : {duree_lisible(total)}")
+    print("\n".join(bilan.chrono.lignes()))
     return code_de_sortie(bilan)
 
 

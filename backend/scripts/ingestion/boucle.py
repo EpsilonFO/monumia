@@ -357,13 +357,22 @@ def executer(
     compteur: Compteur | None = None,
     review_ecrite: Callable[[], bool] = lambda: True,
     dormir: Callable[[float], None] = time.sleep,
+    durees: dict[str, float] | None = None,
 ) -> Resultat:
     """Fait tourner l'agent jusqu'à ce qu'il ait fini, ou qu'on l'arrête.
 
     `dormir` est injectable pour que les tests du backoff mesurent les pauses
     sans les attendre : cinq relances à 2, 4, 8, 16 et 32 s font une minute
     par cas de test, et un test d'une minute ne se lance pas.
+
+    `durees`, s'il est donné, reçoit le temps passé en secondes : `modele`
+    (appels du modèle, échecs compris), `outil <nom>` pour chaque outil.
     """
+    durees = durees if durees is not None else {}
+
+    def compter(cle: str, debut: float) -> None:
+        durees[cle] = durees.get(cle, 0.0) + time.monotonic() - debut
+
     limites = limites or Limites()
     journal = journal or JournalMuet()
     table_outils = as_tools(outils)
@@ -388,9 +397,11 @@ def executer(
     depart = time.monotonic()
 
     for tour in range(1, limites.max_tours + 1):
+        debut_appel = time.monotonic()
         try:
             reponse = client.complete(conversation, tools=definitions, max_tokens=max_tokens_force)
         except ProvidallError as exc:
+            compter("modele", debut_appel)
             journal.evenement(f"appel en échec : {type(exc).__name__}: {exc}")
             if _sortie_epuisee(exc) and max_tokens_force is None:
                 courant = _max_tokens_courant(client, exc)
@@ -440,6 +451,7 @@ def executer(
             sauvetages += 1
             continue
 
+        compter("modele", debut_appel)
         # Un appel qui passe remet le compteur à zéro : cinq relances est un
         # budget de PANNE, pas un quota de run. Une aide de 80 tours qui
         # traverse deux coupures réseau doit survivre aux deux.
@@ -497,7 +509,9 @@ def executer(
             continue
 
         for appel in reponse.tool_calls:
+            debut_outil = time.monotonic()
             sortie = tronquer(executer_appel(table, appel), limites.max_car_sortie)
+            compter(f"outil {appel.name}", debut_outil)
             journal.appel(appel, sortie)
             conversation.append(
                 Message(role="tool", tool_call_id=appel.id, name=appel.name, content=sortie)

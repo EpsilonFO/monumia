@@ -51,6 +51,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -465,18 +466,26 @@ def erreurs_nouvelles(avant: list[str], apres: list[str]) -> list[str]:
     return [e for e in apres if cle_erreur(e) not in deja]
 
 
+#: `lint_aide` détourne une variable de module : deux ré-extractions en vol
+#: (`veille.passer` en parallèle) chercheraient leurs citations l'une chez l'autre.
+_VERROU_LINT = threading.Lock()
+
+
 def lint_aide(dossier: Path, slug: str, pending: Path, sources: Path) -> list[str]:
     """Le lint d'une aide, citations cherchées dans `sources` (et non dans `data/sources/`)."""
     from lint_aides_data import lint
 
     from catalogue import veille_collect
 
-    ancien = veille_collect.SOURCES_DIR
-    try:
-        veille_collect.SOURCES_DIR = sources
-        rapport = lint([slug], quotes=True, aides_dir=dossier, pending_path=pending, ecriture=True)
-    finally:
-        veille_collect.SOURCES_DIR = ancien
+    with _VERROU_LINT:
+        ancien = veille_collect.SOURCES_DIR
+        try:
+            veille_collect.SOURCES_DIR = sources
+            rapport = lint(
+                [slug], quotes=True, aides_dir=dossier, pending_path=pending, ecriture=True
+            )
+        finally:
+            veille_collect.SOURCES_DIR = ancien
     return list(rapport.erreurs)
 
 
@@ -497,6 +506,17 @@ def blocs_faits(texte: str) -> dict[str, str]:
             f -= 1
         blocs[lignes[d].split(":", 1)[0]] = "\n".join(lignes[tete:f])
     return blocs
+
+
+def copier_sous_verrou(source: Path, cible: Path) -> None:
+    import fcntl
+
+    with source.open("rb") as f:
+        fcntl.flock(f, fcntl.LOCK_SH)
+        try:
+            cible.write_bytes(f.read())
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def ajouter_faits(cles: list[str], propose: Path, cible: Path = FACTS_PENDING_FILE) -> list[str]:
@@ -541,6 +561,8 @@ class Bilan:
     faits: list[str] = field(default_factory=list)
     #: Les mesures de l'agent sur l'espace (`EtatOutils.mesures_espace`).
     espace: dict[str, int] = field(default_factory=dict)
+    #: Où l'agent a passé son temps, en secondes (`ResultatIngestion.durees`).
+    durees: dict[str, float] = field(default_factory=dict)
 
 
 def rebut(slug: str, sortie: Path, motif: str, jour: dt.date, rebuts: Path = REBUTS) -> Path | None:
@@ -632,9 +654,10 @@ def _reextraire(
         / f"{jour.isoformat()}-{slug}-{os.getpid()}-{dt.datetime.now().strftime('%H%M%S%f')}"
     )
     preparer(slug, sortie, aides, sources)
-    # L'agent part du même facts_pending.yaml que celui où ses faits seront ajoutés.
+    # L'agent part du même facts_pending.yaml que celui où ses faits seront ajoutés,
+    # copié sous le verrou d'`ajouter_faits` : une ré-extraction voisine peut y écrire.
     if pending.exists():
-        shutil.copy2(pending, sortie / "facts_pending.yaml")
+        copier_sous_verrou(pending, sortie / "facts_pending.yaml")
     lancement = (lanceur or lancer)(slug, sortie, plafond, delai_s)
     b = Bilan(slug, "panne", cout_usd=depense(sortie), duree_s=lancement.duree_s)
     if lancement.resultat is None:
@@ -643,6 +666,7 @@ def _reextraire(
     issue, raison, classe = classer(lancement.resultat)
     b.issue, b.raison, b.panne = issue, raison, classe
     b.espace = dict(lancement.resultat.get("espace") or {})
+    b.durees = dict(lancement.resultat.get("durees") or {})
     if issue == "hors_perimetre":
         b.cases.append(
             Case(
