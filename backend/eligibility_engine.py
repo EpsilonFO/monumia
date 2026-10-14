@@ -2619,6 +2619,31 @@ def disponibilite(aide: Aide, today: date | None = None) -> Disponibilite:
     return "maintenant"
 
 
+def session_perimee(aide: Aide, today: date | None = None) -> bool:
+    """Vrai si la dernière session connue de l'aide date de plus d'un an.
+
+    Décision du 2026-10-14 : « disponibles bientôt » ne montre plus que les
+    aides dont la date la plus récente (ouverture ou limite) tombe dans les
+    douze derniers mois. Au-delà, rien ne dit plus que le dispositif sera
+    reconduit, et l'aide sort du diagnostic. Le 14 octobre 2026, une aide close
+    le 15 octobre 2025 reste affichée, une aide close le 14 octobre 2025 non.
+
+    Ne touche qu'aux aides « bientot » : une aide ouverte, permanente ou sans
+    date n'est jamais périmée, et une ouverture future la garde par
+    construction (sa date la plus récente est à venir).
+    """
+    t = today or date.today()
+    if disponibilite(aide, t) != "bientot":
+        return False
+    cal = aide.calendrier
+    derniere = max(d for d in (cal.date_ouverture, cal.date_limite) if d is not None)
+    try:
+        il_y_a_un_an = t.replace(year=t.year - 1)
+    except ValueError:  # 29 février
+        il_y_a_un_an = t.replace(year=t.year - 1, day=28)
+    return derniere <= il_y_a_un_an
+
+
 # ---------------------------------------------------------------------------
 # Plusieurs propriétaires (2026-09-30)
 # ---------------------------------------------------------------------------
@@ -2717,9 +2742,11 @@ def run_deterministic_diagnostic(
     familles = familles_effectives(familles_declarees, raisons)
 
     ready = engine_ready_aides(aides)
-    # La fenêtre de candidature n'écarte plus aucune aide : elle est portée par
-    # `disponibilite` sur chaque résultat (cf. _match_result). Une session
-    # passée n'est pas une inéligibilité, c'est un dossier à préparer.
+    # Une session passée n'est pas une inéligibilité, c'est un dossier à
+    # préparer : elle est portée par `disponibilite` sur chaque résultat (cf.
+    # _match_result). Sauf quand elle date de plus d'un an (`session_perimee`) :
+    # l'aide sort alors du diagnostic, avant les questions qu'elle poserait.
+    ready = {slug: a for slug, a in ready.items() if not session_perimee(a, today)}
     # Exclure les aides hors du projet déclaré (étape « Votre projet ») : leurs
     # faits manquants pollueraient le questionnaire (« À quelle fréquence la
     # manifestation est-elle organisée ? » pour un ravalement de façade).

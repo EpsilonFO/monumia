@@ -43,6 +43,7 @@ from eligibility_engine import (
     evaluate_aide,
     libelle_tranche,
     run_deterministic_diagnostic,
+    session_perimee,
     split_reserved_answers,
 )
 from routers.aides import merge_projet_into_monument
@@ -119,7 +120,8 @@ class TestEngineReady(unittest.TestCase):
 
 
 class TestDisponibilite(unittest.TestCase):
-    """Fenêtre de candidature : axe transverse au statut, jamais un filtre."""
+    """Fenêtre de candidature : axe transverse au statut, filtre seulement
+    au-delà d'un an de session close (`session_perimee`)."""
 
     TODAY = date(2026, 6, 22)
 
@@ -167,6 +169,47 @@ class TestDisponibilite(unittest.TestCase):
         self.assertEqual(res["totalAidesAnalysees"], 1)
         self.assertEqual([m["aide"]["id"] for m in res["aidesEligibles"]], ["fixture-aide"])
         self.assertEqual(res["aidesEligibles"][0]["disponibilite"], "bientot")
+
+    def test_session_de_moins_d_un_an_reste_affichee(self):
+        """Close le lendemain de la date anniversaire : encore « bientôt »."""
+        a = self._aide(permanent=False, date_limite=date(2025, 6, 23))
+        self.assertFalse(session_perimee(a, self.TODAY))
+
+    def test_session_d_un_an_ou_plus_perimee(self):
+        """Close il y a un an jour pour jour, ou avant : hors du diagnostic."""
+        for limite in (date(2025, 6, 22), date(2024, 3, 1)):
+            a = self._aide(permanent=False, date_limite=limite)
+            self.assertTrue(session_perimee(a, self.TODAY), limite)
+
+    def test_ouverture_recente_compte_comme_derniere_date(self):
+        """La date la plus récente des deux fait foi, ouverture comprise."""
+        a = self._aide(
+            permanent=False, date_ouverture=date(2025, 9, 1), date_limite=date(2025, 3, 1)
+        )
+        self.assertFalse(session_perimee(a, self.TODAY))
+
+    def test_jamais_perimee_hors_bientot(self):
+        """Ouverte, permanente, sans date ou ouverture future : jamais périmée."""
+        for cal in (
+            {"permanent": True, "date_limite": date(2020, 1, 1)},
+            {"permanent": False},
+            {"permanent": False, "date_ouverture": date(2020, 1, 1)},
+            {"permanent": False, "date_ouverture": date(2027, 1, 1)},
+        ):
+            self.assertFalse(session_perimee(self._aide(**cal), self.TODAY), cal)
+
+    def test_29_fevrier(self):
+        a = self._aide(permanent=False, date_limite=date(2027, 2, 28))
+        self.assertTrue(session_perimee(a, date(2028, 2, 29)))
+
+    def test_diagnostic_ecarte_les_sessions_perimees(self):
+        """Une aide close depuis plus d'un an n'est ni analysée ni affichée."""
+        a = self._aide(permanent=False, date_limite=date(2025, 2, 13))
+        res = run_deterministic_diagnostic(
+            {"fixture-aide": a}, FACTS, _monument(), 3000, today=self.TODAY
+        )
+        self.assertEqual(res["totalAidesAnalysees"], 0)
+        self.assertEqual(res["aidesEligibles"], [])
 
     def test_montant_potentiel_compte_les_bientot(self):
         """Le montant couvre aussi les aides « disponibles bientôt »."""
