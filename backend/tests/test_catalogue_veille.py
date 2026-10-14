@@ -574,6 +574,7 @@ def test_une_source_injoignable_ouvre_une_case_par_serie_et_vu_la_tait(
         statut="ERREUR_HTTP",
         erreurs=[SimpleNamespace(result=SimpleNamespace(status=403))],
         raisons=["HTTP 403"],
+        liens_morts=[],
     )
     aide = SimpleNamespace(slug=SLUG)
 
@@ -590,3 +591,49 @@ def test_une_source_injoignable_ouvre_une_case_par_serie_et_vu_la_tait(
     assert encore.etat == case.etat
     j.ajouter(Reponse(case.id, case.sorte, case.objet, case.etat, "vu").evenement("r3"))
     assert passage("r4") == []
+
+
+def test_un_formulaire_ou_un_reglement_mort_ouvre_une_case_sans_toucher_au_statut(
+    banc: dict[str, Any],
+) -> None:
+    """La page officielle seule décide du statut ; un lien secondaire mort devient une case à part."""
+    from veille_analyze import analyze_all
+
+    from catalogue.cases import Reponse
+
+    j = Journal(banc["tmp"] / "journal")
+    aide = load_aide(banc["yaml"])
+    page = _corps("2026-10-04-reglement.md")
+    collects = _collecte(page)
+    col = collects[SLUG]
+    pdf = "https://www.seine-et-marne.fr/reglement-festivals.pdf"
+    form = "https://www.seine-et-marne.fr/teleservice/festivals"
+    col.urls += [
+        MonitoredUrl(url=pdf, role="snapshot", baseline_sha="y", is_binary=True),
+        MonitoredUrl(url=form, role="formulaire"),
+    ]
+    col.fetched[pdf] = FetchResult(url=pdf, status=404)
+    col.fetched[form] = FetchResult(url=form, status=410)
+
+    def passage() -> veille.Resultat:
+        an = analyze_all({SLUG: aide}, collects, today=JOUR)[SLUG]
+        assert an.statut == "OK"
+        res, _ = veille.traiter(_ctx(banc, None, j), aide, an, col, list(j.lire()))
+        return res
+
+    res = passage()
+    assert res.issue == "ok"
+    (case,) = res.cases
+    assert case.sorte == "veille-lien-mort"
+    assert any("formulaire de dépôt" in ligne and "HTTP 410" in ligne for ligne in case.contexte)
+    assert any("page archivée" in ligne and "HTTP 404" in ligne for ligne in case.contexte)
+
+    j.ajouter(Reponse(case.id, case.sorte, case.objet, case.etat, "vu").evenement("r1"))
+    assert passage().cases == []
+
+    # Un autre lien qui meurt rouvre la case.
+    autre = "https://www.seine-et-marne.fr/annexe.pdf"
+    col.urls.append(MonitoredUrl(url=autre, role="snapshot", baseline_sha="z", is_binary=True))
+    col.fetched[autre] = FetchResult(url=autre, status=404)
+    (rouverte,) = passage().cases
+    assert rouverte.etat != case.etat

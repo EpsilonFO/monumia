@@ -233,6 +233,22 @@ class AideAnalysis:
     def erreurs(self) -> list[UrlVerdict]:
         return [u for u in self.urls if u.result is not None and not u.result.ok]
 
+    @property
+    def liens_morts(self) -> list[UrlVerdict]:
+        """Formulaire ou page secondaire qui n'existe plus (404, 410, redirection sans issue).
+
+        Hors de `_decider` : seule la page officielle décide du statut, et un
+        formulaire mort ne doit pas empêcher la retouche d'une page qui a
+        changé. Sans ce relevé, un règlement PDF passé en 404 laissait l'aide en
+        `OK` (ses citations devenaient seulement « non recontrôlables »), et le
+        code HTTP de `formulaire_url` n'était lu nulle part.
+        """
+        return [
+            u
+            for u in self.urls
+            if u.murl.role != "officielle" and u.result is not None and u.result.morte
+        ]
+
 
 def contenu_utile(markdown: str) -> int:
     """Volume de texte hors chrome de page : menus et bandeaux ne comptent pas.

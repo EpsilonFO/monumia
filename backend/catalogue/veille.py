@@ -805,6 +805,7 @@ def _escalader(
         "changements": b.changements,
         "faits": b.faits,
         "etat": case.etat,
+        "espace": getattr(b, "espace", {}),
     }
     if b.panne:
         ctx.consigner(
@@ -890,7 +891,59 @@ def _pannes_precedentes(vue_evenements: list[Evenement], slug: str, run: str) ->
     return runs
 
 
+def _citations_de(an: AideAnalysis, col: AideCollect, url: str) -> int:
+    """Les citations trouvées dans l'instantané d'`url` : celles que sa mort rend invérifiables."""
+    cle = cle_url(url)
+    noms = {m.baseline_path.name for m in col.urls if m.baseline_path and cle_url(m.url) == cle}
+    noms |= {nom for nom, u in col.baseline_urls.items() if cle_url(u) == cle}
+    return sum(1 for q in an.quotes if q.baseline.found and q.baseline_doc in noms)
+
+
+def case_liens_morts(ctx: Contexte, slug: str, an: AideAnalysis, col: AideCollect) -> Case | None:
+    """Un formulaire ou une page secondaire qui n'existe plus : une case, que « vu » tait.
+
+    L'état est l'ensemble des URL mortes, sans leur code : la case se rouvre
+    quand un autre lien meurt, pas chaque semaine pour le même, ni parce qu'un
+    404 est devenu 410.
+    """
+    morts = an.liens_morts
+    if not morts:
+        return None
+    etat = empreinte("\n".join(sorted(cle_url(u.murl.url) for u in morts)))
+    if cases_mod.reponse(ctx.vue, "veille-lien-mort", f"a:{slug}", etat) == "vu":
+        return None
+    contexte = []
+    for u in morts:
+        assert u.result is not None
+        quoi = "formulaire de dépôt" if u.murl.role == "formulaire" else "page archivée"
+        code = u.result.status
+        motif = f"HTTP {code}" if code in (404, 410) else f"redirection sans issue (HTTP {code})"
+        n = _citations_de(an, col, u.murl.url) if u.murl.role != "formulaire" else 0
+        contexte.append(
+            f"- {quoi} {u.murl.url} : {motif}"
+            + (f" ; {n} citation(s) s'y appuient et ne sont plus recontrôlées" if n else "")
+        )
+    return Case(
+        sorte="veille-lien-mort",
+        objet=f"a:{slug}",
+        titre="lien mort",
+        etat=etat,
+        options={"vu": "corrigé dans la fiche, ou sans objet : ne plus alerter pour ces liens"},
+        contexte=tuple(contexte),
+    )
+
+
 def traiter(
+    ctx: Contexte, aide: Aide, an: AideAnalysis, col: AideCollect, historique: list[Evenement]
+) -> tuple[Resultat, MajResult | None]:
+    """Le traitement d'une aide selon son statut, plus ses liens morts, qui n'en dépendent pas."""
+    res, maj = _traiter(ctx, aide, an, col, historique)
+    if case := case_liens_morts(ctx, aide.slug, an, col):
+        res.cases.append(case)
+    return res, maj
+
+
+def _traiter(
     ctx: Contexte, aide: Aide, an: AideAnalysis, col: AideCollect, historique: list[Evenement]
 ) -> tuple[Resultat, MajResult | None]:
     res = Resultat(slug=aide.slug, statut=an.statut, issue="ok")
@@ -1110,6 +1163,8 @@ def section(bilan: Bilan) -> list[str]:
     ]
     if bilan.acquittees:
         lignes.append(f"Échéances acquittées : {', '.join(bilan.acquittees)}.")
+    if morts := sum(1 for c in bilan.cases if c.sorte == "veille-lien-mort"):
+        lignes.append(f"Aides avec un formulaire ou une page archivée morts : {morts}.")
     retouches = [x for x in r.values() if x.issue == "retouche"]
     if retouches:
         lignes += ["", "### Retouches écrites", ""]
