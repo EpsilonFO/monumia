@@ -368,6 +368,39 @@ class TestLintEtReview(BaseOutils):
         self.assertIn("Typage à aligner sur sa famille (BLOQUANT)", sortie)
         self.assertIn(erreur, sortie)
         self.assertFalse(self.etat.dernier_lint_ok)
+        self.assertEqual(self.etat.alignements_leves, {"parc"})
+        # Corrigé au lint suivant : levé une fois, plus rien de restant.
+        with mock.patch("catalogue.espace.alignements", return_value=([], None)):
+            self.appeler("lint")
+        self.assertEqual(self.etat.alignements_leves, {"parc"})
+        self.assertEqual(self.etat.mesures_espace(None)["alignements_restants"], 0)
+
+    def test_un_predicat_qui_ecarte_une_reponse_admise_rend_le_lint_rouge(self):
+        """`catalogue.polarite.verifier` : bloquant d'un côté, simple indication de l'autre."""
+        from unittest import mock
+
+        self.appeler("snapshotter", url="https://example.org/aide")
+        chemin = self.atelier.relatif(self.atelier.snapshots()[0])
+        self.appeler(
+            "ecrire_aide",
+            yaml_texte=aide_yaml(
+                "se dérouler dans un parc ou un jardin ouvert au public", snapshot=chemin
+            ),
+        )
+        bloquant = "  ✗ parc : ton prédicat écarte la réponse « Oui »."
+        indication = "  · parc : ton prédicat admet « Non »."
+        with mock.patch(
+            "catalogue.polarite.verifier", return_value=([bloquant], [indication], None)
+        ):
+            sortie = self.appeler("lint")
+        self.assertIn("(BLOQUANT)", sortie)
+        self.assertIn(indication, sortie)
+        self.assertFalse(self.etat.dernier_lint_ok)
+        self.assertEqual(self.etat.mesures_espace(None)["polarites_restantes"], 1)
+        with mock.patch("catalogue.polarite.verifier", return_value=([], [indication], None)):
+            self.appeler("lint")
+        self.assertTrue(self.etat.dernier_lint_ok)
+        self.assertEqual(self.etat.mesures_espace(None)["polarites_levees"], 1)
 
     def test_review_trop_courte_refusee(self):
         sortie = self.appeler("ecrire_review", markdown="## Trop court")
@@ -616,6 +649,40 @@ class TestFaits(BaseOutils):
         # sans quoi les voisins continueraient de voir un fait effacé.
         self.assertEqual(self.etat.faits_proposes, [])
         self.assertNotIn("jardin_remarquable", self.pending)
+
+    def test_une_alerte_de_jev_est_relevee_puis_suivie(self):
+        """Refus (fait non relu), puis ajout maintenu après lecture : une seule alerte."""
+        from unittest import mock
+
+        from ingestion import faits as faits_mod
+
+        from catalogue.espace import FamilleFait
+
+        famille = FamilleFait("surface_jardin_m2", 0.9, ["surface_jardin_m2"])
+        justif = "x" * 90
+        definition = "type: boolean\nscope: monument\nquestion: Le jardin est-il grand ?\n"
+        with mock.patch.object(faits_mod, "_famille", lambda *_: (famille, False)):
+            refus = self.appeler(
+                "proposer_fait",
+                fact_id="grand_jardin",
+                definition_yaml=definition,
+                justification=justif,
+            )
+            self.assertTrue(refus.startswith("ERREUR"))
+            self.assertEqual(self.etat.alertes_faits, {"grand_jardin": "surface_jardin_m2"})
+            self.appeler("detail_fait", fact_id="surface_jardin_m2")
+            ajout = self.appeler(
+                "proposer_fait",
+                fact_id="grand_jardin",
+                definition_yaml=definition,
+                justification=justif,
+            )
+        self.assertIn("Jev désignait `surface_jardin_m2`", ajout)
+        mesures = self.etat.mesures_espace("conditions:\n- id: a\n  fact: grand_jardin\n")
+        self.assertEqual(
+            (mesures["alertes_faits"], mesures["alertes_maintenues"], mesures["faits_neufs"]),
+            (1, 1, 1),
+        )
 
     def test_retirer_un_fait_dun_autre_run_refuse(self):
         """La garde qui empêche un worker d'effacer le fait d'un autre."""

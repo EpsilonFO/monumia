@@ -574,6 +574,7 @@ def test_une_source_injoignable_ouvre_une_case_par_serie_et_vu_la_tait(
         statut="ERREUR_HTTP",
         erreurs=[SimpleNamespace(result=SimpleNamespace(status=403))],
         raisons=["HTTP 403"],
+        urls=[],
         liens_morts=[],
     )
     aide = SimpleNamespace(slug=SLUG)
@@ -593,47 +594,138 @@ def test_une_source_injoignable_ouvre_une_case_par_serie_et_vu_la_tait(
     assert passage("r4") == []
 
 
-def test_un_formulaire_ou_un_reglement_mort_ouvre_une_case_sans_toucher_au_statut(
+PDF = "https://www.seine-et-marne.fr/reglement-festivals.pdf"
+FORM = "https://vosdemarches.seine-et-marne.fr/"
+
+
+def _collecte_liens_morts(*, pdf: int | None = None, form: int | None = None) -> AideCollect:
+    """La page officielle inchangée, plus un règlement PDF et le formulaire aux codes donnés."""
+    col = _collecte(_corps("2026-10-04-reglement.md"))[SLUG]
+    if pdf is not None:
+        col.urls.append(MonitoredUrl(url=PDF, role="snapshot", baseline_sha="y", is_binary=True))
+        col.fetched[PDF] = FetchResult(url=PDF, status=pdf)
+    if form is not None:
+        col.urls.append(MonitoredUrl(url=FORM, role="formulaire"))
+        col.fetched[FORM] = FetchResult(url=FORM, status=form)
+    return col
+
+
+def _passage_liens(
+    banc: dict[str, Any], j: Journal, run: str, col: AideCollect
+) -> tuple[veille.Resultat, Any]:
+    from veille_analyze import analyze_all
+
+    aide = load_aide(banc["yaml"])
+    an = analyze_all({SLUG: aide}, {SLUG: col}, today=JOUR)[SLUG]
+    assert an.statut == "OK"  # la page officielle seule décide du statut
+    ctx = _ctx(banc, None, j)
+    ctx.run = run
+    return veille.traiter(ctx, aide, an, col, list(j.lire()))
+
+
+def test_un_formulaire_mort_deux_passages_de_suite_sort_de_la_fiche(
     banc: dict[str, Any],
 ) -> None:
-    """La page officielle seule décide du statut ; un lien secondaire mort devient une case à part."""
-    from veille_analyze import analyze_all
+    j = Journal(banc["tmp"] / "journal")
+    avant = banc["yaml"].read_text(encoding="utf-8")
+
+    res, _ = _passage_liens(banc, j, "2026-10-11-veille-0001", _collecte_liens_morts(form=404))
+    assert (res.formulaire, res.cases) == ("constate", [])
+    assert banc["yaml"].read_text(encoding="utf-8") == avant
+
+    # Revenu entre-temps : la série repart de zéro.
+    _passage_liens(banc, j, "2026-10-18-veille-0002", _collecte_liens_morts(form=200))
+    res, _ = _passage_liens(banc, j, "2026-10-25-veille-0003", _collecte_liens_morts(form=410))
+    assert res.formulaire == "constate"
+
+    res, _ = _passage_liens(banc, j, "2026-11-01-veille-0004", _collecte_liens_morts(form=410))
+    assert (res.issue, res.formulaire, res.cases) == ("ok", "retire", [])
+    apres = banc["yaml"].read_text(encoding="utf-8")
+    assert "formulaire_url" not in apres
+    assert len(apres.splitlines()) == len(avant.splitlines()) - 1
+    assert load_aide(banc["yaml"]).source.formulaire_url is None
+
+
+def test_retirer_formulaire_refuse_ce_qui_n_est_pas_sur() -> None:
+    texte = (BACKEND / "data" / "aides" / f"{SLUG}.yaml").read_text(encoding="utf-8")
+    assert veille.retirer_formulaire(texte, "https://ailleurs.fr/") is None
+    assert veille.retirer_formulaire(texte.replace("  formulaire_url:", "  autre:"), FORM) is None
+    assert "formulaire_url" not in (veille.retirer_formulaire(texte, FORM) or "formulaire_url")
+
+
+def test_une_page_archivee_morte_sans_citation_ne_fait_qu_une_ligne(
+    banc: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(veille, "_citations_de", lambda an, col, url: 0)
+    j = Journal(banc["tmp"] / "journal")
+    res, _ = _passage_liens(banc, j, "2026-10-11-veille-0001", _collecte_liens_morts(pdf=404))
+    assert (res.issue, res.cases, res.pages_mortes) == ("ok", [], [PDF])
+    assert any("aucune citation" in ligne for ligne in veille.section(_bilan(res)))
+
+
+def test_une_page_archivee_morte_citee_est_une_escalade_que_vu_tait(
+    banc: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from catalogue.cases import Reponse
+
+    monkeypatch.setattr(veille, "_citations_de", lambda an, col, url: 3)
+    j = Journal(banc["tmp"] / "journal")
+    res, maj = _passage_liens(banc, j, "2026-10-11-veille-0001", _collecte_liens_morts(pdf=404))
+    (case,) = res.cases
+    assert (res.issue, maj) == ("case", None)
+    assert case.sorte == "veille-escalade" and set(case.options) == {"reextraire", "vu"}
+    assert "3 citation(s)" in case.contexte[0]
+
+    j.ajouter(Reponse(case.id, case.sorte, case.objet, case.etat, "vu").evenement("r1"))
+    res, _ = _passage_liens(banc, j, "2026-10-18-veille-0002", _collecte_liens_morts(pdf=404))
+    assert (res.issue, res.cases) == ("ok", [])
+
+
+def test_une_page_archivee_morte_citee_part_en_reextraction_sur_reponse(
+    banc: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
 
     from catalogue.cases import Reponse
 
+    monkeypatch.setattr(veille, "_citations_de", lambda an, col, url: 3)
+    monkeypatch.setattr(veille, "_avancer", lambda *a, **k: None)
     j = Journal(banc["tmp"] / "journal")
-    aide = load_aide(banc["yaml"])
-    page = _corps("2026-10-04-reglement.md")
-    collects = _collecte(page)
-    col = collects[SLUG]
-    pdf = "https://www.seine-et-marne.fr/reglement-festivals.pdf"
-    form = "https://www.seine-et-marne.fr/teleservice/festivals"
-    col.urls += [
-        MonitoredUrl(url=pdf, role="snapshot", baseline_sha="y", is_binary=True),
-        MonitoredUrl(url=form, role="formulaire"),
-    ]
-    col.fetched[pdf] = FetchResult(url=pdf, status=404)
-    col.fetched[form] = FetchResult(url=form, status=410)
-
-    def passage() -> veille.Resultat:
-        an = analyze_all({SLUG: aide}, collects, today=JOUR)[SLUG]
-        assert an.statut == "OK"
-        res, _ = veille.traiter(_ctx(banc, None, j), aide, an, col, list(j.lire()))
-        return res
-
-    res = passage()
-    assert res.issue == "ok"
+    res, _ = _passage_liens(banc, j, "2026-10-11-veille-0001", _collecte_liens_morts(pdf=404))
     (case,) = res.cases
-    assert case.sorte == "veille-lien-mort"
-    assert any("formulaire de dépôt" in ligne and "HTTP 410" in ligne for ligne in case.contexte)
-    assert any("page archivée" in ligne and "HTTP 404" in ligne for ligne in case.contexte)
+    j.ajouter(Reponse(case.id, case.sorte, case.objet, case.etat, "reextraire").evenement("r1"))
 
-    j.ajouter(Reponse(case.id, case.sorte, case.objet, case.etat, "vu").evenement("r1"))
-    assert passage().cases == []
+    appels: list[str] = []
 
-    # Un autre lien qui meurt rouvre la case.
-    autre = "https://www.seine-et-marne.fr/annexe.pdf"
-    col.urls.append(MonitoredUrl(url=autre, role="snapshot", baseline_sha="z", is_binary=True))
-    col.fetched[autre] = FetchResult(url=autre, status=404)
-    (rouverte,) = passage().cases
-    assert rouverte.etat != case.etat
+    def reextraire(slug: str, etat: str) -> Any:
+        appels.append(etat)
+        return SimpleNamespace(
+            issue="acceptee",
+            raison="",
+            cout_usd=0.5,
+            duree_s=1.0,
+            changements=["conditions"],
+            faits=[],
+            cases=[],
+            panne=None,
+            snapshots=[],
+        )
+
+    def passage(run: str) -> veille.Resultat:
+        from veille_analyze import analyze_all
+
+        aide = load_aide(banc["yaml"])
+        col = _collecte_liens_morts(pdf=404)
+        an = analyze_all({SLUG: aide}, {SLUG: col}, today=JOUR)[SLUG]
+        ctx = _ctx(banc, None, j)
+        ctx.run, ctx.reextraire = run, reextraire
+        return veille.traiter(ctx, aide, an, col, list(j.lire()))[0]
+
+    assert passage("2026-10-18-veille-0002").issue == "reextraite"
+    # Ré-extraite pour ce changement : elle ne repart pas la semaine suivante.
+    assert passage("2026-10-25-veille-0003").cases == []
+    assert appels == [case.etat]
+
+
+def _bilan(res: veille.Resultat) -> veille.Bilan:
+    return veille.Bilan({res.slug: res}, 0, [], [], 0.0, 0)

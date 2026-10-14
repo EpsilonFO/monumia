@@ -101,6 +101,11 @@ OPTIONS_ESCALADE = {
     "rearchiver": "la page a changé sans effet sur la fiche, ou je l'ai corrigée : la référence avance",
     "reextraire": "ré-extraire l'aide par l'agent, au plus petit diff",
 }
+OPTIONS_PAGE_MORTE = {
+    "reextraire": "ré-extraire l'aide depuis ses sources actuelles, au plus petit diff",
+    "vu": "la fiche n'en dépend plus, ou je l'ai corrigée : ne plus alerter pour ces pages",
+}
+FORMULAIRE_MORT = "formulaire-mort"
 OPTIONS_PROPOSITION = {
     "appliquer": "la retouche proposée est juste : l'écrire",
     "rearchiver": "ne pas l'écrire, la page devient la référence",
@@ -216,6 +221,10 @@ class Resultat:
     texte: str | None = None
     panne: str | None = None
     memorise: bool = False
+    # Sort du formulaire mort : constate, retire, retrait_impossible.
+    formulaire: str | None = None
+    # Pages archivées mortes dont aucune citation ne dépend.
+    pages_mortes: list[str] = field(default_factory=list)
 
     @property
     def base_avance(self) -> bool:
@@ -899,47 +908,144 @@ def _citations_de(an: AideAnalysis, col: AideCollect, url: str) -> int:
     return sum(1 for q in an.quotes if q.baseline.found and q.baseline_doc in noms)
 
 
-def case_liens_morts(ctx: Contexte, slug: str, an: AideAnalysis, col: AideCollect) -> Case | None:
-    """Un formulaire ou une page secondaire qui n'existe plus : une case, que « vu » tait.
+def _motif_mort(u: Any) -> str:
+    code = u.result.status
+    return f"HTTP {code}" if code in (404, 410) else f"redirection sans issue (HTTP {code})"
 
-    L'état est l'ensemble des URL mortes, sans leur code : la case se rouvre
-    quand un autre lien meurt, pas chaque semaine pour le même, ni parce qu'un
-    404 est devenu 410.
+
+def retirer_formulaire(texte: str, url: str) -> str | None:
+    """Le YAML sans sa ligne `formulaire_url`, ou None si le retrait n'est pas sûr.
+
+    Une seule ligne enlevée, et le YAML relu doit être l'ancien moins cette clé,
+    sans autre différence : l'éditeur par plages ne sait pas retirer une clé.
     """
-    morts = an.liens_morts
-    if not morts:
+    lignes = texte.splitlines(keepends=True)
+    cibles = [i for i, ligne in enumerate(lignes) if ligne.startswith("  formulaire_url:")]
+    if len(cibles) != 1:
         return None
-    etat = empreinte("\n".join(sorted(cle_url(u.murl.url) for u in morts)))
-    if cases_mod.reponse(ctx.vue, "veille-lien-mort", f"a:{slug}", etat) == "vu":
+    nouveau = "".join(lignes[: cibles[0]] + lignes[cibles[0] + 1 :])
+    avant, apres = charger_yaml(texte) or {}, charger_yaml(nouveau) or {}
+    source = dict(avant.get("source") or {})
+    if cle_url(str(source.pop("formulaire_url", ""))) != cle_url(url):
         return None
-    contexte = []
-    for u in morts:
-        assert u.result is not None
-        quoi = "formulaire de dépôt" if u.murl.role == "formulaire" else "page archivée"
-        code = u.result.status
-        motif = f"HTTP {code}" if code in (404, 410) else f"redirection sans issue (HTTP {code})"
-        n = _citations_de(an, col, u.murl.url) if u.murl.role != "formulaire" else 0
-        contexte.append(
-            f"- {quoi} {u.murl.url} : {motif}"
-            + (f" ; {n} citation(s) s'y appuient et ne sont plus recontrôlées" if n else "")
+    return nouveau if apres == {**avant, "source": source} else None
+
+
+def _formulaires(ctx: Contexte, aide: Aide, an: AideAnalysis, res: Resultat) -> None:
+    """Un formulaire mort deux passages de suite sort de la fiche : son bouton menait à une erreur.
+
+    Rien n'est perdu à le retirer, puisqu'il ne menait plus nulle part, et la
+    fiche garde la page officielle. Au premier passage, le constat seul : une
+    page en maintenance d'un jour ne doit pas coûter son bouton à l'aide. Un
+    formulaire constaté mort qui répond de nouveau est noté « vivant », ce qui
+    coupe la série ; une panne réseau entre deux constats ne la coupe pas.
+    """
+    objet = f"a:{aide.slug}"
+    for u in an.urls:
+        if u.murl.role != "formulaire" or u.result is None:
+            continue
+        cle_f = cle_url(u.murl.url)
+        dernier = ctx.vue.derniere.get((objet, FORMULAIRE_MORT))
+        if dernier is not None and (
+            dernier.run == ctx.run or dernier.donnees.get("cle_url") != cle_f
+        ):
+            dernier = None
+        mort_avant = dernier is not None and dernier.issue in ("constate", "retrait_impossible")
+        if u.result.ok:
+            if mort_avant:
+                ctx.consigner(
+                    Evenement(
+                        "decision",
+                        objet,
+                        decision=FORMULAIRE_MORT,
+                        decideur="code",
+                        issue="vivant",
+                        donnees={"url": u.murl.url, "cle_url": cle_f},
+                    )
+                )
+            continue
+        if not u.result.morte:
+            continue
+        chemin = ctx.chemin_yaml(aide.slug)
+        nouveau = retirer_formulaire(_lire(chemin), u.murl.url) if mort_avant else None
+        issue = "constate" if not mort_avant else ("retire" if nouveau else "retrait_impossible")
+        ctx.consigner(
+            Evenement(
+                "decision",
+                objet,
+                decision=FORMULAIRE_MORT,
+                decideur="code",
+                issue=issue,
+                donnees={"url": u.murl.url, "cle_url": cle_f, "status": u.result.status},
+            )
         )
-    return Case(
-        sorte="veille-lien-mort",
-        objet=f"a:{slug}",
-        titre="lien mort",
-        etat=etat,
-        options={"vu": "corrigé dans la fiche, ou sans objet : ne plus alerter pour ces liens"},
-        contexte=tuple(contexte),
+        if nouveau is not None and ctx.ecrire:
+            chemin.write_text(nouveau, encoding="utf-8")
+        res.formulaire = issue
+
+
+def _pages_mortes(
+    ctx: Contexte, aide: Aide, an: AideAnalysis, col: AideCollect, res: Resultat
+) -> MajResult | None:
+    """Une page archivée morte dont des citations dépendent : une escalade vers la ré-extraction.
+
+    Typiquement le règlement de l'an passé, remplacé à une autre adresse : la
+    fiche cite un texte qui n'existe plus et la veille ne peut plus vérifier
+    ces conditions. Sans citation qui en dépende, une ligne au rapport suffit.
+    Passe par `_escalader` comme les autres escalades : une case tant que le
+    registre laisse les escalades à l'ancienne chaîne, automatique ensuite.
+    """
+    morts = [
+        (u, _citations_de(an, col, u.murl.url))
+        for u in an.liens_morts
+        if u.murl.role != "formulaire"
+    ]
+    res.pages_mortes = [u.murl.url for u, n in morts if not n]
+    citees = [(u, n) for u, n in morts if n]
+    if not citees:
+        return None
+    objet = f"a:{aide.slug}"
+    etat = empreinte("pages-mortes\n" + "\n".join(sorted(cle_url(u.murl.url) for u, _ in citees)))
+    if cases_mod.reponse(ctx.vue, "veille-escalade", objet, etat) == "vu":
+        return None
+    memo = ctx.vue.memo(cle(VERSION, "reextraction", aide.slug, etat))
+    if memo is not None and memo.issue in ("acceptee", "inchangee"):
+        return None
+    if res.issue == "reextraite" or any(c.sorte == "veille-escalade" for c in res.cases):
+        # Une escalade de l'aide est déjà ouverte ce passage : une seule
+        # ré-extraction à la fois. Si la page compte encore, elle revient.
+        return None
+    if res.issue in ("ok", "inchange"):
+        res.issue, res.raison = "case", "page archivée morte"
+    return _escalader(
+        ctx,
+        aide,
+        an,
+        col,
+        res,
+        Case(
+            sorte="veille-escalade",
+            objet=objet,
+            titre="page archivée morte",
+            etat=etat,
+            options=OPTIONS_PAGE_MORTE,
+            contexte=tuple(
+                f"- {u.murl.url} : {_motif_mort(u)} ; {n} citation(s) s'y appuient "
+                "et ne sont plus recontrôlées"
+                for u, n in citees
+            ),
+        ),
     )
 
 
 def traiter(
     ctx: Contexte, aide: Aide, an: AideAnalysis, col: AideCollect, historique: list[Evenement]
 ) -> tuple[Resultat, MajResult | None]:
-    """Le traitement d'une aide selon son statut, plus ses liens morts, qui n'en dépendent pas."""
+    """Le traitement d'une aide selon son statut, puis ses liens morts, qui n'en dépendent pas."""
     res, maj = _traiter(ctx, aide, an, col, historique)
-    if case := case_liens_morts(ctx, aide.slug, an, col):
-        res.cases.append(case)
+    _formulaires(ctx, aide, an, res)
+    if an.liens_morts:
+        maj = maj or _pages_mortes(ctx, aide, an, col, res)
     return res, maj
 
 
@@ -1163,8 +1269,26 @@ def section(bilan: Bilan) -> list[str]:
     ]
     if bilan.acquittees:
         lignes.append(f"Échéances acquittées : {', '.join(bilan.acquittees)}.")
-    if morts := sum(1 for c in bilan.cases if c.sorte == "veille-lien-mort"):
-        lignes.append(f"Aides avec un formulaire ou une page archivée morts : {morts}.")
+    formulaires: dict[str, list[str]] = {}
+    for x in sorted(r.values(), key=lambda x: x.slug):
+        if x.formulaire:
+            formulaires.setdefault(x.formulaire, []).append(f"`{x.slug}`")
+    if retires := formulaires.get("retire"):
+        lignes.append(f"Formulaires morts retirés de la fiche : {', '.join(retires)}.")
+    if impossibles := formulaires.get("retrait_impossible"):
+        lignes.append(
+            f"Formulaires morts à retirer à la main (retrait non sûr) : {', '.join(impossibles)}."
+        )
+    if constates := formulaires.get("constate"):
+        lignes.append(
+            f"Formulaires morts vus une première fois, retirés au passage suivant s'ils le "
+            f"restent : {len(constates)}."
+        )
+    if sans := [x for x in r.values() if x.pages_mortes]:
+        lignes.append(
+            f"Pages archivées mortes dont aucune citation ne dépend (rien à faire) : "
+            f"{len(sans)} aide(s)."
+        )
     retouches = [x for x in r.values() if x.issue == "retouche"]
     if retouches:
         lignes += ["", "### Retouches écrites", ""]

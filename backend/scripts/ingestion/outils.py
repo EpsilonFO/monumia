@@ -25,6 +25,7 @@ Deux outils portent l'essentiel de la qualité :
 # dans son espace de noms — `Annotated[str, Field(description=…)]` y arriverait
 # sous forme de chaîne, et la description que lit le modèle serait perdue.
 
+import re
 import sys
 from collections import Counter
 from collections.abc import Callable
@@ -96,6 +97,11 @@ class HorsPerimetre:
     citation: str
 
 
+#: Les deux messages de `faits.proposer` qui disent que Jev désignait un fait
+#: existant : le refus (fait non relu) et l'ajout maintenu après lecture.
+ALERTE_FAIT = re.compile(r"^ERREUR : le fait existant `([^`]+)`|Jev désignait `([^`]+)`")
+
+
 @dataclass
 class EtatOutils:
     """Ce que les outils ont produit — lu par la boucle et par les post-contrôles."""
@@ -131,6 +137,47 @@ class EtatOutils:
     #: de présentation, la source seule tranche.
     hors_perimetre: HorsPerimetre | None = None
     appels: Counter[str] = field(default_factory=Counter)
+    #: Fait proposé → fait existant que Jev désignait (`F3-famille-fait`), que
+    #: la proposition ait été refusée (fait non relu) ou maintenue après lecture.
+    alertes_faits: dict[str, str] = field(default_factory=dict)
+    #: Conditions dont le lint a exigé l'alignement sur la famille, et celles
+    #: qu'il exigeait encore au dernier lint.
+    alignements_leves: set[str] = field(default_factory=set)
+    alignements_derniers: list[str] = field(default_factory=list)
+    #: Conditions dont le lint a refusé le prédicat (`catalogue.polarite`).
+    polarites_levees: set[str] = field(default_factory=set)
+    polarites_derniers: list[str] = field(default_factory=list)
+
+    def mesures_espace(self, texte_aide: str | None) -> dict[str, int]:
+        """Ce que l'agent a fait des signaux de l'espace, pour le rapport du run.
+
+        Une alerte de fait finit en réutilisation (l'aide cite le fait désigné),
+        en fait maintenu (l'agent a reproposé le sien), ou abandonnée (ni l'un
+        ni l'autre : la condition a pris un autre typage).
+        """
+        cites = set(re.findall(r"^\s*fact:\s*(\S+)\s*$", texte_aide or "", re.MULTILINE))
+        conditions = len(re.findall(r"^- id:", texte_aide or "", re.MULTILINE))
+        sorties: Counter[str] = Counter()
+        for propose, designe in self.alertes_faits.items():
+            if propose in self.faits_proposes:
+                sorties["maintenus"] += 1
+            elif designe in cites:
+                sorties["reutilises"] += 1
+            else:
+                sorties["abandonnes"] += 1
+        return {
+            "conditions": conditions,
+            "appels_conditions_voisines": self.appels["conditions_voisines"],
+            "faits_neufs": len(self.faits_proposes),
+            "alertes_faits": len(self.alertes_faits),
+            "alertes_reutilisees": sorties["reutilises"],
+            "alertes_maintenues": sorties["maintenus"],
+            "alertes_abandonnees": sorties["abandonnes"],
+            "alignements_leves": len(self.alignements_leves),
+            "alignements_restants": len(self.alignements_derniers),
+            "polarites_levees": len(self.polarites_levees),
+            "polarites_restantes": len(self.polarites_derniers),
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -640,6 +687,8 @@ def outils_pour(
             deja_proposes=tuple(etat.faits_proposes),
             detailles=tuple(etat.faits_detailles),
         )
+        if m := ALERTE_FAIT.search(message):
+            etat.alertes_faits[fact_id] = m.group(1) or m.group(2)
         if not message.startswith("ERREUR"):
             etat.faits_proposes.append(fact_id)
             pending[fact_id] = FactDef.model_validate(charger_yaml(definition_yaml))
@@ -827,6 +876,8 @@ def outils_pour(
         from catalogue.espace import alignements
 
         erreurs, panne = alignements(atelier.slug, atelier.yaml_path.read_text(encoding="utf-8"))
+        etat.alignements_derniers = re.findall(r"✗ (\S+) :", "\n".join(erreurs))
+        etat.alignements_leves.update(etat.alignements_derniers)
         if erreurs:
             etat.dernier_lint_ok = False
             texte += (
@@ -835,6 +886,28 @@ def outils_pour(
             )
         elif panne:
             texte += f"\n{panne}"
+        # Le sens des prédicats (catalogue/polarite.py, décision `P1-polarite`).
+        from catalogue.polarite import verifier
+
+        bloquants, indications, panne_p = verifier(
+            atelier.slug,
+            atelier.yaml_path.read_text(encoding="utf-8"),
+            {**facts, **pending},
+        )
+        etat.polarites_derniers = re.findall(r"✗ (\S+) :", "\n".join(bloquants))
+        etat.polarites_levees.update(etat.polarites_derniers)
+        if bloquants:
+            etat.dernier_lint_ok = False
+            texte += (
+                "\n\nPrédicat qui écarte une réponse admise par le texte (BLOQUANT) :\n"
+                + "\n".join(bloquants)
+            )
+        if indications:
+            texte += "\n\nPrédicats peut-être trop larges (non bloquant) :\n" + "\n".join(
+                indications
+            )
+        if panne_p:
+            texte += f"\n{panne_p}"
         return texte
 
     def verification_adversariale() -> str:

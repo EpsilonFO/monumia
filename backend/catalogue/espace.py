@@ -492,6 +492,30 @@ def controler_aide(
         return [], f"contrôle de cohérence en panne pour `{slug}` ({type(exc).__name__})"
 
 
+def ligne_mesures(mesures: Iterable[dict[str, int]]) -> str | None:
+    """La ligne du rapport qui dit ce que les agents ont fait des signaux de l'espace.
+
+    Elle transforme en chiffres ce que les mesures du 2026-10-14 n'ont pas pu
+    observer : l'agent réutilise-t-il le fait que Jev lui désigne, et corrige-t-il
+    le typage que le lint lui refuse ?
+    """
+    total: Counter[str] = Counter()
+    for m in mesures:
+        total.update(m)
+    if not total:
+        return None
+    return (
+        f"- Espace : {total['conditions']} condition(s), `conditions_voisines` appelé "
+        f"{total['appels_conditions_voisines']} fois ; {total['alignements_leves']} écart(s) "
+        f"de typage levé(s) au lint, {total['alignements_restants']} resté(s) ; "
+        f"{total['polarites_levees']} prédicat(s) refusé(s) au lint, "
+        f"{total['polarites_restantes']} resté(s) ; "
+        f"{total['alertes_faits']} alerte(s) de fait : {total['alertes_reutilisees']} "
+        f"réutilisée(s), {total['alertes_maintenues']} fait(s) maintenu(s), "
+        f"{total['alertes_abandonnees']} abandonnée(s) ; {total['faits_neufs']} fait(s) neuf(s)."
+    )
+
+
 # --------------------------------------------------------------------------
 # 3. La famille d'un fait
 # --------------------------------------------------------------------------

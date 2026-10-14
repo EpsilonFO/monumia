@@ -539,6 +539,8 @@ class Bilan:
     texte: str | None = None
     snapshots: list[str] = field(default_factory=list)
     faits: list[str] = field(default_factory=list)
+    #: Les mesures de l'agent sur l'espace (`EtatOutils.mesures_espace`).
+    espace: dict[str, int] = field(default_factory=dict)
 
 
 def rebut(slug: str, sortie: Path, motif: str, jour: dt.date, rebuts: Path = REBUTS) -> Path | None:
@@ -640,6 +642,7 @@ def _reextraire(
         return b
     issue, raison, classe = classer(lancement.resultat)
     b.issue, b.raison, b.panne = issue, raison, classe
+    b.espace = dict(lancement.resultat.get("espace") or {})
     if issue == "hors_perimetre":
         b.cases.append(
             Case(

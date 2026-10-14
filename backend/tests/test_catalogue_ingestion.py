@@ -88,6 +88,11 @@ def test_une_aide_acceptee_entre_au_catalogue_avec_ses_instantanes(depot: dict[s
     assert [c.sorte for c in b.cases] == ["ingestion-fiche"]
 
 
+def test_les_mesures_de_l_agent_remontent_au_bilan(depot: dict[str, Path]) -> None:
+    b = _ingerer(depot, _lanceur({"ok": True, "espace": {"alertes_faits": 2}}))
+    assert b.espace == {"alertes_faits": 2}
+
+
 def test_un_fait_neuf_va_en_fin_de_fichier_sans_case(
     depot: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -2627,14 +2627,12 @@ class TestProjetSansTravaux(unittest.TestCase):
         "chantier",
         "prix-patrimoine-institut-de-france": "`etat_travaux eq acheves` alors que le "
         "prix récompense une ACTION de médiation déjà mise en place, pas un chantier",
-        "prix-regional-biodiversite-paca-fondation-patrimoine": "`etat_travaux` appliqué "
-        "aux deux branches, alors que la préservation de la biodiversité n'est pas un "
-        "chantier",
         # Les quatorze dettes de PLANCHER posé sur `budget_travaux_estime` sont
         # tombées le 2026-10-14 : la question porte sur le budget du projet et ne se
-        # déduit plus d'« aucun travaux ».
-        "region-grand-est-soutien-developpement-tourisme-fluvial": "`etat_travaux` "
-        "appliqué aux deux branches dont l'animation de l'escale",
+        # déduit plus d'« aucun travaux ». Celles de `prix-regional-biodiversite-paca-
+        # fondation-patrimoine` et `region-grand-est-soutien-developpement-tourisme-
+        # fluvial` le 2026-10-15 : la correction du sens des prédicats
+        # (data/reviews/2026-10-14-polarite.md) y admet le projet sans travaux.
     }
 
     def test_corpus_une_aide_de_valorisation_est_obtenable_sans_travaux(self):

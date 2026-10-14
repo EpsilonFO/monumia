@@ -159,6 +159,9 @@ class ResultatIngestion:
     #: (catégorie, motif) quand l'agent a écarté l'aide après lecture de sa
     #: source. La tâche passe `ignore` et ne revient plus.
     hors_perimetre: tuple[str, str] | None = None
+    #: Ce que l'agent a fait des signaux de l'espace (`EtatOutils.mesures_espace`) :
+    #: alertes de fait réutilisées ou maintenues, écarts de typage levés au lint.
+    espace: dict[str, int] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -488,6 +491,11 @@ def ingerer_aide(
             echec_transitoire=transitoire,
             echec_fatal=fatal,
             a_relire=etat.a_relire,
+            espace=etat.mesures_espace(
+                atelier.yaml_path.read_text(encoding="utf-8")
+                if atelier.yaml_path.exists()
+                else None
+            ),
             hors_perimetre=(
                 (etat.hors_perimetre.categorie, etat.hors_perimetre.motif)
                 if etat.hors_perimetre

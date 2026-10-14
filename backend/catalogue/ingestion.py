@@ -136,6 +136,8 @@ class Bilan:
     cases: list[Case] = field(default_factory=list)
     snapshots: list[str] = field(default_factory=list)
     faits: list[str] = field(default_factory=list)
+    #: Les mesures de l'agent sur l'espace (`EtatOutils.mesures_espace`).
+    espace: dict[str, int] = field(default_factory=dict)
 
 
 def ingerer(
@@ -169,6 +171,7 @@ def ingerer(
         return b
     issue, raison, classe = rx.classer(lancement.resultat)
     b.issue, b.raison, b.panne = issue, raison, classe
+    b.espace = dict(lancement.resultat.get("espace") or {})
     if issue == "refusee":
         if ecrire:
             rx.rebut(slug, sortie, raison, jour, rebuts)
@@ -463,6 +466,7 @@ def commande(
             "cout_usd": b.cout_usd,
             "faits": b.faits,
             "snapshots": b.snapshots,
+            "espace": b.espace,
         }
         if b.panne:
             j.ajouter(
@@ -497,6 +501,10 @@ def commande(
     lignes += [
         f"- `{b.slug}` : {b.issue}{' (' + b.raison[:160] + ')' if b.raison else ''}" for b in bilans
     ]
+    from catalogue.espace import ligne_mesures
+
+    if mesures := ligne_mesures(b.espace for b in bilans):
+        lignes.append(mesures)
     lignes += notes
     cases = [c for b in bilans for c in b.cases]
     entete = [

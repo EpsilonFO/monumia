@@ -578,10 +578,15 @@ def proposer(
     # Le lint que l'agent lancera juste après doit voir le fait : sans purge,
     # il se ferait refuser sa propre proposition (`fait inconnu`).
     load_pending_facts.cache_clear()
+    suite = (
+        f" Jev désignait `{famille.cle}` : le rattachement est noté dans le bloc."
+        if mention and famille is not None
+        else ""
+    )
     return (
         f"Fait « {fact_id} » ajouté à {atelier.relatif(atelier.pending_path)} "
         "(en attente d'approbation humaine). Tu peux le référencer dès maintenant "
-        "dans une condition `kind: user_fact`, et le signaler dans la review."
+        "dans une condition `kind: user_fact`, et le signaler dans la review." + suite
     )
 
 

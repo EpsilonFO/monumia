@@ -261,6 +261,25 @@ def test_au_stock_un_gate_que_la_famille_n_a_pas_ne_fait_pas_de_case(tmp_path: P
     assert [c.objet for c in esp_mod.stock(espace, set(), lambda *_: False).cases] == ["a:zz-gate"]
 
 
+def test_les_mesures_de_l_agent_tiennent_en_une_ligne() -> None:
+    from ingestion.outils import EtatOutils
+
+    etat = EtatOutils(faits_proposes=["maintenu"])
+    etat.alertes_faits = {"maintenu": "x", "reutilise": "y", "abandonne": "z"}
+    etat.alignements_leves, etat.alignements_derniers = {"c1", "c2"}, ["c2"]
+    texte = "conditions:\n- id: c1\n  fact: y\n- id: c2\n  kind: info\n"
+    m = etat.mesures_espace(texte)
+    assert (m["alertes_reutilisees"], m["alertes_maintenues"], m["alertes_abandonnees"]) == (
+        1,
+        1,
+        1,
+    )
+    assert (m["conditions"], m["alignements_leves"], m["alignements_restants"]) == (2, 2, 1)
+    ligne = esp_mod.ligne_mesures([m, m])
+    assert ligne is not None and "6 alerte(s) de fait : 2 réutilisée(s)" in ligne
+    assert esp_mod.ligne_mesures([]) is None
+
+
 # ------------------------------------------------------------------ famille d'un fait
 
 
