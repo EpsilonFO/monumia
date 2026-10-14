@@ -56,6 +56,7 @@ services:
         VITE_SUPABASE_URL: ${APP_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${APP_SUPABASE_ANON_KEY}
         VITE_YBUG_ID: ${APP_YBUG_ID:-}
+        VITE_POSTHOG_KEY: ${APP_POSTHOG_KEY:-}
     image: monumia-app-frontend-build
     container_name: monumia-app-frontend-build
 
@@ -68,6 +69,7 @@ services:
         VITE_SUPABASE_URL: ${BETA_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${BETA_SUPABASE_ANON_KEY}
         VITE_YBUG_ID: ${BETA_YBUG_ID:-}
+        VITE_POSTHOG_KEY: ${BETA_POSTHOG_KEY:-}
     image: monumia-beta-frontend-build
     container_name: monumia-beta-frontend-build
 

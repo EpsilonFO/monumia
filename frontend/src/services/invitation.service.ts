@@ -1,5 +1,6 @@
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
 import type { InvitationPreview } from '@/types';
+import { suivre } from '@/lib/posthog';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -36,6 +37,7 @@ export const invitationService = {
   async accept(token: string): Promise<{ monumentId: string; projetId: string | null }> {
     const res = await authFetch(`${BASE}/invitations/${token}/accept`, { method: 'POST' });
     const r = await handleResponse<{ monument_id: string; projet_id: string | null }>(res);
+    suivre({ nom: 'invitation_acceptee' });
     return { monumentId: r.monument_id, projetId: r.projet_id ?? null };
   },
 };

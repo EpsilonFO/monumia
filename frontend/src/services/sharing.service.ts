@@ -1,5 +1,6 @@
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
 import type { ProjectMember, ProjectMembersResponse } from '@/types';
+import { suivre } from '@/lib/posthog';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -68,6 +69,10 @@ function scopedSharing(root: 'projects' | 'projets') {
         body: JSON.stringify({ email, message }),
       });
       await handleResponse(res);
+      suivre({
+        nom: 'invitation_envoyee',
+        proprietes: { niveau: root === 'projets' ? 'projet' : 'monument' },
+      });
     },
 
     async revokeInvitation(scopeId: string, invitationId: string): Promise<void> {

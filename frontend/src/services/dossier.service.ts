@@ -5,6 +5,7 @@ import type {
 } from '@/types';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
+import { suivre } from '@/lib/posthog';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -79,6 +80,7 @@ export const dossierService = {
     const row = await handleResponse<Record<string, unknown>>(res);
     const dossier = toDossier(row);
     useDossierStore.getState().addDossier(dossier);
+    suivre({ nom: 'dossier_cree', proprietes: { aide: aideId } });
     return dossier;
   },
 
@@ -207,6 +209,7 @@ export const dossierService = {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.detail ?? `HTTP ${res.status}`);
     }
+    suivre({ nom: 'dossier_depose' });
     const dossier = await this.getById(id);
     useDossierStore.getState().updateDossier(id, dossier);
   },
