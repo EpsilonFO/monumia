@@ -1,0 +1,6 @@
+# monumia.fr : site vitrine, tout est public.
+# L'application (app.monumia.fr) est un autre hôte, avec ses propres règles.
+User-agent: *
+Allow: /
+
+Sitemap: https://monumia.fr/sitemap.xml

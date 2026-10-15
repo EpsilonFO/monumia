@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { C, Clover } from './LandingPage';
 
 /* Pages légales : CGU (avec mentions légales) et politique de confidentialité.
-   Servies par le fallback SPA de nginx, comme /lancement (cf. main.tsx). */
+   Servies par le fallback SPA de nginx (cf. main.tsx). */
 
 const BASE = import.meta.env.BASE_URL;
 export const CGU_PATH = `${BASE}cgu`;

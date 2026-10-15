@@ -1,8 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import { LandingPage, SIGNUP_PATH } from './LandingPage'
-import { SignupPage } from './SignupPage'
+import { LandingPage } from './LandingPage'
 import { CguPage, PrivacyPage, CGU_PATH, PRIVACY_PATH } from './LegalPages'
 
 // Routeur minimal : le fallback SPA de nginx sert index.html pour toute route,
@@ -11,7 +10,6 @@ const strip = (p: string) => p.replace(/\/+$/, '')
 const path = strip(window.location.pathname)
 
 function pageForPath() {
-  if (path === strip(SIGNUP_PATH)) return <SignupPage />
   if (path === strip(CGU_PATH)) return <CguPage />
   if (path === strip(PRIVACY_PATH)) return <PrivacyPage />
   return <LandingPage />

@@ -232,18 +232,10 @@ function goToCompte() {
   window.location.href = `${APP_URL}/mon-compte`;
 }
 
-/* Page d'inscription à la liste d'attente : route servie par le fallback SPA de
-   nginx (sous BASE — '/lancement' en prod, '/landing/lancement' en beta). */
-export const SIGNUP_PATH = `${BASE}lancement`;
-function goToSignup() {
-  window.location.href = SIGNUP_PATH;
-}
-
-/* Tout CTA d'ENTRÉE dans le produit passe par ici. Connecté, ni le parcours
-   découverte ni la liste d'attente n'ont de sens : le premier redemanderait de
-   décrire un monument déjà enregistré, la seconde un compte déjà ouvert. Le
-   cookie est relu à CHAQUE clic, et non au montage : entre-temps on a pu se
-   déconnecter dans l'onglet d'à côté.
+/* Tout CTA d'ENTRÉE dans le produit passe par ici. Connecté, le parcours
+   découverte n'a pas de sens : il redemanderait de décrire un monument déjà
+   enregistré. Le cookie est relu à CHAQUE clic, et non au montage :
+   entre-temps on a pu se déconnecter dans l'onglet d'à côté.
 
    Les boutons qui ne sont pas une entrée gardent leur destination : « Nous
    contacter » de l'offre Multi-monuments reste un courrier. */
@@ -2096,8 +2088,8 @@ type Plan = {
   cta: string;
   badge?: string;
   tone: 'cream' | 'highlight' | 'blue';
-  /* Où mène le bouton. Découverte et Veille passent par la liste d’attente,
-     Multi-monuments par un courrier : rien ne s’achète en libre-service. */
+  /* Où mène le bouton. Découverte entre dans le parcours découverte, Veille et
+     Multi-monuments passent par un courrier : rien ne s’achète en libre-service. */
   onClick: () => void;
 };
 
@@ -2106,9 +2098,8 @@ const PLANS: Plan[] = [
     name: 'Découverte',
     audience: 'gratuit',
     tone: 'cream',
-    // « Trouver mes aides » : même règle que les autres CTA d'entrée, à ceci
-    // près que le chemin du visiteur est ici la liste d'attente.
-    onClick: siConnecte(goToSignup),
+    // « Trouver mes aides » : un CTA d'entrée comme les autres.
+    onClick: entrerDansMonumia,
     punchline: 'Trouvez toutes les aides de votre monument.',
     intro: [
       'Vous répondez à quelques questions sur votre monument, sa protection et votre projet. Nous croisons vos réponses avec plus de 400 aides, de l’État aux fondations, et vous rendons celles auxquelles votre projet peut prétendre, avec le taux et le plafond annoncés par chaque financeur.',
@@ -2133,7 +2124,7 @@ const PLANS: Plan[] = [
     audience: 'pour un monument en activité',
     tone: 'highlight',
     badge: 'Le plus choisi',
-    onClick: goToSignup,
+    onClick: goToContact,
     punchline: 'Vous ne cherchez plus vos aides. Elles vous sont signalées.',
     intro: [
       'Découverte vous donne une photo à un instant donné, pour un projet. Veille suit vos projets toute l’année et vous prévient à chaque ouverture de guichet.',
@@ -2150,7 +2141,7 @@ const PLANS: Plan[] = [
       { lead: 'Invitez votre architecte, vos artisans ou un assistant sur un projet' },
     ],
     footer: 'Tout Découverte, plus les projets illimités, l’échéancier, les alertes et l’équipe.',
-    cta: 'Activer la veille',
+    cta: 'Nous contacter',
   },
   {
     name: 'Multi-monuments',
