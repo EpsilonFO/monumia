@@ -840,3 +840,38 @@ def test_le_chrono_cumule_et_classe_les_etapes() -> None:
         "- garde : 4,0 s (2 fois, 2,0 s en moyenne)",
     ]
     assert duree_lisible(59.94) == "59,9 s"
+
+
+def test_une_aide_en_train_de_sortir_n_est_pas_reextraite(
+    banc: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    slugs = ["a-sortante", "b-restante"]
+    aides = _escalades_factices(banc, monkeypatch, slugs)
+    appels: list[str] = []
+
+    def reextraire(slug: str, etat: str) -> Any:
+        appels.append(slug)
+        from catalogue import reextraction
+
+        return reextraction.Bilan(slug, "refusee", "lint : erreur neuve")
+
+    ctx = _ctx(banc, FauxClient([], []))
+    for presentes in (["a-sortante", "b-restante"], ["b-restante"]):
+        ctx.journal.ajouter(
+            Evenement(
+                "decision",
+                "t:tt",
+                decision="listing",
+                issue="sain",
+                run="entree",
+                donnees={"entrees": 20, "presentes": presentes},
+            )
+        )
+    ctx.reextraire = reextraire
+    bilan = veille.passer(ctx, aides, {s: SimpleNamespace(urls=[]) for s in slugs})  # type: ignore[misc]
+    assert appels == ["b-restante"]
+    r = bilan.resultats["a-sortante"]
+    assert r.issue == "sortie_probable" and r.cases == []
+    assert "absente du guide tt depuis 1 listing(s)" in r.raison

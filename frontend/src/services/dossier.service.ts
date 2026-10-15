@@ -34,6 +34,7 @@ export function toDossier(row: Record<string, unknown>): Dossier {
     dateCreation: (row.date_creation ?? row.dateCreation ?? new Date().toISOString()) as string,
     dateDerniereModification: (row.date_derniere_modification ?? row.dateDerniereModification ?? new Date().toISOString()) as string,
     dateSoumission: (row.date_soumission ?? row.dateSoumission) as string | undefined,
+    aideFermee: (row.aide_fermee ?? row.aideFermee) as Dossier['aideFermee'],
   };
 }
 

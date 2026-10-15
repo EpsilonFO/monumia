@@ -2,11 +2,15 @@
  *  de distinguer une perte d'accès définitive d'une panne transitoire. */
 export class ApiError extends Error {
   readonly status: number;
+  /** Le `detail` du corps tel que le serveur l'a rendu, quand c'est un objet
+   *  (ex. le 410 d'une aide fermée) : `message` n'en garde que le texte. */
+  readonly detail: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, detail?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.detail = detail;
   }
 }
 

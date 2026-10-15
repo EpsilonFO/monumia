@@ -14,7 +14,7 @@ from supabase import Client
 
 from db import get_current_user_id, get_supabase
 from routers.monuments import enrich_monument_with_population
-from services import catalogue_admin
+from services import aides_fermees, catalogue_admin
 from services.dossier_service import create_dossier_from_aide
 from services.piece_reuse import apply_reuse
 from services.project_access import (
@@ -427,7 +427,9 @@ def list_dossiers(
     if projet_id:
         query = query.eq("projet_id", projet_id)
     result = query.order("date_derniere_modification", desc=True).execute()
-    return result.data
+    # Une aide sortie du catalogue : le dossier porte l'explication, et
+    # disparaît une fois le panneau lu (`services/aides_fermees.py`).
+    return aides_fermees.appliquer_aux_dossiers(supabase, user_id, result.data or [])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -464,6 +466,10 @@ def create_dossier(
     aide_slug = aide_result.data.get("slug")
     if aide_slug and aide_slug in catalogue_admin.catalogue_effectif(supabase).retirees:
         raise HTTPException(status_code=404, detail="Aide retirée du catalogue")
+    # Sortie du catalogue par la prospection : sa ligne `aides_v3` reste (le
+    # loader ne supprime rien), mais on n'ouvre plus de dossier dessus.
+    if aide_slug and (fermee := aides_fermees.fermees().get(aide_slug)) is not None:
+        raise HTTPException(status_code=410, detail=aides_fermees.erreur(fermee, False))
 
     # Fetch user profile
     user_result = supabase.table("users").select("*").eq("id", user_id).single().execute()
@@ -523,7 +529,9 @@ def get_dossier(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase),
 ):
-    return _get_dossier_or_404(supabase, dossier_id, user_id)
+    dossier = _get_dossier_or_404(supabase, dossier_id, user_id)
+    # Annoté, jamais masqué : un lien direct rouvre le panneau de l'aide fermée.
+    return aides_fermees.appliquer_aux_dossiers(supabase, user_id, [dossier], masquer=False)[0]
 
 
 @router.get("/{dossier_id}/archive")

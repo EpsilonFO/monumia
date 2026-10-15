@@ -40,7 +40,10 @@ export async function authFetch(
 export async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, body.detail ?? `HTTP ${res.status}`);
+    const detail = body.detail;
+    const message =
+      typeof detail === 'string' ? detail : (detail?.message ?? `HTTP ${res.status}`);
+    throw new ApiError(res.status, message, detail);
   }
   return res.json() as Promise<T>;
 }

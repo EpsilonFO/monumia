@@ -23,9 +23,18 @@ rentre sous une autre. D'où quatre verrous, dans l'ordre :
 4. **Sa propre page est morte** (`page_morte`) : 404, 410, redirection sans
    issue, ou redirection vers le guide ou la racine du site.
 
+La page est jugée par un appel au moment du passage. S'il ne conclut pas
+(anti-bot, réseau), la veille en tient lieu : elle relève chaque semaine le
+code de la page officielle, et `PASSAGES_VEILLE_404` passages de suite en 404
+ou 410 valent une page morte (`constats_veille`).
+
 Les quatre réunis, et aucune fiche du listing ne porte un titre voisin (un
 déplacement d'URL) : l'aide est retirée sans case (réglage `sorties: auto`,
-décision de Félix du 2026-10-15). Son YAML part dans `data/catalogue/retirees/`
+décision de Félix du 2026-10-15). Avec un cinquième verrou, contre la refonte
+d'un site : un guide qui garde son nombre de fiches mais change toutes ses URL
+ferait sortir d'un coup toutes les aides du territoire. Au-delà de
+`plafond_retraits` retraits sûrs dans un même passage, aucun ne se fait : tous
+deviennent des cases, motif « refonte du site probable ». Son YAML part dans `data/catalogue/retirees/`
 avec la date et le motif en tête : le diff git est la revue, et le loader ne
 supprime rien en base, si bien que les dossiers et suivis déjà ouverts sur
 l'aide restent lisibles.
@@ -56,6 +65,13 @@ RETIREES = BACKEND / "data" / "catalogue" / "retirees"
 # listing sain est une collecte cassée jusqu'à preuve du contraire.
 SEUIL_CHUTE = 0.8
 ABSENCES_AVANT_RETRAIT = 2
+# Au-delà de max(PLAFOND_RETRAITS, PART_RETRAITS des aides suivies du guide)
+# retraits dans un même passage : refonte du site probable, tout en cases.
+PLAFOND_RETRAITS = 2
+PART_RETRAITS = 0.10
+# Passages de veille de suite où la page officielle a répondu 404 ou 410 : ce
+# qui tient lieu de page morte quand l'appel du passage ne conclut pas.
+PASSAGES_VEILLE_404 = 2
 # Au-delà, deux titres désignent la même aide : la fiche a changé d'URL.
 SIMILARITE_DEPLACEMENT = 0.6
 # Les notes de `prospection.collecte` qui disent qu'une partie du guide n'a pas
@@ -122,6 +138,8 @@ class Bilan:
     sorties: list[Sortie] = field(default_factory=list)
     cases: list[Any] = field(default_factory=list)
     revenues: list[tuple[str, str]] = field(default_factory=list)
+    # Retraits sûrs suspendus par le verrou de la refonte (0 : pas de refonte).
+    refonte: int = 0
 
 
 # ------------------------------------------------------------------ santé
@@ -216,6 +234,53 @@ def similarite(a: str, b: str) -> float:
     if not ma or not mb:
         return 0.0
     return len(ma & mb) / len(ma | mb)
+
+
+def plafond_retraits(suivies: int) -> int:
+    return max(PLAFOND_RETRAITS, int(PART_RETRAITS * suivies))
+
+
+_VEILLE_404 = re.compile(r"page officielle injoignable : HTTP (?:404|410)\b")
+
+
+def constats_veille(evenements: list[Evenement], slug: str) -> int:
+    """Passages de veille de suite, les plus récents, où la page officielle a répondu 404 ou 410.
+
+    La série s'arrête à toute autre issue de la veille pour l'aide (une
+    décision, une autre panne) : seul un 404 répété d'une semaine sur l'autre
+    compte.
+    """
+    runs: list[str | None] = []
+    for e in reversed(evenements):
+        if e.objet != f"a:{slug}":
+            continue
+        if e.type == "panne" and e.decision == "collecte":
+            if not _VEILLE_404.search(str(e.donnees.get("raison", ""))):
+                break
+            if e.run not in runs:
+                runs.append(e.run)
+        elif e.type == "decision" and e.decision in ("veille", "V1-garde", "base"):
+            break
+    return len(runs)
+
+
+def en_sortie(evenements: list[Evenement]) -> dict[str, str]:
+    """slug -> constat, pour les aides absentes du dernier listing sain d'un guide qui les listait.
+
+    Lu par la veille : une aide en train de sortir ne se ré-extrait pas, la
+    sortie se tranche au balayage suivant.
+    """
+    par_territoire: dict[str, list[set[str]]] = {}
+    for e in evenements:
+        if e.type == "decision" and e.decision == "listing" and e.issue == "sain":
+            par_territoire.setdefault(e.objet[2:], []).append(set(e.donnees.get("presentes") or ()))
+    constats: dict[str, str] = {}
+    for nom, series in par_territoire.items():
+        for slug in set().union(*series[:-1]) - series[-1] if len(series) > 1 else ():
+            n = absences(slug, series)
+            if n:
+                constats[slug] = f"absente du guide {nom} depuis {n} listing(s)"
+    return constats
 
 
 def deplacement(noms: list[str], nouvelles: list[Entree]) -> str | None:
@@ -342,6 +407,8 @@ def traiter(
 
     series = [set(e.donnees.get("presentes") or ()) for e in passe] + [set(presentes)]
     rattachees = aides_existantes(nom, territoire, corpus)
+    # 1. Le constat de chaque aide absente, sans rien écrire.
+    constats: list[tuple[str, str, int, bool, str, str | None, str, str | None]] = []
     for slug in sorted(rattachees):
         n = absences(slug, series)
         if n is None:
@@ -355,6 +422,11 @@ def traiter(
             b.sorties.append(Sortie(slug, "", n, "panne", "aucune url_officielle à vérifier"))
             continue
         morte, pourquoi = page_morte(fetcheur.get(url), url, territoire.guides)
+        semaines = constats_veille(evenements, slug)
+        if morte is None and semaines >= PASSAGES_VEILLE_404:
+            morte, pourquoi = True, f"{pourquoi} au balayage, en 404 à la veille"
+        if morte and semaines:
+            pourquoi += f" (la veille la voit en 404 depuis {semaines} passage(s))"
         if morte is None:
             b.sorties.append(Sortie(slug, url, n, "panne", pourquoi))
             continue
@@ -363,8 +435,16 @@ def traiter(
         reponse = cases_mod.reponse(vue, "sortie", f"a:{slug}", etat)
         if reponse == "garder":
             continue
+        constats.append((slug, url, n, morte, pourquoi, ailleurs, etat, reponse))
+    # 2. Le verrou de la refonte : trop de retraits sûrs d'un coup, aucun ne se fait.
+    surs = [c for c in constats if c[3] and c[5] is None and c[7] is None and automatique]
+    refonte = len(surs) > plafond_retraits(b.suivies)
+    if refonte:
+        b.refonte = len(surs)
+    # 3. Retraits et cases.
+    for slug, url, n, morte, pourquoi, ailleurs, etat, reponse in constats:
         sur = morte and ailleurs is None
-        if reponse == "retirer" or (sur and automatique):
+        if reponse == "retirer" or (sur and automatique and not refonte):
             raison = f"absente du guide {nom} depuis {n} listings, page {pourquoi}" + (
                 " ; retrait décidé par Félix" if reponse == "retirer" else ""
             )
@@ -384,6 +464,11 @@ def traiter(
         constat = f"absente du guide depuis {n} listings, page {pourquoi}" + (
             f", une fiche au titre voisin est listée : <{ailleurs}>" if ailleurs else ""
         )
+        if refonte and sur:
+            constat += (
+                f" ; refonte du site probable : {b.refonte} aides sortiraient d'un coup "
+                f"(plafond {plafond_retraits(b.suivies)}), aucune n'est retirée sans toi"
+            )
         b.sorties.append(Sortie(slug, url, n, "case", constat, ailleurs))
         b.cases.append(
             Case(
@@ -407,6 +492,12 @@ def section(b: Bilan) -> list[str]:
     lignes = [
         f"Sorties : listing sain de {b.entrees} fiches, {b.suivies} aide(s) du catalogue suivie(s) sur ce guide."
     ]
+    if b.refonte:
+        lignes += [
+            "",
+            f"**Refonte du site probable** : {b.refonte} aides sortiraient d'un coup, au-delà du "
+            f"plafond de {plafond_retraits(b.suivies)} ; aucune n'est retirée, chacune est une case.",
+        ]
     retirees = [s for s in b.sorties if s.issue == "retiree"]
     if retirees:
         lignes += ["", "Retirées du catalogue (dans `data/catalogue/retirees/`) :", ""]

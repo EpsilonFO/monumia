@@ -37,13 +37,15 @@ import { idProjetYbug } from '@/lib/ybug';
 import { monumentService } from '@/services/monument.service';
 import { projetService } from '@/services/projet.service';
 import { aideService } from '@/services/aide.service';
+import { AideFermeeDialog } from '@/components/aide/AideFermeeDialog';
+import { aideFermeeDe, oublierAideFermee } from '@/lib/aide-fermee';
 import { dossierService } from '@/services/dossier.service';
 import { matchPourAide } from '@/lib/diagnostic-bilan';
 import { projetTitre } from '@/lib/projet-titre';
 import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
-import type { Aide, AideMatchResult } from '@/types';
+import type { Aide, AideFermee, AideMatchResult } from '@/types';
 import { BoutonRetour } from '@/components/shared/ecrans/BoutonRetour';
 import { Guide } from '@/components/shared/Guide';
 
@@ -77,6 +79,8 @@ export function AideProjectPage() {
 
   const [charge, setCharge] = useState<{ id: string; aide: Aide } | null>(null);
   const [notFound, setNotFound] = useState(false);
+  // Aide sortie du catalogue alors que l'utilisateur y travaillait (410).
+  const [fermee, setFermee] = useState<AideFermee | null>(null);
   const [opening, setOpening] = useState(false);
   const [envoiReponse, setEnvoiReponse] = useState(false);
 
@@ -183,8 +187,13 @@ export function AideProjectPage() {
   useEffect(() => {
     if (!aideId) return;
     let cancelled = false;
-    aideService.getById(aideId).then((a) => { if (!cancelled) setCharge({ id: aideId, aide: a }); }).catch(() => {
+    aideService.getById(aideId).then((a) => { if (!cancelled) setCharge({ id: aideId, aide: a }); }).catch((err) => {
       if (cancelled) return;
+      const f = aideFermeeDe(err);
+      if (f) {
+        setFermee(f);
+        return;
+      }
       const diag = projetId ? useAideStore.getState().diagnosticsByProjet[projetId] : undefined;
       const repli = diag && [
         ...diag.aidesEligibles,
@@ -258,6 +267,20 @@ export function AideProjectPage() {
       setOpening(false);
     }
   };
+
+  if (fermee && aideId) {
+    const retour = projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.MONUMENTS;
+    return (
+      <AideFermeeDialog
+        fermee={fermee}
+        open
+        onCompris={() => {
+          navigate(retour);
+          if (!fermee.deposee) void oublierAideFermee(aideId);
+        }}
+      />
+    );
+  }
 
   if (notFound) {
     return (

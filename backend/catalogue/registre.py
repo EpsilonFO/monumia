@@ -66,6 +66,9 @@ class Reglages(_Strict):
     #: page est morte : retirée sans case (`auto`), ou une case (`case`).
     #: Page vivante ou titre voisin listé ailleurs : une case dans les deux cas.
     sorties: Literal["auto", "case"]
+    #: Chaque territoire est balayé une semaine sur N (une part de 1/N des
+    #: territoires par run hebdomadaire) : c'est aussi le pas des sorties.
+    rotation_territoires: int = Field(ge=1)
 
 
 class BudgetsErreur(_Strict):

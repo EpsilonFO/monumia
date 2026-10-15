@@ -305,3 +305,96 @@ def test_le_premier_listing_sain_ne_fait_que_la_reference(
     b, consignes = traiter(tmp_path, listing(), [], catalogue, fetcheur)
     assert b.sain and b.sorties == [] and fetcheur.appels == []
     assert [(e.objet, e.issue) for e in consignes] == [("t:tt", "sain")]
+
+
+# ------------------------------------------------------------------ verrous du 2026-10-15
+
+
+def _trois_aides(tmp_path: Path) -> dict[str, Any]:
+    (tmp_path / "aides").mkdir()
+    corpus = {}
+    for slug in ("tt-a", "tt-b", "tt-c"):
+        (tmp_path / "aides" / f"{slug}.yaml").write_text(f"slug: {slug}\n", encoding="utf-8")
+        corpus[slug] = aide(slug, f"https://dept.fr/aides/{slug}", nom=f"Dispositif {slug}")
+    return corpus
+
+
+def test_trop_de_sorties_d_un_coup_est_une_refonte_tout_en_cases(tmp_path: Path) -> None:
+    """Mêmes fiches, nouvelles URL : sans le verrou, tout le territoire sortirait."""
+    corpus = _trois_aides(tmp_path)
+    morts = Fetcheur(
+        {f"https://dept.fr/aides/{s}": P(f"https://dept.fr/aides/{s}", 404) for s in corpus}
+    )
+    avant = passe(listing("tt-a", "tt-b", "tt-c"), listing())
+    b, consignes = traiter(tmp_path, listing(), avant, corpus, morts)
+    assert b.refonte == 3 and sorties.plafond_retraits(b.suivies) == 2
+    assert [s.issue for s in b.sorties] == ["case"] * 3
+    assert all("refonte du site probable" in c.contexte[1] for c in b.cases)
+    assert all((tmp_path / "aides" / f"{s}.yaml").exists() for s in corpus)
+    assert not any(e.decision == "sortie" for e in consignes)
+    assert any("Refonte du site probable" in ligne for ligne in sorties.section(b))
+
+
+def test_sous_le_plafond_les_retraits_se_font(tmp_path: Path) -> None:
+    corpus = _trois_aides(tmp_path)
+    morts = Fetcheur(
+        {f"https://dept.fr/aides/{s}": P(f"https://dept.fr/aides/{s}", 404) for s in corpus}
+    )
+    avant = passe(listing("tt-a", "tt-b", "tt-c"), listing("tt-c"))
+    b, _ = traiter(tmp_path, listing("tt-c"), avant, corpus, morts)
+    assert b.refonte == 0
+    assert sorted(s.slug for s in b.sorties if s.issue == "retiree") == ["tt-a", "tt-b"]
+
+
+def _veille_404(slug: str, *runs: str) -> list[Evenement]:
+    return [
+        Evenement(
+            "panne",
+            f"a:{slug}",
+            decision="collecte",
+            issue="reseau_hote",
+            run=r,
+            donnees={"raison": "page officielle injoignable : HTTP 404", "codes": [404]},
+        )
+        for r in runs
+    ]
+
+
+def test_deux_passages_de_veille_en_404_valent_une_page_morte(
+    tmp_path: Path, catalogue: dict[str, Any]
+) -> None:
+    url = "https://dept.fr/aides/tt-restauration"
+    anti_bot = Fetcheur({url: P(url, 403)})
+    avant = passe(listing("tt-restauration", "tt-jardins"), listing("tt-jardins"))
+    b, _ = traiter(
+        tmp_path,
+        listing("tt-jardins"),
+        avant + _veille_404("tt-restauration", "v1"),
+        catalogue,
+        anti_bot,
+    )
+    assert [s.issue for s in b.sorties] == ["panne"]
+
+    b, _ = traiter(
+        tmp_path,
+        listing("tt-jardins"),
+        avant + _veille_404("tt-restauration", "v1", "v2"),
+        catalogue,
+        anti_bot,
+    )
+    (s,) = b.sorties
+    assert s.issue == "retiree" and "en 404 à la veille" in s.motif
+
+
+def test_la_serie_de_la_veille_s_arrete_a_un_passage_juge() -> None:
+    juge = Evenement("decision", "a:x", decision="veille", issue="ok", run="v2")
+    assert (
+        sorties.constats_veille(_veille_404("x", "v1") + [juge] + _veille_404("x", "v3"), "x") == 1
+    )
+    assert sorties.constats_veille(_veille_404("x", "v1", "v2", "v3"), "x") == 3
+
+
+def test_en_sortie_liste_les_aides_absentes_du_dernier_listing() -> None:
+    evenements = passe(listing("tt-a", "tt-b"), listing("tt-b"))
+    assert sorties.en_sortie(evenements) == {"tt-a": "absente du guide tt depuis 1 listing(s)"}
+    assert sorties.en_sortie(passe(listing("tt-a"))) == {}

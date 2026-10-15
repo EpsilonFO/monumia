@@ -16,6 +16,15 @@ export const aideService = {
     return handleResponse<Aide>(res);
   },
 
+  /** Le panneau d'une aide fermée a été lu : ses dossiers en préparation ne
+   *  reviendront plus pour ce compte. */
+  async marquerFermeeVue(slug: string): Promise<void> {
+    const res = await authFetch(`${BASE}/aides/${encodeURIComponent(slug)}/fermee-vue`, {
+      method: 'POST',
+    });
+    if (!res.ok) await handleResponse(res);
+  },
+
   /**
    * Diagnostic déterministe d'un PROJET de travaux, restreint aux aides
    * « engine-ready » (conditions entièrement typées). Non persisté côté serveur :

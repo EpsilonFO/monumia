@@ -38,6 +38,18 @@ export interface Dossier {
   dateCreation: string;
   dateDerniereModification: string;
   dateSoumission?: string;
+
+  /** Posé par le serveur quand l'aide a quitté le catalogue (`services/aides_fermees.py`). */
+  aideFermee?: AideFermee;
+}
+
+/** Une aide sortie du catalogue alors que ce dossier était ouvert dessus. */
+export interface AideFermee {
+  nom: string;
+  /** AAAA-MM-JJ */
+  fermeeLe: string;
+  /** La demande est déjà partie chez le financeur : elle suit son cours, le dossier reste. */
+  deposee: boolean;
 }
 
 export interface ChecklistItem {

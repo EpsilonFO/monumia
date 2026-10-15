@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from supabase import Client
 
 from db import get_current_user_id, get_supabase
+from services import aides_fermees
 from services.project_access import require_projet_access
 from services.suivi_service import SuiviValidationError, apply_statut_change
 
@@ -58,7 +59,7 @@ def list_aide_suivis(
 ):
     require_projet_access(supabase, projet_id, user_id, "member")
     result = supabase.table("aide_suivis").select("*").eq("projet_id", projet_id).execute()
-    return result.data
+    return aides_fermees.filtrer_suivis(supabase, user_id, result.data or [])
 
 
 @router.put("/{projet_id}/aides/{aide_id}/suivi")
