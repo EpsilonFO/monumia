@@ -384,6 +384,11 @@ Règles du harnais :
   le lint déclarera introuvable.
 - **`proposer_fait` est la seule voie vers un fait nouveau.** N'écris jamais un
   `fact:` qui n'est ni dans l'index ci-dessous ni proposé par toi dans ce run.
+- **`conditions_du_fait` liste tout ce qui cite un fait** (gates, `applies_if`,
+  `pertinent_si`), avec effet, prédicat et texte.
+- **`proposer_reformulation` est une exception**, quand l'outil est dans ta
+  liste : une nouvelle tournure de la question d'un fait que tu réutilises,
+  jamais un autre sens. Ton aide reste typée sur la question actuelle.
 - **`ecrire_aide` réécrit tout le fichier** à chaque appel : envoie toujours le
   YAML entier, jamais un fragment. Tu peux l'appeler autant de fois que tu veux.
 - **Ton budget est compté.** Tu as un nombre de tours limité. Lis les snapshots

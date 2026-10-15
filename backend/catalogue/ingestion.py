@@ -8,7 +8,9 @@ le banc de confirmation de l'extraction structurée ayant été abandonné le
 - **acceptée** par les contrôles de l'agent : le YAML entre au catalogue, ses
   instantanés dans `data/sources/<slug>/`, ses faits neufs en fin de
   `facts_pending.yaml`, chacun en case `H-fait` si le registre dit
-  `faits_neufs: case` (décision 5), sans case en `auto` ;
+  `faits_neufs: case` (décision 5), sans case en `auto` ; sa reformulation de
+  question, s'il en a proposé une, en case `R-reformulation` (appliquée au run
+  suivant sur la réponse de Félix, `catalogue.reformulations`) ;
 - **allongement du questionnaire** (l'agent rend un coût en questions) :
   l'aide attend en brouillon (`data/catalogue/brouillons/`), avec une case ;
 - **slug déjà pris** par une aide en service : brouillon et case, jamais
@@ -241,6 +243,16 @@ def ingerer(
     b.cases += ecarts
     if panne:
         b.raison = f"{b.raison} ; {panne}" if b.raison else panne
+    # La reformulation de question que l'agent a proposée (R1-reformulation) :
+    # une case pour Félix, rien n'est réécrit avant sa réponse.
+    from catalogue import reformulations as rf
+
+    cases_r, notes_r = rf.remonter(
+        slug, list(lancement.resultat.get("reformulations") or []), texte, ecrire=ecrire
+    )
+    b.cases += cases_r
+    for note in notes_r:
+        b.raison = f"{b.raison} ; {note}" if b.raison else note
     from catalogue.registre import faits_neufs_en_case
 
     for f in neufs if faits_neufs_en_case() else []:
@@ -435,6 +447,11 @@ def commande(
             if not a_blanc:
                 shutil.move(str(brouillon), str(cible))
             notes.append(f"- brouillon `{slug}` écrit au catalogue sur réponse de Félix")
+    # Une reformulation de question que Félix a tranchée (R1-reformulation) :
+    # réécrite dans facts.yaml si la question en place est encore celle qu'elle a vue.
+    from catalogue import reformulations as rf
+
+    notes += rf.appliquer(vue, a_blanc=a_blanc)
     # La file d'abord : chaque admise y prend le slug sous lequel elle sera ingérée.
     if not a_blanc and file_attente.exists():
         projeter_file(list(j.lire()), file_attente)

@@ -69,6 +69,10 @@ class Reglages(_Strict):
     #: Chaque territoire est balayé une semaine sur N (une part de 1/N des
     #: territoires par run hebdomadaire) : c'est aussi le pas des sorties.
     rotation_territoires: int = Field(ge=1)
+    #: L'agent d'ingestion peut-il proposer de reformuler la question d'un fait
+    #: existant (`R1-reformulation`) ? `case` : l'outil est exposé et chaque
+    #: proposition devient une case ; `off` : l'outil n'est pas exposé.
+    reformulation_fait: Literal["case", "off"]
 
 
 class BudgetsErreur(_Strict):
@@ -136,6 +140,16 @@ def faits_neufs_en_case() -> bool:
     un fait approuvé, sans attendre Félix.
     """
     return charger().reglages.faits_neufs == "case"
+
+
+def reformulation_fait_active(chemin: Path = REGISTRE) -> bool:
+    """L'outil `proposer_reformulation` est-il exposé à l'agent (réglage `reformulation_fait: case`) ?"""
+    return charger(chemin).reglages.reformulation_fait == "case"
+
+
+def seuils_reformulation(chemin: Path = REGISTRE) -> dict[str, float]:
+    """Les seuils de `R1-reformulation` : `citations_max`, `derive_max`, `similarite_min`."""
+    return dict(charger(chemin).decisions["R1-reformulation"].seuils)
 
 
 def refus_ancienne(operation: str, chemin: Path | None = None) -> str | None:

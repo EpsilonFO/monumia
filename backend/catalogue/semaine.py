@@ -89,6 +89,8 @@ FICHIERS_ECRITS = (
     "backend/data/facts_pending.yaml",
     "backend/data/facts.yaml",
     "backend/data/prospection/file-attente.yaml",
+    # Les reformulations de question en attente de Félix (R1-reformulation).
+    "backend/data/catalogue/reformulations.yaml",
 )
 # Ce que la copie emporte : le code et les données, sans venv ni caches.
 EXCLUS = {".venv", ".cache", "__pycache__", ".pytest_cache", ".ruff_cache", "node_modules"}

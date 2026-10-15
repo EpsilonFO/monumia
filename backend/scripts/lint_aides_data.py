@@ -1004,6 +1004,7 @@ def lint(
     reference_dirs: Sequence[Path] = (),
     faits_du_run: Sequence[str] = (),
     ecriture: bool = False,
+    reformulations_path: Path | None = None,
 ) -> RapportLint:
     """Lint du catalogue entier, ou des seuls `slugs` donnés.
 
@@ -1160,6 +1161,15 @@ def lint(
     if global_mode:
         rapport.lignes.extend(_bloc_calendrier(rapport.aides))
         rapport.lignes.extend(_bloc_dettes_editoriales(rapport.aides, facts))
+        # Une reformulation de question en attente de Félix (R1-reformulation)
+        # dont le fait a disparu ou changé : sa case ne pourra rien appliquer.
+        from catalogue import reformulations
+
+        rapport.avertissements.extend(
+            reformulations.avertissements(
+                approved, reformulations_path or reformulations.REFORMULATIONS
+            )
+        )
     return rapport
 
 

@@ -15,10 +15,12 @@ question) est une décision humaine. L'écriture passe par `ajouter_sous_verrou`
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 import textwrap
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -39,7 +41,7 @@ from ontologie_regles import (
 from pipeline.verrou import ajouter_sous_verrou, reecrire_sous_verrou
 from veille_text import normalize
 
-from aides_schema import FAIT_PORTEUR, FactDef, charger_yaml, load_pending_facts
+from aides_schema import FAIT_PORTEUR, Aide, AppliesIf, FactDef, charger_yaml, load_pending_facts
 
 from .atelier import Atelier
 
@@ -591,6 +593,92 @@ def proposer(
 
 
 # ---------------------------------------------------------------------------
+# Citations d'un fait
+# ---------------------------------------------------------------------------
+
+#: Au-delà, le texte d'une condition est tronqué dans la liste des citations.
+MAX_CAR_TEXTE_CITATION = 110
+
+
+@dataclass(frozen=True)
+class Citation:
+    """Un endroit du catalogue qui cite un fait, et ce qu'il en fait."""
+
+    #: `condition`, `applies_if de condition`, `applies_if d'aide` ou `pertinent_si`.
+    lieu: str
+    #: `slug#id` pour une condition, `slug` pour une aide, la clé pour un fait.
+    ref: str
+    slug: str
+    #: kind et effect pour une condition, puis le prédicat.
+    detail: str
+    texte: str
+
+    def ligne(self) -> str:
+        texte = " ".join(self.texte.split())
+        if len(texte) > MAX_CAR_TEXTE_CITATION:
+            texte = texte[: MAX_CAR_TEXTE_CITATION - 1] + "…"
+        return f"{self.ref}  [{self.lieu}] {self.detail}" + (f" : « {texte} »" if texte else "")
+
+
+def _predicat(clause: AppliesIf | None) -> str:
+    if clause is None or clause.predicate is None:
+        return "sans prédicat"
+    return json.dumps(clause.predicate.root, ensure_ascii=False)
+
+
+def citations_du_fait(
+    aides: Mapping[str, Aide], facts: Mapping[str, FactDef], cle: str
+) -> list[Citation]:
+    """Tous les endroits qui citent `cle` : conditions, `applies_if` (condition, aide), `pertinent_si`.
+
+    Les quatre lieux de `services.catalogue_admin._ids_cites`, plus la
+    dépendance des autres faits. Là où `_references` ne rend que des slugs,
+    chaque citation porte ici son effet et son prédicat : c'est ce qu'il faut
+    relire avant de toucher à la question du fait.
+    """
+    sortie: list[Citation] = []
+    for slug in sorted(aides):
+        aide = aides[slug]
+        if aide.applies_if is not None and aide.applies_if.fact == cle:
+            sortie.append(
+                Citation("applies_if d'aide", slug, slug, _predicat(aide.applies_if), aide.nom)
+            )
+        for c in aide.conditions:
+            if c.fact == cle:
+                predicat = (
+                    json.dumps(c.predicate.root, ensure_ascii=False)
+                    if c.predicate is not None
+                    else "sans prédicat"
+                )
+                sortie.append(
+                    Citation(
+                        "condition",
+                        f"{slug}#{c.id}",
+                        slug,
+                        f"{c.kind}/{c.effect or '?'} {predicat}",
+                        c.text,
+                    )
+                )
+            if c.applies_if is not None and c.applies_if.fact == cle:
+                sortie.append(
+                    Citation(
+                        "applies_if de condition",
+                        f"{slug}#{c.id}",
+                        slug,
+                        _predicat(c.applies_if),
+                        c.text,
+                    )
+                )
+    for autre in sorted(facts):
+        dependance = facts[autre].pertinent_si
+        if autre != cle and dependance is not None and dependance.fact == cle:
+            sortie.append(
+                Citation("pertinent_si", autre, "", _predicat(dependance), facts[autre].question)
+            )
+    return sortie
+
+
+# ---------------------------------------------------------------------------
 # Retrait
 # ---------------------------------------------------------------------------
 
@@ -731,9 +819,11 @@ def retirer(atelier: Atelier, fact_id: str, *, proposes: Sequence[str] = ()) -> 
 
 
 __all__ = [
+    "Citation",
     "LIMITE_DEFAUT",
     "MAX_PROCHES",
     "SEUIL_PROXIMITE",
+    "citations_du_fait",
     "detail",
     "proposer",
     "rechercher",

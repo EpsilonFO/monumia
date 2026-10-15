@@ -31,6 +31,25 @@ from typing import Any
 from catalogue.journal import Evenement, Vue, cle
 
 _MARQUEUR = re.compile(r"^<!-- case (\w+) (\S+) (\S+) (\S+) -->$")
+
+#: Les cases dont la non-réponse est le bon défaut : la version en service
+#: reste, ou ce n'est qu'un constat. Elles vont sous « Pour information » et ne
+#: se répètent pas d'un rapport à l'autre. Toute autre sorte, y compris une
+#: sorte neuve, est « À trancher » : sans réponse, un changement de la source
+#: reste non appliqué et le catalogue vieillit.
+SORTES_INFORMATIVES = frozenset(
+    {
+        # Ré-extraction : l'agent propose autre chose, la version en service est gardée.
+        "reextraction-typage",
+        "documents-requis",
+        "familles",
+        "hard-filters",
+        "applies-if",
+        # Veille : constats sans écriture possible.
+        "veille-injoignable",
+        "veille-echeance",
+    }
+)
 _COCHEE = re.compile(r"^- \[[xX]\] `([\w-]+)`")
 _TITRE = re.compile(r"^#{1,3} ")
 
@@ -49,6 +68,10 @@ class Case:
     @property
     def id(self) -> str:
         return cle("case", self.sorte, self.objet, self.etat)[:12]
+
+    @property
+    def a_trancher(self) -> bool:
+        return self.sorte not in SORTES_INFORMATIVES
 
     def rendre(self) -> list[str]:
         lignes = [
@@ -110,6 +133,16 @@ def lire(texte: str) -> tuple[list[Reponse], list[str]]:
             courante, cochees = None, []
     clore()
     return reponses, ambigues
+
+
+def deja_posees(rapports: Iterable[Path]) -> set[str]:
+    """Les identifiants des cases déjà écrites dans ces rapports."""
+    ids: set[str] = set()
+    for chemin in rapports:
+        for ligne in chemin.read_text(encoding="utf-8").splitlines():
+            if m := _MARQUEUR.match(ligne.strip()):
+                ids.add(m.group(1))
+    return ids
 
 
 def relire(

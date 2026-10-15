@@ -170,6 +170,11 @@ class TestControles(BaseWorker):
         self.assertEqual(len(echecs), 1, echecs)
         self.assertIn("familles", echecs[0])
         self.assertIn("fail-open", echecs[0])
+        # Ré-extraction d'une aide en service qui n'en avait déjà pas : dette
+        # connue, la ré-extraction n'a pas le droit d'écrire ce champ.
+        self.assertEqual(
+            controler(self.atelier, self.resultat(), self.etat(), familles_avant=False), []
+        )
 
     def test_hors_perimetre_est_un_arret_normal(self):
         """Ni YAML ni échec : l'agent a lu la source et l'aide s'adresse à un tiers."""

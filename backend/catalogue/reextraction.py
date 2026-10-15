@@ -52,6 +52,7 @@ import signal
 import subprocess
 import sys
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -233,11 +234,15 @@ def retour(
     faits_connus: set[str],
     etat: str,
     urls: dict[str, str] | None = None,
+    typage_suspect: Callable[[dict[str, Any]], bool] | None = None,
 ) -> Retour:
     """La cible que l'aide en service peut devenir, et les cases de ce qui ne s'écrit pas.
 
     `base` : les instantanés d'avant la ré-extraction ; `frais` : ceux que
     l'agent vient d'archiver ; `urls` : nom de fichier -> URL archivée.
+    `typage_suspect(condition en service)` : un typage divergent ne devient une
+    case que si ce contrôle met en cause la version en service ; sinon elle
+    reste, sans case (absent : toujours une case).
     """
     from catalogue.veille_collect import cle_url
 
@@ -301,7 +306,12 @@ def retour(
             sortie.append(c)
             continue
         divergences = [k for k in TYPAGE if _norm(a.get(k)) != _norm(c.get(k))]
-        if divergences:
+        if divergences and typage_suspect is not None and not typage_suspect(c):
+            r.changements.append(
+                f"typage proposé pour {c.get('id')} écarté : la version en service passe "
+                "le sens des prédicats et sa famille"
+            )
+        elif divergences:
             case(
                 "reextraction-typage",
                 "typage divergent",
@@ -432,6 +442,7 @@ def retour(
                     f"L'agent propose une autre valeur de `{nom}` ; la version en service est gardée."
                 ],
             )
+    _suivre_points_de_fiche(r, ancien, agent, case)
     from catalogue.registre import faits_neufs_en_case
 
     for f in r.faits_neufs if faits_neufs_en_case() else []:
@@ -464,6 +475,113 @@ def cle_erreur(message: str) -> str:
 def erreurs_nouvelles(avant: list[str], apres: list[str]) -> list[str]:
     deja = {cle_erreur(e) for e in avant}
     return [e for e in apres if cle_erreur(e) not in deja]
+
+
+def _suivre_points_de_fiche(
+    r: Retour, ancien: dict[str, Any], agent: dict[str, Any], case: Any
+) -> None:
+    """Les points de `fiche.points` suivent les conditions de la cible.
+
+    Le point d'une condition retirée part ; celui d'une condition ajoutée est
+    repris de l'agent. Sans point chez l'agent, une case : la page de l'aide
+    afficherait une condition sans titre ni résumé.
+    """
+    fiche = r.cible.get("fiche")
+    if not isinstance(fiche, dict) or not isinstance(fiche.get("points"), dict):
+        return
+    ids = [c.get("id") for c in r.cible.get("conditions") or [] if isinstance(c, dict)]
+    chez_agent = (
+        ((agent.get("fiche") or {}).get("points") or {})
+        if isinstance(agent.get("fiche"), dict)
+        else {}
+    )
+    avant = fiche["points"]
+    points = {k: v for k, v in avant.items() if k in ids}
+    repris, manquants = [], []
+    for i in ids:
+        if i in points:
+            continue
+        if isinstance(chez_agent.get(i), dict):
+            points[i] = chez_agent[i]
+            repris.append(i)
+        else:
+            manquants.append(i)
+    retires = [k for k in avant if k not in points]
+    if repris or retires:
+        r.cible["fiche"] = {**fiche, "points": points}
+        r.changements.append(
+            "fiche : "
+            + "; ".join(
+                x
+                for x in (
+                    f"point(s) repris de l'agent : {', '.join(repris)}" if repris else "",
+                    f"point(s) retiré(s) : {', '.join(retires)}" if retires else "",
+                )
+                if x
+            )
+        )
+    if manquants:
+        case(
+            "reextraction-fiche",
+            "points de fiche manquants",
+            [f"Condition(s) sans point dans la fiche : {', '.join(f'`{i}`' for i in manquants)}."],
+            {"vu": "relu ou régénéré"},
+        )
+
+
+def typage_suspect_pour(slug: str, texte_service: str) -> Callable[[dict[str, Any]], bool]:
+    """Un contrôle indépendant met-il en cause le typage EN SERVICE d'une condition ?
+
+    Une ré-extraction n'écrit jamais le typage ; quand l'agent en propose un
+    autre, la case n'a d'intérêt que si la version en service est douteuse.
+    Deux contrôles mesurés en tiennent lieu (2026-10-15 : 31 cases « typage
+    divergent » sur un passage, la plupart contre des prédicats que P1 venait
+    de corriger) :
+
+    - le sens du prédicat (`catalogue.polarite`, décision P1) : il écarte une
+      réponse que le texte admet ;
+    - la famille (`catalogue.espace`, décision C1) : la condition est typée
+      autrement que ses voisines, d'un écart que le lint ferait aligner.
+
+    Ni l'un ni l'autre ne la met en cause : elle reste, sans case. Une panne,
+    une condition introuvable ou l'espace coupé : la case, comme avant.
+    """
+    from aides_schema import Aide, load_facts, load_pending_facts
+    from catalogue import coherence as co
+    from catalogue import espace, polarite
+
+    if not espace.actif():
+        return lambda c: True
+    try:
+        aide = Aide.model_validate(charger_yaml(texte_service))
+        faits = {**load_facts(), **load_pending_facts()}
+    except Exception:  # noqa: BLE001
+        return lambda c: True
+
+    def suspect(c: dict[str, Any]) -> bool:
+        cid = c.get("id")
+        try:
+            cond = next((x for x in aide.conditions if x.id == cid), None)
+            if cond is None:
+                return True
+            g = polarite.gate_de(slug, aide.nom, cond, faits)
+            if g is not None:
+                probas = polarite._juge().juger(g)
+                if probas is None:
+                    return True
+                haut, bas = polarite._seuils()
+                if any(
+                    d.sens == "ecarte_a_tort" for d in polarite.desaccords(g, probas, haut, bas)
+                ):
+                    return True
+            ligne = next((x for x in co.lignes_de(slug, aide) if x.condition.id == cid), None)
+            if ligne is None:
+                return True
+            return espace.a_signaler(ligne, espace.instance().famille(ligne))
+        except Exception:  # noqa: BLE001 — un contrôle en panne garde la case
+            return True
+
+    return suspect
 
 
 #: `lint_aide` détourne une variable de module : deux ré-extractions en vol
@@ -698,13 +816,42 @@ def _reextraire(
     from aides_schema import load_facts, load_pending_facts
 
     connus = set(load_facts()) | set(load_pending_facts(pending))
-    r = retour(slug, ancien, agent, base, frais, connus, etat, urls)
+    r = retour(
+        slug,
+        ancien,
+        agent,
+        base,
+        frais,
+        connus,
+        etat,
+        urls,
+        typage_suspect=typage_suspect_pour(slug, texte_ancien),
+    )
     b.cases, b.changements = r.cases, r.changements
     try:
         nouveau = editer(texte_ancien, r.cible)
     except EditionImpossible as exc:
-        b.issue, b.raison, b.panne = "panne", f"éditeur : {exc}", "bug"
-        return b
+        # Les points de fiche suivis ne doivent pas coûter la ré-extraction :
+        # sans eux, la fiche reste en l'état et devient une case.
+        sans_fiche = {**r.cible, "fiche": ancien.get("fiche")} if "fiche" in ancien else None
+        try:
+            if sans_fiche is None or sans_fiche == r.cible:
+                raise exc
+            nouveau = editer(texte_ancien, sans_fiche)
+            r.cases.append(
+                Case(
+                    "reextraction-fiche",
+                    f"a:{slug}",
+                    "bloc `fiche:` à relire",
+                    f"{etat}:fiche",
+                    {"vu": "relu ou régénéré"},
+                    (f"Points de fiche non réécrits ({exc}).",),
+                )
+            )
+            b.cases = r.cases
+        except EditionImpossible as exc2:
+            b.issue, b.raison, b.panne = "panne", f"éditeur : {exc2}", "bug"
+            return b
     if nouveau == texte_ancien:
         b.issue, b.raison = "inchangee", "rien à écrire dans le mandat de la ré-extraction"
         return b
@@ -740,6 +887,14 @@ def _reextraire(
 
         ecarts, _panne = espace_mod.controler_aide(slug, nouveau, seulement=neuves)
         b.cases += ecarts
+    # La reformulation de question proposée par l'agent (R1-reformulation).
+    from catalogue import reformulations as rf
+
+    cases_r, notes_r = rf.remonter(
+        slug, list(lancement.resultat.get("reformulations") or []), nouveau, ecrire=ecrire
+    )
+    b.cases += cases_r
+    b.changements += notes_r
     if ecrire:
         # Ordre de la section 7.6 : les faits, puis les instantanés et le YAML.
         b.faits = ajouter_faits(r.faits_neufs, pending_essai, pending)

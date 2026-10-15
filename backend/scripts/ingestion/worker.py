@@ -38,7 +38,7 @@ from pipeline.etat import Tache
 from pipeline.llm import Compteur, client_pour
 from pipeline.web import Fetcheur
 
-from aides_schema import AIDES_DIR, FactDef, load_aide, load_facts, load_pending_facts
+from aides_schema import AIDES_DIR, FactDef, charger_yaml, load_aide, load_facts, load_pending_facts
 from labels import FAMILLES_LABELS
 
 from .atelier import Atelier, atelier_redirige, atelier_standard
@@ -68,6 +68,10 @@ class ConfigIngestion:
     # au premier run, et le modèle y perdrait le gabarit dont il dispose en
     # production — le banc mesurerait alors une situation qui n'existe pas.
     reference_dir: Path = AIDES_DIR
+    # Exposer `proposer_reformulation` (R1-reformulation) : la nouvelle chaîne
+    # seulement, qui remonte la proposition en case. L'ancienne n'a pas de
+    # circuit de cases, la proposition s'y perdrait.
+    reformulation: bool = False
 
     def atelier(self, slug: str) -> Atelier:
         if self.sortie is not None:
@@ -165,6 +169,9 @@ class ResultatIngestion:
     #: Où le temps est passé, en secondes : `modele` (appels du modèle
     #: d'extraction), `outil <nom>` (dont `lint` et `verification_adversariale`).
     durees: dict[str, float] = field(default_factory=dict)
+    #: La reformulation de question proposée par l'agent (une au plus), telle
+    #: qu'elle remontera en case `R-reformulation` si l'aide est acceptée.
+    reformulations: list[dict] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +264,9 @@ def cout_en_questions(atelier: Atelier) -> CoutQuestions:
 # ---------------------------------------------------------------------------
 
 
-def controler(atelier: Atelier, resultat: Resultat, etat: EtatOutils) -> list[str]:
+def controler(
+    atelier: Atelier, resultat: Resultat, etat: EtatOutils, *, familles_avant: bool = True
+) -> list[str]:
     """La liste (vide si tout va bien) de ce qui interdit d'accepter l'ingestion.
 
     Un `declarer_hors_perimetre` n'en fait PAS partie : l'agent a lu la source,
@@ -327,7 +336,11 @@ def controler(atelier: Atelier, resultat: Resultat, etat: EtatOutils) -> list[st
         aide = load_aide(atelier.yaml_path)
     except Exception:  # noqa: BLE001 — déjà signalé plus haut
         aide = None
-    if aide is not None and not aide.familles:
+    # Une ré-extraction part d'une aide en service qui peut n'avoir jamais eu
+    # de familles (110 aides au 2026-10-15) : la dette est connue, et la
+    # ré-extraction n'a pas le droit d'écrire ce champ. La refuser pour cela
+    # perdait le changement de source (11 refus sur 48 au passage du 2026-10-15).
+    if aide is not None and not aide.familles and familles_avant:
         echecs.append(
             "`familles` vide — fail-open : l'aide serait proposée pour tout projet. "
             f"Au moins une famille parmi {', '.join(sorted(FAMILLES_LABELS))}"
@@ -414,6 +427,7 @@ def ingerer_aide(
             journal=journal,
             compteur=compteur_local,
             entete_review=entete_review,
+            reformulation=config.reformulation,
         )
         reference = choisir_aide_reference(slug, config.reference_dir)
         existante = (
@@ -448,7 +462,13 @@ def ingerer_aide(
         )
         fetcheur.close()
 
-        echecs = controler(atelier, resultat, etat)
+        echecs = controler(
+            atelier,
+            resultat,
+            etat,
+            familles_avant=existante is None
+            or bool((charger_yaml(existante) or {}).get("familles")),
+        )
         # AVANT `_mettre_en_echec` : celui-ci renomme le YAML en `.yaml.echec`,
         # hors du glob que la mesure balaye. Après, on mesurerait le catalogue
         # sans l'aide qu'on vient d'ingérer.
@@ -502,6 +522,7 @@ def ingerer_aide(
                 else None
             ),
             durees={k: round(v, 1) for k, v in durees.items()},
+            reformulations=list(etat.reformulations.values()),
             hors_perimetre=(
                 (etat.hors_perimetre.categorie, etat.hors_perimetre.motif)
                 if etat.hors_perimetre
