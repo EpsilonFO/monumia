@@ -55,6 +55,9 @@ supabase/snippets/
 .claude/*
 !.claude/skills/
 
+# Plans écrits par Claude Code en mode plan (réglage `plansDirectory`)
+/plans/
+
 # Visual companion (brainstorming)
 .superpowers/
 
