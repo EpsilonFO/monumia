@@ -9,7 +9,8 @@
 # QUE s'il est vide : une fois rempli, tout nouveau build était ignoré. Le seul moyen
 # de livrer était donc de supprimer le volume, ce qui exige qu'aucun conteneur ne
 # l'utilise, donc d'arrêter nginx. D'où 1 min 30 de coupure totale à chaque
-# déploiement.
+# déploiement, pour Monumia mais aussi pour les projets annexes qui partageaient
+# alors ce nginx.
 #
 # Ici on sort le statique des images à la main, dans une release datée sur l'hôte,
 # et on bascule un lien symbolique. nginx ne s'arrête jamais.

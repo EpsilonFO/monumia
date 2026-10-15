@@ -1,8 +1,7 @@
 // Collecte des logs Docker de l'hôte et envoi vers Grafana Cloud Loki.
 //
 // Un fichier séparé de la stack applicative : Alloy collecte les logs de TOUS
-// les conteneurs du VPS, pas
-// seulement ceux de Monumia. Le mêler au docker-compose.yml du projet aurait
+// les conteneurs du VPS, pas seulement ceux du docker-compose de Monumia. Le mêler au docker-compose.yml du projet aurait
 // laissé croire qu'il en fait partie, et l'aurait exposé aux redémarrages de
 // deploy.sh sans raison.
 
