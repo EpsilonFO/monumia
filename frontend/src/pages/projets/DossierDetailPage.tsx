@@ -33,6 +33,8 @@ import { estImage } from '@/lib/documents-espace';
 import { monumentService } from '@/services/monument.service';
 import { projetService } from '@/services/projet.service';
 import { aideService } from '@/services/aide.service';
+import { AideFermeeDialog } from '@/components/aide/AideFermeeDialog';
+import { oublierAideFermee } from '@/lib/aide-fermee';
 import { dossierService } from '@/services/dossier.service';
 import { documentService } from '@/services/document.service';
 import { suiviService } from '@/services/suivi.service';
@@ -129,6 +131,7 @@ export function DossierDetailPage() {
   const [depotEnCours, setDepotEnCours] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [fermeeLue, setFermeeLue] = useState(false);
   // Pièces en cours de vérification guidée (null = fenêtre fermée). Le tableau
   // est figé à l'ouverture pour que l'ordre des étapes ne bouge pas pendant
   // que les confirmations modifient la checklist.
@@ -475,7 +478,11 @@ export function DossierDetailPage() {
   const nomProjet = projetTitre(projet, monument.nom);
   const { confirmees, aVerifier: aRepris, total } = compterChecklist(dossier.checklist);
   const aDesPieces = dossier.checklist.some((i) => i.documentId);
-  const lienAide = dossier.aideId ? ROUTES.PROJET_AIDE(projet.id, dossier.aideId) : null;
+  // Aide sortie du catalogue (`services/aides_fermees.py`) : plus de fiche à
+  // ouvrir. En préparation, le panneau explique puis renvoie au projet ; une
+  // demande déposée reste, avec une ligne qui le dit.
+  const fermee = dossier.aideFermee ?? null;
+  const lienAide = dossier.aideId && !fermee ? ROUTES.PROJET_AIDE(projet.id, dossier.aideId) : null;
   const montant = aide ? montantAide(aide) : null;
   const depose = dossier.statut === 'soumis';
 
@@ -507,6 +514,17 @@ export function DossierDetailPage() {
 
   return (
     <div className="ec pdos">
+      {fermee && !fermee.deposee && (
+        <AideFermeeDialog
+          fermee={fermee}
+          open={!fermeeLue}
+          onCompris={() => {
+            setFermeeLue(true);
+            navigate(`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`);
+            void oublierAideFermee(dossier.aideId);
+          }}
+        />
+      )}
       <Guide id="dossier" />
       <BoutonRetour to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`} libelle={`Retour à ${nomProjet}`} />
 
@@ -542,6 +560,13 @@ export function DossierDetailPage() {
               </>
             )}
           </p>
+          {fermee?.deposee && (
+            <p className="proj">
+              Le financeur ne propose plus cette aide
+              {fermee.fermeeLe ? ` depuis le ${dateLongue(fermee.fermeeLe)}` : ''} ; votre
+              demande déjà envoyée suit son cours.
+            </p>
+          )}
         </div>
         {aide && (
           <div className="keys">

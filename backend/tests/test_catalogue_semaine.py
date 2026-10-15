@@ -163,6 +163,36 @@ def test_les_etapes_suivent_le_registre(tmp_path: Path) -> None:
     assert veille.arguments[:3] == ["veille", "--journal", str(tmp_path / "j")]
 
 
+def test_deux_semaines_de_suite_balayent_tous_les_territoires_une_fois(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import datetime as dt
+
+    from prospection.territoires import charger_territoires
+
+    reg = _tout_a_l_ancienne()
+    reg = reg.model_copy(
+        update={
+            "proprietaires": {**reg.proprietaires, "prospection": "nouvelle"},
+            "reglages": reg.reglages.model_copy(update={"rotation_territoires": 2}),
+        }
+    )
+
+    def balayes(jour: dt.date) -> list[str]:
+        class Jour(dt.date):
+            @classmethod
+            def today(cls) -> dt.date:  # type: ignore[override]
+                return jour
+
+        monkeypatch.setattr(semaine.dt, "date", Jour)
+        return [e.nom.removeprefix("entree-") for e in semaine.etapes(reg, tmp_path, tmp_path)]
+
+    lundi = dt.date(2026, 10, 19)
+    une, deux = balayes(lundi), balayes(lundi + dt.timedelta(days=7))
+    assert sorted(une + deux) == sorted(charger_territoires())
+    assert balayes(lundi + dt.timedelta(days=14)) == une
+
+
 # ------------------------------------------------------------------ banc d'étiquetage
 
 

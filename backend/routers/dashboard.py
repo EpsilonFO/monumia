@@ -18,6 +18,7 @@ from routers.aides import (
     merge_projet_into_monument,
 )
 from routers.monuments import fetch_user_monuments, sign_photos
+from services import aides_fermees
 from services.parallele import en_parallele
 from services.pieces_demandees import pieces_demandees
 from services.project_access import projet_role_depuis
@@ -197,11 +198,15 @@ def get_dashboard(
         p["my_role"] = projet_role_depuis(p, monument_role, roles_propres, user_id)
     projets_visibles = {p["id"] for p in projets}
 
-    dossiers = [d for d in dossier_rows or [] if d["projet_id"] in projets_visibles]
+    dossiers_bruts = [d for d in dossier_rows or [] if d["projet_id"] in projets_visibles]
+    # Une aide sortie du catalogue : ses dossiers portent l'explication, et
+    # disparaissent avec leurs suivis une fois le panneau lu.
+    dossiers = aides_fermees.appliquer_aux_dossiers(supabase, user_id, dossiers_bruts)
+    suivi_rows = aides_fermees.filtrer_suivis(supabase, user_id, suivi_rows or [], dossiers_bruts)
 
     # Les lignes PostgREST ne sont pas typées : on resserre la clé en str.
     suivis: dict[str, list[dict]] = {str(p["id"]): [] for p in projets}
-    for row in suivi_rows or []:
+    for row in suivi_rows:
         if row["projet_id"] in projets_visibles:
             suivis.setdefault(row["projet_id"], []).append(row)
 

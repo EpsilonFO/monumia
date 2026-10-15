@@ -62,6 +62,13 @@ class Reglages(_Strict):
     #: (`case`), ou le lint de l'agent l'oblige à s'aligner (`aligner`), sauf
     #: quand la famille retirerait un gate (`espace.garde_son_gate`).
     typage_famille: Literal["case", "aligner"]
+    #: Une aide absente de son guide deux listings sains de suite, et dont la
+    #: page est morte : retirée sans case (`auto`), ou une case (`case`).
+    #: Page vivante ou titre voisin listé ailleurs : une case dans les deux cas.
+    sorties: Literal["auto", "case"]
+    #: Chaque territoire est balayé une semaine sur N (une part de 1/N des
+    #: territoires par run hebdomadaire) : c'est aussi le pas des sorties.
+    rotation_territoires: int = Field(ge=1)
     #: L'agent d'ingestion peut-il proposer de reformuler la question d'un fait
     #: existant (`R1-reformulation`) ? `case` : l'outil est exposé et chaque
     #: proposition devient une case ; `off` : l'outil n'est pas exposé.

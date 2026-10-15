@@ -1,7 +1,7 @@
 import logging
 import traceback
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -17,7 +17,7 @@ from routers.monuments import (
     valider_proprietaires,
     valider_type_edifice,
 )
-from services import catalogue_admin, quotas
+from services import aides_fermees, catalogue_admin, quotas
 from services import stripe_billing as billing
 from services.offres import GRATUIT, Offre
 from services.parallele import en_parallele
@@ -491,7 +491,32 @@ def get_aide(
     if aide:
         return _to_camel(aide_fiche_dict(aide))
 
+    # Sortie du catalogue par la prospection (`catalogue/sorties.py`) : qui y
+    # travaillait reçoit l'explication (410) au lieu d'« Aide introuvable » ;
+    # pour les autres, l'aide n'a jamais existé.
+    fermee = aides_fermees.fermees().get(slug or "")
+    if fermee is not None and _deja_engage(supabase, user_id, fermee.slug):
+        raise HTTPException(
+            status_code=410,
+            detail=aides_fermees.erreur(
+                fermee, aides_fermees.deposee_pour(supabase, user_id, fermee.slug)
+            ),
+        )
+
     raise HTTPException(status_code=404, detail="Aide introuvable")
+
+
+@router.post("/{slug}/fermee-vue", status_code=204)
+def marquer_aide_fermee_vue(
+    slug: str,
+    user_id: str = Depends(get_current_user_id),
+    supabase: Client = Depends(get_supabase),
+) -> None:
+    """Le panneau de l'aide fermée a été lu : ses dossiers en préparation ne
+    s'afficheront plus pour ce compte (`services/aides_fermees.py`). Idempotent."""
+    if slug not in aides_fermees.fermees():
+        raise HTTPException(status_code=404, detail="Aide introuvable")
+    aides_fermees.marquer_vue(supabase, user_id, slug, datetime.now(UTC))
 
 
 def deterministic_diagnostic_for(

@@ -36,8 +36,8 @@ DOSSIER = BACKEND / "data" / "catalogue" / "journal"
 TYPES = ("decision", "panne", "bail", "felix", "import", "contradiction", "valide")
 AUTEURS = ("pipeline", "felix", "import")
 # Préfixes d'objet : un document (URL canonique), une aide (slug), un fait (clé),
-# un run.
-PREFIXES = ("d:", "a:", "f:", "r:")
+# un run, un territoire (le listing de son guide, `catalogue.sorties`).
+PREFIXES = ("d:", "a:", "f:", "r:", "t:")
 
 
 class JournalCorrompu(Exception):

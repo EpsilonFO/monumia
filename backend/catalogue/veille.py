@@ -61,6 +61,7 @@ from veille_update import (
 from aides_schema import AIDES_DIR, DATA_DIR, Aide, load_aide
 from catalogue import cases as cases_mod
 from catalogue import controles
+from catalogue import sorties as sorties_mod
 from catalogue.budget import Budget, BudgetEpuise
 from catalogue.cases import Case
 from catalogue.chrono import Chrono, duree_lisible
@@ -256,6 +257,9 @@ class Contexte:
     parallelisme: int = 1
     pool: ThreadPoolExecutor | None = None
     en_vol: dict[str, EnVol] = field(default_factory=dict)
+    # Aides absentes du dernier listing sain de leur guide (`sorties.en_sortie`) :
+    # leur escalade ne se ré-extrait pas, le balayage suivant tranche la sortie.
+    sorties_en_cours: dict[str, str] = field(default_factory=dict)
     chrono: Chrono = field(default_factory=Chrono)
 
     def consigner(self, e: Evenement) -> Evenement:
@@ -796,6 +800,12 @@ def _escalader(
     if ctx.reextraire is None or not (auto or felix == "reextraire"):
         res.cases.append(case)
         return None
+    if felix != "reextraire" and (sortie := ctx.sorties_en_cours.get(aide.slug)):
+        # Ni case ni dépense : le changement reste dû, et l'aide sort ou revient
+        # au prochain balayage de son guide.
+        res.issue = "sortie_probable"
+        res.raison += f" ; ré-extraction suspendue, {sortie} (sortie en cours de constat)"
+        return None
     cle_rx = cle(VERSION, "reextraction", aide.slug, case.etat)
     memo = ctx.vue.memo(cle_rx)
     if memo is not None and memo.issue in ("refusee", "hors_perimetre", "orpheline"):
@@ -1261,6 +1271,7 @@ def passer(
     """Un passage : référence du journal, analyse, mandat, garde, cases, projection inverse."""
     with ctx.chrono.mesurer("références du journal et analyse"):
         historique = list(ctx.journal.lire())
+        ctx.sorties_en_cours = sorties_mod.en_sortie(historique)
         remplacees = appliquer_bases(collects, bases_en_vigueur(historique), ctx.sources)
         analyses = analyze_all(aides, collects, today=ctx.aujourd_hui)
 

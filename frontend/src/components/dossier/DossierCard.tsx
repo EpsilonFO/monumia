@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { ArrowRight } from 'lucide-react';
 import { IconLocalisation, IconCalendrier, IconSucces, IconErreur, IconTemps, IconRafraichir } from '@/components/icons';
@@ -9,6 +10,8 @@ import { progressionDossier } from '@/lib/checklist-progress';
 import { AIDE_SUIVI_STATUT_LABELS } from '@/types';
 import type { Dossier, AideSuiviStatut } from '@/types';
 import { C, SERIF } from '@/lib/brand';
+import { AideFermeeDialog } from '@/components/aide/AideFermeeDialog';
+import { oublierAideFermee } from '@/lib/aide-fermee';
 
 // Couleur pilote de la carte = statut d'avancement. Reprend le code couleur des
 // tokens de thème (voir AIDE_STATUT_STYLES) : anneau et pastille partagent la
@@ -118,109 +121,135 @@ export function DossierCard({ dossier }: DossierCardProps) {
 
   const [aideName] = dossier.titre.split(' — ');
 
+  // Aide sortie du catalogue, dossier encore en préparation : le clic ouvre
+  // l'explication au lieu du dossier, puis la carte disparaît. Une demande déjà
+  // déposée s'ouvre normalement (la page du dossier le signale).
+  const fermee = dossier.aideFermee && !dossier.aideFermee.deposee ? dossier.aideFermee : null;
+  const [explication, setExplication] = useState(false);
+
   return (
-    <Link to={ROUTES.PROJET_DOSSIER(dossier.projetId, dossier.id)} className="group block h-full">
-      <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-        <div className="flex flex-col gap-4 p-5">
-          {/* En-tête : anneau + identité */}
-          <div className="flex items-start gap-4">
-            <ProgressRing value={progression} color={progressColor(progression)} />
-            <div className="min-w-0 flex-1 space-y-1.5">
-              {monument && (
-                <span
-                  className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[14px] font-semibold uppercase tracking-wide"
-                  style={{ background: tint, color: accent }}
+    <>
+      {fermee && (
+        <AideFermeeDialog
+          fermee={fermee}
+          open={explication}
+          onCompris={() => {
+            setExplication(false);
+            void oublierAideFermee(dossier.aideId);
+          }}
+        />
+      )}
+      <Link
+        to={ROUTES.PROJET_DOSSIER(dossier.projetId, dossier.id)}
+        className="group block h-full"
+        onClick={(e) => {
+          if (!fermee) return;
+          e.preventDefault();
+          setExplication(true);
+        }}
+      >
+        <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+          <div className="flex flex-col gap-4 p-5">
+            {/* En-tête : anneau + identité */}
+            <div className="flex items-start gap-4">
+              <ProgressRing value={progression} color={progressColor(progression)} />
+              <div className="min-w-0 flex-1 space-y-1.5">
+                {monument && (
+                  <span
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[14px] font-semibold uppercase tracking-wide"
+                    style={{ background: tint, color: accent }}
+                  >
+                    <IconLocalisation className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                    <span className="truncate">{monument.nom}</span>
+                  </span>
+                )}
+                <h3
+                  className="line-clamp-2 text-[20.5px] font-normal leading-tight text-foreground"
+                  style={{ fontFamily: SERIF }}
                 >
-                  <IconLocalisation className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-                  <span className="truncate">{monument.nom}</span>
-                </span>
-              )}
-              <h3
-                className="line-clamp-2 text-[20.5px] font-normal leading-tight text-foreground"
-                style={{ fontFamily: SERIF }}
-              >
-                {aideName}
-              </h3>
-              {monument?.commune && (
-                <div className="truncate text-[15px] text-muted-foreground">{monument.commune}</div>
-              )}
+                  {aideName}
+                </h3>
+                {monument?.commune && (
+                  <div className="truncate text-[15px] text-muted-foreground">{monument.commune}</div>
+                )}
+              </div>
             </div>
+
+            {/* Statut — pastille franche à point coloré */}
+            <span
+              className="inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[15.5px] font-semibold"
+              style={{ background: tint, color: accent }}
+            >
+              <span className="h-2 w-2 rounded-full" style={{ background: accent }} />
+              {AIDE_SUIVI_STATUT_LABELS[statut]}
+            </span>
+
+            {/* Pièces — chips lisibles */}
+            {piecesTotal > 0 && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[15px]">
+                {fournis > 0 && (
+                  <span className="flex items-center gap-1.5 font-medium text-success">
+                    <IconSucces className="h-4 w-4 shrink-0" strokeWidth={2} />
+                    {fournis} fourni{fournis > 1 ? 's' : ''}
+                  </span>
+                )}
+                {repris > 0 && (
+                  <span className="flex items-center gap-1.5 font-medium" style={{ color: C.blue }}>
+                    <IconRafraichir className="h-4 w-4 shrink-0" strokeWidth={2} />
+                    {repris} à vérifier
+                  </span>
+                )}
+                {manquants > 0 && (
+                  <span className="flex items-center gap-1.5 font-medium text-destructive">
+                    <IconErreur className="h-4 w-4 shrink-0" strokeWidth={2} />
+                    {manquants} manquant{manquants > 1 ? 's' : ''}
+                  </span>
+                )}
+                {enAttente > 0 && (
+                  <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                    <span className="h-2 w-2 rounded-full bg-border shrink-0" />
+                    {enAttente} en attente
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Échéance */}
+            {nextDeadline && (
+              <div
+                className={`flex items-center gap-2 text-[15px] ${urgent ? 'font-semibold text-destructive' : 'text-muted-foreground'}`}
+              >
+                {urgent ? (
+                  <IconTemps className="h-4 w-4 shrink-0" strokeWidth={2} />
+                ) : (
+                  <IconCalendrier className="h-4 w-4 shrink-0" strokeWidth={1.8} />
+                )}
+                <span className="truncate">
+                  {nextDeadline.label} · {formatDate(nextDeadline.date)}
+                </span>
+                {urgent && (
+                  <span className="ml-auto shrink-0 rounded-md bg-destructive px-2 py-0.5 text-[14px] font-bold text-destructive-foreground">
+                    J-{daysUntil(nextDeadline.date)}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Statut — pastille franche à point coloré */}
-          <span
-            className="inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[15.5px] font-semibold"
-            style={{ background: tint, color: accent }}
-          >
-            <span className="h-2 w-2 rounded-full" style={{ background: accent }} />
-            {AIDE_SUIVI_STATUT_LABELS[statut]}
-          </span>
-
-          {/* Pièces — chips lisibles */}
-          {piecesTotal > 0 && (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[15px]">
-              {fournis > 0 && (
-                <span className="flex items-center gap-1.5 font-medium text-success">
-                  <IconSucces className="h-4 w-4 shrink-0" strokeWidth={2} />
-                  {fournis} fourni{fournis > 1 ? 's' : ''}
-                </span>
-              )}
-              {repris > 0 && (
-                <span className="flex items-center gap-1.5 font-medium" style={{ color: C.blue }}>
-                  <IconRafraichir className="h-4 w-4 shrink-0" strokeWidth={2} />
-                  {repris} à vérifier
-                </span>
-              )}
-              {manquants > 0 && (
-                <span className="flex items-center gap-1.5 font-medium text-destructive">
-                  <IconErreur className="h-4 w-4 shrink-0" strokeWidth={2} />
-                  {manquants} manquant{manquants > 1 ? 's' : ''}
-                </span>
-              )}
-              {enAttente > 0 && (
-                <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
-                  <span className="h-2 w-2 rounded-full bg-border shrink-0" />
-                  {enAttente} en attente
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Échéance */}
-          {nextDeadline && (
-            <div
-              className={`flex items-center gap-2 text-[15px] ${urgent ? 'font-semibold text-destructive' : 'text-muted-foreground'}`}
+          {/* Action franche — invitation claire à ouvrir le dossier */}
+          <div className="mt-auto px-5 pb-5">
+            <span
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[17px] font-semibold text-white transition-shadow duration-200 group-hover:shadow-md"
+              // Le bleu adouci des écrans (ecrans.css), comme les autres boutons de la page.
+              style={{ background: 'var(--ecran-bleu, var(--primary))' }}
             >
-              {urgent ? (
-                <IconTemps className="h-4 w-4 shrink-0" strokeWidth={2} />
-              ) : (
-                <IconCalendrier className="h-4 w-4 shrink-0" strokeWidth={1.8} />
-              )}
-              <span className="truncate">
-                {nextDeadline.label} · {formatDate(nextDeadline.date)}
-              </span>
-              {urgent && (
-                <span className="ml-auto shrink-0 rounded-md bg-destructive px-2 py-0.5 text-[14px] font-bold text-destructive-foreground">
-                  J-{daysUntil(nextDeadline.date)}
-                </span>
-              )}
-            </div>
-          )}
+              Ouvrir le dossier
+              <ArrowRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-0.5" />
+            </span>
+          </div>
         </div>
-
-        {/* Action franche — invitation claire à ouvrir le dossier */}
-        <div className="mt-auto px-5 pb-5">
-          <span
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[17px] font-semibold text-white transition-shadow duration-200 group-hover:shadow-md"
-            // Le bleu adouci des écrans (ecrans.css), comme les autres boutons de la page.
-            style={{ background: 'var(--ecran-bleu, var(--primary))' }}
-          >
-            Ouvrir le dossier
-            <ArrowRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-0.5" />
-          </span>
-        </div>
-      </div>
-    </Link>
+      </Link>
+    </>
   );
 }
 

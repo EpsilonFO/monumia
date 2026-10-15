@@ -79,6 +79,10 @@ ECRITS = (
     "backend/data/catalogue/rebuts",
     # Les jugements de Jev de la cohérence du typage, en ajout seul.
     "backend/data/catalogue/coherence",
+    # Le dernier listing sain de chaque guide, et les aides que leur guide ne
+    # liste plus (`catalogue.sorties`) : le retrait efface aussi `data/aides/<slug>.yaml`.
+    "backend/data/catalogue/listings",
+    "backend/data/catalogue/retirees",
 )
 FICHIERS_ECRITS = (
     "backend/data/veille-state.yaml",
@@ -341,12 +345,16 @@ def etapes(reg: Registre, journal: Path, parties: Path) -> list[Etape]:
             )
         )
     if reg.proprietaires["prospection"] == "nouvelle":
-        # Un quart des territoires chaque semaine (décision 2 : balayage mensuel).
+        # Une part des territoires chaque semaine : chacun revient toutes les
+        # `rotation_territoires` semaines (2 depuis le 2026-10-15, 4 avant).
+        # Le rang se compte en semaines depuis l'an 1, pas en semaines ISO :
+        # l'année à 53 semaines ferait sauter un tour.
         from prospection.territoires import charger_territoires
 
+        n = reg.reglages.rotation_territoires
         noms = sorted(charger_territoires())
-        quart = dt.date.today().isocalendar().week % 4
-        for nom in noms[quart::4]:
+        rang = dt.date.today().toordinal() // 7 % n
+        for nom in noms[rang::n]:
             liste.append(
                 Etape(
                     f"entree-{nom}",

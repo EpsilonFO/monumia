@@ -237,3 +237,35 @@ def test_l_entree_ne_rejuge_pas_une_url_de_la_file(
         file=file,
     )
     assert x.candidats == 0 and x.deja_juges == 1 and x.jugements == []
+
+
+def test_le_listing_compte_le_catalogue_et_ignore_les_urls_en_boucle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Le listing des sorties : tout ce que le guide liste, aides déjà au catalogue comprises."""
+    from prospection import collecte
+
+    def collecter(*a: Any, **k: Any) -> collecte.Collecte:
+        c = collecte.Collecte()
+        c.candidats = [collecte.Candidat("https://x.fr/a/b/a/b/a/b/aide", "En boucle")]
+        c.doublons = [("https://x.fr/aides/connue", "91-connue")]
+        c.notes = ["1 URL de fiche trouvée"]
+        return c
+
+    monkeypatch.setattr(collecte, "collecter", collecter)
+    x = entree.explorer(
+        "91",
+        registre=charger(),
+        vue=Vue([]),
+        jev=Jev(0.3),
+        client_tri=None,
+        lecteur=Lecteur("proprietaire_gestionnaire", "bien_ou_lieu"),
+        modele_lecture="m",
+        consigner=lambda e: e,
+        fetcheur=None,
+    )
+    assert x.listing is not None
+    assert [(e.url, e.slug) for e in x.listing.entrees] == [
+        ("https://x.fr/aides/connue", "91-connue")
+    ]
+    assert x.listing.notes == ["1 URL de fiche trouvée"]
