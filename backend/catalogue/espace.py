@@ -519,7 +519,9 @@ def ligne_mesures(mesures: Iterable[dict[str, int]]) -> str | None:
         f"{total['polarites_restantes']} resté(s) ; "
         f"{total['alertes_faits']} alerte(s) de fait : {total['alertes_reutilisees']} "
         f"réutilisée(s), {total['alertes_maintenues']} fait(s) maintenu(s), "
-        f"{total['alertes_abandonnees']} abandonnée(s) ; {total['faits_neufs']} fait(s) neuf(s)."
+        f"{total['alertes_abandonnees']} abandonnée(s) ; {total['faits_neufs']} fait(s) neuf(s) ; "
+        f"{total['reformulations_proposees']} reformulation(s) de question proposée(s), "
+        f"{total['reformulations_refusees']} refusée(s)."
     )
 
 

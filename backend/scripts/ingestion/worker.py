@@ -68,6 +68,10 @@ class ConfigIngestion:
     # au premier run, et le modèle y perdrait le gabarit dont il dispose en
     # production — le banc mesurerait alors une situation qui n'existe pas.
     reference_dir: Path = AIDES_DIR
+    # Exposer `proposer_reformulation` (R1-reformulation) : la nouvelle chaîne
+    # seulement, qui remonte la proposition en case. L'ancienne n'a pas de
+    # circuit de cases, la proposition s'y perdrait.
+    reformulation: bool = False
 
     def atelier(self, slug: str) -> Atelier:
         if self.sortie is not None:
@@ -165,6 +169,9 @@ class ResultatIngestion:
     #: Où le temps est passé, en secondes : `modele` (appels du modèle
     #: d'extraction), `outil <nom>` (dont `lint` et `verification_adversariale`).
     durees: dict[str, float] = field(default_factory=dict)
+    #: La reformulation de question proposée par l'agent (une au plus), telle
+    #: qu'elle remontera en case `R-reformulation` si l'aide est acceptée.
+    reformulations: list[dict] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -420,6 +427,7 @@ def ingerer_aide(
             journal=journal,
             compteur=compteur_local,
             entete_review=entete_review,
+            reformulation=config.reformulation,
         )
         reference = choisir_aide_reference(slug, config.reference_dir)
         existante = (
@@ -514,6 +522,7 @@ def ingerer_aide(
                 else None
             ),
             durees={k: round(v, 1) for k, v in durees.items()},
+            reformulations=list(etat.reformulations.values()),
             hors_perimetre=(
                 (etat.hors_perimetre.categorie, etat.hors_perimetre.motif)
                 if etat.hors_perimetre

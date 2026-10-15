@@ -1,4 +1,4 @@
-"""Les outils de l'agent d'ingestion — quatorze, tous bornés au slug en cours.
+"""Les outils de l'agent d'ingestion — dix-sept, tous bornés au slug en cours.
 
 Pas de bash, pas de lecture de fichier arbitraire, pas d'écriture hors des
 quatre chemins de l'atelier. Ce n'est pas de la méfiance envers le modèle :
@@ -25,6 +25,7 @@ Deux outils portent l'essentiel de la qualité :
 # dans son espace de noms — `Annotated[str, Field(description=…)]` y arriverait
 # sous forme de chaîne, et la description que lit le modèle serait perdue.
 
+import contextlib
 import re
 import sys
 from collections import Counter
@@ -58,6 +59,7 @@ from veille_text import (
 from aides_schema import Aide, FactDef, charger_yaml, load_aide
 
 from . import faits as faits_mod
+from . import reformulation as reformulation_mod
 from .atelier import Atelier
 from .boucle import Journal, JournalMuet
 from .verification import RapportVerification, verifier
@@ -83,6 +85,8 @@ MIN_CAR_REVIEW = 800
 MAX_VERIFICATIONS = 3
 # Au-delà, le rappel des verdicts précédents cesse d'être lisible.
 MAX_CAR_VERDICT = 200
+# Au-delà, `conditions_du_fait` compte par aide plutôt que de lister.
+MAX_CITATIONS_AFFICHEES = 30
 # En dessous, une page HTML n'a pas de substance : c'est une SPA dont le corps
 # est monté en JavaScript (mesuré sur aides.hautsdefrance.fr / plateforme Galis).
 SEUIL_SPA = 500
@@ -147,6 +151,12 @@ class EtatOutils:
     #: Conditions dont le lint a refusé le prédicat (`catalogue.polarite`).
     polarites_levees: set[str] = field(default_factory=set)
     polarites_derniers: list[str] = field(default_factory=list)
+    #: Les faits dont l'agent a lu toutes les citations (`conditions_du_fait`) :
+    #: `proposer_reformulation` l'exige, comme `proposer_fait` exige `detail_fait`.
+    faits_inspectes: set[str] = field(default_factory=set)
+    #: La reformulation proposée par cette aide (une au plus), clé du fait -> entrée.
+    reformulations: dict[str, dict] = field(default_factory=dict)
+    reformulations_refusees: int = 0
 
     def mesures_espace(self, texte_aide: str | None) -> dict[str, int]:
         """Ce que l'agent a fait des signaux de l'espace, pour le rapport du run.
@@ -177,6 +187,9 @@ class EtatOutils:
             "alignements_restants": len(self.alignements_derniers),
             "polarites_levees": len(self.polarites_levees),
             "polarites_restantes": len(self.polarites_derniers),
+            "reformulations_proposees": self.appels["proposer_reformulation"]
+            - self.reformulations_refusees,
+            "reformulations_refusees": self.reformulations_refusees,
         }
 
 
@@ -355,10 +368,19 @@ def outils_pour(
     journal: Journal | None = None,
     compteur: Compteur | None = None,
     entete_review: Callable[[], str] | None = None,
+    reformulation: bool = False,
+    juge_polarite: object | None = None,
 ) -> tuple[list[providall.Tool], EtatOutils]:
-    """Les seize outils, fermés sur cet atelier. Renvoie aussi leur état partagé."""
+    """Les outils, fermés sur cet atelier. Renvoie aussi leur état partagé.
+
+    Seize outils, plus `proposer_reformulation` quand `reformulation` est vrai :
+    la nouvelle chaîne seulement, la seule qui remonte la proposition en case
+    (`catalogue.reformulations`). `juge_polarite` remplace Jev dans le
+    rejugement P1 de la reformulation (tests).
+    """
     etat = EtatOutils()
     journal = journal or JournalMuet()
+    catalogue_charge: dict[str, Aide] = {}
 
     def compter(nom: str) -> None:
         etat.appels[nom] += 1
@@ -746,6 +768,130 @@ def outils_pour(
                 etat.faits_proposes.remove(fact_id)
             pending.pop(fact_id, None)
             journal.evenement(f"fait retiré : {fact_id} — {' '.join(motif.split())[:120]}")
+        return message
+
+    def _aides_du_catalogue() -> dict[str, Aide]:
+        """Le catalogue que lisent les citations : chargé une fois, l'aide en cours relue à chaque appel.
+
+        Le dossier du run passe devant le catalogue en service : en
+        ré-extraction, c'est la version de l'agent qui compte.
+        """
+        if not catalogue_charge:
+            for dossier in reversed(atelier.dossiers_catalogue):
+                for chemin in sorted(dossier.glob("*.yaml")):
+                    try:
+                        catalogue_charge[chemin.stem] = load_aide(chemin)
+                    except Exception:  # noqa: BLE001 — une aide illisible ne cite rien
+                        continue
+        aides = dict(catalogue_charge)
+        aides.pop(atelier.slug, None)
+        # L'aide en cours mal formée ne cite rien : le lint le dira.
+        if atelier.yaml_path.exists():
+            with contextlib.suppress(Exception):
+                aides[atelier.slug] = load_aide(atelier.yaml_path)
+        return aides
+
+    def conditions_du_fait(
+        fact_id: Annotated[str, Field(description="Identifiant exact du fait")],
+    ) -> str:
+        """Toutes les conditions du catalogue qui citent un fait : gates, `applies_if`, `pertinent_si`.
+
+        Pour chacune : l'aide et la condition, son effet, son prédicat et son
+        texte. C'est ce qu'il faut relire avant de toucher à la question d'un
+        fait : chaque prédicat de cette liste doit rester juste avec la
+        nouvelle tournure.
+        """
+        compter("conditions_du_fait")
+        if fact_id not in facts and fact_id not in pending:
+            return faits_mod.detail(facts, pending, fact_id)
+        citations = faits_mod.citations_du_fait(
+            _aides_du_catalogue(), {**facts, **pending}, fact_id
+        )
+        etat.faits_inspectes.add(fact_id)
+        if not citations:
+            return f"`{fact_id}` n'est cité par aucune condition du catalogue."
+        aides_citantes = Counter(c.slug or c.ref for c in citations)
+        lignes = [
+            f"`{fact_id}` est cité {len(citations)} fois, par {len(aides_citantes)} aide(s) "
+            "ou fait(s) :"
+        ]
+        lignes += [f"  {c.ligne()}" for c in citations[:MAX_CITATIONS_AFFICHEES]]
+        reste = citations[MAX_CITATIONS_AFFICHEES:]
+        if reste:
+            par_aide = Counter(c.slug or c.ref for c in reste)
+            lignes.append(
+                f"  … et {len(reste)} autre(s) : "
+                + ", ".join(f"{k} ({n})" for k, n in par_aide.most_common())
+            )
+        return "\n".join(lignes)
+
+    def proposer_reformulation(
+        fact_id: Annotated[str, Field(description="Identifiant exact d'un fait de facts.yaml")],
+        question: Annotated[
+            str,
+            Field(
+                description="La nouvelle question, UNE phrase : même information, même "
+                "population qui répond oui, tournure plus juste"
+            ),
+        ],
+        help: Annotated[
+            str,
+            Field(description="La nouvelle aide contextuelle ; vide = garder l'actuelle"),
+        ],
+        justification: Annotated[
+            str,
+            Field(
+                description="Quel propriétaire, dans le cas de ta source, hésiterait ou "
+                "répondrait mal avec la question actuelle, et pourquoi"
+            ),
+        ],
+    ) -> str:
+        """EXCEPTION : propose de reformuler la question d'un fait existant. Une par aide au plus.
+
+        Ordre de la doctrine : réutiliser le fait tel quel, puis seulement
+        reformuler, et en dernier un fait neuf ou `manual_check`. Ton aide doit
+        être juste avec la question ACTUELLE : la reformulation améliore ce que
+        lit le propriétaire, elle ne conditionne jamais ton typage.
+
+        Seulement quand tu réutilises CE fait et que sa tournure ferait hésiter
+        ou mal répondre un propriétaire dans le cas de ta source (question qui
+        nomme un seul cas, jargon, ambiguïté). Jamais pour changer le sens,
+        élargir ou rétrécir qui répond oui, introduire un seuil ou inverser la
+        polarité. Appelle d'abord `detail_fait` et `conditions_du_fait` : chaque
+        condition qui cite le fait est rejugée avec ta question, et une seule
+        qui change de sens fait refuser la proposition.
+
+        Rien n'est réécrit tout de suite : la proposition devient une case pour
+        Félix si ton aide est acceptée. Rappeler l'outil sur le même fait
+        remplace ta proposition. Mentionne-la dans la fiche de review.
+        """
+        compter("proposer_reformulation")
+        from catalogue.registre import seuils_reformulation
+
+        message, entree = reformulation_mod.proposer(
+            atelier,
+            facts,
+            fact_id,
+            question,
+            help,
+            justification,
+            citations=(
+                faits_mod.citations_du_fait(_aides_du_catalogue(), {**facts, **pending}, fact_id)
+                if fact_id in facts
+                else []
+            ),
+            aides=_aides_du_catalogue(),
+            detailles=etat.faits_detailles,
+            inspectes=etat.faits_inspectes,
+            deja=etat.reformulations,
+            seuils=seuils_reformulation(),
+            juge=juge_polarite,
+        )
+        if entree is None:
+            etat.reformulations_refusees += 1
+        else:
+            etat.reformulations = {fact_id: entree}
+            journal.evenement(f"reformulation proposée : {fact_id}")
         return message
 
     # ------------------------------------------------------------------ aide
@@ -1141,8 +1287,10 @@ def outils_pour(
             chercher_faits,
             conditions_voisines,
             detail_fait,
+            conditions_du_fait,
             proposer_fait,
             retirer_fait,
+            *((proposer_reformulation,) if reformulation else ()),
             ecrire_aide,
             lire_aide,
             lint,
