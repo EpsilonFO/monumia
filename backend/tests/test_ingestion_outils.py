@@ -795,3 +795,15 @@ class TestHorsPerimetre(BaseOutils):
         sortie = self.declarer(citation="   ")
         self.assertTrue(sortie.startswith("ERREUR"))
         self.assertIsNone(self.etat.hors_perimetre)
+
+
+def test_points_de_fiche_manquants() -> None:
+    from ingestion.outils import points_de_fiche_manquants
+
+    texte = (
+        "conditions:\n- id: a\n  text: t\n- id: b\n  text: t\n"
+        "fiche:\n  points:\n    a:\n      titre: A\n"
+    )
+    assert points_de_fiche_manquants(texte) == ["b"]
+    # Une aide sans fiche n'en exige pas.
+    assert points_de_fiche_manquants("conditions:\n- id: a\n  text: t\n") == []

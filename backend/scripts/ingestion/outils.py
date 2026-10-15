@@ -185,6 +185,26 @@ class EtatOutils:
 # ---------------------------------------------------------------------------
 
 
+def points_de_fiche_manquants(texte_aide: str) -> list[str]:
+    """Les conditions sans point dans `fiche.points`, quand l'aide a des points."""
+    from aides_schema import charger_yaml
+
+    try:
+        data = charger_yaml(texte_aide) or {}
+    except Exception:  # noqa: BLE001 — le lint signale déjà un YAML illisible
+        return []
+    points = (
+        (data.get("fiche") or {}).get("points") if isinstance(data.get("fiche"), dict) else None
+    )
+    if not isinstance(points, dict) or not points:
+        return []
+    return [
+        str(c.get("id"))
+        for c in data.get("conditions") or []
+        if isinstance(c, dict) and c.get("id") and c["id"] not in points
+    ]
+
+
 def _texte_snapshot(chemin: Path) -> str:
     """Contenu lisible d'un snapshot : markdown sans en-tête, ou texte du PDF."""
     if chemin.suffix.lower() == ".pdf":
@@ -908,6 +928,18 @@ def outils_pour(
             )
         if panne_p:
             texte += f"\n{panne_p}"
+        # Les points de la fiche suivent les conditions : une condition neuve sans
+        # point casse la page de l'aide (2026-10-15 : 27 points manquants après
+        # une veille, dans 14 aides). Bloquant dès que l'aide a une fiche.
+        if manquants := points_de_fiche_manquants(atelier.yaml_path.read_text(encoding="utf-8")):
+            etat.dernier_lint_ok = False
+            texte += (
+                "\n\nPoints de fiche manquants (BLOQUANT) : l'aide a un bloc `fiche:`, et "
+                "chaque condition y a son point. Ajoute sous `fiche.points` une entrée par "
+                "condition, clé = id de la condition, avec `titre` (court) et `resume` (ce que "
+                "dit la condition, sans rien ajouter), comme les points voisins : "
+                + ", ".join(f"`{i}`" for i in manquants)
+            )
         return texte
 
     def verification_adversariale() -> str:

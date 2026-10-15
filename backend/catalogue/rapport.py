@@ -14,7 +14,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from catalogue.cases import Case
+from catalogue.cases import Case, deja_posees
 
 
 @dataclass
@@ -31,20 +31,49 @@ class Rapport:
     cases: list[Case] = field(default_factory=list)
     sections: list[Section] = field(default_factory=list)
 
-    def rendre(self) -> str:
+    def rendre(self, deja: set[str] | frozenset[str] = frozenset()) -> str:
+        """Le rapport. `deja` : les cases déjà posées dans un rapport précédent ;
+        une case pour information qui y figure n'est pas répétée."""
         lignes = [f"# Semaine du {self.jour.isoformat()}", "", f"Run `{self.run}`.", ""]
         lignes += ["## En-tête", "", *self.entete, ""]
-        lignes += ["## À trancher", ""]
-        if self.cases:
+        a_trancher = [c for c in self.cases if c.a_trancher]
+        infos = [c for c in self.cases if not c.a_trancher]
+        nouvelles = [c for c in infos if c.id not in deja]
+        lignes += [f"## À trancher ({len(a_trancher)})", ""]
+        if a_trancher:
             lignes += [
-                "Coche une option par case, enregistre : le run suivant lit tes réponses. "
-                "Une case non cochée reste.",
+                "Sans réponse, le changement vu dans la source n'est pas appliqué et l'ancienne "
+                "valeur reste servie. Coche une option par case, enregistre : le run suivant lit "
+                "tes réponses. Une case non cochée reste.",
                 "",
             ]
-            for c in self.cases:
+            for c in a_trancher:
                 lignes += c.rendre()
         else:
             lignes += ["Rien.", ""]
+        lignes += [f"## Pour information ({len(infos)})", ""]
+        if infos:
+            lignes += [
+                "Sans réponse, la version en service reste : c'est le bon défaut. Ne coche que "
+                "si tu veux agir.",
+                "",
+            ]
+        if nouvelles:
+            sortes = Counter(c.titre for c in nouvelles)
+            lignes += [
+                "<details>",
+                f"<summary>{len(nouvelles)} nouvelle(s) : {compte(sortes)}</summary>",
+                "",
+            ]
+            for c in nouvelles:
+                lignes += c.rendre()
+            lignes += ["</details>", ""]
+        if len(nouvelles) < len(infos):
+            lignes += [
+                f"{len(infos) - len(nouvelles)} autre(s), déjà posée(s) dans un rapport précédent "
+                "et inchangée(s), ne sont pas répétée(s) : y répondre là-bas vaut toujours.",
+                "",
+            ]
         for s in self.sections:
             lignes += [f"## {s.titre}", "", *s.lignes, ""]
         return "\n".join(lignes).rstrip() + "\n"
@@ -58,7 +87,8 @@ class Rapport:
             chemin = dossier / f"{self.jour.isoformat()}-semaine-{n}.md"
             n += 1
         temporaire = chemin.with_suffix(".md.tmp")
-        temporaire.write_text(self.rendre(), encoding="utf-8")
+        deja = deja_posees(p for p in dossier.glob("*-semaine*.md") if p != chemin)
+        temporaire.write_text(self.rendre(deja), encoding="utf-8")
         temporaire.replace(chemin)
         return chemin
 

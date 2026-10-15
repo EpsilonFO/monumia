@@ -155,6 +155,30 @@ def test_une_divergence_de_typage_est_une_case_jamais_une_ecriture() -> None:
     assert r.cible["conditions"] == [c] and [k.sorte for k in r.cases] == ["reextraction-typage"]
 
 
+def test_une_divergence_de_typage_sans_soupcon_sur_la_version_en_service_n_est_pas_une_case() -> (
+    None
+):
+    c = _cond("a", "Phrase A gardée.")
+    a = dict(c, kind="manual_check", effect="gate")
+    ancien = {"slug": "x", "calendrier": {"permanent": False}, "conditions": [c]}
+    agent = {"slug": "x", "calendrier": {"permanent": False}, "conditions": [a]}
+    vues: list[str] = []
+
+    def suspect(cond: dict[str, Any]) -> bool:
+        vues.append(cond["id"])
+        return False
+
+    r = rx.retour(
+        "x", ancien, agent, BASE, FRAIS, {"fait_connu"}, "e", URLS, typage_suspect=suspect
+    )
+    assert r.cible["conditions"] == [c] and r.cases == [] and vues == ["a"]
+    assert any("typage proposé pour a écarté" in ch for ch in r.changements)
+    r = rx.retour(
+        "x", ancien, agent, BASE, FRAIS, {"fait_connu"}, "e", URLS, typage_suspect=lambda c: True
+    )
+    assert [k.sorte for k in r.cases] == ["reextraction-typage"]
+
+
 def test_un_retrait_n_est_ecrit_que_pour_une_info_dont_la_citation_a_disparu() -> None:
     info = _cond("c", "Phrase C disparue.")
     gate = _cond(
@@ -537,3 +561,29 @@ def test_le_groupe_de_l_agent_est_tue_au_delai(
     lancement = rx.lancer("x", tmp_path, 1.0, 0.5)
     assert lancement.panne == "delai" and lancement.resultat is None
     assert lances[0].poll() is not None
+
+
+def test_les_points_de_fiche_suivent_les_conditions() -> None:
+    gardee = _cond("a", "Phrase A gardée.")
+    retiree = _cond("c", "Phrase C disparue.")
+    neuve = dict(_cond("n", "Phrase A gardée."), id="neuve", quote="Phrase B nouvelle.")
+    sans_point = dict(neuve, id="sans-point", quote="Phrase B nouvelle.")
+    ancien = {
+        "slug": "x",
+        "calendrier": {"permanent": False},
+        "conditions": [gardee, retiree],
+        "fiche": {"titre": "T", "points": {"a": {"titre": "A"}, "c": {"titre": "C"}}},
+    }
+    agent = {
+        "slug": "x",
+        "calendrier": {"permanent": False},
+        "conditions": [gardee, neuve, sans_point],
+        "fiche": {"points": {"neuve": {"titre": "Neuve", "resume": "r"}}},
+    }
+    r = rx.retour("x", ancien, agent, BASE, FRAIS, {"fait_connu"}, "e", URLS)
+    ids = [c["id"] for c in r.cible["conditions"]]
+    points = r.cible["fiche"]["points"]
+    assert set(points) == set(ids) - {"sans-point"}
+    assert points["neuve"] == {"titre": "Neuve", "resume": "r"} and "c" not in points
+    assert r.cible["fiche"]["titre"] == "T"
+    assert any(k.titre == "points de fiche manquants" for k in r.cases)

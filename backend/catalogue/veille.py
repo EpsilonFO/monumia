@@ -1545,7 +1545,9 @@ def commande(
     total = time.perf_counter() - debut
     rapport = Rapport(jour, run)
     rapport.entete = [
-        f"- Veille : {len(bilan.resultats)} aides, {len(bilan.cases)} case(s), "
+        f"- Veille : {len(bilan.resultats)} aides, "
+        f"{sum(c.a_trancher for c in bilan.cases)} case(s) à trancher et "
+        f"{sum(not c.a_trancher for c in bilan.cases)} pour information, "
         f"{bilan.depense:.4f} $ facturés, {duree_lisible(total)}"
         + (" (à blanc, rien d'écrit)" if a_blanc else "")
         + ".",
