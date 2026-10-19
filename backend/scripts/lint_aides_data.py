@@ -37,6 +37,7 @@ import argparse
 import json
 import re
 import sys
+import unicodedata
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -940,6 +941,92 @@ def check_quotes(
     return absentes, degradees, hors_portee
 
 
+# ---------------------------------------------------------------------------
+# `plancher` : un seuil de DÉPENSES, pas le minimum de l'aide
+# ---------------------------------------------------------------------------
+
+# Relecture du 2026-10-19 : 28 des 111 `plancher` du catalogue portaient le
+# montant minimal de la SUBVENTION (« la subvention ne pourra être inférieure à
+# 2 000 € »), que le schéma range dans `montant_min`. La doctrine d'ingestion le
+# disait déjà ; le contrôle regarde donc la source. Sur ces 111 cas, il en
+# signale 26 dont 24 justes (data/reviews/2026-10-19-banc-extract-lecture.md).
+# Les fenêtres sont prises dans le texte mis à plat (minuscules, sans accents).
+_PLANCHER_MINIMUM = re.compile(r"minim|plancher|seuil|inferieur|au moins")
+_PLANCHER_AIDE = re.compile(
+    r"(?<!projets )(?<!projet )\b(subventions?|aides?|participations?|interventions?|dotations?|feder)\b"
+)
+_PLANCHER_DEPENSE = re.compile(
+    r"\b(depenses?|travaux|investissements?|assiettes?|couts?|operations?|projets?|subventionnables?)\b"
+)
+# « 8 000 € minimum de subvention (soit 40 000 € de dépenses éligibles) »
+_PLANCHER_DEPENSE_APRES = re.compile(
+    r"^\s*(€|euros?)?\s*(ht|ttc|h\.t\.?)?\s*(minimum\s*)?(de|d')\s*(depenses?|travaux|investissement|cout)"
+)
+
+
+def _a_plat(texte: str) -> str:
+    decompose = unicodedata.normalize("NFKD", texte.lower().replace("’", "'"))
+    return "".join(c for c in decompose if not unicodedata.combining(c))
+
+
+def _formes_montant(valeur: float) -> list[str]:
+    n = int(valeur)
+    return [
+        f"{n:,}".replace(",", " "),
+        f"{n:,}".replace(",", "."),
+        str(n),
+        f"{n:,}".replace(",", " "),
+    ]
+
+
+def _nature_du_minimum(avant: str, apres: str) -> str | None:
+    """« aide », « depense » ou None : de quoi la valeur est-elle le minimum ?
+
+    Le mot le plus proche avant la valeur l'emporte : « plancher de subvention :
+    1 500 € » est une aide, « dépense subventionnable plancher : 3 000 € » une
+    dépense.
+    """
+    if _PLANCHER_DEPENSE_APRES.search(apres):
+        return "depense"
+    if not _PLANCHER_MINIMUM.search(avant):
+        return None
+    aide = [m.start() for m in _PLANCHER_AIDE.finditer(avant)]
+    depense = [m.start() for m in _PLANCHER_DEPENSE.finditer(avant)]
+    if not aide and not depense:
+        return None
+    return "aide" if aide and (not depense or aide[-1] > depense[-1]) else "depense"
+
+
+def check_plancher(aide: Aide, documents: list[tuple[str, str, str]]) -> list[str]:
+    """Avertit quand la source présente `plancher` comme un minimum d'AIDE.
+
+    Un avertissement, pas une erreur : la règle se trompe deux fois sur cent
+    onze, et l'agent qui l'a écrit relit la source. Le minimum de l'aide va
+    dans `montant_min` ; `plancher` ne reçoit que le seuil de dépenses.
+    """
+    valeur = aide.financement.plancher
+    if valeur is None or not documents or not float(valeur).is_integer():
+        return []
+    texte = _a_plat("\n".join(contenu for _, contenu, _ in documents))
+    votes: Counter[str] = Counter()
+    exemple = ""
+    for forme in _formes_montant(valeur):
+        motif = rf"(?<!\d)(?<!\d[ .  ]){re.escape(forme)}(?!\d)"
+        for m in re.finditer(motif, texte):
+            avant = texte[max(0, m.start() - 90) : m.start()]
+            if nature := _nature_du_minimum(avant, texte[m.end() : m.end() + 40]):
+                votes[nature] += 1
+                if nature == "aide" and not exemple:
+                    exemple = " ".join(texte[max(0, m.start() - 60) : m.end() + 5].split())
+    if votes["aide"] <= votes["depense"]:
+        return []
+    return [
+        f"{aide.slug}: financement.plancher = {int(valeur)} € ressemble à un minimum d'AIDE dans la "
+        f"source (« …{exemple} ») ; `plancher` est le seuil minimal de DÉPENSES, le minimum de "
+        "l'aide va dans `montant_min`"
+    ]
+
+
 def _extrait(quote: str, taille: int = 90) -> str:
     plat = " ".join(quote.split())
     return plat if len(plat) <= taille else plat[:taille] + "…"
@@ -1422,6 +1509,7 @@ def _bloc_quotes(rapport: RapportLint, global_mode: bool) -> None:
         rapport.quotes_absentes.extend(absentes)
         rapport.quotes_degradees.extend(degradees)
         rapport.quotes_hors_portee.extend(hors_portee)
+        rapport.avertissements.extend(check_plancher(aide, documents))
         if hors_portee and not documents:
             sans_snapshot.append(aide.slug)
         elif illisibles:

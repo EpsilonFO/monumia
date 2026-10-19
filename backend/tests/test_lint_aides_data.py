@@ -1359,3 +1359,62 @@ class TestPredicatNumerique(unittest.TestCase):
             ),
             [],
         )
+
+
+class TestPlancher(unittest.TestCase):
+    """`plancher` est un seuil de DÉPENSES : le minimum de l'aide va dans `montant_min`.
+
+    Relecture du 2026-10-19 : 28 des 111 planchers du catalogue portaient le
+    minimum de la subvention. Le contrôle lit la source autour de la valeur.
+    """
+
+    def _aide(self, plancher: float):
+        from aides_schema import Aide
+
+        return Aide.model_validate(
+            {
+                "slug": "x-truc",
+                "nom": "x",
+                "organisme": "Région",
+                "categorie": "region",
+                "type": "subvention",
+                "description": "d",
+                "source": {"url_officielle": "https://x.fr/a"},
+                "financement": {"plancher": plancher},
+            }
+        )
+
+    def _avertit(self, plancher: float, texte: str) -> bool:
+        from lint_aides_data import check_plancher
+
+        return bool(check_plancher(self._aide(plancher), [("page.md", texte, "md")]))
+
+    def test_minimum_de_subvention_signale(self):
+        self.assertTrue(
+            self._avertit(
+                2000, "Dans tous les cas, la subvention ne pourra être inférieure à 2 000 €."
+            )
+        )
+        self.assertTrue(self._avertit(1500, "Plancher de subvention : 1500 €"))
+        self.assertTrue(self._avertit(50000, "Plancher minimal de subvention FEDER : 50 000 €"))
+
+    def test_seuil_de_depenses_accepte(self):
+        self.assertFalse(self._avertit(3000, "Dépense subventionnable plancher : 3 000 €.H.T."))
+        self.assertFalse(self._avertit(50000, "Seuil minimum de dépenses éligibles : 50 000 € HT"))
+        self.assertFalse(self._avertit(1000, "Plancher des projets aidés : 1 000 € HT."))
+
+    def test_conversion_en_depenses_lue_apres_la_valeur(self):
+        # Le minimum d'aide est cité juste avant, mais la valeur est la dépense.
+        self.assertFalse(
+            self._avertit(
+                40000,
+                "Le seuil d'intervention est de 8 000 € minimum de subvention "
+                "(soit 40 000 € de dépenses éligibles).",
+            )
+        )
+
+    def test_sans_source_ni_plancher_rien(self):
+        from lint_aides_data import check_plancher
+
+        self.assertEqual(check_plancher(self._aide(2000), []), [])
+        self.assertFalse(self._avertit(2000, "Aucune mention de ce montant."))
