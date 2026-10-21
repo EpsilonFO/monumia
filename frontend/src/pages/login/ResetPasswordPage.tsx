@@ -9,6 +9,7 @@ import { getSupabase } from '@/lib/supabase';
 import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
 import { C, SERIF } from '@/lib/brand';
 import { toast } from 'sonner';
+import { Trans, useTranslation } from 'react-i18next';
 
 const MUTED = 'var(--muted-foreground)';
 const SUCCESS = 'var(--success)';
@@ -21,6 +22,7 @@ const inputCls = 'h-12 text-[17px] bg-card border-border focus:border-primary fo
  * persistSession=false) puis on met à jour le mot de passe via updateUser.
  */
 export function ResetPasswordPage() {
+  const { t } = useTranslation('compte');
   const navigate = useNavigate();
   const [ready, setReady] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export function ResetPasswordPage() {
       return;
     }
     if (!accessToken || type !== 'recovery') {
-      setLinkError('Ce lien de réinitialisation est invalide ou a expiré.');
+      setLinkError(t('ResetPasswordPage.lienInvalide'));
       return;
     }
 
@@ -53,24 +55,24 @@ export function ResetPasswordPage() {
       .setSession({ access_token: accessToken, refresh_token: refreshToken ?? '' })
       .then(({ error }) => {
         if (error) {
-          setLinkError('Ce lien de réinitialisation est invalide ou a expiré.');
+          setLinkError(t('ResetPasswordPage.lienInvalide'));
           return;
         }
         setReady(true);
         // Nettoie l'URL pour ne pas laisser traîner les jetons.
         window.history.replaceState(null, '', window.location.pathname);
       });
-  }, []);
+  }, [t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ready || saving) return;
     if (password !== confirm) {
-      toast.error('Les deux mots de passe ne correspondent pas');
+      toast.error(t('ResetPasswordPage.motsDePasseDifferents'));
       return;
     }
     if (!valid) {
-      toast.error('Le mot de passe doit contenir au moins 8 caractères et 1 chiffre');
+      toast.error(t('commun.motDePasseInvalide'));
       return;
     }
     setSaving(true);
@@ -78,10 +80,10 @@ export function ResetPasswordPage() {
       const { error } = await getSupabase().auth.updateUser({ password });
       if (error) throw new Error(error.message);
       await getSupabase().auth.signOut().catch(() => {});
-      toast.success('Votre mot de passe a été changé. Connectez-vous avec le nouveau.');
+      toast.success(t('ResetPasswordPage.motDePasseChange'));
       navigate('/login');
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Impossible de changer le mot de passe.');
+      toast.error(err instanceof Error ? err.message : t('ResetPasswordPage.erreurChangement'));
     } finally {
       setSaving(false);
     }
@@ -91,12 +93,12 @@ export function ResetPasswordPage() {
     <AuthLayout>
       <div className="space-y-2.5">
         <h1 className="text-[clamp(1.9rem,4vw,2.5rem)] leading-[1.1]" style={{ fontFamily: SERIF, color: C.ink }}>
-          Nouveau <span style={{ color: C.blue }}>mot de passe</span>
+          <Trans t={t} i18nKey="ResetPasswordPage.titre" components={{ accent: <span style={{ color: C.blue }} /> }} />
         </h1>
         <p className="text-[17px]" style={{ color: MUTED }}>
           {linkError
-            ? 'Le lien ne fonctionne plus.'
-            : 'Choisissez un nouveau mot de passe pour votre compte.'}
+            ? t('ResetPasswordPage.lienMort')
+            : t('ResetPasswordPage.intro')}
         </p>
       </div>
 
@@ -110,17 +112,17 @@ export function ResetPasswordPage() {
             className="flex h-12 w-full items-center justify-center gap-2 rounded-lg text-[16px] font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: C.orange }}
           >
-            Retour à la connexion
+            {t('commun.retourConnexion')}
           </button>
           <p className="text-center text-[15px]" style={{ color: MUTED }}>
-            Vous pourrez redemander un lien depuis « Mot de passe oublié ? ».
+            {t('ResetPasswordPage.redemanderLien')}
           </p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-1.5">
             <Label htmlFor="new-password" className="text-[16px] font-medium" style={{ color: C.ink }}>
-              Nouveau mot de passe
+              {t('ResetPasswordPage.nouveauMotDePasse')}
             </Label>
             <div className="relative">
               <Input
@@ -139,7 +141,7 @@ export function ResetPasswordPage() {
                 className="absolute right-3.5 top-1/2 -translate-y-1/2"
                 style={{ color: MUTED }}
                 onClick={() => setShow((v) => !v)}
-                aria-label={show ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                aria-label={show ? t('ResetPasswordPage.masquerMotDePasse') : t('ResetPasswordPage.afficherMotDePasse')}
               >
                 {show ? <EyeOff className="h-4 w-4" /> : <IconVoir className="h-4 w-4" />}
               </button>
@@ -158,7 +160,7 @@ export function ResetPasswordPage() {
 
           <div className="space-y-1.5">
             <Label htmlFor="confirm-password" className="text-[16px] font-medium" style={{ color: C.ink }}>
-              Confirmer le mot de passe
+              {t('commun.confirmerMotDePasse')}
             </Label>
             <Input
               id="confirm-password"
@@ -181,7 +183,7 @@ export function ResetPasswordPage() {
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (
               <>
-                Changer mon mot de passe
+                {t('ResetPasswordPage.changerMotDePasse')}
                 <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </>
             )}

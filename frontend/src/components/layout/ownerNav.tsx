@@ -1,10 +1,12 @@
 import { NavLink } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { IconAccount } from '@/components/icons';
 import { ROUTES } from '@/constants/routes';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /** Avatar de compte ancré à droite de la barre haute — mène directement au profil. */
 export function OwnerAccountMenu() {
+  const { t } = useTranslation('shell');
   const user = useAuthStore((s) => s.user);
 
   const initials =
@@ -25,7 +27,7 @@ export function OwnerAccountMenu() {
         {initials || <IconAccount size={18} />}
       </span>
       <span className="hidden max-w-[159.5px] truncate text-[15.5px] font-semibold text-foreground sm:block">
-        {user?.prenom ?? 'Mon compte'}
+        {user?.prenom ?? t('ownerNav.monCompte')}
       </span>
     </NavLink>
   );

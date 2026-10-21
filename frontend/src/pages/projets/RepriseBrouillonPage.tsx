@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
 import { ArrowRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { WizardShell } from '@/components/project/wizard/WizardShell';
 import { DiagnosticLoader } from '@/components/project/wizard/DiagnosticLoader';
 import { PROJET_WIZARD_STEPS_INVITE } from '@/components/project/wizard/etapes';
@@ -35,7 +37,7 @@ function messageDepuis(err: unknown): Echec {
   }
   return {
     genre: 'autre',
-    message: err instanceof Error ? err.message : 'Une erreur est survenue.',
+    message: err instanceof Error ? err.message : i18n.t('projets:RepriseBrouillonPage.erreurGenerique'),
   };
 }
 
@@ -91,6 +93,7 @@ const LIEN_DISCRET = 'text-[16px] font-medium underline underline-offset-2';
  * diagnostic : une navigation concurrente laisserait un monument sans projet.
  */
 export function RepriseBrouillonPage() {
+  const { t } = useTranslation(['projets', 'common']);
   const navigate = useNavigate();
   const monumentBrouillon = useBrouillonInviteStore((s) => s.monument);
   const vider = useBrouillonInviteStore((s) => s.vider);
@@ -145,35 +148,35 @@ export function RepriseBrouillonPage() {
         <DiagnosticLoader />
       ) : echec.genre === 'offre' ? (
         <CarteEchec
-          titre="Votre compte a déjà un monument"
-          description="L'offre gratuite en couvre un seul. Multi-monuments lève la limite et réunit tous vos biens sur un même tableau de bord. Votre brouillon reste ici : il se reprendra tel quel."
+          titre={t('RepriseBrouillonPage.offre.titre')}
+          description={t('RepriseBrouillonPage.offre.description')}
         >
           <Link to={ROUTES.TARIFS()} className={BOUTON_PLEIN} style={{ background: C.orange }}>
-            Découvrir l&rsquo;offre Multi-monuments
+            {t('RepriseBrouillonPage.offre.decouvrir')}
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link to={ROUTES.MONUMENTS} className={LIEN_DISCRET} style={{ color: C.blue }}>
-            Voir mes monuments
+            {t('communs.voirMesMonuments')}
           </Link>
         </CarteEchec>
       ) : echec.genre === 'perime' ? (
         <CarteEchec
-          titre="Votre brouillon est trop ancien"
-          description="Le questionnaire a évolué depuis : mieux vaut repartir de votre monument, c'est l'affaire de deux minutes."
+          titre={t('RepriseBrouillonPage.perime.titre')}
+          description={t('RepriseBrouillonPage.perime.description')}
         >
           <Link
             to={ROUTES.MONUMENT_NEW}
             className={BOUTON_PLEIN}
             style={{ background: C.orange }}
           >
-            Décrire mon monument
+            {t('RepriseBrouillonPage.perime.decrire')}
             <ArrowRight className="h-4 w-4" />
           </Link>
         </CarteEchec>
       ) : (
         <CarteEchec
-          titre="Votre diagnostic n’a pas pu être enregistré"
-          description={`${echec.message} Vos réponses sont conservées : réessayez, rien ne sera créé en double.`}
+          titre={t('RepriseBrouillonPage.autre.titre')}
+          description={t('RepriseBrouillonPage.autre.description', { message: echec.message })}
         >
           <button
             type="button"
@@ -182,10 +185,10 @@ export function RepriseBrouillonPage() {
             style={{ background: C.orange }}
           >
             <IconRafraichir className="h-4 w-4" />
-            Réessayer
+            {t('common:actions.reessayer')}
           </button>
           <Link to={ROUTES.MONUMENTS} className={LIEN_DISCRET} style={{ color: C.blue }}>
-            Voir mes monuments
+            {t('communs.voirMesMonuments')}
           </Link>
         </CarteEchec>
       )}

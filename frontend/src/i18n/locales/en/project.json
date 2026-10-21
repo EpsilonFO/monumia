@@ -1,0 +1,217 @@
+{
+  "etatsEtape": {
+    "done": "step completed",
+    "current": "current step",
+    "upcoming": "upcoming step"
+  },
+  "rubriques": {
+    "monument": "The monument",
+    "projet": "The project",
+    "proprietaire": "The applicant"
+  },
+  "consignes": {
+    "plusieursReponses": "More than one answer allowed.",
+    "choisissezUneReponse": "Choose an answer.",
+    "choisissezAuMoinsUne": "Choose at least one answer."
+  },
+  "etapes": {
+    "peril": {
+      "libelle": "Monument condition",
+      "indice": "A question left unanswered on your monument record."
+    },
+    "familles": {
+      "libelle": "Activities",
+      "indice": "What you want to bring to life: schemes do not all fund the same activities."
+    },
+    "reprises": {
+      "libelle": "Your answers",
+      "indice": "What we already know about your monument."
+    },
+    "intention": {
+      "libelle": "Your project",
+      "indice": "What you want to do: the funding follows your aim."
+    },
+    "travaux": {
+      "libelle": "The works",
+      "indice": "What the works cover: some schemes only fund one type of structure."
+    },
+    "questionnaire": {
+      "libelle": "Questionnaire",
+      "indice": "A few minutes, no documents needed."
+    },
+    "diagnostic": {
+      "libelle": "Eligibility check",
+      "indice": "The funding available for your project."
+    },
+    "inscription": {
+      "libelle": "Your account",
+      "indice": "Free: your eligibility check is waiting just behind it."
+    }
+  },
+  "ParcoursTrail": {
+    "avancement": "Project progress",
+    "jalon": "{{etape}} ({{etat}})"
+  },
+  "ProjectEcheancier": {
+    "depassee": "Overdue",
+    "aujourdhui": "Today",
+    "joursRestants_one": "{{count}} day left",
+    "joursRestants_other": "{{count}} days left",
+    "surtitre": "Timeline",
+    "titre_one": "One date not to miss",
+    "titre_other": "{{count}} dates not to miss",
+    "intro": "The submission deadlines for your funding schemes, from the soonest to the latest.",
+    "echeanceDossier": "Application deadline",
+    "montantNonPublie": "Amount not published",
+    "voirAide": "View scheme",
+    "voirDossier": "View application",
+    "plusProches": "Show only the nearest",
+    "voirAutres_one": "Show {{count}} more date",
+    "voirAutres_other": "Show {{count}} more dates"
+  },
+  "WizardRail": {
+    "etapes": "Steps",
+    "quitter": "Exit",
+    "etatEntreParentheses": "({{etat}})",
+    "termine": "Done",
+    "votreMonument": "Your monument"
+  },
+  "WizardShell": {
+    "progression": "Questionnaire progress",
+    "progressionTexte": "{{pct}}% of the questionnaire completed",
+    "quitter": "Exit",
+    "quitterTitre": "Exit?",
+    "quitterMessage": "Your answers have not been saved yet: if you exit now, you will have to start the questionnaire again."
+  },
+  "EcranQuestion": {
+    "bonASavoir": "Good to know",
+    "reduire": "Show less",
+    "lireLaSuite": "Read more",
+    "titreCarte": "{{libelle}}: {{description}}",
+    "questionPrecedente": "Previous question",
+    "passer": "I don’t know, skip",
+    "modifiablePlusTard": "You can change your answers later."
+  },
+  "DiagnosticLoader": {
+    "messages": {
+      "analyse": "Analysing your monument…",
+      "recherche": "Finding matching funding schemes…",
+      "preparation": "Preparing your eligibility check…"
+    },
+    "titre": "One moment…",
+    "quelquesSecondes": "It only takes a few seconds."
+  },
+  "QuestionOptions": {
+    "plusieursReponses": "More than one answer allowed",
+    "passer": "Skip this question"
+  },
+  "PerilStep": {
+    "titre": "What condition is the monument in?",
+    "pourquoi": "At risk or in poor overall condition: weakened structure, not watertight, partial collapse, worsening damage. Several emergency schemes are reserved for these situations.",
+    "indices": {
+      "bon": "The monument is broadly sound, even if it needs routine maintenance work.",
+      "moyen": "There is some damage, but it threatens neither the structure nor the building envelope.",
+      "mauvais": "Significant damage affects the structure or the building envelope.",
+      "peril": "Weakened structure, not watertight, partial collapse, worsening damage."
+    }
+  },
+  "ProjectIntentStep": {
+    "titre": "What do you want to do?",
+    "consigne": "One answer only: this is the purpose of this project.",
+    "pourquoi": "We will then only ask you the questions relevant to this purpose. A different purpose means a separate project on the same monument.",
+    "indiceSuivant": "Choose an aim."
+  },
+  "ProjectTravauxStep": {
+    "titre": "What will the planned works cover?",
+    "pourquoi": "Some schemes only fund one specific type of structure.",
+    "indetermine": "Not decided yet",
+    "indiceSuivant": "Tick at least one type of works, or “Not decided yet”."
+  },
+  "ProjectFamillesStep": {
+    "titre": "What do you want to bring to life?",
+    "pourquoi": "Schemes do not all fund the same activities, and we will only ask you the questions for the ones you tick.",
+    "indiceSuivant": "Tick at least one activity, or “I don’t know yet”.",
+    "travaux": "Works are needed",
+    "travauxIndice": "Fitting out, bringing up to standard, restoration: we will ask you what they cover.",
+    "toutMontrer": "I don’t know yet, show me everything",
+    "toutMontrerIndice": "We will show you every scheme within reach of the monument, without filtering by activity."
+  },
+  "ProjectReprisesStep": {
+    "titre": "Reuse your previous answers?",
+    "aucuneReprise": "No answers reused: you will be asked all these questions again.",
+    "consigne_one": "{{count}} answer out of {{total}} will be reused. Untick any you want to be asked again.",
+    "consigne_other": "{{count}} answers out of {{total}} will be reused. Untick any you want to be asked again.",
+    "pourquoiProjet_one": "{{count}} answer from your project “{{titre}}” describes the monument and its applicant, not this particular project. We can reuse it so you do not have to answer twice. You can always redo the whole questionnaire from the project page.",
+    "pourquoiProjet_other": "{{count}} answers from your project “{{titre}}” describe the monument and its applicant, not this particular project. We can reuse them so you do not have to answer twice. You can always redo the whole questionnaire from the project page.",
+    "pourquoiAutresProjets_one": "{{count}} answer from your other projects describes the monument and its applicant, not this particular project. We can reuse it so you do not have to answer twice. You can always redo the whole questionnaire from the project page.",
+    "pourquoiAutresProjets_other": "{{count}} answers from your other projects describe the monument and its applicant, not this particular project. We can reuse them so you do not have to answer twice. You can always redo the whole questionnaire from the project page.",
+    "toutCocher": "Tick all",
+    "toutDecocher": "Untick all",
+    "dejaDonnee": "answer already given",
+    "compteBloc_one": "{{count}} of {{total}} reused",
+    "compteBloc_other": "{{count}} of {{total}} reused"
+  },
+  "InscriptionStep": {
+    "jusqua": "up to",
+    "financementsCumules": "in combined funding",
+    "taux": "{{taux}}%",
+    "coutTravaux": "of the cost of your works",
+    "derniereEtape": "Last step",
+    "diagnosticPret": "Your eligibility check is ready",
+    "manqueCompte": "All you need now is an account",
+    "reponsesEnregistrees": "Your answers are saved on this device. Log in: your monument and your project will be added to your account, and the eligibility check will open.",
+    "peuventContribuer_one": "funding scheme can contribute to your works.",
+    "peuventContribuer_other": "funding schemes can contribute to your works.",
+    "compare_one": "We compared your project with <nombre>{{count}}</nombre> funding scheme, one criterion at a time.",
+    "compare_other": "We compared your project with <nombre>{{count}}</nombre> funding schemes, one criterion at a time.",
+    "aucunFinancement": "No funding came out of this first pass",
+    "detailCritere": "The details will tell you which criterion stopped each scheme, and what might sometimes be enough to change the outcome.",
+    "ou": "or",
+    "seConnecter": "Log in to see my eligibility check",
+    "plusDeQuestions": "Answer a few more questions"
+  },
+  "BandeauReprises": {
+    "resumeProjet_one": "{{count}} answer reused from “{{titre}}” on this monument: see which one",
+    "resumeProjet_other": "{{count}} answers reused from “{{titre}}” on this monument: see which ones",
+    "resumeAutresProjets_one": "{{count}} answer reused from your other projects on this monument: see which one",
+    "resumeAutresProjets_other": "{{count}} answers reused from your other projects on this monument: see which ones",
+    "explication": "You agreed to reuse them, so you will not be asked them again. To correct them, redo the questionnaire from the project page."
+  },
+  "BilanTronc": {
+    "mobilisables_one": "available scheme",
+    "mobilisables_other": "available schemes",
+    "aConfirmer": "to be confirmed",
+    "ecartees": "ruled out by your answers",
+    "surAPortee_one": "out of {{count}} scheme within reach of your monument",
+    "surAPortee_other": "out of {{count}} schemes within reach of your monument",
+    "dontUneQuestion_one": "including {{count}} just one question away from a verdict",
+    "dontUneQuestion_other": "including {{count}} just one question away from a verdict",
+    "guichetsPlusTard_one": "its application window opens later",
+    "guichetsPlusTard_other": "their application windows open later",
+    "dontGuichetPlusTard_one": "including {{count}} whose application window opens later",
+    "dontGuichetPlusTard_other": "including {{count}} whose application windows open later"
+  },
+  "ProjectQuestionnaire": {
+    "troncTermine": "The core questions are done",
+    "troncExplication": "The remaining questions each concern only one scheme. You can keep them for later: you will be asked them again on the card of the scheme concerned.",
+    "calcul": "Calculating your eligibility check…",
+    "analyseEnCours": "Analysing funding schemes…",
+    "decouvrir": "See my eligibility check",
+    "repondreRestantes_one": "Answer the {{count}} remaining question",
+    "repondreRestantes_other": "Answer the {{count}} remaining questions",
+    "minutes": "(≈ {{minutes}} min)",
+    "revoir": "Review my answers",
+    "cestTout": "That’s it!",
+    "finRepondu_one": "You answered {{count}} question. We are updating your funding schemes.",
+    "finRepondu_other": "You answered {{count}} questions. We are updating your funding schemes.",
+    "finAucunePrecision": "No further details were needed. We are updating your funding schemes.",
+    "finQuestionsPassees": "No problem if you skipped some questions. We are updating your funding schemes.",
+    "lancer": "Run the eligibility check",
+    "pour": "For {{nom}}",
+    "pourMontant": "For {{nom}}, up to {{montant}}",
+    "pourEtAutres_one": "For {{nom}} and {{count}} other scheme",
+    "pourEtAutres_other": "For {{nom}} and {{count}} other schemes",
+    "pourEtAutresMontant_one": "For {{nom}} and {{count}} other scheme, up to {{montant}}",
+    "pourEtAutresMontant_other": "For {{nom}} and {{count}} other schemes, up to {{montant}}"
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "TeamPanel": {
+    "monument": {
+      "titre": "Monument team",
+      "intro": "The people below can view and work on this monument and on all its works projects.",
+      "solo": "You are the only one on this monument for now.",
+      "retirer": "Remove from the monument",
+      "quitter": "Leave this monument",
+      "quitterTitre": "Leave this monument?",
+      "quitterTexte": "You will lose access to this monument and its projects. You will need a new invitation to come back.",
+      "quitterOk": "You have left the monument",
+      "retirerTexte": "This person will immediately lose access to the monument and its projects. You can invite them again later.",
+      "upsell": "invite collaborators to this monument"
+    },
+    "projet": {
+      "titre": "Project team",
+      "intro": "People invited here see ONLY this works project: its funding schemes, its applications, its documents, and the monument’s record (read-only). Not the other projects, nor the monument’s documents.",
+      "solo": "Nobody has been invited to this project yet.",
+      "retirer": "Remove from the project",
+      "quitter": "Leave this project",
+      "quitterTitre": "Leave this project?",
+      "quitterTexte": "You will lose access to this works project. You will need a new invitation to come back.",
+      "quitterOk": "You have left the project",
+      "retirerTexte": "This person will immediately lose access to this project. You can invite them again later.",
+      "upsell": "invite collaborators to this project"
+    },
+    "invitationEnvoyeeA": "Invitation sent to {{email}}",
+    "echecInvitation": "Invitation failed",
+    "actionImpossible": "Action not possible",
+    "inviterPersonne": "Invite someone",
+    "emailPlaceholder": "architect@example.com",
+    "emailEnvoye": "They will receive an invitation email.",
+    "inviterCiDessus": "Invite your collaborators above.",
+    "personnesAcces": "People with access ({{nombre}})",
+    "vous": "(you)",
+    "accesHerite": "Access inherited from the monument team",
+    "equipeMonument": "Monument team",
+    "gererMembre": "Manage this member",
+    "gerer": "Manage",
+    "promu": "Promoted to co-owner",
+    "promouvoir": "Promote to co-owner",
+    "retrograde": "Changed to member",
+    "retrograder": "Change to member",
+    "invitationsEnAttente": "Pending invitations ({{nombre}})",
+    "invitationEnvoyee": "Invitation sent",
+    "invitationAnnulee": "Invitation cancelled",
+    "retirerQui": "Remove {{prenom}} {{nom}}?",
+    "membreRetire": "Member removed",
+    "retirer": "Remove",
+    "quitter": "Leave"
+  },
+  "RoleBadge": {
+    "owner": "Owner",
+    "co_owner": "Co-owner",
+    "member": "Member"
+  },
+  "MemberAvatar": {
+    "membre": "Member"
+  },
+  "MemberAvatarStack": {
+    "autres_one": "{{count}} other",
+    "autres_other": "{{count}} others"
+  },
+  "MetierSelect": {
+    "placeholder": "Your role on the monument"
+  },
+  "SharedBadge": {
+    "partage": "Shared",
+    "partageAvec_one": "Shared · {{count}} person",
+    "partageAvec_other": "Shared · {{count}} people"
+  },
+  "OffreUpsell": {
+    "permet": "The {{offre}} plan lets you {{action}}."
+  },
+  "Paywall": {
+    "offre": "{{offre}} plan",
+    "decouvrir": "Discover the {{offre}} plan"
+  },
+  "BienvenueBeta": {
+    "versionBeta": "Beta version",
+    "bienvenue": "Welcome to Monumia",
+    "merci": "Thank you for agreeing to test the platform. Monumia finds the funding schemes your monument may qualify for and supports you in putting the applications together.",
+    "rodage": "It is still being fine-tuned: a screen that loses you, a missing scheme, a figure that surprises you; everything you notice along the way helps us improve it.",
+    "cestParti": "Let’s go",
+    "bugTitre": "A bug, an idea, a question?",
+    "bugTexte": "Write to us with this button, from any page. You can capture the screen and annotate it: we receive your message along with the page you were on.",
+    "plusTard": "Later",
+    "essayer": "Try it now"
+  },
+  "Disclaimer": {
+    "message": "Eligibility estimated on the basis of the information provided. Each organisation decides on the final award of funding. Monumia does not guarantee that funding will be obtained."
+  },
+  "InfoBulle": {
+    "enSavoirPlus": "Learn more: {{libelle}}"
+  },
+  "Avancement": {
+    "libelle": "Project progress",
+    "enCours": "In progress"
+  },
+  "AuthLayout": {
+    "surtitre": "Your heritage space",
+    "accroche": "Fund the restoration<br/>of your <orange>heritage</orange>",
+    "pitch": "Identify the grants, tax deductions and patronage schemes available for your historic monuments.",
+    "reassurance": {
+      "aides": "150+ funding schemes listed",
+      "donnees": "Your data kept secure",
+      "instantane": "Instant results"
+    }
+  },
+  "TopBar": {
+    "navigationPrincipale": "Main navigation"
+  },
+  "navigation": {
+    "tableauDeBord": "Dashboard",
+    "accueil": "Home",
+    "monument": "Monument",
+    "monuments": "Monuments",
+    "mesDocuments": "My documents",
+    "documents": "Documents",
+    "documentsTitre": "Your documents, reusable across all your applications",
+    "blog": "Blog"
+  },
+  "ownerNav": {
+    "monCompte": "My account"
+  },
+  "ui": {
+    "fermer": "Close",
+    "filAriane": "Breadcrumb",
+    "plus": "More",
+    "commandeTitre": "Command palette",
+    "commandeDescription": "Search for a command…"
+  }
+}

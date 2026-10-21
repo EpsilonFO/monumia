@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { CarteMonument } from '@/components/dashboard/CarteMonument';
 import { BoutonNouvelleRecherche, CarteNouveauProjet } from '@/components/dashboard/NouvelleRecherche';
@@ -23,6 +24,7 @@ import type { Projet } from '@/types';
 import '@/components/dashboard/nouvelle-recherche.css';
 import './liste-monuments.css';
 import { Guide } from '@/components/shared/Guide';
+import { localeIntl } from '@/i18n/format';
 
 type MonumentSortKey = 'recent' | 'oldest' | 'name' | 'modified';
 
@@ -33,6 +35,7 @@ type MonumentSortKey = 'recent' | 'oldest' | 'name' | 'modified';
  * Félix, la maquette met le bouton à droite).
  */
 export function MonumentsListPage() {
+  const { t } = useTranslation('monuments');
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const projets = useProjetStore((s) => s.projets);
@@ -78,7 +81,7 @@ export function MonumentsListPage() {
         );
         break;
       case 'name':
-        sorted.sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }));
+        sorted.sort((a, b) => a.nom.localeCompare(b.nom, localeIntl(), { sensitivity: 'base' }));
         break;
       case 'modified':
         sorted.sort(
@@ -105,7 +108,7 @@ export function MonumentsListPage() {
   const newMonumentButton = (className: string) => peutCreer ? (
     <Link className={className} to={ROUTES.MONUMENT_NEW} data-guide="monuments.nouveau-monument">
       <Picto nom="plus" />
-      Nouveau monument
+      {t('MonumentsListPage.nouveauMonument')}
     </Link>
   ) : (
     <button
@@ -115,7 +118,7 @@ export function MonumentsListPage() {
       data-guide="monuments.nouveau-monument"
     >
       <Picto nom="plus" />
-      Nouveau monument
+      {t('MonumentsListPage.nouveauMonument')}
     </button>
   );
 
@@ -139,12 +142,12 @@ export function MonumentsListPage() {
       <div className="hello">
         <div>
           <h1>{libelleMonuments(offre)}</h1>
-          <p>Chaque monument, ses projets de travaux et les aides qui vont avec.</p>
+          <p>{t('MonumentsListPage.sousTitre')}</p>
         </div>
         <div className="hello-acts">
           {newMonumentButton('btn b-line b-lg')}
           <BoutonNouvelleRecherche recherche={recherche} nbMonuments={monuments.length}>
-            Nouvelle recherche d'aides
+            {t('MonumentsListPage.nouvelleRecherche')}
           </BoutonNouvelleRecherche>
         </div>
       </div>
@@ -155,10 +158,9 @@ export function MonumentsListPage() {
         </div>
       ) : monuments.length === 0 ? (
         <div className="vide" style={{ textAlign: 'center' }}>
-          <h2 style={{ fontSize: 24 }}>Aucun monument pour le moment</h2>
+          <h2 style={{ fontSize: 24 }}>{t('MonumentsListPage.videTitre')}</h2>
           <p style={{ margin: '9px auto 20.5px', maxWidth: '52ch' }}>
-            Décrivez votre monument, puis lancez autant de projets de travaux que nécessaire pour identifier les
-            aides mobilisables.
+            {t('MonumentsListPage.videTexte')}
           </p>
           {newMonumentButton('btn b-orange')}
         </div>
@@ -169,35 +171,35 @@ export function MonumentsListPage() {
           {monuments.length > 3 && (
             <div className="tools">
               <label className="search">
-                <span className="sr">Rechercher un monument</span>
+                <span className="sr">{t('MonumentsListPage.rechercher')}</span>
                 <Picto nom="loupe" />
                 <input
                   type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Rechercher un monument"
+                  placeholder={t('MonumentsListPage.rechercher')}
                 />
               </label>
               <div className="sel">
                 <label className="sr" htmlFor="tri-monuments">
-                  Trier les monuments
+                  {t('MonumentsListPage.trier')}
                 </label>
                 <select
                   id="tri-monuments"
                   value={sortKey}
                   onChange={(e) => setSortKey(e.target.value as MonumentSortKey)}
                 >
-                  <option value="recent">Créés récemment</option>
-                  <option value="oldest">Plus anciens</option>
-                  <option value="modified">Récemment modifiés</option>
-                  <option value="name">Nom (A → Z)</option>
+                  <option value="recent">{t('MonumentsListPage.tri.recent')}</option>
+                  <option value="oldest">{t('MonumentsListPage.tri.oldest')}</option>
+                  <option value="modified">{t('MonumentsListPage.tri.modified')}</option>
+                  <option value="name">{t('MonumentsListPage.tri.name')}</option>
                 </select>
               </div>
             </div>
           )}
 
           {visibleMonuments.length === 0 ? (
-            <p className="vide">Aucun monument ne correspond à votre recherche.</p>
+            <p className="vide">{t('MonumentsListPage.aucunCorrespondant')}</p>
           ) : (
             <div className="cmons">
               {visibleMonuments.map((monument) => (
@@ -224,8 +226,8 @@ export function MonumentsListPage() {
         open={paywallMonument}
         onOpenChange={setPaywallMonument}
         offre="Multi-monuments"
-        titre="Gérez tout votre parc au même endroit"
-        description="L'offre gratuite couvre un monument. Multi-monuments les rend illimités et ouvre le tableau de bord, qui réunit leurs chantiers et leurs échéances."
+        titre={t('MonumentsListPage.paywall.titre')}
+        description={t('MonumentsListPage.paywall.description')}
       />
       {recherche.dialogue}
     </div>

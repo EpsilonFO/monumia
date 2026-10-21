@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { PaywallDialog } from '@/components/shared/Paywall';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -27,6 +28,7 @@ export interface NouvelleRecherche {
  * connue : le clic ne tranche pas.
  */
 export function useNouvelleRecherche(): NouvelleRecherche {
+  const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const userId = useAuthStore((s) => s.user?.id);
   const monuments = useMonumentStore((s) => s.monuments);
@@ -60,11 +62,11 @@ export function useNouvelleRecherche(): NouvelleRecherche {
       open={!!paywall}
       onOpenChange={(o) => { if (!o) setPaywall(null); }}
       offre="Veille"
-      titre="Menez autant de chantiers qu'il en faut"
+      titre={t('useNouvelleRecherche.titre')}
       description={
         projetsMax === null
-          ? 'L’offre Veille rend vos projets de travaux illimités, et vous prévient avant chaque date limite.'
-          : `Votre offre couvre ${projetsMax} projets par monument. L’offre Veille les rend illimités, et vous prévient avant chaque date limite.`
+          ? t('useNouvelleRecherche.descriptionIllimite')
+          : t('useNouvelleRecherche.description', { count: projetsMax })
       }
       monumentId={paywall?.id}
     />

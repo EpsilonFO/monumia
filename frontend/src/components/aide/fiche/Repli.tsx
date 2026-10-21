@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Ico } from './Ico';
 import { EVENEMENT_OUVRIR } from './useFiche';
 
@@ -30,6 +31,7 @@ export function Repli({
   children: ReactNode;
   ouvertParDefaut?: boolean;
 }) {
+  const { t } = useTranslation('aide');
   const [ouvert, setOuvert] = useState(ouvertParDefaut);
   const corps = useId();
 
@@ -51,7 +53,7 @@ export function Repli({
           className="repli-b"
           aria-expanded={ouvert}
           aria-controls={corps}
-          aria-label={ouvert ? `Replier « ${titre} »` : `Afficher « ${titre} »`}
+          aria-label={ouvert ? t('Repli.replier', { titre }) : t('Repli.afficher', { titre })}
           onClick={() => setOuvert((o) => !o)}
         >
           <Ico nom="chevron" />

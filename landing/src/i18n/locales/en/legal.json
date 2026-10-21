@@ -1,0 +1,211 @@
+{
+  "LegalLayout": {
+    "titreOnglet": "{{titre}} | Monumia",
+    "accueilAria": "Monumia, back to the home page",
+    "derniereMaj": "Last updated: {{date}}",
+    "avertissementTraduction": "This translation is provided for convenience only. The French version is the only legally binding version.",
+    "retourAccueil": "Back to the home page"
+  },
+  "Cgu": {
+    "titre": "General Terms of Use",
+    "intro": "These general terms of use (the “<gras>Terms</gras>”) govern access to and use of the <gras>monumia.fr</gras> website and the <gras>app.monumia.fr</gras> application (together, the “<gras>Service</gras>”), published by Monumia. By creating an account or using the Service, you accept these Terms without reservation. If you do not accept them, you must not use the Service.",
+    "mentions": {
+      "titre": "1. Legal notice",
+      "editeur": "<gras>Publisher of the Service</gras>: Monumia, a simplified joint-stock company (société par actions simplifiée, SAS) with share capital of €400.00, registered with the Lyon Trade and Companies Register (RCS) under number 106 236 748, whose registered office is at 10 avenue Jean Jaurès, 69370 Saint-Didier-au-Mont-d'Or, France. Intra-Community VAT number: FR72106236748.",
+      "directeur": "<gras>Director of publication</gras>: Paul Vacheret, President.",
+      "contact": "<gras>Contact</gras>: <mail>{{email}}</mail>.",
+      "hebergeur": "<gras>Hosting provider</gras>: OVH SAS, 2 rue Kellermann, 59100 Roubaix, France, registered with the Lille Métropole Trade and Companies Register (RCS) under number 424 761 419, telephone: +33 9 72 10 10 07 (<ovh>www.ovhcloud.com</ovh>). The Service's servers are hosted in France.",
+      "donnees": "<gras>Database and file storage</gras>: Supabase, Inc., with data hosted exclusively within the European Union (see the <confidentialite>privacy policy</confidentialite>)."
+    },
+    "objet": {
+      "titre": "2. Purpose of the Service",
+      "p1": "Monumia is an online service that helps owners and managers of built heritage identify funding (public grants, foundation funding, tax schemes, patronage) that may apply to their monument and their project, and then prepare their applications."
+    },
+    "resultats": {
+      "titre": "3. Informational nature of the results",
+      "p1": "<gras>The results provided by Monumia (eligibility checks, estimates, lists of funding schemes, support content) are strictly informational and indicative.</gras> They are based on the information you declare and on public sources (official texts, funders' rules, funders' websites), which may change, be amended or be withdrawn at any time by the bodies concerned.",
+      "p2": "Accordingly:",
+      "puce1": "Monumia <gras>does not guarantee actual eligibility</gras> for any funding scheme, nor that it will be obtained, nor its amount: the decision to award it rests exclusively with the funder (the State, a local authority, a foundation, etc.), following its own assessment;",
+      "puce2": "the Service <gras>does not constitute legal, tax, financial or architectural advice</gras> and is no substitute for the analysis of a qualified professional (lawyer, notary, chartered accountant, heritage architect) or for direct dealings with funders;",
+      "puce3": "it is your responsibility to <gras>check the official conditions</gras> of each funding scheme with the body concerned before making any binding decision (works, hiring, financing);",
+      "puce4": "Monumia is bound by a <gras>best-efforts obligation</gras>: it does everything in its power to keep information accurate and up to date, but cannot guarantee this absolutely."
+    },
+    "acces": {
+      "titre": "4. Access to the Service and user account",
+      "p1": "The Service is reserved for <gras>natural persons of legal age</gras> with full legal capacity and for legal entities acting through an authorised representative. <gras>The Service is not intended for minors</gras>, who must neither create an account nor submit personal data via the Service.",
+      "p2": "Creating an account requires accurate, complete and up-to-date information. You are responsible for keeping your login credentials confidential and for all activity carried out from your account. In the event of unauthorised use, notify us without delay at <mail>{{email}}</mail>.",
+      "p3": "The accuracy of the results depends directly on the accuracy of the information you declare about your monument and your project: incorrect declarations produce incorrect results, and Monumia cannot be held liable on that account."
+    },
+    "usage": {
+      "titre": "5. Acceptable use",
+      "intro": "You undertake not to:",
+      "puce1": "use the Service for unlawful purposes or for purposes contrary to these Terms;",
+      "puce2": "attempt to gain unauthorised access to the systems, accounts or data of other users, or to disrupt the operation of the Service;",
+      "puce3": "systematically or automatically extract the content of the Service (scraping, database harvesting) for commercial reuse;",
+      "puce4": "upload content that is unlawful, infringing or that violates the rights of third parties.",
+      "p2": "Monumia reserves the right to suspend or terminate, after notice except in an emergency, any account that breaches these Terms."
+    },
+    "paiement": {
+      "titre": "6. Paid plans and payment",
+      "p1": "Some features of the Service are subject to a charge. Prices, expressed in euros and inclusive of all taxes for consumers, are shown before any subscription. Payment is processed by our provider <gras>Stripe</gras>, on secure payment pages operated by Stripe: Monumia never has access to your bank card details.",
+      "p2": "Unless otherwise stated, subscriptions have no minimum term: they may be cancelled at any time from your customer area, with cancellation taking effect at the end of the current period and without any pro rata refund for the period already begun, unless otherwise provided by law.",
+      "p3": "Monumia may change its prices; any change is notified at least one month before it takes effect and applies only to subsequent billing periods. You remain free to cancel before the new price applies."
+    },
+    "retractation": {
+      "titre": "7. Right of withdrawal (consumers)",
+      "p1": "If you are a consumer within the meaning of the French Consumer Code (code de la consommation), you have <gras>fourteen (14) days</gras> from subscription to exercise your right of withdrawal, without giving any reason and without penalty, by writing to <mail>{{email}}</mail> (Articles L221-18 et seq. of the French Consumer Code).",
+      "p2": "If you expressly request immediate access to the Service before this period expires, you may still withdraw within the fourteen days, but an amount proportionate to the service already provided up to your withdrawal request remains payable (Article L221-25 of the French Consumer Code)."
+    },
+    "propriete": {
+      "titre": "8. Intellectual property",
+      "p1": "The Service, its structure, texts, visual identity, logo and software are protected by intellectual property law and remain the exclusive property of Monumia or its licensors. Any unauthorised reproduction or reuse is prohibited.",
+      "p2": "The documents and information you upload <gras>remain your property</gras>. You grant Monumia a limited, non-exclusive and revocable licence for the purposes of providing the Service (storage, display, preparation of your applications) and, under the conditions of Article 9, compiling anonymised datasets. This licence ends when the content or your account is deleted; it nevertheless survives for data that has already been anonymised, which no longer makes it possible to identify you or to trace your content.",
+      "p3": "Official texts and public information relating to funding schemes remain subject to their own legal regimes and are cited for reference purposes."
+    },
+    "anonymisation": {
+      "titre": "9. Anonymised data and artificial intelligence models",
+      "p1": "To make its eligibility checks more reliable and to develop new features, Monumia may compile, from the information entered on the Service, <gras>anonymised datasets</gras> intended for statistical analysis and for <gras>training artificial intelligence models</gras>, by Monumia or on its behalf.",
+      "p2": "This concerns only data relating to <gras>monuments and projects</gras>, never data that describes you as a person:",
+      "puce1": "information declared about the monument (type of property, protection status, condition, characteristics, generalised location) and about the project (nature and scale of the works, schedule, budget);",
+      "puce2": "your answers to the eligibility questionnaire and the results of the eligibility check;",
+      "puce3": "application documents which, by their nature or by your choice, are intended to be made public (for example, a funding application intended for publication).",
+      "p3": "The following are <gras>excluded</gras> from this use: your identity, your contact details, your login credentials, your billing data, technical logs and confidential documents (identity documents, bank details, tax documents, private correspondence, any document you have not intended for public distribution).",
+      "p4": "Before any use, the data is <gras>irreversibly anonymised</gras>: any element that would make it possible, directly or by cross-referencing, to identify you or a private owner is removed or generalised. Monumia undertakes not to attempt to re-identify the individuals concerned and to prohibit any such re-identification by its service providers, if any. The datasets compiled in this way no longer contain any personal data and may be retained after your account is closed.",
+      "p5": "You may <gras>object</gras> to this use at any time for your data that has not yet been anonymised by writing to <mail>{{email}}</mail>. Full details are set out in the <anonymisation>privacy policy</anonymisation>."
+    },
+    "donneesPersonnelles": {
+      "titre": "10. Personal data",
+      "p1": "The processing of your personal data is described in our <confidentialite>privacy policy</confidentialite>, which complies with Regulation (EU) 2016/679 (the “GDPR”) and the French Data Protection Act (loi Informatique et Libertés)."
+    },
+    "responsabilite": {
+      "titre": "11. Availability and liability",
+      "p1": "Monumia endeavours to ensure continuous access to the Service, without guaranteeing uninterrupted availability: interruptions for maintenance, updates or force majeure may occur. Monumia cannot be held liable for indirect damage (loss of the chance of obtaining funding, operating loss, reputational damage) resulting from the use of, or inability to use, the Service.",
+      "p2": "For professional users, Monumia's total liability, for all causes combined, is capped at the amounts actually paid by the user in respect of the last twelve months. Nothing in these Terms limits Monumia's liability in the event of fraud (dol), gross negligence or personal injury, or any liability that cannot lawfully be limited with regard to consumers."
+    },
+    "resiliation": {
+      "titre": "12. Termination",
+      "p1": "You may stop using the Service and request the deletion of your account at any time, from the application or by writing to <mail>{{email}}</mail>. The consequences of deletion for your data are described in the <confidentialite>privacy policy</confidentialite>."
+    },
+    "mediation": {
+      "titre": "13. Consumer mediation",
+      "p1": "In accordance with Articles L612-1 et seq. of the French Consumer Code, any consumer has the right to refer a dispute with Monumia, free of charge, to a consumer mediator with a view to its amicable resolution, after first attempting to resolve the dispute directly with <mail>{{email}}</mail>."
+    },
+    "modification": {
+      "titre": "14. Changes to the Terms",
+      "p1": "Monumia may amend these Terms to reflect changes to the Service or to the regulations. Users with an account are informed of any substantial change at least fifteen days before it takes effect. Continued use of the Service after that date constitutes acceptance of the amended Terms; otherwise, you may terminate under the conditions of Article 12."
+    },
+    "droitApplicable": {
+      "titre": "15. Governing law and jurisdiction",
+      "p1": "These Terms are governed by French law. In the event of a dispute and failing amicable resolution, the French courts have jurisdiction in accordance with the ordinary rules of law. Consumers may, at their choice, bring proceedings before one of the courts having territorial jurisdiction under the French Code of Civil Procedure or before the court of the place where they resided at the time the contract was concluded. These Terms do not deprive consumers residing in another Member State of the European Union of the mandatory protections of their national law."
+    },
+    "voirAussi": "See also: <confidentialite>Privacy policy</confidentialite>"
+  },
+  "Confidentialite": {
+    "titre": "Privacy policy",
+    "intro1": "This policy describes how Monumia processes your personal data, in compliance with Regulation (EU) 2016/679 (the “<gras>GDPR</gras>”) and French Act No. 78-17 of 6 January 1978 (“Informatique et Libertés”). It applies to the monumia.fr website, the app.monumia.fr application and the launch waiting list.",
+    "intro2": "Our principle: <gras>we collect only what is necessary for the Service, we never sell or rent out your data, and we display no advertising.</gras>",
+    "responsable": {
+      "titre": "1. Data controller",
+      "p1": "The data controller is Monumia, an SAS registered with the Lyon Trade and Companies Register (RCS) under number 106 236 748, whose registered office is at 10 avenue Jean Jaurès, 69370 Saint-Didier-au-Mont-d'Or, France, and which can be contacted at <mail>{{email}}</mail>, including for any question relating to personal data."
+    },
+    "collecte": {
+      "titre": "2. Data we collect",
+      "intro": "We collect only the following data:",
+      "attente": "<gras>Launch waiting list</gras>: your email address and the page from which you signed up. Nothing else.",
+      "compte": "<gras>User account</gras>: first name, surname, email address, password (stored exclusively in hashed form) and, if you provide it, telephone number.",
+      "projets": "<gras>Your project data</gras>: the information you declare about your monuments and projects (location, protection status, nature of the works, answers to the questionnaire) and the documents you upload for your applications.",
+      "facturation": "<gras>Billing</gras>: the history of your subscriptions and payments. Bank card details are entered directly on Stripe's secure pages and <gras>never pass through our servers</gras>.",
+      "techniques": "<gras>Technical data</gras>: server connection logs (IP address, timestamp, pages requested), for security and incident diagnosis purposes.",
+      "audience": "<gras>Application audience measurement</gras>: the pages viewed and the steps completed (creation of a monument, a project, an application), in the form of anonymous statistics. No cookies or storage on your device, no account, monument or project identifiers, no text displayed on screen, no recording of your session (see Article 9).",
+      "nonIntro": "And here is what we do not do:",
+      "non1": "no advertising cookies or trackers, no individual tracking of your browsing;",
+      "non2": "no resale, rental or transfer of your data to third parties;",
+      "non3": "no transmission of your personal data to external artificial intelligence services: Monumia's eligibility analysis engine runs on our own servers, without calling on any third-party services. Only previously anonymised data, which no longer relates to you, may be used to train models (see Article 4);",
+      "non4": "no collection of data from minors (see Article 10)."
+    },
+    "finalites": {
+      "titre": "3. Purposes and legal bases",
+      "service": "<gras>Providing the Service</gras> (account, eligibility checks, applications, support): performance of the contract (Article 6.1.b of the GDPR).",
+      "lancement": "<gras>Notifying you of the launch</gras> (waiting list): your consent (Article 6.1.a), which may be withdrawn at any time.",
+      "facturation": "<gras>Billing and accounting</gras>: legal obligation (Article 6.1.c).",
+      "securite": "<gras>Security of the Service</gras> (logs, abuse prevention): legitimate interest (Article 6.1.f).",
+      "audience": "<gras>Application audience measurement</gras>, to identify screens that are hard to understand: legitimate interest (Article 6.1.f). You may object to it at any time (see Article 9).",
+      "emails": "<gras>Emails relating to the operation of the Service</gras> (confirmations, collaboration invitations, alerts about your projects): performance of the contract. We do not send marketing communications on behalf of third parties.",
+      "anonymisation": "<gras>Compilation of anonymised datasets</gras> to improve the Service and train artificial intelligence models (see Article 4): legitimate interest (Article 6.1.f), anonymisation being further processing compatible with the original purposes (Article 5.1.b). You may object to it at any time."
+    },
+    "anonymisation": {
+      "titre": "4. Anonymised data and training of artificial intelligence models",
+      "p1": "To make our eligibility checks more reliable and to develop new features, we may compile, from the information entered on the Service, <gras>anonymised datasets</gras> used for statistical analysis and for <gras>training artificial intelligence models</gras>, by Monumia or on its behalf.",
+      "utilise": "<gras>What may be used</gras>: only data that describes the monument and the project, never data that describes you.",
+      "puce1": "information declared about the monument (type of property, protection status, condition, characteristics, location generalised to the level of the municipality or département) and about the project (nature and scale of the works, schedule, budget);",
+      "puce2": "your answers to the eligibility questionnaire and the results of the eligibility check;",
+      "puce3": "application documents which, by their nature or by your choice, are intended to be made public (for example, a funding application intended for publication).",
+      "jamaisUtilise": "<gras>What is never used</gras>: your surname, first name, email address, telephone number, login credentials, billing data or technical logs, nor confidential documents (identity documents, bank details, tax documents, private correspondence, any document you have not intended for public distribution).",
+      "methode": "<gras>How we anonymise</gras>: before any use, we remove or generalise any element that would make it possible, directly or by cross-referencing, to identify you or a private owner (account identifiers, precise address, cadastral references, names of people appearing in documents). Anonymisation is irreversible: the resulting datasets no longer constitute personal data within the meaning of the GDPR. We undertake not to attempt to re-identify the individuals concerned and impose the same prohibition on our service providers, if any. Data relating to monuments owned by legal entities (municipalities, associations, companies) is not personal data and may be used in the same form.",
+      "opposition": "<gras>Your right to object</gras>: you may object at any time, without giving reasons, to the use of your data for this purpose by writing to <mail>{{email}}</mail>. Your objection takes effect for all data that has not yet been anonymised; since data that has already been anonymised can no longer be linked to you, it is technically impossible for us to remove it from existing datasets. This objection has no effect on your access to the Service."
+    },
+    "destinataires": {
+      "titre": "5. Recipients and processors",
+      "intro": "Your data is accessible only to the Monumia team, to the extent necessary, and to the following processors, each bound by a data processing agreement complying with Article 28 of the GDPR:",
+      "ovh": "<gras>OVH SAS</gras> (France): hosting of the application servers, in France.",
+      "supabase": "<gras>Supabase, Inc.</gras>: database, authentication and file storage, with data hosted exclusively in the European Union.",
+      "stripe": "<gras>Stripe</gras> (Stripe Payments Europe, Ltd., Ireland): payment processing.",
+      "resend": "<gras>Resend, Inc.</gras> (United States): sending of the Service's emails (email address and message content only).",
+      "posthog": "<gras>PostHog, Inc.</gras>: application audience measurement, with data hosted in the European Union.",
+      "p2": "Your data may also be disclosed to the authorities where required by law. If you share a project with a collaborator, they can access that project's data within the limits of the role you assign to them."
+    },
+    "transferts": {
+      "titre": "6. Transfers outside the European Union",
+      "p1": "Our servers and databases are located in France and in the European Union. Certain processors (Supabase, Inc., Resend, Inc. and PostHog, Inc., which are US companies) may involve access to data from the United States; these transfers are subject to appropriate safeguards within the meaning of Chapter V of the GDPR (standard contractual clauses of the European Commission and, where applicable, certification under the EU-US Data Privacy Framework). You may obtain a copy of these safeguards by writing to <mail>{{email}}</mail>."
+    },
+    "conservation": {
+      "titre": "7. Retention periods",
+      "compte": "<gras>Account and project data</gras>: for the entire lifetime of the account, then deleted within thirty (30) days of its closure. Certain data may be kept in restricted-access archives for the duration of the statutory limitation periods (five years at most) where this is necessary to defend our rights.",
+      "documents": "<gras>Uploaded documents</gras>: deleted together with the project or account to which they are attached.",
+      "anonymises": "<gras>Anonymised datasets</gras> (Article 4): as they are no longer personal data, they may be kept indefinitely, including after your account is closed.",
+      "attente": "<gras>Waiting list</gras>: until the launch of the Service, then for no more than three years after the last contact; immediate deletion on simple request.",
+      "factures": "<gras>Invoices and accounting records</gras>: ten years (legal obligation).",
+      "journaux": "<gras>Technical logs</gras>: twelve months at most.",
+      "audience": "<gras>Audience measurement statistics</gras>: twenty-five months at most."
+    },
+    "droits": {
+      "titre": "8. Your rights",
+      "intro": "In accordance with the GDPR and the French Data Protection Act (loi Informatique et Libertés), you have the following rights over your data:",
+      "acces": "the right of access and the right to obtain a copy of your data;",
+      "rectification": "the right to rectification of inaccurate or incomplete data;",
+      "effacement": "the right to erasure (the “right to be forgotten”);",
+      "limitation": "the right to restriction of processing;",
+      "opposition": "the right to object, in particular to processing based on our legitimate interest, including the compilation of anonymised datasets described in Article 4;",
+      "portabilite": "the right to data portability;",
+      "consentement": "the right to withdraw your consent at any time, without affecting the lawfulness of processing carried out before its withdrawal;",
+      "directives": "the right to set out instructions regarding what happens to your data after your death (Article 85 of the loi Informatique et Libertés).",
+      "exercice": "To exercise these rights, write to <mail>{{email}}</mail>. We respond within one month, which may be extended by two months for complex requests. Proof of identity may be requested in the event of reasonable doubt.",
+      "cnil": "If you consider that your rights have not been respected, you may lodge a complaint with the CNIL: Commission Nationale de l'Informatique et des Libertés, 3 place de Fontenoy, TSA 80715, 75334 Paris Cedex 07 (<cnil>www.cnil.fr</cnil>)."
+    },
+    "cookies": {
+      "titre": "9. Cookies and local storage",
+      "site": "The monumia.fr website <gras>uses no cookies</gras>: no trackers, no audience measurement, no third-party share buttons. Fonts are hosted on our own servers.",
+      "application": "The app.monumia.fr application uses only your browser's local storage, to keep your authentication session. This storage is strictly necessary for the provision of the Service and is therefore exempt from prior consent (Article 82 of the loi Informatique et Libertés).",
+      "audience": "The application also measures its audience, using the PostHog tool, under the conditions in which the CNIL exempts audience measurement from consent: without cookies or storage on your device, in the form of anonymous statistics reserved for Monumia, never cross-referenced with your account or with other processing. Page addresses are transmitted without the identifiers they contain, and neither the text displayed on screen nor the course of your session is recorded. No consent banner is therefore required. You may object to this measurement at any time from the Profile page of the application; your choice is remembered in your browser. Your browser's “Do Not Track” setting also counts as an objection.",
+      "futur": "Should we ever introduce trackers that require consent, your consent would be requested beforehand.",
+      "stripe": "The payment pages are operated by Stripe on its own domain and are subject to its own privacy policy."
+    },
+    "mineurs": {
+      "titre": "10. Minors",
+      "p1": "The Service is reserved for adults. <gras>We do not knowingly collect personal data concerning minors</gras>, and none of our plans is intended for them. If you hold parental authority and believe that a minor has sent us personal data, contact us at <mail>{{email}}</mail>: it will be deleted without delay."
+    },
+    "securite": {
+      "titre": "11. Security",
+      "p1": "We implement appropriate technical and organisational measures: encryption of communications (TLS), hosting in France and in the European Union, passwords stored exclusively in hashed form, segregation of data access by account, and restricted, logged administrator access. In the event of a data breach likely to result in a risk to your rights and freedoms, we will notify the CNIL within 72 hours and, if the risk is high, we will inform you directly."
+    },
+    "decision": {
+      "titre": "12. No solely automated decision-making",
+      "p1": "Monumia's eligibility check is calculated automatically from your declarations, but it is <gras>purely informational</gras>: it produces no decision having legal effects concerning you within the meaning of Article 22 of the GDPR. The decision whether or not to award funding rests exclusively with the funders."
+    },
+    "modifications": {
+      "titre": "13. Changes to this policy",
+      "p1": "We may update this policy, in particular in the event of a change of processor or of functionality. The date of the last update appears at the top of the page; in the event of a substantial change, users with an account are informed by email or in the application."
+    },
+    "voirAussi": "See also: <cgu>General Terms of Use</cgu> · <mentions>Legal notice</mentions>"
+  }
+}

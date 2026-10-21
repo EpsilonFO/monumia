@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,11 +33,12 @@ interface MonumentFormProps {
   saving?: boolean;
 }
 
+// Des clés, traduites au rendu : la table est évaluée à l'import.
 const CREATION_STEPS = [
-  { number: 1, title: 'Identification', description: 'Nom et localisation' },
-  { number: 2, title: 'Statut juridique', description: 'Protection et propriété' },
-  { number: 3, title: 'Description physique', description: 'Architecture et état du monument' },
-];
+  { number: 1, cle: 'identification' },
+  { number: 2, cle: 'statutJuridique' },
+  { number: 3, cle: 'descriptionPhysique' },
+] as const;
 
 /** Dans l'ordre des étapes : `STEP_COMPONENTS[i]` sert l'étape `i + 1`. */
 const STEP_COMPONENTS = [Step1Identification, Step2StatutJuridique, Step3DescriptionPhysique];
@@ -62,6 +64,7 @@ function isStepValid(step: number, data: Partial<Monument>): boolean {
  * se saisissent dans son wizard et se modifient sur sa page.
  */
 export function MonumentForm({ initialData, onSubmit, isEditing, saving }: MonumentFormProps) {
+  const { t } = useTranslation(['monuments', 'common']);
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<Partial<Monument>>(initialData ?? {});
 
@@ -90,11 +93,17 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
       {/* Step Indicator */}
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
-          <span className="font-medium">{currentStepInfo.title}</span>
-          <span className="text-muted-foreground">Étape {currentStep} / {lastStep}</span>
+          <span className="font-medium">
+            {t(`MonumentForm.etapes.${currentStepInfo.cle}.titre`)}
+          </span>
+          <span className="text-muted-foreground">
+            {t('MonumentForm.etape', { courante: currentStep, total: lastStep })}
+          </span>
         </div>
         <Progress value={progressPercent} className="h-1.5" />
-        <p className="text-xs text-muted-foreground">{currentStepInfo.description}</p>
+        <p className="text-xs text-muted-foreground">
+          {t(`MonumentForm.etapes.${currentStepInfo.cle}.description`)}
+        </p>
       </div>
 
       {/* Carré blanc + navigation en colonne à sa droite. En mobile, la colonne
@@ -139,7 +148,7 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
             disabled={currentStep === 1}
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
-            Précédent
+            {t('common:actions.precedent')}
           </Button>
           <Button
             onClick={handleNext}
@@ -149,8 +158,8 @@ export function MonumentForm({ initialData, onSubmit, isEditing, saving }: Monum
             {saving && currentStep === lastStep
               ? <Loader2 className="h-5 w-5 animate-spin" />
               : currentStep === lastStep
-                ? isEditing ? 'Enregistrer' : 'Terminer'
-                : <>Suivant <ChevronRight className="h-5 w-5 ml-1.5" /></>}
+                ? isEditing ? t('common:actions.enregistrer') : t('MonumentForm.terminer')
+                : <>{t('common:actions.suivant')} <ChevronRight className="h-5 w-5 ml-1.5" /></>}
           </Button>
         </div>
       </div>
@@ -180,22 +189,23 @@ const SELECT_TRIGGER =
   'w-full min-w-0 [&>span[data-slot=select-value]]:block [&>span[data-slot=select-value]]:truncate';
 
 function Step1Identification({ data, onChange }: StepProps) {
+  const { t } = useTranslation(['monuments', 'common']);
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className={cn(FIELD, 'md:col-span-2')}>
-        <Label htmlFor="nom">Nom du monument *</Label>
+        <Label htmlFor="nom">{t('MonumentForm.nom')}</Label>
         <Input
           id="nom"
           value={data.nom ?? ''}
           onChange={(e) => onChange({ nom: e.target.value })}
-          placeholder="Ex : Église Saint-Malo"
+          placeholder={t('MonumentForm.nomPlaceholder')}
         />
       </div>
       {/* Pleine largeur comme le nom : « Saint-Caradec-Trégomel » ou
           « Colleville-Montgomery » doivent tenir en entier dans le champ, et
           les suggestions (qui en épousent la largeur) rester lisibles. */}
       <div className={cn(FIELD, 'md:col-span-2')}>
-        <Label htmlFor="commune">Commune *</Label>
+        <Label htmlFor="commune">{t('MonumentForm.commune')}</Label>
         {/* Choisir dans la liste fournit le code INSEE, dont le backend déduit
             département, région et population : c'est ce qui rend les aides
             territoriales évaluables. La saisie libre reste acceptée. */}
@@ -213,6 +223,7 @@ function Step1Identification({ data, onChange }: StepProps) {
 }
 
 function Step2StatutJuridique({ data, onChange }: StepProps) {
+  const { t } = useTranslation(['monuments', 'common']);
   // Un bien non protégé n'a ni date ni détail de protection : les deux champs
   // sont grisés, et vidés au passage pour qu'aucune valeur saisie avant ne
   // survive en douce dans la fiche.
@@ -229,10 +240,10 @@ function Step2StatutJuridique({ data, onChange }: StepProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className={FIELD}>
-        <Label htmlFor="protection">Niveau de protection *</Label>
+        <Label htmlFor="protection">{t('MonumentForm.protection')}</Label>
         <Select value={data.protection ?? ''} onValueChange={setProtection}>
           <SelectTrigger id="protection" className={SELECT_TRIGGER}>
-            <SelectValue placeholder="Sélectionner..." />
+            <SelectValue placeholder={t('MonumentForm.selectionner')} />
           </SelectTrigger>
           <SelectContent>
             {PROTECTION_LEVELS.map((p) => (
@@ -247,7 +258,7 @@ function Step2StatutJuridique({ data, onChange }: StepProps) {
         {/* Champ désactivé : l'intitulé s'estompe avec lui, sinon seul le cadre
             grisé le signale et l'œil ne le voit pas. */}
         <Label htmlFor="dateProtection" className={cn(sansProtection && 'opacity-60')}>
-          Date de protection
+          {t('MonumentForm.dateProtection')}
         </Label>
         <Input
           id="dateProtection"
@@ -259,7 +270,7 @@ function Step2StatutJuridique({ data, onChange }: StepProps) {
       </div>
       <div className={cn(FIELD, 'md:col-span-2')}>
         <Label htmlFor="typeProtection" className={cn(sansProtection && 'opacity-60')}>
-          Détail de la protection
+          {t('MonumentForm.detailProtection')}
         </Label>
         <Input
           id="typeProtection"
@@ -267,19 +278,19 @@ function Step2StatutJuridique({ data, onChange }: StepProps) {
           onChange={(e) => onChange({ typeProtection: e.target.value })}
           placeholder={
             sansProtection
-              ? 'Sans objet pour un bien non protégé'
-              : 'Ex : Classé MH par arrêté du 16 juin 1928'
+              ? t('MonumentForm.detailSansObjet')
+              : t('MonumentForm.detailPlaceholder')
           }
           disabled={sansProtection}
         />
       </div>
       <div className={FIELD}>
-        <Label htmlFor="proprietaire">Type de propriétaire *</Label>
+        <Label htmlFor="proprietaire">{t('MonumentForm.proprietaire')}</Label>
         <ChoixMultiple
           id="proprietaire"
           groupes={groupesProprietaire(data)}
           valeurs={proprietairesCoches(data)}
-          vide="Sélectionner..."
+          vide={t('MonumentForm.selectionner')}
           onChange={(v) =>
             onChange({
               proprietaire: proprietairesCoches({ proprietaire: v as Monument['proprietaire'] }),
@@ -287,8 +298,7 @@ function Step2StatutJuridique({ data, onChange }: StepProps) {
           }
         />
         <p className="text-xs text-muted-foreground">
-          Plusieurs choix possibles. Une aide vous est proposée dès que l&rsquo;un des
-          propriétaires peut la demander.
+          {t('MonumentForm.proprietaireAide')}
         </p>
       </div>
     </div>
@@ -380,26 +390,25 @@ function ChoixMultiple({
 }
 
 function Step3DescriptionPhysique({ data, onChange }: StepProps) {
+  const { t } = useTranslation(['monuments', 'common']);
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className={cn(FIELD, 'md:col-span-2')}>
-        <Label htmlFor="typeEdifice">Type d&rsquo;édifice</Label>
+        <Label htmlFor="typeEdifice">{t('MonumentForm.typeEdifice')}</Label>
         <ChoixMultiple
           id="typeEdifice"
           groupes={GROUPES_TYPE_EDIFICE}
           valeurs={typesCoches(data)}
-          vide="Non renseigné"
+          vide={t('MonumentForm.nonRenseigne')}
           onChange={(v) => onChange(avecTypesEdifice(data, v))}
         />
         <p className="text-xs text-muted-foreground">
-          Plusieurs choix possibles&nbsp;: un domaine peut réunir château, chapelle et pigeonnier.
-          Ils répondent d&rsquo;avance aux questions sur la nature du bien, qui ne vous sont
-          alors plus posées.
+          {t('MonumentForm.typeEdificeAide')}
         </p>
       </div>
       {affectationApplicable(data) && (
         <div className={FIELD}>
-          <Label htmlFor="affecteAuCulte">Affectation au culte</Label>
+          <Label htmlFor="affecteAuCulte">{t('MonumentForm.affectationCulte')}</Label>
           <Select
             value={lireOuiNon(data.affecteAuCulte)}
             onValueChange={(v) => onChange({ affecteAuCulte: ecrireOuiNon(v) })}
@@ -408,16 +417,16 @@ function Step3DescriptionPhysique({ data, onChange }: StepProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NON_RENSEIGNE}>Non renseigné</SelectItem>
-              <SelectItem value="oui">Toujours affecté au culte</SelectItem>
-              <SelectItem value="non">Désaffecté</SelectItem>
+              <SelectItem value={NON_RENSEIGNE}>{t('MonumentForm.nonRenseigne')}</SelectItem>
+              <SelectItem value="oui">{t('MonumentForm.toujoursAffecte')}</SelectItem>
+              <SelectItem value="non">{t('MonumentForm.desaffecte')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
       )}
       {architectureRomaneApplicable(data) && (
         <div className={FIELD}>
-          <Label htmlFor="architectureRomane">Architecture romane</Label>
+          <Label htmlFor="architectureRomane">{t('MonumentForm.architectureRomane')}</Label>
           <Select
             value={lireOuiNon(data.architectureRomane)}
             onValueChange={(v) => onChange({ architectureRomane: ecrireOuiNon(v) })}
@@ -426,40 +435,40 @@ function Step3DescriptionPhysique({ data, onChange }: StepProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NON_RENSEIGNE}>Non renseigné</SelectItem>
-              <SelectItem value="oui">Oui, en tout ou en partie</SelectItem>
-              <SelectItem value="non">Non</SelectItem>
+              <SelectItem value={NON_RENSEIGNE}>{t('MonumentForm.nonRenseigne')}</SelectItem>
+              <SelectItem value="oui">{t('MonumentForm.romaneOui')}</SelectItem>
+              <SelectItem value="non">{t('common:reponses.non')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
       )}
       <div className={FIELD}>
-        <Label htmlFor="siecleConstruction">Siècle de construction</Label>
+        <Label htmlFor="siecleConstruction">{t('MonumentForm.siecleConstruction')}</Label>
         <Input
           id="siecleConstruction"
           value={data.siecleConstruction ?? ''}
           onChange={(e) => onChange({ siecleConstruction: e.target.value })}
-          placeholder="Ex : XVe siècle"
+          placeholder={t('MonumentForm.sieclePlaceholder')}
         />
       </div>
       <div className={cn(FIELD, 'md:col-span-2')}>
-        <Label htmlFor="descriptionGenerale">Description générale de la protection</Label>
+        <Label htmlFor="descriptionGenerale">{t('MonumentForm.descriptionGenerale')}</Label>
         <Textarea
           id="descriptionGenerale"
           value={data.descriptionGenerale ?? ''}
           onChange={(e) => onChange({ descriptionGenerale: e.target.value })}
-          placeholder="Décrivez votre monument..."
+          placeholder={t('MonumentForm.descriptionPlaceholder')}
           rows={4}
         />
       </div>
       <div className={cn(FIELD, 'md:col-span-2')}>
-        <Label htmlFor="etatConservation">État de conservation *</Label>
+        <Label htmlFor="etatConservation">{t('MonumentForm.etatConservation')}</Label>
         <Select
           value={data.etatConservation ?? ''}
           onValueChange={(v) => onChange({ etatConservation: v as Monument['etatConservation'] })}
         >
           <SelectTrigger id="etatConservation" className={SELECT_TRIGGER}>
-            <SelectValue placeholder="Sélectionner..." />
+            <SelectValue placeholder={t('MonumentForm.selectionner')} />
           </SelectTrigger>
           <SelectContent>
             {ETATS_CONSERVATION.map((e) => (
@@ -470,8 +479,7 @@ function Step3DescriptionPhysique({ data, onChange }: StepProps) {
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
-          Un monument en péril ou en mauvais état ouvre les dispositifs d&rsquo;urgence.
-          Cette réponse vaut pour tous vos projets de travaux sur ce monument.
+          {t('MonumentForm.etatAide')}
         </p>
       </div>
     </div>

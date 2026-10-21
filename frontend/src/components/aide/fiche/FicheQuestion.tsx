@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Ico } from './Ico';
 import { isUnknownAnswer } from '@/components/project/wizard/unknownAnswer';
 import { TexteAide } from '@/components/shared/TexteAide';
@@ -31,6 +32,7 @@ export function FicheQuestion({
   onAnswer?: (answer: string | string[] | undefined) => void;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation('aide');
   const choisies = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
   const multiple = !!question.multiple;
   const options = displayOrder(question);
@@ -59,8 +61,8 @@ export function FicheQuestion({
               className={aideOuverte ? 'q-info on' : 'q-info'}
               aria-expanded={aideOuverte}
               aria-controls={aideId}
-              aria-label={aideOuverte ? "Masquer l'explication" : 'Afficher une explication'}
-              title={aideOuverte ? "Masquer l'explication" : 'En savoir plus'}
+              aria-label={aideOuverte ? t('FicheQuestion.masquerExplication') : t('FicheQuestion.afficherExplication')}
+              title={aideOuverte ? t('FicheQuestion.masquerExplication') : t('FicheQuestion.enSavoirPlus')}
               onClick={(e) => {
                 e.stopPropagation();
                 setAideOuverte((o) => !o);
@@ -70,12 +72,12 @@ export function FicheQuestion({
             </button>
           )}
         </p>
-        {multiple && <span className="multi">Plusieurs réponses possibles</span>}
+        {multiple && <span className="multi">{t('FicheQuestion.plusieursReponses')}</span>}
         {question.help && (
           <TexteAide id={aideId} hidden={!aideOuverte} texte={question.help} className="q-aide" />
         )}
       </div>
-      <div className="yn" role={multiple ? 'group' : 'radiogroup'} aria-label="Réponse">
+      <div className="yn" role={multiple ? 'group' : 'radiogroup'} aria-label={t('FicheQuestion.reponse')}>
         {options.map((o) => (
           <button
             key={o.id}

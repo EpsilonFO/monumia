@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import type { ProjectQuestionnaireAnswers } from '@/types';
 import { FAMILLES_KEY } from './familles';
 
@@ -22,23 +23,23 @@ export type Raison =
 export const RAISON_OPTIONS: { value: Raison; label: string; hint: string }[] = [
   {
     value: 'restauration_travaux',
-    label: 'Restaurer ou faire des travaux',
-    hint: 'Toiture, façade, structure, intérieur, mise aux normes.',
+    get label() { return i18n.t('constants:raisons.restauration_travaux.label'); },
+    get hint() { return i18n.t('constants:raisons.restauration_travaux.hint'); },
   },
   {
     value: 'valorisation_rayonnement',
-    label: 'Faire vivre et ouvrir le lieu',
-    hint: 'Visites, évènements, activité culturelle ou touristique.',
+    get label() { return i18n.t('constants:raisons.valorisation_rayonnement.label'); },
+    get hint() { return i18n.t('constants:raisons.valorisation_rayonnement.hint'); },
   },
   {
     value: 'etude_ingenierie',
-    label: 'Préparer le projet',
-    hint: 'Études, diagnostics, maîtrise d’œuvre en amont du chantier.',
+    get label() { return i18n.t('constants:raisons.etude_ingenierie.label'); },
+    get hint() { return i18n.t('constants:raisons.etude_ingenierie.hint'); },
   },
   {
     value: 'fiscalite',
-    label: 'Optimiser la fiscalité',
-    hint: 'Déductions, exonérations, dispositifs fiscaux du patrimoine.',
+    get label() { return i18n.t('constants:raisons.fiscalite.label'); },
+    get hint() { return i18n.t('constants:raisons.fiscalite.hint'); },
   },
 ];
 

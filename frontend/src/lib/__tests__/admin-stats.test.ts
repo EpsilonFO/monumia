@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  NON_CHIFFRE,
+  nonChiffre,
   basculerTri,
   filtrerTerritoires,
   formaterCouverture,
@@ -58,7 +58,7 @@ describe('formaterTaux', () => {
   });
 
   it('dit « non chiffré » plutôt que zéro quand la source n’annonce rien', () => {
-    expect(formaterTaux(groupe({ tauxMin: null, tauxMax: null }))).toBe(NON_CHIFFRE);
+    expect(formaterTaux(groupe({ tauxMin: null, tauxMax: null }))).toBe(nonChiffre());
   });
 
   it('affiche un taux réellement nul, qui n’est pas une absence', () => {
@@ -69,14 +69,14 @@ describe('formaterTaux', () => {
 describe('formaterTauxSeul', () => {
   it('affiche le taux d’une aide, ou son absence', () => {
     expect(espaces(formaterTauxSeul(40))).toBe('40 %');
-    expect(formaterTauxSeul(null)).toBe(NON_CHIFFRE);
+    expect(formaterTauxSeul(null)).toBe(nonChiffre());
   });
 });
 
 describe('formaterMontant', () => {
   it('distingue l’absence de plafond du plafond nul', () => {
-    expect(formaterMontant(null)).toBe(NON_CHIFFRE);
-    expect(formaterMontant(0)).not.toBe(NON_CHIFFRE);
+    expect(formaterMontant(null)).toBe(nonChiffre());
+    expect(formaterMontant(0)).not.toBe(nonChiffre());
   });
 
   it('formate en euros sans décimale', () => {

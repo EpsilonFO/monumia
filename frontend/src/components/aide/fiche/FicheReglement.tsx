@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useState, type Ref } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Ico, type NomIco } from './Ico';
 import { signalerPoint } from './useFiche';
 import { aplatir, type PointReglement, type Reglement, type Rubrique } from '@/lib/fiche-aide';
@@ -41,6 +42,7 @@ export function FicheReglement({
   sources: Source[];
   ref?: Ref<FicheReglementHandle>;
 }) {
+  const { t } = useTranslation('aide');
   // Ce qu'il faut déplier pour voir un point : lui et sa rubrique. Les
   // démarches n'y sont plus : elles vivent dans « Avant de déposer »
   // (FicheAvantDepot), qui porte leur ancre.
@@ -112,19 +114,24 @@ export function FicheReglement({
       <summary>
         <span className="pn">{p.n}</span>
         <span className="ptt">{p.titre}</span>
-        {p.pastille === 'verifier' && <span className="kb k-check">À vérifier</span>}
-        {p.pastille === 'choix' && <span className="kb k-disc">Au choix du financeur</span>}
+        {p.pastille === 'verifier' && <span className="kb k-check">{t('FicheReglement.aVerifier')}</span>}
+        {p.pastille === 'choix' && <span className="kb k-disc">{t('FicheReglement.auChoix')}</span>}
       </summary>
       <div className="pb">
         <p>{p.resume}</p>
-        {p.derogation && <p className="derog">Une dérogation est possible.</p>}
+        {p.derogation && <p className="derog">{t('FicheAvantDepot.derogation')}</p>}
         {p.quote && (
           <blockquote>
-            <small>Texte officiel</small>« {p.quote} »
+            <small>{t('FicheAvantDepot.texteOfficiel')}</small>
+            {t('FicheAvantDepot.citation', { citation: p.quote })}
           </blockquote>
         )}
         <button type="button" className={`copy${copie?.id === p.id && copie.ok ? ' done' : ''}`} onClick={() => copier(p.id)}>
-          {copie?.id === p.id ? (copie.ok ? 'Lien copié' : 'Lien dans la barre d’adresse') : 'Copier le lien de ce point'}
+          {copie?.id === p.id
+            ? copie.ok
+              ? t('FicheReglement.lienCopie')
+              : t('FicheReglement.lienBarre')
+            : t('FicheReglement.copierLien')}
         </button>
       </div>
     </details>
@@ -140,21 +147,21 @@ export function FicheReglement({
       <div className="reg-h">
         <span className="chip t-solid"><Ico nom="livre" /></span>
         <div>
-          <h2>Le règlement complet</h2>
-          <p>Pas besoin de tout lire : chaque point se consulte au besoin, par thème.</p>
+          <h2>{t('FicheReglement.titre')}</h2>
+          <p>{t('FicheReglement.intro')}</p>
         </div>
       </div>
 
       {rubriques.length > 0 && (
         <div className="reg-more">
           <div className="reg-more-h">
-            <h3>Le règlement, par thème</h3>
+            <h3>{t('FicheReglement.parTheme')}</h3>
             <label className="search">
               <Ico nom="loupe" />
               <input
                 type="search"
-                placeholder="Chercher un mot"
-                aria-label="Chercher dans le règlement"
+                placeholder={t('FicheReglement.recherchePlaceholder')}
+                aria-label={t('FicheReglement.rechercheAria')}
                 value={requete}
                 onChange={(e) => setRequete(e.target.value)}
               />
@@ -182,13 +189,13 @@ export function FicheReglement({
               </details>
             );
           })}
-          {cherche && trouves === 0 && <p className="empty">Aucun point ne contient ce mot.</p>}
+          {cherche && trouves === 0 && <p className="empty">{t('FicheReglement.aucun')}</p>}
         </div>
       )}
 
       {sources.length > 0 && (
         <details className="sources">
-          <summary><Ico nom="fichier" />Textes officiels ({sources.length})</summary>
+          <summary><Ico nom="fichier" />{t('FicheReglement.textesOfficiels', { n: sources.length })}</summary>
           {sources.map((s) => (
             <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer">
               <Ico nom={s.ico} />

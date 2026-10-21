@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { MemberAvatar, type AvatarPerson } from './MemberAvatar';
 
 const SIZES = {
@@ -14,6 +15,7 @@ export function MemberAvatarStack({
   max?: number;
   size?: keyof typeof SIZES;
 }) {
+  const { t } = useTranslation('shell');
   if (people.length === 0) return null;
   const shown = people.slice(0, max);
   const overflow = people.length - shown.length;
@@ -26,7 +28,7 @@ export function MemberAvatarStack({
       {overflow > 0 && (
         <span
           className={`inline-flex items-center justify-center rounded-full font-semibold bg-muted text-gray-fg ${s.box} ${s.text}`}
-          title={`${overflow} autre${overflow > 1 ? 's' : ''}`}
+          title={t('MemberAvatarStack.autres', { count: overflow })}
         >
           +{overflow}
         </span>

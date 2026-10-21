@@ -1,3 +1,4 @@
+import { localeIntl } from '@/i18n/format';
 import { dossierLabel, typeLabel } from '@/lib/document-type-meta';
 import type { Document, DocumentType } from '@/types';
 
@@ -36,8 +37,8 @@ const horodatage = (d: Document) => {
 /** « Les plus récents d'abord » (date d'ajout) ou « Trier par nom ». Ne modifie pas la liste reçue. */
 export function trierDocuments(docs: Document[], tri: TriDocuments): Document[] {
   const copie = [...docs];
-  if (tri === 'nom') return copie.sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }));
-  return copie.sort((a, b) => horodatage(b) - horodatage(a) || a.nom.localeCompare(b.nom, 'fr'));
+  if (tri === 'nom') return copie.sort((a, b) => a.nom.localeCompare(b.nom, localeIntl(), { sensitivity: 'base' }));
+  return copie.sort((a, b) => horodatage(b) - horodatage(a) || a.nom.localeCompare(b.nom, localeIntl()));
 }
 
 /** Les derniers ajouts, quel que soit le tri affiché. */

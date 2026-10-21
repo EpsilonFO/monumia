@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Ico } from './Ico';
 import { Repli } from './Repli';
 import type { PieceAffichee } from '@/lib/fiche-aide';
@@ -17,6 +18,7 @@ export function FichePieces({
   onAjouter: () => void;
   ouverture: boolean;
 }) {
+  const { t } = useTranslation(['aide', 'common']);
   if (!pieces.length) return null;
   const obligatoires = pieces.filter((p) => p.obligatoire);
   const selonCas = pieces.filter((p) => !p.obligatoire);
@@ -31,7 +33,7 @@ export function FichePieces({
           <small>
             {p.note}
             {p.note && p.url && ' '}
-            {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer">Télécharger</a>}
+            {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer">{t('common:actions.telecharger')}</a>}
           </small>
         )}
       </div>
@@ -41,7 +43,7 @@ export function FichePieces({
         disabled={p.deposee || ouverture}
         onClick={onAjouter}
       >
-        {p.deposee ? 'Ajoutée' : 'Ajouter'}
+        {p.deposee ? t('FichePieces.ajoutee') : t('common:actions.ajouter')}
       </button>
     </div>
   );
@@ -50,15 +52,14 @@ export function FichePieces({
     <Repli
       id="pieces"
       className="repli-bloc"
-      titre="Ce qu'il faut réunir"
+      titre={t('FichePieces.titre')}
       ouvertParDefaut
       entete={
         <div className="block-head">
-          <h2>Ce qu'il faut réunir</h2>
+          <h2>{t('FichePieces.titre')}</h2>
           {obligatoires.length > 0 && (
             <span className="meta">
-              {faites} sur {obligatoires.length} pièce{obligatoires.length > 1 ? 's' : ''} obligatoire
-              {obligatoires.length > 1 ? 's' : ''}
+              {t('FichePieces.obligatoires', { faites, count: obligatoires.length })}
             </span>
           )}
         </div>
@@ -69,7 +70,7 @@ export function FichePieces({
         {selonCas.length > 0 && (
           <details className="opt-wrap" open={obligatoires.length === 0}>
             <summary>
-              {selonCas.length} pièce{selonCas.length > 1 ? 's' : ''} selon votre situation
+              {t('FichePieces.selonSituation', { count: selonCas.length })}
             </summary>
             {selonCas.map(ligne)}
           </details>
@@ -77,7 +78,7 @@ export function FichePieces({
         {obligatoires.length > 0 && (
           <div className="bar"><i style={{ width: `${(faites / obligatoires.length) * 100}%` }} /></div>
         )}
-        <div className="pieces-foot"><span>Une pièce déposée une fois sert à tous vos dossiers.</span></div>
+        <div className="pieces-foot"><span>{t('FichePieces.pied')}</span></div>
       </div>
     </Repli>
   );

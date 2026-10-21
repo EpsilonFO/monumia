@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { IconAttention, IconRafraichir, IconRecherche } from '@/components/icons';
@@ -10,7 +11,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { adminService } from '@/services/admin.service';
 import { ApiError } from '@/lib/api-error';
 import {
-  NON_CHIFFRE,
   basculerTri,
   filtrerTerritoires,
   formaterCouverture,
@@ -18,6 +18,7 @@ import {
   formaterMontant,
   formaterTaux,
   masquerVides,
+  nonChiffre,
   trierLignes,
   type SensTri,
   type Tri,
@@ -149,11 +150,19 @@ function ListeAides({ slugs, aides }: { slugs: string[]; aides: Record<string, s
 
 /** La ligne de chiffrage d'un groupe : ce qui reste des colonnes d'argent. */
 function Chiffrage({ groupe }: { groupe: GroupeStats }) {
+  const { t } = useTranslation(['admin', 'common']);
   return (
     <p className="text-[14.5px] text-muted-foreground">
-      Taux : <span className="text-foreground">{formaterTaux(groupe)}</span> · Plafond médian :{' '}
-      <span className="text-foreground">{formaterMontant(groupe.montantMedian)}</span> · chiffrées :{' '}
-      {formaterCouverture(groupe.nbAvecMontant, groupe.nb)}
+      <Trans
+        t={t}
+        i18nKey="AdminStatsPage.chiffrage"
+        values={{
+          taux: formaterTaux(groupe),
+          plafond: formaterMontant(groupe.montantMedian),
+          couverture: formaterCouverture(groupe.nbAvecMontant, groupe.nb),
+        }}
+        components={{ valeur: <span className="text-foreground" /> }}
+      />
     </p>
   );
 }
@@ -167,12 +176,13 @@ function Depliant({
   aides: Record<string, string>;
   colonnes: number;
 }) {
+  const { t } = useTranslation(['admin', 'common']);
   return (
     <TableRow className="hover:bg-transparent">
       <TableCell colSpan={colonnes} className="bg-secondary/40 px-4 py-3">
         {groupe.nb === 0 ? (
           <p className="text-[15px] text-muted-foreground">
-            Aucune aide de cette collectivité dans le catalogue.
+            {t('AdminStatsPage.groupeVide')}
           </p>
         ) : (
           <>
@@ -209,6 +219,7 @@ function TableauTerritoires({
   avecRegion?: boolean;
   aides: Record<string, string>;
 }) {
+  const { t } = useTranslation(['admin', 'common']);
   const [tri, setTri] = useState<Tri<StatsTerritoire>>({ cle: 'nb', sens: 'desc' });
   const [ouvert, setOuvert] = useState<string | null>(null);
   const visibles = trierLignes(lignes, tri);
@@ -217,7 +228,7 @@ function TableauTerritoires({
   if (visibles.length === 0) {
     return (
       <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">
-        Aucun territoire ne correspond à votre recherche.
+        {t('AdminStatsPage.aucunTerritoire')}
       </p>
     );
   }
@@ -231,7 +242,7 @@ function TableauTerritoires({
           </EnTete>
           {avecRegion && (
             <EnTete<StatsTerritoire> cle="regionLabel" tri={tri} setTri={setTri} defaut="asc">
-              Région
+              {t('AdminStatsPage.colonnes.region')}
             </EnTete>
           )}
           <EnTete<StatsTerritoire> cle="nb" tri={tri} setTri={setTri} align="right">
@@ -290,6 +301,7 @@ function TableauNature({
   lignes: StatsNature[];
   aides: Record<string, string>;
 }) {
+  const { t } = useTranslation(['admin', 'common']);
   const [tri, setTri] = useState<Tri<StatsNature>>({ cle: 'nb', sens: 'desc' });
   const [ouvert, setOuvert] = useState<string | null>(null);
   const visibles = trierLignes(lignes, tri);
@@ -306,7 +318,7 @@ function TableauNature({
               {colonne}
             </EnTete>
             <EnTete<StatsNature> cle="nb" tri={tri} setTri={setTri} align="right">
-              Aides
+              {t('AdminStatsPage.colonnes.aides')}
             </EnTete>
           </TableRow>
         </TableHeader>
@@ -345,6 +357,7 @@ function TableauNature({
  * une statistique. D'où l'encart rouge, et le silence quand tout va bien.
  */
 function Synchronisation({ stats }: { stats: StatistiquesCatalogue }) {
+  const { t } = useTranslation(['admin', 'common']);
   const sync = stats.synchronisation;
   if (!sync.lisible || sync.nbManquantes === 0) return null;
   return (
@@ -355,12 +368,14 @@ function Synchronisation({ stats }: { stats: StatistiquesCatalogue }) {
       <IconAttention className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: C.danger }} />
       <div className="text-[15.5px]">
         <p className="font-semibold text-foreground">
-          {sync.nbManquantes} aide{sync.nbManquantes > 1 ? 's' : ''} absente
-          {sync.nbManquantes > 1 ? 's' : ''} de la base
+          {t('AdminStatsPage.synchronisation.titre', { count: sync.nbManquantes })}
         </p>
         <p className="mt-0.5 text-muted-foreground">
-          Le diagnostic les propose, mais la création de dossier répondra « Aide introuvable ».
-          Relancer <code className="font-mono">scripts/load_aides_yaml.py</code> pour les pousser.
+          <Trans
+            t={t}
+            i18nKey="AdminStatsPage.synchronisation.explication"
+            components={{ code: <code className="font-mono" /> }}
+          />
         </p>
         <p className="mt-1 font-mono text-[13.5px] text-muted-foreground">
           {sync.manquantes.join(', ')}
@@ -372,6 +387,7 @@ function Synchronisation({ stats }: { stats: StatistiquesCatalogue }) {
 }
 
 export function AdminStatsPage() {
+  const { t } = useTranslation(['admin', 'common']);
   const navigate = useNavigate();
   const [stats, setStats] = useState<StatistiquesCatalogue | null>(null);
   const [chargement, setChargement] = useState(true);
@@ -395,17 +411,17 @@ export function AdminStatsPage() {
         if (monte.current) setStats(reponse);
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) {
-          toast.error('Accès réservé à l’administration');
+          toast.error(t('AdminPage.accesReserve'));
           navigate(ROUTES.DASHBOARD, { replace: true });
           return;
         }
         if (!silencieux)
-          toast.error(err instanceof Error ? err.message : 'Statistiques indisponibles');
+          toast.error(err instanceof Error ? err.message : t('AdminStatsPage.indisponibles'));
       } finally {
         if (monte.current) setChargement(false);
       }
     },
-    [navigate],
+    [navigate, t],
   );
 
   // Rafraîchissement : une fois par minute, et au retour sur l'onglet. Un
@@ -436,13 +452,13 @@ export function AdminStatsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Le catalogue en chiffres"
-        description="Combien d’aides finance chaque Conseil régional, chaque Conseil départemental, et combien valent partout. Cliquer une ligne déplie leurs noms."
+        title={t('AdminStatsPage.titre')}
+        description={t('AdminStatsPage.description')}
         action={
           <div className="flex items-center gap-3">
             {stats && (
               <span className="text-[14.5px] text-muted-foreground">
-                à jour à {formaterHeure(stats.genereLe)}
+                {t('AdminStatsPage.aJourA', { heure: formaterHeure(stats.genereLe) })}
               </span>
             )}
             <button
@@ -452,21 +468,21 @@ export function AdminStatsPage() {
               style={{ borderColor: C.border, color: C.blue }}
             >
               <IconRafraichir className="h-4 w-4" />
-              Rafraîchir
+              {t('AdminStatsPage.rafraichir')}
             </button>
           </div>
         }
       />
 
       <Link to={ROUTES.ADMIN} className="inline-block text-[15.5px]" style={{ color: C.blue }}>
-        ← Administration du catalogue
+        {t('AdminStatsPage.retourAdmin')}
       </Link>
 
       {chargement && !stats ? (
-        <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">Chargement…</p>
+        <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">{t('common:etats.chargement')}</p>
       ) : !stats ? (
         <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">
-          Statistiques indisponibles.
+          {t('AdminStatsPage.indisponiblesPhrase')}
         </p>
       ) : (
         <>
@@ -475,32 +491,32 @@ export function AdminStatsPage() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <Vignette
               valeur={stats.corpus.nb}
-              libelle="Aides au catalogue"
+              libelle={t('AdminStatsPage.vignettes.catalogue')}
               note={
                 stats.corpus.retirees > 0
-                  ? `${stats.corpus.retirees} retirée${stats.corpus.retirees > 1 ? 's' : ''}, non comptée${stats.corpus.retirees > 1 ? 's' : ''}`
+                  ? t('AdminStatsPage.vignettes.retirees', { count: stats.corpus.retirees })
                   : undefined
               }
             />
             <Vignette
               valeur={stats.corpus.nationales}
-              libelle="Nationales"
-              note="État, fiscalité, fondations nationales"
+              libelle={t('AdminStatsPage.vignettes.nationales')}
+              note={t('AdminStatsPage.vignettes.nationalesNote')}
             />
             <Vignette
               valeur={stats.corpus.regionales}
-              libelle="Conseils régionaux"
-              note="quel que soit leur périmètre"
+              libelle={t('AdminStatsPage.vignettes.regionaux')}
+              note={t('AdminStatsPage.vignettes.quelQueSoitPerimetre')}
             />
             <Vignette
               valeur={stats.corpus.departementales}
-              libelle="Conseils départementaux"
-              note="quel que soit leur périmètre"
+              libelle={t('AdminStatsPage.vignettes.departementaux')}
+              note={t('AdminStatsPage.vignettes.quelQueSoitPerimetre')}
             />
             <Vignette
               valeur={stats.corpus.autres}
-              libelle="Autres financeurs"
-              note="fondations, Europe, mécénat"
+              libelle={t('AdminStatsPage.vignettes.autres')}
+              note={t('AdminStatsPage.vignettes.autresNote')}
             />
           </div>
 
@@ -513,39 +529,38 @@ export function AdminStatsPage() {
               <Input
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
-                placeholder="Filtrer un territoire (nom, code INSEE, région)…"
+                placeholder={t('AdminStatsPage.filtrer')}
                 className="h-10 pl-9 text-[16px]"
               />
             </div>
             <label className="flex items-center gap-2 text-[15px] text-muted-foreground">
               <Switch checked={masquerVidesActif} onCheckedChange={setMasquerVidesActif} />
-              Masquer les territoires sans aide
+              {t('AdminStatsPage.masquerVides')}
             </label>
           </div>
 
           <Tabs defaultValue="regions">
             <TabsList>
-              <TabsTrigger value="regions">Régions</TabsTrigger>
-              <TabsTrigger value="departements">Départements</TabsTrigger>
-              <TabsTrigger value="national">National</TabsTrigger>
-              <TabsTrigger value="autres">Autres financeurs</TabsTrigger>
-              <TabsTrigger value="nature">Nature</TabsTrigger>
+              <TabsTrigger value="regions">{t('AdminStatsPage.onglets.regions')}</TabsTrigger>
+              <TabsTrigger value="departements">
+                {t('AdminStatsPage.onglets.departements')}
+              </TabsTrigger>
+              <TabsTrigger value="national">{t('AdminStatsPage.onglets.national')}</TabsTrigger>
+              <TabsTrigger value="autres">{t('AdminStatsPage.onglets.autres')}</TabsTrigger>
+              <TabsTrigger value="nature">{t('AdminStatsPage.onglets.nature')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="regions" className="mt-4 space-y-2">
               <div className="overflow-hidden rounded-xl border border-border bg-card">
                 <TableauTerritoires
                   lignes={regions}
-                  titre="Région"
-                  colonneNb="Aides du Conseil régional"
+                  titre={t('AdminStatsPage.colonnes.region')}
+                  colonneNb={t('AdminStatsPage.colonnes.aidesRegion')}
                   aides={stats.aides}
                 />
               </div>
               <p className="text-[14.5px] text-muted-foreground">
-                Les aides financées par chaque Conseil régional, y compris celles qu’il limite à
-                quelques départements. Ce que la Région finance, pas ce qui s’applique sur son
-                territoire : les aides de l’État et des Départements sont sur leurs propres
-                onglets.
+                {t('AdminStatsPage.notes.regions')}
               </p>
             </TabsContent>
 
@@ -553,24 +568,21 @@ export function AdminStatsPage() {
               <div className="overflow-hidden rounded-xl border border-border bg-card">
                 <TableauTerritoires
                   lignes={departements}
-                  titre="Département"
-                  colonneNb="Aides du Conseil départemental"
+                  titre={t('AdminStatsPage.colonnes.departement')}
+                  colonneNb={t('AdminStatsPage.colonnes.aidesDepartement')}
                   avecRegion
                   aides={stats.aides}
                 />
               </div>
               <p className="text-[14.5px] text-muted-foreground">
-                Les aides financées par chaque Conseil départemental. Un zéro ne veut pas dire
-                qu’un monument du département n’a droit à rien : il voit aussi les aides de sa
-                région, les nationales et celles des autres financeurs. Il veut dire qu’il reste un
-                Département entier à prospecter.
+                {t('AdminStatsPage.notes.departements')}
               </p>
             </TabsContent>
 
             <TabsContent value="national" className="mt-4 space-y-2">
               <div className="overflow-hidden rounded-xl border border-border bg-card px-4 py-4">
                 <p className="text-[16px] font-medium text-foreground">
-                  {stats.corpus.nationales} aides sans filtre géographique
+                  {t('AdminStatsPage.nationalTitre', { nb: stats.corpus.nationales })}
                 </p>
                 <div className="mt-0.5 mb-3">
                   <Chiffrage groupe={stats.national} />
@@ -582,7 +594,7 @@ export function AdminStatsPage() {
             <TabsContent value="autres" className="mt-4 space-y-2">
               <div className="overflow-hidden rounded-xl border border-border bg-card px-4 py-4">
                 <p className="text-[16px] font-medium text-foreground">
-                  {stats.corpus.autres} aides d’un financeur sans échelon territorial
+                  {t('AdminStatsPage.autresTitre', { nb: stats.corpus.autres })}
                 </p>
                 <div className="mt-0.5 mb-3">
                   <Chiffrage groupe={stats.autres} />
@@ -590,22 +602,20 @@ export function AdminStatsPage() {
                 <ListeAides slugs={stats.autres.slugs} aides={stats.aides} />
               </div>
               <p className="text-[14.5px] text-muted-foreground">
-                Fondations, Europe, mécénat : leur périmètre est local sans qu’un euro vienne d’une
-                collectivité. Les compter comme des aides de Département serait faux, les cacher
-                les ferait disparaître de la page.
+                {t('AdminStatsPage.notes.autres')}
               </p>
             </TabsContent>
 
             <TabsContent value="nature" className="mt-4 grid gap-4 xl:grid-cols-2">
               <TableauNature
-                titre="Par financeur"
-                colonne="Catégorie"
+                titre={t('AdminStatsPage.nature.parFinanceur')}
+                colonne={t('AdminStatsPage.nature.categorie')}
                 lignes={stats.categories}
                 aides={stats.aides}
               />
               <TableauNature
-                titre="Par dispositif"
-                colonne="Type"
+                titre={t('AdminStatsPage.nature.parDispositif')}
+                colonne={t('AdminStatsPage.nature.type')}
                 lignes={stats.types}
                 aides={stats.aides}
               />
@@ -613,10 +623,7 @@ export function AdminStatsPage() {
           </Tabs>
 
           <p className="text-[14.5px] text-muted-foreground">
-            Les quatre chiffres de tête s’additionnent : une aide est comptée une seule fois, sur
-            l’échelon qui la finance. {NON_CHIFFRE} = la source n’annonce ni taux ni montant : rien
-            n’est déduit, rien n’est additionné. Les aides retirées du catalogue ne sont ni
-            comptées ni listées.
+            {t('AdminStatsPage.notes.pied', { nc: nonChiffre() })}
           </p>
         </>
       )}

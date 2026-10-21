@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { C, SERIF } from '@/lib/brand';
 import { dateLongue } from '@/lib/fiche-aide';
@@ -22,7 +23,7 @@ interface AideFermeeDialogProps {
  * une session terminée qui rouvrira, ce n'est pas le même message.
  */
 export function AideFermeeDialog({ fermee, open, onCompris }: AideFermeeDialogProps) {
-  const depuis = fermee.fermeeLe ? ` depuis le ${dateLongue(fermee.fermeeLe)}` : '';
+  const { t } = useTranslation('aide');
   return (
     <Dialog open={open} onOpenChange={(ouvert) => !ouvert && onCompris()}>
       <DialogContent
@@ -37,25 +38,19 @@ export function AideFermeeDialog({ fermee, open, onCompris }: AideFermeeDialogPr
           className="mt-2 text-[27px] leading-tight font-normal"
           style={{ fontFamily: SERIF, color: C.ink }}
         >
-          Cette aide n'est plus proposée
+          {t('AideFermeeDialog.titre')}
         </DialogTitle>
         <DialogDescription asChild>
           <div className="mt-4 space-y-3 text-[16.5px] leading-[1.7]" style={{ color: C.grayFg }}>
             <p>
-              Son financeur ne la propose plus{depuis} : elle a disparu de sa liste d'aides et sa
-              page officielle a été retirée.
+              {fermee.fermeeLe
+                ? t('AideFermeeDialog.retireeDepuis', { date: dateLongue(fermee.fermeeLe) })
+                : t('AideFermeeDialog.retiree')}
             </p>
             {fermee.deposee ? (
-              <p>
-                Votre demande, déjà envoyée, n'est pas concernée : elle suit son cours auprès du
-                financeur, et votre dossier reste dans votre projet.
-              </p>
+              <p>{t('AideFermeeDialog.deposee')}</p>
             ) : (
-              <p>
-                Votre dossier en préparation ne pourra donc pas être déposé. Il quittera votre
-                projet quand vous fermerez ce message ; les documents que vous y aviez ajoutés
-                restent dans les documents du projet.
-              </p>
+              <p>{t('AideFermeeDialog.enPreparation')}</p>
             )}
           </div>
         </DialogDescription>
@@ -65,7 +60,7 @@ export function AideFermeeDialog({ fermee, open, onCompris }: AideFermeeDialogPr
           className="mt-7 w-full rounded-full px-5 py-3 text-[16.5px] font-semibold text-white transition-transform duration-200 hover:-translate-y-0.5"
           style={{ background: C.orange }}
         >
-          J'ai compris
+          {t('AideFermeeDialog.compris')}
         </button>
       </DialogContent>
     </Dialog>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { WORK_TYPES } from '@/constants/monument-options';
 import { grouperReponses } from '@/lib/question-reponse';
 import type { WorkType } from '@/types';
@@ -45,11 +46,12 @@ export function ProjectTravauxStep({
   onBack,
   saving,
 }: ProjectTravauxStepProps) {
+  const { t } = useTranslation('project');
   const selected = value ?? [];
 
   const toggle = (type: WorkType) => {
     const next = selected.includes(type)
-      ? selected.filter((t) => t !== type)
+      ? selected.filter((w) => w !== type)
       : [...selected, type];
     // Tout décocher ramène à « sans réponse », pas à « pas encore déterminé » :
     // les deux se ressemblent mais seule la seconde est un choix explicite.
@@ -59,17 +61,17 @@ export function ProjectTravauxStep({
   return (
     <CadrageStep
       rubrique={TRAVAUX_STEP.label}
-      title="Sur quoi portent les travaux envisagés ?"
-      consigne="Plusieurs réponses possibles."
-      pourquoi="Certaines aides ne financent qu'un type d'ouvrage précis."
+      title={t('ProjectTravauxStep.titre')}
+      consigne={t('consignes.plusieursReponses')}
+      pourquoi={t('ProjectTravauxStep.pourquoi')}
       multiple
       onNext={onNext}
       onBack={onBack}
       // À la place du « Je ne sais pas, passer » des autres questions.
       onPasser={onIndetermine}
-      libellePasser="Pas encore déterminé"
+      libellePasser={t('ProjectTravauxStep.indetermine')}
       nextDisabled={value === null}
-      nextHint="Cochez au moins un type de travaux, ou « Pas encore déterminé »."
+      nextHint={t('ProjectTravauxStep.indiceSuivant')}
       saving={saving}
       // « Tout refaire » depuis la page du projet repasse par cette étape.
       modifiablePlusTard

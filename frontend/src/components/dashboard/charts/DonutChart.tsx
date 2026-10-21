@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { C } from '@/lib/brand';
 
 interface DonutSlice {
@@ -12,6 +13,7 @@ interface DonutChartProps {
 }
 
 export function DonutChart({ data, size = 168 }: DonutChartProps) {
+  const { t } = useTranslation('dashboard');
   const total = data.reduce((acc, d) => acc + d.value, 0);
   const stroke = Math.round(size * 0.16);
   const radius = (size - stroke) / 2;
@@ -25,9 +27,9 @@ export function DonutChart({ data, size = 168 }: DonutChartProps) {
         className="flex items-center justify-center rounded-full text-[14px]"
         style={{ width: size, height: size, color: C.ink, opacity: 0.5 }}
         role="img"
-        aria-label="Aucune donnée à afficher"
+        aria-label={t('DonutChart.aucuneDonneeAAfficher')}
       >
-        Aucune donnée
+        {t('DonutChart.aucuneDonnee')}
       </div>
     );
   }
@@ -63,7 +65,13 @@ export function DonutChart({ data, size = 168 }: DonutChartProps) {
 
   const aria = data
     .filter((d) => d.value > 0)
-    .map((d) => `${d.label} : ${d.value} (${Math.round((d.value / total) * 100)}%)`)
+    .map((d) =>
+      t('DonutChart.part', {
+        libelle: d.label,
+        valeur: d.value,
+        pct: Math.round((d.value / total) * 100),
+      }),
+    )
     .join(', ');
 
   return (
@@ -75,7 +83,7 @@ export function DonutChart({ data, size = 168 }: DonutChartProps) {
             height={size}
             viewBox={`0 0 ${size} ${size}`}
             role="img"
-            aria-label={`Répartition : ${aria}`}
+            aria-label={t('DonutChart.repartition', { parts: aria })}
           >
             <circle
               cx={cx}
@@ -109,7 +117,7 @@ export function DonutChart({ data, size = 168 }: DonutChartProps) {
               {total}
             </span>
             <span className="mt-1 text-[12px] uppercase tracking-[0.12em]" style={{ color: C.ink, opacity: 0.5 }}>
-              total
+              {t('DonutChart.total')}
             </span>
           </div>
         </div>

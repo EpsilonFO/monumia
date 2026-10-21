@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import { IconSucces, IconErreur, IconHelp, IconCle, IconCalendrier } from '@/components/icons';
+import i18n from '@/i18n';
 import type { AideDisponibilite, AideMatchResult, AideStatut } from '@/types';
 
 /**
@@ -54,7 +55,9 @@ type StatusIcon = ComponentType<{ className?: string; strokeWidth?: number }>;
  * Rien de rouge : une session passée n'est pas une échéance manquée.
  */
 export const DISPONIBILITE_BIENTOT_PILL = {
-  label: 'Ouvre bientôt',
+  get label() {
+    return i18n.t('aide:statut.ouvreBientot');
+  },
   icon: IconCalendrier as StatusIcon,
   /** Variante `Badge variant="outline"` (vignettes). */
   className: 'border-info text-info bg-info-muted',
@@ -70,22 +73,30 @@ export const STATUS_BADGE: Record<
 > = {
   eligible: {
     className: 'border-success text-success bg-success-muted',
-    label: 'Éligible',
+    get label() {
+      return i18n.t('aide:statut.badge.eligible');
+    },
     icon: IconSucces,
   },
   atteignable: {
     className: 'border-info text-info bg-info-muted',
-    label: 'À débloquer',
+    get label() {
+      return i18n.t('aide:statut.badge.atteignable');
+    },
     icon: IconCle,
   },
   potential: {
     className: 'border-warning text-warning bg-warning-muted',
-    label: 'Potentiellement éligible',
+    get label() {
+      return i18n.t('aide:statut.badge.potential');
+    },
     icon: IconHelp,
   },
   'non-eligible': {
     className: 'border-destructive text-destructive bg-destructive-muted',
-    label: 'Non éligible',
+    get label() {
+      return i18n.t('aide:statut.badge.nonEligible');
+    },
     icon: IconErreur,
   },
 };
@@ -100,8 +111,16 @@ export const STATUS_TONE: Record<EligibilityStatus, { tint: string; accent: stri
 
 /** Libellé court de la pastille : « À confirmer » se lit mieux que « Potentiellement éligible ». */
 export const STATUS_PILL_LABEL: Record<EligibilityStatus, string> = {
-  eligible: 'Éligible',
-  atteignable: 'À débloquer',
-  potential: 'À confirmer',
-  'non-eligible': 'Non éligible',
+  get eligible() {
+    return i18n.t('aide:statut.pastille.eligible');
+  },
+  get atteignable() {
+    return i18n.t('aide:statut.pastille.atteignable');
+  },
+  get potential() {
+    return i18n.t('aide:statut.pastille.potential');
+  },
+  get 'non-eligible'() {
+    return i18n.t('aide:statut.pastille.nonEligible');
+  },
 };

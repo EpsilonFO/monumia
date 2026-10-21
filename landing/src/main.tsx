@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import { initialiserI18n } from './i18n'
 import { LandingPage } from './LandingPage'
 import { CguPage, PrivacyPage, CGU_PATH, PRIVACY_PATH } from './LegalPages'
 
@@ -15,8 +16,11 @@ function pageForPath() {
   return <LandingPage />
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    {pageForPath()}
-  </StrictMode>,
-)
+// La langue doit être prête avant le premier rendu (cf. src/i18n).
+void initialiserI18n().then(() => {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      {pageForPath()}
+    </StrictMode>,
+  )
+})

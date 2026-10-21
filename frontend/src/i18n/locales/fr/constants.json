@@ -1,0 +1,334 @@
+{
+  "aideCategories": {
+    "categories": {
+      "etat_drac": "État (DRAC)",
+      "region": "Région",
+      "departement": "Département",
+      "fondation": "Fondation",
+      "europe": "Europe",
+      "mecenat": "Mécénat",
+      "fiscalite": "Fiscalité",
+      "autre": "Autre"
+    },
+    "types": {
+      "subvention": "Subvention",
+      "appel_a_projets": "Appel à projets",
+      "pret": "Prêt",
+      "deduction_fiscale": "Déduction fiscale",
+      "exoneration": "Exonération",
+      "label": "Label",
+      "mecenat": "Mécénat",
+      "souscription": "Souscription publique"
+    }
+  },
+  "dossierSteps": {
+    "etapes": {
+      "initialisation": {
+        "label": "Initialisation",
+        "description": "Collecte des informations de base et identification des pièces nécessaires"
+      },
+      "constitution": {
+        "label": "Constitution",
+        "description": "Rassemblement des documents et rédaction des sections du dossier"
+      },
+      "verification": {
+        "label": "Vérification",
+        "description": "Relecture du dossier complet et vérification de la conformité"
+      },
+      "pret": {
+        "label": "Prêt à soumettre",
+        "description": "Le dossier est complet et prêt pour le dépôt"
+      },
+      "soumis": {
+        "label": "Soumis",
+        "description": "Le dossier a été déposé manuellement par le porteur de projet"
+      }
+    },
+    "statuts": {
+      "brouillon": "Brouillon",
+      "en_cours": "En cours",
+      "complet": "Complet",
+      "pret": "Prêt à soumettre",
+      "soumis": "Soumis"
+    },
+    "checklist": {
+      "fourni": "Fourni",
+      "repris": "Repris — à vérifier",
+      "en_attente": "En attente",
+      "manquant": "Manquant"
+    }
+  },
+  "familles": {
+    "restauration_bati": {
+      "label": "Restauration du bâti",
+      "hint": "Travaux sur le bâti, protégé ou non, et le mobilier attaché."
+    },
+    "energie_climat": {
+      "label": "Énergie et climat",
+      "hint": "Rénovation énergétique, chauffage, matériaux biosourcés."
+    },
+    "eau_nature_domaine": {
+      "label": "Eau, nature et domaine",
+      "hint": "Cours d’eau, douves, biodiversité, forêt, vergers, haies."
+    },
+    "securite_risques": {
+      "label": "Sécurité et risques",
+      "hint": "Incendie, foudre, inondation, sûreté, mise en sécurité."
+    },
+    "parcs_jardins_paysages": {
+      "label": "Parcs, jardins et paysages",
+      "hint": "Parcs et jardins, arbres remarquables, paysages, abords."
+    },
+    "hebergement_touristique": {
+      "label": "Hébergement touristique",
+      "hint": "Gîtes, chambres d’hôtes, hôtel, camping, hébergement collectif."
+    },
+    "tourisme_visite": {
+      "label": "Site de visite et tourisme",
+      "hint": "Ouverture à la visite, itinérance, évènementiel touristique."
+    },
+    "activite_economique_lieu": {
+      "label": "Activité économique dans le lieu",
+      "hint": "Reconversion, tiers-lieu, commerce ou artisanat installé."
+    },
+    "spectacles_manifestations": {
+      "label": "Spectacles et manifestations",
+      "hint": "Festivals, saisons, résidences, évènements accueillis."
+    },
+    "vie_locale_associative": {
+      "label": "Vie locale et associative",
+      "hint": "Vie associative, fêtes locales, mémoire, cultures régionales."
+    },
+    "mediation_numerique_expositions": {
+      "label": "Médiation, expositions, musée, numérique",
+      "hint": "Signalétique, scénographie, expositions, musée, numérique."
+    },
+    "accessibilite_publics": {
+      "label": "Accessibilité et accueil des publics",
+      "hint": "Accessibilité, handicap, confort d’accueil des visiteurs."
+    },
+    "etudes_ingenierie": {
+      "label": "Études et ingénierie",
+      "hint": "Études préalables, diagnostics, ingénierie, AMO."
+    },
+    "labels_passerelles": {
+      "label": "Labels et passerelles",
+      "hint": "Labels et dispositifs qui ouvrent l’accès à d’autres aides."
+    }
+  },
+  "fileTypes": {
+    "formatNonAutorise": "Format non autorisé (.{{extension}}). Formats acceptés : {{formats}}.",
+    "mimeNonAutorise": "Type MIME non autorisé ({{type}}).",
+    "tropVolumineux": "Fichier trop volumineux (max {{max}} Mo)."
+  },
+  "metiers": {
+    "groupes": {
+      "proprietaire": "Propriétaire & porteur du projet",
+      "architectes": "Architectes & bureaux d'études",
+      "artisans": "Artisans & restaurateurs",
+      "administration": "Administration & contrôle de l'État",
+      "financement": "Financement & conseil juridique"
+    },
+    "familles": {
+      "proprietaire": "Propriétaire ou porteur du projet",
+      "architecte": "Architecte ou bureau d'études",
+      "artisan": "Artisan ou restaurateur",
+      "administration": "Administration ou contrôle de l'État",
+      "financement": "Financement ou conseil",
+      "autre": "Autre"
+    }
+  },
+  "monumentOptions": {
+    "protection": {
+      "classe": "Classé Monument Historique",
+      "inscrit": "Inscrit Monument Historique",
+      "abords": "En périmètre d'un MH (abords)",
+      "spr": "Site Patrimonial Remarquable (SPR)",
+      "non_protege": "Non protégé"
+    },
+    "protectionLongue": {
+      "classe": "Classé Monument Historique",
+      "inscrit": "Inscrit Monument Historique",
+      "abords": "En périmètre d'un MH",
+      "spr": "Site Patrimonial Remarquable",
+      "non_protege": "Non protégé"
+    },
+    "protectionCourte": {
+      "classe": "Classé MH",
+      "inscrit": "Inscrit MH",
+      "abords": "Périmètre MH",
+      "spr": "Site Patrimonial Remarquable",
+      "non_protege": "Non protégé"
+    },
+    "proprietaire": {
+      "public_commune": "Commune",
+      "public_epci": "Intercommunalité (EPCI)",
+      "public_departement": "Département",
+      "public_region": "Région",
+      "public_etat": "État",
+      "syndicat_mixte": "Syndicat mixte / Parc naturel régional",
+      "prive_personne_physique": "Propriétaire privé (personne physique)",
+      "prive_sci": "SCI",
+      "association": "Association",
+      "mixte": "Propriété mixte"
+    },
+    "etatsConservation": {
+      "bon": "Bon état",
+      "moyen": "État moyen",
+      "mauvais": "Mauvais état",
+      "peril": "En péril"
+    },
+    "typesEdifice": {
+      "eglise": "Église, cathédrale, basilique",
+      "chapelle": "Chapelle",
+      "abbaye_couvent": "Abbaye, prieuré, couvent",
+      "temple": "Temple protestant",
+      "synagogue": "Synagogue",
+      "croix_calvaire": "Croix, calvaire",
+      "autre_religieux": "Autre édifice religieux",
+      "chateau": "Château, château fort",
+      "manoir_demeure": "Manoir, demeure",
+      "hotel_particulier": "Hôtel particulier",
+      "maison": "Maison",
+      "edifice_public": "Édifice public",
+      "hopital": "Hôpital, hospice, Hôtel-Dieu",
+      "halle": "Halle, marché couvert",
+      "patrimoine_industriel": "Patrimoine industriel",
+      "ferme": "Ferme, grange, bâtiment agricole",
+      "moulin": "Moulin",
+      "lavoir_fontaine": "Lavoir, fontaine",
+      "pigeonnier": "Pigeonnier, colombier",
+      "petit_patrimoine": "Four, puits, petit patrimoine",
+      "fortification": "Fortification, rempart, porte de ville",
+      "pont": "Pont, aqueduc, ouvrage d’art",
+      "jardin": "Parc, jardin",
+      "site_archeologique": "Site archéologique, mégalithe",
+      "monument_aux_morts": "Monument aux morts",
+      "monument_commemoratif": "Statue, monument commémoratif",
+      "autre": "Autre"
+    },
+    "typesEdificeIndices": {
+      "autre_religieux": "Oratoire, cimetière, mosquée…",
+      "maison": "De ville ou de village, maison natale…",
+      "edifice_public": "Mairie, école, théâtre, palais de justice…",
+      "patrimoine_industriel": "Usine, forge, mine, gare…",
+      "petit_patrimoine": "Four à pain, puits, abreuvoir, kiosque…",
+      "autre": "Aucun de ces types ne correspond"
+    },
+    "urgence": {
+      "faible": "Faible",
+      "moyenne": "Moyenne",
+      "haute": "Haute",
+      "critique": "Critique"
+    },
+    "travaux": {
+      "charpente": "Charpente",
+      "couverture": "Couverture",
+      "facade": "Façade",
+      "maconnerie": "Maçonnerie",
+      "vitraux": "Vitraux",
+      "peintures_murales": "Peintures murales",
+      "menuiserie": "Menuiserie",
+      "electricite": "Électricité",
+      "plomberie": "Plomberie",
+      "chauffage": "Chauffage",
+      "accessibilite": "Accessibilité",
+      "mise_en_securite": "Mise en sécurité",
+      "etude_prealable": "Étude préalable",
+      "mobilier": "Mobilier",
+      "archives": "Archives et documents",
+      "orgues": "Orgues",
+      "parcs_jardins": "Parcs et jardins",
+      "protection_solaire": "Protection solaire",
+      "ventilation": "Ventilation",
+      "exploitation_agricole": "Exploitation agricole",
+      "foret": "Forêt et desserte forestière",
+      "eau_milieux_aquatiques": "Eau et milieux aquatiques",
+      "equipement_numerique": "Équipement numérique"
+    },
+    "groupesTravaux": {
+      "closEtCouvert": "Clos et couvert",
+      "decorsEtObjets": "Décors et objets",
+      "installationsTechniques": "Installations techniques",
+      "etudes": "Études",
+      "abordsEtDomaine": "Abords et domaine",
+      "equipement": "Équipement"
+    },
+    "materiaux": {
+      "pierre": "Pierre",
+      "brique": "Brique",
+      "bois": "Bois",
+      "ardoise": "Ardoise",
+      "tuile": "Tuile",
+      "lauze": "Lauze",
+      "chaume": "Chaume",
+      "zinc": "Zinc",
+      "plomb": "Plomb",
+      "verre": "Verre",
+      "metal": "Métal",
+      "torchis": "Torchis",
+      "enduit": "Enduit",
+      "autre": "Autre"
+    },
+    "couvertures": {
+      "toitALongsPans": "Toit à longs pans",
+      "toitAUnPan": "Toit à un pan",
+      "croupe": "Croupe",
+      "demiCroupe": "Demi-croupe",
+      "croupeRonde": "Croupe ronde",
+      "pavillon": "Pavillon",
+      "toitBrise": "Toit brisé",
+      "toitBriseALongsPans": "Toit brisé à longs pans",
+      "toitBriseEnPavillon": "Toit brisé en pavillon",
+      "fleche": "Flèche",
+      "flechePolygonale": "Flèche polygonale",
+      "flecheCarree": "Flèche carrée",
+      "dome": "Dôme",
+      "domeAPans": "Dôme à pans",
+      "coupole": "Coupole",
+      "bulbe": "Bulbe",
+      "toitEnCarene": "Toit en carène",
+      "terrasse": "Terrasse",
+      "combleALaMansart": "Comble à la mansart",
+      "pignonCouvert": "Pignon couvert",
+      "pignonDecouvert": "Pignon découvert",
+      "noue": "Noue",
+      "appentis": "Appentis",
+      "shed": "Shed",
+      "flecheDeHautClocher": "Flèche de haut-clocher"
+    },
+    "affectataires": {
+      "culte": "Culte",
+      "mairie": "Mairie / Services municipaux",
+      "habitation": "Habitation",
+      "musee": "Musée",
+      "tourisme": "Tourisme / Visite",
+      "enseignement": "Enseignement",
+      "commercial": "Activité commerciale",
+      "non_affecte": "Non affecté / Vacant",
+      "autre": "Autre"
+    },
+    "peril": {
+      "enPeril": "En péril",
+      "pasEnPeril": "Pas en péril"
+    }
+  },
+  "raisons": {
+    "restauration_travaux": {
+      "label": "Restaurer ou faire des travaux",
+      "hint": "Toiture, façade, structure, intérieur, mise aux normes."
+    },
+    "valorisation_rayonnement": {
+      "label": "Faire vivre et ouvrir le lieu",
+      "hint": "Visites, évènements, activité culturelle ou touristique."
+    },
+    "etude_ingenierie": {
+      "label": "Préparer le projet",
+      "hint": "Études, diagnostics, maîtrise d’œuvre en amont du chantier."
+    },
+    "fiscalite": {
+      "label": "Optimiser la fiscalité",
+      "hint": "Déductions, exonérations, dispositifs fiscaux du patrimoine."
+    }
+  }
+}

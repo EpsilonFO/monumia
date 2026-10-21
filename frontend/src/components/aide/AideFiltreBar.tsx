@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { AideFiltreKey, AideFiltreOption } from '@/lib/aide-filtres';
 
 interface AideFiltreBarProps {
@@ -17,10 +18,11 @@ interface AideFiltreBarProps {
  * masquer une section et pas l'autre donnerait des totaux incohérents.
  */
 export function AideFiltreBar({ options, value, onChange }: AideFiltreBarProps) {
+  const { t } = useTranslation('aide');
   if (options.length === 0) return null;
 
   return (
-    <div className="fin" role="group" aria-label="Filtrer par financeur">
+    <div className="fin" role="group" aria-label={t('AideFiltreBar.aria')}>
       {options.map((option) => (
         <button
           key={option.key}
@@ -28,7 +30,7 @@ export function AideFiltreBar({ options, value, onChange }: AideFiltreBarProps) 
           aria-pressed={option.key === value}
           onClick={() => onChange(option.key)}
         >
-          {option.key === 'toutes' ? 'Toutes les aides' : option.label}
+          {option.key === 'toutes' ? t('AideFiltreBar.toutes') : option.label}
           <em>{option.count}</em>
         </button>
       ))}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 import { IconRetirerDossier, IconSupprimer } from '@/components/icons';
 import {
@@ -26,6 +27,7 @@ export function DeleteDossierDocumentDialog({
   itemLabel,
   onConfirm,
 }: DeleteDossierDocumentDialogProps) {
+  const { t } = useTranslation(['dossier', 'common']);
   const [busyScope, setBusyScope] = useState<DeleteScope | null>(null);
 
   const handle = async (scope: DeleteScope) => {
@@ -42,11 +44,18 @@ export function DeleteDossierDocumentDialog({
     <Dialog open={open} onOpenChange={(o) => !busyScope && onOpenChange(o)}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Supprimer le document</DialogTitle>
+          <DialogTitle>{t('DeleteDossierDocumentDialog.titre')}</DialogTitle>
           <DialogDescription>
             {itemLabel
-              ? <>Que souhaitez-vous faire du document rattaché à <span className="font-medium">« {itemLabel} »</span> ?</>
-              : 'Que souhaitez-vous faire de ce document ?'}
+              ? (
+                <Trans
+                  t={t}
+                  i18nKey="DeleteDossierDocumentDialog.questionPiece"
+                  values={{ piece: itemLabel }}
+                  components={{ piece: <span className="font-medium" /> }}
+                />
+              )
+              : t('DeleteDossierDocumentDialog.question')}
           </DialogDescription>
         </DialogHeader>
 
@@ -63,9 +72,9 @@ export function DeleteDossierDocumentDialog({
               <IconRetirerDossier className="h-5 w-5 shrink-0 mt-0.5 text-primary" />
             )}
             <div>
-              <p className="text-sm font-medium">Retirer du dossier uniquement</p>
+              <p className="text-sm font-medium">{t('DeleteDossierDocumentDialog.retirerDossier')}</p>
               <p className="text-xs text-muted-foreground">
-                Le document reste disponible dans l'onglet « Documents ».
+                {t('DeleteDossierDocumentDialog.retirerDossierTexte')}
               </p>
             </div>
           </button>
@@ -82,9 +91,9 @@ export function DeleteDossierDocumentDialog({
               <IconSupprimer className="h-5 w-5 shrink-0 mt-0.5 text-destructive" />
             )}
             <div>
-              <p className="text-sm font-medium text-destructive">Supprimer partout</p>
+              <p className="text-sm font-medium text-destructive">{t('DeleteDossierDocumentDialog.supprimerPartout')}</p>
               <p className="text-xs text-destructive/80">
-                Retire le document de ce dossier et le supprime définitivement de la bibliothèque.
+                {t('DeleteDossierDocumentDialog.supprimerPartoutTexte')}
               </p>
             </div>
           </button>
@@ -92,7 +101,7 @@ export function DeleteDossierDocumentDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={!!busyScope}>
-            Annuler
+            {t('common:actions.annuler')}
           </Button>
         </DialogFooter>
       </DialogContent>

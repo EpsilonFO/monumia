@@ -1,4 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useTranslation } from 'react-i18next';
+
+import { localeIntl } from '@/i18n/format';
 import { C } from '@/lib/brand';
 import { readData } from './blockData';
 
@@ -8,11 +11,12 @@ interface Line {
 }
 
 export function CostBreakdown({ node }: { node?: any }) {
+  const { t } = useTranslation('blog');
   const lines = readData<Line>(node);
   if (lines.length === 0) return null;
   const unit = (node?.properties?.unit as string) ?? '€';
   const total = lines.reduce((s, l) => s + l.value, 0);
-  const fmt = (n: number) => n.toLocaleString('fr-FR');
+  const fmt = (n: number) => n.toLocaleString(localeIntl());
   return (
     <div className="my-6 overflow-hidden rounded-2xl border" style={{ background: C.card, borderColor: C.border }}>
       {lines.map((l, i) => (
@@ -27,7 +31,7 @@ export function CostBreakdown({ node }: { node?: any }) {
       ))}
       <div className="flex items-baseline justify-between gap-4 px-5 py-3.5" style={{ background: C.paleOrange }}>
         <span className="text-[14px] font-semibold uppercase tracking-[0.12em]" style={{ color: C.orange }}>
-          Total
+          {t('CostBreakdown.total')}
         </span>
         <span className="text-[23px] font-bold tabular-nums" style={{ fontFamily: 'var(--font-serif)', color: C.orange }}>
           {fmt(total)} {unit}

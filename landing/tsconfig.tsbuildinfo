@@ -1,1 +1,1 @@
-{"root":["./src/landingpage.tsx","./src/legalpages.tsx","./src/main.tsx","./src/session.ts","./src/vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/landingpage.tsx","./src/legalpages.tsx","./src/main.tsx","./src/session.ts","./src/vite-env.d.ts","./src/i18n/i18next.d.ts","./src/i18n/index.ts","./src/i18n/ressources.ts"],"version":"5.9.3"}

@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useTranslation } from 'react-i18next';
+
 import { C } from '@/lib/brand';
 
 interface Row {
@@ -74,10 +76,11 @@ function Cartes({ rows, cola, colb }: { rows: Row[]; cola: string; colb: string 
 }
 
 export function Comparison({ node }: { node?: any }) {
+  const { t } = useTranslation('blog');
   const rows = parseRows(node);
   if (rows.length === 0) return null;
-  const cola = (node?.properties?.cola as string) || 'Option A';
-  const colb = (node?.properties?.colb as string) || 'Option B';
+  const cola = (node?.properties?.cola as string) || t('Comparison.optionA');
+  const colb = (node?.properties?.colb as string) || t('Comparison.optionB');
   const display = (node?.properties?.display as string) ?? 'tableau';
   if (display === 'cartes') return <Cartes rows={rows} cola={cola} colb={colb} />;
   return <Tableau rows={rows} cola={cola} colb={colb} />;

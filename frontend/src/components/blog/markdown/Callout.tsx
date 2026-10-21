@@ -1,4 +1,5 @@
 import type { ReactNode, ComponentType } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconInfo, IconConseil, IconDocument, IconAttention } from '@/components/icons';
 import { C } from '@/lib/brand';
 
@@ -10,20 +11,23 @@ interface BlockProps {
 
 type Variant = 'remarque' | 'attention' | 'astuce' | 'exemple';
 
+// Le libellé par défaut de chaque variante est la clé `Callout.<variante>` du namespace blog.
 const TONE: Record<
   Variant,
-  { label: string; fg: string; tint: string; node: string; Icon: ComponentType<{ size?: number; className?: string }> }
+  { fg: string; tint: string; node: string; Icon: ComponentType<{ size?: number; className?: string }> }
 > = {
-  remarque: { label: 'Remarque', fg: C.blue, tint: C.paleBlue, node: C.blueLight, Icon: IconInfo },
-  attention: { label: 'Attention', fg: C.danger, tint: C.paleDanger, node: C.danger, Icon: IconAttention },
-  astuce: { label: 'Astuce', fg: C.orange, tint: C.paleOrange, node: C.orange, Icon: IconConseil },
-  exemple: { label: 'Exemple', fg: C.ink, tint: '#f3eee1', node: C.blueDark, Icon: IconDocument },
+  remarque: { fg: C.blue, tint: C.paleBlue, node: C.blueLight, Icon: IconInfo },
+  attention: { fg: C.danger, tint: C.paleDanger, node: C.danger, Icon: IconAttention },
+  astuce: { fg: C.orange, tint: C.paleOrange, node: C.orange, Icon: IconConseil },
+  exemple: { fg: C.ink, tint: '#f3eee1', node: C.blueDark, Icon: IconDocument },
 };
 
 export function Callout({ node, children }: BlockProps) {
-  const variant = (node?.properties?.variant as Variant) ?? 'remarque';
-  const t = TONE[variant] ?? TONE.remarque;
-  const title = (node?.properties?.title as string)?.trim() || t.label;
+  const { t: traduire } = useTranslation('blog');
+  const demande = (node?.properties?.variant as Variant) ?? 'remarque';
+  const variant: Variant = demande in TONE ? demande : 'remarque';
+  const t = TONE[variant];
+  const title = (node?.properties?.title as string)?.trim() || traduire(`Callout.${variant}`);
   const { Icon } = t;
   return (
     <aside className="relative my-6 overflow-hidden rounded-2xl border" style={{ background: C.card, borderColor: C.border }}>

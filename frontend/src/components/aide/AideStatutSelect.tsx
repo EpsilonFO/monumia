@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import type { AideSuivi, AideSuiviStatut, AideRefusMotif } from '@/types';
 import {
@@ -26,6 +27,7 @@ interface SavePatch {
 }
 
 export function AideStatutSelect({ projetId, aideId, suivi }: Props) {
+  const { t } = useTranslation('aide');
   const [saving, setSaving] = useState(false);
   const [montant, setMontant] = useState(suivi?.montantObtenu?.toString() ?? '');
   const [motif, setMotif] = useState<AideRefusMotif>(suivi?.motifRefusCode ?? 'autre');
@@ -47,7 +49,7 @@ export function AideStatutSelect({ projetId, aideId, suivi }: Props) {
         note: suivi?.note,
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la mise à jour');
+      toast.error(err instanceof Error ? err.message : t('AideStatutSelect.erreurMiseAJour'));
     } finally {
       setSaving(false);
     }
@@ -57,7 +59,7 @@ export function AideStatutSelect({ projetId, aideId, suivi }: Props) {
     <div className="flex flex-col gap-3 text-[15px]">
       <div className="flex items-center gap-2.5 flex-wrap">
         <span className="font-semibold" style={{ color: C.ink }}>
-          Avancement&nbsp;:
+          {t('AideStatutSelect.avancement')}
         </span>
         <div className="relative inline-flex items-center">
           <select
@@ -80,7 +82,7 @@ export function AideStatutSelect({ projetId, aideId, suivi }: Props) {
 
       {statut === 'accorde' && (
         <div className="flex items-center gap-2">
-          <label className="text-muted-foreground">Montant obtenu (€)</label>
+          <label className="text-muted-foreground">{t('AideStatutSelect.montantObtenu')}</label>
           <input
             type="number"
             min="0"
@@ -96,7 +98,7 @@ export function AideStatutSelect({ projetId, aideId, suivi }: Props) {
       {statut === 'refuse' && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <label className="text-muted-foreground">Motif du refus</label>
+            <label className="text-muted-foreground">{t('AideStatutSelect.motifRefus')}</label>
             <select
               value={motif}
               disabled={saving}
@@ -116,7 +118,7 @@ export function AideStatutSelect({ projetId, aideId, suivi }: Props) {
           </div>
           <input
             type="text"
-            placeholder="Détail (optionnel)"
+            placeholder={t('AideStatutSelect.detailPlaceholder')}
             value={motifDetail}
             disabled={saving}
             onChange={(e) => setMotifDetail(e.target.value)}

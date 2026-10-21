@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { format, parseISO } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { localeDateFns } from '@/i18n/format';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { PictoDossierPlein } from '@/components/document/PictosDocuments';
 import { UploadDocumentDialog } from '@/components/document/UploadDocumentDialog';
@@ -27,11 +28,10 @@ function meilleurRole(roles: (ProjectRole | null | undefined)[]): ProjectRole | 
   return roles.reduce<ProjectRole | null>((m, r) => (r && (!m || RANG[r] > RANG[m]) ? r : m), null);
 }
 
-const plur = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
 /** « 17 sept. 2026 » ; rien pour une date illisible plutôt qu'une page qui casse. */
 function dateCourte(iso: string): string | null {
   const d = parseISO(iso);
-  return Number.isNaN(d.getTime()) ? null : format(d, 'd MMM yyyy', { locale: fr });
+  return Number.isNaN(d.getTime()) ? null : format(d, 'd MMM yyyy', { locale: localeDateFns() });
 }
 const glisseDesFichiers = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
 
@@ -48,6 +48,7 @@ const glisseDesFichiers = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransf
  * derrière le paywall (`inert`) et quand une fenêtre est déjà ouverte.
  */
 export function DocumentsTableau({ monuments, projets }: { monuments: Monument[]; projets: Projet[] }) {
+  const { t } = useTranslation('dashboard');
   const documents = useDocumentStore((s) => s.documents);
   const loading = useDocumentStore((s) => s.loading);
   const fetchDocuments = useDocumentStore((s) => s.fetchDocuments);
@@ -65,8 +66,8 @@ export function DocumentsTableau({ monuments, projets }: { monuments: Monument[]
 
   useEffect(() => {
     if (nouveaux.size === 0) return;
-    const t = setTimeout(() => setNouveaux(new Set()), 1600);
-    return () => clearTimeout(t);
+    const minuteur = setTimeout(() => setNouveaux(new Set()), 1600);
+    return () => clearTimeout(minuteur);
   }, [nouveaux]);
 
   const seul = monuments.length === 1 ? monuments[0] : null;
@@ -77,10 +78,16 @@ export function DocumentsTableau({ monuments, projets }: { monuments: Monument[]
   }, [documents, projets, seul]);
 
   const comptes = compterParType(docs);
-  const dossiers = TYPES_DOSSIERS.filter((t) => DOSSIERS_TOUJOURS.includes(t) || comptes[t]);
+  const dossiers = TYPES_DOSSIERS.filter((type) => DOSSIERS_TOUJOURS.includes(type) || comptes[type]);
   const derniers = documentsRecents(docs, NB_DERNIERS);
   const lien = seul ? `${ROUTES.DOCUMENTS}?monument=${encodeURIComponent(seul.id)}` : ROUTES.DOCUMENTS;
-  const titre = seul ? `Les documents ${monumentNomCourt(seul.nom, true) ?? 'de ce monument'}` : 'Les documents de vos monuments';
+  // `monumentNomCourt` rend null hors du français : la phrase retombe sur « de ce monument ».
+  const deNom = seul ? monumentNomCourt(seul.nom, true) : null;
+  const titre = !seul
+    ? t('DocumentsTableau.titreTous')
+    : deNom
+      ? t('DocumentsTableau.titreMonument', { deNom })
+      : t('DocumentsTableau.titreCeMonument');
 
   // Rattachement du dépôt, comme sur « Mes documents » : au monument quand on
   // est de son équipe, sinon à ses chantiers ouverts. Plusieurs monuments : la
@@ -154,32 +161,32 @@ export function DocumentsTableau({ monuments, projets }: { monuments: Monument[]
     <section className="sec" aria-labelledby="docT" ref={racine}>
       <div className="sec-h">
         <div>
-          <span className="eyebrow">Vos documents</span>
+          <span className="eyebrow">{t('DocumentsTableau.surtitre')}</span>
           <h2 id="docT">{titre}</h2>
-          <p>Une pièce déposée une fois sert à tous vos dossiers.</p>
+          <p>{t('DocumentsTableau.intro')}</p>
         </div>
         <Link className="btn b-blue" to={lien}>
-          Ouvrir mes documents
+          {t('DocumentsTableau.ouvrir')}
           <Picto nom="fleche" />
         </Link>
       </div>
       <div className="dc">
         <div>
           <div className="folds">
-            {dossiers.map((t) => (
-              <Link key={t} className="fo" to={lien}>
+            {dossiers.map((type) => (
+              <Link key={type} className="fo" to={lien}>
                 <PictoDossierPlein className="i" />
-                {dossierLabel(t)} <em>{comptes[t] ?? 0}</em>
+                {dossierLabel(type)} <em>{comptes[type] ?? 0}</em>
               </Link>
             ))}
           </div>
-          <div className="dc-h"><b>Derniers ajouts</b></div>
+          <div className="dc-h"><b>{t('DocumentsTableau.derniersAjouts')}</b></div>
           {loading && docs.length === 0 ? (
             <div className="rec" aria-hidden="true">
               <span className="sk" style={{ height: 52, borderRadius: 12 }} />
             </div>
           ) : derniers.length === 0 ? (
-            <p className="rec-vide">Aucun document pour l'instant.</p>
+            <p className="rec-vide">{t('DocumentsTableau.aucunDocument')}</p>
           ) : (
             <ul className="rec">
               {derniers.map((d) => {
@@ -202,13 +209,17 @@ export function DocumentsTableau({ monuments, projets }: { monuments: Monument[]
         </div>
         <div className={glisse ? 'dc-drop over' : 'dc-drop'}>
           <span className="up" aria-hidden="true"><Picto nom="envoyer" /></span>
-          <b>Glissez un fichier ici</b>
-          <p>Devis, photos, arrêté de protection : vous choisirez ensuite son dossier.</p>
-          <button className="btn b-blue b-sm" type="button" onClick={choisir}>Choisir un fichier</button>
+          <b>{t('DocumentsTableau.glissez')}</b>
+          <p>{t('DocumentsTableau.glissezIndice')}</p>
+          <button className="btn b-blue b-sm" type="button" onClick={choisir}>
+            {t('DocumentsTableau.choisirFichier')}
+          </button>
         </div>
         <div className="dc-f">
-          <span>{plur(docs.length, 'document')} · {tailleFichier(tailleTotale(docs))}</span>
-          <span>Vos documents restent privés.</span>
+          <span>
+            {t('DocumentsTableau.nbDocuments', { count: docs.length })} · {tailleFichier(tailleTotale(docs))}
+          </span>
+          <span>{t('DocumentsTableau.prives')}</span>
         </div>
       </div>
 
@@ -228,8 +239,8 @@ export function DocumentsTableau({ monuments, projets }: { monuments: Monument[]
       {glisse && (
         <div className="gdrop" aria-hidden="true">
           <div>
-            <b>Déposez votre fichier</b>
-            <p>Il sera rangé dans Mes documents.</p>
+            <b>{t('DocumentsTableau.deposez')}</b>
+            <p>{t('DocumentsTableau.deposezIndice')}</p>
           </div>
         </div>
       )}

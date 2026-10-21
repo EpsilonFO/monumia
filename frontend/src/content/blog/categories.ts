@@ -5,6 +5,7 @@ import {
   IconChantier,
   type IconComponent,
 } from '@/components/icons';
+import i18n from '@/i18n';
 
 export type BlogCategorySlug =
   | 'protections-statuts'
@@ -26,47 +27,44 @@ export interface BlogCategory {
   stepLabel: string;
 }
 
+/** Clé de la catégorie dans le namespace `blog`. */
+type CleCategorie =
+  | 'protectionsStatuts'
+  | 'aidesFinancements'
+  | 'demarchesDossiers'
+  | 'travauxTechniques';
+
+// Libellés en getters : traduits à la lecture, jamais à l'import.
+function categorie(
+  slug: BlogCategorySlug,
+  cle: CleCategorie,
+  tone: BlogCategory['tone'],
+  icon: IconComponent,
+): BlogCategory {
+  return {
+    slug,
+    tone,
+    icon,
+    get label() {
+      return i18n.t(`blog:categories.${cle}.libelle`);
+    },
+    get shortLabel() {
+      return i18n.t(`blog:categories.${cle}.libelleCourt`);
+    },
+    get description() {
+      return i18n.t(`blog:categories.${cle}.description`);
+    },
+    get stepLabel() {
+      return i18n.t(`blog:categories.${cle}.etape`);
+    },
+  };
+}
+
 export const BLOG_CATEGORIES: BlogCategory[] = [
-  {
-    slug: 'protections-statuts',
-    label: 'Protections & statuts patrimoniaux',
-    shortLabel: 'Protections & statuts',
-    description:
-      "Comprendre le statut de votre bien : Monument Historique classé ou inscrit, Site Patrimonial Remarquable, abords, base Mérimée.",
-    tone: 1,
-    icon: IconProtection,
-    stepLabel: 'Comprendre mon statut',
-  },
-  {
-    slug: 'aides-financements',
-    label: 'Aides & financements',
-    shortLabel: 'Aides & financements',
-    description:
-      'Subventions, taux et plafonds, cofinancement, fiscalité : pour vous y retrouver dans les financements du patrimoine.',
-    tone: 2,
-    icon: IconSubvention,
-    stepLabel: 'Trouver mes aides',
-  },
-  {
-    slug: 'demarches-dossiers',
-    label: 'Démarches & dossiers',
-    shortLabel: 'Démarches & dossiers',
-    description:
-      'Diagnostic, étude préalable, pièces du dossier, échéances : réussir vos démarches administratives.',
-    tone: 3,
-    icon: IconDossier,
-    stepLabel: 'Monter mon dossier',
-  },
-  {
-    slug: 'travaux-techniques',
-    label: 'Travaux & techniques de restauration',
-    shortLabel: 'Travaux & techniques',
-    description:
-      "Le vocabulaire technique des travaux : maîtrise d'ouvrage et d'œuvre, lots, matériaux et corps de métier.",
-    tone: 4,
-    icon: IconChantier,
-    stepLabel: 'Lancer les travaux',
-  },
+  categorie('protections-statuts', 'protectionsStatuts', 1, IconProtection),
+  categorie('aides-financements', 'aidesFinancements', 2, IconSubvention),
+  categorie('demarches-dossiers', 'demarchesDossiers', 3, IconDossier),
+  categorie('travaux-techniques', 'travauxTechniques', 4, IconChantier),
 ];
 
 export function getCategory(slug: string): BlogCategory | undefined {

@@ -11,6 +11,8 @@
  * texte rédigé faux en tête de page.
  */
 
+import i18n from '@/i18n';
+import { localeIntl } from '@/i18n/format';
 import { AIDE_CATEGORIES, AIDE_TYPES } from '@/constants/aide-categories';
 import { formatCurrency } from '@/lib/format-utils';
 import type {
@@ -26,16 +28,20 @@ import type {
 /* Dates                                                               */
 /* ------------------------------------------------------------------ */
 
-const MOIS = [
-  'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
-  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
-];
-
-/** « 1er juin 2026 », « 31 août 2026 ». Lu sur la chaîne ISO, sans fuseau :
- *  un `new Date('2026-08-31')` tombe la veille à l'ouest de Greenwich. */
+/** « 1er juin 2026 », « 31 août 2026 ». Lu sur la chaîne ISO et mis en forme
+ *  en UTC : un `new Date('2026-08-31')` local tombe la veille à l'ouest de
+ *  Greenwich. `Intl` écrit « 1 juin » : le premier du mois vient de la langue. */
 export function dateLongue(iso: string): string {
   const [a, m, j] = iso.slice(0, 10).split('-').map(Number);
-  return `${j === 1 ? '1er' : j} ${MOIS[m - 1]} ${a}`;
+  const parties = new Intl.DateTimeFormat(localeIntl(), {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).formatToParts(new Date(Date.UTC(a, m - 1, j)));
+  return parties
+    .map((p) => (p.type === 'day' && j === 1 ? i18n.t('libAides:ficheAide.premierDuMois') : p.value))
+    .join('');
 }
 
 function isoDuJour(aujourdhui: Date): string {
@@ -73,56 +79,69 @@ export function guichet(
   aujourdhui: Date = new Date(),
 ): Guichet {
   if (aide.permanent) {
-    return { etat: 'ouvert', libelle: "Ouvert toute l'année", court: 'Ouvert', valeur: "Ouvert toute l'année" };
+    const toute = i18n.t('libAides:ficheAide.guichet.touteLAnnee');
+    return { etat: 'ouvert', libelle: toute, court: i18n.t('libAides:ficheAide.guichet.ouvert'), valeur: toute };
   }
   const jour = isoDuJour(aujourdhui);
   const ouverture = aide.dateOuverture?.slice(0, 10);
   const limite = aide.dateLimite?.slice(0, 10);
-  const fenetre = ouverture && limite ? `Du ${dateLongue(ouverture)} au ${dateLongue(limite)}` : null;
+  const fenetre =
+    ouverture && limite
+      ? i18n.t('libAides:ficheAide.guichet.fenetre', { debut: dateLongue(ouverture), fin: dateLongue(limite) })
+      : null;
 
   if (ouverture && ouverture > jour) {
     return {
       etat: 'bientot',
-      libelle: `Ouvre le ${dateLongue(ouverture)}`,
-      court: 'Bientôt',
-      valeur: fenetre ?? `À partir du ${dateLongue(ouverture)}`,
+      libelle: i18n.t('libAides:ficheAide.guichet.ouvreLe', { date: dateLongue(ouverture) }),
+      court: i18n.t('libAides:ficheAide.guichet.bientot'),
+      valeur: fenetre ?? i18n.t('libAides:ficheAide.guichet.aPartirDu', { date: dateLongue(ouverture) }),
       bandeau: {
-        titre: 'Session à venir',
-        texte: `Les candidatures ouvrent le ${dateLongue(ouverture)}.`,
+        titre: i18n.t('libAides:ficheAide.guichet.sessionAVenir'),
+        texte: i18n.t('libAides:ficheAide.guichet.candidaturesOuvrent', { date: dateLongue(ouverture) }),
       },
     };
   }
   if (limite && limite < jour) {
+    const date = dateLongue(limite);
+    const closDepuis = i18n.t('libAides:ficheAide.guichet.closDepuis', { date });
     return {
       etat: 'clos',
-      libelle: `Clos depuis le ${dateLongue(limite)}`,
-      court: 'Clos',
-      valeur: `Date limite passée : ${dateLongue(limite)}`,
+      libelle: closDepuis,
+      court: i18n.t('libAides:ficheAide.guichet.clos'),
+      valeur: i18n.t('libAides:ficheAide.guichet.dateLimitePassee', { date }),
       bandeau: {
-        titre: `Clos depuis le ${dateLongue(limite)}`,
-        texte: `Les candidatures sont closes depuis le ${dateLongue(limite)}. Les dates de la prochaine session ne sont pas encore publiées.`,
+        titre: closDepuis,
+        texte: i18n.t('libAides:ficheAide.guichet.candidaturesCloses', { date }),
       },
     };
   }
   if (limite) {
     return {
       etat: 'ouvert',
-      libelle: `Ouvert jusqu'au ${dateLongue(limite)}`,
-      court: 'Ouvert',
-      valeur: fenetre ?? `Jusqu'au ${dateLongue(limite)}`,
+      libelle: i18n.t('libAides:ficheAide.guichet.ouvertJusquau', { date: dateLongue(limite) }),
+      court: i18n.t('libAides:ficheAide.guichet.ouvert'),
+      valeur: fenetre ?? i18n.t('libAides:ficheAide.guichet.jusquau', { date: dateLongue(limite) }),
     };
   }
   if (ouverture) {
-    return { etat: 'ouvert', libelle: 'Ouvert', court: 'Ouvert', valeur: `Depuis le ${dateLongue(ouverture)}` };
+    const ouvert = i18n.t('libAides:ficheAide.guichet.ouvert');
+    return {
+      etat: 'ouvert',
+      libelle: ouvert,
+      court: ouvert,
+      valeur: i18n.t('libAides:ficheAide.guichet.depuisLe', { date: dateLongue(ouverture) }),
+    };
   }
+  const aConfirmer = i18n.t('libAides:ficheAide.guichet.datesAConfirmer');
   return {
     etat: 'attente',
-    libelle: 'Dates à confirmer',
-    court: 'Dates à venir',
-    valeur: 'Dates à confirmer',
+    libelle: aConfirmer,
+    court: i18n.t('libAides:ficheAide.guichet.datesAVenir'),
+    valeur: aConfirmer,
     bandeau: {
-      titre: 'Dates à confirmer',
-      texte: 'Le règlement ne publie pas de date limite. Renseignez-vous auprès du financeur avant de déposer.',
+      titre: aConfirmer,
+      texte: i18n.t('libAides:ficheAide.guichet.sansDateLimite'),
     },
   };
 }
@@ -175,11 +194,21 @@ export function montantAide(aide: AideAffichable): AideTexteValeur | null {
   if (ecrit?.valeur) return ecrit;
   if (aide.tauxMax != null) {
     return {
-      valeur: `Jusqu'à ${aide.tauxMax.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`,
-      detail: aide.montantMax != null ? `Dans la limite de ${formatCurrency(aide.montantMax)}` : 'Des dépenses éligibles',
+      valeur: i18n.t('libAides:ficheAide.montant.jusquaTaux', {
+        taux: aide.tauxMax.toLocaleString(localeIntl(), { maximumFractionDigits: 1 }),
+      }),
+      detail:
+        aide.montantMax != null
+          ? i18n.t('libAides:ficheAide.montant.dansLaLimite', { montant: formatCurrency(aide.montantMax) })
+          : i18n.t('libAides:ficheAide.montant.depensesEligibles'),
     };
   }
-  if (aide.montantMax != null) return { valeur: `Jusqu'à ${formatCurrency(aide.montantMax)}`, detail: null };
+  if (aide.montantMax != null) {
+    return {
+      valeur: i18n.t('libAides:ficheAide.montant.jusquaMontant', { montant: formatCurrency(aide.montantMax) }),
+      detail: null,
+    };
+  }
   return null;
 }
 
@@ -192,14 +221,15 @@ export function montantAide(aide: AideAffichable): AideTexteValeur | null {
  *  rubrique rédigée, et deviner la rubrique d'une condition serait un faux ami. */
 export type Rubrique = 'criteres' | ThemeReglement | 'autres';
 
+// Titres en getters : lus au rendu, jamais figés à l'import.
 export const RUBRIQUES: { cle: Rubrique; titre: string }[] = [
-  { cle: 'criteres', titre: "Critères d'éligibilité" },
-  { cle: 'candidater', titre: 'Qui peut candidater' },
-  { cle: 'projet', titre: 'Projets et dépenses' },
-  { cle: 'montant', titre: 'Montant et cumul' },
-  { cle: 'dossier', titre: 'Dossier et sélection' },
-  { cle: 'apres', titre: "Après l'accord" },
-  { cle: 'autres', titre: 'Les autres points' },
+  { cle: 'criteres', get titre() { return i18n.t('libAides:ficheAide.rubriques.criteres'); } },
+  { cle: 'candidater', get titre() { return i18n.t('libAides:ficheAide.rubriques.candidater'); } },
+  { cle: 'projet', get titre() { return i18n.t('libAides:ficheAide.rubriques.projet'); } },
+  { cle: 'montant', get titre() { return i18n.t('libAides:ficheAide.rubriques.montant'); } },
+  { cle: 'dossier', get titre() { return i18n.t('libAides:ficheAide.rubriques.dossier'); } },
+  { cle: 'apres', get titre() { return i18n.t('libAides:ficheAide.rubriques.apres'); } },
+  { cle: 'autres', get titre() { return i18n.t('libAides:ficheAide.rubriques.autres'); } },
 ];
 
 export interface PointReglement {

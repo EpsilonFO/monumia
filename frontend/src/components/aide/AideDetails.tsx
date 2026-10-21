@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   IconLienExterne,
   IconInstitution,
@@ -123,6 +124,7 @@ function SectionCard({ icon: Icon, title, tint = 'plain', children }: {
 /* ------------------------------------------------------------------ */
 
 function EnBref({ text }: { text: string }) {
+  const { t } = useTranslation('aide');
   const [open, setOpen] = useState(false);
   const cut = text.indexOf('. ');
   const lead = cut > 0 && cut < 220 ? text.slice(0, cut + 1) : '';
@@ -144,7 +146,7 @@ function EnBref({ text }: { text: string }) {
               onClick={() => setOpen((o) => !o)}
               className="text-[15px] font-semibold text-primary hover:underline"
             >
-              {open ? 'Réduire' : 'Lire la suite'}
+              {open ? t('AideDetails.reduire') : t('AideDetails.lireLaSuite')}
             </button>
           )}
         </>
@@ -176,6 +178,7 @@ function CountPill({ icon: Icon, tone, children }: { icon: IconType; tone: 'succ
 }
 
 function EligibilitySummary({ matchResult }: { matchResult: AideMatchResult }) {
+  const { t } = useTranslation('aide');
   const evals = matchResult.llmEvaluation?.evaluations ?? [];
   const validated = matchResult.criteresRemplis.length
     + evals.filter((e) => e.verdict === 'oui' || (e.verdict === 'incertitude' && e.clarified)).length;
@@ -188,10 +191,10 @@ function EligibilitySummary({ matchResult }: { matchResult: AideMatchResult }) {
 
   return (
     <div className="flex flex-wrap gap-2">
-      {validated > 0 && <CountPill icon={IconSucces} tone="success">{validated} remplie{validated > 1 ? 's' : ''}</CountPill>}
-      {toUnlock > 0 && <CountPill icon={IconCle} tone="info">{toUnlock} à débloquer</CountPill>}
-      {toVerify > 0 && <CountPill icon={IconHelp} tone="warning">{toVerify} à vérifier</CountPill>}
-      {blocking > 0 && <CountPill icon={IconErreur} tone="destructive">{blocking} bloquante{blocking > 1 ? 's' : ''}</CountPill>}
+      {validated > 0 && <CountPill icon={IconSucces} tone="success">{t('AideDetails.compte.remplies', { count: validated })}</CountPill>}
+      {toUnlock > 0 && <CountPill icon={IconCle} tone="info">{t('AideDetails.compte.aDebloquer', { n: toUnlock })}</CountPill>}
+      {toVerify > 0 && <CountPill icon={IconHelp} tone="warning">{t('AideDetails.compte.aVerifier', { n: toVerify })}</CountPill>}
+      {blocking > 0 && <CountPill icon={IconErreur} tone="destructive">{t('AideDetails.compte.bloquantes', { count: blocking })}</CountPill>}
     </div>
   );
 }
@@ -202,10 +205,11 @@ function EligibilitySummary({ matchResult }: { matchResult: AideMatchResult }) {
  * avez pas droit » et « voilà comment y avoir droit ».
  */
 function LevierPlan({ levier }: { levier: AideLevier }) {
+  const { t } = useTranslation('aide');
   const facts = [
-    levier.organisme && { label: 'Auprès de', value: levier.organisme },
-    levier.cout && { label: 'Coût', value: levier.cout },
-    levier.delai && { label: 'Délai', value: levier.delai },
+    levier.organisme && { label: t('levier.aupresDe'), value: levier.organisme },
+    levier.cout && { label: t('levier.cout'), value: levier.cout },
+    levier.delai && { label: t('levier.delai'), value: levier.delai },
   ].filter((f): f is { label: string; value: string } => !!f);
 
   return (
@@ -244,7 +248,7 @@ function LevierPlan({ levier }: { levier: AideLevier }) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-xs font-semibold text-info underline underline-offset-2"
           >
-            Ouvrir la démarche
+            {t('levier.ouvrirDemarche')}
             <IconLienExterne className="h-3 w-3" />
           </a>
         )}
@@ -326,6 +330,7 @@ function EligibilityAnalysis({
   onRepondre,
   envoiEnCours,
 }: { matchResult: AideMatchResult } & ReponseEnPlace) {
+  const { t } = useTranslation('aide');
   const evals: Evaluation[] = matchResult.llmEvaluation?.evaluations ?? [];
   const eliminatoires = matchResult.criteresNonRemplis ?? [];
   const leviers = matchResult.leviers ?? [];
@@ -389,17 +394,17 @@ function EligibilityAnalysis({
   return (
     <div className="space-y-2.5">
       {eliminatoires.length > 0 && (
-        <EvalGroup icon={IconErreur} tone="red" title="Ce qui ne correspond pas" count={eliminatoires.length} defaultOpen>
+        <EvalGroup icon={IconErreur} tone="red" title={t('AideDetails.groupes.neCorrespondPas')} count={eliminatoires.length} defaultOpen>
           {eliminatoires.map((c, i) => <EvalLine key={i} critere={c} tone="red" />)}
         </EvalGroup>
       )}
       {leviers.length > 0 && (
-        <EvalGroup icon={IconCle} tone="info" title="À débloquer" count={leviers.length} defaultOpen>
+        <EvalGroup icon={IconCle} tone="info" title={t('AideDetails.groupes.aDebloquer')} count={leviers.length} defaultOpen>
           {leviers.map((levier, i) => <LevierPlan key={i} levier={levier} />)}
         </EvalGroup>
       )}
       {aVerifier.length > 0 && (
-        <EvalGroup icon={IconHelp} tone="amber" title="À vérifier de votre côté" count={aVerifier.length} defaultOpen>
+        <EvalGroup icon={IconHelp} tone="amber" title={t('AideDetails.groupes.aVerifier')} count={aVerifier.length} defaultOpen>
           {aVerifier.map((e, i) => {
             const q = e.categorie ? parFait.get(e.categorie) : undefined;
             return (
@@ -416,24 +421,24 @@ function EligibilityAnalysis({
           Sans ce bloc elles resteraient invisibles ici alors même qu'elles
           gouvernent le verdict. */}
       {orphelines.length > 0 && (
-        <EvalGroup icon={IconHelp} tone="amber" title="Précisez votre situation" count={orphelines.length} defaultOpen>
+        <EvalGroup icon={IconHelp} tone="amber" title={t('AideDetails.groupes.precisez')} count={orphelines.length} defaultOpen>
           {orphelines.map((q) => (
             <div key={q.id}>{poser(q)}</div>
           ))}
         </EvalGroup>
       )}
       {aConfirmer.length > 0 && (
-        <EvalGroup icon={IconInstitution} tone="amber" title="À confirmer auprès de l'organisme" count={aConfirmer.length} defaultOpen>
+        <EvalGroup icon={IconInstitution} tone="amber" title={t('AideDetails.groupes.aConfirmer')} count={aConfirmer.length} defaultOpen>
           {aConfirmer.map((e, i) => <EvalLine key={i} critere={e.critere} tone="amber" />)}
         </EvalGroup>
       )}
       {valides.length > 0 && (
-        <EvalGroup icon={IconSucces} tone="green" title="Déjà validé grâce à vos réponses" count={valides.length}>
+        <EvalGroup icon={IconSucces} tone="green" title={t('AideDetails.groupes.dejaValide')} count={valides.length}>
           {valides.map((e, i) => <EvalLine key={i} critere={e.critere} tone="green" />)}
         </EvalGroup>
       )}
       {autos.length > 0 && (
-        <EvalGroup icon={IconSucces} tone="green" title="Vérifié automatiquement" count={autos.length}>
+        <EvalGroup icon={IconSucces} tone="green" title={t('AideDetails.groupes.verifieAuto')} count={autos.length}>
           {autos.map((e, i) => <EvalLine key={i} critere={e.critere} tone="green" />)}
         </EvalGroup>
       )}
@@ -455,35 +460,17 @@ function EligibilityAnalysis({
  * recherche, tout déplier.
  */
 
-const RULE_GROUPS: { nature: string; icon: IconType; tone: EvalTone; title: string; hint: string }[] = [
-  {
-    nature: 'discretionary',
-    icon: IconAttention,
-    tone: 'amber',
-    title: 'Ce que le financeur va apprécier',
-    hint: "Rien d'automatique ici : ces points se jouent dans la qualité du dossier.",
-  },
-  {
-    nature: 'manual_check',
-    icon: IconInstitution,
-    tone: 'info',
-    title: 'À confirmer au montage du dossier',
-    hint: 'Sans incidence sur votre éligibilité — à vérifier avec l’organisme le moment venu.',
-  },
-  {
-    nature: 'modulateur',
-    icon: IconTendance,
-    tone: 'info',
-    title: 'Ce qui peut moduler le montant',
-    hint: "N'affecte pas l'éligibilité, mais joue sur le taux ou le plafond accordé.",
-  },
-  {
-    nature: 'info',
-    icon: IconLivre,
-    tone: 'muted',
-    title: 'Les autres règles à connaître',
-    hint: 'Bénéficiaires, plafonds, exclusions, calendrier, obligations après octroi.',
-  },
+// Titre et explication de chaque rubrique : `AideDetails.regles.<cle>`, traduits au rendu.
+const RULE_GROUPS: {
+  nature: string;
+  icon: IconType;
+  tone: EvalTone;
+  cle: 'apprecie' | 'montage' | 'modulation' | 'autres';
+}[] = [
+  { nature: 'discretionary', icon: IconAttention, tone: 'amber', cle: 'apprecie' },
+  { nature: 'manual_check', icon: IconInstitution, tone: 'info', cle: 'montage' },
+  { nature: 'modulateur', icon: IconTendance, tone: 'info', cle: 'modulation' },
+  { nature: 'info', icon: IconLivre, tone: 'muted', cle: 'autres' },
 ];
 
 /** Aplatit un texte pour une recherche insensible à la casse et aux accents. */
@@ -529,7 +516,8 @@ function RuleGroup({ group, items, open, onOpenChange, query }: {
   onOpenChange: (open: boolean) => void;
   query: string;
 }) {
-  const t = GROUP_TONES[group.tone];
+  const { t } = useTranslation('aide');
+  const ton = GROUP_TONES[group.tone];
   const Icon = group.icon;
   const distinctExpl = new Set(items.map((e) => e.explication).filter(Boolean));
   const perLineExpl = distinctExpl.size > 1;
@@ -537,17 +525,17 @@ function RuleGroup({ group, items, open, onOpenChange, query }: {
   return (
     <Collapsible open={open} onOpenChange={onOpenChange} className="border-t first:border-t-0" style={{ borderColor: C.border }}>
       <CollapsibleTrigger className="group flex w-full items-start gap-3 py-3.5 text-left">
-        <span className="mt-px inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: t.bg, color: t.fg }}>
+        <span className="mt-px inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: ton.bg, color: ton.fg }}>
           <Icon className="h-4 w-4" strokeWidth={2} />
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
-            <span className="text-[17px] font-semibold leading-snug" style={{ color: C.ink }}>{group.title}</span>
-            <span className="rounded-full px-2 py-0.5 text-[13.5px] font-bold tabular-nums" style={{ background: t.bg, color: t.fg }}>
+            <span className="text-[17px] font-semibold leading-snug" style={{ color: C.ink }}>{t(`AideDetails.regles.${group.cle}.titre`)}</span>
+            <span className="rounded-full px-2 py-0.5 text-[13.5px] font-bold tabular-nums" style={{ background: ton.bg, color: ton.fg }}>
               {items.length}
             </span>
           </span>
-          <span className="mt-0.5 block text-[14.5px] leading-snug" style={{ color: 'var(--gray-fg)' }}>{group.hint}</span>
+          <span className="mt-0.5 block text-[14.5px] leading-snug" style={{ color: 'var(--gray-fg)' }}>{t(`AideDetails.regles.${group.cle}.aide`)}</span>
         </span>
         <ChevronDown className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>
@@ -574,6 +562,7 @@ const RULES_SEARCH_THRESHOLD = 12;
 const GROUP_AUTO_OPEN_MAX = 6;
 
 function RulesReference({ matchResult }: { matchResult: AideMatchResult }) {
+  const { t } = useTranslation('aide');
   const [query, setQuery] = useState('');
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
 
@@ -597,18 +586,17 @@ function RulesReference({ matchResult }: { matchResult: AideMatchResult }) {
   const allOpen = groups.every((g) => isOpen(g.group.nature, g.total));
 
   return (
-    <SectionCard icon={IconRegle} title="Le règlement de cette aide">
+    <SectionCard icon={IconRegle} title={t('AideDetails.reglement.titre')}>
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-[15.5px] leading-snug" style={{ color: 'var(--gray-fg)' }}>
-            {total} point{total > 1 ? 's' : ''} issu{total > 1 ? 's' : ''} du règlement officiel. Aucun ne décide de votre
-            éligibilité&nbsp;: ils servent à préparer le dossier.
+            {t('AideDetails.reglement.intro', { count: total })}
           </p>
           <button
             onClick={() => setOverrides(Object.fromEntries(groups.map((g) => [g.group.nature, !allOpen])))}
             className="shrink-0 text-[15px] font-semibold text-primary hover:underline"
           >
-            {allOpen ? 'Tout replier' : 'Tout déplier'}
+            {allOpen ? t('AideDetails.reglement.toutReplier') : t('AideDetails.reglement.toutDeplier')}
           </button>
         </div>
 
@@ -618,8 +606,8 @@ function RulesReference({ matchResult }: { matchResult: AideMatchResult }) {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher dans le règlement (taux, délai, cumul…)"
-              aria-label="Rechercher dans le règlement de l'aide"
+              placeholder={t('AideDetails.reglement.recherchePlaceholder')}
+              aria-label={t('AideDetails.reglement.rechercheAria')}
               className="h-9 bg-card pl-9 text-[15.5px]"
             />
           </div>
@@ -627,7 +615,9 @@ function RulesReference({ matchResult }: { matchResult: AideMatchResult }) {
 
         {searching && (
           <p className="text-[14.5px]" style={{ color: 'var(--gray-fg)' }}>
-            {matching === 0 ? 'Aucun point ne correspond.' : `${matching} point${matching > 1 ? 's' : ''} sur ${total}.`}
+            {matching === 0
+              ? t('AideDetails.reglement.aucunPoint')
+              : t('AideDetails.reglement.pointsSur', { count: matching, total })}
           </p>
         )}
 
@@ -728,41 +718,46 @@ function EssentialFact({ icon: Icon, label, value, first }: { icon: IconType; la
 }
 
 function EssentialCard({ aide }: { aide: Aide }) {
+  const { t } = useTranslation('aide');
   const echeance = !aide.permanent && aide.dateLimite ? deadlineLabel(aide.dateLimite) : null;
   const echeanceTone = echeance ? DEADLINE_TONE[echeance.urgency] : null;
-  const typeLabel = AIDE_TYPES.find((t) => t.value === aide.type)?.label;
+  const typeLabel = AIDE_TYPES.find((ty) => ty.value === aide.type)?.label;
   const moneyLabel = aide.tauxMax
-    ? `Jusqu'à ${aide.tauxMax} %`
-    : aide.montantMax ? `Jusqu'à ${formatCurrency(aide.montantMax)}` : null;
+    ? t('AideDetails.essentiel.jusquATaux', { taux: aide.tauxMax })
+    : aide.montantMax ? t('AideDetails.essentiel.jusquAMontant', { montant: formatCurrency(aide.montantMax) }) : null;
 
   return (
     <div className="overflow-hidden rounded-2xl border" style={{ borderColor: C.border, background: C.card, boxShadow: 'var(--shadow-card)' }}>
       <div className="flex items-center gap-2.5 px-5 py-3.5" style={{ background: C.blue }}>
         <IconFiche className="h-[20.5px] w-[20.5px]" style={{ color: 'var(--background)' }} strokeWidth={2} />
-        <span className="text-[17px] tracking-wide" style={{ fontFamily: SERIF, color: 'var(--background)' }}>L'essentiel de l'aide</span>
+        <span className="text-[17px] tracking-wide" style={{ fontFamily: SERIF, color: 'var(--background)' }}>{t('AideDetails.essentiel.titre')}</span>
       </div>
       <div className="h-[3px]" style={{ background: C.orange }} />
       <div>
-        <EssentialFact first icon={IconInstitution} label="Qui verse l'aide" value={aide.organisme} />
+        <EssentialFact first icon={IconInstitution} label={t('AideDetails.essentiel.quiVerse')} value={aide.organisme} />
         {moneyLabel && (
           <EssentialFact
             icon={IconSubvention}
-            label="Combien"
+            label={t('AideDetails.essentiel.combien')}
             value={(
               <>
                 {moneyLabel}
-                {aide.tauxMax && <span className="block text-[14px] font-normal text-muted-foreground">de vos travaux (base {aide.baseTTC ? 'TTC' : 'HT'})</span>}
+                {aide.tauxMax && <span className="block text-[14px] font-normal text-muted-foreground">{aide.baseTTC ? t('AideDetails.essentiel.baseTTC') : t('AideDetails.essentiel.baseHT')}</span>}
               </>
             )}
           />
         )}
-        {typeLabel && <EssentialFact icon={IconRegle} label="Type d'aide" value={typeLabel} />}
+        {typeLabel && <EssentialFact icon={IconRegle} label={t('AideDetails.essentiel.typeAide')} value={typeLabel} />}
         <EssentialFact
           icon={IconEcheance}
-          label="Jusqu'à quand candidater"
+          label={t('AideDetails.essentiel.jusquaQuand')}
           value={(
             <span style={echeanceTone ? { color: echeanceTone.fg } : undefined}>
-              {aide.permanent || !echeance ? "Ouvert toute l'année" : echeance.urgency === 'past' ? 'Candidatures closes' : echeance.text}
+              {aide.permanent || !echeance
+                ? t('AideDetails.essentiel.ouvertToutelAnnee')
+                : echeance.urgency === 'past'
+                  ? t('AideDetails.essentiel.candidaturesCloses')
+                  : echeance.text}
             </span>
           )}
         />
@@ -776,6 +771,7 @@ function EssentialCard({ aide }: { aide: Aide }) {
 /* ------------------------------------------------------------------ */
 
 function DocumentLine({ raw }: { raw: string | AideDocument }) {
+  const { t } = useTranslation('aide');
   const doc = typeof raw === 'string' ? { nom: raw } as AideDocument : raw;
   return (
     <li className="rounded-xl border bg-card px-3.5 py-3" style={{ borderColor: C.border }}>
@@ -798,7 +794,7 @@ function DocumentLine({ raw }: { raw: string | AideDocument }) {
             <span style={{ color: C.ink }}>{doc.nom}</span>
           )}
           {doc.obligatoire === false && (
-            <Badge variant="outline" className="text-[12px]">selon le cas</Badge>
+            <Badge variant="outline" className="text-[12px]">{t('AideDetails.documents.selonLeCas')}</Badge>
           )}
         </span>
       </div>
@@ -808,6 +804,7 @@ function DocumentLine({ raw }: { raw: string | AideDocument }) {
 }
 
 function DocumentsCollapsible({ docs }: { docs: (string | AideDocument)[] }) {
+  const { t } = useTranslation('aide');
   if (!docs?.length) return null;
   return (
     <Collapsible className="rounded-2xl border bg-card" style={{ borderColor: C.border, boxShadow: 'var(--shadow-card)' }}>
@@ -817,9 +814,9 @@ function DocumentsCollapsible({ docs }: { docs: (string | AideDocument)[] }) {
             <IconDocument className="h-[20.5px] w-[20.5px]" strokeWidth={1.9} />
           </span>
           <span className="flex flex-col">
-            <span className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>Les documents à préparer</span>
+            <span className="text-[18px]" style={{ fontFamily: SERIF, color: C.ink }}>{t('AideDetails.documents.titre')}</span>
             <span className="text-[15px] text-muted-foreground">
-              {docs.length} document{docs.length > 1 ? 's' : ''} à réunir
+              {t('AideDetails.documents.aReunir', { count: docs.length })}
             </span>
           </span>
         </span>
@@ -841,6 +838,7 @@ function DocumentsCollapsible({ docs }: { docs: (string | AideDocument)[] }) {
 /* ------------------------------------------------------------------ */
 
 export function AideDetails({ aide, matchResult, monumentName, showHeader = true, showDocumentsRequis = true, aside, questions, answers, onRepondre, envoiEnCours }: AideDetailsProps) {
+  const { t } = useTranslation('aide');
   const categoryConfig = AIDE_CATEGORIES.find((c) => c.value === aide.categorie);
 
   return (
@@ -858,7 +856,7 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Colonne de lecture */}
         <div className="space-y-5 lg:col-span-2">
-          <SectionCard icon={IconParchemin} title="Présentation de l'aide">
+          <SectionCard icon={IconParchemin} title={t('AideDetails.presentation')}>
             <EnBref text={decodeHtml(aide.descriptionLongue || aide.description)} />
           </SectionCard>
 
@@ -868,8 +866,8 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
               tint="success"
               title={(
                 <span>
-                  Êtes-vous éligible&nbsp;?
-                  {monumentName && <span className="ml-1 text-[15px] font-normal text-muted-foreground" style={{ fontFamily: 'var(--font-sans)' }}>pour {monumentName}</span>}
+                  {t('AideDetails.etesVousEligible')}
+                  {monumentName && <span className="ml-1 text-[15px] font-normal text-muted-foreground" style={{ fontFamily: 'var(--font-sans)' }}>{t('AideDetails.pourMonument', { nom: monumentName })}</span>}
                 </span>
               )}
             >
@@ -888,7 +886,7 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
           {showDocumentsRequis && <DocumentsCollapsible docs={aide.documentsRequis} />}
 
           {aide.demarcheDescription && (
-            <SectionCard icon={IconEtapes} title="Les étapes de la demande">
+            <SectionCard icon={IconEtapes} title={t('AideDetails.etapes')}>
               <DemarcheSteps description={aide.demarcheDescription} />
             </SectionCard>
           )}
@@ -908,7 +906,7 @@ export function AideDetails({ aide, matchResult, monumentName, showHeader = true
                 style={{ borderColor: C.border, color: C.blue }}
               >
                 <IconLienExterne className="h-4 w-4" />
-                Consulter la page officielle
+                {t('AideDetails.pageOfficielle')}
               </a>
             )}
 

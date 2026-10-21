@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { DOSSIER_STEPS } from '@/constants/dossier-steps';
 import { DossierCard } from './DossierCard';
 import { cn } from '@/lib/utils';
@@ -8,6 +9,7 @@ interface DossierPipelineProps {
 }
 
 export function DossierPipeline({ dossiers }: DossierPipelineProps) {
+  const { t } = useTranslation('dossier');
   const columns = DOSSIER_STEPS.map((step) => ({
     ...step,
     dossiers: dossiers.filter((d) => d.etapeActuelle === step.step),
@@ -34,7 +36,7 @@ export function DossierPipeline({ dossiers }: DossierPipelineProps) {
           >
             {col.dossiers.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">
-                Aucun dossier
+                {t('DossierPipeline.aucunDossier')}
               </p>
             ) : (
               col.dossiers.map((dossier) => (

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { RAISON_CHOIX, type Raison } from '@/constants/raisons';
 import { CadrageStep, CadrageTile } from './CadrageStep';
 import { INTENTION_STEP } from './etapes';
@@ -23,6 +24,7 @@ interface ProjectIntentStepProps {
  * projet (cf. `intentionVerrouillee` dans `ProjetWizardPage`).
  */
 export function ProjectIntentStep({ value, onChange, onNext }: ProjectIntentStepProps) {
+  const { t } = useTranslation('project');
   const select = (raison: Raison) => {
     onChange([raison]);
   };
@@ -30,12 +32,12 @@ export function ProjectIntentStep({ value, onChange, onNext }: ProjectIntentStep
   return (
     <CadrageStep
       rubrique={INTENTION_STEP.label}
-      title="Que voulez-vous faire ?"
-      consigne="Une seule réponse : c'est la finalité de ce projet."
-      pourquoi="Nous ne vous poserons ensuite que les questions utiles à cette finalité. Une autre finalité fera un autre projet sur le même monument."
+      title={t('ProjectIntentStep.titre')}
+      consigne={t('ProjectIntentStep.consigne')}
+      pourquoi={t('ProjectIntentStep.pourquoi')}
       onNext={onNext}
       nextDisabled={value.length === 0}
-      nextHint="Choisissez une intention."
+      nextHint={t('ProjectIntentStep.indiceSuivant')}
     >
       {RAISON_CHOIX.map((option) => (
         <CadrageTile

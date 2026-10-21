@@ -17,6 +17,9 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react';
+import type { TFunction } from 'i18next';
+import { Trans, useTranslation } from 'react-i18next';
+import { changerLangue, LANGUES, langueCourante, localeIntl } from './i18n';
 import { sessionActive } from './session';
 
 const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.monumia.fr';
@@ -208,7 +211,7 @@ function CountUp({
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [to, duration, delay]);
-  return <>{val.toLocaleString('fr-FR')}</>;
+  return <>{val.toLocaleString(localeIntl())}</>;
 }
 
 function goToApp() {
@@ -327,7 +330,49 @@ function SectionTitle({
    En-tête
    ──────────────────────────────────────────── */
 
+/* La bascule de langue. Chaque langue est nommée dans sa propre langue
+   (« English » reste lisible pour qui ne lit pas le français) ; le choix est
+   mémorisé dans un cookie partagé avec l'application, puis la page recharge.
+   Dans l'en-tête, on ne propose que l'autre langue : un mot, pas un menu. */
+function SelecteurLangue({ compact = false, className = '' }: { compact?: boolean; className?: string }) {
+  const { t } = useTranslation();
+  const courante = langueCourante();
+  const langues = compact ? LANGUES.filter((l) => l !== courante) : LANGUES;
+  return (
+    <div
+      role="group"
+      aria-label={t('SelecteurLangue.libelle')}
+      className={`items-center gap-1.5 text-[13.5px] ${className || 'inline-flex'}`}
+    >
+      {langues.map((langue, i) => (
+        <span key={langue} className="inline-flex items-center gap-1.5">
+          {i > 0 && (
+            <span aria-hidden="true" style={{ color: C.inkFaint }}>
+              ·
+            </span>
+          )}
+          <button
+            type="button"
+            lang={langue}
+            aria-pressed={langue === courante}
+            disabled={langue === courante}
+            onClick={() => changerLangue(langue)}
+            className="rounded transition-colors duration-200 hover:text-[#0a369d] disabled:cursor-default"
+            style={{
+              color: langue === courante ? C.ink : C.inkSoft,
+              fontWeight: langue === courante ? 600 : 500,
+            }}
+          >
+            {t(`SelecteurLangue.${langue}`)}
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function Header() {
+  const { t } = useTranslation();
   const [scrolled, setScrolled] = useState(false);
   // Le seul endroit où la session change un LIBELLÉ, et non seulement une
   // destination : proposer « Trouver mes aides » à qui en a déjà une liste le
@@ -353,10 +398,9 @@ function Header() {
   }, []);
 
   const links = [
-    { href: '#methode', label: 'Comment ça marche' },
-    { href: '#exemple', label: 'Exemple' },
-    { href: '#tarifs', label: 'Tarifs' },
-    { href: '#faq', label: 'Questions' },
+    { href: '#methode', label: t('Navigation.methode') },
+    { href: '#tarifs', label: t('Navigation.tarifs') },
+    { href: '#faq', label: t('Navigation.questions') },
   ];
 
   return (
@@ -371,14 +415,14 @@ function Header() {
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 lg:px-8">
         {/* Logo horizontal : fleur Monumia à gauche du nom (version charte pour les headers) */}
-        <a href="#" className="flex items-center gap-2.5" aria-label="Monumia, retour en haut de page">
+        <a href="#" className="flex items-center gap-2.5" aria-label={t('Header.retourEnHaut')}>
           <Clover className="h-7 w-7" strokeWidth={10} style={{ color: C.orange }} />
           <span className="font-serif text-[1.35rem] font-bold tracking-[-0.01em]" style={{ color: C.blue }}>
             Monumia
           </span>
         </a>
 
-        <nav className="hidden items-center gap-7 md:flex" aria-label="Navigation principale">
+        <nav className="hidden items-center gap-7 md:flex" aria-label={t('Header.navigation')}>
           {links.map((l) => (
             <a
               key={l.href}
@@ -392,12 +436,15 @@ function Header() {
         </nav>
 
         <div className="flex items-center gap-5">
+          {/* Masquée sur les petits écrans, où la barre n'a pas la place : le
+              pied de page porte la bascule complète. */}
+          <SelecteurLangue compact className="hidden sm:inline-flex" />
           <button
             onClick={entrerDansMonumia}
             className="whitespace-nowrap rounded-full px-5 py-2.5 text-[14px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_20px_-6px_rgba(241,113,5,0.55)]"
             style={{ background: C.orange }}
           >
-            {connecte ? 'Mon compte' : 'Trouver mes aides'}
+            {connecte ? t('Header.monCompte') : t('Commun.trouverMesAides')}
           </button>
         </div>
       </div>
@@ -456,13 +503,14 @@ function LogoPartenaire({
 }
 
 function Partenaires({ className = '', style }: { className?: string; style?: CSSProperties }) {
+  const { t } = useTranslation();
   return (
     <div className={className} style={style}>
       <p
         className="text-[11px] font-semibold uppercase tracking-[0.16em]"
         style={{ color: C.inkFaint }}
       >
-        Référencé par
+        {t('Partenaires.referencePar')}
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-5 sm:mt-5 sm:gap-x-8">
         {PARTENAIRES.map((p) => (
@@ -479,6 +527,7 @@ function Partenaires({ className = '', style }: { className?: string; style?: CS
 
 /* La carte d’estimation compacte : l’essentiel des chiffres, posé devant la photo */
 function EstimationCard() {
+  const { t } = useTranslation();
   const { ref, inView } = useInView(0.3);
   return (
     <div
@@ -488,32 +537,40 @@ function EstimationCard() {
     >
       <div className="flex items-center justify-between">
         <span className="text-[11.5px] font-semibold uppercase tracking-[0.14em]" style={{ color: C.blueLight }}>
-          Votre estimation
+          {t('EstimationCard.titre')}
         </span>
         <span
           className="rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em]"
           style={{ background: C.paleBlue, color: C.blueLight }}
         >
-          Exemple
+          {t('Commun.exemple')}
         </span>
       </div>
 
       <h3 className="mt-2.5 font-serif text-[1.15rem] font-bold leading-snug" style={{ color: C.ink }}>
-        Château de Paley
+        {t('EstimationCard.projet')}
       </h3>
       <p className="text-[12.5px]" style={{ color: C.inkFaint }}>
-        Restauration de la façade · Seine-et-Marne
+        {t('EstimationCard.monument')}
       </p>
 
       <p className="mt-4 text-[11.5px] font-medium uppercase tracking-[0.1em]" style={{ color: C.inkFaint }}>
-        Aides estimées
+        {t('Commun.aidesEstimees')}
       </p>
       <p className="mt-1.5 font-serif text-[1.6rem] font-bold leading-none" style={{ color: C.blue }}>
-        {inView ? <CountUp to={420000} /> : '0'} €{' '}
-        <span className="text-[1.05rem] font-normal" style={{ color: C.inkFaint }}>
-          à
-        </span>{' '}
-        {inView ? <CountUp to={680000} duration={1600} /> : '0'} €
+        {/* L'ordre du montant et de la devise change d'une langue à l'autre :
+            les deux compteurs entrent dans la phrase traduite. */}
+        <Trans
+          t={t}
+          i18nKey="EstimationCard.fourchette"
+          components={{
+            // Hors de l'écran, `to` vaut 0 : le compteur affiche « 0 » et ne
+            // part qu'à l'arrivée de la carte, comme avant.
+            min: <CountUp to={inView ? 420000 : 0} />,
+            max: <CountUp to={inView ? 680000 : 0} duration={1600} />,
+            mot: <span className="text-[1.05rem] font-normal" style={{ color: C.inkFaint }} />,
+          }}
+        />
       </p>
       <div className="mt-3.5 h-2 overflow-hidden rounded-full" style={{ background: C.paleBlue }}>
         <div
@@ -530,7 +587,7 @@ function EstimationCard() {
         style={{ borderColor: C.border, color: C.inkSoft }}
       >
         <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: C.blueLight }} strokeWidth={1.8} />
-        12 aides identifiées · DRAC, Région, Fondation du patrimoine
+        {t('EstimationCard.identifiees')}
       </p>
 
       <button
@@ -538,13 +595,14 @@ function EstimationCard() {
         className="mt-3 self-start text-[12.5px] font-semibold transition-opacity duration-200 hover:opacity-75"
         style={{ color: C.orange }}
       >
-        Et pour votre monument ? →
+        {t('EstimationCard.etPourVous')}
       </button>
     </div>
   );
 }
 
 function Hero() {
+  const { t } = useTranslation();
   return (
     <section className="relative overflow-hidden px-5 pb-24 pt-24 sm:pt-28 lg:px-8 lg:pb-28 lg:pt-32">
       <div
@@ -562,49 +620,39 @@ function Hero() {
             className="text-[11.5px] font-semibold uppercase tracking-[0.16em]"
             style={{ color: C.orange }}
           >
-            Le moteur de recherche des aides au patrimoine
+            {t('Hero.surtitre')}
           </p>
 
           <h1
             className="mt-4 font-serif text-[clamp(1.85rem,4.2vw,2.7rem)] leading-[1.13] tracking-[-0.015em]"
             style={{ color: C.ink }}
           >
-            L’argent pour restaurer et faire vivre votre monument{' '}
-            <span style={{ color: C.blue }}>existe</span>. Nous vous aidons à le{' '}
-            <span style={{ color: C.orange }}>trouver</span>.
+            <Trans
+              t={t}
+              i18nKey="Hero.titre"
+              components={{
+                bleu: <span style={{ color: C.blue }} />,
+                orange: <span style={{ color: C.orange }} />,
+              }}
+            />
           </h1>
 
           <p
             className="mt-7 max-w-[41rem] text-[16px] font-medium leading-[1.7] sm:text-[17px]"
             style={{ color: C.inkSoft }}
           >
-            À quelles aides votre monument est-il éligible ? Pour quel montant ? Comment les
-            obtenir ? Monumia croise votre projet de restauration, d’ouverture ou d’animation
-            avec plus de 2000 aides, de la DRAC aux fondations.
+            {t('Hero.intro')}
           </p>
 
           <div className="mt-9 flex flex-wrap items-center gap-4">
             <CtaButton variant="blue" onClick={entrerDansMonumia}>
-              Trouver les aides pour mon monument
+              {t('Commun.trouverLesAides')}
             </CtaButton>
-            <a
-              href="#exemple"
-              className="group inline-flex items-center gap-2.5 rounded-full py-2 pl-2 pr-6 text-[15px] font-semibold transition-all duration-300 hover:-translate-y-0.5 hover:border-[#0a369d] hover:shadow-[0_10px_28px_-14px_rgba(10,54,157,0.45)]"
-              style={{ border: `1.5px solid ${C.blue}33`, color: C.blue, background: C.card }}
-            >
-              <span
-                className="flex h-9 w-9 items-center justify-center rounded-full"
-                style={{ background: C.paleBlue }}
-              >
-                <Search className="h-4 w-4 transition-transform duration-300 group-hover:-rotate-6" strokeWidth={1.8} />
-              </span>
-              Voir un exemple chiffré
-            </a>
           </div>
 
           {/* Ce qu'engage le clic : rien. Dit avant le clic, pas après. */}
           <p className="mt-5 text-[13px]" style={{ color: C.inkFaint }}>
-            En quelques minutes · Gratuit, sans engagement · Monument protégé ou non
+            {t('Hero.reassurance')}
           </p>
 
           {/* Ceux qui nous accompagnent, dits tout de suite : la confiance se
@@ -616,39 +664,11 @@ function Hero() {
           className="fade-up relative mx-auto mt-12 w-full max-w-[460px] lg:mt-0 lg:max-w-none"
           style={{ animationDelay: '0.4s' }}
         >
-          {/* Paley sous son arche, pleine colonne : ce pour quoi l’on travaille */}
-          <div
-            className="overflow-hidden rounded-b-2xl rounded-t-[10rem] border shadow-[0_30px_70px_-32px_rgba(34,43,53,0.4)]"
-            style={{ borderColor: C.border }}
-          >
-            {/* Recadrée en 4:5 à l'avance et déclinée en trois largeurs :
-                l'original (6000 × 4000, 4,4 Mo) coûtait 96 Mo de mémoire à
-                décoder sur un téléphone, pour une colonne de 460 px au plus. */}
-            <picture>
-              <source
-                type="image/webp"
-                srcSet={`${BASE}img/paley-480.webp 480w, ${BASE}img/paley-800.webp 800w, ${BASE}img/paley-1200.webp 1200w`}
-                sizes="(min-width: 1024px) 420px, min(460px, calc(100vw - 40px))"
-              />
-              <img
-                src={`${BASE}img/paley-800.jpg`}
-                width={800}
-                height={1000}
-                fetchPriority="high"
-                alt="Le château de Paley, en Seine-et-Marne, sélectionné par la Mission Patrimoine 2026, vu depuis son parc."
-                className="aspect-[4/5] h-auto w-full object-cover"
-              />
-            </picture>
-          </div>
-
-          {/* Les chiffres, posés devant le monument */}
-          <div className="relative z-10 mx-auto -mt-20 w-[92%] sm:absolute sm:-bottom-10 sm:-left-6 sm:mx-0 sm:mt-0 sm:w-[312px] sm:max-w-[88%] lg:-left-9">
-            <EstimationCard />
-          </div>
+          <EstimationCard />
 
           {/* Mini-carte d’alerte flottante : la veille incarnée */}
           <div
-            className="absolute -bottom-5 -right-2 lg:-right-8 xl:-right-12 hidden w-[220px] items-start gap-3 rounded-xl border p-3.5 pl-4 shadow-[0_18px_40px_-16px_rgba(34,43,53,0.3)] [animation:floaty_7s_ease-in-out_infinite] sm:flex"
+            className="relative z-10 -mt-3 ml-auto mr-2 flex w-[240px] max-w-[88%] items-start gap-3 rounded-xl border p-3.5 pl-4 shadow-[0_18px_40px_-16px_rgba(34,43,53,0.3)] [animation:floaty_7s_ease-in-out_infinite]"
             style={{ background: C.card, borderColor: C.border }}
           >
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: C.paleOrange }}>
@@ -656,10 +676,10 @@ function Hero() {
             </span>
             <span>
               <span className="block text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: C.orange }}>
-                Alerte ouverture
+                {t('Hero.alerteTitre')}
               </span>
               <span className="mt-0.5 block text-[12.5px] leading-snug" style={{ color: C.ink }}>
-                La Fondation du patrimoine ouvre ses candidatures
+                {t('Hero.alerteTexte')}
               </span>
             </span>
           </div>
@@ -679,29 +699,30 @@ function Hero() {
 /* Les guichets qu’un propriétaire doit démarcher un par un, chacun avec ses
    règles et son calendrier. */
 const GUICHETS = [
-  'État · DRAC',
-  'Europe',
-  'Région',
-  'Département',
-  'Intercommunalité',
-  'Préfecture',
-  'Fondations',
-  'Mécénat d’entreprise',
-];
+  'etat',
+  'europe',
+  'region',
+  'departement',
+  'intercommunalite',
+  'prefecture',
+  'fondations',
+  'mecenat',
+] as const;
 
 /* Le rapport du Sénat : cité dans le constat, et consultable d’un clic. */
 const RAPPORT_SENAT = 'https://www.senat.fr/rap/r25-865/r25-8651.pdf';
 
-const SOURCES_CONSTAT: Array<[string, string]> = [
+/* [clé du libellé dans `Constat.sources`, lien] */
+const SOURCES_CONSTAT = [
   [
-    'Ministère de la Culture, État de conservation des monuments historiques immeubles, bilan 2019-2024 (mai 2025)',
+    'ministere',
     'https://www.culture.gouv.fr/mc/content/download/372748/pdf_file/MHI_EtatConservation_2019-2024_BL_20250527.pdf',
   ],
   [
-    'Fondation du patrimoine, Observatoire du patrimoine non protégé (septembre 2025)',
+    'fondation',
     'https://strapi-upload.cdn.fondation-patrimoine.org/CP_Chiffres_cles_2025_du_patrimoine_non_protege_55dcc186a8.pdf',
   ],
-];
+] as const;
 
 /* Un chiffre du constat : pas de cadre, pas de carte — le chiffre en grand
    serif bleu, et sous lui ce qu’il désigne. Deux chiffres, posés à nu. */
@@ -730,6 +751,7 @@ function ConstatChiffre({
 function Constat() {
   /* Le compteur ne part qu’une fois le chiffre à l’écran : un chiffre qui a
      fini de défiler avant qu’on le regarde ne se lit pas. */
+  const { t } = useTranslation();
   const { ref, inView } = useInView(0.2);
   return (
     <section id="constat" className="scroll-mt-20 px-5 py-20 lg:px-8 lg:py-24">
@@ -738,8 +760,8 @@ function Constat() {
         <div ref={ref} className="grid items-start gap-14 sm:grid-cols-2 sm:gap-10">
           <Reveal>
             {/* 17,88 % mauvais état + 4,90 % péril = 22,78 % sur 36 512 MH */}
-            <ConstatChiffre chiffre="Près d’un sur quatre">
-              monuments historiques en mauvais état ou en péril.
+            <ConstatChiffre chiffre={t('Constat.presDUnSurQuatre')}>
+              {t('Constat.mauvaisEtat')}
             </ConstatChiffre>
           </Reveal>
 
@@ -747,13 +769,13 @@ function Constat() {
             {/* 67 400 sur 295 800, Fondation du patrimoine, Observatoire du
                 patrimoine non protégé, 19/09/2025 */}
             <ConstatChiffre chiffre={inView ? <CountUp to={67400} /> : '0'}>
-              monuments non protégés en état critique : églises, abbayes, châteaux, manoirs…
+              {t('Constat.nonProteges')}
             </ConstatChiffre>
           </Reveal>
         </div>
 
         <ul className="mx-auto mt-10 max-w-3xl space-y-1.5 text-center text-[12px] leading-[1.6]">
-          {SOURCES_CONSTAT.map(([label, href]) => (
+          {SOURCES_CONSTAT.map(([source, href]) => (
             <li key={href} style={{ color: C.inkFaint }}>
               <a
                 href={href}
@@ -761,7 +783,7 @@ function Constat() {
                 rel="noopener noreferrer"
                 className="underline underline-offset-2 transition-colors duration-200 hover:text-[#0a369d]"
               >
-                {label}
+                {t(`Constat.sources.${source}`)}
               </a>
             </li>
           ))}
@@ -771,8 +793,8 @@ function Constat() {
         <Reveal>
           <div className="mt-24">
             <SectionTitle
-              title="Un maquis d'aides qui complique la recherche de financements."
-              sub="Des dizaines de guichets, de l’Europe à la DRAC en passant par les préfectures, les Régions, les Départements, les fondations, les prix-concours… Chacun a ses propres critères d’éligibilité, montants, calendriers… Aujourd’hui, la recherche est complexe et fastidieuse."
+              title={t('Constat.maquisTitre')}
+              sub={t('Constat.maquisTexte')}
             />
             <div className="mx-auto mt-9 flex max-w-2xl flex-wrap justify-center gap-2">
               {GUICHETS.map((g) => (
@@ -781,7 +803,7 @@ function Constat() {
                   className="rounded-full border px-3.5 py-1.5 text-[13px] font-medium"
                   style={{ background: C.card, borderColor: C.border, color: C.inkSoft }}
                 >
-                  {g}
+                  {t(`Constat.guichets.${g}`)}
                 </span>
               ))}
             </div>
@@ -799,6 +821,7 @@ function Constat() {
    ──────────────────────────────────────────── */
 
 function RapportSenat() {
+  const { t } = useTranslation();
   return (
     <section className="px-5 pb-6 pt-20 lg:px-8 lg:pb-8 lg:pt-24">
       <Reveal>
@@ -820,7 +843,7 @@ function RapportSenat() {
             >
               <img
                 src={`${BASE}img/rapport-senat.jpg`}
-                alt="Couverture du rapport d’information n° 865 du Sénat, 7 juillet 2026"
+                alt={t('RapportSenat.altCouverture')}
                 loading="lazy"
                 width={396}
                 height={560}
@@ -832,7 +855,7 @@ function RapportSenat() {
               style={{ color: C.blue }}
             >
               <FileText className="h-4 w-4" strokeWidth={1.8} />
-              Consulter le rapport
+              {t('RapportSenat.consulter')}
             </span>
           </a>
 
@@ -847,13 +870,11 @@ function RapportSenat() {
               className="font-serif text-[clamp(1.55rem,2.9vw,2.05rem)] leading-[1.2] tracking-[-0.01em]"
               style={{ color: C.ink }}
             >
-              Le Sénat partage notre constat
+              {t('RapportSenat.titre')}
             </h2>
             <div className="mt-4 h-[3px] w-12 rounded-full" style={{ background: C.orange }} />
             <p className="mt-5 text-[16.5px] leading-[1.75]" style={{ color: C.inkSoft }}>
-              En juillet 2026, le Sénat recommande un guichet unique des subventions, « assorti
-              d’un portail d’information recensant l’ensemble des dispositifs de soutien
-              disponibles ».
+              {t('RapportSenat.texte')}
             </p>
           </div>
         </div>
@@ -1045,25 +1066,23 @@ function Cursor({ steps, duration = DEMO_DURATION }: { steps: CursorStep[]; dura
   );
 }
 
-/* Les aides du château de Paley, partagées par la scène 1 de la
-   démonstration et par la section « Exemple » : la page ne montre qu’un seul
-   exemple chiffré, et les deux écrans qui l’affichent lisent la même liste. */
-const RESULTATS_PALEY: Array<[string, string]> = [
-  ['Aide de l’État (DRAC) · restauration', '15 à 40 %'],
-  ['Aide de la Région · patrimoine', 'jusqu’à 25 000 €'],
-  ['Fondation du patrimoine', 'Réduction d’impôt'],
-  ['Mécénat d’entreprise', 'Sur dossier'],
-];
+/* Les aides de l’écran de résultats de la scène 1 de la démonstration */
+const RESULTATS_EXEMPLE = ['drac', 'region', 'fondation', 'mecenat'] as const;
 
 /* Scène 1 — trouver ses aides : questionnaire, puis résultats du moteur */
 function SceneTrouver() {
+  const { t } = useTranslation();
   return (
     <div className="relative h-full">
       {/* Écran 1 : le questionnaire de qualification */}
       <div className="absolute inset-0 flex flex-col" style={{ animation: 'screen-out 0.45s 5.8s ease forwards' }}>
         <div className="demo-pop flex items-center justify-between" style={{ animationDelay: '0.1s' }}>
           <span className="text-[11.5px] font-semibold uppercase tracking-[0.16em]" style={{ color: C.orange }}>
-            Question 5 <span style={{ color: C.inkFaint }}>sur 12</span>
+            <Trans
+              t={t}
+              i18nKey="SceneTrouver.question"
+              components={{ sur: <span style={{ color: C.inkFaint }} /> }}
+            />
           </span>
           <span className="flex gap-1">
             {[...Array(5)].map((_, i) => (
@@ -1080,33 +1099,32 @@ function SceneTrouver() {
           className="demo-pop mt-4 font-serif text-[1.1rem] font-bold leading-snug sm:text-[1.2rem]"
           style={{ color: C.ink, animationDelay: '0.3s' }}
         >
-          Quelles entités, autour du monument, pourraient déposer une demande d’aide ?
+          {t('SceneTrouver.porteurs')}
         </h4>
         <p
           className="demo-pop mt-3 flex gap-2 rounded-lg border-l-2 bg-white p-3 text-[12.5px] leading-snug"
           style={{ borderColor: C.blueLight, color: C.inkSoft, animationDelay: '0.7s' }}
         >
           <Info className="mt-[2px] h-3.5 w-3.5 shrink-0" style={{ color: C.blue }} strokeWidth={2} />
-          <span>Le porteur n’est pas forcément le propriétaire du monument.</span>
+          <span>{t('SceneTrouver.porteurAide')}</span>
         </p>
         <div className="mt-3.5 flex flex-wrap gap-2">
-          <DemoChip appear={1.1}>Particulier (personne physique)</DemoChip>
-          <DemoChip appear={1.25}>SCI</DemoChip>
+          <DemoChip appear={1.1}>{t('SceneTrouver.particulier')}</DemoChip>
+          <DemoChip appear={1.25}>{t('SceneTrouver.sci')}</DemoChip>
           <DemoChip appear={1.4} select={2.4} demoId="chip-association">
-            Association loi 1901
+            {t('SceneTrouver.association')}
           </DemoChip>
         </div>
 
         <div className="demo-pop mt-6" style={{ animationDelay: '3s' }}>
           <h4 className="font-serif text-[1.1rem] font-bold leading-snug sm:text-[1.2rem]" style={{ color: C.ink }}>
-            Les travaux portent-ils sur les parties protégées du monument (celles visées par le
-            classement ou l’inscription) ?
+            {t('SceneTrouver.partiesProtegees')}
           </h4>
           <div className="mt-3 flex flex-wrap gap-2">
             <DemoChip appear={3.3} select={4.5} demoId="chip-parties-protegees">
-              Oui
+              {t('SceneTrouver.oui')}
             </DemoChip>
-            <DemoChip appear={3.45}>Non</DemoChip>
+            <DemoChip appear={3.45}>{t('SceneTrouver.non')}</DemoChip>
           </div>
         </div>
 
@@ -1116,7 +1134,7 @@ function SceneTrouver() {
         >
           <Sparkles className="h-4 w-4 shrink-0" style={{ color: C.orange }} strokeWidth={1.8} />
           <span className="text-[12.5px]" style={{ color: C.inkSoft }}>
-            Monumia cherche toutes les aides pour votre projet…
+            {t('SceneTrouver.recherche')}
           </span>
           <span className="ml-auto flex gap-1">
             {[0, 1, 2].map((i) => (
@@ -1137,20 +1155,20 @@ function SceneTrouver() {
       >
         <div className="demo-pop flex items-center justify-between" style={{ animationDelay: '6.4s' }}>
           <span className="font-serif text-[1.05rem] font-bold" style={{ color: C.ink }}>
-            12 aides correspondent à votre projet
+            {t('Commun.aidesCorrespondent')}
           </span>
           <span
             className="rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em]"
             style={{ background: C.paleBlue, color: C.blueLight }}
           >
-            Exemple
+            {t('Commun.exemple')}
           </span>
         </div>
 
         <div className="mt-4 space-y-2.5">
-          {RESULTATS_PALEY.map(([name, amount], i) => (
+          {RESULTATS_EXEMPLE.map((resultat, i) => (
             <div
-              key={name}
+              key={resultat}
               data-demo={i === 0 ? 'resultat' : undefined}
               className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2.5"
               style={{
@@ -1163,10 +1181,10 @@ function SceneTrouver() {
             >
               <span className="flex min-w-0 items-center gap-2 text-[12.5px]" style={{ color: C.ink }}>
                 <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: C.blueLight }} strokeWidth={1.8} />
-                {name}
+                {t(`ResultatsExemple.${resultat}.nom`)}
               </span>
               <span className="shrink-0 text-[12px] font-semibold" style={{ color: C.inkSoft }}>
-                {amount}
+                {t(`ResultatsExemple.${resultat}.montant`)}
               </span>
             </div>
           ))}
@@ -1175,10 +1193,10 @@ function SceneTrouver() {
         <div className="demo-pop mt-4" style={{ animationDelay: '7.9s' }}>
           <div className="flex items-center justify-between text-[12px]">
             <span className="font-medium" style={{ color: C.inkSoft }}>
-              Vos chances d’obtenir ces aides
+              {t('Commun.chances')}
             </span>
             <span className="font-semibold" style={{ color: C.orange }}>
-              élevées
+              {t('Commun.elevees')}
             </span>
           </div>
           <div className="mt-1.5 h-2 overflow-hidden rounded-full" style={{ background: C.paleBlue }}>
@@ -1198,11 +1216,17 @@ function SceneTrouver() {
           style={{ background: C.paleOrange, animationDelay: '8.5s' }}
         >
           <span className="text-[11.5px] font-semibold uppercase tracking-[0.08em]" style={{ color: C.ink }}>
-            Aides estimées
+            {t('Commun.aidesEstimees')}
           </span>
           <span className="font-serif text-[1.2rem] font-bold leading-none" style={{ color: C.orange }}>
-            <CountUp to={92000} delay={demoMs(8700)} duration={demoMs(1300)} /> –{' '}
-            <CountUp to={140000} delay={demoMs(8700)} duration={demoMs(1700)} /> €
+            <Trans
+              t={t}
+              i18nKey="SceneTrouver.fourchette"
+              components={{
+                min: <CountUp to={92000} delay={demoMs(8700)} duration={demoMs(1300)} />,
+                max: <CountUp to={140000} delay={demoMs(8700)} duration={demoMs(1700)} />,
+              }}
+            />
           </span>
         </div>
 
@@ -1214,13 +1238,13 @@ function SceneTrouver() {
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 shrink-0" style={{ color: C.blue }} strokeWidth={1.8} />
             <span className="text-[12px] font-semibold" style={{ color: C.ink }}>
-              Fiche de l’aide
+              {t('SceneTrouver.fiche.titre')}
             </span>
           </div>
           <ul className="mt-2 space-y-1 text-[11.5px] leading-snug" style={{ color: C.inkSoft }}>
-            <li>Conditions et montants expliqués</li>
-            <li>La personne à contacter</li>
-            <li>La liste des 12 documents à fournir</li>
+            <li>{t('SceneTrouver.fiche.conditions')}</li>
+            <li>{t('SceneTrouver.fiche.contact')}</li>
+            <li>{t('SceneTrouver.fiche.documents')}</li>
           </ul>
         </div>
       </div>
@@ -1239,22 +1263,23 @@ function SceneTrouver() {
 
 /* Scène 2 — la veille : échéancier, alerte activée au clic, radar et détection */
 function SceneVeille() {
+  const { t } = useTranslation();
   const items: Array<[string, string]> = [
-    ['Fondation du patrimoine · les candidatures ouvrent', '15 mars'],
-    ['Aide de l’État · dernier jour pour déposer', '2 avril'],
-    ['Région · nouvelle aide pour le patrimoine', '30 juin'],
+    [t('SceneVeille.dates.fondation.nom'), t('SceneVeille.dates.fondation.date')],
+    [t('SceneVeille.dates.etat.nom'), t('SceneVeille.dates.etat.date')],
+    [t('SceneVeille.dates.region.nom'), t('SceneVeille.dates.region.date')],
   ];
   return (
     <div className="relative flex h-full flex-col">
       <div className="demo-pop flex items-center justify-between" style={{ animationDelay: '0.1s' }}>
         <span className="font-serif text-[1.05rem] font-bold" style={{ color: C.ink }}>
-          Vos dates à retenir
+          {t('SceneVeille.titre')}
         </span>
         <span
           className="rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em]"
           style={{ background: C.paleBlue, color: C.blueLight }}
         >
-          Exemple
+          {t('Commun.exemple')}
         </span>
       </div>
 
@@ -1296,7 +1321,7 @@ function SceneVeille() {
         style={{ color: C.orange, animationDelay: '3.4s' }}
       >
         <CheckCircle2 className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-        Alerte activée : vous serez prévenu à temps
+        {t('SceneVeille.alerteActivee')}
       </p>
 
       <div
@@ -1308,10 +1333,10 @@ function SceneVeille() {
         </span>
         <span>
           <span className="block text-[10.5px] font-semibold uppercase tracking-[0.08em]" style={{ color: C.orange }}>
-            Alerte Monumia
+            {t('SceneVeille.alerteMonumia')}
           </span>
           <span className="mt-0.5 block text-[12.5px] leading-snug" style={{ color: C.ink }}>
-            Nouvelle aide pour votre manoir
+            {t('SceneVeille.nouvelleAide')}
           </span>
         </span>
         <span
@@ -1319,7 +1344,7 @@ function SceneVeille() {
           style={{ background: C.paleBlue, color: C.blue }}
         >
           <HeartHandshake className="h-3 w-3" strokeWidth={2} />
-          Mécénat
+          {t('SceneVeille.mecenat')}
         </span>
       </div>
 
@@ -1332,18 +1357,19 @@ function SceneVeille() {
    le curseur ouvre le projet choisi, puis l'écran bascule sur son détail où
    l'on coche les pièces et télécharge le dossier. */
 function SceneDossiers() {
+  const { t } = useTranslation();
   /* Tous les projets en cours (écran 1). Le premier est celui qu'on ouvre. */
   const enCours: Array<[string, string, string]> = [
-    ['Restauration de la toiture', 'Dossier en préparation', '70%'],
-    ['Vitraux de la chapelle', 'Recherche d’aides en cours', '40%'],
-    ['Mise aux normes électriques', 'À démarrer', '15%'],
+    [t('SceneDossiers.projets.toiture.nom'), t('SceneDossiers.projets.toiture.statut'), '70%'],
+    [t('SceneDossiers.projets.vitraux.nom'), t('SceneDossiers.projets.vitraux.statut'), '40%'],
+    [t('SceneDossiers.projets.electricite.nom'), t('SceneDossiers.projets.electricite.statut'), '15%'],
   ];
   /* Les pièces du dossier (écran 2). `at` = instant où la coche apparaît. */
   const pieces: Array<[string, number]> = [
-    ['Devis des artisans', 4.9],
-    ['Photos de la toiture', 5.4],
-    ['Plan de financement', 7.45],
-    ['Avis de l’Architecte des Bâtiments de France', 8.75],
+    [t('SceneDossiers.pieces.devis'), 4.9],
+    [t('SceneDossiers.pieces.photos'), 5.4],
+    [t('SceneDossiers.pieces.financement'), 7.45],
+    [t('SceneDossiers.pieces.abf'), 8.75],
   ];
   return (
     <div className="relative h-full">
@@ -1351,13 +1377,13 @@ function SceneDossiers() {
       <div className="absolute inset-0 flex flex-col" style={{ animation: 'screen-out 0.45s 3.6s ease forwards' }}>
         <div className="demo-pop flex items-center justify-between" style={{ animationDelay: '0.1s' }}>
           <span className="font-serif text-[1.05rem] font-bold" style={{ color: C.ink }}>
-            Vos projets en cours
+            {t('SceneDossiers.titre')}
           </span>
           <span
             className="rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em]"
             style={{ background: C.paleBlue, color: C.blueLight }}
           >
-            Exemple
+            {t('Commun.exemple')}
           </span>
         </div>
 
@@ -1424,10 +1450,10 @@ function SceneDossiers() {
             </span>
             <span className="min-w-0">
               <span className="block truncate font-serif text-[1.05rem] font-bold leading-tight" style={{ color: C.ink }}>
-                Restauration de la toiture
+                {t('SceneDossiers.projets.toiture.nom')}
               </span>
               <span className="block truncate text-[11.5px]" style={{ color: C.inkFaint }}>
-                Documents du projet · partagés avec votre architecte
+                {t('SceneDossiers.documentsProjet')}
               </span>
             </span>
           </span>
@@ -1479,7 +1505,7 @@ function SceneDossiers() {
           }}
         >
           <Download className="h-4 w-4" strokeWidth={2} />
-          Télécharger le dossier complet
+          {t('SceneDossiers.telecharger')}
         </div>
 
         <div
@@ -1488,7 +1514,7 @@ function SceneDossiers() {
         >
           <CheckCircle2 className="h-4.5 w-4.5 shrink-0" style={{ color: C.orange }} strokeWidth={2} />
           <span className="text-[12.5px] leading-snug" style={{ color: C.ink }}>
-            Dossier complet, prêt à envoyer
+            {t('SceneDossiers.pret')}
           </span>
         </div>
       </div>
@@ -1506,85 +1532,31 @@ function SceneDossiers() {
   );
 }
 
-type Feature = [string, string];
-
-const CATEGORIES: Array<{
-  key: string;
-  tab: string;
-  icon: typeof Search;
-  title: string;
-  sub?: string;
-  features: Feature[];
-  scene: () => ReactNode;
-  duration: number;
-}> = [
+/* Les textes vivent dans `Demo.categories.<key>` (onglet, titre) et
+   `Demo.fonctionnalites.<id>` (titre, texte) : ici, seulement la structure. */
+const CATEGORIES = [
   {
     key: 'trouver',
-    tab: 'Trouver mes aides',
     icon: Search,
-    title: 'Trouvez toutes vos aides',
     duration: SCENE_TROUVER_DURATION,
-    features: [
-      [
-        'Un questionnaire simple',
-        'Quelques questions sur votre lieu et votre projet. Plus vos réponses sont précises, plus les résultats le sont.',
-      ],
-      [
-        'Un moteur de recherche d’aides',
-        'Vos réponses sont croisées avec l’ensemble des financements existants, pour ne remonter que les aides auxquelles vous êtes réellement éligible.',
-      ],
-      [
-        'Une fiche claire pour chaque aide',
-        'Conditions, montants, documents à fournir et personne à contacter : le mode d’emploi de chaque financement.',
-      ],
-    ],
+    features: ['questionnaire', 'moteur', 'fiche'],
     scene: SceneTrouver,
   },
   {
     key: 'dossiers',
-    tab: 'Monter mon dossier',
     icon: FolderOpen,
-    title: 'Montez et pilotez vos dossiers',
-    features: [
-      [
-        'Cloud pour stocker vos documents',
-        'Devis, photos, plans : tout est rangé, classé et partageable. Invitez votre architecte ou vos artisans à y travailler avec vous.',
-      ],
-      [
-        'La liste exacte des documents à fournir',
-        'Pour chaque aide, Monumia vous donne la liste précise des pièces demandées. Une fois tout réuni, téléchargez le dossier complet, prêt à envoyer.',
-      ],
-      [
-        'Assurer un suivi de vos démarches',
-        'Pilotez l’état d’avancement de vos demandes, de « en cours de préparation » à « accordée ».',
-      ],
-      [
-        'Un tableau de bord de suivi',
-        'Une vue d’ensemble de tous vos projets. Menez plusieurs projets de front sans rien perdre de vue.',
-      ],
-    ],
+    features: ['cloud', 'pieces', 'suivi', 'tableauDeBord'],
     scene: SceneDossiers,
     duration: SCENE_DOSSIERS_DURATION,
   },
   {
     key: 'veille',
-    tab: 'Ne rien rater',
     icon: BellRing,
-    title: 'Ne ratez plus jamais une opportunité',
-    features: [
-      [
-        'Des alertes avant chaque échéance',
-        'Monumia vous prévient à l’approche de chaque date limite qui vous concerne, à temps pour déposer.',
-      ],
-      [
-        'Une veille sur vos financements',
-        'Au-delà de vos projets en cours, Monumia identifie en continu les aides auxquelles votre monument est éligible.',
-      ],
-    ],
+    features: ['alertes', 'veille'],
     scene: SceneVeille,
     duration: DEMO_DURATION,
   },
-];
+] as const;
 
 /* L’arête haute et basse de la section « L’application » : un filet orange qui
    s’éteint vers les bords, pour que la limite ne coupe pas la page en deux. */
@@ -1592,6 +1564,7 @@ const ARETE =
   'linear-gradient(to right, rgba(241,113,5,0) 0%, rgba(241,113,5,0.65) 28%, rgba(241,113,5,0.65) 72%, rgba(241,113,5,0) 100%)';
 
 function Demo() {
+  const { t } = useTranslation();
   const { ref, inView } = useInView(0.2);
   const [active, setActive] = useState(0);
   const [loop, setLoop] = useState(true);
@@ -1677,7 +1650,7 @@ function Demo() {
 
       <div className="relative z-10 mx-auto max-w-6xl px-5 py-24 lg:px-8 lg:py-32">
         <Reveal>
-          <SectionTitle dark title="Monumia en action" />
+          <SectionTitle dark title={t('Demo.titre')} />
         </Reveal>
 
         {/* Les trois missions, en onglets */}
@@ -1686,7 +1659,7 @@ function Demo() {
           <div className="-mx-5 mt-12 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mx-0">
           <div
             role="tablist"
-            aria-label="Les trois missions de Monumia"
+            aria-label={t('Demo.missions')}
             className="flex gap-2.5 px-5 pb-10 pt-1 lg:justify-center lg:px-0"
           >
             {CATEGORIES.map((c, i) => {
@@ -1714,7 +1687,7 @@ function Demo() {
                     style={{ color: isActive ? '#fff' : C.inkFaint }}
                     strokeWidth={2}
                   />
-                  {c.tab}
+                  {t(`Demo.categories.${c.key}.onglet`)}
                 </button>
               );
             })}
@@ -1728,16 +1701,11 @@ function Demo() {
             {/* Le texte : titre, fonctionnalités cochées, appel à l’action */}
             <div key={cat.key} className="fade-up">
               <h3 className="font-serif text-[clamp(1.65rem,3vw,2.1rem)] leading-[1.2] tracking-[-0.01em] text-white">
-                {cat.title}
+                {t(`Demo.categories.${cat.key}.titre`)}
               </h3>
-              {cat.sub && (
-                <p className="mt-3 text-[16px] font-medium leading-[1.6] text-white/75">
-                  {cat.sub}
-                </p>
-              )}
               <ul className="mt-7 space-y-4">
-                {cat.features.map(([name, desc]) => (
-                  <li key={name} className="flex items-start gap-3">
+                {cat.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-3">
                     <span
                       className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full"
                       style={{ background: 'rgba(252,137,5,0.22)' }}
@@ -1746,17 +1714,17 @@ function Demo() {
                     </span>
                     <span>
                       <span className="block text-[14.5px] font-semibold leading-snug text-white">
-                        {name}
+                        {t(`Demo.fonctionnalites.${feature}.titre`)}
                       </span>
                       <span className="mt-0.5 block text-[13.5px] leading-[1.6] text-white/75">
-                        {desc}
+                        {t(`Demo.fonctionnalites.${feature}.texte`)}
                       </span>
                     </span>
                   </li>
                 ))}
               </ul>
               <CtaButton variant="white" onClick={entrerDansMonumia} className="mt-9">
-                Trouver les aides pour mon monument
+                {t('Commun.trouverLesAides')}
               </CtaButton>
             </div>
 
@@ -1818,147 +1786,18 @@ function Demo() {
 }
 
 /* ────────────────────────────────────────────
-   L’exemple — un monument, ses aides, son chiffre. Le même que le héros et la
-   démonstration : la page ne montre qu’un seul exemple chiffré, sinon le
-   visiteur compare des montants qui ne parlent pas du même chantier.
-   ──────────────────────────────────────────── */
-
-function Exemple() {
-  return (
-    <section id="exemple" className="scroll-mt-20 px-5 py-20 lg:px-8 lg:py-24">
-      <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-16">
-        <Reveal>
-          <div>
-            <p
-              className="text-[11.5px] font-semibold uppercase tracking-[0.16em]"
-              style={{ color: C.orange }}
-            >
-              L’exemple du château de Paley
-            </p>
-            <h2
-              className="mt-4 font-serif text-[clamp(1.7rem,3vw,2.2rem)] leading-[1.2] tracking-[-0.01em]"
-              style={{ color: C.ink }}
-            >
-              Ce que Monumia trouve pour un château de Seine-et-Marne
-            </h2>
-            <p className="mt-6 text-[16px] leading-[1.75]" style={{ color: C.inkSoft }}>
-              Le château de Paley, sélectionné par la Mission Patrimoine 2026, prépare la
-              restauration de sa façade. Monumia identifie douze aides mobilisables, entre 420 000
-              et 680 000 € estimés avec prudence : État, Région, Département, Fondation du
-              patrimoine, mécénat d’entreprise.
-            </p>
-
-            {/* PROVISOIRE : phrase inventée, à remplacer par la citation d’Ismaël */}
-            <blockquote
-              className="mt-8 border-l-2 pl-5 text-[15.5px] italic leading-[1.75]"
-              style={{ borderColor: C.orange, color: C.ink }}
-            >
-              « J’ai cherché seul pendant des mois. En cinq minutes, Monumia m’a donné une liste
-              que je n’avais jamais eue en entier, avec les personnes à appeler. »
-              <footer className="mt-3 text-[13px] not-italic" style={{ color: C.inkFaint }}>
-                Ismaël Murat El Hakim, propriétaire-gestionnaire du château de Paley
-              </footer>
-            </blockquote>
-
-            <CtaButton onClick={entrerDansMonumia} className="mt-9">
-              Et pour mon monument ?
-            </CtaButton>
-          </div>
-        </Reveal>
-
-        {/* L’écran de résultats, arrêté sur image : mêmes lignes que la scène 1,
-            sans curseur ni animation — on vient ici pour lire, pas pour voir
-            jouer une démonstration. */}
-        <Reveal delay={140}>
-          <div className="rounded-[1.75rem] p-3 sm:p-5" style={{ background: C.paleOrange }}>
-            <div
-              className="rounded-2xl border p-5 shadow-[0_30px_70px_-30px_rgba(10,54,157,0.35)] sm:p-6"
-              style={{ background: C.cream, borderColor: C.border }}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-serif text-[1.05rem] font-bold" style={{ color: C.ink }}>
-                  12 aides correspondent à votre projet
-                </span>
-                <span
-                  className="shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em]"
-                  style={{ background: C.paleBlue, color: C.blueLight }}
-                >
-                  Exemple
-                </span>
-              </div>
-
-              <div className="mt-4 space-y-2.5">
-                {RESULTATS_PALEY.map(([name, amount]) => (
-                  <div
-                    key={name}
-                    className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2.5"
-                  >
-                    <span className="flex min-w-0 items-center gap-2 text-[12.5px]" style={{ color: C.ink }}>
-                      <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: C.blueLight }} strokeWidth={1.8} />
-                      {name}
-                    </span>
-                    <span className="shrink-0 text-[12px] font-semibold" style={{ color: C.inkSoft }}>
-                      {amount}
-                    </span>
-                  </div>
-                ))}
-                <p className="px-3 pt-1 text-[12px]" style={{ color: C.inkFaint }}>
-                  et 8 autres aides, avec fiche, contact et pièces à fournir
-                </p>
-              </div>
-
-              <div className="mt-5">
-                <div className="flex items-center justify-between text-[12px]">
-                  <span className="font-medium" style={{ color: C.inkSoft }}>
-                    Vos chances d’obtenir ces aides
-                  </span>
-                  <span className="font-semibold" style={{ color: C.orange }}>
-                    élevées
-                  </span>
-                </div>
-                <div className="mt-1.5 h-2 overflow-hidden rounded-full" style={{ background: C.paleBlue }}>
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: '78%', background: `linear-gradient(90deg, ${C.orange}, ${C.orangeVif})` }}
-                  />
-                </div>
-              </div>
-
-              <div
-                className="mt-5 flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3.5"
-                style={{ background: C.paleOrange }}
-              >
-                <span
-                  className="text-[11.5px] font-semibold uppercase tracking-[0.08em]"
-                  style={{ color: C.ink }}
-                >
-                  Aides estimées
-                </span>
-                <span className="font-serif text-[1.2rem] font-bold leading-none" style={{ color: C.orange }}>
-                  420 000 – 680 000 €
-                </span>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-/* ────────────────────────────────────────────
-   L’équipe — quatre cadres rectangulaires qui
+   L’équipe — des cadres rectangulaires qui
    s’éclairent au passage.
    Règle du survol : rien ne se déplace sous le
    curseur (lumière, filtres et couleurs seulement),
    la zone de hover reste parfaitement stable.
    ──────────────────────────────────────────── */
 
+/* `id` : clé des textes dans `Team.membres` (texte alternatif, cartel). */
 const TEAM: Array<{
+  id: 'paul' | 'felix' | 'henri';
   name: string;
   img: string;
-  alt: string;
-  desc: string;
   lift: string;
   factor: number;
   /* Recadrage propre au portrait : les sources sont carrées, le cadre est en 9/10.
@@ -1966,42 +1805,23 @@ const TEAM: Array<{
   imgStyle?: CSSProperties;
 }> = [
   {
+    id: 'paul',
     name: 'Paul VACHERET',
     img: `${BASE}img/team-paul.jpg`,
-    alt: 'Portrait de Paul, cofondateur de Monumia',
-    desc: 'Cofondateur, vision et développement commercial. À l’origine de Monumia.',
     lift: 'md:mt-0',
     factor: 0.025,
   },
   {
+    id: 'felix',
     name: 'Félix OLLIVIER',
     img: `${BASE}img/team-felix.jpg`,
-    alt: 'Portrait de Félix, cofondateur de Monumia',
-    desc: 'Cofondateur, conception et développement. Expert en intelligence artificielle. Il a construit la plateforme.',
     lift: 'md:mt-0',
     factor: 0.025,
   },
   {
-    name: 'Ismaël MURAT EL HAKIM',
-    img: `${BASE}img/team-ismael.jpg`,
-    alt: 'Portrait d’Ismaël, propriétaire gestionnaire du château de Paley',
-    desc: 'Associé. Propriétaire-gestionnaire du château de Paley, sélectionné par la Mission Patrimoine 2026.',
-    lift: 'md:mt-0',
-    factor: 0.025,
-    /* Plan large et sujet décentré à gauche : `objectPosition` colle la fenêtre
-       sur le bord gauche de la source, `transformOrigin` la resserre autour de
-       lui, `scale` remonte son visage à l’échelle des deux autres portraits. */
-    imgStyle: {
-      objectPosition: '0% 50%',
-      transform: 'scale(1.42)',
-      transformOrigin: '25% 32%',
-    },
-  },
-  {
+    id: 'henri',
     name: 'Henri d’ANSELME',
     img: `${BASE}img/team-henri.jpg`,
-    alt: 'Portrait d’Henri d’Anselme, ambassadeur de Monumia',
-    desc: 'Ambassadeur. Auteur, producteur et présentateur des « Chemins du Patrimoine » (Canal+ / CNews).',
     lift: 'md:mt-0',
     factor: 0.025,
     /* Source en 16/9, sujet à droite : la fenêtre 9/10 se cale sur lui, et le
@@ -2015,18 +1835,19 @@ const TEAM: Array<{
 ];
 
 function Team() {
+  const { t } = useTranslation();
   return (
     <section id="equipe" className="scroll-mt-20 px-5 py-20 lg:px-8 lg:py-24">
       <div className="mx-auto max-w-6xl">
         <Reveal>
           <SectionTitle
             filet={false}
-            title="Car nous avons décidé de ne plus attendre."
-            sub="Ensemble, nous portons Monumia."
+            title={t('Team.titre')}
+            sub={t('Team.sousTitre')}
           /> 
         </Reveal>
 
-        <div className="mx-auto mt-14 grid max-w-2xl gap-14 md:max-w-4xl md:grid-cols-2 md:gap-10 lg:max-w-6xl lg:grid-cols-4 lg:gap-8">
+        <div className="mx-auto mt-14 grid max-w-2xl gap-14 md:max-w-4xl md:grid-cols-3 md:gap-10 lg:max-w-5xl lg:gap-8">
           {TEAM.map((m, i) => (
             <ParallaxItem key={m.name} factor={m.factor}>
               <Reveal delay={i * 130}>
@@ -2036,7 +1857,7 @@ function Team() {
                   <div className="relative overflow-hidden rounded-2xl shadow-[0_26px_50px_-30px_rgba(34,43,53,0.45)] transition-shadow duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:shadow-[0_36px_70px_-30px_rgba(34,43,53,0.45)]">
                     <img
                       src={m.img}
-                      alt={m.alt}
+                      alt={t(`Team.membres.${m.id}.alt`)}
                       loading="lazy"
                       className="aspect-[9/10] w-full object-cover"
                       style={m.imgStyle}
@@ -2057,7 +1878,7 @@ function Team() {
                       className="mx-auto max-w-[300px] text-[13.5px] leading-[1.6]"
                       style={{ color: C.inkSoft }}
                     >
-                      {m.desc}
+                      {t(`Team.membres.${m.id}.description`)}
                     </p>
                   </div>
                 </figure>
@@ -2093,79 +1914,63 @@ type Plan = {
   onClick: () => void;
 };
 
-const PLANS: Plan[] = [
-  {
-    name: 'Découverte',
-    audience: 'gratuit',
-    tone: 'cream',
-    // « Trouver mes aides » : un CTA d'entrée comme les autres.
-    onClick: entrerDansMonumia,
-    punchline: 'Trouvez toutes les aides de votre monument.',
-    intro: [
-      'Vous répondez à quelques questions sur votre monument, sa protection et votre projet. Nous croisons vos réponses avec plus de 400 aides, de l’État aux fondations, et vous rendons celles auxquelles votre projet peut prétendre, avec le taux et le plafond annoncés par chaque financeur.',
-    ],
-    features: [
-      { lead: '1 monument, 2 projets' },
-      {
-        lead: 'Pour chaque aide : critères, taux et plafond, calendrier, pièces exigées, service instructeur',
-      },
-      { lead: 'Les prix et appels à projets, cherchés au même titre que les subventions' },
-      { lead: 'La checklist des pièces réclamées par chaque financeur' },
-      {
-        lead: 'Un espace documents, classé par type, où vos pièces déposées une fois servent tous vos dossiers',
-      },
-    ],
-    footer: 'Sans carte bancaire, sans engagement.',
-    note: 'Un projet correspond à un chantier. Reprendre la couverture, c’en est un. Accueillir une compagnie en résidence, c’en est un autre. Les financeurs ne sont pas les mêmes.',
-    cta: 'Trouver mes aides',
-  },
-  {
-    name: 'Veille',
-    audience: 'pour un monument en activité',
-    tone: 'highlight',
-    badge: 'Le plus choisi',
-    onClick: goToContact,
-    punchline: 'Vous ne cherchez plus vos aides. Elles vous sont signalées.',
-    intro: [
-      'Découverte vous donne une photo à un instant donné, pour un projet. Veille suit vos projets toute l’année et vous prévient à chaque ouverture de guichet.',
-      'Vous remplissez le questionnaire une fois. Votre profil reste actif toute l’année. Dès qu’une aide s’ouvre et que l’un de vos projets y est éligible, vous recevez l’alerte avec la date de clôture et les pièces à réunir.',
-    ],
-    features: [
-      { lead: 'Projets illimités : chaque chantier a ses propres financeurs' },
-      {
-        lead: 'L’échéancier et les rappels par e-mail, envoyés à plusieurs intervalles avant chaque clôture',
-      },
-      {
-        lead: 'Les aides à venir dévoilées dès leur annonce, pour préparer le dossier avant l’ouverture du guichet',
-      },
-      { lead: 'Invitez votre architecte, vos artisans ou un assistant sur un projet' },
-    ],
-    footer: 'Tout Découverte, plus les projets illimités, l’échéancier, les alertes et l’équipe.',
-    cta: 'Nous contacter',
-  },
-  {
-    name: 'Multi-monuments',
-    audience:
-      'pour les propriétaires de plusieurs monuments, les communes et les associations',
-    tone: 'blue',
-    badge: 'Le plus complet',
-    onClick: goToContact,
-    punchline: 'Tous vos monuments sur un seul tableau de bord.',
-    intro: [
-      'Veille couvre un monument. Multi-monuments les réunit tous.',
-      'Plusieurs monuments, autant de calendriers de dépôt et d’intervenants à coordonner. Ils tiennent dans une seule vue.',
-    ],
-    features: [
-      { lead: 'Monuments illimités, chacun avec ses projets, ses documents et son équipe' },
-      {
-        lead: 'Le tableau de bord consolidé : tous les projets, toutes les échéances, sur un seul calendrier',
-      },
-      { lead: 'Un espace documents distinct par monument, sans confusion entre deux dossiers' },
-    ],
-    footer: 'Tout Veille sur chacun de vos monuments, plus le tableau de bord consolidé.',
-    cta: 'Nous contacter',
-  },
-];
+/* Les offres, construites au rendu : leurs textes passent par la traduction. */
+function plans(t: TFunction<'landing'>): Plan[] {
+  return [
+    {
+      name: t('Tarifs.decouverte.nom'),
+      audience: t('Tarifs.decouverte.public'),
+      tone: 'cream',
+      // « Trouver mes aides » : un CTA d'entrée comme les autres.
+      onClick: entrerDansMonumia,
+      punchline: t('Tarifs.decouverte.accroche'),
+      intro: [t('Tarifs.decouverte.intro')],
+      features: [
+        { lead: t('Tarifs.decouverte.avantages.monument') },
+        { lead: t('Tarifs.decouverte.avantages.detail') },
+        { lead: t('Tarifs.decouverte.avantages.prix') },
+        { lead: t('Tarifs.decouverte.avantages.checklist') },
+        { lead: t('Tarifs.decouverte.avantages.documents') },
+      ],
+      footer: t('Tarifs.decouverte.resume'),
+      note: t('Tarifs.decouverte.note'),
+      cta: t('Commun.trouverMesAides'),
+    },
+    {
+      name: t('Tarifs.veille.nom'),
+      audience: t('Tarifs.veille.public'),
+      tone: 'highlight',
+      badge: t('Tarifs.veille.badge'),
+      onClick: goToContact,
+      punchline: t('Tarifs.veille.accroche'),
+      intro: [t('Tarifs.veille.intro1'), t('Tarifs.veille.intro2')],
+      features: [
+        { lead: t('Tarifs.veille.avantages.projets') },
+        { lead: t('Tarifs.veille.avantages.echeancier') },
+        { lead: t('Tarifs.veille.avantages.aVenir') },
+        { lead: t('Tarifs.veille.avantages.equipe') },
+      ],
+      footer: t('Tarifs.veille.resume'),
+      cta: t('Tarifs.nousContacter'),
+    },
+    {
+      name: t('Tarifs.multi.nom'),
+      audience: t('Tarifs.multi.public'),
+      tone: 'blue',
+      badge: t('Tarifs.multi.badge'),
+      onClick: goToContact,
+      punchline: t('Tarifs.multi.accroche'),
+      intro: [t('Tarifs.multi.intro1'), t('Tarifs.multi.intro2')],
+      features: [
+        { lead: t('Tarifs.multi.avantages.monuments') },
+        { lead: t('Tarifs.multi.avantages.tableauDeBord') },
+        { lead: t('Tarifs.multi.avantages.documents') },
+      ],
+      footer: t('Tarifs.multi.resume'),
+      cta: t('Tarifs.nousContacter'),
+    },
+  ];
+}
 
 /* Une carte d’offre. Trois traitements visuels (crème, mise en avant, bleu),
    une seule structure : nom, punchline, mise en situation, bénéfices, résumé. */
@@ -2274,6 +2079,7 @@ function PlanCard({ plan }: { plan: Plan }) {
 }
 
 function Pricing() {
+  const { t } = useTranslation();
   return (
     <section
       id="tarifs"
@@ -2282,11 +2088,11 @@ function Pricing() {
     >
       <div className="mx-auto max-w-6xl">
         <Reveal>
-          <SectionTitle filet={false} title="Des offres adaptées à vos besoins" />
+          <SectionTitle filet={false} title={t('Tarifs.titre')} />
         </Reveal>
 
         <div className="mt-14 grid items-stretch gap-6 lg:grid-cols-3">
-          {PLANS.map((p, i) => (
+          {plans(t).map((p, i) => (
             <Reveal key={p.name} delay={i * 120} className="h-full">
               <PlanCard plan={p} />
             </Reveal>
@@ -2344,61 +2150,50 @@ function FaqItem({
   );
 }
 
+/* Les questions de la FAQ, dans l'ordre d'affichage : clés de `Faq.questions`. */
+const QUESTIONS_FAQ = [
+  'public',
+  'nonProtege',
+  'financements',
+  'informatique',
+  'depot',
+  'prix',
+  'sources',
+] as const;
+
 function Faq() {
-  const items = [
-    {
-      q: 'À qui s’adresse Monumia ?',
-      a: 'À tous ceux qui ont un lieu à entretenir ou à faire vivre : propriétaires privés, communes et collectivités.',
-    },
-    {
-      q: 'Mon lieu n’est ni classé, ni inscrit. Ai-je quand même droit à des aides ?',
-      a: 'Très souvent, oui. Les Monuments historiques ne représentent qu’une petite partie du patrimoine : les monuments non protégés peuvent eux aussi bénéficier d’aides financières. Le questionnaire tient compte de la situation exacte de votre lieu.',
-    },
-    {
-      q: 'Quels types de financements trouvez-vous ?',
-      a: 'Les aides publiques (État et DRAC, régions, départements, communes), les fondations et le mécénat d’entreprise (Fondation du patrimoine, Dassault, Crédit Agricole, French Heritage Society…), ainsi que certaines aides européennes.',
-    },
-    {
-      q: 'Je ne suis pas à l’aise avec l’informatique. Est-ce pour moi ?',
-      a: 'Oui, Monumia a été pensé pour vous. Le parcours avance pas à pas, les questions sont posées en langage simple et chaque terme technique est expliqué. Et si vous êtes bloqué, nous vous répondons par e-mail.',
-    },
-    {
-      q: 'Monumia dépose-t-il les demandes à ma place ?',
-      a: 'Non, et c’est un choix. Monumia identifie les aides, vous explique les règles, rassemble vos pièces et prépare un dossier complet, prêt à transmettre. Vous restez maître de vos demandes ; nous vous épargnons les dizaines d’heures de recherche et de préparation.',
-    },
-    {
-      q: 'Combien ça coûte ?',
-      a: 'Découverte est gratuite, sans carte bancaire : un monument, deux projets, le détail de chaque aide, l’espace documents et l’aide au montage des dossiers. Veille ajoute les projets illimités, l’échéancier, les alertes avant chaque clôture et l’invitation de collaborateurs. Multi-monuments comprend tout ce que propose Veille et réunit plusieurs monuments sur un seul tableau de bord. Pour les offres payantes, prenez rendez-vous via notre lien Calendly ou écrivez-nous par e-mail : nous en discutons ensemble et vous proposons un devis adapté.',
-    },
-    {
-      q: 'D’où viennent vos informations ?',
-      a: 'Notre base de données est construite à partir des publications officielles des financeurs (administrations, collectivités, fondations) et tenue à jour en continu. Chaque fiche indique ses sources et les contacts utiles.',
-    },
-  ];
+  const { t } = useTranslation();
   return (
     <section id="faq" className="scroll-mt-20 px-5 py-20 lg:px-8 lg:py-24">
       <div className="mx-auto max-w-3xl">
         <Reveal>
           <SectionTitle
-            title="Vos questions, nos réponses"
+            title={t('Faq.titre')}
             sub={
-              <>
-                Pour toutes vos questions supplémentaires, merci de nous contacter :{' '}
-                <a
-                  href="mailto:contact@monumia.fr"
-                  className="underline underline-offset-4 transition-colors duration-200 hover:text-[#0a369d]"
-                  style={{ color: C.orange }}
-                >
-                  contact@monumia.fr
-                </a>
-              </>
+              <Trans
+                t={t}
+                i18nKey="Faq.contact"
+                components={{
+                  lien: (
+                    <a
+                      href="mailto:contact@monumia.fr"
+                      className="underline underline-offset-4 transition-colors duration-200 hover:text-[#0a369d]"
+                      style={{ color: C.orange }}
+                    />
+                  ),
+                }}
+              />
             }
           />
         </Reveal>
         <div className="mt-12 space-y-4">
-          {items.map((item, i) => (
-            <Reveal key={item.q} delay={i * 60}>
-              <FaqItem question={item.q} answer={item.a} defaultOpen={i === 0} />
+          {QUESTIONS_FAQ.map((id, i) => (
+            <Reveal key={id} delay={i * 60}>
+              <FaqItem
+                question={t(`Faq.questions.${id}.question`)}
+                answer={t(`Faq.questions.${id}.reponse`)}
+                defaultOpen={i === 0}
+              />
             </Reveal>
           ))}
         </div>
@@ -2412,6 +2207,7 @@ function Faq() {
    ──────────────────────────────────────────── */
 
 function FinalCta() {
+  const { t } = useTranslation();
   return (
     <section className="px-5 pb-20 lg:px-8 lg:pb-24">
       <Reveal>
@@ -2421,13 +2217,13 @@ function FinalCta() {
         >
           <div className="relative">
             <h2 className="mx-auto max-w-3xl font-serif text-[clamp(1.9rem,3.6vw,2.5rem)] leading-[1.2] text-white">
-              Mobilisez enfin toutes les aides pour restaurer, ouvrir ou animer votre monument.
+              {t('FinalCta.titre')}
             </h2>
             <div className="mt-9">
-              <CtaButton onClick={entrerDansMonumia}>Trouver les aides pour mon monument</CtaButton>
+              <CtaButton onClick={entrerDansMonumia}>{t('Commun.trouverLesAides')}</CtaButton>
             </div>
             <p className="mt-5 text-[13px] uppercase tracking-[0.12em] text-white/60">
-              Gratuit · Sans engagement
+              {t('FinalCta.reassurance')}
             </p>
           </div>
         </div>
@@ -2437,6 +2233,7 @@ function FinalCta() {
 }
 
 function Footer() {
+  const { t } = useTranslation();
   return (
     <footer className="border-t px-5 pb-10 pt-14 lg:px-8" style={{ background: C.card, borderColor: C.border }}>
       <div className="mx-auto max-w-6xl">
@@ -2449,27 +2246,27 @@ function Footer() {
               </span>
             </div>
             <p className="mt-4 font-serif text-[15px]" style={{ color: C.ink }}>
-              Toutes les aides au patrimoine. Un seul endroit.
+              {t('Footer.slogan')}
             </p>
             <p className="mt-3 max-w-xs font-serif text-[14px] italic leading-[1.7]" style={{ color: C.inkSoft }}>
-              « Au service de celles et ceux qui font vivre le patrimoine bâti. »
+              {t('Footer.citation')}
             </p>
             <p className="mt-3 text-[14px]" style={{ color: C.inkFaint }}>
-              Conçu en France.
+              {t('Footer.concuEnFrance')}
             </p>
+            <SelecteurLangue className="mt-5 inline-flex" />
           </div>
 
-          <nav aria-label="Plan du site">
+          <nav aria-label={t('Footer.planDuSite')}>
             <p className="text-[12px] font-semibold uppercase tracking-[0.14em]" style={{ color: C.inkFaint }}>
-              Découvrir
+              {t('Footer.decouvrir')}
             </p>
             <ul className="mt-4 space-y-2.5">
               {[
-                ['#methode', 'Comment ça marche'],
-                ['#exemple', 'Exemple'],
-                ['#equipe', 'L’équipe'],
-                ['#tarifs', 'Tarifs'],
-                ['#faq', 'Questions fréquentes'],
+                ['#methode', t('Navigation.methode')],
+                ['#equipe', t('Navigation.equipe')],
+                ['#tarifs', t('Navigation.tarifs')],
+                ['#faq', t('Navigation.questionsFrequentes')],
               ].map(([href, label]) => (
                 <li key={href}>
                   <a
@@ -2486,7 +2283,7 @@ function Footer() {
 
           <div>
             <p className="text-[12px] font-semibold uppercase tracking-[0.14em]" style={{ color: C.inkFaint }}>
-              Contact
+              {t('Footer.contact')}
             </p>
             <ul className="mt-4 space-y-2.5">
               <li>
@@ -2505,7 +2302,7 @@ function Footer() {
                   className="text-[14px] transition-colors duration-200 hover:text-[#0a369d]"
                   style={{ color: C.inkSoft }}
                 >
-                  Mentions légales
+                  {t('Footer.mentionsLegales')}
                 </a>
               </li>
               <li>
@@ -2514,7 +2311,7 @@ function Footer() {
                   className="text-[14px] transition-colors duration-200 hover:text-[#0a369d]"
                   style={{ color: C.inkSoft }}
                 >
-                  Conditions générales d'utilisation
+                  {t('Footer.cgu')}
                 </a>
               </li>
               <li>
@@ -2523,7 +2320,7 @@ function Footer() {
                   className="text-[14px] transition-colors duration-200 hover:text-[#0a369d]"
                   style={{ color: C.inkSoft }}
                 >
-                  Politique de confidentialité
+                  {t('Footer.confidentialite')}
                 </a>
               </li>
             </ul>
@@ -2535,27 +2332,7 @@ function Footer() {
           style={{ borderColor: C.border }}
         >
           <p className="text-[13px]" style={{ color: C.inkFaint }}>
-            © {new Date().getFullYear()} Monumia. Tous droits réservés.
-          </p>
-          <p className="text-[12.5px]" style={{ color: C.inkFaint }}>
-            Photo du château de Paley :{' '}
-            <a
-              href="https://www.fondation-patrimoine.org/les-projets/chateau-de-paley/105079"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline transition-colors duration-200 hover:text-[#0a369d]"
-            >
-              Fondation Patrimoine
-            </a>
-            {', '}
-            <a
-              href="https://creativecommons.org/licenses/by-sa/4.0/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline transition-colors duration-200 hover:text-[#0a369d]"
-            >
-              CC BY-SA 4.0
-            </a>
+            {t('Footer.droits', { annee: new Date().getFullYear() })}
           </p>
         </div>
       </div>
@@ -2568,6 +2345,7 @@ function Footer() {
    ──────────────────────────────────────────── */
 
 export function LandingPage() {
+  const { t } = useTranslation();
   return (
     <div className="font-sans" style={{ background: C.cream, color: C.ink }}>
       <a
@@ -2575,7 +2353,7 @@ export function LandingPage() {
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold"
         style={{ color: C.blue }}
       >
-        Aller au contenu
+        {t('LandingPage.allerAuContenu')}
       </a>
       <Header />
       <main id="contenu">
@@ -2583,7 +2361,6 @@ export function LandingPage() {
         <Constat />
         <Demo />
         <RapportSenat />
-        <Exemple />
         <Team />
         <Pricing />
         <Faq />

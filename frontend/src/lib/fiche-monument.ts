@@ -9,6 +9,7 @@
  */
 import { OWNERSHIP_TYPES, TYPES_EDIFICE, type TypeEdifice } from '@/constants/monument-options';
 import { REGIONS } from '@/constants/regions';
+import i18n from '@/i18n';
 import type { MerimeeRecord, Monument, OwnershipType, ProtectionLevel, Region } from '@/types';
 
 export type FicheMonument = Partial<Monument>;
@@ -26,6 +27,11 @@ export interface GroupeChoix {
   options: readonly OptionChoix[];
 }
 
+/*
+ * Les libellés des tables ci-dessous sont des getters : lus au rendu, dans la
+ * langue de la page, jamais figés à l'import. Les VALEURS ne se traduisent pas.
+ */
+
 // --- Protection -------------------------------------------------------------
 
 /**
@@ -36,30 +42,30 @@ export interface GroupeChoix {
  */
 export const GROUPES_PROTECTION: readonly GroupeChoix[] = [
   {
-    titre: 'Monument historique',
+    get titre() { return i18n.t('libAides:ficheMonument.protection.groupeMonumentHistorique'); },
     options: [
-      { value: 'classe', label: 'Classé monument historique' },
-      { value: 'inscrit', label: 'Inscrit monument historique' },
+      { value: 'classe', get label() { return i18n.t('libAides:ficheMonument.protection.classe'); } },
+      { value: 'inscrit', get label() { return i18n.t('libAides:ficheMonument.protection.inscrit'); } },
     ],
   },
   {
-    titre: 'Protection du lieu',
+    get titre() { return i18n.t('libAides:ficheMonument.protection.groupeProtectionLieu'); },
     options: [
-      { value: 'spr', label: 'Site patrimonial remarquable (SPR)' },
+      { value: 'spr', get label() { return i18n.t('libAides:ficheMonument.protection.spr'); } },
       {
         value: 'abords',
-        label: "Abords d'un monument historique",
-        hint: "Dans le périmètre de protection d'un monument historique",
+        get label() { return i18n.t('libAides:ficheMonument.protection.abords'); },
+        get hint() { return i18n.t('libAides:ficheMonument.protection.abordsPrecision'); },
       },
     ],
   },
   {
-    titre: 'Aucune',
+    get titre() { return i18n.t('libAides:ficheMonument.protection.groupeAucune'); },
     options: [
       {
         value: 'non_protege',
-        label: 'Non protégé',
-        hint: 'Ni classé, ni inscrit, ni en abords, ni en SPR',
+        get label() { return i18n.t('libAides:ficheMonument.protection.nonProtege'); },
+        get hint() { return i18n.t('libAides:ficheMonument.protection.nonProtegePrecision'); },
       },
     ],
   },
@@ -72,10 +78,13 @@ export const GROUPES_PROTECTION: readonly GroupeChoix[] = [
  * repris tels quels : ce sont ceux de la fiche du monument, qui les affiche
  * ensuite.
  */
-const GROUPES_PROPRIETAIRE_CLES: readonly { titre: string; valeurs: readonly string[] }[] = [
-  { titre: 'Propriétaires privés', valeurs: ['prive_personne_physique', 'prive_sci'] },
+const GROUPES_PROPRIETAIRE_CLES: readonly { titre: () => string; valeurs: readonly string[] }[] = [
   {
-    titre: 'Propriétaires publics',
+    titre: () => i18n.t('libAides:ficheMonument.groupesProprietaire.prives'),
+    valeurs: ['prive_personne_physique', 'prive_sci'],
+  },
+  {
+    titre: () => i18n.t('libAides:ficheMonument.groupesProprietaire.publics'),
     valeurs: [
       'public_commune',
       'public_epci',
@@ -85,16 +94,19 @@ const GROUPES_PROPRIETAIRE_CLES: readonly { titre: string; valeurs: readonly str
       'syndicat_mixte',
     ],
   },
-  { titre: 'Autres propriétaires', valeurs: ['association', 'mixte'] },
+  {
+    titre: () => i18n.t('libAides:ficheMonument.groupesProprietaire.autres'),
+    valeurs: ['association', 'mixte'],
+  },
 ];
 
 export const GROUPES_PROPRIETAIRE: readonly GroupeChoix[] = GROUPES_PROPRIETAIRE_CLES.map(
   ({ titre, valeurs }) => ({
-    titre,
-    options: valeurs.map((value) => {
-      const type = OWNERSHIP_TYPES.find((o) => o.value === value);
-      return { value, label: type?.label ?? value };
-    }),
+    get titre() { return titre(); },
+    options: valeurs.map((value) => ({
+      value,
+      get label() { return OWNERSHIP_TYPES.find((o) => o.value === value)?.label ?? value; },
+    })),
   }),
 );
 
@@ -123,9 +135,9 @@ export function groupesProprietaire(fiche: FicheMonument): readonly GroupeChoix[
  * qu'une fois (vérifié par le test) : un code oublié serait impossible à
  * choisir, et les questions qu'il répond resteraient posées.
  */
-const GROUPES_TYPE_EDIFICE_CLES: readonly { titre: string; valeurs: readonly TypeEdifice[] }[] = [
+const GROUPES_TYPE_EDIFICE_CLES: readonly { titre: () => string; valeurs: readonly TypeEdifice[] }[] = [
   {
-    titre: 'Édifices religieux',
+    titre: () => i18n.t('libAides:ficheMonument.groupesTypeEdifice.religieux'),
     valeurs: [
       'eglise',
       'chapelle',
@@ -137,19 +149,19 @@ const GROUPES_TYPE_EDIFICE_CLES: readonly { titre: string; valeurs: readonly Typ
     ],
   },
   {
-    titre: 'Châteaux et demeures',
+    titre: () => i18n.t('libAides:ficheMonument.groupesTypeEdifice.chateaux'),
     valeurs: ['chateau', 'manoir_demeure', 'hotel_particulier', 'maison'],
   },
   {
-    titre: 'Édifices civils',
+    titre: () => i18n.t('libAides:ficheMonument.groupesTypeEdifice.civils'),
     valeurs: ['edifice_public', 'hopital', 'halle', 'patrimoine_industriel'],
   },
   {
-    titre: 'Patrimoine rural',
+    titre: () => i18n.t('libAides:ficheMonument.groupesTypeEdifice.rural'),
     valeurs: ['ferme', 'moulin', 'lavoir_fontaine', 'pigeonnier', 'petit_patrimoine'],
   },
   {
-    titre: 'Ouvrages, sites et mémoire',
+    titre: () => i18n.t('libAides:ficheMonument.groupesTypeEdifice.ouvrages'),
     valeurs: [
       'fortification',
       'pont',
@@ -159,15 +171,22 @@ const GROUPES_TYPE_EDIFICE_CLES: readonly { titre: string; valeurs: readonly Typ
       'monument_commemoratif',
     ],
   },
-  { titre: 'Autre', valeurs: ['autre'] },
+  { titre: () => i18n.t('libAides:ficheMonument.groupesTypeEdifice.autre'), valeurs: ['autre'] },
 ];
 
 export const GROUPES_TYPE_EDIFICE: readonly GroupeChoix[] = GROUPES_TYPE_EDIFICE_CLES.map(
   ({ titre, valeurs }) => ({
-    titre,
+    get titre() { return titre(); },
     options: valeurs.map((value) => {
-      const type = TYPES_EDIFICE.find((t) => t.value === value);
-      return { value, label: type?.label ?? value, hint: type && 'hint' in type ? type.hint : undefined };
+      const type = () => TYPES_EDIFICE.find((t) => t.value === value);
+      return {
+        value,
+        get label() { return type()?.label ?? value; },
+        get hint() {
+          const t = type();
+          return t && 'hint' in t ? t.hint : undefined;
+        },
+      };
     }),
   }),
 );
@@ -315,19 +334,26 @@ export function basculerChoix(
  */
 
 export const SIECLE_AVANT = 'avant';
+/** Texte ENREGISTRÉ (lu par le moteur) : il reste en français quelle que soit
+ *  la langue de l'écran. Seuls les libellés du menu se traduisent. */
 export const TEXTE_AVANT = "Avant l'an mil";
-const ROMAINS = ['XIe', 'XIIe', 'XIIIe', 'XIVe', 'XVe', 'XVIe', 'XVIIe', 'XVIIIe', 'XIXe', 'XXe', 'XXIe'];
+const ROMAINS = ['XIe', 'XIIe', 'XIIIe', 'XIVe', 'XVe', 'XVIe', 'XVIIe', 'XVIIIe', 'XIXe', 'XXe', 'XXIe'] as const;
 
 export const GROUPES_SIECLE: readonly GroupeChoix[] = [
   {
     titre: '',
     options: [
-      { value: SIECLE_AVANT, label: TEXTE_AVANT },
-      ...ROMAINS.map((r) => ({ value: r, label: `${r} siècle` })),
+      { value: SIECLE_AVANT, get label() { return i18n.t('libAides:ficheMonument.siecles.avant'); } },
+      ...ROMAINS.map((r) => ({
+        value: r,
+        get label() { return i18n.t(`libAides:ficheMonument.siecles.${r}`); },
+      })),
     ],
   },
 ];
 export const SIECLES_EXCLUSIFS: readonly string[] = [SIECLE_AVANT];
+
+const rangRomain = (v: string): number => (ROMAINS as readonly string[]).indexOf(v);
 
 /**
  * Plafond de `siecleConstruction` sur le diagnostic invité (`MonumentInvite`,
@@ -338,7 +364,7 @@ const LONGUEUR_MAX = 40;
 /** Siècles choisis → texte de la fiche. Chaîne vide si rien n'est choisi. */
 export function formaterSiecles(valeurs: readonly string[]): string {
   if (valeurs.includes(SIECLE_AVANT)) return TEXTE_AVANT;
-  const rangs = [...new Set(valeurs.map((v) => ROMAINS.indexOf(v)).filter((i) => i >= 0))].sort(
+  const rangs = [...new Set(valeurs.map((v) => rangRomain(v)).filter((i) => i >= 0))].sort(
     (a, b) => a - b,
   );
   if (rangs.length === 0) return '';
@@ -358,6 +384,7 @@ export function formaterSiecles(valeurs: readonly string[]): string {
     morceaux.length === 1
       ? morceaux[0]
       : `${morceaux.slice(0, -1).join(', ')} et ${morceaux[morceaux.length - 1]}`;
+  // Texte enregistré et relu par le moteur : en français, jamais traduit.
   const complet = `${corps} ${morceaux.length === 1 ? 'siècle' : 'siècles'}`;
   // « s. » est lu par le moteur comme « siècle » : c'est le seul raccourci qui
   // tienne une sélection très éclatée sous le plafond de la route invitée.
@@ -378,7 +405,7 @@ export function lireSiecles(texte: string | undefined): string[] | null {
   const valeurs: string[] = [];
   for (const morceau of corps.split(/, | et /)) {
     const fourchette = morceau.split(' - ');
-    const rangs = fourchette.map((r) => ROMAINS.indexOf(r));
+    const rangs = fourchette.map(rangRomain);
     if (rangs.some((r) => r < 0) || rangs.length > 2) return null;
     const [de, a = rangs[0]] = rangs;
     for (let r = de; r <= a; r++) valeurs.push(ROMAINS[r]);
@@ -428,11 +455,14 @@ export function pourcentageRempli(fiche: FicheMonument): number {
  * sanitaire compris, que le wizard projet invité ne rattrape pas.
  */
 const REQUIS: readonly { libelle: string; ok: (f: FicheMonument) => boolean }[] = [
-  { libelle: 'le nom', ok: (f) => rempli(f.nom) },
-  { libelle: 'la commune', ok: (f) => rempli(f.commune) },
-  { libelle: "l'état du bâtiment", ok: (f) => Boolean(f.etatConservation) },
-  { libelle: 'la protection', ok: (f) => Boolean(f.protection) },
-  { libelle: 'le type de propriétaire', ok: (f) => proprietairesCoches(f).length > 0 },
+  { get libelle() { return i18n.t('libAides:ficheMonument.requis.nom'); }, ok: (f) => rempli(f.nom) },
+  { get libelle() { return i18n.t('libAides:ficheMonument.requis.commune'); }, ok: (f) => rempli(f.commune) },
+  { get libelle() { return i18n.t('libAides:ficheMonument.requis.etat'); }, ok: (f) => Boolean(f.etatConservation) },
+  { get libelle() { return i18n.t('libAides:ficheMonument.requis.protection'); }, ok: (f) => Boolean(f.protection) },
+  {
+    get libelle() { return i18n.t('libAides:ficheMonument.requis.proprietaire'); },
+    ok: (f) => proprietairesCoches(f).length > 0,
+  },
 ];
 
 export function champsManquants(fiche: FicheMonument): string[] {
@@ -442,7 +472,7 @@ export function champsManquants(fiche: FicheMonument): string[] {
 /** Phrase sous le bouton : ce qui manque, ou `null` si la fiche est complète. */
 export function phraseManquants(fiche: FicheMonument): string | null {
   const manquants = champsManquants(fiche);
-  return manquants.length ? `Il manque ${manquants.join(', ')}.` : null;
+  return manquants.length ? i18n.t('libAides:ficheMonument.ilManque', { champs: manquants.join(', ') }) : null;
 }
 
 /** Les champs de la fiche qu'un encadré orange peut signaler. */
@@ -790,9 +820,9 @@ export function appliquerMerimee(fiche: FicheMonument, notice: FicheMonument): F
 /** Libellé court de la protection d'une notice (pas d'enum côté API). */
 export function protectionDeNotice(typologie: string | undefined): string {
   const t = (typologie ?? '').toLowerCase();
-  if (/(?:^|[^a-zà-ÿ])classé/.test(t)) return 'Classé MH';
-  if (/(?:^|[^a-zà-ÿ])inscrit/.test(t)) return 'Inscrit MH';
-  return typologie || 'Protection inconnue';
+  if (/(?:^|[^a-zà-ÿ])classé/.test(t)) return i18n.t('libAides:ficheMonument.notice.classe');
+  if (/(?:^|[^a-zà-ÿ])inscrit/.test(t)) return i18n.t('libAides:ficheMonument.notice.inscrit');
+  return typologie || i18n.t('libAides:ficheMonument.notice.inconnue');
 }
 
 // --- Recherche --------------------------------------------------------------

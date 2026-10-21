@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import { PROJECT_STAGES, type ProjectStage, type ProjectStageKey } from '@/lib/project-stats';
 
 /**
@@ -6,9 +7,9 @@ import { PROJECT_STAGES, type ProjectStage, type ProjectStageKey } from '@/lib/p
  * qui a son diagnostic est « en estimation » tant qu'aucun dossier n'est ouvert.
  */
 const ACTION: Record<ProjectStageKey, string> = {
-  estimation: 'estimation',
-  dossier: 'monter le dossier',
-  depot: 'déposer le dossier',
+  get estimation() { return i18n.t('libAides:avancement.action.estimation'); },
+  get dossier() { return i18n.t('libAides:avancement.action.dossier'); },
+  get depot() { return i18n.t('libAides:avancement.action.depot'); },
 };
 
 /** Rang (0..2) de l'étape en cours : la plus avancée atteinte, l'estimation si rien. */
@@ -18,5 +19,8 @@ export function rangEnCours(stage: ProjectStage): number {
 
 export function libelleEtape(stage: ProjectStage): { rang: string; action: string } {
   const i = rangEnCours(stage);
-  return { rang: `Étape ${i + 1} sur ${PROJECT_STAGES.length}`, action: ACTION[PROJECT_STAGES[i].key] };
+  return {
+    rang: i18n.t('libAides:avancement.rang', { rang: i + 1, total: PROJECT_STAGES.length }),
+    action: ACTION[PROJECT_STAGES[i].key],
+  };
 }

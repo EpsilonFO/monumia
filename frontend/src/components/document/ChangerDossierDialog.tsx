@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { TYPES_DOSSIERS, dossierLabel } from '@/lib/document-type-meta';
 import { useDocumentStore } from '@/stores/useDocumentStore';
@@ -22,6 +23,7 @@ interface ChangerDossierDialogProps {
  * `repartirSelection`) : le serveur refuserait les autres.
  */
 export function ChangerDossierDialog({ documents, onOpenChange, onDeplace }: ChangerDossierDialogProps) {
+  const { t } = useTranslation(['documents', 'common']);
   const updateDocument = useDocumentStore((s) => s.updateDocument);
   const open = documents.length > 0;
   const [type, setType] = useState<DocumentType | ''>('');
@@ -43,20 +45,25 @@ export function ChangerDossierDialog({ documents, onOpenChange, onDeplace }: Cha
         await updateDocument(d.id, { type });
         ok += 1;
       } catch (err) {
-        toast.error(`${d.nom} : ${err instanceof Error ? err.message : 'déplacement impossible'}`);
+        toast.error(t('commun.erreurDocument', {
+          nom: d.nom,
+          message: err instanceof Error ? err.message : t('ChangerDossierDialog.deplacementImpossible'),
+        }));
       }
     }
     setLoading(false);
     if (ok > 0) {
       toast.success(ok > 1
-        ? `${ok} documents rangés dans le dossier ${dossierLabel(type)}.`
-        : `Rangé dans le dossier ${dossierLabel(type)}.`);
+        ? t('commun.rangesDansDossier', { nombre: ok, dossier: dossierLabel(type) })
+        : t('commun.rangeDansDossier', { dossier: dossierLabel(type) }));
     }
     onDeplace?.();
     onOpenChange(false);
   };
 
-  const titre = documents.length > 1 ? `Déplacer ${documents.length} documents` : 'Changer de dossier';
+  const titre = documents.length > 1
+    ? t('ChangerDossierDialog.titrePlusieurs', { nombre: documents.length })
+    : t('ChangerDossierDialog.titre');
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o && !loading) onOpenChange(false); }}>
@@ -67,29 +74,29 @@ export function ChangerDossierDialog({ documents, onOpenChange, onDeplace }: Cha
               <div className="m-h">
                 <DialogPrimitive.Title asChild><h2>{titre}</h2></DialogPrimitive.Title>
                 <DialogPrimitive.Close asChild>
-                  <button className="x" type="button" aria-label="Fermer" disabled={loading}>
+                  <button className="x" type="button" aria-label={t('common:actions.fermer')} disabled={loading}>
                     <Picto nom="croix" />
                   </button>
                 </DialogPrimitive.Close>
               </div>
               {documents.length === 1 && <p className="m-sub">{documents[0].nom}</p>}
               <div className="fld">
-                <span className="lb">Dans quel dossier le ranger ?</span>
+                <span className="lb">{t('commun.questionDossier')}</span>
                 <div className="tps">
-                  {TYPES_DOSSIERS.map((t) => (
-                    <button key={t} type="button" className="tp" aria-pressed={type === t} onClick={() => setType(t)}>
-                      {dossierLabel(t)}
+                  {TYPES_DOSSIERS.map((tp) => (
+                    <button key={tp} type="button" className="tp" aria-pressed={type === tp} onClick={() => setType(tp)}>
+                      {dossierLabel(tp)}
                     </button>
                   ))}
                 </div>
               </div>
               <div className="m-f">
-                <span className="hint">{loading ? 'Déplacement…' : ''}</span>
+                <span className="hint">{loading ? t('ChangerDossierDialog.deplacement') : ''}</span>
                 <button className="ghost" type="button" onClick={() => onOpenChange(false)} disabled={loading}>
-                  Annuler
+                  {t('common:actions.annuler')}
                 </button>
                 <button className="btn b-orange" type="button" disabled={!type || loading} onClick={deplacer}>
-                  Déplacer
+                  {t('commun.deplacer')}
                 </button>
               </div>
             </DialogPrimitive.Content>

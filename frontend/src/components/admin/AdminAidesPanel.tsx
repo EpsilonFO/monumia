@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { IconRecherche } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { adminService } from '@/services/admin.service';
+import { localeIntl } from '@/i18n/format';
 import { filtrerAides } from '@/lib/admin-catalogue';
 import { C, SERIF } from '@/lib/brand';
 import type { AdminAide } from '@/types/admin.types';
@@ -24,6 +26,7 @@ interface Props {
  * décision six mois plus tard.
  */
 export function AdminAidesPanel({ onErreur }: Props) {
+  const { t } = useTranslation(['admin', 'common']);
   const [aides, setAides] = useState<AdminAide[]>([]);
   const [chargement, setChargement] = useState(true);
   const [recherche, setRecherche] = useState('');
@@ -39,14 +42,14 @@ export function AdminAidesPanel({ onErreur }: Props) {
       .then((lignes) => {
         if (!annule) setAides(lignes);
       })
-      .catch((err) => onErreur(err, 'Catalogue indisponible'))
+      .catch((err) => onErreur(err, t('AdminAidesPanel.catalogueIndisponible')))
       .finally(() => {
         if (!annule) setChargement(false);
       });
     return () => {
       annule = true;
     };
-  }, [onErreur]);
+  }, [onErreur, t]);
 
   const visibles = useMemo(() => filtrerAides(aides, recherche), [aides, recherche]);
   const nbRetirees = useMemo(() => aides.filter((a) => a.retiree).length, [aides]);
@@ -69,9 +72,11 @@ export function AdminAidesPanel({ onErreur }: Props) {
       // même forme, et le serveur y met l'état qu'il vient d'enregistrer.
       setAides((lignes) => lignes.map((l) => (l.slug === ligne.slug ? ligne : l)));
       setMotif(ligne.motif ?? '');
-      toast.success(ligne.retiree ? 'Aide retirée du catalogue' : 'Aide republiée');
+      toast.success(
+        ligne.retiree ? t('AdminAidesPanel.toastRetiree') : t('AdminAidesPanel.toastRepubliee'),
+      );
     } catch (err) {
-      onErreur(err, 'Enregistrement impossible');
+      onErreur(err, t('AdminPanneaux.enregistrementImpossible'));
     } finally {
       setEnregistrement(false);
     }
@@ -90,30 +95,32 @@ export function AdminAidesPanel({ onErreur }: Props) {
           <Input
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
-            placeholder="Rechercher une aide (nom, organisme, slug)…"
+            placeholder={t('AdminAidesPanel.recherche')}
             className="h-10 pl-9 text-[16px]"
           />
         </div>
         <p className="text-[15px] text-muted-foreground">
-          {aides.length} aides · {nbRetirees} retirée{nbRetirees > 1 ? 's' : ''}
+          {t('AdminAidesPanel.compteur', { total: aides.length, count: nbRetirees })}
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           {chargement ? (
-            <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">Chargement…</p>
+            <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">{t('common:etats.chargement')}</p>
           ) : visibles.length === 0 ? (
             <p className="px-4 py-8 text-center text-[16px] text-muted-foreground">
-              Aucune aide ne correspond à votre recherche.
+              {t('AdminAidesPanel.aucunResultat')}
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Aide</TableHead>
-                  <TableHead className="hidden md:table-cell">Organisme</TableHead>
-                  <TableHead>État</TableHead>
+                  <TableHead>{t('AdminAidesPanel.colonnes.aide')}</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    {t('AdminAidesPanel.colonnes.organisme')}
+                  </TableHead>
+                  <TableHead>{t('AdminAidesPanel.colonnes.etat')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -132,9 +139,13 @@ export function AdminAidesPanel({ onErreur }: Props) {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1.5">
-                        {aide.retiree && <Badge variant="destructive">Retirée</Badge>}
-                        {aide.disponibilite === 'bientot' && <Badge variant="secondary">Bientôt</Badge>}
-                        {!aide.engineReady && <Badge variant="outline">Non typée</Badge>}
+                        {aide.retiree && <Badge variant="destructive">{t('AdminAidesPanel.badges.retiree')}</Badge>}
+                        {aide.disponibilite === 'bientot' && (
+                          <Badge variant="secondary">{t('AdminAidesPanel.badges.bientot')}</Badge>
+                        )}
+                        {!aide.engineReady && (
+                          <Badge variant="outline">{t('AdminPanneaux.nonTypee')}</Badge>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -147,7 +158,7 @@ export function AdminAidesPanel({ onErreur }: Props) {
         <aside className="h-fit rounded-xl border border-border bg-card p-5">
           {!ouverte ? (
             <p className="text-[16px] text-muted-foreground">
-              Sélectionnez une aide pour la retirer du catalogue ou la republier.
+              {t('AdminAidesPanel.selectionner')}
             </p>
           ) : (
             <div className="space-y-4">
@@ -161,17 +172,18 @@ export function AdminAidesPanel({ onErreur }: Props) {
               <label className="flex items-start gap-3">
                 <Switch checked={retiree} onCheckedChange={setRetiree} className="mt-0.5" />
                 <span className="text-[16px]">
-                  <span className="font-medium text-foreground">Retirée du catalogue</span>
+                  <span className="font-medium text-foreground">
+                    {t('AdminAidesPanel.retireeDuCatalogue')}
+                  </span>
                   <span className="block text-[14.5px] text-muted-foreground">
-                    L’aide disparaît des diagnostics, sa fiche devient introuvable et aucun dossier
-                    ne peut plus être ouvert dessus.
+                    {t('AdminAidesPanel.retireeExplication')}
                   </span>
                 </span>
               </label>
 
               <div className="space-y-1.5">
                 <label htmlFor="motif-retrait" className="text-[15px] font-medium text-foreground">
-                  Motif
+                  {t('AdminPanneaux.motif')}
                 </label>
                 <Textarea
                   id="motif-retrait"
@@ -180,12 +192,14 @@ export function AdminAidesPanel({ onErreur }: Props) {
                   disabled={!retiree}
                   rows={3}
                   maxLength={500}
-                  placeholder="Dispositif supprimé par la région, doublon de…"
+                  placeholder={t('AdminAidesPanel.motifPlaceholder')}
                   className="text-[16px]"
                 />
                 {ouverte.retiree && ouverte.retireeLe && (
                   <p className="text-[14px] text-muted-foreground">
-                    Retirée le {new Date(ouverte.retireeLe).toLocaleDateString('fr-FR')}
+                    {t('AdminAidesPanel.retireeLe', {
+                      date: new Date(ouverte.retireeLe).toLocaleDateString(localeIntl()),
+                    })}
                   </p>
                 )}
               </div>
@@ -196,7 +210,7 @@ export function AdminAidesPanel({ onErreur }: Props) {
                 className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[16px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                 style={{ background: C.blue }}
               >
-                {enregistrement ? 'Enregistrement…' : 'Enregistrer'}
+                {enregistrement ? t('common:etats.enregistrement') : t('common:actions.enregistrer')}
               </button>
             </div>
           )}

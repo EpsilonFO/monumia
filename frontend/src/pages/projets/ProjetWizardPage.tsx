@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { ProjectQuestionnaire } from '@/components/project/ProjectQuestionnaire';
 import { ProjectFamillesStep } from '@/components/project/wizard/ProjectFamillesStep';
 import { ProjectReprisesStep } from '@/components/project/wizard/ProjectReprisesStep';
@@ -99,6 +100,7 @@ import type {
 const ENREGISTREMENT_DIFFERE_MS = 1200;
 
 export function ProjetWizardPage() {
+  const { t } = useTranslation(['projets', 'common']);
   const navigate = useNavigate();
   const { monumentId } = useParams();
   const [searchParams] = useSearchParams();
@@ -388,11 +390,11 @@ export function ProjetWizardPage() {
         setCadrageCharge(true);
       })
       .catch(() => {
-        toast.error('Ce projet est introuvable.');
+        toast.error(t('ProjetWizardPage.introuvable'));
       });
     // `reprendrePassees` vient de l'URL : il ne bouge pas pendant la vie du
     // wizard, et `prefilled` garantit de toute façon un seul préremplissage.
-  }, [existingProjetId, reprendrePassees]);
+  }, [existingProjetId, reprendrePassees, t]);
 
   // Dès l'entrée dans le questionnaire, on calcule le diagnostic déterministe de
   // base (intentions seules, sans réponses) pour en déduire les questions à
@@ -540,7 +542,7 @@ export function ProjetWizardPage() {
       updateMonument(monumentId, updated);
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Erreur lors de l’enregistrement de l’état du monument"
+        err instanceof Error ? err.message : t('ProjetWizardPage.erreurEtat')
       );
       return;
     } finally {
@@ -641,7 +643,7 @@ export function ProjetWizardPage() {
       questionnaireEnregistre.current = projet.questionnaire;
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Erreur lors de l’enregistrement de votre projet"
+        err instanceof Error ? err.message : t('ProjetWizardPage.erreurProjet')
       );
       return;
     } finally {
@@ -945,9 +947,9 @@ export function ProjetWizardPage() {
     step === 'diagnostic'
       ? null
       : modeInvite
-        ? { texte: 'Vos réponses sont enregistrées au fur et à mesure, sur cet appareil.', auFil: true }
+        ? { texte: t('ProjetWizardPage.noteAppareil'), auFil: true }
         : step === 'questionnaire'
-          ? { texte: 'Vos réponses sont enregistrées au fur et à mesure.', auFil: true }
+          ? { texte: t('ProjetWizardPage.note'), auFil: true }
           : null;
 
   // Arrivée directe sur la route invitée sans brouillon (favori, lien
@@ -970,7 +972,7 @@ export function ProjetWizardPage() {
       onQuit={quitterVersInscription ? allerAInscription : undefined}
       quitMessage={
         modeInvite
-          ? 'Votre brouillon reste sur cet appareil : vous pourrez reprendre ici.'
+          ? t('ProjetWizardPage.quitMessage')
           : undefined
       }
       progression={enQuestionnaire ? progression : null}
@@ -1072,7 +1074,7 @@ export function ProjetWizardPage() {
         (loadingQuestions ? (
           <div className="attente">
             <Loader2 className="spin" aria-hidden="true" />
-            Analyse de votre monument…
+            {t('ProjetWizardPage.analyse')}
           </div>
         ) : loadError ? (
           <div className="erreur">
@@ -1080,26 +1082,23 @@ export function ProjetWizardPage() {
               <IconAttention className="h-5 w-5" />
             </span>
             <div>
-              <b>Le questionnaire n&rsquo;a pas pu être chargé.</b>
+              <b>{t('ProjetWizardPage.erreurChargement.titre')}</b>
               <p>
                 {modeInvite
-                  ? 'Vérifiez votre connexion puis réessayez : vos réponses restent sur cet appareil.'
-                  : 'Vérifiez votre connexion puis réessayez : votre projet est bien enregistré.'}
+                  ? t('ProjetWizardPage.erreurChargement.invite')
+                  : t('ProjetWizardPage.erreurChargement.connecte')}
               </p>
             </div>
             <button type="button" className="btn b-orange" onClick={() => setLoadError(false)}>
               <IconRafraichir className="h-4 w-4" />
-              Réessayer
+              {t('common:actions.reessayer')}
             </button>
           </div>
         ) : questions.length === 0 ? (
           <div className="fin entre">
             <AllClear />
-            <h2>Précisons votre projet</h2>
-            <p>
-              Aucune précision supplémentaire n&rsquo;est nécessaire pour ce projet. Lancez le
-              diagnostic pour découvrir les aides mobilisables.
-            </p>
+            <h2>{t('ProjetWizardPage.aucuneQuestion.titre')}</h2>
+            <p>{t('ProjetWizardPage.aucuneQuestion.texte')}</p>
             <div className="actions">
               <button
                 type="button"
@@ -1107,7 +1106,7 @@ export function ProjetWizardPage() {
                 disabled={saving}
                 onClick={handleQuestionnaireNext}
               >
-                {modeInvite ? 'Découvrir mes financements' : 'Voir les aides'}
+                {modeInvite ? t('ProjetWizardPage.decouvrirFinancements') : t('communs.voirLesAides')}
                 <Picto nom="fleche" />
               </button>
             </div>
@@ -1134,7 +1133,7 @@ export function ProjetWizardPage() {
             }}
             onComplete={handleQuestionnaireNext}
             submitting={saving}
-            completeLabel={modeInvite ? 'Découvrir mes financements' : undefined}
+            completeLabel={modeInvite ? t('ProjetWizardPage.decouvrirFinancements') : undefined}
             onProgression={setProgression}
           />
         ))}

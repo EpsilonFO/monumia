@@ -9,6 +9,7 @@
  * à l'original (donc supprimerait), ou l'inverse.
  */
 
+import i18n from '@/i18n';
 import { normaliser } from '@/lib/admin-catalogue';
 import type {
   AdminCondition,
@@ -19,14 +20,28 @@ import type {
 
 type Operateur = { valeur: OperateurPredicat; label: string; phrase: string };
 
+/** Un opérateur dont le libellé se lit à l'appel, dans la langue de la page. Le
+ *  menu et la phrase disent la même chose : une seule clé pour les deux. */
+function operateur(valeur: OperateurPredicat, libelle: () => string): Operateur {
+  return {
+    valeur,
+    get label() {
+      return libelle();
+    },
+    get phrase() {
+      return libelle();
+    },
+  };
+}
+
 /** Les opérateurs, dans l'ordre d'affichage du menu. `none_in` ne vaut que sur
  *  un choix multiple : cf. `operateursPour`. */
 export const OPERATEURS: Operateur[] = [
-  { valeur: 'eq', label: 'est', phrase: 'est' },
-  { valeur: 'neq', label: 'n’est pas', phrase: 'n’est pas' },
-  { valeur: 'in', label: 'est parmi', phrase: 'est parmi' },
-  { valeur: 'not_in', label: 'n’est aucun de', phrase: 'n’est aucun de' },
-  { valeur: 'none_in', label: 'n’a coché aucun de', phrase: 'n’a coché aucun de' },
+  operateur('eq', () => i18n.t('admin:predicats.operateurs.eq')),
+  operateur('neq', () => i18n.t('admin:predicats.operateurs.neq')),
+  operateur('in', () => i18n.t('admin:predicats.operateurs.in')),
+  operateur('not_in', () => i18n.t('admin:predicats.operateurs.not_in')),
+  operateur('none_in', () => i18n.t('admin:predicats.operateurs.none_in')),
 ];
 
 /**
@@ -36,28 +51,45 @@ export const OPERATEURS: Operateur[] = [
  * qu'on ne pose pas une exclusion stricte par erreur ; l'exclusion stricte est
  * `none_in`, absent du menu d'un choix simple où `not_in` dit déjà la même chose.
  */
-const MULTIPLE: Partial<Record<OperateurPredicat, Pick<Operateur, 'label' | 'phrase'>>> = {
-  eq: { label: 'compte', phrase: 'compte' },
-  neq: { label: 'compte autre chose que', phrase: 'compte autre chose que' },
-  in: { label: 'compte l’un de', phrase: 'compte l’un de' },
-  not_in: { label: 'compte autre chose que', phrase: 'compte autre chose que' },
+const MULTIPLE: Partial<Record<OperateurPredicat, Operateur>> = {
+  eq: operateur('eq', () => i18n.t('admin:predicats.operateursMultiple.eq')),
+  neq: operateur('neq', () => i18n.t('admin:predicats.operateursMultiple.neq')),
+  in: operateur('in', () => i18n.t('admin:predicats.operateursMultiple.in')),
+  not_in: operateur('not_in', () => i18n.t('admin:predicats.operateursMultiple.not_in')),
 };
 
 export function operateursPour(choixMultiple: boolean): Operateur[] {
   if (!choixMultiple) return OPERATEURS.filter((o) => o.valeur !== 'none_in');
+  // Le spread lit les getters : les libellés sont figés à l'appel, c'est voulu.
   return OPERATEURS.map((o) => ({ ...o, ...MULTIPLE[o.valeur] }));
 }
 
 /** Ce que dit chaque état d'une surcharge, en une ligne, pour l'inventaire. */
 export const LIBELLE_ETAT: Record<EtatPredicat, string> = {
-  active: 'Appliquée',
-  a_revoir: 'À revoir — le YAML a changé',
-  perimee_texte: 'Périmée — le texte de la condition a changé',
-  perimee_fait: 'Périmée — la condition porte sur un autre fait',
-  aide_absente: 'Orpheline — l’aide a quitté le catalogue',
-  condition_absente: 'Orpheline — la condition a quitté l’aide',
-  hors_mandat: 'Sans effet — la condition n’est plus modifiable',
-  invalide: 'Sans effet — le prédicat n’est plus valide',
+  get active() {
+    return i18n.t('admin:predicats.etats.active');
+  },
+  get a_revoir() {
+    return i18n.t('admin:predicats.etats.a_revoir');
+  },
+  get perimee_texte() {
+    return i18n.t('admin:predicats.etats.perimee_texte');
+  },
+  get perimee_fait() {
+    return i18n.t('admin:predicats.etats.perimee_fait');
+  },
+  get aide_absente() {
+    return i18n.t('admin:predicats.etats.aide_absente');
+  },
+  get condition_absente() {
+    return i18n.t('admin:predicats.etats.condition_absente');
+  },
+  get hors_mandat() {
+    return i18n.t('admin:predicats.etats.hors_mandat');
+  },
+  get invalide() {
+    return i18n.t('admin:predicats.etats.invalide');
+  },
 };
 
 /** Les états qui demandent une action : ils remontent en tête d'inventaire. */
@@ -133,7 +165,11 @@ export function phraseLisible(
   const libelles = valeurs.map((v) => parId.get(v) ?? v).join(', ');
   const verbe =
     operateursPour(choixMultiple).find((o) => o.valeur === operateur)?.phrase ?? operateur;
-  return `${question ?? 'la réponse'} ${verbe} ${libelles}`;
+  return i18n.t('admin:predicats.phrase', {
+    sujet: question ?? i18n.t('admin:predicats.sujetParDefaut'),
+    verbe,
+    valeurs: libelles,
+  });
 }
 
 export function filtrerConditions(

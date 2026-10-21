@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Check, X } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
+
 import { C } from '@/lib/brand';
 import { readData } from './blockData';
 
@@ -10,6 +12,7 @@ interface Branch {
 }
 
 export function DecisionTree({ node }: { node?: any }) {
+  const { t } = useTranslation('blog');
   const branches = readData<Branch>(node);
   if (branches.length === 0) return null;
   const title = (node?.properties?.title as string)?.trim();
@@ -31,7 +34,12 @@ export function DecisionTree({ node }: { node?: any }) {
                 <div className="flex items-start gap-2 rounded-xl px-3.5 py-2.5" style={{ background: C.paleBlue }}>
                   <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.blue }} aria-hidden />
                   <span className="text-[15.5px] leading-snug" style={{ color: C.ink }}>
-                    <strong style={{ color: C.blue }}>Oui</strong> — {b.yes}
+                    <Trans
+                      t={t}
+                      i18nKey="DecisionTree.oui"
+                      values={{ suite: b.yes }}
+                      components={{ fort: <strong style={{ color: C.blue }} /> }}
+                    />
                   </span>
                 </div>
               )}
@@ -39,7 +47,12 @@ export function DecisionTree({ node }: { node?: any }) {
                 <div className="flex items-start gap-2 rounded-xl px-3.5 py-2.5" style={{ background: C.paleOrange }}>
                   <X className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.orange }} aria-hidden />
                   <span className="text-[15.5px] leading-snug" style={{ color: C.ink }}>
-                    <strong style={{ color: C.orange }}>Non</strong> — {b.no}
+                    <Trans
+                      t={t}
+                      i18nKey="DecisionTree.non"
+                      values={{ suite: b.no }}
+                      components={{ fort: <strong style={{ color: C.orange }} /> }}
+                    />
                   </span>
                 </div>
               )}

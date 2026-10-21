@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { initials, avatarColor, avatarColorByIndex } from '@/lib/avatar-utils';
 
 export interface AvatarPerson {
@@ -24,11 +25,12 @@ export function MemberAvatar({
   /** Position dans l'équipe : garantit une couleur distincte par membre. */
   colorIndex?: number;
 }) {
+  const { t } = useTranslation('shell');
   const color =
     colorIndex != null
       ? avatarColorByIndex(colorIndex)
       : avatarColor(person.userId || `${person.prenom}${person.nom}`);
-  const label = `${person.prenom} ${person.nom}`.trim() || person.email || 'Membre';
+  const label = `${person.prenom} ${person.nom}`.trim() || person.email || t('MemberAvatar.membre');
   const s = SIZES[size];
   return (
     <span

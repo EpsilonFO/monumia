@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import type { AideCategory, AideMatchResult } from '@/types';
 
 /**
@@ -36,15 +37,16 @@ export interface AideFiltre {
  * L'ordre est fixe et ne suit PAS les comptes du diagnostic courant : une barre
  * dont les onglets se réordonnent d'un projet à l'autre est illisible.
  */
+// Libellés en getters : lus au rendu, jamais figés à l'import.
 export const AIDE_FILTRES: AideFiltre[] = [
-  { key: 'toutes', label: 'Toutes les aides', categories: [] },
-  { key: 'prix_mecenat', label: 'Prix et mécènes', categories: ['fondation', 'mecenat'] },
-  { key: 'region', label: 'Région', categories: ['region'] },
-  { key: 'departement', label: 'Département', categories: ['departement'] },
-  { key: 'etat', label: 'État (DRAC)', categories: ['etat_drac'] },
-  { key: 'europe', label: 'Europe', categories: ['europe'] },
-  { key: 'fiscalite', label: 'Fiscalité', categories: ['fiscalite'] },
-  { key: 'autre', label: 'Autres', categories: ['autre'] },
+  { key: 'toutes', get label() { return i18n.t('libAides:aideFiltres.toutes'); }, categories: [] },
+  { key: 'prix_mecenat', get label() { return i18n.t('libAides:aideFiltres.prixMecenat'); }, categories: ['fondation', 'mecenat'] },
+  { key: 'region', get label() { return i18n.t('libAides:aideFiltres.region'); }, categories: ['region'] },
+  { key: 'departement', get label() { return i18n.t('libAides:aideFiltres.departement'); }, categories: ['departement'] },
+  { key: 'etat', get label() { return i18n.t('libAides:aideFiltres.etat'); }, categories: ['etat_drac'] },
+  { key: 'europe', get label() { return i18n.t('libAides:aideFiltres.europe'); }, categories: ['europe'] },
+  { key: 'fiscalite', get label() { return i18n.t('libAides:aideFiltres.fiscalite'); }, categories: ['fiscalite'] },
+  { key: 'autre', get label() { return i18n.t('libAides:aideFiltres.autre'); }, categories: ['autre'] },
 ];
 
 /** Une aide entre-t-elle dans ce groupe ? « toutes » accepte tout. */

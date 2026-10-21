@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   IconAjouterDossier, IconModifier, IconSupprimer, IconProtection, IconDossierOuvert,
 } from '@/components/icons';
@@ -30,6 +31,7 @@ interface DocumentCardProps {
 export function DocumentCard({
   document, dossierNames, onClick, onRename, onDelete, onAddToProject, myRole, uploaderName, onDocumentUpdated,
 }: DocumentCardProps) {
+  const { t } = useTranslation(['documents', 'common']);
   const currentUserId = useAuthStore((s) => s.user?.id);
   const isUploader = document.userId === currentUserId;
   const canModify = canDeleteDocument(isUploader, myRole);
@@ -53,22 +55,22 @@ export function DocumentCard({
 
   const handleDelete = async () => {
     if (!onDelete) return;
-    if (!confirm(`Supprimer "${document.nom}" ?`)) return;
+    if (!confirm(t('DocumentCard.confirmSupprimer', { nom: document.nom }))) return;
     await onDelete(document.id);
   };
 
   const menuActions: DocMenuAction[] = [
     ...(onAddToProject
-      ? [{ label: 'Ajouter à un monument', icon: IconAjouterDossier, onClick: () => onAddToProject(document) }]
+      ? [{ label: t('commun.ajouterAMonument'), icon: IconAjouterDossier, onClick: () => onAddToProject(document) }]
       : []),
     ...(canManageAccess
-      ? [{ label: "Gérer l'accès", icon: IconProtection, onClick: () => setAccessOpen(true) }]
+      ? [{ label: t('commun.gererAcces'), icon: IconProtection, onClick: () => setAccessOpen(true) }]
       : []),
     ...(onRename && canModify
-      ? [{ label: 'Renommer', icon: IconModifier, onClick: () => { setNewName(document.nom); setRenameOpen(true); } }]
+      ? [{ label: t('commun.renommer'), icon: IconModifier, onClick: () => { setNewName(document.nom); setRenameOpen(true); } }]
       : []),
     ...(onDelete && canModify
-      ? [{ label: 'Supprimer', icon: IconSupprimer, onClick: handleDelete, destructive: true }]
+      ? [{ label: t('common:actions.supprimer'), icon: IconSupprimer, onClick: handleDelete, destructive: true }]
       : []),
   ];
 
@@ -81,16 +83,16 @@ export function DocumentCard({
         menuActions={menuActions}
         footer={
           linkedDossiers.length > 0 ? (
-            <span className="inline-flex items-center gap-1.5" title="Dossiers utilisant ce document">
+            <span className="inline-flex items-center gap-1.5" title={t('DocumentCard.dossiersUtilisant')}>
               <IconDossierOuvert className="h-3.5 w-3.5" strokeWidth={1.8} />
               {linkedDossiers.length === 1
                 ? linkedDossiers[0]
-                : `Utilisé dans ${linkedDossiers.length} dossiers`}
+                : t('commun.utiliseDans', { count: linkedDossiers.length })}
             </span>
           ) : document.dossiersUtilises.length > 0 ? (
             <span className="inline-flex items-center gap-1.5">
               <IconDossierOuvert className="h-3.5 w-3.5" strokeWidth={1.8} />
-              Utilisé dans {document.dossiersUtilises.length} dossier{document.dossiersUtilises.length > 1 ? 's' : ''}
+              {t('commun.utiliseDans', { count: document.dossiersUtilises.length })}
             </span>
           ) : undefined
         }
@@ -106,7 +108,7 @@ export function DocumentCard({
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent className="sm:max-w-sm" onClick={(e) => e.stopPropagation()}>
-          <DialogHeader><DialogTitle>Renommer le document</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('DocumentCard.renommerTitre')}</DialogTitle></DialogHeader>
           <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -116,10 +118,10 @@ export function DocumentCard({
           />
           <DialogFooter>
             <button onClick={() => setRenameOpen(false)} disabled={loading} className="px-4 py-2 text-[15px] font-medium border border-border rounded-lg text-muted-foreground hover:bg-muted transition-colors">
-              Annuler
+              {t('common:actions.annuler')}
             </button>
             <button onClick={handleRename} disabled={!newName.trim() || loading} className="px-4 py-2 text-[15px] font-semibold text-primary-foreground bg-primary rounded-lg disabled:opacity-50 hover:shadow-md transition-all">
-              {loading ? 'Enregistrement...' : 'Enregistrer'}
+              {loading ? t('DocumentCard.enregistrement') : t('common:actions.enregistrer')}
             </button>
           </DialogFooter>
         </DialogContent>

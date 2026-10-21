@@ -18,6 +18,8 @@
  * est simplement sautée (`etapesJouables`).
  */
 
+import i18n from '@/i18n';
+
 /** Miroir de `GuideId` (backend/routers/auth.py), vérifié par `test_guides_vus.py`. */
 export const GUIDE_IDS = ['monuments', 'monument', 'questionnaire', 'projet', 'aide', 'dossier'] as const;
 export type GuideId = (typeof GUIDE_IDS)[number];
@@ -31,115 +33,138 @@ export interface EtapeGuide {
   cote?: 'top' | 'right' | 'bottom' | 'left';
 }
 
+/**
+ * Une étape dont le titre et le texte sont lus au moment de l'affichage (getters),
+ * jamais figés à l'import : la langue est fixée avant le premier rendu.
+ */
+function etape(
+  ancre: string,
+  titre: () => string,
+  texte: () => string,
+  cote?: EtapeGuide['cote'],
+): EtapeGuide {
+  const e: EtapeGuide = {
+    ancre,
+    get titre() {
+      return titre();
+    },
+    get texte() {
+      return texte();
+    },
+  };
+  if (cote) e.cote = cote;
+  return e;
+}
+
 export const VISITES: Record<GuideId, readonly EtapeGuide[]> = {
   monuments: [
-    {
-      ancre: 'monuments.carte',
-      titre: 'Votre monument',
-      texte: 'Ouvrez votre monument pour voir sa fiche, ses projets et ses documents.',
-    },
-    {
-      ancre: 'monuments.nouveau-monument',
-      titre: 'Un autre monument',
-      texte: 'Ajoutez un autre bien ici : chacun a sa fiche, ses projets et ses aides.',
-    },
-    {
-      ancre: 'monuments.documents',
-      titre: 'Vos documents',
-      texte: 'Rangez ici arrêtés, plans et photos pour les retrouver au moment du dossier.',
-      cote: 'right',
-    },
+    etape(
+      'monuments.carte',
+      () => i18n.t('libAides:guides.monuments.carte.titre'),
+      () => i18n.t('libAides:guides.monuments.carte.texte'),
+    ),
+    etape(
+      'monuments.nouveau-monument',
+      () => i18n.t('libAides:guides.monuments.nouveauMonument.titre'),
+      () => i18n.t('libAides:guides.monuments.nouveauMonument.texte'),
+    ),
+    etape(
+      'monuments.documents',
+      () => i18n.t('libAides:guides.monuments.documents.titre'),
+      () => i18n.t('libAides:guides.monuments.documents.texte'),
+      'right',
+    ),
   ],
   monument: [
-    {
-      ancre: 'monument.onglet-fiche',
-      titre: 'La fiche du monument',
-      texte: 'Complétez la fiche : la protection, le propriétaire et l’état décident des aides proposées.',
-    },
-    {
-      ancre: 'monument.onglet-projets',
-      titre: 'Les projets',
-      texte: 'Ouvrez un projet pour voir ses aides, ou créez-en un pour un autre chantier.',
-    },
-    {
-      ancre: 'monument.onglet-documents',
-      titre: 'Les documents',
-      texte: 'Déposez ici les pièces du monument : arrêté de protection, cadastre, photos.',
-    },
-    {
-      ancre: 'monument.onglet-equipe',
-      titre: 'L’équipe',
-      texte: 'Invitez un architecte ou un collègue à travailler avec vous sur ce monument.',
-    },
+    etape(
+      'monument.onglet-fiche',
+      () => i18n.t('libAides:guides.monument.fiche.titre'),
+      () => i18n.t('libAides:guides.monument.fiche.texte'),
+    ),
+    etape(
+      'monument.onglet-projets',
+      () => i18n.t('libAides:guides.monument.projets.titre'),
+      () => i18n.t('libAides:guides.monument.projets.texte'),
+    ),
+    etape(
+      'monument.onglet-documents',
+      () => i18n.t('libAides:guides.monument.documents.titre'),
+      () => i18n.t('libAides:guides.monument.documents.texte'),
+    ),
+    etape(
+      'monument.onglet-equipe',
+      () => i18n.t('libAides:guides.monument.equipe.titre'),
+      () => i18n.t('libAides:guides.monument.equipe.texte'),
+    ),
   ],
   questionnaire: [
-    {
-      ancre: 'questionnaire.aide',
-      titre: 'Bon à savoir',
-      texte: 'Lisez cet encadré en cas de doute : il explique les termes de la question.',
-    },
-    {
-      ancre: 'questionnaire.passer',
-      titre: 'Je ne sais pas',
-      texte: 'Passez une question si vous hésitez : les aides restent proposées, vous répondrez plus tard.',
-      cote: 'top',
-    },
+    etape(
+      'questionnaire.aide',
+      () => i18n.t('libAides:guides.questionnaire.aide.titre'),
+      () => i18n.t('libAides:guides.questionnaire.aide.texte'),
+    ),
+    etape(
+      'questionnaire.passer',
+      () => i18n.t('libAides:guides.questionnaire.passer.titre'),
+      () => i18n.t('libAides:guides.questionnaire.passer.texte'),
+      'top',
+    ),
   ],
   projet: [
-    {
-      ancre: 'projet.aides',
-      titre: 'Vos aides',
-      texte: 'Cliquez sur une aide pour voir ses critères et préparer le dossier.',
-    },
-    {
-      ancre: 'projet.echeancier',
-      titre: 'L’échéancier',
-      texte: 'Repérez ici les dates limites de dépôt de vos aides.',
-    },
-    {
-      ancre: 'projet.dossiers',
-      titre: 'Vos dossiers',
-      texte: 'Suivez ici chaque dossier, de la préparation au dépôt.',
-    },
-    {
-      ancre: 'projet.refaire',
-      titre: 'Modifier vos réponses',
-      texte: 'Modifiez vos réponses si votre projet change : la liste des aides se met à jour.',
-    },
+    etape(
+      'projet.aides',
+      () => i18n.t('libAides:guides.projet.aides.titre'),
+      () => i18n.t('libAides:guides.projet.aides.texte'),
+    ),
+    etape(
+      'projet.echeancier',
+      () => i18n.t('libAides:guides.projet.echeancier.titre'),
+      () => i18n.t('libAides:guides.projet.echeancier.texte'),
+    ),
+    etape(
+      'projet.dossiers',
+      () => i18n.t('libAides:guides.projet.dossiers.titre'),
+      () => i18n.t('libAides:guides.projet.dossiers.texte'),
+    ),
+    etape(
+      'projet.refaire',
+      () => i18n.t('libAides:guides.projet.refaire.titre'),
+      () => i18n.t('libAides:guides.projet.refaire.texte'),
+    ),
   ],
   aide: [
-    {
-      ancre: 'aide.criteres',
-      titre: 'Les critères',
-      texte: 'Vérifiez chaque critère et répondez ici aux questions encore ouvertes.',
-    },
-    {
-      ancre: 'aide.montant',
-      titre: 'Le montant',
-      texte: 'Retrouvez ici ce que l’aide finance et jusqu’à quel montant.',
-    },
-    {
-      ancre: 'aide.dossier',
-      titre: 'Le dossier',
-      texte: 'Créez le dossier pour obtenir la liste des pièces et les étapes du dépôt.',
-    },
+    etape(
+      'aide.criteres',
+      () => i18n.t('libAides:guides.aide.criteres.titre'),
+      () => i18n.t('libAides:guides.aide.criteres.texte'),
+    ),
+    etape(
+      'aide.montant',
+      () => i18n.t('libAides:guides.aide.montant.titre'),
+      () => i18n.t('libAides:guides.aide.montant.texte'),
+    ),
+    etape(
+      'aide.dossier',
+      () => i18n.t('libAides:guides.aide.dossier.titre'),
+      () => i18n.t('libAides:guides.aide.dossier.texte'),
+    ),
   ],
   dossier: [
-    {
-      ancre: 'dossier.pieces',
-      titre: 'Les pièces',
-      texte: 'Déposez chaque pièce demandée et voyez d’un coup d’œil combien sont prêtes.',
-    },
-    {
-      ancre: 'dossier.telecharger',
-      titre: 'Télécharger le dossier',
-      texte: 'Téléchargez toutes les pièces en une fois, prêtes à envoyer à l’organisme.',
-    },
-    {
-      ancre: 'dossier.aide',
-      titre: 'L’aide visée',
-      texte: 'Rouvrez la fiche de l’aide pour revoir ses conditions et la marche à suivre.',
-    },
+    etape(
+      'dossier.pieces',
+      () => i18n.t('libAides:guides.dossier.pieces.titre'),
+      () => i18n.t('libAides:guides.dossier.pieces.texte'),
+    ),
+    etape(
+      'dossier.telecharger',
+      () => i18n.t('libAides:guides.dossier.telecharger.titre'),
+      () => i18n.t('libAides:guides.dossier.telecharger.texte'),
+    ),
+    etape(
+      'dossier.aide',
+      () => i18n.t('libAides:guides.dossier.aide.titre'),
+      () => i18n.t('libAides:guides.dossier.aide.texte'),
+    ),
   ],
 };
 

@@ -1,55 +1,50 @@
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { format, parseISO } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import type { TFunction } from 'i18next';
+import { localeDateFns } from '@/i18n/format';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { deadlineLink } from '@/lib/project-stats';
 import { quandLibelle, type AFaire } from '@/lib/a-faire-maintenant';
 
 /** Le bouton et la bande « Prochaine étape », selon ce qu'il reste à faire. */
-function suite(a: AFaire): { cta: string; etape: React.ReactNode } {
+function suite(a: AFaire, t: TFunction<'dashboard'>): { cta: string; etape: React.ReactNode } {
+  const gras = { b: <b /> };
   switch (a.nature) {
     case 'questions': {
       const n = a.questions;
       return {
-        cta: n === 1 ? 'Répondre à la question' : `Répondre aux ${n} questions`,
+        cta: t('AFaireMaintenantCarte.questions.cta', { count: n }),
         etape: (
-          <>
-            <b>{n === 1 ? '1 question' : `${n} questions`}</b> pour savoir si vous pouvez déposer. Ensuite, Monumia
-            vous indique les pièces à réunir.
-          </>
+          <Trans t={t} i18nKey="AFaireMaintenantCarte.questions.etape" count={n} components={gras} />
         ),
       };
     }
     case 'verifier':
       return {
-        cta: "Voir l'aide",
-        etape: <>Quelques points sont à vérifier sur la fiche de l'aide avant de déposer.</>,
+        cta: t('AFaireMaintenantCarte.verifier.cta'),
+        etape: <>{t('AFaireMaintenantCarte.verifier.etape')}</>,
       };
     case 'eligible':
       return {
-        cta: 'Voir les pièces à réunir',
-        etape: (
-          <>
-            <b>Votre projet remplit les conditions publiées.</b> Monumia vous indique les pièces à réunir.
-          </>
-        ),
+        cta: t('AFaireMaintenantCarte.eligible.cta'),
+        etape: <Trans t={t} i18nKey="AFaireMaintenantCarte.eligible.etape" components={gras} />,
       };
     case 'demarche':
       return {
-        cta: 'Voir la démarche',
-        etape: (
-          <>
-            <b>Une démarche à faire</b> avant le dépôt pour remplir les conditions de l'aide.
-          </>
-        ),
+        cta: t('AFaireMaintenantCarte.demarche.cta'),
+        etape: <Trans t={t} i18nKey="AFaireMaintenantCarte.demarche.etape" components={gras} />,
       };
     case 'dossier':
       return {
-        cta: 'Ouvrir le dossier',
+        cta: t('AFaireMaintenantCarte.dossier.cta'),
         etape: (
-          <>
-            <b>{a.detail}</b> : l'échéance de votre dossier.
-          </>
+          <Trans
+            t={t}
+            i18nKey="AFaireMaintenantCarte.dossier.etape"
+            values={{ detail: a.detail }}
+            components={gras}
+          />
         ),
       };
   }
@@ -61,13 +56,14 @@ function suite(a: AFaire): { cta: string; etape: React.ReactNode } {
  * carte mène où mène son bouton (`.now-lien::after`).
  */
 export function AFaireMaintenantCarte({ aFaire }: { aFaire: AFaire | null }) {
+  const { t } = useTranslation('dashboard');
   if (!aFaire) {
     return (
       <section className="now calme" aria-labelledby="nowT">
         <div className="now-in">
           <div>
-            <span className="tag-now">Tout est à jour</span>
-            <h2 id="nowT">Aucune date limite ne réclame votre attention pour le moment.</h2>
+            <span className="tag-now">{t('toutEstAJour')}</span>
+            <h2 id="nowT">{t('AFaireMaintenantCarte.aucuneDateLimite')}</h2>
           </div>
         </div>
       </section>
@@ -77,19 +73,19 @@ export function AFaireMaintenantCarte({ aFaire }: { aFaire: AFaire | null }) {
   const { echeance } = aFaire;
   const date = parseISO(echeance.date);
   const retard = echeance.joursRestants < 0;
-  const { cta, etape } = suite(aFaire);
+  const { cta, etape } = suite(aFaire, t);
   const sousTitre = [aFaire.monumentNom, aFaire.nature === 'dossier' ? null : aFaire.detail].filter(Boolean);
 
   return (
     <section className="now" aria-labelledby="nowT">
       <div className="now-in">
         <div className={retard ? 'cal retard' : 'cal'} aria-hidden="true">
-          <b>{format(date, 'd', { locale: fr })}</b>
-          <span>{format(date, 'MMM', { locale: fr })}</span>
+          <b>{format(date, 'd', { locale: localeDateFns() })}</b>
+          <span>{format(date, 'MMM', { locale: localeDateFns() })}</span>
         </div>
         <div>
           <span className={retard ? 'tag-now retard' : 'tag-now'}>
-            À faire maintenant · {quandLibelle(echeance.joursRestants)}
+            {t('aFaireMaintenant', { quand: quandLibelle(echeance.joursRestants) })}
           </span>
           <h2 id="nowT">{aFaire.titre}</h2>
           {(aFaire.montant || sousTitre.length > 0) && (
@@ -106,7 +102,7 @@ export function AFaireMaintenantCarte({ aFaire }: { aFaire: AFaire | null }) {
         </Link>
       </div>
       <div className="now-step">
-        <span className="lbl">Prochaine étape</span>
+        <span className="lbl">{t('AFaireMaintenantCarte.prochaineEtape')}</span>
         <span>{etape}</span>
       </div>
     </section>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSupabase } from '@/lib/supabase';
+import { useTranslation } from 'react-i18next';
 
 function GoogleLogo() {
   return (
@@ -41,7 +42,8 @@ interface GoogleButtonProps {
  * En cas de succès le navigateur quitte la page ; le retour se fait sur
  * /auth/callback qui décide entre connexion directe et complétion de profil.
  */
-export function GoogleButton({ label = 'Continuer avec Google', beforeRedirect }: GoogleButtonProps = {}) {
+export function GoogleButton({ label, beforeRedirect }: GoogleButtonProps = {}) {
+  const { t } = useTranslation('compte');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export function GoogleButton({ label = 'Continuer avec Google', beforeRedirect }
     });
     if (error) {
       console.error(error);
-      toast.error('Impossible d’ouvrir la connexion Google. Réessayez, ou utilisez votre adresse email.');
+      toast.error(t('GoogleButton.erreurOuverture'));
       setLoading(false);
     }
   };
@@ -77,7 +79,7 @@ export function GoogleButton({ label = 'Continuer avec Google', beforeRedirect }
       style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
     >
       {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <GoogleLogo />}
-      {label}
+      {label ?? t('GoogleButton.continuer')}
     </button>
   );
 }

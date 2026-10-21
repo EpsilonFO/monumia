@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+
 import { C } from '@/lib/brand';
 import { readData } from './blockData';
 
@@ -9,8 +11,9 @@ interface Step {
 }
 
 function Frise({ steps }: { steps: Step[] }) {
+  const { t } = useTranslation('blog');
   return (
-    <ol className="my-6 flex flex-col" aria-label="Étapes">
+    <ol className="my-6 flex flex-col" aria-label={t('Steps.aria')}>
       {steps.map((s, i) => {
         const last = i === steps.length - 1;
         return (
@@ -36,7 +39,7 @@ function Frise({ steps }: { steps: Step[] }) {
                   {s.title}
                 </span>
               )}
-              {s.title && s.description && <span style={{ color: C.ink, opacity: 0.5 }}> — </span>}
+              {s.title && s.description && <span style={{ color: C.ink, opacity: 0.5 }}>{t('Steps.separateur')}</span>}
               {s.description && <span style={{ color: C.ink, opacity: 0.8 }}>{s.description}</span>}
             </div>
           </li>
@@ -74,6 +77,7 @@ function Colonnes({ steps }: { steps: Step[] }) {
 }
 
 function ChecklistView({ steps }: { steps: Step[] }) {
+  const { t } = useTranslation('blog');
   return (
     <ul className="my-6 flex flex-col gap-2.5 rounded-2xl border p-5" style={{ background: C.card, borderColor: C.border }}>
       {steps.map((s, i) => (
@@ -91,7 +95,7 @@ function ChecklistView({ steps }: { steps: Step[] }) {
                 {s.title}
               </span>
             )}
-            {s.title && s.description && <span style={{ color: C.ink, opacity: 0.5 }}> — </span>}
+            {s.title && s.description && <span style={{ color: C.ink, opacity: 0.5 }}>{t('Steps.separateur')}</span>}
             {s.description && <span style={{ color: C.ink, opacity: 0.8 }}>{s.description}</span>}
           </span>
         </li>

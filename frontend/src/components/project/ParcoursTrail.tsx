@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   IconDiagnostic,
   IconDossier,
@@ -17,8 +18,6 @@ const STAGE_ICON: Record<ProjectStageKey, IconComponent> = {
   depot: IconDepot,
 };
 
-const STATE_TEXT = { done: 'étape faite', current: 'étape en cours', upcoming: 'étape à venir' };
-
 /**
  * Frise de progression à étapes NOMMÉES : chaque jalon porte son libellé en
  * toutes lettres (public peu à l'aise avec l'informatique — pas de code
@@ -32,12 +31,13 @@ const STATE_TEXT = { done: 'étape faite', current: 'étape en cours', upcoming:
  * débordaient du viewport et créaient une scrollbar fantôme sur <html>.
  */
 export function ParcoursTrail({ stage }: { stage: ProjectStage }) {
+  const { t } = useTranslation('project');
   const last = PROJECT_STAGES.length - 1;
 
   return (
     <ol
       className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-0"
-      aria-label="Avancement du projet"
+      aria-label={t('ParcoursTrail.avancement')}
     >
       {PROJECT_STAGES.map((s, i) => {
         const state = jalonState(i, stage.reachedIndex);
@@ -49,7 +49,7 @@ export function ParcoursTrail({ stage }: { stage: ProjectStage }) {
             key={s.key}
             className="flex items-center sm:flex-1 sm:last:flex-none"
             aria-current={current ? 'step' : undefined}
-            aria-label={`${s.label} (${STATE_TEXT[state]})`}
+            aria-label={t('ParcoursTrail.jalon', { etape: s.label, etat: t(`etatsEtape.${state}`) })}
           >
             <span
               aria-hidden

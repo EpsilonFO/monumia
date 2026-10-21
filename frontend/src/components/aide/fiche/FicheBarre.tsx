@@ -1,14 +1,11 @@
 import { useEffect, useState, type RefObject } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { ouvrirSection } from './useFiche';
 
 export type EtapeFiche = 'elig' | 'pieces' | 'depot';
 
-const ETAPES: { cle: EtapeFiche; libelle: string }[] = [
-  { cle: 'elig', libelle: 'Éligibilité' },
-  { cle: 'pieces', libelle: 'Pièces' },
-  { cle: 'depot', libelle: 'Dépôt' },
-];
+const ETAPES: EtapeFiche[] = ['elig', 'pieces', 'depot'];
 
 export type ActionBarre =
   | { libelle: string; ancre: string }
@@ -34,6 +31,7 @@ export function FicheBarre({
   /** Le titre de la page : la barre paraît quand il est passé au-dessus. */
   repere: RefObject<HTMLElement | null>;
 }) {
+  const { t } = useTranslation('aide');
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     const el = repere.current;
@@ -43,7 +41,7 @@ export function FicheBarre({
     return () => io.disconnect();
   }, [repere]);
 
-  const courante = ETAPES.findIndex((e) => e.cle === etape);
+  const courante = ETAPES.indexOf(etape);
   // Une ancre ne ferait pas défiler en douceur : la zone qui défile est `main`,
   // pas la page.
   const bouton =
@@ -74,10 +72,10 @@ export function FicheBarre({
         </div>
         <div className="track">
           {ETAPES.map((e, i) => (
-            <span key={e.cle} className={i < courante ? 'done' : i === courante ? 'cur' : undefined}>
+            <span key={e} className={i < courante ? 'done' : i === courante ? 'cur' : undefined}>
               {i > 0 && <em />}
               <i />
-              {e.libelle}
+              {t(`FicheBarre.etapes.${e}`)}
             </span>
           ))}
         </div>

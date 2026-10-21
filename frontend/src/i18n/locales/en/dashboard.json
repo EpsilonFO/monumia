@@ -1,0 +1,142 @@
+{
+  "nouveauMonument": "New monument",
+  "lancerRecherche": "Start a new search",
+  "voirMonument": "View monument",
+  "toutEstAJour": "All up to date",
+  "aFaireMaintenant": "To do now · {{quand}}",
+  "DashboardPage": {
+    "phraseDuJour": {
+      "depassee": "A deadline has passed: {{titre}}, due on {{date}}.",
+      "dossier": "A deadline is coming up: {{detail}}, on {{date}}.",
+      "date": "A date is coming up: {{titre}} closes on {{date}}."
+    },
+    "salutation": {
+      "matin": "Good morning, <prenom>{{prenom}}</prenom>",
+      "apresMidi": "Good afternoon, <prenom>{{prenom}}</prenom>",
+      "soir": "Good evening, <prenom>{{prenom}}</prenom>"
+    },
+    "creerMonument": "Create a monument",
+    "nouvelleRecherche": "New funding search",
+    "vosMonuments": "Your monuments",
+    "ouEnSontVosProjets": "Where your projects stand",
+    "aucunMonument": "No monuments yet. Start with your monument’s record: Monumia works out which funding schemes it may qualify for."
+  },
+  "ParcoursStepper": {
+    "avancement": "Project progress"
+  },
+  "useNouvelleRecherche": {
+    "titre": "Run as many projects as you need",
+    "descriptionIllimite": "The Watch plan gives you unlimited works projects and alerts you before every deadline.",
+    "description_one": "Your plan covers {{count}} project per monument. The Watch plan makes them unlimited and alerts you before every deadline.",
+    "description_other": "Your plan covers {{count}} projects per monument. The Watch plan makes them unlimited and alerts you before every deadline."
+  },
+  "NouvelleRecherche": {
+    "pourQuelMonument": "For which monument?"
+  },
+  "CarteNouveauProjet": {
+    "titre": "A new project for {{nom}}?",
+    "titreSansNom": "A new project for this monument?",
+    "exemples": "Restoration, bringing up to standard, a theatre company, a volunteer worksite, farming, coworking and much more!"
+  },
+  "AFaireMaintenantCarte": {
+    "questions": {
+      "cta_one": "Answer the question",
+      "cta_other": "Answer the {{count}} questions",
+      "etape_one": "<b>{{count}} question</b> to find out whether you can submit. Then Monumia shows you the supporting documents to gather.",
+      "etape_other": "<b>{{count}} questions</b> to find out whether you can submit. Then Monumia shows you the supporting documents to gather."
+    },
+    "verifier": {
+      "cta": "View scheme",
+      "etape": "A few points need checking on the scheme page before you submit."
+    },
+    "eligible": {
+      "cta": "See the supporting documents to gather",
+      "etape": "<b>Your project meets the published conditions.</b> Monumia shows you the supporting documents to gather."
+    },
+    "demarche": {
+      "cta": "See the step to take",
+      "etape": "<b>A step to take</b> before submission to meet the scheme’s conditions."
+    },
+    "dossier": {
+      "cta": "Open the application",
+      "etape": "<b>{{detail}}</b>: your application deadline."
+    },
+    "aucuneDateLimite": "No deadlines need your attention for now.",
+    "prochaineEtape": "Next step"
+  },
+  "CarteMonument": {
+    "documentsPrets_one": "{{count}} document ready for your applications",
+    "documentsPrets_other": "{{count}} documents ready for your applications",
+    "aucunDocument": "No documents for your applications",
+    "cloture": "Closed",
+    "statut": "{{rang}}: {{action}}",
+    "voirProjets": "View projects",
+    "projetsEnCours_one": "{{count}} project in progress",
+    "projetsEnCours_other": "{{count}} projects in progress",
+    "aucunProjetEnCours": "No projects in progress",
+    "pasEncoreDeProjet": "No projects yet",
+    "aidesReperees_one": "<b>{{count}} scheme</b> identified",
+    "aidesReperees_other": "<b>{{count}} schemes</b> identified",
+    "aucuneAide": "No funding estimated",
+    "piecesTitre": "Documents for {{deNom}}, reusable in all its applications",
+    "piecesTitreSansNom": "This monument’s documents, reusable in all its applications",
+    "documents": "Documents"
+  },
+  "DocumentsTableau": {
+    "titreTous": "Documents for your monuments",
+    "titreMonument": "Documents for {{deNom}}",
+    "titreCeMonument": "Documents for this monument",
+    "surtitre": "Your documents",
+    "intro": "A document uploaded once can be used for all your applications.",
+    "ouvrir": "Open my documents",
+    "derniersAjouts": "Latest additions",
+    "aucunDocument": "No documents yet.",
+    "glissez": "Drag a file here",
+    "glissezIndice": "Quotes, photos, protection order: you will choose its folder afterwards.",
+    "choisirFichier": "Choose a file",
+    "nbDocuments_one": "{{count}} document",
+    "nbDocuments_other": "{{count}} documents",
+    "prives": "Your documents stay private.",
+    "deposez": "Drop your file",
+    "deposezIndice": "It will be filed in My documents."
+  },
+  "MonumentsInProgress": {
+    "dossiers_one": "{{count}} application",
+    "dossiers_other": "{{count}} applications",
+    "aucunMonument": "No monuments saved",
+    "aucunMonumentIndice": "Describe your monument, then start a works project to estimate your funding and track your applications in one place."
+  },
+  "NextActionCard": {
+    "aucuneEcheance": "No deadlines need your attention for now.",
+    "demandeAide": "Funding application",
+    "dossier": "Application",
+    "etAutres_one": "and {{count}} other that day",
+    "etAutres_other": "and {{count}} others that day",
+    "jeMEnOccupe": "I’ll deal with it",
+    "aNoter": "Worth noting",
+    "ensuite": "Up next",
+    "reduire": "Show less",
+    "autres_one": "+ {{count}} more",
+    "autres_other": "+ {{count}} more"
+  },
+  "DonutChart": {
+    "aucuneDonneeAAfficher": "No data to display",
+    "aucuneDonnee": "No data",
+    "part": "{{libelle}}: {{valeur}} ({{pct}}%)",
+    "repartition": "Breakdown: {{parts}}",
+    "total": "total"
+  },
+  "ProgressRing": {
+    "libelle": "{{libelle}}: {{pct}}%",
+    "progression": "Progress {{pct}}%"
+  },
+  "echeancesAlertes": {
+    "aujourdhui": "Today",
+    "jours_one": "{{count}} day",
+    "jours_other": "{{count}} days",
+    "sousAide": "Scheme · {{date}}",
+    "sousDossier": "Application · {{date}}",
+    "enRetard": "Overdue",
+    "nouveau": "New"
+  }
+}

@@ -9,8 +9,9 @@ import { authService } from '@/services/auth.service';
 import { ApiError } from '@/lib/api-error';
 import { C } from '@/lib/brand';
 import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password';
-import { isValidPhone, PHONE_ERROR } from '@/lib/phone';
+import { isValidPhone, phoneError as messageTelephoneInvalide } from '@/lib/phone';
 import { toast } from 'sonner';
+import { Trans, useTranslation } from 'react-i18next';
 import type { User } from '@/types';
 
 const MUTED = 'var(--muted-foreground)';
@@ -26,7 +27,7 @@ export const inputCls =
 const CGU_URL = 'https://monumia.fr/cgu';
 const PRIVACY_URL = 'https://monumia.fr/confidentialite';
 
-function LegalLink({ href, children }: { href: string; children: React.ReactNode }) {
+function LegalLink({ href, children }: { href: string; children?: React.ReactNode }) {
   return (
     <a
       href={href}
@@ -79,6 +80,7 @@ export function RegisterForm({
   onConfirmationRequise,
   recoursConnexion,
 }: RegisterFormProps) {
+  const { t } = useTranslation('compte');
   const setAuth = useAuthStore((s) => s.setAuth);
 
   const [registerForm, setRegisterForm] = useState({
@@ -107,7 +109,7 @@ export function RegisterForm({
 
   const handlePhoneChange = (value: string) => {
     updateRegister({ telephone: value });
-    setPhoneError(value && !isValidPhone(value) ? PHONE_ERROR : null);
+    setPhoneError(value && !isValidPhone(value) ? messageTelephoneInvalide() : null);
   };
 
   const registerReady =
@@ -123,19 +125,19 @@ export function RegisterForm({
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (registerForm.password !== registerForm.confirmPassword) {
-      toast.error('Les mots de passe ne correspondent pas');
+      toast.error(t('RegisterForm.motsDePasseDifferents'));
       return;
     }
     if (!pwdValid) {
-      toast.error('Le mot de passe doit contenir au moins 8 caractères et 1 chiffre');
+      toast.error(t('commun.motDePasseInvalide'));
       return;
     }
     if (!isValidPhone(registerForm.telephone)) {
-      setPhoneError(PHONE_ERROR);
+      setPhoneError(messageTelephoneInvalide());
       return;
     }
     if (!acceptCgu) {
-      toast.error("Merci d'accepter les conditions générales d'utilisation");
+      toast.error(t('commun.accepterCgu'));
       return;
     }
     setRegisterLoading(true);
@@ -162,7 +164,7 @@ export function RegisterForm({
       if (err instanceof ApiError && err.status === 409) {
         setDejaInscrit(true);
       } else {
-        toast.error(err instanceof Error ? err.message : 'Erreur lors de la création du compte');
+        toast.error(err instanceof Error ? err.message : t('RegisterForm.erreurCreation'));
       }
     } finally {
       setRegisterLoading(false);
@@ -175,12 +177,12 @@ export function RegisterForm({
         {/* ── Colonne gauche : identifiants de connexion ── */}
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="reg-email" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Email</Label>
+            <Label htmlFor="reg-email" className="text-[15.5px] font-medium" style={{ color: C.ink }}>{t('commun.email')}</Label>
             <Input
               id="reg-email"
               type="email"
               autoComplete="email"
-              placeholder="marie.dupont@mairie.fr"
+              placeholder={t('commun.placeholderEmail')}
               value={registerForm.email}
               onChange={(e) => updateRegister({ email: e.target.value })}
               required
@@ -188,12 +190,12 @@ export function RegisterForm({
             />
             {dejaInscrit && (
               <p className="text-[14.5px] leading-[1.5]" style={{ color: C.danger }}>
-                Un compte existe déjà avec cette adresse. {recoursConnexion}
+                {t('RegisterForm.compteExistant')} {recoursConnexion}
               </p>
             )}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="reg-password" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Mot de passe</Label>
+            <Label htmlFor="reg-password" className="text-[15.5px] font-medium" style={{ color: C.ink }}>{t('commun.motDePasse')}</Label>
             <div className="relative">
               <Input
                 id="reg-password"
@@ -226,7 +228,7 @@ export function RegisterForm({
             )}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="reg-confirm" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Confirmer le mot de passe</Label>
+            <Label htmlFor="reg-confirm" className="text-[15.5px] font-medium" style={{ color: C.ink }}>{t('commun.confirmerMotDePasse')}</Label>
             <Input
               id="reg-confirm"
               type="password"
@@ -243,11 +245,11 @@ export function RegisterForm({
         {/* ── Colonne droite : votre identité ── */}
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="reg-nom" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Nom</Label>
+            <Label htmlFor="reg-nom" className="text-[15.5px] font-medium" style={{ color: C.ink }}>{t('commun.nom')}</Label>
             <Input
               id="reg-nom"
               autoComplete="family-name"
-              placeholder="Dupont"
+              placeholder={t('RegisterForm.placeholderNom')}
               value={registerForm.nom}
               onChange={(e) => updateRegister({ nom: e.target.value })}
               required
@@ -255,11 +257,11 @@ export function RegisterForm({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="reg-prenom" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Prénom</Label>
+            <Label htmlFor="reg-prenom" className="text-[15.5px] font-medium" style={{ color: C.ink }}>{t('commun.prenom')}</Label>
             <Input
               id="reg-prenom"
               autoComplete="given-name"
-              placeholder="Marie"
+              placeholder={t('RegisterForm.placeholderPrenom')}
               value={registerForm.prenom}
               onChange={(e) => updateRegister({ prenom: e.target.value })}
               required
@@ -268,13 +270,17 @@ export function RegisterForm({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="reg-tel" className="text-[15.5px] font-medium" style={{ color: C.ink }}>
-              Téléphone <span className="font-normal" style={{ color: LIGHT }}>(optionnel)</span>
+              <Trans
+                t={t}
+                i18nKey="RegisterForm.telephone"
+                components={{ discret: <span className="font-normal" style={{ color: LIGHT }} /> }}
+              />
             </Label>
             <Input
               id="reg-tel"
               type="tel"
               autoComplete="tel"
-              placeholder="02 33 40 00 00"
+              placeholder={t('RegisterForm.placeholderTelephone')}
               value={registerForm.telephone}
               onChange={(e) => handlePhoneChange(e.target.value)}
               className={`${inputCls}${phoneError ? ' border-destructive focus:border-destructive' : ''}`}
@@ -293,8 +299,14 @@ export function RegisterForm({
           className="mt-[3px]"
         />
         <span className="text-[15px] leading-[1.55]" style={{ color: MUTED }}>
-          J'ai lu et j'accepte les <LegalLink href={CGU_URL}>conditions générales d'utilisation</LegalLink>{' '}
-          et la <LegalLink href={PRIVACY_URL}>politique de confidentialité</LegalLink>.
+          <Trans
+            t={t}
+            i18nKey="commun.cgu"
+            components={{
+              cgu: <LegalLink href={CGU_URL} />,
+              confidentialite: <LegalLink href={PRIVACY_URL} />,
+            }}
+          />
         </span>
       </label>
 
@@ -306,7 +318,7 @@ export function RegisterForm({
       >
         {registerLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
           <>
-            Créer mon compte
+            {t('commun.creerMonCompte')}
             <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
           </>
         )}

@@ -7,6 +7,8 @@
  * verdict du moteur) ; une question est « surchargée » ou « rétablie ».
  */
 
+import i18n from '@/i18n';
+
 /** Une réponse possible à une question du QCM. */
 export interface OptionSurchargee {
   /** Figé pour une réponse existante : les prédicats des aides le citent. */
@@ -298,8 +300,8 @@ export type RoleCompte = 'admin' | 'beta_testeur';
 /** Comment chaque rôle se dit dans l'interface. Le serveur a le sien, pour ses
  *  messages d'erreur et ses journaux. */
 export const LIBELLE_ROLE: Record<RoleCompte, string> = {
-  admin: 'Administrateur',
-  beta_testeur: 'Bêta-testeur',
+  get admin() { return i18n.t('core:rolesCompte.admin'); },
+  get beta_testeur() { return i18n.t('core:rolesCompte.betaTesteur'); },
 };
 
 /** L'état d'une bascule pour un compte. */

@@ -1,0 +1,156 @@
+{
+  "meta": {
+    "titreAvecBlog": "{{titre}} | Monumia Blog"
+  },
+  "commun": {
+    "retourAuBlog": "← Back to the blog",
+    "lireArticle": "Read the article →",
+    "dureeCourte": "{{minutes}} min"
+  },
+  "articles": {
+    "contenuIntrouvable": "# Article not found\n\nThe content “{{slug}}” has not been written yet.",
+    "classeOuInscrit": {
+      "titre": "Listed or registered: what’s the difference?",
+      "extrait": "Listing and registration are the two levels of protection for historic monuments in France. We explain what actually changes."
+    },
+    "sitePatrimonialRemarquable": {
+      "titre": "Outstanding heritage sites (SPR)",
+      "extrait": "An SPR protects urban areas or landscapes as a whole. What it means for a property located within its boundary."
+    },
+    "perimetreEtAbords": {
+      "titre": "The surroundings of a historic monument",
+      "extrait": "Being in the “surroundings” of a historic monument changes your obligations, even if your own property is not protected."
+    },
+    "baseMerimee": {
+      "titre": "The Mérimée database: a user’s guide",
+      "extrait": "The Mérimée database lists France’s architectural heritage. How to find your property and its reference number."
+    },
+    "tauxPlafondBaseEligible": {
+      "titre": "Rate, cap and eligible base: how to read a funding scheme",
+      "extrait": "Three notions that determine what you will actually receive. We break them down with a worked example."
+    },
+    "subventionVsPret": {
+      "titre": "Grant, repayable advance, loan: the differences",
+      "extrait": "Not all funding is equal. Tell apart what you keep from what you will have to pay back."
+    },
+    "cofinancement": {
+      "titre": "Co-financing explained simply",
+      "extrait": "Many schemes require other funders to take part. How to put together a coherent funding plan."
+    },
+    "drac": {
+      "titre": "The DRAC: its role and who to contact",
+      "extrait": "The regional directorate of cultural affairs (DRAC) is your key contact for protected heritage."
+    },
+    "etatDeConservation": {
+      "titre": "Condition of the building and urgency of the works",
+      "extrait": "How to assess the condition of your property honestly: these notions determine whether you are eligible for funding."
+    },
+    "etudePrealable": {
+      "titre": "The preliminary study, step by step",
+      "extrait": "Often compulsory before works on a historic monument. What it is for and who carries it out."
+    },
+    "diagnosticPrealable": {
+      "titre": "The preliminary survey: why and how",
+      "extrait": "The survey takes stock of the building, shapes your project and unlocks some funding schemes."
+    },
+    "maitriseOuvrageOeuvre": {
+      "titre": "Project owner and project manager",
+      "extrait": "Who decides, who designs, who carries out the work? Two roles not to be confused in a restoration project."
+    }
+  },
+  "categories": {
+    "protectionsStatuts": {
+      "libelle": "Heritage protection & status",
+      "libelleCourt": "Protection & status",
+      "description": "Understand the status of your property: listed (classé) or registered (inscrit) historic monument, outstanding heritage site, protected surroundings, Mérimée database.",
+      "etape": "Understand my status"
+    },
+    "aidesFinancements": {
+      "libelle": "Grants & funding",
+      "libelleCourt": "Grants & funding",
+      "description": "Grants, rates and caps, co-financing, tax schemes: find your way through heritage funding.",
+      "etape": "Find my funding"
+    },
+    "demarchesDossiers": {
+      "libelle": "Procedures & applications",
+      "libelleCourt": "Procedures & applications",
+      "description": "Survey, preliminary study, supporting documents, deadlines: get your paperwork right.",
+      "etape": "Prepare my application"
+    },
+    "travauxTechniques": {
+      "libelle": "Restoration works & techniques",
+      "libelleCourt": "Works & techniques",
+      "description": "The technical vocabulary of works: project owner and project manager, work packages, materials and trades.",
+      "etape": "Start the works"
+    }
+  },
+  "BlogLayout": {
+    "piedDePage": "© Monumia · Resources for owners and municipalities"
+  },
+  "BlogParcoursNav": {
+    "ariaParcours": "The owner’s journey",
+    "etape": "Step {{numero}}",
+    "articles_one": "{{count}} article",
+    "articles_other": "{{count}} articles",
+    "bientot": "Coming soon"
+  },
+  "MonumiaCta": {
+    "titre": "A project on a protected property?",
+    "texte": "Monumia identifies your status and the funding you can apply for, and guides you through the process.",
+    "decouvrir": "Discover Monumia"
+  },
+  "BlogIndexPage": {
+    "metaTitre": "Blog | Monumia",
+    "metaDescription": "Clear articles to help you understand heritage restoration, funding and procedures.",
+    "surtitre": "The heritage guide",
+    "titre": "Heritage, made simple",
+    "introduction": "Clear articles for monument owners and municipalities: status, funding, procedures and works, without jargon, to read whenever you like.",
+    "toutVoir": "See all →",
+    "aucunArticle": "No articles yet.",
+    "aLireEnPriorite": "Start here",
+    "aidesReferencees": "heritage funding schemes listed. Our articles help you work out which ones apply to you.",
+    "aLaUne": "Featured"
+  },
+  "BlogCategoryPage": {
+    "introuvable": "Category not found",
+    "tousLesArticles": "← All articles",
+    "aucunArticle": "No articles in this category yet.",
+    "autresThemes": "Explore the other topics"
+  },
+  "BlogArticlePage": {
+    "introuvable": "Article not found",
+    "filAriane": "Breadcrumb",
+    "blog": "Blog",
+    "tempsDeLecture": "{{minutes}} min read",
+    "pourAllerPlusLoin": "Further reading",
+    "aLireAussi": "Read next",
+    "lire": "Read"
+  },
+  "Callout": {
+    "remarque": "Note",
+    "attention": "Warning",
+    "astuce": "Tip",
+    "exemple": "Example"
+  },
+  "Comparison": {
+    "optionA": "Option A",
+    "optionB": "Option B"
+  },
+  "CostBreakdown": {
+    "total": "Total"
+  },
+  "DecisionTree": {
+    "oui": "<fort>Yes</fort>: {{suite}}",
+    "non": "<fort>No</fort>: {{suite}}"
+  },
+  "Steps": {
+    "aria": "Steps",
+    "separateur": ": "
+  },
+  "Timeline": {
+    "aria": "Timeline"
+  },
+  "Toc": {
+    "sommaire": "Contents"
+  }
+}

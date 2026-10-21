@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate, useSearchParams, Navigate } from 'react-router';
 import { ChevronLeft, Loader2 } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { IconAide, IconDossier, IconSupprimer } from '@/components/icons';
 import { Onglets, type Onglet } from '@/components/shared/ecrans/Onglets';
 import { Picto, type NomPicto } from '@/components/shared/ecrans/Picto';
@@ -131,6 +132,7 @@ function Groupe({
  * résout à l'exécution — le projet d'abord, le monument en repli.
  */
 export function ProjetDetailPage() {
+  const { t } = useTranslation(['projets', 'common']);
   const { projetId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -356,11 +358,11 @@ export function ProjetDetailPage() {
     try {
       setDiagnostic(projetId, await aideService.runProjectDiagnostic(projetId, projet?.questionnaire ?? {}));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors du diagnostic');
+      toast.error(err instanceof Error ? err.message : t('ProjetDetailPage.erreurDiagnostic'));
     } finally {
       setRunning(false);
     }
-  }, [projetId, setDiagnostic, projet?.questionnaire]);
+  }, [projetId, setDiagnostic, projet?.questionnaire, t]);
 
   // « Refaire le questionnaire », deux façons :
   //
@@ -402,11 +404,11 @@ export function ProjetDetailPage() {
       try {
         upsertProjet(await projetService.update(projetId, { titre }));
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Erreur lors du renommage');
+        toast.error(err instanceof Error ? err.message : t('ProjetDetailPage.erreurRenommage'));
         throw err;
       }
     },
-    [projetId, upsertProjet],
+    [projetId, upsertProjet, t],
   );
 
   const handleDeleteProjet = useCallback(async () => {
@@ -416,13 +418,13 @@ export function ProjetDetailPage() {
     try {
       await projetService.delete(projetId);
       deleteProjetLocal(projetId);
-      toast.success('Projet supprimé');
+      toast.success(t('ProjetDetailPage.projetSupprime'));
       navigate(`${ROUTES.MONUMENT_DETAIL(monumentId)}?tab=projets`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+      toast.error(err instanceof Error ? err.message : t('ProjetDetailPage.erreurSuppression'));
       setDeleting(false);
     }
-  }, [projetId, monumentId, deleteProjetLocal, navigate]);
+  }, [projetId, monumentId, deleteProjetLocal, navigate, t]);
 
   // Vieux lien portant un id de monument : on redirige sans rien afficher.
   if (resolution === 'monument' && projetId) {
@@ -432,10 +434,10 @@ export function ProjetDetailPage() {
   if (resolution === 'introuvable') {
     return (
       <div className="space-y-4">
-        <h1 className="text-[23px]" style={{ fontFamily: SERIF, color: C.ink }}>Projet introuvable</h1>
-        <p className="text-[16px] text-muted-foreground">Ce projet n'existe pas ou a été supprimé.</p>
+        <h1 className="text-[23px]" style={{ fontFamily: SERIF, color: C.ink }}>{t('ProjetDetailPage.introuvable.titre')}</h1>
+        <p className="text-[16px] text-muted-foreground">{t('ProjetDetailPage.introuvable.texte')}</p>
         <Link to={ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[15px] font-medium" style={{ color: C.blue }}>
-          <ChevronLeft className="h-3.5 w-3.5" /> Retour à mes monuments
+          <ChevronLeft className="h-3.5 w-3.5" /> {t('communs.retourMesMonuments')}
         </Link>
       </div>
     );
@@ -548,11 +550,11 @@ export function ProjetDetailPage() {
   const montantBientot = bientot.reduce((sum, m) => sum + (m.aide.montantMax ?? 0), 0);
   const chiffresBientot = [
     ...(montantBientot > 0
-      ? [{ valeur: formatCurrency(montantBientot), libelle: 'à venir, au mieux' }]
+      ? [{ valeur: formatCurrency(montantBientot), libelle: t('ProjetDetailPage.chiffres.aVenirAuMieux') }]
       : []),
     {
       valeur: String(bientot.length),
-      libelle: `aide${bientot.length > 1 ? 's' : ''} à venir`,
+      libelle: t('ProjetDetailPage.chiffres.aidesAVenir', { count: bientot.length }),
     },
   ];
 
@@ -576,16 +578,16 @@ export function ProjetDetailPage() {
 
   const projectTabs: Onglet<string>[] = [
     // Les aides à débloquer comptent : ce sont des pistes vivantes, pas des refus.
-    ...(canAccessAides ? [{ value: 'aides', label: 'Aides', picto: 'main' as const, count: aidesAPortee.length }] : []),
-    { value: 'dossiers', label: 'Dossiers', picto: 'dossier', count: dossiers.length, guide: 'projet.dossiers' },
+    ...(canAccessAides ? [{ value: 'aides', label: t('ProjetDetailPage.onglets.aides'), picto: 'main' as const, count: aidesAPortee.length }] : []),
+    { value: 'dossiers', label: t('ProjetDetailPage.onglets.dossiers'), picto: 'dossier', count: dossiers.length, guide: 'projet.dossiers' },
     {
       value: 'documents',
-      label: 'Documents',
+      label: t('ProjetDetailPage.onglets.documents'),
       picto: 'doc',
       count: projetDocuments.length,
-      title: 'Déposez une pièce une fois, elle sert à tous vos dossiers',
+      title: t('ProjetDetailPage.onglets.documentsTitre'),
     },
-    { value: 'equipe', label: 'Équipe', picto: 'equipe', count: members.length },
+    { value: 'equipe', label: t('ProjetDetailPage.onglets.equipe'), picto: 'equipe', count: members.length },
   ];
 
   // Titre et montant écrits de chaque aide à portée, pour les cartes de
@@ -594,14 +596,16 @@ export function ProjetDetailPage() {
     aidesAPortee.map((m) => [m.aide.id, { titre: titreAide(m.aide), montant: montantAide(m.aide)?.valeur ?? null }]),
   );
   const lienMesDocuments = `${ROUTES.DOCUMENTS}?monument=${monument.id}`;
-  const chezFiltre = filtre.key === 'toutes' ? '' : ` chez « ${filtre.label} »`;
+  const phraseAucuneAide = filtre.key === 'toutes'
+    ? t('ProjetDetailPage.aides.aucune')
+    : t('ProjetDetailPage.aides.aucuneChez', { filtre: filtre.label });
   const aucuneSection =
     eligiblesMaintenant.length + atteignablesMaintenant.length + potentielsMaintenant.length + bientot.length === 0;
 
   return (
     <div className="ec pproj">
       <Guide id="projet" pret={!chargementDiagnostic && !!diagnostic} />
-      <BoutonRetour to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`} libelle={`Retour à ${monument.nom}`} />
+      <BoutonRetour to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`} libelle={t('communs.retourA', { nom: monument.nom })} />
 
       <ProjetSummaryBar
         projet={projet}
@@ -612,7 +616,7 @@ export function ProjetDetailPage() {
       />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <Onglets onglets={projectTabs} actif={activeTab} onChange={handleTabChange} label="Rubriques du projet" />
+        <Onglets onglets={projectTabs} actif={activeTab} onChange={handleTabChange} label={t('ProjetDetailPage.onglets.label')} />
 
         {/* AIDES */}
         <TabsContent value="aides">
@@ -621,15 +625,12 @@ export function ProjetDetailPage() {
           <section className="docs-cta" aria-labelledby="dc-t">
             <span className="dc-ic" aria-hidden="true"><Picto nom="dossier" /></span>
             <div>
-              <h2 id="dc-t">Gardez les documents de votre monument au même endroit</h2>
-              <p>
-                Déposez ici vos devis, arrêtés, délibérations et photos. Monumia les range par type, et vous
-                pouvez les réutiliser dans chacun de vos dossiers d&rsquo;aide.
-              </p>
+              <h2 id="dc-t">{t('ProjetDetailPage.docsCta.titre')}</h2>
+              <p>{t('ProjetDetailPage.docsCta.texte')}</p>
             </div>
             <Link className="btn b-blue dc-btn" to={lienMesDocuments}>
               <Picto nom="dossier" />
-              Ouvrir mes documents
+              {t('communs.ouvrirMesDocuments')}
             </Link>
           </section>
           {chargementDiagnostic ? (
@@ -638,9 +639,9 @@ export function ProjetDetailPage() {
             </div>
           ) : !diagnostic ? (
             <div className="vide onglet" style={{ textAlign: 'center' }}>
-              <h2 style={{ fontSize: 26 }}>Découvrez les aides de ce projet</h2>
+              <h2 style={{ fontSize: 26 }}>{t('ProjetDetailPage.lancer.titre')}</h2>
               <p style={{ marginTop: 9 }}>
-                Notre moteur analyse les aides publiques et privées applicables à {monument.nom}.
+                {t('ProjetDetailPage.lancer.texte', { nom: monument.nom })}
               </p>
               <button
                 className="btn b-orange"
@@ -650,7 +651,7 @@ export function ProjetDetailPage() {
                 style={{ marginTop: 18 }}
               >
                 {running && <Loader2 className="h-4 w-4 animate-spin" />}
-                Lancer le moteur
+                {t('ProjetDetailPage.lancer.bouton')}
               </button>
             </div>
           ) : (
@@ -662,13 +663,13 @@ export function ProjetDetailPage() {
                   <div style={{ marginTop: 26 }}>
                     <PaywallOverlay
                       offre="Veille"
-                      titre="Ne laissez plus passer une date limite"
-                      description="L'échéancier réunit les dates limites de vos aides et de vos dossiers, de la plus proche à la plus lointaine. L'offre Veille vous les rappelle aussi par email."
+                      titre={t('ProjetDetailPage.paywallEcheancier.titre')}
+                      description={t('ProjetDetailPage.paywallEcheancier.description')}
                       monumentId={monument.id}
                       chiffres={[
                         {
                           valeur: String(deadlines.length),
-                          libelle: `échéance${deadlines.length > 1 ? 's' : ''} sur ce chantier`,
+                          libelle: t('ProjetDetailPage.chiffres.echeances', { count: deadlines.length }),
                         },
                       ]}
                     >
@@ -679,11 +680,8 @@ export function ProjetDetailPage() {
 
               <section className="sec" aria-labelledby="at" data-guide="projet.aides">
                 <div className="sec-h">
-                  <h2 id="at">Toutes vos aides</h2>
-                  <p>
-                    {aidesAPortee.length} aide{aidesAPortee.length > 1 ? 's' : ''} repérée
-                    {aidesAPortee.length > 1 ? 's' : ''} pour ce projet
-                  </p>
+                  <h2 id="at">{t('ProjetDetailPage.aides.titre')}</h2>
+                  <p>{t('ProjetDetailPage.aides.reperees', { count: aidesAPortee.length })}</p>
                 </div>
 
                 <AideFiltreBar options={filtreOptions} value={filtreKey} onChange={setFiltreKey} />
@@ -692,14 +690,14 @@ export function ProjetDetailPage() {
                 {/* Une section vide se tait, comme « À débloquer » et « Disponibles
                     bientôt » : un titre suivi de « Aucune aide » n'apprend rien.
                     Si les quatre se taisent, une seule phrase le dit. */}
-                {aucuneSection && <p className="empty">Aucune aide à proposer pour le moment{chezFiltre}.</p>}
+                {aucuneSection && <p className="empty">{phraseAucuneAide}</p>}
 
                 {eligiblesMaintenant.length > 0 && (
                   <Groupe
                     ton="ok"
                     picto="coche"
-                    titre="Disponibles maintenant"
-                    sous="Votre projet remplit les conditions publiées par le financeur, et le guichet est ouvert. Vous pouvez monter le dossier."
+                    titre={t('ProjetDetailPage.groupes.maintenant.titre')}
+                    sous={t('ProjetDetailPage.groupes.maintenant.sous')}
                   >
                     {renderAideList(eligiblesMaintenant)}
                   </Groupe>
@@ -709,8 +707,8 @@ export function ProjetDetailPage() {
                   <Groupe
                     ton="db"
                     picto="cadenas"
-                    titre="À débloquer"
-                    sous="Une démarche vous sépare de ces aides : une protection, un label, un accord ou une adhésion. Ouvrez la fiche pour voir laquelle, auprès de qui et en combien de temps."
+                    titre={t('ProjetDetailPage.groupes.aDebloquer.titre')}
+                    sous={t('ProjetDetailPage.groupes.aDebloquer.sous')}
                   >
                     {renderAideList(atteignablesMaintenant)}
                   </Groupe>
@@ -720,8 +718,8 @@ export function ProjetDetailPage() {
                   <Groupe
                     ton="ck"
                     picto="question"
-                    titre="À confirmer"
-                    sous="Il nous manque une ou plusieurs réponses pour savoir si votre projet est éligible. Elles se posent dans la fiche de chaque aide."
+                    titre={t('ProjetDetailPage.groupes.aConfirmer.titre')}
+                    sous={t('ProjetDetailPage.groupes.aConfirmer.sous')}
                   >
                     {/* Le chiffre qui compte n'est pas le nombre d'aides mais ce
                         qu'il en coûte de trancher : les plus proches d'un
@@ -734,16 +732,16 @@ export function ProjetDetailPage() {
                   <Groupe
                     ton="bt"
                     picto="cloche"
-                    titre="Disponibles bientôt"
-                    sous="La fenêtre de candidature est fermée ou pas encore ouverte. Préparez votre dossier pour la prochaine session : la pastille de chaque aide indique où vous en êtes sur ses critères."
+                    titre={t('ProjetDetailPage.groupes.bientot.titre')}
+                    sous={t('ProjetDetailPage.groupes.bientot.sous')}
                   >
                     {offre.aidesBientot ? (
                       renderAideList(bientot)
                     ) : (
                       <PaywallOverlay
                         offre="Veille"
-                        titre="Soyez prévenu le jour où le guichet ouvre"
-                        description="Ces aides ne sont pas encore déposables. L'offre Veille vous envoie un email dès que l'une d'elles ouvre, et donne accès à sa fiche : son organisme, ses critères et les pièces à fournir."
+                        titre={t('ProjetDetailPage.paywallBientot.titre')}
+                        description={t('ProjetDetailPage.paywallBientot.description')}
                         monumentId={monument.id}
                         chiffres={chiffresBientot}
                         flou="11px"
@@ -761,14 +759,15 @@ export function ProjetDetailPage() {
                         <Picto nom="croix" />
                       </span>
                       <span>
-                        <b>
-                          {nonEligibles.length} aide{nonEligibles.length > 1 ? 's' : ''} écartée
-                          {nonEligibles.length > 1 ? 's' : ''}
-                        </b>{' '}
-                        par vos réponses, avec la raison pour chacune.
+                        <Trans
+                          t={t}
+                          i18nKey="ProjetDetailPage.ecartees"
+                          count={nonEligibles.length}
+                          components={{ b: <b /> }}
+                        />
                       </span>
                       <button type="button" aria-expanded={showNonEligibles} onClick={() => setShowNonEligibles((v) => !v)}>
-                        {showNonEligibles ? 'Masquer' : 'Voir pourquoi'}
+                        {showNonEligibles ? t('ProjetDetailPage.masquer') : t('ProjetDetailPage.voirPourquoi')}
                       </button>
                     </div>
                     {showNonEligibles && (
@@ -794,11 +793,11 @@ export function ProjetDetailPage() {
           ) : (
             <EmptyState
               icon={IconDossier}
-              title="Aucun dossier pour ce projet"
-              description="Ouvrez une aide depuis l'onglet « Aides » pour démarrer une candidature."
+              title={t('ProjetDetailPage.dossiersVide.titre')}
+              description={t('ProjetDetailPage.dossiersVide.description')}
               action={
                 <button onClick={() => handleTabChange('aides')} className="btn b-blue b-sm">
-                  <IconAide className="h-4 w-4" strokeWidth={1.8} />Voir les aides
+                  <IconAide className="h-4 w-4" strokeWidth={1.8} />{t('communs.voirLesAides')}
                 </button>
               }
             />
@@ -817,8 +816,8 @@ export function ProjetDetailPage() {
             role={projet.myRole ?? null}
             auteurs={uploaderNames}
             dossierNames={dossierNames}
-            intro="Les pièces de ce chantier. Celles qui décrivent le monument (arrêté de protection, cadastre, photos) restent sur sa fiche."
-            vide="Devis, plans, photos du chantier : déposez ici les pièces propres à ce projet de travaux."
+            intro={t('ProjetDetailPage.documents.intro')}
+            vide={t('ProjetDetailPage.documents.vide')}
           />
         </TabsContent>
 
@@ -834,8 +833,8 @@ export function ProjetDetailPage() {
           ) : (
             <PaywallOverlay
               offre="Veille"
-              titre="Travaillez à plusieurs sur ce chantier"
-              description="Invitez votre architecte ou vos artisans sur ce seul projet. Ils y voient ses aides, ses dossiers et ses documents, et rien des autres chantiers."
+              titre={t('ProjetDetailPage.paywallEquipe.titre')}
+              description={t('ProjetDetailPage.paywallEquipe.description')}
               monumentId={monument.id}
             >
               {equipePanel}
@@ -857,7 +856,7 @@ export function ProjetDetailPage() {
             style={{ borderColor: C.border, color: C.danger }}
           >
             {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconSupprimer className="h-4 w-4" strokeWidth={1.8} />}
-            Supprimer ce projet
+            {t('ProjetDetailPage.supprimer')}
           </button>
         </div>
       )}
@@ -865,12 +864,8 @@ export function ProjetDetailPage() {
       <AlertDialog open={confirmRefaireOpen} onOpenChange={setConfirmRefaireOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Refaire le questionnaire&nbsp;?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Le cadrage du projet (vos intentions, les travaux) est conservé dans les
-              deux cas&nbsp;; seul le questionnaire est repris, et le diagnostic
-              d&rsquo;aides recalculé ensuite.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t('ProjetDetailPage.refaire.titre')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('ProjetDetailPage.refaire.description')}</AlertDialogDescription>
           </AlertDialogHeader>
 
           {/* Deux boutons de même poids, pas une action et son annulation : ce
@@ -885,14 +880,13 @@ export function ProjetDetailPage() {
                 style={{ borderColor: C.orange, background: C.card }}
               >
                 <span className="block text-[16.5px] font-semibold" style={{ color: C.ink }}>
-                  Seulement les questions passées
+                  {t('ProjetDetailPage.refaire.passees')}
                   <span className="ml-1.5 font-normal tabular-nums" style={{ color: C.orange }}>
                     ({questionsRestantes})
                   </span>
                 </span>
                 <span className="mt-0.5 block text-[15px]" style={{ color: C.grayFg }}>
-                  Vos réponses actuelles sont conservées&nbsp;: on ne repose que celles
-                  restées sans réponse.
+                  {t('ProjetDetailPage.refaire.passeesAide')}
                 </span>
               </button>
             )}
@@ -903,17 +897,16 @@ export function ProjetDetailPage() {
               style={{ borderColor: C.border, background: C.card }}
             >
               <span className="block text-[16.5px] font-semibold" style={{ color: C.ink }}>
-                Tout refaire depuis le début
+                {t('ProjetDetailPage.refaire.tout')}
               </span>
               <span className="mt-0.5 block text-[15px]" style={{ color: C.grayFg }}>
-                Le questionnaire repart vierge&nbsp;: vos réponses actuelles seront
-                remplacées.
+                {t('ProjetDetailPage.refaire.toutAide')}
               </span>
             </button>
           </div>
 
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:actions.annuler')}</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -921,17 +914,13 @@ export function ProjetDetailPage() {
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce projet&nbsp;?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Ses dossiers et leur suivi seront également supprimés. La fiche du
-              monument, ses documents et son équipe ne sont pas touchés. Cette action
-              est irréversible.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t('ProjetDetailPage.suppressionDialog.titre')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('ProjetDetailPage.suppressionDialog.description')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t('common:actions.annuler')}</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={handleDeleteProjet} disabled={deleting}>
-              {deleting ? 'Suppression…' : 'Supprimer'}
+              {deleting ? t('communs.suppression') : t('common:actions.supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { PictoDoc, PictoDossierPlein, type NomPictoDoc } from '@/components/document/PictosDocuments';
 import { CarteDocument, LigneDocument, type DocumentAfficheProps } from '@/components/document/LigneDocument';
@@ -14,9 +15,6 @@ import './documents.css';
  * sélection, dépôt par glisser.
  */
 
-const plur = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
-
-
 /* ---- recherche + grille / liste ---- */
 
 export function OutilsDocuments({
@@ -29,23 +27,24 @@ export function OutilsDocuments({
   /** Des boutons en plus, à droite (l'onglet d'un monument ou d'un projet). */
   children?: ReactNode;
 }) {
+  const { t } = useTranslation('documents');
   return (
     <div className="top">
       <label className="search">
-        <span className="sr">Rechercher dans vos documents</span>
+        <span className="sr">{t('EspaceDocuments.rechercher')}</span>
         <Picto nom="loupe" />
         <input
           type="search"
-          placeholder="Rechercher dans vos documents"
+          placeholder={t('EspaceDocuments.rechercher')}
           value={recherche}
           onChange={(e) => onRecherche(e.target.value)}
         />
       </label>
-      <div className="views" role="group" aria-label="Affichage">
-        <button type="button" aria-pressed={vue === 'grille'} aria-label="Grille" title="Grille" onClick={() => onVue('grille')}>
+      <div className="views" role="group" aria-label={t('EspaceDocuments.affichage')}>
+        <button type="button" aria-pressed={vue === 'grille'} aria-label={t('EspaceDocuments.grille')} title={t('EspaceDocuments.grille')} onClick={() => onVue('grille')}>
           <PictoDoc nom="grille" />
         </button>
-        <button type="button" aria-pressed={vue === 'liste'} aria-label="Liste" title="Liste" onClick={() => onVue('liste')}>
+        <button type="button" aria-pressed={vue === 'liste'} aria-label={t('EspaceDocuments.liste')} title={t('EspaceDocuments.liste')} onClick={() => onVue('liste')}>
           <PictoDoc nom="lignes" />
         </button>
       </div>
@@ -63,12 +62,13 @@ export function BarreSection({ titre, tri, onTri, droite }: {
   /** À la place du tri (l'avancement des pièces demandées). */
   droite?: ReactNode;
 }) {
+  const { t } = useTranslation('documents');
   return (
     <div className="bar">
       <h3>{titre}</h3>
       {tri && onTri && (
         <button className="sort" type="button" onClick={() => onTri(tri === 'nom' ? 'date' : 'nom')}>
-          <PictoDoc nom="trier" />{tri === 'nom' ? 'Trier par nom' : "Les plus récents d'abord"}
+          <PictoDoc nom="trier" />{tri === 'nom' ? t('EspaceDocuments.trierParNom') : t('EspaceDocuments.plusRecents')}
         </button>
       )}
       {droite}
@@ -93,31 +93,32 @@ export function DossiersDocuments({ comptes, onOuvrir, survole }: {
   onOuvrir: (t: DocumentType) => void;
   survole?: DocumentType | null;
 }) {
+  const { t } = useTranslation('documents');
   const [videsOuverts, setVidesOuverts] = useState(false);
-  const nbVides = TYPES_DOSSIERS.filter((t) => !comptes[t]).length;
+  const nbVides = TYPES_DOSSIERS.filter((tp) => !comptes[tp]).length;
 
   return (
     <>
       <div className={videsOuverts ? 'folders vides-ouverts' : 'folders'} data-dossiers="">
-        {TYPES_DOSSIERS.map((t) => {
-          const n = comptes[t] ?? 0;
+        {TYPES_DOSSIERS.map((tp) => {
+          const n = comptes[tp] ?? 0;
           return (
             <button
-              key={t}
+              key={tp}
               type="button"
-              data-dossier={t}
-              className={`fold${n ? '' : ' vide'}${survole === t ? ' drop' : ''}`}
-              onClick={() => onOuvrir(t)}
+              data-dossier={tp}
+              className={`fold${n ? '' : ' vide'}${survole === tp ? ' drop' : ''}`}
+              onClick={() => onOuvrir(tp)}
             >
               <PictoDossierPlein />
-              <span><b>{dossierLabel(t)}</b><small>{n ? plur(n, 'document') : 'Vide'}</small></span>
+              <span><b>{dossierLabel(tp)}</b><small>{n ? t('commun.nbDocuments', { count: n }) : t('EspaceDocuments.vide')}</small></span>
             </button>
           );
         })}
       </div>
       {nbVides > 0 && (
         <button type="button" className="lnk voir-vides" aria-expanded={videsOuverts} onClick={() => setVidesOuverts((v) => !v)}>
-          {videsOuverts ? 'Masquer les dossiers vides' : `Afficher les dossiers vides (${nbVides})`}
+          {videsOuverts ? t('EspaceDocuments.masquerVides') : t('EspaceDocuments.afficherVides', { nombre: nbVides })}
         </button>
       )}
     </>
@@ -132,12 +133,19 @@ export function FichiersDocuments({ documents, vue, proprietes }: {
   /** Tout ce qu'une carte ou une ligne reçoit, document par document. */
   proprietes: (d: Document) => DocumentAfficheProps;
 }) {
+  const { t } = useTranslation('documents');
   if (vue === 'liste') {
     return (
       <div className="tablewrap">
         <table className="dtable">
           <thead>
-            <tr><th>Nom</th><th>Dossier</th><th>Ajouté le</th><th>Taille</th><th><span className="sr">Actions</span></th></tr>
+            <tr>
+              <th>{t('EspaceDocuments.colonneNom')}</th>
+              <th>{t('EspaceDocuments.colonneDossier')}</th>
+              <th>{t('EspaceDocuments.colonneAjoute')}</th>
+              <th>{t('EspaceDocuments.colonneTaille')}</th>
+              <th><span className="sr">{t('EspaceDocuments.colonneActions')}</span></th>
+            </tr>
           </thead>
           <tbody>
             {documents.map((d) => <LigneDocument key={d.id} {...proprietes(d)} />)}
@@ -155,8 +163,9 @@ export function FichiersDocuments({ documents, vue, proprietes }: {
 
 /** La grille pendant le premier chargement : les gabarits des cartes, en sable. */
 export function FichiersSquelette() {
+  const { t } = useTranslation('documents');
   return (
-    <div className="files" aria-busy="true" aria-label="Chargement des documents">
+    <div className="files" aria-busy="true" aria-label={t('EspaceDocuments.chargement')}>
       {Array.from({ length: 4 }, (_, i) => (
         <div key={i} className="file sk-file">
           <span className="sk" style={{ height: 139, borderRadius: 0 }} />
@@ -176,17 +185,18 @@ export interface GesteSelection {
 }
 
 export function BarreSelection({ nombre, gestes, onVider }: { nombre: number; gestes: GesteSelection[]; onVider: () => void }) {
+  const { t } = useTranslation('documents');
   if (nombre === 0) return null;
   return (
-    <div className="selbar" role="region" aria-label="Sélection">
-      <span>{nombre} sélectionné{nombre > 1 ? 's' : ''}</span>
+    <div className="selbar" role="region" aria-label={t('EspaceDocuments.selection')}>
+      <span>{t('EspaceDocuments.selectionnes', { count: nombre })}</span>
       {gestes.map((g) => (
         <button key={g.label} type="button" onClick={g.onClick}>
           {g.picto === 'telecharger' ? <Picto nom="telecharger" /> : <PictoDoc nom={g.picto} />}
           {g.label}
         </button>
       ))}
-      <button type="button" aria-label="Annuler la sélection" onClick={onVider}><Picto nom="croix" /></button>
+      <button type="button" aria-label={t('EspaceDocuments.annulerSelection')} onClick={onVider}><Picto nom="croix" /></button>
     </div>
   );
 }
@@ -206,12 +216,13 @@ export function VideDocuments({ titre, texte, action }: { titre: string; texte?:
 /* ---- dépôt par glisser : le voile (le geste est dans useDepotGlisse) ---- */
 
 export function VoileDepot({ actif, dossier }: { actif: boolean; dossier?: DocumentType | null }) {
+  const { t } = useTranslation('documents');
   if (!actif) return null;
   return (
     <div className="dropover" aria-hidden="true">
       <div>
-        <b>{dossier ? `Déposez dans « ${dossierLabel(dossier)} »` : 'Déposez vos fichiers ici'}</b>
-        <p>{dossier ? 'Ils seront rangés dans ce dossier.' : 'Vous choisirez ensuite le dossier.'}</p>
+        <b>{dossier ? t('EspaceDocuments.deposezDans', { dossier: dossierLabel(dossier) }) : t('EspaceDocuments.deposezIci')}</b>
+        <p>{dossier ? t('EspaceDocuments.rangesDansCeDossier') : t('EspaceDocuments.choisirEnsuite')}</p>
       </div>
     </div>
   );

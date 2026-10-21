@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import type { FamilleFacette } from '@/lib/aide-familles';
 
@@ -23,11 +24,12 @@ interface AideFamilleBarProps {
  */
 export function AideFamilleBar({ options, value, onChange }: AideFamilleBarProps) {
   // Déplié d'office quand une facette est déjà choisie : on voit ce qui filtre.
+  const { t } = useTranslation('aide');
   const [ouvert, setOuvert] = useState(value !== null);
   if (options.length === 0) return null;
 
   const choisie = options.find((o) => o.famille === value);
-  const resume = choisie ? `(${choisie.label})` : `(${options.length} thèmes)`;
+  const resume = choisie ? `(${choisie.label})` : t('AideFamilleBar.nbThemes', { count: options.length });
 
   return (
     <div className="activite">
@@ -38,11 +40,11 @@ export function AideFamilleBar({ options, value, onChange }: AideFamilleBarProps
         aria-controls="facettes-activite"
         onClick={() => setOuvert((o) => !o)}
       >
-        Filtrer par activité <small>{resume}</small>
+        <Trans t={t} i18nKey="AideFamilleBar.filtrer" values={{ resume }} components={{ small: <small /> }} />
         <Picto nom="chevron" />
       </button>
       {ouvert && (
-        <div className="chips" id="facettes-activite" role="group" aria-label="Filtrer les aides par activité">
+        <div className="chips" id="facettes-activite" role="group" aria-label={t('AideFamilleBar.ariaFacettes')}>
           {options.map((option) => {
             const active = option.famille === value;
             return (

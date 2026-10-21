@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { communeService, type CommuneResult } from '@/services/commune.service';
 import { surlignerDebut } from './surligner';
@@ -31,6 +32,7 @@ const DEBOUNCE_MS = 250;
  * préremplissage Mérimée n'ouvre pas la liste.
  */
 export function ChampCommune({ id, value, reconnue, onChange, onSelect }: ChampCommuneProps) {
+  const { t } = useTranslation('monuments');
   const listId = `${id}-liste`;
   const [results, setResults] = useState<CommuneResult[]>([]);
   const [requete, setRequete] = useState('');
@@ -107,7 +109,7 @@ export function ChampCommune({ id, value, reconnue, onChange, onSelect }: ChampC
           className="txt"
           id={id}
           value={value}
-          placeholder="Tapez les premières lettres"
+          placeholder={t('ChampCommune.placeholder')}
           autoComplete="off"
           role="combobox"
           aria-autocomplete="list"
@@ -149,7 +151,7 @@ export function ChampCommune({ id, value, reconnue, onChange, onSelect }: ChampC
             ))
           ) : (
             <li className="none">
-              Aucune commune trouvée pour « {requete} ». Vérifiez l&rsquo;orthographe : la commune doit être choisie dans la liste.
+              {t('ChampCommune.aucunResultat', { requete })}
             </li>
           )}
         </ul>
@@ -157,7 +159,7 @@ export function ChampCommune({ id, value, reconnue, onChange, onSelect }: ChampC
       {reconnue && value.trim() && (
         <span className="ac-ok">
           <Picto nom="coche" />
-          Commune reconnue
+          {t('ChampCommune.reconnue')}
         </span>
       )}
     </>

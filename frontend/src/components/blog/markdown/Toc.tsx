@@ -1,8 +1,11 @@
+import { useTranslation } from 'react-i18next';
+
 import { C } from '@/lib/brand';
 import { extractHeadings } from './extractHeadings';
 import { useActiveHeading } from './useActiveHeading';
 
 export function Toc({ body }: { body: string }) {
+  const { t } = useTranslation('blog');
   const headings = extractHeadings(body);
   const ids = headings.map((h) => h.id);
   const active = useActiveHeading(ids);
@@ -10,9 +13,9 @@ export function Toc({ body }: { body: string }) {
   const activeIdx = Math.max(0, headings.findIndex((h) => h.id === active));
 
   return (
-    <nav aria-label="Sommaire" className="text-[15px]">
+    <nav aria-label={t('Toc.sommaire')} className="text-[15px]">
       <p className="mb-3 text-[13px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.blue, opacity: 0.55 }}>
-        Sommaire
+        {t('Toc.sommaire')}
       </p>
       <ol className="flex flex-col">
         {headings.map((h, i) => {

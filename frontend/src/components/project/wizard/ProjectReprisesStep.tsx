@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { RepriseDurable } from '@/services/projet.service';
 import { CadrageStep } from './CadrageStep';
 import { REPRISES_STEP } from './etapes';
@@ -16,10 +17,7 @@ interface ProjectReprisesStepProps {
 /** Au-delà, chaque bloc se replie et n'annonce d'abord que son nombre de réponses. */
 const REPLI_AU_DELA = 8;
 
-const BLOCS: { scope: NonNullable<RepriseDurable['scope']>; titre: string }[] = [
-  { scope: 'monument', titre: 'Le monument' },
-  { scope: 'proprietaire', titre: 'Le porteur' },
-];
+const BLOCS: NonNullable<RepriseDurable['scope']>[] = ['monument', 'proprietaire'];
 
 /**
  * Écran « Reprendre vos réponses ? », posé avant le questionnaire quand
@@ -47,18 +45,18 @@ export function ProjectReprisesStep({
   onBack,
   saving,
 }: ProjectReprisesStepProps) {
+  const { t } = useTranslation('project');
   const n = reprises.length;
   const cochees = new Set(value);
   // Un seul projet source dans l'immense majorité des cas : on le nomme, c'est
   // ce qui permet de juger si la réponse est encore valable.
   const titres = [...new Set(reprises.map((r) => r.projetTitre).filter(Boolean))];
-  const provenance =
-    titres.length === 1 ? `de votre projet « ${titres[0]} »` : 'de vos autres projets';
   const replier = n > REPLI_AU_DELA;
   // Une reprise sans scope (serveur d'avant le champ) tombe avec le monument.
-  const blocs = BLOCS.map((b) => ({
-    ...b,
-    lignes: reprises.filter((r) => (r.scope ?? 'monument') === b.scope),
+  const blocs = BLOCS.map((scope) => ({
+    scope,
+    titre: t(`rubriques.${scope}`),
+    lignes: reprises.filter((r) => (r.scope ?? 'monument') === scope),
   })).filter((b) => b.lignes.length > 0);
 
   const basculer = (fact: string) =>
@@ -67,22 +65,26 @@ export function ProjectReprisesStep({
 
   const nb = value.length;
   const consigne = toutDecoche
-    ? 'Aucune réponse reprise : toutes ces questions vous seront reposées.'
-    : `${nb} réponse${nb > 1 ? 's' : ''} sur ${n} ser${nb > 1 ? 'ont' : 'a'} reprise${nb > 1 ? 's' : ''}. Décochez celles à vous faire reposer.`;
+    ? t('ProjectReprisesStep.aucuneReprise')
+    : t('ProjectReprisesStep.consigne', { count: nb, total: n });
+  const pourquoi =
+    titres.length === 1
+      ? t('ProjectReprisesStep.pourquoiProjet', { count: n, titre: titres[0] })
+      : t('ProjectReprisesStep.pourquoiAutresProjets', { count: n });
 
   return (
     <CadrageStep
       rubrique={REPRISES_STEP.label}
-      title="Reprendre vos réponses précédentes ?"
+      title={t('ProjectReprisesStep.titre')}
       consigne={consigne}
-      pourquoi={`${n} réponse${n > 1 ? 's' : ''} ${provenance} décri${n > 1 ? 'vent' : 't'} le monument et son porteur, pas ce chantier-ci. Nous pouvons ${n > 1 ? 'les' : 'la'} reprendre pour vous éviter de répondre deux fois. Vous pourrez toujours refaire tout le questionnaire depuis la page du projet.`}
+      pourquoi={pourquoi}
       avantReponses={
         <button
           type="button"
           className="reprises-tout"
           onClick={() => onChange(toutDecoche ? reprises.map((r) => r.fact) : [])}
         >
-          {toutDecoche ? 'Tout cocher' : 'Tout décocher'}
+          {toutDecoche ? t('ProjectReprisesStep.toutCocher') : t('ProjectReprisesStep.toutDecocher')}
         </button>
       }
       multiple
@@ -111,7 +113,7 @@ export function ProjectReprisesStep({
                     // moteur depuis les seuils des aides candidates : hors de ce
                     // contexte on ne sait pas toujours les nommer, et un libellé
                     // faux serait pire que rien.
-                    <span className="tag vide">réponse déjà donnée</span>
+                    <span className="tag vide">{t('ProjectReprisesStep.dejaDonnee')}</span>
                   )}
                 </label>
               </li>
@@ -119,7 +121,10 @@ export function ProjectReprisesStep({
           </ul>
         );
         const retenuesBloc = bloc.lignes.filter((r) => cochees.has(r.fact)).length;
-        const compte = `${retenuesBloc} sur ${bloc.lignes.length} reprise${retenuesBloc > 1 ? 's' : ''}`;
+        const compte = t('ProjectReprisesStep.compteBloc', {
+          count: retenuesBloc,
+          total: bloc.lignes.length,
+        });
         return (
           <div className="grp" key={bloc.scope}>
             {replier ? (

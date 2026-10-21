@@ -1,0 +1,239 @@
+{
+  "aFaireMaintenant": {
+    "enRetard_one": "en retard de {{count}} jour",
+    "enRetard_other": "en retard de {{count}} jours",
+    "aujourdhui": "aujourd'hui",
+    "demain": "demain",
+    "dansJours_one": "dans {{count}} jour",
+    "dansJours_other": "dans {{count}} jours"
+  },
+  "aideFiltres": {
+    "toutes": "Toutes les aides",
+    "prixMecenat": "Prix et mécènes",
+    "region": "Région",
+    "departement": "Département",
+    "etat": "État (DRAC)",
+    "europe": "Europe",
+    "fiscalite": "Fiscalité",
+    "autre": "Autres"
+  },
+  "aidesEnjeu": {
+    "jusquaMontant": "Jusqu’à {{montant}}",
+    "etOuTaux": "et / ou {{taux}} des travaux",
+    "jusquaTaux": "Jusqu’à {{taux}} des travaux"
+  },
+  "avancement": {
+    "rang": "Étape {{rang}} sur {{total}}",
+    "action": {
+      "estimation": "estimation",
+      "dossier": "monter le dossier",
+      "depot": "déposer le dossier"
+    }
+  },
+  "diagnosticBilan": {
+    "horsPerimetre": "D'après votre réponse, votre projet n'entre pas dans le champ de cette aide : « {{question}} »"
+  },
+  "ficheAide": {
+    "premierDuMois": "1er",
+    "guichet": {
+      "touteLAnnee": "Ouvert toute l'année",
+      "ouvert": "Ouvert",
+      "fenetre": "Du {{debut}} au {{fin}}",
+      "ouvreLe": "Ouvre le {{date}}",
+      "bientot": "Bientôt",
+      "aPartirDu": "À partir du {{date}}",
+      "sessionAVenir": "Session à venir",
+      "candidaturesOuvrent": "Les candidatures ouvrent le {{date}}.",
+      "closDepuis": "Clos depuis le {{date}}",
+      "clos": "Clos",
+      "dateLimitePassee": "Date limite passée : {{date}}",
+      "candidaturesCloses": "Les candidatures sont closes depuis le {{date}}. Les dates de la prochaine session ne sont pas encore publiées.",
+      "ouvertJusquau": "Ouvert jusqu'au {{date}}",
+      "jusquau": "Jusqu'au {{date}}",
+      "depuisLe": "Depuis le {{date}}",
+      "datesAConfirmer": "Dates à confirmer",
+      "datesAVenir": "Dates à venir",
+      "sansDateLimite": "Le règlement ne publie pas de date limite. Renseignez-vous auprès du financeur avant de déposer."
+    },
+    "montant": {
+      "jusquaTaux": "Jusqu'à {{taux}} %",
+      "dansLaLimite": "Dans la limite de {{montant}}",
+      "depensesEligibles": "Des dépenses éligibles",
+      "jusquaMontant": "Jusqu'à {{montant}}"
+    },
+    "rubriques": {
+      "criteres": "Critères d'éligibilité",
+      "candidater": "Qui peut candidater",
+      "projet": "Projets et dépenses",
+      "montant": "Montant et cumul",
+      "dossier": "Dossier et sélection",
+      "apres": "Après l'accord",
+      "autres": "Les autres points"
+    }
+  },
+  "ficheMonument": {
+    "protection": {
+      "groupeMonumentHistorique": "Monument historique",
+      "classe": "Classé monument historique",
+      "inscrit": "Inscrit monument historique",
+      "groupeProtectionLieu": "Protection du lieu",
+      "spr": "Site patrimonial remarquable (SPR)",
+      "abords": "Abords d'un monument historique",
+      "abordsPrecision": "Dans le périmètre de protection d'un monument historique",
+      "groupeAucune": "Aucune",
+      "nonProtege": "Non protégé",
+      "nonProtegePrecision": "Ni classé, ni inscrit, ni en abords, ni en SPR"
+    },
+    "groupesProprietaire": {
+      "prives": "Propriétaires privés",
+      "publics": "Propriétaires publics",
+      "autres": "Autres propriétaires"
+    },
+    "groupesTypeEdifice": {
+      "religieux": "Édifices religieux",
+      "chateaux": "Châteaux et demeures",
+      "civils": "Édifices civils",
+      "rural": "Patrimoine rural",
+      "ouvrages": "Ouvrages, sites et mémoire",
+      "autre": "Autre"
+    },
+    "siecles": {
+      "avant": "Avant l'an mil",
+      "XIe": "XIe siècle",
+      "XIIe": "XIIe siècle",
+      "XIIIe": "XIIIe siècle",
+      "XIVe": "XIVe siècle",
+      "XVe": "XVe siècle",
+      "XVIe": "XVIe siècle",
+      "XVIIe": "XVIIe siècle",
+      "XVIIIe": "XVIIIe siècle",
+      "XIXe": "XIXe siècle",
+      "XXe": "XXe siècle",
+      "XXIe": "XXIe siècle"
+    },
+    "requis": {
+      "nom": "le nom",
+      "commune": "la commune",
+      "etat": "l'état du bâtiment",
+      "protection": "la protection",
+      "proprietaire": "le type de propriétaire"
+    },
+    "ilManque": "Il manque {{champs}}.",
+    "notice": {
+      "classe": "Classé MH",
+      "inscrit": "Inscrit MH",
+      "inconnue": "Protection inconnue"
+    }
+  },
+  "guides": {
+    "monuments": {
+      "carte": {
+        "titre": "Votre monument",
+        "texte": "Ouvrez votre monument pour voir sa fiche, ses projets et ses documents."
+      },
+      "nouveauMonument": {
+        "titre": "Un autre monument",
+        "texte": "Ajoutez un autre bien ici : chacun a sa fiche, ses projets et ses aides."
+      },
+      "documents": {
+        "titre": "Vos documents",
+        "texte": "Rangez ici arrêtés, plans et photos pour les retrouver au moment du dossier."
+      }
+    },
+    "monument": {
+      "fiche": {
+        "titre": "La fiche du monument",
+        "texte": "Complétez la fiche : la protection, le propriétaire et l’état décident des aides proposées."
+      },
+      "projets": {
+        "titre": "Les projets",
+        "texte": "Ouvrez un projet pour voir ses aides, ou créez-en un pour un autre chantier."
+      },
+      "documents": {
+        "titre": "Les documents",
+        "texte": "Déposez ici les pièces du monument : arrêté de protection, cadastre, photos."
+      },
+      "equipe": {
+        "titre": "L’équipe",
+        "texte": "Invitez un architecte ou un collègue à travailler avec vous sur ce monument."
+      }
+    },
+    "questionnaire": {
+      "aide": {
+        "titre": "Bon à savoir",
+        "texte": "Lisez cet encadré en cas de doute : il explique les termes de la question."
+      },
+      "passer": {
+        "titre": "Je ne sais pas",
+        "texte": "Passez une question si vous hésitez : les aides restent proposées, vous répondrez plus tard."
+      }
+    },
+    "projet": {
+      "aides": {
+        "titre": "Vos aides",
+        "texte": "Cliquez sur une aide pour voir ses critères et préparer le dossier."
+      },
+      "echeancier": {
+        "titre": "L’échéancier",
+        "texte": "Repérez ici les dates limites de dépôt de vos aides."
+      },
+      "dossiers": {
+        "titre": "Vos dossiers",
+        "texte": "Suivez ici chaque dossier, de la préparation au dépôt."
+      },
+      "refaire": {
+        "titre": "Modifier vos réponses",
+        "texte": "Modifiez vos réponses si votre projet change : la liste des aides se met à jour."
+      }
+    },
+    "aide": {
+      "criteres": {
+        "titre": "Les critères",
+        "texte": "Vérifiez chaque critère et répondez ici aux questions encore ouvertes."
+      },
+      "montant": {
+        "titre": "Le montant",
+        "texte": "Retrouvez ici ce que l’aide finance et jusqu’à quel montant."
+      },
+      "dossier": {
+        "titre": "Le dossier",
+        "texte": "Créez le dossier pour obtenir la liste des pièces et les étapes du dépôt."
+      }
+    },
+    "dossier": {
+      "pieces": {
+        "titre": "Les pièces",
+        "texte": "Déposez chaque pièce demandée et voyez d’un coup d’œil combien sont prêtes."
+      },
+      "telecharger": {
+        "titre": "Télécharger le dossier",
+        "texte": "Téléchargez toutes les pièces en une fois, prêtes à envoyer à l’organisme."
+      },
+      "aide": {
+        "titre": "L’aide visée",
+        "texte": "Rouvrez la fiche de l’aide pour revoir ses conditions et la marche à suivre."
+      }
+    }
+  },
+  "profileCompletion": {
+    "prenom": "votre prénom",
+    "nom": "votre nom",
+    "telephone": "votre téléphone"
+  },
+  "projectStats": {
+    "etapes": {
+      "estimation": "Estimation",
+      "dossier": "Dossier",
+      "depot": "Dépôt"
+    }
+  },
+  "projetTitre": {
+    "action": {
+      "restauration_travaux": "Restaurer {{nom}}",
+      "valorisation_rayonnement": "Faire vivre {{nom}}",
+      "etude_ingenierie": "Préparer les travaux {{nom}}",
+      "fiscalite": "Optimiser la fiscalité {{nom}}"
+    },
+    "parDefaut": "Projet de travaux"
+  }
+}

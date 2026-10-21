@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { merimeeService } from '@/services/merimee.service';
 import { protectionDeNotice } from '@/lib/fiche-monument';
@@ -21,6 +22,7 @@ const DEBOUNCE_MS = 250;
  * `MerimeeSearch` : saisie temporisée, requête précédente annulée.
  */
 export function RechercheMerimee({ id, onSelect, chargement }: RechercheMerimeeProps) {
+  const { t } = useTranslation('monuments');
   const listId = `${id}-liste`;
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MerimeeRecord[]>([]);
@@ -94,7 +96,7 @@ export function RechercheMerimee({ id, onSelect, chargement }: RechercheMerimeeP
         id={id}
         type="search"
         value={query}
-        placeholder="Nom du monument, commune ou référence"
+        placeholder={t('RechercheMerimee.placeholder')}
         autoComplete="off"
         role="combobox"
         aria-autocomplete="list"
@@ -142,8 +144,7 @@ export function RechercheMerimee({ id, onSelect, chargement }: RechercheMerimeeP
           ))
         ) : (
           <li className="none">
-            Aucun monument trouvé pour « {query.trim()} ». Vous pouvez le décrire vous-même
-            ci-dessous.
+            {t('RechercheMerimee.aucunResultat', { requete: query.trim() })}
           </li>
         )}
       </ul>

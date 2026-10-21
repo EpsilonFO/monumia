@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation } from 'react-router';
 import { C } from '@/lib/brand';
 import { TopBar } from '@/components/layout/TopBar';
@@ -10,6 +11,7 @@ import { BottomNav } from '@/components/layout/BottomNav';
  * espaces (tableau de bord, projets…). Le contenu garde l'habillage « crème » du blog.
  */
 export function BlogLayout() {
+  const { t } = useTranslation('blog');
   const mainRef = useRef<HTMLElement>(null);
   const { pathname } = useLocation();
 
@@ -31,7 +33,7 @@ export function BlogLayout() {
           className="border-t py-8 text-center text-[14px]"
           style={{ borderColor: C.border, color: C.ink, opacity: 0.55 }}
         >
-          © Monumia — Ressources pour les propriétaires et les communes
+          {t('BlogLayout.piedDePage')}
         </footer>
       </main>
       <BottomNav />
