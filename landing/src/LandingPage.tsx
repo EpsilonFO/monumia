@@ -354,7 +354,6 @@ function Header() {
 
   const links = [
     { href: '#methode', label: 'Comment ça marche' },
-    { href: '#exemple', label: 'Exemple' },
     { href: '#tarifs', label: 'Tarifs' },
     { href: '#faq', label: 'Questions' },
   ];
@@ -499,10 +498,10 @@ function EstimationCard() {
       </div>
 
       <h3 className="mt-2.5 font-serif text-[1.15rem] font-bold leading-snug" style={{ color: C.ink }}>
-        Château de Paley
+        Restauration de la façade
       </h3>
       <p className="text-[12.5px]" style={{ color: C.inkFaint }}>
-        Restauration de la façade · Seine-et-Marne
+        Château protégé
       </p>
 
       <p className="mt-4 text-[11.5px] font-medium uppercase tracking-[0.1em]" style={{ color: C.inkFaint }}>
@@ -587,19 +586,6 @@ function Hero() {
             <CtaButton variant="blue" onClick={entrerDansMonumia}>
               Trouver les aides pour mon monument
             </CtaButton>
-            <a
-              href="#exemple"
-              className="group inline-flex items-center gap-2.5 rounded-full py-2 pl-2 pr-6 text-[15px] font-semibold transition-all duration-300 hover:-translate-y-0.5 hover:border-[#0a369d] hover:shadow-[0_10px_28px_-14px_rgba(10,54,157,0.45)]"
-              style={{ border: `1.5px solid ${C.blue}33`, color: C.blue, background: C.card }}
-            >
-              <span
-                className="flex h-9 w-9 items-center justify-center rounded-full"
-                style={{ background: C.paleBlue }}
-              >
-                <Search className="h-4 w-4 transition-transform duration-300 group-hover:-rotate-6" strokeWidth={1.8} />
-              </span>
-              Voir un exemple chiffré
-            </a>
           </div>
 
           {/* Ce qu'engage le clic : rien. Dit avant le clic, pas après. */}
@@ -616,39 +602,11 @@ function Hero() {
           className="fade-up relative mx-auto mt-12 w-full max-w-[460px] lg:mt-0 lg:max-w-none"
           style={{ animationDelay: '0.4s' }}
         >
-          {/* Paley sous son arche, pleine colonne : ce pour quoi l’on travaille */}
-          <div
-            className="overflow-hidden rounded-b-2xl rounded-t-[10rem] border shadow-[0_30px_70px_-32px_rgba(34,43,53,0.4)]"
-            style={{ borderColor: C.border }}
-          >
-            {/* Recadrée en 4:5 à l'avance et déclinée en trois largeurs :
-                l'original (6000 × 4000, 4,4 Mo) coûtait 96 Mo de mémoire à
-                décoder sur un téléphone, pour une colonne de 460 px au plus. */}
-            <picture>
-              <source
-                type="image/webp"
-                srcSet={`${BASE}img/paley-480.webp 480w, ${BASE}img/paley-800.webp 800w, ${BASE}img/paley-1200.webp 1200w`}
-                sizes="(min-width: 1024px) 420px, min(460px, calc(100vw - 40px))"
-              />
-              <img
-                src={`${BASE}img/paley-800.jpg`}
-                width={800}
-                height={1000}
-                fetchPriority="high"
-                alt="Le château de Paley, en Seine-et-Marne, sélectionné par la Mission Patrimoine 2026, vu depuis son parc."
-                className="aspect-[4/5] h-auto w-full object-cover"
-              />
-            </picture>
-          </div>
-
-          {/* Les chiffres, posés devant le monument */}
-          <div className="relative z-10 mx-auto -mt-20 w-[92%] sm:absolute sm:-bottom-10 sm:-left-6 sm:mx-0 sm:mt-0 sm:w-[312px] sm:max-w-[88%] lg:-left-9">
-            <EstimationCard />
-          </div>
+          <EstimationCard />
 
           {/* Mini-carte d’alerte flottante : la veille incarnée */}
           <div
-            className="absolute -bottom-5 -right-2 lg:-right-8 xl:-right-12 hidden w-[220px] items-start gap-3 rounded-xl border p-3.5 pl-4 shadow-[0_18px_40px_-16px_rgba(34,43,53,0.3)] [animation:floaty_7s_ease-in-out_infinite] sm:flex"
+            className="relative z-10 -mt-3 ml-auto mr-2 flex w-[240px] max-w-[88%] items-start gap-3 rounded-xl border p-3.5 pl-4 shadow-[0_18px_40px_-16px_rgba(34,43,53,0.3)] [animation:floaty_7s_ease-in-out_infinite]"
             style={{ background: C.card, borderColor: C.border }}
           >
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: C.paleOrange }}>
@@ -1045,10 +1003,8 @@ function Cursor({ steps, duration = DEMO_DURATION }: { steps: CursorStep[]; dura
   );
 }
 
-/* Les aides du château de Paley, partagées par la scène 1 de la
-   démonstration et par la section « Exemple » : la page ne montre qu’un seul
-   exemple chiffré, et les deux écrans qui l’affichent lisent la même liste. */
-const RESULTATS_PALEY: Array<[string, string]> = [
+/* Les aides de l’écran de résultats de la scène 1 de la démonstration */
+const RESULTATS_EXEMPLE: Array<[string, string]> = [
   ['Aide de l’État (DRAC) · restauration', '15 à 40 %'],
   ['Aide de la Région · patrimoine', 'jusqu’à 25 000 €'],
   ['Fondation du patrimoine', 'Réduction d’impôt'],
@@ -1148,7 +1104,7 @@ function SceneTrouver() {
         </div>
 
         <div className="mt-4 space-y-2.5">
-          {RESULTATS_PALEY.map(([name, amount], i) => (
+          {RESULTATS_EXEMPLE.map(([name, amount], i) => (
             <div
               key={name}
               data-demo={i === 0 ? 'resultat' : undefined}
@@ -1818,136 +1774,7 @@ function Demo() {
 }
 
 /* ────────────────────────────────────────────
-   L’exemple — un monument, ses aides, son chiffre. Le même que le héros et la
-   démonstration : la page ne montre qu’un seul exemple chiffré, sinon le
-   visiteur compare des montants qui ne parlent pas du même chantier.
-   ──────────────────────────────────────────── */
-
-function Exemple() {
-  return (
-    <section id="exemple" className="scroll-mt-20 px-5 py-20 lg:px-8 lg:py-24">
-      <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-16">
-        <Reveal>
-          <div>
-            <p
-              className="text-[11.5px] font-semibold uppercase tracking-[0.16em]"
-              style={{ color: C.orange }}
-            >
-              L’exemple du château de Paley
-            </p>
-            <h2
-              className="mt-4 font-serif text-[clamp(1.7rem,3vw,2.2rem)] leading-[1.2] tracking-[-0.01em]"
-              style={{ color: C.ink }}
-            >
-              Ce que Monumia trouve pour un château de Seine-et-Marne
-            </h2>
-            <p className="mt-6 text-[16px] leading-[1.75]" style={{ color: C.inkSoft }}>
-              Le château de Paley, sélectionné par la Mission Patrimoine 2026, prépare la
-              restauration de sa façade. Monumia identifie douze aides mobilisables, entre 420 000
-              et 680 000 € estimés avec prudence : État, Région, Département, Fondation du
-              patrimoine, mécénat d’entreprise.
-            </p>
-
-            {/* PROVISOIRE : phrase inventée, à remplacer par la citation d’Ismaël */}
-            <blockquote
-              className="mt-8 border-l-2 pl-5 text-[15.5px] italic leading-[1.75]"
-              style={{ borderColor: C.orange, color: C.ink }}
-            >
-              « J’ai cherché seul pendant des mois. En cinq minutes, Monumia m’a donné une liste
-              que je n’avais jamais eue en entier, avec les personnes à appeler. »
-              <footer className="mt-3 text-[13px] not-italic" style={{ color: C.inkFaint }}>
-                Ismaël Murat El Hakim, propriétaire-gestionnaire du château de Paley
-              </footer>
-            </blockquote>
-
-            <CtaButton onClick={entrerDansMonumia} className="mt-9">
-              Et pour mon monument ?
-            </CtaButton>
-          </div>
-        </Reveal>
-
-        {/* L’écran de résultats, arrêté sur image : mêmes lignes que la scène 1,
-            sans curseur ni animation — on vient ici pour lire, pas pour voir
-            jouer une démonstration. */}
-        <Reveal delay={140}>
-          <div className="rounded-[1.75rem] p-3 sm:p-5" style={{ background: C.paleOrange }}>
-            <div
-              className="rounded-2xl border p-5 shadow-[0_30px_70px_-30px_rgba(10,54,157,0.35)] sm:p-6"
-              style={{ background: C.cream, borderColor: C.border }}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-serif text-[1.05rem] font-bold" style={{ color: C.ink }}>
-                  12 aides correspondent à votre projet
-                </span>
-                <span
-                  className="shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em]"
-                  style={{ background: C.paleBlue, color: C.blueLight }}
-                >
-                  Exemple
-                </span>
-              </div>
-
-              <div className="mt-4 space-y-2.5">
-                {RESULTATS_PALEY.map(([name, amount]) => (
-                  <div
-                    key={name}
-                    className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2.5"
-                  >
-                    <span className="flex min-w-0 items-center gap-2 text-[12.5px]" style={{ color: C.ink }}>
-                      <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: C.blueLight }} strokeWidth={1.8} />
-                      {name}
-                    </span>
-                    <span className="shrink-0 text-[12px] font-semibold" style={{ color: C.inkSoft }}>
-                      {amount}
-                    </span>
-                  </div>
-                ))}
-                <p className="px-3 pt-1 text-[12px]" style={{ color: C.inkFaint }}>
-                  et 8 autres aides, avec fiche, contact et pièces à fournir
-                </p>
-              </div>
-
-              <div className="mt-5">
-                <div className="flex items-center justify-between text-[12px]">
-                  <span className="font-medium" style={{ color: C.inkSoft }}>
-                    Vos chances d’obtenir ces aides
-                  </span>
-                  <span className="font-semibold" style={{ color: C.orange }}>
-                    élevées
-                  </span>
-                </div>
-                <div className="mt-1.5 h-2 overflow-hidden rounded-full" style={{ background: C.paleBlue }}>
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: '78%', background: `linear-gradient(90deg, ${C.orange}, ${C.orangeVif})` }}
-                  />
-                </div>
-              </div>
-
-              <div
-                className="mt-5 flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3.5"
-                style={{ background: C.paleOrange }}
-              >
-                <span
-                  className="text-[11.5px] font-semibold uppercase tracking-[0.08em]"
-                  style={{ color: C.ink }}
-                >
-                  Aides estimées
-                </span>
-                <span className="font-serif text-[1.2rem] font-bold leading-none" style={{ color: C.orange }}>
-                  420 000 – 680 000 €
-                </span>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-/* ────────────────────────────────────────────
-   L’équipe — quatre cadres rectangulaires qui
+   L’équipe — des cadres rectangulaires qui
    s’éclairent au passage.
    Règle du survol : rien ne se déplace sous le
    curseur (lumière, filtres et couleurs seulement),
@@ -1982,26 +1809,10 @@ const TEAM: Array<{
     factor: 0.025,
   },
   {
-    name: 'Ismaël MURAT EL HAKIM',
-    img: `${BASE}img/team-ismael.jpg`,
-    alt: 'Portrait d’Ismaël, propriétaire gestionnaire du château de Paley',
-    desc: 'Associé. Propriétaire-gestionnaire du château de Paley, sélectionné par la Mission Patrimoine 2026.',
-    lift: 'md:mt-0',
-    factor: 0.025,
-    /* Plan large et sujet décentré à gauche : `objectPosition` colle la fenêtre
-       sur le bord gauche de la source, `transformOrigin` la resserre autour de
-       lui, `scale` remonte son visage à l’échelle des deux autres portraits. */
-    imgStyle: {
-      objectPosition: '0% 50%',
-      transform: 'scale(1.42)',
-      transformOrigin: '25% 32%',
-    },
-  },
-  {
     name: 'Henri d’ANSELME',
     img: `${BASE}img/team-henri.jpg`,
     alt: 'Portrait d’Henri d’Anselme, ambassadeur de Monumia',
-    desc: 'Ambassadeur. Auteur, producteur et présentateur des « Chemins du Patrimoine » (Canal+ / CNews).',
+    desc: 'Ambassadeur. Auteur, producteur et présentateur des « Chemins du Patrimoine ».',
     lift: 'md:mt-0',
     factor: 0.025,
     /* Source en 16/9, sujet à droite : la fenêtre 9/10 se cale sur lui, et le
@@ -2026,7 +1837,7 @@ function Team() {
           /> 
         </Reveal>
 
-        <div className="mx-auto mt-14 grid max-w-2xl gap-14 md:max-w-4xl md:grid-cols-2 md:gap-10 lg:max-w-6xl lg:grid-cols-4 lg:gap-8">
+        <div className="mx-auto mt-14 grid max-w-2xl gap-14 md:max-w-4xl md:grid-cols-3 md:gap-10 lg:max-w-5xl lg:gap-8">
           {TEAM.map((m, i) => (
             <ParallaxItem key={m.name} factor={m.factor}>
               <Reveal delay={i * 130}>
@@ -2466,7 +2277,6 @@ function Footer() {
             <ul className="mt-4 space-y-2.5">
               {[
                 ['#methode', 'Comment ça marche'],
-                ['#exemple', 'Exemple'],
                 ['#equipe', 'L’équipe'],
                 ['#tarifs', 'Tarifs'],
                 ['#faq', 'Questions fréquentes'],
@@ -2537,26 +2347,6 @@ function Footer() {
           <p className="text-[13px]" style={{ color: C.inkFaint }}>
             © {new Date().getFullYear()} Monumia. Tous droits réservés.
           </p>
-          <p className="text-[12.5px]" style={{ color: C.inkFaint }}>
-            Photo du château de Paley :{' '}
-            <a
-              href="https://www.fondation-patrimoine.org/les-projets/chateau-de-paley/105079"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline transition-colors duration-200 hover:text-[#0a369d]"
-            >
-              Fondation Patrimoine
-            </a>
-            {', '}
-            <a
-              href="https://creativecommons.org/licenses/by-sa/4.0/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline transition-colors duration-200 hover:text-[#0a369d]"
-            >
-              CC BY-SA 4.0
-            </a>
-          </p>
         </div>
       </div>
     </footer>
@@ -2583,7 +2373,6 @@ export function LandingPage() {
         <Constat />
         <Demo />
         <RapportSenat />
-        <Exemple />
         <Team />
         <Pricing />
         <Faq />
