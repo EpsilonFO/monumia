@@ -15,6 +15,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import type { Document } from '@/types';
 
 interface AddToProjectDialogProps {
@@ -24,6 +25,7 @@ interface AddToProjectDialogProps {
 }
 
 export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjectDialogProps) {
+  const { t } = useTranslation(['documents', 'common']);
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const addToProjects = useDocumentStore((s) => s.addToProjects);
@@ -67,10 +69,10 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
     setSubmitting(true);
     try {
       await addToProjects(document.id, [...selected]);
-      toast.success(`Document rattaché à ${count} monument${count > 1 ? 's' : ''}`);
+      toast.success(t('AddToProjectDialog.rattache', { count }));
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors du rattachement');
+      toast.error(err instanceof Error ? err.message : t('AddToProjectDialog.erreurRattachement'));
     } finally {
       setSubmitting(false);
     }
@@ -80,7 +82,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Ajouter à un autre monument</DialogTitle>
+          <DialogTitle>{t('AddToProjectDialog.titre')}</DialogTitle>
           {document && (
             <p className="text-[15px] truncate text-muted-foreground">{document.nom}</p>
           )}
@@ -89,9 +91,9 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
         {projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
             <IconProjet className="h-8 w-8 text-muted-foreground opacity-50" />
-            <p className="text-sm text-muted-foreground">Aucun autre monument disponible.</p>
+            <p className="text-sm text-muted-foreground">{t('AddToProjectDialog.aucunAutre')}</p>
             <p className="text-xs text-muted-foreground">
-              Ce document est déjà rattaché à tous vos monuments.
+              {t('AddToProjectDialog.dejaPartout')}
             </p>
           </div>
         ) : (
@@ -102,8 +104,8 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
                 <Input
                   className="pl-9 h-10 text-[16px]"
                   style={{ background: C.card, borderColor: C.border }}
-                  aria-label="Rechercher un monument"
-                  placeholder="Rechercher un monument..."
+                  aria-label={t('AddToProjectDialog.rechercher')}
+                  placeholder={t('AddToProjectDialog.rechercherPlaceholder')}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -144,12 +146,12 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
                 );
               })}
               {filtered.length === 0 && (
-                <p className="text-sm text-center py-8 text-muted-foreground">Aucun monument trouvé.</p>
+                <p className="text-sm text-center py-8 text-muted-foreground">{t('AddToProjectDialog.aucunTrouve')}</p>
               )}
             </div>
 
             <p className="text-[13px] text-muted-foreground">
-              Le même document sera rattaché à chaque monument sélectionné, sans créer de copie.
+              {t('AddToProjectDialog.explication')}
             </p>
           </>
         )}
@@ -162,7 +164,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
             className="px-4 py-2 text-[15px] font-medium rounded-lg transition-colors text-muted-foreground"
             style={{ border: `1px solid ${C.border}` }}
           >
-            Annuler
+            {t('common:actions.annuler')}
           </button>
           {projects.length > 0 && (
             <button
@@ -173,7 +175,7 @@ export function AddToProjectDialog({ document, open, onOpenChange }: AddToProjec
               style={{ background: C.orange }}
             >
               {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Rattacher à {selected.size} monument{selected.size > 1 ? 's' : ''}
+              {t('AddToProjectDialog.rattacher', { count: selected.size })}
             </button>
           )}
         </DialogFooter>

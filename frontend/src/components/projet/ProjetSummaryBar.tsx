@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { ROUTES } from '@/constants/routes';
@@ -32,6 +33,7 @@ export function ProjetSummaryBar({
   questionsPassees,
   onRenommer,
 }: ProjetSummaryBarProps) {
+  const { t } = useTranslation('aide');
   const perms = projectPermissions(projet.myRole ?? null);
   const peutEditer = perms.canEditProject;
   // Liste vide = « Pas encore déterminé » : aucune aide n'est filtrée sur le
@@ -95,14 +97,14 @@ export function ProjetSummaryBar({
               // on revient alors au titre en place plutôt que de bloquer.
               onBlur={() => (saisie.trim() ? void valider() : setEdition(false))}
               disabled={enregistrement}
-              aria-label="Nom du projet"
+              aria-label={t('ProjetSummaryBar.nomProjet')}
               autoFocus
               className={saisie.trim() ? 'renommer' : 'renommer vide'}
             />
             <p className="aide-saisie">
               {saisie.trim()
-                ? 'Entrée pour valider, Échap pour annuler.'
-                : 'Le nom doit contenir au moins un caractère.'}
+                ? t('ProjetSummaryBar.aideSaisie')
+                : t('ProjetSummaryBar.nomVide')}
             </p>
           </>
         ) : (
@@ -113,14 +115,14 @@ export function ProjetSummaryBar({
                 className="edit"
                 type="button"
                 onClick={ouvrirEdition}
-                aria-label="Renommer le projet"
-                title="Renommer le projet"
+                aria-label={t('ProjetSummaryBar.renommer')}
+                title={t('ProjetSummaryBar.renommer')}
               >
                 <Picto nom="crayon" />
               </button>
             )}
-            {travauxIndetermines && <span className="clos">Travaux pas encore déterminés</span>}
-            {projet.clotureAt && <span className="clos">Clôturé</span>}
+            {travauxIndetermines && <span className="clos">{t('ProjetSummaryBar.travauxIndetermines')}</span>}
+            {projet.clotureAt && <span className="clos">{t('ProjetSummaryBar.cloture')}</span>}
           </h1>
         )}
       </div>
@@ -133,13 +135,11 @@ export function ProjetSummaryBar({
             data-guide="projet.refaire"
           >
             <Picto nom="refaire" />
-            Modifier mes réponses
+            {t('ProjetSummaryBar.modifierReponses')}
           </button>
           {questionsPassees > 0 && (
             <small>
-              {questionsPassees === 1
-                ? '1 question passée, à reprendre sans rien effacer'
-                : `${questionsPassees} questions passées, à reprendre sans rien effacer`}
+              {t('ProjetSummaryBar.questionsPassees', { count: questionsPassees })}
             </small>
           )}
         </div>

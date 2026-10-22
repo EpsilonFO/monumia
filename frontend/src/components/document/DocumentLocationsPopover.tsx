@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import { IconInfo, IconDossierOuvert, IconLocalisation } from '@/components/icons';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { C, SERIF } from '@/lib/brand';
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function DocumentLocationsPopover({ document, monumentNames, dossiersById, labelled = false }: Props) {
+  const { t } = useTranslation('documents');
   // Dossiers regroupés sous leur monument (un dossier n'en a qu'un).
   const dossiersByProject = new Map<string, string[]>();
   for (const did of document.dossiersUtilises) {
@@ -41,12 +43,12 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
   // Résumé factuel pour le déclencheur libellé (« Rangé dans … »), sans question.
   const projectCount = renderedProjectIds.length;
   const summary = projectCount >= 2
-    ? `${projectCount} monuments`
+    ? t('DocumentLocationsPopover.resumeMonuments', { nombre: projectCount })
     : projectCount === 1
       ? monumentNames[renderedProjectIds[0]]
       : orphanDossiers.length > 0
-        ? 'un dossier'
-        : 'aucun monument';
+        ? t('DocumentLocationsPopover.resumeUnDossier')
+        : t('DocumentLocationsPopover.resumeAucun');
 
   return (
     <Popover>
@@ -54,16 +56,21 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
         {labelled ? (
           <button
             className="inline-flex items-center gap-1.5 text-[14.5px] text-muted-foreground transition-colors hover:underline underline-offset-2"
-            title="Voir où est rangé ce fichier"
+            title={t('DocumentLocationsPopover.voirOuRange')}
           >
             <IconLocalisation className="h-4 w-4" weight="fill" style={{ color: C.blue }} />
-            Rangé dans <span className="font-semibold" style={{ color: C.ink }}>{summary}</span>
+            <Trans
+              t={t}
+              i18nKey="DocumentLocationsPopover.rangeDans"
+              values={{ resume: summary }}
+              components={{ nom: <span className="font-semibold" style={{ color: C.ink }} /> }}
+            />
           </button>
         ) : (
           <button
             className="shrink-0 p-1 rounded-md transition-colors hover:bg-black/[0.04]"
-            title="Où est utilisé ce fichier ?"
-            aria-label="Informations : où est utilisé ce fichier"
+            title={t('DocumentLocationsPopover.ouUtilise')}
+            aria-label={t('DocumentLocationsPopover.ouUtiliseAria')}
           >
             <IconInfo className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
@@ -76,13 +83,13 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
       >
         <div className="px-4 py-3 border-b" style={{ borderColor: C.border }}>
           <p className="text-[15px]" style={{ fontFamily: SERIF, color: C.ink }}>
-            Où est ce fichier ?
+            {t('DocumentLocationsPopover.ouEstFichier')}
           </p>
         </div>
         <div className="p-2 space-y-1">
           {hasNothing && (
             <p className="px-2 py-3 text-[14px] text-muted-foreground">
-              Ce document n'est rattaché à aucun monument ni dossier.
+              {t('DocumentLocationsPopover.rattacheANulle')}
             </p>
           )}
           {renderedProjectIds.map((mid) => {
@@ -118,7 +125,7 @@ export function DocumentLocationsPopover({ document, monumentNames, dossiersById
             <div className="rounded-lg px-2 py-2" style={{ background: C.cream }}>
               <div className="flex items-center gap-2 mb-1.5">
                 <IconDossierOuvert className="h-3 w-3 shrink-0 text-muted-foreground" strokeWidth={1.8} />
-                <span className="text-[14px] font-medium" style={{ color: C.ink }}>Dossiers</span>
+                <span className="text-[14px] font-medium" style={{ color: C.ink }}>{t('DocumentLocationsPopover.dossiers')}</span>
               </div>
               <ul className="ml-[20.5px] space-y-1">
                 {orphanDossiers.map((titre, i) => (

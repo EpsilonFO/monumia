@@ -3,6 +3,7 @@
  * Rangées à part de `WizardRail` pour que ce fichier-là n'exporte que des
  * composants (rafraîchissement à chaud).
  */
+import i18n from '@/i18n';
 
 /** Clé d'étape : une chaîne, pas un rang. Le wizard projet en insère selon le
  *  parcours (péril à rattraper, activités, reprise, compte). */
@@ -20,8 +21,12 @@ export interface WizardStep {
  *  rattrapage, elle ne le serait plus jamais. */
 export const PERIL_RATTRAPAGE_STEP: WizardStep = {
   key: 'peril',
-  label: 'État du monument',
-  hint: 'Une question restée sans réponse sur votre fiche.',
+  get label() {
+    return i18n.t('project:etapes.peril.libelle');
+  },
+  get hint() {
+    return i18n.t('project:etapes.peril.indice');
+  },
 };
 
 /** Étape propre à l'intention « Faire vivre et ouvrir le lieu » : quelles
@@ -30,8 +35,12 @@ export const PERIL_RATTRAPAGE_STEP: WizardStep = {
  *  déjà leurs familles côté moteur et n'ont rien à demander. */
 export const FAMILLES_STEP: WizardStep = {
   key: 'familles',
-  label: 'Les activités',
-  hint: 'Ce que vous voulez faire vivre : les aides ne financent pas les mêmes.',
+  get label() {
+    return i18n.t('project:etapes.familles.libelle');
+  },
+  get hint() {
+    return i18n.t('project:etapes.familles.indice');
+  },
 };
 
 /** Étape posée quand le monument porte DÉJÀ un projet : ses réponses durables
@@ -40,20 +49,32 @@ export const FAMILLES_STEP: WizardStep = {
  *  dans son dos, qu'aucune fiche d'aide ne lui offrirait à la correction. */
 export const REPRISES_STEP: WizardStep = {
   key: 'reprises',
-  label: 'Vos réponses',
-  hint: 'Ce que nous savons déjà de votre monument.',
+  get label() {
+    return i18n.t('project:etapes.reprises.libelle');
+  },
+  get hint() {
+    return i18n.t('project:etapes.reprises.indice');
+  },
 };
 
 export const INTENTION_STEP: WizardStep = {
   key: 'intention',
-  label: 'Votre projet',
-  hint: 'Ce que vous voulez faire : les aides suivent votre intention.',
+  get label() {
+    return i18n.t('project:etapes.intention.libelle');
+  },
+  get hint() {
+    return i18n.t('project:etapes.intention.indice');
+  },
 };
 
 export const TRAVAUX_STEP: WizardStep = {
   key: 'travaux',
-  label: 'Les travaux',
-  hint: 'Sur quoi porte le chantier : certaines aides ne financent qu’un ouvrage.',
+  get label() {
+    return i18n.t('project:etapes.travaux.libelle');
+  },
+  get hint() {
+    return i18n.t('project:etapes.travaux.indice');
+  },
 };
 
 /** Création d'un projet de travaux sur un monument déjà décrit. */
@@ -62,13 +83,21 @@ export const PROJET_WIZARD_STEPS: WizardStep[] = [
   TRAVAUX_STEP,
   {
     key: 'questionnaire',
-    label: 'Questionnaire',
-    hint: 'Quelques minutes, sans aucun document.',
+    get label() {
+      return i18n.t('project:etapes.questionnaire.libelle');
+    },
+    get hint() {
+      return i18n.t('project:etapes.questionnaire.indice');
+    },
   },
   {
     key: 'diagnostic',
-    label: 'Diagnostic',
-    hint: 'Les aides mobilisables pour votre projet.',
+    get label() {
+      return i18n.t('project:etapes.diagnostic.libelle');
+    },
+    get hint() {
+      return i18n.t('project:etapes.diagnostic.indice');
+    },
   },
 ];
 
@@ -81,8 +110,12 @@ export const PROJET_WIZARD_STEPS: WizardStep[] = [
  *  connexion, qui sert aussi bien à se connecter qu'à s'inscrire. */
 export const INSCRIPTION_STEP: WizardStep = {
   key: 'inscription',
-  label: 'Votre compte',
-  hint: 'Gratuit : votre diagnostic vous attend juste derrière.',
+  get label() {
+    return i18n.t('project:etapes.inscription.libelle');
+  },
+  get hint() {
+    return i18n.t('project:etapes.inscription.indice');
+  },
 };
 
 /**

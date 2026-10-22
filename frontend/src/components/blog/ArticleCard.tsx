@@ -1,15 +1,17 @@
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
 import type { BlogArticle } from '@/content/blog/articles';
 import { categoryTone, getCategory } from '@/content/blog/categories';
+import { localeIntl } from '@/i18n/format';
 import { C } from '@/lib/brand';
 import { IconTemps } from '@/components/icons';
 import { BandMotif } from './BandMotif';
 import { CategoryBadge } from './CategoryBadge';
 
-/** Date de publication au format éditorial français (« 18 juin 2026 »). */
+/** Date de publication au format éditorial (« 18 juin 2026 », « 18 June 2026 »). */
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', {
+  return new Date(iso).toLocaleDateString(localeIntl(), {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -17,6 +19,7 @@ function formatDate(iso: string): string {
 }
 
 export function ArticleCard({ article }: { article: BlogArticle }) {
+  const { t } = useTranslation('blog');
   const category = getCategory(article.categorySlug);
   const tone = category ? categoryTone(category) : null;
   const Icon = article.icon ?? category?.icon;
@@ -65,14 +68,15 @@ export function ArticleCard({ article }: { article: BlogArticle }) {
             className="text-[15px] font-semibold group-hover:underline"
             style={{ color: C.orange }}
           >
-            Lire l’article →
+            {t('commun.lireArticle')}
           </span>
           {article.readingTimeMin && (
             <span
               className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[13px] font-medium"
               style={{ color: C.grayMuted }}
             >
-              <IconTemps className="h-3.5 w-3.5" /> {article.readingTimeMin} min
+              <IconTemps className="h-3.5 w-3.5" />{' '}
+              {t('commun.dureeCourte', { minutes: article.readingTimeMin })}
             </span>
           )}
         </div>

@@ -1,15 +1,20 @@
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { ArrowRight } from 'lucide-react';
 import { C } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
+import { langueCourante } from '@/i18n';
+import { libelleOffre } from '@/lib/offres';
 
 interface OffreUpsellProps {
   /**
-   * Ce que l'offre débloquerait, à l'infinitif et sans majuscule : la phrase se
-   * lit « L'offre Veille permet de {action}. », avec l'élision (« d'inviter »).
+   * Ce que l'offre débloquerait, à l'infinitif et sans majuscule, dans la langue
+   * de la page. En français la phrase se lit « L'offre Veille permet de
+   * {action}. », avec l'élision (« d'inviter ») ; en anglais « The Watch plan
+   * lets you {action}. ».
    */
   action: string;
-  /** Nom de l'offre à prendre — « Veille » ou « Multi-monuments ». */
+  /** Identifiant (français) de l'offre à prendre — « Veille » ou « Multi-monuments » (cf. `libelleOffre`). */
   offre: string;
   /** Monument d'où l'on part, pour que « Retour » revienne au bon endroit. */
   monumentId?: string;
@@ -27,6 +32,8 @@ interface OffreUpsellProps {
  * impossible.
  */
 export function OffreUpsell({ action, offre, monumentId }: OffreUpsellProps) {
+  const { t } = useTranslation('shell');
+  const nom = libelleOffre(offre);
   return (
     <div
       className="flex flex-col gap-3 rounded-2xl border px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
@@ -35,14 +42,17 @@ export function OffreUpsell({ action, offre, monumentId }: OffreUpsellProps) {
       {/* Pas de cadenas : le bandeau annonce ce qui s'ouvre, pas ce qui est
           fermé. Sa flèche est portée une seule fois, par le bouton. */}
       <p className="text-[15.5px] leading-relaxed" style={{ color: C.grayFg }}>
-        {`L'offre ${offre} permet ${elider(action)}.`}
+        {t('OffreUpsell.permet', {
+          offre: nom,
+          action: langueCourante() === 'fr' ? elider(action) : action,
+        })}
       </p>
       <Link
         to={ROUTES.TARIFS(monumentId)}
         className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[15.5px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
         style={{ background: C.orange }}
       >
-        {`Découvrir l'offre ${offre}`}
+        {t('Paywall.decouvrir', { offre: nom })}
         <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
       </Link>
     </div>

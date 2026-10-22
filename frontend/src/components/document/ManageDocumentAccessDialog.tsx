@@ -9,6 +9,7 @@ import { whoCanView } from '@/lib/document-visibility';
 import { useDocumentStore } from '@/stores/useDocumentStore';
 import { projetSharingService, sharingService } from '@/services/sharing.service';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import type { Document, ProjectMember, ProjectRole } from '@/types';
 
 interface Props {
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function ManageDocumentAccessDialog({ document, myRole, open, onOpenChange, onSaved }: Props) {
+  const { t } = useTranslation(['documents', 'common']);
   const updateDocument = useDocumentStore((s) => s.updateDocument);
   // Personnes proposées : l'équipe du monument principal et celle du projet
   // principal (v1 : le premier de chaque). Un document rattaché au seul
@@ -75,11 +77,11 @@ export function ManageDocumentAccessDialog({ document, myRole, open, onOpenChang
         visibility: value.visibility,
         allowedUserIds: value.allowedUserIds,
       });
-      toast.success('Accès mis à jour');
+      toast.success(t('ManageDocumentAccessDialog.accesMisAJour'));
       onSaved?.();
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Échec de la mise à jour');
+      toast.error(err instanceof Error ? err.message : t('ManageDocumentAccessDialog.echec'));
     } finally {
       setSaving(false);
     }
@@ -89,7 +91,7 @@ export function ManageDocumentAccessDialog({ document, myRole, open, onOpenChang
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
-          <DialogTitle>Gérer l'accès</DialogTitle>
+          <DialogTitle>{t('commun.gererAcces')}</DialogTitle>
         </DialogHeader>
 
         <DocumentVisibilityField
@@ -103,7 +105,7 @@ export function ManageDocumentAccessDialog({ document, myRole, open, onOpenChang
           <div className="rounded-lg border px-3 py-2.5 border-border">
             <p className="flex items-center gap-1.5 text-[14px] font-semibold text-foreground">
               <IconVoir className="h-3.5 w-3.5" strokeWidth={1.8} />
-              Peuvent voir ce document ({viewers.length})
+              {t('ManageDocumentAccessDialog.peuventVoir', { nombre: viewers.length })}
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {viewers.map((m, i) => (
@@ -121,10 +123,12 @@ export function ManageDocumentAccessDialog({ document, myRole, open, onOpenChang
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Annuler
+            {t('common:actions.annuler')}
           </Button>
           <Button type="button" onClick={handleSave} disabled={saving}>
-            {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enregistrement…</> : 'Enregistrer'}
+            {saving
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('common:etats.enregistrement')}</>
+              : t('common:actions.enregistrer')}
           </Button>
         </DialogFooter>
       </DialogContent>

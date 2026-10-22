@@ -4,6 +4,7 @@ import {
   IconChantier, IconSubvention, IconMaison, IconInstitution, IconLivre, IconTendance,
   type IconComponent,
 } from '@/components/icons';
+import i18n from '@/i18n';
 import type { DocumentType } from '@/types';
 
 /**
@@ -18,13 +19,22 @@ export interface FamilleTypes {
 }
 
 export const FAMILLES_TYPES: FamilleTypes[] = [
-  { nom: 'Le monument', types: ['photo', 'plan', 'extrait_cadastral', 'arrete', 'diagnostic', 'rapport'] },
-  { nom: 'Les travaux', types: ['devis', 'facture', 'autorisation_urbanisme'] },
   {
-    nom: 'Administratif et financier',
+    get nom() { return i18n.t('core:documentTypeMeta.familles.monument'); },
+    types: ['photo', 'plan', 'extrait_cadastral', 'arrete', 'diagnostic', 'rapport'],
+  },
+  {
+    get nom() { return i18n.t('core:documentTypeMeta.familles.travaux'); },
+    types: ['devis', 'facture', 'autorisation_urbanisme'],
+  },
+  {
+    get nom() { return i18n.t('core:documentTypeMeta.familles.administratif'); },
     types: ['cerfa', 'attestation', 'rib', 'titre_propriete', 'deliberation', 'statuts', 'plan_financement'],
   },
-  { nom: 'Échanges et divers', types: ['correspondance', 'autre'] },
+  {
+    get nom() { return i18n.t('core:documentTypeMeta.familles.echanges'); },
+    types: ['correspondance', 'autre'],
+  },
 ];
 
 /** Tous les types, dans l'ordre des familles. */
@@ -42,26 +52,16 @@ export const TYPES_DOSSIERS: DocumentType[] = [
   'deliberation', 'statuts', 'plan_financement', 'autre',
 ];
 
-const DOSSIERS: Record<DocumentType, string> = {
-  photo: 'Photos', plan: 'Plans', devis: 'Devis', facture: 'Factures', attestation: 'Attestations',
-  extrait_cadastral: 'Extraits cadastraux', cerfa: 'CERFA', arrete: 'Arrêtés', diagnostic: 'Diagnostics',
-  rapport: 'Rapports', correspondance: 'Correspondance', autorisation_urbanisme: "Autorisations d'urbanisme",
-  rib: 'RIB', titre_propriete: 'Titres de propriété', deliberation: 'Délibérations', statuts: 'Statuts',
-  plan_financement: 'Plans de financement', autre: 'Autres',
-};
+/** Le type est-il connu de l'interface ? Un type neuf venu du serveur garde
+ *  son identifiant comme libellé plutôt qu'une clé de traduction brute. */
+function typeConnu(type: string): type is DocumentType {
+  return (TYPES_DOCUMENT as string[]).includes(type);
+}
 
 /** Le nom du dossier d'un type, au pluriel (« Photos », « Titres de propriété »). */
 export function dossierLabel(type: DocumentType): string {
-  return DOSSIERS[type] ?? typeLabel(type);
+  return typeConnu(type) ? i18n.t(`core:documentTypeMeta.dossiers.${type}`) : typeLabel(type);
 }
-
-const LABELS: Record<DocumentType, string> = {
-  photo: 'Photo', plan: 'Plan', devis: 'Devis', facture: 'Facture',
-  attestation: 'Attestation', extrait_cadastral: 'Extrait cadastral', cerfa: 'CERFA',
-  arrete: 'Arrêté', diagnostic: 'Diagnostic', rapport: 'Rapport', correspondance: 'Correspondance', autre: 'Autre',
-  autorisation_urbanisme: "Autorisation d'urbanisme", rib: 'RIB', titre_propriete: 'Titre de propriété',
-  deliberation: 'Délibération', statuts: 'Statuts', plan_financement: 'Plan de financement',
-};
 
 const ICONS: Record<DocumentType, IconComponent> = {
   photo: IconImage, plan: IconPlan, devis: IconDevis, facture: IconDevis,
@@ -96,7 +96,7 @@ export function typeIcon(type: DocumentType): IconComponent {
   return ICONS[type] ?? IconDocument;
 }
 export function typeLabel(type: DocumentType): string {
-  return LABELS[type] ?? type;
+  return typeConnu(type) ? i18n.t(`core:documentTypeMeta.types.${type}`) : type;
 }
 export function typeAccent(type: DocumentType): { bg: string; text: string } {
   return ACCENT[type] ?? ACCENT.autre;

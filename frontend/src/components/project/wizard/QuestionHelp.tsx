@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconInfo } from '@/components/icons';
 import { TexteAide } from '@/components/shared/TexteAide';
 import { C } from '@/lib/brand';
@@ -19,6 +20,7 @@ const HELP_CLAMP_CHARS = 170;
  * « Lire la suite » sur la fiche d'aide.
  */
 export function QuestionHelp({ text, compact }: { text: string; compact?: boolean }) {
+  const { t } = useTranslation('project');
   const [open, setOpen] = useState(false);
   const long = longueurTexteAide(text) > HELP_CLAMP_CHARS;
   return (
@@ -49,7 +51,7 @@ export function QuestionHelp({ text, compact }: { text: string; compact?: boolea
             className="mt-1 text-[15px] font-semibold underline-offset-2 hover:underline"
             style={{ color: C.blue }}
           >
-            {open ? 'Réduire' : 'Lire la suite'}
+            {open ? t('EcranQuestion.reduire') : t('EcranQuestion.lireLaSuite')}
           </button>
         )}
       </div>

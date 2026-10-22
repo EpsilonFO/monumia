@@ -1,0 +1,239 @@
+{
+  "aFaireMaintenant": {
+    "enRetard_one": "{{count}} day overdue",
+    "enRetard_other": "{{count}} days overdue",
+    "aujourdhui": "today",
+    "demain": "tomorrow",
+    "dansJours_one": "in {{count}} day",
+    "dansJours_other": "in {{count}} days"
+  },
+  "aideFiltres": {
+    "toutes": "All funding",
+    "prixMecenat": "Awards and patrons",
+    "region": "Region",
+    "departement": "Département",
+    "etat": "State (DRAC)",
+    "europe": "Europe",
+    "fiscalite": "Tax",
+    "autre": "Other"
+  },
+  "aidesEnjeu": {
+    "jusquaMontant": "Up to {{montant}}",
+    "etOuTaux": "and/or {{taux}} of the works",
+    "jusquaTaux": "Up to {{taux}} of the works"
+  },
+  "avancement": {
+    "rang": "Step {{rang}} of {{total}}",
+    "action": {
+      "estimation": "estimate",
+      "dossier": "prepare the application",
+      "depot": "submit the application"
+    }
+  },
+  "diagnosticBilan": {
+    "horsPerimetre": "Based on your answer, your project falls outside the scope of this scheme: “{{question}}”"
+  },
+  "ficheAide": {
+    "premierDuMois": "1",
+    "guichet": {
+      "touteLAnnee": "Open all year round",
+      "ouvert": "Open",
+      "fenetre": "From {{debut}} to {{fin}}",
+      "ouvreLe": "Opens on {{date}}",
+      "bientot": "Soon",
+      "aPartirDu": "From {{date}}",
+      "sessionAVenir": "Upcoming session",
+      "candidaturesOuvrent": "Applications open on {{date}}.",
+      "closDepuis": "Closed since {{date}}",
+      "clos": "Closed",
+      "dateLimitePassee": "Deadline passed: {{date}}",
+      "candidaturesCloses": "Applications closed on {{date}}. The dates of the next session have not been published yet.",
+      "ouvertJusquau": "Open until {{date}}",
+      "jusquau": "Until {{date}}",
+      "depuisLe": "Since {{date}}",
+      "datesAConfirmer": "Dates to be confirmed",
+      "datesAVenir": "Dates to come",
+      "sansDateLimite": "The rules do not give a deadline. Check with the funder before submitting."
+    },
+    "montant": {
+      "jusquaTaux": "Up to {{taux}}%",
+      "dansLaLimite": "Capped at {{montant}}",
+      "depensesEligibles": "Of eligible expenditure",
+      "jusquaMontant": "Up to {{montant}}"
+    },
+    "rubriques": {
+      "criteres": "Eligibility criteria",
+      "candidater": "Who can apply",
+      "projet": "Projects and expenditure",
+      "montant": "Amount and combined funding",
+      "dossier": "Application and selection",
+      "apres": "After approval",
+      "autres": "Other points"
+    }
+  },
+  "ficheMonument": {
+    "protection": {
+      "groupeMonumentHistorique": "Historic monument",
+      "classe": "Listed historic monument (classé)",
+      "inscrit": "Registered historic monument (inscrit)",
+      "groupeProtectionLieu": "Site protection",
+      "spr": "Outstanding heritage site (SPR)",
+      "abords": "Surroundings of a historic monument",
+      "abordsPrecision": "Within the protected surroundings of a historic monument",
+      "groupeAucune": "None",
+      "nonProtege": "Not protected",
+      "nonProtegePrecision": "Not listed, not registered, not in protected surroundings, not in an SPR"
+    },
+    "groupesProprietaire": {
+      "prives": "Private owners",
+      "publics": "Public owners",
+      "autres": "Other owners"
+    },
+    "groupesTypeEdifice": {
+      "religieux": "Religious buildings",
+      "chateaux": "Châteaux and residences",
+      "civils": "Civic buildings",
+      "rural": "Rural heritage",
+      "ouvrages": "Structures, sites and memorials",
+      "autre": "Other"
+    },
+    "siecles": {
+      "avant": "Before AD 1000",
+      "XIe": "11th century",
+      "XIIe": "12th century",
+      "XIIIe": "13th century",
+      "XIVe": "14th century",
+      "XVe": "15th century",
+      "XVIe": "16th century",
+      "XVIIe": "17th century",
+      "XVIIIe": "18th century",
+      "XIXe": "19th century",
+      "XXe": "20th century",
+      "XXIe": "21st century"
+    },
+    "requis": {
+      "nom": "name",
+      "commune": "municipality",
+      "etat": "building condition",
+      "protection": "protection",
+      "proprietaire": "owner type"
+    },
+    "ilManque": "Missing: {{champs}}.",
+    "notice": {
+      "classe": "Listed MH",
+      "inscrit": "Registered MH",
+      "inconnue": "Protection unknown"
+    }
+  },
+  "guides": {
+    "monuments": {
+      "carte": {
+        "titre": "Your monument",
+        "texte": "Open your monument to see its record, its projects and its documents."
+      },
+      "nouveauMonument": {
+        "titre": "Another monument",
+        "texte": "Add another property here: each one has its own record, projects and funding."
+      },
+      "documents": {
+        "titre": "Your documents",
+        "texte": "Keep official orders, plans and photos here so they are at hand when you apply."
+      }
+    },
+    "monument": {
+      "fiche": {
+        "titre": "The monument record",
+        "texte": "Complete the record: protection, owner and condition decide which funding is offered."
+      },
+      "projets": {
+        "titre": "Projects",
+        "texte": "Open a project to see its funding, or create one for another programme of works."
+      },
+      "documents": {
+        "titre": "Documents",
+        "texte": "Upload the monument’s documents here: protection order, land registry, photos."
+      },
+      "equipe": {
+        "titre": "The team",
+        "texte": "Invite an architect or a colleague to work with you on this monument."
+      }
+    },
+    "questionnaire": {
+      "aide": {
+        "titre": "Good to know",
+        "texte": "Read this box if in doubt: it explains the terms used in the question."
+      },
+      "passer": {
+        "titre": "I don’t know",
+        "texte": "Skip a question if you are unsure: the funding stays on offer and you can answer later."
+      }
+    },
+    "projet": {
+      "aides": {
+        "titre": "Your funding",
+        "texte": "Click a scheme to see its criteria and prepare the application."
+      },
+      "echeancier": {
+        "titre": "The timeline",
+        "texte": "See the submission deadlines for your funding here."
+      },
+      "dossiers": {
+        "titre": "Your applications",
+        "texte": "Follow each application here, from preparation to submission."
+      },
+      "refaire": {
+        "titre": "Change your answers",
+        "texte": "Change your answers if your project changes: the list of funding updates itself."
+      }
+    },
+    "aide": {
+      "criteres": {
+        "titre": "The criteria",
+        "texte": "Check each criterion and answer any open questions here."
+      },
+      "montant": {
+        "titre": "The amount",
+        "texte": "See here what the scheme funds and up to what amount."
+      },
+      "dossier": {
+        "titre": "The application",
+        "texte": "Create the application to get the list of supporting documents and the submission steps."
+      }
+    },
+    "dossier": {
+      "pieces": {
+        "titre": "Supporting documents",
+        "texte": "Upload each requested document and see at a glance how many are ready."
+      },
+      "telecharger": {
+        "titre": "Download the application",
+        "texte": "Download all the documents at once, ready to send to the funder."
+      },
+      "aide": {
+        "titre": "The target scheme",
+        "texte": "Reopen the scheme’s page to review its conditions and the steps to follow."
+      }
+    }
+  },
+  "profileCompletion": {
+    "prenom": "your first name",
+    "nom": "your last name",
+    "telephone": "your phone number"
+  },
+  "projectStats": {
+    "etapes": {
+      "estimation": "Estimate",
+      "dossier": "Application",
+      "depot": "Submission"
+    }
+  },
+  "projetTitre": {
+    "action": {
+      "restauration_travaux": "Restore {{nom}}",
+      "valorisation_rayonnement": "Bring {{nom}} to life",
+      "etude_ingenierie": "Prepare works on {{nom}}",
+      "fiscalite": "Optimise tax for {{nom}}"
+    },
+    "parDefaut": "Works project"
+  }
+}

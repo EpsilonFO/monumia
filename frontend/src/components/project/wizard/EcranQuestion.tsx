@@ -1,5 +1,6 @@
 import { useId, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { TexteAide } from '@/components/shared/TexteAide';
 import { longueurTexteAide } from '@/lib/texte-aide';
@@ -23,6 +24,7 @@ const TITRE_LONG = 120;
  * et ses puces (`TexteAide`).
  */
 function Pourquoi({ texte }: { texte: string }) {
+  const { t } = useTranslation('project');
   const [ouvert, setOuvert] = useState(false);
   const long = longueurTexteAide(texte) > POURQUOI_REPLIE;
   return (
@@ -31,11 +33,11 @@ function Pourquoi({ texte }: { texte: string }) {
         i
       </span>
       <div>
-        <b>Bon à savoir</b>
+        <b>{t('EcranQuestion.bonASavoir')}</b>
         <TexteAide texte={texte} className={cn('corps', long && !ouvert && 'replie')} />
         {long && (
           <button type="button" onClick={() => setOuvert((o) => !o)} aria-expanded={ouvert}>
-            {ouvert ? 'Réduire' : 'Lire la suite'}
+            {ouvert ? t('EcranQuestion.reduire') : t('EcranQuestion.lireLaSuite')}
           </button>
         )}
       </div>
@@ -77,6 +79,7 @@ export function CarteReponse({
   onKeyDown,
   buttonRef,
 }: CarteReponseProps) {
+  const { t } = useTranslation('project');
   const descriptionId = useId();
   return (
     <div className={cn('opt', multiple && 'multi', nsp && 'nsp', selected && 'on')}>
@@ -87,7 +90,7 @@ export function CarteReponse({
         role={multiple ? 'checkbox' : 'radio'}
         aria-checked={selected}
         aria-describedby={description ? descriptionId : undefined}
-        title={description ? `${label} : ${description}` : label}
+        title={description ? t('EcranQuestion.titreCarte', { libelle: label, description }) : label}
         tabIndex={tabIndex}
         onClick={onSelect}
         onKeyDown={onKeyDown}
@@ -203,7 +206,7 @@ export function EcranQuestion({
   gele,
   onPrecedent,
   onPasser,
-  libellePasser = 'Je ne sais pas, passer',
+  libellePasser,
   onContinuer,
   continuerDesactive,
   continuerIndice,
@@ -212,6 +215,7 @@ export function EcranQuestion({
   className = 'entre',
   titreRef,
 }: EcranQuestionProps) {
+  const { t } = useTranslation(['project', 'common']);
   const titreId = useId();
   const indiceId = useId();
   return (
@@ -248,7 +252,7 @@ export function EcranQuestion({
           {onPrecedent && (
             <button className="btn b-line" type="button" onClick={onPrecedent} disabled={enCours}>
               <Picto nom="retour" />
-              Question précédente
+              {t('EcranQuestion.questionPrecedente')}
             </button>
           )}
           {onPasser && (
@@ -259,7 +263,7 @@ export function EcranQuestion({
               disabled={enCours}
               data-guide="questionnaire.passer"
             >
-              {libellePasser}
+              {libellePasser ?? t('EcranQuestion.passer')}
             </button>
           )}
           <button
@@ -270,7 +274,7 @@ export function EcranQuestion({
             aria-describedby={continuerDesactive && continuerIndice ? indiceId : undefined}
           >
             {enCours && <Loader2 className="spin" aria-hidden="true" />}
-            Continuer
+            {t('common:actions.continuer')}
             {!enCours && <Picto nom="fleche" />}
           </button>
           {continuerIndice && (
@@ -280,7 +284,7 @@ export function EcranQuestion({
           )}
         </div>
       </section>
-      {modifiablePlusTard && <p className="later">Vous pourrez modifier vos réponses plus tard.</p>}
+      {modifiablePlusTard && <p className="later">{t('EcranQuestion.modifiablePlusTard')}</p>}
     </>
   );
 }

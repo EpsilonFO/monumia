@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import { canDeleteDocument } from '@/lib/project-permissions';
 import { canEditVisibility } from '@/lib/document-visibility';
 import type { Document, ProjectRole } from '@/types';
@@ -81,16 +82,16 @@ export function actionsDocument(d: Document, ctx: ContexteDocument, gestes: Gest
   const droits = droitsDocument(d, ctx);
   const actions: ActionDocument[] = [];
   if (droits.modifier) {
-    actions.push({ cle: 'renommer', label: 'Renommer', onClick: () => gestes.modifier(d) });
-    actions.push({ cle: 'deplacer', label: 'Changer de dossier', onClick: () => gestes.deplacer(d) });
+    actions.push({ cle: 'renommer', label: i18n.t('core:actionsDocument.renommer'), onClick: () => gestes.modifier(d) });
+    actions.push({ cle: 'deplacer', label: i18n.t('core:actionsDocument.changerDeDossier'), onClick: () => gestes.deplacer(d) });
   }
-  actions.push({ cle: 'rattacher', label: 'Rattacher à un autre monument', onClick: () => gestes.rattacher(d) });
-  if (droits.acces) actions.push({ cle: 'acces', label: "Gérer l'accès", onClick: () => gestes.gererAcces(d) });
+  actions.push({ cle: 'rattacher', label: i18n.t('core:actionsDocument.rattacher'), onClick: () => gestes.rattacher(d) });
+  if (droits.acces) actions.push({ cle: 'acces', label: i18n.t('core:actionsDocument.gererAcces'), onClick: () => gestes.gererAcces(d) });
   const { ici } = ctx;
   if (droits.retrait === 'corbeille') {
-    actions.push({ cle: 'corbeille', label: 'Mettre à la corbeille', onClick: () => gestes.corbeille(d), destructive: true });
+    actions.push({ cle: 'corbeille', label: i18n.t('core:actionsDocument.mettreALaCorbeille'), onClick: () => gestes.corbeille(d), destructive: true });
   } else if (droits.retrait === 'retirer' && ici) {
-    actions.push({ cle: 'retirer', label: `Retirer de ${ici.nom}`, onClick: () => gestes.retirer(d, ici), destructive: true });
+    actions.push({ cle: 'retirer', label: i18n.t('core:actionsDocument.retirerDe', { nom: ici.nom }), onClick: () => gestes.retirer(d, ici), destructive: true });
   }
   return actions;
 }

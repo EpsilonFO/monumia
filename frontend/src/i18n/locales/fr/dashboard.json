@@ -1,0 +1,142 @@
+{
+  "nouveauMonument": "Nouveau monument",
+  "lancerRecherche": "Lancer une nouvelle recherche",
+  "voirMonument": "Voir le monument",
+  "toutEstAJour": "Tout est à jour",
+  "aFaireMaintenant": "À faire maintenant · {{quand}}",
+  "DashboardPage": {
+    "phraseDuJour": {
+      "depassee": "Une échéance est dépassée : {{titre}}, prévue le {{date}}.",
+      "dossier": "Une échéance approche : {{detail}}, le {{date}}.",
+      "date": "Une date approche : {{titre}} ferme le {{date}}."
+    },
+    "salutation": {
+      "matin": "Bonjour, <prenom>{{prenom}}</prenom>",
+      "apresMidi": "Bon après-midi, <prenom>{{prenom}}</prenom>",
+      "soir": "Bonsoir, <prenom>{{prenom}}</prenom>"
+    },
+    "creerMonument": "Créer un monument",
+    "nouvelleRecherche": "Nouvelle recherche d'aides",
+    "vosMonuments": "Vos monuments",
+    "ouEnSontVosProjets": "Où en sont vos projets",
+    "aucunMonument": "Aucun monument pour l'instant. Commencez par la fiche de votre monument : Monumia en déduit les aides auxquelles il peut prétendre."
+  },
+  "ParcoursStepper": {
+    "avancement": "Avancement du projet"
+  },
+  "useNouvelleRecherche": {
+    "titre": "Menez autant de chantiers qu'il en faut",
+    "descriptionIllimite": "L’offre Veille rend vos projets de travaux illimités, et vous prévient avant chaque date limite.",
+    "description_one": "Votre offre couvre {{count}} projets par monument. L’offre Veille les rend illimités, et vous prévient avant chaque date limite.",
+    "description_other": "Votre offre couvre {{count}} projets par monument. L’offre Veille les rend illimités, et vous prévient avant chaque date limite."
+  },
+  "NouvelleRecherche": {
+    "pourQuelMonument": "Pour quel monument ?"
+  },
+  "CarteNouveauProjet": {
+    "titre": "Un nouveau projet pour {{nom}} ?",
+    "titreSansNom": "Un nouveau projet pour ce monument ?",
+    "exemples": "Restauration, mise aux normes, compagnie de théâtre, chantier bénévole, exploitation agricole, coworking, et bien d'autres encore !"
+  },
+  "AFaireMaintenantCarte": {
+    "questions": {
+      "cta_one": "Répondre à la question",
+      "cta_other": "Répondre aux {{count}} questions",
+      "etape_one": "<b>{{count}} question</b> pour savoir si vous pouvez déposer. Ensuite, Monumia vous indique les pièces à réunir.",
+      "etape_other": "<b>{{count}} questions</b> pour savoir si vous pouvez déposer. Ensuite, Monumia vous indique les pièces à réunir."
+    },
+    "verifier": {
+      "cta": "Voir l'aide",
+      "etape": "Quelques points sont à vérifier sur la fiche de l'aide avant de déposer."
+    },
+    "eligible": {
+      "cta": "Voir les pièces à réunir",
+      "etape": "<b>Votre projet remplit les conditions publiées.</b> Monumia vous indique les pièces à réunir."
+    },
+    "demarche": {
+      "cta": "Voir la démarche",
+      "etape": "<b>Une démarche à faire</b> avant le dépôt pour remplir les conditions de l'aide."
+    },
+    "dossier": {
+      "cta": "Ouvrir le dossier",
+      "etape": "<b>{{detail}}</b> : l'échéance de votre dossier."
+    },
+    "aucuneDateLimite": "Aucune date limite ne réclame votre attention pour le moment.",
+    "prochaineEtape": "Prochaine étape"
+  },
+  "CarteMonument": {
+    "documentsPrets_one": "{{count}} document prêt pour vos dossiers",
+    "documentsPrets_other": "{{count}} documents prêts pour vos dossiers",
+    "aucunDocument": "Aucun document pour vos dossiers",
+    "cloture": "Clôturé",
+    "statut": "{{rang}} : {{action}}",
+    "voirProjets": "Voir les projets",
+    "projetsEnCours_one": "{{count}} projet en cours",
+    "projetsEnCours_other": "{{count}} projets en cours",
+    "aucunProjetEnCours": "Aucun projet en cours",
+    "pasEncoreDeProjet": "Pas encore de projet",
+    "aidesReperees_one": "<b>{{count}} aide</b> repérée",
+    "aidesReperees_other": "<b>{{count}} aides</b> repérées",
+    "aucuneAide": "Aucune aide estimée",
+    "piecesTitre": "Les pièces {{deNom}}, réutilisables dans tous ses dossiers",
+    "piecesTitreSansNom": "Les pièces de ce monument, réutilisables dans tous ses dossiers",
+    "documents": "Documents"
+  },
+  "DocumentsTableau": {
+    "titreTous": "Les documents de vos monuments",
+    "titreMonument": "Les documents {{deNom}}",
+    "titreCeMonument": "Les documents de ce monument",
+    "surtitre": "Vos documents",
+    "intro": "Une pièce déposée une fois sert à tous vos dossiers.",
+    "ouvrir": "Ouvrir mes documents",
+    "derniersAjouts": "Derniers ajouts",
+    "aucunDocument": "Aucun document pour l'instant.",
+    "glissez": "Glissez un fichier ici",
+    "glissezIndice": "Devis, photos, arrêté de protection : vous choisirez ensuite son dossier.",
+    "choisirFichier": "Choisir un fichier",
+    "nbDocuments_one": "{{count}} document",
+    "nbDocuments_other": "{{count}} documents",
+    "prives": "Vos documents restent privés.",
+    "deposez": "Déposez votre fichier",
+    "deposezIndice": "Il sera rangé dans Mes documents."
+  },
+  "MonumentsInProgress": {
+    "dossiers_one": "{{count}} dossier",
+    "dossiers_other": "{{count}} dossiers",
+    "aucunMonument": "Aucun monument enregistré",
+    "aucunMonumentIndice": "Décrivez votre monument, puis lancez un projet de travaux pour estimer vos aides et suivre vos dossiers au même endroit."
+  },
+  "NextActionCard": {
+    "aucuneEcheance": "Aucune échéance ne réclame votre attention pour le moment.",
+    "demandeAide": "Demande d’aide",
+    "dossier": "Dossier",
+    "etAutres_one": "et {{count}} autre ce jour-là",
+    "etAutres_other": "et {{count}} autres ce jour-là",
+    "jeMEnOccupe": "Je m'en occupe",
+    "aNoter": "À noter",
+    "ensuite": "Ensuite",
+    "reduire": "Réduire",
+    "autres_one": "+ {{count}} autre",
+    "autres_other": "+ {{count}} autres"
+  },
+  "DonutChart": {
+    "aucuneDonneeAAfficher": "Aucune donnée à afficher",
+    "aucuneDonnee": "Aucune donnée",
+    "part": "{{libelle}} : {{valeur}} ({{pct}}%)",
+    "repartition": "Répartition : {{parts}}",
+    "total": "total"
+  },
+  "ProgressRing": {
+    "libelle": "{{libelle}} : {{pct}}%",
+    "progression": "Progression {{pct}}%"
+  },
+  "echeancesAlertes": {
+    "aujourdhui": "Auj.",
+    "jours_one": "J-{{count}}",
+    "jours_other": "J-{{count}}",
+    "sousAide": "Aide · {{date}}",
+    "sousDossier": "Dossier · {{date}}",
+    "enRetard": "En retard",
+    "nouveau": "Nouveau"
+  }
+}

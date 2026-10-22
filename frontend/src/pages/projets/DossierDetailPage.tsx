@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { Loader2 } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { IconSupprimer } from '@/components/icons';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -78,6 +79,7 @@ function jourMois(iso: string): string {
  * « Ajouter », puis le téléchargement du dossier et son dépôt.
  */
 export function DossierDetailPage() {
+  const { t } = useTranslation(['projets', 'common']);
   const { projetId, dossierId } = useParams();
   const navigate = useNavigate();
 
@@ -261,7 +263,7 @@ export function DossierDetailPage() {
       }
       await dossierService.updateChecklistItem(dossier.id, item.id, 'fourni', document.id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors du rattachement');
+      toast.error(err instanceof Error ? err.message : t('DossierDetailPage.toasts.erreurRattachement'));
       throw err;
     } finally {
       setBusyItemId(null);
@@ -292,9 +294,9 @@ export function DossierDetailPage() {
       // mémorisé sur la pièce, la reprise automatique ne reproposera pas le
       // fichier qu'on vient d'enlever.
       await dossierService.detacherChecklistItem(dossier.id, item.id);
-      toast.success('Document retiré du dossier');
+      toast.success(t('DossierDetailPage.toasts.documentRetire'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+      toast.error(err instanceof Error ? err.message : t('DossierDetailPage.toasts.erreurSuppression'));
     } finally {
       setBusyItemId(null);
     }
@@ -331,9 +333,9 @@ export function DossierDetailPage() {
       // jour optimistes ci-dessus n'ont donc rien pu y refléter. Sans ce rechargement,
       // `canModifyItem` le croirait absent et masquerait « Remplacer ».
       fetchDocuments().catch(() => {});
-      toast.success('Pièce confirmée');
+      toast.success(t('DossierDetailPage.toasts.pieceConfirmee'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la confirmation');
+      toast.error(err instanceof Error ? err.message : t('DossierDetailPage.toasts.erreurConfirmation'));
     } finally {
       setBusyItemId(null);
     }
@@ -348,9 +350,9 @@ export function DossierDetailPage() {
     setBusyItemId(item.id);
     try {
       await dossierService.detacherChecklistItem(dossier.id, item.id);
-      toast.success('Pièce retirée du dossier');
+      toast.success(t('DossierDetailPage.toasts.pieceRetiree'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors du rejet de la pièce');
+      toast.error(err instanceof Error ? err.message : t('DossierDetailPage.toasts.erreurRejet'));
     } finally {
       setBusyItemId(null);
     }
@@ -404,10 +406,10 @@ export function DossierDetailPage() {
     setDeleting(true);
     try {
       await dossierService.delete(dossier.id);
-      toast.success('Dossier supprimé : l’aide redevient disponible');
+      toast.success(t('DossierDetailPage.toasts.dossierSupprime'));
       navigate(`${ROUTES.PROJET_DETAIL(projetId)}?tab=dossiers`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression du dossier');
+      toast.error(err instanceof Error ? err.message : t('DossierDetailPage.toasts.erreurSuppressionDossier'));
       setDeleting(false);
     }
   };
@@ -421,10 +423,10 @@ export function DossierDetailPage() {
     try {
       await (depose ? dossierService.submit(dossier.id) : dossierService.reopen(dossier.id));
       await suiviService.fetchByProjet(projetId).catch(() => {});
-      toast.success(depose ? 'Dossier marqué comme déposé' : 'Dépôt annulé, le dossier est de nouveau modifiable');
+      toast.success(depose ? t('DossierDetailPage.toasts.marqueDepose') : t('DossierDetailPage.toasts.depotAnnule'));
       setConfirmDepotOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la mise à jour du dossier');
+      toast.error(err instanceof Error ? err.message : t('DossierDetailPage.toasts.erreurMiseAJour'));
     } finally {
       setDepotEnCours(false);
     }
@@ -438,7 +440,7 @@ export function DossierDetailPage() {
       setPreviewDoc(doc);
       fetchDocuments().catch(() => {});
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Document introuvable');
+      toast.error(err instanceof Error ? err.message : t('DossierDetailPage.toasts.documentIntrouvable'));
     }
   };
 
@@ -451,7 +453,7 @@ export function DossierDetailPage() {
     try {
       await dossierService.downloadArchive(dossier.id, dossier.titre);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Téléchargement impossible');
+      toast.error(err instanceof Error ? err.message : t('DossierDetailPage.toasts.telechargementImpossible'));
     } finally {
       setDownloading(false);
     }
@@ -462,11 +464,11 @@ export function DossierDetailPage() {
       <div className="ec pdos">
         <BoutonRetour
           to={projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.MONUMENTS}
-          libelle={projetId ? 'Retour au projet' : 'Retour à mes monuments'}
+          libelle={projetId ? t('communs.retourAuProjet') : t('communs.retourMesMonuments')}
         />
         <div className="vide pdos-introuvable">
-          <h1>Dossier introuvable</h1>
-          <p>Il a peut-être été supprimé, ou vous n'avez plus accès à ce projet.</p>
+          <h1>{t('DossierDetailPage.introuvable.titre')}</h1>
+          <p>{t('DossierDetailPage.introuvable.texte')}</p>
         </div>
       </div>
     );
@@ -492,7 +494,9 @@ export function DossierDetailPage() {
   // La date limite de l'aide, en jours restants comme sur la maquette.
   const limite = aide && !aide.permanent && aide.dateLimite ? aide.dateLimite.slice(0, 10) : null;
   const jours = limite ? joursAvant(limite) : null;
-  const avantLe = limite && jours !== null && jours >= 0 ? ` avant le ${jourMois(limite)}` : '';
+  // Chaque phrase finale existe avec et sans « avant le … » : la date ne se
+  // recolle pas en fin de phrase, l'ordre des mots change d'une langue à l'autre.
+  const dateAvant = limite && jours !== null && jours >= 0 ? jourMois(limite) : null;
 
   // Prêt à télécharger : toutes les pièces obligatoires confirmées. Les pièces
   // « selon votre situation » ne bloquent pas, rien ne dit qu'elles concernent
@@ -501,16 +505,29 @@ export function DossierDetailPage() {
   const obligatoiresManquantes = obligatoires.filter((i) => i.statut !== 'fourni').length;
   const restantes = total - confirmees;
   const pret = total > 0 && (obligatoires.length > 0 ? obligatoiresManquantes === 0 : restantes === 0);
-  const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
   const phraseFinale = depose
-    ? `Vous l'avez indiqué comme envoyé au financeur${dossier.dateSoumission ? ` le ${dateLongue(dossier.dateSoumission)}` : ''}. Les pièces ne sont plus modifiables.`
+    ? dossier.dateSoumission
+      ? t('DossierDetailPage.phrase.deposeLe', { date: dateLongue(dossier.dateSoumission) })
+      : t('DossierDetailPage.phrase.depose')
     : total === 0
-      ? `Téléchargez le dossier, puis envoyez-le vous-même au financeur${avantLe}.`
+      ? dateAvant
+        ? t('DossierDetailPage.phrase.sansPieceAvant', { date: dateAvant })
+        : t('DossierDetailPage.phrase.sansPiece')
       : restantes === 0
-        ? `Votre dossier est complet. Téléchargez-le, puis envoyez-le vous-même au financeur${avantLe}.`
+        ? dateAvant
+          ? t('DossierDetailPage.phrase.completAvant', { date: dateAvant })
+          : t('DossierDetailPage.phrase.complet')
         : pret
-          ? `Les pièces obligatoires sont réunies. Ajoutez celles qui vous concernent, puis téléchargez le dossier et envoyez-le vous-même au financeur${avantLe}.`
-          : `Il reste ${obligatoires.length > 0 ? pluriel(obligatoiresManquantes, 'pièce obligatoire') : pluriel(restantes, 'pièce')} à réunir. Ensuite, téléchargez le dossier et envoyez-le vous-même au financeur${avantLe}.`;
+          ? dateAvant
+            ? t('DossierDetailPage.phrase.obligatoiresReuniesAvant', { date: dateAvant })
+            : t('DossierDetailPage.phrase.obligatoiresReunies')
+          : obligatoires.length > 0
+            ? dateAvant
+              ? t('DossierDetailPage.phrase.resteObligatoiresAvant', { count: obligatoiresManquantes, date: dateAvant })
+              : t('DossierDetailPage.phrase.resteObligatoires', { count: obligatoiresManquantes })
+            : dateAvant
+              ? t('DossierDetailPage.phrase.restePiecesAvant', { count: restantes, date: dateAvant })
+              : t('DossierDetailPage.phrase.restePieces', { count: restantes });
 
   return (
     <div className="ec pdos">
@@ -526,7 +543,7 @@ export function DossierDetailPage() {
         />
       )}
       <Guide id="dossier" />
-      <BoutonRetour to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`} libelle={`Retour à ${nomProjet}`} />
+      <BoutonRetour to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`} libelle={t('communs.retourA', { nom: nomProjet })} />
 
       <input
         ref={inputRef}
@@ -546,48 +563,53 @@ export function DossierDetailPage() {
         <div>
           <Link className="lieu" to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`}>{monument.nom}</Link>
           <h1 id="dt">
-            Dossier {titreDossier}
-            {depose && <span className="clos">Déposé</span>}
+            {t('DossierDetailPage.titre', { nom: titreDossier })}
+            {depose && <span className="clos">{t('DossierDetailPage.depose')}</span>}
           </h1>
           <p className="proj">
-            Projet <Link to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`}>{nomProjet}</Link>
+            <Trans
+              t={t}
+              i18nKey="DossierDetailPage.projet"
+              values={{ nom: nomProjet }}
+              components={{ lien: <Link to={`${ROUTES.PROJET_DETAIL(projet.id)}?tab=dossiers`} /> }}
+            />
             {lienAide && (
               <>
                 {' · '}
                 <Link to={lienAide} data-guide="dossier.aide">
-                  Voir la fiche de l'aide
+                  {t('DossierDetailPage.voirFiche')}
                 </Link>
               </>
             )}
           </p>
           {fermee?.deposee && (
             <p className="proj">
-              Le financeur ne propose plus cette aide
-              {fermee.fermeeLe ? ` depuis le ${dateLongue(fermee.fermeeLe)}` : ''} ; votre
-              demande déjà envoyée suit son cours.
+              {fermee.fermeeLe
+                ? t('DossierDetailPage.fermeeDepuis', { date: dateLongue(fermee.fermeeLe) })
+                : t('DossierDetailPage.fermee')}
             </p>
           )}
         </div>
         {aide && (
           <div className="keys">
             <div className="key">
-              <small>Date limite</small>
+              <small>{t('DossierDetailPage.cles.dateLimite')}</small>
               {aide.permanent ? (
-                <b>Toute l'année</b>
+                <b>{t('DossierDetailPage.cles.touteLAnnee')}</b>
               ) : limite && jours !== null ? (
                 <>
                   <b>{jourMois(limite)}</b>
                   <span className={jours < 0 ? 'passe' : undefined}>
-                    {jours < 0 ? 'Date passée' : jours === 0 ? "Aujourd'hui" : jours === 1 ? 'Demain' : `Dans ${jours} jours`}
+                    {jours < 0 ? t('DossierDetailPage.cles.datePassee') : jours === 0 ? t('DossierDetailPage.cles.aujourdhui') : jours === 1 ? t('DossierDetailPage.cles.demain') : t('DossierDetailPage.cles.dansJours', { count: jours })}
                   </span>
                 </>
               ) : (
-                <b>À confirmer</b>
+                <b>{t('DossierDetailPage.cles.aConfirmer')}</b>
               )}
             </div>
             {montant?.valeur && (
               <div className="key">
-                <small>Montant</small>
+                <small>{t('DossierDetailPage.cles.montant')}</small>
                 <b>{montant.valeur}</b>
               </div>
             )}
@@ -604,14 +626,12 @@ export function DossierDetailPage() {
           <span className="gi"><Picto nom="refaire" /></span>
           <div>
             <b>
-              {aRepris === 1
-                ? 'Une pièce a été remplie avec un fichier déjà envoyé'
-                : `${aRepris} pièces ont été remplies avec des fichiers déjà envoyés`}
+              {t('DossierDetailPage.reprises.titre', { count: aRepris })}
             </b>
-            <p>Vérifiez que ce sont les bons : tant qu’ils ne sont pas confirmés, ces pièces ne comptent pas dans votre dossier.</p>
+            <p>{t('DossierDetailPage.reprises.texte')}</p>
           </div>
           <button className="btn b-blue b-sm" type="button" onClick={() => ouvrirVerification(dossier)}>
-            Vérifier maintenant
+            {t('DossierDetailPage.reprises.verifier')}
           </button>
         </div>
       )}
@@ -620,17 +640,17 @@ export function DossierDetailPage() {
         <div className="step-h">
           <div>
             <h2 id="piecesT">
-              Réunissez les pièces
-              {total > 0 && <span className="pcount">{confirmees} sur {total}</span>}
+              {t('DossierDetailPage.pieces.titre')}
+              {total > 0 && <span className="pcount">{t('DossierDetailPage.pieces.compte', { confirmees, total })}</span>}
             </h2>
             <p>
               {depose
-                ? 'Le dossier est déposé : ses pièces ne sont plus modifiables.'
-                : 'Cliquez sur « Ajouter » : choisissez la pièce dans Mes documents, ou importez-la depuis votre ordinateur.'}
+                ? t('DossierDetailPage.pieces.deposeTexte')
+                : t('DossierDetailPage.pieces.aide')}
             </p>
           </div>
           <Link className="btn b-line" to={ROUTES.DOCUMENTS}>
-            <Picto nom="dossier" />Ouvrir mes documents
+            <Picto nom="dossier" />{t('communs.ouvrirMesDocuments')}
           </Link>
         </div>
 
@@ -656,19 +676,19 @@ export function DossierDetailPage() {
       <section className="step final" aria-labelledby="fT">
         <div className="step-h">
           <div>
-            <h2 id="fT">{depose ? 'Votre dossier est déposé' : 'Téléchargez votre dossier, puis déposez-le'}</h2>
+            <h2 id="fT">{depose ? t('DossierDetailPage.final.titreDepose') : t('DossierDetailPage.final.titre')}</h2>
             <p>{phraseFinale}</p>
             {canManageDossier && (
               <p className="depot">
                 {depose ? (
                   <button className="rm" type="button" onClick={() => basculerDepot(false)} disabled={depotEnCours}>
-                    {depotEnCours ? 'Annulation…' : 'Annuler le dépôt'}
+                    {depotEnCours ? t('DossierDetailPage.final.annulation') : t('DossierDetailPage.final.annulerDepot')}
                   </button>
                 ) : (
                   <>
-                    Déjà envoyé au financeur ?{' '}
+                    {t('DossierDetailPage.final.dejaEnvoye')}{' '}
                     <button className="rm" type="button" onClick={() => setConfirmDepotOpen(true)} disabled={depotEnCours}>
-                      Marquer comme déposé
+                      {t('DossierDetailPage.final.marquerDepose')}
                     </button>
                   </>
                 )}
@@ -683,10 +703,10 @@ export function DossierDetailPage() {
             onClick={handleDownloadAll}
             disabled={downloading || !aDesPieces}
             data-guide="dossier.telecharger"
-            title={aDesPieces ? undefined : 'Ajoutez d’abord une pièce au dossier'}
+            title={aDesPieces ? undefined : t('DossierDetailPage.final.ajoutezDabord')}
           >
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Picto nom="telecharger" />}
-            {downloading ? 'Préparation…' : 'Télécharger le dossier'}
+            {downloading ? t('DossierDetailPage.final.preparation') : t('DossierDetailPage.final.telecharger')}
           </button>
         </div>
       </section>
@@ -695,22 +715,20 @@ export function DossierDetailPage() {
         <div className="pdos-suppr">
           <button className="rm del" type="button" onClick={() => setConfirmDeleteOpen(true)} disabled={deleting}>
             {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconSupprimer className="i" strokeWidth={1.8} />}
-            Supprimer le dossier
+            {t('DossierDetailPage.supprimer')}
           </button>
         </div>
       )}
       <AlertDialog open={confirmDepotOpen} onOpenChange={setConfirmDepotOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Marquer ce dossier comme déposé ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              À faire une fois le dossier envoyé au financeur : Monumia ne le transmet pas à votre place. Les pièces ne seront plus modifiables, et l'avancement de l'aide passera à « Déposé ». Vous pourrez annuler ce dépôt.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t('DossierDetailPage.dialogDepot.titre')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('DossierDetailPage.dialogDepot.description')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={depotEnCours}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={depotEnCours}>{t('common:actions.annuler')}</AlertDialogCancel>
             <AlertDialogAction onClick={() => basculerDepot(true)} disabled={depotEnCours}>
-              {depotEnCours ? 'Enregistrement…' : 'Marquer comme déposé'}
+              {depotEnCours ? t('common:etats.enregistrement') : t('DossierDetailPage.final.marquerDepose')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -719,15 +737,13 @@ export function DossierDetailPage() {
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce dossier ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Le dossier et ses pièces rattachées seront retirés. L'aide redeviendra disponible dans l'onglet « Aides ». Cette action est irréversible.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t('DossierDetailPage.dialogSuppression.titre')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('DossierDetailPage.dialogSuppression.description')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t('common:actions.annuler')}</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={handleDeleteDossier} disabled={deleting}>
-              {deleting ? 'Suppression…' : 'Supprimer'}
+              {deleting ? t('communs.suppression') : t('common:actions.supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -763,7 +779,7 @@ export function DossierDetailPage() {
         onAttach={async (doc) => {
           if (!attachingItem) return;
           await attacher(attachingItem, doc);
-          toast.success('Pièce ajoutée au dossier');
+          toast.success(t('DossierDetailPage.toasts.pieceAjoutee'));
         }}
         onUploaded={(doc) => setAccessDoc(doc)}
       />

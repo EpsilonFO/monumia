@@ -1,0 +1,211 @@
+{
+  "LegalLayout": {
+    "titreOnglet": "{{titre}} — Monumia",
+    "accueilAria": "Monumia, retour à l'accueil",
+    "derniereMaj": "Dernière mise à jour : {{date}}",
+    "avertissementTraduction": "Cette traduction est fournie à titre indicatif. Seule la version française fait foi.",
+    "retourAccueil": "Retour à l'accueil"
+  },
+  "Cgu": {
+    "titre": "Conditions générales d'utilisation",
+    "intro": "Les présentes conditions générales d'utilisation (les « <gras>CGU</gras> ») régissent l'accès et l'utilisation du site <gras>monumia.fr</gras> et de l'application <gras>app.monumia.fr</gras> (ensemble, le « <gras>Service</gras> »), édités par Monumia. En créant un compte ou en utilisant le Service, vous acceptez sans réserve les présentes CGU. Si vous ne les acceptez pas, vous ne devez pas utiliser le Service.",
+    "mentions": {
+      "titre": "1. Mentions légales",
+      "editeur": "<gras>Éditeur du Service</gras> : Monumia, société par actions simplifiée (SAS) au capital de 400,00 €, immatriculée au RCS de Lyon sous le numéro 106 236 748, dont le siège social est situé 10 avenue Jean Jaurès, 69370 Saint-Didier-au-Mont-d'Or, France. Numéro de TVA intracommunautaire : FR72106236748.",
+      "directeur": "<gras>Directeur de la publication</gras> : Paul Vacheret, président.",
+      "contact": "<gras>Contact</gras> : <mail>{{email}}</mail>.",
+      "hebergeur": "<gras>Hébergeur</gras> : OVH SAS, 2 rue Kellermann, 59100 Roubaix, France, immatriculée au RCS de Lille Métropole sous le numéro 424 761 419, téléphone : +33 9 72 10 10 07 (<ovh>www.ovhcloud.com</ovh>). Les serveurs du Service sont hébergés en France.",
+      "donnees": "<gras>Base de données et stockage de fichiers</gras> : Supabase, Inc., avec un hébergement des données situé exclusivement au sein de l'Union européenne (voir la <confidentialite>politique de confidentialité</confidentialite>)."
+    },
+    "objet": {
+      "titre": "2. Objet du Service",
+      "p1": "Monumia est un service en ligne qui aide les propriétaires et gestionnaires de patrimoine bâti à identifier les aides au financement (subventions publiques, aides de fondations, dispositifs fiscaux, mécénat) susceptibles de s'appliquer à leur monument et à leur projet, puis à préparer leurs dossiers de demande."
+    },
+    "resultats": {
+      "titre": "3. Caractère informatif des résultats",
+      "p1": "<gras>Les résultats fournis par Monumia (diagnostics d'éligibilité, estimations, listes d'aides, contenus d'accompagnement) ont une valeur strictement informative et indicative.</gras> Ils sont établis à partir des informations que vous déclarez et de sources publiques (textes officiels, règlements d'intervention, sites des organismes financeurs) qui peuvent évoluer, être modifiées ou supprimées à tout moment par les organismes concernés.",
+      "p2": "En conséquence :",
+      "puce1": "Monumia <gras>ne garantit ni l'éligibilité effective</gras> à une aide, ni son obtention, ni son montant : la décision d'attribution appartient exclusivement à l'organisme financeur (État, collectivité, fondation, etc.), au terme de sa propre instruction ;",
+      "puce2": "le Service <gras>ne constitue pas un conseil juridique, fiscal, financier ou architectural</gras> et ne se substitue ni à l'analyse d'un professionnel qualifié (avocat, notaire, expert-comptable, architecte du patrimoine), ni aux échanges directs avec les organismes financeurs ;",
+      "puce3": "il vous appartient de <gras>vérifier les conditions officielles</gras> de chaque aide auprès de l'organisme concerné avant toute décision engageante (travaux, embauche, financement) ;",
+      "puce4": "Monumia est tenue à une <gras>obligation de moyens</gras> : elle met tout en œuvre pour maintenir des informations exactes et à jour, sans pouvoir le garantir de manière absolue."
+    },
+    "acces": {
+      "titre": "4. Accès au Service et compte utilisateur",
+      "p1": "Le Service est réservé aux <gras>personnes physiques majeures</gras> disposant de la pleine capacité juridique et aux personnes morales agissant par l'intermédiaire d'un représentant habilité. <gras>Le Service n'est pas destiné aux mineurs</gras>, qui ne doivent ni créer de compte ni transmettre de données personnelles via le Service.",
+      "p2": "La création d'un compte requiert des informations exactes, complètes et à jour. Vous êtes responsable de la confidentialité de vos identifiants et de toute activité réalisée depuis votre compte. En cas d'utilisation non autorisée, prévenez-nous sans délai à <mail>{{email}}</mail>.",
+      "p3": "L'exactitude des résultats dépend directement de l'exactitude des informations que vous déclarez sur votre monument et votre projet : des déclarations erronées produisent des résultats erronés, sans que la responsabilité de Monumia puisse être engagée de ce fait."
+    },
+    "usage": {
+      "titre": "5. Utilisation acceptable",
+      "intro": "Vous vous engagez à ne pas :",
+      "puce1": "utiliser le Service à des fins illicites ou contraires aux présentes CGU ;",
+      "puce2": "tenter d'accéder sans autorisation aux systèmes, comptes ou données d'autres utilisateurs, ou de perturber le fonctionnement du Service ;",
+      "puce3": "extraire de manière systématique ou automatisée le contenu du Service (scraping, aspiration de base de données) à des fins de réutilisation commerciale ;",
+      "puce4": "téléverser des contenus illicites, contrefaisants ou portant atteinte aux droits de tiers.",
+      "p2": "Monumia se réserve le droit de suspendre ou de résilier, après notification sauf urgence, tout compte contrevenant aux présentes CGU."
+    },
+    "paiement": {
+      "titre": "6. Offres payantes et paiement",
+      "p1": "Certaines fonctionnalités du Service sont payantes. Les prix, exprimés en euros et toutes taxes comprises pour les consommateurs, sont indiqués avant toute souscription. Le paiement est traité par notre prestataire <gras>Stripe</gras>, sur des pages de paiement sécurisées opérées par Stripe : Monumia n'accède jamais à vos données de carte bancaire.",
+      "p2": "Les abonnements sont sans engagement de durée sauf mention contraire : ils peuvent être résiliés à tout moment depuis votre espace client, la résiliation prenant effet à la fin de la période en cours, sans remboursement au prorata de la période entamée sauf disposition légale contraire.",
+      "p3": "Monumia peut faire évoluer ses tarifs ; toute modification est notifiée au moins un mois avant son entrée en vigueur et ne s'applique qu'aux périodes de facturation suivantes. Vous restez libre de résilier avant l'application du nouveau tarif."
+    },
+    "retractation": {
+      "titre": "7. Droit de rétractation (consommateurs)",
+      "p1": "Si vous êtes un consommateur au sens du code de la consommation, vous disposez d'un délai de <gras>quatorze (14) jours</gras> à compter de la souscription pour exercer votre droit de rétractation, sans motif ni pénalité, en écrivant à <mail>{{email}}</mail> (articles L221-18 et suivants du code de la consommation).",
+      "p2": "Si vous demandez expressément l'accès immédiat au Service avant l'expiration de ce délai, vous pouvez toujours vous rétracter dans les quatorze jours, mais un montant proportionnel au service déjà fourni jusqu'à votre demande de rétractation reste dû (article L221-25 du code de la consommation)."
+    },
+    "propriete": {
+      "titre": "8. Propriété intellectuelle",
+      "p1": "Le Service, sa structure, ses textes, sa charte graphique, son logo et ses logiciels sont protégés par le droit de la propriété intellectuelle et demeurent la propriété exclusive de Monumia ou de ses concédants. Toute reproduction ou réutilisation non autorisée est interdite.",
+      "p2": "Les documents et informations que vous téléversez <gras>restent votre propriété</gras>. Vous concédez à Monumia une licence limitée, non exclusive et révocable, aux fins de fournir le Service (stockage, affichage, préparation de vos dossiers) et, dans les conditions de l'article 9, de constituer des jeux de données anonymisés. Cette licence prend fin à la suppression des contenus ou de votre compte ; elle subsiste toutefois pour les données déjà anonymisées, qui ne permettent plus de vous identifier ni de retrouver vos contenus.",
+      "p3": "Les textes officiels et informations publiques relatifs aux aides restent soumis à leurs régimes propres et sont cités à titre de référence."
+    },
+    "anonymisation": {
+      "titre": "9. Données anonymisées et modèles d'intelligence artificielle",
+      "p1": "Pour fiabiliser ses diagnostics et développer de nouvelles fonctionnalités, Monumia peut constituer, à partir des informations renseignées sur le Service, des <gras>jeux de données anonymisés</gras> destinés à l'analyse statistique et à l'<gras>entraînement de modèles d'intelligence artificielle</gras>, par Monumia ou pour son compte.",
+      "p2": "Seules sont concernées les données relatives aux <gras>monuments et aux projets</gras>, jamais celles qui décrivent votre personne :",
+      "puce1": "les informations déclarées sur le monument (nature du bien, protection, état sanitaire, caractéristiques, localisation généralisée) et sur le projet (nature et ampleur des travaux, calendrier, budget) ;",
+      "puce2": "vos réponses au questionnaire d'éligibilité et les résultats du diagnostic ;",
+      "puce3": "les pièces de dossier qui, par nature ou par votre choix, ont vocation à être rendues publiques (par exemple un dossier de demande d'aide destiné à publication).",
+      "p3": "Sont <gras>exclus</gras> de cette utilisation : votre identité, vos coordonnées, vos identifiants de connexion, vos données de facturation, les journaux techniques et les documents confidentiels (pièces d'identité, coordonnées bancaires, documents fiscaux, correspondance privée, tout document que vous n'avez pas destiné à une diffusion publique).",
+      "p4": "Avant toute utilisation, les données sont <gras>anonymisées de manière irréversible</gras> : suppression ou généralisation de tout élément permettant, directement ou par recoupement, de vous identifier ou d'identifier un propriétaire privé. Monumia s'engage à ne pas chercher à réidentifier les personnes concernées et à interdire cette réidentification à ses éventuels prestataires. Les jeux de données ainsi constitués ne comportent plus de données personnelles et peuvent être conservés après la clôture de votre compte.",
+      "p5": "Vous pouvez <gras>vous opposer</gras> à tout moment à cette utilisation pour vos données non encore anonymisées en écrivant à <mail>{{email}}</mail>. Les modalités détaillées figurent dans la <anonymisation>politique de confidentialité</anonymisation>."
+    },
+    "donneesPersonnelles": {
+      "titre": "10. Données personnelles",
+      "p1": "Le traitement de vos données personnelles est décrit dans notre <confidentialite>politique de confidentialité</confidentialite>, conforme au règlement (UE) 2016/679 (« RGPD ») et à la loi Informatique et Libertés."
+    },
+    "responsabilite": {
+      "titre": "11. Disponibilité et responsabilité",
+      "p1": "Monumia s'efforce d'assurer un accès continu au Service, sans garantir une disponibilité ininterrompue : des interruptions pour maintenance, mise à jour ou cas de force majeure peuvent survenir. Monumia ne saurait être tenue responsable des dommages indirects (perte de chance d'obtenir une aide, perte d'exploitation, préjudice d'image) résultant de l'utilisation ou de l'impossibilité d'utiliser le Service.",
+      "p2": "Pour les utilisateurs professionnels, la responsabilité totale de Monumia, toutes causes confondues, est plafonnée aux sommes effectivement versées par l'utilisateur au titre des douze derniers mois. Aucune stipulation des présentes ne limite la responsabilité de Monumia en cas de dol, de faute lourde, de dommage corporel, ni aucune responsabilité qui ne peut être légalement limitée à l'égard des consommateurs."
+    },
+    "resiliation": {
+      "titre": "12. Résiliation",
+      "p1": "Vous pouvez cesser d'utiliser le Service et demander la suppression de votre compte à tout moment, depuis l'application ou en écrivant à <mail>{{email}}</mail>. Les conséquences de la suppression sur vos données sont décrites dans la <confidentialite>politique de confidentialité</confidentialite>."
+    },
+    "mediation": {
+      "titre": "13. Médiation de la consommation",
+      "p1": "Conformément aux articles L612-1 et suivants du code de la consommation, tout consommateur a le droit de recourir gratuitement à un médiateur de la consommation en vue de la résolution amiable d'un litige avec Monumia, après avoir tenté au préalable de résoudre le litige directement auprès de <mail>{{email}}</mail>."
+    },
+    "modification": {
+      "titre": "14. Modification des CGU",
+      "p1": "Monumia peut modifier les présentes CGU pour tenir compte des évolutions du Service ou de la réglementation. Les utilisateurs disposant d'un compte sont informés de toute modification substantielle au moins quinze jours avant son entrée en vigueur. La poursuite de l'utilisation du Service après cette date vaut acceptation des CGU modifiées ; à défaut, vous pouvez résilier dans les conditions de l'article 12."
+    },
+    "droitApplicable": {
+      "titre": "15. Droit applicable et juridiction",
+      "p1": "Les présentes CGU sont soumises au droit français. En cas de litige et à défaut de résolution amiable, les tribunaux français sont compétents dans les conditions du droit commun. Le consommateur peut saisir, à son choix, l'une des juridictions territorialement compétentes en vertu du code de procédure civile ou la juridiction du lieu où il demeurait au moment de la conclusion du contrat. Ces CGU ne privent pas les consommateurs résidant dans un autre État membre de l'Union européenne des protections impératives de leur droit national."
+    },
+    "voirAussi": "Voir aussi : <confidentialite>Politique de confidentialité</confidentialite>"
+  },
+  "Confidentialite": {
+    "titre": "Politique de confidentialité",
+    "intro1": "Cette politique décrit comment Monumia traite vos données personnelles, en conformité avec le règlement (UE) 2016/679 (« <gras>RGPD</gras> ») et la loi n° 78-17 du 6 janvier 1978 (« Informatique et Libertés »). Elle s'applique au site monumia.fr, à l'application app.monumia.fr et à la liste d'attente de lancement.",
+    "intro2": "Notre principe : <gras>nous ne collectons que ce qui est nécessaire au Service, nous ne vendons ni ne louons jamais vos données, et nous n'affichons aucune publicité.</gras>",
+    "responsable": {
+      "titre": "1. Responsable du traitement",
+      "p1": "Le responsable du traitement est Monumia, SAS immatriculée au RCS de Lyon sous le numéro 106 236 748, dont le siège social est situé 10 avenue Jean Jaurès, 69370 Saint-Didier-au-Mont-d'Or, France, joignable à <mail>{{email}}</mail>, y compris pour toute question relative aux données personnelles."
+    },
+    "collecte": {
+      "titre": "2. Données que nous collectons",
+      "intro": "Nous collectons uniquement les données suivantes :",
+      "attente": "<gras>Liste d'attente de lancement</gras> : votre adresse e-mail et la page depuis laquelle vous vous êtes inscrit. Rien d'autre.",
+      "compte": "<gras>Compte utilisateur</gras> : prénom, nom, adresse e-mail, mot de passe (stocké exclusivement sous forme hachée) et, si vous le renseignez, numéro de téléphone.",
+      "projets": "<gras>Données de vos projets</gras> : les informations que vous déclarez sur vos monuments et vos projets (localisation, protections, nature des travaux, réponses au questionnaire) et les documents que vous téléversez pour vos dossiers.",
+      "facturation": "<gras>Facturation</gras> : l'historique de vos abonnements et paiements. Les données de carte bancaire sont saisies directement sur les pages sécurisées de Stripe et <gras>ne transitent jamais par nos serveurs</gras>.",
+      "techniques": "<gras>Données techniques</gras> : journaux de connexion des serveurs (adresse IP, horodatage, pages appelées), à des fins de sécurité et de diagnostic d'incident.",
+      "audience": "<gras>Mesure d'audience de l'application</gras> : les pages consultées et les étapes franchies (création d'un monument, d'un projet, d'un dossier), sous forme de statistiques anonymes. Aucun cookie ni stockage sur votre appareil, aucun identifiant de compte, de monument ou de projet, aucun texte affiché à l'écran, aucun enregistrement de votre session (voir l'article 9).",
+      "nonIntro": "Et voici ce que nous ne faisons pas :",
+      "non1": "aucun cookie publicitaire ni traceur, aucun suivi individuel de votre navigation ;",
+      "non2": "aucune revente, location ou cession de vos données à des tiers ;",
+      "non3": "aucune transmission de vos données personnelles à des services d'intelligence artificielle externes : le moteur d'analyse d'éligibilité de Monumia fonctionne sur nos propres serveurs, sans appel à des services tiers. Seules des données préalablement anonymisées, qui ne vous concernent plus, peuvent servir à entraîner des modèles (voir l'article 4) ;",
+      "non4": "aucune collecte de données auprès de mineurs (voir l'article 10)."
+    },
+    "finalites": {
+      "titre": "3. Finalités et bases légales",
+      "service": "<gras>Fournir le Service</gras> (compte, diagnostics, dossiers, support) : exécution du contrat (article 6.1.b du RGPD).",
+      "lancement": "<gras>Vous prévenir du lancement</gras> (liste d'attente) : votre consentement (article 6.1.a), retirable à tout moment.",
+      "facturation": "<gras>Facturation et comptabilité</gras> : obligation légale (article 6.1.c).",
+      "securite": "<gras>Sécurité du Service</gras> (journaux, prévention des abus) : intérêt légitime (article 6.1.f).",
+      "audience": "<gras>Mesure d'audience de l'application</gras>, pour repérer les écrans qui se comprennent mal : intérêt légitime (article 6.1.f). Vous pouvez vous y opposer à tout moment (voir l'article 9).",
+      "emails": "<gras>E-mails liés au fonctionnement du Service</gras> (confirmations, invitations de collaboration, alertes sur vos projets) : exécution du contrat. Nous n'envoyons pas de prospection commerciale pour le compte de tiers.",
+      "anonymisation": "<gras>Constitution de jeux de données anonymisés</gras> pour améliorer le Service et entraîner des modèles d'intelligence artificielle (voir l'article 4) : intérêt légitime (article 6.1.f), l'anonymisation étant un traitement ultérieur compatible avec les finalités initiales (article 5.1.b). Vous pouvez vous y opposer à tout moment."
+    },
+    "anonymisation": {
+      "titre": "4. Données anonymisées et entraînement de modèles d'intelligence artificielle",
+      "p1": "Pour fiabiliser nos diagnostics d'éligibilité et développer de nouvelles fonctionnalités, nous pouvons constituer, à partir des informations renseignées sur le Service, des <gras>jeux de données anonymisés</gras> servant à des analyses statistiques et à l'<gras>entraînement de modèles d'intelligence artificielle</gras>, par Monumia ou pour son compte.",
+      "utilise": "<gras>Ce qui peut être utilisé</gras> : uniquement les données qui décrivent le monument et le projet, jamais celles qui vous décrivent.",
+      "puce1": "les informations déclarées sur le monument (nature du bien, protection, état sanitaire, caractéristiques, localisation généralisée à l'échelle de la commune ou du département) et sur le projet (nature et ampleur des travaux, calendrier, budget) ;",
+      "puce2": "vos réponses au questionnaire d'éligibilité et les résultats du diagnostic ;",
+      "puce3": "les pièces de dossier qui, par nature ou par votre choix, ont vocation à être rendues publiques (par exemple un dossier de demande d'aide destiné à publication).",
+      "jamaisUtilise": "<gras>Ce qui n'est jamais utilisé</gras> : vos nom, prénom, adresse e-mail, numéro de téléphone, identifiants de connexion, données de facturation, journaux techniques, ni les documents confidentiels (pièces d'identité, coordonnées bancaires, documents fiscaux, correspondance privée, tout document que vous n'avez pas destiné à une diffusion publique).",
+      "methode": "<gras>Comment nous anonymisons</gras> : avant toute utilisation, nous supprimons ou généralisons tout élément permettant, directement ou par recoupement, de vous identifier ou d'identifier un propriétaire privé (identifiants de compte, adresse précise, références cadastrales, noms de personnes présents dans les documents). L'anonymisation est irréversible : les jeux de données obtenus ne constituent plus des données personnelles au sens du RGPD. Nous nous engageons à ne pas chercher à réidentifier les personnes concernées et imposons la même interdiction à nos éventuels prestataires. Les données relatives aux monuments appartenant à des personnes morales (communes, associations, sociétés) ne sont pas des données personnelles et peuvent être utilisées sous la même forme.",
+      "opposition": "<gras>Votre droit d'opposition</gras> : vous pouvez vous opposer à tout moment, sans motif, à l'utilisation de vos données à cette fin en écrivant à <mail>{{email}}</mail>. Votre opposition prend effet pour toutes les données non encore anonymisées ; les données déjà anonymisées ne pouvant plus vous être rattachées, il nous est techniquement impossible de les retirer des jeux de données existants. Cette opposition n'a aucune incidence sur votre accès au Service."
+    },
+    "destinataires": {
+      "titre": "5. Destinataires et sous-traitants",
+      "intro": "Vos données ne sont accessibles qu'à l'équipe de Monumia, dans la limite de ce qui est nécessaire, et aux sous-traitants suivants, chacun lié par un accord de traitement des données conforme à l'article 28 du RGPD :",
+      "ovh": "<gras>OVH SAS</gras> (France) : hébergement des serveurs applicatifs, en France.",
+      "supabase": "<gras>Supabase, Inc.</gras> : base de données, authentification et stockage de fichiers, avec des données hébergées exclusivement dans l'Union européenne.",
+      "stripe": "<gras>Stripe</gras> (Stripe Payments Europe, Ltd., Irlande) : traitement des paiements.",
+      "resend": "<gras>Resend, Inc.</gras> (États-Unis) : envoi des e-mails du Service (adresse e-mail et contenu des messages uniquement).",
+      "posthog": "<gras>PostHog, Inc.</gras> : mesure d'audience de l'application, avec des données hébergées dans l'Union européenne.",
+      "p2": "Vos données peuvent également être communiquées aux autorités lorsque la loi l'exige. Si vous partagez un projet avec un collaborateur, celui-ci accède aux données de ce projet dans la limite du rôle que vous lui attribuez."
+    },
+    "transferts": {
+      "titre": "6. Transferts hors de l'Union européenne",
+      "p1": "Nos serveurs et nos bases de données sont situés en France et dans l'Union européenne. Certains sous-traitants (Supabase, Inc., Resend, Inc. et PostHog, Inc., sociétés américaines) peuvent impliquer un accès à des données depuis les États-Unis ; ces transferts sont encadrés par des garanties appropriées au sens du chapitre V du RGPD (clauses contractuelles types de la Commission européenne et, le cas échéant, certification au cadre de protection des données UE-États-Unis). Vous pouvez obtenir une copie de ces garanties en écrivant à <mail>{{email}}</mail>."
+    },
+    "conservation": {
+      "titre": "7. Durées de conservation",
+      "compte": "<gras>Compte et données de projets</gras> : pendant toute la durée de vie du compte, puis suppression dans les trente (30) jours suivant sa clôture. Certaines données peuvent être conservées en archivage restreint le temps des prescriptions légales (au maximum cinq ans) lorsque c'est nécessaire à la défense de nos droits.",
+      "documents": "<gras>Documents téléversés</gras> : supprimés avec le projet ou le compte auquel ils sont rattachés.",
+      "anonymises": "<gras>Jeux de données anonymisés</gras> (article 4) : n'étant plus des données personnelles, ils peuvent être conservés sans limitation de durée, y compris après la clôture de votre compte.",
+      "attente": "<gras>Liste d'attente</gras> : jusqu'au lancement du Service, puis au plus trois ans après le dernier contact ; suppression immédiate sur simple demande.",
+      "factures": "<gras>Factures et pièces comptables</gras> : dix ans (obligation légale).",
+      "journaux": "<gras>Journaux techniques</gras> : douze mois au maximum.",
+      "audience": "<gras>Statistiques de mesure d'audience</gras> : vingt-cinq mois au maximum."
+    },
+    "droits": {
+      "titre": "8. Vos droits",
+      "intro": "Conformément au RGPD et à la loi Informatique et Libertés, vous disposez des droits suivants sur vos données :",
+      "acces": "droit d'accès et droit d'obtenir une copie de vos données ;",
+      "rectification": "droit de rectification des données inexactes ou incomplètes ;",
+      "effacement": "droit à l'effacement (« droit à l'oubli ») ;",
+      "limitation": "droit à la limitation du traitement ;",
+      "opposition": "droit d'opposition, notamment aux traitements fondés sur notre intérêt légitime, y compris la constitution de jeux de données anonymisés décrite à l'article 4 ;",
+      "portabilite": "droit à la portabilité de vos données ;",
+      "consentement": "droit de retirer votre consentement à tout moment, sans remettre en cause la licéité du traitement antérieur ;",
+      "directives": "droit de définir des directives relatives au sort de vos données après votre décès (article 85 de la loi Informatique et Libertés).",
+      "exercice": "Pour exercer ces droits, écrivez à <mail>{{email}}</mail>. Nous répondons dans un délai d'un mois, prorogeable de deux mois pour les demandes complexes. Une pièce justifiant de votre identité peut être demandée en cas de doute raisonnable.",
+      "cnil": "Si vous estimez que vos droits ne sont pas respectés, vous pouvez introduire une réclamation auprès de la CNIL : Commission Nationale de l'Informatique et des Libertés, 3 place de Fontenoy, TSA 80715, 75334 Paris Cedex 07 (<cnil>www.cnil.fr</cnil>)."
+    },
+    "cookies": {
+      "titre": "9. Cookies et stockage local",
+      "site": "Le site monumia.fr <gras>n'utilise aucun cookie</gras> : pas de traceur, pas de mesure d'audience, pas de bouton de partage tiers. Les polices de caractères sont hébergées sur nos propres serveurs.",
+      "application": "L'application app.monumia.fr utilise uniquement le stockage local de votre navigateur pour conserver votre session d'authentification. Ce stockage est strictement nécessaire à la fourniture du Service et est, à ce titre, exempté de consentement préalable (article 82 de la loi Informatique et Libertés).",
+      "audience": "L'application mesure aussi son audience, avec l'outil PostHog, dans les conditions où la CNIL dispense la mesure d'audience de consentement : sans cookie ni stockage sur votre appareil, sous forme de statistiques anonymes réservées à Monumia, jamais recoupées avec votre compte ni avec d'autres traitements. Les adresses des pages sont transmises sans les identifiants qu'elles contiennent, et ni le texte affiché à l'écran ni le déroulement de votre session ne sont enregistrés. Aucun bandeau de consentement n'est donc requis. Vous pouvez vous opposer à cette mesure à tout moment depuis la page Profil de l'application ; votre choix est retenu dans votre navigateur. Le réglage « Do Not Track » de votre navigateur vaut également opposition.",
+      "futur": "Si nous devions un jour introduire des traceurs soumis à consentement, celui-ci vous serait demandé au préalable.",
+      "stripe": "Les pages de paiement sont opérées par Stripe sur son propre domaine et sont soumises à sa propre politique de confidentialité."
+    },
+    "mineurs": {
+      "titre": "10. Mineurs",
+      "p1": "Le Service est réservé aux personnes majeures. <gras>Nous ne collectons pas sciemment de données personnelles concernant des mineurs</gras>, et aucune de nos offres ne leur est destinée. Si vous êtes titulaire de l'autorité parentale et pensez qu'un mineur nous a transmis des données personnelles, contactez-nous à <mail>{{email}}</mail> : elles seront supprimées sans délai."
+    },
+    "securite": {
+      "titre": "11. Sécurité",
+      "p1": "Nous mettons en œuvre des mesures techniques et organisationnelles adaptées : chiffrement des échanges (TLS), hébergement en France et dans l'Union européenne, mots de passe stockés exclusivement sous forme hachée, cloisonnement des accès aux données par compte, accès administrateur restreint et journalisé. En cas de violation de données susceptible d'engendrer un risque pour vos droits et libertés, nous notifierons la CNIL dans les 72 heures et, si le risque est élevé, nous vous en informerons directement."
+    },
+    "decision": {
+      "titre": "12. Absence de décision entièrement automatisée",
+      "p1": "Le diagnostic d'éligibilité de Monumia est calculé automatiquement à partir de vos déclarations, mais il est <gras>purement informatif</gras> : il ne produit aucune décision ayant des effets juridiques à votre égard au sens de l'article 22 du RGPD. La décision d'attribuer ou non une aide appartient exclusivement aux organismes financeurs."
+    },
+    "modifications": {
+      "titre": "13. Modifications de cette politique",
+      "p1": "Nous pouvons faire évoluer cette politique, notamment en cas de changement de sous-traitant ou de fonctionnalité. La date de dernière mise à jour figure en haut de page ; en cas de modification substantielle, les utilisateurs disposant d'un compte en sont informés par e-mail ou dans l'application."
+    },
+    "voirAussi": "Voir aussi : <cgu>Conditions générales d'utilisation</cgu> · <mentions>Mentions légales</mentions>"
+  }
+}

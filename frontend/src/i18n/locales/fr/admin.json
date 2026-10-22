@@ -1,0 +1,256 @@
+{
+  "AdminPage": {
+    "accesReserve": "Accès réservé à l’administration",
+    "titre": "Administration du catalogue",
+    "description": "Retirer une aide du catalogue, reformuler une question du questionnaire, modifier le critère d’une condition. Les modifications s’appliquent au prochain chargement de page des utilisateurs.",
+    "lienStats": "Le catalogue en chiffres",
+    "onglets": {
+      "aides": "Aides",
+      "questions": "Questions",
+      "conditions": "Conditions",
+      "roles": "Rôles"
+    }
+  },
+  "AdminPanneaux": {
+    "enregistrementImpossible": "Enregistrement impossible",
+    "retablissementImpossible": "Rétablissement impossible",
+    "impactIndisponible": "Impact indisponible",
+    "motif": "Motif",
+    "nonTypee": "Non typée",
+    "calcul": "Calcul…",
+    "verifierImpact": "Vérifier l’impact",
+    "retablir": "Rétablir"
+  },
+  "AdminAidesPanel": {
+    "catalogueIndisponible": "Catalogue indisponible",
+    "toastRetiree": "Aide retirée du catalogue",
+    "toastRepubliee": "Aide republiée",
+    "recherche": "Rechercher une aide (nom, organisme, slug)…",
+    "compteur_one": "{{total}} aides · {{count}} retirée",
+    "compteur_other": "{{total}} aides · {{count}} retirées",
+    "aucunResultat": "Aucune aide ne correspond à votre recherche.",
+    "colonnes": {
+      "aide": "Aide",
+      "organisme": "Organisme",
+      "etat": "État"
+    },
+    "badges": {
+      "retiree": "Retirée",
+      "bientot": "Bientôt"
+    },
+    "selectionner": "Sélectionnez une aide pour la retirer du catalogue ou la republier.",
+    "retireeDuCatalogue": "Retirée du catalogue",
+    "retireeExplication": "L’aide disparaît des diagnostics, sa fiche devient introuvable et aucun dossier ne peut plus être ouvert dessus.",
+    "motifPlaceholder": "Dispositif supprimé par la région, doublon de…",
+    "retireeLe": "Retirée le {{date}}"
+  },
+  "AdminConditionsPanel": {
+    "conditionsIndisponibles": "Conditions indisponibles",
+    "toastMiseAJour": "Condition mise à jour",
+    "toastRetablie": "Condition revenue à son prédicat d’origine",
+    "surchargesEnPlace": "Surcharges en place ({{nb}})",
+    "ouvrir": "Ouvrir",
+    "supprimerLigne": "Supprimer la ligne",
+    "recherche": "Rechercher une condition (aide, texte, question)…",
+    "aucunResultat": "Aucune condition ne correspond à votre recherche.",
+    "aideRetiree": "Aide retirée",
+    "selectionner": "Choisissez une condition pour modifier son critère.",
+    "texteLectureSeule": "Texte de la condition (lecture seule)",
+    "texteAuMomentDecision": "<gras>Texte au moment de la décision :</gras> {{texte}}",
+    "operateurAria": "Opérateur du critère",
+    "cochezUneReponse": "Cochez au moins une réponse.",
+    "impactSurAide": "Impact sur l’aide",
+    "impact": {
+      "ecarteraDesormais": "<code>{{id}}</code> — écartera désormais cette aide",
+      "necarteraPlus": "<code>{{id}}</code> — n’écartera plus cette aide",
+      "ecarteInchange": "<code>{{id}}</code> — écarte l’aide (inchangé)",
+      "necartePasInchange": "<code>{{id}}</code> — n’écarte pas l’aide (inchangé)"
+    },
+    "verdictCritere": "Ce verdict porte sur le CRITÈRE, pas sur une audience : le nombre d’utilisateurs concernés n’est pas calculé.",
+    "motifPlaceholder": "Facultatif — pourquoi ce critère change.",
+    "confirmation": {
+      "titre": "Rétablir le critère d’origine ?",
+      "description": "La surcharge est supprimée et la condition revient au prédicat de <code>{{fichier}}</code>. Les réponses déjà enregistrées par les utilisateurs ne changent pas."
+    }
+  },
+  "AdminFaitsPanel": {
+    "ontologieIndisponible": "Ontologie indisponible",
+    "toastMiseAJour": "Question mise à jour",
+    "toastRetablie": "Question revenue à sa version d’origine",
+    "recherche": "Rechercher une question (clé, texte, réponse)…",
+    "aucunResultat": "Aucune question ne correspond à votre recherche.",
+    "badges": {
+      "surchargee": "Surchargée",
+      "enAttente": "En attente"
+    },
+    "nbAides_one": "{{count}} aide",
+    "nbAides_other": "{{count}} aides",
+    "selectionner": "Sélectionnez une question pour reformuler son texte ou ses réponses.",
+    "reformuler": "Reformuler la question",
+    "poseeSeulementSi": "Posée seulement si <code>{{fait}}</code> <code>{{predicat}}</code>. Cette dépendance est déclarée sur le fait dans <code>facts.yaml</code> et ne se modifie pas ici.",
+    "questionPosee": "Question posée",
+    "original": "Original : {{texte}}",
+    "aideContextuelle": "Aide contextuelle",
+    "aideContextuellePlaceholder": "Facultative — affichée sous la question.",
+    "reponsesPossibles": "Réponses possibles",
+    "identifiantAria": "Identifiant de la réponse",
+    "nonSupprimable": "Non supprimable : les réponses déjà enregistrées s’appuient dessus.",
+    "supprimerReponseAria": "Supprimer la réponse {{reponse}}",
+    "libelleAria": "Libellé de la réponse",
+    "valeurMoteur": "Valeur envoyée au moteur",
+    "valeurMoteurAria": "Valeur envoyée au moteur pour la réponse {{reponse}}",
+    "valeurs": {
+      "oui": "Oui",
+      "non": "Non",
+      "neutre": "Ne tranche pas"
+    },
+    "reponseNeutre": "Réponse neutre (n’écarte aucune aide)",
+    "ajouterReponse": "Ajouter une réponse",
+    "identifiantInvalide": "Un identifiant ne contient que des minuscules, des chiffres et des tirets bas.",
+    "tranchesCalculees": "Les tranches d’un fait <code>{{type}}</code> sont calculées par le moteur à partir des seuils des aides : seuls la question et son aide contextuelle se modifient ici.",
+    "impactSurAides": "Impact sur les aides",
+    "impact": {
+      "neutre": "<code>{{id}}</code> — réponse neutre, n’écarte aucune aide",
+      "netranchePas": "<code>{{id}}</code> — ne tranche pas, n’écarte aucune aide",
+      "ecarte_one": "<code>{{id}}</code> — écarte {{count}} aide",
+      "ecarte_other": "<code>{{id}}</code> — écarte {{count}} aides"
+    },
+    "supprimee": {
+      "sansReference": "<code>{{id}}</code> supprimée — référencée par {{count}} aide",
+      "referencee_one": "<code>{{id}}</code> supprimée — référencée par {{count}} aide : ces aides ne pourront plus être ouvertes par cette question.",
+      "referencee_other": "<code>{{id}}</code> supprimée — référencée par {{count}} aides : ces aides ne pourront plus être ouvertes par cette question."
+    },
+    "retablirOriginal": "Rétablir l’original",
+    "confirmation": {
+      "titre": "Rétablir la question d’origine ?",
+      "description": "La reformulation est supprimée et la question revient au texte de <code>facts.yaml</code>. Les réponses déjà enregistrées par les utilisateurs ne changent pas."
+    }
+  },
+  "AdminRolesPanel": {
+    "roles": {
+      "admin": "Administrateur",
+      "beta_testeur": "Bêta-testeur"
+    },
+    "listeIndisponible": "Liste des comptes indisponible",
+    "toastRetire": {
+      "admin": "{{nom}} n’est plus administrateur",
+      "beta_testeur": "{{nom}} n’est plus bêta-testeur"
+    },
+    "toastAttribue": {
+      "admin": "{{nom}} est désormais administrateur",
+      "beta_testeur": "{{nom}} est désormais bêta-testeur"
+    },
+    "changementImpossible": "Changement impossible",
+    "recherche": "Rechercher un compte (nom, email)…",
+    "nbComptes_one": "{{count}} compte",
+    "nbComptes_other": "{{count}} comptes",
+    "compteurRole": {
+      "admin_one": "{{count}} administrateur",
+      "admin_other": "{{count}} administrateurs",
+      "beta_testeur_one": "{{count}} bêta-testeur",
+      "beta_testeur_other": "{{count}} bêta-testeurs"
+    },
+    "explication": "Un clic donne ou reprend le rôle immédiatement, il n’y a rien à enregistrer. <gras>Bêta-testeur</gras> ouvre l’offre Multi-monuments, sans facturation ; <gras>Administrateur</gras> ouvre cette page, plus l’offre Multi-monuments.",
+    "aucunResultat": "Aucun compte ne correspond à votre recherche.",
+    "colonnes": {
+      "compte": "Compte",
+      "inscrit": "Inscrit",
+      "roles": "Rôles"
+    },
+    "vous": "(vous)",
+    "socleTitle": "Vient de la variable ADMIN_USER_IDS",
+    "compteIntrouvable": "Compte introuvable",
+    "listeTronquee": "Seuls les comptes les plus récents sont listés. Les porteurs d’un rôle apparaissent toujours, où qu’ils soient dans la liste.",
+    "socleExplication": "Les comptes marqués <code>ADMIN_USER_IDS</code> tiennent leur administration de la configuration du serveur : elle amorce l’accès sur un environnement neuf et se retire en modifiant le <code>.env</code>, puis en redéployant. Vous ne pouvez pas retirer votre propre administration — demandez-le à un autre administrateur."
+  },
+  "AdminStatsPage": {
+    "titre": "Le catalogue en chiffres",
+    "description": "Combien d’aides finance chaque Conseil régional, chaque Conseil départemental, et combien valent partout. Cliquer une ligne déplie leurs noms.",
+    "aJourA": "à jour à {{heure}}",
+    "rafraichir": "Rafraîchir",
+    "retourAdmin": "← Administration du catalogue",
+    "indisponibles": "Statistiques indisponibles",
+    "indisponiblesPhrase": "Statistiques indisponibles.",
+    "chiffrage": "Taux : <valeur>{{taux}}</valeur> · Plafond médian : <valeur>{{plafond}}</valeur> · chiffrées : {{couverture}}",
+    "groupeVide": "Aucune aide de cette collectivité dans le catalogue.",
+    "aucunTerritoire": "Aucun territoire ne correspond à votre recherche.",
+    "colonnes": {
+      "region": "Région",
+      "departement": "Département",
+      "aides": "Aides",
+      "aidesRegion": "Aides du Conseil régional",
+      "aidesDepartement": "Aides du Conseil départemental"
+    },
+    "synchronisation": {
+      "titre_one": "{{count}} aide absente de la base",
+      "titre_other": "{{count}} aides absentes de la base",
+      "explication": "Le diagnostic les propose, mais la création de dossier répondra « Aide introuvable ». Relancer <code>scripts/load_aides_yaml.py</code> pour les pousser."
+    },
+    "vignettes": {
+      "catalogue": "Aides au catalogue",
+      "retirees_one": "{{count}} retirée, non comptée",
+      "retirees_other": "{{count}} retirées, non comptées",
+      "nationales": "Nationales",
+      "nationalesNote": "État, fiscalité, fondations nationales",
+      "regionaux": "Conseils régionaux",
+      "departementaux": "Conseils départementaux",
+      "quelQueSoitPerimetre": "quel que soit leur périmètre",
+      "autres": "Autres financeurs",
+      "autresNote": "fondations, Europe, mécénat"
+    },
+    "filtrer": "Filtrer un territoire (nom, code INSEE, région)…",
+    "masquerVides": "Masquer les territoires sans aide",
+    "onglets": {
+      "regions": "Régions",
+      "departements": "Départements",
+      "national": "National",
+      "autres": "Autres financeurs",
+      "nature": "Nature"
+    },
+    "nationalTitre": "{{nb}} aides sans filtre géographique",
+    "autresTitre": "{{nb}} aides d’un financeur sans échelon territorial",
+    "nature": {
+      "parFinanceur": "Par financeur",
+      "categorie": "Catégorie",
+      "parDispositif": "Par dispositif",
+      "type": "Type"
+    },
+    "notes": {
+      "regions": "Les aides financées par chaque Conseil régional, y compris celles qu’il limite à quelques départements. Ce que la Région finance, pas ce qui s’applique sur son territoire : les aides de l’État et des Départements sont sur leurs propres onglets.",
+      "departements": "Les aides financées par chaque Conseil départemental. Un zéro ne veut pas dire qu’un monument du département n’a droit à rien : il voit aussi les aides de sa région, les nationales et celles des autres financeurs. Il veut dire qu’il reste un Département entier à prospecter.",
+      "autres": "Fondations, Europe, mécénat : leur périmètre est local sans qu’un euro vienne d’une collectivité. Les compter comme des aides de Département serait faux, les cacher les ferait disparaître de la page.",
+      "pied": "Les quatre chiffres de tête s’additionnent : une aide est comptée une seule fois, sur l’échelon qui la finance. {{nc}} = la source n’annonce ni taux ni montant : rien n’est déduit, rien n’est additionné. Les aides retirées du catalogue ne sont ni comptées ni listées."
+    }
+  },
+  "predicats": {
+    "operateurs": {
+      "eq": "est",
+      "neq": "n’est pas",
+      "in": "est parmi",
+      "not_in": "n’est aucun de",
+      "none_in": "n’a coché aucun de"
+    },
+    "operateursMultiple": {
+      "eq": "compte",
+      "neq": "compte autre chose que",
+      "in": "compte l’un de",
+      "not_in": "compte autre chose que"
+    },
+    "etats": {
+      "active": "Appliquée",
+      "a_revoir": "À revoir — le YAML a changé",
+      "perimee_texte": "Périmée — le texte de la condition a changé",
+      "perimee_fait": "Périmée — la condition porte sur un autre fait",
+      "aide_absente": "Orpheline — l’aide a quitté le catalogue",
+      "condition_absente": "Orpheline — la condition a quitté l’aide",
+      "hors_mandat": "Sans effet — la condition n’est plus modifiable",
+      "invalide": "Sans effet — le prédicat n’est plus valide"
+    },
+    "phrase": "{{sujet}} {{verbe}} {{valeurs}}",
+    "sujetParDefaut": "la réponse"
+  },
+  "stats": {
+    "nonChiffre": "n.c.",
+    "fourchetteTaux": "{{min}} à {{max}}"
+  }
+}

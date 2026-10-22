@@ -1,4 +1,5 @@
 import { Link, NavLink } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { landingUrl } from '@/lib/session';
 import { cn } from '@/lib/utils';
 import { SERIF } from '@/lib/brand';
@@ -9,10 +10,12 @@ import { OwnerAccountMenu } from './ownerNav';
 import { NAV_BLOG, navItemsPour, type NavItem } from './nav-items';
 import { useOffre } from '@/hooks/useOffre';
 import { useRetourStore } from '@/stores/useRetourStore';
+import { SelecteurLangue } from '@/i18n/SelecteurLangue';
 
-/** « Retour à Château » → « Château » : la flèche dit déjà « retour ». */
+/** « Retour à Château » → « Château » : la flèche dit déjà « retour ».
+ *  Même chose en anglais : « Back to Château » → « Château ». */
 function destinationRetour(libelle: string): string {
-  const reste = libelle.replace(/^Retour (à|aux|au) /, '');
+  const reste = libelle.replace(/^(Retour (à|aux|au)|Back to( the)?) /, '');
   return reste.charAt(0).toUpperCase() + reste.slice(1);
 }
 
@@ -22,6 +25,7 @@ function destinationRetour(libelle: string): string {
  * alignés sur la largeur du contenu (1180 px).
  */
 export function TopBar() {
+  const { t } = useTranslation('shell');
   // Onglets de la barre haute = nav privée (variable selon l'offre) + le Blog
   // public (ressources).
   const offre = useOffre();
@@ -58,7 +62,7 @@ export function TopBar() {
         </a>
 
         {/* Onglets — visibles en bureau, repliés en bas sur mobile (voir BottomNav) */}
-        <nav aria-label="Navigation principale" className="hidden gap-1 text-[15.5px] md:flex">
+        <nav aria-label={t('TopBar.navigationPrincipale')} className="hidden gap-1 text-[15.5px] md:flex">
           {topBarNavItems.map((item) => (
             <NavLink
               key={item.to}
@@ -81,7 +85,10 @@ export function TopBar() {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center">
+        {/* La langue, discrète à gauche du compte : présente sur toutes les pages
+            de l'espace, téléphone compris. */}
+        <div className="ml-auto flex items-center gap-3 md:gap-4">
+          <SelecteurLangue className="text-[14px] max-[380px]:text-[13px]" />
           <OwnerAccountMenu />
         </div>
       </div>

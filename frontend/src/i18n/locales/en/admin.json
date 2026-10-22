@@ -1,0 +1,256 @@
+{
+  "AdminPage": {
+    "accesReserve": "Access restricted to administrators",
+    "titre": "Catalogue administration",
+    "description": "Withdraw a scheme from the catalogue, reword a questionnaire question, change a condition’s criterion. Changes apply the next time users load a page.",
+    "lienStats": "The catalogue in figures",
+    "onglets": {
+      "aides": "Schemes",
+      "questions": "Questions",
+      "conditions": "Conditions",
+      "roles": "Roles"
+    }
+  },
+  "AdminPanneaux": {
+    "enregistrementImpossible": "Could not save",
+    "retablissementImpossible": "Could not restore",
+    "impactIndisponible": "Impact unavailable",
+    "motif": "Reason",
+    "nonTypee": "Untyped",
+    "calcul": "Calculating…",
+    "verifierImpact": "Check the impact",
+    "retablir": "Restore"
+  },
+  "AdminAidesPanel": {
+    "catalogueIndisponible": "Catalogue unavailable",
+    "toastRetiree": "Scheme withdrawn from the catalogue",
+    "toastRepubliee": "Scheme republished",
+    "recherche": "Search for a scheme (name, organisation, slug)…",
+    "compteur_one": "{{total}} schemes · {{count}} withdrawn",
+    "compteur_other": "{{total}} schemes · {{count}} withdrawn",
+    "aucunResultat": "No scheme matches your search.",
+    "colonnes": {
+      "aide": "Scheme",
+      "organisme": "Organisation",
+      "etat": "Status"
+    },
+    "badges": {
+      "retiree": "Withdrawn",
+      "bientot": "Opening soon"
+    },
+    "selectionner": "Select a scheme to withdraw it from the catalogue or republish it.",
+    "retireeDuCatalogue": "Withdrawn from the catalogue",
+    "retireeExplication": "The scheme disappears from eligibility checks, its page can no longer be found and no application can be opened on it any more.",
+    "motifPlaceholder": "Scheme discontinued by the region, duplicate of…",
+    "retireeLe": "Withdrawn on {{date}}"
+  },
+  "AdminConditionsPanel": {
+    "conditionsIndisponibles": "Conditions unavailable",
+    "toastMiseAJour": "Condition updated",
+    "toastRetablie": "Condition restored to its original predicate",
+    "surchargesEnPlace": "Active overrides ({{nb}})",
+    "ouvrir": "Open",
+    "supprimerLigne": "Delete the row",
+    "recherche": "Search for a condition (scheme, text, question)…",
+    "aucunResultat": "No condition matches your search.",
+    "aideRetiree": "Scheme withdrawn",
+    "selectionner": "Choose a condition to change its criterion.",
+    "texteLectureSeule": "Condition text (read-only)",
+    "texteAuMomentDecision": "<gras>Text at the time of the decision:</gras> {{texte}}",
+    "operateurAria": "Criterion operator",
+    "cochezUneReponse": "Tick at least one answer.",
+    "impactSurAide": "Impact on the scheme",
+    "impact": {
+      "ecarteraDesormais": "<code>{{id}}</code>: will now rule out this scheme",
+      "necarteraPlus": "<code>{{id}}</code>: will no longer rule out this scheme",
+      "ecarteInchange": "<code>{{id}}</code>: rules out the scheme (unchanged)",
+      "necartePasInchange": "<code>{{id}}</code>: does not rule out the scheme (unchanged)"
+    },
+    "verdictCritere": "This verdict concerns the CRITERION, not an audience: the number of users affected is not calculated.",
+    "motifPlaceholder": "Optional: why this criterion is changing.",
+    "confirmation": {
+      "titre": "Restore the original criterion?",
+      "description": "The override is deleted and the condition reverts to the predicate in <code>{{fichier}}</code>. Answers already saved by users do not change."
+    }
+  },
+  "AdminFaitsPanel": {
+    "ontologieIndisponible": "Ontology unavailable",
+    "toastMiseAJour": "Question updated",
+    "toastRetablie": "Question restored to its original version",
+    "recherche": "Search for a question (key, text, answer)…",
+    "aucunResultat": "No question matches your search.",
+    "badges": {
+      "surchargee": "Overridden",
+      "enAttente": "Pending"
+    },
+    "nbAides_one": "{{count}} scheme",
+    "nbAides_other": "{{count}} schemes",
+    "selectionner": "Select a question to reword its text or its answers.",
+    "reformuler": "Reword the question",
+    "poseeSeulementSi": "Asked only if <code>{{fait}}</code> <code>{{predicat}}</code>. This dependency is declared on the fact in <code>facts.yaml</code> and cannot be changed here.",
+    "questionPosee": "Question asked",
+    "original": "Original: {{texte}}",
+    "aideContextuelle": "Contextual help",
+    "aideContextuellePlaceholder": "Optional: shown below the question.",
+    "reponsesPossibles": "Possible answers",
+    "identifiantAria": "Answer identifier",
+    "nonSupprimable": "Cannot be deleted: answers already saved rely on it.",
+    "supprimerReponseAria": "Delete the answer {{reponse}}",
+    "libelleAria": "Answer label",
+    "valeurMoteur": "Value sent to the engine",
+    "valeurMoteurAria": "Value sent to the engine for the answer {{reponse}}",
+    "valeurs": {
+      "oui": "Yes",
+      "non": "No",
+      "neutre": "Does not decide"
+    },
+    "reponseNeutre": "Neutral answer (rules out no scheme)",
+    "ajouterReponse": "Add an answer",
+    "identifiantInvalide": "An identifier may only contain lower-case letters, digits and underscores.",
+    "tranchesCalculees": "The bands of a <code>{{type}}</code> fact are calculated by the engine from the schemes’ thresholds: only the question and its contextual help can be changed here.",
+    "impactSurAides": "Impact on schemes",
+    "impact": {
+      "neutre": "<code>{{id}}</code>: neutral answer, rules out no scheme",
+      "netranchePas": "<code>{{id}}</code>: does not decide, rules out no scheme",
+      "ecarte_one": "<code>{{id}}</code>: rules out {{count}} scheme",
+      "ecarte_other": "<code>{{id}}</code>: rules out {{count}} schemes"
+    },
+    "supprimee": {
+      "sansReference": "<code>{{id}}</code> deleted: not referenced by any scheme",
+      "referencee_one": "<code>{{id}}</code> deleted: referenced by {{count}} scheme, which can no longer be opened by this question.",
+      "referencee_other": "<code>{{id}}</code> deleted: referenced by {{count}} schemes, which can no longer be opened by this question."
+    },
+    "retablirOriginal": "Restore the original",
+    "confirmation": {
+      "titre": "Restore the original question?",
+      "description": "The rewording is deleted and the question reverts to the text in <code>facts.yaml</code>. Answers already saved by users do not change."
+    }
+  },
+  "AdminRolesPanel": {
+    "roles": {
+      "admin": "Administrator",
+      "beta_testeur": "Beta tester"
+    },
+    "listeIndisponible": "Account list unavailable",
+    "toastRetire": {
+      "admin": "{{nom}} is no longer an administrator",
+      "beta_testeur": "{{nom}} is no longer a beta tester"
+    },
+    "toastAttribue": {
+      "admin": "{{nom}} is now an administrator",
+      "beta_testeur": "{{nom}} is now a beta tester"
+    },
+    "changementImpossible": "Could not change the role",
+    "recherche": "Search for an account (name, email)…",
+    "nbComptes_one": "{{count}} account",
+    "nbComptes_other": "{{count}} accounts",
+    "compteurRole": {
+      "admin_one": "{{count}} administrator",
+      "admin_other": "{{count}} administrators",
+      "beta_testeur_one": "{{count}} beta tester",
+      "beta_testeur_other": "{{count}} beta testers"
+    },
+    "explication": "One click grants or removes the role immediately; there is nothing to save. <gras>Beta tester</gras> opens the Multi-monument plan, without billing; <gras>Administrator</gras> opens this page, plus the Multi-monument plan.",
+    "aucunResultat": "No account matches your search.",
+    "colonnes": {
+      "compte": "Account",
+      "inscrit": "Signed up",
+      "roles": "Roles"
+    },
+    "vous": "(you)",
+    "socleTitle": "Comes from the ADMIN_USER_IDS variable",
+    "compteIntrouvable": "Account not found",
+    "listeTronquee": "Only the most recent accounts are listed. Role holders always appear, wherever they are in the list.",
+    "socleExplication": "Accounts marked <code>ADMIN_USER_IDS</code> get their administration rights from the server configuration: it bootstraps access on a fresh environment and is removed by editing the <code>.env</code> file, then redeploying. You cannot remove your own administration rights; ask another administrator to do it."
+  },
+  "AdminStatsPage": {
+    "titre": "The catalogue in figures",
+    "description": "How many schemes each regional council and each departmental council funds, and how many apply everywhere. Click a row to show their names.",
+    "aJourA": "updated at {{heure}}",
+    "rafraichir": "Refresh",
+    "retourAdmin": "← Catalogue administration",
+    "indisponibles": "Statistics unavailable",
+    "indisponiblesPhrase": "Statistics unavailable.",
+    "chiffrage": "Rate: <valeur>{{taux}}</valeur> · Median cap: <valeur>{{plafond}}</valeur> · quantified: {{couverture}}",
+    "groupeVide": "No scheme from this authority in the catalogue.",
+    "aucunTerritoire": "No area matches your search.",
+    "colonnes": {
+      "region": "Region",
+      "departement": "Department",
+      "aides": "Schemes",
+      "aidesRegion": "Regional council schemes",
+      "aidesDepartement": "Departmental council schemes"
+    },
+    "synchronisation": {
+      "titre_one": "{{count}} scheme missing from the database",
+      "titre_other": "{{count}} schemes missing from the database",
+      "explication": "The eligibility check suggests them, but creating an application will return “Scheme not found”. Run <code>scripts/load_aides_yaml.py</code> again to push them."
+    },
+    "vignettes": {
+      "catalogue": "Schemes in the catalogue",
+      "retirees_one": "{{count}} withdrawn, not counted",
+      "retirees_other": "{{count}} withdrawn, not counted",
+      "nationales": "National",
+      "nationalesNote": "State, tax, national foundations",
+      "regionaux": "Regional councils",
+      "departementaux": "Departmental councils",
+      "quelQueSoitPerimetre": "whatever their scope",
+      "autres": "Other funders",
+      "autresNote": "foundations, Europe, patronage"
+    },
+    "filtrer": "Filter an area (name, INSEE code, region)…",
+    "masquerVides": "Hide areas with no schemes",
+    "onglets": {
+      "regions": "Regions",
+      "departements": "Departments",
+      "national": "National",
+      "autres": "Other funders",
+      "nature": "Type"
+    },
+    "nationalTitre": "{{nb}} schemes with no geographical filter",
+    "autresTitre": "{{nb}} schemes from a funder with no territorial level",
+    "nature": {
+      "parFinanceur": "By funder",
+      "categorie": "Category",
+      "parDispositif": "By scheme type",
+      "type": "Type"
+    },
+    "notes": {
+      "regions": "Schemes funded by each regional council, including those it restricts to a few departments. What the Region funds, not what applies in its area: State and Department schemes have their own tabs.",
+      "departements": "Schemes funded by each departmental council. A zero does not mean a monument in the department is entitled to nothing: it also sees its region’s schemes, the national ones and those of other funders. It means there is a whole Department left to prospect.",
+      "autres": "Foundations, Europe, patronage: their scope is local without a single euro coming from a local authority. Counting them as Department schemes would be wrong; hiding them would make them disappear from the page.",
+      "pied": "The four headline figures add up: a scheme is counted only once, at the level that funds it. {{nc}} = the source states neither a rate nor an amount: nothing is inferred, nothing is added up. Schemes withdrawn from the catalogue are neither counted nor listed."
+    }
+  },
+  "predicats": {
+    "operateurs": {
+      "eq": "is",
+      "neq": "is not",
+      "in": "is one of",
+      "not_in": "is none of",
+      "none_in": "has ticked none of"
+    },
+    "operateursMultiple": {
+      "eq": "includes",
+      "neq": "includes something other than",
+      "in": "includes one of",
+      "not_in": "includes something other than"
+    },
+    "etats": {
+      "active": "Applied",
+      "a_revoir": "To review: the YAML has changed",
+      "perimee_texte": "Outdated: the condition text has changed",
+      "perimee_fait": "Outdated: the condition now concerns another fact",
+      "aide_absente": "Orphaned: the scheme has left the catalogue",
+      "condition_absente": "Orphaned: the condition has left the scheme",
+      "hors_mandat": "No effect: the condition can no longer be edited",
+      "invalide": "No effect: the predicate is no longer valid"
+    },
+    "phrase": "{{sujet}} {{verbe}} {{valeurs}}",
+    "sujetParDefaut": "the answer"
+  },
+  "stats": {
+    "nonChiffre": "n/a",
+    "fourchetteTaux": "{{min}} to {{max}}"
+  }
+}

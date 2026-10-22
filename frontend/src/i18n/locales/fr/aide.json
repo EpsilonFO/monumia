@@ -1,0 +1,298 @@
+{
+  "statut": {
+    "ouvreBientot": "Ouvre bientôt",
+    "badge": {
+      "eligible": "Éligible",
+      "atteignable": "À débloquer",
+      "potential": "Potentiellement éligible",
+      "nonEligible": "Non éligible"
+    },
+    "pastille": {
+      "eligible": "Éligible",
+      "atteignable": "À débloquer",
+      "potential": "À confirmer",
+      "nonEligible": "Non éligible"
+    }
+  },
+  "levier": {
+    "aupresDe": "Auprès de",
+    "cout": "Coût",
+    "delai": "Délai",
+    "ouvrirDemarche": "Ouvrir la démarche"
+  },
+  "AideStatutSelect": {
+    "erreurMiseAJour": "Erreur lors de la mise à jour",
+    "avancement": "Avancement :",
+    "montantObtenu": "Montant obtenu (€)",
+    "motifRefus": "Motif du refus",
+    "detailPlaceholder": "Détail (optionnel)"
+  },
+  "AideFamilleBar": {
+    "filtrer": "Filtrer par activité <small>{{resume}}</small>",
+    "nbThemes_one": "({{count}} thème)",
+    "nbThemes_other": "({{count}} thèmes)",
+    "ariaFacettes": "Filtrer les aides par activité"
+  },
+  "AideFiltreBar": {
+    "aria": "Filtrer par financeur",
+    "toutes": "Toutes les aides"
+  },
+  "AideCarte": {
+    "questionsPourTrancher_one": "{{count}} question pour trancher",
+    "questionsPourTrancher_other": "{{count}} questions pour trancher",
+    "montantSurFiche": "Montant sur la fiche",
+    "montantNonPublie": "Montant non publié"
+  },
+  "AideFermeeDialog": {
+    "titre": "Cette aide n'est plus proposée",
+    "retireeDepuis": "Son financeur ne la propose plus depuis le {{date}} : elle a disparu de sa liste d'aides et sa page officielle a été retirée.",
+    "retiree": "Son financeur ne la propose plus : elle a disparu de sa liste d'aides et sa page officielle a été retirée.",
+    "deposee": "Votre demande, déjà envoyée, n'est pas concernée : elle suit son cours auprès du financeur, et votre dossier reste dans votre projet.",
+    "enPreparation": "Votre dossier en préparation ne pourra donc pas être déposé. Il quittera votre projet quand vous fermerez ce message ; les documents que vous y aviez ajoutés restent dans les documents du projet.",
+    "compris": "J'ai compris"
+  },
+  "AideDetails": {
+    "reduire": "Réduire",
+    "lireLaSuite": "Lire la suite",
+    "compte": {
+      "remplies_one": "{{count}} remplie",
+      "remplies_other": "{{count}} remplies",
+      "aDebloquer": "{{n}} à débloquer",
+      "aVerifier": "{{n}} à vérifier",
+      "bloquantes_one": "{{count}} bloquante",
+      "bloquantes_other": "{{count}} bloquantes"
+    },
+    "groupes": {
+      "neCorrespondPas": "Ce qui ne correspond pas",
+      "aDebloquer": "À débloquer",
+      "aVerifier": "À vérifier de votre côté",
+      "precisez": "Précisez votre situation",
+      "aConfirmer": "À confirmer auprès de l'organisme",
+      "dejaValide": "Déjà validé grâce à vos réponses",
+      "verifieAuto": "Vérifié automatiquement"
+    },
+    "regles": {
+      "apprecie": {
+        "titre": "Ce que le financeur va apprécier",
+        "aide": "Rien d'automatique ici : ces points se jouent dans la qualité du dossier."
+      },
+      "montage": {
+        "titre": "À confirmer au montage du dossier",
+        "aide": "Sans incidence sur votre éligibilité — à vérifier avec l’organisme le moment venu."
+      },
+      "modulation": {
+        "titre": "Ce qui peut moduler le montant",
+        "aide": "N'affecte pas l'éligibilité, mais joue sur le taux ou le plafond accordé."
+      },
+      "autres": {
+        "titre": "Les autres règles à connaître",
+        "aide": "Bénéficiaires, plafonds, exclusions, calendrier, obligations après octroi."
+      }
+    },
+    "reglement": {
+      "titre": "Le règlement de cette aide",
+      "intro_one": "{{count}} point issu du règlement officiel. Aucun ne décide de votre éligibilité : ils servent à préparer le dossier.",
+      "intro_other": "{{count}} points issus du règlement officiel. Aucun ne décide de votre éligibilité : ils servent à préparer le dossier.",
+      "toutReplier": "Tout replier",
+      "toutDeplier": "Tout déplier",
+      "recherchePlaceholder": "Rechercher dans le règlement (taux, délai, cumul…)",
+      "rechercheAria": "Rechercher dans le règlement de l'aide",
+      "aucunPoint": "Aucun point ne correspond.",
+      "pointsSur_one": "{{count}} point sur {{total}}.",
+      "pointsSur_other": "{{count}} points sur {{total}}."
+    },
+    "essentiel": {
+      "titre": "L'essentiel de l'aide",
+      "quiVerse": "Qui verse l'aide",
+      "combien": "Combien",
+      "jusquATaux": "Jusqu'à {{taux}} %",
+      "jusquAMontant": "Jusqu'à {{montant}}",
+      "baseTTC": "de vos travaux (base TTC)",
+      "baseHT": "de vos travaux (base HT)",
+      "typeAide": "Type d'aide",
+      "jusquaQuand": "Jusqu'à quand candidater",
+      "ouvertToutelAnnee": "Ouvert toute l'année",
+      "candidaturesCloses": "Candidatures closes"
+    },
+    "documents": {
+      "selonLeCas": "selon le cas",
+      "titre": "Les documents à préparer",
+      "aReunir_one": "{{count}} document à réunir",
+      "aReunir_other": "{{count}} documents à réunir"
+    },
+    "presentation": "Présentation de l'aide",
+    "etesVousEligible": "Êtes-vous éligible ?",
+    "pourMonument": "pour {{nom}}",
+    "etapes": "Les étapes de la demande",
+    "pageOfficielle": "Consulter la page officielle"
+  },
+  "Repli": {
+    "replier": "Replier « {{titre}} »",
+    "afficher": "Afficher « {{titre}} »"
+  },
+  "FicheBarre": {
+    "etapes": {
+      "elig": "Éligibilité",
+      "pieces": "Pièces",
+      "depot": "Dépôt"
+    }
+  },
+  "FicheEnBref": {
+    "titre": "En bref",
+    "lireDetail": "Lire le détail"
+  },
+  "FicheQuestion": {
+    "masquerExplication": "Masquer l'explication",
+    "afficherExplication": "Afficher une explication",
+    "enSavoirPlus": "En savoir plus",
+    "plusieursReponses": "Plusieurs réponses possibles",
+    "reponse": "Réponse"
+  },
+  "FichePieces": {
+    "titre": "Ce qu'il faut réunir",
+    "ajoutee": "Ajoutée",
+    "obligatoires_one": "{{faites}} sur {{count}} pièce obligatoire",
+    "obligatoires_other": "{{faites}} sur {{count}} pièces obligatoires",
+    "selonSituation_one": "{{count}} pièce selon votre situation",
+    "selonSituation_other": "{{count}} pièces selon votre situation",
+    "pied": "Une pièce déposée une fois sert à tous vos dossiers."
+  },
+  "FicheConseils": {
+    "titre": "Nos conseils pour ce dossier",
+    "sousTitre_one": "Un conseil tiré du règlement du financeur",
+    "sousTitre_other": "{{count}} conseils tirés du règlement du financeur",
+    "voirPoint": "Voir le point {{n}} du règlement"
+  },
+  "FicheEtapes": {
+    "titre": "Comment ça se passe",
+    "nbEtapes_one": "Une étape",
+    "nbEtapes_other": "{{count}} étapes"
+  },
+  "FicheAvantDepot": {
+    "titre": "Avant de déposer",
+    "sousTitre_one": "Un point que le questionnaire ne vérifie pas. S'il manque, le dossier est refusé.",
+    "sousTitre_other": "{{count}} points que le questionnaire ne vérifie pas. S'il en manque un, le dossier est refusé.",
+    "derogation": "Une dérogation est possible.",
+    "commentFaire": "Comment faire",
+    "texteOfficiel": "Texte officiel",
+    "citation": "« {{citation}} »"
+  },
+  "FicheEssentiel": {
+    "titre": "L'essentiel",
+    "montantNonPublie": "Montant non publié",
+    "lignes": {
+      "financeur": "Qui verse l'aide",
+      "beneficiaires": "Pour qui",
+      "type": "Type d'aide",
+      "calendrier": "Jusqu'à quand",
+      "delai": "Délai de réponse",
+      "depot": "Comment déposer",
+      "cumul": "Cumul",
+      "contact": "Contact"
+    },
+    "pageOfficielle": "Page officielle",
+    "formulaire": "Formulaire",
+    "verifieLe": "Vérifié par Monumia le {{date}}",
+    "signaler": "Signaler une erreur"
+  },
+  "FicheEligibilite": {
+    "enLettres": {
+      "deux": "Deux",
+      "trois": "Trois",
+      "quatre": "Quatre",
+      "cinq": "Cinq",
+      "six": "Six",
+      "sept": "Sept",
+      "huit": "Huit",
+      "neuf": "Neuf",
+      "dix": "Dix"
+    },
+    "ok": {
+      "titre": "Vous remplissez ces conditions.",
+      "aideReglement": "Vérifiez les autres points dans le règlement complet.",
+      "aidePoints_one": "Il reste un point à régler avant le dépôt, juste en dessous.",
+      "aidePoints_other": "Il reste {{count}} points à régler avant le dépôt, juste en dessous."
+    },
+    "no": {
+      "titre": "Cette aide ne correspond pas à votre projet.",
+      "aideRepondu": "Vous pouvez changer une réponse si elle ne vous semble pas juste.",
+      "aide": "Le motif vient de la fiche du monument ou de vos réponses au questionnaire."
+    },
+    "info": {
+      "titre": "Une démarche vous sépare de cette aide.",
+      "aide": "La condition manquante dépend d’une démarche que vous pouvez engager."
+    },
+    "questions": {
+      "titreDebut_one": "Êtes-vous éligible ? Une question et vous saurez.",
+      "titreDebut_other": "Êtes-vous éligible ? {{nombre}} questions et vous saurez.",
+      "plusQuUne": "Plus qu'une question.",
+      "encore": "Encore {{n}} questions.",
+      "aideAConfirmer": "Quelques points resteront à confirmer avec le financeur.",
+      "aideReglement": "Les autres conditions sont détaillées dans le règlement."
+    },
+    "reste": {
+      "titre": "Il reste quelques points à confirmer avec le financeur.",
+      "aide": "Rien dans vos réponses n’écarte cette aide."
+    },
+    "pastille": {
+      "eligible": "Éligible",
+      "nonEligible": "Non éligible",
+      "aDebloquer": "À débloquer",
+      "aVerifier": "À vérifier",
+      "aConfirmer": "À confirmer"
+    },
+    "lectureSeule": "Seuls le chef de projet et son adjoint peuvent répondre à ces questions.",
+    "aConfirmerFinanceur": "À confirmer avec le financeur au moment du dossier.",
+    "remplies_one": "{{count}} condition déjà remplie",
+    "remplies_other": "{{count}} conditions déjà remplies",
+    "revoir": "Revoir mes réponses",
+    "dossierOuvert": "Votre dossier est ouvert.",
+    "prochaineEtape": "Prochaine étape : réunir les pièces du dossier.",
+    "decisionFinale": "La décision finale revient au financeur.",
+    "replier": "Replier",
+    "voirDossier": "Voir le dossier",
+    "commencer": "Commencer mon dossier",
+    "conditionNonRemplie": "Une condition de cette aide n’est pas remplie."
+  },
+  "FicheReglement": {
+    "aVerifier": "À vérifier",
+    "auChoix": "Au choix du financeur",
+    "lienCopie": "Lien copié",
+    "lienBarre": "Lien dans la barre d’adresse",
+    "copierLien": "Copier le lien de ce point",
+    "titre": "Le règlement complet",
+    "intro": "Pas besoin de tout lire : chaque point se consulte au besoin, par thème.",
+    "parTheme": "Le règlement, par thème",
+    "recherchePlaceholder": "Chercher un mot",
+    "rechercheAria": "Chercher dans le règlement",
+    "aucun": "Aucun point ne contient ce mot.",
+    "textesOfficiels": "Textes officiels ({{n}})"
+  },
+  "ProjetCard": {
+    "actions": {
+      "creer": "Créer mon dossier",
+      "continuer": "Continuer mon dossier",
+      "suivre": "Suivre mon dépôt",
+      "estimer": "Estimer mes aides"
+    },
+    "etape": "{{rang}} : <b>{{quoi}}</b>",
+    "echeanceDepassee": "Échéance dépassée",
+    "echeance": "Échéance : {{texte}}",
+    "cloture": "Clôturé",
+    "aidesReperees_one": "<b>{{count}} aide</b><span>repérée pour ce projet</span>",
+    "aidesReperees_other": "<b>{{count}} aides</b><span>repérées pour ce projet</span>",
+    "vosAides": "<b>Vos aides</b><span>se découvrent en quelques questions</span>",
+    "voirAides": "Voir les aides"
+  },
+  "ProjetSummaryBar": {
+    "nomProjet": "Nom du projet",
+    "aideSaisie": "Entrée pour valider, Échap pour annuler.",
+    "nomVide": "Le nom doit contenir au moins un caractère.",
+    "renommer": "Renommer le projet",
+    "travauxIndetermines": "Travaux pas encore déterminés",
+    "cloture": "Clôturé",
+    "modifierReponses": "Modifier mes réponses",
+    "questionsPassees_one": "{{count}} question passée, à reprendre sans rien effacer",
+    "questionsPassees_other": "{{count}} questions passées, à reprendre sans rien effacer"
+  }
+}

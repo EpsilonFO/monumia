@@ -1,5 +1,6 @@
 import { type ComponentType } from 'react';
 import { IconNotification, IconAide, IconDocument } from '@/components/icons';
+import i18n from '@/i18n';
 import { deadlineLabel, formatRelative, formatDateShort } from '@/lib/date-utils';
 import { deadlineLink } from '@/lib/project-stats';
 import type { Notification } from '@/types';
@@ -24,7 +25,9 @@ export interface FeedRow {
 const RANK: Record<FeedKind, number> = { urgent: 0, warning: 1, info: 2 };
 
 function joursBadge(d: ProjectDeadline): string {
-  return d.joursRestants === 0 ? 'Auj.' : `J-${d.joursRestants}`;
+  return d.joursRestants === 0
+    ? i18n.t('dashboard:echeancesAlertes.aujourdhui')
+    : i18n.t('dashboard:echeancesAlertes.jours', { count: d.joursRestants });
 }
 
 /**
@@ -54,8 +57,11 @@ export function buildFeedRows(
       days: d.joursRestants,
       icon: d.source === 'aide' ? IconAide : IconDocument,
       label: d.label,
-      sub: `${d.source === 'aide' ? 'Aide' : 'Dossier'} · ${formatDateShort(d.date)}`,
-      badge: d.joursRestants < 0 ? 'En retard' : joursBadge(d),
+      sub:
+        d.source === 'aide'
+          ? i18n.t('dashboard:echeancesAlertes.sousAide', { date: formatDateShort(d.date) })
+          : i18n.t('dashboard:echeancesAlertes.sousDossier', { date: formatDateShort(d.date) }),
+      badge: d.joursRestants < 0 ? i18n.t('dashboard:echeancesAlertes.enRetard') : joursBadge(d),
       to: deadlineLink(d),
       rank: RANK[kind],
       sortKey: d.joursRestants,
@@ -75,7 +81,7 @@ export function buildFeedRows(
         icon: IconNotification,
         label: n.titre,
         sub: formatRelative(n.dateCreation),
-        badge: 'Nouveau',
+        badge: i18n.t('dashboard:echeancesAlertes.nouveau'),
         rank: RANK[kind],
         sortKey: 1_000 + i,
       });

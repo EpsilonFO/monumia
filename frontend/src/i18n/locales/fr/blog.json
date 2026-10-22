@@ -1,0 +1,156 @@
+{
+  "meta": {
+    "titreAvecBlog": "{{titre}} — Blog Monumia"
+  },
+  "commun": {
+    "retourAuBlog": "← Retour au blog",
+    "lireArticle": "Lire l’article →",
+    "dureeCourte": "{{minutes}} min"
+  },
+  "articles": {
+    "contenuIntrouvable": "# Article introuvable\n\nLe contenu « {{slug}} » n'a pas encore été rédigé.",
+    "classeOuInscrit": {
+      "titre": "Classé ou inscrit : quelle différence ?",
+      "extrait": "Classement et inscription sont deux niveaux de protection au titre des Monuments Historiques. On vous explique ce qui change concrètement."
+    },
+    "sitePatrimonialRemarquable": {
+      "titre": "Le Site Patrimonial Remarquable (SPR)",
+      "extrait": "Le SPR protège des ensembles urbains ou paysagers. Ce que cela implique pour un bien situé dans son périmètre."
+    },
+    "perimetreEtAbords": {
+      "titre": "Périmètre et abords d'un Monument Historique",
+      "extrait": "Être « aux abords » d'un Monument Historique change vos obligations, même si votre bien n'est pas protégé lui-même."
+    },
+    "baseMerimee": {
+      "titre": "La base Mérimée, mode d'emploi",
+      "extrait": "La base Mérimée recense le patrimoine architectural français. Comment y retrouver votre bien et sa référence."
+    },
+    "tauxPlafondBaseEligible": {
+      "titre": "Taux, plafond et base éligible : comment lire une aide",
+      "extrait": "Trois notions qui déterminent ce que vous toucherez réellement. On les décode avec un exemple chiffré."
+    },
+    "subventionVsPret": {
+      "titre": "Subvention, avance remboursable, prêt : les différences",
+      "extrait": "Toutes les aides ne se valent pas. Distinguez ce que vous gardez de ce que vous devrez rendre."
+    },
+    "cofinancement": {
+      "titre": "Le cofinancement expliqué simplement",
+      "extrait": "Beaucoup d'aides exigent que d'autres financeurs participent. Comment monter un plan de financement cohérent."
+    },
+    "drac": {
+      "titre": "La DRAC : rôle et interlocuteurs",
+      "extrait": "La Direction régionale des affaires culturelles est votre interlocuteur clé pour le patrimoine protégé."
+    },
+    "etatDeConservation": {
+      "titre": "État de conservation et urgence des travaux",
+      "extrait": "Comment évaluer honnêtement l’état de votre bien : ces notions conditionnent votre éligibilité aux aides."
+    },
+    "etudePrealable": {
+      "titre": "L'étude préalable, étape par étape",
+      "extrait": "Souvent obligatoire avant des travaux sur un Monument Historique. À quoi elle sert et qui la réalise."
+    },
+    "diagnosticPrealable": {
+      "titre": "Le diagnostic préalable : pourquoi, comment",
+      "extrait": "Le diagnostic dresse un état des lieux qui oriente votre projet et débloque certaines aides."
+    },
+    "maitriseOuvrageOeuvre": {
+      "titre": "Maîtrise d'ouvrage et maîtrise d'œuvre",
+      "extrait": "Qui décide, qui conçoit, qui exécute ? Deux rôles à ne pas confondre dans un projet de restauration."
+    }
+  },
+  "categories": {
+    "protectionsStatuts": {
+      "libelle": "Protections & statuts patrimoniaux",
+      "libelleCourt": "Protections & statuts",
+      "description": "Comprendre le statut de votre bien : Monument Historique classé ou inscrit, Site Patrimonial Remarquable, abords, base Mérimée.",
+      "etape": "Comprendre mon statut"
+    },
+    "aidesFinancements": {
+      "libelle": "Aides & financements",
+      "libelleCourt": "Aides & financements",
+      "description": "Subventions, taux et plafonds, cofinancement, fiscalité : pour vous y retrouver dans les financements du patrimoine.",
+      "etape": "Trouver mes aides"
+    },
+    "demarchesDossiers": {
+      "libelle": "Démarches & dossiers",
+      "libelleCourt": "Démarches & dossiers",
+      "description": "Diagnostic, étude préalable, pièces du dossier, échéances : réussir vos démarches administratives.",
+      "etape": "Monter mon dossier"
+    },
+    "travauxTechniques": {
+      "libelle": "Travaux & techniques de restauration",
+      "libelleCourt": "Travaux & techniques",
+      "description": "Le vocabulaire technique des travaux : maîtrise d'ouvrage et d'œuvre, lots, matériaux et corps de métier.",
+      "etape": "Lancer les travaux"
+    }
+  },
+  "BlogLayout": {
+    "piedDePage": "© Monumia — Ressources pour les propriétaires et les communes"
+  },
+  "BlogParcoursNav": {
+    "ariaParcours": "Parcours du propriétaire",
+    "etape": "Étape {{numero}}",
+    "articles_one": "{{count}} article",
+    "articles_other": "{{count}} articles",
+    "bientot": "Bientôt"
+  },
+  "MonumiaCta": {
+    "titre": "Un projet sur un bien protégé ?",
+    "texte": "Monumia identifie votre statut et les aides mobilisables, et vous guide dans vos démarches.",
+    "decouvrir": "Découvrir Monumia"
+  },
+  "BlogIndexPage": {
+    "metaTitre": "Blog — Monumia",
+    "metaDescription": "Articles clairs pour comprendre la restauration du patrimoine, les aides et les démarches.",
+    "surtitre": "Le guide du patrimoine",
+    "titre": "Comprendre le patrimoine, simplement",
+    "introduction": "Des articles clairs pour les propriétaires de monuments et les communes : statuts, aides, démarches et travaux — sans jargon, à lire quand vous voulez.",
+    "toutVoir": "Tout voir →",
+    "aucunArticle": "Aucun article pour le moment.",
+    "aLireEnPriorite": "À lire en priorité",
+    "aidesReferencees": "aides au patrimoine référencées — nos articles vous aident à comprendre lesquelles vous concernent.",
+    "aLaUne": "À la une"
+  },
+  "BlogCategoryPage": {
+    "introuvable": "Catégorie introuvable",
+    "tousLesArticles": "← Tous les articles",
+    "aucunArticle": "Aucun article dans cette catégorie pour le moment.",
+    "autresThemes": "Explorer les autres thèmes"
+  },
+  "BlogArticlePage": {
+    "introuvable": "Article introuvable",
+    "filAriane": "Fil d’ariane",
+    "blog": "Blog",
+    "tempsDeLecture": "{{minutes}} min de lecture",
+    "pourAllerPlusLoin": "Pour aller plus loin",
+    "aLireAussi": "À lire aussi",
+    "lire": "Lire"
+  },
+  "Callout": {
+    "remarque": "Remarque",
+    "attention": "Attention",
+    "astuce": "Astuce",
+    "exemple": "Exemple"
+  },
+  "Comparison": {
+    "optionA": "Option A",
+    "optionB": "Option B"
+  },
+  "CostBreakdown": {
+    "total": "Total"
+  },
+  "DecisionTree": {
+    "oui": "<fort>Oui</fort> — {{suite}}",
+    "non": "<fort>Non</fort> — {{suite}}"
+  },
+  "Steps": {
+    "aria": "Étapes",
+    "separateur": " — "
+  },
+  "Timeline": {
+    "aria": "Chronologie"
+  },
+  "Toc": {
+    "sommaire": "Sommaire"
+  }
+}

@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import type { ProjectStats } from '@/lib/project-stats';
 
@@ -24,12 +25,15 @@ export interface EnjeuLabel {
 
 export function enjeuLabel(stats: Pick<ProjectStats, 'montantPotentiel' | 'tauxTravauxMax'>): EnjeuLabel {
   const { montantPotentiel, tauxTravauxMax } = stats;
-  const taux = tauxTravauxMax > 0 ? `${formatPercentage(tauxTravauxMax)} des travaux` : null;
+  const taux = tauxTravauxMax > 0 ? formatPercentage(tauxTravauxMax) : null;
 
   if (montantPotentiel > 0) {
-    return { value: `Jusqu’à ${formatCurrency(montantPotentiel)}`, sub: taux ? `et / ou ${taux}` : undefined };
+    return {
+      value: i18n.t('libAides:aidesEnjeu.jusquaMontant', { montant: formatCurrency(montantPotentiel) }),
+      sub: taux ? i18n.t('libAides:aidesEnjeu.etOuTaux', { taux }) : undefined,
+    };
   }
   // Aucune aide plafonnée en euros : le taux porte seul la case.
-  if (taux) return { value: `Jusqu’à ${taux}` };
+  if (taux) return { value: i18n.t('libAides:aidesEnjeu.jusquaTaux', { taux }) };
   return { value: '—' };
 }

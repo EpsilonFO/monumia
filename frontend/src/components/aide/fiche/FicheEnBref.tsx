@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Ico, type NomIco } from './Ico';
 import { decodeHtml } from '@/components/aide/AideDetails';
 import type { Guichet } from '@/lib/fiche-aide';
@@ -32,6 +33,7 @@ export function FicheBandeauGuichet({ guichet: g }: { guichet: Guichet }) {
  * l'ingestion produit.
  */
 export function FicheEnBref({ aide }: { aide: Aide }) {
+  const { t } = useTranslation('aide');
   const ecrit = aide.fiche?.enBref;
   const puces = ecrit?.puces ?? [];
   const detail = ecrit?.detail.length
@@ -41,7 +43,7 @@ export function FicheEnBref({ aide }: { aide: Aide }) {
 
   return (
     <section className="bref" aria-labelledby="bref-t">
-      <h2 id="bref-t">En bref</h2>
+      <h2 id="bref-t">{t('FicheEnBref.titre')}</h2>
       {puces.length > 0 ? (
         <>
           <ul>
@@ -54,7 +56,7 @@ export function FicheEnBref({ aide }: { aide: Aide }) {
           </ul>
           {detail.length > 0 && (
             <details className="more">
-              <summary>Lire le détail</summary>
+              <summary>{t('FicheEnBref.lireDetail')}</summary>
               {detail.map((p, i) => <p key={i}>{p}</p>)}
             </details>
           )}

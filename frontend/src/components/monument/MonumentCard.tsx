@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { IconLocalisation, IconEcheance, IconDossier, IconProjet } from '@/components/icons';
 import { Clover } from '@/components/illustrations';
@@ -55,6 +56,7 @@ function Photo({ photo }: { photo: string | null }) {
  * flèche en plus ne ferait que répéter ce que le survol dit déjà.
  */
 export function MonumentCard({ monument, stats }: MonumentCardProps) {
+  const { t } = useTranslation('monuments');
   const shared = isProjectShared(monument);
   const members = monument.members ?? [];
   const photo = monumentPhotoUrl(monument);
@@ -103,8 +105,8 @@ export function MonumentCard({ monument, stats }: MonumentCardProps) {
             >
               <IconProjet className="h-4 w-4 shrink-0" aria-hidden />
               {nbProjets === 0
-                ? 'Aucun projet'
-                : `${nbProjets} projet${nbProjets > 1 ? 's' : ''} de travaux`}
+                ? t('MonumentCard.aucunProjet')
+                : t('MonumentCard.projetsTravaux', { count: nbProjets })}
             </span>
             {dossiersActifs > 0 && (
               <span
@@ -112,7 +114,7 @@ export function MonumentCard({ monument, stats }: MonumentCardProps) {
                 style={{ color: C.grayFg }}
               >
                 <IconDossier className="h-4 w-4 shrink-0" aria-hidden />
-                {dossiersActifs} dossier{dossiersActifs > 1 ? 's' : ''} en cours
+                {t('MonumentCard.dossiersEnCours', { count: dossiersActifs })}
               </span>
             )}
             {pressing && nextLabel && tone && (
@@ -122,8 +124,8 @@ export function MonumentCard({ monument, stats }: MonumentCardProps) {
               >
                 <IconEcheance className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
                 {nextLabel.urgency === 'past'
-                  ? 'Échéance dépassée'
-                  : `Échéance : ${nextLabel.text.toLowerCase()}`}
+                  ? t('MonumentCard.echeanceDepassee')
+                  : t('MonumentCard.echeance', { texte: nextLabel.text.toLowerCase() })}
               </span>
             )}
           </div>

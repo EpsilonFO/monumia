@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { IconLocalisation } from '@/components/icons';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -37,8 +38,9 @@ export function CommuneAutocomplete({
   onChange,
   onSelect,
   id,
-  placeholder = 'Ex : Valognes',
+  placeholder,
 }: CommuneAutocompleteProps) {
+  const { t } = useTranslation('monuments');
   const listId = useId();
   const [results, setResults] = useState<CommuneResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -123,7 +125,7 @@ export function CommuneAutocomplete({
         onBlur={() => {
           blurRef.current = setTimeout(() => setOpen(false), 150);
         }}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('CommuneAutocomplete.placeholder')}
         autoComplete="off"
         role="combobox"
         aria-expanded={showList}

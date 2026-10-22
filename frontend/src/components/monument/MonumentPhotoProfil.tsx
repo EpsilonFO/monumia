@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { IconModifier, IconSupprimer } from '@/components/icons';
 import { Clover } from '@/components/illustrations';
@@ -54,6 +55,7 @@ export function MonumentPhotoProfil({
   ratio = RATIO,
   invite = false,
 }: MonumentPhotoProfilProps) {
+  const { t } = useTranslation(['monuments', 'common']);
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   // Ce qu'on est en train de recadrer : un fichier tout juste choisi, ou l'URL
@@ -69,11 +71,11 @@ export function MonumentPhotoProfil({
     if (inputRef.current) inputRef.current.value = '';
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      toast.error('Choisissez une image (JPEG, PNG…).');
+      toast.error(t('MonumentPhotoProfil.erreurType'));
       return;
     }
     if (file.size > TAILLE_MAX) {
-      toast.error('Image trop lourde : 5 Mo maximum.');
+      toast.error(t('MonumentPhotoProfil.erreurTaille'));
       return;
     }
     setARecadrer(file);
@@ -81,7 +83,7 @@ export function MonumentPhotoProfil({
 
   async function handleCropped(file: File) {
     if (!userId) {
-      toast.error('Session expirée, reconnectez-vous.');
+      toast.error(t('MonumentPhotoProfil.sessionExpiree'));
       return;
     }
     setBusy(true);
@@ -92,9 +94,9 @@ export function MonumentPhotoProfil({
         photos: [nouvelle, ...monument.photos.filter((p) => p.type !== 'profil')],
       });
       setARecadrer(null);
-      toast.success('Photo mise à jour.');
+      toast.success(t('MonumentPhotoProfil.photoMiseAJour'));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Impossible d'enregistrer la photo.");
+      toast.error(e instanceof Error ? e.message : t('MonumentPhotoProfil.erreurEnregistrement'));
     } finally {
       setBusy(false);
     }
@@ -108,7 +110,7 @@ export function MonumentPhotoProfil({
         photos: monument.photos.filter((p) => p.type !== 'profil'),
       });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Impossible de retirer la photo.');
+      toast.error(e instanceof Error ? e.message : t('MonumentPhotoProfil.erreurRetrait'));
     } finally {
       setBusy(false);
     }
@@ -132,7 +134,7 @@ export function MonumentPhotoProfil({
         />
         <button type="button" className="photo-invite" onClick={choisir} disabled={busy}>
           <span>{busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Picto nom="photo" />}</span>
-          <b>Ajouter une photo</b>
+          <b>{t('MonumentPhotoProfil.ajouterUnePhoto')}</b>
         </button>
         <PhotoCropDialog
           open={aRecadrer !== null}
@@ -162,7 +164,7 @@ export function MonumentPhotoProfil({
           {url ? (
             <img
               src={url}
-              alt={`Photo du monument ${monument.nom}`}
+              alt={t('MonumentPhotoProfil.alt', { nom: monument.nom })}
               className="h-full w-full object-cover"
             />
           ) : (
@@ -185,7 +187,7 @@ export function MonumentPhotoProfil({
               type="button"
               onClick={choisir}
               disabled={busy}
-              aria-label={url ? 'Recadrer la photo du monument' : 'Ajouter une photo du monument'}
+              aria-label={url ? t('MonumentPhotoProfil.recadrerAria') : t('MonumentPhotoProfil.ajouterAria')}
               className="absolute inset-0 flex items-center justify-center text-white opacity-0 transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-100"
               style={{ background: 'rgba(7,42,114,0.62)', borderRadius: radius }}
             >
@@ -199,7 +201,7 @@ export function MonumentPhotoProfil({
               <button
                 type="button"
                 onClick={handleRemove}
-                aria-label="Retirer la photo du monument"
+                aria-label={t('MonumentPhotoProfil.retirerAria')}
                 /* Discrète au repos : elle n'apparaît qu'au survol de la
                    vignette, ou quand elle prend le focus au clavier — sans quoi
                    elle serait inatteignable sans souris. */
@@ -224,7 +226,7 @@ export function MonumentPhotoProfil({
           style={{ color: C.grayMuted }}
         >
           <IconModifier className="h-3 w-3" strokeWidth={2} aria-hidden />
-          {url ? 'Modifier' : 'Ajouter'}
+          {url ? t('common:actions.modifier') : t('common:actions.ajouter')}
         </button>
       )}
 

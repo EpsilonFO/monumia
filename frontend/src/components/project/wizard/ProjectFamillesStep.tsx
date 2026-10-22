@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   FAMILLE_OPTIONS,
   FAMILLE_TRAVAUX,
@@ -53,6 +54,7 @@ export function ProjectFamillesStep({
   onBack,
   saving,
 }: ProjectFamillesStepProps) {
+  const { t } = useTranslation('project');
   const selected = value ?? [];
   const toutMontrer = value !== null && value.length === 0;
   const avecTravaux = selected.includes(FAMILLE_TRAVAUX);
@@ -69,14 +71,14 @@ export function ProjectFamillesStep({
   return (
     <CadrageStep
       rubrique={FAMILLES_STEP.label}
-      title="Que voulez-vous faire vivre ?"
-      consigne="Plusieurs réponses possibles."
-      pourquoi="Les aides ne financent pas les mêmes activités, et nous ne vous poserons que les questions de celles que vous cochez."
+      title={t('ProjectFamillesStep.titre')}
+      consigne={t('consignes.plusieursReponses')}
+      pourquoi={t('ProjectFamillesStep.pourquoi')}
       multiple
       onNext={onNext}
       onBack={onBack}
       nextDisabled={value === null}
-      nextHint="Cochez au moins une activité, ou « Je ne sais pas encore »."
+      nextHint={t('ProjectFamillesStep.indiceSuivant')}
       saving={saving}
     >
       {FAMILLES_CHOIX.map((famille) => {
@@ -94,16 +96,16 @@ export function ProjectFamillesStep({
       })}
 
       <CadrageTile
-        label="Des travaux sont nécessaires"
-        hint="Aménagement, mise aux normes, restauration : nous vous demanderons sur quoi ils portent."
+        label={t('ProjectFamillesStep.travaux')}
+        hint={t('ProjectFamillesStep.travauxIndice')}
         multiple
         selected={avecTravaux}
         onSelect={() => toggle(FAMILLE_TRAVAUX)}
       />
 
       <CadrageTile
-        label="Je ne sais pas encore, montrez-moi tout"
-        hint="Nous vous montrerons toutes les aides à portée du monument, sans filtrer sur l'activité."
+        label={t('ProjectFamillesStep.toutMontrer')}
+        hint={t('ProjectFamillesStep.toutMontrerIndice')}
         selected={toutMontrer}
         onSelect={() => onChange(toutMontrer ? null : [])}
       />

@@ -4,6 +4,7 @@ import path from 'path';
 export default defineConfig({
   test: {
     environment: 'node',
+    setupFiles: ['./src/i18n/setup-tests.ts'],
   },
   resolve: {
     alias: {

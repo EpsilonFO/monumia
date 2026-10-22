@@ -1,0 +1,333 @@
+{
+  "Commun": {
+    "trouverMesAides": "Find my funding",
+    "trouverLesAides": "Find funding for my monument",
+    "exemple": "Example",
+    "aidesEstimees": "Estimated funding",
+    "aidesCorrespondent": "12 schemes match your project",
+    "chances": "Your chances of securing this funding",
+    "elevees": "high"
+  },
+  "Navigation": {
+    "methode": "How it works",
+    "equipe": "The team",
+    "tarifs": "Pricing",
+    "questions": "FAQ",
+    "questionsFrequentes": "Frequently asked questions"
+  },
+  "SelecteurLangue": {
+    "libelle": "Language",
+    "fr": "Français",
+    "en": "English"
+  },
+  "Header": {
+    "retourEnHaut": "Monumia, back to top",
+    "navigation": "Main navigation",
+    "monCompte": "My account"
+  },
+  "Partenaires": {
+    "referencePar": "Listed by"
+  },
+  "EstimationCard": {
+    "titre": "Your estimate",
+    "projet": "Façade restoration",
+    "monument": "Protected château",
+    "fourchette": "€<min></min> <mot>to</mot> €<max></max>",
+    "identifiees": "12 schemes identified · DRAC, Region, Fondation du patrimoine",
+    "etPourVous": "What about your monument? →"
+  },
+  "Hero": {
+    "surtitre": "The search engine for heritage funding",
+    "titre": "The money to restore your monument and bring it to life <bleu>exists</bleu>. We help you <orange>find</orange> it.",
+    "intro": "Which funding schemes is your monument eligible for? How much could you receive? How do you secure it? Monumia matches your restoration, opening or events project against more than 2,000 schemes, from the DRAC (the State’s regional culture office) to charitable foundations.",
+    "reassurance": "Takes a few minutes · Free, no commitment · Protected monument or not",
+    "alerteTitre": "Opening alert",
+    "alerteTexte": "The Fondation du patrimoine is now accepting applications"
+  },
+  "Constat": {
+    "presDUnSurQuatre": "Nearly one in four",
+    "mauvaisEtat": "historic monuments are in poor condition or at risk.",
+    "nonProteges": "unprotected monuments are in a critical state: churches, abbeys, châteaux, manor houses…",
+    "sources": {
+      "ministere": "French Ministry of Culture, État de conservation des monuments historiques immeubles, bilan 2019-2024 (May 2025)",
+      "fondation": "Fondation du patrimoine, Observatoire du patrimoine non protégé (September 2025)"
+    },
+    "maquisTitre": "A maze of schemes that makes funding hard to find.",
+    "maquisTexte": "Dozens of funders, from Europe to the DRAC by way of prefectures, regions, départements, foundations, prizes and competitions… Each with its own eligibility criteria, amounts and timetables… Today, the search is complicated and time-consuming.",
+    "guichets": {
+      "etat": "State · DRAC",
+      "europe": "Europe",
+      "region": "Region",
+      "departement": "Département",
+      "intercommunalite": "Inter-municipal authority",
+      "prefecture": "Prefecture",
+      "fondations": "Foundations",
+      "mecenat": "Corporate sponsorship"
+    }
+  },
+  "RapportSenat": {
+    "altCouverture": "Cover of French Senate information report no. 865, 7 July 2026",
+    "consulter": "Read the report",
+    "titre": "The French Senate shares our view",
+    "texte": "In July 2026, the French Senate recommended a one-stop shop for grants, ‘together with an information portal listing all the support schemes available’."
+  },
+  "ResultatsExemple": {
+    "drac": {
+      "nom": "State funding (DRAC) · restoration",
+      "montant": "15 to 40%"
+    },
+    "region": {
+      "nom": "Regional funding · heritage",
+      "montant": "up to €25,000"
+    },
+    "fondation": {
+      "nom": "Fondation du patrimoine",
+      "montant": "Tax relief"
+    },
+    "mecenat": {
+      "nom": "Corporate sponsorship",
+      "montant": "On application"
+    }
+  },
+  "SceneTrouver": {
+    "question": "Question 5 <sur>of 12</sur>",
+    "porteurs": "Which parties connected with the monument could submit a funding application?",
+    "porteurAide": "The applicant is not necessarily the owner of the monument.",
+    "particulier": "Private individual",
+    "sci": "Property company (SCI)",
+    "association": "Non-profit association",
+    "partiesProtegees": "Do the works concern the protected parts of the monument (those covered by its listing or registration)?",
+    "oui": "Yes",
+    "non": "No",
+    "recherche": "Monumia is searching every scheme for your project…",
+    "fourchette": "€<min></min> – €<max></max>",
+    "fiche": {
+      "titre": "Scheme details",
+      "conditions": "Conditions and amounts explained",
+      "contact": "Who to contact",
+      "documents": "The list of 12 supporting documents required"
+    }
+  },
+  "SceneVeille": {
+    "titre": "Your key dates",
+    "dates": {
+      "fondation": {
+        "nom": "Fondation du patrimoine · applications open",
+        "date": "15 March"
+      },
+      "etat": {
+        "nom": "State funding · last day to apply",
+        "date": "2 April"
+      },
+      "region": {
+        "nom": "Region · new heritage scheme",
+        "date": "30 June"
+      }
+    },
+    "alerteActivee": "Alert on: we’ll let you know in good time",
+    "alerteMonumia": "Monumia alert",
+    "nouvelleAide": "New scheme for your manor house",
+    "mecenat": "Sponsorship"
+  },
+  "SceneDossiers": {
+    "titre": "Your current projects",
+    "projets": {
+      "toiture": {
+        "nom": "Roof restoration",
+        "statut": "Application in progress"
+      },
+      "vitraux": {
+        "nom": "Chapel stained glass",
+        "statut": "Searching for funding"
+      },
+      "electricite": {
+        "nom": "Electrical upgrade",
+        "statut": "Not started"
+      }
+    },
+    "pieces": {
+      "devis": "Contractors’ quotes",
+      "photos": "Photos of the roof",
+      "financement": "Funding plan",
+      "abf": "Opinion of the Architecte des Bâtiments de France"
+    },
+    "documentsProjet": "Project documents · shared with your architect",
+    "telecharger": "Download the complete application",
+    "pret": "Application complete, ready to send"
+  },
+  "Demo": {
+    "titre": "Monumia in action",
+    "missions": "Monumia’s three missions",
+    "categories": {
+      "trouver": {
+        "onglet": "Find my funding",
+        "titre": "Find all your funding"
+      },
+      "dossiers": {
+        "onglet": "Build my application",
+        "titre": "Build and manage your applications"
+      },
+      "veille": {
+        "onglet": "Never miss out",
+        "titre": "Never miss an opportunity again"
+      }
+    },
+    "fonctionnalites": {
+      "questionnaire": {
+        "titre": "A simple questionnaire",
+        "texte": "A few questions about your property and your project. The more precise your answers, the more precise the results."
+      },
+      "moteur": {
+        "titre": "A funding search engine",
+        "texte": "Your answers are matched against all existing funding, so you only see the schemes you are genuinely eligible for."
+      },
+      "fiche": {
+        "titre": "A clear summary for every scheme",
+        "texte": "Conditions, amounts, supporting documents and who to contact: a practical guide to each source of funding."
+      },
+      "cloud": {
+        "titre": "Cloud storage for your documents",
+        "texte": "Quotes, photos, plans: everything is filed, organised and ready to share. Invite your architect or contractors to work on it with you."
+      },
+      "pieces": {
+        "titre": "The exact list of documents required",
+        "texte": "For each scheme, Monumia gives you the precise list of supporting documents requested. Once you have everything, download the complete application, ready to send."
+      },
+      "suivi": {
+        "titre": "Keep track of your applications",
+        "texte": "Follow the progress of each application, from ‘in preparation’ to ‘awarded’."
+      },
+      "tableauDeBord": {
+        "titre": "A tracking dashboard",
+        "texte": "An overview of all your projects. Run several projects at once without losing sight of anything."
+      },
+      "alertes": {
+        "titre": "Alerts before every deadline",
+        "texte": "Monumia lets you know as each deadline that concerns you approaches, in time to submit."
+      },
+      "veille": {
+        "titre": "An ongoing watch on your funding",
+        "texte": "Beyond your current projects, Monumia continuously identifies the schemes your monument is eligible for."
+      }
+    }
+  },
+  "Team": {
+    "titre": "Because we decided to stop waiting.",
+    "sousTitre": "Together, we are building Monumia.",
+    "membres": {
+      "paul": {
+        "alt": "Portrait of Paul, co-founder of Monumia",
+        "description": "Co-founder, vision and business development. The person behind Monumia."
+      },
+      "felix": {
+        "alt": "Portrait of Félix, co-founder of Monumia",
+        "description": "Co-founder, product design and development. Artificial intelligence expert. He built the platform."
+      },
+      "henri": {
+        "alt": "Portrait of Henri d’Anselme, Monumia ambassador",
+        "description": "Ambassador. Writer, producer and presenter of ‘Les Chemins du Patrimoine’."
+      }
+    }
+  },
+  "Tarifs": {
+    "titre": "Plans to suit your needs",
+    "nousContacter": "Contact us",
+    "decouverte": {
+      "nom": "Discovery",
+      "public": "free",
+      "accroche": "Find every scheme open to your monument.",
+      "intro": "You answer a few questions about your monument, its protection status and your project. We match your answers against more than 400 schemes, from the State to foundations, and show you the ones your project can apply for, with the rate and ceiling published by each funder.",
+      "avantages": {
+        "monument": "1 monument, 2 projects",
+        "detail": "For each scheme: criteria, rate and ceiling, timetable, supporting documents, assessing body",
+        "prix": "Prizes and calls for projects, searched just like grants",
+        "checklist": "A checklist of the documents each funder asks for",
+        "documents": "A document space, sorted by type, where anything you upload once serves all your applications"
+      },
+      "resume": "No card required, no commitment.",
+      "note": "A project is one piece of work. Re-roofing is one. Hosting a theatre company in residence is another. The funders are not the same."
+    },
+    "veille": {
+      "nom": "Watch",
+      "public": "for a monument that is open and active",
+      "badge": "Most popular",
+      "accroche": "No more searching for funding. We flag it for you.",
+      "intro1": "Discovery gives you a snapshot at one moment in time, for one project. Watch follows your projects all year round and alerts you whenever an application window opens.",
+      "intro2": "You fill in the questionnaire once. Your profile stays active all year. As soon as a scheme opens and one of your projects is eligible, you receive an alert with the closing date and the documents to gather.",
+      "avantages": {
+        "projets": "Unlimited projects: each piece of work has its own funders",
+        "echeancier": "The timeline and email reminders, sent at several intervals before each closing date",
+        "aVenir": "Upcoming schemes revealed as soon as they are announced, so you can prepare your application before the window opens",
+        "equipe": "Invite your architect, contractors or an assistant to a project"
+      },
+      "resume": "Everything in Discovery, plus unlimited projects, the timeline, alerts and your team."
+    },
+    "multi": {
+      "nom": "Multi-monument",
+      "public": "for owners of several monuments, municipalities and associations",
+      "badge": "Most comprehensive",
+      "accroche": "All your monuments on a single dashboard.",
+      "intro1": "Watch covers one monument. Multi-monument brings them all together.",
+      "intro2": "Several monuments mean as many submission calendars and contributors to coordinate. They all fit in a single view.",
+      "avantages": {
+        "monuments": "Unlimited monuments, each with its own projects, documents and team",
+        "tableauDeBord": "The consolidated dashboard: every project and every deadline on a single calendar",
+        "documents": "A separate document space for each monument, so two applications never get mixed up"
+      },
+      "resume": "Everything in Watch for each of your monuments, plus the consolidated dashboard."
+    }
+  },
+  "Faq": {
+    "titre": "Your questions answered",
+    "contact": "For any other questions, please get in touch: <lien>contact@monumia.fr</lien>",
+    "questions": {
+      "public": {
+        "question": "Who is Monumia for?",
+        "reponse": "Anyone with a place to maintain or bring to life: private owners, municipalities and local authorities."
+      },
+      "nonProtege": {
+        "question": "My property is neither listed nor registered. Can I still get funding?",
+        "reponse": "Very often, yes. Historic monuments make up only a small part of France’s heritage: unprotected monuments can also receive financial support. The questionnaire takes the exact situation of your property into account."
+      },
+      "financements": {
+        "question": "What kinds of funding do you find?",
+        "reponse": "Public funding (the State and DRAC, regions, départements, municipalities), foundations and corporate sponsorship (Fondation du patrimoine, Dassault, Crédit Agricole, French Heritage Society…), as well as some European funding."
+      },
+      "informatique": {
+        "question": "I’m not comfortable with computers. Is this for me?",
+        "reponse": "Yes, Monumia was designed with you in mind. It guides you step by step, the questions are asked in plain language and every technical term is explained. And if you get stuck, we will answer you by email."
+      },
+      "depot": {
+        "question": "Does Monumia submit applications on my behalf?",
+        "reponse": "No, and that is a deliberate choice. Monumia identifies the schemes, explains the rules, gathers your documents and prepares a complete application, ready to send. You stay in control of your applications; we save you dozens of hours of research and preparation."
+      },
+      "prix": {
+        "question": "How much does it cost?",
+        "reponse": "Discovery is free, with no card required: one monument, two projects, full details of every scheme, the document space and help putting your applications together. Watch adds unlimited projects, the timeline, alerts before each closing date and the ability to invite collaborators. Multi-monument includes everything in Watch and brings several monuments together on a single dashboard. For the paid plans, book a meeting through our Calendly link or email us: we will talk it through with you and send you a tailored quote."
+      },
+      "sources": {
+        "question": "Where does your information come from?",
+        "reponse": "Our database is built from funders’ official publications (government departments, local authorities, foundations) and kept up to date continuously. Each scheme page lists its sources and useful contacts."
+      }
+    }
+  },
+  "FinalCta": {
+    "titre": "At last, tap into all the funding to restore, open or bring your monument to life.",
+    "reassurance": "Free · No commitment"
+  },
+  "Footer": {
+    "slogan": "All heritage funding. One place.",
+    "citation": "‘Serving everyone who keeps built heritage alive.’",
+    "concuEnFrance": "Designed in France.",
+    "planDuSite": "Site map",
+    "decouvrir": "Explore",
+    "contact": "Contact",
+    "mentionsLegales": "Legal notice",
+    "cgu": "Terms of use",
+    "confidentialite": "Privacy policy",
+    "droits": "© {{annee}} Monumia. All rights reserved."
+  },
+  "LandingPage": {
+    "allerAuContenu": "Skip to content"
+  }
+}

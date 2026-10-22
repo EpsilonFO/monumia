@@ -1,0 +1,298 @@
+{
+  "statut": {
+    "ouvreBientot": "Opening soon",
+    "badge": {
+      "eligible": "Eligible",
+      "atteignable": "To unlock",
+      "potential": "Potentially eligible",
+      "nonEligible": "Not eligible"
+    },
+    "pastille": {
+      "eligible": "Eligible",
+      "atteignable": "To unlock",
+      "potential": "To confirm",
+      "nonEligible": "Not eligible"
+    }
+  },
+  "levier": {
+    "aupresDe": "With",
+    "cout": "Cost",
+    "delai": "Time frame",
+    "ouvrirDemarche": "Open the procedure"
+  },
+  "AideStatutSelect": {
+    "erreurMiseAJour": "Error while updating",
+    "avancement": "Progress:",
+    "montantObtenu": "Amount awarded (€)",
+    "motifRefus": "Reason for refusal",
+    "detailPlaceholder": "Details (optional)"
+  },
+  "AideFamilleBar": {
+    "filtrer": "Filter by activity <small>{{resume}}</small>",
+    "nbThemes_one": "({{count}} theme)",
+    "nbThemes_other": "({{count}} themes)",
+    "ariaFacettes": "Filter funding schemes by activity"
+  },
+  "AideFiltreBar": {
+    "aria": "Filter by funder",
+    "toutes": "All schemes"
+  },
+  "AideCarte": {
+    "questionsPourTrancher_one": "{{count}} question to decide",
+    "questionsPourTrancher_other": "{{count}} questions to decide",
+    "montantSurFiche": "Amount on the scheme page",
+    "montantNonPublie": "Amount not published"
+  },
+  "AideFermeeDialog": {
+    "titre": "This scheme is no longer offered",
+    "retireeDepuis": "Its funder stopped offering it on {{date}}: it has disappeared from their list of schemes and its official page has been taken down.",
+    "retiree": "Its funder no longer offers it: it has disappeared from their list of schemes and its official page has been taken down.",
+    "deposee": "Your request, already submitted, is not affected: it is still being processed by the funder, and your application file stays in your project.",
+    "enPreparation": "Your application in progress can therefore not be submitted. It will leave your project when you close this message; the documents you had added to it remain in the project's documents.",
+    "compris": "Got it"
+  },
+  "AideDetails": {
+    "reduire": "Show less",
+    "lireLaSuite": "Read more",
+    "compte": {
+      "remplies_one": "{{count}} met",
+      "remplies_other": "{{count}} met",
+      "aDebloquer": "{{n}} to unlock",
+      "aVerifier": "{{n}} to check",
+      "bloquantes_one": "{{count}} blocking",
+      "bloquantes_other": "{{count}} blocking"
+    },
+    "groupes": {
+      "neCorrespondPas": "What does not match",
+      "aDebloquer": "To unlock",
+      "aVerifier": "To check on your side",
+      "precisez": "Tell us more about your situation",
+      "aConfirmer": "To confirm with the organisation",
+      "dejaValide": "Already confirmed by your answers",
+      "verifieAuto": "Checked automatically"
+    },
+    "regles": {
+      "apprecie": {
+        "titre": "What the funder will assess",
+        "aide": "Nothing automatic here: these points depend on the quality of the application."
+      },
+      "montage": {
+        "titre": "To confirm when preparing the application",
+        "aide": "No effect on your eligibility: check with the organisation when the time comes."
+      },
+      "modulation": {
+        "titre": "What can change the amount",
+        "aide": "Does not affect eligibility, but changes the rate or ceiling awarded."
+      },
+      "autres": {
+        "titre": "Other rules to know",
+        "aide": "Beneficiaries, ceilings, exclusions, timetable, obligations after award."
+      }
+    },
+    "reglement": {
+      "titre": "The rules for this scheme",
+      "intro_one": "{{count}} point from the official rules. None of them decides your eligibility: they help you prepare the application.",
+      "intro_other": "{{count}} points from the official rules. None of them decides your eligibility: they help you prepare the application.",
+      "toutReplier": "Collapse all",
+      "toutDeplier": "Expand all",
+      "recherchePlaceholder": "Search the rules (rate, time frame, combining…)",
+      "rechercheAria": "Search the rules for this scheme",
+      "aucunPoint": "No matching point.",
+      "pointsSur_one": "{{count}} point out of {{total}}.",
+      "pointsSur_other": "{{count}} points out of {{total}}."
+    },
+    "essentiel": {
+      "titre": "Key facts about the scheme",
+      "quiVerse": "Who pays the grant",
+      "combien": "How much",
+      "jusquATaux": "Up to {{taux}}%",
+      "jusquAMontant": "Up to {{montant}}",
+      "baseTTC": "of your works (incl. VAT)",
+      "baseHT": "of your works (excl. VAT)",
+      "typeAide": "Type of funding",
+      "jusquaQuand": "Deadline for applications",
+      "ouvertToutelAnnee": "Open all year round",
+      "candidaturesCloses": "Applications closed"
+    },
+    "documents": {
+      "selonLeCas": "depending on the case",
+      "titre": "Documents to prepare",
+      "aReunir_one": "{{count}} document to gather",
+      "aReunir_other": "{{count}} documents to gather"
+    },
+    "presentation": "About this scheme",
+    "etesVousEligible": "Are you eligible?",
+    "pourMonument": "for {{nom}}",
+    "etapes": "Application steps",
+    "pageOfficielle": "View the official page"
+  },
+  "Repli": {
+    "replier": "Collapse “{{titre}}”",
+    "afficher": "Show “{{titre}}”"
+  },
+  "FicheBarre": {
+    "etapes": {
+      "elig": "Eligibility",
+      "pieces": "Documents",
+      "depot": "Submission"
+    }
+  },
+  "FicheEnBref": {
+    "titre": "In brief",
+    "lireDetail": "Read the details"
+  },
+  "FicheQuestion": {
+    "masquerExplication": "Hide the explanation",
+    "afficherExplication": "Show an explanation",
+    "enSavoirPlus": "Learn more",
+    "plusieursReponses": "Several answers possible",
+    "reponse": "Answer"
+  },
+  "FichePieces": {
+    "titre": "What to gather",
+    "ajoutee": "Added",
+    "obligatoires_one": "{{faites}} of {{count}} required document",
+    "obligatoires_other": "{{faites}} of {{count}} required documents",
+    "selonSituation_one": "{{count}} document depending on your situation",
+    "selonSituation_other": "{{count}} documents depending on your situation",
+    "pied": "A document uploaded once is used for all your applications."
+  },
+  "FicheConseils": {
+    "titre": "Our tips for this application",
+    "sousTitre_one": "One tip drawn from the funder's rules",
+    "sousTitre_other": "{{count}} tips drawn from the funder's rules",
+    "voirPoint": "See point {{n}} of the rules"
+  },
+  "FicheEtapes": {
+    "titre": "How it works",
+    "nbEtapes_one": "One step",
+    "nbEtapes_other": "{{count}} steps"
+  },
+  "FicheAvantDepot": {
+    "titre": "Before you submit",
+    "sousTitre_one": "One point the questionnaire does not check. If it is missing, the application is rejected.",
+    "sousTitre_other": "{{count}} points the questionnaire does not check. If any one is missing, the application is rejected.",
+    "derogation": "An exemption is possible.",
+    "commentFaire": "How to do it",
+    "texteOfficiel": "Official text",
+    "citation": "“{{citation}}”"
+  },
+  "FicheEssentiel": {
+    "titre": "Key facts",
+    "montantNonPublie": "Amount not published",
+    "lignes": {
+      "financeur": "Who pays the grant",
+      "beneficiaires": "Who it is for",
+      "type": "Type of funding",
+      "calendrier": "Until when",
+      "delai": "Response time",
+      "depot": "How to apply",
+      "cumul": "Combining with other funding",
+      "contact": "Contact"
+    },
+    "pageOfficielle": "Official page",
+    "formulaire": "Form",
+    "verifieLe": "Checked by Monumia on {{date}}",
+    "signaler": "Report an error"
+  },
+  "FicheEligibilite": {
+    "enLettres": {
+      "deux": "Two",
+      "trois": "Three",
+      "quatre": "Four",
+      "cinq": "Five",
+      "six": "Six",
+      "sept": "Seven",
+      "huit": "Eight",
+      "neuf": "Nine",
+      "dix": "Ten"
+    },
+    "ok": {
+      "titre": "You meet these conditions.",
+      "aideReglement": "Check the other points in the full rules.",
+      "aidePoints_one": "One point remains to be settled before submission, just below.",
+      "aidePoints_other": "{{count}} points remain to be settled before submission, just below."
+    },
+    "no": {
+      "titre": "This scheme does not match your project.",
+      "aideRepondu": "You can change an answer if it does not seem right to you.",
+      "aide": "The reason comes from the monument's record or from your answers to the questionnaire."
+    },
+    "info": {
+      "titre": "One procedure stands between you and this scheme.",
+      "aide": "The missing condition depends on a procedure you can start."
+    },
+    "questions": {
+      "titreDebut_one": "Are you eligible? One question and you will know.",
+      "titreDebut_other": "Are you eligible? {{nombre}} questions and you will know.",
+      "plusQuUne": "Just one more question.",
+      "encore": "{{n}} more questions.",
+      "aideAConfirmer": "A few points will still need to be confirmed with the funder.",
+      "aideReglement": "The other conditions are detailed in the rules."
+    },
+    "reste": {
+      "titre": "A few points remain to be confirmed with the funder.",
+      "aide": "Nothing in your answers rules out this scheme."
+    },
+    "pastille": {
+      "eligible": "Eligible",
+      "nonEligible": "Not eligible",
+      "aDebloquer": "To unlock",
+      "aVerifier": "To check",
+      "aConfirmer": "To confirm"
+    },
+    "lectureSeule": "Only the project lead and their deputy can answer these questions.",
+    "aConfirmerFinanceur": "To be confirmed with the funder when preparing the application.",
+    "remplies_one": "{{count}} condition already met",
+    "remplies_other": "{{count}} conditions already met",
+    "revoir": "Review my answers",
+    "dossierOuvert": "Your application is open.",
+    "prochaineEtape": "Next step: gather the supporting documents for the application.",
+    "decisionFinale": "The final decision rests with the funder.",
+    "replier": "Collapse",
+    "voirDossier": "View the application",
+    "commencer": "Start my application",
+    "conditionNonRemplie": "One condition of this scheme is not met."
+  },
+  "FicheReglement": {
+    "aVerifier": "To check",
+    "auChoix": "At the funder's discretion",
+    "lienCopie": "Link copied",
+    "lienBarre": "Link in the address bar",
+    "copierLien": "Copy the link to this point",
+    "titre": "The full rules",
+    "intro": "No need to read everything: each point can be looked up when needed, by topic.",
+    "parTheme": "The rules, by topic",
+    "recherchePlaceholder": "Search for a word",
+    "rechercheAria": "Search the rules",
+    "aucun": "No point contains this word.",
+    "textesOfficiels": "Official texts ({{n}})"
+  },
+  "ProjetCard": {
+    "actions": {
+      "creer": "Create my application",
+      "continuer": "Continue my application",
+      "suivre": "Track my submission",
+      "estimer": "Estimate my funding"
+    },
+    "etape": "{{rang}}: <b>{{quoi}}</b>",
+    "echeanceDepassee": "Deadline passed",
+    "echeance": "Deadline: {{texte}}",
+    "cloture": "Closed",
+    "aidesReperees_one": "<b>{{count}} scheme</b><span>found for this project</span>",
+    "aidesReperees_other": "<b>{{count}} schemes</b><span>found for this project</span>",
+    "vosAides": "<b>Your funding</b><span>revealed in a few questions</span>",
+    "voirAides": "View schemes"
+  },
+  "ProjetSummaryBar": {
+    "nomProjet": "Project name",
+    "aideSaisie": "Enter to confirm, Esc to cancel.",
+    "nomVide": "The name must contain at least one character.",
+    "renommer": "Rename the project",
+    "travauxIndetermines": "Works not yet decided",
+    "cloture": "Closed",
+    "modifierReponses": "Edit my answers",
+    "questionsPassees_one": "{{count}} skipped question, to pick up without erasing anything",
+    "questionsPassees_other": "{{count}} skipped questions, to pick up without erasing anything"
+  }
+}

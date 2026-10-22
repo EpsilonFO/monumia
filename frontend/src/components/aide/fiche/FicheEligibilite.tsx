@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { PlanLevier } from './FicheAvantDepot';
 import { FicheQuestion } from './FicheQuestion';
 import { Ico } from './Ico';
@@ -12,7 +13,9 @@ import type {
   QcmQuestion,
 } from '@/types';
 
-const EN_LETTRES = ['', 'Une', 'Deux', 'Trois', 'Quatre', 'Cinq', 'Six', 'Sept', 'Huit', 'Neuf', 'Dix'];
+// De deux à dix, le nombre de questions s'écrit en lettres (`FicheEligibilite.enLettres`) ;
+// une seule question a sa propre phrase.
+const EN_LETTRES = ['deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix'] as const;
 
 interface Props {
   match: AideMatchResult;
@@ -68,6 +71,7 @@ export function FicheEligibilite({
   onDossier,
   nbDemarches = 0,
 }: Props) {
+  const { t } = useTranslation('aide');
   const aideId = match.aide.id;
   const restantes = questionsPourAide(aideId, questions, answersDiagnostic ?? answers);
   const [vues, setVues] = useState<QcmQuestion[]>(restantes);
@@ -106,35 +110,32 @@ export function FicheEligibilite({
   let aide: string;
   let pastille: string;
   if (etat === 'ok') {
-    titre = 'Vous remplissez ces conditions.';
+    titre = t('FicheEligibilite.ok.titre');
     aide = nbDemarches === 0
-      ? 'Vérifiez les autres points dans le règlement complet.'
-      : nbDemarches === 1
-        ? 'Il reste un point à régler avant le dépôt, juste en dessous.'
-        : `Il reste ${nbDemarches} points à régler avant le dépôt, juste en dessous.`;
-    pastille = 'Éligible';
+      ? t('FicheEligibilite.ok.aideReglement')
+      : t('FicheEligibilite.ok.aidePoints', { count: nbDemarches });
+    pastille = t('FicheEligibilite.pastille.eligible');
   } else if (etat === 'no') {
-    titre = 'Cette aide ne correspond pas à votre projet.';
-    aide = repondues > 0
-      ? 'Vous pouvez changer une réponse si elle ne vous semble pas juste.'
-      : 'Le motif vient de la fiche du monument ou de vos réponses au questionnaire.';
-    pastille = 'Non éligible';
+    titre = t('FicheEligibilite.no.titre');
+    aide = repondues > 0 ? t('FicheEligibilite.no.aideRepondu') : t('FicheEligibilite.no.aide');
+    pastille = t('FicheEligibilite.pastille.nonEligible');
   } else if (etat === 'info') {
-    titre = 'Une démarche vous sépare de cette aide.';
-    aide = 'La condition manquante dépend d’une démarche que vous pouvez engager.';
-    pastille = 'À débloquer';
+    titre = t('FicheEligibilite.info.titre');
+    aide = t('FicheEligibilite.info.aide');
+    pastille = t('FicheEligibilite.pastille.aDebloquer');
   } else if (n > 0) {
+    const nombre = n <= 10 && n >= 2 ? t(`FicheEligibilite.enLettres.${EN_LETTRES[n - 2]}`) : String(n);
     titre = repondues === 0
-      ? `Êtes-vous éligible ? ${n <= 10 ? EN_LETTRES[n] : n} question${n > 1 ? 's' : ''} et vous saurez.`
-      : n === 1 ? "Plus qu'une question." : `Encore ${n} questions.`;
+      ? t('FicheEligibilite.questions.titreDebut', { count: n, nombre })
+      : n === 1 ? t('FicheEligibilite.questions.plusQuUne') : t('FicheEligibilite.questions.encore', { n });
     aide = aConfirmer.length
-      ? 'Quelques points resteront à confirmer avec le financeur.'
-      : 'Les autres conditions sont détaillées dans le règlement.';
-    pastille = 'À vérifier';
+      ? t('FicheEligibilite.questions.aideAConfirmer')
+      : t('FicheEligibilite.questions.aideReglement');
+    pastille = t('FicheEligibilite.pastille.aVerifier');
   } else {
-    titre = 'Il reste quelques points à confirmer avec le financeur.';
-    aide = 'Rien dans vos réponses n’écarte cette aide.';
-    pastille = 'À confirmer';
+    titre = t('FicheEligibilite.reste.titre');
+    aide = t('FicheEligibilite.reste.aide');
+    pastille = t('FicheEligibilite.pastille.aConfirmer');
   }
 
   return (
@@ -166,7 +167,7 @@ export function FicheEligibilite({
                 />
               ))}
               {!onRepondre && n > 0 && (
-                <p className="elig-foot">Seuls le chef de projet et son adjoint peuvent répondre à ces questions.</p>
+                <p className="elig-foot">{t('FicheEligibilite.lectureSeule')}</p>
               )}
             </div>
           )}
@@ -183,7 +184,7 @@ export function FicheEligibilite({
                 <div key={i} className="q answered">
                   <span className="q-ok">
                     <span className="chip t-sand"><Ico nom="info" /></span>
-                    <p>{libelle(e)}<small>À confirmer avec le financeur au moment du dossier.</small></p>
+                    <p>{libelle(e)}<small>{t('FicheEligibilite.aConfirmerFinanceur')}</small></p>
                   </span>
                 </div>
               ))}
@@ -193,7 +194,7 @@ export function FicheEligibilite({
           {remplies.length > 0 && (
             <details className="more">
               <summary>
-                {remplies.length} condition{remplies.length > 1 ? 's' : ''} déjà remplie{remplies.length > 1 ? 's' : ''}
+                {t('FicheEligibilite.remplies', { count: remplies.length })}
               </summary>
               <div className="qs">
                 {remplies.map((e, i) => (
@@ -214,15 +215,15 @@ export function FicheEligibilite({
         <div className="result" aria-live="polite">
           {replie ? (
             <button type="button" className="revoir" onClick={() => setDeplie(true)}>
-              Revoir mes réponses
+              {t('FicheEligibilite.revoir')}
             </button>
           ) : (
             <p>
-              {dossierOuvert ? 'Votre dossier est ouvert.' : 'Prochaine étape : réunir les pièces du dossier.'}
+              {dossierOuvert ? t('FicheEligibilite.dossierOuvert') : t('FicheEligibilite.prochaineEtape')}
               <small>
-                La décision finale revient au financeur.{' '}
+                {t('FicheEligibilite.decisionFinale')}{' '}
                 <button type="button" className="revoir" onClick={() => setDeplie(false)}>
-                  Replier
+                  {t('FicheEligibilite.replier')}
                 </button>
               </small>
             </p>
@@ -235,13 +236,13 @@ export function FicheEligibilite({
             data-guide="aide.dossier"
           >
             {ouverture && <Loader2 className="i animate-spin" />}
-            {dossierOuvert ? 'Voir le dossier' : 'Commencer mon dossier'}
+            {dossierOuvert ? t('FicheEligibilite.voirDossier') : t('FicheEligibilite.commencer')}
           </button>
         </div>
       )}
       {etat === 'no' && (
         <div className="result" aria-live="polite">
-          <p>{refus[0] ?? 'Une condition de cette aide n’est pas remplie.'}</p>
+          <p>{refus[0] ?? t('FicheEligibilite.conditionNonRemplie')}</p>
         </div>
       )}
     </div>

@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import { daysUntil, deadlineLabel } from '@/lib/date-utils';
 import { ROUTES } from '@/constants/routes';
 import type { Monument, Projet } from '@/types';
@@ -207,9 +208,9 @@ export function computeMonumentStats(
 export type ProjectStageKey = 'estimation' | 'dossier' | 'depot';
 
 export const PROJECT_STAGES: { key: ProjectStageKey; label: string }[] = [
-  { key: 'estimation', label: 'Estimation' },
-  { key: 'dossier', label: 'Dossier' },
-  { key: 'depot', label: 'Dépôt' },
+  { key: 'estimation', get label() { return i18n.t('libAides:projectStats.etapes.estimation'); } },
+  { key: 'dossier', get label() { return i18n.t('libAides:projectStats.etapes.dossier'); } },
+  { key: 'depot', get label() { return i18n.t('libAides:projectStats.etapes.depot'); } },
 ];
 
 export interface ProjectStage {

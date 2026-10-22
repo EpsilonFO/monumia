@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { ArrowUpRight, ChevronRight } from 'lucide-react';
 import {
@@ -61,6 +62,7 @@ function MonumentTile({
   stage?: ProjectStage;
   featured?: boolean;
 }) {
+  const { t } = useTranslation('dashboard');
   const dossiersActifs = stats?.dossiersActifs ?? 0;
   const next = stats?.prochaineEcheance ?? null;
   const photo = monumentPhotoUrl(monument);
@@ -141,7 +143,7 @@ function MonumentTile({
           >
             <span className="inline-flex items-center gap-1.5">
               <IconDossier className="h-3.5 w-3.5" aria-hidden />
-              {dossiersActifs} dossier{dossiersActifs > 1 ? 's' : ''}
+              {t('MonumentsInProgress.dossiers', { count: dossiersActifs })}
             </span>
             {next && (
               <span
@@ -161,7 +163,7 @@ function MonumentTile({
             className="inline-flex shrink-0 items-center gap-1 text-[14px] font-semibold"
             style={{ color: C.orange }}
           >
-            Voir le monument
+            {t('voirMonument')}
             <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </span>
         </div>
@@ -171,6 +173,7 @@ function MonumentTile({
 }
 
 export function MonumentsInProgress({ monuments, statsByMonument, stageByMonument }: MonumentsInProgressProps) {
+  const { t } = useTranslation('dashboard');
   if (monuments.length === 0) {
     return (
       <div
@@ -185,18 +188,17 @@ export function MonumentsInProgress({ monuments, statsByMonument, stageByMonumen
           <IconProjet className="relative h-6 w-6 text-white" aria-hidden />
         </div>
         <p className="text-[17px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
-          Aucun monument enregistré
+          {t('MonumentsInProgress.aucunMonument')}
         </p>
         <p className="max-w-xs text-[14px]" style={{ color: C.ink, opacity: 0.55 }}>
-          Décrivez votre monument, puis lancez un projet de travaux pour estimer vos
-          aides et suivre vos dossiers au même endroit.
+          {t('MonumentsInProgress.aucunMonumentIndice')}
         </p>
         <Link
           to={ROUTES.MONUMENT_NEW}
           className="mt-1 inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
           style={{ background: C.orange }}
         >
-          Nouveau monument
+          {t('nouveauMonument')}
           <ChevronRight className="h-3.5 w-3.5" />
         </Link>
       </div>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { C } from '@/lib/brand';
 
 interface ProgressRingProps {
@@ -8,6 +9,7 @@ interface ProgressRingProps {
 }
 
 export function ProgressRing({ value, size = 56, color = C.blue, label }: ProgressRingProps) {
+  const { t } = useTranslation('dashboard');
   const clamped = Math.max(0, Math.min(100, Math.round(value)));
   const stroke = Math.max(4, Math.round(size * 0.1));
   const radius = (size - stroke) / 2;
@@ -21,7 +23,11 @@ export function ProgressRing({ value, size = 56, color = C.blue, label }: Progre
       className="relative inline-flex shrink-0 items-center justify-center"
       style={{ width: size, height: size }}
       role="img"
-      aria-label={label ? `${label} : ${clamped}%` : `Progression ${clamped}%`}
+      aria-label={
+        label
+          ? t('ProgressRing.libelle', { libelle: label, pct: clamped })
+          : t('ProgressRing.progression', { pct: clamped })
+      }
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle

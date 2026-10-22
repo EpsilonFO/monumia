@@ -1,0 +1,43 @@
+{
+  "actions": {
+    "annuler": "Annuler",
+    "enregistrer": "Enregistrer",
+    "supprimer": "Supprimer",
+    "modifier": "Modifier",
+    "fermer": "Fermer",
+    "retour": "Retour",
+    "continuer": "Continuer",
+    "suivant": "Suivant",
+    "precedent": "Précédent",
+    "valider": "Valider",
+    "confirmer": "Confirmer",
+    "ajouter": "Ajouter",
+    "reessayer": "Réessayer",
+    "rechercher": "Rechercher",
+    "voirPlus": "Voir plus",
+    "voirMoins": "Voir moins",
+    "telecharger": "Télécharger",
+    "copier": "Copier",
+    "envoyer": "Envoyer",
+    "inviter": "Inviter",
+    "seConnecter": "Se connecter",
+    "seDeconnecter": "Se déconnecter",
+    "nousContacter": "Nous contacter"
+  },
+  "etats": {
+    "chargement": "Chargement…",
+    "enregistrement": "Enregistrement…",
+    "aucunResultat": "Aucun résultat",
+    "erreur": "Une erreur est survenue",
+    "erreurReessayer": "Une erreur est survenue. Réessayez dans un instant."
+  },
+  "reponses": {
+    "oui": "Oui",
+    "non": "Non"
+  },
+  "langue": {
+    "libelle": "Langue",
+    "fr": "Français",
+    "en": "English"
+  }
+}

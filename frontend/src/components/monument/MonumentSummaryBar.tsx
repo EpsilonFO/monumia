@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { IconAjouter, IconLocalisation } from '@/components/icons';
 import { MonumentPhotoProfil } from '@/components/monument/MonumentPhotoProfil';
 import { C, SERIF } from '@/lib/brand';
@@ -27,6 +28,7 @@ export function MonumentSummaryBar({
   members = [],
   onNouveauProjet,
 }: MonumentSummaryBarProps) {
+  const { t } = useTranslation('monuments');
   const location = [monument.commune, monument.departement].filter(Boolean).join(', ');
 
   const shared = isProjectShared({
@@ -84,7 +86,7 @@ export function MonumentSummaryBar({
             style={{ background: C.orange }}
           >
             <IconAjouter className="h-4 w-4" strokeWidth={2} />
-            Nouveau projet
+            {t('MonumentSummaryBar.nouveauProjet')}
           </button>
         )}
       </div>

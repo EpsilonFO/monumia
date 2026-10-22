@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Loader2, MoreVertical } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import {
   IconVoir, IconTelecharger, IconVerrou, type IconComponent,
 } from '@/components/icons';
@@ -54,6 +55,7 @@ interface DocumentCardViewProps {
 export function DocumentCardView({
   document, onPreview, canDownload = true, locations, footer, uploaderName, menuActions, variant = 'normal',
 }: DocumentCardViewProps) {
+  const { t } = useTranslation(['documents', 'common']);
   const [downloading, setDownloading] = useState(false);
   const Icon = typeIcon(document.type);
   const tone = variant === 'trash'
@@ -76,7 +78,7 @@ export function DocumentCardView({
     try {
       await downloadDocument(document);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Téléchargement impossible');
+      toast.error(err instanceof Error ? err.message : t('commun.telechargementImpossible'));
     } finally {
       setDownloading(false);
     }
@@ -183,7 +185,7 @@ export function DocumentCardView({
                 style={{ background: C.paleBlue, color: C.blue }}
                 title={VISIBILITY_META[document.visibility].help}
               >
-                <IconVerrou className="h-3 w-3" weight="bold" />Accès restreint
+                <IconVerrou className="h-3 w-3" weight="bold" />{t('commun.accesRestreint')}
               </span>
             )}
             {uploaderName && <span>· {uploaderName}</span>}
@@ -203,9 +205,9 @@ export function DocumentCardView({
           onClick={(e) => { stop(e); onPreview(); }}
           className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-[15px] font-semibold text-white transition-all hover:brightness-110"
           style={{ background: C.blue }}
-          title="Voir le document"
+          title={t('DocumentCardView.voirDocument')}
         >
-          <IconVoir className="h-4 w-4" weight="bold" />Voir
+          <IconVoir className="h-4 w-4" weight="bold" />{t('DocumentCardView.voir')}
         </button>
         {canDownload && (
           <button
@@ -213,12 +215,12 @@ export function DocumentCardView({
             disabled={downloading}
             className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-[15px] font-semibold transition-colors disabled:opacity-60 hover:bg-black/[0.04]"
             style={{ background: 'transparent', color: C.ink, border: `1px solid ${C.border}` }}
-            title="Télécharger"
+            title={t('common:actions.telecharger')}
           >
             {downloading
               ? <Loader2 className="h-4 w-4 animate-spin" />
               : <IconTelecharger className="h-4 w-4" weight="bold" />}
-            Télécharger
+            {t('common:actions.telecharger')}
           </button>
         )}
         {menuActions.length > 0 && (
@@ -227,8 +229,8 @@ export function DocumentCardView({
               <button
                 className="shrink-0 h-10 w-10 flex items-center justify-center rounded-xl transition-colors hover:bg-black/[0.04]"
                 style={{ border: `1px solid ${C.border}`, color: C.grayFg }}
-                title="Plus d'actions"
-                aria-label="Plus d'actions"
+                title={t('commun.plusActions')}
+                aria-label={t('commun.plusActions')}
               >
                 <MoreVertical className="h-4 w-4" />
               </button>

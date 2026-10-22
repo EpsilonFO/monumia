@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AnswerCard } from './AnswerCard';
 import { SkipCard } from './SkipCard';
 import { QuestionHelp } from './QuestionHelp';
@@ -52,6 +53,7 @@ export function QuestionOptions({
   compact,
   disabled,
 }: QuestionOptionsProps) {
+  const { t } = useTranslation('project');
   const optionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const chosen = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
   const multiple = !!question.multiple;
@@ -123,7 +125,7 @@ export function QuestionOptions({
             className={cn('block font-semibold', compact ? 'mt-1 text-[14px]' : 'mt-1.5 text-[15px]')}
             style={{ color: C.orange }}
           >
-            Plusieurs réponses possibles
+            {t('QuestionOptions.plusieursReponses')}
           </span>
         )}
       </legend>
@@ -181,7 +183,7 @@ export function QuestionOptions({
 
       {/* En choix simple, « passer » reste offert y compris sur une question
           déjà répondue où l'on revient — c'est le seul moyen de se dédire. */}
-      {showSkipCard && <SkipCard label="Passer cette question" onSelect={() => onSkip?.()} />}
+      {showSkipCard && <SkipCard label={t('QuestionOptions.passer')} onSelect={() => onSkip?.()} />}
     </fieldset>
   );
 }

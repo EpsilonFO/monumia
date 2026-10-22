@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { IconRecherche, IconLocalisation } from '@/components/icons';
 import { C, SERIF } from '@/lib/brand';
 import { merimeeService } from '@/services/merimee.service';
@@ -9,15 +11,17 @@ interface MerimeeSearchProps {
   onSelect: (record: MerimeeRecord) => void;
 }
 
-/** Tonalité du badge de protection, dérivée du texte Mérimée (pas d'enum côté API). */
+/** Tonalité du badge de protection, dérivée du texte Mérimée (pas d'enum côté API).
+ *  Appelée au rendu : le libellé se traduit à ce moment-là. */
 function protectionTone(typologie: string | undefined): { bg: string; fg: string; label: string } {
   const t = (typologie ?? '').toLowerCase();
-  if (/(?:^|[^a-zà-ÿ])classé/.test(t)) return { bg: 'var(--secondary)', fg: 'var(--primary)', label: 'Classé MH' };
-  if (/(?:^|[^a-zà-ÿ])inscrit/.test(t)) return { bg: 'var(--info-muted)', fg: 'var(--info)', label: 'Inscrit MH' };
-  return { bg: 'var(--muted)', fg: 'var(--gray-fg)', label: typologie || 'Protection inconnue' };
+  if (/(?:^|[^a-zà-ÿ])classé/.test(t)) return { bg: 'var(--secondary)', fg: 'var(--primary)', label: i18n.t('monuments:MerimeeSearch.classeMh') };
+  if (/(?:^|[^a-zà-ÿ])inscrit/.test(t)) return { bg: 'var(--info-muted)', fg: 'var(--info)', label: i18n.t('monuments:MerimeeSearch.inscritMh') };
+  return { bg: 'var(--muted)', fg: 'var(--gray-fg)', label: typologie || i18n.t('monuments:MerimeeSearch.protectionInconnue') };
 }
 
 export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
+  const { t } = useTranslation('monuments');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MerimeeRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,7 +65,7 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
           type="search"
           className="h-14 w-full rounded-2xl border pl-12 pr-4 text-[18px] outline-none transition-shadow placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
           style={{ borderColor: C.border, background: C.card, boxShadow: 'var(--shadow-card)', color: C.ink }}
-          placeholder="Nom du monument, commune ou référence…"
+          placeholder={t('MerimeeSearch.placeholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -75,8 +79,7 @@ export function MerimeeSearch({ onSelect }: MerimeeSearchProps) {
 
       {query.length >= 2 && !loading && results.length === 0 && (
         <p className="py-4 text-center text-[16px]" style={{ color: C.grayMuted }}>
-          Aucun résultat pour «&nbsp;{query}&nbsp;». Vous pourrez décrire votre monument
-          vous-même juste en dessous.
+          {t('MerimeeSearch.aucunResultat', { requete: query })}
         </p>
       )}
 

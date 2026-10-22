@@ -1,0 +1,145 @@
+{
+  "actionsDocument": {
+    "renommer": "Renommer",
+    "changerDeDossier": "Changer de dossier",
+    "rattacher": "Rattacher à un autre monument",
+    "gererAcces": "Gérer l'accès",
+    "mettreALaCorbeille": "Mettre à la corbeille",
+    "retirerDe": "Retirer de {{nom}}"
+  },
+  "brouillonInvite": {
+    "aucunBrouillon": "Aucun brouillon à reprendre."
+  },
+  "dateUtils": {
+    "echeanceDepassee": "Échéance dépassée",
+    "aujourdhui": "Aujourd'hui",
+    "demain": "Demain",
+    "dansNJours_one": "Dans {{count}} jour",
+    "dansNJours_other": "Dans {{count}} jours"
+  },
+  "formatUtils": {
+    "octets": "{{taille}} o",
+    "kilooctets": "{{taille}} Ko",
+    "megaoctets": "{{taille}} Mo",
+    "pourcentage": "{{valeur}} %"
+  },
+  "documentTypeMeta": {
+    "familles": {
+      "monument": "Le monument",
+      "travaux": "Les travaux",
+      "administratif": "Administratif et financier",
+      "echanges": "Échanges et divers"
+    },
+    "dossiers": {
+      "photo": "Photos",
+      "plan": "Plans",
+      "devis": "Devis",
+      "facture": "Factures",
+      "attestation": "Attestations",
+      "extrait_cadastral": "Extraits cadastraux",
+      "cerfa": "CERFA",
+      "arrete": "Arrêtés",
+      "diagnostic": "Diagnostics",
+      "rapport": "Rapports",
+      "correspondance": "Correspondance",
+      "autorisation_urbanisme": "Autorisations d'urbanisme",
+      "rib": "RIB",
+      "titre_propriete": "Titres de propriété",
+      "deliberation": "Délibérations",
+      "statuts": "Statuts",
+      "plan_financement": "Plans de financement",
+      "autre": "Autres"
+    },
+    "types": {
+      "photo": "Photo",
+      "plan": "Plan",
+      "devis": "Devis",
+      "facture": "Facture",
+      "attestation": "Attestation",
+      "extrait_cadastral": "Extrait cadastral",
+      "cerfa": "CERFA",
+      "arrete": "Arrêté",
+      "diagnostic": "Diagnostic",
+      "rapport": "Rapport",
+      "correspondance": "Correspondance",
+      "autre": "Autre",
+      "autorisation_urbanisme": "Autorisation d'urbanisme",
+      "rib": "RIB",
+      "titre_propriete": "Titre de propriété",
+      "deliberation": "Délibération",
+      "statuts": "Statuts",
+      "plan_financement": "Plan de financement"
+    }
+  },
+  "documentVisibility": {
+    "team": {
+      "libelle": "Toute l'équipe",
+      "aide": "Tous les collaborateurs du projet"
+    },
+    "responsables": {
+      "libelle": "Le chef de projet et ses adjoints",
+      "aide": "Les responsables du projet"
+    },
+    "custom": {
+      "libelle": "Personnes choisies",
+      "aide": "Vous choisissez qui peut le voir"
+    }
+  },
+  "offres": {
+    "monMonument": "Mon monument",
+    "mesMonuments": "Mes monuments",
+    "noms": {
+      "gratuit": "Gratuit",
+      "veille": "Veille",
+      "multiMonuments": "Multi-monuments"
+    }
+  },
+  "password": {
+    "longueur": "8 caractères minimum",
+    "chiffre": "1 chiffre"
+  },
+  "phone": {
+    "invalide": "Numéro invalide (ex : 06 12 34 56 78 ou +33 6 12 34 56 78)"
+  },
+  "storageUpload": {
+    "erreur": "Erreur upload fichier : {{message}}"
+  },
+  "templateFormat": {
+    "fichier": "Fichier"
+  },
+  "rolesCompte": {
+    "admin": "Administrateur",
+    "betaTesteur": "Bêta-testeur"
+  },
+  "suivi": {
+    "statuts": {
+      "aFaire": "À faire",
+      "enPreparation": "En préparation",
+      "depose": "Déposé",
+      "accorde": "Accordé",
+      "refuse": "Refusé"
+    },
+    "motifsRefus": {
+      "inegibilite": "Finalement inéligible",
+      "budgetEpuise": "Enveloppe épuisée",
+      "dossierIncomplet": "Dossier incomplet",
+      "nonPrioritaire": "Projet non prioritaire",
+      "horsDelai": "Hors délai",
+      "autre": "Autre"
+    }
+  },
+  "useGuide": {
+    "progression": "{{current}} sur {{total}}",
+    "compris": "Compris",
+    "passer": "Passer"
+  },
+  "router": {
+    "paywallTableauDeBord": {
+      "titre": "Tous vos monuments, sur un seul écran",
+      "description": "Le tableau de bord réunit vos biens, l'avancement de chaque chantier et les échéances qui approchent. Il prend son sens à partir de deux monuments."
+    }
+  },
+  "dossierService": {
+    "nomArchive": "dossier"
+  }
+}

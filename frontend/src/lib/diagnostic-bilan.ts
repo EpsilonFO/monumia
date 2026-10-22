@@ -6,6 +6,7 @@ import type {
   ProjectQuestionnaireAnswers,
   QcmQuestion,
 } from '@/types';
+import i18n from '@/i18n';
 import { getDisponibilite } from '@/components/aide/eligibility-status';
 import { sanitizeQcmQuestions } from './qcm';
 
@@ -105,7 +106,7 @@ export function matchPourAide(
   if (trouve) return trouve;
   const question = diagnostic.aidesHorsPerimetre?.[aideId];
   if (question === undefined || !aide || aide.id !== aideId) return null;
-  const motif = `D'après votre réponse, votre projet n'entre pas dans le champ de cette aide : « ${question} »`;
+  const motif = i18n.t('libAides:diagnosticBilan.horsPerimetre', { question });
   return {
     aide,
     statut: 'non_eligible',

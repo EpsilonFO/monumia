@@ -1,7 +1,9 @@
 import { useEffect, useMemo } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { format, parseISO } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import type { TFunction } from 'i18next';
+import { localeDateFns, localeIntl } from '@/i18n/format';
 import { AFaireMaintenantCarte } from '@/components/dashboard/AFaireMaintenantCarte';
 import { CarteMonument } from '@/components/dashboard/CarteMonument';
 import { DocumentsTableau } from '@/components/dashboard/DocumentsTableau';
@@ -28,11 +30,15 @@ import { Guide } from '@/components/shared/Guide';
 
 /** La phrase sous le bonjour : ce que dit la date la plus proche. Sans date,
  *  la carte « Tout est à jour » le dit déjà : pas de phrase. */
-function phraseDuJour(a: AFaire): string {
-  const quand = format(parseISO(a.echeance.date), 'd MMMM', { locale: fr });
-  if (a.echeance.joursRestants < 0) return `Une échéance est dépassée : ${a.titre}, prévue le ${quand}.`;
-  if (a.nature === 'dossier') return `Une échéance approche : ${a.detail}, le ${quand}.`;
-  return `Une date approche : ${a.titre} ferme le ${quand}.`;
+function phraseDuJour(a: AFaire, t: TFunction<'dashboard'>): string {
+  const quand = format(parseISO(a.echeance.date), 'd MMMM', { locale: localeDateFns() });
+  if (a.echeance.joursRestants < 0) {
+    return t('DashboardPage.phraseDuJour.depassee', { titre: a.titre, date: quand });
+  }
+  if (a.nature === 'dossier') {
+    return t('DashboardPage.phraseDuJour.dossier', { detail: a.detail, date: quand });
+  }
+  return t('DashboardPage.phraseDuJour.date', { titre: a.titre, date: quand });
 }
 
 /**
@@ -42,6 +48,7 @@ function phraseDuJour(a: AFaire): string {
  * et enfin l'espace documents.
  */
 export function DashboardPage() {
+  const { t } = useTranslation('dashboard');
   const user = useAuthStore((s) => s.user);
   const monuments = useMonumentStore((s) => s.monuments);
   const dossiers = useDossierStore((s) => s.dossiers);
@@ -121,8 +128,8 @@ export function DashboardPage() {
   if (!user) return null;
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
-  const jour = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const moment = hour < 12 ? 'matin' : hour < 18 ? 'apresMidi' : 'soir';
+  const jour = new Date().toLocaleDateString(localeIntl(), { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
     <div className="ec tdb">
@@ -131,9 +138,14 @@ export function DashboardPage() {
         <div>
           <span className="eyebrow">{jour.charAt(0).toUpperCase() + jour.slice(1)}</span>
           <h1>
-            {greeting}, <span>{user.prenom}</span>
+            <Trans
+              t={t}
+              i18nKey={`DashboardPage.salutation.${moment}`}
+              values={{ prenom: user.prenom }}
+              components={{ prenom: <span /> }}
+            />
           </h1>
-          {!loading && aFaire && <p>{phraseDuJour(aFaire)}</p>}
+          {!loading && aFaire && <p>{phraseDuJour(aFaire, t)}</p>}
         </div>
         <div className="hello-acts">
           <Link
@@ -142,10 +154,10 @@ export function DashboardPage() {
             data-guide="monuments.nouveau-monument"
           >
             <Picto nom="plus" />
-            {userMonuments.length === 0 ? 'Créer un monument' : 'Nouveau monument'}
+            {userMonuments.length === 0 ? t('DashboardPage.creerMonument') : t('nouveauMonument')}
           </Link>
           <BoutonNouvelleRecherche recherche={recherche} nbMonuments={displayMonuments.length}>
-            Nouvelle recherche d'aides
+            {t('DashboardPage.nouvelleRecherche')}
           </BoutonNouvelleRecherche>
         </div>
       </div>
@@ -169,8 +181,8 @@ export function DashboardPage() {
       <section className="sec" aria-labelledby="monT">
         <div className="sec-h">
           <div>
-            <span className="eyebrow">Vos monuments</span>
-            <h2 id="monT">Où en sont vos projets</h2>
+            <span className="eyebrow">{t('DashboardPage.vosMonuments')}</span>
+            <h2 id="monT">{t('DashboardPage.ouEnSontVosProjets')}</h2>
           </div>
         </div>
         {loading ? (
@@ -187,10 +199,7 @@ export function DashboardPage() {
             ))}
           </div>
         ) : displayMonuments.length === 0 ? (
-          <p className="vide">
-            Aucun monument pour l'instant. Commencez par la fiche de votre monument : Monumia en déduit les aides
-            auxquelles il peut prétendre.
-          </p>
+          <p className="vide">{t('DashboardPage.aucunMonument')}</p>
         ) : (
           <div className="cmons">
             {displayMonuments.map((m) => (

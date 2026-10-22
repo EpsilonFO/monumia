@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { ChevronLeft, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { getDisponibilite, getEligibilityStatus } from '@/components/aide/eligibility-status';
 import { FicheAvantDepot } from '@/components/aide/fiche/FicheAvantDepot';
 import { FicheBarre, type ActionBarre } from '@/components/aide/fiche/FicheBarre';
@@ -60,6 +61,7 @@ import { Guide } from '@/components/shared/Guide';
  * (`aide.fiche`) quand elle existe, des champs bruts sinon (cf. lib/fiche-aide).
  */
 export function AideProjectPage() {
+  const { t } = useTranslation('projets');
   const { projetId, aideId } = useParams();
   const navigate = useNavigate();
 
@@ -227,14 +229,14 @@ export function AideProjectPage() {
               await repondreFait(projetId, factKey, value);
             } catch (err) {
               toast.error(
-                err instanceof Error ? err.message : "Votre réponse n'a pas pu être enregistrée",
+                err instanceof Error ? err.message : t('AideProjectPage.erreurReponse'),
               );
             } finally {
               setEnvoiReponse(false);
             }
           }
         : undefined,
-    [peutRepondre, projetId, repondreFait],
+    [peutRepondre, projetId, repondreFait, t],
   );
 
   const existingDossier = useMemo(
@@ -262,7 +264,7 @@ export function AideProjectPage() {
       const created = await dossierService.create(projetId, aideId, projet.travauxEnvisages ?? []);
       navigate(ROUTES.PROJET_DOSSIER(projetId, created.id));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la création du dossier');
+      toast.error(err instanceof Error ? err.message : t('AideProjectPage.erreurCreationDossier'));
     } finally {
       setOpening(false);
     }
@@ -285,9 +287,9 @@ export function AideProjectPage() {
   if (notFound) {
     return (
       <div className="space-y-4">
-        <h1 className="text-[23px]" style={{ fontFamily: SERIF, color: C.ink }}>Aide introuvable</h1>
+        <h1 className="text-[23px]" style={{ fontFamily: SERIF, color: C.ink }}>{t('AideProjectPage.introuvable')}</h1>
         <Link to={projetId ? ROUTES.PROJET_DETAIL(projetId) : ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[15px] font-medium" style={{ color: C.blue }}>
-          <ChevronLeft className="h-3.5 w-3.5" /> Retour au projet
+          <ChevronLeft className="h-3.5 w-3.5" /> {t('communs.retourAuProjet')}
         </Link>
       </div>
     );
@@ -319,19 +321,19 @@ export function AideProjectPage() {
   );
   const lienProjet = ROUTES.PROJET_DETAIL(projet.id);
   const sources = [
-    ...(aide.urlOfficielle ? [{ libelle: 'Page officielle', url: aide.urlOfficielle, ico: 'externe' as const }] : []),
-    ...(aide.formulaireUrl ? [{ libelle: 'Formulaire', url: aide.formulaireUrl, ico: 'formulaire' as const }] : []),
+    ...(aide.urlOfficielle ? [{ libelle: t('AideProjectPage.pageOfficielle'), url: aide.urlOfficielle, ico: 'externe' as const }] : []),
+    ...(aide.formulaireUrl ? [{ libelle: t('AideProjectPage.formulaire'), url: aide.formulaireUrl, ico: 'formulaire' as const }] : []),
   ];
 
   const action: ActionBarre = existingDossier
-    ? { libelle: 'Voir le dossier', onClick: handleOpenOrView }
+    ? { libelle: t('AideProjectPage.actions.voirDossier'), onClick: handleOpenOrView }
     : statut === 'eligible'
-      ? pieces.length ? { libelle: 'Réunir les pièces', ancre: 'pieces' } : { libelle: 'Commencer mon dossier', onClick: handleOpenOrView }
+      ? pieces.length ? { libelle: t('AideProjectPage.actions.reunirPieces'), ancre: 'pieces' } : { libelle: t('AideProjectPage.actions.commencerDossier'), onClick: handleOpenOrView }
       : statut === 'non-eligible'
-        ? { libelle: 'Autres aides', vers: lienProjet }
+        ? { libelle: t('AideProjectPage.actions.autresAides'), vers: lienProjet }
         : matchResult
-          ? { libelle: 'Vérifier mon éligibilité', ancre: 'eligibilite' }
-          : { libelle: 'Lire le règlement', ancre: 'reglement' };
+          ? { libelle: t('AideProjectPage.actions.verifierEligibilite'), ancre: 'eligibilite' }
+          : { libelle: t('AideProjectPage.actions.lireReglement'), ancre: 'reglement' };
   // Un point du règlement, ou une démarche : celles-ci vivent dans « Avant de
   // déposer », qu'il faut alors déplier avant d'y défiler.
   const idsDemarches = new Set(reglement.demarches.map((p) => p.id));
@@ -353,7 +355,7 @@ export function AideProjectPage() {
         action={action}
         repere={titreRef}
       />
-      <BoutonRetour className="retour" to={lienProjet} libelle={`Retour à ${projetTitre(projet, monument.nom)}`} />
+      <BoutonRetour className="retour" to={lienProjet} libelle={t('communs.retourA', { nom: projetTitre(projet, monument.nom) })} />
       <div className="page">
         <div className="head">
           <p className="crumbs">

@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
@@ -29,6 +30,7 @@ export function BoutonNouvelleRecherche({
   className?: string;
   children: ReactNode;
 }) {
+  const { t } = useTranslation('dashboard');
   const { candidats, lancer } = recherche;
   const contenu = (
     <>
@@ -50,7 +52,7 @@ export function BoutonNouvelleRecherche({
         <button className={className} type="button" aria-haspopup="menu">{contenu}</button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="ec dmenu nr-menu">
-        <DropdownMenuLabel className="nr-k">Pour quel monument ?</DropdownMenuLabel>
+        <DropdownMenuLabel className="nr-k">{t('NouvelleRecherche.pourQuelMonument')}</DropdownMenuLabel>
         {candidats.map((m) => (
           <DropdownMenuItem key={m.id} onClick={() => lancer(m.id)}>
             <span className="nomlieu">{m.nom}</span>
@@ -80,19 +82,24 @@ export function CarteNouveauProjet({
   nbMonuments: number;
   bande?: boolean;
 }) {
+  const { t } = useTranslation('dashboard');
   const id = useId();
   const { candidats } = recherche;
   if (nbMonuments !== 1 || candidats.length !== 1) return null;
-  const titre = `Un nouveau projet pour ${monumentNomCourt(candidats[0].nom) ?? 'ce monument'} ?`;
+  // `monumentNomCourt` rend null hors du français : la phrase retombe sur « ce monument ».
+  const nom = monumentNomCourt(candidats[0].nom);
+  const titre = nom
+    ? t('CarteNouveauProjet.titre', { nom })
+    : t('CarteNouveauProjet.titreSansNom');
   return (
     <article className={bande ? 'ns ns-band' : 'ns'} aria-labelledby={id}>
       <span className="pl" aria-hidden="true"><Picto nom="plus" /></span>
       <div>
         <h3 id={id}>{titre}</h3>
-        <p>Restauration, mise aux normes, compagnie de théâtre, chantier bénévole, exploitation agricole, coworking, et bien d'autres encore !</p>
+        <p>{t('CarteNouveauProjet.exemples')}</p>
       </div>
       <BoutonNouvelleRecherche recherche={recherche} nbMonuments={nbMonuments}>
-        Lancer une nouvelle recherche
+        {t('lancerRecherche')}
       </BoutonNouvelleRecherche>
     </article>
   );

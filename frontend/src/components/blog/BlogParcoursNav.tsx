@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 import { getArticlesByCategory } from '@/content/blog/articles';
 import { BLOG_CATEGORIES, categoryTone } from '@/content/blog/categories';
 import { C } from '@/lib/brand';
@@ -9,8 +11,9 @@ import { C } from '@/lib/brand';
  * une étape sans article est affichée mais inactive.
  */
 export function BlogParcoursNav() {
+  const { t } = useTranslation('blog');
   return (
-    <nav aria-label="Parcours du propriétaire">
+    <nav aria-label={t('BlogParcoursNav.ariaParcours')}>
       <ol className="flex items-stretch gap-3 overflow-x-auto pb-1">
         {BLOG_CATEGORIES.map((category, i) => {
           const tone = categoryTone(category);
@@ -31,7 +34,7 @@ export function BlogParcoursNav() {
                   className="block text-[12px] font-semibold uppercase tracking-[0.16em]"
                   style={{ color: tone.fg }}
                 >
-                  Étape {i + 1}
+                  {t('BlogParcoursNav.etape', { numero: i + 1 })}
                 </span>
                 <span
                   className="block whitespace-nowrap text-[15.5px] font-medium leading-tight"
@@ -40,7 +43,9 @@ export function BlogParcoursNav() {
                   {category.stepLabel}
                 </span>
                 <span className="block text-[13px]" style={{ color: C.grayMuted }}>
-                  {count > 0 ? `${count} article${count > 1 ? 's' : ''}` : 'Bientôt'}
+                  {count > 0
+                    ? t('BlogParcoursNav.articles', { count })
+                    : t('BlogParcoursNav.bientot')}
                 </span>
               </span>
             </>

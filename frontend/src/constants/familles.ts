@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import type { ProjectQuestionnaireAnswers } from '@/types';
 
 /**
@@ -43,73 +44,73 @@ export type Famille =
 export const FAMILLE_OPTIONS: { value: Famille; label: string; hint: string }[] = [
   {
     value: 'restauration_bati',
-    label: 'Restauration du bâti',
-    hint: 'Travaux sur le bâti, protégé ou non, et le mobilier attaché.',
+    get label() { return i18n.t('constants:familles.restauration_bati.label'); },
+    get hint() { return i18n.t('constants:familles.restauration_bati.hint'); },
   },
   {
     value: 'energie_climat',
-    label: 'Énergie et climat',
-    hint: 'Rénovation énergétique, chauffage, matériaux biosourcés.',
+    get label() { return i18n.t('constants:familles.energie_climat.label'); },
+    get hint() { return i18n.t('constants:familles.energie_climat.hint'); },
   },
   {
     value: 'eau_nature_domaine',
-    label: 'Eau, nature et domaine',
-    hint: 'Cours d’eau, douves, biodiversité, forêt, vergers, haies.',
+    get label() { return i18n.t('constants:familles.eau_nature_domaine.label'); },
+    get hint() { return i18n.t('constants:familles.eau_nature_domaine.hint'); },
   },
   {
     value: 'securite_risques',
-    label: 'Sécurité et risques',
-    hint: 'Incendie, foudre, inondation, sûreté, mise en sécurité.',
+    get label() { return i18n.t('constants:familles.securite_risques.label'); },
+    get hint() { return i18n.t('constants:familles.securite_risques.hint'); },
   },
   {
     value: 'parcs_jardins_paysages',
-    label: 'Parcs, jardins et paysages',
-    hint: 'Parcs et jardins, arbres remarquables, paysages, abords.',
+    get label() { return i18n.t('constants:familles.parcs_jardins_paysages.label'); },
+    get hint() { return i18n.t('constants:familles.parcs_jardins_paysages.hint'); },
   },
   {
     value: 'hebergement_touristique',
-    label: 'Hébergement touristique',
-    hint: 'Gîtes, chambres d’hôtes, hôtel, camping, hébergement collectif.',
+    get label() { return i18n.t('constants:familles.hebergement_touristique.label'); },
+    get hint() { return i18n.t('constants:familles.hebergement_touristique.hint'); },
   },
   {
     value: 'tourisme_visite',
-    label: 'Site de visite et tourisme',
-    hint: 'Ouverture à la visite, itinérance, évènementiel touristique.',
+    get label() { return i18n.t('constants:familles.tourisme_visite.label'); },
+    get hint() { return i18n.t('constants:familles.tourisme_visite.hint'); },
   },
   {
     value: 'activite_economique_lieu',
-    label: 'Activité économique dans le lieu',
-    hint: 'Reconversion, tiers-lieu, commerce ou artisanat installé.',
+    get label() { return i18n.t('constants:familles.activite_economique_lieu.label'); },
+    get hint() { return i18n.t('constants:familles.activite_economique_lieu.hint'); },
   },
   {
     value: 'spectacles_manifestations',
-    label: 'Spectacles et manifestations',
-    hint: 'Festivals, saisons, résidences, évènements accueillis.',
+    get label() { return i18n.t('constants:familles.spectacles_manifestations.label'); },
+    get hint() { return i18n.t('constants:familles.spectacles_manifestations.hint'); },
   },
   {
     value: 'vie_locale_associative',
-    label: 'Vie locale et associative',
-    hint: 'Vie associative, fêtes locales, mémoire, cultures régionales.',
+    get label() { return i18n.t('constants:familles.vie_locale_associative.label'); },
+    get hint() { return i18n.t('constants:familles.vie_locale_associative.hint'); },
   },
   {
     value: 'mediation_numerique_expositions',
-    label: 'Médiation, expositions, musée, numérique',
-    hint: 'Signalétique, scénographie, expositions, musée, numérique.',
+    get label() { return i18n.t('constants:familles.mediation_numerique_expositions.label'); },
+    get hint() { return i18n.t('constants:familles.mediation_numerique_expositions.hint'); },
   },
   {
     value: 'accessibilite_publics',
-    label: 'Accessibilité et accueil des publics',
-    hint: 'Accessibilité, handicap, confort d’accueil des visiteurs.',
+    get label() { return i18n.t('constants:familles.accessibilite_publics.label'); },
+    get hint() { return i18n.t('constants:familles.accessibilite_publics.hint'); },
   },
   {
     value: 'etudes_ingenierie',
-    label: 'Études et ingénierie',
-    hint: 'Études préalables, diagnostics, ingénierie, AMO.',
+    get label() { return i18n.t('constants:familles.etudes_ingenierie.label'); },
+    get hint() { return i18n.t('constants:familles.etudes_ingenierie.hint'); },
   },
   {
     value: 'labels_passerelles',
-    label: 'Labels et passerelles',
-    hint: 'Labels et dispositifs qui ouvrent l’accès à d’autres aides.',
+    get label() { return i18n.t('constants:familles.labels_passerelles.label'); },
+    get hint() { return i18n.t('constants:familles.labels_passerelles.hint'); },
   },
 ];
 

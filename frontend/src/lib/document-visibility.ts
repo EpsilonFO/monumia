@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import type { DocumentVisibility, ID, ProjectRole } from '@/types';
 
 const RANK: Record<ProjectRole, number> = { member: 1, co_owner: 2, owner: 3 };
@@ -67,7 +68,16 @@ export function customIdsForPreset(
 }
 
 export const VISIBILITY_META: Record<DocumentVisibility, { label: string; help: string }> = {
-  team: { label: "Toute l'équipe", help: 'Tous les collaborateurs du projet' },
-  responsables: { label: 'Le chef de projet et ses adjoints', help: 'Les responsables du projet' },
-  custom: { label: 'Personnes choisies', help: 'Vous choisissez qui peut le voir' },
+  team: {
+    get label() { return i18n.t('core:documentVisibility.team.libelle'); },
+    get help() { return i18n.t('core:documentVisibility.team.aide'); },
+  },
+  responsables: {
+    get label() { return i18n.t('core:documentVisibility.responsables.libelle'); },
+    get help() { return i18n.t('core:documentVisibility.responsables.aide'); },
+  },
+  custom: {
+    get label() { return i18n.t('core:documentVisibility.custom.libelle'); },
+    get help() { return i18n.t('core:documentVisibility.custom.aide'); },
+  },
 };

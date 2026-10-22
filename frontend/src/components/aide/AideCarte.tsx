@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { ROUTES } from '@/constants/routes';
@@ -50,6 +51,7 @@ interface AideCarteProps {
  * la carte n'en donne que le nombre.
  */
 export function AideCarte({ match, projetId, showMontant = true, questions, answers }: AideCarteProps) {
+  const { t } = useTranslation('aide');
   const { aide } = match;
   const navigate = useNavigate();
   const statut = getEligibilityStatus(match);
@@ -86,7 +88,7 @@ export function AideCarte({ match, projetId, showMontant = true, questions, answ
       <h4>{titreAide(aide)}</h4>
       {restantes > 0 && (
         <span className="q-l">
-          {restantes === 1 ? '1 question pour trancher' : `${restantes} questions pour trancher`}
+          {t('AideCarte.questionsPourTrancher', { count: restantes })}
           <Picto nom="fleche" />
         </span>
       )}
@@ -96,11 +98,11 @@ export function AideCarte({ match, projetId, showMontant = true, questions, answ
             <Picto nom="euro" />
           </span>
           {!showMontant ? (
-            <b className="none">Montant sur la fiche</b>
+            <b className="none">{t('AideCarte.montantSurFiche')}</b>
           ) : montant ? (
             <b>{montant.valeur}</b>
           ) : (
-            <b className="none">Montant non publié</b>
+            <b className="none">{t('AideCarte.montantNonPublie')}</b>
           )}
         </span>
         <span className={`st ${TON_PASTILLE[statut]}`}>

@@ -1,11 +1,10 @@
+import { useTranslation } from 'react-i18next';
 import { LogoMonumia } from '@/components/icons';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { PROTECTION_LABELS_SHORT } from '@/constants/monument-options';
 import type { Monument } from '@/types';
 import type { NoteEnregistrement } from './WizardShell';
 import type { WizardStep, WizardStepKey } from './etapes';
-
-const STATE_TEXT = { done: 'étape faite', current: 'étape en cours', upcoming: 'étape à venir' };
 
 interface WizardRailProps {
   steps: WizardStep[];
@@ -34,11 +33,12 @@ export function WizardRail({
 }: WizardRailProps) {
   // Les clés étant des chaînes, c'est le RANG dans la liste qui dit ce qui est
   // fait et ce qui reste.
+  const { t } = useTranslation('project');
   const currentIndex = steps.findIndex((s) => s.key === step);
 
   return (
-    <aside className="ec qz-side" aria-label="Étapes">
-      <button type="button" className="qz-logo" onClick={onQuit} aria-label="Quitter">
+    <aside className="ec qz-side" aria-label={t('WizardRail.etapes')}>
+      <button type="button" className="qz-logo" onClick={onQuit} aria-label={t('WizardRail.quitter')}>
         <LogoMonumia className="fleur" />
         <span className="nom">Monumia</span>
       </button>
@@ -60,9 +60,9 @@ export function WizardRail({
               <div>
                 <b>
                   {s.label}
-                  <span className="sr"> ({STATE_TEXT[state]})</span>
+                  <span className="sr"> {t('WizardRail.etatEntreParentheses', { etat: t(`etatsEtape.${state}`) })}</span>
                 </b>
-                <small>{done ? 'Terminé' : s.hint}</small>
+                <small>{done ? t('WizardRail.termine') : s.hint}</small>
                 {current && s.key === 'questionnaire' && progression !== null && (
                   <div className="qz-sub" aria-hidden="true">
                     <span className="track">
@@ -78,7 +78,7 @@ export function WizardRail({
 
       {monument && (
         <div className="qz-mon">
-          <span className="k">Votre monument</span>
+          <span className="k">{t('WizardRail.votreMonument')}</span>
           <h3>{monument.nom}</h3>
           {monument.commune && <p>{monument.commune}</p>}
           <span className="tag">

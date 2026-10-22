@@ -1,0 +1,248 @@
+{
+  "communs": {
+    "retourAuProjet": "Retour au projet",
+    "retourA": "Retour à {{nom}}",
+    "retourMesMonuments": "Retour à mes monuments",
+    "voirMesMonuments": "Voir mes monuments",
+    "ouvrirMesDocuments": "Ouvrir mes documents",
+    "voirLesAides": "Voir les aides",
+    "suppression": "Suppression…"
+  },
+  "AideProjectPage": {
+    "erreurReponse": "Votre réponse n'a pas pu être enregistrée",
+    "erreurCreationDossier": "Erreur lors de la création du dossier",
+    "introuvable": "Aide introuvable",
+    "pageOfficielle": "Page officielle",
+    "formulaire": "Formulaire",
+    "actions": {
+      "voirDossier": "Voir le dossier",
+      "reunirPieces": "Réunir les pièces",
+      "commencerDossier": "Commencer mon dossier",
+      "autresAides": "Autres aides",
+      "verifierEligibilite": "Vérifier mon éligibilité",
+      "lireReglement": "Lire le règlement"
+    }
+  },
+  "RepriseBrouillonPage": {
+    "erreurGenerique": "Une erreur est survenue.",
+    "offre": {
+      "titre": "Votre compte a déjà un monument",
+      "description": "L'offre gratuite en couvre un seul. Multi-monuments lève la limite et réunit tous vos biens sur un même tableau de bord. Votre brouillon reste ici : il se reprendra tel quel.",
+      "decouvrir": "Découvrir l’offre Multi-monuments"
+    },
+    "perime": {
+      "titre": "Votre brouillon est trop ancien",
+      "description": "Le questionnaire a évolué depuis : mieux vaut repartir de votre monument, c'est l'affaire de deux minutes.",
+      "decrire": "Décrire mon monument"
+    },
+    "autre": {
+      "titre": "Votre diagnostic n’a pas pu être enregistré",
+      "description": "{{message}} Vos réponses sont conservées : réessayez, rien ne sera créé en double."
+    }
+  },
+  "ProjetDetailPage": {
+    "erreurDiagnostic": "Erreur lors du diagnostic",
+    "erreurRenommage": "Erreur lors du renommage",
+    "projetSupprime": "Projet supprimé",
+    "erreurSuppression": "Erreur lors de la suppression",
+    "introuvable": {
+      "titre": "Projet introuvable",
+      "texte": "Ce projet n'existe pas ou a été supprimé."
+    },
+    "chiffres": {
+      "aVenirAuMieux": "à venir, au mieux",
+      "aidesAVenir_one": "aide à venir",
+      "aidesAVenir_other": "aides à venir",
+      "echeances_one": "échéance sur ce chantier",
+      "echeances_other": "échéances sur ce chantier"
+    },
+    "onglets": {
+      "label": "Rubriques du projet",
+      "aides": "Aides",
+      "dossiers": "Dossiers",
+      "documents": "Documents",
+      "documentsTitre": "Déposez une pièce une fois, elle sert à tous vos dossiers",
+      "equipe": "Équipe"
+    },
+    "docsCta": {
+      "titre": "Gardez les documents de votre monument au même endroit",
+      "texte": "Déposez ici vos devis, arrêtés, délibérations et photos. Monumia les range par type, et vous pouvez les réutiliser dans chacun de vos dossiers d’aide."
+    },
+    "lancer": {
+      "titre": "Découvrez les aides de ce projet",
+      "texte": "Notre moteur analyse les aides publiques et privées applicables à {{nom}}.",
+      "bouton": "Lancer le moteur"
+    },
+    "paywallEcheancier": {
+      "titre": "Ne laissez plus passer une date limite",
+      "description": "L'échéancier réunit les dates limites de vos aides et de vos dossiers, de la plus proche à la plus lointaine. L'offre Veille vous les rappelle aussi par email."
+    },
+    "aides": {
+      "titre": "Toutes vos aides",
+      "reperees_one": "{{count}} aide repérée pour ce projet",
+      "reperees_other": "{{count}} aides repérées pour ce projet",
+      "aucune": "Aucune aide à proposer pour le moment.",
+      "aucuneChez": "Aucune aide à proposer pour le moment chez « {{filtre}} »."
+    },
+    "groupes": {
+      "maintenant": {
+        "titre": "Disponibles maintenant",
+        "sous": "Votre projet remplit les conditions publiées par le financeur, et le guichet est ouvert. Vous pouvez monter le dossier."
+      },
+      "aDebloquer": {
+        "titre": "À débloquer",
+        "sous": "Une démarche vous sépare de ces aides : une protection, un label, un accord ou une adhésion. Ouvrez la fiche pour voir laquelle, auprès de qui et en combien de temps."
+      },
+      "aConfirmer": {
+        "titre": "À confirmer",
+        "sous": "Il nous manque une ou plusieurs réponses pour savoir si votre projet est éligible. Elles se posent dans la fiche de chaque aide."
+      },
+      "bientot": {
+        "titre": "Disponibles bientôt",
+        "sous": "La fenêtre de candidature est fermée ou pas encore ouverte. Préparez votre dossier pour la prochaine session : la pastille de chaque aide indique où vous en êtes sur ses critères."
+      }
+    },
+    "paywallBientot": {
+      "titre": "Soyez prévenu le jour où le guichet ouvre",
+      "description": "Ces aides ne sont pas encore déposables. L'offre Veille vous envoie un email dès que l'une d'elles ouvre, et donne accès à sa fiche : son organisme, ses critères et les pièces à fournir."
+    },
+    "ecartees_one": "<b>{{count}} aide écartée</b> par vos réponses, avec la raison pour chacune.",
+    "ecartees_other": "<b>{{count}} aides écartées</b> par vos réponses, avec la raison pour chacune.",
+    "masquer": "Masquer",
+    "voirPourquoi": "Voir pourquoi",
+    "dossiersVide": {
+      "titre": "Aucun dossier pour ce projet",
+      "description": "Ouvrez une aide depuis l'onglet « Aides » pour démarrer une candidature."
+    },
+    "documents": {
+      "intro": "Les pièces de ce chantier. Celles qui décrivent le monument (arrêté de protection, cadastre, photos) restent sur sa fiche.",
+      "vide": "Devis, plans, photos du chantier : déposez ici les pièces propres à ce projet de travaux."
+    },
+    "paywallEquipe": {
+      "titre": "Travaillez à plusieurs sur ce chantier",
+      "description": "Invitez votre architecte ou vos artisans sur ce seul projet. Ils y voient ses aides, ses dossiers et ses documents, et rien des autres chantiers."
+    },
+    "supprimer": "Supprimer ce projet",
+    "refaire": {
+      "titre": "Refaire le questionnaire ?",
+      "description": "Le cadrage du projet (vos intentions, les travaux) est conservé dans les deux cas ; seul le questionnaire est repris, et le diagnostic d’aides recalculé ensuite.",
+      "passees": "Seulement les questions passées",
+      "passeesAide": "Vos réponses actuelles sont conservées : on ne repose que celles restées sans réponse.",
+      "tout": "Tout refaire depuis le début",
+      "toutAide": "Le questionnaire repart vierge : vos réponses actuelles seront remplacées."
+    },
+    "suppressionDialog": {
+      "titre": "Supprimer ce projet ?",
+      "description": "Ses dossiers et leur suivi seront également supprimés. La fiche du monument, ses documents et son équipe ne sont pas touchés. Cette action est irréversible."
+    }
+  },
+  "DossierDetailPage": {
+    "toasts": {
+      "erreurRattachement": "Erreur lors du rattachement",
+      "documentRetire": "Document retiré du dossier",
+      "erreurSuppression": "Erreur lors de la suppression",
+      "pieceConfirmee": "Pièce confirmée",
+      "erreurConfirmation": "Erreur lors de la confirmation",
+      "pieceRetiree": "Pièce retirée du dossier",
+      "erreurRejet": "Erreur lors du rejet de la pièce",
+      "dossierSupprime": "Dossier supprimé : l’aide redevient disponible",
+      "erreurSuppressionDossier": "Erreur lors de la suppression du dossier",
+      "marqueDepose": "Dossier marqué comme déposé",
+      "depotAnnule": "Dépôt annulé, le dossier est de nouveau modifiable",
+      "erreurMiseAJour": "Erreur lors de la mise à jour du dossier",
+      "documentIntrouvable": "Document introuvable",
+      "telechargementImpossible": "Téléchargement impossible",
+      "pieceAjoutee": "Pièce ajoutée au dossier"
+    },
+    "introuvable": {
+      "titre": "Dossier introuvable",
+      "texte": "Il a peut-être été supprimé, ou vous n'avez plus accès à ce projet."
+    },
+    "phrase": {
+      "depose": "Vous l'avez indiqué comme envoyé au financeur. Les pièces ne sont plus modifiables.",
+      "deposeLe": "Vous l'avez indiqué comme envoyé au financeur le {{date}}. Les pièces ne sont plus modifiables.",
+      "sansPiece": "Téléchargez le dossier, puis envoyez-le vous-même au financeur.",
+      "sansPieceAvant": "Téléchargez le dossier, puis envoyez-le vous-même au financeur avant le {{date}}.",
+      "complet": "Votre dossier est complet. Téléchargez-le, puis envoyez-le vous-même au financeur.",
+      "completAvant": "Votre dossier est complet. Téléchargez-le, puis envoyez-le vous-même au financeur avant le {{date}}.",
+      "obligatoiresReunies": "Les pièces obligatoires sont réunies. Ajoutez celles qui vous concernent, puis téléchargez le dossier et envoyez-le vous-même au financeur.",
+      "obligatoiresReuniesAvant": "Les pièces obligatoires sont réunies. Ajoutez celles qui vous concernent, puis téléchargez le dossier et envoyez-le vous-même au financeur avant le {{date}}.",
+      "resteObligatoires_one": "Il reste {{count}} pièce obligatoire à réunir. Ensuite, téléchargez le dossier et envoyez-le vous-même au financeur.",
+      "resteObligatoires_other": "Il reste {{count}} pièces obligatoires à réunir. Ensuite, téléchargez le dossier et envoyez-le vous-même au financeur.",
+      "resteObligatoiresAvant_one": "Il reste {{count}} pièce obligatoire à réunir. Ensuite, téléchargez le dossier et envoyez-le vous-même au financeur avant le {{date}}.",
+      "resteObligatoiresAvant_other": "Il reste {{count}} pièces obligatoires à réunir. Ensuite, téléchargez le dossier et envoyez-le vous-même au financeur avant le {{date}}.",
+      "restePieces_one": "Il reste {{count}} pièce à réunir. Ensuite, téléchargez le dossier et envoyez-le vous-même au financeur.",
+      "restePieces_other": "Il reste {{count}} pièces à réunir. Ensuite, téléchargez le dossier et envoyez-le vous-même au financeur.",
+      "restePiecesAvant_one": "Il reste {{count}} pièce à réunir. Ensuite, téléchargez le dossier et envoyez-le vous-même au financeur avant le {{date}}.",
+      "restePiecesAvant_other": "Il reste {{count}} pièces à réunir. Ensuite, téléchargez le dossier et envoyez-le vous-même au financeur avant le {{date}}."
+    },
+    "titre": "Dossier {{nom}}",
+    "depose": "Déposé",
+    "projet": "Projet <lien>{{nom}}</lien>",
+    "voirFiche": "Voir la fiche de l'aide",
+    "fermee": "Le financeur ne propose plus cette aide ; votre demande déjà envoyée suit son cours.",
+    "fermeeDepuis": "Le financeur ne propose plus cette aide depuis le {{date}} ; votre demande déjà envoyée suit son cours.",
+    "cles": {
+      "dateLimite": "Date limite",
+      "touteLAnnee": "Toute l'année",
+      "datePassee": "Date passée",
+      "aujourdhui": "Aujourd'hui",
+      "demain": "Demain",
+      "dansJours_one": "Dans {{count}} jour",
+      "dansJours_other": "Dans {{count}} jours",
+      "aConfirmer": "À confirmer",
+      "montant": "Montant"
+    },
+    "reprises": {
+      "titre_one": "Une pièce a été remplie avec un fichier déjà envoyé",
+      "titre_other": "{{count}} pièces ont été remplies avec des fichiers déjà envoyés",
+      "texte": "Vérifiez que ce sont les bons : tant qu’ils ne sont pas confirmés, ces pièces ne comptent pas dans votre dossier.",
+      "verifier": "Vérifier maintenant"
+    },
+    "pieces": {
+      "titre": "Réunissez les pièces",
+      "compte": "{{confirmees}} sur {{total}}",
+      "deposeTexte": "Le dossier est déposé : ses pièces ne sont plus modifiables.",
+      "aide": "Cliquez sur « Ajouter » : choisissez la pièce dans Mes documents, ou importez-la depuis votre ordinateur."
+    },
+    "final": {
+      "titreDepose": "Votre dossier est déposé",
+      "titre": "Téléchargez votre dossier, puis déposez-le",
+      "annulation": "Annulation…",
+      "annulerDepot": "Annuler le dépôt",
+      "dejaEnvoye": "Déjà envoyé au financeur ?",
+      "marquerDepose": "Marquer comme déposé",
+      "ajoutezDabord": "Ajoutez d’abord une pièce au dossier",
+      "preparation": "Préparation…",
+      "telecharger": "Télécharger le dossier"
+    },
+    "supprimer": "Supprimer le dossier",
+    "dialogDepot": {
+      "titre": "Marquer ce dossier comme déposé ?",
+      "description": "À faire une fois le dossier envoyé au financeur : Monumia ne le transmet pas à votre place. Les pièces ne seront plus modifiables, et l'avancement de l'aide passera à « Déposé ». Vous pourrez annuler ce dépôt."
+    },
+    "dialogSuppression": {
+      "titre": "Supprimer ce dossier ?",
+      "description": "Le dossier et ses pièces rattachées seront retirés. L'aide redeviendra disponible dans l'onglet « Aides ». Cette action est irréversible."
+    }
+  },
+  "ProjetWizardPage": {
+    "introuvable": "Ce projet est introuvable.",
+    "erreurEtat": "Erreur lors de l’enregistrement de l’état du monument",
+    "erreurProjet": "Erreur lors de l’enregistrement de votre projet",
+    "noteAppareil": "Vos réponses sont enregistrées au fur et à mesure, sur cet appareil.",
+    "note": "Vos réponses sont enregistrées au fur et à mesure.",
+    "quitMessage": "Votre brouillon reste sur cet appareil : vous pourrez reprendre ici.",
+    "analyse": "Analyse de votre monument…",
+    "erreurChargement": {
+      "titre": "Le questionnaire n’a pas pu être chargé.",
+      "invite": "Vérifiez votre connexion puis réessayez : vos réponses restent sur cet appareil.",
+      "connecte": "Vérifiez votre connexion puis réessayez : votre projet est bien enregistré."
+    },
+    "aucuneQuestion": {
+      "titre": "Précisons votre projet",
+      "texte": "Aucune précision supplémentaire n’est nécessaire pour ce projet. Lancez le diagnostic pour découvrir les aides mobilisables."
+    },
+    "decouvrirFinancements": "Découvrir mes financements"
+  }
+}

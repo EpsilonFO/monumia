@@ -18,6 +18,8 @@ import { passwordChecks, isPasswordValid, PASSWORD_RULES } from '@/lib/password'
 import { setPendingInvitation } from '@/lib/pending-invitation';
 import { ApiError } from '@/lib/api-error';
 import { toast } from 'sonner';
+import { Trans, useTranslation } from 'react-i18next';
+import { localeIntl } from '@/i18n/format';
 
 const SUCCESS = 'var(--success)';
 import type { InvitationPreview } from '@/types';
@@ -35,26 +37,27 @@ const PRIVACY_URL = 'https://monumia.fr/confidentialite';
 /* Acceptation des CGU : requise pour toute création de compte,
    formulaire email comme retour de Google. */
 function CguConsent({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  const { t } = useTranslation('compte');
   const linkCls = 'font-medium underline underline-offset-2';
   return (
     <label className="flex cursor-pointer items-start gap-2.5">
       <Checkbox checked={checked} onCheckedChange={(v) => onChange(v === true)} className="mt-[3px]" />
       <span className="text-[15px] leading-[1.55]" style={{ color: MUTED }}>
-        J'ai lu et j'accepte les{' '}
-        <a href={CGU_URL} target="_blank" rel="noopener noreferrer" className={linkCls} style={{ color: C.blue }}>
-          conditions générales d'utilisation
-        </a>{' '}
-        et la{' '}
-        <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className={linkCls} style={{ color: C.blue }}>
-          politique de confidentialité
-        </a>
-        .
+        <Trans
+          t={t}
+          i18nKey="commun.cgu"
+          components={{
+            cgu: <a href={CGU_URL} target="_blank" rel="noopener noreferrer" className={linkCls} style={{ color: C.blue }} />,
+            confidentialite: <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className={linkCls} style={{ color: C.blue }} />,
+          }}
+        />
       </span>
     </label>
   );
 }
 
 export function InvitationLandingPage() {
+  const { t } = useTranslation('compte');
   const { token = '' } = useParams();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -103,8 +106,8 @@ export function InvitationLandingPage() {
         setPreview(p);
         setForm((f) => ({ ...f, email: p.email }));
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Invitation introuvable'));
-  }, [token]);
+      .catch((e) => setError(e instanceof Error ? e.message : t('InvitationLandingPage.introuvable')));
+  }, [token, t]);
 
   const acceptAndGo = async () => {
     // On atterrit là où l'invitation donne accès : le chantier si elle ne
@@ -118,7 +121,7 @@ export function InvitationLandingPage() {
     try {
       await acceptAndGo();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Impossible de rejoindre');
+      toast.error(e instanceof Error ? e.message : t('InvitationLandingPage.impossibleRejoindre'));
     } finally {
       setBusy(false);
     }
@@ -126,15 +129,15 @@ export function InvitationLandingPage() {
 
   const handleSignup = async () => {
     if (!isPasswordValid(form.password)) {
-      toast.error('Le mot de passe doit contenir au moins 8 caractères et 1 chiffre');
+      toast.error(t('commun.motDePasseInvalide'));
       return;
     }
     if (!form.metier) {
-      toast.error('Indiquez votre rôle sur le monument');
+      toast.error(t('InvitationLandingPage.indiquerRole'));
       return;
     }
     if (!acceptCgu) {
-      toast.error("Merci d'accepter les conditions générales d'utilisation");
+      toast.error(t('commun.accepterCgu'));
       return;
     }
     setBusy(true);
@@ -155,7 +158,7 @@ export function InvitationLandingPage() {
       setAuth(u, access_token);
       await acceptAndGo();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Échec de l'inscription");
+      toast.error(e instanceof Error ? e.message : t('InvitationLandingPage.echecInscription'));
     } finally {
       setBusy(false);
     }
@@ -163,15 +166,15 @@ export function InvitationLandingPage() {
 
   const handleOauthSignup = async () => {
     if (!form.metier) {
-      toast.error('Indiquez votre rôle sur le monument');
+      toast.error(t('InvitationLandingPage.indiquerRole'));
       return;
     }
     if (!form.prenom.trim() || !form.nom.trim()) {
-      toast.error('Renseignez votre nom et votre prénom');
+      toast.error(t('InvitationLandingPage.renseignerNom'));
       return;
     }
     if (!acceptCgu) {
-      toast.error("Merci d'accepter les conditions générales d'utilisation");
+      toast.error(t('commun.accepterCgu'));
       return;
     }
     setBusy(true);
@@ -194,7 +197,7 @@ export function InvitationLandingPage() {
       setAuth(u, oauthAccessToken!);
       await acceptAndGo();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Échec de l'inscription");
+      toast.error(e instanceof Error ? e.message : t('InvitationLandingPage.echecInscription'));
     } finally {
       setBusy(false);
     }
@@ -217,7 +220,7 @@ export function InvitationLandingPage() {
         setEmailAConfirmer({ email: form.email, variante: 'connexion' });
         return;
       }
-      toast.error(e instanceof Error ? e.message : 'Connexion impossible');
+      toast.error(e instanceof Error ? e.message : t('InvitationLandingPage.connexionImpossible'));
     } finally {
       setBusy(false);
     }
@@ -226,21 +229,18 @@ export function InvitationLandingPage() {
   // ── États non nominaux ──
   if (emailAConfirmer) {
     return (
-      <AuthLayout panelEyebrow="Invitation">
+      <AuthLayout panelEyebrow={t('InvitationLandingPage.eyebrow')}>
         <ConfirmerEmail
           email={emailAConfirmer.email}
           intention={{ invitation: token }}
           variante={emailAConfirmer.variante}
         >
           <p className="text-center text-[15px] leading-[1.6]" style={{ color: C.grayMuted }}>
-            L&rsquo;invitation reste valable : le lien vous ramènera ici, et il n&rsquo;y aura plus
-            qu&rsquo;à rejoindre{' '}
             {preview?.projetTitre
-              ? `le projet « ${preview.projetTitre} »`
+              ? t('InvitationLandingPage.resteValableProjet', { projet: preview.projetTitre })
               : preview
-                ? `« ${preview.monumentNom} »`
-                : 'le monument'}
-            .
+                ? t('InvitationLandingPage.resteValableNom', { monument: preview.monumentNom })
+                : t('InvitationLandingPage.resteValableMonument')}
           </p>
         </ConfirmerEmail>
       </AuthLayout>
@@ -248,18 +248,18 @@ export function InvitationLandingPage() {
   }
   if (error) {
     return (
-      <AuthLayout panelEyebrow="Invitation">
-        <Heading>Invitation introuvable</Heading>
+      <AuthLayout panelEyebrow={t('InvitationLandingPage.eyebrow')}>
+        <Heading>{t('InvitationLandingPage.introuvable')}</Heading>
         <p className="text-[17px]" style={{ color: C.danger }}>{error}</p>
         <p className="text-[16px]" style={{ color: LIGHT }}>
-          Demandez un nouveau lien à la personne qui vous a invité.
+          {t('InvitationLandingPage.demanderNouveauLien')}
         </p>
       </AuthLayout>
     );
   }
   if (!preview) {
     return (
-      <AuthLayout panelEyebrow="Invitation">
+      <AuthLayout panelEyebrow={t('InvitationLandingPage.eyebrow')}>
         <div className="flex items-center justify-center py-10">
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: LIGHT }} />
         </div>
@@ -268,22 +268,21 @@ export function InvitationLandingPage() {
   }
   if (preview.status !== 'pending') {
     return (
-      <AuthLayout panelEyebrow="Invitation">
-        <Heading>Invitation expirée</Heading>
-        <p className="text-[17px]" style={{ color: C.danger }}>Cette invitation n'est plus valide.</p>
+      <AuthLayout panelEyebrow={t('InvitationLandingPage.eyebrow')}>
+        <Heading>{t('InvitationLandingPage.expiree')}</Heading>
+        <p className="text-[17px]" style={{ color: C.danger }}>{t('InvitationLandingPage.plusValide')}</p>
         <p className="text-[16px]" style={{ color: LIGHT }}>
-          Elle a peut-être déjà été utilisée, annulée ou expirée. Demandez un nouveau lien à la
-          personne qui vous a invité.
+          {t('InvitationLandingPage.expireeDetail')}
         </p>
       </AuthLayout>
     );
   }
 
-  const expires = new Date(preview.expiresAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const expires = new Date(preview.expiresAt).toLocaleDateString(localeIntl(), { day: 'numeric', month: 'long', year: 'numeric' });
 
   // Le libellé suit la portée : rejoindre « le monument » quand l'invitation ne
   // donne qu'un chantier annoncerait plus que ce qui s'ouvre.
-  const libelleRejoindre = preview.projetId ? 'Rejoindre le projet' : 'Rejoindre le monument';
+  const libelleRejoindre = preview.projetId ? t('InvitationLandingPage.rejoindreProjet') : t('InvitationLandingPage.rejoindreMonument');
 
   // Le serveur refuse l'acceptation depuis un autre compte que le destinataire
   // (`invitation_destinee_a`) : le dire avant le clic plutôt qu'en toast.
@@ -292,35 +291,54 @@ export function InvitationLandingPage() {
     !!emailCompte && emailCompte.trim().toLowerCase() !== preview.email.trim().toLowerCase();
 
   const panelHeadline = (
-    <>
-      <span className="font-normal">{preview.inviterNom}</span> vous invite à collaborer sur<br />
-      <span style={{ color: C.orange }}>«&nbsp;{preview.monumentNom}&nbsp;»</span>
-    </>
+    <Trans
+      t={t}
+      i18nKey="InvitationLandingPage.panneauTitre"
+      values={{ inviteur: preview.inviterNom, monument: preview.monumentNom }}
+      components={{
+        inviteur: <span className="font-normal" />,
+        br: <br />,
+        accent: <span style={{ color: C.orange }} />,
+      }}
+    />
   );
   // Dire la portée AVANT d'accepter : découvrir après coup qu'on ne voit qu'un
   // seul chantier passerait pour une panne.
   const panelDescription = preview?.projetId
-    ? 'Vous rejoignez un projet de travaux précis : ses aides, ses dossiers et ses documents, ainsi que la fiche du monument en lecture. Les autres chantiers de ce monument ne vous seront pas accessibles.'
-    : 'Vous pourrez consulter le monument et ses projets de travaux, suivre les aides et y déposer vos documents, aux côtés des autres intervenants.';
+    ? t('InvitationLandingPage.panneauProjet')
+    : t('InvitationLandingPage.panneauMonument');
 
   return (
-    <AuthLayout panelEyebrow="Invitation à collaborer" panelHeadline={panelHeadline} panelDescription={panelDescription}>
+    <AuthLayout panelEyebrow={t('InvitationLandingPage.eyebrowCollaborer')} panelHeadline={panelHeadline} panelDescription={panelDescription}>
       {/* contexte (visible aussi sur mobile, où le panneau bleu est masqué) */}
       <div className="space-y-3">
         <p className="text-[17px]" style={{ color: MUTED }}>
-          <strong style={{ color: C.ink }}>{preview.inviterNom}</strong> vous invite à collaborer sur
+          <Trans
+            t={t}
+            i18nKey="InvitationLandingPage.inviteSur"
+            values={{ inviteur: preview.inviterNom }}
+            components={{ gras: <strong style={{ color: C.ink }} /> }}
+          />
         </p>
         <h1 className="text-[30px] leading-[1.15]" style={{ fontFamily: SERIF, color: C.ink }}>
-          «&nbsp;{preview.monumentNom}&nbsp;»
+          {t('InvitationLandingPage.nomMonument', { monument: preview.monumentNom })}
         </h1>
         {preview.projetTitre && (
           <p className="text-[16px]" style={{ color: MUTED }}>
-            Sur le projet de travaux{' '}
-            <strong style={{ color: C.orange }}>{preview.projetTitre}</strong>, et lui seul.
+            <Trans
+              t={t}
+              i18nKey="InvitationLandingPage.surProjet"
+              values={{ projet: preview.projetTitre }}
+              components={{ accent: <strong style={{ color: C.orange }} /> }}
+            />
           </p>
         )}
         <p className="text-[16px]" style={{ color: LIGHT }}>
-          Vous rejoignez en tant que <strong style={{ color: C.blue }}>collaborateur</strong>.
+          <Trans
+            t={t}
+            i18nKey="InvitationLandingPage.enTantQue"
+            components={{ accent: <strong style={{ color: C.blue }} /> }}
+          />
         </p>
       </div>
 
@@ -330,9 +348,12 @@ export function InvitationLandingPage() {
             className="rounded-xl p-4 text-[16px] leading-[1.55]"
             style={{ background: 'var(--secondary)', color: C.ink }}
           >
-            Vous êtes connecté avec <span className="font-semibold">{emailCompte}</span>, mais cette
-            invitation a été envoyée à <span className="font-semibold">{preview.email}</span>. Seul ce
-            compte peut l&rsquo;accepter.
+            <Trans
+              t={t}
+              i18nKey="InvitationLandingPage.autreCompte"
+              values={{ compte: emailCompte, destinataire: preview.email }}
+              components={{ gras: <span className="font-semibold" /> }}
+            />
           </div>
           <SecondaryButton
             onClick={() => {
@@ -341,15 +362,15 @@ export function InvitationLandingPage() {
               setMode('choice');
             }}
           >
-            Changer de compte
+            {t('InvitationLandingPage.changerCompte')}
           </SecondaryButton>
         </div>
       ) : user ? (
         <PrimaryButton onClick={handleJoinLoggedIn} busy={busy}>{libelleRejoindre}</PrimaryButton>
       ) : mode === 'choice' ? (
         <div className="flex flex-col gap-2.5">
-          <PrimaryButton onClick={() => setMode('signup')}>Je crée mon compte</PrimaryButton>
-          <SecondaryButton onClick={() => setMode('login')}>J'ai déjà un compte</SecondaryButton>
+          <PrimaryButton onClick={() => setMode('signup')}>{t('InvitationLandingPage.jeCreeMonCompte')}</PrimaryButton>
+          <SecondaryButton onClick={() => setMode('login')}>{t('InvitationLandingPage.dejaUnCompte')}</SecondaryButton>
         </div>
       ) : mode === 'oauth' ? (
         <div className="flex flex-col gap-4">
@@ -359,28 +380,34 @@ export function InvitationLandingPage() {
           >
             <Check className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: SUCCESS }} />
             <span>
-              Connecté avec Google
-              {oauthEmail ? (
-                <>
-                  {' '}
-                  (<span className="font-semibold">{oauthEmail}</span>)
-                </>
-              ) : null}
-              . Indiquez votre rôle et vous rejoignez {preview.projetId ? 'le projet' : 'le monument'}.
+              <Trans
+                t={t}
+                i18nKey={
+                  oauthEmail
+                    ? preview.projetId
+                      ? 'InvitationLandingPage.googleAvecEmailProjet'
+                      : 'InvitationLandingPage.googleAvecEmailMonument'
+                    : preview.projetId
+                      ? 'InvitationLandingPage.googleProjet'
+                      : 'InvitationLandingPage.googleMonument'
+                }
+                values={{ email: oauthEmail ?? '' }}
+                components={{ gras: <span className="font-semibold" /> }}
+              />
             </span>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Prénom" htmlFor="inv-oauth-prenom">
+            <FormField label={t('commun.prenom')} htmlFor="inv-oauth-prenom">
               <Input id="inv-oauth-prenom" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} className={INPUT_CLS} />
             </FormField>
-            <FormField label="Nom" htmlFor="inv-oauth-nom">
+            <FormField label={t('commun.nom')} htmlFor="inv-oauth-nom">
               <Input id="inv-oauth-nom" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} className={INPUT_CLS} />
             </FormField>
           </div>
-          <FormField label="Votre rôle sur le monument" htmlFor="inv-oauth-metier">
+          <FormField label={t('InvitationLandingPage.votreRole')} htmlFor="inv-oauth-metier">
             <MetierSelect value={form.metier} onChange={(v) => setForm({ ...form, metier: v })} />
           </FormField>
-          <FormField label="Téléphone (optionnel)" htmlFor="inv-oauth-tel">
+          <FormField label={t('InvitationLandingPage.telephoneOptionnel')} htmlFor="inv-oauth-tel">
             <Input id="inv-oauth-tel" type="tel" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} className={INPUT_CLS} />
           </FormField>
           <CguConsent checked={acceptCgu} onChange={setAcceptCgu} />
@@ -389,28 +416,27 @@ export function InvitationLandingPage() {
       ) : mode === 'signup' ? (
         <div className="flex flex-col gap-4">
           <GoogleButton
-            label="Continuer avec Google"
             beforeRedirect={() => setPendingInvitation(token)}
           />
           <div className="flex items-center gap-3" aria-hidden="true">
             <span className="h-px flex-1" style={{ background: C.border }} />
             <span className="text-[15px] whitespace-nowrap" style={{ color: LIGHT }}>
-              ou avec votre adresse email
+              {t('commun.ouAvecEmail')}
             </span>
             <span className="h-px flex-1" style={{ background: C.border }} />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Prénom" htmlFor="inv-prenom">
+            <FormField label={t('commun.prenom')} htmlFor="inv-prenom">
               <Input id="inv-prenom" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} className={INPUT_CLS} />
             </FormField>
-            <FormField label="Nom" htmlFor="inv-nom">
+            <FormField label={t('commun.nom')} htmlFor="inv-nom">
               <Input id="inv-nom" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} className={INPUT_CLS} />
             </FormField>
           </div>
-          <FormField label="Email" htmlFor="inv-email">
+          <FormField label={t('commun.email')} htmlFor="inv-email">
             <Input id="inv-email" type="email" value={form.email} disabled className={`${INPUT_CLS} disabled:bg-muted disabled:text-muted-foreground`} />
           </FormField>
-          <FormField label="Mot de passe" htmlFor="inv-password">
+          <FormField label={t('commun.motDePasse')} htmlFor="inv-password">
             <Input id="inv-password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className={INPUT_CLS} />
             {form.password && (
               <div className="flex flex-wrap gap-x-4 gap-y-0.5 pt-1">
@@ -426,30 +452,30 @@ export function InvitationLandingPage() {
               </div>
             )}
           </FormField>
-          <FormField label="Votre rôle sur le monument" htmlFor="inv-metier">
+          <FormField label={t('InvitationLandingPage.votreRole')} htmlFor="inv-metier">
             <MetierSelect value={form.metier} onChange={(v) => setForm({ ...form, metier: v })} />
           </FormField>
-          <FormField label="Téléphone (optionnel)" htmlFor="inv-tel">
+          <FormField label={t('InvitationLandingPage.telephoneOptionnel')} htmlFor="inv-tel">
             <Input id="inv-tel" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} className={INPUT_CLS} />
           </FormField>
           <CguConsent checked={acceptCgu} onChange={setAcceptCgu} />
-          <PrimaryButton onClick={handleSignup} busy={busy}>Créer mon compte et rejoindre</PrimaryButton>
+          <PrimaryButton onClick={handleSignup} busy={busy}>{t('InvitationLandingPage.creerEtRejoindre')}</PrimaryButton>
           <BackLink onClick={() => setMode('choice')} />
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <FormField label="Email" htmlFor="inv-login-email">
+          <FormField label={t('commun.email')} htmlFor="inv-login-email">
             <Input id="inv-login-email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={INPUT_CLS} />
           </FormField>
-          <FormField label="Mot de passe" htmlFor="inv-login-password">
+          <FormField label={t('commun.motDePasse')} htmlFor="inv-login-password">
             <Input id="inv-login-password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className={INPUT_CLS} />
           </FormField>
-          <PrimaryButton onClick={handleLogin} busy={busy}>Se connecter et rejoindre</PrimaryButton>
+          <PrimaryButton onClick={handleLogin} busy={busy}>{t('InvitationLandingPage.connecterEtRejoindre')}</PrimaryButton>
           <BackLink onClick={() => setMode('choice')} />
         </div>
       )}
 
-      <p className="text-[14px]" style={{ color: LIGHT }}>Invitation valable jusqu'au {expires}.</p>
+      <p className="text-[14px]" style={{ color: LIGHT }}>{t('InvitationLandingPage.valableJusquau', { date: expires })}</p>
     </AuthLayout>
   );
 }
@@ -504,9 +530,10 @@ function SecondaryButton({ onClick, children }: { onClick: () => void; children:
 }
 
 function BackLink({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
   return (
     <button type="button" onClick={onClick} className="self-center text-[15px] underline underline-offset-2" style={{ color: C.orange }}>
-      Retour
+      {t('actions.retour')}
     </button>
   );
 }

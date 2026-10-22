@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
+import { libelleOffre } from '@/lib/offres';
 
 interface PaywallContenu {
-  /** Nom de l'offre qui ouvre ce que l'on montre : « Veille », « Multi-monuments ». */
+  /** Identifiant (français) de l'offre qui ouvre ce que l'on montre : « Veille », « Multi-monuments » (cf. `libelleOffre`). */
   offre: string;
   /** Ce qui s'ouvre, en une phrase. C'est le titre de la carte. */
   titre: string;
@@ -42,7 +44,9 @@ function PaywallCard({
    */
   enModale?: boolean;
 }) {
+  const { t } = useTranslation('shell');
   const Titre = enModale ? DialogTitle : 'h2';
+  const nom = libelleOffre(offre);
   return (
     <div
       className="w-full max-w-lg overflow-hidden rounded-2xl border-[1.5px] p-6 text-center"
@@ -52,7 +56,7 @@ function PaywallCard({
         className="inline-flex items-center rounded-full px-2.5 py-1 text-[13.5px] font-bold uppercase tracking-[0.08em]"
         style={{ background: C.paleOrange, color: C.orange }}
       >
-        {`Offre ${offre}`}
+        {t('Paywall.offre', { offre: nom })}
       </span>
 
       <Titre
@@ -95,7 +99,7 @@ function PaywallCard({
         className="group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[16.5px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
         style={{ background: C.orange }}
       >
-        {`Découvrir l'offre ${offre}`}
+        {t('Paywall.decouvrir', { offre: nom })}
         <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
       </Link>
     </div>

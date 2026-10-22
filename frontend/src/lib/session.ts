@@ -13,7 +13,7 @@
 const SESSION_COOKIE = 'monumia_session';
 
 /** Apex domain (`monumia.fr`, `patrialta.fr`, …) or `null` on localhost/IP. */
-function apexDomain(): string | null {
+export function apexDomain(): string | null {
   const host = window.location.hostname;
   if (host === 'localhost' || /^[\d.]+$/.test(host)) return null;
   const parts = host.split('.');

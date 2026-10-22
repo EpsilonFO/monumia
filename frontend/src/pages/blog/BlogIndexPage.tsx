@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
 import { ArticleCard } from '@/components/blog/ArticleCard';
@@ -19,10 +20,8 @@ function pubTime(a: BlogArticle): number {
 }
 
 export function BlogIndexPage() {
-  useDocumentMeta(
-    'Blog — Monumia',
-    'Articles clairs pour comprendre la restauration du patrimoine, les aides et les démarches.',
-  );
+  const { t } = useTranslation('blog');
+  useDocumentMeta(t('BlogIndexPage.metaTitre'), t('BlogIndexPage.metaDescription'));
 
   const all = getAllArticles();
   const hasArticles = all.length > 0;
@@ -39,17 +38,16 @@ export function BlogIndexPage() {
           style={{ color: C.blue }}
         >
           <span aria-hidden style={{ width: 25, height: 2, borderRadius: 2, background: C.orange }} />
-          Le guide du patrimoine
+          {t('BlogIndexPage.surtitre')}
         </span>
         <h1
           className="mt-3 text-[clamp(1.9rem,4vw,2.8rem)] font-light leading-[1.08] tracking-[-0.02em]"
           style={{ fontFamily: 'var(--font-serif)', color: C.ink }}
         >
-          Comprendre le patrimoine, simplement
+          {t('BlogIndexPage.titre')}
         </h1>
         <p className="mt-3 max-w-2xl text-[17px] leading-relaxed" style={{ color: C.grayFg }}>
-          Des articles clairs pour les propriétaires de monuments et les communes :
-          statuts, aides, démarches et travaux — sans jargon, à lire quand vous voulez.
+          {t('BlogIndexPage.introduction')}
         </p>
       </header>
 
@@ -93,7 +91,7 @@ export function BlogIndexPage() {
                         className="shrink-0 text-[15px] font-semibold hover:underline"
                         style={{ color: C.orange }}
                       >
-                        Tout voir →
+                        {t('BlogIndexPage.toutVoir')}
                       </Link>
                     }
                   />
@@ -109,7 +107,7 @@ export function BlogIndexPage() {
 
           {!hasArticles && (
             <p className="text-center" style={{ color: C.grayFg }}>
-              Aucun article pour le moment.
+              {t('BlogIndexPage.aucunArticle')}
             </p>
           )}
         </div>
@@ -127,7 +125,7 @@ export function BlogIndexPage() {
                   style={{ color: C.blue }}
                 >
                   <span aria-hidden style={{ width: 20.5, height: 2, borderRadius: 2, background: C.orange }} />
-                  À lire en priorité
+                  {t('BlogIndexPage.aLireEnPriorite')}
                 </p>
                 <ol className="mt-3.5 space-y-3.5">
                   {essentiels.map((a, i) => {
@@ -156,7 +154,9 @@ export function BlogIndexPage() {
                             </span>
                             <span className="mt-0.5 block text-[13px]" style={{ color: C.grayMuted }}>
                               {cat?.shortLabel}
-                              {a.readingTimeMin ? ` · ${a.readingTimeMin} min` : ''}
+                              {a.readingTimeMin
+                                ? ` · ${t('commun.dureeCourte', { minutes: a.readingTimeMin })}`
+                                : ''}
                             </span>
                           </span>
                         </Link>
@@ -184,8 +184,7 @@ export function BlogIndexPage() {
                 </p>
               </div>
               <p className="mt-2.5 text-[14.5px] leading-relaxed" style={{ color: C.grayFg }}>
-                aides au patrimoine référencées — nos articles vous aident à comprendre
-                lesquelles vous concernent.
+                {t('BlogIndexPage.aidesReferencees')}
               </p>
             </section>
 
@@ -200,6 +199,7 @@ export function BlogIndexPage() {
 
 /** Article mis en avant : carte large, texte + panneau décoratif teinté (icône du thème, sans photo). */
 function FeaturedArticle({ article }: { article: BlogArticle }) {
+  const { t } = useTranslation('blog');
   const category = getCategory(article.categorySlug);
   const tone = category ? categoryTone(category) : null;
   const Icon = article.icon ?? category?.icon;
@@ -213,7 +213,7 @@ function FeaturedArticle({ article }: { article: BlogArticle }) {
         <div className="flex flex-wrap items-center gap-3">
           {category && <CategoryBadge category={category} />}
           <span className="text-[13px] font-semibold uppercase tracking-[0.16em]" style={{ color: C.orange }}>
-            À la une
+            {t('BlogIndexPage.aLaUne')}
           </span>
         </div>
         <h2
@@ -227,11 +227,12 @@ function FeaturedArticle({ article }: { article: BlogArticle }) {
         </p>
         <div className="mt-5 flex items-center gap-4">
           <span className="text-[15px] font-semibold group-hover:underline" style={{ color: C.orange }}>
-            Lire l’article →
+            {t('commun.lireArticle')}
           </span>
           {article.readingTimeMin && (
             <span className="inline-flex items-center gap-1 text-[14px] font-medium" style={{ color: C.grayMuted }}>
-              <IconTemps className="h-3.5 w-3.5" /> {article.readingTimeMin} min
+              <IconTemps className="h-3.5 w-3.5" />{' '}
+              {t('commun.dureeCourte', { minutes: article.readingTimeMin })}
             </span>
           )}
         </div>

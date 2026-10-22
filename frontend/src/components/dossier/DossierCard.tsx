@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { ArrowRight } from 'lucide-react';
 import { IconLocalisation, IconCalendrier, IconSucces, IconErreur, IconTemps, IconRafraichir } from '@/components/icons';
@@ -94,6 +95,7 @@ interface DossierCardProps {
 }
 
 export function DossierCard({ dossier }: DossierCardProps) {
+  const { t } = useTranslation('dossier');
   const monuments = useMonumentStore((s) => s.monuments);
   const monument = monuments.find((m) => m.id === dossier.monumentId);
 
@@ -190,25 +192,25 @@ export function DossierCard({ dossier }: DossierCardProps) {
                 {fournis > 0 && (
                   <span className="flex items-center gap-1.5 font-medium text-success">
                     <IconSucces className="h-4 w-4 shrink-0" strokeWidth={2} />
-                    {fournis} fourni{fournis > 1 ? 's' : ''}
+                    {t('DossierCard.fournis', { count: fournis })}
                   </span>
                 )}
                 {repris > 0 && (
                   <span className="flex items-center gap-1.5 font-medium" style={{ color: C.blue }}>
                     <IconRafraichir className="h-4 w-4 shrink-0" strokeWidth={2} />
-                    {repris} à vérifier
+                    {t('DossierCard.aVerifier', { count: repris })}
                   </span>
                 )}
                 {manquants > 0 && (
                   <span className="flex items-center gap-1.5 font-medium text-destructive">
                     <IconErreur className="h-4 w-4 shrink-0" strokeWidth={2} />
-                    {manquants} manquant{manquants > 1 ? 's' : ''}
+                    {t('DossierCard.manquants', { count: manquants })}
                   </span>
                 )}
                 {enAttente > 0 && (
                   <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
                     <span className="h-2 w-2 rounded-full bg-border shrink-0" />
-                    {enAttente} en attente
+                    {t('DossierCard.enAttente', { count: enAttente })}
                   </span>
                 )}
               </div>
@@ -229,7 +231,7 @@ export function DossierCard({ dossier }: DossierCardProps) {
                 </span>
                 {urgent && (
                   <span className="ml-auto shrink-0 rounded-md bg-destructive px-2 py-0.5 text-[14px] font-bold text-destructive-foreground">
-                    J-{daysUntil(nextDeadline.date)}
+                    {t('DossierCard.joursRestants', { jours: daysUntil(nextDeadline.date) })}
                   </span>
                 )}
               </div>
@@ -243,7 +245,7 @@ export function DossierCard({ dossier }: DossierCardProps) {
               // Le bleu adouci des écrans (ecrans.css), comme les autres boutons de la page.
               style={{ background: 'var(--ecran-bleu, var(--primary))' }}
             >
-              Ouvrir le dossier
+              {t('DossierCard.ouvrir')}
               <ArrowRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-0.5" />
             </span>
           </div>

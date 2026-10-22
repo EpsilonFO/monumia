@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import {
   AlertDialog,
@@ -96,6 +97,7 @@ export function WizardShell({
   sceneLibre = false,
   children,
 }: WizardShellProps) {
+  const { t } = useTranslation(['project', 'common']);
   const navigate = useNavigate();
   const [quitOpen, setQuitOpen] = useState(false);
   const sceneRef = useRef<HTMLElement>(null);
@@ -133,11 +135,11 @@ export function WizardShell({
             <div
               className="qz-bar"
               role="progressbar"
-              aria-label="Progression du questionnaire"
+              aria-label={t('WizardShell.progression')}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={progression}
-              aria-valuetext={`${progression}\u00a0% du questionnaire parcouru`}
+              aria-valuetext={t('WizardShell.progressionTexte', { pct: progression })}
             >
               <i style={{ width: `${largeur}%` }} />
             </div>
@@ -145,7 +147,7 @@ export function WizardShell({
           {!quitDisabled && (
             <button className="qz-quit" type="button" onClick={quit}>
               <Picto nom="croix" />
-              Quitter
+              {t('WizardShell.quitter')}
             </button>
           )}
         </div>
@@ -155,15 +157,16 @@ export function WizardShell({
       <AlertDialog open={quitOpen} onOpenChange={setQuitOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Quitter&nbsp;?</AlertDialogTitle>
+            <AlertDialogTitle>{t('WizardShell.quitterTitre')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {quitMessage ??
-                'Vos réponses ne sont pas encore enregistrées : si vous quittez maintenant, vous devrez recommencer le questionnaire.'}
+              {quitMessage ?? t('WizardShell.quitterMessage')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Continuer</AlertDialogCancel>
-            <AlertDialogAction onClick={() => navigate(exitTo)}>Quitter</AlertDialogAction>
+            <AlertDialogCancel>{t('common:actions.continuer')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => navigate(exitTo)}>
+              {t('WizardShell.quitter')}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

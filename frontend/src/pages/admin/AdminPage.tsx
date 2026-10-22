@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { IconTendance } from '@/components/icons';
@@ -26,6 +27,7 @@ import { ROUTES } from '@/constants/routes';
  * pages recalculent leur diagnostic à chaque montage. Rien à pousser.
  */
 export function AdminPage() {
+  const { t } = useTranslation('admin');
   const navigate = useNavigate();
   const [onglet, setOnglet] = useState('aides');
 
@@ -38,20 +40,20 @@ export function AdminPage() {
   const signalerErreur = useCallback(
     (err: unknown, repli: string) => {
       if (err instanceof ApiError && err.status === 403) {
-        toast.error('Accès réservé à l’administration');
+        toast.error(t('AdminPage.accesReserve'));
         navigate(ROUTES.DASHBOARD, { replace: true });
         return;
       }
       toast.error(err instanceof Error ? err.message : repli);
     },
-    [navigate],
+    [navigate, t],
   );
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Administration du catalogue"
-        description="Retirer une aide du catalogue, reformuler une question du questionnaire, modifier le critère d’une condition. Les modifications s’appliquent au prochain chargement de page des utilisateurs."
+        title={t('AdminPage.titre')}
+        description={t('AdminPage.description')}
         action={
           /* Vers la même matière, vue par les nombres : où le catalogue couvre,
              où il est creux. Lecture seule, d'où le bouton discret plutôt qu'un
@@ -62,17 +64,17 @@ export function AdminPage() {
             style={{ borderColor: C.border, color: C.blue }}
           >
             <IconTendance className="h-4 w-4" />
-            Le catalogue en chiffres
+            {t('AdminPage.lienStats')}
           </Link>
         }
       />
 
       <Tabs value={onglet} onValueChange={setOnglet}>
         <TabsList>
-          <TabsTrigger value="aides">Aides</TabsTrigger>
-          <TabsTrigger value="questions">Questions</TabsTrigger>
-          <TabsTrigger value="conditions">Conditions</TabsTrigger>
-          <TabsTrigger value="roles">Rôles</TabsTrigger>
+          <TabsTrigger value="aides">{t('AdminPage.onglets.aides')}</TabsTrigger>
+          <TabsTrigger value="questions">{t('AdminPage.onglets.questions')}</TabsTrigger>
+          <TabsTrigger value="conditions">{t('AdminPage.onglets.conditions')}</TabsTrigger>
+          <TabsTrigger value="roles">{t('AdminPage.onglets.roles')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="aides" className="mt-4">

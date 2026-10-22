@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { driver, type Driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import '@/components/shared/guide.css';
@@ -35,6 +36,7 @@ function elementDeLAncre(ancre: string): HTMLElement | null {
 export function useGuide(id: GuideId, { pret }: { pret: boolean }): void {
   const dejaVu = useAuthStore((s) => !!s.user?.guidesVus?.[id]);
   const marquerGuideVu = useAuthStore((s) => s.marquerGuideVu);
+  const { t } = useTranslation(['core', 'common']);
 
   useEffect(() => {
     if (!pret || dejaVu || guideVuLocalement(id)) return;
@@ -54,17 +56,18 @@ export function useGuide(id: GuideId, { pret }: { pret: boolean }): void {
         stagePadding: 6,
         stageRadius: 12,
         showProgress: etapes.length > 1,
-        progressText: '{{current}} sur {{total}}',
-        nextBtnText: 'Suivant',
-        prevBtnText: 'Précédent',
-        doneBtnText: 'Compris',
+        // driver.js remplace lui-même {{current}} et {{total}} : on les lui rend intacts.
+        progressText: t('useGuide.progression', { current: '{{current}}', total: '{{total}}' }),
+        nextBtnText: t('common:actions.suivant'),
+        prevBtnText: t('common:actions.precedent'),
+        doneBtnText: t('useGuide.compris'),
         showButtons: ['next', 'previous'],
         // « Passer » toujours visible, à gauche des boutons de navigation.
         onPopoverRender: (popover, { driver: d }) => {
           const passer = document.createElement('button');
           passer.type = 'button';
           passer.className = 'guide-passer';
-          passer.textContent = 'Passer';
+          passer.textContent = t('useGuide.passer');
           passer.addEventListener('click', () => d.destroy());
           popover.footer.prepend(passer);
         },
@@ -82,5 +85,5 @@ export function useGuide(id: GuideId, { pret }: { pret: boolean }): void {
       // Quitter l'écran en pleine visite la ferme (et la marque vue).
       visite?.destroy();
     };
-  }, [id, pret, dejaVu, marquerGuideVu]);
+  }, [id, pret, dejaVu, marquerGuideVu, t]);
 }

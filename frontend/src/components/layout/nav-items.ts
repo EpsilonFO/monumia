@@ -1,4 +1,5 @@
 import type { NomPicto } from '@/components/shared/ecrans/Picto';
+import i18n from '@/i18n';
 import { ROUTES } from '@/constants/routes';
 import { libelleMonuments, type Offre } from '@/lib/offres';
 
@@ -28,19 +29,25 @@ export interface NavItem {
  */
 export function navItemsPour(offre: Offre): NavItem[] {
   return [
-    { to: ROUTES.DASHBOARD, picto: 'grille', label: 'Tableau de bord', court: 'Accueil', end: true },
+    {
+      to: ROUTES.DASHBOARD,
+      picto: 'grille',
+      label: i18n.t('shell:navigation.tableauDeBord'),
+      court: i18n.t('shell:navigation.accueil'),
+      end: true,
+    },
     {
       to: ROUTES.MONUMENTS,
       picto: 'maison',
       label: libelleMonuments(offre),
-      court: offre.monumentsMax === 1 ? 'Monument' : 'Monuments',
+      court: offre.monumentsMax === 1 ? i18n.t('shell:navigation.monument') : i18n.t('shell:navigation.monuments'),
     },
     {
       to: ROUTES.DOCUMENTS,
       picto: 'doc',
-      label: 'Mes documents',
-      court: 'Documents',
-      title: 'Vos pièces, réutilisables dans tous vos dossiers',
+      label: i18n.t('shell:navigation.mesDocuments'),
+      court: i18n.t('shell:navigation.documents'),
+      title: i18n.t('shell:navigation.documentsTitre'),
     },
   ];
 }
@@ -49,4 +56,11 @@ export function navItemsPour(offre: Offre): NavItem[] {
  * Le Blog, public (ressources) : ajouté après la nav privée, dans la barre
  * haute comme dans la barre du bas, pour que le mobile ne le perde pas.
  */
-export const NAV_BLOG: NavItem = { to: '/blog', picto: 'livre', label: 'Blog' };
+export const NAV_BLOG: NavItem = {
+  to: '/blog',
+  picto: 'livre',
+  // Getter : lu au rendu, dans la langue de la page (jamais traduit à l'import).
+  get label() {
+    return i18n.t('shell:navigation.blog');
+  },
+};

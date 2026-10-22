@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 
 import { CategoryBadge } from '@/components/blog/CategoryBadge';
@@ -12,13 +13,16 @@ import { IconTemps } from '@/components/icons';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
 
 export function BlogArticlePage() {
+  const { t } = useTranslation('blog');
   const { slug } = useParams();
   const article = slug ? getArticleBySlug(slug) : undefined;
   const [loaded, setLoaded] = useState<{ slug: string; md: string } | null>(null);
   const body = article && loaded?.slug === article.slug ? loaded.md : '';
 
   useDocumentMeta(
-    article ? `${article.title} — Blog Monumia` : 'Article introuvable',
+    article
+      ? t('meta.titreAvecBlog', { titre: article.title })
+      : t('BlogArticlePage.introuvable'),
     article?.excerpt,
   );
 
@@ -38,10 +42,10 @@ export function BlogArticlePage() {
     return (
       <div className="space-y-4 text-center">
         <h1 className="text-2xl" style={{ fontFamily: 'var(--font-serif)' }}>
-          Article introuvable
+          {t('BlogArticlePage.introuvable')}
         </h1>
         <Link to="/blog" className="font-semibold hover:underline" style={{ color: C.orange }}>
-          ← Retour au blog
+          {t('commun.retourAuBlog')}
         </Link>
       </div>
     );
@@ -55,9 +59,13 @@ export function BlogArticlePage() {
   return (
     <article>
       {/* Fil d'ariane */}
-      <nav className="text-[14.5px]" style={{ color: C.grayFg }} aria-label="Fil d’ariane">
+      <nav
+        className="text-[14.5px]"
+        style={{ color: C.grayFg }}
+        aria-label={t('BlogArticlePage.filAriane')}
+      >
         <Link to="/blog" className="hover:underline">
-          Blog
+          {t('BlogArticlePage.blog')}
         </Link>
         {category && (
           <>
@@ -78,7 +86,8 @@ export function BlogArticlePage() {
               className="inline-flex items-center gap-1 text-[14px] font-semibold"
               style={{ color: C.grayFg }}
             >
-              <IconTemps className="h-3.5 w-3.5" /> {article.readingTimeMin} min de lecture
+              <IconTemps className="h-3.5 w-3.5" />{' '}
+              {t('BlogArticlePage.tempsDeLecture', { minutes: article.readingTimeMin })}
             </span>
           )}
         </div>
@@ -105,12 +114,15 @@ export function BlogArticlePage() {
         </div>
 
         {/* Rail droit */}
-        <aside className="flex flex-col gap-6 xl:max-w-[15rem]" aria-label="Pour aller plus loin">
+        <aside
+          className="flex flex-col gap-6 xl:max-w-[15rem]"
+          aria-label={t('BlogArticlePage.pourAllerPlusLoin')}
+        >
           <div className="sticky top-24 flex flex-col gap-6">
             {related.length > 0 && (
               <section>
                 <p className="mb-3 text-[13px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.blue, opacity: 0.55 }}>
-                  À lire aussi
+                  {t('BlogArticlePage.aLireAussi')}
                 </p>
                 <div className="flex flex-col gap-3">
                   {related.map((a) => {
@@ -131,7 +143,7 @@ export function BlogArticlePage() {
                           {a.title}
                         </span>
                         <span className="mt-2.5 inline-flex items-center gap-1 text-[14px] font-semibold" style={{ color: C.orange }}>
-                          Lire
+                          {t('BlogArticlePage.lire')}
                           <span className="transition-transform duration-300 group-hover:translate-x-0.5">→</span>
                         </span>
                       </Link>

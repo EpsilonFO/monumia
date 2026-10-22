@@ -15,11 +15,13 @@ import { brouillonPretPourRejeu, marquerRetourGoogleBrouillon } from '@/lib/brou
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
 import { toast } from 'sonner';
+import { Trans, useTranslation } from 'react-i18next';
 
 const MUTED = 'var(--muted-foreground)';
 const LIGHT = 'var(--muted-foreground)';
 
 export function LoginPage() {
+  const { t } = useTranslation(['compte', 'common']);
   const setAuth = useAuthStore((s) => s.setAuth);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -83,7 +85,7 @@ export function LoginPage() {
         setEmailAConfirmer({ email: loginForm.email, variante: 'connexion' });
         return;
       }
-      toast.error(err instanceof Error ? err.message : 'Email ou mot de passe incorrect');
+      toast.error(err instanceof Error ? err.message : t('LoginPage.erreurIdentifiants'));
     } finally {
       setLoginLoading(false);
     }
@@ -95,15 +97,15 @@ export function LoginPage() {
   // générique qui ne parle plus du tout de son monument. Hissé hors du rendu
   // parce que l'écran d'attente de confirmation le réutilise tel quel.
   const panneau = {
-    panelEyebrow: reprise ? 'Votre diagnostic vous attend' : undefined,
+    panelEyebrow: reprise ? t('LoginPage.repriseEyebrow') : undefined,
     panelHeadline: reprise ? (
-      <>
-        Votre diagnostic est <span style={{ color: C.orange }}>prêt</span>.
-      </>
+      <Trans
+        t={t}
+        i18nKey="LoginPage.repriseTitrePanneau"
+        components={{ accent: <span style={{ color: C.orange }} /> }}
+      />
     ) : undefined,
-    panelDescription: reprise
-      ? 'Votre monument et votre projet sont conservés : dès votre connexion, ils rejoignent votre espace et le diagnostic s’ouvre.'
-      : undefined,
+    panelDescription: reprise ? t('LoginPage.repriseDescription') : undefined,
   };
 
   // L'adresse à confirmer prend TOUT l'écran : ni titre, ni onglets, ni bouton
@@ -120,7 +122,7 @@ export function LoginPage() {
           style={{ color: MUTED }}
         >
           <ArrowLeft className="h-4 w-4" />
-          Retour
+          {t('common:actions.retour')}
         </button>
         <ConfirmerEmail
           email={emailAConfirmer.email}
@@ -142,36 +144,40 @@ export function LoginPage() {
       {/* heading */}
       <div className="space-y-1.5">
         <h1 className="text-[clamp(1.6rem,3vw,2rem)] leading-[1.1]" style={{ fontFamily: SERIF, color: C.ink }}>
-          {reprise ? (
-            <>Plus qu&rsquo;une <span style={{ color: C.blue }}>étape</span>.</>
-          ) : tab === 'login' ? (
-            <>Bon <span style={{ color: C.blue }}>retour</span>.</>
-          ) : (
-            <>Créer un <span style={{ color: C.blue }}>compte</span></>
-          )}
+          <Trans
+            t={t}
+            i18nKey={
+              reprise
+                ? 'LoginPage.titreReprise'
+                : tab === 'login'
+                  ? 'LoginPage.titreConnexion'
+                  : 'LoginPage.titreInscription'
+            }
+            components={{ accent: <span style={{ color: C.blue }} /> }}
+          />
         </h1>
         <p className="text-[16px]" style={{ color: MUTED }}>
           {reprise
-            ? 'Créez votre compte gratuit — ou connectez-vous si vous en avez déjà un : votre diagnostic s’ouvre juste après.'
+            ? t('LoginPage.sousTitreReprise')
             : tab === 'login'
-              ? 'Connectez-vous pour accéder à votre espace.'
-              : 'Tout se passe ici : votre compte est créé en une étape.'}
+              ? t('LoginPage.sousTitreConnexion')
+              : t('LoginPage.sousTitreInscription')}
         </p>
       </div>
 
       {/* tab switcher */}
       <div className="flex gap-1 rounded-xl p-1" style={{ background: C.paleBlue }}>
-        {(['login', 'register'] as const).map((t) => (
+        {(['login', 'register'] as const).map((onglet) => (
           <button
-            key={t}
-            onClick={() => { setTab(t); setEmailAConfirmer(null); }}
+            key={onglet}
+            onClick={() => { setTab(onglet); setEmailAConfirmer(null); }}
             className="flex-1 rounded-lg py-2 text-[15.5px] font-semibold transition-all duration-200"
             style={{
-              background: tab === t ? C.blue : 'transparent',
-              color: tab === t ? 'white' : C.blue,
+              background: tab === onglet ? C.blue : 'transparent',
+              color: tab === onglet ? 'white' : C.blue,
             }}
           >
-            {t === 'login' ? 'Connexion' : 'Inscription'}
+            {onglet === 'login' ? t('LoginPage.ongletConnexion') : t('LoginPage.ongletInscription')}
           </button>
         ))}
       </div>
@@ -195,7 +201,7 @@ export function LoginPage() {
           <div className="flex items-center gap-3" aria-hidden="true">
             <span className="h-px flex-1" style={{ background: 'var(--border)' }} />
             <span className="text-[15px] whitespace-nowrap" style={{ color: MUTED }}>
-              ou avec votre adresse email
+              {t('commun.ouAvecEmail')}
             </span>
             <span className="h-px flex-1" style={{ background: 'var(--border)' }} />
           </div>
@@ -206,12 +212,12 @@ export function LoginPage() {
       {tab === 'login' && (
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="login-email" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Email</Label>
+            <Label htmlFor="login-email" className="text-[15.5px] font-medium" style={{ color: C.ink }}>{t('commun.email')}</Label>
             <Input
               id="login-email"
               type="email"
               autoComplete="email"
-              placeholder="marie.dupont@mairie.fr"
+              placeholder={t('commun.placeholderEmail')}
               value={loginForm.email}
               onChange={(e) => setLoginForm((f) => ({ ...f, email: e.target.value }))}
               required
@@ -219,7 +225,7 @@ export function LoginPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="login-password" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Mot de passe</Label>
+            <Label htmlFor="login-password" className="text-[15.5px] font-medium" style={{ color: C.ink }}>{t('commun.motDePasse')}</Label>
             <div className="relative">
               <Input
                 id="login-password"
@@ -248,7 +254,7 @@ export function LoginPage() {
               className="text-[15px] font-medium underline underline-offset-2"
               style={{ color: C.blue }}
             >
-              Mot de passe oublié ?
+              {t('LoginPage.motDePasseOublie')}
             </button>
           </div>
           <button
@@ -259,7 +265,7 @@ export function LoginPage() {
           >
             {loginLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
               <>
-                Se connecter
+                {t('common:actions.seConnecter')}
                 <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </>
             )}
@@ -280,7 +286,7 @@ export function LoginPage() {
               className="font-semibold underline underline-offset-2"
               style={{ color: C.orange }}
             >
-              Se connecter
+              {t('common:actions.seConnecter')}
             </button>
           }
         />
@@ -291,28 +297,33 @@ export function LoginPage() {
         forgotState === 'sent' ? (
           <div className="space-y-4">
             <div className="rounded-xl p-4 text-[16px]" style={{ background: C.paleBlue, color: C.ink }}>
-              Si un compte existe pour <span className="font-semibold">{forgotEmail || 'cette adresse'}</span>, un email vient d'être envoyé avec un lien pour choisir un nouveau mot de passe. Pensez à vérifier vos courriers indésirables.
+              <Trans
+                t={t}
+                i18nKey="LoginPage.lienEnvoye"
+                values={{ email: forgotEmail || t('LoginPage.cetteAdresse') }}
+                components={{ gras: <span className="font-semibold" /> }}
+              />
             </div>
             <button
               onClick={() => setTab('login')}
               className="flex h-11 w-full items-center justify-center rounded-lg text-[16px] font-semibold text-white transition-opacity hover:opacity-90"
               style={{ background: C.orange }}
             >
-              Retour à la connexion
+              {t('commun.retourConnexion')}
             </button>
           </div>
         ) : (
           <form onSubmit={handleForgot} className="space-y-4">
             <p className="text-[16px]" style={{ color: MUTED }}>
-              Indiquez votre email : nous vous enverrons un lien pour choisir un nouveau mot de passe. Rien à retenir.
+              {t('LoginPage.oubliIntro')}
             </p>
             <div className="space-y-1.5">
-              <Label htmlFor="forgot-email" className="text-[15.5px] font-medium" style={{ color: C.ink }}>Email</Label>
+              <Label htmlFor="forgot-email" className="text-[15.5px] font-medium" style={{ color: C.ink }}>{t('commun.email')}</Label>
               <Input
                 id="forgot-email"
                 type="email"
                 autoComplete="email"
-                placeholder="marie.dupont@mairie.fr"
+                placeholder={t('commun.placeholderEmail')}
                 value={forgotEmail}
                 onChange={(e) => setForgotEmail(e.target.value)}
                 required
@@ -325,11 +336,11 @@ export function LoginPage() {
               className="flex h-11 w-full items-center justify-center gap-2 rounded-lg text-[16px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               style={{ background: C.orange }}
             >
-              {forgotState === 'sending' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Recevoir le lien'}
+              {forgotState === 'sending' ? <Loader2 className="h-4 w-4 animate-spin" /> : t('LoginPage.recevoirLien')}
             </button>
             <p className="text-center text-[15px]" style={{ color: MUTED }}>
               <button type="button" onClick={() => setTab('login')} className="font-semibold underline underline-offset-2" style={{ color: C.orange }}>
-                Retour à la connexion
+                {t('commun.retourConnexion')}
               </button>
             </p>
           </form>
@@ -339,19 +350,25 @@ export function LoginPage() {
       {/* footer note */}
       <p className="text-center text-[15px]" style={{ color: LIGHT }}>
         {tab === 'login' ? (
-          <>
-            Pas encore de compte ?{' '}
-            <button onClick={() => setTab('register')} className="font-semibold underline underline-offset-2" style={{ color: C.orange }}>
-              Créer un compte
-            </button>
-          </>
+          <Trans
+            t={t}
+            i18nKey="LoginPage.pasEncoreDeCompte"
+            components={{
+              lien: (
+                <button onClick={() => setTab('register')} className="font-semibold underline underline-offset-2" style={{ color: C.orange }} />
+              ),
+            }}
+          />
         ) : (
-          <>
-            Déjà inscrit ?{' '}
-            <button onClick={() => setTab('login')} className="font-semibold underline underline-offset-2" style={{ color: C.orange }}>
-              Se connecter
-            </button>
-          </>
+          <Trans
+            t={t}
+            i18nKey="LoginPage.dejaInscrit"
+            components={{
+              lien: (
+                <button onClick={() => setTab('login')} className="font-semibold underline underline-offset-2" style={{ color: C.orange }} />
+              ),
+            }}
+          />
         )}
       </p>
     </AuthLayout>

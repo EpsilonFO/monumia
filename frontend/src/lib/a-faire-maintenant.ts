@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import { chapeauAide, montantAide, titreAide } from '@/lib/fiche-aide';
 import type { ProjectDeadline } from '@/lib/project-stats';
 import type { AideDigestMatch, Dossier, Monument, ProjectDigest } from '@/types';
@@ -96,10 +97,9 @@ export function aFaireMaintenant(
 /** « dans 36 jours », « demain », « aujourd'hui », « en retard de 3 jours ». */
 export function quandLibelle(joursRestants: number): string {
   if (joursRestants < 0) {
-    const n = -joursRestants;
-    return `en retard de ${n} jour${n > 1 ? 's' : ''}`;
+    return i18n.t('libAides:aFaireMaintenant.enRetard', { count: -joursRestants });
   }
-  if (joursRestants === 0) return "aujourd'hui";
-  if (joursRestants === 1) return 'demain';
-  return `dans ${joursRestants} jours`;
+  if (joursRestants === 0) return i18n.t('libAides:aFaireMaintenant.aujourdhui');
+  if (joursRestants === 1) return i18n.t('libAides:aFaireMaintenant.demain');
+  return i18n.t('libAides:aFaireMaintenant.dansJours', { count: joursRestants });
 }

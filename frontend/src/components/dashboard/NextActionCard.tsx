@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { localeDateFns } from '@/i18n/format';
 import { C, DEADLINE_TONE } from '@/lib/brand';
 import { deadlineLabel } from '@/lib/date-utils';
 import { deadlineLink } from '@/lib/project-stats';
@@ -32,6 +33,7 @@ interface NextActionCardProps {
  * AgendaPanel qui répétait la même information en haut et en bas de page.
  */
 export function NextActionCard({ deadlines, upcoming }: NextActionCardProps) {
+  const { t } = useTranslation('dashboard');
   if (deadlines.length === 0 && upcoming.length === 0) {
     return (
       <div
@@ -41,10 +43,10 @@ export function NextActionCard({ deadlines, upcoming }: NextActionCardProps) {
         <AllClear />
         <div>
           <p className="text-[17px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
-            Tout est à jour
+            {t('toutEstAJour')}
           </p>
           <p className="text-[15px]" style={{ color: C.grayMuted }}>
-            Aucune échéance ne réclame votre attention pour le moment.
+            {t('NextActionCard.aucuneEcheance')}
           </p>
         </div>
       </div>
@@ -68,11 +70,12 @@ export function NextActionCard({ deadlines, upcoming }: NextActionCardProps) {
 
 /** Bloc principal : la prochaine action, avec date façon éphéméride et CTA. */
 function MainAction({ deadlines }: { deadlines: ProjectDeadline[] }) {
+  const { t } = useTranslation('dashboard');
   const [first, ...rest] = deadlines;
   const { text, urgency } = deadlineLabel(first.date);
   const tone = DEADLINE_TONE[urgency];
   const date = parseISO(first.date);
-  const month = format(date, 'MMM', { locale: fr }).replace('.', '');
+  const month = format(date, 'MMM', { locale: localeDateFns() }).replace('.', '');
 
   return (
     <Link
@@ -92,21 +95,21 @@ function MainAction({ deadlines }: { deadlines: ProjectDeadline[] }) {
       <div className="min-w-0 flex-1">
         <p className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.18em]" style={{ color: tone.fg }}>
           <span aria-hidden style={{ width: 20.5, height: 2, borderRadius: 2, background: tone.node }} />
-          À faire maintenant · {text}
+          {t('aFaireMaintenant', { quand: text })}
         </p>
         <p className="mt-1 truncate text-[19px] font-semibold" style={{ fontFamily: 'var(--font-serif)', color: C.ink }}>
           {first.label}
         </p>
         <p className="text-[14.5px]" style={{ color: C.grayMuted }}>
-          {first.source === 'aide' ? 'Demande d’aide' : 'Dossier'}
-          {rest.length > 0 ? ` · et ${rest.length} autre${rest.length > 1 ? 's' : ''} ce jour-là` : ''}
+          {first.source === 'aide' ? t('NextActionCard.demandeAide') : t('NextActionCard.dossier')}
+          {rest.length > 0 ? ` · ${t('NextActionCard.etAutres', { count: rest.length })}` : ''}
         </p>
       </div>
       <span
         className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-xl px-4 py-2.5 text-[15px] font-semibold text-white sm:self-center"
         style={{ background: C.orange }}
       >
-        Je m'en occupe
+        {t('NextActionCard.jeMEnOccupe')}
         <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
       </span>
     </Link>
@@ -115,6 +118,7 @@ function MainAction({ deadlines }: { deadlines: ProjectDeadline[] }) {
 
 /** Section « Ensuite » : les prochaines échéances/alertes en lignes compactes, dépliables. */
 function UpcomingList({ rows, standalone }: { rows: FeedRow[]; standalone: boolean }) {
+  const { t } = useTranslation('dashboard');
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? rows : rows.slice(0, UPCOMING_PREVIEW);
   const hidden = rows.length - UPCOMING_PREVIEW;
@@ -125,7 +129,7 @@ function UpcomingList({ rows, standalone }: { rows: FeedRow[]; standalone: boole
       style={standalone ? undefined : { borderTop: `1px dashed ${C.border}` }}
     >
       <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.grayMuted }}>
-        {standalone ? 'À noter' : 'Ensuite'}
+        {standalone ? t('NextActionCard.aNoter') : t('NextActionCard.ensuite')}
       </h3>
       <ul>
         {visible.map((row) => {
@@ -163,7 +167,7 @@ function UpcomingList({ rows, standalone }: { rows: FeedRow[]; standalone: boole
           className="mt-1 px-2 text-[14px] font-semibold transition-opacity hover:opacity-70"
           style={{ color: C.blue }}
         >
-          {expanded ? 'Réduire' : `+ ${hidden} autre${hidden > 1 ? 's' : ''}`}
+          {expanded ? t('NextActionCard.reduire') : t('NextActionCard.autres', { count: hidden })}
         </button>
       )}
     </div>

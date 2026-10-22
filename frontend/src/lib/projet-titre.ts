@@ -1,20 +1,23 @@
 import { WORK_TYPES } from '@/constants/monument-options';
-import { RAISON_OPTIONS, readRaisons } from '@/constants/raisons';
+import { RAISON_OPTIONS, readRaisons, type Raison } from '@/constants/raisons';
+import i18n, { langueCourante } from '@/i18n';
 import type { Projet } from '@/types';
 
-const WORK_LABELS = Object.fromEntries(WORK_TYPES.map((w) => [w.value, w.label]));
-const RAISON_LABELS = Object.fromEntries(RAISON_OPTIONS.map((r) => [r.value, r.label]));
+// Libellés relus à chaque appel : les tables de constantes les traduisent au
+// moment de la lecture, une copie faite à l'import les figerait.
+const workLabel = (t: string): string => WORK_TYPES.find((w) => w.value === t)?.label ?? t;
+const raisonLabel = (r: string): string | undefined => RAISON_OPTIONS.find((o) => o.value === r)?.label;
 
 /**
  * Ce que le projet fait AU monument, selon l'intention choisie à sa création.
  * `de` : l'action se construit avec « de » (« Préparer les travaux du
  * Château… »), sinon le nom est complément direct (« Restaurer le Château… »).
  */
-const ACTION_PAR_RAISON: Record<string, { verbe: string; de: boolean }> = {
-  restauration_travaux: { verbe: 'Restaurer', de: false },
-  valorisation_rayonnement: { verbe: 'Faire vivre', de: false },
-  etude_ingenierie: { verbe: 'Préparer les travaux', de: true },
-  fiscalite: { verbe: 'Optimiser la fiscalité', de: true },
+const ACTION_PAR_RAISON: Record<string, { cle: Raison; de: boolean }> = {
+  restauration_travaux: { cle: 'restauration_travaux', de: false },
+  valorisation_rayonnement: { cle: 'valorisation_rayonnement', de: false },
+  etude_ingenierie: { cle: 'etude_ingenierie', de: true },
+  fiscalite: { cle: 'fiscalite', de: true },
 };
 
 /**
@@ -101,18 +104,24 @@ export function projetTitre(projet: Projet, monumentNom?: string | null): string
   const nom = monumentNom?.trim();
   if (raison) {
     const action = ACTION_PAR_RAISON[raison];
-    if (action && nom) return `${action.verbe} ${nomAccorde(nom, action.de)}`;
-    if (RAISON_LABELS[raison]) return RAISON_LABELS[raison];
+    if (action && nom) {
+      // L'article et l'élision (« du Château », « de l'Abbaye ») sont de la
+      // grammaire française : dans une autre langue, le nom propre reste tel quel.
+      const cible = langueCourante() === 'fr' ? nomAccorde(nom, action.de) : nom;
+      return i18n.t(`libAides:projetTitre.action.${action.cle}`, { nom: cible });
+    }
+    const label = raisonLabel(raison);
+    if (label) return label;
   }
 
   const travaux = projet.travauxEnvisages ?? [];
   if (travaux.length > 0) {
-    const noms = travaux.slice(0, 3).map((t) => WORK_LABELS[t] ?? t);
+    const noms = travaux.slice(0, 3).map(workLabel);
     const reste = travaux.length - noms.length;
     return reste > 0 ? `${noms.join(', ')} +${reste}` : noms.join(', ');
   }
 
-  return 'Projet de travaux';
+  return i18n.t('libAides:projetTitre.parDefaut');
 }
 
 /**
@@ -125,13 +134,13 @@ export function projetSousTitre(projet: Projet, monumentNom?: string | null): st
   const travaux = projet.travauxEnvisages ?? [];
   let ligne: string | null = null;
   if (travaux.length > 0) {
-    const noms = travaux.slice(0, 3).map((t) => WORK_LABELS[t] ?? t);
+    const noms = travaux.slice(0, 3).map(workLabel);
     const reste = travaux.length - noms.length;
     const liste = noms.map((n, i) => (i === 0 ? n : n.charAt(0).toLowerCase() + n.slice(1))).join(', ');
     ligne = reste > 0 ? `${liste} +${reste}` : liste;
   } else {
     const raison = readRaisons(projet.questionnaire)[0];
-    ligne = (raison && RAISON_LABELS[raison]) || null;
+    ligne = (raison && raisonLabel(raison)) || null;
   }
   if (!ligne) return null;
   const titre = projetTitre(projet, monumentNom);
@@ -151,9 +160,12 @@ const ADJECTIFS_DE_TETE = new Set([
  *
  * Null quand le nom ne commence pas par un nom commun dont on connaît le
  * genre (mêmes listes que les titres de projet) : l'appelant écrit alors « ce
- * monument » plutôt qu'un article inventé.
+ * monument » plutôt qu'un article inventé. Null aussi hors du français : le nom
+ * commun tiré du nom propre est français (« l'abbaye »), il ne se glisse pas
+ * dans une phrase d'une autre langue.
  */
 export function monumentNomCourt(nom: string, de = false): string | null {
+  if (langueCourante() !== 'fr') return null;
   const mots = nom.trim().split(/\s+/).filter(Boolean);
   let i = 0;
   // Un article en tête (« La Chapelle… ») : le nom commun est le mot suivant.

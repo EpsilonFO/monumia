@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { format, parseISO } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
+import { localeDateFns } from '@/i18n/format';
 import { deadlineLink } from '@/lib/project-stats';
 import type { ProjectDeadline } from '@/lib/project-stats';
 
@@ -20,10 +22,10 @@ interface ProjectEcheancierProps {
   aide?: (aideId: string) => { titre: string; montant: string | null } | null;
 }
 
-function jours(d: ProjectDeadline): string {
-  if (d.joursRestants < 0) return 'Dépassée';
-  if (d.joursRestants === 0) return "Aujourd'hui";
-  return `J-${d.joursRestants}`;
+function jours(d: ProjectDeadline, t: TFunction<'project'>): string {
+  if (d.joursRestants < 0) return t('ProjectEcheancier.depassee');
+  if (d.joursRestants === 0) return t('ProjectEcheancier.aujourdhui');
+  return t('ProjectEcheancier.joursRestants', { count: d.joursRestants });
 }
 
 /**
@@ -43,6 +45,7 @@ function jours(d: ProjectDeadline): string {
  * les tarifs.
  */
 export function ProjectEcheancier({ deadlines, aide }: ProjectEcheancierProps) {
+  const { t } = useTranslation('project');
   const [tout, setTout] = useState(false);
   if (deadlines.length === 0) return null;
   const visibles = tout ? deadlines : deadlines.slice(0, VISIBLES);
@@ -52,12 +55,12 @@ export function ProjectEcheancier({ deadlines, aide }: ProjectEcheancierProps) {
     <section className="ech" aria-labelledby="ech-t" data-guide="projet.echeancier">
       <div className="ech-h">
         <div>
-          <span className="eyebrow">Échéancier</span>
+          <span className="eyebrow">{t('ProjectEcheancier.surtitre')}</span>
           <h2 id="ech-t">
-            {n === 1 ? 'Une date à ne pas manquer' : `${n} dates à ne pas manquer`}
+            {t('ProjectEcheancier.titre', { count: n })}
           </h2>
         </div>
-        <p>Les dates limites de dépôt de vos aides, de la plus proche à la plus lointaine.</p>
+        <p>{t('ProjectEcheancier.intro')}</p>
       </div>
       <div className="ech-grid">
         {visibles.map((d, i) => {
@@ -65,22 +68,24 @@ export function ProjectEcheancier({ deadlines, aide }: ProjectEcheancierProps) {
           const pct = d.joursRestants < 0 ? 100 : Math.max(6, 100 - (d.joursRestants / HORIZON) * 100);
           const redige = d.source === 'aide' && d.aideId ? aide?.(d.aideId) : null;
           const sous =
-            d.source === 'dossier' ? 'Échéance de dossier' : redige?.montant ?? 'Montant non publié';
+            d.source === 'dossier'
+              ? t('ProjectEcheancier.echeanceDossier')
+              : (redige?.montant ?? t('ProjectEcheancier.montantNonPublie'));
           return (
             <Link key={d.id} to={deadlineLink(d)} className={i === 0 ? 'dl urgent' : 'dl'}>
               <div className="dl-top">
                 <span className="dl-date">
-                  {format(parseISO(d.date), 'd MMM', { locale: fr })}
+                  {format(parseISO(d.date), 'd MMM', { locale: localeDateFns() })}
                   <small>{sous}</small>
                 </span>
-                <span className={`jx ${d.joursRestants < 0 ? 'passe' : urgent ? 'urg' : 'calm'}`}>{jours(d)}</span>
+                <span className={`jx ${d.joursRestants < 0 ? 'passe' : urgent ? 'urg' : 'calm'}`}>{jours(d, t)}</span>
               </div>
               <div className={urgent ? 'bar' : 'bar calm'} aria-hidden="true">
                 <i style={{ width: `${pct}%` }} />
               </div>
               <p>{redige?.titre ?? d.label}</p>
               <span className="dl-f">
-                {d.source === 'aide' ? "Voir l'aide" : 'Voir le dossier'}
+                {d.source === 'aide' ? t('ProjectEcheancier.voirAide') : t('ProjectEcheancier.voirDossier')}
                 <Picto nom="fleche" />
               </span>
             </Link>
@@ -88,8 +93,10 @@ export function ProjectEcheancier({ deadlines, aide }: ProjectEcheancierProps) {
         })}
       </div>
       {n > VISIBLES && (
-        <button className="ech-all" type="button" onClick={() => setTout((t) => !t)}>
-          {tout ? 'Ne montrer que les plus proches' : `Voir les ${n - VISIBLES} autres dates`}
+        <button className="ech-all" type="button" onClick={() => setTout((v) => !v)}>
+          {tout
+            ? t('ProjectEcheancier.plusProches')
+            : t('ProjectEcheancier.voirAutres', { count: n - VISIBLES })}
         </button>
       )}
     </section>
