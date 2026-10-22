@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import {
   ArrowRight,
   Bell,
@@ -12,6 +19,7 @@ import {
   FolderOpen,
   HeartHandshake,
   Info,
+  Loader2,
   Lock,
   Mail,
   Search,
@@ -23,6 +31,9 @@ import { changerLangue, LANGUES, langueCourante, localeIntl } from './i18n';
 import { sessionActive } from './session';
 
 const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.monumia.fr';
+
+// API publique, pour la recherche Mérimée du héros (même route que l'application).
+const API_URL = import.meta.env.VITE_API_URL || 'https://app.monumia.fr/api';
 
 // Préfixe des assets de public/ : '/' en prod, '/landing/' en beta.
 // import.meta.env.BASE_URL finit toujours par '/' (garanti par Vite).
@@ -190,10 +201,13 @@ function CountUp({
   to,
   duration = 1300,
   delay = 0,
+  format = (n: number) => n.toLocaleString(localeIntl()),
 }: {
   to: number;
   duration?: number;
   delay?: number;
+  /** Mise en forme de la valeur affichée (euros, pourcentage…). */
+  format?: (n: number) => string;
 }) {
   const [val, setVal] = useState(0);
   useEffect(() => {
@@ -211,7 +225,7 @@ function CountUp({
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [to, duration, delay]);
-  return <>{val.toLocaleString(localeIntl())}</>;
+  return <>{format(val)}</>;
 }
 
 function goToApp() {
@@ -334,7 +348,16 @@ function SectionTitle({
    (« English » reste lisible pour qui ne lit pas le français) ; le choix est
    mémorisé dans un cookie partagé avec l'application, puis la page recharge.
    Dans l'en-tête, on ne propose que l'autre langue : un mot, pas un menu. */
-function SelecteurLangue({ compact = false, className = '' }: { compact?: boolean; className?: string }) {
+function SelecteurLangue({
+  compact = false,
+  className = '',
+  surPhoto = false,
+}: {
+  compact?: boolean;
+  className?: string;
+  /** En haut de page, posé sur la photo du héros : texte clair. */
+  surPhoto?: boolean;
+}) {
   const { t } = useTranslation();
   const courante = langueCourante();
   const langues = compact ? LANGUES.filter((l) => l !== courante) : LANGUES;
@@ -357,9 +380,17 @@ function SelecteurLangue({ compact = false, className = '' }: { compact?: boolea
             aria-pressed={langue === courante}
             disabled={langue === courante}
             onClick={() => changerLangue(langue)}
-            className="rounded transition-colors duration-200 hover:text-[#0a369d] disabled:cursor-default"
+            className={`rounded transition-colors duration-200 disabled:cursor-default ${
+              surPhoto ? 'hover:text-white' : 'hover:text-[#0a369d]'
+            }`}
             style={{
-              color: langue === courante ? C.ink : C.inkSoft,
+              color: surPhoto
+                ? langue === courante
+                  ? '#fff'
+                  : 'rgba(255, 255, 255, 0.82)'
+                : langue === courante
+                  ? C.ink
+                  : C.inkSoft,
               fontWeight: langue === courante ? 600 : 500,
             }}
           >
@@ -403,6 +434,11 @@ function Header() {
     { href: '#faq', label: t('Navigation.questions') },
   ];
 
+  // En haut de page, la barre est posée sur la photo du héros : texte clair,
+  // marque en orange (le bleu disparaîtrait sur le voile bleu nuit). Dès le
+  // premier défilement, elle retrouve son fond crème et ses couleurs.
+  const surPhoto = !scrolled;
+
   return (
     <header
       className="fixed inset-x-0 top-0 z-50 transition-all duration-300"
@@ -416,8 +452,11 @@ function Header() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 lg:px-8">
         {/* Logo horizontal : fleur Monumia à gauche du nom (version charte pour les headers) */}
         <a href="#" className="flex items-center gap-2.5" aria-label={t('Header.retourEnHaut')}>
-          <Clover className="h-7 w-7" strokeWidth={10} style={{ color: C.orange }} />
-          <span className="font-serif text-[1.35rem] font-bold tracking-[-0.01em]" style={{ color: C.blue }}>
+          <Clover className="h-7 w-7" strokeWidth={10} style={{ color: surPhoto ? C.orangeVif : C.orange }} />
+          <span
+            className="font-serif text-[1.35rem] font-bold tracking-[-0.01em] transition-colors duration-300"
+            style={{ color: surPhoto ? C.orangeVif : C.blue }}
+          >
             Monumia
           </span>
         </a>
@@ -427,8 +466,10 @@ function Header() {
             <a
               key={l.href}
               href={l.href}
-              className="text-[14px] font-medium transition-colors duration-200 hover:text-[#0a369d]"
-              style={{ color: C.inkSoft }}
+              className={`text-[14px] font-medium transition-colors duration-200 ${
+                surPhoto ? 'hover:text-white' : 'hover:text-[#0a369d]'
+              }`}
+              style={{ color: surPhoto ? 'rgba(255, 255, 255, 0.86)' : C.inkSoft }}
             >
               {l.label}
             </a>
@@ -438,7 +479,7 @@ function Header() {
         <div className="flex items-center gap-5">
           {/* Masquée sur les petits écrans, où la barre n'a pas la place : le
               pied de page porte la bascule complète. */}
-          <SelecteurLangue compact className="hidden sm:inline-flex" />
+          <SelecteurLangue compact surPhoto={surPhoto} className="hidden sm:inline-flex" />
           <button
             onClick={entrerDansMonumia}
             className="whitespace-nowrap rounded-full px-5 py-2.5 text-[14px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_20px_-6px_rgba(241,113,5,0.55)]"
@@ -460,18 +501,20 @@ function Header() {
 }
 
 /* ────────────────────────────────────────────
-   Les partenaires — sous la promesse du héros. Le logo est tenté, et son
-   absence retombe sur le nom en texte : une image cassée dirait moins que le
-   nom. Déposer le fichier dans public/img/ suffit à le faire apparaître.
+   Les partenaires — dans la bande qui suit la photo du héros, avec les
+   chiffres du catalogue : la confiance se gagne avant le premier défilement.
+   Le logo est tenté, et son absence retombe sur le nom en texte : une image
+   cassée dirait moins que le nom. Déposer le fichier dans public/img/ suffit à
+   le faire apparaître.
    ──────────────────────────────────────────── */
 
-const HAUTEUR_LOGO = 'h-20 sm:h-32';
+const HAUTEUR_LOGO = 'h-14 sm:h-[68px]';
 
 const PARTENAIRES: Array<{ nom: string; fichier: string; hauteur?: string }> = [
   { nom: 'La Demeure Historique', fichier: 'dh.png' },
   { nom: 'French Tech', fichier: 'frenchtech.png' },
   /* Mot-symbole très large : à hauteur égale il écrase les deux autres. */
-  { nom: 'Incubateur emlyon', fichier: 'emlyon.png', hauteur: 'h-12 sm:h-20' },
+  { nom: 'Incubateur emlyon', fichier: 'emlyon.png', hauteur: 'h-8 sm:h-10' },
 ];
 
 function LogoPartenaire({
@@ -502,189 +545,528 @@ function LogoPartenaire({
   );
 }
 
-function Partenaires({ className = '', style }: { className?: string; style?: CSSProperties }) {
+/* La bande sous la photo. Sur grand écran, sa droite est laissée au plan de
+   financement, qui déborde de la photo sur elle. */
+function BandePreuve() {
   const { t } = useTranslation();
   return (
-    <div className={className} style={style}>
-      <p
-        className="text-[11px] font-semibold uppercase tracking-[0.16em]"
-        style={{ color: C.inkFaint }}
-      >
-        {t('Partenaires.referencePar')}
-      </p>
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-5 sm:mt-5 sm:gap-x-8">
+    <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-12 gap-y-6 px-5 pb-12 pt-32 lg:min-h-[240px] lg:px-8 lg:pb-12 lg:pr-[450px] lg:pt-12">
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+        <span className="text-[13px] font-medium" style={{ color: C.inkFaint }}>
+          {t('Partenaires.referencePar')}
+        </span>
         {PARTENAIRES.map((p) => (
           <LogoPartenaire key={p.nom} {...p} />
         ))}
       </div>
+      <p className="max-w-[320px] text-[15px] leading-[1.5]" style={{ color: C.inkSoft }}>
+        <Trans
+          t={t}
+          i18nKey="Partenaires.chiffres"
+          components={{ fort: <b className="font-bold" style={{ color: C.blue }} /> }}
+        />
+      </p>
     </div>
   );
 }
 
 /* ────────────────────────────────────────────
-   Héros — la promesse + le trésor
+   Héros — la photo en plein cadre, la promesse en trois temps, la recherche
+   du monument, et le plan de financement posé à cheval sur le bas de la photo.
    ──────────────────────────────────────────── */
 
-/* La carte d’estimation compacte : l’essentiel des chiffres, posé devant la photo */
-function EstimationCard() {
+/* La fiche de création du monument, ouverte depuis la recherche du héros :
+   avec la notice Mérimée choisie, ou avec le nom tapé quand le monument n'a
+   pas été trouvé (MonumentWizardPage lit `merimee` et `nom`). Pas d'aiguillage
+   par la session, contrairement à `entrerDansMonumia` : chercher un monument
+   précis est une demande de le décrire, et l'application sait elle-même
+   arrêter un compte qui a déjà le sien. */
+function goToFicheMonument(params: { merimee: string } | { nom: string }) {
+  window.location.href = `${APP_URL}/app/monuments/nouveau?${new URLSearchParams(params)}`;
+}
+
+/* Une notice de la base Mérimée, telle que la renvoie `GET /merimee/search`. */
+interface NoticeMerimee {
+  reference: string;
+  titre_editorial_de_la_notice: string;
+  commune_forme_index: string;
+  commune_actuelle?: string | null;
+  departement_en_lettres: string;
+  typologie_de_la_protection: string;
+}
+
+/* Libellé court de la protection, même règle que `protectionDeNotice` dans
+   l'application (frontend/src/lib/fiche-monument.ts) : l'API n'a pas d'enum. */
+function protectionDeNotice(typologie: string | undefined, t: TFunction<'landing'>): string {
+  const texte = (typologie ?? '').toLowerCase();
+  if (/(?:^|[^a-zà-ÿ])classé/.test(texte)) return t('Hero.recherche.classe');
+  if (/(?:^|[^a-zà-ÿ])inscrit/.test(texte)) return t('Hero.recherche.inscrit');
+  return typologie || t('Hero.recherche.inconnue');
+}
+
+const RECHERCHE_MIN = 2;
+const RECHERCHE_DELAI_MS = 250;
+const RECHERCHE_LISTE = 'recherche-monument-liste';
+
+/* La recherche du monument, au rendu de la recherche Mérimée de l'application
+   (`RechercheMerimee`) : même route, même saisie temporisée avec la requête
+   précédente annulée, même liste. Choisir une notice remplit la barre et
+   s'en souvient ; c'est le bouton qui ouvre la fiche. La liste finit
+   toujours par « continuer avec ce que j'ai tapé », qui ouvre la fiche avec
+   le nom pré-rempli : un monument introuvable n'est pas une impasse. */
+function RechercheMonument() {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<NoticeMerimee[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  // La notice choisie dans la liste, tant que la saisie n'a pas bougé depuis.
+  const [choisie, setChoisie] = useState<NoticeMerimee | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const blurRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const search = (q: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    abortRef.current?.abort();
+    if (q.trim().length < RECHERCHE_MIN) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      abortRef.current = controller;
+      let data: NoticeMerimee[] = [];
+      try {
+        const response = await fetch(`${API_URL}/merimee/search?q=${encodeURIComponent(q)}`, {
+          signal: controller.signal,
+        });
+        if (response.ok) data = await response.json();
+      } catch {
+        // Réseau coupé ou requête annulée : aucune notice, la saisie reste
+        // utilisable par l'option « continuer ».
+      }
+      // Réponse d'une frappe périmée : la suivante a déjà pris la main.
+      if (controller.signal.aborted) return;
+      setResults(data);
+      setActive(0);
+      setLoading(false);
+    }, RECHERCHE_DELAI_MS);
+  };
+
+  useEffect(
+    () => () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (blurRef.current) clearTimeout(blurRef.current);
+      abortRef.current?.abort();
+    },
+    [],
+  );
+
+  const saisie = query.trim();
+  const showList =
+    !choisie && open && saisie.length >= RECHERCHE_MIN && (!loading || results.length > 0);
+  // Les notices, puis l'option « continuer avec la saisie ».
+  const nbOptions = results.length + 1;
+
+  const choisir = (i: number) => {
+    setOpen(false);
+    if (i >= results.length) {
+      goToFicheMonument({ nom: saisie });
+      return;
+    }
+    // Une notice : elle remplit la barre, sans partir. Plus de recherche en
+    // cours, la saisie affichée est désormais le monument choisi.
+    const notice = results[i];
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    abortRef.current?.abort();
+    setLoading(false);
+    setChoisie(notice);
+    const commune = notice.commune_actuelle || notice.commune_forme_index;
+    setQuery(commune ? `${notice.titre_editorial_de_la_notice}, ${commune}` : notice.titre_editorial_de_la_notice);
+  };
+
+  // Le bouton : la notice choisie, sinon la fiche avec le nom tapé, sinon le
+  // parcours habituel si rien n'a été saisi.
+  const valider = () => {
+    if (choisie) goToFicheMonument({ merimee: choisie.reference });
+    else if (saisie) goToFicheMonument({ nom: saisie });
+    else entrerDansMonumia();
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      // Échap ferme la liste, sans vider le champ comme le ferait d'office un
+      // champ de recherche natif.
+      e.preventDefault();
+      setOpen(false);
+      return;
+    }
+    if (!showList) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const pas = e.key === 'ArrowDown' ? 1 : -1;
+      setActive((i) => (i + pas + nbOptions) % nbOptions);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      choisir(active);
+    }
+  };
+
+  const optionClasses =
+    'flex cursor-pointer items-baseline justify-between gap-3 rounded-[10px] px-3 py-2.5 text-[15px] sm:text-[16px] aria-selected:bg-[#fdeede]';
+
+  return (
+    <form
+      role="search"
+      className="relative mt-9 w-full max-w-[560px]"
+      onSubmit={(e) => {
+        e.preventDefault();
+        valider();
+      }}
+    >
+      <div className="flex flex-col gap-1.5 rounded-[22px] bg-white p-1.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.5)] transition-shadow duration-200 focus-within:ring-[3px] focus-within:ring-[#fc8905]/45 sm:flex-row sm:rounded-full">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 px-4">
+          {choisie ? (
+            <CheckCircle2 className="h-[18px] w-[18px] shrink-0" style={{ color: C.orange }} strokeWidth={2} />
+          ) : (
+            <Search className="h-[18px] w-[18px] shrink-0" style={{ color: C.inkFaint }} strokeWidth={2} />
+          )}
+          <label htmlFor="recherche-monument" className="sr-only">
+            {t('Hero.recherche.libelle')}
+          </label>
+          <input
+            id="recherche-monument"
+            type="search"
+            value={query}
+            placeholder={t('Hero.recherche.placeholder')}
+            autoComplete="off"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={showList}
+            aria-controls={RECHERCHE_LISTE}
+            aria-activedescendant={showList ? `${RECHERCHE_LISTE}-${active}` : undefined}
+            className="recherche-monument w-full min-w-0 bg-transparent py-3 text-[15px] outline-none focus-visible:outline-none placeholder:text-[rgba(34,43,53,0.5)]"
+            style={{ color: C.ink }}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              // La saisie a bougé : la notice choisie n'est plus ce qui est écrit.
+              setChoisie(null);
+              setOpen(true);
+              search(e.target.value);
+            }}
+            onFocus={() => setOpen(true)}
+            onKeyDown={onKeyDown}
+            onBlur={() => {
+              blurRef.current = setTimeout(() => setOpen(false), 120);
+            }}
+          />
+          {loading && (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" style={{ color: C.inkFaint }} aria-hidden="true" />
+          )}
+        </div>
+        <button
+          type="submit"
+          className="whitespace-nowrap rounded-2xl px-6 py-3 text-[15px] font-semibold text-white transition-colors duration-200 hover:bg-[#d96200] sm:rounded-full"
+          style={{ background: C.orange }}
+        >
+          {t('Hero.recherche.bouton')}
+        </button>
+      </div>
+
+      <ul
+        id={RECHERCHE_LISTE}
+        role="listbox"
+        hidden={!showList}
+        className="absolute inset-x-0 top-[calc(100%+8px)] z-30 m-0 max-h-[339px] list-none overflow-y-auto rounded-2xl border-[1.5px] p-1.5 text-left shadow-[0_24px_50px_-23px_rgba(10,54,157,0.35)]"
+        style={{ background: C.card, borderColor: '#2f54ac' }}
+      >
+        {results.map((r, i) => (
+          <li
+            key={r.reference}
+            id={`${RECHERCHE_LISTE}-${i}`}
+            role="option"
+            aria-selected={i === active}
+            className={optionClasses}
+            style={{ color: C.ink }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              choisir(i);
+            }}
+            onMouseEnter={() => setActive(i)}
+          >
+            <span className="min-w-0">
+              {r.titre_editorial_de_la_notice}
+              <small className="mt-0.5 block text-[14px]" style={{ color: '#6a7180' }}>
+                {r.commune_actuelle || r.commune_forme_index}
+                {r.departement_en_lettres ? ` · ${r.departement_en_lettres}` : ''}
+              </small>
+            </span>
+            <small className="shrink-0 whitespace-nowrap text-[14px]" style={{ color: '#6a7180' }}>
+              {protectionDeNotice(r.typologie_de_la_protection, t)} · {r.reference}
+            </small>
+          </li>
+        ))}
+        <li
+          id={`${RECHERCHE_LISTE}-${results.length}`}
+          role="option"
+          aria-selected={active === results.length}
+          className={optionClasses}
+          style={{ color: C.ink }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            choisir(results.length);
+          }}
+          onMouseEnter={() => setActive(results.length)}
+        >
+          <span className="min-w-0">
+            {results.length > 0
+              ? t('Hero.recherche.pasDansLaListe')
+              : t('Hero.recherche.aucun', { saisie })}
+            <small className="mt-0.5 block text-[14px] font-semibold" style={{ color: '#b9560a' }}>
+              {t('Hero.recherche.continuer', { saisie })}
+            </small>
+          </span>
+        </li>
+      </ul>
+    </form>
+  );
+}
+
+/* Le plan de financement d'un chantier type. Une aide que tout le monde
+   connaît, la DRAC, sert de repère ; viennent ensuite trois aides qu'on ne
+   trouve pas seul, et c'est ce que Monumia apporte. Plafonds réels du
+   catalogue (backend/data/aides/) : DRAC immeuble inscrit 40 % ; Fondation
+   Crédit Agricole Pays de France 30 % et 100 000 € au plus ; Prix Charpente
+   remarquable de la Fondation Mérimée 30 000 € ; France Bois Forêt, dotation de
+   10 000 €. Sur 360 000 € de travaux, les parts arrondies de chaque ligne
+   (40 + 28 + 8 + 3) font exactement le total affiché : 79 %. */
+const CHANTIER_HT = 360_000;
+const PLAN_FINANCEMENT = [
+  { cle: 'drac', montant: 144_000, couleur: C.blue },
+  { cle: 'creditAgricole', montant: 100_000, couleur: C.orange },
+  { cle: 'charpente', montant: 30_000, couleur: C.orangeVif },
+  { cle: 'boisForet', montant: 10_000, couleur: '#f6b26b' },
+] as const;
+const TOTAL_AIDES = PLAN_FINANCEMENT.reduce((somme, ligne) => somme + ligne.montant, 0);
+const partDuChantier = (montant: number) => Math.round((montant / CHANTIER_HT) * 100);
+
+function euros(montant: number): string {
+  return new Intl.NumberFormat(localeIntl(), {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  }).format(montant);
+}
+
+function pourcent(part: number): string {
+  return new Intl.NumberFormat(localeIntl(), { style: 'percent', maximumFractionDigits: 0 }).format(
+    part / 100,
+  );
+}
+
+/* Grille commune aux lignes : la colonne des parts est la dernière, alignée à
+   droite, pour tomber pile au-dessus du pourcentage total. */
+const GRILLE_PLAN = 'grid grid-cols-[10px_minmax(0,1fr)_auto_42px] items-baseline gap-x-2.5';
+
+function PlanFinancement() {
   const { t } = useTranslation();
   const { ref, inView } = useInView(0.3);
+  // Les lignes s'inscrivent l'une après l'autre pendant que le total monte :
+  // le seul mouvement du héros, joué une fois à l'arrivée.
+  const sansMouvement = prefersReducedMotion();
+  const delai = (i: number) => (sansMouvement ? 0 : 350 + i * 420);
+  const dureeTotal = sansMouvement ? 0 : delai(PLAN_FINANCEMENT.length - 1) + 500;
+
   return (
     <div
       ref={ref}
-      className="flex flex-col rounded-2xl border p-5 shadow-[0_28px_60px_-22px_rgba(10,54,157,0.38)] sm:p-6"
-      style={{ background: C.card, borderColor: C.border }}
+      className="rounded-[20px] border p-5 shadow-[0_40px_80px_-30px_rgba(7,29,82,0.6)]"
+      style={{ background: C.card, borderColor: C.border, color: C.ink }}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-[11.5px] font-semibold uppercase tracking-[0.14em]" style={{ color: C.blueLight }}>
-          {t('EstimationCard.titre')}
-        </span>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-serif text-[1.1rem] font-bold">{t('PlanFinancement.titre')}</h2>
         <span
-          className="rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em]"
-          style={{ background: C.paleBlue, color: C.blueLight }}
+          className="rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold"
+          style={{ background: C.paleBlue, color: C.blue }}
         >
-          {t('Commun.exemple')}
+          {t('PlanFinancement.simulation')}
         </span>
       </div>
-
-      <h3 className="mt-2.5 font-serif text-[1.15rem] font-bold leading-snug" style={{ color: C.ink }}>
-        {t('EstimationCard.projet')}
-      </h3>
-      <p className="text-[12.5px]" style={{ color: C.inkFaint }}>
-        {t('EstimationCard.monument')}
+      <p className="mt-0.5 text-[12.5px]" style={{ color: C.inkFaint }}>
+        {t('PlanFinancement.chantier')}
       </p>
 
-      <p className="mt-4 text-[11.5px] font-medium uppercase tracking-[0.1em]" style={{ color: C.inkFaint }}>
-        {t('Commun.aidesEstimees')}
-      </p>
-      <p className="mt-1.5 font-serif text-[1.6rem] font-bold leading-none" style={{ color: C.blue }}>
-        {/* L'ordre du montant et de la devise change d'une langue à l'autre :
-            les deux compteurs entrent dans la phrase traduite. */}
-        <Trans
-          t={t}
-          i18nKey="EstimationCard.fourchette"
-          components={{
-            // Hors de l'écran, `to` vaut 0 : le compteur affiche « 0 » et ne
-            // part qu'à l'arrivée de la carte, comme avant.
-            min: <CountUp to={inView ? 420000 : 0} />,
-            max: <CountUp to={inView ? 680000 : 0} duration={1600} />,
-            mot: <span className="text-[1.05rem] font-normal" style={{ color: C.inkFaint }} />,
-          }}
-        />
-      </p>
-      <div className="mt-3.5 h-2 overflow-hidden rounded-full" style={{ background: C.paleBlue }}>
-        <div
-          className="h-full rounded-full transition-[width] duration-[1600ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
-          style={{
-            width: inView ? '64%' : '0%',
-            background: `linear-gradient(90deg, ${C.orange}, ${C.orangeVif})`,
-          }}
-        />
+      <div className={`${GRILLE_PLAN} mt-3 text-[13px]`} style={{ color: C.inkSoft }}>
+        <span className="col-span-2">{t('PlanFinancement.cout')}</span>
+        <span className="text-right font-semibold tabular-nums" style={{ color: C.ink }}>
+          {euros(CHANTIER_HT)}
+        </span>
+        <span />
       </div>
 
-      <p
-        className="mt-4 flex items-center gap-2 border-t pt-3.5 text-[12.5px] leading-snug"
-        style={{ borderColor: C.border, color: C.inkSoft }}
-      >
-        <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: C.blueLight }} strokeWidth={1.8} />
-        {t('EstimationCard.identifiees')}
-      </p>
+      <ul className="mt-1.5 text-[13px]">
+        {PLAN_FINANCEMENT.map((ligne, i) => (
+          <li
+            key={ligne.cle}
+            className={`${GRILLE_PLAN} border-t py-2 transition-[opacity,transform] duration-500 ease-out`}
+            style={{
+              borderColor: '#f1eadb',
+              opacity: inView ? 1 : 0,
+              transform: inView ? 'none' : 'translateY(6px)',
+              transitionDelay: `${delai(i)}ms`,
+            }}
+          >
+            <i className="h-2 w-2 self-center rounded-[2px]" style={{ background: ligne.couleur }} />
+            <span className="min-w-0">
+              <b className="font-semibold">{t(`PlanFinancement.aides.${ligne.cle}.nom`)}</b>
+              <small className="block text-[11.5px] leading-snug" style={{ color: C.inkFaint }}>
+                {t(`PlanFinancement.aides.${ligne.cle}.detail`)}
+              </small>
+            </span>
+            <span className="text-right font-semibold tabular-nums">{euros(ligne.montant)}</span>
+            <span className="text-right text-[12px] tabular-nums" style={{ color: C.inkFaint }}>
+              {pourcent(partDuChantier(ligne.montant))}
+            </span>
+          </li>
+        ))}
+      </ul>
 
-      <button
-        onClick={entrerDansMonumia}
-        className="mt-3 self-start text-[12.5px] font-semibold transition-opacity duration-200 hover:opacity-75"
-        style={{ color: C.orange }}
-      >
-        {t('EstimationCard.etPourVous')}
-      </button>
+      <div className="mt-1 flex h-2 overflow-hidden rounded-full" style={{ background: C.paleBlue }} aria-hidden="true">
+        {PLAN_FINANCEMENT.map((ligne, i) => (
+          <span
+            key={ligne.cle}
+            className="h-full transition-[width] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            style={{
+              width: inView ? `${(ligne.montant / CHANTIER_HT) * 100}%` : '0%',
+              background: ligne.couleur,
+              boxShadow: i > 0 ? `inset 2px 0 0 ${C.card}` : undefined,
+              transitionDelay: `${delai(i)}ms`,
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div>
+          <small className="block text-[12px] font-medium" style={{ color: C.inkSoft }}>
+            {t('PlanFinancement.total')}
+          </small>
+          <span className="whitespace-nowrap font-serif text-[2.05rem] font-bold leading-[1.05] tabular-nums" style={{ color: C.blue }}>
+            <CountUp to={inView ? TOTAL_AIDES : 0} delay={delai(0)} duration={dureeTotal} format={euros} />
+          </span>
+        </div>
+        <div className="text-right">
+          <b className="block font-serif text-[1.4rem] leading-none tabular-nums" style={{ color: C.orange }}>
+            <CountUp
+              to={inView ? partDuChantier(TOTAL_AIDES) : 0}
+              delay={delai(0)}
+              duration={dureeTotal}
+              format={pourcent}
+            />
+          </b>
+          <small className="text-[11.5px]" style={{ color: C.inkFaint }}>
+            {t('PlanFinancement.duChantier')}
+          </small>
+        </div>
+      </div>
     </div>
   );
 }
 
+/* Voiles posés sur la photo, pour que le texte blanc se lise sur tout le
+   ciel : à gauche et en bas sur grand écran, du bas vers le haut sur mobile. */
+const VOILE_LARGE = [
+  'linear-gradient(90deg, rgba(7,29,82,0.86) 0%, rgba(7,29,82,0.62) 34%, rgba(7,29,82,0.08) 64%, rgba(7,29,82,0) 100%)',
+  'linear-gradient(0deg, rgba(7,29,82,0.55) 0%, rgba(7,29,82,0) 38%)',
+  'linear-gradient(180deg, rgba(7,29,82,0.45) 0%, rgba(7,29,82,0) 22%)',
+].join(', ');
+const VOILE_ETROIT =
+  'linear-gradient(0deg, rgba(7,29,82,0.92) 0%, rgba(7,29,82,0.7) 50%, rgba(7,29,82,0.25) 80%, rgba(7,29,82,0.45) 100%)';
+
 function Hero() {
   const { t } = useTranslation();
   return (
-    <section className="relative overflow-hidden px-5 pb-24 pt-24 sm:pt-28 lg:px-8 lg:pb-28 lg:pt-32">
-      <div
-        className="pointer-events-none absolute -top-32 right-[-12%] h-[460px] w-[460px] rounded-full blur-[130px]"
-        style={{ background: 'rgba(241, 113, 5, 0.1)' }}
-      />
-
-      <div className="relative mx-auto grid max-w-6xl items-center gap-16 lg:grid-cols-[1.22fr_0.78fr] lg:items-start lg:gap-12">
-        {/* Le texte du héros s'affiche d'emblée, sans fondu : parti d'une
-            opacité nulle, il laissait un écran vide tant que le téléphone,
-            occupé par ailleurs, n'avait pas démarré l'animation. Le fondu reste
-            sur la colonne de l'image, qui n'est pas ce qu'on lit en premier. */}
-        <div>
-          <p
-            className="text-[11.5px] font-semibold uppercase tracking-[0.16em]"
-            style={{ color: C.orange }}
-          >
-            {t('Hero.surtitre')}
-          </p>
-
-          <h1
-            className="mt-4 font-serif text-[clamp(1.85rem,4.2vw,2.7rem)] leading-[1.13] tracking-[-0.015em]"
-            style={{ color: C.ink }}
-          >
-            <Trans
-              t={t}
-              i18nKey="Hero.titre"
-              components={{
-                bleu: <span style={{ color: C.blue }} />,
-                orange: <span style={{ color: C.orange }} />,
-              }}
+    <section className="relative">
+      {/* `z-10` : la liste de la recherche déborde sur la bande des
+          partenaires, dont les logos (semi-opaques, donc sur leur propre
+          plan) passeraient sinon par-dessus. */}
+      <div className="relative isolate z-10 flex min-h-[640px] flex-col sm:min-h-[700px] lg:min-h-[760px]">
+        {/* La photo, en plein cadre. Déclinée en trois largeurs : l'original
+            (5 000 px et plus) coûterait cher à décoder sur un téléphone. */}
+        <div className="absolute inset-0 -z-20 overflow-hidden" style={{ background: '#55647a' }}>
+          <picture>
+            <source
+              type="image/webp"
+              srcSet={`${BASE}img/bassac-1200.webp 1200w, ${BASE}img/bassac-2000.webp 2000w, ${BASE}img/bassac-2400.webp 2400w`}
+              sizes="100vw"
             />
+            <img
+              src={`${BASE}img/bassac-2000.jpg`}
+              width={2000}
+              height={1332}
+              fetchPriority="high"
+              alt={t('Hero.photoAlt')}
+              className="hero-recul h-full w-full object-cover"
+              style={{ objectPosition: '74% 45%' }}
+            />
+          </picture>
+        </div>
+        <div aria-hidden="true" className="absolute inset-0 -z-10 hidden md:block" style={{ background: VOILE_LARGE }} />
+        <div aria-hidden="true" className="absolute inset-0 -z-10 md:hidden" style={{ background: VOILE_ETROIT }} />
+
+        <div className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col justify-end px-5 pb-10 pt-32 lg:px-8 lg:pb-40">
+          <h1 className="max-w-[660px] font-serif text-[clamp(2.5rem,5.4vw,4.4rem)] font-normal leading-[1.03] tracking-[-0.02em] text-white">
+            <span className="block">{t('Hero.titre1')}</span>
+            <span className="block">{t('Hero.titre2')}</span>
+            <span className="block">{t('Hero.titre3')}</span>
           </h1>
 
-          <p
-            className="mt-7 max-w-[41rem] text-[16px] font-medium leading-[1.7] sm:text-[17px]"
-            style={{ color: C.inkSoft }}
-          >
-            {t('Hero.intro')}
-          </p>
-
-          <div className="mt-9 flex flex-wrap items-center gap-4">
-            <CtaButton variant="blue" onClick={entrerDansMonumia}>
-              {t('Commun.trouverLesAides')}
-            </CtaButton>
-          </div>
+          <RechercheMonument />
 
           {/* Ce qu'engage le clic : rien. Dit avant le clic, pas après. */}
-          <p className="mt-5 text-[13px]" style={{ color: C.inkFaint }}>
+          <p className="mt-4 text-[13px] sm:ml-5" style={{ color: 'rgba(255, 255, 255, 0.75)' }}>
             {t('Hero.reassurance')}
           </p>
 
-          {/* Ceux qui nous accompagnent, dits tout de suite : la confiance se
-              gagne avant le clic, pas en bas de page. */}
-          <Partenaires className="mt-8" />
-        </div>
+          {/* CC BY-SA : l'auteur, la licence, et la mention du recadrage. */}
+          <p className="mt-8 text-[11px] lg:absolute lg:bottom-4 lg:left-8 lg:mt-0" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+            <Trans
+              t={t}
+              i18nKey="Hero.credit"
+              components={{
+                source: (
+                  <a
+                    href="https://commons.wikimedia.org/wiki/File:Bassac_16_Abbaye_vue_ESE_2014.jpg"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline-offset-2 hover:underline"
+                  />
+                ),
+                licence: (
+                  <a
+                    href="https://creativecommons.org/licenses/by-sa/3.0/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline-offset-2 hover:underline"
+                  />
+                ),
+              }}
+            />
+          </p>
 
-        <div
-          className="fade-up relative mx-auto mt-12 w-full max-w-[460px] lg:mt-0 lg:max-w-none"
-          style={{ animationDelay: '0.4s' }}
-        >
-          <EstimationCard />
-
-          {/* Mini-carte d’alerte flottante : la veille incarnée */}
-          <div
-            className="relative z-10 -mt-3 ml-auto mr-2 flex w-[240px] max-w-[88%] items-start gap-3 rounded-xl border p-3.5 pl-4 shadow-[0_18px_40px_-16px_rgba(34,43,53,0.3)] [animation:floaty_7s_ease-in-out_infinite]"
-            style={{ background: C.card, borderColor: C.border }}
-          >
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: C.paleOrange }}>
-              <BellRing className="h-4.5 w-4.5" style={{ color: C.orange }} strokeWidth={1.8} />
-            </span>
-            <span>
-              <span className="block text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: C.orange }}>
-                {t('Hero.alerteTitre')}
-              </span>
-              <span className="mt-0.5 block text-[12.5px] leading-snug" style={{ color: C.ink }}>
-                {t('Hero.alerteTexte')}
-              </span>
-            </span>
+          {/* À cheval sur le bas de la photo et la bande des partenaires, comme
+              la carte qui chevauche le bandeau de Doctolib. */}
+          <div className="relative z-20 -mb-24 mt-6 lg:absolute lg:bottom-0 lg:right-8 lg:mb-0 lg:mt-0 lg:w-[370px] lg:translate-y-[42%]">
+            <PlanFinancement />
           </div>
         </div>
       </div>
+
+      <BandePreuve />
     </section>
   );
 }
@@ -1904,7 +2286,9 @@ type Plan = {
   punchline: string;
   intro: string[];
   features: PlanFeature[];
-  footer: string;
+  /* « Tout Découverte, plus : » — l'offre du dessous, dite avant la liste. */
+  inclut?: string;
+  footer?: string;
   note?: string;
   cta: string;
   badge?: string;
@@ -1924,7 +2308,7 @@ function plans(t: TFunction<'landing'>): Plan[] {
       // « Trouver mes aides » : un CTA d'entrée comme les autres.
       onClick: entrerDansMonumia,
       punchline: t('Tarifs.decouverte.accroche'),
-      intro: [t('Tarifs.decouverte.intro')],
+      intro: [t('Tarifs.decouverte.intro1'), t('Tarifs.decouverte.intro2')],
       features: [
         { lead: t('Tarifs.decouverte.avantages.monument') },
         { lead: t('Tarifs.decouverte.avantages.detail') },
@@ -1950,14 +2334,13 @@ function plans(t: TFunction<'landing'>): Plan[] {
         { lead: t('Tarifs.veille.avantages.aVenir') },
         { lead: t('Tarifs.veille.avantages.equipe') },
       ],
-      footer: t('Tarifs.veille.resume'),
+      inclut: t('Tarifs.veille.inclut'),
       cta: t('Tarifs.nousContacter'),
     },
     {
       name: t('Tarifs.multi.nom'),
       audience: t('Tarifs.multi.public'),
       tone: 'blue',
-      badge: t('Tarifs.multi.badge'),
       onClick: goToContact,
       punchline: t('Tarifs.multi.accroche'),
       intro: [t('Tarifs.multi.intro1'), t('Tarifs.multi.intro2')],
@@ -1966,23 +2349,27 @@ function plans(t: TFunction<'landing'>): Plan[] {
         { lead: t('Tarifs.multi.avantages.tableauDeBord') },
         { lead: t('Tarifs.multi.avantages.documents') },
       ],
-      footer: t('Tarifs.multi.resume'),
+      inclut: t('Tarifs.multi.inclut'),
       cta: t('Tarifs.nousContacter'),
     },
   ];
 }
 
 /* Une carte d’offre. Trois traitements visuels (crème, mise en avant, bleu),
-   une seule structure : nom, punchline, mise en situation, bénéfices, résumé. */
+   une seule structure : nom, punchline, mise en situation, bénéfices, résumé.
+   Sur grand écran, les trois cartes partagent trois rangées (subgrid) :
+   l'en-tête prend la hauteur du plus long, si bien que le trait et la première
+   coche tombent à la même hauteur sur les trois, et les boutons en bas. */
+const RANGEES_OFFRE = 'lg:row-span-3 lg:grid lg:grid-rows-subgrid';
 function PlanCard({ plan }: { plan: Plan }) {
   const dark = plan.tone === 'blue';
   const highlight = plan.tone === 'highlight';
 
   const shell = dark
-    ? 'relative flex h-full flex-col overflow-hidden rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_30px_66px_-28px_rgba(0,0,0,0.5)]'
+    ? `${RANGEES_OFFRE} relative flex h-full flex-col overflow-hidden rounded-2xl border border-transparent p-8 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_30px_66px_-28px_rgba(0,0,0,0.5)]`
     : highlight
-      ? 'relative flex h-full flex-col rounded-2xl border-[1.5px] p-8 shadow-[0_24px_60px_-28px_rgba(241,113,5,0.45)] transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_34px_72px_-26px_rgba(241,113,5,0.6)]'
-      : 'relative flex h-full flex-col rounded-2xl border p-8 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.25)]';
+      ? `${RANGEES_OFFRE} relative flex h-full flex-col rounded-2xl border-[1.5px] p-8 shadow-[0_24px_60px_-28px_rgba(241,113,5,0.45)] transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_34px_72px_-26px_rgba(241,113,5,0.6)]`
+      : `${RANGEES_OFFRE} relative flex h-full flex-col rounded-2xl border p-8 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.25)]`;
 
   const shellStyle: CSSProperties = dark
     ? { background: C.blue }
@@ -2013,66 +2400,79 @@ function PlanCard({ plan }: { plan: Plan }) {
         </span>
       )}
 
-      <div className="relative flex h-full flex-col">
-        <h3 className="font-serif text-[1.3rem] font-bold" style={{ color: titleColor }}>
-          {plan.name}
-        </h3>
-        <p className="mt-1 text-[13.5px]" style={{ color: audienceColor }}>
-          {plan.audience}
-        </p>
-
-        <p
-          className="mt-6 font-serif text-[1.15rem] font-bold leading-[1.35]"
-          style={{ color: punchColor }}
-        >
-          {plan.punchline}
-        </p>
-
-        {plan.intro.map((p) => (
-          <p key={p} className="mt-4 text-[14.5px] leading-[1.7]" style={{ color: bodyColor }}>
-            {p}
+      <div className={`${RANGEES_OFFRE} relative flex h-full flex-col`}>
+        {/* Rangée 1 : l'en-tête, aussi haut que le plus long des trois. */}
+        <div>
+          <h3 className="font-serif text-[1.3rem] font-bold" style={{ color: titleColor }}>
+            {plan.name}
+          </h3>
+          <p className="mt-1 text-[13.5px]" style={{ color: audienceColor }}>
+            {plan.audience}
           </p>
-        ))}
 
-        <ul
-          className="mt-7 flex-1 space-y-4 border-t pt-7"
-          style={{ borderColor: ruleColor }}
-        >
-          {plan.features.map((f) => (
-            <li key={f.lead} className="flex items-start gap-2.5">
-              <Check className="mt-1 h-4 w-4 shrink-0" style={{ color: accent }} strokeWidth={2.2} />
-              <span className="text-[14.5px] leading-[1.6]">
-                <span className="font-semibold" style={{ color: leadColor }}>
-                  {f.lead}
-                </span>
-                {f.detail && (
-                  <span style={{ color: bodyColor }}> {f.detail}</span>
-                )}
-              </span>
-            </li>
+          <p
+            className="mt-6 font-serif text-[1.15rem] font-bold leading-[1.35]"
+            style={{ color: punchColor }}
+          >
+            {plan.punchline}
+          </p>
+
+          {plan.intro.map((p) => (
+            <p key={p} className="mt-4 text-[14.5px] leading-[1.7]" style={{ color: bodyColor }}>
+              {p}
+            </p>
           ))}
-        </ul>
+        </div>
 
-        <p
-          className="mt-7 border-t pt-5 text-[13.5px] font-semibold leading-[1.6]"
-          style={{ borderColor: ruleColor, color: accent }}
-        >
-          {plan.footer}
-        </p>
+        {/* Rangée 2 : le trait, l'offre incluse, puis les bénéfices. */}
+        <div className="mt-7 flex-1 border-t pt-7" style={{ borderColor: ruleColor }}>
+          {plan.inclut && (
+            <p className="mb-4 text-[14.5px] font-semibold leading-[1.6]" style={{ color: accent }}>
+              {plan.inclut}
+            </p>
+          )}
+          <ul className="space-y-4">
+            {plan.features.map((f) => (
+              <li key={f.lead} className="flex items-start gap-2.5">
+                <Check className="mt-1 h-4 w-4 shrink-0" style={{ color: accent }} strokeWidth={2.2} />
+                <span className="text-[14.5px] leading-[1.6]">
+                  <span className="font-semibold" style={{ color: leadColor }}>
+                    {f.lead}
+                  </span>
+                  {f.detail && <span style={{ color: bodyColor }}> {f.detail}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-        {plan.note && (
-          <p className="mt-3 text-[13px] italic leading-[1.6]" style={{ color: audienceColor }}>
-            {plan.note}
-          </p>
-        )}
+        {/* Rangée 3 : le résumé et le bouton, poussé en bas. */}
+        <div className="flex flex-col">
+          {plan.footer && (
+            <p
+              className="mt-7 border-t pt-5 text-[13.5px] font-semibold leading-[1.6]"
+              style={{ borderColor: ruleColor, color: accent }}
+            >
+              {plan.footer}
+            </p>
+          )}
 
-        <CtaButton
-          variant={dark ? 'white' : highlight ? 'primary' : 'ghost'}
-          onClick={plan.onClick}
-          className="mt-7 w-full"
-        >
-          {plan.cta}
-        </CtaButton>
+          {plan.note && (
+            <p className="mt-3 text-[13px] italic leading-[1.6]" style={{ color: audienceColor }}>
+              {plan.note}
+            </p>
+          )}
+
+          <div className="mt-auto pt-7">
+            <CtaButton
+              variant={dark ? 'white' : highlight ? 'primary' : 'ghost'}
+              onClick={plan.onClick}
+              className="w-full"
+            >
+              {plan.cta}
+            </CtaButton>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -2091,9 +2491,11 @@ function Pricing() {
           <SectionTitle filet={false} title={t('Tarifs.titre')} />
         </Reveal>
 
-        <div className="mt-14 grid items-stretch gap-6 lg:grid-cols-3">
+        {/* `gap-y-0` sur grand écran : les cartes en subgrid hériteraient de
+            l'écart entre leurs propres rangées. */}
+        <div className="mt-14 grid items-stretch gap-6 lg:grid-cols-3 lg:gap-y-0">
           {plans(t).map((p, i) => (
-            <Reveal key={p.name} delay={i * 120} className="h-full">
+            <Reveal key={p.name} delay={i * 120} className={`h-full ${RANGEES_OFFRE}`}>
               <PlanCard plan={p} />
             </Reveal>
           ))}

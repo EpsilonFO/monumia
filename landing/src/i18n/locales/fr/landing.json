@@ -26,23 +26,53 @@
     "monCompte": "Mon compte"
   },
   "Partenaires": {
-    "referencePar": "Référencé par"
+    "referencePar": "Référencé par",
+    "chiffres": "<fort>Plus de 600 aides</fort> de <fort>132 financeurs</fort>, suivies et vérifiées dans 86 départements."
   },
-  "EstimationCard": {
-    "titre": "Votre estimation",
-    "projet": "Restauration de la façade",
-    "monument": "Château protégé",
-    "fourchette": "<min></min> € <mot>à</mot> <max></max> €",
-    "identifiees": "12 aides identifiées · DRAC, Région, Fondation du patrimoine",
-    "etPourVous": "Et pour votre monument ? →"
+  "PlanFinancement": {
+    "titre": "Plan de financement",
+    "simulation": "Simulation",
+    "chantier": "Charpente d’une église inscrite, ouverte au public",
+    "cout": "Montant des travaux HT",
+    "aides": {
+      "drac": {
+        "nom": "DRAC",
+        "detail": "Monument inscrit"
+      },
+      "creditAgricole": {
+        "nom": "Fondation Crédit Agricole",
+        "detail": "Pays de France"
+      },
+      "charpente": {
+        "nom": "Prix Charpente remarquable",
+        "detail": "Fondation Mérimée"
+      },
+      "boisForet": {
+        "nom": "France Bois Forêt",
+        "detail": "Dotation patrimoine"
+      }
+    },
+    "total": "Aides mobilisables",
+    "duChantier": "du chantier"
   },
   "Hero": {
-    "surtitre": "Le moteur de recherche des aides au patrimoine",
-    "titre": "L’argent pour restaurer et faire vivre votre monument <bleu>existe</bleu>. Nous vous aidons à le <orange>trouver</orange>.",
-    "intro": "À quelles aides votre monument est-il éligible ? Pour quel montant ? Comment les obtenir ? Monumia croise votre projet de restauration, d’ouverture ou d’animation avec plus de 2000 aides, de la DRAC aux fondations.",
+    "titre1": "Trouvez les aides.",
+    "titre2": "Montez vos dossiers.",
+    "titre3": "Restaurez.",
+    "recherche": {
+      "libelle": "Cherchez votre monument dans la base Mérimée",
+      "placeholder": "Nom du monument ou commune",
+      "bouton": "Voir mes aides",
+      "classe": "Classé MH",
+      "inscrit": "Inscrit MH",
+      "inconnue": "Protection inconnue",
+      "aucun": "Aucun monument trouvé pour « {{saisie}} ».",
+      "pasDansLaListe": "Votre monument n’est pas dans la liste ?",
+      "continuer": "Continuer avec « {{saisie}} »"
+    },
     "reassurance": "En quelques minutes · Gratuit, sans engagement · Monument protégé ou non",
-    "alerteTitre": "Alerte ouverture",
-    "alerteTexte": "La Fondation du patrimoine ouvre ses candidatures"
+    "photoAlt": "L’église abbatiale de Bassac et son clocher roman, sous un ciel bleu.",
+    "credit": "Photo : <source>abbaye de Bassac (Charente), JLPC</source>, <licence>CC BY-SA 3.0</licence>, recadrée"
   },
   "Constat": {
     "presDUnSurQuatre": "Près d’un sur quatre",
@@ -236,7 +266,8 @@
       "nom": "Découverte",
       "public": "gratuit",
       "accroche": "Trouvez toutes les aides de votre monument.",
-      "intro": "Vous répondez à quelques questions sur votre monument, sa protection et votre projet. Nous croisons vos réponses avec plus de 400 aides, de l’État aux fondations, et vous rendons celles auxquelles votre projet peut prétendre, avec le taux et le plafond annoncés par chaque financeur.",
+      "intro1": "Vous répondez à quelques questions sur votre monument, sa protection et votre projet.",
+      "intro2": "Nous croisons vos réponses avec plus de 400 aides, de l’État aux fondations, et vous rendons celles auxquelles votre projet peut prétendre, avec le taux et le plafond annoncés par chaque financeur.",
       "avantages": {
         "monument": "1 monument, 2 projets",
         "detail": "Pour chaque aide : critères, taux et plafond, calendrier, pièces exigées, service instructeur",
@@ -252,29 +283,28 @@
       "public": "pour un monument en activité",
       "badge": "Le plus choisi",
       "accroche": "Vous ne cherchez plus vos aides. Elles vous sont signalées.",
-      "intro1": "Découverte vous donne une photo à un instant donné, pour un projet. Veille suit vos projets toute l’année et vous prévient à chaque ouverture de guichet.",
-      "intro2": "Vous remplissez le questionnaire une fois. Votre profil reste actif toute l’année. Dès qu’une aide s’ouvre et que l’un de vos projets y est éligible, vous recevez l’alerte avec la date de clôture et les pièces à réunir.",
+      "intro1": "Veille suit vos projets toute l’année et vous prévient à chaque ouverture ou fermeture imminente de guichet.",
+      "intro2": "Remplissez un questionnaire une fois. Votre profil reste actif toute l’année. Dès qu’une aide s’ouvre et que l’un de vos projets y est éligible, vous recevez l’alerte avec la date de clôture et les pièces à réunir.",
+      "inclut": "Tout Découverte, plus :",
       "avantages": {
-        "projets": "Projets illimités : chaque chantier a ses propres financeurs",
-        "echeancier": "L’échéancier et les rappels par e-mail, envoyés à plusieurs intervalles avant chaque clôture",
-        "aVenir": "Les aides à venir dévoilées dès leur annonce, pour préparer le dossier avant l’ouverture du guichet",
+        "projets": "Projets illimités",
+        "echeancier": "Notifications par mail des fermetures imminentes de périodes de candidature",
+        "aVenir": "Les aides à venir dévoilées dès leur annonce",
         "equipe": "Invitez votre architecte, vos artisans ou un assistant sur un projet"
-      },
-      "resume": "Tout Découverte, plus les projets illimités, l’échéancier, les alertes et l’équipe."
+      }
     },
     "multi": {
       "nom": "Multi-monuments",
-      "public": "pour les propriétaires de plusieurs monuments, les communes et les associations",
-      "badge": "Le plus complet",
+      "public": "pour les propriétaires de plusieurs monuments",
       "accroche": "Tous vos monuments sur un seul tableau de bord.",
       "intro1": "Veille couvre un monument. Multi-monuments les réunit tous.",
       "intro2": "Plusieurs monuments, autant de calendriers de dépôt et d’intervenants à coordonner. Ils tiennent dans une seule vue.",
+      "inclut": "Tout Veille, plus :",
       "avantages": {
         "monuments": "Monuments illimités, chacun avec ses projets, ses documents et son équipe",
         "tableauDeBord": "Le tableau de bord consolidé : tous les projets, toutes les échéances, sur un seul calendrier",
         "documents": "Un espace documents distinct par monument, sans confusion entre deux dossiers"
-      },
-      "resume": "Tout Veille sur chacun de vos monuments, plus le tableau de bord consolidé."
+      }
     }
   },
   "Faq": {

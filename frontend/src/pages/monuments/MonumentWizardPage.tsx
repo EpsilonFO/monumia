@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { LogoMonumia } from '@/components/icons';
 import { PaywallDialog } from '@/components/shared/Paywall';
 import { Picto } from '@/components/shared/ecrans/Picto';
@@ -72,17 +72,33 @@ export function MonumentWizardPage() {
   const brouillonMonument = useBrouillonInviteStore((s) => s.monument);
   const setBrouillonMonument = useBrouillonInviteStore((s) => s.setMonument);
 
+  // Arrivée depuis la recherche du site vitrine : `?merimee=<référence>` quand
+  // le visiteur y a choisi une notice, `?nom=<saisie>` quand il n'a pas trouvé
+  // son monument et part de ce qu'il a tapé. Lus une fois : c'est une nouvelle
+  // intention, qui prime sur le brouillon d'une visite précédente.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [arrivee] = useState(() => ({
+    merimee: searchParams.get('merimee')?.trim() || null,
+    nom: searchParams.get('nom')?.trim() || null,
+  }));
+  const depuisVitrine = Boolean(arrivee.merimee || arrivee.nom);
+
   // Un visiteur qui revient (F5, onglet fermé, « Précédent » depuis le wizard
   // projet) retrouve sa fiche. La valeur est lue une fois, à l'initialisation :
   // la page est ensuite maîtresse de son propre état.
-  const [fiche, setFiche] = useState<FicheMonument>(() => brouillonMonument ?? {});
+  const [fiche, setFiche] = useState<FicheMonument>(() => {
+    if (!depuisVitrine) return brouillonMonument ?? {};
+    if (!arrivee.nom) return {};
+    const depart: FicheMonument = { nom: arrivee.nom };
+    return { ...depart, ...avecTypesEdifice(depart, typesEdificeDepuisNom(arrivee.nom)) };
+  });
   const [source, setSource] = useState<Source>(() =>
-    brouillonMonument?.referenceMerimee ? 'merimee' : 'recherche',
+    !depuisVitrine && brouillonMonument?.referenceMerimee ? 'merimee' : 'recherche',
   );
   // Vrai tant que le type d'édifice n'a été ni choisi à la main, ni donné par
   // la dénomination d'une notice : il se déduit alors du nom, à chaque frappe.
   const [typesDepuisNom, setTypesDepuisNom] = useState(
-    () => typesCoches(brouillonMonument ?? {}).length === 0,
+    () => depuisVitrine || typesCoches(brouillonMonument ?? {}).length === 0,
   );
   const [chargementNotice, setChargementNotice] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -100,17 +116,19 @@ export function MonumentWizardPage() {
     });
   };
 
+  const appliquerNotice = (record: MerimeeRecord) => {
+    setFiche((prev) => appliquerMerimee(prev, ficheDepuisMerimee(record)));
+    // Types tirés du thésaurus : ils font foi. Tirés du nom (ou aucun) : le
+    // nom continue de les piloter si on le corrige.
+    setTypesDepuisNom(typesEdificeDepuisDenomination(record.denomination_de_l_edifice).length === 0);
+    setSource('merimee');
+  };
+
   const handleMerimeeSelect = async (searchRecord: MerimeeRecord) => {
     setChargementNotice(true);
     try {
       const fullRecord = await merimeeService.getByReference(searchRecord.reference);
-      const notice = ficheDepuisMerimee(fullRecord ?? searchRecord);
-      setFiche((prev) => appliquerMerimee(prev, notice));
-      // Types tirés du thésaurus : ils font foi. Tirés du nom (ou aucun) : le
-      // nom continue de les piloter si on le corrige.
-      const record = fullRecord ?? searchRecord;
-      setTypesDepuisNom(typesEdificeDepuisDenomination(record.denomination_de_l_edifice).length === 0);
-      setSource('merimee');
+      appliquerNotice(fullRecord ?? searchRecord);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : t('MonumentWizardPage.erreurMerimee'),
@@ -119,6 +137,30 @@ export function MonumentWizardPage() {
       setChargementNotice(false);
     }
   };
+
+  // La notice choisie sur le site vitrine n'arrive que par sa référence : sans
+  // la notice complète, rien à appliquer, et la recherche reste ouverte.
+  const arriveeTraitee = useRef(false);
+  useEffect(() => {
+    if (arriveeTraitee.current || !depuisVitrine) return;
+    arriveeTraitee.current = true;
+    // Les paramètres ont servi : retirés de l'adresse, un F5 ne repartirait
+    // pas d'eux en écrasant ce que le visiteur a saisi depuis.
+    setSearchParams({}, { replace: true });
+    if (!arrivee.merimee) return;
+    const reference = arrivee.merimee;
+    setChargementNotice(true);
+    merimeeService
+      .getByReference(reference)
+      .then((record) => {
+        if (record) appliquerNotice(record);
+        else toast.error(t('MonumentWizardPage.noticeIntrouvable', { reference }));
+      })
+      .catch(() => toast.error(t('MonumentWizardPage.erreurMerimee')))
+      .finally(() => setChargementNotice(false));
+    // Une seule fois, à l'arrivée.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleFormSubmit = async () => {
     // Le bouton est désactivé tant qu'il manque un champ requis : ce garde ne

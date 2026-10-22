@@ -26,23 +26,53 @@
     "monCompte": "My account"
   },
   "Partenaires": {
-    "referencePar": "Listed by"
+    "referencePar": "Listed by",
+    "chiffres": "<fort>Over 600 funding schemes</fort> from <fort>132 funders</fort>, tracked and checked across 86 French départements."
   },
-  "EstimationCard": {
-    "titre": "Your estimate",
-    "projet": "Façade restoration",
-    "monument": "Protected château",
-    "fourchette": "€<min></min> <mot>to</mot> €<max></max>",
-    "identifiees": "12 schemes identified · DRAC, Region, Fondation du patrimoine",
-    "etPourVous": "What about your monument? →"
+  "PlanFinancement": {
+    "titre": "Funding plan",
+    "simulation": "Simulation",
+    "chantier": "Roof timbers of a listed church open to the public",
+    "cout": "Cost of works excl. VAT",
+    "aides": {
+      "drac": {
+        "nom": "DRAC",
+        "detail": "Listed monument (inscrit)"
+      },
+      "creditAgricole": {
+        "nom": "Crédit Agricole Foundation",
+        "detail": "Pays de France"
+      },
+      "charpente": {
+        "nom": "Charpente remarquable Prize",
+        "detail": "Fondation Mérimée"
+      },
+      "boisForet": {
+        "nom": "France Bois Forêt",
+        "detail": "Heritage grant"
+      }
+    },
+    "total": "Funding available",
+    "duChantier": "of the works"
   },
   "Hero": {
-    "surtitre": "The search engine for heritage funding",
-    "titre": "The money to restore your monument and bring it to life <bleu>exists</bleu>. We help you <orange>find</orange> it.",
-    "intro": "Which funding schemes is your monument eligible for? How much could you receive? How do you secure it? Monumia matches your restoration, opening or events project against more than 2,000 schemes, from the DRAC (the State’s regional culture office) to charitable foundations.",
+    "titre1": "Find the funding.",
+    "titre2": "Build your applications.",
+    "titre3": "Restore.",
+    "recherche": {
+      "libelle": "Search for your monument in the Mérimée database",
+      "placeholder": "Monument name or town",
+      "bouton": "See my funding",
+      "classe": "Listed (classé)",
+      "inscrit": "Listed (inscrit)",
+      "inconnue": "Protection unknown",
+      "aucun": "No monument found for “{{saisie}}”.",
+      "pasDansLaListe": "Is your monument not in the list?",
+      "continuer": "Continue with “{{saisie}}”"
+    },
     "reassurance": "Takes a few minutes · Free, no commitment · Protected monument or not",
-    "alerteTitre": "Opening alert",
-    "alerteTexte": "The Fondation du patrimoine is now accepting applications"
+    "photoAlt": "The abbey church of Bassac and its Romanesque bell tower under a blue sky.",
+    "credit": "Photo: <source>Bassac Abbey (Charente), JLPC</source>, <licence>CC BY-SA 3.0</licence>, cropped"
   },
   "Constat": {
     "presDUnSurQuatre": "Nearly one in four",
@@ -236,7 +266,8 @@
       "nom": "Discovery",
       "public": "free",
       "accroche": "Find every scheme open to your monument.",
-      "intro": "You answer a few questions about your monument, its protection status and your project. We match your answers against more than 400 schemes, from the State to foundations, and show you the ones your project can apply for, with the rate and ceiling published by each funder.",
+      "intro1": "You answer a few questions about your monument, its protection status and your project.",
+      "intro2": "We match your answers against more than 400 schemes, from the State to foundations, and show you the ones your project can apply for, with the rate and ceiling published by each funder.",
       "avantages": {
         "monument": "1 monument, 2 projects",
         "detail": "For each scheme: criteria, rate and ceiling, timetable, supporting documents, assessing body",
@@ -254,27 +285,26 @@
       "accroche": "No more searching for funding. We flag it for you.",
       "intro1": "Discovery gives you a snapshot at one moment in time, for one project. Watch follows your projects all year round and alerts you whenever an application window opens.",
       "intro2": "You fill in the questionnaire once. Your profile stays active all year. As soon as a scheme opens and one of your projects is eligible, you receive an alert with the closing date and the documents to gather.",
+      "inclut": "Everything in Découverte, plus:",
       "avantages": {
         "projets": "Unlimited projects: each piece of work has its own funders",
         "echeancier": "The timeline and email reminders, sent at several intervals before each closing date",
         "aVenir": "Upcoming schemes revealed as soon as they are announced, so you can prepare your application before the window opens",
         "equipe": "Invite your architect, contractors or an assistant to a project"
-      },
-      "resume": "Everything in Discovery, plus unlimited projects, the timeline, alerts and your team."
+      }
     },
     "multi": {
       "nom": "Multi-monument",
       "public": "for owners of several monuments, municipalities and associations",
-      "badge": "Most comprehensive",
       "accroche": "All your monuments on a single dashboard.",
       "intro1": "Watch covers one monument. Multi-monument brings them all together.",
       "intro2": "Several monuments mean as many submission calendars and contributors to coordinate. They all fit in a single view.",
+      "inclut": "Everything in Veille, plus:",
       "avantages": {
         "monuments": "Unlimited monuments, each with its own projects, documents and team",
         "tableauDeBord": "The consolidated dashboard: every project and every deadline on a single calendar",
         "documents": "A separate document space for each monument, so two applications never get mixed up"
-      },
-      "resume": "Everything in Watch for each of your monuments, plus the consolidated dashboard."
+      }
     }
   },
   "Faq": {

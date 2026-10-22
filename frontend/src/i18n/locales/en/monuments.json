@@ -266,6 +266,7 @@
   },
   "MonumentWizardPage": {
     "erreurMerimee": "Error while retrieving the Mérimée record",
+    "noticeIntrouvable": "Mérimée record {{reference}} could not be found. Search for your monument below.",
     "erreurCreation": "Error while creating the monument",
     "merimeeTitre": "Save time: search for your monument in the Mérimée database",
     "merimeeAide": "If it is protected, it will be there: choose it and the fields below will fill themselves in. Otherwise, fill them in directly.",

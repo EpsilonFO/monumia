@@ -266,6 +266,7 @@
   },
   "MonumentWizardPage": {
     "erreurMerimee": "Erreur lors de la récupération de la fiche Mérimée",
+    "noticeIntrouvable": "La notice Mérimée {{reference}} est introuvable. Cherchez votre monument ci-dessous.",
     "erreurCreation": "Erreur lors de la création du monument",
     "merimeeTitre": "Gagnez du temps : cherchez votre monument dans la base Mérimée",
     "merimeeAide": "S’il est protégé, il y figure : choisissez-le et les champs ci-dessous se rempliront tout seuls. Sinon, remplissez-les directement.",
