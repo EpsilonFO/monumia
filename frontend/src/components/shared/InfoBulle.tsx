@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconInfo } from '@/components/icons';
 import {
   Tooltip,
@@ -24,6 +25,7 @@ interface InfoBulleProps {
  * bulle.
  */
 export function InfoBulle({ libelle, children }: InfoBulleProps) {
+  const { t } = useTranslation('shell');
   const [open, setOpen] = useState(false);
 
   return (
@@ -32,7 +34,7 @@ export function InfoBulle({ libelle, children }: InfoBulleProps) {
         <TooltipTrigger asChild>
           <button
             type="button"
-            aria-label={`En savoir plus : ${libelle}`}
+            aria-label={t('InfoBulle.enSavoirPlus', { libelle })}
             onClick={() => setOpen((v) => !v)}
             className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >

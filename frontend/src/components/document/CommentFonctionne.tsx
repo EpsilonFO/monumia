@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /** Masqué une fois : une commodité du navigateur, jamais une donnée. */
 const CLE = 'monumia.documents.explication-masquee';
@@ -22,6 +23,7 @@ function memoriser(masquee: boolean) {
  * lien pour le rouvrir.
  */
 export function CommentFonctionne() {
+  const { t } = useTranslation('documents');
   const [masquee, setMasquee] = useState(masqueeMemorisee);
   const basculer = (m: boolean) => {
     setMasquee(m);
@@ -31,7 +33,7 @@ export function CommentFonctionne() {
   if (masquee) {
     return (
       <button className="why-open" type="button" onClick={() => basculer(false)}>
-        Comment fonctionne cet espace&nbsp;?
+        {t('CommentFonctionne.ouvrir')}
       </button>
     );
   }
@@ -40,36 +42,33 @@ export function CommentFonctionne() {
     <section className="why" aria-labelledby="why-t">
       <div className="why-h">
         <div>
-          <h2 id="why-t">Comment fonctionne cet espace</h2>
-          <p>Vous y rangez les pièces de votre monument. Elles servent ensuite pour vos dossiers d&rsquo;aide.</p>
+          <h2 id="why-t">{t('CommentFonctionne.titre')}</h2>
+          <p>{t('CommentFonctionne.intro')}</p>
         </div>
         <button className="why-x" type="button" onClick={() => basculer(true)}>
-          Masquer
+          {t('CommentFonctionne.masquer')}
         </button>
       </div>
       <ol className="why-steps">
         <li>
           <span className="n">1</span>
           <div>
-            <b>Vous ajoutez un document</b>
-            <p>Vous le classez dans le dossier qui lui correspond&nbsp;: Devis, Arrêtés, Délibérations, Photos…</p>
+            <b>{t('CommentFonctionne.etape1Titre')}</b>
+            <p>{t('CommentFonctionne.etape1Texte')}</p>
           </div>
         </li>
         <li>
           <span className="n">2</span>
           <div>
-            <b>Vous le réutilisez dans vos dossiers</b>
-            <p>Quand une aide demande cette pièce, vous la prenez ici au lieu de la chercher sur votre ordinateur.</p>
+            <b>{t('CommentFonctionne.etape2Titre')}</b>
+            <p>{t('CommentFonctionne.etape2Texte')}</p>
           </div>
         </li>
         <li>
           <span className="n">3</span>
           <div>
-            <b>Vous gardez la main</b>
-            <p>
-              Seuls vous et les personnes que vous invitez y ont accès. Monumia n&rsquo;envoie rien aux
-              financeurs&nbsp;: c&rsquo;est vous qui déposez vos dossiers.
-            </p>
+            <b>{t('CommentFonctionne.etape3Titre')}</b>
+            <p>{t('CommentFonctionne.etape3Texte')}</p>
           </div>
         </li>
       </ol>

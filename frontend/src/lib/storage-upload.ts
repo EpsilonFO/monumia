@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import { getSupabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { ensureFreshAccessToken } from '@/lib/token-refresh';
@@ -52,7 +53,7 @@ export async function uploadToStorage(file: File, userId: string): Promise<strin
     .from(STORAGE_BUCKET)
     .upload(path, file, { upsert: false });
 
-  if (error) throw new Error(`Erreur upload fichier : ${error.message}`);
+  if (error) throw new Error(i18n.t('core:storageUpload.erreur', { message: error.message }));
 
   return path;
 }

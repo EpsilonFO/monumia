@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -57,14 +58,14 @@ export function PhotoCropDialog({
   onCropped,
   onChooseAnother,
 }: PhotoCropDialogProps) {
+  const { t } = useTranslation(['monuments', 'common']);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Recadrer la photo</DialogTitle>
+          <DialogTitle>{t('PhotoCropDialog.titre')}</DialogTitle>
           <DialogDescription>
-            Déplacez l&rsquo;image et ajustez le zoom : ce que montre le cadre sera la photo du
-            monument.
+            {t('PhotoCropDialog.description')}
           </DialogDescription>
         </DialogHeader>
         {source && (
@@ -92,6 +93,7 @@ interface RecadreurProps {
 
 /** Le cadre lui-même. Remonté à chaque nouvelle source, d'où l'état tout neuf. */
 function Recadreur({ source, busy, onCropped, onChooseAnother, onCancel }: RecadreurProps) {
+  const { t } = useTranslation(['monuments', 'common']);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -112,14 +114,14 @@ function Recadreur({ source, busy, onCropped, onChooseAnother, onCancel }: Recad
       await img.decode();
       if (!annule) setImage(img);
     })().catch(() => {
-      if (!annule) setErreur("Impossible de charger l'image.");
+      if (!annule) setErreur(t('PhotoCropDialog.erreurChargement'));
     });
 
     return () => {
       annule = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [source]);
+  }, [source, t]);
 
   // Échelle « cover » : au zoom 1, l'image remplit tout juste le cadre.
   const base = image
@@ -182,7 +184,7 @@ function Recadreur({ source, busy, onCropped, onChooseAnother, onCancel }: Recad
 
     const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.9));
     if (!blob) {
-      setErreur("Impossible de produire l'image recadrée.");
+      setErreur(t('PhotoCropDialog.erreurProduction'));
       return;
     }
     await onCropped(new File([blob], 'photo-profil.jpg', { type: 'image/jpeg' }));
@@ -227,7 +229,7 @@ function Recadreur({ source, busy, onCropped, onChooseAnother, onCancel }: Recad
 
         <label className="flex w-full items-center gap-3" style={{ maxWidth: VUE_L }}>
           <span className="text-[14.5px]" style={{ color: C.grayFg }}>
-            Zoom
+            {t('PhotoCropDialog.zoom')}
           </span>
           <input
             type="range"
@@ -246,14 +248,14 @@ function Recadreur({ source, busy, onCropped, onChooseAnother, onCancel }: Recad
       <DialogFooter className="sm:justify-between">
         {onChooseAnother ? (
           <Button type="button" variant="ghost" onClick={onChooseAnother} disabled={busy}>
-            Choisir une autre photo
+            {t('PhotoCropDialog.autrePhoto')}
           </Button>
         ) : (
           <span />
         )}
         <div className="flex gap-2">
           <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>
-            Annuler
+            {t('common:actions.annuler')}
           </Button>
           <Button
             type="button"
@@ -262,7 +264,7 @@ function Recadreur({ source, busy, onCropped, onChooseAnother, onCancel }: Recad
             style={{ background: C.orange }}
           >
             {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-            Enregistrer
+            {t('common:actions.enregistrer')}
           </Button>
         </div>
       </DialogFooter>

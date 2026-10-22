@@ -19,6 +19,8 @@
  * maintien ici à l'identique.
  */
 
+import i18n from '@/i18n';
+
 export type BillingPlan = 'veille' | 'multi_monuments';
 
 /**
@@ -35,6 +37,7 @@ export const PLANS_VENDABLES: readonly BillingPlan[] = [];
 
 /** Ce qu'un compte (ou un monument) permet. `null` sur un plafond = illimité. */
 export interface Offre {
+  /** Identifiant, en français comme le serveur l'envoie : à afficher via `libelleOffre`. */
   nom: string;
   /** Monuments que le compte peut enregistrer. */
   monumentsMax: number | null;
@@ -131,7 +134,21 @@ export function offrePour(plans: readonly string[] | undefined | null): Offre {
  * se déduit du plafond, donc il vit ici plutôt que recopié dans six écrans.
  */
 export function libelleMonuments(offre: Offre): string {
-  return offre.monumentsMax === 1 ? 'Mon monument' : 'Mes monuments';
+  return offre.monumentsMax === 1 ? i18n.t('core:offres.monMonument') : i18n.t('core:offres.mesMonuments');
+}
+
+/**
+ * Le nom d'une offre tel qu'il s'affiche (« Veille » → « Watch » en anglais).
+ *
+ * `Offre.nom` reste un IDENTIFIANT : le serveur l'envoie en français, et
+ * `estOffreGratuite` le compare. Il ne se traduit donc qu'à l'affichage, ici.
+ * Un nom inconnu s'affiche tel quel.
+ */
+export function libelleOffre(nom: string): string {
+  if (nom === OFFRE_GRATUITE.nom) return i18n.t('core:offres.noms.gratuit');
+  if (nom === OFFRE_VEILLE.nom) return i18n.t('core:offres.noms.veille');
+  if (nom === OFFRE_MULTI_MONUMENTS.nom) return i18n.t('core:offres.noms.multiMonuments');
+  return nom;
 }
 
 /**

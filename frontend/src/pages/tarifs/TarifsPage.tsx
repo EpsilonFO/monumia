@@ -15,7 +15,11 @@ import { billingService } from '@/services/billing.service';
 import { ApiError } from '@/lib/api-error';
 import { C, SERIF } from '@/lib/brand';
 import { ROUTES } from '@/constants/routes';
+import { libelleOffre, OFFRE_GRATUITE, OFFRE_MULTI_MONUMENTS, OFFRE_VEILLE } from '@/lib/offres';
 import { toast } from 'sonner';
+import { Trans, useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
+import { localeIntl } from '@/i18n/format';
 import type { BillingPlan, BillingSubscription } from '@/types';
 
 /**
@@ -25,7 +29,8 @@ import type { BillingPlan, BillingSubscription } from '@/types';
  * quoi on parle avant d'ouvrir le message.
  */
 function contactMailto(offre: string): string {
-  return `mailto:contact@monumia.fr?subject=${encodeURIComponent(`Offre ${offre}`)}`;
+  const sujet = i18n.t('compte:TarifsPage.sujetContact', { offre });
+  return `mailto:contact@monumia.fr?subject=${encodeURIComponent(sujet)}`;
 }
 
 /**
@@ -48,29 +53,31 @@ function contactMailto(offre: string): string {
  * montant recopié à la main.
  */
 
+// Les bénéfices sont des CLÉS de traduction, traduites au rendu.
 const GRATUIT_FEATURES = [
-  'Un monument et jusqu’à deux projets de travaux',
-  'La recherche parmi toutes les aides recensées',
-  'Le détail de chaque aide : organisme, contacts, pièces demandées',
-  'Vos chances de l’obtenir, critère par critère',
-];
+  'TarifsPage.gratuit.avantages.monument',
+  'TarifsPage.gratuit.avantages.recherche',
+  'TarifsPage.gratuit.avantages.detail',
+  'TarifsPage.gratuit.avantages.chances',
+] as const;
 
 const VEILLE_FEATURES = [
-  'Autant de projets de travaux que nécessaire, sur votre monument',
-  'Une équipe : invitez votre architecte, vos artisans, un assistant',
-  'Les aides qui ouvrent bientôt, nommées avant tout le monde',
-  'L’échéancier du chantier : dates limites d’aides et de dossiers',
-  'Un email le jour où un guichet ouvre',
-  'Un rappel par email avant chaque date limite',
-];
+  'TarifsPage.veille.avantages.projets',
+  'TarifsPage.veille.avantages.equipe',
+  'TarifsPage.veille.avantages.bientot',
+  'TarifsPage.veille.avantages.echeancier',
+  'TarifsPage.veille.avantages.ouverture',
+  'TarifsPage.veille.avantages.rappel',
+] as const;
 
 const MULTI_FEATURES = [
-  'Autant de monuments que vous en gérez',
-  'Le tableau de bord : tous vos biens et leurs échéances d’un coup d’œil',
-  'La suppression d’un monument ou d’un projet',
-];
+  'TarifsPage.multi.avantages.monuments',
+  'TarifsPage.multi.avantages.tableauDeBord',
+  'TarifsPage.multi.avantages.suppression',
+] as const;
 
 export function TarifsPage() {
+  const { t } = useTranslation(['compte', 'common']);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -153,10 +160,10 @@ export function TarifsPage() {
     } catch (err) {
       setPending(null);
       toast.error(
-        err instanceof ApiError ? err.message : 'Portail de facturation indisponible pour le moment.'
+        err instanceof ApiError ? err.message : t('TarifsPage.portailIndisponible')
       );
     }
-  }, []);
+  }, [t]);
 
   const backTo = monumentId ? ROUTES.MONUMENT_DETAIL(monumentId) : token ? '/app' : '/login';
 
@@ -169,7 +176,7 @@ export function TarifsPage() {
           style={{ color: C.blue }}
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          {monument ? monument.nom : 'Retour'}
+          {monument ? monument.nom : t('common:actions.retour')}
         </Link>
 
         {paymentStatus === 'succes' && (
@@ -187,7 +194,7 @@ export function TarifsPage() {
           >
             <IconConseil className="mt-0.5 h-5 w-5 shrink-0" style={{ color: C.blue }} />
             <p className="text-[16px]" style={{ color: C.ink }}>
-              Paiement abandonné, rien n’a été débité. Votre offre actuelle est intacte.
+              {t('TarifsPage.paiementAbandonne')}
             </p>
           </div>
         )}
@@ -201,7 +208,7 @@ export function TarifsPage() {
               className="text-[14.5px] font-semibold uppercase tracking-[0.18em]"
               style={{ color: C.orange }}
             >
-              Tarifs
+              {t('TarifsPage.kicker')}
             </span>
             <span className="h-px w-7" style={{ background: C.orange, opacity: 0.65 }} />
           </div>
@@ -210,11 +217,14 @@ export function TarifsPage() {
             style={{ fontFamily: SERIF, color: C.ink }}
           >
             {monument ? (
-              <>
-                Allez plus loin sur <em className="italic" style={{ color: C.orange }}>{monument.nom}</em>
-              </>
+              <Trans
+                t={t}
+                i18nKey="TarifsPage.titreMonument"
+                values={{ monument: monument.nom }}
+                components={{ accent: <em className="italic" style={{ color: C.orange }} /> }}
+              />
             ) : (
-              'Payez quand vous êtes prêt, pas avant'
+              t('TarifsPage.titre')
             )}
           </h1>
           <div className="mx-auto mt-5 h-[3px] w-12 rounded-full" style={{ background: C.orange }} />
@@ -222,9 +232,7 @@ export function TarifsPage() {
             className="mx-auto mt-5 max-w-2xl text-[18.5px] font-medium leading-[1.65]"
             style={{ color: C.grayFg }}
           >
-            Identifier vos aides et lire leur détail est gratuit, pour toujours. Ce qui se paie,
-            c’est le temps : savoir à l’avance quels guichets ouvrent, être prévenu avant chaque
-            date limite, et mener autant de chantiers et de monuments qu’il en faut.
+            {t('TarifsPage.intro')}
           </p>
         </header>
 
@@ -232,55 +240,55 @@ export function TarifsPage() {
           {/* ── Gratuit ────────────────────────────────────────────── */}
           <PlanCard
             icon={IconAide}
-            name="Gratuit"
-            tagline="Pour identifier ce que votre lieu peut espérer."
-            price="0 €"
-            priceNote="pour toujours"
-            features={GRATUIT_FEATURES}
+            name={libelleOffre(OFFRE_GRATUITE.nom)}
+            tagline={t('TarifsPage.gratuit.accroche')}
+            price={t('TarifsPage.gratuit.prix')}
+            priceNote={t('TarifsPage.gratuit.notePrix')}
+            features={GRATUIT_FEATURES.map((cle) => t(cle))}
             featuresIntro={null}
             accent={C.blue}
             current={plansDetenus.length === 0}
-            currentLabel="Votre offre actuelle"
+            currentLabel={t('TarifsPage.offreActuelle')}
           />
 
           {/* ── Veille ─────────────────────────────────────────────── */}
           <PlanCard
             icon={IconTemps}
-            name="Veille"
-            tagline="Pour ne rater aucun guichet, ni aucune date limite."
-            price="Sur demande"
-            priceNote="nous en parlons ensemble"
-            features={VEILLE_FEATURES}
-            featuresIntro="Tout Gratuit, plus :"
+            name={libelleOffre(OFFRE_VEILLE.nom)}
+            tagline={t('TarifsPage.veille.accroche')}
+            price={t('TarifsPage.surDemande')}
+            priceNote={t('TarifsPage.veille.notePrix')}
+            features={VEILLE_FEATURES.map((cle) => t(cle))}
+            featuresIntro={t('TarifsPage.veille.intro')}
             accent={C.orange}
             highlight
-            badge="Le plus choisi"
+            badge={t('TarifsPage.veille.badge')}
             current={aVeille}
             currentLabel={
-              aMultiMonuments ? 'Incluse dans Multi-monuments' : 'Votre abonnement est actif'
+              aMultiMonuments ? t('TarifsPage.veille.incluseMulti') : t('TarifsPage.abonnementActif')
             }
-            cta={{ label: 'Nous contacter', href: contactMailto('Veille') }}
+            cta={{ label: t('common:actions.nousContacter'), href: contactMailto(libelleOffre(OFFRE_VEILLE.nom)) }}
           />
 
           {/* ── Multi-monuments ────────────────────────────────────── */}
           <PlanCard
             icon={IconProtection}
-            name="Multi-monuments"
-            tagline="Pour piloter plusieurs biens dans la durée."
-            price="Sur demande"
-            priceNote="selon la taille de votre parc"
-            features={MULTI_FEATURES}
-            featuresIntro="Tout Veille, plus :"
+            name={libelleOffre(OFFRE_MULTI_MONUMENTS.nom)}
+            tagline={t('TarifsPage.multi.accroche')}
+            price={t('TarifsPage.surDemande')}
+            priceNote={t('TarifsPage.multi.notePrix')}
+            features={MULTI_FEATURES.map((cle) => t(cle))}
+            featuresIntro={t('TarifsPage.multi.intro')}
             accent={C.orangeVif}
             dark
             current={aMultiMonuments}
-            currentLabel="Votre abonnement est actif"
+            currentLabel={t('TarifsPage.abonnementActif')}
             cta={
               // Une offre sur mesure se fait suivre par un humain : le portail
               // n'est proposé que s'il existe vraiment pour ce compte.
               aMultiMonuments && portailDisponible
-                ? { label: 'Gérer mon abonnement', onClick: openPortal }
-                : { label: 'Nous contacter', href: contactMailto('Multi-monuments') }
+                ? { label: t('TarifsPage.multi.gererAbonnement'), onClick: openPortal }
+                : { label: t('common:actions.nousContacter'), href: contactMailto(libelleOffre(OFFRE_MULTI_MONUMENTS.nom)) }
             }
             loading={pending === 'portal'}
           />
@@ -348,6 +356,7 @@ function PlanCard({
   loading = false,
   waiting = false,
 }: PlanCardProps) {
+  const { t } = useTranslation('compte');
   const shell = dark
     ? 'relative flex h-full flex-col overflow-hidden rounded-2xl p-7 transition-all duration-300 hover:-translate-y-1.5'
     : highlight
@@ -431,7 +440,7 @@ function PlanCard({
             }}
           >
             <IconSucces className="h-4 w-4" />
-            {currentLabel ?? 'Offre en cours'}
+            {currentLabel ?? t('TarifsPage.offreEnCours')}
           </div>
         ) : cta?.href ? (
           // Un vrai lien, pas un bouton : « Nous contacter » ouvre un mailto, et
@@ -479,6 +488,7 @@ function PaymentSuccess({
   monumentName?: string;
   onGoToProject?: () => void;
 }) {
+  const { t } = useTranslation('compte');
   const confirme = state === 'confirme';
   // L'attente prend les couleurs de l'information et non du succès : le
   // paiement est passé, l'accès n'est pas encore là, et il ne faut promettre
@@ -488,18 +498,17 @@ function PaymentSuccess({
     : { bg: C.paleBlue, border: C.blue, dot: C.blue };
 
   const titre = {
-    confirmation: 'Paiement reçu, activation en cours…',
-    confirme: 'C’est actif. Merci !',
-    attente: 'Paiement reçu. L’activation se termine.',
+    confirmation: t('TarifsPage.paiement.titreConfirmation'),
+    confirme: t('TarifsPage.paiement.titreConfirme'),
+    attente: t('TarifsPage.paiement.titreAttente'),
   }[state];
 
   const texte = {
-    confirmation: 'Quelques secondes le temps que Stripe nous confirme la transaction.',
+    confirmation: t('TarifsPage.paiement.texteConfirmation'),
     confirme: monumentName
-      ? `Votre offre est active sur ${monumentName} comme sur tous vos biens. Votre facture arrive par e-mail.`
-      : 'Votre offre est active. Votre facture arrive par e-mail.',
-    attente:
-      'La confirmation de Stripe met plus de temps que prévu. Elle arrivera d’elle-même : rechargez cette page dans une minute. Rien ne sera débité deux fois.',
+      ? t('TarifsPage.paiement.texteConfirmeMonument', { monument: monumentName })
+      : t('TarifsPage.paiement.texteConfirme'),
+    attente: t('TarifsPage.paiement.texteAttente'),
   }[state];
 
   return (
@@ -534,7 +543,7 @@ function PaymentSuccess({
           className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[16px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
           style={{ background: C.success }}
         >
-          Retour à mon monument
+          {t('TarifsPage.paiement.retourMonument')}
           <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
         </button>
       )}
@@ -553,8 +562,9 @@ function Reassurance({
   subscription: BillingSubscription | null;
   onOpenPortal?: () => void;
 }) {
+  const { t } = useTranslation('compte');
   const periodEnd = subscription?.currentPeriodEnd
-    ? new Date(subscription.currentPeriodEnd).toLocaleDateString('fr-FR', {
+    ? new Date(subscription.currentPeriodEnd).toLocaleDateString(localeIntl(), {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
@@ -565,10 +575,10 @@ function Reassurance({
     <div className="mt-12 space-y-5">
       <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
         {[
-          'Paiement sécurisé par Stripe',
-          'Aucune carte enregistrée chez nous',
-          'Abonnement résiliable en un clic',
-          'Facture envoyée par e-mail',
+          t('TarifsPage.reassurance.stripe'),
+          t('TarifsPage.reassurance.carte'),
+          t('TarifsPage.reassurance.resiliable'),
+          t('TarifsPage.reassurance.facture'),
         ].map((item) => (
           <span
             key={item}
@@ -584,9 +594,9 @@ function Reassurance({
       {(subscription || onOpenPortal) && (
         <p className="text-center text-[15px]" style={{ color: C.grayMuted }}>
           {subscription?.cancelAtPeriodEnd && periodEnd
-            ? `Votre abonnement prend fin le ${periodEnd}. Votre offre reste active jusque-là.`
+            ? t('TarifsPage.reassurance.finAbonnement', { date: periodEnd })
             : subscription && periodEnd
-              ? `Prochain prélèvement le ${periodEnd}.`
+              ? t('TarifsPage.reassurance.prochainPrelevement', { date: periodEnd })
               : null}
           {onOpenPortal && (
             <>
@@ -597,7 +607,7 @@ function Reassurance({
                 className="font-semibold underline underline-offset-2 transition-opacity hover:opacity-70"
                 style={{ color: C.blue }}
               >
-                Voir mes factures
+                {t('TarifsPage.reassurance.voirFactures')}
               </button>
             </>
           )}

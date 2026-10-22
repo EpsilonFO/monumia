@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useTranslation } from 'react-i18next';
+
 import { C } from '@/lib/brand';
 import { readData } from './blockData';
 
@@ -8,10 +10,11 @@ interface Event {
 }
 
 export function Timeline({ node }: { node?: any }) {
+  const { t } = useTranslation('blog');
   const items = readData<Event>(node);
   if (items.length === 0) return null;
   return (
-    <ol className="my-6 flex flex-col" aria-label="Chronologie">
+    <ol className="my-6 flex flex-col" aria-label={t('Timeline.aria')}>
       {items.map((it, i) => {
         const last = i === items.length - 1;
         return (

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { documentService } from '@/services/document.service';
 import { templateService } from '@/services/template.service';
@@ -73,6 +74,7 @@ export function DossierChecklist({
   busyItemId,
   readOnly,
 }: DossierChecklistProps) {
+  const { t } = useTranslation(['dossier', 'common']);
   const sorted = [...items].sort((a, b) => a.ordre - b.ordre);
 
   // Un seul menu « Ajouter » ouvert à la fois.
@@ -138,8 +140,8 @@ export function DossierChecklist({
   if (sorted.length === 0) {
     return (
       <div className="pvide">
-        <b>Aucune pièce</b>
-        <p>Ce dossier ne comporte aucune pièce à fournir.</p>
+        <b>{t('DossierChecklist.aucunePiece')}</b>
+        <p>{t('DossierChecklist.aucunePieceTexte')}</p>
       </div>
     );
   }
@@ -209,6 +211,7 @@ function TuilePiece({
   DossierChecklistProps,
   'onRequestDeposer' | 'onRequestAttach' | 'onPreview' | 'onRequestDelete' | 'onConfirm' | 'onReject'
 >) {
+  const { t } = useTranslation(['dossier', 'common']);
   const isFourni = item.statut === 'fourni';
   const isRepris = item.statut === 'repris';
   const classe = [
@@ -258,7 +261,7 @@ function TuilePiece({
     action();
   };
 
-  const nomFichier = fichier?.nom ?? 'Fichier joint';
+  const nomFichier = fichier?.nom ?? t('DossierChecklist.fichierJoint');
 
   return (
     <article className={classe}>
@@ -267,28 +270,28 @@ function TuilePiece({
           {isRepris ? <Picto nom="refaire" /> : <Picto nom="coche" />}
         </span>
         {item.obligatoire
-          ? <span className="tag o">Obligatoire</span>
-          : <span className="tag b">Selon votre situation</span>}
+          ? <span className="tag o">{t('DossierChecklist.obligatoire')}</span>
+          : <span className="tag b">{t('DossierChecklist.selonSituation')}</span>}
       </div>
       <b>{nom}</b>
       <span className="sr">
-        {isFourni ? 'Pièce fournie.' : isRepris ? 'Pièce reprise, à vérifier.' : 'Pièce à fournir.'}
+        {isFourni ? t('DossierChecklist.srFournie') : isRepris ? t('DossierChecklist.srReprise') : t('DossierChecklist.srAFournir')}
       </span>
       {item.description && <p className="how">{item.description}</p>}
 
       {(isFourni || isRepris) && hidden && (
-        <span className="fchip off"><Picto nom="cadenas" /><span>Fourni · accès réservé</span></span>
+        <span className="fchip off"><Picto nom="cadenas" /><span>{t('DossierChecklist.fourniReserve')}</span></span>
       )}
 
       {(isFourni || isRepris) && !hidden && (
         <>
           {isRepris && (
             <small className="rep-t">
-              {item.perime ? 'Document ancien, repris d’un autre dossier : à vérifier' : 'Repris d’un autre dossier : à vérifier'}
+              {item.perime ? t('DossierChecklist.reprisePerimee') : t('DossierChecklist.reprise')}
             </small>
           )}
           {voir ? (
-            <button className="fchip" type="button" onClick={voir} title="Voir le fichier">
+            <button className="fchip" type="button" onClick={voir} title={t('DossierChecklist.voirFichier')}>
               {fichier && <span className={`ext${fichier.image ? ' img' : ''}`}>{fichier.ext}</span>}
               <span>{nomFichier}</span>
             </button>
@@ -309,12 +312,12 @@ function TuilePiece({
         <div className="t-acts">
           {!hidden && onConfirm && (
             <button className="btn b-blue add" type="button" disabled={busy} onClick={() => onConfirm(item)}>
-              <Picto nom="coche" />C’est bien ça
+              <Picto nom="coche" />{t('DossierChecklist.cestBienCa')}
             </button>
           )}
           {onReject && (
             <button className="rm" type="button" disabled={busy} onClick={() => onReject(item)}>
-              Ce n’est pas ça
+              {t('DossierChecklist.pasCa')}
             </button>
           )}
         </div>
@@ -324,12 +327,12 @@ function TuilePiece({
         <div className="t-acts">
           {onRequestDelete && (
             <button className="rm" type="button" disabled={busy} onClick={() => onRequestDelete(item)}>
-              Retirer
+              {t('DossierChecklist.retirer')}
             </button>
           )}
           {onRequestAttach && (
             <button className="rm" type="button" disabled={busy} onClick={() => onRequestAttach(item)}>
-              Remplacer
+              {t('DossierChecklist.remplacer')}
             </button>
           )}
         </div>
@@ -337,7 +340,7 @@ function TuilePiece({
 
       {!isFourni && !isRepris && (
         readOnly ? (
-          <small className="manque">Non fournie</small>
+          <small className="manque">{t('DossierChecklist.nonFournie')}</small>
         ) : (
           <>
             <button
@@ -349,7 +352,7 @@ function TuilePiece({
               aria-controls={menuOuvert ? menuId : undefined}
               onClick={() => basculerMenu(!menuOuvert)}
             >
-              <Picto nom="plus" />{busy ? 'Ajout…' : 'Ajouter'}
+              <Picto nom="plus" />{busy ? t('DossierChecklist.ajout') : t('common:actions.ajouter')}
             </button>
             {menuOuvert && (
               <div className="pmenu" id={menuId} ref={menuRef}>
@@ -359,27 +362,29 @@ function TuilePiece({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => basculerMenu(false)}
-                    title="Le formulaire, Cerfa ou modèle officiel de la pièce"
+                    title={t('DossierChecklist.modeleTitre')}
                   >
-                    <Picto nom="telecharger" />Télécharger le modèle à remplir
+                    <Picto nom="telecharger" />{t('DossierChecklist.telechargerModele')}
                   </a>
                 )}
-                {templates.map((t) => (
-                  <button key={t.id} type="button" onClick={choisir(() => templateService.download(t))}>
+                {templates.map((modele) => (
+                  <button key={modele.id} type="button" onClick={choisir(() => templateService.download(modele))}>
                     <Picto nom="telecharger" />
                     <span>
-                      {templates.length === 1 && !documentUrl ? 'Télécharger le modèle à remplir' : `Modèle : ${t.nom}`}
+                      {templates.length === 1 && !documentUrl
+                        ? t('DossierChecklist.telechargerModele')
+                        : t('DossierChecklist.modele', { nom: modele.nom })}
                     </span>
                   </button>
                 ))}
                 {onRequestAttach && (
                   <button type="button" onClick={choisir(() => onRequestAttach(item))}>
-                    <Picto nom="dossier" />Choisir dans Mes documents
+                    <Picto nom="dossier" />{t('DossierChecklist.choisirMesDocuments')}
                   </button>
                 )}
                 {onRequestDeposer && (
                   <button type="button" onClick={choisir(() => onRequestDeposer(item))}>
-                    <Picto nom="envoyer" />Importer depuis l'ordinateur
+                    <Picto nom="envoyer" />{t('DossierChecklist.importerOrdinateur')}
                   </button>
                 )}
               </div>

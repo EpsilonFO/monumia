@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { C, SERIF } from '@/lib/brand';
@@ -39,6 +40,7 @@ type Etape = 'bienvenue' | 'bouton' | 'fini';
  * l'inscription.
  */
 export function BienvenueBeta() {
+  const { t } = useTranslation('shell');
   const userId = useAuthStore((s) => s.user?.id);
   // Décidé une fois, au montage : relu à chaque rendu, `dejaAccueilli`
   // passerait à vrai dès la sortie de la modale et couperait le projecteur.
@@ -71,24 +73,18 @@ export function BienvenueBeta() {
           style={{ background: C.card, borderColor: C.border, boxShadow: 'var(--shadow-pop)' }}
         >
           <p className="text-[15px] font-semibold" style={{ color: C.orange }}>
-            Version bêta
+            {t('BienvenueBeta.versionBeta')}
           </p>
           <DialogTitle
             className="mt-2 text-[27px] leading-tight font-normal"
             style={{ fontFamily: SERIF, color: C.ink }}
           >
-            Bienvenue sur Monumia
+            {t('BienvenueBeta.bienvenue')}
           </DialogTitle>
           <DialogDescription asChild>
             <div className="mt-4 space-y-3 text-[16.5px] leading-[1.7]" style={{ color: C.grayFg }}>
-              <p>
-                Merci d'avoir accepté de tester la plateforme. Monumia repère les aides auxquelles
-                votre monument peut prétendre et vous accompagne dans le montage des dossiers.
-              </p>
-              <p>
-                Elle est encore en rodage : un écran qui vous perd, une aide qui manque, un chiffre
-                qui vous étonne, tout ce que vous remarquez en chemin nous aide à l'améliorer.
-              </p>
+              <p>{t('BienvenueBeta.merci')}</p>
+              <p>{t('BienvenueBeta.rodage')}</p>
             </div>
           </DialogDescription>
           <button
@@ -97,7 +93,7 @@ export function BienvenueBeta() {
             className="mt-7 w-full rounded-full px-5 py-3 text-[16.5px] font-semibold text-white transition-transform duration-200 hover:-translate-y-0.5"
             style={{ background: C.orange }}
           >
-            C'est parti
+            {t('BienvenueBeta.cestParti')}
           </button>
         </DialogContent>
       </Dialog>
@@ -113,6 +109,7 @@ export function BienvenueBeta() {
  * remonte au-dessus de la barre d'onglets.
  */
 function ProjecteurRetour({ onFin }: { onFin: () => void }) {
+  const { t } = useTranslation('shell');
   const [cadre, setCadre] = useState<Cadre | null>(null);
 
   useEffect(() => {
@@ -213,11 +210,10 @@ function ProjecteurRetour({ onFin }: { onFin: () => void }) {
           className="text-[20px] leading-snug"
           style={{ fontFamily: SERIF, color: C.ink }}
         >
-          Un bug, une idée, une question ?
+          {t('BienvenueBeta.bugTitre')}
         </h2>
         <p className="mt-2 text-[15.5px] leading-[1.65]" style={{ color: C.grayFg }}>
-          Écrivez-nous avec ce bouton, depuis n'importe quelle page. Vous pouvez capturer l'écran et
-          l'annoter : on reçoit votre message avec la page où vous étiez.
+          {t('BienvenueBeta.bugTexte')}
         </p>
         <div className="mt-4 flex justify-end gap-2">
           <button
@@ -226,7 +222,7 @@ function ProjecteurRetour({ onFin }: { onFin: () => void }) {
             className="rounded-full px-4 py-2 text-[15px] font-semibold"
             style={{ color: C.grayFg }}
           >
-            Plus tard
+            {t('BienvenueBeta.plusTard')}
           </button>
           <button
             type="button"
@@ -238,7 +234,7 @@ function ProjecteurRetour({ onFin }: { onFin: () => void }) {
             className="rounded-full px-4 py-2 text-[15px] font-semibold text-white"
             style={{ background: C.orange }}
           >
-            Essayer maintenant
+            {t('BienvenueBeta.essayer')}
           </button>
         </div>
         {/* La pointe, qui vise le centre du bouton. */}

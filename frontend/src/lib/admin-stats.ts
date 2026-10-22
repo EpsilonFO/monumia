@@ -12,12 +12,16 @@
  * ferait lire « 0 € » sur une fiche qui dit simplement autre chose.
  */
 
+import i18n from '@/i18n';
+import { localeIntl } from '@/i18n/format';
 import { formatCurrency, formatPercentage } from '@/lib/format-utils';
 import { normaliser } from '@/lib/admin-catalogue';
 import type { GroupeStats } from '@/types/admin.types';
 
 /** Ce qu'affiche une case dont la source n'annonce rien (« non chiffré »). */
-export const NON_CHIFFRE = 'n.c.';
+export function nonChiffre(): string {
+  return i18n.t('admin:stats.nonChiffre');
+}
 
 /**
  * La fourchette de taux d'un groupe, telle qu'elle se lit dans un tableau :
@@ -25,18 +29,21 @@ export const NON_CHIFFRE = 'n.c.';
  */
 export function formaterTaux(groupe: GroupeStats): string {
   const { tauxMin, tauxMax } = groupe;
-  if (tauxMin === null || tauxMax === null) return NON_CHIFFRE;
+  if (tauxMin === null || tauxMax === null) return nonChiffre();
   if (tauxMin === tauxMax) return formatPercentage(tauxMax);
-  return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(tauxMin)} à ${formatPercentage(tauxMax)}`;
+  return i18n.t('admin:stats.fourchetteTaux', {
+    min: new Intl.NumberFormat(localeIntl(), { maximumFractionDigits: 1 }).format(tauxMin),
+    max: formatPercentage(tauxMax),
+  });
 }
 
 export function formaterMontant(valeur: number | null): string {
-  return valeur === null ? NON_CHIFFRE : formatCurrency(valeur);
+  return valeur === null ? nonChiffre() : formatCurrency(valeur);
 }
 
 /** Le taux d'UNE aide, pour la ligne d'un dépliant. */
 export function formaterTauxSeul(taux: number | null): string {
-  return taux === null ? NON_CHIFFRE : formatPercentage(taux);
+  return taux === null ? nonChiffre() : formatPercentage(taux);
 }
 
 /** « 12 / 29 » : combien d'aides du groupe portent réellement ce chiffre. */
@@ -121,7 +128,7 @@ export function masquerVides<T extends { nb: number }>(lignes: T[], actif: boole
 export function formaterHeure(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('fr-FR', {
+  return new Intl.DateTimeFormat(localeIntl(), {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',

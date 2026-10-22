@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { IconPublic, IconVerrou, IconEquipe } from '@/components/icons';
 import { RoleBadge } from '@/components/sharing/RoleBadge';
 import { MemberAvatar } from '@/components/sharing/MemberAvatar';
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function DocumentVisibilityField({ value, onChange, currentUserRole, members }: Props) {
+  const { t } = useTranslation('documents');
   const options = allowedVisibilities(currentUserRole);
 
   const select = (visibility: DocumentVisibility) => {
@@ -45,7 +47,7 @@ export function DocumentVisibilityField({ value, onChange, currentUserRole, memb
   return (
     <div className="space-y-1.5">
       <p className="text-[15px] font-semibold" style={{ color: C.ink }}>
-        Qui peut voir ce document&nbsp;?
+        {t('DocumentVisibilityField.quiPeutVoir')}
       </p>
 
       <div className="space-y-1.5">
@@ -107,7 +109,7 @@ export function DocumentVisibilityField({ value, onChange, currentUserRole, memb
                   </span>
                 </span>
                 {isOwner ? (
-                  <span className="text-[13px] font-medium text-muted-foreground">Toujours</span>
+                  <span className="text-[13px] font-medium text-muted-foreground">{t('DocumentVisibilityField.toujours')}</span>
                 ) : (
                   <RoleBadge role={m.role} />
                 )}

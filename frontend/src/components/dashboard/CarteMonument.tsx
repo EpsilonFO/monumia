@@ -1,4 +1,6 @@
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
+import type { TFunction } from 'i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { PictoDossierPlein } from '@/components/document/PictosDocuments';
 import { ROUTES } from '@/constants/routes';
@@ -9,20 +11,23 @@ import { monumentNomCourt, projetSousTitre, projetTitre } from '@/lib/projet-tit
 import type { Monument, Projet } from '@/types';
 import './carte-monument.css';
 
-const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
-
 /** « 1 document prêt pour vos dossiers » : les pièces du monument et de ses projets. */
-function phraseDocuments(n: number): string {
-  return n > 0 ? `${pluriel(n, 'document')} prêt${n > 1 ? 's' : ''} pour vos dossiers` : 'Aucun document pour vos dossiers';
+function phraseDocuments(n: number, t: TFunction<'dashboard'>): string {
+  return n > 0
+    ? t('CarteMonument.documentsPrets', { count: n })
+    : t('CarteMonument.aucunDocument');
 }
 
 /** Un projet du monument : son titre, ses travaux, ses étapes en points, une ligne qui mène au projet. */
 function LigneProjet({ projet, monumentNom, stage }: { projet: Projet; monumentNom: string; stage: ProjectStage }) {
+  const { t } = useTranslation('dashboard');
   const titre = projetTitre(projet, monumentNom);
   const sous = projetSousTitre(projet, monumentNom);
   const rang = rangEnCours(stage);
   const etape = libelleEtape(stage);
-  const statut = projet.clotureAt ? 'Clôturé' : `${etape.rang} : ${etape.action}`;
+  const statut = projet.clotureAt
+    ? t('CarteMonument.cloture')
+    : t('CarteMonument.statut', { rang: etape.rang, action: etape.action });
   return (
     <Link className="pr" to={ROUTES.PROJET_DETAIL(projet.id)}>
       <span className="pr-t">
@@ -73,24 +78,26 @@ export function CarteMonument({
    *  (un seul monument sur la page, ou droits d'équipe insuffisants). */
   onNouvelleRecherche?: () => void;
 }) {
+  const { t } = useTranslation('dashboard');
   const lieu = [monument.commune, monument.departement].filter(Boolean).join(', ');
   const photo = monumentPhotoProfil(monument)?.signedUrl ?? null;
   const aides = stats?.aidesIdentifiees ?? 0;
   const enCours = projets.filter((p) => !p.clotureAt).length;
   // Les chantiers ouverts d'abord, puis les clôturés ; à l'intérieur, l'ordre du store.
   const lignes = [...projets].sort((a, b) => Number(!!a.clotureAt) - Number(!!b.clotureAt));
-  const deNomCourt = monumentNomCourt(monument.nom, true) ?? 'de ce monument';
+  // `monumentNomCourt` rend null hors du français : la phrase retombe sur « de ce monument ».
+  const deNomCourt = monumentNomCourt(monument.nom, true);
 
   const nouvelleRecherche = onNouvelleRecherche && (
     <button className="btn b-oline b-sm" type="button" onClick={onNouvelleRecherche}>
       <Picto nom="loupe" />
-      Lancer une nouvelle recherche
+      {t('lancerRecherche')}
     </button>
   );
 
   const voir = (
     <Link className="btn b-blue b-sm cmon-lien" to={`${ROUTES.MONUMENT_DETAIL(monument.id)}?tab=projets`}>
-      {projets.length > 0 ? 'Voir les projets' : 'Voir le monument'}
+      {projets.length > 0 ? t('CarteMonument.voirProjets') : t('voirMonument')}
       <Picto nom="fleche" />
     </Link>
   );
@@ -107,7 +114,11 @@ export function CarteMonument({
       <div className="cmon-b">
         <div className="projs">
           <span className="projs-k">
-            {enCours > 0 ? `${pluriel(enCours, 'projet')} en cours` : projets.length > 0 ? 'Aucun projet en cours' : 'Pas encore de projet'}
+            {enCours > 0
+              ? t('CarteMonument.projetsEnCours', { count: enCours })
+              : projets.length > 0
+                ? t('CarteMonument.aucunProjetEnCours')
+                : t('CarteMonument.pasEncoreDeProjet')}
           </span>
           {lignes.map((p) => (
             <LigneProjet key={p.id} projet={p} monumentNom={monument.nom} stage={etapeDe(p)} />
@@ -117,13 +128,11 @@ export function CarteMonument({
           <div className="cmon-f">
             <span>
               {aides > 0 ? (
-                <>
-                  <b>{pluriel(aides, 'aide')}</b> repérée{aides > 1 ? 's' : ''}
-                </>
+                <Trans t={t} i18nKey="CarteMonument.aidesReperees" count={aides} components={{ b: <b /> }} />
               ) : (
-                'Aucune aide estimée'
+                t('CarteMonument.aucuneAide')
               )}
-              <small className="hint">{phraseDocuments(nbDocuments)}</small>
+              <small className="hint">{phraseDocuments(nbDocuments, t)}</small>
             </span>
             <div className="acts">
               {nouvelleRecherche}
@@ -132,15 +141,19 @@ export function CarteMonument({
           </div>
         ) : (
           <div className="cmon-f">
-            <span className="hint">{phraseDocuments(nbDocuments)}</span>
+            <span className="hint">{phraseDocuments(nbDocuments, t)}</span>
             <div className="acts">
               <Link
                 className="btn b-line b-sm"
                 to={`${ROUTES.DOCUMENTS}?monument=${encodeURIComponent(monument.id)}`}
-                title={`Les pièces ${deNomCourt}, réutilisables dans tous ses dossiers`}
+                title={
+                  deNomCourt
+                    ? t('CarteMonument.piecesTitre', { deNom: deNomCourt })
+                    : t('CarteMonument.piecesTitreSansNom')
+                }
               >
                 <PictoDossierPlein className="i" />
-                Documents <em className="navc">{nbDocuments}</em>
+                {t('CarteMonument.documents')} <em className="navc">{nbDocuments}</em>
               </Link>
               {nouvelleRecherche}
               {voir}

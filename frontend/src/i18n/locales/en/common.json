@@ -1,0 +1,43 @@
+{
+  "actions": {
+    "annuler": "Cancel",
+    "enregistrer": "Save",
+    "supprimer": "Delete",
+    "modifier": "Edit",
+    "fermer": "Close",
+    "retour": "Back",
+    "continuer": "Continue",
+    "suivant": "Next",
+    "precedent": "Previous",
+    "valider": "Confirm",
+    "confirmer": "Confirm",
+    "ajouter": "Add",
+    "reessayer": "Try again",
+    "rechercher": "Search",
+    "voirPlus": "Show more",
+    "voirMoins": "Show less",
+    "telecharger": "Download",
+    "copier": "Copy",
+    "envoyer": "Send",
+    "inviter": "Invite",
+    "seConnecter": "Log in",
+    "seDeconnecter": "Log out",
+    "nousContacter": "Contact us"
+  },
+  "etats": {
+    "chargement": "Loading…",
+    "enregistrement": "Saving…",
+    "aucunResultat": "No results",
+    "erreur": "Something went wrong",
+    "erreurReessayer": "Something went wrong. Please try again in a moment."
+  },
+  "reponses": {
+    "oui": "Yes",
+    "non": "No"
+  },
+  "langue": {
+    "libelle": "Language",
+    "fr": "Français",
+    "en": "English"
+  }
+}

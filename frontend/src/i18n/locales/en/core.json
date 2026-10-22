@@ -1,0 +1,145 @@
+{
+  "actionsDocument": {
+    "renommer": "Rename",
+    "changerDeDossier": "Move to another folder",
+    "rattacher": "Link to another monument",
+    "gererAcces": "Manage access",
+    "mettreALaCorbeille": "Move to bin",
+    "retirerDe": "Remove from {{nom}}"
+  },
+  "brouillonInvite": {
+    "aucunBrouillon": "No draft to resume."
+  },
+  "dateUtils": {
+    "echeanceDepassee": "Deadline passed",
+    "aujourdhui": "Today",
+    "demain": "Tomorrow",
+    "dansNJours_one": "In {{count}} day",
+    "dansNJours_other": "In {{count}} days"
+  },
+  "formatUtils": {
+    "octets": "{{taille}} B",
+    "kilooctets": "{{taille}} KB",
+    "megaoctets": "{{taille}} MB",
+    "pourcentage": "{{valeur}}%"
+  },
+  "documentTypeMeta": {
+    "familles": {
+      "monument": "The monument",
+      "travaux": "The works",
+      "administratif": "Administrative and financial",
+      "echanges": "Correspondence and miscellaneous"
+    },
+    "dossiers": {
+      "photo": "Photos",
+      "plan": "Plans",
+      "devis": "Quotes",
+      "facture": "Invoices",
+      "attestation": "Certificates",
+      "extrait_cadastral": "Land registry extracts",
+      "cerfa": "CERFA forms",
+      "arrete": "Orders",
+      "diagnostic": "Surveys",
+      "rapport": "Reports",
+      "correspondance": "Correspondence",
+      "autorisation_urbanisme": "Planning permissions",
+      "rib": "Bank details",
+      "titre_propriete": "Title deeds",
+      "deliberation": "Resolutions",
+      "statuts": "Articles of association",
+      "plan_financement": "Financing plans",
+      "autre": "Other"
+    },
+    "types": {
+      "photo": "Photo",
+      "plan": "Plan",
+      "devis": "Quote",
+      "facture": "Invoice",
+      "attestation": "Certificate",
+      "extrait_cadastral": "Land registry extract",
+      "cerfa": "CERFA form",
+      "arrete": "Order",
+      "diagnostic": "Survey",
+      "rapport": "Report",
+      "correspondance": "Correspondence",
+      "autre": "Other",
+      "autorisation_urbanisme": "Planning permission",
+      "rib": "Bank details",
+      "titre_propriete": "Title deed",
+      "deliberation": "Resolution",
+      "statuts": "Articles of association",
+      "plan_financement": "Financing plan"
+    }
+  },
+  "documentVisibility": {
+    "team": {
+      "libelle": "The whole team",
+      "aide": "Everyone working on the project"
+    },
+    "responsables": {
+      "libelle": "The project lead and their deputies",
+      "aide": "The people in charge of the project"
+    },
+    "custom": {
+      "libelle": "Selected people",
+      "aide": "You choose who can see it"
+    }
+  },
+  "offres": {
+    "monMonument": "My monument",
+    "mesMonuments": "My monuments",
+    "noms": {
+      "gratuit": "Free",
+      "veille": "Watch",
+      "multiMonuments": "Multi-monument"
+    }
+  },
+  "password": {
+    "longueur": "At least 8 characters",
+    "chiffre": "1 digit"
+  },
+  "phone": {
+    "invalide": "Invalid number (e.g. 06 12 34 56 78 or +33 6 12 34 56 78)"
+  },
+  "storageUpload": {
+    "erreur": "File upload error: {{message}}"
+  },
+  "templateFormat": {
+    "fichier": "File"
+  },
+  "rolesCompte": {
+    "admin": "Administrator",
+    "betaTesteur": "Beta tester"
+  },
+  "suivi": {
+    "statuts": {
+      "aFaire": "To do",
+      "enPreparation": "In preparation",
+      "depose": "Submitted",
+      "accorde": "Awarded",
+      "refuse": "Rejected"
+    },
+    "motifsRefus": {
+      "inegibilite": "Not eligible after all",
+      "budgetEpuise": "Funding exhausted",
+      "dossierIncomplet": "Incomplete application",
+      "nonPrioritaire": "Project not prioritised",
+      "horsDelai": "Missed the deadline",
+      "autre": "Other"
+    }
+  },
+  "useGuide": {
+    "progression": "{{current}} of {{total}}",
+    "compris": "Got it",
+    "passer": "Skip"
+  },
+  "router": {
+    "paywallTableauDeBord": {
+      "titre": "All your monuments on one screen",
+      "description": "The dashboard brings together your properties, the progress of each project and upcoming deadlines. It comes into its own once you have two monuments."
+    }
+  },
+  "dossierService": {
+    "nomArchive": "application"
+  }
+}

@@ -1,3 +1,5 @@
+import i18n from '@/i18n';
+
 /**
  * Présentation d'un format de fichier (badge) à partir de l'extension.
  * Volontairement permissif : les modèles peuvent être de types très variés.
@@ -31,5 +33,5 @@ const FORMAT_MAP: Record<string, FormatBadge> = {
 
 export function formatBadge(extension?: string): FormatBadge {
   const ext = extension?.toLowerCase().replace(/^\./, '') ?? '';
-  return FORMAT_MAP[ext] ?? { label: ext ? ext.toUpperCase() : 'Fichier', className: 'bg-muted text-muted-foreground' };
+  return FORMAT_MAP[ext] ?? { label: ext ? ext.toUpperCase() : i18n.t('core:templateFormat.fichier'), className: 'bg-muted text-muted-foreground' };
 }

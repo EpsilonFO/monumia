@@ -1,0 +1,217 @@
+{
+  "etatsEtape": {
+    "done": "étape faite",
+    "current": "étape en cours",
+    "upcoming": "étape à venir"
+  },
+  "rubriques": {
+    "monument": "Le monument",
+    "projet": "Le projet",
+    "proprietaire": "Le porteur"
+  },
+  "consignes": {
+    "plusieursReponses": "Plusieurs réponses possibles.",
+    "choisissezUneReponse": "Choisissez une réponse.",
+    "choisissezAuMoinsUne": "Choisissez au moins une réponse."
+  },
+  "etapes": {
+    "peril": {
+      "libelle": "État du monument",
+      "indice": "Une question restée sans réponse sur votre fiche."
+    },
+    "familles": {
+      "libelle": "Les activités",
+      "indice": "Ce que vous voulez faire vivre : les aides ne financent pas les mêmes."
+    },
+    "reprises": {
+      "libelle": "Vos réponses",
+      "indice": "Ce que nous savons déjà de votre monument."
+    },
+    "intention": {
+      "libelle": "Votre projet",
+      "indice": "Ce que vous voulez faire : les aides suivent votre intention."
+    },
+    "travaux": {
+      "libelle": "Les travaux",
+      "indice": "Sur quoi porte le chantier : certaines aides ne financent qu’un ouvrage."
+    },
+    "questionnaire": {
+      "libelle": "Questionnaire",
+      "indice": "Quelques minutes, sans aucun document."
+    },
+    "diagnostic": {
+      "libelle": "Diagnostic",
+      "indice": "Les aides mobilisables pour votre projet."
+    },
+    "inscription": {
+      "libelle": "Votre compte",
+      "indice": "Gratuit : votre diagnostic vous attend juste derrière."
+    }
+  },
+  "ParcoursTrail": {
+    "avancement": "Avancement du projet",
+    "jalon": "{{etape}} ({{etat}})"
+  },
+  "ProjectEcheancier": {
+    "depassee": "Dépassée",
+    "aujourdhui": "Aujourd'hui",
+    "joursRestants_one": "J-{{count}}",
+    "joursRestants_other": "J-{{count}}",
+    "surtitre": "Échéancier",
+    "titre_one": "Une date à ne pas manquer",
+    "titre_other": "{{count}} dates à ne pas manquer",
+    "intro": "Les dates limites de dépôt de vos aides, de la plus proche à la plus lointaine.",
+    "echeanceDossier": "Échéance de dossier",
+    "montantNonPublie": "Montant non publié",
+    "voirAide": "Voir l'aide",
+    "voirDossier": "Voir le dossier",
+    "plusProches": "Ne montrer que les plus proches",
+    "voirAutres_one": "Voir l’autre date",
+    "voirAutres_other": "Voir les {{count}} autres dates"
+  },
+  "WizardRail": {
+    "etapes": "Étapes",
+    "quitter": "Quitter",
+    "etatEntreParentheses": "({{etat}})",
+    "termine": "Terminé",
+    "votreMonument": "Votre monument"
+  },
+  "WizardShell": {
+    "progression": "Progression du questionnaire",
+    "progressionTexte": "{{pct}} % du questionnaire parcouru",
+    "quitter": "Quitter",
+    "quitterTitre": "Quitter ?",
+    "quitterMessage": "Vos réponses ne sont pas encore enregistrées : si vous quittez maintenant, vous devrez recommencer le questionnaire."
+  },
+  "EcranQuestion": {
+    "bonASavoir": "Bon à savoir",
+    "reduire": "Réduire",
+    "lireLaSuite": "Lire la suite",
+    "titreCarte": "{{libelle}} : {{description}}",
+    "questionPrecedente": "Question précédente",
+    "passer": "Je ne sais pas, passer",
+    "modifiablePlusTard": "Vous pourrez modifier vos réponses plus tard."
+  },
+  "DiagnosticLoader": {
+    "messages": {
+      "analyse": "Analyse de votre monument…",
+      "recherche": "Recherche des aides correspondantes…",
+      "preparation": "Préparation de votre diagnostic…"
+    },
+    "titre": "Un instant…",
+    "quelquesSecondes": "Quelques secondes suffisent."
+  },
+  "QuestionOptions": {
+    "plusieursReponses": "Plusieurs réponses possibles",
+    "passer": "Passer cette question"
+  },
+  "PerilStep": {
+    "titre": "Quel est l'état du monument ?",
+    "pourquoi": "En péril ou en mauvais état général : structure fragilisée, hors d'eau non assuré, effondrement partiel, désordres qui s'aggravent. Plusieurs dispositifs d'urgence ne s'adressent qu'à ces situations.",
+    "indices": {
+      "bon": "Le monument est globalement sain, même s'il demande des travaux d'entretien courants.",
+      "moyen": "Des désordres existent mais ne menacent ni la structure ni le clos couvert.",
+      "mauvais": "Des désordres significatifs affectent la structure ou le clos couvert.",
+      "peril": "Structure fragilisée, hors d'eau non assuré, effondrement partiel, désordres qui s'aggravent."
+    }
+  },
+  "ProjectIntentStep": {
+    "titre": "Que voulez-vous faire ?",
+    "consigne": "Une seule réponse : c'est la finalité de ce projet.",
+    "pourquoi": "Nous ne vous poserons ensuite que les questions utiles à cette finalité. Une autre finalité fera un autre projet sur le même monument.",
+    "indiceSuivant": "Choisissez une intention."
+  },
+  "ProjectTravauxStep": {
+    "titre": "Sur quoi portent les travaux envisagés ?",
+    "pourquoi": "Certaines aides ne financent qu'un type d'ouvrage précis.",
+    "indetermine": "Pas encore déterminé",
+    "indiceSuivant": "Cochez au moins un type de travaux, ou « Pas encore déterminé »."
+  },
+  "ProjectFamillesStep": {
+    "titre": "Que voulez-vous faire vivre ?",
+    "pourquoi": "Les aides ne financent pas les mêmes activités, et nous ne vous poserons que les questions de celles que vous cochez.",
+    "indiceSuivant": "Cochez au moins une activité, ou « Je ne sais pas encore ».",
+    "travaux": "Des travaux sont nécessaires",
+    "travauxIndice": "Aménagement, mise aux normes, restauration : nous vous demanderons sur quoi ils portent.",
+    "toutMontrer": "Je ne sais pas encore, montrez-moi tout",
+    "toutMontrerIndice": "Nous vous montrerons toutes les aides à portée du monument, sans filtrer sur l'activité."
+  },
+  "ProjectReprisesStep": {
+    "titre": "Reprendre vos réponses précédentes ?",
+    "aucuneReprise": "Aucune réponse reprise : toutes ces questions vous seront reposées.",
+    "consigne_one": "{{count}} réponse sur {{total}} sera reprise. Décochez celles à vous faire reposer.",
+    "consigne_other": "{{count}} réponses sur {{total}} seront reprises. Décochez celles à vous faire reposer.",
+    "pourquoiProjet_one": "{{count}} réponse de votre projet « {{titre}} » décrit le monument et son porteur, pas ce chantier-ci. Nous pouvons la reprendre pour vous éviter de répondre deux fois. Vous pourrez toujours refaire tout le questionnaire depuis la page du projet.",
+    "pourquoiProjet_other": "{{count}} réponses de votre projet « {{titre}} » décrivent le monument et son porteur, pas ce chantier-ci. Nous pouvons les reprendre pour vous éviter de répondre deux fois. Vous pourrez toujours refaire tout le questionnaire depuis la page du projet.",
+    "pourquoiAutresProjets_one": "{{count}} réponse de vos autres projets décrit le monument et son porteur, pas ce chantier-ci. Nous pouvons la reprendre pour vous éviter de répondre deux fois. Vous pourrez toujours refaire tout le questionnaire depuis la page du projet.",
+    "pourquoiAutresProjets_other": "{{count}} réponses de vos autres projets décrivent le monument et son porteur, pas ce chantier-ci. Nous pouvons les reprendre pour vous éviter de répondre deux fois. Vous pourrez toujours refaire tout le questionnaire depuis la page du projet.",
+    "toutCocher": "Tout cocher",
+    "toutDecocher": "Tout décocher",
+    "dejaDonnee": "réponse déjà donnée",
+    "compteBloc_one": "{{count}} sur {{total}} reprise",
+    "compteBloc_other": "{{count}} sur {{total}} reprises"
+  },
+  "InscriptionStep": {
+    "jusqua": "jusqu’à",
+    "financementsCumules": "de financements cumulés",
+    "taux": "{{taux}} %",
+    "coutTravaux": "du coût de vos travaux",
+    "derniereEtape": "Dernière étape",
+    "diagnosticPret": "Votre diagnostic est prêt",
+    "manqueCompte": "Il ne manque qu’un compte",
+    "reponsesEnregistrees": "Vos réponses sont enregistrées sur cet appareil. Connectez-vous : votre monument et votre projet rejoignent votre espace, et le diagnostic s’ouvre.",
+    "peuventContribuer_one": "financement peut contribuer à vos travaux.",
+    "peuventContribuer_other": "financements peuvent contribuer à vos travaux.",
+    "compare_one": "Nous avons comparé votre projet à <nombre>{{count}}</nombre> dispositifs d’aide, un critère après l’autre.",
+    "compare_other": "Nous avons comparé votre projet à <nombre>{{count}}</nombre> dispositifs d’aide, un critère après l’autre.",
+    "aucunFinancement": "Aucun financement ne ressort de ce premier passage",
+    "detailCritere": "Le détail vous dira sur quel critère chaque aide s’est arrêtée — et ce qui suffirait, parfois, à la faire basculer.",
+    "ou": "ou",
+    "seConnecter": "Se connecter pour découvrir mon diagnostic",
+    "plusDeQuestions": "Répondre à quelques questions de plus"
+  },
+  "BandeauReprises": {
+    "resumeProjet_one": "{{count}} réponse reprise de « {{titre}} » sur ce monument : voir laquelle",
+    "resumeProjet_other": "{{count}} réponses reprises de « {{titre}} » sur ce monument : voir lesquelles",
+    "resumeAutresProjets_one": "{{count}} réponse reprise de vos autres projets sur ce monument : voir laquelle",
+    "resumeAutresProjets_other": "{{count}} réponses reprises de vos autres projets sur ce monument : voir lesquelles",
+    "explication": "Vous avez accepté de les reprendre : elles ne vous sont donc pas reposées. Pour les corriger, refaites le questionnaire depuis la page du projet."
+  },
+  "BilanTronc": {
+    "mobilisables_one": "aide mobilisable",
+    "mobilisables_other": "aides mobilisables",
+    "aConfirmer": "à confirmer",
+    "ecartees": "écartées par vos réponses",
+    "surAPortee_one": "sur {{count}} aide à portée de votre monument",
+    "surAPortee_other": "sur {{count}} aides à portée de votre monument",
+    "dontUneQuestion_one": "dont {{count}} à une seule question d’un verdict",
+    "dontUneQuestion_other": "dont {{count}} à une seule question d’un verdict",
+    "guichetsPlusTard_one": "son guichet ouvre plus tard",
+    "guichetsPlusTard_other": "leurs guichets ouvrent plus tard",
+    "dontGuichetPlusTard_one": "dont {{count}} dont le guichet ouvre plus tard",
+    "dontGuichetPlusTard_other": "dont {{count}} dont le guichet ouvre plus tard"
+  },
+  "ProjectQuestionnaire": {
+    "troncTermine": "Le tronc commun est terminé",
+    "troncExplication": "Les questions suivantes ne concernent plus qu’une aide chacune. Vous pouvez les garder pour plus tard : elles vous seront reposées sur la carte de l’aide concernée.",
+    "calcul": "Calcul de votre diagnostic…",
+    "analyseEnCours": "Analyse des aides en cours…",
+    "decouvrir": "Découvrir mon diagnostic",
+    "repondreRestantes_one": "Répondre aux {{count}} question restante",
+    "repondreRestantes_other": "Répondre aux {{count}} questions restantes",
+    "minutes": "(≈ {{minutes}} min)",
+    "revoir": "Revoir mes réponses",
+    "cestTout": "C’est tout !",
+    "finRepondu_one": "Vous avez répondu à {{count}} question. On met à jour vos aides.",
+    "finRepondu_other": "Vous avez répondu à {{count}} questions. On met à jour vos aides.",
+    "finAucunePrecision": "Aucune précision supplémentaire n’était nécessaire. On met à jour vos aides.",
+    "finQuestionsPassees": "Pas de souci si vous avez passé des questions. On met à jour vos aides.",
+    "lancer": "Lancer le diagnostic",
+    "pour": "Pour {{nom}}",
+    "pourMontant": "Pour {{nom}}, jusqu’à {{montant}}",
+    "pourEtAutres_one": "Pour {{nom}} et {{count}} autre aide",
+    "pourEtAutres_other": "Pour {{nom}} et {{count}} autres aides",
+    "pourEtAutresMontant_one": "Pour {{nom}} et {{count}} autre aide, jusqu’à {{montant}}",
+    "pourEtAutresMontant_other": "Pour {{nom}} et {{count}} autres aides, jusqu’à {{montant}}"
+  }
+}

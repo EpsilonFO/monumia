@@ -1,0 +1,248 @@
+{
+  "communs": {
+    "retourAuProjet": "Back to project",
+    "retourA": "Back to {{nom}}",
+    "retourMesMonuments": "Back to my monuments",
+    "voirMesMonuments": "View my monuments",
+    "ouvrirMesDocuments": "Open my documents",
+    "voirLesAides": "View funding",
+    "suppression": "Deleting…"
+  },
+  "AideProjectPage": {
+    "erreurReponse": "Your answer could not be saved",
+    "erreurCreationDossier": "Error while creating the application",
+    "introuvable": "Funding scheme not found",
+    "pageOfficielle": "Official page",
+    "formulaire": "Form",
+    "actions": {
+      "voirDossier": "View the application",
+      "reunirPieces": "Gather the documents",
+      "commencerDossier": "Start my application",
+      "autresAides": "Other funding",
+      "verifierEligibilite": "Check my eligibility",
+      "lireReglement": "Read the rules"
+    }
+  },
+  "RepriseBrouillonPage": {
+    "erreurGenerique": "Something went wrong.",
+    "offre": {
+      "titre": "Your account already has a monument",
+      "description": "The Free plan covers just one. Multi-monument lifts the limit and brings all your properties together on a single dashboard. Your draft stays here: it will resume exactly as it is.",
+      "decouvrir": "Discover the Multi-monument plan"
+    },
+    "perime": {
+      "titre": "Your draft is too old",
+      "description": "The questionnaire has changed since then: it is best to start again from your monument, which only takes a couple of minutes.",
+      "decrire": "Describe my monument"
+    },
+    "autre": {
+      "titre": "Your eligibility check could not be saved",
+      "description": "{{message}} Your answers have been kept: try again, nothing will be created twice."
+    }
+  },
+  "ProjetDetailPage": {
+    "erreurDiagnostic": "Error during the eligibility check",
+    "erreurRenommage": "Error while renaming",
+    "projetSupprime": "Project deleted",
+    "erreurSuppression": "Error while deleting",
+    "introuvable": {
+      "titre": "Project not found",
+      "texte": "This project does not exist or has been deleted."
+    },
+    "chiffres": {
+      "aVenirAuMieux": "still to come, at best",
+      "aidesAVenir_one": "scheme to come",
+      "aidesAVenir_other": "schemes to come",
+      "echeances_one": "deadline on this project",
+      "echeances_other": "deadlines on this project"
+    },
+    "onglets": {
+      "label": "Project sections",
+      "aides": "Funding",
+      "dossiers": "Applications",
+      "documents": "Documents",
+      "documentsTitre": "Upload a document once and it serves all your applications",
+      "equipe": "Team"
+    },
+    "docsCta": {
+      "titre": "Keep your monument's documents in one place",
+      "texte": "Upload your quotes, orders, council resolutions and photos here. Monumia sorts them by type, and you can reuse them in each of your funding applications."
+    },
+    "lancer": {
+      "titre": "Discover the funding for this project",
+      "texte": "Our engine analyses the public and private funding schemes applicable to {{nom}}.",
+      "bouton": "Run the engine"
+    },
+    "paywallEcheancier": {
+      "titre": "Never miss a deadline again",
+      "description": "The timeline brings together the deadlines of your funding schemes and applications, from the nearest to the furthest. The Watch plan also sends you email reminders."
+    },
+    "aides": {
+      "titre": "All your funding",
+      "reperees_one": "{{count}} scheme found for this project",
+      "reperees_other": "{{count}} schemes found for this project",
+      "aucune": "No funding to suggest for the moment.",
+      "aucuneChez": "No funding to suggest from ‘{{filtre}}’ for the moment."
+    },
+    "groupes": {
+      "maintenant": {
+        "titre": "Available now",
+        "sous": "Your project meets the conditions published by the funder, and the application window is open. You can prepare the application."
+      },
+      "aDebloquer": {
+        "titre": "To unlock",
+        "sous": "One step stands between you and these schemes: a protection, a label, an agreement or a membership. Open the scheme page to see which one, with whom and how long it takes."
+      },
+      "aConfirmer": {
+        "titre": "To be confirmed",
+        "sous": "We are missing one or more answers to know whether your project is eligible. They are asked on each scheme's page."
+      },
+      "bientot": {
+        "titre": "Opening soon",
+        "sous": "The application window is closed or not yet open. Prepare your application for the next round: each scheme's badge shows where you stand on its criteria."
+      }
+    },
+    "paywallBientot": {
+      "titre": "Be notified the day the application window opens",
+      "description": "These schemes cannot be submitted yet. The Watch plan emails you as soon as one of them opens, and gives access to its page: its organisation, its criteria and the supporting documents required."
+    },
+    "ecartees_one": "<b>{{count}} scheme ruled out</b> by your answers, with the reason for each.",
+    "ecartees_other": "<b>{{count}} schemes ruled out</b> by your answers, with the reason for each.",
+    "masquer": "Hide",
+    "voirPourquoi": "See why",
+    "dossiersVide": {
+      "titre": "No applications for this project",
+      "description": "Open a funding scheme from the ‘Funding’ tab to start an application."
+    },
+    "documents": {
+      "intro": "This project's documents. Those describing the monument (protection order, land registry, photos) stay on its page.",
+      "vide": "Quotes, plans, site photos: upload the documents specific to this works project here."
+    },
+    "paywallEquipe": {
+      "titre": "Work together on this project",
+      "description": "Invite your architect or craftspeople to this project only. They see its funding schemes, applications and documents, and nothing from your other projects."
+    },
+    "supprimer": "Delete this project",
+    "refaire": {
+      "titre": "Redo the questionnaire?",
+      "description": "The project's scope (your intentions, the works) is kept in both cases; only the questionnaire is redone, and the eligibility check is then recalculated.",
+      "passees": "Only the skipped questions",
+      "passeesAide": "Your current answers are kept: only the questions left unanswered are asked again.",
+      "tout": "Start again from scratch",
+      "toutAide": "The questionnaire starts blank: your current answers will be replaced."
+    },
+    "suppressionDialog": {
+      "titre": "Delete this project?",
+      "description": "Its applications and their tracking will also be deleted. The monument's page, its documents and its team are not affected. This action cannot be undone."
+    }
+  },
+  "DossierDetailPage": {
+    "toasts": {
+      "erreurRattachement": "Error while attaching",
+      "documentRetire": "Document removed from the application",
+      "erreurSuppression": "Error while deleting",
+      "pieceConfirmee": "Document confirmed",
+      "erreurConfirmation": "Error while confirming",
+      "pieceRetiree": "Document removed from the application",
+      "erreurRejet": "Error while rejecting the document",
+      "dossierSupprime": "Application deleted: the funding scheme is available again",
+      "erreurSuppressionDossier": "Error while deleting the application",
+      "marqueDepose": "Application marked as submitted",
+      "depotAnnule": "Submission cancelled, the application can be edited again",
+      "erreurMiseAJour": "Error while updating the application",
+      "documentIntrouvable": "Document not found",
+      "telechargementImpossible": "Download failed",
+      "pieceAjoutee": "Document added to the application"
+    },
+    "introuvable": {
+      "titre": "Application not found",
+      "texte": "It may have been deleted, or you no longer have access to this project."
+    },
+    "phrase": {
+      "depose": "You marked it as sent to the funder. The documents can no longer be changed.",
+      "deposeLe": "You marked it as sent to the funder on {{date}}. The documents can no longer be changed.",
+      "sansPiece": "Download the application, then send it to the funder yourself.",
+      "sansPieceAvant": "Download the application, then send it to the funder yourself before {{date}}.",
+      "complet": "Your application is complete. Download it, then send it to the funder yourself.",
+      "completAvant": "Your application is complete. Download it, then send it to the funder yourself before {{date}}.",
+      "obligatoiresReunies": "The required documents are all in. Add any others that apply to you, then download the application and send it to the funder yourself.",
+      "obligatoiresReuniesAvant": "The required documents are all in. Add any others that apply to you, then download the application and send it to the funder yourself before {{date}}.",
+      "resteObligatoires_one": "{{count}} required document still to gather. Then download the application and send it to the funder yourself.",
+      "resteObligatoires_other": "{{count}} required documents still to gather. Then download the application and send it to the funder yourself.",
+      "resteObligatoiresAvant_one": "{{count}} required document still to gather. Then download the application and send it to the funder yourself before {{date}}.",
+      "resteObligatoiresAvant_other": "{{count}} required documents still to gather. Then download the application and send it to the funder yourself before {{date}}.",
+      "restePieces_one": "{{count}} document still to gather. Then download the application and send it to the funder yourself.",
+      "restePieces_other": "{{count}} documents still to gather. Then download the application and send it to the funder yourself.",
+      "restePiecesAvant_one": "{{count}} document still to gather. Then download the application and send it to the funder yourself before {{date}}.",
+      "restePiecesAvant_other": "{{count}} documents still to gather. Then download the application and send it to the funder yourself before {{date}}."
+    },
+    "titre": "{{nom}} application",
+    "depose": "Submitted",
+    "projet": "Project <lien>{{nom}}</lien>",
+    "voirFiche": "View the funding scheme",
+    "fermee": "The funder no longer offers this scheme; your application, already sent, is still being processed.",
+    "fermeeDepuis": "The funder stopped offering this scheme on {{date}}; your application, already sent, is still being processed.",
+    "cles": {
+      "dateLimite": "Deadline",
+      "touteLAnnee": "All year round",
+      "datePassee": "Date passed",
+      "aujourdhui": "Today",
+      "demain": "Tomorrow",
+      "dansJours_one": "In {{count}} day",
+      "dansJours_other": "In {{count}} days",
+      "aConfirmer": "To be confirmed",
+      "montant": "Amount"
+    },
+    "reprises": {
+      "titre_one": "One document has been filled in with a file you had already sent",
+      "titre_other": "{{count}} documents have been filled in with files you had already sent",
+      "texte": "Check that they are the right ones: until they are confirmed, these documents do not count towards your application.",
+      "verifier": "Check now"
+    },
+    "pieces": {
+      "titre": "Gather the documents",
+      "compte": "{{confirmees}} of {{total}}",
+      "deposeTexte": "The application has been submitted: its documents can no longer be changed.",
+      "aide": "Click ‘Add’: choose the document from My documents, or import it from your computer."
+    },
+    "final": {
+      "titreDepose": "Your application has been submitted",
+      "titre": "Download your application, then submit it",
+      "annulation": "Cancelling…",
+      "annulerDepot": "Cancel the submission",
+      "dejaEnvoye": "Already sent to the funder?",
+      "marquerDepose": "Mark as submitted",
+      "ajoutezDabord": "Add a document to the application first",
+      "preparation": "Preparing…",
+      "telecharger": "Download the application"
+    },
+    "supprimer": "Delete the application",
+    "dialogDepot": {
+      "titre": "Mark this application as submitted?",
+      "description": "Do this once the application has been sent to the funder: Monumia does not send it on your behalf. The documents can no longer be changed, and the scheme's progress will change to ‘Submitted’. You can cancel this submission."
+    },
+    "dialogSuppression": {
+      "titre": "Delete this application?",
+      "description": "The application and its attached documents will be removed. The funding scheme will be available again in the ‘Funding’ tab. This action cannot be undone."
+    }
+  },
+  "ProjetWizardPage": {
+    "introuvable": "This project cannot be found.",
+    "erreurEtat": "Error while saving the monument's condition",
+    "erreurProjet": "Error while saving your project",
+    "noteAppareil": "Your answers are saved as you go, on this device.",
+    "note": "Your answers are saved as you go.",
+    "quitMessage": "Your draft stays on this device: you can pick up here later.",
+    "analyse": "Analysing your monument…",
+    "erreurChargement": {
+      "titre": "The questionnaire could not be loaded.",
+      "invite": "Check your connection and try again: your answers stay on this device.",
+      "connecte": "Check your connection and try again: your project has been saved."
+    },
+    "aucuneQuestion": {
+      "titre": "Let’s refine your project",
+      "texte": "No further details are needed for this project. Run the eligibility check to discover the funding available."
+    },
+    "decouvrirFinancements": "Discover my funding"
+  }
+}

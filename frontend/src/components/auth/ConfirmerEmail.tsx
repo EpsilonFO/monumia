@@ -4,6 +4,7 @@ import { IconCourrier } from '@/components/icons';
 import { authService } from '@/services/auth.service';
 import { C, SERIF } from '@/lib/brand';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 /** Ce qui doit se passer une fois l'adresse confirmée. Se transmet au lien de
  *  confirmation, côté serveur, pour que le retour ne perde pas le fil. */
@@ -46,6 +47,7 @@ export function ConfirmerEmail({
   variante = 'inscription',
   children,
 }: ConfirmerEmailProps) {
+  const { t } = useTranslation('compte');
   const [renvoi, setRenvoi] = useState<'idle' | 'envoi' | 'envoye'>('idle');
 
   const renvoyer = async () => {
@@ -58,7 +60,7 @@ export function ConfirmerEmail({
       // la limite de fréquence de Supabase, ou une panne réseau.
       setRenvoi('idle');
       toast.error(
-        err instanceof Error ? err.message : "L'email n'a pas pu être renvoyé, réessayez.",
+        err instanceof Error ? err.message : t('ConfirmerEmail.erreurRenvoi'),
       );
     }
   };
@@ -79,29 +81,29 @@ export function ConfirmerEmail({
           className="mt-4 text-[25px] leading-[1.2]"
           style={{ fontFamily: SERIF, color: C.ink }}
         >
-          Vérifiez votre boîte mail
+          {t('ConfirmerEmail.titre')}
         </h2>
         <p className="mt-2.5 text-[16px] leading-[1.6]" style={{ color: C.grayFg }}>
           {variante === 'inscription'
-            ? 'Votre compte est créé. Un lien de confirmation vient de partir vers'
-            : 'Votre adresse n’est pas encore confirmée. Un lien vient de partir vers'}
+            ? t('ConfirmerEmail.lienParti')
+            : t('ConfirmerEmail.lienPartiConnexion')}
         </p>
         <p className="mt-1 text-[17px] font-semibold break-all" style={{ color: C.ink }}>
           {email}
         </p>
         <p className="mt-3 text-[16px] leading-[1.6]" style={{ color: C.grayFg }}>
-          Ouvrez-le pour activer votre compte : vous serez connecté directement.
+          {t('ConfirmerEmail.ouvrirLien')}
         </p>
       </div>
 
       {renvoi === 'envoye' ? (
         <p className="text-center text-[15.5px]" style={{ color: C.grayFg }}>
-          Un nouvel email vient de partir. Il peut mettre quelques minutes à arriver.
+          {t('ConfirmerEmail.nouvelEmailParti')}
         </p>
       ) : (
         <div className="space-y-2.5">
           <p className="text-center text-[15.5px]" style={{ color: C.grayMuted }}>
-            Rien reçu ? Pensez à regarder dans les indésirables.
+            {t('ConfirmerEmail.rienRecu')}
           </p>
           <button
             type="button"
@@ -111,7 +113,7 @@ export function ConfirmerEmail({
             style={{ borderColor: C.border, color: C.ink, background: C.card }}
           >
             {renvoi === 'envoi' && <Loader2 className="h-4 w-4 animate-spin" />}
-            Renvoyer l’email
+            {t('ConfirmerEmail.renvoyer')}
           </button>
         </div>
       )}

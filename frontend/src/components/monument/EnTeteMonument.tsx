@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MonumentPhotoProfil } from '@/components/monument/MonumentPhotoProfil';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { SharedBadge } from '@/components/sharing/SharedBadge';
@@ -6,14 +7,15 @@ import { RoleBadge } from '@/components/sharing/RoleBadge';
 import { isProjectShared, projectPermissions } from '@/lib/project-permissions';
 import type { Monument, ProjectMember } from '@/types';
 
-/** Libellé de la pastille de protection, à la manière de la maquette. */
-const PROTECTION_PASTILLE: Record<string, string> = {
-  classe: 'Classé monument historique',
-  inscrit: 'Inscrit monument historique',
-  abords: "Abords d'un monument historique",
-  spr: 'Site patrimonial remarquable',
-  non_protege: 'Non protégé',
-};
+/** Libellé de la pastille de protection, à la manière de la maquette : la clé
+ *  de `EnTeteMonument.pastille` qui sert chaque niveau. */
+const PASTILLE_PROTECTION = {
+  classe: 'classe',
+  inscrit: 'inscrit',
+  abords: 'abords',
+  spr: 'spr',
+  non_protege: 'nonProtege',
+} as const;
 
 /**
  * En-tête de la page monument (maquette `monumia-page-monument.html`) : la
@@ -35,17 +37,23 @@ export function EnTeteMonument({
    *  si l'enregistrement échoue : le champ reste ouvert, la saisie n'est pas perdue. */
   onRenommer?: (nom: string) => Promise<void>;
 }) {
+  const { t } = useTranslation('monuments');
   const lieu = [monument.commune, monument.departement].filter(Boolean).join(', ');
   const canEdit = projectPermissions(monument.myRole ?? null).canEditProject;
   const partage = isProjectShared({
     myRole: monument.myRole,
     memberCount: members.length || monument.memberCount,
   });
-  const pastille = PROTECTION_PASTILLE[monument.protection];
+  const clePastille = Object.hasOwn(PASTILLE_PROTECTION, monument.protection)
+    ? PASTILLE_PROTECTION[monument.protection as keyof typeof PASTILLE_PROTECTION]
+    : undefined;
+  const pastille = clePastille ? t(`EnTeteMonument.pastille.${clePastille}`) : undefined;
   // La fiche est « à compléter » tant qu'elle n'est pas remplie ; ensuite on la
   // « modifie ». Le lien ne ment ni dans un sens ni dans l'autre.
   const lienFiche =
-    monument.completionPercentage < 100 ? 'Compléter la fiche du monument' : 'Modifier la fiche du monument';
+    monument.completionPercentage < 100
+      ? t('EnTeteMonument.completerFiche')
+      : t('EnTeteMonument.modifierFiche');
 
   const [edition, setEdition] = useState(false);
   const [saisie, setSaisie] = useState(monument.nom);
@@ -98,14 +106,14 @@ export function EnTeteMonument({
               // on revient alors au nom en place plutôt que de bloquer.
               onBlur={() => (saisie.trim() ? void valider() : setEdition(false))}
               disabled={enregistrement}
-              aria-label="Nom du monument"
+              aria-label={t('EnTeteMonument.nomAria')}
               autoFocus
               className={saisie.trim() ? 'renommer' : 'renommer vide'}
             />
             <p className="aide-saisie">
               {saisie.trim()
-                ? 'Entrée pour valider, Échap pour annuler.'
-                : 'Le nom doit contenir au moins un caractère.'}
+                ? t('EnTeteMonument.aideValider')
+                : t('EnTeteMonument.nomVide')}
             </p>
           </>
         ) : (
@@ -116,8 +124,8 @@ export function EnTeteMonument({
                 className="crayon"
                 type="button"
                 onClick={ouvrirEdition}
-                aria-label="Renommer le monument"
-                title="Renommer le monument"
+                aria-label={t('EnTeteMonument.renommer')}
+                title={t('EnTeteMonument.renommer')}
               >
                 <Picto nom="crayon" />
               </button>

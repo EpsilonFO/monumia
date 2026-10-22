@@ -1,0 +1,333 @@
+{
+  "Commun": {
+    "trouverMesAides": "Trouver mes aides",
+    "trouverLesAides": "Trouver les aides pour mon monument",
+    "exemple": "Exemple",
+    "aidesEstimees": "Aides estimées",
+    "aidesCorrespondent": "12 aides correspondent à votre projet",
+    "chances": "Vos chances d’obtenir ces aides",
+    "elevees": "élevées"
+  },
+  "Navigation": {
+    "methode": "Comment ça marche",
+    "equipe": "L’équipe",
+    "tarifs": "Tarifs",
+    "questions": "Questions",
+    "questionsFrequentes": "Questions fréquentes"
+  },
+  "SelecteurLangue": {
+    "libelle": "Langue",
+    "fr": "Français",
+    "en": "English"
+  },
+  "Header": {
+    "retourEnHaut": "Monumia, retour en haut de page",
+    "navigation": "Navigation principale",
+    "monCompte": "Mon compte"
+  },
+  "Partenaires": {
+    "referencePar": "Référencé par"
+  },
+  "EstimationCard": {
+    "titre": "Votre estimation",
+    "projet": "Restauration de la façade",
+    "monument": "Château protégé",
+    "fourchette": "<min></min> € <mot>à</mot> <max></max> €",
+    "identifiees": "12 aides identifiées · DRAC, Région, Fondation du patrimoine",
+    "etPourVous": "Et pour votre monument ? →"
+  },
+  "Hero": {
+    "surtitre": "Le moteur de recherche des aides au patrimoine",
+    "titre": "L’argent pour restaurer et faire vivre votre monument <bleu>existe</bleu>. Nous vous aidons à le <orange>trouver</orange>.",
+    "intro": "À quelles aides votre monument est-il éligible ? Pour quel montant ? Comment les obtenir ? Monumia croise votre projet de restauration, d’ouverture ou d’animation avec plus de 2000 aides, de la DRAC aux fondations.",
+    "reassurance": "En quelques minutes · Gratuit, sans engagement · Monument protégé ou non",
+    "alerteTitre": "Alerte ouverture",
+    "alerteTexte": "La Fondation du patrimoine ouvre ses candidatures"
+  },
+  "Constat": {
+    "presDUnSurQuatre": "Près d’un sur quatre",
+    "mauvaisEtat": "monuments historiques en mauvais état ou en péril.",
+    "nonProteges": "monuments non protégés en état critique : églises, abbayes, châteaux, manoirs…",
+    "sources": {
+      "ministere": "Ministère de la Culture, État de conservation des monuments historiques immeubles, bilan 2019-2024 (mai 2025)",
+      "fondation": "Fondation du patrimoine, Observatoire du patrimoine non protégé (septembre 2025)"
+    },
+    "maquisTitre": "Un maquis d'aides qui complique la recherche de financements.",
+    "maquisTexte": "Des dizaines de guichets, de l’Europe à la DRAC en passant par les préfectures, les Régions, les Départements, les fondations, les prix-concours… Chacun a ses propres critères d’éligibilité, montants, calendriers… Aujourd’hui, la recherche est complexe et fastidieuse.",
+    "guichets": {
+      "etat": "État · DRAC",
+      "europe": "Europe",
+      "region": "Région",
+      "departement": "Département",
+      "intercommunalite": "Intercommunalité",
+      "prefecture": "Préfecture",
+      "fondations": "Fondations",
+      "mecenat": "Mécénat d’entreprise"
+    }
+  },
+  "RapportSenat": {
+    "altCouverture": "Couverture du rapport d’information n° 865 du Sénat, 7 juillet 2026",
+    "consulter": "Consulter le rapport",
+    "titre": "Le Sénat partage notre constat",
+    "texte": "En juillet 2026, le Sénat recommande un guichet unique des subventions, « assorti d’un portail d’information recensant l’ensemble des dispositifs de soutien disponibles »."
+  },
+  "ResultatsExemple": {
+    "drac": {
+      "nom": "Aide de l’État (DRAC) · restauration",
+      "montant": "15 à 40 %"
+    },
+    "region": {
+      "nom": "Aide de la Région · patrimoine",
+      "montant": "jusqu’à 25 000 €"
+    },
+    "fondation": {
+      "nom": "Fondation du patrimoine",
+      "montant": "Réduction d’impôt"
+    },
+    "mecenat": {
+      "nom": "Mécénat d’entreprise",
+      "montant": "Sur dossier"
+    }
+  },
+  "SceneTrouver": {
+    "question": "Question 5 <sur>sur 12</sur>",
+    "porteurs": "Quelles entités, autour du monument, pourraient déposer une demande d’aide ?",
+    "porteurAide": "Le porteur n’est pas forcément le propriétaire du monument.",
+    "particulier": "Particulier (personne physique)",
+    "sci": "SCI",
+    "association": "Association loi 1901",
+    "partiesProtegees": "Les travaux portent-ils sur les parties protégées du monument (celles visées par le classement ou l’inscription) ?",
+    "oui": "Oui",
+    "non": "Non",
+    "recherche": "Monumia cherche toutes les aides pour votre projet…",
+    "fourchette": "<min></min> – <max></max> €",
+    "fiche": {
+      "titre": "Fiche de l’aide",
+      "conditions": "Conditions et montants expliqués",
+      "contact": "La personne à contacter",
+      "documents": "La liste des 12 documents à fournir"
+    }
+  },
+  "SceneVeille": {
+    "titre": "Vos dates à retenir",
+    "dates": {
+      "fondation": {
+        "nom": "Fondation du patrimoine · les candidatures ouvrent",
+        "date": "15 mars"
+      },
+      "etat": {
+        "nom": "Aide de l’État · dernier jour pour déposer",
+        "date": "2 avril"
+      },
+      "region": {
+        "nom": "Région · nouvelle aide pour le patrimoine",
+        "date": "30 juin"
+      }
+    },
+    "alerteActivee": "Alerte activée : vous serez prévenu à temps",
+    "alerteMonumia": "Alerte Monumia",
+    "nouvelleAide": "Nouvelle aide pour votre manoir",
+    "mecenat": "Mécénat"
+  },
+  "SceneDossiers": {
+    "titre": "Vos projets en cours",
+    "projets": {
+      "toiture": {
+        "nom": "Restauration de la toiture",
+        "statut": "Dossier en préparation"
+      },
+      "vitraux": {
+        "nom": "Vitraux de la chapelle",
+        "statut": "Recherche d’aides en cours"
+      },
+      "electricite": {
+        "nom": "Mise aux normes électriques",
+        "statut": "À démarrer"
+      }
+    },
+    "pieces": {
+      "devis": "Devis des artisans",
+      "photos": "Photos de la toiture",
+      "financement": "Plan de financement",
+      "abf": "Avis de l’Architecte des Bâtiments de France"
+    },
+    "documentsProjet": "Documents du projet · partagés avec votre architecte",
+    "telecharger": "Télécharger le dossier complet",
+    "pret": "Dossier complet, prêt à envoyer"
+  },
+  "Demo": {
+    "titre": "Monumia en action",
+    "missions": "Les trois missions de Monumia",
+    "categories": {
+      "trouver": {
+        "onglet": "Trouver mes aides",
+        "titre": "Trouvez toutes vos aides"
+      },
+      "dossiers": {
+        "onglet": "Monter mon dossier",
+        "titre": "Montez et pilotez vos dossiers"
+      },
+      "veille": {
+        "onglet": "Ne rien rater",
+        "titre": "Ne ratez plus jamais une opportunité"
+      }
+    },
+    "fonctionnalites": {
+      "questionnaire": {
+        "titre": "Un questionnaire simple",
+        "texte": "Quelques questions sur votre lieu et votre projet. Plus vos réponses sont précises, plus les résultats le sont."
+      },
+      "moteur": {
+        "titre": "Un moteur de recherche d’aides",
+        "texte": "Vos réponses sont croisées avec l’ensemble des financements existants, pour ne remonter que les aides auxquelles vous êtes réellement éligible."
+      },
+      "fiche": {
+        "titre": "Une fiche claire pour chaque aide",
+        "texte": "Conditions, montants, documents à fournir et personne à contacter : le mode d’emploi de chaque financement."
+      },
+      "cloud": {
+        "titre": "Cloud pour stocker vos documents",
+        "texte": "Devis, photos, plans : tout est rangé, classé et partageable. Invitez votre architecte ou vos artisans à y travailler avec vous."
+      },
+      "pieces": {
+        "titre": "La liste exacte des documents à fournir",
+        "texte": "Pour chaque aide, Monumia vous donne la liste précise des pièces demandées. Une fois tout réuni, téléchargez le dossier complet, prêt à envoyer."
+      },
+      "suivi": {
+        "titre": "Assurer un suivi de vos démarches",
+        "texte": "Pilotez l’état d’avancement de vos demandes, de « en cours de préparation » à « accordée »."
+      },
+      "tableauDeBord": {
+        "titre": "Un tableau de bord de suivi",
+        "texte": "Une vue d’ensemble de tous vos projets. Menez plusieurs projets de front sans rien perdre de vue."
+      },
+      "alertes": {
+        "titre": "Des alertes avant chaque échéance",
+        "texte": "Monumia vous prévient à l’approche de chaque date limite qui vous concerne, à temps pour déposer."
+      },
+      "veille": {
+        "titre": "Une veille sur vos financements",
+        "texte": "Au-delà de vos projets en cours, Monumia identifie en continu les aides auxquelles votre monument est éligible."
+      }
+    }
+  },
+  "Team": {
+    "titre": "Car nous avons décidé de ne plus attendre.",
+    "sousTitre": "Ensemble, nous portons Monumia.",
+    "membres": {
+      "paul": {
+        "alt": "Portrait de Paul, cofondateur de Monumia",
+        "description": "Cofondateur, vision et développement commercial. À l’origine de Monumia."
+      },
+      "felix": {
+        "alt": "Portrait de Félix, cofondateur de Monumia",
+        "description": "Cofondateur, conception et développement. Expert en intelligence artificielle. Il a construit la plateforme."
+      },
+      "henri": {
+        "alt": "Portrait d’Henri d’Anselme, ambassadeur de Monumia",
+        "description": "Ambassadeur. Auteur, producteur et présentateur des « Chemins du Patrimoine »."
+      }
+    }
+  },
+  "Tarifs": {
+    "titre": "Des offres adaptées à vos besoins",
+    "nousContacter": "Nous contacter",
+    "decouverte": {
+      "nom": "Découverte",
+      "public": "gratuit",
+      "accroche": "Trouvez toutes les aides de votre monument.",
+      "intro": "Vous répondez à quelques questions sur votre monument, sa protection et votre projet. Nous croisons vos réponses avec plus de 400 aides, de l’État aux fondations, et vous rendons celles auxquelles votre projet peut prétendre, avec le taux et le plafond annoncés par chaque financeur.",
+      "avantages": {
+        "monument": "1 monument, 2 projets",
+        "detail": "Pour chaque aide : critères, taux et plafond, calendrier, pièces exigées, service instructeur",
+        "prix": "Les prix et appels à projets, cherchés au même titre que les subventions",
+        "checklist": "La checklist des pièces réclamées par chaque financeur",
+        "documents": "Un espace documents, classé par type, où vos pièces déposées une fois servent tous vos dossiers"
+      },
+      "resume": "Sans carte bancaire, sans engagement.",
+      "note": "Un projet correspond à un chantier. Reprendre la couverture, c’en est un. Accueillir une compagnie en résidence, c’en est un autre. Les financeurs ne sont pas les mêmes."
+    },
+    "veille": {
+      "nom": "Veille",
+      "public": "pour un monument en activité",
+      "badge": "Le plus choisi",
+      "accroche": "Vous ne cherchez plus vos aides. Elles vous sont signalées.",
+      "intro1": "Découverte vous donne une photo à un instant donné, pour un projet. Veille suit vos projets toute l’année et vous prévient à chaque ouverture de guichet.",
+      "intro2": "Vous remplissez le questionnaire une fois. Votre profil reste actif toute l’année. Dès qu’une aide s’ouvre et que l’un de vos projets y est éligible, vous recevez l’alerte avec la date de clôture et les pièces à réunir.",
+      "avantages": {
+        "projets": "Projets illimités : chaque chantier a ses propres financeurs",
+        "echeancier": "L’échéancier et les rappels par e-mail, envoyés à plusieurs intervalles avant chaque clôture",
+        "aVenir": "Les aides à venir dévoilées dès leur annonce, pour préparer le dossier avant l’ouverture du guichet",
+        "equipe": "Invitez votre architecte, vos artisans ou un assistant sur un projet"
+      },
+      "resume": "Tout Découverte, plus les projets illimités, l’échéancier, les alertes et l’équipe."
+    },
+    "multi": {
+      "nom": "Multi-monuments",
+      "public": "pour les propriétaires de plusieurs monuments, les communes et les associations",
+      "badge": "Le plus complet",
+      "accroche": "Tous vos monuments sur un seul tableau de bord.",
+      "intro1": "Veille couvre un monument. Multi-monuments les réunit tous.",
+      "intro2": "Plusieurs monuments, autant de calendriers de dépôt et d’intervenants à coordonner. Ils tiennent dans une seule vue.",
+      "avantages": {
+        "monuments": "Monuments illimités, chacun avec ses projets, ses documents et son équipe",
+        "tableauDeBord": "Le tableau de bord consolidé : tous les projets, toutes les échéances, sur un seul calendrier",
+        "documents": "Un espace documents distinct par monument, sans confusion entre deux dossiers"
+      },
+      "resume": "Tout Veille sur chacun de vos monuments, plus le tableau de bord consolidé."
+    }
+  },
+  "Faq": {
+    "titre": "Vos questions, nos réponses",
+    "contact": "Pour toutes vos questions supplémentaires, merci de nous contacter : <lien>contact@monumia.fr</lien>",
+    "questions": {
+      "public": {
+        "question": "À qui s’adresse Monumia ?",
+        "reponse": "À tous ceux qui ont un lieu à entretenir ou à faire vivre : propriétaires privés, communes et collectivités."
+      },
+      "nonProtege": {
+        "question": "Mon lieu n’est ni classé, ni inscrit. Ai-je quand même droit à des aides ?",
+        "reponse": "Très souvent, oui. Les Monuments historiques ne représentent qu’une petite partie du patrimoine : les monuments non protégés peuvent eux aussi bénéficier d’aides financières. Le questionnaire tient compte de la situation exacte de votre lieu."
+      },
+      "financements": {
+        "question": "Quels types de financements trouvez-vous ?",
+        "reponse": "Les aides publiques (État et DRAC, régions, départements, communes), les fondations et le mécénat d’entreprise (Fondation du patrimoine, Dassault, Crédit Agricole, French Heritage Society…), ainsi que certaines aides européennes."
+      },
+      "informatique": {
+        "question": "Je ne suis pas à l’aise avec l’informatique. Est-ce pour moi ?",
+        "reponse": "Oui, Monumia a été pensé pour vous. Le parcours avance pas à pas, les questions sont posées en langage simple et chaque terme technique est expliqué. Et si vous êtes bloqué, nous vous répondons par e-mail."
+      },
+      "depot": {
+        "question": "Monumia dépose-t-il les demandes à ma place ?",
+        "reponse": "Non, et c’est un choix. Monumia identifie les aides, vous explique les règles, rassemble vos pièces et prépare un dossier complet, prêt à transmettre. Vous restez maître de vos demandes ; nous vous épargnons les dizaines d’heures de recherche et de préparation."
+      },
+      "prix": {
+        "question": "Combien ça coûte ?",
+        "reponse": "Découverte est gratuite, sans carte bancaire : un monument, deux projets, le détail de chaque aide, l’espace documents et l’aide au montage des dossiers. Veille ajoute les projets illimités, l’échéancier, les alertes avant chaque clôture et l’invitation de collaborateurs. Multi-monuments comprend tout ce que propose Veille et réunit plusieurs monuments sur un seul tableau de bord. Pour les offres payantes, prenez rendez-vous via notre lien Calendly ou écrivez-nous par e-mail : nous en discutons ensemble et vous proposons un devis adapté."
+      },
+      "sources": {
+        "question": "D’où viennent vos informations ?",
+        "reponse": "Notre base de données est construite à partir des publications officielles des financeurs (administrations, collectivités, fondations) et tenue à jour en continu. Chaque fiche indique ses sources et les contacts utiles."
+      }
+    }
+  },
+  "FinalCta": {
+    "titre": "Mobilisez enfin toutes les aides pour restaurer, ouvrir ou animer votre monument.",
+    "reassurance": "Gratuit · Sans engagement"
+  },
+  "Footer": {
+    "slogan": "Toutes les aides au patrimoine. Un seul endroit.",
+    "citation": "« Au service de celles et ceux qui font vivre le patrimoine bâti. »",
+    "concuEnFrance": "Conçu en France.",
+    "planDuSite": "Plan du site",
+    "decouvrir": "Découvrir",
+    "contact": "Contact",
+    "mentionsLegales": "Mentions légales",
+    "cgu": "Conditions générales d'utilisation",
+    "confidentialite": "Politique de confidentialité",
+    "droits": "© {{annee}} Monumia. Tous droits réservés."
+  },
+  "LandingPage": {
+    "allerAuContenu": "Aller au contenu"
+  }
+}

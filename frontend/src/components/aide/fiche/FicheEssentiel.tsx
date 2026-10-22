@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Ico, type NomIco } from './Ico';
 import {
   CLASSE_GUICHET,
@@ -16,15 +17,16 @@ const TEINTE_CALENDRIER: Record<Guichet['etat'], string> = {
   attente: 't-sand',
 };
 
-const LIGNES: { cle: LigneEssentiel; libelle: string; ico: NomIco; teinte: string }[] = [
-  { cle: 'financeur', libelle: "Qui verse l'aide", ico: 'financeur', teinte: 't-blue' },
-  { cle: 'beneficiaires', libelle: 'Pour qui', ico: 'maison', teinte: 't-gold' },
-  { cle: 'type', libelle: "Type d'aide", ico: 'document', teinte: 't-sand' },
-  { cle: 'calendrier', libelle: "Jusqu'à quand", ico: 'calendrier', teinte: '' },
-  { cle: 'delai', libelle: 'Délai de réponse', ico: 'delai', teinte: 't-blue' },
-  { cle: 'depot', libelle: 'Comment déposer', ico: 'depot', teinte: 't-orange' },
-  { cle: 'cumul', libelle: 'Cumul', ico: 'cumul', teinte: 't-gold' },
-  { cle: 'contact', libelle: 'Contact', ico: 'contact', teinte: 't-blue' },
+// Le libellé de chaque ligne se traduit au rendu : `FicheEssentiel.lignes.<cle>`.
+const LIGNES: { cle: LigneEssentiel; ico: NomIco; teinte: string }[] = [
+  { cle: 'financeur', ico: 'financeur', teinte: 't-blue' },
+  { cle: 'beneficiaires', ico: 'maison', teinte: 't-gold' },
+  { cle: 'type', ico: 'document', teinte: 't-sand' },
+  { cle: 'calendrier', ico: 'calendrier', teinte: '' },
+  { cle: 'delai', ico: 'delai', teinte: 't-blue' },
+  { cle: 'depot', ico: 'depot', teinte: 't-orange' },
+  { cle: 'cumul', ico: 'cumul', teinte: 't-gold' },
+  { cle: 'contact', ico: 'contact', teinte: 't-blue' },
 ];
 
 /**
@@ -80,6 +82,7 @@ export function FicheEssentiel({
   /** Absent quand aucun canal de signalement n'est branché : le lien disparaît. */
   onSignaler?: () => void;
 }) {
+  const { t } = useTranslation('aide');
   const montant = montantAide(aide);
   const lignes = lignesDe(aide, g);
 
@@ -88,14 +91,14 @@ export function FicheEssentiel({
       <div className="ess">
         <div className="ess-h" data-guide="aide.montant">
           <p className="ess-k">
-            <span id="ess-t">L'essentiel</span>
+            <span id="ess-t">{t('FicheEssentiel.titre')}</span>
             <span className={`status on-blue ${CLASSE_GUICHET[g.etat]}`}><i />{g.court}</span>
           </p>
-          <p className="ess-amt">{montant?.valeur ?? 'Montant non publié'}</p>
+          <p className="ess-amt">{montant?.valeur ?? t('FicheEssentiel.montantNonPublie')}</p>
           {montant?.detail && <p className="ess-amt-s">{montant.detail}</p>}
         </div>
         <div className="ess-b">
-          {LIGNES.map(({ cle, libelle, ico, teinte }) => {
+          {LIGNES.map(({ cle, ico, teinte }) => {
             const ligne = lignes[cle];
             if (!ligne?.valeur) return null;
             return (
@@ -104,7 +107,7 @@ export function FicheEssentiel({
                   <Ico nom={ico} />
                 </span>
                 <div>
-                  <small>{libelle}</small>
+                  <small>{t(`FicheEssentiel.lignes.${cle}`)}</small>
                   <b>{cle === 'contact' ? <AvecLiens texte={ligne.valeur} /> : ligne.valeur}</b>
                   {ligne.detail && <span>{ligne.detail}</span>}
                 </div>
@@ -116,12 +119,12 @@ export function FicheEssentiel({
           <div className="ess-f">
             {aide.urlOfficielle && (
               <a className="btn btn-ess" href={aide.urlOfficielle} target="_blank" rel="noopener noreferrer">
-                <Ico nom="externe" />Page officielle
+                <Ico nom="externe" />{t('FicheEssentiel.pageOfficielle')}
               </a>
             )}
             {aide.formulaireUrl && (
               <a className="btn btn-ess" href={aide.formulaireUrl} target="_blank" rel="noopener noreferrer">
-                <Ico nom="formulaire" />Formulaire
+                <Ico nom="formulaire" />{t('FicheEssentiel.formulaire')}
               </a>
             )}
           </div>
@@ -129,9 +132,9 @@ export function FicheEssentiel({
       </div>
       {(aide.verifieLe || onSignaler) && (
         <p className="checked">
-          {aide.verifieLe && <>Vérifié par Monumia le {dateLongue(aide.verifieLe)}</>}
+          {aide.verifieLe && t('FicheEssentiel.verifieLe', { date: dateLongue(aide.verifieLe) })}
           {aide.verifieLe && onSignaler && ' · '}
-          {onSignaler && <button type="button" onClick={onSignaler}>Signaler une erreur</button>}
+          {onSignaler && <button type="button" onClick={onSignaler}>{t('FicheEssentiel.signaler')}</button>}
         </p>
       )}
     </>

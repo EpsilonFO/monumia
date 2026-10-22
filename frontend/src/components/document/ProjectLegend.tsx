@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { C } from '@/lib/brand';
 
 export interface LegendItem {
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function ProjectLegend({ items, activeId, onSelect }: Props) {
+  const { t } = useTranslation('documents');
   if (items.length === 0) return null;
   return (
     <div
@@ -21,7 +23,7 @@ export function ProjectLegend({ items, activeId, onSelect }: Props) {
       style={{ background: C.card, borderColor: C.border }}
     >
       <span className="text-[13px] uppercase tracking-[0.08em] font-semibold text-muted-foreground">
-        Monuments
+        {t('ProjectLegend.monuments')}
       </span>
       {items.map((it) => {
         const active = activeId === it.id;

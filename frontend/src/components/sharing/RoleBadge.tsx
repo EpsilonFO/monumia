@@ -1,9 +1,12 @@
+import i18n from '@/i18n';
 import type { ProjectRole } from '@/types';
 
+// Getters : le libellé se lit dans la langue de la page au moment de l'affichage
+// (cf. i18n/README.md, jamais de traduction calculée à l'import).
 export const ROLE_LABELS: Record<ProjectRole, string> = {
-  owner: 'Chef de projet',
-  co_owner: 'Chef de projet adjoint',
-  member: 'Collaborateur',
+  get owner() { return i18n.t('shell:RoleBadge.owner'); },
+  get co_owner() { return i18n.t('shell:RoleBadge.co_owner'); },
+  get member() { return i18n.t('shell:RoleBadge.member'); },
 };
 
 const ROLE_STYLES: Record<ProjectRole, string> = {

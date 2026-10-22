@@ -1,0 +1,305 @@
+{
+  "CommuneAutocomplete": {
+    "placeholder": "Ex : Valognes"
+  },
+  "MonumentForm": {
+    "etapes": {
+      "identification": {
+        "titre": "Identification",
+        "description": "Nom et localisation"
+      },
+      "statutJuridique": {
+        "titre": "Statut juridique",
+        "description": "Protection et propriété"
+      },
+      "descriptionPhysique": {
+        "titre": "Description physique",
+        "description": "Architecture et état du monument"
+      }
+    },
+    "etape": "Étape {{courante}} / {{total}}",
+    "terminer": "Terminer",
+    "nom": "Nom du monument *",
+    "nomPlaceholder": "Ex : Église Saint-Malo",
+    "commune": "Commune *",
+    "protection": "Niveau de protection *",
+    "selectionner": "Sélectionner...",
+    "dateProtection": "Date de protection",
+    "detailProtection": "Détail de la protection",
+    "detailSansObjet": "Sans objet pour un bien non protégé",
+    "detailPlaceholder": "Ex : Classé MH par arrêté du 16 juin 1928",
+    "proprietaire": "Type de propriétaire *",
+    "proprietaireAide": "Plusieurs choix possibles. Une aide vous est proposée dès que l’un des propriétaires peut la demander.",
+    "typeEdifice": "Type d’édifice",
+    "nonRenseigne": "Non renseigné",
+    "typeEdificeAide": "Plusieurs choix possibles : un domaine peut réunir château, chapelle et pigeonnier. Ils répondent d’avance aux questions sur la nature du bien, qui ne vous sont alors plus posées.",
+    "affectationCulte": "Affectation au culte",
+    "toujoursAffecte": "Toujours affecté au culte",
+    "desaffecte": "Désaffecté",
+    "architectureRomane": "Architecture romane",
+    "romaneOui": "Oui, en tout ou en partie",
+    "siecleConstruction": "Siècle de construction",
+    "sieclePlaceholder": "Ex : XVe siècle",
+    "descriptionGenerale": "Description générale de la protection",
+    "descriptionPlaceholder": "Décrivez votre monument...",
+    "etatConservation": "État de conservation *",
+    "etatAide": "Un monument en péril ou en mauvais état ouvre les dispositifs d’urgence. Cette réponse vaut pour tous vos projets de travaux sur ce monument."
+  },
+  "MonumentFiche": {
+    "protectionEnonce": {
+      "classe": "Classé au titre des monuments historiques",
+      "inscrit": "Inscrit au titre des monuments historiques",
+      "abords": "Situé aux abords d'un monument historique",
+      "spr": "En site patrimonial remarquable",
+      "nonProtege": "Non protégé"
+    },
+    "protectionPhrase": {
+      "classe": "Le plus haut niveau de protection au titre des monuments historiques : les aides de l'État vous sont largement ouvertes.",
+      "inscrit": "Une protection officielle qui ouvre droit à de nombreuses aides publiques.",
+      "abords": "Le bien se trouve dans le périmètre protégé d'un monument historique.",
+      "spr": "Un site reconnu pour la valeur de son patrimoine architectural et paysager.",
+      "nonProtege": "Pas encore de protection officielle. Certaines aides restent néanmoins accessibles."
+    },
+    "perilPhrase": {
+      "oui": "Les dispositifs d'urgence, loto du patrimoine et fonds régionaux de sauvegarde, ne s'adressent qu'aux monuments dans cette situation.",
+      "non": "Le monument est globalement sain. Les aides d'urgence ne vous concernent pas, les dispositifs de restauration courante restent ouverts.",
+      "inconnu": "La question n'a pas encore été posée. Y répondre ouvre ou écarte les dispositifs d'urgence."
+    },
+    "typePhoto": {
+      "facade": "Façade",
+      "interieur": "Intérieur",
+      "detail": "Détail",
+      "aerien": "Vue aérienne",
+      "degradation": "Dégradation"
+    },
+    "arrete": "Arrêté du {{date}}",
+    "commune": "Commune",
+    "departement": "Département",
+    "typesEdifice_one": "Type d'édifice",
+    "typesEdifice_other": "Types d'édifice",
+    "affectationCulte": "Affectation au culte",
+    "toujoursAffecte": "Toujours affecté au culte",
+    "desaffecte": "Désaffecté",
+    "siecleConstruction": "Siècle de construction",
+    "proprietaires_one": "Propriétaire",
+    "proprietaires_other": "Propriétaires",
+    "titre": "La fiche du monument",
+    "sousTitre": "Ce qui décrit le bien. Elle vaut pour tous vos projets sur ce monument.",
+    "modifierFiche": "Modifier la fiche",
+    "statutsAria": "Protection et état sanitaire",
+    "protection": "Protection",
+    "etatSanitaire": "État sanitaire",
+    "etatNonRenseigne": "État non renseigné",
+    "identification": "Identification",
+    "descriptionProtection": "Description de la protection",
+    "photos": "Photos",
+    "dates": "Fiche créée le {{creation}}, modifiée le {{modification}}.",
+    "supprimer": "Supprimer le monument"
+  },
+  "MonumentPhotoProfil": {
+    "erreurType": "Choisissez une image (JPEG, PNG…).",
+    "erreurTaille": "Image trop lourde : 5 Mo maximum.",
+    "sessionExpiree": "Session expirée, reconnectez-vous.",
+    "photoMiseAJour": "Photo mise à jour.",
+    "erreurEnregistrement": "Impossible d'enregistrer la photo.",
+    "erreurRetrait": "Impossible de retirer la photo.",
+    "ajouterUnePhoto": "Ajouter une photo",
+    "alt": "Photo du monument {{nom}}",
+    "recadrerAria": "Recadrer la photo du monument",
+    "ajouterAria": "Ajouter une photo du monument",
+    "retirerAria": "Retirer la photo du monument"
+  },
+  "PhotoCropDialog": {
+    "titre": "Recadrer la photo",
+    "description": "Déplacez l’image et ajustez le zoom : ce que montre le cadre sera la photo du monument.",
+    "erreurChargement": "Impossible de charger l'image.",
+    "erreurProduction": "Impossible de produire l'image recadrée.",
+    "zoom": "Zoom",
+    "autrePhoto": "Choisir une autre photo"
+  },
+  "EnTeteMonument": {
+    "pastille": {
+      "classe": "Classé monument historique",
+      "inscrit": "Inscrit monument historique",
+      "abords": "Abords d'un monument historique",
+      "spr": "Site patrimonial remarquable",
+      "nonProtege": "Non protégé"
+    },
+    "completerFiche": "Compléter la fiche du monument",
+    "modifierFiche": "Modifier la fiche du monument",
+    "nomAria": "Nom du monument",
+    "aideValider": "Entrée pour valider, Échap pour annuler.",
+    "nomVide": "Le nom doit contenir au moins un caractère.",
+    "renommer": "Renommer le monument"
+  },
+  "MerimeeSearch": {
+    "classeMh": "Classé MH",
+    "inscritMh": "Inscrit MH",
+    "protectionInconnue": "Protection inconnue",
+    "placeholder": "Nom du monument, commune ou référence…",
+    "aucunResultat": "Aucun résultat pour « {{requete}} ». Vous pourrez décrire votre monument vous-même juste en dessous."
+  },
+  "MonumentCard": {
+    "aucunProjet": "Aucun projet",
+    "projetsTravaux_one": "{{count}} projet de travaux",
+    "projetsTravaux_other": "{{count}} projets de travaux",
+    "dossiersEnCours_one": "{{count}} dossier en cours",
+    "dossiersEnCours_other": "{{count}} dossiers en cours",
+    "echeanceDepassee": "Échéance dépassée",
+    "echeance": "Échéance : {{texte}}"
+  },
+  "MonumentSummaryBar": {
+    "nouveauProjet": "Nouveau projet"
+  },
+  "ApercuFiche": {
+    "type": "Type",
+    "construitAu": "Construit au",
+    "etat": "État",
+    "protection": "Protection",
+    "proprietaire": "Propriétaire",
+    "aria": "Aperçu de la fiche monument",
+    "ficheMonument": "Fiche monument",
+    "nomBatiment": "Nom du bâtiment",
+    "ficheRemplie": "Fiche remplie",
+    "pourcentage": "{{pct}} %",
+    "aRenseigner": "À renseigner",
+    "continuer": "Continuer vers mon projet",
+    "ensuite": "Ensuite, vous décrivez votre projet de travaux, puis Monumia trie les aides.",
+    "note": "Vous pourrez tout modifier plus tard depuis la fiche du monument."
+  },
+  "FicheMonumentSections": {
+    "facultatif": "facultatif",
+    "plusieursChoix": "plusieurs choix possibles",
+    "sectionMonument": "Le monument",
+    "sectionProtection": "Sa protection",
+    "sectionProprietaire": "Le propriétaire",
+    "nomBatiment": "Nom du bâtiment",
+    "nomPlaceholder": "Ex. : Église Saint-Malo",
+    "commune": "Commune",
+    "typeEdifice": "Type d’édifice",
+    "typeEdificeAide": "Il répond d’avance aux questions sur la nature du bien (église, lavoir, monument aux morts…). Un domaine peut en réunir plusieurs : château, chapelle, pigeonnier.",
+    "typeEdificeMenu": "Type d'édifice",
+    "typeEdificePlaceholder": "Choisir un ou plusieurs types",
+    "culte": {
+      "titre": "Affectation au culte",
+      "pourquoi": "Certaines aides excluent les édifices encore affectés au culte, d’autres leur sont réservées.",
+      "oui": "Toujours affecté au culte",
+      "non": "Désaffecté"
+    },
+    "roman": {
+      "titre": "Architecture romane",
+      "pourquoi": "Des programmes sont réservés au patrimoine roman, même s’il n’en reste que des éléments.",
+      "oui": "Oui, en tout ou en partie"
+    },
+    "siecle": "Siècle de construction",
+    "sieclePlaceholder": "Choisir un ou plusieurs siècles",
+    "texteActuel": "Texte actuel : « {{texte}} ». Choisir un siècle le remplace.",
+    "etatBatiment": "État du bâtiment",
+    "etatAide": "En péril ou en mauvais état, il ouvre les dispositifs d’urgence.",
+    "descriptionGenerale": "Description générale",
+    "descriptionPlaceholder": "Décrivez votre monument",
+    "protection": "Protection",
+    "protectionPlaceholder": "Choisir la protection",
+    "dateProtection": "Date de protection",
+    "detailProtection": "Détail de la protection",
+    "detailPlaceholder": "Ex. : Classé MH par arrêté du 16 juin 1928",
+    "proprietaireType": "Type de propriétaire",
+    "proprietaireAide": "Un bien peut avoir plusieurs propriétaires. Une aide vous est proposée dès que l’un d’eux peut la demander.",
+    "proprietairePlaceholder": "Choisir un ou plusieurs propriétaires"
+  },
+  "RechercheMerimee": {
+    "placeholder": "Nom du monument, commune ou référence",
+    "aucunResultat": "Aucun monument trouvé pour « {{requete}} ». Vous pouvez le décrire vous-même ci-dessous."
+  },
+  "ChampCommune": {
+    "placeholder": "Tapez les premières lettres",
+    "aucunResultat": "Aucune commune trouvée pour « {{requete}} ». Vérifiez l’orthographe : la commune doit être choisie dans la liste.",
+    "reconnue": "Commune reconnue"
+  },
+  "MenuChoix": {
+    "libelleLecteur": "{{label}} : ",
+    "rechercherAria": "Rechercher dans la liste",
+    "aucunResultat": "Aucun résultat.",
+    "choisis_one": "{{count}} choisi",
+    "choisis_other": "{{count}} choisis",
+    "aucunChoix": "Aucun choix"
+  },
+  "MonumentDetailPage": {
+    "introuvable": "Monument introuvable",
+    "introuvableTexte": "Ce monument n'existe pas ou a été supprimé.",
+    "retourMesMonuments": "Retour à mes monuments",
+    "misAJour": "Monument mis à jour",
+    "erreurSauvegarde": "Erreur lors de la sauvegarde",
+    "erreurRenommage": "Erreur lors du renommage",
+    "supprime": "Monument supprimé",
+    "erreurSuppression": "Erreur lors de la suppression",
+    "modifierTitre": "Modifier — {{nom}}",
+    "onglets": {
+      "fiche": "Fiche monument",
+      "projets": "Projets",
+      "documents": "Documents",
+      "equipe": "Équipe"
+    },
+    "retourA": "Retour à {{espace}}",
+    "ongletsAria": "Rubriques du monument",
+    "vosProjets": "Vos projets",
+    "vosProjetsSousTitre": "Chaque projet a ses propres aides et son propre dossier.",
+    "premierProjet": "Votre premier projet",
+    "autreChantier": "Un autre chantier ou une autre activité ?",
+    "projetExplication": "Un projet correspond à un chantier. Reprendre la couverture, c'en est un. Accueillir une compagnie en résidence, c'en est un autre. Les financeurs ne sont pas les mêmes.",
+    "nouveauProjet": "Nouveau projet",
+    "aucunProjet": "Aucun projet de travaux sur ce monument pour l'instant.",
+    "documentsIntro": "Les pièces du monument et celles de ses projets de travaux.",
+    "documentsVide": "Les documents du monument et de ses projets apparaîtront ici.",
+    "paywallEquipe": {
+      "titre": "Travaillez à plusieurs sur ce monument",
+      "description": "Invitez votre architecte, vos artisans ou un assistant. Ils accèdent au monument, à ses projets et à ses documents, avec le rôle que vous leur donnez."
+    },
+    "paywallProjet": {
+      "titre": "Menez autant de chantiers qu'il en faut",
+      "descriptionIllimite": "L’offre Veille rend vos projets de travaux illimités, et vous prévient avant chaque date limite.",
+      "descriptionPlafond": "Votre offre couvre {{max}} projets par monument. L’offre Veille les rend illimités, et vous prévient avant chaque date limite."
+    },
+    "supprimerTitre": "Supprimer « {{nom}} » ?",
+    "supprimerDescription": "Tous ses projets de travaux et les dossiers associés seront également supprimés. Cette action est irréversible.",
+    "suppression": "Suppression…"
+  },
+  "MonumentWizardPage": {
+    "erreurMerimee": "Erreur lors de la récupération de la fiche Mérimée",
+    "erreurCreation": "Erreur lors de la création du monument",
+    "merimeeTitre": "Gagnez du temps : cherchez votre monument dans la base Mérimée",
+    "merimeeAide": "S’il est protégé, il y figure : choisissez-le et les champs ci-dessous se rempliront tout seuls. Sinon, remplissez-les directement.",
+    "baseMerimee": "Base Mérimée",
+    "prerempli": "Fiche pré-remplie depuis la notice",
+    "prerempliReference": "Fiche pré-remplie depuis la notice {{reference}}",
+    "autreMonument": "Chercher un autre monument",
+    "quitter": "Quitter",
+    "surtitre": "Nouveau monument",
+    "titre": "La fiche de votre monument",
+    "intro": "Ces informations servent à <b>trier les aides pour vous</b>. Vous ne les donnez qu’une fois : elles valent pour tous vos projets sur ce monument.",
+    "paywall": {
+      "titre": "Un deuxième monument, et tous les suivants",
+      "description": "L'offre gratuite couvre un monument. Multi-monuments lève la limite, réunit tous vos biens sur un tableau de bord et ouvre les suppressions."
+    }
+  },
+  "MonumentsListPage": {
+    "sousTitre": "Chaque monument, ses projets de travaux et les aides qui vont avec.",
+    "nouveauMonument": "Nouveau monument",
+    "nouvelleRecherche": "Nouvelle recherche d'aides",
+    "videTitre": "Aucun monument pour le moment",
+    "videTexte": "Décrivez votre monument, puis lancez autant de projets de travaux que nécessaire pour identifier les aides mobilisables.",
+    "rechercher": "Rechercher un monument",
+    "trier": "Trier les monuments",
+    "tri": {
+      "recent": "Créés récemment",
+      "oldest": "Plus anciens",
+      "modified": "Récemment modifiés",
+      "name": "Nom (A → Z)"
+    },
+    "aucunCorrespondant": "Aucun monument ne correspond à votre recherche.",
+    "paywall": {
+      "titre": "Gérez tout votre parc au même endroit",
+      "description": "L'offre gratuite couvre un monument. Multi-monuments les rend illimités et ouvre le tableau de bord, qui réunit leurs chantiers et leurs échéances."
+    }
+  }
+}

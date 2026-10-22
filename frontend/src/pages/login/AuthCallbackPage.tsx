@@ -13,17 +13,17 @@ import {
 } from '@/lib/brouillon-invite';
 import { ROUTES } from '@/constants/routes';
 import { C, SERIF } from '@/lib/brand';
+import { Trans, useTranslation } from 'react-i18next';
 
 const MUTED = 'var(--muted-foreground)';
 
-const ERROR_MESSAGE =
-  'La connexion avec Google n’a pas abouti. Vous pouvez réessayer, ou vous connecter avec votre adresse email.';
+// Clés des messages, traduites au moment de l'erreur.
+const ERROR_MESSAGE = 'AuthCallbackPage.erreurGoogle' as const;
 
 /** Un lien de confirmation périmé ne se réessaie pas : il se re-demande. Le
  *  message doit le dire, sinon la personne reclique indéfiniment sur le même
  *  lien mort. */
-const EXPIRE_MESSAGE =
-  'Ce lien a expiré. Depuis la page de connexion, saisissez vos identifiants : un nouvel email de confirmation vous sera proposé.';
+const EXPIRE_MESSAGE = 'AuthCallbackPage.lienExpire' as const;
 
 /**
  * Atterrissage du flux « Continuer avec Google », et du lien de CONFIRMATION
@@ -68,6 +68,7 @@ function lireArrivee() {
 }
 
 export function AuthCallbackPage() {
+  const { t } = useTranslation('compte');
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
   const setPendingSession = usePendingOAuthStore((s) => s.setSession);
@@ -101,7 +102,7 @@ export function AuthCallbackPage() {
       (prendreRetourGoogleBrouillon() || reprise) && brouillonPretPourRejeu();
 
     if (parsed.status === 'error') {
-      setError(parsed.code === 'otp_expired' ? EXPIRE_MESSAGE : ERROR_MESSAGE);
+      setError(t(parsed.code === 'otp_expired' ? EXPIRE_MESSAGE : ERROR_MESSAGE));
       return;
     }
 
@@ -164,8 +165,8 @@ export function AuthCallbackPage() {
         setAuth(user, parsed.accessToken);
         navigate(retourBrouillon ? ROUTES.REPRISE : '/app', { replace: true });
       })
-      .catch((err: unknown) => { console.error(err); setError(ERROR_MESSAGE); });
-  }, [navigate, setAuth, setPendingSession, parsed, invitation, reprise]);
+      .catch((err: unknown) => { console.error(err); setError(t(ERROR_MESSAGE)); });
+  }, [navigate, setAuth, setPendingSession, parsed, invitation, reprise, t]);
 
   return (
     <AuthLayout>
@@ -174,28 +175,26 @@ export function AuthCallbackPage() {
           className="text-[clamp(1.9rem,4vw,2.5rem)] leading-[1.1]"
           style={{ fontFamily: SERIF, color: C.ink }}
         >
-          {!lienEmail ? (
-            <>
-              Connexion avec <span style={{ color: C.blue }}>Google</span>
-            </>
-          ) : error ? (
-            /* L'adresse n'est justement PAS confirmée : le titre ne peut pas
-               annoncer l'inverse de ce que dit le message juste dessous. */
-            <>
-              Lien de <span style={{ color: C.blue }}>confirmation</span>
-            </>
-          ) : (
-            <>
-              Adresse <span style={{ color: C.blue }}>confirmée</span>
-            </>
-          )}
+          <Trans
+            t={t}
+            i18nKey={
+              !lienEmail
+                ? 'AuthCallbackPage.titreGoogle'
+                : error
+                  ? /* L'adresse n'est justement PAS confirmée : le titre ne peut pas
+                       annoncer l'inverse de ce que dit le message juste dessous. */
+                    'AuthCallbackPage.titreLienConfirmation'
+                  : 'AuthCallbackPage.titreAdresseConfirmee'
+            }
+            components={{ accent: <span style={{ color: C.blue }} /> }}
+          />
         </h1>
         <p className="text-[17px]" style={{ color: MUTED }}>
           {error
             ? lienEmail
-              ? 'Ce lien n’a pas pu être utilisé.'
-              : 'La connexion ne s’est pas terminée.'
-            : 'Un instant, nous vous connectons…'}
+              ? t('AuthCallbackPage.lienInutilisable')
+              : t('AuthCallbackPage.connexionInterrompue')
+            : t('AuthCallbackPage.unInstant')}
         </p>
       </div>
 
@@ -209,7 +208,7 @@ export function AuthCallbackPage() {
             className="flex h-12 w-full items-center justify-center rounded-lg text-[16px] font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: C.orange }}
           >
-            Retour à la connexion
+            {t('commun.retourConnexion')}
           </button>
         </div>
       ) : (
@@ -218,7 +217,7 @@ export function AuthCallbackPage() {
           style={{ background: C.paleBlue, color: C.ink }}
         >
           <Loader2 className="h-5 w-5 animate-spin" style={{ color: C.blue }} />
-          Connexion en cours…
+          {t('AuthCallbackPage.connexionEnCours')}
         </div>
       )}
     </AuthLayout>

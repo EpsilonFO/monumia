@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { LogoMonumia } from '@/components/icons';
 import { PaywallDialog } from '@/components/shared/Paywall';
@@ -63,6 +64,7 @@ type Source = 'recherche' | 'merimee';
  * L'édition d'un monument existant (`MonumentDetailPage`) garde `MonumentForm`.
  */
 export function MonumentWizardPage() {
+  const { t } = useTranslation('monuments');
   const navigate = useNavigate();
   const connecte = useAuthStore((s) => Boolean(s.user && s.token));
   const addMonument = useMonumentStore((s) => s.addMonument);
@@ -111,7 +113,7 @@ export function MonumentWizardPage() {
       setSource('merimee');
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Erreur lors de la récupération de la fiche Mérimée',
+        err instanceof Error ? err.message : t('MonumentWizardPage.erreurMerimee'),
       );
     } finally {
       setChargementNotice(false);
@@ -177,7 +179,7 @@ export function MonumentWizardPage() {
       if (err instanceof ApiError && err.status === 402) {
         setPaywallOuvert(true);
       } else {
-        toast.error(err instanceof Error ? err.message : 'Erreur lors de la création du monument');
+        toast.error(err instanceof Error ? err.message : t('MonumentWizardPage.erreurCreation'));
       }
     } finally {
       setSaving(false);
@@ -194,11 +196,10 @@ export function MonumentWizardPage() {
       <div className="fld merimee-avant">
         <label htmlFor="nm-merimee">
           <Picto nom="loupe" />
-          Gagnez du temps&nbsp;: cherchez votre monument dans la base Mérimée
+          {t('MonumentWizardPage.merimeeTitre')}
         </label>
         <p className="why">
-          S&rsquo;il est protégé, il y figure&nbsp;: choisissez-le et les champs ci-dessous se
-          rempliront tout seuls. Sinon, remplissez-les directement.
+          {t('MonumentWizardPage.merimeeAide')}
         </p>
         <RechercheMerimee
           id="nm-merimee"
@@ -208,16 +209,17 @@ export function MonumentWizardPage() {
       </div>
     ) : (
       <div className="fld">
-        <span className="lb">Base Mérimée</span>
+        <span className="lb">{t('MonumentWizardPage.baseMerimee')}</span>
         <div className="ac-alt">
           <span className="ac-ok">
             <Picto nom="coche" />
-            Fiche pré-remplie depuis la notice
-            {fiche.referenceMerimee ? ` ${fiche.referenceMerimee}` : ''}
+            {fiche.referenceMerimee
+              ? t('MonumentWizardPage.prerempliReference', { reference: fiche.referenceMerimee })
+              : t('MonumentWizardPage.prerempli')}
           </span>
           <button type="button" className="lnk" onClick={() => setSource('recherche')}>
             <Picto nom="loupe" />
-            Chercher un autre monument
+            {t('MonumentWizardPage.autreMonument')}
           </button>
         </div>
       </div>
@@ -230,24 +232,23 @@ export function MonumentWizardPage() {
           type="button"
           className="logo"
           onClick={() => navigate(quitterVers)}
-          aria-label="Quitter"
+          aria-label={t('MonumentWizardPage.quitter')}
         >
           <LogoMonumia className="logo-m" />
           <span className="logo-t">Monumia</span>
         </button>
         <button type="button" className="quit" onClick={() => navigate(quitterVers)}>
           <Picto nom="croix" />
-          Quitter
+          {t('MonumentWizardPage.quitter')}
         </button>
       </header>
 
       <main className="w">
         <div className="head">
-          <span className="eyebrow nu o">Nouveau monument</span>
-          <h1>La fiche de votre monument</h1>
+          <span className="eyebrow nu o">{t('MonumentWizardPage.surtitre')}</span>
+          <h1>{t('MonumentWizardPage.titre')}</h1>
           <p>
-            Ces informations servent à <b>trier les aides pour vous</b>. Vous ne les donnez
-            qu&rsquo;une fois&nbsp;: elles valent pour tous vos projets sur ce monument.
+            <Trans t={t} i18nKey="MonumentWizardPage.intro" components={{ b: <b /> }} />
           </p>
         </div>
 
@@ -273,8 +274,8 @@ export function MonumentWizardPage() {
         open={paywallOuvert}
         onOpenChange={setPaywallOuvert}
         offre="Multi-monuments"
-        titre="Un deuxième monument, et tous les suivants"
-        description="L'offre gratuite couvre un monument. Multi-monuments lève la limite, réunit tous vos biens sur un tableau de bord et ouvre les suppressions."
+        titre={t('MonumentWizardPage.paywall.titre')}
+        description={t('MonumentWizardPage.paywall.description')}
       />
     </div>
   );

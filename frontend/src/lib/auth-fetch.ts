@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/stores/useAuthStore';
 import { tryRefresh } from '@/lib/token-refresh';
 import { ApiError } from '@/lib/api-error';
+import { langueCourante } from '@/i18n';
 
 /**
  * Wrapper around fetch that:
@@ -15,6 +16,10 @@ export async function authFetch(
   const headers = new Headers(init?.headers);
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+  }
+  // Langue de l'interface, pour que le serveur puisse un jour répondre dans la même.
+  if (!headers.has('Accept-Language')) {
+    headers.set('Accept-Language', langueCourante());
   }
   if (!headers.has('Content-Type') && init?.body) {
     headers.set('Content-Type', 'application/json');

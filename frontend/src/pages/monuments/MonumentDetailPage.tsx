@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
@@ -46,6 +47,7 @@ import { Guide } from '@/components/shared/Guide';
  * vivent sur la page du projet.
  */
 export function MonumentDetailPage() {
+  const { t } = useTranslation(['monuments', 'common']);
   const { monumentId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -232,10 +234,10 @@ export function MonumentDetailPage() {
   if (notFound || (!monument && !monumentId)) {
     return (
       <div className="space-y-4">
-        <h1 className="text-[23px]" style={{ fontFamily: SERIF, color: C.ink }}>Monument introuvable</h1>
-        <p className="text-[16px] text-muted-foreground">Ce monument n'existe pas ou a été supprimé.</p>
+        <h1 className="text-[23px]" style={{ fontFamily: SERIF, color: C.ink }}>{t('MonumentDetailPage.introuvable')}</h1>
+        <p className="text-[16px] text-muted-foreground">{t('MonumentDetailPage.introuvableTexte')}</p>
         <Link to={ROUTES.MONUMENTS} className="inline-flex items-center gap-1.5 text-[15px] font-medium" style={{ color: C.blue }}>
-          <ChevronLeft className="h-3.5 w-3.5" /> Retour à mes monuments
+          <ChevronLeft className="h-3.5 w-3.5" /> {t('MonumentDetailPage.retourMesMonuments')}
         </Link>
       </div>
     );
@@ -249,8 +251,8 @@ export function MonumentDetailPage() {
       const updated = await monumentService.update(monument.id, data);
       updateMonument(monument.id, updated);
       setIsEditing(false);
-      toast.success('Monument mis à jour');
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde'); }
+      toast.success(t('MonumentDetailPage.misAJour'));
+    } catch (err) { toast.error(err instanceof Error ? err.message : t('MonumentDetailPage.erreurSauvegarde')); }
     finally { setSaving(false); }
   };
 
@@ -258,7 +260,7 @@ export function MonumentDetailPage() {
     try {
       updateMonument(monument.id, await monumentService.update(monument.id, { nom }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors du renommage');
+      toast.error(err instanceof Error ? err.message : t('MonumentDetailPage.erreurRenommage'));
       throw err;
     }
   };
@@ -273,9 +275,9 @@ export function MonumentDetailPage() {
       for (const dossier of dossiers) await dossierService.delete(dossier.id);
       await monumentService.delete(monument.id);
       deleteMonument(monument.id);
-      toast.success('Monument supprimé');
+      toast.success(t('MonumentDetailPage.supprime'));
       navigate(ROUTES.MONUMENTS);
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression'); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : t('MonumentDetailPage.erreurSuppression')); }
     finally { setDeleting(false); }
   };
 
@@ -285,9 +287,9 @@ export function MonumentDetailPage() {
       <div className="space-y-6">
         <div className="flex items-center gap-2">
           <button onClick={() => setIsEditing(false)} className="inline-flex items-center gap-1.5 text-[15px] font-medium" style={{ color: C.blue }}>
-            <ChevronLeft className="h-3.5 w-3.5" /> Retour
+            <ChevronLeft className="h-3.5 w-3.5" /> {t('common:actions.retour')}
           </button>
-          <h1 className="text-[20.5px]" style={{ fontFamily: SERIF, color: C.ink }}>Modifier — {monument.nom}</h1>
+          <h1 className="text-[20.5px]" style={{ fontFamily: SERIF, color: C.ink }}>{t('MonumentDetailPage.modifierTitre', { nom: monument.nom })}</h1>
         </div>
         <MonumentForm initialData={monument} onSubmit={handleSave} isEditing saving={saving} />
       </div>
@@ -321,20 +323,20 @@ export function MonumentDetailPage() {
   );
 
   const tabs: Onglet<string>[] = [
-    { value: 'sanitaire', label: 'Fiche monument', picto: 'maison', count: null, guide: 'monument.onglet-fiche' },
-    { value: 'projets', label: 'Projets', picto: 'dossier', count: projets.length, guide: 'monument.onglet-projets' },
+    { value: 'sanitaire', label: t('MonumentDetailPage.onglets.fiche'), picto: 'maison', count: null, guide: 'monument.onglet-fiche' },
+    { value: 'projets', label: t('MonumentDetailPage.onglets.projets'), picto: 'dossier', count: projets.length, guide: 'monument.onglet-projets' },
     ...(equipeDuMonument
       ? [
           {
             value: 'documents',
-            label: 'Documents',
+            label: t('MonumentDetailPage.onglets.documents'),
             picto: 'doc' as const,
             count: monumentDocuments.length,
             guide: 'monument.onglet-documents',
           },
           {
             value: 'equipe',
-            label: 'Équipe',
+            label: t('MonumentDetailPage.onglets.equipe'),
             picto: 'equipe' as const,
             count: members.length,
             guide: 'monument.onglet-equipe',
@@ -346,7 +348,7 @@ export function MonumentDetailPage() {
   return (
     <div className="ec pmon">
       <Guide id="monument" pret={droitsConnus} />
-      <BoutonRetour to={ROUTES.MONUMENTS} libelle={`Retour à ${libelleMonuments(offreCompte).toLowerCase()}`} />
+      <BoutonRetour to={ROUTES.MONUMENTS} libelle={t('MonumentDetailPage.retourA', { espace: libelleMonuments(offreCompte).toLowerCase() })} />
 
       <EnTeteMonument
         monument={monument}
@@ -356,7 +358,7 @@ export function MonumentDetailPage() {
       />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <Onglets onglets={tabs} actif={activeTab} onChange={handleTabChange} label="Rubriques du monument" />
+        <Onglets onglets={tabs} actif={activeTab} onChange={handleTabChange} label={t('MonumentDetailPage.ongletsAria')} />
 
         {/* FICHE SANITAIRE */}
         <TabsContent value="sanitaire">
@@ -382,8 +384,8 @@ export function MonumentDetailPage() {
             <>
               <div className="sec-h">
                 <div>
-                  <h2>Vos projets</h2>
-                  <p>Chaque projet a ses propres aides et son propre dossier.</p>
+                  <h2>{t('MonumentDetailPage.vosProjets')}</h2>
+                  <p>{t('MonumentDetailPage.vosProjetsSousTitre')}</p>
                 </div>
               </div>
               {projets.map((projet) => (
@@ -404,21 +406,22 @@ export function MonumentDetailPage() {
           {canEdit ? (
             <div className="new" style={projets.length === 0 ? { marginTop: 35 } : undefined}>
               <div>
-                <b>{projets.length === 0 ? 'Votre premier projet' : 'Un autre chantier ou une autre activité ?'}</b>
-                <p>
-                  Un projet correspond à un chantier. Reprendre la couverture, c'en est un. Accueillir une
-                  compagnie en résidence, c'en est un autre. Les financeurs ne sont pas les mêmes.
-                </p>
+                <b>
+                  {projets.length === 0
+                    ? t('MonumentDetailPage.premierProjet')
+                    : t('MonumentDetailPage.autreChantier')}
+                </b>
+                <p>{t('MonumentDetailPage.projetExplication')}</p>
               </div>
               <button className="btn b-orange" type="button" onClick={goNouveauProjet}>
                 <Picto nom="plus" />
-                Nouveau projet
+                {t('MonumentDetailPage.nouveauProjet')}
               </button>
             </div>
           ) : (
             projets.length === 0 && (
               <p className="vide" style={{ marginTop: 40 }}>
-                Aucun projet de travaux sur ce monument pour l'instant.
+                {t('MonumentDetailPage.aucunProjet')}
               </p>
             )
           )}
@@ -437,8 +440,8 @@ export function MonumentDetailPage() {
             role={monument.myRole ?? null}
             auteurs={uploaderNames}
             dossierNames={dossierNames}
-            intro="Les pièces du monument et celles de ses projets de travaux."
-            vide="Les documents du monument et de ses projets apparaîtront ici."
+            intro={t('MonumentDetailPage.documentsIntro')}
+            vide={t('MonumentDetailPage.documentsVide')}
           />
         </TabsContent>
 
@@ -454,8 +457,8 @@ export function MonumentDetailPage() {
           ) : (
             <PaywallOverlay
               offre="Veille"
-              titre="Travaillez à plusieurs sur ce monument"
-              description="Invitez votre architecte, vos artisans ou un assistant. Ils accèdent au monument, à ses projets et à ses documents, avec le rôle que vous leur donnez."
+              titre={t('MonumentDetailPage.paywallEquipe.titre')}
+              description={t('MonumentDetailPage.paywallEquipe.description')}
               monumentId={monument.id}
             >
               {equipePanel}
@@ -469,11 +472,11 @@ export function MonumentDetailPage() {
         open={paywallProjet}
         onOpenChange={setPaywallProjet}
         offre="Veille"
-        titre="Menez autant de chantiers qu'il en faut"
+        titre={t('MonumentDetailPage.paywallProjet.titre')}
         description={
           offre.projetsMax === null
-            ? 'L’offre Veille rend vos projets de travaux illimités, et vous prévient avant chaque date limite.'
-            : `Votre offre couvre ${offre.projetsMax} projets par monument. L’offre Veille les rend illimités, et vous prévient avant chaque date limite.`
+            ? t('MonumentDetailPage.paywallProjet.descriptionIllimite')
+            : t('MonumentDetailPage.paywallProjet.descriptionPlafond', { max: offre.projetsMax })
         }
         monumentId={monument.id}
       />
@@ -481,16 +484,15 @@ export function MonumentDetailPage() {
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer « {monument.nom} » ?</AlertDialogTitle>
+            <AlertDialogTitle>{t('MonumentDetailPage.supprimerTitre', { nom: monument.nom })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tous ses projets de travaux et les dossiers associés seront également
-              supprimés. Cette action est irréversible.
+              {t('MonumentDetailPage.supprimerDescription')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t('common:actions.annuler')}</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? 'Suppression…' : 'Supprimer'}
+              {deleting ? t('MonumentDetailPage.suppression') : t('common:actions.supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

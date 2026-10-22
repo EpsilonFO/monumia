@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { formatCurrency } from '@/lib/format-utils';
@@ -23,6 +24,7 @@ const LIEN_CONNEXION = '/login?reprise=brouillon';
  * coup d'œil plutôt que se cacher dans le libellé.
  */
 function Chiffre({ valeur, libelle }: { valeur: string; libelle: string }) {
+  const { t } = useTranslation('project');
   return (
     <div
       className="flex w-full min-w-0 flex-col items-center gap-0.5 rounded-2xl border px-4 py-4 sm:flex-1"
@@ -32,7 +34,7 @@ function Chiffre({ valeur, libelle }: { valeur: string; libelle: string }) {
         className="text-[13px] font-semibold uppercase tracking-[0.12em]"
         style={{ color: C.grayMuted }}
       >
-        jusqu&rsquo;à
+        {t('InscriptionStep.jusqua')}
       </span>
       <span
         className="text-[clamp(1.4rem,4vw,1.9rem)] font-bold leading-none tabular-nums"
@@ -76,6 +78,7 @@ interface InscriptionStepProps {
  * ne dise qu'une chose.
  */
 export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
+  const { t } = useTranslation('project');
   const nombre = synthese
     ? synthese.eligibles + synthese.potentielles + synthese.atteignables
     : 0;
@@ -83,8 +86,12 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
   const taux = synthese?.tauxTravauxMaxPct ?? null;
 
   const chiffres = [
-    montant ? { valeur: formatCurrency(montant), libelle: 'de financements cumulés' } : null,
-    taux ? { valeur: `${taux} %`, libelle: 'du coût de vos travaux' } : null,
+    montant
+      ? { valeur: formatCurrency(montant), libelle: t('InscriptionStep.financementsCumules') }
+      : null,
+    taux
+      ? { valeur: t('InscriptionStep.taux', { taux }), libelle: t('InscriptionStep.coutTravaux') }
+      : null,
   ].filter((c): c is { valeur: string; libelle: string } => c !== null);
 
   return (
@@ -103,7 +110,7 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
           className="text-[14px] font-semibold uppercase tracking-[0.2em]"
           style={{ color: C.orange }}
         >
-          {synthese === null ? 'Dernière étape' : 'Votre diagnostic est prêt'}
+          {synthese === null ? t('InscriptionStep.derniereEtape') : t('InscriptionStep.diagnosticPret')}
         </div>
 
         {synthese === null ? (
@@ -116,11 +123,10 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
               className="max-w-md text-[clamp(1.3rem,3.2vw,1.7rem)] leading-tight"
               style={{ fontFamily: SERIF, color: C.ink }}
             >
-              Il ne manque qu&rsquo;un compte
+              {t('InscriptionStep.manqueCompte')}
             </h1>
             <p className="max-w-md text-[16px] leading-relaxed" style={{ color: C.grayFg }}>
-              Vos réponses sont enregistrées sur cet appareil. Connectez-vous&nbsp;: votre
-              monument et votre projet rejoignent votre espace, et le diagnostic s&rsquo;ouvre.
+              {t('InscriptionStep.reponsesEnregistrees')}
             </p>
           </>
         ) : nombre > 0 ? (
@@ -136,16 +142,18 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
               className="max-w-md text-[clamp(1.25rem,3vw,1.6rem)] leading-tight"
               style={{ fontFamily: SERIF, color: C.ink }}
             >
-              {nombre > 1 ? 'financements peuvent' : 'financement peut'} contribuer à vos
-              travaux.
+              {t('InscriptionStep.peuventContribuer', { count: nombre })}
             </h1>
             {synthese && synthese.totalAnalysees > 0 && (
               <p className="max-w-md text-[16px] leading-relaxed" style={{ color: C.grayFg }}>
-                Nous avons comparé votre projet à{' '}
-                <span className="font-semibold tabular-nums" style={{ color: C.ink }}>
-                  {synthese.totalAnalysees}
-                </span>{' '}
-                dispositifs d&rsquo;aide, un critère après l&rsquo;autre.
+                <Trans
+                  t={t}
+                  i18nKey="InscriptionStep.compare"
+                  count={synthese.totalAnalysees}
+                  components={{
+                    nombre: <span className="font-semibold tabular-nums" style={{ color: C.ink }} />,
+                  }}
+                />
               </p>
             )}
           </>
@@ -158,11 +166,10 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
               className="max-w-md text-[clamp(1.3rem,3.2vw,1.7rem)] leading-tight"
               style={{ fontFamily: SERIF, color: C.ink }}
             >
-              Aucun financement ne ressort de ce premier passage
+              {t('InscriptionStep.aucunFinancement')}
             </h1>
             <p className="max-w-md text-[16px] leading-relaxed" style={{ color: C.grayFg }}>
-              Le détail vous dira sur quel critère chaque aide s&rsquo;est arrêtée&nbsp;— et ce
-              qui suffirait, parfois, à la faire basculer.
+              {t('InscriptionStep.detailCritere')}
             </p>
           </>
         )}
@@ -180,7 +187,7 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
                   className="shrink-0 text-[14px] font-semibold uppercase tracking-[0.14em]"
                   style={{ color: C.grayMuted }}
                 >
-                  ou
+                  {t('InscriptionStep.ou')}
                 </span>
               )}
               <Chiffre valeur={c.valeur} libelle={c.libelle} />
@@ -195,7 +202,7 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
           className="group inline-flex items-center gap-2 rounded-2xl px-7 py-4 text-[18px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-pop)]"
           style={{ background: C.orange }}
         >
-          Se connecter pour découvrir mon diagnostic
+          {t('InscriptionStep.seConnecter')}
           <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
         </Link>
 
@@ -210,7 +217,7 @@ export function InscriptionStep({ synthese, onRetour }: InscriptionStepProps) {
             style={{ color: C.grayMuted }}
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Répondre à quelques questions de plus
+            {t('InscriptionStep.plusDeQuestions')}
           </button>
         )}
       </div>

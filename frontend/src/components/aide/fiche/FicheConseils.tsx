@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Ico } from './Ico';
 import { Repli } from './Repli';
 import type { AideFicheRedigee } from '@/types';
@@ -16,22 +17,20 @@ export function FicheConseils({
   numeroDe: (conditionId: string) => number | undefined;
   onOuvrirPoint: (conditionId: string) => void;
 }) {
+  const { t } = useTranslation('aide');
   if (!conseils.length) return null;
   return (
     <Repli
       className="tips"
       classeEntete="tips-h"
-      titre="Nos conseils pour ce dossier"
+      titre={t('FicheConseils.titre')}
       ouvertParDefaut
       entete={
         <>
           <span className="chip t-solid-orange"><Ico nom="ampoule" /></span>
           <div>
-            <h2>Nos conseils pour ce dossier</h2>
-            <p>
-              {conseils.length === 1 ? 'Un conseil' : `${conseils.length} conseils`} tirés du règlement du
-              financeur
-            </p>
+            <h2>{t('FicheConseils.titre')}</h2>
+            <p>{t('FicheConseils.sousTitre', { count: conseils.length })}</p>
           </div>
         </>
       }
@@ -46,7 +45,7 @@ export function FicheConseils({
                 <p>{c.texte}</p>
                 {c.condition && n && (
                   <button type="button" className="plink" onClick={() => onOuvrirPoint(c.condition!)}>
-                    Voir le point {n} du règlement<Ico nom="fleche" />
+                    {t('FicheConseils.voirPoint', { n })}<Ico nom="fleche" />
                   </button>
                 )}
               </div>
@@ -61,12 +60,13 @@ export function FicheConseils({
 /** « Comment ça se passe » : les étapes rédigées, ou la démarche découpée. Toujours
  *  visible, sans repli : c'est le fil du dossier, il se lit d'un coup d'œil. */
 export function FicheEtapes({ etapes }: { etapes: { titre: string; texte?: string | null }[] }) {
+  const { t } = useTranslation('aide');
   if (!etapes.length) return null;
   return (
     <section className="repli-bloc etapes-bloc" aria-labelledby="etapes-t">
       <div className="block-head">
-        <h2 id="etapes-t">Comment ça se passe</h2>
-        <span className="meta">{etapes.length === 1 ? 'Une étape' : `${etapes.length} étapes`}</span>
+        <h2 id="etapes-t">{t('FicheEtapes.titre')}</h2>
+        <span className="meta">{t('FicheEtapes.nbEtapes', { count: etapes.length })}</span>
       </div>
       <ol className="steps">
         {etapes.map((e, i) => (

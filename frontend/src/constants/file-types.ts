@@ -1,3 +1,5 @@
+import i18n from '@/i18n';
+
 export const ACCEPTED_EXTENSIONS = [
   'pdf',
   'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif',
@@ -43,13 +45,16 @@ export function validateFile(file: File): string | null {
   const mimeOk = !file.type || (ACCEPTED_MIME_TYPES as readonly string[]).includes(file.type);
 
   if (!extOk) {
-    return `Format non autorisé (.${ext || '?'}). Formats acceptés : ${ACCEPTED_EXTENSIONS.join(', ')}.`;
+    return i18n.t('constants:fileTypes.formatNonAutorise', {
+      extension: ext || '?',
+      formats: ACCEPTED_EXTENSIONS.join(', '),
+    });
   }
   if (!mimeOk) {
-    return `Type MIME non autorisé (${file.type}).`;
+    return i18n.t('constants:fileTypes.mimeNonAutorise', { type: file.type });
   }
   if (file.size > MAX_FILE_SIZE_BYTES) {
-    return `Fichier trop volumineux (max ${MAX_FILE_SIZE_MB} Mo).`;
+    return i18n.t('constants:fileTypes.tropVolumineux', { max: MAX_FILE_SIZE_MB });
   }
   return null;
 }

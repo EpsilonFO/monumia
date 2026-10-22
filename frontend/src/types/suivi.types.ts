@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import type { ID } from './common.types';
 
 export type AideSuiviStatut =
@@ -50,12 +51,13 @@ export const AIDE_SUIVI_STATUTS: AideSuiviStatut[] = [
 
 export const AIDE_SUIVI_STATUTS_TERMINAUX: AideSuiviStatut[] = ['accorde', 'refuse'];
 
+// Getters : le libellé se lit dans la langue de l'interface au moment de l'affichage.
 export const AIDE_SUIVI_STATUT_LABELS: Record<AideSuiviStatut, string> = {
-  a_faire: 'À faire',
-  en_preparation: 'En préparation',
-  depose: 'Déposé',
-  accorde: 'Accordé',
-  refuse: 'Refusé',
+  get a_faire() { return i18n.t('core:suivi.statuts.aFaire'); },
+  get en_preparation() { return i18n.t('core:suivi.statuts.enPreparation'); },
+  get depose() { return i18n.t('core:suivi.statuts.depose'); },
+  get accorde() { return i18n.t('core:suivi.statuts.accorde'); },
+  get refuse() { return i18n.t('core:suivi.statuts.refuse'); },
 };
 
 export const AIDE_REFUS_MOTIFS: AideRefusMotif[] = [
@@ -68,10 +70,10 @@ export const AIDE_REFUS_MOTIFS: AideRefusMotif[] = [
 ];
 
 export const AIDE_REFUS_MOTIF_LABELS: Record<AideRefusMotif, string> = {
-  inegibilite: 'Finalement inéligible',
-  budget_epuise: 'Enveloppe épuisée',
-  dossier_incomplet: 'Dossier incomplet',
-  non_prioritaire: 'Projet non prioritaire',
-  hors_delai: 'Hors délai',
-  autre: 'Autre',
+  get inegibilite() { return i18n.t('core:suivi.motifsRefus.inegibilite'); },
+  get budget_epuise() { return i18n.t('core:suivi.motifsRefus.budgetEpuise'); },
+  get dossier_incomplet() { return i18n.t('core:suivi.motifsRefus.dossierIncomplet'); },
+  get non_prioritaire() { return i18n.t('core:suivi.motifsRefus.nonPrioritaire'); },
+  get hors_delai() { return i18n.t('core:suivi.motifsRefus.horsDelai'); },
+  get autre() { return i18n.t('core:suivi.motifsRefus.autre'); },
 };

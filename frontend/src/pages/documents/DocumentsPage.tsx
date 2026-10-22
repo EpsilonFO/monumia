@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -50,8 +51,6 @@ function meilleurRole(roles: (ProjectRole | null | undefined)[]): ProjectRole | 
   return roles.reduce<ProjectRole | null>((m, r) => (r && (!m || RANG[r] > RANG[m]) ? r : m), null);
 }
 
-const plur = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
-
 /** Grille ou liste : une commodité du navigateur, jamais une donnée. */
 const CLE_VUE = 'monumia.documents.vue';
 function vueMemorisee(): VueDocuments {
@@ -83,6 +82,7 @@ interface Depot {
  * (`best_document_role`) : rien n'est masqué ici qui aurait été reçu.
  */
 export function DocumentsPage() {
+  const { t } = useTranslation(['documents', 'common']);
   // Les digests des projets (pièces demandées par leurs aides) et les projets
   // eux-mêmes viennent de `GET /dashboard`.
   useProjectsData();
@@ -119,8 +119,8 @@ export function DocumentsPage() {
 
   useEffect(() => {
     if (nouveaux.size === 0) return;
-    const t = setTimeout(() => setNouveaux(new Set()), 1600);
-    return () => clearTimeout(t);
+    const minuteur = setTimeout(() => setNouveaux(new Set()), 1600);
+    return () => clearTimeout(minuteur);
   }, [nouveaux]);
 
   const setVue = (v: VueDocuments) => {
@@ -167,10 +167,10 @@ export function DocumentsPage() {
     );
     return [
       ...parMonument,
-      ...(sans.length > 0 ? [{ id: SANS, nom: 'Sans monument', docs: sans }] : []),
-      ...(partages.length > 0 ? [{ id: PARTAGES, nom: 'Partagés avec vous', docs: partages }] : []),
+      ...(sans.length > 0 ? [{ id: SANS, nom: t('DocumentsPage.sansMonument'), docs: sans }] : []),
+      ...(partages.length > 0 ? [{ id: PARTAGES, nom: t('DocumentsPage.partages'), docs: partages }] : []),
     ];
-  }, [monuments, documents, projetsParMonument, monumentsDuDocument]);
+  }, [monuments, documents, projetsParMonument, monumentsDuDocument, t]);
 
   const demande = params.get('monument');
   const actif = lieux.find((o) => o.id === demande) ?? lieux[0] ?? null;
@@ -233,27 +233,27 @@ export function DocumentsPage() {
   ]);
   const ici = monumentActif ? { type: 'monument' as const, id: monumentActif.id, nom: monumentActif.nom } : null;
 
-  const erreur = (e: unknown) => toast.error(e instanceof Error ? e.message : 'Erreur');
+  const erreur = (e: unknown) => toast.error(e instanceof Error ? e.message : t('commun.erreur'));
 
   const handleTrash = async (d: Document) => {
-    if (!confirm(`Mettre « ${d.nom} » à la corbeille ?`)) return;
-    try { await trashDocument(d.id); toast.success(`« ${d.nom} » est dans la corbeille.`); } catch (e) { erreur(e); }
+    if (!confirm(t('commun.confirmCorbeille', { nom: d.nom }))) return;
+    try { await trashDocument(d.id); toast.success(t('commun.dansCorbeille', { nom: d.nom })); } catch (e) { erreur(e); }
   };
   const handleRemoveFromMonument = async (d: Document, monumentId: string) => {
-    try { await removeFromProject(d.id, monumentId); toast.success('Document retiré du monument'); } catch (e) { erreur(e); }
+    try { await removeFromProject(d.id, monumentId); toast.success(t('commun.documentRetireMonument')); } catch (e) { erreur(e); }
   };
   const handleRestore = async (d: Document) => {
-    try { await restoreDocument(d.id); toast.success('Document restauré'); } catch (e) { erreur(e); }
+    try { await restoreDocument(d.id); toast.success(t('DocumentsPage.documentRestaure')); } catch (e) { erreur(e); }
   };
   const handleDeletePermanent = async (d: Document) => {
-    if (!confirm(`Supprimer définitivement « ${d.nom} » ? Cette action est irréversible.`)) return;
-    try { await deleteDocument(d.id); toast.success('Document supprimé définitivement'); } catch (e) { erreur(e); }
+    if (!confirm(t('DocumentsPage.confirmDefinitif', { nom: d.nom }))) return;
+    try { await deleteDocument(d.id); toast.success(t('DocumentsPage.supprimeDefinitivement')); } catch (e) { erreur(e); }
   };
 
   const actionsPour = (d: Document): ActionDocument[] => (rubrique === 'corbeille'
     ? [
-      { cle: 'restaurer', label: 'Restaurer', onClick: () => handleRestore(d) },
-      { cle: 'supprimer', label: 'Supprimer définitivement', onClick: () => handleDeletePermanent(d), destructive: true },
+      { cle: 'restaurer', label: t('commun.restaurer'), onClick: () => handleRestore(d) },
+      { cle: 'supprimer', label: t('commun.supprimerDefinitivement'), onClick: () => handleDeletePermanent(d), destructive: true },
     ]
     : actionsDocument(d, { userId, role: roleSur(d), ici }, {
       modifier: (doc) => { setDepot(null); setEditDoc(doc); },
@@ -296,31 +296,38 @@ export function DocumentsPage() {
 
   const telechargerSelection = async () => {
     for (const d of selectionnes) {
-      try { await downloadDocument(d); } catch (e) { toast.error(`${d.nom} : ${e instanceof Error ? e.message : 'téléchargement impossible'}`); }
+      try {
+        await downloadDocument(d);
+      } catch (e) {
+        toast.error(t('commun.erreurDocument', {
+          nom: d.nom,
+          message: e instanceof Error ? e.message : t('commun.telechargementImpossibleMinuscule'),
+        }));
+      }
     }
   };
   const supprimerSelection = async () => {
     const { aJeter, aRetirer, sansRetrait } = repartition;
     const phrases = [
-      aJeter.length ? `${plur(aJeter.length, 'document')} à la corbeille` : '',
-      aRetirer.length && ici ? `${plur(aRetirer.length, 'document')} retiré${aRetirer.length > 1 ? 's' : ''} de ${ici.nom}` : '',
+      aJeter.length ? t('commun.selectionAJeter', { count: aJeter.length }) : '',
+      aRetirer.length && ici ? t('commun.selectionARetirer', { count: aRetirer.length, lieu: ici.nom }) : '',
     ].filter(Boolean);
     const reste = sansRetrait.length
-      ? `\n${plur(sansRetrait.length, 'autre document')} ne ${sansRetrait.length > 1 ? 'peuvent' : 'peut'} pas être supprimé${sansRetrait.length > 1 ? 's' : ''} par vous : ${sansRetrait.length > 1 ? 'ils restent' : 'il reste'} en place.`
+      ? `\n${t('commun.selectionReste', { count: sansRetrait.length })}`
       : '';
-    if (!confirm(`Supprimer la sélection : ${phrases.join(', ')} ?${reste}`)) return;
+    if (!confirm(`${t('commun.confirmSelection', { liste: phrases.join(', ') })}${reste}`)) return;
     let ok = 0;
     for (const d of aJeter) { try { await trashDocument(d.id); ok += 1; } catch (e) { erreur(e); } }
     for (const d of aRetirer) { try { if (ici) { await removeFromProject(d.id, ici.id); ok += 1; } } catch (e) { erreur(e); } }
     setSelection(new Set());
-    if (ok) toast.success(`${plur(ok, 'document')} supprimé${ok > 1 ? 's' : ''} de cet espace.`);
+    if (ok) toast.success(t('commun.selectionSupprimee', { count: ok }));
   };
 
   const gestesSelection: GesteSelection[] = [
-    { label: 'Télécharger', picto: 'telecharger', onClick: telechargerSelection },
-    ...(repartition.modifiables.length ? [{ label: 'Déplacer', picto: 'deplacer' as const, onClick: () => setADeplacer(repartition.modifiables) }] : []),
+    { label: t('common:actions.telecharger'), picto: 'telecharger', onClick: telechargerSelection },
+    ...(repartition.modifiables.length ? [{ label: t('commun.deplacer'), picto: 'deplacer' as const, onClick: () => setADeplacer(repartition.modifiables) }] : []),
     ...(repartition.aJeter.length + repartition.aRetirer.length
-      ? [{ label: 'Supprimer', picto: 'corbeille' as const, onClick: supprimerSelection }]
+      ? [{ label: t('common:actions.supprimer'), picto: 'corbeille' as const, onClick: supprimerSelection }]
       : []),
   ];
 
@@ -350,39 +357,39 @@ export function DocumentsPage() {
 
   // ---- Fil ----
   const fil: { label: string; onClick?: () => void }[] = rubrique === 'recents'
-    ? [{ label: 'Récents' }]
+    ? [{ label: t('DocumentsPage.recents') }]
     : rubrique === 'corbeille'
-      ? [{ label: 'Corbeille' }]
+      ? [{ label: t('DocumentsPage.corbeille') }]
       : dossier
-        ? [{ label: 'Tous les documents', onClick: () => { setDossier(null); setSelection(new Set()); } }, { label: dossierLabel(dossier) }]
-        : [{ label: 'Tous les documents' }];
+        ? [{ label: t('DocumentsPage.tousLesDocuments'), onClick: () => { setDossier(null); setSelection(new Set()); } }, { label: dossierLabel(dossier) }]
+        : [{ label: t('DocumentsPage.tousLesDocuments') }];
 
   const rubriques: { id: Section; picto: NomPictoDoc; label: string; badge?: number }[] = [
-    { id: 'tous', picto: 'tous', label: 'Tous les documents' },
-    { id: 'recents', picto: 'recents', label: 'Récents' },
-    { id: 'corbeille', picto: 'corbeille', label: 'Corbeille' },
+    { id: 'tous', picto: 'tous', label: t('DocumentsPage.tousLesDocuments') },
+    { id: 'recents', picto: 'recents', label: t('DocumentsPage.recents') },
+    { id: 'corbeille', picto: 'corbeille', label: t('DocumentsPage.corbeille') },
   ];
 
   const importer = (
     <button className="btn b-blue" type="button" onClick={() => choisirFichiers({ type: dossier, piece: null })}>
-      <Picto nom="envoyer" />Importer un fichier
+      <Picto nom="envoyer" />{t('DocumentsPage.importerFichier')}
     </button>
   );
   const vide = recherche.trim()
-    ? <VideDocuments titre="Aucun document trouvé" texte="Essayez un autre mot." />
+    ? <VideDocuments titre={t('commun.aucunDocumentTrouve')} texte={t('commun.essayezAutreMot')} />
     : rubrique === 'corbeille'
-      ? <VideDocuments titre="La corbeille est vide" texte="Un document mis à la corbeille y reste tant que vous ne le supprimez pas définitivement." />
+      ? <VideDocuments titre={t('DocumentsPage.corbeilleVide')} texte={t('DocumentsPage.corbeilleVideTexte')} />
       : (
         <VideDocuments
-          titre={dossier ? 'Ce dossier est vide' : 'Aucun document'}
-          texte="Glissez un fichier sur cette page, ou choisissez-le sur votre ordinateur."
+          titre={dossier ? t('DocumentsPage.dossierVide') : t('commun.aucunDocument')}
+          texte={t('DocumentsPage.glissezFichier')}
           action={importer}
         />
       );
 
   return (
     <div className="ec docs-page">
-      <h1 className="sr">Mes documents</h1>
+      <h1 className="sr">{t('DocumentsPage.titre')}</h1>
       <input
         ref={inputRef}
         type="file"
@@ -397,9 +404,9 @@ export function DocumentsPage() {
       />
 
       <div className="drive">
-        <aside className="side" aria-label="Navigation des documents">
+        <aside className="side" aria-label={t('DocumentsPage.navigation')}>
           <button className="nouveau" type="button" onClick={() => choisirFichiers({ type: dossier, piece: null })}>
-            <Picto nom="plus" />Nouveau
+            <Picto nom="plus" />{t('DocumentsPage.nouveau')}
           </button>
           <nav className="dnav">
             {rubriques.map((r) => (
@@ -410,17 +417,17 @@ export function DocumentsPage() {
           </nav>
           {actif && (
             <div className="store">
-              <b>{plur(base.length, 'document')}</b>
+              <b>{t('commun.nbDocuments', { count: base.length })}</b>
               <small>{tailleFichier(tailleTotale(base))}</small>
             </div>
           )}
           <p className="priv">
             <Picto nom="cadenas" />
-            <span>Vos fichiers restent privés. Monumia ne les transmet à aucun financeur, et vous choisissez qui, dans votre équipe, peut les voir.</span>
+            <span>{t('DocumentsPage.prive')}</span>
           </p>
         </aside>
 
-        <section className="desp main" aria-label="Vos documents" {...depotGlisse.gestionnaires}>
+        <section className="desp main" aria-label={t('DocumentsPage.vosDocuments')} {...depotGlisse.gestionnaires}>
           <OutilsDocuments
             recherche={recherche}
             onRecherche={(q) => {
@@ -444,7 +451,7 @@ export function DocumentsPage() {
             lieux.length > 1 ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button type="button" className="lieu" aria-label={`Lieu : ${actif.nom}. Changer de lieu`}>
+                  <button type="button" className="lieu" aria-label={t('DocumentsPage.lieuAria', { nom: actif.nom })}>
                     {actif.nom}<Picto nom="chevron" />
                   </button>
                 </DropdownMenuTrigger>
@@ -458,7 +465,7 @@ export function DocumentsPage() {
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
-                        <Link to={ROUTES.MONUMENT_DETAIL(monumentActif.id)}>Voir la fiche du monument</Link>
+                        <Link to={ROUTES.MONUMENT_DETAIL(monumentActif.id)}>{t('DocumentsPage.voirFiche')}</Link>
                       </DropdownMenuItem>
                     </>
                   )}
@@ -473,16 +480,18 @@ export function DocumentsPage() {
 
           {montrerDossiers && (
             <>
-              <BarreSection titre="Dossiers" />
+              <BarreSection titre={t('DocumentsPage.dossiers')} />
               <DossiersDocuments
                 comptes={comptes}
-                onOuvrir={(t) => { setDossier(t); setSelection(new Set()); }}
+                onOuvrir={(tp) => { setDossier(tp); setSelection(new Set()); }}
                 survole={depotGlisse.survole}
               />
             </>
           )}
           <BarreSection
-            titre={rubrique === 'corbeille' ? 'Dans la corbeille' : recherche.trim() && !dossier ? 'Résultats' : 'Documents'}
+            titre={rubrique === 'corbeille'
+              ? t('DocumentsPage.dansCorbeille')
+              : recherche.trim() && !dossier ? t('commun.resultats') : t('commun.documents')}
             tri={tri}
             onTri={setTri}
           />

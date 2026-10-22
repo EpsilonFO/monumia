@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { AllClear } from '@/components/illustrations';
 import { EcranQuestion } from '@/components/project/wizard/EcranQuestion';
 import { ReponsesQuestion } from '@/components/project/wizard/ReponsesQuestion';
@@ -26,7 +27,7 @@ interface ProjectQuestionnaireProps {
   onComplete: () => void;
   /** Vrai pendant l'enregistrement + le diagnostic (spinner sur le bouton final). */
   submitting?: boolean;
-  /** Libellé du bouton final. */
+  /** Libellé du bouton final (par défaut « Lancer le diagnostic »). */
   completeLabel?: string;
   /**
    * `'tronc'` ne pose que les questions PARTAGÉES par au moins deux aides
@@ -77,17 +78,6 @@ interface ProjectQuestionnaireProps {
 }
 
 /**
- * La rubrique d'une question, lue sur le `scope` de son fait : le bien, le
- * chantier ou celui qui dépose. C'est la seule classification que l'ontologie
- * porte (`categorie` n'est que la clé du fait) ; sans scope, pas de rubrique.
- */
-const RUBRIQUE_PAR_SCOPE: Record<NonNullable<QcmQuestion['scope']>, string> = {
-  monument: 'Le monument',
-  projet: 'Le projet',
-  proprietaire: 'Le porteur',
-};
-
-/**
  * Bandeau des réponses reprises d'un autre projet du même monument.
  *
  * Discret, et jamais une alerte : ce n'est pas un avertissement, c'est une
@@ -103,16 +93,17 @@ const RUBRIQUE_PAR_SCOPE: Record<NonNullable<QcmQuestion['scope']>, string> = {
  * si l'utilisateur a dit oui.
  */
 function BandeauReprises({ reprises }: { reprises: RepriseDurable[] }) {
+  const { t } = useTranslation('project');
   if (reprises.length === 0) return null;
   const n = reprises.length;
   // Un seul projet source dans l'immense majorité des cas : on le nomme.
   const titres = [...new Set(reprises.map((r) => r.projetTitre).filter(Boolean))];
-  const provenance = titres.length === 1 ? ` « ${titres[0]} »` : ' vos autres projets';
   return (
     <details className="reprises">
       <summary>
-        {n} réponse{n > 1 ? 's' : ''} reprise{n > 1 ? 's' : ''} de{provenance} sur ce monument :
-        voir {n > 1 ? 'lesquelles' : 'laquelle'}
+        {titres.length === 1
+          ? t('BandeauReprises.resumeProjet', { count: n, titre: titres[0] })
+          : t('BandeauReprises.resumeAutresProjets', { count: n })}
       </summary>
       <ul>
         {reprises.map((r) => (
@@ -127,10 +118,7 @@ function BandeauReprises({ reprises }: { reprises: RepriseDurable[] }) {
           </li>
         ))}
       </ul>
-      <p>
-        Vous avez accepté de les reprendre&nbsp;: elles ne vous sont donc pas reposées.
-        Pour les corriger, refaites le questionnaire depuis la page du projet.
-      </p>
+      <p>{t('BandeauReprises.explication')}</p>
     </details>
   );
 }
@@ -148,12 +136,16 @@ function BilanTronc({
 }: {
   bilan: BilanDiagnostic | Pick<BilanDiagnostic, 'questionsRestantes' | 'minutesEstimees'>;
 }) {
+  const { t } = useTranslation('project');
   const complet = 'aPortee' in bilan ? bilan : null;
   if (!complet) return null;
   const chiffres: { valeur: number; libelle: string }[] = [
-    { valeur: complet.eligibles, libelle: complet.eligibles > 1 ? 'aides mobilisables' : 'aide mobilisable' },
-    { valeur: complet.aConfirmer, libelle: 'à confirmer' },
-    { valeur: complet.ecarteesParReponses, libelle: 'écartées par vos réponses' },
+    {
+      valeur: complet.eligibles,
+      libelle: t('BilanTronc.mobilisables', { count: complet.eligibles }),
+    },
+    { valeur: complet.aConfirmer, libelle: t('BilanTronc.aConfirmer') },
+    { valeur: complet.ecarteesParReponses, libelle: t('BilanTronc.ecartees') },
   ];
   return (
     <div className="bilan">
@@ -166,10 +158,10 @@ function BilanTronc({
         ))}
       </div>
       <p>
-        sur {complet.aPortee} aide{complet.aPortee > 1 ? 's' : ''} à portée de votre monument
+        {t('BilanTronc.surAPortee', { count: complet.aPortee })}
         {complet.aConfirmerUneQuestion > 0 && (
           <>
-            {' '}&middot; dont {complet.aConfirmerUneQuestion} à une seule question d&rsquo;un verdict
+            {' '}&middot; {t('BilanTronc.dontUneQuestion', { count: complet.aConfirmerUneQuestion })}
           </>
         )}
         {/* La page projet range sous « Disponibles bientôt » toute aide dont la
@@ -180,10 +172,10 @@ function BilanTronc({
           <>
             {' '}&middot;{' '}
             {complet.eligiblesMaintenant === 0
-              ? complet.eligibles > 1
-                ? 'leurs guichets ouvrent plus tard'
-                : 'son guichet ouvre plus tard'
-              : `dont ${complet.eligibles - complet.eligiblesMaintenant} dont le guichet ouvre plus tard`}
+              ? t('BilanTronc.guichetsPlusTard', { count: complet.eligibles })
+              : t('BilanTronc.dontGuichetPlusTard', {
+                  count: complet.eligibles - complet.eligiblesMaintenant,
+                })}
           </>
         )}
       </p>
@@ -207,7 +199,7 @@ export function ProjectQuestionnaire({
   onChange,
   onComplete,
   submitting,
-  completeLabel = 'Lancer le diagnostic',
+  completeLabel,
   portee = 'toutes',
   finTronc,
   onFinTronc,
@@ -215,6 +207,7 @@ export function ProjectQuestionnaire({
   reprises = [],
   onProgression,
 }: ProjectQuestionnaireProps) {
+  const { t } = useTranslation('project');
   // Questions déjà affichées, par id. Une question que le curseur a dépassée ne
   // doit plus jamais disparaître, même passée : le parcours se repère à un
   // index positionnel, et retirer une question SITUÉE AVANT le décalerait — on
@@ -367,19 +360,15 @@ export function ProjectQuestionnaire({
       <div className={`fin ${slideClass}`}>
         <AllClear />
         <h2 ref={finishRef} tabIndex={-1}>
-          Le tronc commun est terminé
+          {t('ProjectQuestionnaire.troncTermine')}
         </h2>
-        <p>
-          Les questions suivantes ne concernent plus qu&rsquo;une aide chacune. Vous pouvez les
-          garder pour plus tard&nbsp;: elles vous seront reposées sur la carte de l&rsquo;aide
-          concernée.
-        </p>
+        <p>{t('ProjectQuestionnaire.troncExplication')}</p>
         <BandeauReprises reprises={reprises} />
 
         {bilan === null ? (
           <div className="attente">
             <Loader2 className="spin" aria-hidden="true" />
-            Calcul de votre diagnostic…
+            {t('ProjectQuestionnaire.calcul')}
           </div>
         ) : (
           <BilanTronc bilan={bilan} />
@@ -397,11 +386,11 @@ export function ProjectQuestionnaire({
             {submitting ? (
               <>
                 <Loader2 className="spin" aria-hidden="true" />
-                Analyse des aides en cours…
+                {t('ProjectQuestionnaire.analyseEnCours')}
               </>
             ) : (
               <>
-                Découvrir mon diagnostic
+                {t('ProjectQuestionnaire.decouvrir')}
                 <Picto nom="fleche" />
               </>
             )}
@@ -412,15 +401,15 @@ export function ProjectQuestionnaire({
             onClick={finTronc.onContinuer}
             disabled={submitting || bilan === null}
           >
-            Répondre aux {r} question{r > 1 ? 's' : ''} restante{r > 1 ? 's' : ''}
-            <em>(≈ {bilan?.minutesEstimees ?? 0} min)</em>
+            {t('ProjectQuestionnaire.repondreRestantes', { count: r })}
+            <em>{t('ProjectQuestionnaire.minutes', { minutes: bilan?.minutesEstimees ?? 0 })}</em>
           </button>
         </div>
 
         {!submitting && (
           <button type="button" className="retour" onClick={goBack}>
             <Picto nom="retour" />
-            Revoir mes réponses
+            {t('ProjectQuestionnaire.revoir')}
           </button>
         )}
       </div>
@@ -434,15 +423,14 @@ export function ProjectQuestionnaire({
       <div className={`fin ${slideClass}`}>
         <AllClear />
         <h2 ref={finishRef} tabIndex={-1}>
-          C&rsquo;est tout&nbsp;!
+          {t('ProjectQuestionnaire.cestTout')}
         </h2>
         <p>
           {answered > 0
-            ? `Vous avez répondu à ${answered} question${answered > 1 ? 's' : ''}. `
+            ? t('ProjectQuestionnaire.finRepondu', { count: answered })
             : total === 0
-              ? 'Aucune précision supplémentaire n’était nécessaire. '
-              : 'Pas de souci si vous avez passé des questions. '}
-          On met à jour vos aides.
+              ? t('ProjectQuestionnaire.finAucunePrecision')
+              : t('ProjectQuestionnaire.finQuestionsPassees')}
         </p>
         <BandeauReprises reprises={reprises} />
         <div className="actions">
@@ -450,11 +438,11 @@ export function ProjectQuestionnaire({
             {submitting ? (
               <>
                 <Loader2 className="spin" aria-hidden="true" />
-                Analyse des aides en cours…
+                {t('ProjectQuestionnaire.analyseEnCours')}
               </>
             ) : (
               <>
-                {completeLabel}
+                {completeLabel ?? t('ProjectQuestionnaire.lancer')}
                 <Picto nom="fleche" />
               </>
             )}
@@ -463,7 +451,7 @@ export function ProjectQuestionnaire({
         {!submitting && (
           <button type="button" className="retour" onClick={goBack}>
             <Picto nom="retour" />
-            Revoir mes réponses
+            {t('ProjectQuestionnaire.revoir')}
           </button>
         )}
       </div>
@@ -476,7 +464,22 @@ export function ProjectQuestionnaire({
   // coche rien et n'ouvre pas « Continuer ».
   const chosen = reponsesChoisies(value[q!.id]);
   const contexte = contexteAide?.(q!) ?? null;
-  const rubrique = q!.scope ? RUBRIQUE_PAR_SCOPE[q!.scope] : null;
+  // « Pour X », « et N autres aides », « jusqu'à M € » : une phrase entière par
+  // combinaison, l'ordre des morceaux changeant d'une langue à l'autre.
+  const libelleContexte = (c: NonNullable<typeof contexte>) => {
+    const autres = c.nbAides - 1;
+    const montant =
+      typeof c.montantMax === 'number' && c.montantMax > 0 ? formatCurrency(c.montantMax) : null;
+    if (autres > 0) {
+      return montant
+        ? t('ProjectQuestionnaire.pourEtAutresMontant', { nom: c.nom, count: autres, montant })
+        : t('ProjectQuestionnaire.pourEtAutres', { nom: c.nom, count: autres });
+    }
+    return montant
+      ? t('ProjectQuestionnaire.pourMontant', { nom: c.nom, montant })
+      : t('ProjectQuestionnaire.pour', { nom: c.nom });
+  };
+  const rubrique = q!.scope ? t(`rubriques.${q!.scope}`) : null;
 
   return (
     <>
@@ -497,14 +500,7 @@ export function ProjectQuestionnaire({
             {rubrique}
             {rubrique && contexte && ' · '}
             {contexte && (
-              <span className="pour">
-                Pour {contexte.nom}
-                {contexte.nbAides > 1 &&
-                  ` et ${contexte.nbAides - 1} autre${contexte.nbAides > 2 ? 's' : ''} aide${contexte.nbAides > 2 ? 's' : ''}`}
-                {typeof contexte.montantMax === 'number' &&
-                  contexte.montantMax > 0 &&
-                  `, jusqu’à ${formatCurrency(contexte.montantMax)}`}
-              </span>
+              <span className="pour">{libelleContexte(contexte)}</span>
             )}
           </>
         ) : null
@@ -512,7 +508,7 @@ export function ProjectQuestionnaire({
       titre={q!.question}
       // La consigne doit être lue AVANT de cliquer : la forme carrée des cases
       // ne suffit pas à dire qu'on peut en cocher plusieurs.
-      consigne={multiple ? 'Plusieurs réponses possibles.' : null}
+      consigne={multiple ? t('consignes.plusieursReponses') : null}
       pourquoi={q!.help}
       // Sur la PREMIÈRE question seulement : dire ce qui a été repris des
       // autres projets. Le répéter à chaque question serait du bruit.
@@ -529,7 +525,9 @@ export function ProjectQuestionnaire({
       // répondu », et l'échappatoire porte son propre libellé.
       onContinuer={goNext}
       continuerDesactive={chosen.length === 0}
-      continuerIndice={multiple ? 'Choisissez au moins une réponse.' : 'Choisissez une réponse.'}
+      continuerIndice={
+        multiple ? t('consignes.choisissezAuMoinsUne') : t('consignes.choisissezUneReponse')
+      }
       modifiablePlusTard
     >
       <ReponsesQuestion question={q!} value={value[q!.id]} onAnswer={repondre} autoFocus />

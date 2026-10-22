@@ -1,6 +1,9 @@
 import { useEffect, type ReactNode } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import type { ParseKeys } from 'i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { C, Clover } from './LandingPage';
+import { langueCourante, localeIntl } from './i18n';
 
 /* Pages légales : CGU (avec mentions légales) et politique de confidentialité.
    Servies par le fallback SPA de nginx (cf. main.tsx). */
@@ -9,8 +12,11 @@ const BASE = import.meta.env.BASE_URL;
 export const CGU_PATH = `${BASE}cgu`;
 export const PRIVACY_PATH = `${BASE}confidentialite`;
 
-const DERNIERE_MAJ = '8 octobre 2026';
+// 8 octobre 2026, mis en forme selon la langue au rendu.
+const DERNIERE_MAJ = new Date(2026, 9, 8);
 const CONTACT_EMAIL = 'contact@monumia.fr';
+
+type CleLegale = ParseKeys<'legal'>;
 
 function Section({ id, title, children }: { id?: string; title: string; children: ReactNode }) {
   return (
@@ -25,7 +31,8 @@ function Section({ id, title, children }: { id?: string; title: string; children
   );
 }
 
-function Strong({ children }: { children: ReactNode }) {
+// `children` facultatif : <Trans> fournit le contenu depuis la traduction.
+function Strong({ children }: { children?: ReactNode }) {
   return (
     <strong className="font-semibold" style={{ color: C.ink }}>
       {children}
@@ -37,7 +44,7 @@ function Ul({ children }: { children: ReactNode }) {
   return <ul className="list-disc space-y-1.5 pl-5">{children}</ul>;
 }
 
-function LegalLink({ href, children }: { href: string; children: ReactNode }) {
+function LegalLink({ href, children }: { href: string; children?: ReactNode }) {
   const external = href.startsWith('http');
   return (
     <a
@@ -51,6 +58,24 @@ function LegalLink({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
+/* Balises utilisables dans les textes de legal.json. */
+const BALISES = {
+  gras: <Strong />,
+  mail: <LegalLink href={`mailto:${CONTACT_EMAIL}`} />,
+  confidentialite: <LegalLink href={PRIVACY_PATH} />,
+  anonymisation: <LegalLink href={`${PRIVACY_PATH}#donnees-anonymisees`} />,
+  cgu: <LegalLink href={CGU_PATH} />,
+  mentions: <LegalLink href={`${CGU_PATH}#mentions-legales`} />,
+  ovh: <LegalLink href="https://www.ovhcloud.com" />,
+  cnil: <LegalLink href="https://www.cnil.fr" />,
+};
+
+/** Un paragraphe ou une puce de legal.json, gras et liens compris. */
+function Texte({ k }: { k: CleLegale }) {
+  const { t } = useTranslation('legal');
+  return <Trans t={t} i18nKey={k} components={BALISES} values={{ email: CONTACT_EMAIL }} />;
+}
+
 function LegalLayout({
   title,
   children,
@@ -58,14 +83,22 @@ function LegalLayout({
   title: string;
   children: ReactNode;
 }) {
+  const { t } = useTranslation('legal');
+
   useEffect(() => {
-    document.title = `${title} — Monumia`;
-  }, [title]);
+    document.title = t('LegalLayout.titreOnglet', { titre: title });
+  }, [t, title]);
+
+  const derniereMaj = DERNIERE_MAJ.toLocaleDateString(localeIntl(), {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 
   return (
     <div className="font-sans relative flex min-h-screen flex-col" style={{ background: C.cream, color: C.ink }}>
       <header className="mx-auto flex h-16 w-full max-w-3xl items-center px-5 lg:px-8">
-        <a href={BASE} className="flex items-center gap-2.5" aria-label="Monumia, retour à l'accueil">
+        <a href={BASE} className="flex items-center gap-2.5" aria-label={t('LegalLayout.accueilAria')}>
           <Clover className="h-7 w-7" style={{ color: C.orange }} />
           <span className="font-serif text-[1.35rem] font-bold tracking-[-0.01em]" style={{ color: C.blue }}>
             Monumia
@@ -81,8 +114,18 @@ function LegalLayout({
           {title}
         </h1>
         <p className="mt-3 text-[13.5px] uppercase tracking-[0.12em]" style={{ color: C.inkFaint }}>
-          Dernière mise à jour : {DERNIERE_MAJ}
+          {t('LegalLayout.derniereMaj', { date: derniereMaj })}
         </p>
+
+        {/* Seule la version française fait foi : la traduction le dit d'emblée. */}
+        {langueCourante() === 'en' && (
+          <p
+            className="mt-6 rounded-md border px-4 py-3 text-[14px] leading-[1.6]"
+            style={{ borderColor: C.border, color: C.inkSoft }}
+          >
+            {t('LegalLayout.avertissementTraduction')}
+          </p>
+        )}
 
         {children}
 
@@ -93,7 +136,7 @@ function LegalLayout({
             style={{ color: C.inkSoft }}
           >
             <ArrowLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-1" />
-            Retour à l'accueil
+            {t('LegalLayout.retourAccueil')}
           </a>
         </div>
       </main>
@@ -106,313 +149,160 @@ function LegalLayout({
    ──────────────────────────────────────────── */
 
 export function CguPage() {
+  const { t } = useTranslation('legal');
   return (
-    <LegalLayout title="Conditions générales d'utilisation">
+    <LegalLayout title={t('Cgu.titre')}>
       <div className="mt-6 space-y-3 text-[15px] leading-[1.75]" style={{ color: C.inkSoft }}>
         <p>
-          Les présentes conditions générales d'utilisation (les « <Strong>CGU</Strong> ») régissent
-          l'accès et l'utilisation du site <Strong>monumia.fr</Strong> et de l'application{' '}
-          <Strong>app.monumia.fr</Strong> (ensemble, le « <Strong>Service</Strong> »), édités par
-          Monumia. En créant un compte ou en utilisant le Service, vous acceptez sans réserve les
-          présentes CGU. Si vous ne les acceptez pas, vous ne devez pas utiliser le Service.
+          <Texte k="Cgu.intro" />
         </p>
       </div>
 
-      <Section id="mentions-legales" title="1. Mentions légales">
+      <Section id="mentions-legales" title={t('Cgu.mentions.titre')}>
         <p>
-          <Strong>Éditeur du Service</Strong> : Monumia, société par actions simplifiée (SAS) au
-          capital de 400,00 €, immatriculée au RCS de Lyon sous le numéro 106 236 748, dont le
-          siège social est situé 10 avenue Jean Jaurès, 69370 Saint-Didier-au-Mont-d'Or, France.
-          Numéro de TVA intracommunautaire : FR72106236748.
+          <Texte k="Cgu.mentions.editeur" />
         </p>
         <p>
-          <Strong>Directeur de la publication</Strong> : Paul Vacheret, président.
+          <Texte k="Cgu.mentions.directeur" />
         </p>
         <p>
-          <Strong>Contact</Strong> :{' '}
-          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>.
+          <Texte k="Cgu.mentions.contact" />
         </p>
         <p>
-          <Strong>Hébergeur</Strong> : OVH SAS, 2 rue Kellermann, 59100 Roubaix, France,
-          immatriculée au RCS de Lille Métropole sous le numéro 424 761 419, téléphone :
-          +33 9 72 10 10 07 (<LegalLink href="https://www.ovhcloud.com">www.ovhcloud.com</LegalLink>).
-          Les serveurs du Service sont hébergés en France.
+          <Texte k="Cgu.mentions.hebergeur" />
         </p>
         <p>
-          <Strong>Base de données et stockage de fichiers</Strong> : Supabase, Inc., avec un
-          hébergement des données situé exclusivement au sein de l'Union européenne (voir la{' '}
-          <LegalLink href={PRIVACY_PATH}>politique de confidentialité</LegalLink>).
+          <Texte k="Cgu.mentions.donnees" />
         </p>
       </Section>
 
-      <Section title="2. Objet du Service">
-        <p>
-          Monumia est un service en ligne qui aide les propriétaires et gestionnaires de patrimoine
-          bâti à identifier les aides au financement (subventions publiques, aides de fondations,
-          dispositifs fiscaux, mécénat) susceptibles de s'appliquer à leur monument et à leur
-          projet, puis à préparer leurs dossiers de demande.
-        </p>
+      <Section title={t('Cgu.objet.titre')}>
+        <p>{t('Cgu.objet.p1')}</p>
       </Section>
 
-      <Section title="3. Caractère informatif des résultats">
+      <Section title={t('Cgu.resultats.titre')}>
         <p>
-          <Strong>
-            Les résultats fournis par Monumia (diagnostics d'éligibilité, estimations, listes
-            d'aides, contenus d'accompagnement) ont une valeur strictement informative et
-            indicative.
-          </Strong>{' '}
-          Ils sont établis à partir des informations que vous déclarez et de sources publiques
-          (textes officiels, règlements d'intervention, sites des organismes financeurs) qui
-          peuvent évoluer, être modifiées ou supprimées à tout moment par les organismes concernés.
+          <Texte k="Cgu.resultats.p1" />
         </p>
-        <p>En conséquence :</p>
+        <p>{t('Cgu.resultats.p2')}</p>
         <Ul>
           <li>
-            Monumia <Strong>ne garantit ni l'éligibilité effective</Strong> à une aide, ni son
-            obtention, ni son montant : la décision d'attribution appartient exclusivement à
-            l'organisme financeur (État, collectivité, fondation, etc.), au terme de sa propre
-            instruction ;
+            <Texte k="Cgu.resultats.puce1" />
           </li>
           <li>
-            le Service <Strong>ne constitue pas un conseil juridique, fiscal, financier ou
-            architectural</Strong> et ne se substitue ni à l'analyse d'un professionnel qualifié
-            (avocat, notaire, expert-comptable, architecte du patrimoine), ni aux échanges directs
-            avec les organismes financeurs ;
+            <Texte k="Cgu.resultats.puce2" />
           </li>
           <li>
-            il vous appartient de <Strong>vérifier les conditions officielles</Strong> de chaque
-            aide auprès de l'organisme concerné avant toute décision engageante (travaux,
-            embauche, financement) ;
+            <Texte k="Cgu.resultats.puce3" />
           </li>
           <li>
-            Monumia est tenue à une <Strong>obligation de moyens</Strong> : elle met tout en œuvre
-            pour maintenir des informations exactes et à jour, sans pouvoir le garantir de manière
-            absolue.
+            <Texte k="Cgu.resultats.puce4" />
           </li>
         </Ul>
       </Section>
 
-      <Section title="4. Accès au Service et compte utilisateur">
+      <Section title={t('Cgu.acces.titre')}>
         <p>
-          Le Service est réservé aux <Strong>personnes physiques majeures</Strong> disposant de la
-          pleine capacité juridique et aux personnes morales agissant par l'intermédiaire d'un
-          représentant habilité. <Strong>Le Service n'est pas destiné aux mineurs</Strong>, qui ne
-          doivent ni créer de compte ni transmettre de données personnelles via le Service.
+          <Texte k="Cgu.acces.p1" />
         </p>
         <p>
-          La création d'un compte requiert des informations exactes, complètes et à jour. Vous êtes
-          responsable de la confidentialité de vos identifiants et de toute activité réalisée
-          depuis votre compte. En cas d'utilisation non autorisée, prévenez-nous sans délai à{' '}
-          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>.
+          <Texte k="Cgu.acces.p2" />
         </p>
-        <p>
-          L'exactitude des résultats dépend directement de l'exactitude des informations que vous
-          déclarez sur votre monument et votre projet : des déclarations erronées produisent des
-          résultats erronés, sans que la responsabilité de Monumia puisse être engagée de ce fait.
-        </p>
+        <p>{t('Cgu.acces.p3')}</p>
       </Section>
 
-      <Section title="5. Utilisation acceptable">
-        <p>Vous vous engagez à ne pas :</p>
+      <Section title={t('Cgu.usage.titre')}>
+        <p>{t('Cgu.usage.intro')}</p>
         <Ul>
-          <li>utiliser le Service à des fins illicites ou contraires aux présentes CGU ;</li>
-          <li>
-            tenter d'accéder sans autorisation aux systèmes, comptes ou données d'autres
-            utilisateurs, ou de perturber le fonctionnement du Service ;
-          </li>
-          <li>
-            extraire de manière systématique ou automatisée le contenu du Service (scraping,
-            aspiration de base de données) à des fins de réutilisation commerciale ;
-          </li>
-          <li>
-            téléverser des contenus illicites, contrefaisants ou portant atteinte aux droits de
-            tiers.
-          </li>
+          <li>{t('Cgu.usage.puce1')}</li>
+          <li>{t('Cgu.usage.puce2')}</li>
+          <li>{t('Cgu.usage.puce3')}</li>
+          <li>{t('Cgu.usage.puce4')}</li>
         </Ul>
-        <p>
-          Monumia se réserve le droit de suspendre ou de résilier, après notification sauf urgence,
-          tout compte contrevenant aux présentes CGU.
-        </p>
+        <p>{t('Cgu.usage.p2')}</p>
       </Section>
 
-      <Section title="6. Offres payantes et paiement">
+      <Section title={t('Cgu.paiement.titre')}>
         <p>
-          Certaines fonctionnalités du Service sont payantes. Les prix, exprimés en euros et toutes
-          taxes comprises pour les consommateurs, sont indiqués avant toute souscription. Le
-          paiement est traité par notre prestataire <Strong>Stripe</Strong>, sur des pages de
-          paiement sécurisées opérées par Stripe : Monumia n'accède jamais à vos données de carte
-          bancaire.
+          <Texte k="Cgu.paiement.p1" />
         </p>
-        <p>
-          Les abonnements sont sans engagement de durée sauf mention contraire : ils peuvent être
-          résiliés à tout moment depuis votre espace client, la résiliation prenant effet à la fin
-          de la période en cours, sans remboursement au prorata de la période entamée sauf
-          disposition légale contraire.
-        </p>
-        <p>
-          Monumia peut faire évoluer ses tarifs ; toute modification est notifiée au moins un mois
-          avant son entrée en vigueur et ne s'applique qu'aux périodes de facturation suivantes.
-          Vous restez libre de résilier avant l'application du nouveau tarif.
-        </p>
+        <p>{t('Cgu.paiement.p2')}</p>
+        <p>{t('Cgu.paiement.p3')}</p>
       </Section>
 
-      <Section title="7. Droit de rétractation (consommateurs)">
+      <Section title={t('Cgu.retractation.titre')}>
         <p>
-          Si vous êtes un consommateur au sens du code de la consommation, vous disposez d'un délai
-          de <Strong>quatorze (14) jours</Strong> à compter de la souscription pour exercer votre
-          droit de rétractation, sans motif ni pénalité, en écrivant à{' '}
-          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink> (articles
-          L221-18 et suivants du code de la consommation).
+          <Texte k="Cgu.retractation.p1" />
         </p>
-        <p>
-          Si vous demandez expressément l'accès immédiat au Service avant l'expiration de ce délai,
-          vous pouvez toujours vous rétracter dans les quatorze jours, mais un montant proportionnel
-          au service déjà fourni jusqu'à votre demande de rétractation reste dû (article L221-25 du
-          code de la consommation).
-        </p>
+        <p>{t('Cgu.retractation.p2')}</p>
       </Section>
 
-      <Section title="8. Propriété intellectuelle">
+      <Section title={t('Cgu.propriete.titre')}>
+        <p>{t('Cgu.propriete.p1')}</p>
         <p>
-          Le Service, sa structure, ses textes, sa charte graphique, son logo et ses logiciels sont
-          protégés par le droit de la propriété intellectuelle et demeurent la propriété exclusive
-          de Monumia ou de ses concédants. Toute reproduction ou réutilisation non autorisée est
-          interdite.
+          <Texte k="Cgu.propriete.p2" />
         </p>
-        <p>
-          Les documents et informations que vous téléversez <Strong>restent votre propriété</Strong>.
-          Vous concédez à Monumia une licence limitée, non exclusive et révocable, aux fins de
-          fournir le Service (stockage, affichage, préparation de vos dossiers) et, dans les
-          conditions de l'article 9, de constituer des jeux de données anonymisés. Cette licence
-          prend fin à la suppression des contenus ou de votre compte ; elle subsiste toutefois pour
-          les données déjà anonymisées, qui ne permettent plus de vous identifier ni de retrouver
-          vos contenus.
-        </p>
-        <p>
-          Les textes officiels et informations publiques relatifs aux aides restent soumis à leurs
-          régimes propres et sont cités à titre de référence.
-        </p>
+        <p>{t('Cgu.propriete.p3')}</p>
       </Section>
 
-      <Section id="donnees-anonymisees" title="9. Données anonymisées et modèles d'intelligence artificielle">
+      <Section id="donnees-anonymisees" title={t('Cgu.anonymisation.titre')}>
         <p>
-          Pour fiabiliser ses diagnostics et développer de nouvelles fonctionnalités, Monumia peut
-          constituer, à partir des informations renseignées sur le Service, des{' '}
-          <Strong>jeux de données anonymisés</Strong> destinés à l'analyse statistique et à
-          l'<Strong>entraînement de modèles d'intelligence artificielle</Strong>, par Monumia ou
-          pour son compte.
+          <Texte k="Cgu.anonymisation.p1" />
         </p>
         <p>
-          Seules sont concernées les données relatives aux <Strong>monuments et aux projets</Strong>,
-          jamais celles qui décrivent votre personne :
+          <Texte k="Cgu.anonymisation.p2" />
         </p>
         <Ul>
-          <li>
-            les informations déclarées sur le monument (nature du bien, protection, état sanitaire,
-            caractéristiques, localisation généralisée) et sur le projet (nature et ampleur des
-            travaux, calendrier, budget) ;
-          </li>
-          <li>vos réponses au questionnaire d'éligibilité et les résultats du diagnostic ;</li>
-          <li>
-            les pièces de dossier qui, par nature ou par votre choix, ont vocation à être rendues
-            publiques (par exemple un dossier de demande d'aide destiné à publication).
-          </li>
+          <li>{t('Cgu.anonymisation.puce1')}</li>
+          <li>{t('Cgu.anonymisation.puce2')}</li>
+          <li>{t('Cgu.anonymisation.puce3')}</li>
         </Ul>
         <p>
-          Sont <Strong>exclus</Strong> de cette utilisation : votre identité, vos coordonnées, vos
-          identifiants de connexion, vos données de facturation, les journaux techniques et les
-          documents confidentiels (pièces d'identité, coordonnées bancaires, documents fiscaux,
-          correspondance privée, tout document que vous n'avez pas destiné à une diffusion
-          publique).
+          <Texte k="Cgu.anonymisation.p3" />
         </p>
         <p>
-          Avant toute utilisation, les données sont <Strong>anonymisées de manière irréversible</Strong> :
-          suppression ou généralisation de tout élément permettant, directement ou par recoupement,
-          de vous identifier ou d'identifier un propriétaire privé. Monumia s'engage à ne pas
-          chercher à réidentifier les personnes concernées et à interdire cette réidentification à
-          ses éventuels prestataires. Les jeux de données ainsi constitués ne comportent plus de
-          données personnelles et peuvent être conservés après la clôture de votre compte.
+          <Texte k="Cgu.anonymisation.p4" />
         </p>
         <p>
-          Vous pouvez <Strong>vous opposer</Strong> à tout moment à cette utilisation pour vos
-          données non encore anonymisées en écrivant à{' '}
-          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>. Les modalités
-          détaillées figurent dans la{' '}
-          <LegalLink href={`${PRIVACY_PATH}#donnees-anonymisees`}>politique de confidentialité</LegalLink>.
+          <Texte k="Cgu.anonymisation.p5" />
         </p>
       </Section>
 
-      <Section title="10. Données personnelles">
+      <Section title={t('Cgu.donneesPersonnelles.titre')}>
         <p>
-          Le traitement de vos données personnelles est décrit dans notre{' '}
-          <LegalLink href={PRIVACY_PATH}>politique de confidentialité</LegalLink>, conforme au
-          règlement (UE) 2016/679 (« RGPD ») et à la loi Informatique et Libertés.
+          <Texte k="Cgu.donneesPersonnelles.p1" />
         </p>
       </Section>
 
-      <Section title="11. Disponibilité et responsabilité">
+      <Section title={t('Cgu.responsabilite.titre')}>
+        <p>{t('Cgu.responsabilite.p1')}</p>
+        <p>{t('Cgu.responsabilite.p2')}</p>
+      </Section>
+
+      <Section title={t('Cgu.resiliation.titre')}>
         <p>
-          Monumia s'efforce d'assurer un accès continu au Service, sans garantir une disponibilité
-          ininterrompue : des interruptions pour maintenance, mise à jour ou cas de force majeure
-          peuvent survenir. Monumia ne saurait être tenue responsable des dommages indirects
-          (perte de chance d'obtenir une aide, perte d'exploitation, préjudice d'image) résultant
-          de l'utilisation ou de l'impossibilité d'utiliser le Service.
-        </p>
-        <p>
-          Pour les utilisateurs professionnels, la responsabilité totale de Monumia, toutes causes
-          confondues, est plafonnée aux sommes effectivement versées par l'utilisateur au titre des
-          douze derniers mois. Aucune stipulation des présentes ne limite la responsabilité de
-          Monumia en cas de dol, de faute lourde, de dommage corporel, ni aucune responsabilité qui
-          ne peut être légalement limitée à l'égard des consommateurs.
+          <Texte k="Cgu.resiliation.p1" />
         </p>
       </Section>
 
-      <Section title="12. Résiliation">
+      <Section title={t('Cgu.mediation.titre')}>
         <p>
-          Vous pouvez cesser d'utiliser le Service et demander la suppression de votre compte à
-          tout moment, depuis l'application ou en écrivant à{' '}
-          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>. Les conséquences
-          de la suppression sur vos données sont décrites dans la{' '}
-          <LegalLink href={PRIVACY_PATH}>politique de confidentialité</LegalLink>.
-        </p>
-      </Section>
-
-      <Section title="13. Médiation de la consommation">
-        <p>
-          Conformément aux articles L612-1 et suivants du code de la consommation, tout consommateur
-          a le droit de recourir gratuitement à un médiateur de la consommation en vue de la
-          résolution amiable d'un litige avec Monumia, après avoir tenté au préalable de résoudre
-          le litige directement auprès de{' '}
-          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>.
+          <Texte k="Cgu.mediation.p1" />
         </p>
         {/* À rétablir dès qu'un médiateur de la consommation est désigné (CM2C,
             Médicys…) : « Médiateur désigné : <nom et coordonnées> ». */}
       </Section>
 
-      <Section title="14. Modification des CGU">
-        <p>
-          Monumia peut modifier les présentes CGU pour tenir compte des évolutions du Service ou de
-          la réglementation. Les utilisateurs disposant d'un compte sont informés de toute
-          modification substantielle au moins quinze jours avant son entrée en vigueur. La poursuite
-          de l'utilisation du Service après cette date vaut acceptation des CGU modifiées ; à
-          défaut, vous pouvez résilier dans les conditions de l'article 12.
-        </p>
+      <Section title={t('Cgu.modification.titre')}>
+        <p>{t('Cgu.modification.p1')}</p>
       </Section>
 
-      <Section title="15. Droit applicable et juridiction">
-        <p>
-          Les présentes CGU sont soumises au droit français. En cas de litige et à défaut de
-          résolution amiable, les tribunaux français sont compétents dans les conditions du droit
-          commun. Le consommateur peut saisir, à son choix, l'une des juridictions territorialement
-          compétentes en vertu du code de procédure civile ou la juridiction du lieu où il demeurait
-          au moment de la conclusion du contrat. Ces CGU ne privent pas les consommateurs résidant
-          dans un autre État membre de l'Union européenne des protections impératives de leur droit
-          national.
-        </p>
+      <Section title={t('Cgu.droitApplicable.titre')}>
+        <p>{t('Cgu.droitApplicable.p1')}</p>
       </Section>
 
       <p className="mt-10 text-[14px] leading-[1.7]" style={{ color: C.inkFaint }}>
-        Voir aussi : <LegalLink href={PRIVACY_PATH}>Politique de confidentialité</LegalLink>
+        <Texte k="Cgu.voirAussi" />
       </p>
     </LegalLayout>
   );
@@ -423,363 +313,210 @@ export function CguPage() {
    ──────────────────────────────────────────── */
 
 export function PrivacyPage() {
+  const { t } = useTranslation('legal');
   return (
-    <LegalLayout title="Politique de confidentialité">
+    <LegalLayout title={t('Confidentialite.titre')}>
       <div className="mt-6 space-y-3 text-[15px] leading-[1.75]" style={{ color: C.inkSoft }}>
         <p>
-          Cette politique décrit comment Monumia traite vos données personnelles, en conformité
-          avec le règlement (UE) 2016/679 (« <Strong>RGPD</Strong> ») et la loi n° 78-17 du
-          6 janvier 1978 (« Informatique et Libertés »). Elle s'applique au site monumia.fr, à
-          l'application app.monumia.fr et à la liste d'attente de lancement.
+          <Texte k="Confidentialite.intro1" />
         </p>
         <p>
-          Notre principe : <Strong>nous ne collectons que ce qui est nécessaire au Service, nous ne
-          vendons ni ne louons jamais vos données, et nous n'affichons aucune publicité.</Strong>
+          <Texte k="Confidentialite.intro2" />
         </p>
       </div>
 
-      <Section title="1. Responsable du traitement">
+      <Section title={t('Confidentialite.responsable.titre')}>
         <p>
-          Le responsable du traitement est Monumia, SAS immatriculée au RCS de Lyon sous le
-          numéro 106 236 748, dont le siège social est situé 10 avenue Jean Jaurès,
-          69370 Saint-Didier-au-Mont-d'Or, France, joignable à{' '}
-          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>, y compris pour
-          toute question relative aux données personnelles.
+          <Texte k="Confidentialite.responsable.p1" />
         </p>
       </Section>
 
-      <Section title="2. Données que nous collectons">
-        <p>Nous collectons uniquement les données suivantes :</p>
+      <Section title={t('Confidentialite.collecte.titre')}>
+        <p>{t('Confidentialite.collecte.intro')}</p>
         <Ul>
           <li>
-            <Strong>Liste d'attente de lancement</Strong> : votre adresse e-mail et la page depuis
-            laquelle vous vous êtes inscrit. Rien d'autre.
+            <Texte k="Confidentialite.collecte.attente" />
           </li>
           <li>
-            <Strong>Compte utilisateur</Strong> : prénom, nom, adresse e-mail, mot de passe (stocké
-            exclusivement sous forme hachée) et, si vous le renseignez, numéro de téléphone.
+            <Texte k="Confidentialite.collecte.compte" />
           </li>
           <li>
-            <Strong>Données de vos projets</Strong> : les informations que vous déclarez sur vos
-            monuments et vos projets (localisation, protections, nature des travaux, réponses au
-            questionnaire) et les documents que vous téléversez pour vos dossiers.
+            <Texte k="Confidentialite.collecte.projets" />
           </li>
           <li>
-            <Strong>Facturation</Strong> : l'historique de vos abonnements et paiements. Les données
-            de carte bancaire sont saisies directement sur les pages sécurisées de Stripe et{' '}
-            <Strong>ne transitent jamais par nos serveurs</Strong>.
+            <Texte k="Confidentialite.collecte.facturation" />
           </li>
           <li>
-            <Strong>Données techniques</Strong> : journaux de connexion des serveurs (adresse IP,
-            horodatage, pages appelées), à des fins de sécurité et de diagnostic d'incident.
+            <Texte k="Confidentialite.collecte.techniques" />
           </li>
           <li>
-            <Strong>Mesure d'audience de l'application</Strong> : les pages consultées et les
-            étapes franchies (création d'un monument, d'un projet, d'un dossier), sous forme de
-            statistiques anonymes. Aucun cookie ni stockage sur votre appareil, aucun identifiant
-            de compte, de monument ou de projet, aucun texte affiché à l'écran, aucun
-            enregistrement de votre session (voir l'article 9).
+            <Texte k="Confidentialite.collecte.audience" />
           </li>
         </Ul>
-        <p>Et voici ce que nous ne faisons pas :</p>
+        <p>{t('Confidentialite.collecte.nonIntro')}</p>
         <Ul>
-          <li>aucun cookie publicitaire ni traceur, aucun suivi individuel de votre navigation ;</li>
-          <li>aucune revente, location ou cession de vos données à des tiers ;</li>
-          <li>
-            aucune transmission de vos données personnelles à des services d'intelligence
-            artificielle externes : le moteur d'analyse d'éligibilité de Monumia fonctionne sur nos
-            propres serveurs, sans appel à des services tiers. Seules des données préalablement
-            anonymisées, qui ne vous concernent plus, peuvent servir à entraîner des modèles (voir
-            l'article 4) ;
-          </li>
-          <li>aucune collecte de données auprès de mineurs (voir l'article 10).</li>
+          <li>{t('Confidentialite.collecte.non1')}</li>
+          <li>{t('Confidentialite.collecte.non2')}</li>
+          <li>{t('Confidentialite.collecte.non3')}</li>
+          <li>{t('Confidentialite.collecte.non4')}</li>
         </Ul>
       </Section>
 
-      <Section title="3. Finalités et bases légales">
+      <Section title={t('Confidentialite.finalites.titre')}>
         <Ul>
           <li>
-            <Strong>Fournir le Service</Strong> (compte, diagnostics, dossiers, support) :
-            exécution du contrat (article 6.1.b du RGPD).
+            <Texte k="Confidentialite.finalites.service" />
           </li>
           <li>
-            <Strong>Vous prévenir du lancement</Strong> (liste d'attente) : votre consentement
-            (article 6.1.a), retirable à tout moment.
+            <Texte k="Confidentialite.finalites.lancement" />
           </li>
           <li>
-            <Strong>Facturation et comptabilité</Strong> : obligation légale (article 6.1.c).
+            <Texte k="Confidentialite.finalites.facturation" />
           </li>
           <li>
-            <Strong>Sécurité du Service</Strong> (journaux, prévention des abus) : intérêt
-            légitime (article 6.1.f).
+            <Texte k="Confidentialite.finalites.securite" />
           </li>
           <li>
-            <Strong>Mesure d'audience de l'application</Strong>, pour repérer les écrans qui se
-            comprennent mal : intérêt légitime (article 6.1.f). Vous pouvez vous y opposer à tout
-            moment (voir l'article 9).
+            <Texte k="Confidentialite.finalites.audience" />
           </li>
           <li>
-            <Strong>E-mails liés au fonctionnement du Service</Strong> (confirmations, invitations
-            de collaboration, alertes sur vos projets) : exécution du contrat. Nous n'envoyons pas
-            de prospection commerciale pour le compte de tiers.
+            <Texte k="Confidentialite.finalites.emails" />
           </li>
           <li>
-            <Strong>Constitution de jeux de données anonymisés</Strong> pour améliorer le Service
-            et entraîner des modèles d'intelligence artificielle (voir l'article 4) : intérêt
-            légitime (article 6.1.f), l'anonymisation étant un traitement ultérieur compatible
-            avec les finalités initiales (article 5.1.b). Vous pouvez vous y opposer à tout moment.
+            <Texte k="Confidentialite.finalites.anonymisation" />
           </li>
         </Ul>
       </Section>
 
-      <Section id="donnees-anonymisees" title="4. Données anonymisées et entraînement de modèles d'intelligence artificielle">
+      <Section id="donnees-anonymisees" title={t('Confidentialite.anonymisation.titre')}>
         <p>
-          Pour fiabiliser nos diagnostics d'éligibilité et développer de nouvelles fonctionnalités,
-          nous pouvons constituer, à partir des informations renseignées sur le Service, des{' '}
-          <Strong>jeux de données anonymisés</Strong> servant à des analyses statistiques et à
-          l'<Strong>entraînement de modèles d'intelligence artificielle</Strong>, par Monumia ou
-          pour son compte.
+          <Texte k="Confidentialite.anonymisation.p1" />
         </p>
         <p>
-          <Strong>Ce qui peut être utilisé</Strong> : uniquement les données qui décrivent le
-          monument et le projet, jamais celles qui vous décrivent.
+          <Texte k="Confidentialite.anonymisation.utilise" />
         </p>
         <Ul>
-          <li>
-            les informations déclarées sur le monument (nature du bien, protection, état sanitaire,
-            caractéristiques, localisation généralisée à l'échelle de la commune ou du département)
-            et sur le projet (nature et ampleur des travaux, calendrier, budget) ;
-          </li>
-          <li>vos réponses au questionnaire d'éligibilité et les résultats du diagnostic ;</li>
-          <li>
-            les pièces de dossier qui, par nature ou par votre choix, ont vocation à être rendues
-            publiques (par exemple un dossier de demande d'aide destiné à publication).
-          </li>
+          <li>{t('Confidentialite.anonymisation.puce1')}</li>
+          <li>{t('Confidentialite.anonymisation.puce2')}</li>
+          <li>{t('Confidentialite.anonymisation.puce3')}</li>
         </Ul>
         <p>
-          <Strong>Ce qui n'est jamais utilisé</Strong> : vos nom, prénom, adresse e-mail, numéro
-          de téléphone, identifiants de connexion, données de facturation, journaux techniques, ni
-          les documents confidentiels (pièces d'identité, coordonnées bancaires, documents fiscaux,
-          correspondance privée, tout document que vous n'avez pas destiné à une diffusion
-          publique).
+          <Texte k="Confidentialite.anonymisation.jamaisUtilise" />
         </p>
         <p>
-          <Strong>Comment nous anonymisons</Strong> : avant toute utilisation, nous supprimons ou
-          généralisons tout élément permettant, directement ou par recoupement, de vous identifier
-          ou d'identifier un propriétaire privé (identifiants de compte, adresse précise, références
-          cadastrales, noms de personnes présents dans les documents). L'anonymisation est
-          irréversible : les jeux de données obtenus ne constituent plus des données personnelles
-          au sens du RGPD. Nous nous engageons à ne pas chercher à réidentifier les personnes
-          concernées et imposons la même interdiction à nos éventuels prestataires. Les données
-          relatives aux monuments appartenant à des personnes morales (communes, associations,
-          sociétés) ne sont pas des données personnelles et peuvent être utilisées sous la même
-          forme.
+          <Texte k="Confidentialite.anonymisation.methode" />
         </p>
         <p>
-          <Strong>Votre droit d'opposition</Strong> : vous pouvez vous opposer à tout moment, sans
-          motif, à l'utilisation de vos données à cette fin en écrivant à{' '}
-          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>. Votre opposition
-          prend effet pour toutes les données non encore anonymisées ; les données déjà anonymisées
-          ne pouvant plus vous être rattachées, il nous est techniquement impossible de les retirer
-          des jeux de données existants. Cette opposition n'a aucune incidence sur votre accès au
-          Service.
+          <Texte k="Confidentialite.anonymisation.opposition" />
         </p>
       </Section>
 
-      <Section title="5. Destinataires et sous-traitants">
-        <p>
-          Vos données ne sont accessibles qu'à l'équipe de Monumia, dans la limite de ce qui est
-          nécessaire, et aux sous-traitants suivants, chacun lié par un accord de traitement des
-          données conforme à l'article 28 du RGPD :
-        </p>
+      <Section title={t('Confidentialite.destinataires.titre')}>
+        <p>{t('Confidentialite.destinataires.intro')}</p>
         <Ul>
           <li>
-            <Strong>OVH SAS</Strong> (France) : hébergement des serveurs applicatifs, en France.
+            <Texte k="Confidentialite.destinataires.ovh" />
           </li>
           <li>
-            <Strong>Supabase, Inc.</Strong> : base de données, authentification et stockage de
-            fichiers, avec des données hébergées exclusivement dans l'Union européenne.
+            <Texte k="Confidentialite.destinataires.supabase" />
           </li>
           <li>
-            <Strong>Stripe</Strong> (Stripe Payments Europe, Ltd., Irlande) : traitement des
-            paiements.
+            <Texte k="Confidentialite.destinataires.stripe" />
           </li>
           <li>
-            <Strong>Resend, Inc.</Strong> (États-Unis) : envoi des e-mails du Service (adresse
-            e-mail et contenu des messages uniquement).
+            <Texte k="Confidentialite.destinataires.resend" />
           </li>
           <li>
-            <Strong>PostHog, Inc.</Strong> : mesure d'audience de l'application, avec des données
-            hébergées dans l'Union européenne.
+            <Texte k="Confidentialite.destinataires.posthog" />
           </li>
         </Ul>
+        <p>{t('Confidentialite.destinataires.p2')}</p>
+      </Section>
+
+      <Section title={t('Confidentialite.transferts.titre')}>
         <p>
-          Vos données peuvent également être communiquées aux autorités lorsque la loi l'exige. Si
-          vous partagez un projet avec un collaborateur, celui-ci accède aux données de ce projet
-          dans la limite du rôle que vous lui attribuez.
+          <Texte k="Confidentialite.transferts.p1" />
         </p>
       </Section>
 
-      <Section title="6. Transferts hors de l'Union européenne">
-        <p>
-          Nos serveurs et nos bases de données sont situés en France et dans l'Union européenne.
-          Certains sous-traitants (Supabase, Inc., Resend, Inc. et PostHog, Inc., sociétés américaines) peuvent
-          impliquer un accès à des données depuis les États-Unis ; ces transferts sont encadrés par
-          des garanties appropriées au sens du chapitre V du RGPD (clauses contractuelles types de
-          la Commission européenne et, le cas échéant, certification au cadre de protection des
-          données UE-États-Unis). Vous pouvez obtenir une copie de ces garanties en écrivant à{' '}
-          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>.
-        </p>
-      </Section>
-
-      <Section title="7. Durées de conservation">
+      <Section title={t('Confidentialite.conservation.titre')}>
         <Ul>
           <li>
-            <Strong>Compte et données de projets</Strong> : pendant toute la durée de vie du
-            compte, puis suppression dans les trente (30) jours suivant sa clôture. Certaines
-            données peuvent être conservées en archivage restreint le temps des prescriptions
-            légales (au maximum cinq ans) lorsque c'est nécessaire à la défense de nos droits.
+            <Texte k="Confidentialite.conservation.compte" />
           </li>
           <li>
-            <Strong>Documents téléversés</Strong> : supprimés avec le projet ou le compte auquel
-            ils sont rattachés.
+            <Texte k="Confidentialite.conservation.documents" />
           </li>
           <li>
-            <Strong>Jeux de données anonymisés</Strong> (article 4) : n'étant plus des données
-            personnelles, ils peuvent être conservés sans limitation de durée, y compris après la
-            clôture de votre compte.
+            <Texte k="Confidentialite.conservation.anonymises" />
           </li>
           <li>
-            <Strong>Liste d'attente</Strong> : jusqu'au lancement du Service, puis au plus trois
-            ans après le dernier contact ; suppression immédiate sur simple demande.
+            <Texte k="Confidentialite.conservation.attente" />
           </li>
           <li>
-            <Strong>Factures et pièces comptables</Strong> : dix ans (obligation légale).
+            <Texte k="Confidentialite.conservation.factures" />
           </li>
           <li>
-            <Strong>Journaux techniques</Strong> : douze mois au maximum.
+            <Texte k="Confidentialite.conservation.journaux" />
           </li>
           <li>
-            <Strong>Statistiques de mesure d'audience</Strong> : vingt-cinq mois au maximum.
+            <Texte k="Confidentialite.conservation.audience" />
           </li>
         </Ul>
       </Section>
 
-      <Section title="8. Vos droits">
-        <p>
-          Conformément au RGPD et à la loi Informatique et Libertés, vous disposez des droits
-          suivants sur vos données :
-        </p>
+      <Section title={t('Confidentialite.droits.titre')}>
+        <p>{t('Confidentialite.droits.intro')}</p>
         <Ul>
-          <li>droit d'accès et droit d'obtenir une copie de vos données ;</li>
-          <li>droit de rectification des données inexactes ou incomplètes ;</li>
-          <li>droit à l'effacement (« droit à l'oubli ») ;</li>
-          <li>droit à la limitation du traitement ;</li>
-          <li>
-            droit d'opposition, notamment aux traitements fondés sur notre intérêt légitime, y
-            compris la constitution de jeux de données anonymisés décrite à l'article 4 ;
-          </li>
-          <li>droit à la portabilité de vos données ;</li>
-          <li>
-            droit de retirer votre consentement à tout moment, sans remettre en cause la licéité
-            du traitement antérieur ;
-          </li>
-          <li>
-            droit de définir des directives relatives au sort de vos données après votre décès
-            (article 85 de la loi Informatique et Libertés).
-          </li>
+          <li>{t('Confidentialite.droits.acces')}</li>
+          <li>{t('Confidentialite.droits.rectification')}</li>
+          <li>{t('Confidentialite.droits.effacement')}</li>
+          <li>{t('Confidentialite.droits.limitation')}</li>
+          <li>{t('Confidentialite.droits.opposition')}</li>
+          <li>{t('Confidentialite.droits.portabilite')}</li>
+          <li>{t('Confidentialite.droits.consentement')}</li>
+          <li>{t('Confidentialite.droits.directives')}</li>
         </Ul>
         <p>
-          Pour exercer ces droits, écrivez à{' '}
-          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>. Nous répondons
-          dans un délai d'un mois, prorogeable de deux mois pour les demandes complexes. Une pièce
-          justifiant de votre identité peut être demandée en cas de doute raisonnable.
+          <Texte k="Confidentialite.droits.exercice" />
         </p>
         <p>
-          Si vous estimez que vos droits ne sont pas respectés, vous pouvez introduire une
-          réclamation auprès de la CNIL : Commission Nationale de l'Informatique et des Libertés,
-          3 place de Fontenoy, TSA 80715, 75334 Paris Cedex 07 (
-          <LegalLink href="https://www.cnil.fr">www.cnil.fr</LegalLink>).
+          <Texte k="Confidentialite.droits.cnil" />
         </p>
       </Section>
 
-      <Section title="9. Cookies et stockage local">
+      <Section title={t('Confidentialite.cookies.titre')}>
         <p>
-          Le site monumia.fr <Strong>n'utilise aucun cookie</Strong> : pas de traceur, pas de
-          mesure d'audience, pas de bouton de partage tiers. Les polices de caractères sont
-          hébergées sur nos propres serveurs.
+          <Texte k="Confidentialite.cookies.site" />
         </p>
+        <p>{t('Confidentialite.cookies.application')}</p>
+        <p>{t('Confidentialite.cookies.audience')}</p>
+        <p>{t('Confidentialite.cookies.futur')}</p>
+        <p>{t('Confidentialite.cookies.stripe')}</p>
+      </Section>
+
+      <Section title={t('Confidentialite.mineurs.titre')}>
         <p>
-          L'application app.monumia.fr utilise uniquement le stockage local de votre navigateur
-          pour conserver votre session d'authentification. Ce stockage est strictement nécessaire
-          à la fourniture du Service et est, à ce titre, exempté de consentement préalable
-          (article 82 de la loi Informatique et Libertés).
-        </p>
-        <p>
-          L'application mesure aussi son audience, avec l'outil PostHog, dans les conditions où la
-          CNIL dispense la mesure d'audience de consentement : sans cookie ni stockage sur votre
-          appareil, sous forme de statistiques anonymes réservées à Monumia, jamais recoupées avec
-          votre compte ni avec d'autres traitements. Les adresses des pages sont transmises sans
-          les identifiants qu'elles contiennent, et ni le texte affiché à l'écran ni le
-          déroulement de votre session ne sont enregistrés. Aucun bandeau de consentement n'est
-          donc requis. Vous pouvez vous opposer à cette mesure à tout moment depuis la page
-          Profil de l'application ; votre choix est retenu dans votre navigateur. Le réglage « Do
-          Not Track » de votre navigateur vaut également opposition.
-        </p>
-        <p>
-          Si nous devions un jour introduire des traceurs soumis à consentement, celui-ci vous
-          serait demandé au préalable.
-        </p>
-        <p>
-          Les pages de paiement sont opérées par Stripe sur son propre domaine et sont soumises à
-          sa propre politique de confidentialité.
+          <Texte k="Confidentialite.mineurs.p1" />
         </p>
       </Section>
 
-      <Section title="10. Mineurs">
+      <Section title={t('Confidentialite.securite.titre')}>
+        <p>{t('Confidentialite.securite.p1')}</p>
+      </Section>
+
+      <Section title={t('Confidentialite.decision.titre')}>
         <p>
-          Le Service est réservé aux personnes majeures. <Strong>Nous ne collectons pas sciemment
-          de données personnelles concernant des mineurs</Strong>, et aucune de nos offres ne leur
-          est destinée. Si vous êtes titulaire de l'autorité parentale et pensez qu'un mineur nous
-          a transmis des données personnelles, contactez-nous à{' '}
-          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink> : elles seront
-          supprimées sans délai.
+          <Texte k="Confidentialite.decision.p1" />
         </p>
       </Section>
 
-      <Section title="11. Sécurité">
-        <p>
-          Nous mettons en œuvre des mesures techniques et organisationnelles adaptées : chiffrement
-          des échanges (TLS), hébergement en France et dans l'Union européenne, mots de passe
-          stockés exclusivement sous forme hachée, cloisonnement des accès aux données par compte,
-          accès administrateur restreint et journalisé. En cas de violation de données susceptible
-          d'engendrer un risque pour vos droits et libertés, nous notifierons la CNIL dans les 72
-          heures et, si le risque est élevé, nous vous en informerons directement.
-        </p>
-      </Section>
-
-      <Section title="12. Absence de décision entièrement automatisée">
-        <p>
-          Le diagnostic d'éligibilité de Monumia est calculé automatiquement à partir de vos
-          déclarations, mais il est <Strong>purement informatif</Strong> : il ne produit aucune
-          décision ayant des effets juridiques à votre égard au sens de l'article 22 du RGPD. La
-          décision d'attribuer ou non une aide appartient exclusivement aux organismes financeurs.
-        </p>
-      </Section>
-
-      <Section title="13. Modifications de cette politique">
-        <p>
-          Nous pouvons faire évoluer cette politique, notamment en cas de changement de
-          sous-traitant ou de fonctionnalité. La date de dernière mise à jour figure en haut de
-          page ; en cas de modification substantielle, les utilisateurs disposant d'un compte en
-          sont informés par e-mail ou dans l'application.
-        </p>
+      <Section title={t('Confidentialite.modifications.titre')}>
+        <p>{t('Confidentialite.modifications.p1')}</p>
       </Section>
 
       <p className="mt-10 text-[14px] leading-[1.7]" style={{ color: C.inkFaint }}>
-        Voir aussi : <LegalLink href={CGU_PATH}>Conditions générales d'utilisation</LegalLink>
-        {' · '}
-        <LegalLink href={`${CGU_PATH}#mentions-legales`}>Mentions légales</LegalLink>
+        <Texte k="Confidentialite.voirAussi" />
       </p>
     </LegalLayout>
   );

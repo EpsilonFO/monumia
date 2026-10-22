@@ -1,4 +1,5 @@
 import { libelleFamille } from '@/constants/familles';
+import { localeIntl } from '@/i18n/format';
 import type { AideMatchResult } from '@/types';
 
 /**
@@ -62,6 +63,6 @@ export function famillesDisponibles(
   if (selection !== null && !comptes.has(selection)) comptes.set(selection, 0);
   const facettes = [...comptes.entries()]
     .map(([famille, count]) => ({ famille, label: libelleFamille(famille), count }))
-    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'fr'));
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, localeIntl()));
   return facettes.length > 1 ? facettes : [];
 }

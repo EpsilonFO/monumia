@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import { useBrouillonInviteStore } from '@/stores/useBrouillonInviteStore';
 import { useMonumentStore } from '@/stores/useMonumentStore';
 import { useProjetStore } from '@/stores/useProjetStore';
@@ -97,7 +98,7 @@ export async function finaliserBrouillon(): Promise<{ monumentId: string; projet
 
   const brouillon = useBrouillonInviteStore.getState();
   if (!brouillon.monument) {
-    throw new Error('Aucun brouillon à reprendre.');
+    throw new Error(i18n.t('core:brouillonInvite.aucunBrouillon'));
   }
 
   const monument = brouillon.monumentId

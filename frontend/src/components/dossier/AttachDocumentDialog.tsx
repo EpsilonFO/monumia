@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -59,6 +60,7 @@ export function AttachDocumentDialog({
   choixSeul = false,
   onImporter,
 }: AttachDocumentDialogProps) {
+  const { t } = useTranslation(['dossier', 'common']);
   const user = useAuthStore((s) => s.user);
   const { documents, loading, fetchDocuments, uploadDocument } = useDocumentStore();
 
@@ -106,7 +108,7 @@ export function AttachDocumentDialog({
         (d) =>
           d.nom.toLowerCase().includes(q) ||
           d.nomFichier.toLowerCase().includes(q) ||
-          d.tags.some((t) => t.toLowerCase().includes(q)),
+          d.tags.some((tag) => tag.toLowerCase().includes(q)),
       );
     }
     return docs;
@@ -120,7 +122,7 @@ export function AttachDocumentDialog({
       await onAttach(doc);
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la sélection');
+      toast.error(err instanceof Error ? err.message : t('AttachDocumentDialog.erreurSelection'));
     } finally {
       setAttachingId(null);
     }
@@ -172,13 +174,20 @@ export function AttachDocumentDialog({
       onUploaded?.(doc);
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de l'import");
+      toast.error(err instanceof Error ? err.message : t('AttachDocumentDialog.erreurImport'));
     } finally {
       setUploading(false);
     }
   };
 
-  const manque = [!type && 'le dossier', !nom.trim() && 'le nom'].filter(Boolean);
+  // Ce qui manque pour importer, dans l'ordre des champs (dossier, puis nom).
+  const manque = !type && !nom.trim()
+    ? t('AttachDocumentDialog.manqueDossierEtNom')
+    : !type
+      ? t('AttachDocumentDialog.manqueDossier')
+      : !nom.trim()
+        ? t('AttachDocumentDialog.manqueNom')
+        : null;
   const format = file ? formatFichier(file.name) : '';
 
   if (choixSeul) {
@@ -190,11 +199,11 @@ export function AttachDocumentDialog({
               <DialogPrimitive.Content className="dmodal pdos-choix" aria-describedby={undefined}>
                 <div className="m-h">
                   <div>
-                    <DialogPrimitive.Title asChild><h2>Choisir dans mes documents</h2></DialogPrimitive.Title>
+                    <DialogPrimitive.Title asChild><h2>{t('AttachDocumentDialog.choisirTitre')}</h2></DialogPrimitive.Title>
                     {defaultName && <p className="m-sub">{defaultName}</p>}
                   </div>
                   <DialogPrimitive.Close asChild>
-                    <button className="x" type="button" aria-label="Fermer" disabled={occupe}>
+                    <button className="x" type="button" aria-label={t('common:actions.fermer')} disabled={occupe}>
                       <Picto nom="croix" />
                     </button>
                   </DialogPrimitive.Close>
@@ -202,11 +211,11 @@ export function AttachDocumentDialog({
 
                 {documents.length > 5 && (
                   <label className="jsearch">
-                    <span className="sr">Rechercher dans vos documents</span>
+                    <span className="sr">{t('AttachDocumentDialog.rechercher')}</span>
                     <Picto nom="loupe" />
                     <input
                       type="search"
-                      placeholder="Rechercher dans vos documents"
+                      placeholder={t('AttachDocumentDialog.rechercher')}
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                     />
@@ -214,10 +223,10 @@ export function AttachDocumentDialog({
                 )}
                 <div className="docs">
                   {loading && documents.length === 0 ? (
-                    <p className="jvide">Chargement de vos documents…</p>
+                    <p className="jvide">{t('AttachDocumentDialog.chargement')}</p>
                   ) : filtered.length === 0 ? (
                     <p className="jvide">
-                      {search.trim() ? 'Aucun document trouvé. Essayez un autre mot.' : 'Aucun document pour l’instant.'}
+                      {search.trim() ? t('AttachDocumentDialog.aucunTrouve') : t('AttachDocumentDialog.aucunDocument')}
                     </p>
                   ) : (
                     filtered.map((doc) => {
@@ -234,7 +243,7 @@ export function AttachDocumentDialog({
                           <span className="jnom">
                             <b>{doc.nom}</b>
                             <small>
-                              {attachingId === doc.id ? 'Ajout…' : `${dossierLabel(doc.type)} · ${tailleFichier(doc.tailleFichier)}`}
+                              {attachingId === doc.id ? t('AttachDocumentDialog.ajout') : `${dossierLabel(doc.type)} · ${tailleFichier(doc.tailleFichier)}`}
                             </small>
                           </span>
                         </button>
@@ -244,15 +253,20 @@ export function AttachDocumentDialog({
                 </div>
                 {onImporter && (
                   <div className="m-f">
-                    Le document n’y est pas ?{' '}
-                    <button
-                      className="rm"
-                      type="button"
-                      disabled={occupe}
-                      onClick={() => { onOpenChange(false); onImporter(); }}
-                    >
-                      Importez-le depuis votre ordinateur
-                    </button>
+                    <Trans
+                      t={t}
+                      i18nKey="AttachDocumentDialog.absent"
+                      components={{
+                        bouton: (
+                          <button
+                            className="rm"
+                            type="button"
+                            disabled={occupe}
+                            onClick={() => { onOpenChange(false); onImporter(); }}
+                          />
+                        ),
+                      }}
+                    />
                   </div>
                 )}
               </DialogPrimitive.Content>
@@ -271,27 +285,28 @@ export function AttachDocumentDialog({
             <DialogPrimitive.Content className="dmodal" aria-describedby={undefined}>
               <div className="m-h">
                 <div>
-                  <DialogPrimitive.Title asChild><h2>Joindre un document</h2></DialogPrimitive.Title>
+                  <DialogPrimitive.Title asChild><h2>{t('AttachDocumentDialog.joindreTitre')}</h2></DialogPrimitive.Title>
                   <p className="m-sub">
-                    {defaultName ? `Pour la pièce « ${defaultName} ». ` : ''}
-                    Choisissez parmi vos documents, ou importez un nouveau fichier.
+                    {defaultName
+                      ? t('AttachDocumentDialog.sousTitrePiece', { piece: defaultName })
+                      : t('AttachDocumentDialog.sousTitre')}
                   </p>
                 </div>
                 <DialogPrimitive.Close asChild>
-                  <button className="x" type="button" aria-label="Fermer" disabled={occupe}>
+                  <button className="x" type="button" aria-label={t('common:actions.fermer')} disabled={occupe}>
                     <Picto nom="croix" />
                   </button>
                 </DialogPrimitive.Close>
               </div>
 
               <div className="fld">
-                <span className="lb">Vos documents</span>
+                <span className="lb">{t('AttachDocumentDialog.vosDocuments')}</span>
                 <label className="jsearch">
-                  <span className="sr">Rechercher dans vos documents</span>
+                  <span className="sr">{t('AttachDocumentDialog.rechercher')}</span>
                   <Picto nom="loupe" />
                   <input
                     type="search"
-                    placeholder="Rechercher dans vos documents"
+                    placeholder={t('AttachDocumentDialog.rechercher')}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
@@ -299,19 +314,19 @@ export function AttachDocumentDialog({
                 {(projetId || monumentId) && (
                   <div className="tps jscope">
                     <button type="button" className="tp" aria-pressed={scope === 'all'} onClick={() => setScope('all')}>
-                      Tous mes documents
+                      {t('AttachDocumentDialog.tousMesDocuments')}
                     </button>
                     <button type="button" className="tp" aria-pressed={scope === 'monument'} onClick={() => setScope('monument')}>
-                      {projetId ? 'Ce projet uniquement' : 'Ce monument uniquement'}
+                      {projetId ? t('AttachDocumentDialog.ceProjet') : t('AttachDocumentDialog.ceMonument')}
                     </button>
                   </div>
                 )}
                 <div className="jlist">
                   {loading ? (
-                    <p className="jvide">Chargement de vos documents…</p>
+                    <p className="jvide">{t('AttachDocumentDialog.chargement')}</p>
                   ) : filtered.length === 0 ? (
                     <p className="jvide">
-                      {search.trim() ? 'Aucun document trouvé. Essayez un autre mot.' : 'Aucun document pour l’instant : importez-en un ci-dessous.'}
+                      {search.trim() ? t('AttachDocumentDialog.aucunTrouve') : t('AttachDocumentDialog.aucunDocumentImporter')}
                     </p>
                   ) : (
                     filtered.map((doc) => {
@@ -329,7 +344,7 @@ export function AttachDocumentDialog({
                             <b>{doc.nom}</b>
                             <small>{dossierLabel(doc.type)} · {tailleFichier(doc.tailleFichier)}</small>
                           </span>
-                          <span className="jgo">{attachingId === doc.id ? 'Ajout…' : 'Choisir'}</span>
+                          <span className="jgo">{attachingId === doc.id ? t('AttachDocumentDialog.ajout') : t('AttachDocumentDialog.choisir')}</span>
                         </button>
                       );
                     })
@@ -338,7 +353,7 @@ export function AttachDocumentDialog({
               </div>
 
               <div className="fld">
-                <span className="lb">Ou un nouveau fichier</span>
+                <span className="lb">{t('AttachDocumentDialog.nouveauFichier')}</span>
                 <input ref={fileInputRef} type="file" accept={ACCEPT_ATTR} hidden onChange={handleFileChange} />
                 {file ? (
                   <>
@@ -348,24 +363,24 @@ export function AttachDocumentDialog({
                         <b>{file.name}</b>
                         <small>{tailleFichier(file.size)}</small>
                       </div>
-                      <button type="button" onClick={() => fileInputRef.current?.click()} disabled={occupe}>Changer</button>
+                      <button type="button" onClick={() => fileInputRef.current?.click()} disabled={occupe}>{t('AttachDocumentDialog.changer')}</button>
                     </div>
                     <div className="fld">
-                      <span className="lb">Dans quel dossier le ranger ?</span>
+                      <span className="lb">{t('AttachDocumentDialog.quelDossier')}</span>
                       <div className="tps">
-                        {TYPES_DOSSIERS.map((t) => (
-                          <button key={t} type="button" className="tp" aria-pressed={type === t} onClick={() => setType(t)}>
-                            {dossierLabel(t)}
+                        {TYPES_DOSSIERS.map((td) => (
+                          <button key={td} type="button" className="tp" aria-pressed={type === td} onClick={() => setType(td)}>
+                            {dossierLabel(td)}
                           </button>
                         ))}
                       </div>
                     </div>
                     <div className="fld">
-                      <label htmlFor="joindre-nom">Nom du document</label>
+                      <label htmlFor="joindre-nom">{t('AttachDocumentDialog.nomDocument')}</label>
                       <input
                         id="joindre-nom"
                         className="txt"
-                        placeholder="Ex. : Devis restauration toiture"
+                        placeholder={t('AttachDocumentDialog.nomPlaceholder')}
                         autoComplete="off"
                         value={nom}
                         onChange={(e) => setNom(e.target.value)}
@@ -373,11 +388,11 @@ export function AttachDocumentDialog({
                     </div>
                     <div className="fld">
                       <details className="note">
-                        <summary><Picto nom="plus" />Ajouter une note</summary>
+                        <summary><Picto nom="plus" />{t('AttachDocumentDialog.ajouterNote')}</summary>
                         <textarea
                           className="area"
-                          aria-label="Note"
-                          placeholder="Ex. : devis de l'entreprise Martin, reçu le 12 septembre"
+                          aria-label={t('AttachDocumentDialog.note')}
+                          placeholder={t('AttachDocumentDialog.notePlaceholder')}
                           value={description}
                           onChange={(e) => setDescription(e.target.value)}
                         />
@@ -392,10 +407,10 @@ export function AttachDocumentDialog({
                     onDragLeave={(e) => { e.preventDefault(); setSurvol(false); }}
                     onDrop={handleDrop}
                   >
-                    <p>Glissez le fichier ici</p>
-                    <small>PDF, photo, Word, Excel ou CSV, jusqu'à {MAX_FILE_SIZE_MB} Mo</small>
+                    <p>{t('AttachDocumentDialog.glisser')}</p>
+                    <small>{t('AttachDocumentDialog.formats', { taille: MAX_FILE_SIZE_MB })}</small>
                     <button className="btn b-line b-sm" type="button" onClick={() => fileInputRef.current?.click()}>
-                      Choisir sur l'ordinateur
+                      {t('AttachDocumentDialog.choisirOrdinateur')}
                     </button>
                   </div>
                 )}
@@ -403,19 +418,19 @@ export function AttachDocumentDialog({
 
               <div className="m-f">
                 <span className="hint">
-                  {uploading ? 'Import en cours…' : file && manque.length ? `Il manque ${manque.join(' et ')}.` : ''}
+                  {uploading ? t('AttachDocumentDialog.importEnCours') : file && manque ? manque : ''}
                 </span>
                 <button className="ghost" type="button" onClick={() => onOpenChange(false)} disabled={occupe}>
-                  {file ? 'Annuler' : 'Fermer'}
+                  {file ? t('common:actions.annuler') : t('common:actions.fermer')}
                 </button>
                 {file && (
                   <button
                     className="btn b-orange"
                     type="button"
-                    disabled={manque.length > 0 || occupe}
+                    disabled={!!manque || occupe}
                     onClick={handleUpload}
                   >
-                    <Picto nom="envoyer" />Importer et joindre
+                    <Picto nom="envoyer" />{t('AttachDocumentDialog.importerEtJoindre')}
                   </button>
                 )}
               </div>

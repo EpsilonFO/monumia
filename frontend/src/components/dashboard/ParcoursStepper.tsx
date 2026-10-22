@@ -1,11 +1,13 @@
 import { Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { C } from '@/lib/brand';
 import { PROJECT_STAGES } from '@/lib/project-stats';
 import type { ProjectStage } from '@/lib/project-stats';
 
 export function ParcoursStepper({ stage }: { stage: ProjectStage }) {
+  const { t } = useTranslation('dashboard');
   return (
-    <ol className="flex items-center gap-1.5" aria-label="Avancement du projet">
+    <ol className="flex items-center gap-1.5" aria-label={t('ParcoursStepper.avancement')}>
       {PROJECT_STAGES.map((s, i) => {
         const reached = i <= stage.reachedIndex;
         const isCurrent = i === stage.reachedIndex;

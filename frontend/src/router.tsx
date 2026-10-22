@@ -19,6 +19,7 @@ import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { ROUTES } from '@/constants/routes';
 import { useOffre, useOffreChargee } from '@/hooks/useOffre';
 import { PaywallOverlay } from '@/components/shared/Paywall';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Chargées à la demande. Le chemin critique — la coquille, le tableau de bord,
@@ -102,6 +103,7 @@ function LegacyWizardRedirect() {
  */
 // eslint-disable-next-line react-refresh/only-export-components
 function DashboardRoute() {
+  const { t } = useTranslation('core');
   const offre = useOffre();
   const charge = useOffreChargee();
   // UN seul arbre, paywall actif ou non : basculer de `<DashboardPage />` à
@@ -111,8 +113,8 @@ function DashboardRoute() {
     <PaywallOverlay
       actif={charge && !offre.dashboard}
       offre="Multi-monuments"
-      titre="Tous vos monuments, sur un seul écran"
-      description="Le tableau de bord réunit vos biens, l'avancement de chaque chantier et les échéances qui approchent. Il prend son sens à partir de deux monuments."
+      titre={t('router.paywallTableauDeBord.titre')}
+      description={t('router.paywallTableauDeBord.description')}
     >
       <DashboardPage />
     </PaywallOverlay>

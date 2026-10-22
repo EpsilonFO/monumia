@@ -1,3 +1,4 @@
+import i18n from '@/i18n';
 import type { User } from '@/types';
 
 export interface ProfileCompletion {
@@ -16,9 +17,9 @@ const isFilled = (v?: string | null) => !!v && v.trim().length > 0;
 
 /** Champs qui composent la complétion du profil, dans l'ordre de priorité. */
 const FIELDS: CompletionField[] = [
-  { label: 'votre prénom', done: (u) => isFilled(u.prenom) },
-  { label: 'votre nom', done: (u) => isFilled(u.nom) },
-  { label: 'votre téléphone', done: (u) => isFilled(u.telephone) },
+  { get label() { return i18n.t('libAides:profileCompletion.prenom'); }, done: (u) => isFilled(u.prenom) },
+  { get label() { return i18n.t('libAides:profileCompletion.nom'); }, done: (u) => isFilled(u.nom) },
+  { get label() { return i18n.t('libAides:profileCompletion.telephone'); }, done: (u) => isFilled(u.telephone) },
 ];
 
 export function computeProfileCompletion(user: User): ProfileCompletion {

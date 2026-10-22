@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 import { IconTelecharger, IconLienExterne, IconDocumentAlerte, IconAjouterDossier } from '@/components/icons';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -63,16 +64,17 @@ async function downloadFile(url: string, filename: string) {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function ImagePreview({ url, alt }: { url: string; alt: string }) {
+  const { t } = useTranslation(['documents', 'common']);
   const [error, setError] = useState(false);
 
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
         <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
-        <p className="text-sm">Impossible de charger l'image.</p>
+        <p className="text-sm">{t('DocumentPreviewDialog.imageImpossible')}</p>
         <Button variant="outline" size="sm" onClick={() => downloadFile(url, 'image')}>
           <IconTelecharger className="h-4 w-4 mr-1.5" />
-          Télécharger
+          {t('common:actions.telecharger')}
         </Button>
       </div>
     );
@@ -91,6 +93,7 @@ function ImagePreview({ url, alt }: { url: string; alt: string }) {
 }
 
 function TextPreview({ url }: { url: string }) {
+  const { t } = useTranslation(['documents', 'common']);
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -98,7 +101,7 @@ function TextPreview({ url }: { url: string }) {
     let cancelled = false;
     fetch(url)
       .then((r) => r.text())
-      .then((t) => { if (!cancelled) setContent(t); })
+      .then((texte) => { if (!cancelled) setContent(texte); })
       .catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
   }, [url]);
@@ -107,7 +110,7 @@ function TextPreview({ url }: { url: string }) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
         <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
-        <p className="text-sm">Impossible de charger le fichier texte.</p>
+        <p className="text-sm">{t('DocumentPreviewDialog.texteImpossible')}</p>
       </div>
     );
   }
@@ -128,18 +131,18 @@ function TextPreview({ url }: { url: string }) {
 }
 
 function OfficePreview({ url, title, filename }: { url: string; title: string; filename: string }) {
+  const { t } = useTranslation(['documents', 'common']);
   if (isLocalUrl(url)) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
         <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
-        <p className="text-sm font-medium">Prévisualisation Office indisponible en local</p>
+        <p className="text-sm font-medium">{t('DocumentPreviewDialog.officeIndisponible')}</p>
         <p className="text-xs text-center max-w-xs">
-          Le visualiseur Word/Excel nécessite une URL accessible depuis Internet.
-          Il fonctionnera normalement en production.
+          {t('DocumentPreviewDialog.officeExplication')}
         </p>
         <Button variant="outline" size="sm" onClick={() => downloadFile(url, filename)}>
           <IconTelecharger className="h-4 w-4 mr-1.5" />
-          Télécharger pour ouvrir localement
+          {t('DocumentPreviewDialog.telechargerLocalement')}
         </Button>
       </div>
     );
@@ -197,6 +200,7 @@ export function DocumentPreviewBody({
   loading: boolean;
   error: string | null;
 }) {
+  const { t } = useTranslation(['documents', 'common']);
   const previewType = getPreviewType(document.mimeType);
 
   if (loading) {
@@ -210,7 +214,7 @@ export function DocumentPreviewBody({
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
         <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
-        <p className="text-sm">Impossible de charger le document.</p>
+        <p className="text-sm">{t('DocumentPreviewDialog.documentImpossible')}</p>
         <p className="text-xs">{error}</p>
       </div>
     );
@@ -224,10 +228,10 @@ export function DocumentPreviewBody({
         <object data={signedUrl} type="application/pdf" className="w-full h-full">
           <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
             <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
-            <p className="text-sm">Impossible d'afficher le PDF dans le navigateur.</p>
+            <p className="text-sm">{t('DocumentPreviewDialog.pdfImpossible')}</p>
             <Button variant="outline" size="sm" asChild>
               <a href={signedUrl} target="_blank" rel="noopener noreferrer">
-                Ouvrir le PDF
+                {t('DocumentPreviewDialog.ouvrirPdf')}
               </a>
             </Button>
           </div>
@@ -240,15 +244,15 @@ export function DocumentPreviewBody({
       {previewType === 'none' && (
         <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
           <IconDocumentAlerte className="h-12 w-12 text-muted-foreground/50" />
-          <p className="text-sm font-medium">Format non prévisualisable</p>
+          <p className="text-sm font-medium">{t('DocumentPreviewDialog.formatNonPrevisualisable')}</p>
           <p className="text-xs">
             {document.mimeType.includes('heic') || document.mimeType.includes('heif')
-              ? 'Le format HEIC/HEIF n\'est pas supporté par les navigateurs. Téléchargez le fichier pour l\'ouvrir.'
-              : 'Aperçu non disponible pour ce type de fichier.'}
+              ? t('DocumentPreviewDialog.heicNonSupporte')
+              : t('DocumentPreviewDialog.apercuIndisponible')}
           </p>
           <Button variant="outline" size="sm" onClick={() => downloadFile(signedUrl, document.nomFichier)}>
             <IconTelecharger className="h-4 w-4 mr-1.5" />
-            Télécharger
+            {t('common:actions.telecharger')}
           </Button>
         </div>
       )}
@@ -259,6 +263,7 @@ export function DocumentPreviewBody({
 // ── Main dialog ───────────────────────────────────────────────────────────────
 
 export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToProject }: DocumentPreviewDialogProps) {
+  const { t } = useTranslation(['documents', 'common']);
   const { signedUrl, loading, error } = useSignedUrl(document, open);
 
   if (!document) return null;
@@ -287,19 +292,19 @@ export function DocumentPreviewDialog({ document, open, onOpenChange, onAddToPro
                 {onAddToProject && (
                   <Button variant="outline" size="sm" onClick={() => onAddToProject(document)}>
                     <IconAjouterDossier className="h-4 w-4 mr-1.5" />
-                    Ajouter à un monument
+                    {t('commun.ajouterAMonument')}
                   </Button>
                 )}
                 {signedUrl && (
                   <>
                     <Button variant="outline" size="sm" onClick={() => downloadFile(signedUrl, document.nomFichier)}>
                       <IconTelecharger className="h-4 w-4 mr-1.5" />
-                      Télécharger
+                      {t('common:actions.telecharger')}
                     </Button>
                     <Button variant="outline" size="sm" asChild>
                       <a href={signedUrl} target="_blank" rel="noopener noreferrer">
                         <IconLienExterne className="h-4 w-4 mr-1.5" />
-                        Ouvrir
+                        {t('DocumentPreviewDialog.ouvrir')}
                       </a>
                     </Button>
                   </>

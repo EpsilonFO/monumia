@@ -1,7 +1,9 @@
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Avancement } from '@/components/shared/ecrans/Avancement';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { ROUTES } from '@/constants/routes';
+import i18n from '@/i18n';
 import { deadlineLabel } from '@/lib/date-utils';
 import { libelleEtape } from '@/lib/avancement';
 import { montantTileMode } from '@/lib/project-card-view';
@@ -27,13 +29,13 @@ function action(projetId: string, reachedIndex: number): { label: string; to: st
   const dossiers = `${aides}?tab=dossiers`;
   switch (reachedIndex) {
     case 0:
-      return { label: 'Créer mon dossier', to: aides };
+      return { label: i18n.t('aide:ProjetCard.actions.creer'), to: aides };
     case 1:
-      return { label: 'Continuer mon dossier', to: dossiers };
+      return { label: i18n.t('aide:ProjetCard.actions.continuer'), to: dossiers };
     case 2:
-      return { label: 'Suivre mon dépôt', to: dossiers };
+      return { label: i18n.t('aide:ProjetCard.actions.suivre'), to: dossiers };
     default:
-      return { label: 'Estimer mes aides', to: aides };
+      return { label: i18n.t('aide:ProjetCard.actions.estimer'), to: aides };
   }
 }
 
@@ -46,6 +48,7 @@ function action(projetId: string, reachedIndex: number): { label: string; to: st
  * au-dessus.
  */
 export function ProjetCard({ projet, monumentNom, stats, stage }: ProjetCardProps) {
+  const { t } = useTranslation('aide');
   const etape = stage ?? projectStage(null, [], []);
   const { rang, action: quoi } = libelleEtape(etape);
   const cta = action(projet.id, etape.reachedIndex);
@@ -63,17 +66,19 @@ export function ProjetCard({ projet, monumentNom, stats, stage }: ProjetCardProp
         <div>
           <h3>{projetTitre(projet, monumentNom)}</h3>
           <p className="st">
-            {rang} : <b>{quoi}</b>
+            <Trans t={t} i18nKey="ProjetCard.etape" values={{ rang, quoi }} components={{ b: <b /> }} />
           </p>
         </div>
         {(cloture || presse) && (
           <div className="marques">
             {presse && echeance && (
               <span className={echeance.urgency === 'past' ? 'marque retard' : 'marque urgent'}>
-                {echeance.urgency === 'past' ? 'Échéance dépassée' : `Échéance : ${echeance.text.toLowerCase()}`}
+                {echeance.urgency === 'past'
+                  ? t('ProjetCard.echeanceDepassee')
+                  : t('ProjetCard.echeance', { texte: echeance.text.toLowerCase() })}
               </span>
             )}
-            {cloture && <span className="marque">Clôturé</span>}
+            {cloture && <span className="marque">{t('ProjetCard.cloture')}</span>}
           </div>
         )}
       </div>
@@ -81,23 +86,20 @@ export function ProjetCard({ projet, monumentNom, stats, stage }: ProjetCardProp
       <div className="proj-foot">
         <div className="num">
           {connu ? (
-            <>
-              <b>
-                {aides} aide{aides > 1 ? 's' : ''}
-              </b>
-              <span>repérée{aides > 1 ? 's' : ''} pour ce projet</span>
-            </>
+            <Trans
+              t={t}
+              i18nKey="ProjetCard.aidesReperees"
+              count={aides}
+              components={{ b: <b />, span: <span /> }}
+            />
           ) : (
-            <>
-              <b>Vos aides</b>
-              <span>se découvrent en quelques questions</span>
-            </>
+            <Trans t={t} i18nKey="ProjetCard.vosAides" components={{ b: <b />, span: <span /> }} />
           )}
         </div>
         <div className="act">
           {connu && (
             <Link className="btn b-ghost" to={ROUTES.PROJET_DETAIL(projet.id)}>
-              Voir les aides
+              {t('ProjetCard.voirAides')}
             </Link>
           )}
           <Link className="btn b-orange proj-lien" to={cta.to}>

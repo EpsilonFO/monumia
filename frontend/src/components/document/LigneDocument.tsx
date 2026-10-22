@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -61,13 +62,14 @@ function PictoAction({ cle }: { cle?: CleActionDocument }) {
  * le voit, puis les gestes que ses droits ouvrent, le destructif à la fin.
  */
 function MenuDocument({ document: d, onVoir, actions, variant = 'normal' }: Pick<DocumentAfficheProps, 'document' | 'onVoir' | 'actions' | 'variant'>) {
+  const { t } = useTranslation(['documents', 'common']);
   const [telechargement, setTelechargement] = useState(false);
   const telecharger = async () => {
     setTelechargement(true);
     try {
       await downloadDocument(d);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Téléchargement impossible');
+      toast.error(err instanceof Error ? err.message : t('commun.telechargementImpossible'));
     } finally {
       setTelechargement(false);
     }
@@ -78,15 +80,15 @@ function MenuDocument({ document: d, onVoir, actions, variant = 'normal' }: Pick
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="kebab" type="button" aria-label={`Actions pour ${d.nom}`} title="Plus d'actions">
+        <button className="kebab" type="button" aria-label={t('LigneDocument.actionsPour', { nom: d.nom })} title={t('commun.plusActions')}>
           <PictoPoints />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="ec dmenu">
-        <DropdownMenuItem onClick={onVoir}><PictoDoc nom="oeil" />Aperçu</DropdownMenuItem>
+        <DropdownMenuItem onClick={onVoir}><PictoDoc nom="oeil" />{t('LigneDocument.apercu')}</DropdownMenuItem>
         {variant === 'normal' && (
           <DropdownMenuItem onClick={telecharger} disabled={telechargement}>
-            <Picto nom="telecharger" />Télécharger
+            <Picto nom="telecharger" />{t('common:actions.telecharger')}
           </DropdownMenuItem>
         )}
         {normales.map((a) => (
@@ -105,6 +107,7 @@ function MenuDocument({ document: d, onVoir, actions, variant = 'normal' }: Pick
 
 /** Les pastilles sous le nom : chantiers, accès restreint, « Sert à N aides », auteur. */
 function Pastilles({ document: d, nbAides, rattachements = [], auteur, variant = 'normal' }: DocumentAfficheProps): ReactNode {
+  const { t } = useTranslation(['documents', 'common']);
   const restreint = variant === 'normal' && d.visibility !== 'team';
   const aides = variant === 'normal' && !!nbAides;
   if (!rattachements.length && !restreint && !aides && !auteur) return null;
@@ -113,11 +116,11 @@ function Pastilles({ document: d, nbAides, rattachements = [], auteur, variant =
       {rattachements.map((r) => <span key={r} className="dpill t">{r}</span>)}
       {restreint && (
         <span className="dpill t" title={VISIBILITY_META[d.visibility].help}>
-          <Picto nom="cadenas" />Accès restreint
+          <Picto nom="cadenas" />{t('commun.accesRestreint')}
         </span>
       )}
-      {aides && <span className="dpill g">Sert à {nbAides} aide{nbAides! > 1 ? 's' : ''}</span>}
-      {auteur && <span className="par">Déposé par {auteur}</span>}
+      {aides && <span className="dpill g">{t('LigneDocument.serta', { count: nbAides ?? 0 })}</span>}
+      {auteur && <span className="par">{t('LigneDocument.deposePar', { auteur })}</span>}
     </span>
   );
 }
@@ -133,6 +136,7 @@ function PastilleFormat({ document: d }: { document: Document }) {
  * « Dossier · date » et le menu ⋮. Cliquer l'aperçu ouvre le document.
  */
 export function CarteDocument(props: DocumentAfficheProps) {
+  const { t } = useTranslation(['documents', 'common']);
   const { document: d, onVoir, variant = 'normal', nouveau, selectionne, onSelection } = props;
   const { ref, preview } = useDocumentThumbnail(d.id, d.mimeType, d.nomFichier, { texte: false });
   const date = d.dateDocument ?? d.dateUpload;
@@ -145,7 +149,7 @@ export function CarteDocument(props: DocumentAfficheProps) {
           type="button"
           className="ck"
           aria-pressed={!!selectionne}
-          aria-label={`Sélectionner ${d.nom}`}
+          aria-label={t('LigneDocument.selectionner', { nom: d.nom })}
           onClick={onSelection}
         >
           <Picto nom="coche" />
@@ -155,7 +159,7 @@ export function CarteDocument(props: DocumentAfficheProps) {
         ref={ref as React.RefObject<HTMLButtonElement>}
         type="button"
         className="thumb"
-        aria-label={`Aperçu de ${d.nom}`}
+        aria-label={t('LigneDocument.apercuDe', { nom: d.nom })}
         onClick={onVoir}
       >
         {image ? (

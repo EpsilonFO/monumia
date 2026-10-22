@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   IconAjouterDossier, IconSupprimer, IconRafraichir, IconRetirerDossier, IconModifier,
 } from '@/components/icons';
@@ -31,21 +32,24 @@ export function DocumentTile({
   sectionMonumentId, variant = 'normal',
   onPreview, onAddToProject, onRename, onTrash, onRemoveFromProject, onRestore, onDeletePermanent,
 }: DocumentTileProps) {
+  const { t } = useTranslation(['documents', 'common']);
   const currentUserId = useAuthStore((s) => s.user?.id);
   const isUploader = document.userId === currentUserId;
   const canModify = canDeleteDocument(isUploader, myRole);
 
   const menuActions: DocMenuAction[] = variant === 'normal'
     ? [
-        { label: 'Ajouter à un monument', icon: IconAjouterDossier, onClick: () => onAddToProject(document) },
+        { label: t('commun.ajouterAMonument'), icon: IconAjouterDossier, onClick: () => onAddToProject(document) },
         ...(onRename && canModify
-          ? [{ label: 'Renommer', icon: IconModifier, onClick: () => onRename(document) }]
+          ? [{ label: t('commun.renommer'), icon: IconModifier, onClick: () => onRename(document) }]
           : []),
         ...(isUploader
-          ? [{ label: 'Supprimer', icon: IconSupprimer, onClick: () => onTrash(document), destructive: true }]
+          ? [{ label: t('common:actions.supprimer'), icon: IconSupprimer, onClick: () => onTrash(document), destructive: true }]
           : canModify && sectionMonumentId
             ? [{
-                label: `Retirer de ${monumentNames[sectionMonumentId] ?? 'ce monument'}`,
+                label: monumentNames[sectionMonumentId] !== undefined
+                  ? t('DocumentTile.retirerDe', { nom: monumentNames[sectionMonumentId] })
+                  : t('DocumentTile.retirerDeCeMonument'),
                 icon: IconRetirerDossier,
                 onClick: () => onRemoveFromProject(document, sectionMonumentId),
                 destructive: true,
@@ -53,8 +57,8 @@ export function DocumentTile({
             : []),
       ]
     : [
-        { label: 'Restaurer', icon: IconRafraichir, onClick: () => onRestore(document) },
-        { label: 'Supprimer définitivement', icon: IconSupprimer, onClick: () => onDeletePermanent(document), destructive: true },
+        { label: t('commun.restaurer'), icon: IconRafraichir, onClick: () => onRestore(document) },
+        { label: t('commun.supprimerDefinitivement'), icon: IconSupprimer, onClick: () => onDeletePermanent(document), destructive: true },
       ];
 
   return (

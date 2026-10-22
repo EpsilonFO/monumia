@@ -1,0 +1,133 @@
+{
+  "TeamPanel": {
+    "monument": {
+      "titre": "Équipe du monument",
+      "intro": "Les personnes ci-dessous peuvent consulter et travailler sur ce monument et sur tous ses projets de travaux.",
+      "solo": "Vous êtes seul sur ce monument pour l’instant.",
+      "retirer": "Retirer du monument",
+      "quitter": "Quitter ce monument",
+      "quitterTitre": "Quitter ce monument ?",
+      "quitterTexte": "Vous perdrez l’accès à ce monument et à ses projets. Il faudra une nouvelle invitation pour y revenir.",
+      "quitterOk": "Vous avez quitté le monument",
+      "retirerTexte": "Cette personne perdra immédiatement l’accès au monument et à ses projets. Vous pourrez l’inviter à nouveau plus tard.",
+      "upsell": "inviter des collaborateurs sur ce monument"
+    },
+    "projet": {
+      "titre": "Équipe du projet",
+      "intro": "Les personnes invitées ici ne voient QUE ce projet de travaux : ses aides, ses dossiers, ses documents, et la fiche du monument en lecture. Ni les autres chantiers, ni les documents du monument.",
+      "solo": "Personne n’est encore invité sur ce chantier.",
+      "retirer": "Retirer du projet",
+      "quitter": "Quitter ce projet",
+      "quitterTitre": "Quitter ce projet ?",
+      "quitterTexte": "Vous perdrez l’accès à ce projet de travaux. Il faudra une nouvelle invitation pour y revenir.",
+      "quitterOk": "Vous avez quitté le projet",
+      "retirerTexte": "Cette personne perdra immédiatement l’accès à ce projet. Vous pourrez l’inviter à nouveau plus tard.",
+      "upsell": "inviter des collaborateurs sur ce chantier"
+    },
+    "invitationEnvoyeeA": "Invitation envoyée à {{email}}",
+    "echecInvitation": "Échec de l'invitation",
+    "actionImpossible": "Action impossible",
+    "inviterPersonne": "Inviter une personne",
+    "emailPlaceholder": "architecte@exemple.fr",
+    "emailEnvoye": "Un email d'invitation lui sera envoyé.",
+    "inviterCiDessus": "Invitez vos collaborateurs ci-dessus.",
+    "personnesAcces": "Personnes ayant accès ({{nombre}})",
+    "vous": "(vous)",
+    "accesHerite": "Accès hérité de l’équipe du monument",
+    "equipeMonument": "Équipe du monument",
+    "gererMembre": "Gérer ce membre",
+    "gerer": "Gérer",
+    "promu": "Promu chef de projet adjoint",
+    "promouvoir": "Promouvoir chef de projet adjoint",
+    "retrograde": "Rétrogradé collaborateur",
+    "retrograder": "Rétrograder collaborateur",
+    "invitationsEnAttente": "Invitations en attente ({{nombre}})",
+    "invitationEnvoyee": "Invitation envoyée",
+    "invitationAnnulee": "Invitation annulée",
+    "retirerQui": "Retirer {{prenom}} {{nom}} ?",
+    "membreRetire": "Membre retiré",
+    "retirer": "Retirer",
+    "quitter": "Quitter"
+  },
+  "RoleBadge": {
+    "owner": "Chef de projet",
+    "co_owner": "Chef de projet adjoint",
+    "member": "Collaborateur"
+  },
+  "MemberAvatar": {
+    "membre": "Membre"
+  },
+  "MemberAvatarStack": {
+    "autres_one": "{{count}} autre",
+    "autres_other": "{{count}} autres"
+  },
+  "MetierSelect": {
+    "placeholder": "Votre rôle sur le monument"
+  },
+  "SharedBadge": {
+    "partage": "Partagé",
+    "partageAvec_one": "Partagé · {{count}} personne",
+    "partageAvec_other": "Partagé · {{count}} personnes"
+  },
+  "OffreUpsell": {
+    "permet": "L'offre {{offre}} permet {{action}}."
+  },
+  "Paywall": {
+    "offre": "Offre {{offre}}",
+    "decouvrir": "Découvrir l'offre {{offre}}"
+  },
+  "BienvenueBeta": {
+    "versionBeta": "Version bêta",
+    "bienvenue": "Bienvenue sur Monumia",
+    "merci": "Merci d'avoir accepté de tester la plateforme. Monumia repère les aides auxquelles votre monument peut prétendre et vous accompagne dans le montage des dossiers.",
+    "rodage": "Elle est encore en rodage : un écran qui vous perd, une aide qui manque, un chiffre qui vous étonne, tout ce que vous remarquez en chemin nous aide à l'améliorer.",
+    "cestParti": "C'est parti",
+    "bugTitre": "Un bug, une idée, une question ?",
+    "bugTexte": "Écrivez-nous avec ce bouton, depuis n'importe quelle page. Vous pouvez capturer l'écran et l'annoter : on reçoit votre message avec la page où vous étiez.",
+    "plusTard": "Plus tard",
+    "essayer": "Essayer maintenant"
+  },
+  "Disclaimer": {
+    "message": "Éligibilité estimée sur la base des informations fournies. Chaque organisme détermine l'attribution définitive des aides. Monumia ne garantit pas l'obtention des financements."
+  },
+  "InfoBulle": {
+    "enSavoirPlus": "En savoir plus : {{libelle}}"
+  },
+  "Avancement": {
+    "libelle": "Avancement du projet",
+    "enCours": "En cours"
+  },
+  "AuthLayout": {
+    "surtitre": "Votre espace patrimoine",
+    "accroche": "Financez la restauration<br/>de votre <orange>patrimoine</orange>",
+    "pitch": "Identifiez les subventions, déductions fiscales et dispositifs de mécénat disponibles pour vos monuments historiques.",
+    "reassurance": {
+      "aides": "150+ aides référencées",
+      "donnees": "Vos données sécurisées",
+      "instantane": "Résultat instantané"
+    }
+  },
+  "TopBar": {
+    "navigationPrincipale": "Navigation principale"
+  },
+  "navigation": {
+    "tableauDeBord": "Tableau de bord",
+    "accueil": "Accueil",
+    "monument": "Monument",
+    "monuments": "Monuments",
+    "mesDocuments": "Mes documents",
+    "documents": "Documents",
+    "documentsTitre": "Vos pièces, réutilisables dans tous vos dossiers",
+    "blog": "Blog"
+  },
+  "ownerNav": {
+    "monCompte": "Mon compte"
+  },
+  "ui": {
+    "fermer": "Fermer",
+    "filAriane": "Fil d’Ariane",
+    "plus": "Plus",
+    "commandeTitre": "Palette de commandes",
+    "commandeDescription": "Rechercher une commande…"
+  }
+}

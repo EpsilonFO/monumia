@@ -1,29 +1,31 @@
+import i18n from '@/i18n';
+
 export const PROTECTION_LEVELS = [
-  { value: 'classe', label: 'Classé Monument Historique' },
-  { value: 'inscrit', label: 'Inscrit Monument Historique' },
-  { value: 'abords', label: 'En périmètre d\'un MH (abords)' },
-  { value: 'spr', label: 'Site Patrimonial Remarquable (SPR)' },
-  { value: 'non_protege', label: 'Non protégé' },
+  { value: 'classe', get label() { return i18n.t('constants:monumentOptions.protection.classe'); } },
+  { value: 'inscrit', get label() { return i18n.t('constants:monumentOptions.protection.inscrit'); } },
+  { value: 'abords', get label() { return i18n.t('constants:monumentOptions.protection.abords'); } },
+  { value: 'spr', get label() { return i18n.t('constants:monumentOptions.protection.spr'); } },
+  { value: 'non_protege', get label() { return i18n.t('constants:monumentOptions.protection.non_protege'); } },
 ] as const;
 
 export const OWNERSHIP_TYPES = [
-  { value: 'public_commune', label: 'Commune' },
-  { value: 'public_epci', label: 'Intercommunalité (EPCI)' },
-  { value: 'public_departement', label: 'Département' },
-  { value: 'public_region', label: 'Région' },
-  { value: 'public_etat', label: 'État' },
-  { value: 'syndicat_mixte', label: 'Syndicat mixte / Parc naturel régional' },
-  { value: 'prive_personne_physique', label: 'Propriétaire privé (personne physique)' },
-  { value: 'prive_sci', label: 'SCI' },
-  { value: 'association', label: 'Association' },
-  { value: 'mixte', label: 'Propriété mixte' },
+  { value: 'public_commune', get label() { return i18n.t('constants:monumentOptions.proprietaire.public_commune'); } },
+  { value: 'public_epci', get label() { return i18n.t('constants:monumentOptions.proprietaire.public_epci'); } },
+  { value: 'public_departement', get label() { return i18n.t('constants:monumentOptions.proprietaire.public_departement'); } },
+  { value: 'public_region', get label() { return i18n.t('constants:monumentOptions.proprietaire.public_region'); } },
+  { value: 'public_etat', get label() { return i18n.t('constants:monumentOptions.proprietaire.public_etat'); } },
+  { value: 'syndicat_mixte', get label() { return i18n.t('constants:monumentOptions.proprietaire.syndicat_mixte'); } },
+  { value: 'prive_personne_physique', get label() { return i18n.t('constants:monumentOptions.proprietaire.prive_personne_physique'); } },
+  { value: 'prive_sci', get label() { return i18n.t('constants:monumentOptions.proprietaire.prive_sci'); } },
+  { value: 'association', get label() { return i18n.t('constants:monumentOptions.proprietaire.association'); } },
+  { value: 'mixte', get label() { return i18n.t('constants:monumentOptions.proprietaire.mixte'); } },
 ] as const;
 
 export const ETATS_CONSERVATION = [
-  { value: 'bon', label: 'Bon état' },
-  { value: 'moyen', label: 'État moyen' },
-  { value: 'mauvais', label: 'Mauvais état' },
-  { value: 'peril', label: 'En péril' },
+  { value: 'bon', get label() { return i18n.t('constants:monumentOptions.etatsConservation.bon'); } },
+  { value: 'moyen', get label() { return i18n.t('constants:monumentOptions.etatsConservation.moyen'); } },
+  { value: 'mauvais', get label() { return i18n.t('constants:monumentOptions.etatsConservation.mauvais'); } },
+  { value: 'peril', get label() { return i18n.t('constants:monumentOptions.etatsConservation.peril'); } },
 ] as const;
 
 export type EtatConservation = (typeof ETATS_CONSERVATION)[number]['value'];
@@ -37,43 +39,43 @@ export type EtatConservation = (typeof ETATS_CONSERVATION)[number]['value'];
  * menu sont dans `lib/fiche-monument.ts`.
  */
 export const TYPES_EDIFICE = [
-  { value: 'eglise', label: 'Église, cathédrale, basilique' },
-  { value: 'chapelle', label: 'Chapelle' },
-  { value: 'abbaye_couvent', label: 'Abbaye, prieuré, couvent' },
-  { value: 'temple', label: 'Temple protestant' },
-  { value: 'synagogue', label: 'Synagogue' },
-  { value: 'croix_calvaire', label: 'Croix, calvaire' },
-  { value: 'autre_religieux', label: 'Autre édifice religieux', hint: 'Oratoire, cimetière, mosquée…' },
-  { value: 'chateau', label: 'Château, château fort' },
-  { value: 'manoir_demeure', label: 'Manoir, demeure' },
-  { value: 'hotel_particulier', label: 'Hôtel particulier' },
-  { value: 'maison', label: 'Maison', hint: 'De ville ou de village, maison natale…' },
-  { value: 'edifice_public', label: 'Édifice public', hint: 'Mairie, école, théâtre, palais de justice…' },
-  { value: 'hopital', label: 'Hôpital, hospice, Hôtel-Dieu' },
-  { value: 'halle', label: 'Halle, marché couvert' },
-  { value: 'patrimoine_industriel', label: 'Patrimoine industriel', hint: 'Usine, forge, mine, gare…' },
-  { value: 'ferme', label: 'Ferme, grange, bâtiment agricole' },
-  { value: 'moulin', label: 'Moulin' },
-  { value: 'lavoir_fontaine', label: 'Lavoir, fontaine' },
-  { value: 'pigeonnier', label: 'Pigeonnier, colombier' },
-  { value: 'petit_patrimoine', label: 'Four, puits, petit patrimoine', hint: 'Four à pain, puits, abreuvoir, kiosque…' },
-  { value: 'fortification', label: 'Fortification, rempart, porte de ville' },
-  { value: 'pont', label: 'Pont, aqueduc, ouvrage d’art' },
-  { value: 'jardin', label: 'Parc, jardin' },
-  { value: 'site_archeologique', label: 'Site archéologique, mégalithe' },
-  { value: 'monument_aux_morts', label: 'Monument aux morts' },
-  { value: 'monument_commemoratif', label: 'Statue, monument commémoratif' },
-  { value: 'autre', label: 'Autre', hint: 'Aucun de ces types ne correspond' },
+  { value: 'eglise', get label() { return i18n.t('constants:monumentOptions.typesEdifice.eglise'); } },
+  { value: 'chapelle', get label() { return i18n.t('constants:monumentOptions.typesEdifice.chapelle'); } },
+  { value: 'abbaye_couvent', get label() { return i18n.t('constants:monumentOptions.typesEdifice.abbaye_couvent'); } },
+  { value: 'temple', get label() { return i18n.t('constants:monumentOptions.typesEdifice.temple'); } },
+  { value: 'synagogue', get label() { return i18n.t('constants:monumentOptions.typesEdifice.synagogue'); } },
+  { value: 'croix_calvaire', get label() { return i18n.t('constants:monumentOptions.typesEdifice.croix_calvaire'); } },
+  { value: 'autre_religieux', get label() { return i18n.t('constants:monumentOptions.typesEdifice.autre_religieux'); }, get hint() { return i18n.t('constants:monumentOptions.typesEdificeIndices.autre_religieux'); } },
+  { value: 'chateau', get label() { return i18n.t('constants:monumentOptions.typesEdifice.chateau'); } },
+  { value: 'manoir_demeure', get label() { return i18n.t('constants:monumentOptions.typesEdifice.manoir_demeure'); } },
+  { value: 'hotel_particulier', get label() { return i18n.t('constants:monumentOptions.typesEdifice.hotel_particulier'); } },
+  { value: 'maison', get label() { return i18n.t('constants:monumentOptions.typesEdifice.maison'); }, get hint() { return i18n.t('constants:monumentOptions.typesEdificeIndices.maison'); } },
+  { value: 'edifice_public', get label() { return i18n.t('constants:monumentOptions.typesEdifice.edifice_public'); }, get hint() { return i18n.t('constants:monumentOptions.typesEdificeIndices.edifice_public'); } },
+  { value: 'hopital', get label() { return i18n.t('constants:monumentOptions.typesEdifice.hopital'); } },
+  { value: 'halle', get label() { return i18n.t('constants:monumentOptions.typesEdifice.halle'); } },
+  { value: 'patrimoine_industriel', get label() { return i18n.t('constants:monumentOptions.typesEdifice.patrimoine_industriel'); }, get hint() { return i18n.t('constants:monumentOptions.typesEdificeIndices.patrimoine_industriel'); } },
+  { value: 'ferme', get label() { return i18n.t('constants:monumentOptions.typesEdifice.ferme'); } },
+  { value: 'moulin', get label() { return i18n.t('constants:monumentOptions.typesEdifice.moulin'); } },
+  { value: 'lavoir_fontaine', get label() { return i18n.t('constants:monumentOptions.typesEdifice.lavoir_fontaine'); } },
+  { value: 'pigeonnier', get label() { return i18n.t('constants:monumentOptions.typesEdifice.pigeonnier'); } },
+  { value: 'petit_patrimoine', get label() { return i18n.t('constants:monumentOptions.typesEdifice.petit_patrimoine'); }, get hint() { return i18n.t('constants:monumentOptions.typesEdificeIndices.petit_patrimoine'); } },
+  { value: 'fortification', get label() { return i18n.t('constants:monumentOptions.typesEdifice.fortification'); } },
+  { value: 'pont', get label() { return i18n.t('constants:monumentOptions.typesEdifice.pont'); } },
+  { value: 'jardin', get label() { return i18n.t('constants:monumentOptions.typesEdifice.jardin'); } },
+  { value: 'site_archeologique', get label() { return i18n.t('constants:monumentOptions.typesEdifice.site_archeologique'); } },
+  { value: 'monument_aux_morts', get label() { return i18n.t('constants:monumentOptions.typesEdifice.monument_aux_morts'); } },
+  { value: 'monument_commemoratif', get label() { return i18n.t('constants:monumentOptions.typesEdifice.monument_commemoratif'); } },
+  { value: 'autre', get label() { return i18n.t('constants:monumentOptions.typesEdifice.autre'); }, get hint() { return i18n.t('constants:monumentOptions.typesEdificeIndices.autre'); } },
 ] as const;
 
 export type TypeEdifice = (typeof TYPES_EDIFICE)[number]['value'];
 
 
 export const URGENCE_TRAVAUX = [
-  { value: 'faible', label: 'Faible' },
-  { value: 'moyenne', label: 'Moyenne' },
-  { value: 'haute', label: 'Haute' },
-  { value: 'critique', label: 'Critique' },
+  { value: 'faible', get label() { return i18n.t('constants:monumentOptions.urgence.faible'); } },
+  { value: 'moyenne', get label() { return i18n.t('constants:monumentOptions.urgence.moyenne'); } },
+  { value: 'haute', get label() { return i18n.t('constants:monumentOptions.urgence.haute'); } },
+  { value: 'critique', get label() { return i18n.t('constants:monumentOptions.urgence.critique'); } },
 ] as const;
 
 /**
@@ -84,107 +86,107 @@ export const URGENCE_TRAVAUX = [
  * de précision par case : le libellé seul doit suffire.
  */
 export const WORK_TYPES = [
-  { value: 'charpente', label: 'Charpente', groupe: 'Clos et couvert' },
-  { value: 'couverture', label: 'Couverture', groupe: 'Clos et couvert' },
-  { value: 'facade', label: 'Façade', groupe: 'Clos et couvert' },
-  { value: 'maconnerie', label: 'Maçonnerie', groupe: 'Clos et couvert' },
-  { value: 'vitraux', label: 'Vitraux', groupe: 'Décors et objets' },
-  { value: 'peintures_murales', label: 'Peintures murales', groupe: 'Décors et objets' },
-  { value: 'menuiserie', label: 'Menuiserie', groupe: 'Clos et couvert' },
-  { value: 'electricite', label: 'Électricité', groupe: 'Installations techniques' },
-  { value: 'plomberie', label: 'Plomberie', groupe: 'Installations techniques' },
-  { value: 'chauffage', label: 'Chauffage', groupe: 'Installations techniques' },
-  { value: 'accessibilite', label: 'Accessibilité', groupe: 'Installations techniques' },
-  { value: 'mise_en_securite', label: 'Mise en sécurité', groupe: 'Installations techniques' },
-  { value: 'etude_prealable', label: 'Étude préalable', groupe: 'Études' },
-  { value: 'mobilier', label: 'Mobilier', groupe: 'Décors et objets' },
-  { value: 'archives', label: 'Archives et documents', groupe: 'Décors et objets' },
-  { value: 'orgues', label: 'Orgues', groupe: 'Décors et objets' },
-  { value: 'parcs_jardins', label: 'Parcs et jardins', groupe: 'Abords et domaine' },
-  { value: 'protection_solaire', label: 'Protection solaire', groupe: 'Clos et couvert' },
-  { value: 'ventilation', label: 'Ventilation', groupe: 'Installations techniques' },
+  { value: 'charpente', get label() { return i18n.t('constants:monumentOptions.travaux.charpente'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.closEtCouvert'); } },
+  { value: 'couverture', get label() { return i18n.t('constants:monumentOptions.travaux.couverture'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.closEtCouvert'); } },
+  { value: 'facade', get label() { return i18n.t('constants:monumentOptions.travaux.facade'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.closEtCouvert'); } },
+  { value: 'maconnerie', get label() { return i18n.t('constants:monumentOptions.travaux.maconnerie'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.closEtCouvert'); } },
+  { value: 'vitraux', get label() { return i18n.t('constants:monumentOptions.travaux.vitraux'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.decorsEtObjets'); } },
+  { value: 'peintures_murales', get label() { return i18n.t('constants:monumentOptions.travaux.peintures_murales'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.decorsEtObjets'); } },
+  { value: 'menuiserie', get label() { return i18n.t('constants:monumentOptions.travaux.menuiserie'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.closEtCouvert'); } },
+  { value: 'electricite', get label() { return i18n.t('constants:monumentOptions.travaux.electricite'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.installationsTechniques'); } },
+  { value: 'plomberie', get label() { return i18n.t('constants:monumentOptions.travaux.plomberie'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.installationsTechniques'); } },
+  { value: 'chauffage', get label() { return i18n.t('constants:monumentOptions.travaux.chauffage'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.installationsTechniques'); } },
+  { value: 'accessibilite', get label() { return i18n.t('constants:monumentOptions.travaux.accessibilite'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.installationsTechniques'); } },
+  { value: 'mise_en_securite', get label() { return i18n.t('constants:monumentOptions.travaux.mise_en_securite'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.installationsTechniques'); } },
+  { value: 'etude_prealable', get label() { return i18n.t('constants:monumentOptions.travaux.etude_prealable'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.etudes'); } },
+  { value: 'mobilier', get label() { return i18n.t('constants:monumentOptions.travaux.mobilier'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.decorsEtObjets'); } },
+  { value: 'archives', get label() { return i18n.t('constants:monumentOptions.travaux.archives'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.decorsEtObjets'); } },
+  { value: 'orgues', get label() { return i18n.t('constants:monumentOptions.travaux.orgues'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.decorsEtObjets'); } },
+  { value: 'parcs_jardins', get label() { return i18n.t('constants:monumentOptions.travaux.parcs_jardins'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.abordsEtDomaine'); } },
+  { value: 'protection_solaire', get label() { return i18n.t('constants:monumentOptions.travaux.protection_solaire'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.closEtCouvert'); } },
+  { value: 'ventilation', get label() { return i18n.t('constants:monumentOptions.travaux.ventilation'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.installationsTechniques'); } },
   // Le DOMAINE autour du bâti. Miroir de `TRAVAUX_LABELS` ([backend/labels.py]) :
   // un code présent d'un seul côté rend invisibles les aides qui s'y cadrent —
   // l'utilisateur ne pourrait jamais le cocher.
-  { value: 'exploitation_agricole', label: 'Exploitation agricole', groupe: 'Abords et domaine' },
-  { value: 'foret', label: 'Forêt et desserte forestière', groupe: 'Abords et domaine' },
-  { value: 'eau_milieux_aquatiques', label: 'Eau et milieux aquatiques', groupe: 'Abords et domaine' },
-  { value: 'equipement_numerique', label: 'Équipement numérique', groupe: 'Équipement' },
+  { value: 'exploitation_agricole', get label() { return i18n.t('constants:monumentOptions.travaux.exploitation_agricole'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.abordsEtDomaine'); } },
+  { value: 'foret', get label() { return i18n.t('constants:monumentOptions.travaux.foret'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.abordsEtDomaine'); } },
+  { value: 'eau_milieux_aquatiques', get label() { return i18n.t('constants:monumentOptions.travaux.eau_milieux_aquatiques'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.abordsEtDomaine'); } },
+  { value: 'equipement_numerique', get label() { return i18n.t('constants:monumentOptions.travaux.equipement_numerique'); }, get groupe() { return i18n.t('constants:monumentOptions.groupesTravaux.equipement'); } },
 ] as const;
 
 export const MATERIAUX = [
-  { value: 'pierre', label: 'Pierre' },
-  { value: 'brique', label: 'Brique' },
-  { value: 'bois', label: 'Bois' },
-  { value: 'ardoise', label: 'Ardoise' },
-  { value: 'tuile', label: 'Tuile' },
-  { value: 'lauze', label: 'Lauze' },
-  { value: 'chaume', label: 'Chaume' },
-  { value: 'zinc', label: 'Zinc' },
-  { value: 'plomb', label: 'Plomb' },
-  { value: 'verre', label: 'Verre' },
-  { value: 'metal', label: 'Métal' },
-  { value: 'torchis', label: 'Torchis' },
-  { value: 'enduit', label: 'Enduit' },
-  { value: 'autre', label: 'Autre' },
+  { value: 'pierre', get label() { return i18n.t('constants:monumentOptions.materiaux.pierre'); } },
+  { value: 'brique', get label() { return i18n.t('constants:monumentOptions.materiaux.brique'); } },
+  { value: 'bois', get label() { return i18n.t('constants:monumentOptions.materiaux.bois'); } },
+  { value: 'ardoise', get label() { return i18n.t('constants:monumentOptions.materiaux.ardoise'); } },
+  { value: 'tuile', get label() { return i18n.t('constants:monumentOptions.materiaux.tuile'); } },
+  { value: 'lauze', get label() { return i18n.t('constants:monumentOptions.materiaux.lauze'); } },
+  { value: 'chaume', get label() { return i18n.t('constants:monumentOptions.materiaux.chaume'); } },
+  { value: 'zinc', get label() { return i18n.t('constants:monumentOptions.materiaux.zinc'); } },
+  { value: 'plomb', get label() { return i18n.t('constants:monumentOptions.materiaux.plomb'); } },
+  { value: 'verre', get label() { return i18n.t('constants:monumentOptions.materiaux.verre'); } },
+  { value: 'metal', get label() { return i18n.t('constants:monumentOptions.materiaux.metal'); } },
+  { value: 'torchis', get label() { return i18n.t('constants:monumentOptions.materiaux.torchis'); } },
+  { value: 'enduit', get label() { return i18n.t('constants:monumentOptions.materiaux.enduit'); } },
+  { value: 'autre', get label() { return i18n.t('constants:monumentOptions.materiaux.autre'); } },
 ] as const;
 
 export const TYPES_COUVERTURE = [
-  { value: 'toit à longs pans', label: 'Toit à longs pans' },
-  { value: 'toit à un pan', label: 'Toit à un pan' },
-  { value: 'croupe', label: 'Croupe' },
-  { value: 'demi-croupe', label: 'Demi-croupe' },
-  { value: 'croupe ronde', label: 'Croupe ronde' },
-  { value: 'pavillon', label: 'Pavillon' },
-  { value: 'toit brisé', label: 'Toit brisé' },
-  { value: 'toit brisé à longs pans', label: 'Toit brisé à longs pans' },
-  { value: 'toit brisé en pavillon', label: 'Toit brisé en pavillon' },
-  { value: 'flèche', label: 'Flèche' },
-  { value: 'flèche polygonale', label: 'Flèche polygonale' },
-  { value: 'flèche carrée', label: 'Flèche carrée' },
-  { value: 'dôme', label: 'Dôme' },
-  { value: 'dôme à pans', label: 'Dôme à pans' },
-  { value: 'coupole', label: 'Coupole' },
-  { value: 'bulbe', label: 'Bulbe' },
-  { value: 'toit en carène', label: 'Toit en carène' },
-  { value: 'terrasse', label: 'Terrasse' },
-  { value: 'comble à la mansart', label: 'Comble à la mansart' },
-  { value: 'pignon couvert', label: 'Pignon couvert' },
-  { value: 'pignon découvert', label: 'Pignon découvert' },
-  { value: 'noue', label: 'Noue' },
-  { value: 'appentis', label: 'Appentis' },
-  { value: 'shed', label: 'Shed' },
-  { value: 'flèche de haut-clocher', label: 'Flèche de haut-clocher' },
+  { value: 'toit à longs pans', get label() { return i18n.t('constants:monumentOptions.couvertures.toitALongsPans'); } },
+  { value: 'toit à un pan', get label() { return i18n.t('constants:monumentOptions.couvertures.toitAUnPan'); } },
+  { value: 'croupe', get label() { return i18n.t('constants:monumentOptions.couvertures.croupe'); } },
+  { value: 'demi-croupe', get label() { return i18n.t('constants:monumentOptions.couvertures.demiCroupe'); } },
+  { value: 'croupe ronde', get label() { return i18n.t('constants:monumentOptions.couvertures.croupeRonde'); } },
+  { value: 'pavillon', get label() { return i18n.t('constants:monumentOptions.couvertures.pavillon'); } },
+  { value: 'toit brisé', get label() { return i18n.t('constants:monumentOptions.couvertures.toitBrise'); } },
+  { value: 'toit brisé à longs pans', get label() { return i18n.t('constants:monumentOptions.couvertures.toitBriseALongsPans'); } },
+  { value: 'toit brisé en pavillon', get label() { return i18n.t('constants:monumentOptions.couvertures.toitBriseEnPavillon'); } },
+  { value: 'flèche', get label() { return i18n.t('constants:monumentOptions.couvertures.fleche'); } },
+  { value: 'flèche polygonale', get label() { return i18n.t('constants:monumentOptions.couvertures.flechePolygonale'); } },
+  { value: 'flèche carrée', get label() { return i18n.t('constants:monumentOptions.couvertures.flecheCarree'); } },
+  { value: 'dôme', get label() { return i18n.t('constants:monumentOptions.couvertures.dome'); } },
+  { value: 'dôme à pans', get label() { return i18n.t('constants:monumentOptions.couvertures.domeAPans'); } },
+  { value: 'coupole', get label() { return i18n.t('constants:monumentOptions.couvertures.coupole'); } },
+  { value: 'bulbe', get label() { return i18n.t('constants:monumentOptions.couvertures.bulbe'); } },
+  { value: 'toit en carène', get label() { return i18n.t('constants:monumentOptions.couvertures.toitEnCarene'); } },
+  { value: 'terrasse', get label() { return i18n.t('constants:monumentOptions.couvertures.terrasse'); } },
+  { value: 'comble à la mansart', get label() { return i18n.t('constants:monumentOptions.couvertures.combleALaMansart'); } },
+  { value: 'pignon couvert', get label() { return i18n.t('constants:monumentOptions.couvertures.pignonCouvert'); } },
+  { value: 'pignon découvert', get label() { return i18n.t('constants:monumentOptions.couvertures.pignonDecouvert'); } },
+  { value: 'noue', get label() { return i18n.t('constants:monumentOptions.couvertures.noue'); } },
+  { value: 'appentis', get label() { return i18n.t('constants:monumentOptions.couvertures.appentis'); } },
+  { value: 'shed', get label() { return i18n.t('constants:monumentOptions.couvertures.shed'); } },
+  { value: 'flèche de haut-clocher', get label() { return i18n.t('constants:monumentOptions.couvertures.flecheDeHautClocher'); } },
 ] as const;
 
 export const AFFECTATAIRES = [
-  { value: 'culte', label: 'Culte' },
-  { value: 'mairie', label: 'Mairie / Services municipaux' },
-  { value: 'habitation', label: 'Habitation' },
-  { value: 'musee', label: 'Musée' },
-  { value: 'tourisme', label: 'Tourisme / Visite' },
-  { value: 'enseignement', label: 'Enseignement' },
-  { value: 'commercial', label: 'Activité commerciale' },
-  { value: 'non_affecte', label: 'Non affecté / Vacant' },
-  { value: 'autre', label: 'Autre' },
+  { value: 'culte', get label() { return i18n.t('constants:monumentOptions.affectataires.culte'); } },
+  { value: 'mairie', get label() { return i18n.t('constants:monumentOptions.affectataires.mairie'); } },
+  { value: 'habitation', get label() { return i18n.t('constants:monumentOptions.affectataires.habitation'); } },
+  { value: 'musee', get label() { return i18n.t('constants:monumentOptions.affectataires.musee'); } },
+  { value: 'tourisme', get label() { return i18n.t('constants:monumentOptions.affectataires.tourisme'); } },
+  { value: 'enseignement', get label() { return i18n.t('constants:monumentOptions.affectataires.enseignement'); } },
+  { value: 'commercial', get label() { return i18n.t('constants:monumentOptions.affectataires.commercial'); } },
+  { value: 'non_affecte', get label() { return i18n.t('constants:monumentOptions.affectataires.non_affecte'); } },
+  { value: 'autre', get label() { return i18n.t('constants:monumentOptions.affectataires.autre'); } },
 ] as const;
 
 // Lookup tables keyed by stored value. Long form for detail panels, short form
 // for compact badges (e.g. the project summary bar).
 export const PROTECTION_LABELS: Record<string, string> = {
-  classe: 'Classé Monument Historique',
-  inscrit: 'Inscrit Monument Historique',
-  abords: "En périmètre d'un MH",
-  spr: 'Site Patrimonial Remarquable',
-  non_protege: 'Non protégé',
+  get classe() { return i18n.t('constants:monumentOptions.protectionLongue.classe'); },
+  get inscrit() { return i18n.t('constants:monumentOptions.protectionLongue.inscrit'); },
+  get abords() { return i18n.t('constants:monumentOptions.protectionLongue.abords'); },
+  get spr() { return i18n.t('constants:monumentOptions.protectionLongue.spr'); },
+  get non_protege() { return i18n.t('constants:monumentOptions.protectionLongue.non_protege'); },
 };
 
 export const PROTECTION_LABELS_SHORT: Record<string, string> = {
-  classe: 'Classé MH',
-  inscrit: 'Inscrit MH',
-  abords: 'Périmètre MH',
-  spr: 'Site Patrimonial Remarquable',
-  non_protege: 'Non protégé',
+  get classe() { return i18n.t('constants:monumentOptions.protectionCourte.classe'); },
+  get inscrit() { return i18n.t('constants:monumentOptions.protectionCourte.inscrit'); },
+  get abords() { return i18n.t('constants:monumentOptions.protectionCourte.abords'); },
+  get spr() { return i18n.t('constants:monumentOptions.protectionCourte.spr'); },
+  get non_protege() { return i18n.t('constants:monumentOptions.protectionCourte.non_protege'); },
 };
 
 /**
@@ -192,10 +194,10 @@ export const PROTECTION_LABELS_SHORT: Record<string, string> = {
  * admises en base et dans `hard_filters.etats_conservation`.
  */
 export const ETAT_LABELS: Record<string, string> = {
-  bon: 'Bon état',
-  moyen: 'État moyen',
-  mauvais: 'Mauvais état',
-  peril: 'En péril',
+  get bon() { return i18n.t('constants:monumentOptions.etatsConservation.bon'); },
+  get moyen() { return i18n.t('constants:monumentOptions.etatsConservation.moyen'); },
+  get mauvais() { return i18n.t('constants:monumentOptions.etatsConservation.mauvais'); },
+  get peril() { return i18n.t('constants:monumentOptions.etatsConservation.peril'); },
 };
 
 /**
@@ -215,5 +217,8 @@ export function isEnPeril(etat: string | null | undefined): boolean | null {
 /** Libellé du signal péril pour les vignettes et fiches (null si non renseigné). */
 export function perilLabel(etat: string | null | undefined): string | null {
   const peril = isEnPeril(etat);
-  return peril === null ? null : peril ? 'En péril' : 'Pas en péril';
+  if (peril === null) return null;
+  return peril
+    ? i18n.t('constants:monumentOptions.peril.enPeril')
+    : i18n.t('constants:monumentOptions.peril.pasEnPeril');
 }

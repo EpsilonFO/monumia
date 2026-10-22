@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { IconRecherche } from '@/components/icons';
 import {
@@ -63,6 +64,7 @@ function brouillonDe(condition: AdminCondition): Brouillon {
  * version d'avant.
  */
 export function AdminConditionsPanel({ onErreur }: Props) {
+  const { t } = useTranslation(['admin', 'common']);
   const [inventaire, setInventaire] = useState<InventaireConditions>({
     conditions: [],
     orphelines: [],
@@ -83,12 +85,12 @@ export function AdminConditionsPanel({ onErreur }: Props) {
     adminService
       .listConditions()
       .then((data) => vivant && setInventaire(data))
-      .catch((err) => vivant && onErreur(err, 'Conditions indisponibles'))
+      .catch((err) => vivant && onErreur(err, t('AdminConditionsPanel.conditionsIndisponibles')))
       .finally(() => vivant && setChargement(false));
     return () => {
       vivant = false;
     };
-  }, [onErreur]);
+  }, [onErreur, t]);
 
   const visibles = useMemo(
     () => filtrerConditions(inventaire.conditions, recherche),
@@ -115,9 +117,9 @@ export function AdminConditionsPanel({ onErreur }: Props) {
     try {
       setInventaire(await adminService.listConditions());
     } catch (err) {
-      onErreur(err, 'Conditions indisponibles');
+      onErreur(err, t('AdminConditionsPanel.conditionsIndisponibles'));
     }
-  }, [onErreur]);
+  }, [onErreur, t]);
 
   const simuler = useCallback(async (): Promise<void> => {
     if (!ouvert || !brouillon || brouillon.valeurs.length === 0) return;
@@ -132,11 +134,11 @@ export function AdminConditionsPanel({ onErreur }: Props) {
         ),
       );
     } catch (err) {
-      onErreur(err, 'Impact indisponible');
+      onErreur(err, t('AdminPanneaux.impactIndisponible'));
     } finally {
       setSimulation(false);
     }
-  }, [ouvert, brouillon, onErreur]);
+  }, [ouvert, brouillon, onErreur, t]);
 
   const utile = ouvert && brouillon ? predicatUtile(ouvert, brouillon) : null;
   const enregistrable = !!brouillon && brouillon.valeurs.length > 0 && !enregistrement;
@@ -156,14 +158,14 @@ export function AdminConditionsPanel({ onErreur }: Props) {
           utile.valeurs,
           brouillon.motif,
         );
-        toast.success('Condition mise à jour');
+        toast.success(t('AdminConditionsPanel.toastMiseAJour'));
       } else {
         await adminService.retablirPredicat(ouvert.aideSlug, ouvert.conditionId);
-        toast.success('Condition revenue à son prédicat d’origine');
+        toast.success(t('AdminConditionsPanel.toastRetablie'));
       }
       await rafraichir();
     } catch (err) {
-      onErreur(err, 'Enregistrement impossible');
+      onErreur(err, t('AdminPanneaux.enregistrementImpossible'));
     } finally {
       setEnregistrement(false);
     }
@@ -175,9 +177,9 @@ export function AdminConditionsPanel({ onErreur }: Props) {
     try {
       await adminService.retablirPredicat(slug, conditionId);
       await rafraichir();
-      toast.success('Condition revenue à son prédicat d’origine');
+      toast.success(t('AdminConditionsPanel.toastRetablie'));
     } catch (err) {
-      onErreur(err, 'Rétablissement impossible');
+      onErreur(err, t('AdminPanneaux.retablissementImpossible'));
     } finally {
       setEnregistrement(false);
     }
@@ -195,7 +197,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
       {surchargees.length > 0 && (
         <div className="space-y-1.5 rounded-xl border border-border bg-card p-3">
           <p className="text-[15px] font-medium text-foreground">
-            Surcharges en place ({surchargees.length})
+            {t('AdminConditionsPanel.surchargesEnPlace', { nb: surchargees.length })}
           </p>
           {surchargees.map((ligne: AdminCondition | ConditionOrpheline) => {
             const etat = ligne.surcharge?.etat ?? 'active';
@@ -217,7 +219,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                     className="ml-auto font-medium underline"
                     style={{ color: C.blue }}
                   >
-                    Ouvrir
+                    {t('AdminConditionsPanel.ouvrir')}
                   </button>
                 ) : (
                   <button
@@ -226,7 +228,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                     className="ml-auto font-medium underline"
                     style={{ color: C.grayFg }}
                   >
-                    Supprimer la ligne
+                    {t('AdminConditionsPanel.supprimerLigne')}
                   </button>
                 )}
               </div>
@@ -243,7 +245,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
         <Input
           value={recherche}
           onChange={(e) => setRecherche(e.target.value)}
-          placeholder="Rechercher une condition (aide, texte, question)…"
+          placeholder={t('AdminConditionsPanel.recherche')}
           className="h-10 pl-9 text-[16px]"
         />
       </div>
@@ -251,10 +253,10 @@ export function AdminConditionsPanel({ onErreur }: Props) {
       <div className="grid gap-4 lg:grid-cols-[1fr_480px]">
         <div className="max-h-[70vh] space-y-2 overflow-y-auto rounded-xl border border-border bg-card p-2">
           {chargement ? (
-            <p className="px-2 py-8 text-center text-[16px] text-muted-foreground">Chargement…</p>
+            <p className="px-2 py-8 text-center text-[16px] text-muted-foreground">{t('common:etats.chargement')}</p>
           ) : visibles.length === 0 ? (
             <p className="px-2 py-8 text-center text-[16px] text-muted-foreground">
-              Aucune condition ne correspond à votre recherche.
+              {t('AdminConditionsPanel.aucunResultat')}
             </p>
           ) : (
             visibles.map((condition) => (
@@ -274,8 +276,12 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                   {condition.surcharge && (
                     <Badge>{LIBELLE_ETAT[condition.surcharge.etat]}</Badge>
                   )}
-                  {!condition.engineReady && <Badge variant="outline">Non typée</Badge>}
-                  {condition.retiree && <Badge variant="outline">Aide retirée</Badge>}
+                  {!condition.engineReady && (
+                    <Badge variant="outline">{t('AdminPanneaux.nonTypee')}</Badge>
+                  )}
+                  {condition.retiree && (
+                    <Badge variant="outline">{t('AdminConditionsPanel.aideRetiree')}</Badge>
+                  )}
                   <span className="text-[13.5px] text-muted-foreground">
                     {phraseLisible(
                       condition.question,
@@ -294,7 +300,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
         <aside className="space-y-3 rounded-xl border border-border bg-card p-4">
           {!ouvert || !brouillon ? (
             <p className="py-8 text-center text-[16px] text-muted-foreground">
-              Choisissez une condition pour modifier son critère.
+              {t('AdminConditionsPanel.selectionner')}
             </p>
           ) : (
             <>
@@ -310,7 +316,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
               {/* Le texte vient de la SOURCE : il se corrige dans le YAML, pas ici. */}
               <div className="rounded-lg bg-secondary px-3 py-2.5">
                 <p className="text-[13.5px] font-medium text-muted-foreground">
-                  Texte de la condition (lecture seule)
+                  {t('AdminConditionsPanel.texteLectureSeule')}
                 </p>
                 <p className="mt-1 text-[15px] text-foreground">{ouvert.text}</p>
               </div>
@@ -325,8 +331,12 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                   {ouvert.surcharge.conditionTextActuel !== null &&
                     ouvert.surcharge.conditionTextActuel !== ouvert.surcharge.conditionText && (
                       <p className="mt-1">
-                        <span className="font-medium">Texte au moment de la décision&nbsp;:</span>{' '}
-                        {ouvert.surcharge.conditionText}
+                        <Trans
+                          t={t}
+                          i18nKey="AdminConditionsPanel.texteAuMomentDecision"
+                          values={{ texte: ouvert.surcharge.conditionText }}
+                          components={{ gras: <span className="font-medium" /> }}
+                        />
                       </p>
                     )}
                 </div>
@@ -342,7 +352,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                     setBrouillon({ ...brouillon, operateur: v as OperateurPredicat })
                   }
                 >
-                  <SelectTrigger className="h-9 w-52 text-[15px]" aria-label="Opérateur du critère">
+                  <SelectTrigger className="h-9 w-52 text-[15px]" aria-label={t('AdminConditionsPanel.operateurAria')}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -381,14 +391,16 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                 </p>
                 {brouillon.valeurs.length === 0 && (
                   <p className="text-[14.5px]" style={{ color: C.danger }}>
-                    Cochez au moins une réponse.
+                    {t('AdminConditionsPanel.cochezUneReponse')}
                   </p>
                 )}
               </div>
 
               <div className="space-y-2 rounded-lg border border-border p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[15px] font-medium text-foreground">Impact sur l’aide</p>
+                  <p className="text-[15px] font-medium text-foreground">
+                    {t('AdminConditionsPanel.impactSurAide')}
+                  </p>
                   <button
                     type="button"
                     onClick={simuler}
@@ -396,7 +408,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                     className="text-[14.5px] font-medium underline disabled:opacity-50"
                     style={{ color: C.blue }}
                   >
-                    {simulation ? 'Calcul…' : 'Vérifier l’impact'}
+                    {simulation ? t('AdminPanneaux.calcul') : t('AdminPanneaux.verifierImpact')}
                   </button>
                 </div>
 
@@ -405,14 +417,20 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                     key={ligne.id}
                     className={`text-[14.5px] ${ligne.changement ? 'text-foreground' : 'text-muted-foreground'}`}
                   >
-                    <span className="font-mono text-[13px]">{ligne.id}</span>{' '}
-                    {ligne.changement
-                      ? ligne.apresEcarte
-                        ? '— écartera désormais cette aide'
-                        : '— n’écartera plus cette aide'
-                      : ligne.apresEcarte
-                        ? '— écarte l’aide (inchangé)'
-                        : '— n’écarte pas l’aide (inchangé)'}
+                    <Trans
+                      t={t}
+                      i18nKey={
+                        ligne.changement
+                          ? ligne.apresEcarte
+                            ? 'AdminConditionsPanel.impact.ecarteraDesormais'
+                            : 'AdminConditionsPanel.impact.necarteraPlus'
+                          : ligne.apresEcarte
+                            ? 'AdminConditionsPanel.impact.ecarteInchange'
+                            : 'AdminConditionsPanel.impact.necartePasInchange'
+                      }
+                      values={{ id: ligne.id }}
+                      components={{ code: <span className="font-mono text-[13px]" /> }}
+                    />
                   </p>
                 ))}
 
@@ -428,8 +446,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
 
                 {impact && (
                   <p className="text-[13.5px] text-muted-foreground">
-                    Ce verdict porte sur le CRITÈRE, pas sur une audience&nbsp;: le nombre
-                    d’utilisateurs concernés n’est pas calculé.
+                    {t('AdminConditionsPanel.verdictCritere')}
                   </p>
                 )}
               </div>
@@ -439,14 +456,14 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                   htmlFor="motif-condition"
                   className="text-[15px] font-medium text-foreground"
                 >
-                  Motif
+                  {t('AdminPanneaux.motif')}
                 </label>
                 <Textarea
                   id="motif-condition"
                   value={brouillon.motif}
                   onChange={(e) => setBrouillon({ ...brouillon, motif: e.target.value })}
                   rows={2}
-                  placeholder="Facultatif — pourquoi ce critère change."
+                  placeholder={t('AdminConditionsPanel.motifPlaceholder')}
                   className="text-[16px]"
                 />
               </div>
@@ -458,7 +475,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                   className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[16px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: C.blue }}
                 >
-                  {enregistrement ? 'Enregistrement…' : 'Enregistrer'}
+                  {enregistrement ? t('common:etats.enregistrement') : t('common:actions.enregistrer')}
                 </button>
                 {ouvert.surcharge && (
                   <button
@@ -467,7 +484,7 @@ export function AdminConditionsPanel({ onErreur }: Props) {
                     className="text-[15px] font-medium underline"
                     style={{ color: C.grayFg }}
                   >
-                    Rétablir
+                    {t('AdminPanneaux.retablir')}
                   </button>
                 )}
               </div>
@@ -479,19 +496,22 @@ export function AdminConditionsPanel({ onErreur }: Props) {
       <AlertDialog open={confirmRetablir} onOpenChange={setConfirmRetablir}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Rétablir le critère d’origine&nbsp;?</AlertDialogTitle>
+            <AlertDialogTitle>{t('AdminConditionsPanel.confirmation.titre')}</AlertDialogTitle>
             <AlertDialogDescription>
-              La surcharge est supprimée et la condition revient au prédicat de{' '}
-              <span className="font-mono">data/aides/{ouvert?.aideSlug}.yaml</span>. Les réponses
-              déjà enregistrées par les utilisateurs ne changent pas.
+              <Trans
+                t={t}
+                i18nKey="AdminConditionsPanel.confirmation.description"
+                values={{ fichier: `data/aides/${ouvert?.aideSlug ?? ''}.yaml` }}
+                components={{ code: <span className="font-mono" /> }}
+              />
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:actions.annuler')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => ouvert && retablir(ouvert.aideSlug, ouvert.conditionId)}
             >
-              Rétablir
+              {t('AdminPanneaux.retablir')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

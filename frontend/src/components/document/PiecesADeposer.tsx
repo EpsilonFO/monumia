@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { BarreSection } from '@/components/document/EspaceDocuments';
 import { usePiecesADeposer } from '@/hooks/usePiecesADeposer';
@@ -35,6 +36,7 @@ export interface PiecesADeposerProps {
 export function PiecesADeposer({
   monumentId, projetIds, onDeposer, lectureSeule, documents, replier = true,
 }: PiecesADeposerProps) {
+  const { t } = useTranslation('documents');
   const { pieces, projets } = usePiecesADeposer(monumentId, projetIds, documents);
   const monumentNom = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId)?.nom);
   const [tout, setTout] = useState(false);
@@ -45,16 +47,16 @@ export function PiecesADeposer({
   const visibles = tout || !replier ? pieces : pieces.slice(0, PIECES_VISIBLES);
   const reste = pieces.length - visibles.length;
   const titre = projets.length === 1
-    ? `Demandées par les aides de votre projet ${projetTitre(projets[0], monumentNom)}`
-    : 'Demandées par les aides de vos projets';
+    ? t('PiecesADeposer.titreUnProjet', { projet: projetTitre(projets[0], monumentNom) })
+    : t('PiecesADeposer.titrePlusieurs');
 
   return (
-    <section className="pdep" aria-label="Pièces demandées par vos aides">
+    <section className="pdep" aria-label={t('PiecesADeposer.aria')}>
       <BarreSection
         titre={titre}
         droite={(
           <div className="pdep-prog">
-            <span>{deposees} sur {pieces.length} déposée{deposees > 1 ? 's' : ''}</span>
+            <span>{t('PiecesADeposer.deposees', { count: deposees, total: pieces.length })}</span>
             <span className="track"><i style={{ width: `${(deposees / pieces.length) * 100}%` }} /></span>
           </div>
         )}
@@ -65,18 +67,18 @@ export function PiecesADeposer({
           p.deposee ? (
             <div key={p.pieceId} className="slot ok">
               <b>{p.nom}</b>
-              <small><Picto nom="coche" />Déposé · dossier {dossierLabel(p.typeDocument)}</small>
+              <small><Picto nom="coche" />{t('PiecesADeposer.deposeDossier', { dossier: dossierLabel(p.typeDocument) })}</small>
             </div>
           ) : (
             <div key={p.pieceId} className="slot">
               <b>{p.nom}</b>
               <small>
-                Dossier {dossierLabel(p.typeDocument)} · demandée par {p.nbAides} aide{p.nbAides > 1 ? 's' : ''}
+                {t('PiecesADeposer.demandeePar', { dossier: dossierLabel(p.typeDocument), count: p.nbAides })}
               </small>
               {p.description && <p className="where">{p.description}</p>}
               {!lectureSeule && (
                 <button className="btn b-blue b-sm" type="button" onClick={() => onDeposer(p)}>
-                  <Picto nom="envoyer" />Déposer
+                  <Picto nom="envoyer" />{t('PiecesADeposer.deposer')}
                 </button>
               )}
             </div>
@@ -86,7 +88,7 @@ export function PiecesADeposer({
 
       {reste > 0 && (
         <button className="btn b-line b-sm pdep-plus" type="button" onClick={() => setTout(true)}>
-          {reste === 1 ? "Voir l'autre pièce" : `Voir les ${reste} autres pièces`}
+          {t('PiecesADeposer.voirAutres', { count: reste })}
         </button>
       )}
     </section>

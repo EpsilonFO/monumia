@@ -1,0 +1,305 @@
+{
+  "CommuneAutocomplete": {
+    "placeholder": "E.g. Valognes"
+  },
+  "MonumentForm": {
+    "etapes": {
+      "identification": {
+        "titre": "Identification",
+        "description": "Name and location"
+      },
+      "statutJuridique": {
+        "titre": "Legal status",
+        "description": "Protection and ownership"
+      },
+      "descriptionPhysique": {
+        "titre": "Physical description",
+        "description": "Architecture and condition of the monument"
+      }
+    },
+    "etape": "Step {{courante}} of {{total}}",
+    "terminer": "Finish",
+    "nom": "Monument name *",
+    "nomPlaceholder": "E.g. Église Saint-Malo",
+    "commune": "Municipality *",
+    "protection": "Protection level *",
+    "selectionner": "Select...",
+    "dateProtection": "Protection date",
+    "detailProtection": "Protection details",
+    "detailSansObjet": "Not applicable to an unprotected property",
+    "detailPlaceholder": "E.g. Listed (classé) as an MH by order of 16 June 1928",
+    "proprietaire": "Owner type *",
+    "proprietaireAide": "You can choose more than one. A funding scheme is suggested to you as soon as one of the owners can apply for it.",
+    "typeEdifice": "Building type",
+    "nonRenseigne": "Not specified",
+    "typeEdificeAide": "You can choose more than one: an estate may combine a château, a chapel and a dovecote. They answer the questions about the nature of the property in advance, so you are no longer asked them.",
+    "affectationCulte": "Use for worship",
+    "toujoursAffecte": "Still used for worship",
+    "desaffecte": "Deconsecrated",
+    "architectureRomane": "Romanesque architecture",
+    "romaneOui": "Yes, wholly or in part",
+    "siecleConstruction": "Century of construction",
+    "sieclePlaceholder": "E.g. 15th century",
+    "descriptionGenerale": "General description of the protection",
+    "descriptionPlaceholder": "Describe your monument...",
+    "etatConservation": "State of conservation *",
+    "etatAide": "A monument that is at risk or in poor condition opens up emergency schemes. This answer applies to all your works projects on this monument."
+  },
+  "MonumentFiche": {
+    "protectionEnonce": {
+      "classe": "Listed (classé) as a historic monument",
+      "inscrit": "Registered (inscrit) as a historic monument",
+      "abords": "Located in the surroundings of a historic monument",
+      "spr": "In an outstanding heritage site",
+      "nonProtege": "Not protected"
+    },
+    "protectionPhrase": {
+      "classe": "The highest level of protection for historic monuments: State funding is widely open to you.",
+      "inscrit": "An official protection that makes you eligible for many public funding schemes.",
+      "abords": "The property lies within the protected surroundings of a historic monument.",
+      "spr": "A site recognised for the value of its architectural and landscape heritage.",
+      "nonProtege": "No official protection yet. Some funding schemes are nevertheless still available."
+    },
+    "perilPhrase": {
+      "oui": "Emergency schemes, such as the Loto du patrimoine and regional safeguarding funds, are only open to monuments in this situation.",
+      "non": "The monument is generally sound. Emergency funding does not apply to you, but standard restoration schemes remain open.",
+      "inconnu": "The question has not been asked yet. Answering it opens up or rules out emergency schemes."
+    },
+    "typePhoto": {
+      "facade": "Façade",
+      "interieur": "Interior",
+      "detail": "Detail",
+      "aerien": "Aerial view",
+      "degradation": "Damage"
+    },
+    "arrete": "Order of {{date}}",
+    "commune": "Municipality",
+    "departement": "Department",
+    "typesEdifice_one": "Building type",
+    "typesEdifice_other": "Building types",
+    "affectationCulte": "Use for worship",
+    "toujoursAffecte": "Still used for worship",
+    "desaffecte": "Deconsecrated",
+    "siecleConstruction": "Century of construction",
+    "proprietaires_one": "Owner",
+    "proprietaires_other": "Owners",
+    "titre": "The monument profile",
+    "sousTitre": "What describes the property. It applies to all your projects on this monument.",
+    "modifierFiche": "Edit the profile",
+    "statutsAria": "Protection and condition",
+    "protection": "Protection",
+    "etatSanitaire": "Condition",
+    "etatNonRenseigne": "Condition not specified",
+    "identification": "Identification",
+    "descriptionProtection": "Description of the protection",
+    "photos": "Photos",
+    "dates": "Profile created on {{creation}}, updated on {{modification}}.",
+    "supprimer": "Delete the monument"
+  },
+  "MonumentPhotoProfil": {
+    "erreurType": "Choose an image (JPEG, PNG…).",
+    "erreurTaille": "Image too large: 5 MB maximum.",
+    "sessionExpiree": "Session expired, please log in again.",
+    "photoMiseAJour": "Photo updated.",
+    "erreurEnregistrement": "Unable to save the photo.",
+    "erreurRetrait": "Unable to remove the photo.",
+    "ajouterUnePhoto": "Add a photo",
+    "alt": "Photo of the monument {{nom}}",
+    "recadrerAria": "Crop the monument photo",
+    "ajouterAria": "Add a photo of the monument",
+    "retirerAria": "Remove the monument photo"
+  },
+  "PhotoCropDialog": {
+    "titre": "Crop the photo",
+    "description": "Move the image and adjust the zoom: what the frame shows will be the monument's photo.",
+    "erreurChargement": "Unable to load the image.",
+    "erreurProduction": "Unable to produce the cropped image.",
+    "zoom": "Zoom",
+    "autrePhoto": "Choose another photo"
+  },
+  "EnTeteMonument": {
+    "pastille": {
+      "classe": "Listed (classé) historic monument",
+      "inscrit": "Registered (inscrit) historic monument",
+      "abords": "Surroundings of a historic monument",
+      "spr": "Outstanding heritage site",
+      "nonProtege": "Not protected"
+    },
+    "completerFiche": "Complete the monument profile",
+    "modifierFiche": "Edit the monument profile",
+    "nomAria": "Monument name",
+    "aideValider": "Press Enter to confirm, Esc to cancel.",
+    "nomVide": "The name must contain at least one character.",
+    "renommer": "Rename the monument"
+  },
+  "MerimeeSearch": {
+    "classeMh": "Listed MH (classé)",
+    "inscritMh": "Registered MH (inscrit)",
+    "protectionInconnue": "Unknown protection",
+    "placeholder": "Monument name, municipality or reference…",
+    "aucunResultat": "No results for “{{requete}}”. You can describe your monument yourself just below."
+  },
+  "MonumentCard": {
+    "aucunProjet": "No projects",
+    "projetsTravaux_one": "{{count}} works project",
+    "projetsTravaux_other": "{{count}} works projects",
+    "dossiersEnCours_one": "{{count}} application in progress",
+    "dossiersEnCours_other": "{{count}} applications in progress",
+    "echeanceDepassee": "Deadline passed",
+    "echeance": "Deadline: {{texte}}"
+  },
+  "MonumentSummaryBar": {
+    "nouveauProjet": "New project"
+  },
+  "ApercuFiche": {
+    "type": "Type",
+    "construitAu": "Built in",
+    "etat": "Condition",
+    "protection": "Protection",
+    "proprietaire": "Owner",
+    "aria": "Monument profile preview",
+    "ficheMonument": "Monument profile",
+    "nomBatiment": "Building name",
+    "ficheRemplie": "Profile completed",
+    "pourcentage": "{{pct}}%",
+    "aRenseigner": "To be completed",
+    "continuer": "Continue to my project",
+    "ensuite": "Next, you describe your works project, then Monumia sorts the funding schemes.",
+    "note": "You can change everything later from the monument profile."
+  },
+  "FicheMonumentSections": {
+    "facultatif": "optional",
+    "plusieursChoix": "multiple choices allowed",
+    "sectionMonument": "The monument",
+    "sectionProtection": "Its protection",
+    "sectionProprietaire": "The owner",
+    "nomBatiment": "Building name",
+    "nomPlaceholder": "E.g. Église Saint-Malo",
+    "commune": "Municipality",
+    "typeEdifice": "Building type",
+    "typeEdificeAide": "It answers the questions about the nature of the property in advance (church, wash house, war memorial…). An estate may combine several: château, chapel, dovecote.",
+    "typeEdificeMenu": "Building type",
+    "typeEdificePlaceholder": "Choose one or more types",
+    "culte": {
+      "titre": "Use for worship",
+      "pourquoi": "Some schemes exclude buildings still used for worship, others are reserved for them.",
+      "oui": "Still used for worship",
+      "non": "Deconsecrated"
+    },
+    "roman": {
+      "titre": "Romanesque architecture",
+      "pourquoi": "Some programmes are reserved for Romanesque heritage, even if only parts of it remain.",
+      "oui": "Yes, wholly or in part"
+    },
+    "siecle": "Century of construction",
+    "sieclePlaceholder": "Choose one or more centuries",
+    "texteActuel": "Current text: “{{texte}}”. Choosing a century replaces it.",
+    "etatBatiment": "Condition of the building",
+    "etatAide": "If it is at risk or in poor condition, it opens up emergency schemes.",
+    "descriptionGenerale": "General description",
+    "descriptionPlaceholder": "Describe your monument",
+    "protection": "Protection",
+    "protectionPlaceholder": "Choose the protection",
+    "dateProtection": "Protection date",
+    "detailProtection": "Protection details",
+    "detailPlaceholder": "E.g. Listed (classé) as an MH by order of 16 June 1928",
+    "proprietaireType": "Owner type",
+    "proprietaireAide": "A property can have several owners. A funding scheme is suggested to you as soon as one of them can apply for it.",
+    "proprietairePlaceholder": "Choose one or more owners"
+  },
+  "RechercheMerimee": {
+    "placeholder": "Monument name, municipality or reference",
+    "aucunResultat": "No monument found for “{{requete}}”. You can describe it yourself below."
+  },
+  "ChampCommune": {
+    "placeholder": "Type the first few letters",
+    "aucunResultat": "No municipality found for “{{requete}}”. Check the spelling: the municipality must be chosen from the list.",
+    "reconnue": "Municipality recognised"
+  },
+  "MenuChoix": {
+    "libelleLecteur": "{{label}}: ",
+    "rechercherAria": "Search the list",
+    "aucunResultat": "No results.",
+    "choisis_one": "{{count}} selected",
+    "choisis_other": "{{count}} selected",
+    "aucunChoix": "Nothing selected"
+  },
+  "MonumentDetailPage": {
+    "introuvable": "Monument not found",
+    "introuvableTexte": "This monument does not exist or has been deleted.",
+    "retourMesMonuments": "Back to my monuments",
+    "misAJour": "Monument updated",
+    "erreurSauvegarde": "Error while saving",
+    "erreurRenommage": "Error while renaming",
+    "supprime": "Monument deleted",
+    "erreurSuppression": "Error while deleting",
+    "modifierTitre": "Edit: {{nom}}",
+    "onglets": {
+      "fiche": "Monument profile",
+      "projets": "Projects",
+      "documents": "Documents",
+      "equipe": "Team"
+    },
+    "retourA": "Back to {{espace}}",
+    "ongletsAria": "Monument sections",
+    "vosProjets": "Your projects",
+    "vosProjetsSousTitre": "Each project has its own funding schemes and its own application.",
+    "premierProjet": "Your first project",
+    "autreChantier": "Another works project or another activity?",
+    "projetExplication": "A project is one undertaking. Re-roofing is one. Hosting a theatre company in residence is another. The funders are not the same.",
+    "nouveauProjet": "New project",
+    "aucunProjet": "No works projects on this monument yet.",
+    "documentsIntro": "Documents for the monument and for its works projects.",
+    "documentsVide": "Documents for the monument and its projects will appear here.",
+    "paywallEquipe": {
+      "titre": "Work together on this monument",
+      "description": "Invite your architect, your craftspeople or an assistant. They get access to the monument, its projects and its documents, with the role you give them."
+    },
+    "paywallProjet": {
+      "titre": "Run as many projects as you need",
+      "descriptionIllimite": "The Watch plan gives you unlimited works projects, and alerts you before every deadline.",
+      "descriptionPlafond": "Your plan covers {{max}} projects per monument. The Watch plan makes them unlimited, and alerts you before every deadline."
+    },
+    "supprimerTitre": "Delete “{{nom}}”?",
+    "supprimerDescription": "All its works projects and the related applications will also be deleted. This action cannot be undone.",
+    "suppression": "Deleting…"
+  },
+  "MonumentWizardPage": {
+    "erreurMerimee": "Error while retrieving the Mérimée record",
+    "erreurCreation": "Error while creating the monument",
+    "merimeeTitre": "Save time: search for your monument in the Mérimée database",
+    "merimeeAide": "If it is protected, it will be there: choose it and the fields below will fill themselves in. Otherwise, fill them in directly.",
+    "baseMerimee": "Mérimée database",
+    "prerempli": "Profile pre-filled from the record",
+    "prerempliReference": "Profile pre-filled from record {{reference}}",
+    "autreMonument": "Search for another monument",
+    "quitter": "Exit",
+    "surtitre": "New monument",
+    "titre": "Your monument's profile",
+    "intro": "This information is used to <b>sort the funding schemes for you</b>. You only provide it once: it applies to all your projects on this monument.",
+    "paywall": {
+      "titre": "A second monument, and every one after that",
+      "description": "The free plan covers one monument. The Multi-monument plan lifts the limit, brings all your properties together on a dashboard and unlocks deletion."
+    }
+  },
+  "MonumentsListPage": {
+    "sousTitre": "Each monument, its works projects and the funding that goes with them.",
+    "nouveauMonument": "New monument",
+    "nouvelleRecherche": "New funding search",
+    "videTitre": "No monuments yet",
+    "videTexte": "Describe your monument, then start as many works projects as you need to identify the funding available.",
+    "rechercher": "Search for a monument",
+    "trier": "Sort monuments",
+    "tri": {
+      "recent": "Recently created",
+      "oldest": "Oldest",
+      "modified": "Recently updated",
+      "name": "Name (A → Z)"
+    },
+    "aucunCorrespondant": "No monuments match your search.",
+    "paywall": {
+      "titre": "Manage all your properties in one place",
+      "description": "The free plan covers one monument. The Multi-monument plan makes them unlimited and unlocks the dashboard, which brings together their projects and deadlines."
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import {
   BarreSection, BarreSelection, FichiersDocuments, OutilsDocuments, VideDocuments, VoileDepot,
@@ -54,8 +55,6 @@ function vueMemorisee(): VueDocuments {
   try { return window.localStorage.getItem(CLE_VUE) === 'liste' ? 'liste' : 'grille'; } catch { return 'grille'; }
 }
 
-const plur = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
-
 interface Depot {
   fichiers: File[];
   piece: PieceAPreremplir | null;
@@ -79,6 +78,7 @@ interface Depot {
 export function OngletDocuments({
   ici, monumentId, documents, onChange, role, auteurs = {}, dossierNames = {}, intro, vide,
 }: OngletDocumentsProps) {
+  const { t } = useTranslation(['documents', 'common']);
   const userId = useAuthStore((s) => s.user?.id);
   const projets = useProjetStore((s) => s.projets);
   const monumentNom = useMonumentStore((s) => s.monuments.find((m) => m.id === monumentId)?.nom);
@@ -107,8 +107,8 @@ export function OngletDocuments({
 
   useEffect(() => {
     if (nouveaux.size === 0) return;
-    const t = setTimeout(() => setNouveaux(new Set()), 1600);
-    return () => clearTimeout(t);
+    const minuteur = setTimeout(() => setNouveaux(new Set()), 1600);
+    return () => clearTimeout(minuteur);
   }, [nouveaux]);
 
   const setVue = (v: VueDocuments) => {
@@ -139,11 +139,11 @@ export function OngletDocuments({
   const ouvrirDepot = (d: Depot) => { setEditDoc(null); setDepot(d); };
   const depotGlisse = useDepotGlisse((fichiers) => ouvrirDepot({ fichiers, piece: null, type: null }));
 
-  const erreur = (e: unknown) => toast.error(e instanceof Error ? e.message : 'Erreur');
+  const erreur = (e: unknown) => toast.error(e instanceof Error ? e.message : t('commun.erreur'));
 
   const corbeille = async (d: Document) => {
-    if (!confirm(`Mettre « ${d.nom} » à la corbeille ?`)) return;
-    try { await trashDocument(d.id); onChange(); toast.success(`« ${d.nom} » est dans la corbeille.`); } catch (e) { erreur(e); }
+    if (!confirm(t('commun.confirmCorbeille', { nom: d.nom }))) return;
+    try { await trashDocument(d.id); onChange(); toast.success(t('commun.dansCorbeille', { nom: d.nom })); } catch (e) { erreur(e); }
   };
   const retirerSansRelire = async (d: Document, lieu: IciDocument) => {
     if (lieu.type === 'projet') await documentService.removeFromProjet(d.id, lieu.id);
@@ -153,7 +153,7 @@ export function OngletDocuments({
     try {
       await retirerSansRelire(d, lieu);
       relire();
-      toast.success(lieu.type === 'projet' ? 'Document retiré du projet' : 'Document retiré du monument');
+      toast.success(lieu.type === 'projet' ? t('OngletDocuments.retireProjet') : t('commun.documentRetireMonument'));
     } catch (e) { erreur(e); }
   };
 
@@ -168,9 +168,9 @@ export function OngletDocuments({
         await documentService.addToProjects(doc.id, [ici.id]);
       }
       relire();
-      toast.success(coteProjet ? 'Document ajouté au projet' : 'Document ajouté au monument');
+      toast.success(coteProjet ? t('OngletDocuments.ajouteProjet') : t('OngletDocuments.ajouteMonument'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout");
+      toast.error(err instanceof Error ? err.message : t('OngletDocuments.erreurAjout'));
       throw err;
     }
   };
@@ -194,8 +194,7 @@ export function OngletDocuments({
     const dossiers = d.dossiersUtilises.map((id) => dossierNames[id]).filter(Boolean);
     if (dossiers.length === 1) pills.push(dossiers[0]);
     else if (d.dossiersUtilises.length > 0) {
-      const n = d.dossiersUtilises.length;
-      pills.push(`Utilisé dans ${n} dossier${n > 1 ? 's' : ''}`);
+      pills.push(t('commun.utiliseDans', { count: d.dossiersUtilises.length }));
     }
     return pills;
   };
@@ -232,34 +231,43 @@ export function OngletDocuments({
   const repartition = repartirSelection(selectionnes, { userId, roleDe: () => role, ici });
   const supprimerSelection = async () => {
     const { aJeter, aRetirer, sansRetrait } = repartition;
+    // Chaque morceau de la liste est une proposition complète ; seule la
+    // virgule qui les sépare reste dans le code.
     const phrases = [
-      aJeter.length ? `${plur(aJeter.length, 'document')} à la corbeille` : '',
-      aRetirer.length ? `${plur(aRetirer.length, 'document')} retiré${aRetirer.length > 1 ? 's' : ''} de ${ici.nom}` : '',
+      aJeter.length ? t('commun.selectionAJeter', { count: aJeter.length }) : '',
+      aRetirer.length ? t('commun.selectionARetirer', { count: aRetirer.length, lieu: ici.nom }) : '',
     ].filter(Boolean);
     const reste = sansRetrait.length
-      ? `\n${plur(sansRetrait.length, 'autre document')} ne ${sansRetrait.length > 1 ? 'peuvent' : 'peut'} pas être supprimé${sansRetrait.length > 1 ? 's' : ''} par vous : ${sansRetrait.length > 1 ? 'ils restent' : 'il reste'} en place.`
+      ? `\n${t('commun.selectionReste', { count: sansRetrait.length })}`
       : '';
-    if (!confirm(`Supprimer la sélection : ${phrases.join(', ')} ?${reste}`)) return;
+    if (!confirm(`${t('commun.confirmSelection', { liste: phrases.join(', ') })}${reste}`)) return;
     let ok = 0;
     for (const d of aJeter) { try { await trashDocument(d.id); ok += 1; } catch (e) { erreur(e); } }
     for (const d of aRetirer) { try { await retirerSansRelire(d, ici); ok += 1; } catch (e) { erreur(e); } }
     setSelection(new Set());
     relire();
-    if (ok) toast.success(`${plur(ok, 'document')} supprimé${ok > 1 ? 's' : ''} de cet espace.`);
+    if (ok) toast.success(t('commun.selectionSupprimee', { count: ok }));
   };
   const gestesSelection: GesteSelection[] = [
     {
-      label: 'Télécharger',
+      label: t('common:actions.telecharger'),
       picto: 'telecharger',
       onClick: async () => {
         for (const d of selectionnes) {
-          try { await downloadDocument(d); } catch (e) { toast.error(`${d.nom} : ${e instanceof Error ? e.message : 'téléchargement impossible'}`); }
+          try {
+            await downloadDocument(d);
+          } catch (e) {
+            toast.error(t('commun.erreurDocument', {
+              nom: d.nom,
+              message: e instanceof Error ? e.message : t('commun.telechargementImpossibleMinuscule'),
+            }));
+          }
         }
       },
     },
-    ...(repartition.modifiables.length ? [{ label: 'Déplacer', picto: 'deplacer' as const, onClick: () => setADeplacer(repartition.modifiables) }] : []),
+    ...(repartition.modifiables.length ? [{ label: t('commun.deplacer'), picto: 'deplacer' as const, onClick: () => setADeplacer(repartition.modifiables) }] : []),
     ...(repartition.aJeter.length + repartition.aRetirer.length
-      ? [{ label: 'Supprimer', picto: 'corbeille' as const, onClick: supprimerSelection }]
+      ? [{ label: t('common:actions.supprimer'), picto: 'corbeille' as const, onClick: supprimerSelection }]
       : []),
   ];
 
@@ -290,21 +298,21 @@ export function OngletDocuments({
       <OutilsDocuments recherche={recherche} onRecherche={setRecherche} vue={vue} onVue={setVue}>
         <div className="odoc-acts">
           <button className="btn b-line" type="button" onClick={() => setAttachOpen(true)}>
-            Joindre un document existant
+            {t('OngletDocuments.joindreExistant')}
           </button>
           <button className="btn b-orange" type="button" onClick={() => choisirFichiers(null)}>
-            <Picto nom="envoyer" />Ajouter un document
+            <Picto nom="envoyer" />{t('OngletDocuments.ajouterDocument')}
           </button>
         </div>
       </OutilsDocuments>
 
-      <BarreSection titre={recherche.trim() ? 'Résultats' : 'Documents'} tri={tri} onTri={setTri} />
+      <BarreSection titre={recherche.trim() ? t('commun.resultats') : t('commun.documents')} tri={tri} onTri={setTri} />
       {intro && <p className="odoc-intro">{intro}</p>}
 
       {liste.length === 0 ? (
         recherche.trim()
-          ? <VideDocuments titre="Aucun document trouvé" texte="Essayez un autre mot." />
-          : <VideDocuments titre="Aucun document" texte={vide} />
+          ? <VideDocuments titre={t('commun.aucunDocumentTrouve')} texte={t('commun.essayezAutreMot')} />
+          : <VideDocuments titre={t('commun.aucunDocument')} texte={vide} />
       ) : (
         <FichiersDocuments documents={liste} vue={vue} proprietes={proprietes} />
       )}

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { ETATS_CONSERVATION } from '@/constants/monument-options';
 import {
@@ -58,10 +59,11 @@ function Precision({
   onChange: (v: boolean | null) => void;
   className: string;
 }) {
+  const { t } = useTranslation(['monuments', 'common']);
   return (
     <div className={className}>
       <span className="lb" id={id}>
-        {titre} <span className="opt">facultatif</span>
+        {titre} <span className="opt">{t('FicheMonumentSections.facultatif')}</span>
       </span>
       <p className="why">{pourquoi}</p>
       <div className="seg seg-2" role="group" aria-labelledby={id}>
@@ -109,28 +111,29 @@ function Section({
  * montant appartiennent au projet, et se saisissent dans son wizard.
  */
 export function FicheMonumentSections({ fiche, onChange, merimee, aRemplir }: FicheMonumentSectionsProps) {
+  const { t } = useTranslation(['monuments', 'common']);
   const [s1, s2, s3] = sectionsRemplies(fiche);
   const siecles = lireSiecles(fiche.siecleConstruction);
   const fld = (champ: ChampFiche) => (aRemplir?.has(champ) ? 'fld a-remplir' : 'fld');
 
   return (
     <>
-      <Section n={1} titre="Le monument" remplie={s1}>
+      <Section n={1} titre={t('FicheMonumentSections.sectionMonument')} remplie={s1}>
         {merimee}
         <div className="row2">
           <div className={fld('nom')}>
-            <label htmlFor="nm-nom">Nom du bâtiment</label>
+            <label htmlFor="nm-nom">{t('FicheMonumentSections.nomBatiment')}</label>
             <input
               className="txt"
               id="nm-nom"
               value={fiche.nom ?? ''}
-              placeholder="Ex. : Église Saint-Malo"
+              placeholder={t('FicheMonumentSections.nomPlaceholder')}
               autoComplete="off"
               onChange={(e) => onChange({ nom: e.target.value })}
             />
           </div>
           <div className={fld('commune')}>
-            <label htmlFor="nm-commune">Commune</label>
+            <label htmlFor="nm-commune">{t('FicheMonumentSections.commune')}</label>
             <ChampCommune
               id="nm-commune"
               value={fiche.commune ?? ''}
@@ -145,16 +148,15 @@ export function FicheMonumentSections({ fiche, onChange, merimee, aRemplir }: Fi
 
         <div className={fld('typeEdifice')}>
           <span className="lb">
-            Type d&rsquo;édifice <span className="opt">plusieurs choix possibles</span>
+            {t('FicheMonumentSections.typeEdifice')}{' '}
+            <span className="opt">{t('FicheMonumentSections.plusieursChoix')}</span>
           </span>
           <p className="why">
-            Il répond d&rsquo;avance aux questions sur la nature du bien (église, lavoir,
-            monument aux morts&hellip;). Un domaine peut en réunir plusieurs&nbsp;: château,
-            chapelle, pigeonnier.
+            {t('FicheMonumentSections.typeEdificeAide')}
           </p>
           <MenuChoix
-            label="Type d'édifice"
-            placeholder="Choisir un ou plusieurs types"
+            label={t('FicheMonumentSections.typeEdificeMenu')}
+            placeholder={t('FicheMonumentSections.typeEdificePlaceholder')}
             groupes={GROUPES_TYPE_EDIFICE}
             multiple
             recherche
@@ -169,10 +171,10 @@ export function FicheMonumentSections({ fiche, onChange, merimee, aRemplir }: Fi
         {affectationApplicable(fiche) && (
           <Precision
             id="nm-l-culte"
-            titre="Affectation au culte"
-            pourquoi="Certaines aides excluent les édifices encore affectés au culte, d’autres leur sont réservées."
-            oui="Toujours affecté au culte"
-            non="Désaffecté"
+            titre={t('FicheMonumentSections.culte.titre')}
+            pourquoi={t('FicheMonumentSections.culte.pourquoi')}
+            oui={t('FicheMonumentSections.culte.oui')}
+            non={t('FicheMonumentSections.culte.non')}
             valeur={fiche.affecteAuCulte}
             className={fld('affecteAuCulte')}
             onChange={(v) => onChange({ affecteAuCulte: v })}
@@ -181,10 +183,10 @@ export function FicheMonumentSections({ fiche, onChange, merimee, aRemplir }: Fi
         {architectureRomaneApplicable(fiche) && (
           <Precision
             id="nm-l-roman"
-            titre="Architecture romane"
-            pourquoi="Des programmes sont réservés au patrimoine roman, même s’il n’en reste que des éléments."
-            oui="Oui, en tout ou en partie"
-            non="Non"
+            titre={t('FicheMonumentSections.roman.titre')}
+            pourquoi={t('FicheMonumentSections.roman.pourquoi')}
+            oui={t('FicheMonumentSections.roman.oui')}
+            non={t('common:reponses.non')}
             valeur={fiche.architectureRomane}
             className={fld('architectureRomane')}
             onChange={(v) => onChange({ architectureRomane: v })}
@@ -193,11 +195,12 @@ export function FicheMonumentSections({ fiche, onChange, merimee, aRemplir }: Fi
 
         <div className="fld">
           <span className="lb" id="nm-l-siecle">
-            Siècle de construction <span className="opt">plusieurs choix possibles</span>
+            {t('FicheMonumentSections.siecle')}{' '}
+            <span className="opt">{t('FicheMonumentSections.plusieursChoix')}</span>
           </span>
           <MenuChoix
-            label="Siècle de construction"
-            placeholder="Choisir un ou plusieurs siècles"
+            label={t('FicheMonumentSections.siecle')}
+            placeholder={t('FicheMonumentSections.sieclePlaceholder')}
             groupes={GROUPES_SIECLE}
             multiple
             exclusifs={SIECLES_EXCLUSIFS}
@@ -208,7 +211,7 @@ export function FicheMonumentSections({ fiche, onChange, merimee, aRemplir }: Fi
             notePanel={
               siecles === null ? (
                 <>
-                  Texte actuel : « {fiche.siecleConstruction} ». Choisir un siècle le remplace.
+                  {t('FicheMonumentSections.texteActuel', { texte: fiche.siecleConstruction })}
                 </>
               ) : undefined
             }
@@ -217,9 +220,9 @@ export function FicheMonumentSections({ fiche, onChange, merimee, aRemplir }: Fi
 
         <div className={fld('etatConservation')}>
           <span className="lb" id="nm-l-etat">
-            État du bâtiment
+            {t('FicheMonumentSections.etatBatiment')}
           </span>
-          <p className="why">En péril ou en mauvais état, il ouvre les dispositifs d&rsquo;urgence.</p>
+          <p className="why">{t('FicheMonumentSections.etatAide')}</p>
           <div className="seg" role="group" aria-labelledby="nm-l-etat">
             {ETATS_CONSERVATION.map((e) => (
               <button
@@ -243,25 +246,26 @@ export function FicheMonumentSections({ fiche, onChange, merimee, aRemplir }: Fi
 
         <div className="fld">
           <label htmlFor="nm-description">
-            Description générale <span className="opt">facultatif</span>
+            {t('FicheMonumentSections.descriptionGenerale')}{' '}
+            <span className="opt">{t('FicheMonumentSections.facultatif')}</span>
           </label>
           <textarea
             className="txt"
             id="nm-description"
             rows={4}
             value={fiche.descriptionGenerale ?? ''}
-            placeholder="Décrivez votre monument"
+            placeholder={t('FicheMonumentSections.descriptionPlaceholder')}
             onChange={(e) => onChange({ descriptionGenerale: e.target.value })}
           />
         </div>
       </Section>
 
-      <Section n={2} titre="Sa protection" remplie={s2}>
+      <Section n={2} titre={t('FicheMonumentSections.sectionProtection')} remplie={s2}>
         <div className={fld('protection')}>
-          <span className="lb">Protection</span>
+          <span className="lb">{t('FicheMonumentSections.protection')}</span>
           <MenuChoix
-            label="Protection"
-            placeholder="Choisir la protection"
+            label={t('FicheMonumentSections.protection')}
+            placeholder={t('FicheMonumentSections.protectionPlaceholder')}
             groupes={GROUPES_PROTECTION}
             valeurs={fiche.protection ? [fiche.protection] : []}
             onChange={(v) => onChange(avecProtection(v[0] as ProtectionLevel | undefined))}
@@ -272,7 +276,8 @@ export function FicheMonumentSections({ fiche, onChange, merimee, aRemplir }: Fi
             sont vidés au passage (`avecProtection`). */}
         <div className="fld" hidden={!protectionApplicable(fiche)}>
           <label htmlFor="nm-date">
-            Date de protection <span className="opt">facultatif</span>
+            {t('FicheMonumentSections.dateProtection')}{' '}
+            <span className="opt">{t('FicheMonumentSections.facultatif')}</span>
           </label>
           <input
             className="txt"
@@ -284,31 +289,32 @@ export function FicheMonumentSections({ fiche, onChange, merimee, aRemplir }: Fi
         </div>
         <div className="fld" hidden={!protectionApplicable(fiche)}>
           <label htmlFor="nm-detail">
-            Détail de la protection <span className="opt">facultatif</span>
+            {t('FicheMonumentSections.detailProtection')}{' '}
+            <span className="opt">{t('FicheMonumentSections.facultatif')}</span>
           </label>
           <input
             className="txt"
             id="nm-detail"
             value={fiche.typeProtection ?? ''}
-            placeholder="Ex. : Classé MH par arrêté du 16 juin 1928"
+            placeholder={t('FicheMonumentSections.detailPlaceholder')}
             autoComplete="off"
             onChange={(e) => onChange({ typeProtection: e.target.value })}
           />
         </div>
       </Section>
 
-      <Section n={3} titre="Le propriétaire" remplie={s3}>
+      <Section n={3} titre={t('FicheMonumentSections.sectionProprietaire')} remplie={s3}>
         <div className={fld('proprietaire')}>
           <span className="lb">
-            Type de propriétaire <span className="opt">plusieurs choix possibles</span>
+            {t('FicheMonumentSections.proprietaireType')}{' '}
+            <span className="opt">{t('FicheMonumentSections.plusieursChoix')}</span>
           </span>
           <p className="why">
-            Un bien peut avoir plusieurs propriétaires. Une aide vous est proposée dès que
-            l&rsquo;un d&rsquo;eux peut la demander.
+            {t('FicheMonumentSections.proprietaireAide')}
           </p>
           <MenuChoix
-            label="Type de propriétaire"
-            placeholder="Choisir un ou plusieurs propriétaires"
+            label={t('FicheMonumentSections.proprietaireType')}
+            placeholder={t('FicheMonumentSections.proprietairePlaceholder')}
             groupes={groupesProprietaire(fiche)}
             multiple
             recherche

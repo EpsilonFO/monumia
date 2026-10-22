@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 
 import { ArticleCard } from '@/components/blog/ArticleCard';
@@ -7,11 +8,14 @@ import { C } from '@/lib/brand';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
 
 export function BlogCategoryPage() {
+  const { t } = useTranslation('blog');
   const { categorySlug } = useParams();
   const category = categorySlug ? getCategory(categorySlug) : undefined;
 
   useDocumentMeta(
-    category ? `${category.label} — Blog Monumia` : 'Catégorie introuvable',
+    category
+      ? t('meta.titreAvecBlog', { titre: category.label })
+      : t('BlogCategoryPage.introuvable'),
     category?.description,
   );
 
@@ -19,10 +23,10 @@ export function BlogCategoryPage() {
     return (
       <div className="space-y-4 text-center">
         <h1 className="text-2xl" style={{ fontFamily: 'var(--font-serif)' }}>
-          Catégorie introuvable
+          {t('BlogCategoryPage.introuvable')}
         </h1>
         <Link to="/blog" className="font-semibold hover:underline" style={{ color: C.orange }}>
-          ← Retour au blog
+          {t('commun.retourAuBlog')}
         </Link>
       </div>
     );
@@ -36,7 +40,7 @@ export function BlogCategoryPage() {
   return (
     <div className="space-y-8">
       <Link to="/blog" className="text-[15px] hover:underline" style={{ color: C.grayFg }}>
-        ← Tous les articles
+        {t('BlogCategoryPage.tousLesArticles')}
       </Link>
 
       {/* En-tête du thème */}
@@ -70,17 +74,17 @@ export function BlogCategoryPage() {
           ))}
         </div>
       ) : (
-        <p style={{ color: C.grayFg }}>Aucun article dans cette catégorie pour le moment.</p>
+        <p style={{ color: C.grayFg }}>{t('BlogCategoryPage.aucunArticle')}</p>
       )}
 
       {/* Explorer les autres thèmes */}
       <div className="border-t pt-6" style={{ borderColor: C.border }}>
         <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.blue, opacity: 0.7 }}>
-          Explorer les autres thèmes
+          {t('BlogCategoryPage.autresThemes')}
         </p>
         <div className="flex flex-wrap gap-2.5">
           {others.map((c) => {
-            const t = categoryTone(c);
+            const ton = categoryTone(c);
             const CIcon = c.icon;
             return (
               <Link
@@ -89,7 +93,7 @@ export function BlogCategoryPage() {
                 className="inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[15px] font-medium transition-colors hover:bg-[var(--muted)]"
                 style={{ borderColor: C.border, color: C.ink }}
               >
-                <span className="flex h-5 w-5 items-center justify-center rounded-md" style={{ background: t.soft, color: t.fg }}>
+                <span className="flex h-5 w-5 items-center justify-center rounded-md" style={{ background: ton.soft, color: ton.fg }}>
                   <CIcon className="h-3.5 w-3.5" />
                 </span>
                 {c.stepLabel}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   IconEnregistrer,
   IconCompte,
@@ -25,8 +26,10 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { isValidPhone } from '@/lib/phone';
 import { ROUTES } from '@/constants/routes';
 import { RAPPEL_DELAIS_DEFAUT, type NotificationPreferences } from '@/types';
+import { SelecteurLangue } from '@/i18n/SelecteurLangue';
 
 export function ProfilePage() {
+  const { t } = useTranslation(['compte', 'common']);
   const user = useAuthStore((s) => s.user);
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const logout = useAuthStore((s) => s.logout);
@@ -48,12 +51,12 @@ export function ProfilePage() {
 
   const handlePhoneChange = (value: string) => {
     setForm({ ...form, telephone: value });
-    setPhoneError(value && !isValidPhone(value) ? 'Numéro invalide (ex : 06 12 34 56 78)' : null);
+    setPhoneError(value && !isValidPhone(value) ? t('ProfilePage.numeroInvalide') : null);
   };
 
   const handleSave = async () => {
     if (!isValidPhone(form.telephone)) {
-      setPhoneError('Numéro invalide (ex : 06 12 34 56 78)');
+      setPhoneError(t('ProfilePage.numeroInvalide'));
       return;
     }
     setSaving(true);
@@ -63,9 +66,9 @@ export function ProfilePage() {
         nom: form.nom,
         telephone: form.telephone || undefined,
       });
-      toast.success('Profil mis à jour');
+      toast.success(t('ProfilePage.profilMisAJour'));
     } catch (e: any) {
-      toast.error(e.message || 'Erreur lors de la mise à jour');
+      toast.error(e.message || t('ProfilePage.erreurMiseAJour'));
     } finally {
       setSaving(false);
     }
@@ -76,10 +79,10 @@ export function ProfilePage() {
     try {
       await authService.requestPasswordReset(currentUser.email);
       setResetState('sent');
-      toast.success('Email envoyé');
+      toast.success(t('ProfilePage.emailEnvoye'));
     } catch (e: any) {
       setResetState('idle');
-      toast.error(e.message || "Impossible d'envoyer l'email pour le moment");
+      toast.error(e.message || t('ProfilePage.erreurEnvoiEmail'));
     }
   };
 
@@ -89,7 +92,12 @@ export function ProfilePage() {
   };
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
+  const salutation =
+    hour < 12
+      ? 'ProfilePage.salutationMatin'
+      : hour < 18
+        ? 'ProfilePage.salutationApresMidi'
+        : 'ProfilePage.salutationSoir';
   const initials = `${currentUser.prenom?.[0] ?? ''}${currentUser.nom?.[0] ?? ''}`.toUpperCase();
   const complete = completion.percent >= 100;
 
@@ -118,19 +126,24 @@ export function ProfilePage() {
               style={{ color: C.blue }}
             >
               <span aria-hidden style={{ width: 25, height: 2, borderRadius: 2, background: C.orange }} />
-              Mon espace
+              {t('ProfilePage.monEspace')}
             </span>
             <h1
               className="mt-1.5 text-[clamp(1.7rem,3.5vw,2.4rem)] leading-[1.05]"
               style={{ fontFamily: 'var(--font-serif)', color: C.ink }}
             >
-              {greeting}, <span style={{ color: C.blue }}>{currentUser.prenom}</span>
+              <Trans
+                t={t}
+                i18nKey={salutation}
+                values={{ prenom: currentUser.prenom }}
+                components={{ accent: <span style={{ color: C.blue }} /> }}
+              />
             </h1>
 
             <div className="mt-3 flex flex-wrap items-center gap-2.5">
               <span className="inline-flex items-center gap-1.5 text-[14.5px]" style={{ color: C.grayMuted }}>
                 <IconSucces className="h-3.5 w-3.5" style={{ color: complete ? C.orange : C.grayMuted }} />
-                {complete ? 'Profil complet' : 'Profil presque complet'}
+                {complete ? t('ProfilePage.profilComplet') : t('ProfilePage.profilPresqueComplet')}
               </span>
             </div>
           </div>
@@ -139,28 +152,28 @@ export function ProfilePage() {
         {/* Corps : formulaire modifiable */}
         <div className="space-y-5 border-t border-border bg-card px-6 py-6 sm:px-8">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="prenom" label="Prénom" icon={<IconCompte className="h-4 w-4" />}>
+            <Field id="prenom" label={t('commun.prenom')} icon={<IconCompte className="h-4 w-4" />}>
               <Input id="prenom" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} className={inputCls} />
             </Field>
-            <Field id="nom" label="Nom" icon={<IconCompte className="h-4 w-4" />}>
+            <Field id="nom" label={t('commun.nom')} icon={<IconCompte className="h-4 w-4" />}>
               <Input id="nom" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} className={inputCls} />
             </Field>
-            <Field id="telephone" label="Téléphone" icon={<IconTelephone className="h-4 w-4" />}>
+            <Field id="telephone" label={t('ProfilePage.telephone')} icon={<IconTelephone className="h-4 w-4" />}>
               <Input
                 id="telephone"
                 value={form.telephone}
                 onChange={(e) => handlePhoneChange(e.target.value)}
-                placeholder="06 12 34 56 78"
+                placeholder={t('ProfilePage.placeholderTelephone')}
                 className={`${inputCls}${phoneError ? ' border-destructive focus:border-destructive focus:ring-destructive/10' : ''}`}
               />
               {phoneError && <p className="mt-1 text-[14px] text-destructive">{phoneError}</p>}
               {!form.telephone && !phoneError && (
                 <p className="mt-1 text-[14px]" style={{ color: C.grayMuted }}>
-                  Recommandé pour être joignable sur vos dossiers.
+                  {t('ProfilePage.telephoneRecommande')}
                 </p>
               )}
             </Field>
-            <Field id="email" label="Adresse email" icon={<IconContact className="h-4 w-4" />} hint="Non modifiable">
+            <Field id="email" label={t('ProfilePage.adresseEmail')} icon={<IconContact className="h-4 w-4" />} hint={t('ProfilePage.nonModifiable')}>
               <div className="flex h-11 items-center rounded-md border border-dashed border-border bg-[var(--secondary)]/40 px-3 text-[17px] text-muted-foreground">
                 <span className="truncate">{currentUser.email}</span>
               </div>
@@ -175,10 +188,10 @@ export function ProfilePage() {
               style={{ background: C.blue }}
             >
               <IconEnregistrer className="h-4 w-4" strokeWidth={1.8} />
-              {saving ? 'Enregistrement…' : 'Enregistrer mes informations'}
+              {saving ? t('common:etats.enregistrement') : t('ProfilePage.enregistrerInformations')}
             </button>
             <span className="text-[14.5px]" style={{ color: C.grayMuted }}>
-              Vos informations restent privées et servent à préremplir vos dossiers.
+              {t('ProfilePage.informationsPrivees')}
             </span>
           </div>
         </div>
@@ -191,27 +204,26 @@ export function ProfilePage() {
       <Panel>
         <PanelHeader
           icon={<IconProtection className="h-4 w-4 text-primary" strokeWidth={1.8} />}
-          title="Sécurité & connexion"
+          title={t('ProfilePage.securite')}
         />
         <div className="px-6 py-5">
           {resetState === 'sent' ? (
             <div className="flex items-start gap-3 rounded-xl p-4" style={{ background: C.paleBlue }}>
               <IconSucces className="mt-0.5 h-5 w-5 shrink-0" style={{ color: C.blue }} />
               <div className="text-[16px]" style={{ color: C.ink }}>
-                <p className="font-medium">Un email vient d'être envoyé à {currentUser.email}.</p>
+                <p className="font-medium">{t('ProfilePage.emailEnvoyeA', { email: currentUser.email })}</p>
                 <p className="mt-1" style={{ color: C.grayFg }}>
-                  Ouvrez-le et cliquez sur le lien pour choisir un nouveau mot de passe. Pensez à vérifier vos courriers indésirables.
+                  {t('ProfilePage.ouvrirLien')}
                 </p>
                 <button onClick={handleReset} className="mt-2 text-[15px] font-medium underline" style={{ color: C.blue }}>
-                  Renvoyer l'email
+                  {t('ProfilePage.renvoyerEmail')}
                 </button>
               </div>
             </div>
           ) : (
             <>
               <p className="text-[16px]" style={{ color: C.grayFg }}>
-                Votre compte est protégé. Pour changer votre mot de passe, nous vous envoyons un lien
-                sécurisé par email — rien à retenir.
+                {t('ProfilePage.securiteIntro')}
               </p>
               <button
                 onClick={handleReset}
@@ -220,10 +232,24 @@ export function ProfilePage() {
                 style={{ borderColor: C.border, color: C.blue }}
               >
                 <IconContact className="h-4 w-4" />
-                {resetState === 'sending' ? 'Envoi en cours…' : 'Recevoir un lien par email'}
+                {resetState === 'sending' ? t('ProfilePage.envoiEnCours') : t('ProfilePage.recevoirLien')}
               </button>
             </>
           )}
+        </div>
+      </Panel>
+
+      {/* ═════════ LANGUE ═════════ */}
+      <Panel>
+        <PanelHeader
+          icon={<IconReglages className="h-4 w-4 text-primary" strokeWidth={1.8} />}
+          title={t('common:langue.libelle')}
+        />
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-5">
+          <p className="text-[16px]" style={{ color: C.grayFg }}>
+            {t('ProfilePage.langueIntro')}
+          </p>
+          <SelecteurLangue className="text-[16px]" />
         </div>
       </Panel>
 
@@ -231,24 +257,23 @@ export function ProfilePage() {
       <Panel>
         <PanelHeader
           icon={<IconReglages className="h-4 w-4 text-primary" strokeWidth={1.8} />}
-          title="Visites guidées"
+          title={t('ProfilePage.visites')}
         />
         <div className="px-6 py-5">
           <p className="text-[16px]" style={{ color: C.grayFg }}>
-            Chaque écran se présente en quelques bulles à votre première visite. Vous pouvez les
-            revoir : elles se rejoueront à votre prochain passage sur chaque écran.
+            {t('ProfilePage.visitesIntro')}
           </p>
           <button
             type="button"
             onClick={() => {
               reinitialiserGuides()
-                .then(() => toast.success('Les visites guidées se rejoueront'))
-                .catch(() => toast.error('Impossible de réinitialiser les visites pour le moment'));
+                .then(() => toast.success(t('ProfilePage.visitesReinitialisees')))
+                .catch(() => toast.error(t('ProfilePage.visitesErreur')));
             }}
             className="mt-3 inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-[16px] font-semibold transition-colors hover:bg-[var(--secondary)]"
             style={{ borderColor: C.border, color: C.blue }}
           >
-            Revoir les visites guidées
+            {t('ProfilePage.revoirVisites')}
           </button>
         </div>
       </Panel>
@@ -261,12 +286,11 @@ export function ProfilePage() {
         <Panel>
           <PanelHeader
             icon={<IconReglages className="h-4 w-4 text-primary" strokeWidth={1.8} />}
-            title="Administration du catalogue"
+            title={t('ProfilePage.administration')}
           />
           <div className="px-6 py-5">
             <p className="text-[16px]" style={{ color: C.grayFg }}>
-              Retirer une aide du catalogue, reformuler une question du questionnaire. Les
-              modifications s'appliquent au prochain chargement de page des utilisateurs.
+              {t('ProfilePage.administrationIntro')}
             </p>
             <Link
               to={ROUTES.ADMIN}
@@ -274,7 +298,7 @@ export function ProfilePage() {
               style={{ borderColor: C.border, color: C.blue }}
             >
               <IconReglages className="h-4 w-4" />
-              Ouvrir l'administration
+              {t('ProfilePage.ouvrirAdministration')}
             </Link>
           </div>
         </Panel>
@@ -288,7 +312,7 @@ export function ProfilePage() {
           style={{ borderColor: C.border, color: C.danger }}
         >
           <IconDeconnexion className="h-4 w-4" />
-          Se déconnecter
+          {t('common:actions.seDeconnecter')}
         </button>
       </div>
     </div>
@@ -305,6 +329,7 @@ export function ProfilePage() {
 const PALIERS_PROPOSES = [60, 30, 15, 7, 3, 1];
 
 function RappelsPanel() {
+  const { t } = useTranslation('compte');
   const user = useAuthStore((s) => s.user);
   const save = useAuthStore((s) => s.updateNotificationPreferences);
   // Les emails sont vendus avec Veille et Multi-monuments. Sur l'offre
@@ -324,7 +349,7 @@ function RappelsPanel() {
     try {
       await save(updates);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Réglage non enregistré');
+      toast.error(e instanceof Error ? e.message : t('ProfilePage.reglageNonEnregistre'));
     } finally {
       setPending(null);
     }
@@ -335,7 +360,7 @@ function RappelsPanel() {
     // Retirer le dernier palier reviendrait à couper les rappels sans le dire :
     // c'est l'interrupteur au-dessus qui sert à ça.
     if (actif && delais.length === 1) {
-      toast.info('Gardez au moins un rappel, ou désactivez-les entièrement.');
+      toast.info(t('ProfilePage.garderUnRappel'));
       return;
     }
     const suivant = actif ? delais.filter((d) => d !== jours) : [...delais, jours];
@@ -346,22 +371,22 @@ function RappelsPanel() {
     <Panel>
       <PanelHeader
         icon={<IconEcheance className="h-4 w-4 text-primary" strokeWidth={1.8} />}
-        title="Rappels par email"
+        title={t('ProfilePage.rappels')}
       />
       {!rappelsInclus && (
         <div className="px-6 pt-5">
-          <OffreUpsell offre="Veille" action="recevoir ces emails sur les aides de vos projets" />
+          <OffreUpsell offre="Veille" action={t('ProfilePage.rappelsUpsell')} />
         </div>
       )}
       <div className="divide-y divide-border">
         <Reglage
-          titre="Échéances qui approchent"
-          description="Un email le matin quand la date limite de dépôt d'une aide identifiée sur vos projets se rapproche."
+          titre={t('ProfilePage.echeances')}
+          description={t('ProfilePage.echeancesDescription')}
           checked={prefs.rappelsEcheances}
           onChange={(v) => patch({ rappelsEcheances: v })}
         >
           <p className="mb-2 text-[15px]" style={{ color: C.grayFg }}>
-            Me prévenir&nbsp;:
+            {t('ProfilePage.mePrevenir')}
           </p>
           <div className="flex flex-wrap gap-2">
             {PALIERS_PROPOSES.map((jours) => {
@@ -379,7 +404,7 @@ function RappelsPanel() {
                       : { borderColor: C.border, color: C.grayMuted }
                   }
                 >
-                  {jours === 1 ? '1 jour avant' : `${jours} jours avant`}
+                  {t('ProfilePage.joursAvant', { count: jours })}
                 </button>
               );
             })}
@@ -387,8 +412,8 @@ function RappelsPanel() {
         </Reglage>
 
         <Reglage
-          titre="Aides qui deviennent disponibles"
-          description="Un email quand une aide à laquelle un de vos projets peut prétendre devient déposable : une nouvelle aide ajoutée au catalogue, ou une aide de « Disponibles bientôt » dont le dépôt ouvre ou rouvre."
+          titre={t('ProfilePage.ouvertures')}
+          description={t('ProfilePage.ouverturesDescription')}
           checked={prefs.rappelsOuvertures}
           onChange={(v) => patch({ rappelsOuvertures: v })}
         />
@@ -404,6 +429,7 @@ function RappelsPanel() {
  * build sans PostHog : on ne propose pas de refuser ce qui n'a pas lieu.
  */
 function MesureAudiencePanel() {
+  const { t } = useTranslation('compte');
   const [refusee, setRefusee] = useState(mesureRefusee);
   if (!clePostHog()) return null;
 
@@ -411,11 +437,11 @@ function MesureAudiencePanel() {
     <Panel>
       <PanelHeader
         icon={<IconProtection className="h-4 w-4 text-primary" strokeWidth={1.8} />}
-        title="Mesure d'audience"
+        title={t('ProfilePage.mesureAudience')}
       />
       <Reglage
-        titre="Participer aux statistiques anonymes"
-        description="Les pages consultées et les étapes franchies, sans cookie et sans rien qui permette de savoir qui vous êtes. Elles nous montrent où l'application se comprend mal. Ce choix vaut pour ce navigateur."
+        titre={t('ProfilePage.statistiques')}
+        description={t('ProfilePage.statistiquesDescription')}
         checked={!refusee}
         onChange={(participe) => {
           enregistrerRefusMesure(!participe);

@@ -1,3 +1,4 @@
+import { localeIntl } from '@/i18n/format';
 import type { Document, PieceDemandee, ProjectDigest } from '@/types';
 
 /**
@@ -74,7 +75,7 @@ export function piecesADeposer(p: PerimetrePieces): PieceADeposer[] {
     (a, b) =>
       Number(a.deposee) - Number(b.deposee) ||
       b.nbAides - a.nbAides ||
-      a.nom.localeCompare(b.nom, 'fr'),
+      a.nom.localeCompare(b.nom, localeIntl()),
   );
 }
 

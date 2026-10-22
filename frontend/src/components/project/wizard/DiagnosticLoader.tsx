@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Clover } from '@/components/illustrations';
 import { C, SERIF } from '@/lib/brand';
 
 const MESSAGES = [
-  'Analyse de votre monument…',
-  'Recherche des aides correspondantes…',
-  'Préparation de votre diagnostic…',
-];
+  'DiagnosticLoader.messages.analyse',
+  'DiagnosticLoader.messages.recherche',
+  'DiagnosticLoader.messages.preparation',
+] as const;
 
 const STEP_MS = 1800;
 
@@ -16,11 +17,12 @@ const STEP_MS = 1800;
  * l'attente vivante sans fausse barre de progression.
  */
 export function DiagnosticLoader() {
+  const { t } = useTranslation('project');
   const [i, setI] = useState(0);
 
   useEffect(() => {
-    const t = setInterval(() => setI((v) => Math.min(v + 1, MESSAGES.length - 1)), STEP_MS);
-    return () => clearInterval(t);
+    const minuteur = setInterval(() => setI((v) => Math.min(v + 1, MESSAGES.length - 1)), STEP_MS);
+    return () => clearInterval(minuteur);
   }, []);
 
   return (
@@ -34,7 +36,7 @@ export function DiagnosticLoader() {
       </span>
       <div className="space-y-2">
         <h2 className="text-[clamp(1.3rem,3vw,1.7rem)]" style={{ fontFamily: SERIF, color: C.ink }}>
-          Un instant…
+          {t('DiagnosticLoader.titre')}
         </h2>
         <p
           key={i}
@@ -42,11 +44,11 @@ export function DiagnosticLoader() {
           style={{ color: C.grayFg }}
           aria-live="polite"
         >
-          {MESSAGES[i]}
+          {t(MESSAGES[i])}
         </p>
       </div>
       <p className="text-[15px]" style={{ color: C.grayMuted }}>
-        Quelques secondes suffisent.
+        {t('DiagnosticLoader.quelquesSecondes')}
       </p>
     </div>
   );

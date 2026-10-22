@@ -1,13 +1,7 @@
+import { useTranslation } from 'react-i18next';
 import { CadrageStep, CadrageTile } from './CadrageStep';
 import { PERIL_RATTRAPAGE_STEP } from './etapes';
 import { ETATS_CONSERVATION, type EtatConservation } from '@/constants/monument-options';
-
-const HINTS: Record<EtatConservation, string> = {
-  bon: "Le monument est globalement sain, même s'il demande des travaux d'entretien courants.",
-  moyen: 'Des désordres existent mais ne menacent ni la structure ni le clos couvert.',
-  mauvais: 'Des désordres significatifs affectent la structure ou le clos couvert.',
-  peril: "Structure fragilisée, hors d'eau non assuré, effondrement partiel, désordres qui s'aggravent.",
-};
 
 interface PerilStepProps {
   /** `null` tant que la question n'a pas de réponse. */
@@ -41,22 +35,23 @@ export function PerilStep({
   onBack,
   saving,
 }: PerilStepProps) {
+  const { t } = useTranslation('project');
   return (
     <CadrageStep
       rubrique={PERIL_RATTRAPAGE_STEP.label}
-      title="Quel est l'état du monument ?"
-      pourquoi="En péril ou en mauvais état général : structure fragilisée, hors d'eau non assuré, effondrement partiel, désordres qui s'aggravent. Plusieurs dispositifs d'urgence ne s'adressent qu'à ces situations."
+      title={t('PerilStep.titre')}
+      pourquoi={t('PerilStep.pourquoi')}
       onNext={onNext}
       onBack={onBack}
       nextDisabled={value === null}
-      nextHint="Choisissez une réponse."
+      nextHint={t('consignes.choisissezUneReponse')}
       saving={saving}
     >
       {ETATS_CONSERVATION.map((etat) => (
         <CadrageTile
           key={etat.value}
           label={etat.label}
-          hint={HINTS[etat.value]}
+          hint={t(`PerilStep.indices.${etat.value}`)}
           selected={value === etat.value}
           onSelect={() => onChange(etat.value)}
         />

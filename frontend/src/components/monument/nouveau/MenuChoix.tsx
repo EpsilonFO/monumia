@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { basculerChoix, libelleChoix, type GroupeChoix } from '@/lib/fiche-monument';
 
@@ -41,6 +42,7 @@ export function MenuChoix({
   onEffacerTexteLibre,
   notePanel,
 }: MenuChoixProps) {
+  const { t } = useTranslation(['monuments', 'common']);
   const [ouvert, setOuvert] = useState(false);
   const [requete, setRequete] = useState('');
   const racine = useRef<HTMLDivElement>(null);
@@ -155,7 +157,7 @@ export function MenuChoix({
           setOuvert((o) => !o);
         }}
       >
-        <span className="sr">{label} : </span>
+        <span className="sr">{t('MenuChoix.libelleLecteur', { label })}</span>
         {pastilles}
       </button>
 
@@ -165,8 +167,8 @@ export function MenuChoix({
             <div className="srch">
               <input
                 type="search"
-                placeholder="Rechercher"
-                aria-label="Rechercher dans la liste"
+                placeholder={t('common:actions.rechercher')}
+                aria-label={t('MenuChoix.rechercherAria')}
                 value={requete}
                 onChange={(e) => setRequete(e.target.value)}
               />
@@ -175,7 +177,7 @@ export function MenuChoix({
           {notePanel && <p className="pnote">{notePanel}</p>}
           <div className="opts">
             {groupesVisibles.length === 0 ? (
-              <p className="none">Aucun résultat.</p>
+              <p className="none">{t('MenuChoix.aucunResultat')}</p>
             ) : (
               groupesVisibles.map((g) => (
                 <div key={g.titre || '_'}>
@@ -206,11 +208,11 @@ export function MenuChoix({
             <div className="panel-f">
               <span>
                 {valeurs.length
-                  ? `${valeurs.length} choisi${valeurs.length > 1 ? 's' : ''}`
-                  : 'Aucun choix'}
+                  ? t('MenuChoix.choisis', { count: valeurs.length })
+                  : t('MenuChoix.aucunChoix')}
               </span>
               <button type="button" onClick={() => fermer(true)}>
-                Valider
+                {t('common:actions.valider')}
               </button>
             </div>
           )}

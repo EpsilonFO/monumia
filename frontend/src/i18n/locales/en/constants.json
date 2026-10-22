@@ -1,0 +1,334 @@
+{
+  "aideCategories": {
+    "categories": {
+      "etat_drac": "State (DRAC)",
+      "region": "Region",
+      "departement": "Department",
+      "fondation": "Foundation",
+      "europe": "Europe",
+      "mecenat": "Patronage",
+      "fiscalite": "Tax",
+      "autre": "Other"
+    },
+    "types": {
+      "subvention": "Grant",
+      "appel_a_projets": "Call for projects",
+      "pret": "Loan",
+      "deduction_fiscale": "Tax deduction",
+      "exoneration": "Exemption",
+      "label": "Label",
+      "mecenat": "Patronage",
+      "souscription": "Public fundraising appeal"
+    }
+  },
+  "dossierSteps": {
+    "etapes": {
+      "initialisation": {
+        "label": "Getting started",
+        "description": "Gathering the basic information and identifying the supporting documents required"
+      },
+      "constitution": {
+        "label": "Preparation",
+        "description": "Collecting the documents and writing the sections of the application"
+      },
+      "verification": {
+        "label": "Review",
+        "description": "Reading through the complete application and checking it meets the requirements"
+      },
+      "pret": {
+        "label": "Ready to submit",
+        "description": "The application is complete and ready for submission"
+      },
+      "soumis": {
+        "label": "Submitted",
+        "description": "The application has been submitted manually by the project lead"
+      }
+    },
+    "statuts": {
+      "brouillon": "Draft",
+      "en_cours": "In progress",
+      "complet": "Complete",
+      "pret": "Ready to submit",
+      "soumis": "Submitted"
+    },
+    "checklist": {
+      "fourni": "Provided",
+      "repris": "Carried over (to be checked)",
+      "en_attente": "Pending",
+      "manquant": "Missing"
+    }
+  },
+  "familles": {
+    "restauration_bati": {
+      "label": "Building restoration",
+      "hint": "Works on the building, protected or not, and its fixed furnishings."
+    },
+    "energie_climat": {
+      "label": "Energy and climate",
+      "hint": "Energy retrofit, heating, bio-based materials."
+    },
+    "eau_nature_domaine": {
+      "label": "Water, nature and grounds",
+      "hint": "Watercourses, moats, biodiversity, woodland, orchards, hedgerows."
+    },
+    "securite_risques": {
+      "label": "Safety and risks",
+      "hint": "Fire, lightning, flooding, security, making safe."
+    },
+    "parcs_jardins_paysages": {
+      "label": "Parks, gardens and landscapes",
+      "hint": "Parks and gardens, notable trees, landscapes, surroundings."
+    },
+    "hebergement_touristique": {
+      "label": "Tourist accommodation",
+      "hint": "Gîtes, B&Bs, hotel, campsite, group accommodation."
+    },
+    "tourisme_visite": {
+      "label": "Visitor site and tourism",
+      "hint": "Opening to visitors, touring routes, tourism events."
+    },
+    "activite_economique_lieu": {
+      "label": "Business activity on site",
+      "hint": "Conversion, community hub, shop or craft business on site."
+    },
+    "spectacles_manifestations": {
+      "label": "Performances and events",
+      "hint": "Festivals, seasons, residencies, hosted events."
+    },
+    "vie_locale_associative": {
+      "label": "Local and community life",
+      "hint": "Community associations, local festivities, remembrance, regional cultures."
+    },
+    "mediation_numerique_expositions": {
+      "label": "Interpretation, exhibitions, museum, digital",
+      "hint": "Signage, exhibition design, exhibitions, museum, digital."
+    },
+    "accessibilite_publics": {
+      "label": "Accessibility and visitor welcome",
+      "hint": "Accessibility, disability, visitor comfort."
+    },
+    "etudes_ingenierie": {
+      "label": "Studies and engineering",
+      "hint": "Preliminary studies, surveys, engineering, project owner support (AMO)."
+    },
+    "labels_passerelles": {
+      "label": "Labels and gateways",
+      "hint": "Labels and schemes that open the way to other funding."
+    }
+  },
+  "fileTypes": {
+    "formatNonAutorise": "File format not allowed (.{{extension}}). Accepted formats: {{formats}}.",
+    "mimeNonAutorise": "MIME type not allowed ({{type}}).",
+    "tropVolumineux": "File too large (max {{max}} MB)."
+  },
+  "metiers": {
+    "groupes": {
+      "proprietaire": "Owner & project lead",
+      "architectes": "Architects & design consultancies",
+      "artisans": "Craftspeople & conservators",
+      "administration": "State administration & oversight",
+      "financement": "Funding & legal advice"
+    },
+    "familles": {
+      "proprietaire": "Owner or project lead",
+      "architecte": "Architect or design consultancy",
+      "artisan": "Craftsperson or conservator",
+      "administration": "State administration or oversight",
+      "financement": "Funding or advice",
+      "autre": "Other"
+    }
+  },
+  "monumentOptions": {
+    "protection": {
+      "classe": "Listed historic monument (classé)",
+      "inscrit": "Registered historic monument (inscrit)",
+      "abords": "Within the surroundings of an MH (abords)",
+      "spr": "Outstanding heritage site (SPR)",
+      "non_protege": "Not protected"
+    },
+    "protectionLongue": {
+      "classe": "Listed historic monument (classé)",
+      "inscrit": "Registered historic monument (inscrit)",
+      "abords": "Within the surroundings of an MH",
+      "spr": "Outstanding heritage site",
+      "non_protege": "Not protected"
+    },
+    "protectionCourte": {
+      "classe": "Listed MH",
+      "inscrit": "Registered MH",
+      "abords": "MH surroundings",
+      "spr": "Outstanding heritage site",
+      "non_protege": "Not protected"
+    },
+    "proprietaire": {
+      "public_commune": "Municipality",
+      "public_epci": "Intercommunal authority (EPCI)",
+      "public_departement": "Department",
+      "public_region": "Region",
+      "public_etat": "State",
+      "syndicat_mixte": "Joint authority / Regional nature park",
+      "prive_personne_physique": "Private owner (individual)",
+      "prive_sci": "SCI (property holding company)",
+      "association": "Association",
+      "mixte": "Mixed ownership"
+    },
+    "etatsConservation": {
+      "bon": "Good condition",
+      "moyen": "Fair condition",
+      "mauvais": "Poor condition",
+      "peril": "At risk"
+    },
+    "typesEdifice": {
+      "eglise": "Church, cathedral, basilica",
+      "chapelle": "Chapel",
+      "abbaye_couvent": "Abbey, priory, convent",
+      "temple": "Protestant church (temple)",
+      "synagogue": "Synagogue",
+      "croix_calvaire": "Cross, calvary",
+      "autre_religieux": "Other religious building",
+      "chateau": "Château, castle",
+      "manoir_demeure": "Manor house, residence",
+      "hotel_particulier": "Town mansion (hôtel particulier)",
+      "maison": "House",
+      "edifice_public": "Public building",
+      "hopital": "Hospital, almshouse, Hôtel-Dieu",
+      "halle": "Market hall, covered market",
+      "patrimoine_industriel": "Industrial heritage",
+      "ferme": "Farm, barn, agricultural building",
+      "moulin": "Mill",
+      "lavoir_fontaine": "Wash house, fountain",
+      "pigeonnier": "Dovecote",
+      "petit_patrimoine": "Oven, well, minor heritage",
+      "fortification": "Fortification, rampart, town gate",
+      "pont": "Bridge, aqueduct, engineering structure",
+      "jardin": "Park, garden",
+      "site_archeologique": "Archaeological site, megalith",
+      "monument_aux_morts": "War memorial",
+      "monument_commemoratif": "Statue, commemorative monument",
+      "autre": "Other"
+    },
+    "typesEdificeIndices": {
+      "autre_religieux": "Oratory, cemetery, mosque…",
+      "maison": "Town or village house, birthplace…",
+      "edifice_public": "Town hall, school, theatre, law courts…",
+      "patrimoine_industriel": "Factory, forge, mine, railway station…",
+      "petit_patrimoine": "Bread oven, well, trough, bandstand…",
+      "autre": "None of these types applies"
+    },
+    "urgence": {
+      "faible": "Low",
+      "moyenne": "Moderate",
+      "haute": "High",
+      "critique": "Critical"
+    },
+    "travaux": {
+      "charpente": "Timber framing",
+      "couverture": "Roofing",
+      "facade": "Façade",
+      "maconnerie": "Masonry",
+      "vitraux": "Stained glass",
+      "peintures_murales": "Wall paintings",
+      "menuiserie": "Joinery",
+      "electricite": "Electrical work",
+      "plomberie": "Plumbing",
+      "chauffage": "Heating",
+      "accessibilite": "Accessibility",
+      "mise_en_securite": "Making safe",
+      "etude_prealable": "Preliminary study",
+      "mobilier": "Furnishings",
+      "archives": "Archives and documents",
+      "orgues": "Organs",
+      "parcs_jardins": "Parks and gardens",
+      "protection_solaire": "Solar shading",
+      "ventilation": "Ventilation",
+      "exploitation_agricole": "Farming operation",
+      "foret": "Woodland and forest access",
+      "eau_milieux_aquatiques": "Water and aquatic habitats",
+      "equipement_numerique": "Digital equipment"
+    },
+    "groupesTravaux": {
+      "closEtCouvert": "Building envelope",
+      "decorsEtObjets": "Decoration and objects",
+      "installationsTechniques": "Building services",
+      "etudes": "Studies",
+      "abordsEtDomaine": "Surroundings and grounds",
+      "equipement": "Equipment"
+    },
+    "materiaux": {
+      "pierre": "Stone",
+      "brique": "Brick",
+      "bois": "Wood",
+      "ardoise": "Slate",
+      "tuile": "Tile",
+      "lauze": "Stone slabs (lauze)",
+      "chaume": "Thatch",
+      "zinc": "Zinc",
+      "plomb": "Lead",
+      "verre": "Glass",
+      "metal": "Metal",
+      "torchis": "Wattle and daub",
+      "enduit": "Render",
+      "autre": "Other"
+    },
+    "couvertures": {
+      "toitALongsPans": "Pitched roof",
+      "toitAUnPan": "Single-pitch roof",
+      "croupe": "Hip",
+      "demiCroupe": "Half-hip",
+      "croupeRonde": "Rounded hip",
+      "pavillon": "Pavilion roof",
+      "toitBrise": "Broken-pitch roof",
+      "toitBriseALongsPans": "Broken-pitch roof with long slopes",
+      "toitBriseEnPavillon": "Broken-pitch pavilion roof",
+      "fleche": "Spire",
+      "flechePolygonale": "Polygonal spire",
+      "flecheCarree": "Square spire",
+      "dome": "Dome",
+      "domeAPans": "Faceted dome",
+      "coupole": "Cupola",
+      "bulbe": "Onion dome",
+      "toitEnCarene": "Ship’s-keel roof",
+      "terrasse": "Flat roof",
+      "combleALaMansart": "Mansard roof",
+      "pignonCouvert": "Covered gable",
+      "pignonDecouvert": "Parapet gable",
+      "noue": "Valley",
+      "appentis": "Lean-to",
+      "shed": "Sawtooth roof",
+      "flecheDeHautClocher": "Steeple spire"
+    },
+    "affectataires": {
+      "culte": "Worship",
+      "mairie": "Town hall / Municipal services",
+      "habitation": "Residential",
+      "musee": "Museum",
+      "tourisme": "Tourism / Visits",
+      "enseignement": "Education",
+      "commercial": "Commercial activity",
+      "non_affecte": "Not in use / Vacant",
+      "autre": "Other"
+    },
+    "peril": {
+      "enPeril": "At risk",
+      "pasEnPeril": "Not at risk"
+    }
+  },
+  "raisons": {
+    "restauration_travaux": {
+      "label": "Restore or carry out works",
+      "hint": "Roof, façade, structure, interior, bringing up to standard."
+    },
+    "valorisation_rayonnement": {
+      "label": "Bring the place to life and open it up",
+      "hint": "Visits, events, cultural or tourism activity."
+    },
+    "etude_ingenierie": {
+      "label": "Prepare the project",
+      "hint": "Studies, surveys, project management ahead of the works."
+    },
+    "fiscalite": {
+      "label": "Make the most of tax relief",
+      "hint": "Deductions, exemptions, heritage tax schemes."
+    }
+  }
+}

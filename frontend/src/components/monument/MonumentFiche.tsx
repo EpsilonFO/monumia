@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { IconSupprimer } from '@/components/icons';
 import { Picto } from '@/components/shared/ecrans/Picto';
 import { formatDate } from '@/lib/date-utils';
@@ -16,37 +17,27 @@ import type { Monument } from '@/types';
 
 // L'en-tête de la fiche énonce le statut comme le fait l'arrêté — « Classé au
 // titre des monuments historiques », et non le libellé court des badges. C'est
-// la seule page où il se lit en entier ; ailleurs la place manque.
-const PROTECTION_ENONCE: Record<string, string> = {
-  classe: 'Classé au titre des monuments historiques',
-  inscrit: 'Inscrit au titre des monuments historiques',
-  abords: "Situé aux abords d'un monument historique",
-  spr: 'En site patrimonial remarquable',
-  non_protege: 'Non protégé',
-};
+// la seule page où il se lit en entier ; ailleurs la place manque. Sous la même
+// clé, `protectionPhrase` dit ce que ce statut change pour le propriétaire.
+const CLES_PROTECTION = {
+  classe: 'classe',
+  inscrit: 'inscrit',
+  abords: 'abords',
+  spr: 'spr',
+  non_protege: 'nonProtege',
+} as const;
 
-// Ce que ce statut change concrètement pour le propriétaire, en une phrase.
-const PROTECTION_PHRASE: Record<string, string> = {
-  classe: "Le plus haut niveau de protection au titre des monuments historiques : les aides de l'État vous sont largement ouvertes.",
-  inscrit: 'Une protection officielle qui ouvre droit à de nombreuses aides publiques.',
-  abords: "Le bien se trouve dans le périmètre protégé d'un monument historique.",
-  spr: 'Un site reconnu pour la valeur de son patrimoine architectural et paysager.',
-  non_protege: 'Pas encore de protection officielle. Certaines aides restent néanmoins accessibles.',
-};
+function cleProtection(protection: string) {
+  return Object.hasOwn(CLES_PROTECTION, protection)
+    ? CLES_PROTECTION[protection as keyof typeof CLES_PROTECTION]
+    : undefined;
+}
 
-const PERIL_PHRASE = {
-  oui: "Les dispositifs d'urgence, loto du patrimoine et fonds régionaux de sauvegarde, ne s'adressent qu'aux monuments dans cette situation.",
-  non: "Le monument est globalement sain. Les aides d'urgence ne vous concernent pas, les dispositifs de restauration courante restent ouverts.",
-  inconnu: "La question n'a pas encore été posée. Y répondre ouvre ou écarte les dispositifs d'urgence.",
-};
+const TYPES_PHOTO = ['facade', 'interieur', 'detail', 'aerien', 'degradation'] as const;
 
-const PHOTO_TYPE_LABELS: Record<string, string> = {
-  facade: 'Façade',
-  interieur: 'Intérieur',
-  detail: 'Détail',
-  aerien: 'Vue aérienne',
-  degradation: 'Dégradation',
-};
+function estTypePhotoLibelle(type: string): type is (typeof TYPES_PHOTO)[number] {
+  return (TYPES_PHOTO as readonly string[]).includes(type);
+}
 
 /* ------------------------------------------------------------------ */
 /* Briques                                                             */
@@ -140,6 +131,7 @@ interface MonumentFicheProps {
 export function MonumentFiche({
   monument, canEdit, onEdit, canDelete, deleting, onDelete,
 }: MonumentFicheProps) {
+  const { t } = useTranslation('monuments');
   // La photo de profil illustre déjà l'en-tête : pas de doublon dans la galerie.
   // Sans lien signé, l'image serait cassée (bucket privé) : on l'écarte.
   const galerie = (monument.photos ?? []).filter((p) => p.type !== 'profil' && p.signedUrl);
@@ -147,34 +139,39 @@ export function MonumentFiche({
 
   // Un bien non protégé peut garder d'anciennes dates en base : on ne les montre pas.
   const dateArrete = monument.protection !== 'non_protege' && monument.dateProtection
-    ? `Arrêté du ${formatDate(monument.dateProtection)}`
+    ? t('MonumentFiche.arrete', { date: formatDate(monument.dateProtection) })
     : undefined;
 
   const typesLibelles = libellesTypesEdifice(monument);
   const proprietairesLibelles = libellesProprietaires(monument);
+  const cle = cleProtection(monument.protection);
+  const typePhoto = (type: string) =>
+    estTypePhotoLibelle(type) ? t(`MonumentFiche.typePhoto.${type}`) : undefined;
 
   // Identification : seuls les champs renseignés apparaissent.
   type FaitFiche = { label: string; value: string | string[] };
   const faits = ([
-    monument.commune && { label: 'Commune', value: monument.commune },
-    monument.departement && { label: 'Département', value: monument.departement },
+    monument.commune && { label: t('MonumentFiche.commune'), value: monument.commune },
+    monument.departement && { label: t('MonumentFiche.departement'), value: monument.departement },
     typesLibelles.length > 0 && {
-      label: typesLibelles.length > 1 ? "Types d'édifice" : "Type d'édifice",
+      label: t('MonumentFiche.typesEdifice', { count: typesLibelles.length }),
       value: typesLibelles,
     },
     // Une précision ne s'affiche que sous un type où elle a un sens : le
     // serveur l'efface quand le type change, le moteur ne la lit pas ailleurs.
     affectationApplicable(monument) && typeof monument.affecteAuCulte === 'boolean' && {
-      label: 'Affectation au culte',
-      value: monument.affecteAuCulte ? 'Toujours affecté au culte' : 'Désaffecté',
+      label: t('MonumentFiche.affectationCulte'),
+      value: monument.affecteAuCulte
+        ? t('MonumentFiche.toujoursAffecte')
+        : t('MonumentFiche.desaffecte'),
     },
     monument.siecleConstruction && {
-      label: 'Siècle de construction',
+      label: t('MonumentFiche.siecleConstruction'),
       // Les données Mérimée arrivent parfois sous la forme « 12e s.;13e s. ».
       value: monument.siecleConstruction.split(';').map((s) => s.trim()).filter(Boolean).join(' · '),
     },
     proprietairesLibelles.length > 0 && {
-      label: proprietairesLibelles.length > 1 ? 'Propriétaires' : 'Propriétaire',
+      label: t('MonumentFiche.proprietaires', { count: proprietairesLibelles.length }),
       value: proprietairesLibelles,
     },
   ] as (FaitFiche | false | '' | undefined)[]).filter((f): f is FaitFiche => Boolean(f));
@@ -183,37 +180,37 @@ export function MonumentFiche({
     <div className="fm">
       <div className="sec-h">
         <div>
-          <h2>La fiche du monument</h2>
-          <p>Ce qui décrit le bien. Elle vaut pour tous vos projets sur ce monument.</p>
+          <h2>{t('MonumentFiche.titre')}</h2>
+          <p>{t('MonumentFiche.sousTitre')}</p>
         </div>
         {canEdit && (
           <button type="button" className="btn b-line b-sm" onClick={onEdit}>
             <Picto nom="crayon" />
-            Modifier la fiche
+            {t('MonumentFiche.modifierFiche')}
           </button>
         )}
       </div>
 
-      <section className="fm-statuts" aria-label="Protection et état sanitaire">
+      <section className="fm-statuts" aria-label={t('MonumentFiche.statutsAria')}>
         <Statut
-          titre="Protection"
-          enonce={PROTECTION_ENONCE[monument.protection]
-            ?? PROTECTION_LABELS[monument.protection]
-            ?? monument.protection}
+          titre={t('MonumentFiche.protection')}
+          enonce={cle
+            ? t(`MonumentFiche.protectionEnonce.${cle}`)
+            : (PROTECTION_LABELS[monument.protection] ?? monument.protection)}
           note={dateArrete}
-          phrase={PROTECTION_PHRASE[monument.protection] ?? ''}
+          phrase={cle ? t(`MonumentFiche.protectionPhrase.${cle}`) : ''}
         />
         <Statut
-          titre="État sanitaire"
-          enonce={enPeril === null ? 'État non renseigné' : (perilLabel(monument.etatConservation) ?? '')}
-          phrase={enPeril === null ? PERIL_PHRASE.inconnu : enPeril ? PERIL_PHRASE.oui : PERIL_PHRASE.non}
+          titre={t('MonumentFiche.etatSanitaire')}
+          enonce={enPeril === null ? t('MonumentFiche.etatNonRenseigne') : (perilLabel(monument.etatConservation) ?? '')}
+          phrase={t(`MonumentFiche.perilPhrase.${enPeril === null ? 'inconnu' : enPeril ? 'oui' : 'non'}`)}
           ton={enPeril === null ? 'inconnu' : enPeril ? 'alerte' : 'ok'}
         />
       </section>
 
       {faits.length > 0 && (
         <section className="fm-carte" aria-labelledby="fm-id">
-          <h3 id="fm-id">Identification</h3>
+          <h3 id="fm-id">{t('MonumentFiche.identification')}</h3>
           <dl className="fm-faits">
             {faits.map((f) => <Fait key={f.label} label={f.label} value={f.value} />)}
           </dl>
@@ -222,40 +219,46 @@ export function MonumentFiche({
 
       {monument.descriptionGenerale && (
         <section className="fm-carte" aria-labelledby="fm-desc">
-          <h3 id="fm-desc">Description de la protection</h3>
+          <h3 id="fm-desc">{t('MonumentFiche.descriptionProtection')}</h3>
           <Description text={monument.descriptionGenerale} />
         </section>
       )}
 
       {galerie.length > 0 && (
         <section className="fm-carte" aria-labelledby="fm-photos">
-          <h3 id="fm-photos">Photos</h3>
+          <h3 id="fm-photos">{t('MonumentFiche.photos')}</h3>
           <div className="fm-galerie">
-            {galerie.map((p) => (
+            {galerie.map((p) => {
+              const libelleType = typePhoto(p.type);
+              return (
               <figure key={p.url}>
                 <div className="fm-img">
                   <img src={p.signedUrl} alt={p.legende || monument.nom} loading="lazy" />
                 </div>
-                {(p.legende || PHOTO_TYPE_LABELS[p.type]) && (
+                {(p.legende || libelleType) && (
                   <figcaption>
-                    {PHOTO_TYPE_LABELS[p.type] && <b>{PHOTO_TYPE_LABELS[p.type]}</b>}
-                    {p.legende && <span>{PHOTO_TYPE_LABELS[p.type] ? ', ' : ''}{p.legende}</span>}
+                    {libelleType && <b>{libelleType}</b>}
+                    {p.legende && <span>{libelleType ? ', ' : ''}{p.legende}</span>}
                   </figcaption>
                 )}
               </figure>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
 
       <div className="fm-pied">
         <p>
-          Fiche créée le {formatDate(monument.createdAt)}, modifiée le {formatDate(monument.updatedAt)}.
+          {t('MonumentFiche.dates', {
+            creation: formatDate(monument.createdAt),
+            modification: formatDate(monument.updatedAt),
+          })}
         </p>
         {canDelete && (
           <button type="button" className="btn b-sm fm-suppr" onClick={onDelete} disabled={deleting}>
             {deleting ? <Loader2 className="i animate-spin" /> : <IconSupprimer className="i" strokeWidth={1.8} />}
-            Supprimer le monument
+            {t('MonumentFiche.supprimer')}
           </button>
         )}
       </div>

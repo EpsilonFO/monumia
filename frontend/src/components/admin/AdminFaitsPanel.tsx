@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { IconAjouter, IconRecherche, IconSupprimer } from '@/components/icons';
 import {
@@ -49,12 +50,13 @@ const A_OPTIONS = new Set(['enum', 'multi_enum', 'boolean']);
  *  `OPTIONS_BOOLEEN_IMPLICITES` et de la règle R1 du serveur. */
 const IDS_BOOLEEN_FIGES = new Set(['oui', 'non']);
 
-/** Les trois entrées du sélecteur de valeur, dans l'ordre d'affichage. */
+/** Les trois entrées du sélecteur de valeur, dans l'ordre d'affichage. Le
+ *  libellé se traduit au rendu (`AdminFaitsPanel.valeurs.<cle>`). */
 const VALEURS = [
-  { cle: 'oui', valeur: true as boolean | null, label: 'Oui' },
-  { cle: 'non', valeur: false as boolean | null, label: 'Non' },
-  { cle: 'neutre', valeur: null as boolean | null, label: 'Ne tranche pas' },
-];
+  { cle: 'oui', valeur: true as boolean | null },
+  { cle: 'non', valeur: false as boolean | null },
+  { cle: 'neutre', valeur: null as boolean | null },
+] as const;
 
 const cleValeur = (valeur: boolean | null | undefined) =>
   valeur === true ? 'oui' : valeur === false ? 'non' : 'neutre';
@@ -81,6 +83,7 @@ function brouillonDe(fait: AdminFait): Brouillon {
  * citent une réponse qu'on s'apprête à retirer.
  */
 export function AdminFaitsPanel({ onErreur }: Props) {
+  const { t } = useTranslation(['admin', 'common']);
   const [faits, setFaits] = useState<AdminFait[]>([]);
   const [chargement, setChargement] = useState(true);
   const [recherche, setRecherche] = useState('');
@@ -99,14 +102,14 @@ export function AdminFaitsPanel({ onErreur }: Props) {
       .then((lignes) => {
         if (!annule) setFaits(lignes);
       })
-      .catch((err) => onErreur(err, 'Ontologie indisponible'))
+      .catch((err) => onErreur(err, t('AdminFaitsPanel.ontologieIndisponible')))
       .finally(() => {
         if (!annule) setChargement(false);
       });
     return () => {
       annule = true;
     };
-  }, [onErreur]);
+  }, [onErreur, t]);
 
   const visibles = useMemo(() => filtrerFaits(faits, recherche), [faits, recherche]);
   const ouvert = faits.find((f) => f.key === keyOuverte) ?? null;
@@ -133,12 +136,12 @@ export function AdminFaitsPanel({ onErreur }: Props) {
       setImpact(resultat);
       return resultat;
     } catch (err) {
-      onErreur(err, 'Impact indisponible');
+      onErreur(err, t('AdminPanneaux.impactIndisponible'));
       return null;
     } finally {
       setSimulation(false);
     }
-  }, [ouvert, brouillon, editable, onErreur]);
+  }, [ouvert, brouillon, editable, onErreur, t]);
 
   const idsInvalides = brouillon
     ? brouillon.options.filter((o) => !ID_VALIDE.test(o.id)).map((o) => o.id)
@@ -176,9 +179,11 @@ export function AdminFaitsPanel({ onErreur }: Props) {
         ? await adminService.surchargerFait(ouvert.key, payload)
         : await adminService.retablirFait(ouvert.key);
       remplacer(fait);
-      toast.success(payload ? 'Question mise à jour' : 'Question revenue à sa version d’origine');
+      toast.success(
+        payload ? t('AdminFaitsPanel.toastMiseAJour') : t('AdminFaitsPanel.toastRetablie'),
+      );
     } catch (err) {
-      onErreur(err, 'Enregistrement impossible');
+      onErreur(err, t('AdminPanneaux.enregistrementImpossible'));
     } finally {
       setEnregistrement(false);
     }
@@ -190,9 +195,9 @@ export function AdminFaitsPanel({ onErreur }: Props) {
     setEnregistrement(true);
     try {
       remplacer(await adminService.retablirFait(ouvert.key));
-      toast.success('Question revenue à sa version d’origine');
+      toast.success(t('AdminFaitsPanel.toastRetablie'));
     } catch (err) {
-      onErreur(err, 'Rétablissement impossible');
+      onErreur(err, t('AdminPanneaux.retablissementImpossible'));
     } finally {
       setEnregistrement(false);
     }
@@ -223,7 +228,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
         <Input
           value={recherche}
           onChange={(e) => setRecherche(e.target.value)}
-          placeholder="Rechercher une question (clé, texte, réponse)…"
+          placeholder={t('AdminFaitsPanel.recherche')}
           className="h-10 pl-9 text-[16px]"
         />
       </div>
@@ -231,10 +236,10 @@ export function AdminFaitsPanel({ onErreur }: Props) {
       <div className="grid gap-4 lg:grid-cols-[1fr_480px]">
         <div className="max-h-[70vh] space-y-2 overflow-y-auto rounded-xl border border-border bg-card p-2">
           {chargement ? (
-            <p className="px-2 py-8 text-center text-[16px] text-muted-foreground">Chargement…</p>
+            <p className="px-2 py-8 text-center text-[16px] text-muted-foreground">{t('common:etats.chargement')}</p>
           ) : visibles.length === 0 ? (
             <p className="px-2 py-8 text-center text-[16px] text-muted-foreground">
-              Aucune question ne correspond à votre recherche.
+              {t('AdminFaitsPanel.aucunResultat')}
             </p>
           ) : (
             visibles.map((fait) => (
@@ -251,10 +256,12 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                   {faitEffectif(fait).question}
                 </p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  {fait.surcharge && <Badge>Surchargée</Badge>}
-                  {fait.pending && <Badge variant="outline">En attente</Badge>}
+                  {fait.surcharge && <Badge>{t('AdminFaitsPanel.badges.surchargee')}</Badge>}
+                  {fait.pending && (
+                    <Badge variant="outline">{t('AdminFaitsPanel.badges.enAttente')}</Badge>
+                  )}
                   <span className="text-[13.5px] text-muted-foreground">
-                    {fait.nbAides} aide{fait.nbAides > 1 ? 's' : ''}
+                    {t('AdminFaitsPanel.nbAides', { count: fait.nbAides })}
                   </span>
                 </div>
               </button>
@@ -265,13 +272,13 @@ export function AdminFaitsPanel({ onErreur }: Props) {
         <aside className="h-fit space-y-4 rounded-xl border border-border bg-card p-5">
           {!ouvert || !brouillon ? (
             <p className="text-[16px] text-muted-foreground">
-              Sélectionnez une question pour reformuler son texte ou ses réponses.
+              {t('AdminFaitsPanel.selectionner')}
             </p>
           ) : (
             <>
               <div>
                 <h2 className="text-[19px]" style={{ fontFamily: SERIF, color: C.ink }}>
-                  Reformuler la question
+                  {t('AdminFaitsPanel.reformuler')}
                 </h2>
                 <p className="font-mono text-[13.5px] text-muted-foreground">{ouvert.key}</p>
               </div>
@@ -285,19 +292,21 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                   className="rounded-lg px-3 py-2 text-[14.5px]"
                   style={{ background: C.paleBlue, color: C.blue }}
                 >
-                  Posée seulement si{' '}
-                  <span className="font-mono">{ouvert.pertinentSi.fact}</span>{' '}
-                  <span className="font-mono">
-                    {JSON.stringify(ouvert.pertinentSi.predicate)}
-                  </span>
-                  . Cette dépendance est déclarée sur le fait dans{' '}
-                  <span className="font-mono">facts.yaml</span> et ne se modifie pas ici.
+                  <Trans
+                    t={t}
+                    i18nKey="AdminFaitsPanel.poseeSeulementSi"
+                    values={{
+                      fait: ouvert.pertinentSi.fact,
+                      predicat: JSON.stringify(ouvert.pertinentSi.predicate),
+                    }}
+                    components={{ code: <span className="font-mono" /> }}
+                  />
                 </p>
               )}
 
               <div className="space-y-1.5">
                 <label htmlFor="question-fait" className="text-[15px] font-medium text-foreground">
-                  Question posée
+                  {t('AdminFaitsPanel.questionPosee')}
                 </label>
                 <Textarea
                   id="question-fait"
@@ -308,28 +317,30 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                 />
                 {brouillon.question.trim() !== ouvert.original.question && (
                   <p className="text-[13.5px] text-muted-foreground">
-                    Original&nbsp;: {ouvert.original.question}
+                    {t('AdminFaitsPanel.original', { texte: ouvert.original.question })}
                   </p>
                 )}
               </div>
 
               <div className="space-y-1.5">
                 <label htmlFor="help-fait" className="text-[15px] font-medium text-foreground">
-                  Aide contextuelle
+                  {t('AdminFaitsPanel.aideContextuelle')}
                 </label>
                 <Textarea
                   id="help-fait"
                   value={brouillon.help}
                   onChange={(e) => setBrouillon({ ...brouillon, help: e.target.value })}
                   rows={2}
-                  placeholder="Facultative — affichée sous la question."
+                  placeholder={t('AdminFaitsPanel.aideContextuellePlaceholder')}
                   className="text-[16px]"
                 />
               </div>
 
               {editable ? (
                 <div className="space-y-2">
-                  <p className="text-[15px] font-medium text-foreground">Réponses possibles</p>
+                  <p className="text-[15px] font-medium text-foreground">
+                    {t('AdminFaitsPanel.reponsesPossibles')}
+                  </p>
                   {brouillon.options.map((option, index) => {
                     const originale = labelOriginal(option.id);
                     const nouvelle = originale === undefined;
@@ -343,7 +354,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                               value={option.id}
                               onChange={(e) => majOption(index, { id: e.target.value })}
                               placeholder="identifiant_technique"
-                              aria-label="Identifiant de la réponse"
+                              aria-label={t('AdminFaitsPanel.identifiantAria')}
                               className="h-8 w-44 font-mono text-[14px]"
                             />
                           ) : (
@@ -353,8 +364,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                           )}
                           {figee ? (
                             <span className="ml-auto text-[13.5px] text-muted-foreground">
-                              Non supprimable&nbsp;: les réponses déjà enregistrées s’appuient
-                              dessus.
+                              {t('AdminFaitsPanel.nonSupprimable')}
                             </span>
                           ) : (
                             <button
@@ -365,7 +375,9 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                                   options: brouillon.options.filter((_, i) => i !== index),
                                 })
                               }
-                              aria-label={`Supprimer la réponse ${option.label || option.id}`}
+                              aria-label={t('AdminFaitsPanel.supprimerReponseAria', {
+                                reponse: option.label || option.id,
+                              })}
                               className="ml-auto rounded-md p-1.5 transition-colors hover:bg-destructive-muted"
                             >
                               <IconSupprimer className="h-4 w-4" style={{ color: C.danger }} />
@@ -375,17 +387,17 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                         <Input
                           value={option.label}
                           onChange={(e) => majOption(index, { label: e.target.value })}
-                          aria-label="Libellé de la réponse"
+                          aria-label={t('AdminFaitsPanel.libelleAria')}
                           className="h-9 text-[16px]"
                         />
                         {originale !== undefined && originale !== option.label && (
                           <p className="text-[13.5px] text-muted-foreground">
-                            Original&nbsp;: {originale}
+                            {t('AdminFaitsPanel.original', { texte: originale })}
                           </p>
                         )}
                         {booleen && (
                           <label className="flex items-center gap-2 text-[14.5px] text-muted-foreground">
-                            <span className="shrink-0">Valeur envoyée au moteur</span>
+                            <span className="shrink-0">{t('AdminFaitsPanel.valeurMoteur')}</span>
                             <Select
                               value={cleValeur(option.valeur)}
                               disabled={figee}
@@ -399,14 +411,16 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                             >
                               <SelectTrigger
                                 className="h-8 w-44 text-[15px]"
-                                aria-label={`Valeur envoyée au moteur pour la réponse ${option.label || option.id}`}
+                                aria-label={t('AdminFaitsPanel.valeurMoteurAria', {
+                                  reponse: option.label || option.id,
+                                })}
                               >
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
                                 {VALEURS.map((v) => (
                                   <SelectItem key={v.cle} value={v.cle}>
-                                    {v.label}
+                                    {t(`AdminFaitsPanel.valeurs.${v.cle}`)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -421,7 +435,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                             disabled={booleen && option.valeur !== null && option.valeur !== undefined}
                             onCheckedChange={(v) => majOption(index, { unknown: v === true })}
                           />
-                          Réponse neutre (n’écarte aucune aide)
+                          {t('AdminFaitsPanel.reponseNeutre')}
                         </label>
                       </div>
                     );
@@ -445,27 +459,32 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                     style={{ color: C.blue }}
                   >
                     <IconAjouter className="h-3.5 w-3.5" />
-                    Ajouter une réponse
+                    {t('AdminFaitsPanel.ajouterReponse')}
                   </button>
 
                   {idsInvalides.length > 0 && (
                     <p className="text-[14.5px]" style={{ color: C.danger }}>
-                      Un identifiant ne contient que des minuscules, des chiffres et des tirets bas.
+                      {t('AdminFaitsPanel.identifiantInvalide')}
                     </p>
                   )}
                 </div>
               ) : (
                 <p className="rounded-lg bg-secondary px-3 py-2.5 text-[14.5px] text-muted-foreground">
-                  Les tranches d’un fait <span className="font-mono">{ouvert.type}</span> sont
-                  calculées par le moteur à partir des seuils des aides&nbsp;: seuls la question et
-                  son aide contextuelle se modifient ici.
+                  <Trans
+                    t={t}
+                    i18nKey="AdminFaitsPanel.tranchesCalculees"
+                    values={{ type: ouvert.type }}
+                    components={{ code: <span className="font-mono" /> }}
+                  />
                 </p>
               )}
 
               {editable && (
                 <div className="space-y-2 rounded-lg border border-border p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[15px] font-medium text-foreground">Impact sur les aides</p>
+                    <p className="text-[15px] font-medium text-foreground">
+                      {t('AdminFaitsPanel.impactSurAides')}
+                    </p>
                     <button
                       type="button"
                       onClick={simuler}
@@ -473,7 +492,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                       className="text-[14.5px] font-medium underline disabled:opacity-50"
                       style={{ color: C.blue }}
                     >
-                      {simulation ? 'Calcul…' : 'Vérifier l’impact'}
+                      {simulation ? t('AdminPanneaux.calcul') : t('AdminPanneaux.verifierImpact')}
                     </button>
                   </div>
 
@@ -484,12 +503,19 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                         onClick={() => deplier(ligne.id)}
                         className="w-full text-left text-muted-foreground hover:text-foreground"
                       >
-                        <span className="font-mono text-[13px]">{ligne.id}</span>{' '}
-                        {ligne.unknown
-                          ? '— réponse neutre, n’écarte aucune aide'
-                          : ouvert.type === 'boolean' && (ligne.valeur ?? null) === null
-                            ? '— ne tranche pas, n’écarte aucune aide'
-                            : `— écarte ${ligne.ecarte.length} aide${ligne.ecarte.length > 1 ? 's' : ''}`}
+                        <Trans
+                          t={t}
+                          i18nKey={
+                            ligne.unknown
+                              ? 'AdminFaitsPanel.impact.neutre'
+                              : ouvert.type === 'boolean' && (ligne.valeur ?? null) === null
+                                ? 'AdminFaitsPanel.impact.netranchePas'
+                                : 'AdminFaitsPanel.impact.ecarte'
+                          }
+                          values={{ id: ligne.id }}
+                          count={ligne.ecarte.length}
+                          components={{ code: <span className="font-mono text-[13px]" /> }}
+                        />
                       </button>
                       {deplies.has(ligne.id) && ligne.ecarte.length > 0 && (
                         <ul className="ml-3 mt-1 list-disc space-y-0.5 pl-3 text-muted-foreground">
@@ -508,11 +534,19 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                       style={{ background: C.paleOrange, color: C.ink }}
                     >
                       <button type="button" onClick={() => deplier(ligne.id)} className="text-left">
-                        <span className="font-mono text-[13px]">{ligne.id}</span> supprimée —
-                        référencée par {ligne.referenceePar.length} aide
-                        {ligne.referenceePar.length > 1 ? 's' : ''}
-                        {ligne.referenceePar.length > 0 &&
-                          ' : ces aides ne pourront plus être ouvertes par cette question.'}
+                        {/* Sans référence, la phrase s'arrête au compte : aucune
+                            aide ne perd sa porte d'entrée. */}
+                        <Trans
+                          t={t}
+                          i18nKey={
+                            ligne.referenceePar.length > 0
+                              ? 'AdminFaitsPanel.supprimee.referencee'
+                              : 'AdminFaitsPanel.supprimee.sansReference'
+                          }
+                          values={{ id: ligne.id }}
+                          count={ligne.referenceePar.length}
+                          components={{ code: <span className="font-mono text-[13px]" /> }}
+                        />
                       </button>
                       {deplies.has(ligne.id) && ligne.referenceePar.length > 0 && (
                         <ul className="ml-3 mt-1 list-disc space-y-0.5 pl-3">
@@ -533,7 +567,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                   className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[16px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: C.blue }}
                 >
-                  {enregistrement ? 'Enregistrement…' : 'Enregistrer'}
+                  {enregistrement ? t('common:etats.enregistrement') : t('common:actions.enregistrer')}
                 </button>
                 {ouvert.surcharge && (
                   <button
@@ -542,7 +576,7 @@ export function AdminFaitsPanel({ onErreur }: Props) {
                     className="text-[15px] font-medium underline"
                     style={{ color: C.grayFg }}
                   >
-                    Rétablir l’original
+                    {t('AdminFaitsPanel.retablirOriginal')}
                   </button>
                 )}
               </div>
@@ -554,16 +588,18 @@ export function AdminFaitsPanel({ onErreur }: Props) {
       <AlertDialog open={confirmRetablir} onOpenChange={setConfirmRetablir}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Rétablir la question d’origine&nbsp;?</AlertDialogTitle>
+            <AlertDialogTitle>{t('AdminFaitsPanel.confirmation.titre')}</AlertDialogTitle>
             <AlertDialogDescription>
-              La reformulation est supprimée et la question revient au texte de{' '}
-              <span className="font-mono">facts.yaml</span>. Les réponses déjà enregistrées par les
-              utilisateurs ne changent pas.
+              <Trans
+                t={t}
+                i18nKey="AdminFaitsPanel.confirmation.description"
+                components={{ code: <span className="font-mono" /> }}
+              />
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={retablir}>Rétablir</AlertDialogAction>
+            <AlertDialogCancel>{t('common:actions.annuler')}</AlertDialogCancel>
+            <AlertDialogAction onClick={retablir}>{t('AdminPanneaux.retablir')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

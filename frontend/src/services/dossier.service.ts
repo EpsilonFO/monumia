@@ -3,6 +3,7 @@ import type {
   DossierStep,
   ChecklistItemStatus,
 } from '@/types';
+import i18n from '@/i18n';
 import { useDossierStore } from '@/stores/useDossierStore';
 import { authFetch, handleResponse } from '@/lib/auth-fetch';
 import { suivre } from '@/lib/posthog';
@@ -235,7 +236,7 @@ export const dossierService = {
    * compte d'un membre) ; on récupère le blob puis on déclenche l'enregistrement
    * via un lien éphémère. `authFetch` est obligatoire : la route est protégée.
    */
-  async downloadArchive(id: string, fallbackName = 'dossier'): Promise<void> {
+  async downloadArchive(id: string, fallbackName = i18n.t('core:dossierService.nomArchive')): Promise<void> {
     const res = await authFetch(`${BASE}/dossiers/${id}/archive`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -246,7 +247,7 @@ export const dossierService = {
     const a = document.createElement('a');
     a.href = url;
     // Un séparateur de chemin dans le nom proposé casse l'enregistrement.
-    a.download = `${fallbackName.replace(/[/\\]+/g, '-').trim() || 'dossier'}.zip`;
+    a.download = `${fallbackName.replace(/[/\\]+/g, '-').trim() || i18n.t('core:dossierService.nomArchive')}.zip`;
     document.body.appendChild(a);
     a.click();
     a.remove();
