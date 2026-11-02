@@ -16,3 +16,5 @@ glob:69202a33e96fb_1763715635.*
 glob:business-plan-partie-technique.*
 regex:^[a-z0-9-]+-[a-z]+-[a-z]+\.md$
 glob:*.DS_Store
+.publicfilter.py
+.publicmessages.txt
