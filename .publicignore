@@ -2,16 +2,14 @@
 # Format git filter-repo --paths-from-file : préfixe littéral, ou glob:/regex:.
 # Modifier ce fichier réécrit l historique du miroir (force-push automatique).
 backend/data/
+docs/
+.claude/
 test_rag/
 .github/
 .superpowers/
-.claude/settings.json
 landing/.env
 backend/.env.beta
 frontend/.env.beta
-docs/superpowers/
-docs/refonte-pipeline/
-glob:docs/retours-questionnaire-*
 glob:69202a33e96fb_1763715635.*
 glob:business-plan-partie-technique.*
 regex:^[a-z0-9-]+-[a-z]+-[a-z]+\.md$
