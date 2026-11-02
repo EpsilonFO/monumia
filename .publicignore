@@ -1,0 +1,5 @@
+# Ce qui ne part JAMAIS vers le miroir public EpsilonFO/monumia.
+# Syntaxe rsync (--exclude-from) : un / initial ancre le motif à la racine.
+/backend/data/
+/.github/
+.DS_Store
